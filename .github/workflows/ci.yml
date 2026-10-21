@@ -44,7 +44,7 @@ jobs:
           git diff --exit-code go.mod go.sum
       - name: Build for every platform
         run: |
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
             GOOS=${target%/*} GOARCH=${target#*/} go build ./... && echo "built $target"
           done
 
@@ -78,6 +78,20 @@ jobs:
         with:
           go-version-file: go.mod
       - run: ${{ matrix.run }}
+
+  # The Windows build and the Go tests of the engine, the state and the commands.
+  # The documentation tools run a POSIX shell and are not part of this job.
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test -count=1 ./internal/... ./cmd/...
 
   # The tools of the documentation: capture, sitegen, hclcheck and the scale
   # benchmark. Their tests start the binary and some of them run tofu.
@@ -184,7 +198,7 @@ jobs:
   # One check to require in the branch protection settings.
   ci:
     if: always()
-    needs: [static, test, tools, docs, demos, opentofu, site]
+    needs: [static, test, windows, tools, docs, demos, opentofu, site]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed

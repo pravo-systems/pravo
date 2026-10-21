@@ -9,7 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
+
+	"pravo.dev/pravo/internal/filelock"
 )
 
 // ErrNotFound is returned by Backend.Get for a missing key.
@@ -172,13 +173,7 @@ func (b *LocalBackend) open(key string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	for {
-		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
-		if err == syscall.EINTR {
-			continue
-		}
-		break
-	}
+	_ = filelock.Lock(f)
 	held, herr := f.Stat()
 	now, nerr := os.Stat(p)
 	switch {

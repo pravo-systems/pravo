@@ -7,7 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"syscall"
+
+	"pravo.dev/pravo/internal/filelock"
 )
 
 // updatePlanFile reads the plan file under an exclusive lock, lets edit change
@@ -82,13 +83,7 @@ func lockPlanFile(path string) (*os.File, error) {
 		if err != nil {
 			return nil, err
 		}
-		for {
-			err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
-			if err == syscall.EINTR {
-				continue
-			}
-			break
-		}
+		_ = filelock.Lock(f)
 		held, herr := f.Stat()
 		now, nerr := os.Stat(path)
 		switch {

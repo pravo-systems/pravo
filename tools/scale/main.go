@@ -23,7 +23,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -86,12 +85,7 @@ func timeCmd(args []string, stderr io.Writer) (int, error) {
 	if cmd.ProcessState != nil {
 		code = cmd.ProcessState.ExitCode()
 		user, sys = cmd.ProcessState.UserTime(), cmd.ProcessState.SystemTime()
-		if ru, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
-			rss = float64(ru.Maxrss) / 1024
-			if runtime.GOOS == "darwin" {
-				rss /= 1024 // Darwin reports bytes, other systems kilobytes
-			}
-		}
+		rss = peakRSS(cmd.ProcessState)
 	} else if err != nil {
 		fmt.Fprintln(stderr, "scale:", err)
 		code = 127

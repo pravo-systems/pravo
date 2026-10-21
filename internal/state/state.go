@@ -32,7 +32,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 )
 
@@ -1415,14 +1414,6 @@ func (s *Store) readLockRaw(addr string) ([]byte, Lock, error) {
 		l.Addr = addr
 	}
 	return data, l, err
-}
-
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	err := syscall.Kill(pid, 0)
-	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 // Renew refreshes a lock this process holds (the heartbeat). The lock is written
