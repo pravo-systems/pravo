@@ -290,7 +290,7 @@ func TestBaseURL(t *testing.T) {
 	mustContain(t, readOut(t, out, "learn/index.html"), `<meta property="og:url" content="https://docs.example.org/pravo/learn/">`, `<meta name="twitter:card" content="summary">`)
 	// 404.html is served at any depth: every path in it starts at the site path.
 	nf := readOut(t, out, "404.html")
-	mustContain(t, nf, `<meta name="robots" content="noindex">`, `<link rel="stylesheet" href="/pravo/assets/style.css">`, `href="/pravo/learn/index.html"`, `data-root="/pravo/"`, `<h1>Page not found</h1>`)
+	mustContain(t, nf, `<meta name="robots" content="noindex">`, `<link rel="stylesheet" href="/pravo/assets/style.css">`, `href="/pravo/learn/"`, `data-root="/pravo/"`, `<h1>Page not found</h1>`)
 	mustNotContain(t, nf, `rel="canonical"`)
 	mustContain(t, readOut(t, out, "learn/index.html"), `<link rel="canonical" href="https://docs.example.org/pravo/learn/">`)
 	mustContain(t, readOut(t, out, "reference/eval.html"), `<link rel="canonical" href="https://docs.example.org/pravo/reference/command-eval.html">`)
@@ -556,5 +556,23 @@ func TestFooterIsOneRow(t *testing.T) {
 	}
 	if !f.Project[0].External {
 		t.Error("the repository link is not marked external")
+	}
+}
+
+func TestPrettyIndexLinks(t *testing.T) {
+	cases := map[string]string{
+		`<a href="index.html">`:                                `<a href="./">`,
+		`<a href="../index.html">`:                             `<a href="../">`,
+		`<a href="learn/index.html">`:                          `<a href="learn/">`,
+		`<a href="../learn/index.html#top">`:                   `<a href="../learn/#top">`,
+		`<a href="learn/a01-intro.html">`:                      `<a href="learn/a01-intro.html">`,
+		`<a href="https://x.org/index.html">`:                  `<a href="https://x.org/index.html">`,
+		`<a href="reference/myindex.html">`:                    `<a href="reference/myindex.html">`,
+		`<link rel="canonical" href="https://pravo.systems/">`: `<link rel="canonical" href="https://pravo.systems/">`,
+	}
+	for in, want := range cases {
+		if got := string(prettyIndexLinks([]byte(in))); got != want {
+			t.Errorf("%s became %s, want %s", in, got, want)
+		}
 	}
 }

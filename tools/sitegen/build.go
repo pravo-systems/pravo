@@ -16,9 +16,31 @@ import (
 // out is a set of files to write below the output directory.
 type outFiles struct {
 	dir string
+	// pretty writes the links to an index.html of the pages as links to the
+	// directory: "../" for "../index.html", "learn/" for "learn/index.html".
+	pretty bool
+}
+
+// indexLinkRe matches a relative link to an index.html, with its fragment or query.
+var indexLinkRe = regexp.MustCompile(`href="((?:[^"#?:]*/)?)index\.html([#?][^"]*)?"`)
+
+// prettyIndexLinks turns the relative links to an index.html into links to its
+// directory. A link to the index.html of the page itself becomes "./".
+func prettyIndexLinks(html []byte) []byte {
+	return indexLinkRe.ReplaceAllFunc(html, func(m []byte) []byte {
+		sub := indexLinkRe.FindSubmatch(m)
+		dir := string(sub[1])
+		if dir == "" {
+			dir = "./"
+		}
+		return []byte(`href="` + dir + string(sub[2]) + `"`)
+	})
 }
 
 func (o *outFiles) write(rel string, data []byte) error {
+	if o.pretty && strings.HasSuffix(rel, ".html") {
+		data = prettyIndexLinks(data)
+	}
 	dst := filepath.Join(o.dir, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err

@@ -137,7 +137,9 @@ func run(o options) error {
 	if err := os.MkdirAll(o.out, 0o755); err != nil {
 		return err
 	}
-	of := &outFiles{dir: o.out}
+	// A site that has an address is served by a web server, where a link to a
+	// directory is the clean form of a link to its index.html.
+	of := &outFiles{dir: o.out, pretty: s.cfg.BaseURL != ""}
 	if err := s.copyStatic(of); err != nil {
 		return err
 	}
