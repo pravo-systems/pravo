@@ -98,14 +98,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: "engine 1/8", run: "sh tools/ci/test-shard.sh ./internal/engine 0 8 -timeout 25m"}
-          - {name: "engine 2/8", run: "sh tools/ci/test-shard.sh ./internal/engine 1 8 -timeout 25m"}
-          - {name: "engine 3/8", run: "sh tools/ci/test-shard.sh ./internal/engine 2 8 -timeout 25m"}
-          - {name: "engine 4/8", run: "sh tools/ci/test-shard.sh ./internal/engine 3 8 -timeout 25m"}
-          - {name: "engine 5/8", run: "sh tools/ci/test-shard.sh ./internal/engine 4 8 -timeout 25m"}
-          - {name: "engine 6/8", run: "sh tools/ci/test-shard.sh ./internal/engine 5 8 -timeout 25m"}
-          - {name: "engine 7/8", run: "sh tools/ci/test-shard.sh ./internal/engine 6 8 -timeout 25m"}
-          - {name: "engine 8/8", run: "sh tools/ci/test-shard.sh ./internal/engine 7 8 -timeout 25m"}
+          - {name: "engine 1/8", run: "sh tools/ci/test-shard.sh ./internal/engine 0 8 -v -timeout 25m"}
+          - {name: "engine 2/8", run: "sh tools/ci/test-shard.sh ./internal/engine 1 8 -v -timeout 25m"}
+          - {name: "engine 3/8", run: "sh tools/ci/test-shard.sh ./internal/engine 2 8 -v -timeout 25m"}
+          - {name: "engine 4/8", run: "sh tools/ci/test-shard.sh ./internal/engine 3 8 -v -timeout 25m"}
+          - {name: "engine 5/8", run: "sh tools/ci/test-shard.sh ./internal/engine 4 8 -v -timeout 25m"}
+          - {name: "engine 6/8", run: "sh tools/ci/test-shard.sh ./internal/engine 5 8 -v -timeout 25m"}
+          - {name: "engine 7/8", run: "sh tools/ci/test-shard.sh ./internal/engine 6 8 -v -timeout 25m"}
+          - {name: "engine 8/8", run: "sh tools/ci/test-shard.sh ./internal/engine 7 8 -v -timeout 25m"}
           - {name: "other packages", run: "go test -count=1 -timeout 25m $(go list ./internal/... ./cmd/... | grep -v '/internal/engine$')"}
     steps:
       - uses: actions/checkout@v4

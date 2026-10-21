@@ -4,6 +4,7 @@ package filelock
 
 import (
 	"errors"
+	"math/rand/v2"
 	"os"
 	"time"
 
@@ -28,17 +29,18 @@ func busy(err error) bool {
 }
 
 // retry runs fn until it succeeds or fails for another reason than a busy file,
-// for up to two seconds.
+// for up to ten seconds. The waits grow and differ from caller to caller, so
+// that callers that collide do not collide again at the same moment.
 func retry(fn func() error) error {
-	deadline := time.Now().Add(2 * time.Second)
-	for wait := 2 * time.Millisecond; ; wait *= 2 {
+	deadline := time.Now().Add(10 * time.Second)
+	for wait := 2 * time.Millisecond; ; {
 		err := fn()
 		if err == nil || !busy(err) || time.Now().After(deadline) {
 			return err
 		}
-		time.Sleep(wait)
-		if wait > 100*time.Millisecond {
-			wait = 100 * time.Millisecond
+		time.Sleep(wait/2 + time.Duration(rand.Int64N(int64(wait))))
+		if wait < 100*time.Millisecond {
+			wait *= 2
 		}
 	}
 }
