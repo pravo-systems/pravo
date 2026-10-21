@@ -140,7 +140,7 @@ Apache-2.0. The protocol definitions under `internal/tfplugin/proto` are license
 
 ## How do I install it?
 
-Build it from a checkout of the repository with Go 1.26 or newer: `go build -o bin/pravo ./cmd/pravo`. There are no published releases. See the [quick start](../how-to/quick-start.md#1-install-pravo).
+Install a release with the script at `https://pravo.systems/install.sh` (macOS and Linux) or `install.ps1` (Windows), or download an archive from the releases page. To build it instead, use a checkout of the repository with Go 1.26 or newer: `go build -o bin/pravo ./cmd/pravo`. See the [quick start](../how-to/quick-start.md#1-install-pravo).
 
 ## Which version is this?
 

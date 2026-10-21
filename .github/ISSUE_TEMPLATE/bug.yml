@@ -1,0 +1,25 @@
+name: Bug
+description: pravo does something that its documentation says it does not.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: The commands you ran, what you expected and what you got. A specification that shows it is best.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: pravo version
+      description: The first two lines of `pravo version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options: [macOS, Linux, Windows, Other]
+    validations:
+      required: true

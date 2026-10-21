@@ -94,6 +94,7 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+      actions: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -113,3 +114,9 @@ jobs:
           flags=""
           [ "${{ needs.version.outputs.prerelease }}" = true ] && flags="--prerelease"
           gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes --title "pravo ${{ needs.version.outputs.version }}" $flags
+      - name: Rebuild the site, which names the newest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A release made with the workflow token does not start other workflows,
+        # but a workflow can be started by hand.
+        run: gh workflow run pages.yml --ref main

@@ -59,6 +59,7 @@
   margin-left: clamp(.25rem, 2vw, 1.5rem);
 }
 .site-nav a {
+  white-space: nowrap;
   position: relative;
   display: inline-flex;
   align-items: center;

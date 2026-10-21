@@ -1,0 +1,58 @@
+name: Pages
+
+# The site is built from main after CI passes, and again by the release
+# workflow, so that the download block names the newest release.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build pravo
+        run: go build -o bin/pravo ./cmd/pravo
+      - name: Data of the newest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh tools/release/site-data.sh site/data/release.json
+      - name: Build the site
+        run: go run ./tools/sitegen -pravo-bin bin/pravo
+      - name: Install scripts and domain
+        run: |
+          cp tools/release/install.sh tools/release/install.ps1 site/public/
+          echo pravo.systems > site/public/CNAME
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

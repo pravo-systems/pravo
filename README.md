@@ -67,9 +67,11 @@ The last command exits with status 6 and starts no provider. `env` accepts `"dev
 
 pravo replaces the OpenTofu language (HCL), the OpenTofu evaluator and the OpenTofu state format. It does not replace providers. It speaks the provider plugin protocol, versions 5 and 6, so the providers on the OpenTofu registry run as they are. pravo has no workspaces, no `-target` and no provisioners; `docs/reference/not-in-pravo.md` names what to use in their place.
 
-## Build and run
+## Install, build and run
 
-Go 1.26 or newer builds pravo. The binary needs neither Go nor OpenTofu to run.
+Install a release with `curl -fsSL https://pravo.systems/install.sh | sh` on macOS and Linux, or `irm https://pravo.systems/install.ps1 | iex` in PowerShell on Windows. The archives, the checksums and the provenance attestations are on the [releases page](https://github.com/pravo-systems/pravo/releases).
+
+Go 1.26 or newer builds pravo from a checkout. The binary needs neither Go nor OpenTofu to run.
 
 ```sh
 go build -o bin/pravo ./cmd/pravo

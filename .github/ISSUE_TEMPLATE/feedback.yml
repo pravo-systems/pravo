@@ -1,0 +1,21 @@
+name: What I found
+description: You took pravo for a spin. Tell me what happened.
+labels: [feedback]
+body:
+  - type: textarea
+    id: found
+    attributes:
+      label: What did you find?
+      description: What you tried, what you expected and what you saw. Plans, errors and the specification you used help most.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: pravo version
+      description: The first two lines of `pravo version`.
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options: [macOS, Linux, Windows, Other]

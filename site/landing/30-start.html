@@ -3,11 +3,28 @@
 <p class="kicker">Take it for a spin</p>
 <h2 class="band-title">Run it, bring your own stack, or learn CUE first.</h2>
 </div>
+<div class="download" data-download>
+<div class="download-main">
+<p class="download-label">Download</p>
+<a class="btn btn-primary btn-lg download-btn" href="{{repo}}/releases/latest" rel="noopener">Download pravo <span class="arrow"></span></a>
+<p class="download-note">Binaries for macOS, Linux and Windows are on the releases page.</p>
+</div>
+<div class="download-install">
+<p class="download-label">Or install from a terminal</p>
+<figure class="term download-term">
+<div class="term-body"><div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text download-cmd">curl -fsSL https://pravo.systems/install.sh | sh</span></div></div>
+<button class="copy" type="button" data-copy="curl -fsSL https://pravo.systems/install.sh | sh" aria-label="Copy command">Copy</button>
+</figure>
+<details class="download-all" hidden><summary>All downloads</summary><ul class="download-list"></ul></details>
+</div>
+<script type="application/json" class="download-data">{{json release}}</script>
+</div>
+<script defer src="assets/download.js"></script>
 <div class="cards start-cards">
 <a class="card spot" href="{{start}}">
 <span class="card-kicker">Run it</span>
 <h3 class="card-title">Run a plan</h3>
-<p class="card-text">Build pravo, write one file, plan it, apply it, change it and destroy it. {{start_minutes}} minutes, with no cloud account.</p>
+<p class="card-text">Install pravo, write one file, plan it, apply it, change it and destroy it. {{start_minutes}} minutes, with no cloud account.</p>
 <span class="card-more">{{start_label}}</span>
 </a>
 <a class="card spot" href="migrate/index.html">

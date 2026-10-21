@@ -34,21 +34,35 @@ The commands are for a POSIX shell.
 
 ## 1. Install pravo
 
-There are no published releases. You build pravo from its source tree, the directory that holds `go.mod` and names the module `pravo.dev/pravo`. Go 1.26 or newer builds it, and the built binary needs no Go installation. pravo starts the provider binaries itself, so OpenTofu is not needed. `pravo init` fetches providers from `registry.opentofu.org`, so the machine needs network access to it once.
+pravo is one file, and it needs no Go installation. It starts the provider binaries itself, so OpenTofu is not needed. `pravo init` fetches providers from `registry.opentofu.org`, so the machine needs network access to it once.
 
-Run this in the root of the source tree:
+On macOS and Linux, the install script downloads the build for your system, checks it against the published checksums and puts `pravo` in `~/.local/bin`:
+
+```sh
+curl -fsSL https://pravo.systems/install.sh | sh
+```
+
+On Windows, in PowerShell:
+
+```powershell
+irm https://pravo.systems/install.ps1 | iex
+```
+
+Both take a version from `PRAVO_VERSION`, such as `v0.1.0`, and a directory from `PRAVO_INSTALL_DIR`. Each build is also on the [releases page](https://github.com/pravo-systems/pravo/releases) as an archive, with a `SHA256SUMS` file and a signed provenance attestation. A browser download on macOS carries the quarantine flag that blocks an unsigned program; `xattr -d com.apple.quarantine pravo` clears it. The install script does not set the flag.
+
+If `pravo` is not found after the install, add the directory that the script names to `PATH`.
+
+To build pravo from its source tree instead, with Go 1.26 or newer, run this in the root of the tree:
 
 ```sh
 go build -o bin/pravo ./cmd/pravo
 ```
 
-The result is the single file `bin/pravo`. Put its directory on `PATH` in the current shell, and add the same line to your shell profile to keep it:
+The result is the single file `bin/pravo`. Put its directory on `PATH`:
 
 ```sh
 export PATH="$PWD/bin:$PATH"
 ```
-
-`go install ./cmd/pravo` installs the binary under the name `pravo` as well. It writes to `$(go env GOBIN)`, or to `$(go env GOPATH)/bin` when `GOBIN` is empty. Put that directory on `PATH`.
 
 Change to an empty directory for the rest of this page, and check the install:
 
@@ -61,9 +75,9 @@ pravo 0.1.0-dev
 cue v0.17.1
 ```
 
-The first line is pravo. The second is the CUE evaluator built into it. You do not install `cue` separately.
+The first line is the version of pravo that you installed, which a release build prints as `pravo 0.1.0`. The second is the CUE evaluator built into it. You do not install `cue` separately.
 
-If the shell answers `command not found: pravo`, the directory that holds the binary is not on `PATH`. Run the `export` line again.
+If the shell answers `command not found: pravo`, the directory that holds the binary is not on `PATH`. Add it, as the install script or the `export` line above says.
 
 ## 2. Write the specification
 
