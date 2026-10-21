@@ -9,6 +9,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"reflect"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -700,6 +701,11 @@ func TestOverlappingAppliesHaveOneWinnerPerNode(t *testing.T) {
 	trials := 200
 	if testing.Short() {
 		trials = 40
+	}
+	if runtime.GOOS == "windows" {
+		// Each trial takes the locks of four applies through files, which is
+		// many times slower there. The logic under test does not depend on the system.
+		trials = 20
 	}
 	const applies = 4
 
