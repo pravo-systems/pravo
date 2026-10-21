@@ -1,0 +1,115 @@
+name: Release
+
+# Push a tag such as v0.1.0 or v0.1.0-rc1. The release has the binaries for
+# Linux, macOS and Windows on amd64 and arm64, a SHA256SUMS file and a signed
+# provenance attestation for each file. A tag with a hyphen is a pre-release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - id: v
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if ! echo "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "The tag $tag is not a version such as v0.1.0 or v0.1.0-rc1"; exit 1
+          fi
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          case "$tag" in *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;; *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;; esac
+
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: [version, ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        target:
+          - {os: linux, arch: amd64}
+          - {os: linux, arch: arm64}
+          - {os: darwin, arch: amd64}
+          - {os: darwin, arch: arm64}
+          - {os: windows, arch: amd64}
+          - {os: windows, arch: arm64}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Package
+        run: sh tools/release/package.sh "${{ needs.version.outputs.version }}" ${{ matrix.target.os }} ${{ matrix.target.arch }} dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pravo_${{ matrix.target.os }}_${{ matrix.target.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  # Each platform that a runner offers runs the binary it was built for.
+  smoke:
+    needs: [version, build]
+    name: smoke (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        include:
+          - {runner: ubuntu-latest, os: linux, arch: amd64, ext: tar.gz}
+          - {runner: macos-latest, os: darwin, arch: arm64, ext: tar.gz}
+          - {runner: windows-latest, os: windows, arch: amd64, ext: zip}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pravo_${{ matrix.os }}_${{ matrix.arch }}
+          path: dl
+      - name: Unpack and run
+        run: |
+          v="${{ needs.version.outputs.version }}"
+          name="pravo_${v}_${{ matrix.os }}_${{ matrix.arch }}"
+          cd dl
+          if [ "${{ matrix.ext }}" = zip ]; then unzip -q "$name.zip"; else tar -xzf "$name.tar.gz"; fi
+          bin="$name/pravo"; [ "${{ matrix.os }}" = windows ] && bin="$name/pravo.exe"
+          out=$("./$bin" version)
+          echo "$out"
+          echo "$out" | head -n 1 | grep -Fx "pravo $v"
+
+  publish:
+    needs: [version, build, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pravo_*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: sh tools/release/checksums.sh dist
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=""
+          [ "${{ needs.version.outputs.prerelease }}" = true ] && flags="--prerelease"
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes --title "pravo ${{ needs.version.outputs.version }}" $flags
