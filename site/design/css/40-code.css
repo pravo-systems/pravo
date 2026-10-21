@@ -20,7 +20,7 @@
 .code[data-status="conflict"], .code[data-status="rejected"], .term[data-status="conflict"], .term[data-status="rejected"] { --status: var(--code-del); }
 .code[data-status="unintended"], .term[data-status="unintended"] { --status: var(--code-chg); }
 
-/* ---- title bar: three dots, a filename tab, a status badge ---- */
+/* ---- title bar: a filename tab and a status badge ---- */
 .code-title {
   display: flex;
   align-items: stretch;
@@ -31,16 +31,6 @@
   border-radius: var(--r) var(--r) 0 0;
   font: 500 .75rem/1 var(--font-mono);
   color: var(--code-dim);
-}
-.code-title::before {
-  content: "";
-  align-self: center;
-  flex: none;
-  width: 7px; height: 7px;
-  margin: 0 31px 0 0;
-  border-radius: 50%;
-  background: #3a424f;
-  box-shadow: 14px 0 0 #3a424f, 28px 0 0 #3a424f;
 }
 .code-file {
   display: inline-flex;
@@ -101,7 +91,7 @@
 
 @media (max-width: 41rem) {
   .code-title { padding-left: 0; padding-right: 2.9rem; }
-  .code-title::before, .code-ran { display: none; }
+  .code-ran { display: none; }
   .code-file { padding: 0 .85rem; }
   .code-badge { flex: none; margin-left: auto; letter-spacing: .05em; }
 }
@@ -256,7 +246,6 @@ html:not(.js) .copy { display: none; }
 .compare > .code, .compare > .term { margin: 0; display: flex; flex-direction: column; }
 .compare > .code .code-body { flex: 1; }
 .compare .code-title { padding-right: 3.25rem; }
-.compare .code-title::before { display: none; }
 @media (max-width: 51.24rem) {
   .compare { grid-template-columns: minmax(0, 1fr); }
 }

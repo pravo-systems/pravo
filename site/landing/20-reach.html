@@ -2,63 +2,41 @@
 <div class="band-head">
 <p class="kicker">Plans and applies</p>
 <h2 class="band-title">Change one resource. <em>Read one resource.</em></h2>
-<p class="band-lede">OpenTofu reads every resource in the state on every plan. pravo starts at your change, follows the recorded dependencies and reads what the change reaches. These are its default settings.</p>
+<p class="band-lede">OpenTofu reads every resource in the state on every plan. pravo starts at your change, follows the recorded dependencies and reads what the change reaches.</p>
 </div>
 
+<p class="reach-scenario">Change one value in an estate of {{data scale.blocks.7.output}} resources, then run a plan. How many resources does each tool read from the cloud?</p>
 <div class="reach-compare">
 <div class="reach-side">
-<p class="reach-name">OpenTofu</p>
-<dl class="stats"><div class="stat"><dt>resources read from their providers</dt><dd data-countup="{{data scale.blocks.4.output}}">{{data scale.blocks.4.output}}</dd></div></dl>
-<figure class="term" data-exit="0">
-<figcaption class="code-title"><span class="code-file">tofu plan</span></figcaption>
-<div class="term-body">
-<pre class="term-out"><code>{{data scale.blocks.2.output}}</code></pre>
-</div>
-</figure>
+<p class="reach-name">OpenTofu reads</p>
+<dl class="stats"><div class="stat"><dt>of {{data scale.blocks.7.output}} resources</dt><dd data-countup="{{data scale.blocks.4.output}}">{{data scale.blocks.4.output}}</dd></div></dl>
 </div>
 <div class="reach-side reach-side-pravo">
-<p class="reach-name">pravo</p>
-<dl class="stats"><div class="stat"><dt>resources read from their providers</dt><dd data-countup="{{data scale.blocks.3.output}}">{{data scale.blocks.3.output}}</dd></div></dl>
-<figure class="term" data-exit="0">
-<figcaption class="code-title"><span class="code-file">pravo plan</span></figcaption>
-<div class="term-body">
-<pre class="term-out"><code>{{data scale.blocks.1.output}}</code></pre>
-</div>
-</figure>
+<p class="reach-name">pravo reads</p>
+<dl class="stats"><div class="stat"><dt>of {{data scale.blocks.7.output}} resources</dt><dd data-countup="{{data scale.blocks.3.output}}">{{data scale.blocks.3.output}}</dd></div></dl>
 </div>
 </div>
-<p class="stage-caption reach-caption">The same estate written for each tool: local files in one state, applied, then one value changed. pravo ran with its default settings. Both plans propose the same change. In the Graph line, <code>refreshed</code> means read from the provider and <code>not read</code> means left alone.</p>
+<p class="stage-caption reach-caption">Both plans propose the same change; pravo ran with default settings. <a href="concepts/state.html#cost-follows-the-change">How reads are counted</a>.</p>
 
 <p class="kicker reach-sub">Why it matters</p>
 <div class="cards reach-why">
 <a class="card spot" href="concepts/plans.html#scoped-plans">
 <span class="card-kicker">Reach</span>
-<h3 class="card-title">Short plans, short applies</h3>
-<p class="card-text">Each record names the resources it depends on. A plan starts at your change and follows those dependencies for as long as a value changes. It looks at what the change can touch and leaves the rest alone. You review a plan about your change, and the apply locks and writes only that.</p>
+<h3 class="card-title">Reads follow the change</h3>
+<p class="card-text">A plan starts at your change and follows the recorded dependencies. It reads what the change reaches, and the apply locks and writes only that. The requests it sends to your cloud depend on the change, not on the size of the estate. Drift in a resource it does not reach is found by <code>pravo drift</code> or by a plan that does.</p>
 <span class="card-more">What a plan reaches</span>
 </a>
 <a class="card spot" href="concepts/plans.html#choosing-a-refresh-age">
 <span class="card-kicker">Refresh age</span>
-<h3 class="card-title">A staleness budget</h3>
-<p class="card-text">Each record remembers when its provider was last asked, and the refresh age says how stale it may be before it is read again. A plan that looks at a record within its age does not ask again, so repeated plans cost fewer calls. A resource can set its own age as a standing promise, and a scheduled <code>pravo drift --due</code> reads the records that are past theirs, oldest first, for a cost you cap. The default age is zero: what a plan looks at is read.</p>
+<h3 class="card-title">A budget for staleness</h3>
+<p class="card-text">Each record remembers when it was last read from the cloud. The refresh age sets how stale it may be before a plan reads it again, and a scheduled <code>pravo drift --due</code> reads the most overdue records, up to a limit you set.</p>
 <span class="card-more">Choosing a refresh age</span>
 </a>
-<a class="card spot" href="concepts/state.html#cost-follows-the-change">
-<span class="card-kicker">Both together</span>
-<h3 class="card-title">Calls follow your change</h3>
-<p class="card-text">Reach decides what a plan looks at. The refresh age decides whether what it looks at is read, and how overdue a record must be before a scheduled sweep reads it. The calls to your providers follow the change and the ages you chose, not the number of resources in the state.</p>
-<span class="card-more">Cost follows the change</span>
-</a>
 <a class="card spot" href="concepts/state.html#when-to-split">
-<span class="card-kicker">For a team</span>
-<h3 class="card-title">One state for a large estate</h3>
-<p class="card-text">Split an estate by ownership, permissions or blast radius, not to make plans fast. People and CI can apply to different parts of one state at the same time, because an apply locks only the resources it writes; an overlapping apply is refused, not queued. Drift is checked on a schedule with <code>pravo drift</code>, not on every plan.</p>
+<span class="card-kicker">The result</span>
+<h3 class="card-title">Split by ownership, not by size</h3>
+<p class="card-text">An estate can grow without its requests to the cloud growing with it, so there is no need to split a state to keep it fast. Split it where ownership, permissions or blast radius divide. Applies to different resources run at the same time; an overlapping apply is refused, not queued.</p>
 <span class="card-more">When to split a state</span>
 </a>
-</div>
-
-<div class="reach-limits">
-<p><b>The trade-off</b> A resource that a plan does not reach is not read, so drift in it is found by <code>pravo drift</code> or by a plan that reaches it.</p>
-<p><b>What grows with the estate</b> pravo evaluates the whole specification and opens every record on each run, it reads every data source unless a refresh age is set, and a change that reaches every resource costs what the estate costs.</p>
 </div>
 </div></section>

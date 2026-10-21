@@ -437,6 +437,28 @@
     rv.forEach(function (n) { rio.observe(n); });
   }
 
+  /* ---------- the headline's first word types itself out and back ---------- */
+  (function () {
+    var n = $("[data-swap]");
+    if (!n || reduced.matches) return;
+    var words = n.getAttribute("data-swap").split(","), at = 0;
+    function wait(ms, f) { setTimeout(function () { if (d.hidden) wait(ms, f); else f(); }, ms); }
+    function type(w, i, f) {
+      n.textContent = w.slice(0, i);
+      if (i < w.length) wait(75, function () { type(w, i + 1, f); }); else f();
+    }
+    function erase(i, f) {
+      n.textContent = n.textContent.slice(0, i);
+      if (i > 0) wait(45, function () { erase(i - 1, f); }); else f();
+    }
+    function next() {
+      at = (at + 1) % words.length;
+      erase(n.textContent.length - 1, function () { wait(260, function () { type(words[at], 1, function () { wait(2600, next); }); }); });
+    }
+    n.classList.add("is-live");
+    wait(2600, next);
+  })();
+
   /* ---------- pointer light: one rAF-throttled listener ---------- */
   if (fine && !reduced.matches && $("[data-light], .spot")) {
     var px = 0, py = 0, pt = null, pending = false;

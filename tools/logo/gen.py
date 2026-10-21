@@ -100,13 +100,17 @@ def main():
     chrome_png(page(touch), os.path.join(SITE, "assets", "apple-touch-icon.png"), 180, 180)
 
     # Preview card: lattice on the right, wordmark, line and sub-line on the left.
+    # The frame sits 80 px inside the edge, which is the margin that GitHub asks
+    # for on a social preview.
     big = mark(560, 2.0, 30, 38, 6, 0.55, 0, bg=False)
-    og = page(f'''<div class=c>
+
+    def card(w, h):
+        return page(f'''<div class=c>
 <div class=t><div class=w>pravo</div><div class=l>The declarative layer, reimagined.</div>
 <div class=s>An open study, on the OpenTofu providers you already use.</div></div>{big}</div>''', css="""
 @font-face{font-family:N;src:url(file://%(f)s/newsreader-400.woff2)}
 @font-face{font-family:S;src:url(file://%(f)s/plex-sans-400.woff2)}
-body{width:1200px;height:630px;background:#0b0d10;position:relative;overflow:hidden}
+body{width:%(w)dpx;height:%(h)dpx;background:#0b0d10;position:relative;overflow:hidden}
 body:before{content:"";position:absolute;inset:0;background:
  linear-gradient(#1a1f27 1px,transparent 1px) 0 0/150px 105px,linear-gradient(90deg,#1a1f27 1px,transparent 1px) 0 0/150px 105px;opacity:.55}
 .c{position:absolute;inset:80px;border:1px solid #2a313b;display:flex;align-items:center;justify-content:space-between;padding:0 56px 0 44px;box-sizing:border-box}
@@ -115,9 +119,11 @@ body:before{content:"";position:absolute;inset:0;background:
 .l{font:400 38px/1.2 N;color:#3ddbb0;margin-bottom:14px}
 .s{font:400 23px/1.3 S;color:#9aa3b0;white-space:nowrap}
 svg{position:relative;width:420px;height:420px}
-""" % {"f": os.path.join(SITE, "assets", "fonts")})
-    chrome_png(og, os.path.join(SITE, "assets", "og.png"), 1200, 630)
-    print("wrote logo.svg, favicon.ico, apple-touch-icon.png, og.png")
+""" % {"f": os.path.join(SITE, "assets", "fonts"), "w": w, "h": h})
+
+    chrome_png(card(1200, 630), os.path.join(SITE, "assets", "og.png"), 1200, 630)
+    chrome_png(card(1280, 640), os.path.join(SITE, "assets", "social.png"), 1280, 640)
+    print("wrote logo.svg, favicon.ico, apple-touch-icon.png, og.png, social.png")
 
 
 if __name__ == "__main__":

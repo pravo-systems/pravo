@@ -10,8 +10,8 @@
 <h3 class="card-title">What worked</h3>
 <ul class="shift-list">
 <li>Every OpenTofu and Terraform provider, <a href="concepts/providers.html">unchanged</a>.</li>
-<li>Declarative desired state, not a program that runs.</li>
-<li>A plan you read before anything changes.</li>
+<li><a href="concepts/evaluation.html">Declarative desired state</a>, not a program that runs.</li>
+<li>A <a href="concepts/plans.html#what-a-plan-contains">plan you read</a> before anything changes.</li>
 </ul>
 </div>
 <div class="card shift-col">
@@ -21,10 +21,8 @@
 <li><a href="concepts/state.html">State</a> is one record per resource, not one file.</li>
 <li>A <a href="concepts/plans.html#scoped-plans">plan reaches</a> what a change can affect and skips the rest.</li>
 <li><a href="concepts/state.html#locks-and-reservations">Locks</a> are per resource, so applies on different resources run at once.</li>
-<li>A refresh age says when to read real state again.</li>
-<li><a href="concepts/policies.html">Policy</a> is part of the tool, named by whoever runs it.</li>
-<li>Providers ship as OCI images, with a hash for each platform.</li>
-<li>The plan is a document that people, CI and agents read alike.</li>
+<li>A <a href="concepts/plans.html#refresh-age">refresh age</a> says when to read real state again.</li>
+<li><a href="concepts/policies.html">Policy as code</a> is built in and uses the same language.</li>
 </ul>
 </div>
 <div class="card shift-col">
@@ -32,8 +30,8 @@
 <h3 class="card-title">A different footing</h3>
 <ul class="shift-list">
 <li><a href="learn/index.html">CUE</a>, a constraint language, in place of markup with imperative extras.</li>
-<li>Modules are values: set any field of one, and the types still check.</li>
-<li>Errors before any provider starts.</li>
+<li><a href="learn/b06-modules-providers-credentials.html">Modules</a> need no variable or output wiring, and any field can be overridden.</li>
+<li><a href="learn/c1-reading-a-cue-error.html">Validation</a> is just the schema, checked before any provider starts.</li>
 </ul>
 </div>
 </div>

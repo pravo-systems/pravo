@@ -199,7 +199,6 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
   background: none; border: 0;
 }
 .stage .code-title > :not(.code-badge) { display: none; }
-.stage .code-title::before { display: none; }
 .stage .code-body { box-shadow: none; }
 
 .stage-foot {

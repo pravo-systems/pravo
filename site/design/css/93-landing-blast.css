@@ -174,7 +174,6 @@ html.js .bl-fig .bl-ah, html.js .bl-fig .bl-j { transition: opacity 240ms linear
 
 /* ---------- the change, the terminal, the inspector ---------- */
 .bl-chg .code-title, .bl-insp .code-title { min-height: 2.15rem; padding-right: .75rem; }
-.bl-chg .code-title::before, .bl-insp .code-title::before { display: none; }
 .bl-chg .code-file, .bl-insp .code-file { padding: 0 .75rem; }
 .bl-chg .code-body pre { padding: .5rem 0; min-height: 5.6rem; }
 .bl-chg .line { padding-left: .9rem; }

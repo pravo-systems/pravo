@@ -95,7 +95,6 @@
 .idea-pair .code, .idea-pair .term { margin: 0; }
 .idea-pair .term-body { padding-block: .7rem .5rem; }
 .idea-pair .term .code-title { min-height: 2.1rem; }
-.idea-pair .term .code-title::before { display: none; }
 
 /* with the script: one pair at a time, the widget's own result is read aloud only */
 #idea.is-live .idea-prog { gap: 0; }
