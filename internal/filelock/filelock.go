@@ -1,8 +1,9 @@
 // Package filelock coordinates processes that change the same files. Exclusive
 // serialises the commands that read an object and then replace or delete it.
-// Rename and Remove do what os.Rename and os.Remove do, and on Windows, where a
-// file that another process has open cannot be replaced or deleted, they try
-// again for a moment first.
+// ReadFile, Rename and Remove do what os.ReadFile, os.Rename and os.Remove do,
+// and on Windows, where a file that another process has open cannot be replaced
+// or deleted, and a file that is being replaced cannot be opened, they try again
+// for a moment first.
 package filelock
 
 import (

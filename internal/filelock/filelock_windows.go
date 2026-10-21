@@ -43,6 +43,16 @@ func retry(fn func() error) error {
 	}
 }
 
+// ReadFile is os.ReadFile, tried again while another process replaces the file.
+func ReadFile(path string) (data []byte, err error) {
+	err = retry(func() error {
+		var rerr error
+		data, rerr = os.ReadFile(path)
+		return rerr
+	})
+	return data, err
+}
+
 // Rename is os.Rename, tried again while the file at newpath is open elsewhere.
 func Rename(oldpath, newpath string) error {
 	return retry(func() error { return os.Rename(oldpath, newpath) })

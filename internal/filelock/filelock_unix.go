@@ -23,6 +23,9 @@ func lock(f *os.File) error {
 // when the file is closed, which is enough here.
 func unlockFile(f *os.File) {}
 
+// ReadFile is os.ReadFile.
+func ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+
 // Rename is os.Rename.
 func Rename(oldpath, newpath string) error { return os.Rename(oldpath, newpath) }
 

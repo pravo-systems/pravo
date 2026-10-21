@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -151,6 +152,14 @@ func TestPoliciesAddUp(t *testing.T) {
 	}
 }
 
+// missingFile is what the system says of a file that does not exist.
+var missingFile = func() string {
+	if runtime.GOOS == "windows" {
+		return "cannot find the file specified"
+	}
+	return "no such file"
+}()
+
 func TestLoadPolicyFilesRefusals(t *testing.T) {
 	dir := t.TempDir()
 	root := t.TempDir()
@@ -166,7 +175,7 @@ func TestLoadPolicyFilesRefusals(t *testing.T) {
 		want string
 	}{
 		"empty value":    {"", "needs a file"},
-		"missing file":   {filepath.Join(dir, "nope.cue"), "no such file"},
+		"missing file":   {filepath.Join(dir, "nope.cue"), missingFile},
 		"bad syntax":     {write(dir, "bad.cue", "changes: [..."), "policy"},
 		"foreign import": {write(dir, "imp.cue", "import \"example.com/x\"\nx: x.y\n"), "standard library"},
 		"in the root":    {write(root, "p.cue", "summary: blast_radius: <=1\n"), "root directory"},

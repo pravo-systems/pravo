@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -90,6 +91,9 @@ func TestMarkAppliedKeepsTheMarksOfConcurrentApplies(t *testing.T) {
 // Marks made one after the other keep the earlier ones, and the file keeps its
 // mode, its place behind a link and its content apart from the marks.
 func TestMarkAppliedKeepsModeAndLink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes and links are not enforced on Windows")
+	}
 	file, _ := markedPlan(t, 4)
 	if err := os.Chmod(file, 0o640); err != nil {
 		t.Fatal(err)

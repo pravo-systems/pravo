@@ -70,7 +70,7 @@ func (b *LocalBackend) path(key string) string {
 }
 
 func (b *LocalBackend) Get(ctx context.Context, key string) ([]byte, error) {
-	data, err := os.ReadFile(b.path(key))
+	data, err := filelock.ReadFile(b.path(key))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFound
 	}
@@ -163,7 +163,7 @@ func (b *LocalBackend) PutIfAbsent(ctx context.Context, key string, data []byte)
 func (b *LocalBackend) DeleteIf(ctx context.Context, key string, match func(current []byte) bool) (bool, error) {
 	p := b.path(key)
 	defer filelock.Exclusive(filepath.Dir(p))()
-	data, err := os.ReadFile(p)
+	data, err := filelock.ReadFile(p)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, ErrNotFound
 	}
@@ -187,7 +187,7 @@ func (b *LocalBackend) DeleteIf(ctx context.Context, key string, match func(curr
 func (b *LocalBackend) ReplaceIf(ctx context.Context, key string, update func(current []byte) ([]byte, bool)) (bool, error) {
 	p := b.path(key)
 	defer filelock.Exclusive(filepath.Dir(p))()
-	data, err := os.ReadFile(p)
+	data, err := filelock.ReadFile(p)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, ErrNotFound
 	}
