@@ -609,14 +609,19 @@ done
 exit 1
 ```
 
-Both applies start. When both keys are locked, the fifth command lists the locks. The last command shows that the locks are gone.
+Both applies start. Each is paused as soon as it holds its locks, so that both are in flight when the locks are listed, however fast the machine is. Then both go on. The last command shows that the locks are gone.
 
 ```sh run scene=locks
 pravo apply a.plan --actor ana > a.log 2>&1 &
+ana=$!
 sh wait-for-lock.sh zone.a.key
+kill -STOP $ana
 pravo apply b.plan --actor bob > b.log 2>&1 &
+bob=$!
 sh wait-for-lock.sh zone.b.key
+kill -STOP $bob
 pravo state locks | cut -d, -f1
+kill -CONT $ana $bob
 wait
 grep -h '^Apply complete' a.log b.log
 pravo state locks
