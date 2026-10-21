@@ -40,6 +40,8 @@ jobs:
           fi
       - name: go vet
         run: go vet ./...
+      - name: go vet for Windows
+        run: GOOS=windows GOARCH=amd64 go vet ./...
       - name: go mod tidy changes nothing
         run: |
           go mod tidy
@@ -81,19 +83,36 @@ jobs:
           go-version-file: go.mod
       - run: ${{ matrix.run }}
 
-  # The Windows build and the Go tests of the engine, the state and the commands.
-  # The documentation tools run a POSIX shell and are not part of this job.
+  # The Go tests on Windows, where file operations are slow: the engine tests
+  # are dealt out to eight jobs, and everything else runs in one. The build and
+  # vet for Windows are in the static job. The documentation tools run a POSIX
+  # shell and are not part of this.
   windows:
+    name: windows (${{ matrix.name }})
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: "engine 1/8", run: "sh tools/ci/test-shard.sh ./internal/engine 0 8 -timeout 25m"}
+          - {name: "engine 2/8", run: "sh tools/ci/test-shard.sh ./internal/engine 1 8 -timeout 25m"}
+          - {name: "engine 3/8", run: "sh tools/ci/test-shard.sh ./internal/engine 2 8 -timeout 25m"}
+          - {name: "engine 4/8", run: "sh tools/ci/test-shard.sh ./internal/engine 3 8 -timeout 25m"}
+          - {name: "engine 5/8", run: "sh tools/ci/test-shard.sh ./internal/engine 4 8 -timeout 25m"}
+          - {name: "engine 6/8", run: "sh tools/ci/test-shard.sh ./internal/engine 5 8 -timeout 25m"}
+          - {name: "engine 7/8", run: "sh tools/ci/test-shard.sh ./internal/engine 6 8 -timeout 25m"}
+          - {name: "engine 8/8", run: "sh tools/ci/test-shard.sh ./internal/engine 7 8 -timeout 25m"}
+          - {name: "other packages", run: "go test -count=1 -timeout 25m $(go list ./internal/... ./cmd/... | grep -v '/internal/engine$')"}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go build ./...
-      - run: go vet ./...
-      - run: go test -count=1 -timeout 30m ./internal/... ./cmd/...
+      - run: ${{ matrix.run }}
 
   # The tools of the documentation: capture, sitegen, hclcheck and the scale
   # benchmark. Their tests start the binary and some of them run tofu.
