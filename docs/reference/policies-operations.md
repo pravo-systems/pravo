@@ -16,7 +16,7 @@ normalize:
     replace: 'plan:1:N'
   - pattern: '[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}'
     replace: '<txn>'
-  - pattern: 'until [0-9T:+-]+'
+  - pattern: 'until [0-9T:Z+-]+'
     replace: 'until <time>'
   - pattern: '\{"code":5,"kind":"error","message":"the plan violates'
     replace: '{"code":5,"kind":"error","message":"the plan violates'

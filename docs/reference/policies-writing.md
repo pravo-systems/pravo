@@ -127,13 +127,13 @@ pravo -C infra plan --json --policy ../policy/no-destroy.cue 2>/dev/null | tail 
 
 With `--out`, a refused plan writes no plan file:
 
-```sh run exit=1
+```sh run
 pravo -C infra plan --policy ../policy/no-destroy.cue --out refused.plan > /dev/null 2>&1
-ls refused.plan
+test -e refused.plan || echo "refused.plan does not exist"
 ```
 
 ```text out
-ls: refused.plan: No such file or directory
+refused.plan does not exist
 ```
 
 ## Require with a constraint

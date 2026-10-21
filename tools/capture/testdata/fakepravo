@@ -44,7 +44,8 @@ color)
 	printf '\033[31mred\033[0m text\n'
 	;;
 home)
-	echo "cache at $HOME/.pravo and ${TMPDIR%/}/x"
+	tmp=${TMPDIR:-/tmp}
+	echo "cache at $HOME/.pravo and ${tmp%/}/x"
 	;;
 env)
 	echo "PRAVO_LOG=${PRAVO_LOG-unset} NO_COLOR=${NO_COLOR-unset}"

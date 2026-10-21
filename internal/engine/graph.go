@@ -340,6 +340,19 @@ func checkCycles(nodes map[string]*node) error {
 	return WithCode(ExitInvalid, errors.New(strings.Join(msgs, "; ")))
 }
 
+// release counts a finished node off its dependents and queues each one that has
+// nothing left to wait for. Once the queue is closed, because a failure stopped
+// the run, nothing is queued: a node that the stopped run finishes without
+// planning would otherwise send into a closed channel.
+func release(n *node, ready chan<- *node, closed bool) {
+	for _, d := range n.dependents {
+		d.pending--
+		if d.pending == 0 && !closed {
+			ready <- d
+		}
+	}
+}
+
 // run executes every task in dependency order, with bounded parallelism,
 // and returns the configuration value with all fills applied.
 func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
@@ -383,12 +396,7 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 			}
 			cancel()
 		} else {
-			for _, d := range n.dependents {
-				d.pending--
-				if d.pending == 0 {
-					ready <- d
-				}
-			}
+			release(n, ready, closed)
 		}
 		if !closed && (done == len(nodes) || (firstErr != nil && len(sem) == 0)) {
 			closed = true
