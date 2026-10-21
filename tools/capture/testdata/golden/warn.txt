@@ -1,0 +1,5 @@
+ok      testdata/pages/warn.md  1 command
+warning testdata/pages/warn.md:8: commands never use cd: the workspace is the working directory
+warning testdata/pages/warn.md:22: run block in ::answer is not executed, so its output is not verified
+warning testdata/pages/warn.md:26: out block in ::answer is not executed, so its output is not verified
+capture: 1 page, 1 command run, no differences

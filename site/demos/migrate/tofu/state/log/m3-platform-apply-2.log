@@ -1,0 +1,28 @@
+module.service["api"].random_pet.host: Refreshing state... [id=api-whole-tarpon]
+module.service["worker"].random_pet.host: Refreshing state... [id=worker-capital-elk]
+module.service["web"].random_pet.host: Refreshing state... [id=web-ethical-humpback]
+random_password.admin: Refreshing state... [id=none]
+module.service["web"].local_file.config: Refreshing state... [id=fee05d3d445f409a78d444b593c6b4d579db2658]
+module.service["worker"].local_file.config: Refreshing state... [id=7507605ba091e0a20f9f52f934251e773830367d]
+module.service["api"].local_file.config: Refreshing state... [id=2d90dc036c332486001227484af84855018d9763]
+
+OpenTofu will perform the following actions:
+
+  # random_password.root has moved to random_password.admin
+    resource "random_password" "admin" {
+        id          = "none"
+        # (12 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 0 to change, 0 to destroy.
+
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+admin_password = <sensitive>
+endpoints = tolist([
+  "api-whole-tarpon:8080",
+  "web-ethical-humpback:8081",
+  "worker-capital-elk:8082",
+])

@@ -1,0 +1,193 @@
+<div class="mig-demo mig-band" id="migrate">
+
+
+<div class="split split-even split-top mig-split">
+
+<div class="mig-col">
+<div class="stage-wrap">
+<div class="stage mig-files" id="mig-files" data-stage="files">
+<div class="tabs">
+<div class="tab-list" role="tablist" aria-label="The same stack in two languages">
+<button class="mig-tab" role="tab" type="button" id="mig-t1" aria-selected="true" aria-controls="mig-p1">main.tf</button>
+<button class="mig-tab" role="tab" type="button" id="mig-t2" aria-selected="false" aria-controls="mig-p2">stack.cue</button>
+</div>
+<div class="tab-panel" role="tabpanel" id="mig-p1" aria-labelledby="mig-t1" data-title="main.tf" data-active>
+<figure class="code mig-code" data-lang="hcl" data-ln data-file="main.tf">
+<figcaption class="code-title"><span class="code-file">main.tf</span><span class="code-badge mig-ill" title="OpenTofu ran this file once and wrote the state file that the terminal converts. The terminal does not run it.">not run</span></figcaption>
+<div class="code-body"><pre><code><!--gen:main.tf--><span class="line" data-g="g1"><span class="ln"></span><span class="tok-kw">terraform</span> {
+</span><span class="line" data-g="g1"><span class="ln"></span>  <span class="tok-kw">required_providers</span> {
+</span><span class="line" data-g="g1"><span class="ln"></span>    <span class="tok-id">random</span> = {
+</span><span class="line" data-g="g1"><span class="ln"></span>      <span class="tok-id">source</span>  = <span class="tok-str">&#34;hashicorp/random&#34;</span>
+</span><span class="line" data-g="g1"><span class="ln"></span>      <span class="tok-id">version</span> = <span class="tok-str">&#34;~&gt; 3.6&#34;</span>
+</span><span class="line" data-g="g1"><span class="ln"></span>    }
+</span><span class="line" data-g="g1"><span class="ln"></span>    <span class="tok-id">local</span> = {
+</span><span class="line" data-g="g1"><span class="ln"></span>      <span class="tok-id">source</span>  = <span class="tok-str">&#34;hashicorp/local&#34;</span>
+</span><span class="line" data-g="g1"><span class="ln"></span>      <span class="tok-id">version</span> = <span class="tok-str">&#34;~&gt; 2.5&#34;</span>
+</span><span class="line" data-g="g1"><span class="ln"></span>    }
+</span><span class="line" data-g="g1"><span class="ln"></span>  }
+</span><span class="line" data-g="g1"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line" data-g="g2"><span class="ln"></span><span class="tok-kw">resource</span> <span class="tok-str">&#34;random_pet&#34;</span> <span class="tok-str">&#34;server&#34;</span> {
+</span><span class="line" data-g="g2"><span class="ln"></span>  <span class="tok-id">length</span> = <span class="tok-num">2</span>
+</span><span class="line" data-g="g2"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line" data-g="g3"><span class="ln"></span><span class="tok-kw">resource</span> <span class="tok-str">&#34;local_file&#34;</span> <span class="tok-str">&#34;motd&#34;</span> {
+</span><span class="line" data-g="g3"><span class="ln"></span>  <span class="tok-id">filename</span> = <span class="tok-str">&#34;motd.txt&#34;</span>
+</span><span class="line" data-g="g3"><span class="ln"></span>  <span class="tok-id">content</span>  = <span class="tok-str">&#34;serving </span><span class="tok-op">${</span>random_pet.server.id<span class="tok-op">}</span><span class="tok-str">\n&#34;</span>
+</span><span class="line" data-g="g3"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line" data-g="g4"><span class="ln"></span><span class="tok-kw">resource</span> <span class="tok-str">&#34;local_file&#34;</span> <span class="tok-str">&#34;note&#34;</span> {
+</span><span class="line" data-g="g4"><span class="ln"></span>  <span class="tok-id">for_each</span> = <span class="tok-fn">toset</span>([<span class="tok-str">&#34;alpha&#34;</span>, <span class="tok-str">&#34;beta&#34;</span>])
+</span><span class="line" data-g="g4"><span class="ln"></span>  <span class="tok-id">filename</span> = <span class="tok-str">&#34;notes/</span><span class="tok-op">${</span>each.key<span class="tok-op">}</span><span class="tok-str">.txt&#34;</span>
+</span><span class="line" data-g="g4"><span class="ln"></span>  <span class="tok-id">content</span>  = <span class="tok-str">&#34;</span><span class="tok-op">${</span>each.key<span class="tok-op">}</span><span class="tok-str">\n&#34;</span>
+</span><span class="line" data-g="g4"><span class="ln"></span>}
+</span><!--/gen:main.tf--></code></pre></div>
+</figure>
+</div>
+<div class="tab-panel" role="tabpanel" id="mig-p2" aria-labelledby="mig-t2" data-title="stack.cue">
+<figure class="code mig-code" data-lang="cue" data-status="valid" data-ln data-file="stack.cue">
+<figcaption class="code-title"><span class="code-file">stack.cue</span><span class="code-badge" title="pravo validate accepts the file">valid</span></figcaption>
+<div class="code-body"><pre><code><!--gen:stack.cue--><span class="line"><span class="ln"></span><span class="tok-kw">package</span> estate
+</span><span class="line"><span class="ln"></span>
+</span><span class="line" data-g="g1"><span class="ln"></span><span class="tok-kw">import</span> (
+</span><span class="line" data-g="g1"><span class="ln"></span>	rnd <span class="tok-str">&#34;pravo.dev/providers/hashicorp/random&#34;</span>
+</span><span class="line" data-g="g1"><span class="ln"></span>	loc <span class="tok-str">&#34;pravo.dev/providers/hashicorp/local&#34;</span>
+</span><span class="line" data-g="g1"><span class="ln"></span>)
+</span><span class="line"><span class="ln"></span>
+</span><span class="line" data-g="g1"><span class="ln"></span><span class="tok-id">$random</span>: rnd.<span class="tok-def">#Provider</span> <span class="tok-op">&amp;</span> {<span class="tok-id">$version</span>: <span class="tok-str">&#34;~&gt; 3.6&#34;</span>}
+</span><span class="line" data-g="g1"><span class="ln"></span><span class="tok-id">$local</span>:  loc.<span class="tok-def">#Provider</span> <span class="tok-op">&amp;</span> {<span class="tok-id">$version</span>: <span class="tok-str">&#34;~&gt; 2.5&#34;</span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line" data-g="g2"><span class="ln"></span><span class="tok-id">server</span>: $random.<span class="tok-def">#Resource</span>.random_pet <span class="tok-op">&amp;</span> {
+</span><span class="line" data-g="g2"><span class="ln"></span>	<span class="tok-id">$from</span>:  <span class="tok-str">&#34;random_pet.server&#34;</span>
+</span><span class="line" data-g="g2"><span class="ln"></span>	<span class="tok-id">length</span>: <span class="tok-num">2</span>
+</span><span class="line" data-g="g2"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line" data-g="g3"><span class="ln"></span><span class="tok-id">motd</span>: $local.<span class="tok-def">#Resource</span>.local_file <span class="tok-op">&amp;</span> {
+</span><span class="line" data-g="g3"><span class="ln"></span>	<span class="tok-id">$from</span>:    <span class="tok-str">&#34;local_file.motd&#34;</span>
+</span><span class="line" data-g="g3"><span class="ln"></span>	<span class="tok-id">filename</span>: <span class="tok-str">&#34;motd.txt&#34;</span>
+</span><span class="line" data-g="g3"><span class="ln"></span>	<span class="tok-id">content</span>:  <span class="tok-str">&#34;serving </span><span class="tok-op">\(</span>server.id<span class="tok-op">)</span><span class="tok-str">\n&#34;</span>
+</span><span class="line" data-g="g3"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line" data-g="g4"><span class="ln"></span><span class="tok-id">note</span>: {
+</span><span class="line" data-g="g4"><span class="ln"></span>	<span class="tok-kw">for</span> k <span class="tok-kw">in</span> [<span class="tok-str">&#34;alpha&#34;</span>, <span class="tok-str">&#34;beta&#34;</span>] {
+</span><span class="line" data-g="g4"><span class="ln"></span>		<span class="tok-str">&#34;</span><span class="tok-op">\(</span>k<span class="tok-op">)</span><span class="tok-str">&#34;</span>: $local.<span class="tok-def">#Resource</span>.local_file <span class="tok-op">&amp;</span> {
+</span><span class="line" data-g="g4"><span class="ln"></span>			<span class="tok-id">$from</span>:    <span class="tok-str">&#34;local_file.note_</span><span class="tok-op">\(</span>k<span class="tok-op">)</span><span class="tok-str">&#34;</span>
+</span><span class="line" data-g="g4"><span class="ln"></span>			<span class="tok-id">filename</span>: <span class="tok-str">&#34;notes/</span><span class="tok-op">\(</span>k<span class="tok-op">)</span><span class="tok-str">.txt&#34;</span>
+</span><span class="line" data-g="g4"><span class="ln"></span>			<span class="tok-id">content</span>:  <span class="tok-str">&#34;</span><span class="tok-op">\(</span>k<span class="tok-op">)</span><span class="tok-str">\n&#34;</span>
+</span><span class="line" data-g="g4"><span class="ln"></span>		}
+</span><span class="line" data-g="g4"><span class="ln"></span>	}
+</span><span class="line" data-g="g4"><span class="ln"></span>}
+</span><!--/gen:stack.cue--></code></pre></div>
+</figure>
+</div>
+</div>
+<div class="stage-foot mig-foot">
+<span class="mig-note" id="mig-note">stack.cue names the old address of each resource with <code>$from</code>.</span>
+<button class="mig-jump" id="mig-jump" type="button"></button>
+</div>
+</div>
+</div>
+<ul class="mig-pairs" id="mig-pairs" aria-label="Lines that correspond in the two files">
+<li><button class="mig-pair" type="button" data-g="{{data migrate.view.groups.0.id}}" aria-pressed="false"><b>{{data migrate.view.groups.0.label}}</b></button></li>
+<li><button class="mig-pair" type="button" data-g="{{data migrate.view.groups.1.id}}" aria-pressed="false"><b>{{data migrate.view.groups.1.hcl}}</b><span class="mig-arr" aria-hidden="true"></span><span>{{data migrate.view.groups.1.cue}}</span></button></li>
+<li><button class="mig-pair" type="button" data-g="{{data migrate.view.groups.2.id}}" aria-pressed="false"><b>{{data migrate.view.groups.2.hcl}}</b><span class="mig-arr" aria-hidden="true"></span><span>{{data migrate.view.groups.2.cue}}</span></button></li>
+<li><button class="mig-pair" type="button" data-g="{{data migrate.view.groups.3.id}}" aria-pressed="false"><b>{{data migrate.view.groups.3.hcl}}</b><span class="mig-arr" aria-hidden="true"></span><span>{{data migrate.view.groups.3.cue}}</span></button></li>
+</ul>
+<p class="stage-caption"><span class="fig-n">fig. 5a</span> The same stack in both languages. OpenTofu {{data migrate.view.tofu}} applied main.tf once; the terminal does not run it. stack.cue is the specification that the terminal plans, and <code>pravo validate</code> accepts it: {{data migrate.view.resources}} resources, {{data migrate.view.providers}} providers.</p>
+</div>
+
+<div class="mig-col">
+<div class="stage-wrap">
+<div class="stage mig-run" id="mig-run" data-stage="run">
+<div class="tabs">
+<div class="tab-list" role="tablist" aria-label="Terminal">
+<button class="mig-tab" role="tab" type="button" id="mig-t3" aria-selected="true" aria-controls="mig-p3">terminal</button>
+</div>
+<div class="tab-panel" role="tabpanel" id="mig-p3" aria-labelledby="mig-t3" data-title="terminal" data-active>
+<figure class="term mig-term" data-exit="0" data-status="valid" data-ran="{{data migrate.view.ran}}" data-file="terminal">
+<figcaption class="code-title"><span class="code-file">terminal</span><span class="code-badge" title="Every command exits 0">valid</span></figcaption>
+<div class="term-body"><div class="mo-runs">
+<!--gen:runs--><div class="mo-run" data-run="0">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">{{data migrate.view.runs.0.cmd}}</span></div>
+<pre class="term-out"><code><span class="mo">{{data migrate.view.runs.0.lines.0.t}}
+</span><span class="mo mo-gap">
+</span><span class="mo out-dim">{{data migrate.view.runs.0.lines.2.t}}
+</span><span class="mo">{{data migrate.view.runs.0.lines.3.t}}
+</span><span class="mo">{{data migrate.view.runs.0.lines.4.t}}
+</span></code></pre>
+</div>
+<div class="mo-run" data-run="1">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">{{data migrate.view.runs.1.cmd}}</span></div>
+<pre class="term-out"><code><span class="mo out-dim">{{data migrate.view.runs.1.lines.0.t}}
+</span><span class="mo mo-gap">
+</span><span class="mo out-dim">{{data migrate.view.runs.1.lines.2.t}}
+</span><span class="mo mo-gap">
+</span><span class="mo out-dim">{{data migrate.view.runs.1.lines.4.t}}
+</span><span class="mo mo-gap">
+</span><span class="mo out-dim">{{data migrate.view.runs.1.lines.6.t}}
+</span><span class="mo mo-gap">
+</span><span class="mo out-dim">{{data migrate.view.runs.1.lines.8.t}}
+</span><span class="mo mo-gap">
+</span><span class="mo">{{data migrate.view.summary.pre}}<span class="out-add">{{data migrate.view.summary.add}}</span>{{data migrate.view.summary.m1}}<span class="out-change">{{data migrate.view.summary.chg}}</span>{{data migrate.view.summary.m2}}<span class="out-destroy">{{data migrate.view.summary.dst}}</span>{{data migrate.view.summary.post}}
+</span><span class="mo out-dim">{{data migrate.view.runs.1.lines.11.t}}
+</span></code></pre>
+</div>
+<div class="mo-run" data-run="2">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">{{data migrate.view.runs.2.cmd}}</span></div>
+<pre class="term-out"><code><span class="mo out-add">{{data migrate.view.runs.2.lines.0.t}}<span class="mo-check" aria-hidden="true"></span>
+</span><span class="mo out-dim">{{data migrate.view.runs.2.lines.1.t}}
+</span></code></pre>
+</div>
+<!--/gen:runs-->
+</div></div>
+</figure>
+</div>
+</div>
+<div class="stage-foot" id="mig-foot"><span class="anno anno-ok mig-status" id="mig-status" aria-hidden="true">{{data migrate.view.status}}</span></div>
+</div>
+</div>
+<p class="stage-caption"><span class="fig-n">fig. 5b</span> The state file in format {{data facts.state_format}} that OpenTofu {{data migrate.view.tofu}} wrote for main.tf, converted and planned. The output is a recording of pravo {{data migrate.view.ran}} run on it. After <code>$from</code> moved the {{data migrate.view.moved}} records, the second plan has nothing to do.<span class="sr-only" id="mig-live" role="status" aria-live="polite" aria-atomic="true"></span></p>
+<script type="application/json" id="mig-beats">[
+{"label":"Convert","say":"pravo state import-tfstate converts the state file into {{data migrate.view.imported}} records and prints the instances it renamed."},
+{"label":"Plan","say":"The first plan moves {{data migrate.view.moved}} records to the addresses that stack.cue names with $from. No object changes."},
+{"label":"Empty","say":"The second plan prints No changes. The state and the specification agree."}
+]</script>
+<div class="mig-ledger">
+<div class="mig-led mig-stays">
+<h3><span class="mig-dia" aria-hidden="true"></span>What stays</h3>
+<ul class="mig-chips">
+<li><b>The providers</b> The same OpenTofu providers, plugin protocol {{data facts.protocols}}.</li>
+<li><b>The infrastructure</b> The objects are read, not recreated.</li>
+<li><b>Review before apply</b> A saved plan is read, then applied.</li>
+</ul>
+</div>
+<div class="mig-led mig-changes">
+<h3><span class="mig-dia" aria-hidden="true"></span>What changes</h3>
+<ul class="mig-chips">
+<li><b>The language</b> CUE replaces HCL. pravo has no converter for HCL.</li>
+<li><b>The state format</b> The directory <code>pravo.state</code> replaces <code>terraform.tfstate</code>.</li>
+<li><b>The commands</b> <code>pravo</code> replaces <code>tofu</code>.</li>
+<li><b>Not carried over</b> Taint, deposed objects and the records of the built-in provider. <a href="migrate/m10-not-in-pravo.html">See M10</a>.</li>
+</ul>
+</div>
+</div>
+<script type="application/json" id="mig-groups">{{json migrate.view.groups}}</script>
+</div>
+
+</div>
+
+<div class="mig-flow">
+<div class="metro-head"><h3>Six steps, one gate</h3><span>An empty plan opens step 5</span></div>
+<ol class="mig-steps" id="mig-steps">
+<li class="mig-step"><a href="migrate/m1-before-you-start.html"><span class="mig-node" aria-hidden="true"><i></i></span><span class="mig-n">01</span><span class="mig-t">Back up</span><span class="mig-d">Make the OpenTofu plan empty. Copy the state file and the code.</span></a></li>
+<li class="mig-step"><a href="migrate/m4-translate-the-specification.html"><span class="mig-node" aria-hidden="true"><i></i></span><span class="mig-n">02</span><span class="mig-t">Translate</span><span class="mig-d">Write the specification in CUE. <code>pravo validate</code> checks it offline against the provider schemas.</span></a></li>
+<li class="mig-step"><a href="migrate/m5-convert-the-state.html"><span class="mig-node" aria-hidden="true"><i></i></span><span class="mig-n">03</span><span class="mig-t">Convert state</span><span class="mig-d"><code>pravo state import-tfstate</code> reads format {{data facts.state_format}}. <code>$from</code> points each record at its address.</span></a></li>
+<li class="mig-step mig-gate"><a href="migrate/m5-convert-the-state.html"><span class="mig-node" aria-hidden="true"><i></i></span><span class="mig-n">04</span><span class="mig-t">Plan is empty</span><span class="mig-d"><code>pravo plan</code> prints <q>No changes.</q> Do not apply a plan that replaces or destroys.</span><span class="mig-tag">the gate</span></a></li>
+<li class="mig-step"><a href="migrate/m5-convert-the-state.html"><span class="mig-node" aria-hidden="true"><i></i></span><span class="mig-n">05</span><span class="mig-t">Apply</span><span class="mig-d">The first apply gives each record its configuration hash. A small change proves read and write.</span></a></li>
+<li class="mig-step"><a href="migrate/m7-cut-over.html"><span class="mig-node" aria-hidden="true"><i></i></span><span class="mig-n">06</span><span class="mig-t">Cut over</span><span class="mig-d">Remove OpenTofu's claim on the objects, move the pipeline, archive the old state.</span></a></li>
+</ol>
+<p class="mig-promise">Every step before the first <code>pravo apply</code> with changes leaves your infrastructure and your OpenTofu state as they are. A read is the provider's own code. <a class="link-arrow" href="migrate/index.html#the-promise">The promise</a></p>
+</div>
+
+<script defer src="assets/demos/migrate.js"></script>
+</div>

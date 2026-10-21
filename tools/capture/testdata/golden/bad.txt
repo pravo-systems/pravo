@@ -1,0 +1,16 @@
+FAIL    testdata/pages/bad.md
+  testdata/pages/bad.md:9: out block does not follow a run block: it must come directly after the run block it belongs to
+  testdata/pages/bad.md:15: write commands without the '$ ' prompt; the page adds it
+  testdata/pages/bad.md:21: file=../escape.cue must be a relative path inside the workspace
+  testdata/pages/bad.md:25: exit= belongs on a run block
+  testdata/pages/bad.md:32: a code block inside a callout is not executed: move it out of the quotation
+  testdata/pages/bad.md:44: out block does not follow a run block: it must come directly after the run block it belongs to
+  testdata/pages/bad.md:50: a check block must exit 0; remove exit=1
+  testdata/pages/bad.md:56: run block has no commands
+  testdata/pages/bad.md:59: code fence: title: unterminated quoted value
+  testdata/pages/bad.md:65: container :::deep-dive starts inside :::exercise (line 63): containers do not nest
+  testdata/pages/bad.md:67: ':::' closes a container, but none is open
+  testdata/pages/bad.md:69: ::hint outside a container
+  testdata/pages/bad.md:71: container :::exercise is never closed with ':::'
+  testdata/pages/bad.md:72: unknown part ::wrong in :::exercise (known: hint, solution, reveal, answer)
+capture: 1 page, 0 commands run, 1 page failed

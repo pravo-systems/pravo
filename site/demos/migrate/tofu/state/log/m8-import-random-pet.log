@@ -1,0 +1,9 @@
+data.local_file.banner: Reading...
+data.local_file.banner: Read complete after 0s [id=fd9c765da1ef3d530b673c2069003cd07dd3c4da]
+random_pet.region["ap"]: Importing from ID "ap-caring-leech"...
+
+Error: Resource Import Not Implemented
+
+This resource does not support import. Please contact the provider developer
+for additional information.
+

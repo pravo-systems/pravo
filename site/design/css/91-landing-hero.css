@@ -1,0 +1,40 @@
+/* ==========================================================================
+   91 landing: hero, start where you are
+   The front page is static. Nothing here depends on a script.
+   ========================================================================== */
+
+/* ---------- hero ---------- */
+.hero-band { --band-pad: clamp(2.5rem, 5vw, 5rem); }
+.hero-split {
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(2rem, 4.5vw, 4.5rem);
+  align-items: center;
+}
+@media (max-width: 59.99rem) { .hero-split { grid-template-columns: minmax(0, 1fr); } }
+.hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 1.6rem; min-width: 0; }
+.hero-copy > * { margin: 0; }
+.hero-title { font-size: clamp(2.7rem, 1.3rem + 4.3vw, 4.9rem); line-height: .98; text-wrap: balance; }
+.hero-title em { display: block; font-style: italic; color: var(--accent); }
+.hero-copy .band-lede { max-width: 33rem; font-size: clamp(1.1rem, 1rem + .45vw, 1.28rem); }
+.hero-cta { gap: .7rem; }
+@media (max-width: 41rem) {
+  .hero-cta { flex-direction: column; align-items: stretch; width: 100%; }
+  .hero-cta .btn { white-space: normal; text-align: center; }
+}
+.hero-micro { margin-top: -.6rem; font: 400 .74rem/1.5 var(--font-mono); color: var(--text-3); }
+
+/* the file and the plan: the figures of the documentation, stacked */
+.hero-stage { min-width: 0; }
+.hero-stack { display: flex; flex-direction: column; gap: .9rem; min-width: 0; }
+.hero-stack .code, .hero-stack .term { margin: 0; }
+.hero-stage .stage-caption { max-width: 40rem; }
+
+/* ---------- kept and revisited, plans, start, about ---------- */
+.shift-band, .reach-band, .start-band, .about-band { --band-pad: clamp(3rem, 6vw, 5.5rem); }
+.shift-band .band-head, .start-band .band-head { margin-bottom: clamp(1.5rem, 3vw, 2.5rem); }
+.shift-band .kicker, .reach-band .kicker, .start-band .kicker, .about-band .kicker { margin: 0 0 .8rem; }
+.start-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 66rem) { .start-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 41rem) { .start-cards { grid-template-columns: minmax(0, 1fr); } }
+.shift-cols .card-title, .start-cards .card-title { font-size: 1.4rem; }
+.card-text code { font-size: .84em; overflow-wrap: anywhere; }

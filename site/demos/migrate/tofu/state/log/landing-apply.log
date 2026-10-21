@@ -1,0 +1,74 @@
+
+OpenTofu used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+OpenTofu will perform the following actions:
+
+  # local_file.motd will be created
+  + resource "local_file" "motd" {
+      + content              = (known after apply)
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "motd.txt"
+      + id                   = (known after apply)
+    }
+
+  # local_file.note["alpha"] will be created
+  + resource "local_file" "note" {
+      + content              = <<-EOT
+            alpha
+        EOT
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "notes/alpha.txt"
+      + id                   = (known after apply)
+    }
+
+  # local_file.note["beta"] will be created
+  + resource "local_file" "note" {
+      + content              = <<-EOT
+            beta
+        EOT
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "notes/beta.txt"
+      + id                   = (known after apply)
+    }
+
+  # random_pet.server will be created
+  + resource "random_pet" "server" {
+      + id        = (known after apply)
+      + length    = 2
+      + separator = "-"
+    }
+
+Plan: 4 to add, 0 to change, 0 to destroy.
+local_file.note["beta"]: Creating...
+local_file.note["alpha"]: Creating...
+local_file.note["beta"]: Creation complete after 0s [id=6c007a14875d53d9bf0ef5a6fc0257c817f0fb83]
+local_file.note["alpha"]: Creation complete after 0s [id=d046cd9b7ffb7661e449683313d41f6fc33e3130]
+random_pet.server: Creating...
+random_pet.server: Creation complete after 0s [id=saved-tetra]
+local_file.motd: Creating...
+local_file.motd: Creation complete after 0s [id=a335b76bfedd3f13b948473b4757cc4862fee26a]
+
+Apply complete! Resources: 4 added, 0 changed, 0 destroyed.

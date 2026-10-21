@@ -1,0 +1,22 @@
+# Phrases the documentation must not contain (docs/AUTHORING.md section 2).
+# One regular expression per line, matched case-insensitively against every
+# line of docs/, site/ and README.md outside fenced code. Lines that start
+# with # are comments.
+\bby decision\b
+\bon purpose\b
+\bdeliberately\b
+\bwe chose\b
+\bwe decided\b
+\bno longer\b
+\bpreviously\b
+\bformerly\b
+\boriginally\b
+\bhistorically\b
+\bthe reasoning\b
+\bwhy pravo\b
+\binstead of the old\b
+\bunlike\b
+cueform
+state[g]raph
+# The word norms is rejected; normal, normally and normalise are fine.
+\bnorms\b

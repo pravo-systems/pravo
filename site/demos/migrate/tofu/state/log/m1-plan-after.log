@@ -1,0 +1,9 @@
+local_file.web[0]: Refreshing state... [id=57415a3c8fdc1eff74651f6f5e7b686fee43ec65]
+local_file.web[1]: Refreshing state... [id=68f1cd2e0b1d04d5cf751daf0b84253f90249fe5]
+data.terraform_remote_state.net: Reading...
+data.terraform_remote_state.net: Read complete after 0s
+module.db.random_pet.main: Refreshing state... [id=db-positive-glowworm]
+random_pet.logs: Refreshing state... [id=logs-diverse-drake]
+null_resource.gate: Refreshing state... [id=4961598679908393618]
+
+No changes. Your infrastructure matches the configuration.

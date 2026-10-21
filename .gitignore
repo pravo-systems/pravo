@@ -1,0 +1,27 @@
+# Built binaries
+/pravo
+/bin/
+/capture
+/sitegen
+/fakeoci
+/fakes3
+/protogen
+/tools/capture/capture
+/tools/sitegen/sitegen
+*.test
+
+# The generated site (go run ./tools/sitegen)
+/site/public/
+
+# Written by running pravo in a directory: state, generated CUE packages, saved plans
+pravo.state/
+cue.mod/gen/
+*.plan
+
+# Written by running the examples
+/examples/*/out/
+/examples/*/hello-*.txt
+
+# Local tooling
+/.claude/
+.DS_Store

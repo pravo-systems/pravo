@@ -1,0 +1,17 @@
+module.service["web"].random_pet.host: Refreshing state... [id=web-ethical-humpback]
+module.service["api"].random_pet.host: Refreshing state... [id=api-whole-tarpon]
+module.service["worker"].random_pet.host: Refreshing state... [id=worker-capital-elk]
+random_password.admin: Refreshing state... [id=none]
+module.service["api"].local_file.config: Refreshing state... [id=2d90dc036c332486001227484af84855018d9763]
+module.service["web"].local_file.config: Refreshing state... [id=fee05d3d445f409a78d444b593c6b4d579db2658]
+module.service["worker"].local_file.config: Refreshing state... [id=7507605ba091e0a20f9f52f934251e773830367d]
+
+OpenTofu will perform the following actions:
+
+  # random_password.root has moved to random_password.admin
+    resource "random_password" "admin" {
+        id          = "none"
+        # (12 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 0 to change, 0 to destroy.

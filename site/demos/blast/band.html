@@ -1,0 +1,58 @@
+<div class="bl-demo" id="blast">
+<!--@generated-->
+<div class="bl-chips" role="tablist" aria-label="Changes to plan">
+<!--@chips-->
+</div>
+
+<div class="bl-fig" id="bl-fig" role="tabpanel" aria-labelledby="bl-tab-setting" data-scene="setting" data-r="0">
+<div class="bl-main">
+<div class="bl-graph">
+<!--@svg-->
+<ul class="bl-legend" aria-label="Legend">
+<li><svg class="bl-ico" viewBox="-8 -8 16 16" aria-hidden="true" data-act="add"><use href="#bl-ga"/></svg>created</li>
+<li><svg class="bl-ico" viewBox="-8 -8 16 16" aria-hidden="true" data-act="change"><use href="#bl-gc"/></svg>updated in place</li>
+<li><svg class="bl-ico" viewBox="-8 -8 16 16" aria-hidden="true" data-act="replace"><use href="#bl-gr"/></svg>replaced</li>
+<li><svg class="bl-ico" viewBox="-8 -8 16 16" aria-hidden="true" data-act="skip"><use href="#bl-gk"/></svg>skipped</li>
+<li><svg class="bl-ico" viewBox="-8 -8 16 16" aria-hidden="true" data-act="lock"><use href="#bl-gl"/></svg>locked</li>
+</ul>
+</div>
+<div class="bl-side">
+<figure class="code bl-chg" data-lang="cue" aria-label="The change">
+<!--@change-->
+</figure>
+<figure class="term bl-term" data-exit="0" data-ran="{{data blast.view.ran}}">
+<figcaption class="code-title"><span class="code-file">terminal</span></figcaption>
+<div class="term-body" id="bl-term" tabindex="0" role="region" aria-label="Output of the commands">
+<!--@term-->
+</div>
+</figure>
+<figure class="code bl-insp" data-lang="cue" aria-label="The node under the pointer or focus">
+<!--@insp-->
+</figure>
+</div>
+</div>
+
+<div class="bl-foot">
+<p class="bl-big"><span class="bl-num" id="bl-planned">{{data blast.view.js.scenes.0.planned}}</span><span class="bl-of">of <span id="bl-total">{{data blast.view.js.scenes.0.total}}</span></span></p>
+<p class="bl-unit" id="bl-unit">{{data blast.view.js.scenes.0.unit}}</p>
+<!--@tally-->
+<p class="bl-gline"><code id="bl-gline">{{data blast.view.js.scenes.0.graph}}</code></p>
+<button class="bl-replay" id="bl-replay" type="button" aria-label="Replay the change">Replay</button>
+</div>
+<p class="bl-capline"><span class="fig-n">fig. 3</span> <span id="bl-say" role="status" aria-live="polite">{{data blast.view.js.scenes.0.say}}</span></p>
+</div>
+
+<div class="bl-nojs">
+<h3 class="sr-only">The four changes</h3>
+<ol>
+<li><b>{{data blast.view.js.scenes.0.title}}.</b> {{data blast.view.js.scenes.0.say}} <code>{{data blast.view.js.scenes.0.graph}}</code></li>
+<li><b>{{data blast.view.js.scenes.1.title}}.</b> {{data blast.view.js.scenes.1.say}} <code>{{data blast.view.js.scenes.1.graph}}</code></li>
+<li><b>{{data blast.view.js.scenes.2.title}}.</b> {{data blast.view.js.scenes.2.say}} <code>{{data blast.view.js.scenes.2.graph}}</code></li>
+<li><b>{{data blast.view.js.scenes.3.title}}.</b> {{data blast.view.js.scenes.3.say}}</li>
+</ol>
+</div>
+
+<p class="bl-links row"><a class="link-arrow" href="concepts/plans.html#scoped-plans">Scoped plans, with the commands</a> <a class="link-arrow" href="learn/lab2-two-applies-at-once.html">Run two applies at once</a></p>
+<script type="application/json" id="bl-data">{{json blast.view.js}}</script>
+<script defer src="assets/demos/blast.js"></script>
+</div>

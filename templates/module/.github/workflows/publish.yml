@@ -1,0 +1,31 @@
+# Publishes the module to the GitHub container registry when a version tag
+# is pushed:  git tag v0.1.0 && git push origin v0.1.0
+#
+# The first publication of a module is PRIVATE. To let others use it without
+# credentials, make the package public once (see README.md).
+name: publish
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install the cue tool
+        run: go install cuelang.org/go/cmd/cue@v0.17.1
+      - name: Log in to ghcr.io
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Publish
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          export CUE_REGISTRY="github.com/${owner}=ghcr.io/${owner}/cue"
+          cue mod publish "${GITHUB_REF_NAME}"

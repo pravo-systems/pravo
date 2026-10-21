@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Writing a field twice · Learn · pravo</title>
+<meta name="description" content="What happens when two values disagree?">
+<script>if(/[?&]reduced/.test(location.search)){var _mm=window.matchMedia.bind(window);window.matchMedia=function(q){return /prefers-reduced-motion: reduce/.test(q)?{matches:true,media:q,addEventListener:function(){},addListener:function(){}}:_mm(q)}}</script>
+<link rel="icon" type="image/svg+xml" href="../../../../site/assets/logo.svg">
+<link rel="preload" href="../../../../site/assets/fonts/newsreader-500.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../../../site/assets/style.css">
+<script>(function(){var d=document.documentElement;d.className=d.className.replace('no-js','js');try{var t=localStorage.getItem("pravo-theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t)}catch(e){}})();</script>
+<script src="../../../../site/assets/site.js" defer></script>
+<script src="../../../../site/assets/widgets.js" defer></script>
+</head>
+<body class="page page-doc" data-section="learn" data-root="">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="site-header"><a class="brand" href="primitives.html"><img class="brand-mark" src="../../../../site/assets/logo.svg" alt="" width="26" height="26"> <span class="brand-name">pravo</span></a><nav class="site-nav" aria-label="Sections"><a href="contract.html" aria-current="page">Learn</a> <a href="contract.html">Migrate</a> <a href="contract.html">Guides</a> <a href="contract.html">Concepts</a> <a href="contract.html">Reference</a></nav><div class="site-tools"><button class="search-open" type="button">Search <kbd>/</kbd></button><button id="theme-toggle" type="button"></button><a class="btn btn-primary btn-sm" href="contract.html">Start</a></div></header>
+<div class="doc-shell"><aside class="doc-sidebar" id="doc-sidebar"><nav aria-label="Section"><ul class="side-pinned"><li><a href="glossary.html">Glossary</a></li><li><a href="contract.html">Cheat sheet</a></li></ul><p class="side-group">Start</p><ul><li><a href="contract.html" data-page="start/first-plan.html">Ten minutes to a first plan</a></li></ul>
+<p class="side-group">Track A, CUE from zero</p><ul>
+<li><a href="contract.html" data-page="learn/a01.html"><span class="side-n">A1</span> Your data is already CUE</a></li>
+<li><a href="contract.html" data-page="learn/a02.html"><span class="side-n">A2</span> A value can also be a type</a></li>
+<li><a href="contract.html" data-page="learn/a03.html" aria-current="page"><span class="side-n">A3</span> Writing a field twice</a></li>
+<li><a href="contract.html" data-page="learn/a04.html"><span class="side-n">A4</span> Order does not matter</a></li>
+<li><a href="contract.html" data-page="learn/a05.html"><span class="side-n">A5</span> Constraints narrow a value</a></li>
+<li><a href="contract.html" data-page="learn/a06.html"><span class="side-n">A6</span> Choices and defaults</a></li>
+<li><a href="contract.html" data-page="learn/a07.html"><span class="side-n">A7</span> Required, optional, regular</a></li>
+<li><a href="contract.html" data-page="learn/a08.html"><span class="side-n">A8</span> Definitions</a></li>
+<li><a href="contract.html" data-page="learn/a09.html"><span class="side-n">A9</span> Patterns</a></li>
+<li><a href="contract.html" data-page="learn/a10.html"><span class="side-n">A10</span> Comprehensions</a></li>
+</ul>
+<p class="side-group">Track B, pravo</p><ul>
+<li><a href="contract.html" data-page="learn/b01.html"><span class="side-n">B1</span> How pravo reads CUE</a></li>
+<li><a href="contract.html" data-page="learn/b02.html"><span class="side-n">B2</span> Reading a plan</a></li>
+<li><a href="contract.html" data-page="learn/b03.html"><span class="side-n">B3</span> Apply, outputs, state</a></li>
+<li><a href="contract.html" data-page="learn/b04.html"><span class="side-n">B4</span> Inputs and environments</a></li>
+</ul>
+<p class="side-group">Reference</p><ul><li><a href="glossary.html">Glossary</a></li><li><a href="contract.html">Cheat sheet</a></li></ul></nav></aside>
+<main class="doc-main" id="content"><nav class="breadcrumb" aria-label="Breadcrumb"><ol><li><a href="contract.html">Learn</a></li><li><a href="contract.html">Track A, CUE from zero</a></li><li aria-current="page">A3. Writing a field twice</li></ol></nav>
+<article class="doc">
+<header class="doc-head"><p class="kicker">&sect; <b>A3</b> &middot; Track A</p><h1>Writing a field <em>twice</em></h1><p class="lede">Repeating a field adds detail. The copies must agree, and a disagreement is an error.</p>
+<dl class="lesson-meta"><div><dt>Time</dt><dd>10 min</dd></div><div><dt>Needs</dt><dd>A2, a value can also be a type</dd></div><div><dt>You will learn</dt><dd>What happens when two values disagree? Why does the order of the lines not matter?</dd></div><div><dt>Done when</dt><dd><code>pravo eval</code> prints one value for <code>size</code> and an error for the conflict.</dd></div></dl><p class="doc-actions"><a class="view-md" href="contract.html" type="text/markdown">View as Markdown</a> <button class="copy-page" type="button" data-md="contract.html">Copy page</button></p></header>
+
+<p>In OpenTofu, a variable has a default and an override. The override wins and nothing reports the difference. You run a plan, read the numbers, and find out later what changed.</p>
+<p>Open an empty directory and run <code>pravo init</code> once. Then work through the steps below with the <a class="term-link" href="glossary.html#unification" data-term="unification" data-def="Combining two values into one that satisfies both. Writing a field twice unifies the copies. If no value satisfies both, the result is a conflict.">unification</a> of values in mind. The word <a class="term-link" href="glossary.html#concrete" data-term="concrete">concrete</a> is defined in the glossary.</p>
+
+<h2 id="the-pain">The pain, in HCL</h2>
+<p>The module default is 30 days. The auto-loaded variables file sets 7. Plan output shows <code>retention = 7</code> and no warning.</p>
+<figure class="code" data-lang="hcl" data-status="unintended"><figcaption class="code-title"><span class="code-file">main.tf</span><span class="code-ran">ran on 0.1</span><span class="code-badge">valid but not intended</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">variable</span> <span class="tok-str">"retention"</span> <span class="tok-op">{</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-id">type</span>    <span class="tok-op">=</span> <span class="tok-type">number</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-id">default</span> <span class="tok-op">=</span> <span class="tok-num">30</span>
+</span><span class="line"><span class="ln"></span><span class="tok-op">}</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-kw">module</span> <span class="tok-str">"logs"</span> <span class="tok-op">{</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-id">source</span>    <span class="tok-op">=</span> <span class="tok-str">"./bucket"</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-id">retention</span> <span class="tok-op">=</span> <span class="tok-id">var</span>.<span class="tok-id">retention</span>
+</span><span class="line"><span class="ln"></span><span class="tok-op">}</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line hl"><span class="ln"></span><span class="tok-com"># production.auto.tfvars</span>
+</span><span class="line hl"><span class="ln"></span><span class="tok-id">retention</span> <span class="tok-op">=</span> <span class="tok-num">7</span>
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure>
+<aside class="callout callout-pitfall"><p class="callout-title">Pitfall</p><p>A later value replaces an earlier one without a message. Precedence rules decide the winner, and you have to remember them.</p></aside>
+
+<h2 id="the-idea">The idea</h2>
+<p>CUE has no override. A second <code>retention</code> field does not replace the first. It adds a requirement, and the result satisfies both.</p>
+<h3 id="agreeing-copies">Agreeing copies</h3>
+<figure class="code" data-lang="cue" data-status="valid" data-ln><figcaption class="code-title"><span class="code-file">estate.cue</span><span class="code-badge">valid</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> <span class="tok-id">estate</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">logs</span><span class="tok-op">:</span> {
+</span><span class="line hl"><span class="ln"></span>	<span class="tok-id">retention</span><span class="tok-op">:</span> <span class="tok-type">int</span>
+</span><span class="line hl"><span class="ln"></span>	<span class="tok-id">retention</span><span class="tok-op">:</span> <span class="tok-num">30</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">tags</span><span class="tok-op">:</span> <span class="tok-id">owner</span><span class="tok-op">:</span> <span class="tok-str">"platform"</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">tags</span><span class="tok-op">:</span> <span class="tok-id">team</span><span class="tok-op">:</span>  <span class="tok-str">"storage"</span>
+</span><span class="line"><span class="ln"></span>}
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure><figure class="term" data-exit="0"><figcaption class="code-title"><span class="code-file">terminal</span></figcaption><div class="term-body"><div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo eval</span></div><pre class="term-out"><code>logs: {
+    <span class="out-dim">retention:</span> 30
+    tags: {
+        owner: "platform"
+        team:  "storage"
+    }
+}
+</code></pre></div><button class="copy" data-copy="pravo eval">Copy</button></figure>
+
+<div class="compare" data-count="2"><figure class="code" data-lang="hcl"><figcaption class="code-title"><span class="code-file">variables.tf</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">variable</span> <span class="tok-str">"region"</span> <span class="tok-op">{</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-id">type</span>    <span class="tok-op">=</span> <span class="tok-type">string</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-id">default</span> <span class="tok-op">=</span> <span class="tok-str">"eu-west-1"</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-kw">validation</span> <span class="tok-op">{</span>
+</span><span class="line"><span class="ln"></span>    <span class="tok-id">condition</span>     <span class="tok-op">=</span> <span class="tok-fn">contains</span><span class="tok-op">(</span><span class="tok-op">[</span><span class="tok-str">"eu-west-1"</span><span class="tok-op">,</span> <span class="tok-str">"us-east-1"</span><span class="tok-op">]</span><span class="tok-op">,</span> <span class="tok-id">var</span>.<span class="tok-id">region</span><span class="tok-op">)</span>
+</span><span class="line"><span class="ln"></span>    <span class="tok-id">error_message</span> <span class="tok-op">=</span> <span class="tok-str">"region must be eu-west-1 or us-east-1."</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-op">}</span>
+</span><span class="line"><span class="ln"></span><span class="tok-op">}</span>
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure><figure class="code" data-lang="cue" data-status="valid"><figcaption class="code-title"><span class="code-file">estate.cue</span><span class="code-badge">valid</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-id">region</span><span class="tok-op">:</span> <span class="tok-op">*</span><span class="tok-str">"eu-west-1"</span> <span class="tok-op">|</span> <span class="tok-str">"us-east-1"</span> @<span class="tok-fn">tag</span>(<span class="tok-id">region</span>)
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure></div>
+
+<h3 id="disagreeing-copies">Disagreeing copies</h3>
+<p>The next block carries the <code>conflict</code> badge before you run it. The error names the path, both values and both locations.</p>
+<figure class="code" data-lang="cue" data-status="conflict" data-ln><figcaption class="code-title"><span class="code-file">estate.cue</span><span class="code-badge">conflict</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> <span class="tok-id">estate</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line hl"><span class="ln"></span><span class="tok-id">logs</span><span class="tok-op">:</span> <span class="tok-id">retention</span><span class="tok-op">:</span> <span class="tok-num">30</span>
+</span><span class="line hl"><span class="ln"></span><span class="tok-id">logs</span><span class="tok-op">:</span> <span class="tok-id">retention</span><span class="tok-op">:</span> <span class="tok-num">7</span>
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure><figure class="term" data-exit="1"><figcaption class="code-title"><span class="code-file">terminal</span></figcaption><div class="term-body"><div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo eval</span></div><pre class="term-out"><code><span class="out-err">logs.retention: conflicting values 7 and 30:</span>
+<span class="out-dim">    ./estate.cue:3:16
+    ./estate.cue:4:16</span>
+</code></pre></div><button class="copy" data-copy="pravo eval">Copy</button></figure>
+
+<details class="predict"><summary><span class="predict-label">Predict</span> What does <code>pravo eval</code> print when one copy says <code>size: 3</code> and the other says <code>size: int</code>?</summary><div class="predict-reveal"><p>It prints <code>size: 3</code>. The type is less specific than the number, so the number is the result.</p><figure class="term" data-exit="0"><figcaption class="code-title"><span class="code-file">terminal</span></figcaption><div class="term-body"><div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo eval</span></div><pre class="term-out"><code>size: 3
+</code></pre></div><button class="copy" data-copy="pravo eval">Copy</button></figure></div></details>
+
+<h2 id="shapes">Shapes that reject a typo</h2>
+<p>A definition closes a shape. A field that the definition does not declare is refused before any provider starts.</p>
+<div class="tabs"><div class="tab-list" role="tablist"><button role="tab" id="t1" aria-selected="true" aria-controls="p1">estate.cue</button><button role="tab" id="t2" aria-selected="false" aria-controls="p2">rejected</button><button role="tab" id="t3" aria-selected="false" aria-controls="p3">intended</button></div>
+<div class="tab-panel" role="tabpanel" id="p1" data-title="estate.cue"><figure class="code" data-lang="cue" data-status="valid"><figcaption class="code-title"><span class="code-file">estate.cue</span><span class="code-badge">valid</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> <span class="tok-id">estate</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-def">#Bucket</span><span class="tok-op">:</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">name</span><span class="tok-op">:</span>      <span class="tok-type">string</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">retention</span><span class="tok-op">:</span> <span class="tok-type">int</span> <span class="tok-op">&amp;</span> <span class="tok-op">&gt;=</span><span class="tok-num">1</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">encrypted</span><span class="tok-op">:</span> <span class="tok-type">bool</span>
+</span><span class="line"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">logs</span><span class="tok-op">:</span> <span class="tok-def">#Bucket</span> <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">name</span><span class="tok-op">:</span>      <span class="tok-str">"logs"</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">retention</span><span class="tok-op">:</span> <span class="tok-num">30</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">encrypted</span><span class="tok-op">:</span> <span class="tok-type">true</span>
+</span><span class="line"><span class="ln"></span>}
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure></div>
+<div class="tab-panel" role="tabpanel" id="p2" data-title="With a typo"><figure class="code" data-lang="cue" data-status="rejected"><figcaption class="code-title"><span class="code-file">estate.cue</span><span class="code-badge">rejected before apply</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> <span class="tok-id">estate</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">logs</span><span class="tok-op">:</span> <span class="tok-def">#Bucket</span> <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">name</span><span class="tok-op">:</span>      <span class="tok-str">"logs"</span>
+</span><span class="line hl"><span class="ln"></span>	<span class="tok-id">vrsioning</span><span class="tok-op">:</span> <span class="tok-type">true</span>
+</span><span class="line"><span class="ln"></span>}
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure></div>
+<div class="tab-panel" role="tabpanel" id="p3" data-title="A value that is valid but not intended"><figure class="code" data-lang="cue" data-status="unintended"><figcaption class="code-title"><span class="code-file">estate.cue</span><span class="code-badge">valid but not intended</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> <span class="tok-id">estate</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">logs</span><span class="tok-op">:</span> <span class="tok-id">retention</span><span class="tok-op">:</span> <span class="tok-num">3000000</span> <span class="tok-com">// days, not seconds</span>
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure></div></div>
+
+<figure class="fig"><div class="fig-body"><svg viewBox="0 0 520 250" width="520" height="250" role="img" aria-label="A chain of three values from general to specific: int, a range, and 3"><g fill="none" stroke="currentColor" stroke-width="1.5"><path d="M260 44 L260 118 M260 138 L260 206" /></g><g fill="currentColor"><rect x="249" y="28" width="22" height="22" style="fill:var(--bg);stroke:var(--accent);stroke-width:2"/><rect x="249" y="118" width="22" height="22" style="fill:var(--bg);stroke:var(--accent);stroke-width:2"/><rect x="249" y="208" width="22" height="22" style="fill:var(--accent)"/></g><g font-size="14" text-anchor="start"><text x="288" y="44">int</text><text x="288" y="134">&gt;=1 &amp; &lt;=10</text><text x="288" y="224">3</text><text x="60" y="44" style="fill:var(--text-3)">general</text><text x="60" y="224" style="fill:var(--text-3)">specific</text></g></svg></div><figcaption><span class="fig-n">fig. 1</span> Each step adds detail. Writing a field twice moves a value down this chain.</figcaption></figure>
+
+<div class="widget" data-widget="unify"><script type="application/json">{"title": "Unification", "left": {"tag": "a type", "label": "int"}, "right": {"tag": "a range", "label": ">=1 & <=10"}, "merged": "int & >=1 & <=10", "chips": [{"value": "3", "ok": true, "result": "3"}, {"value": "0", "ok": false, "result": "invalid value 0 (out of bound >=1)"}, {"value": "11", "ok": false, "result": "invalid value 11 (out of bound <=10)"}, {"value": "\"3\"", "ok": false, "result": "conflicting values \"3\" and int (mismatched types string and int)"}], "note": "Results are recorded from pravo eval. The widget never evaluates CUE."}</script><noscript>Unifying int with a range of 1 to 10 gives one value constrained to both. The value 3 is accepted. The values 0, 11 and "3" are refused.</noscript></div>
+
+<div class="widget" data-widget="plan"><script type="application/json">{"title": "terminal", "command": "pravo plan", "exit": 0, "lines": [{"k": "add", "t": "+ random_pet.server"}, {"k": "dim", "t": "    length    = 3"}, {"k": "dim", "t": "    id        = (known after apply)"}, {"k": "add", "t": "+ local_file.hello"}, {"k": "dim", "t": "    filename  = \"hello-dev.txt\""}, {"k": "change", "t": "~ local_file.motd"}, {"k": "dim", "t": "    content   = \"hello\" -> \"hello, world\""}, {"k": "replace", "t": "-/+ local_file.index   # forces replacement"}, {"k": "destroy", "t": "- local_file.old"}, {"k": "", "t": ""}], "summary": {"k": "", "t": "Plan: 3 to add, 1 to change, 1 to destroy."}, "speed": 90}</script><noscript>pravo plan lists two files to add, one to change and one to replace. The summary reads: Plan: 3 to add, 1 to change, 1 to destroy.</noscript></div>
+
+<aside class="callout callout-note"><p class="callout-title">Note</p><p>Run <code>pravo eval</code> after each edit. The output is the only evidence that counts.</p></aside>
+<aside class="callout callout-tip"><p class="callout-title">Tip</p><p>Press <kbd>/</kbd> or <kbd>Ctrl</kbd> <kbd>K</kbd> to search this site.</p></aside>
+<aside class="callout callout-warning"><p class="callout-title">Warning</p><p>A saved plan carries the tags it was made with. Apply it with the same tags.</p></aside>
+<aside class="callout callout-check"><p class="callout-title">Check</p><p>If <code>pravo eval</code> prints two locations, you wrote the field twice with different values.</p></aside>
+
+<h2 id="reference-table">Quick reference</h2>
+<div class="table-wrap"><table><thead><tr><th>Glyph</th><th>Meaning</th><th>Exit code</th><th>Example</th></tr></thead><tbody>
+<tr><td><code>+</code></td><td>The object is added</td><td>0</td><td><code>+ local_file.hello</code></td></tr>
+<tr><td><code>~</code></td><td>The object changes in place</td><td>0</td><td><code>~ local_file.motd</code></td></tr>
+<tr><td><code>-/+</code></td><td>The object is replaced</td><td>0</td><td><code>-/+ local_file.index</code></td></tr>
+<tr><td><code>-</code></td><td>The object is destroyed</td><td>5 with a policy that refuses deletes</td><td><code>- local_file.old</code></td></tr></tbody></table></div>
+<ul><li>Lists use a hairline accent marker.</li><li>A second item with <a href="glossary.html">a link</a> and <strong>strong text</strong>.<ul><li>A nested item.</li></ul></li></ul>
+<ol><li>Write the field once.</li><li>Write it again with a different value.</li><li>Read the error.</li></ol>
+<blockquote><p>A conflict is an error, not an override.</p></blockquote>
+<hr>
+
+<section class="exercise"><header><span class="exercise-label">Exercise</span><h3>Clear the conflict</h3></header><div class="exercise-body"><p>Delete the right line so that <code>pravo eval</code> prints <code>retention: 30</code>. Then write two partial structs for <code>tags</code> that merge into one.</p></div>
+<details class="hint" data-tier="1"><summary>Hint</summary><p>Look at the two locations in the error. One of them is the line to delete.</p></details>
+<details class="hint" data-tier="2"><summary>Hint</summary><p>Read <a href="glossary.html#unification">unification</a> in the glossary.</p></details>
+<details class="solution"><summary>Solution</summary><figure class="code" data-lang="cue" data-status="valid"><figcaption class="code-title"><span class="code-file">estate.cue</span><span class="code-badge">valid</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> <span class="tok-id">estate</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">logs</span><span class="tok-op">:</span> <span class="tok-id">retention</span><span class="tok-op">:</span> <span class="tok-num">30</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">logs</span><span class="tok-op">:</span> <span class="tok-id">tags</span><span class="tok-op">:</span> <span class="tok-id">owner</span><span class="tok-op">:</span> <span class="tok-str">"platform"</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">logs</span><span class="tok-op">:</span> <span class="tok-id">tags</span><span class="tok-op">:</span> <span class="tok-id">team</span><span class="tok-op">:</span>  <span class="tok-str">"storage"</span>
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure></details></section>
+
+<details class="deep-dive"><summary>Why the order does not matter</summary><p>Unification is commutative and associative. Any order of the same fields produces the same result.</p><figure class="code" data-lang="cue"><figcaption class="code-title"><span class="code-file">order.cue</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-id">a</span><span class="tok-op">:</span> <span class="tok-num">1</span> <span class="tok-op">&amp;</span> <span class="tok-type">int</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">b</span><span class="tok-op">:</span> <span class="tok-type">int</span> <span class="tok-op">&amp;</span> <span class="tok-num">1</span>
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure></details>
+
+<h2 id="recap">Recap</h2>
+<ul><li>A second field adds a requirement; it never replaces.</li><li>Agreeing copies produce one value.</li><li>Disagreeing copies produce an error with both locations.</li></ul>
+
+<section class="check"><h3>Check yourself</h3><details><summary>What does <code>size: 3</code> followed by <code>size: 11</code> produce?</summary><p>An error: <code>size: conflicting values 11 and 3</code>, with two locations.</p></details><details><summary>Does swapping the two lines change the result?</summary><p>No. The result and the error are the same.</p></details></section>
+
+<footer class="doc-foot"><nav class="pager" aria-label="Pages"><a class="pager-prev" rel="prev" href="contract.html"><span class="pager-label">Previous &middot; A2</span><span class="pager-title">A value can also be a type</span></a><a class="pager-next" rel="next" href="contract.html"><span class="pager-label">Next &middot; A4</span><span class="pager-title">Order does not matter</span></a></nav>
+<div class="foot-row"><button class="mark-done" type="button" data-page="learn/a03.html">Mark as done</button><p class="applies">pravo 0.1 &middot; CUE 0.12</p></div></footer>
+</article></main>
+<aside class="doc-toc"><nav aria-label="On this page"><p class="toc-title">On this page</p><ul><li class="toc-l2"><a href="#the-pain">The pain, in HCL</a></li><li class="toc-l2"><a href="#the-idea">The idea</a></li><li class="toc-l3"><a href="#agreeing-copies">Agreeing copies</a></li><li class="toc-l3"><a href="#disagreeing-copies">Disagreeing copies</a></li><li class="toc-l2"><a href="#shapes">Shapes that reject a typo</a></li><li class="toc-l2"><a href="#reference-table">Quick reference</a></li><li class="toc-l2"><a href="#recap">Recap</a></li></ul></nav></aside>
+</div>
+<footer class="site-footer"><div class="foot-inner"><div class="foot-row"><p class="foot-brand"><span class="foot-title">pravo</span> <span class="foot-tag">Infrastructure as code in CUE, running the OpenTofu providers you already use.</span></p><nav class="foot-nav" aria-label="Footer"><ul class="foot-sections"><li><a href="contract.html">Learn</a></li><li><a href="contract.html">Migrate</a></li><li><a href="contract.html">Guides</a></li><li><a href="contract.html">Concepts</a></li><li><a href="contract.html">Reference</a></li></ul><ul class="foot-project"><li><a href="contract.html">All pages</a></li><li><a href="contract.html">llms.txt</a></li></ul></nav></div><p class="legal"><span class="applies">pravo 0.1 &middot; CUE 0.17</span> &middot; pravo is an independent project, licensed under Apache-2.0. Providers keep their own licences. Discrepancies between this documentation and the behaviour of the system are defects of the documentation.</p></div></footer>
+</body>
+</html>

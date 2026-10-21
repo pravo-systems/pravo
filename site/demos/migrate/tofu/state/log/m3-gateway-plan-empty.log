@@ -1,0 +1,5 @@
+data.terraform_remote_state.platform: Reading...
+data.terraform_remote_state.platform: Read complete after 0s
+local_file.upstreams: Refreshing state... [id=a80f4be062d20967b1ee08bdcac01ef45725e8cb]
+
+No changes. Your infrastructure matches the configuration.

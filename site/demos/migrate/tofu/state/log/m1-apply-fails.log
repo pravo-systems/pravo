@@ -1,0 +1,71 @@
+local_file.web[1]: Refreshing state... [id=68f1cd2e0b1d04d5cf751daf0b84253f90249fe5]
+local_file.web[0]: Refreshing state... [id=57415a3c8fdc1eff74651f6f5e7b686fee43ec65]
+null_resource.gate: Refreshing state... [id=4102890915194075070]
+
+OpenTofu used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+-/+ destroy and then create replacement
++/- create replacement and then destroy
+
+OpenTofu will perform the following actions:
+
+  # local_file.web[1] must be replaced
++/- resource "local_file" "web" {
+      ~ content_base64sha256 = "OC5+eWPSpOJiDCUeih4h8of79H80KNf05MaB0vP9Bz8=" -> (known after apply)
+      ~ content_base64sha512 = "mris9VuBFyzh4f69pLlOZfrlFVC4LQI6ZLt4dAKFysCIwGeqIhEUirQZxopR69M8K2tjKQ7TXZejzeCOCPvxwQ==" -> (known after apply)
+      ~ content_md5          = "186c9637117f3fd5b9b1297dc8da0a55" -> (known after apply)
+      ~ content_sha1         = "68f1cd2e0b1d04d5cf751daf0b84253f90249fe5" -> (known after apply)
+      ~ content_sha256       = "382e7e7963d2a4e2620c251e8a1e21f287fbf47f3428d7f4e4c681d2f3fd073f" -> (known after apply)
+      ~ content_sha512       = "9ab8acf55b81172ce1e1febda4b94e65fae51550b82d023a64bb78740285cac088c067aa2211148ab419c68a51ebd33c2b6b63290ed35d97a3cde08e08fbf1c1" -> (known after apply)
+      ~ filename             = "out/web1-1.txt" -> "out/web1-2.txt" # forces replacement
+      ~ id                   = "68f1cd2e0b1d04d5cf751daf0b84253f90249fe5" -> (known after apply)
+        # (3 unchanged attributes hidden)
+    }
+
+  # null_resource.gate must be replaced
+-/+ resource "null_resource" "gate" {
+      ~ id       = "4102890915194075070" -> (known after apply)
+      ~ triggers = { # forces replacement
+          ~ "web" = "57415a3c8fdc1eff74651f6f5e7b686fee43ec65,68f1cd2e0b1d04d5cf751daf0b84253f90249fe5" -> (known after apply)
+        }
+    }
+
+Plan: 2 to add, 0 to change, 2 to destroy.
+null_resource.gate: Destroying... [id=4102890915194075070]
+null_resource.gate: Destruction complete after 0s
+local_file.web[1]: Creating...
+local_file.web[1]: Creation complete after 0s [id=68f1cd2e0b1d04d5cf751daf0b84253f90249fe5]
+null_resource.gate: Creating...
+null_resource.gate: Provisioning with 'local-exec'...
+null_resource.gate (local-exec): Executing: ["/bin/sh" "-c" "exit 1"]
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with either the -target option or the -exclude
+option, which means that the result of this plan may not represent all of the
+changes requested by the current configuration.
+
+The -target and -exclude options are not for routine use, and are provided
+only for exceptional situations such as recovering from errors or mistakes,
+or when OpenTofu specifically suggests to use it as part of an error message.
+
+Warning: Applied changes may be incomplete
+
+The plan was created with the -target or the -exclude option in effect, so
+some changes requested in the configuration may have been ignored and the
+output values may not be fully updated. Run the following command to verify
+that no other changes are pending:
+    tofu plan
+	
+Note that the -target and -exclude options are not suitable for routine use,
+and are provided only for exceptional situations such as recovering from
+errors or mistakes, or when OpenTofu specifically suggests to use it as part
+of an error message.
+
+Error: local-exec provisioner error
+
+  with null_resource.gate,
+  on main.tf line 49, in resource "null_resource" "gate":
+  49:   provisioner "local-exec" {
+
+Error running command 'exit 1': exit status 1. Output: 

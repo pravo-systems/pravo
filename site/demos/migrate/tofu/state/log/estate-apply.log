@@ -1,0 +1,134 @@
+data.local_file.banner: Reading...
+data.local_file.banner: Read complete after 0s [id=fd9c765da1ef3d530b673c2069003cd07dd3c4da]
+
+OpenTofu used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+OpenTofu will perform the following actions:
+
+  # local_file.hello will be created
+  + resource "local_file" "hello" {
+      + content              = (known after apply)
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "out/hello.txt"
+      + id                   = (known after apply)
+    }
+
+  # random_integer.port[0] will be created
+  + resource "random_integer" "port" {
+      + id     = (known after apply)
+      + max    = 8999
+      + min    = 8000
+      + result = (known after apply)
+    }
+
+  # random_integer.port[1] will be created
+  + resource "random_integer" "port" {
+      + id     = (known after apply)
+      + max    = 8999
+      + min    = 8000
+      + result = (known after apply)
+    }
+
+  # random_pet.region["eu"] will be created
+  + resource "random_pet" "region" {
+      + id        = (known after apply)
+      + length    = 2
+      + prefix    = "eu"
+      + separator = "-"
+    }
+
+  # random_pet.region["us"] will be created
+  + resource "random_pet" "region" {
+      + id        = (known after apply)
+      + length    = 2
+      + prefix    = "us"
+      + separator = "-"
+    }
+
+  # random_pet.server will be created
+  + resource "random_pet" "server" {
+      + id        = (known after apply)
+      + length    = 2
+      + prefix    = "acme-dev"
+      + separator = "-"
+    }
+
+  # module.notes.local_file.note["alpha"] will be created
+  + resource "local_file" "note" {
+      + content              = <<-EOT
+            alpha
+        EOT
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "out/notes/alpha.txt"
+      + id                   = (known after apply)
+    }
+
+  # module.notes.local_file.note["beta"] will be created
+  + resource "local_file" "note" {
+      + content              = <<-EOT
+            beta
+        EOT
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "out/notes/beta.txt"
+      + id                   = (known after apply)
+    }
+
+Plan: 8 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + note_paths   = [
+      + "out/notes/alpha.txt",
+      + "out/notes/beta.txt",
+    ]
+  + port_numbers = (sensitive value)
+  + server_name  = (known after apply)
+module.notes.local_file.note["alpha"]: Creating...
+module.notes.local_file.note["beta"]: Creating...
+module.notes.local_file.note["beta"]: Creation complete after 0s [id=6c007a14875d53d9bf0ef5a6fc0257c817f0fb83]
+module.notes.local_file.note["alpha"]: Creation complete after 0s [id=d046cd9b7ffb7661e449683313d41f6fc33e3130]
+random_pet.region["eu"]: Creating...
+random_pet.region["us"]: Creating...
+random_integer.port[1]: Creating...
+random_pet.server: Creating...
+random_integer.port[0]: Creating...
+random_pet.region["eu"]: Creation complete after 0s [id=eu-just-salmon]
+random_pet.server: Creation complete after 0s [id=acme-dev-charmed-buzzard]
+random_pet.region["us"]: Creation complete after 0s [id=us-exciting-barnacle]
+random_integer.port[1]: Creation complete after 0s [id=8974]
+random_integer.port[0]: Creation complete after 0s [id=8111]
+local_file.hello: Creating...
+local_file.hello: Creation complete after 0s [id=16fa07316cd5759c13c1380c5503af94b58ef1cc]
+
+Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+note_paths = [
+  "out/notes/alpha.txt",
+  "out/notes/beta.txt",
+]
+port_numbers = <sensitive>
+server_name = "acme-dev-charmed-buzzard"

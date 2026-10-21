@@ -1,0 +1,80 @@
+[
+ {
+  "title": "Writing a field twice",
+  "url": "contract.html",
+  "section": "Learn",
+  "description": "What happens when two values disagree?",
+  "headings": [
+   {
+    "text": "The pain, in HCL",
+    "id": "the-pain"
+   },
+   {
+    "text": "Disagreeing copies",
+    "id": "disagreeing-copies"
+   },
+   {
+    "text": "Quick reference",
+    "id": "reference-table"
+   }
+  ]
+ },
+ {
+  "title": "Glossary",
+  "url": "glossary.html",
+  "section": "Reference",
+  "description": "Terms used in the documentation.",
+  "headings": [
+   {
+    "text": "unification",
+    "id": "unification"
+   },
+   {
+    "text": "concrete",
+    "id": "concrete"
+   }
+  ]
+ },
+ {
+  "title": "Reading a plan",
+  "url": "contract.html",
+  "section": "Learn",
+  "description": "The plan is a diff with a legend: glyphs, unknown values and the summary line."
+ },
+ {
+  "title": "Migrate from OpenTofu",
+  "url": "contract.html",
+  "section": "Migrate",
+  "description": "A gated runbook: back up, translate, convert state, plan until empty, cut over."
+ },
+ {
+  "title": "pravo plan",
+  "url": "contract.html",
+  "section": "Reference",
+  "description": "Compute a plan against the state of what exists."
+ },
+ {
+  "title": "pravo eval",
+  "url": "contract.html",
+  "section": "Reference",
+  "description": "Evaluate the specification and print the result."
+ },
+ {
+  "title": "Constraints narrow a value",
+  "url": "contract.html",
+  "section": "Learn",
+  "description": "The ampersand combines values; a range is a value."
+ },
+ {
+  "title": "Definitions",
+  "url": "contract.html",
+  "section": "Learn",
+  "description": "A closed shape rejects a field it does not declare."
+ },
+ {
+  "title": "Exit codes",
+  "url": "contract.html",
+  "section": "Reference",
+  "description": "Zero for success, five for a policy refusal."
+ }
+]

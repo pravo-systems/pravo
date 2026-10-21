@@ -1,0 +1,31 @@
+{
+  "blocks": [
+    {
+      "block": 2,
+      "command": "pravo init",
+      "exit": 0,
+      "expect_exit": 0,
+      "hidden": true,
+      "line": 32,
+      "ok": true,
+      "output": "Configuration does not load yet; generating schemas for the declared providers first.\nCreated cue.mod/module.cue\nProviders:\n  local = hashicorp/local v2.9.1\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/local (2 resource types, 3 data sources, 1 ephemeral, 1 functions)\n\npravo has been initialised. Run \"pravo plan\" to see what it would do.",
+      "stage": "main"
+    },
+    {
+      "block": 3,
+      "command": "pravo plan",
+      "exit": 0,
+      "expect_exit": 0,
+      "line": 36,
+      "ok": true,
+      "output": "pravo will perform the following actions:\n\n  # api.file (local_file) will be created\n  + api: file: {\n  +     content:              \"PORT=8080\\n\"\n  +     content_base64sha256: (known after apply)\n  +     content_base64sha512: (known after apply)\n  +     content_md5:          (known after apply)\n  +     content_sha1:         (known after apply)\n  +     content_sha256:       (known after apply)\n  +     content_sha512:       (known after apply)\n  +     directory_permission: \"0777\"\n  +     file_permission:      \"0600\"\n  +     filename:             \"api.env\"\n  +     id:                   (known after apply)\n    }\n\n  # web.file (local_file) will be created\n  + web: file: {\n  +     content:              \"PORT=8081\\n\"\n  +     content_base64sha256: (known after apply)\n  +     content_base64sha512: (known after apply)\n  +     content_md5:          (known after apply)\n  +     content_sha1:         (known after apply)\n  +     content_sha256:       (known after apply)\n  +     content_sha512:       (known after apply)\n  +     directory_permission: \"0777\"\n  +     file_permission:      \"0777\"\n  +     filename:             \"web.env\"\n  +     id:                   (known after apply)\n    }\n\nPlan: 2 to add, 0 to change, 0 to destroy.\nGraph: planned 2 of 2.",
+      "stage": "main"
+    }
+  ],
+  "page": "site/demos/hero/page.md",
+  "title": "Hero scenario",
+  "version": [
+    "pravo 0.1.0-dev",
+    "cue v0.17.1"
+  ]
+}

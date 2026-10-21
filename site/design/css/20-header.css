@@ -1,0 +1,261 @@
+/* ==========================================================================
+   20 header, navigation, search button, theme toggle, site footer
+   ========================================================================== */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: clamp(.75rem, 2vw, 2rem);
+  height: var(--header-h);
+  padding-inline: max(var(--gutter), calc((100% - var(--sheet)) / 2 + var(--gutter)));
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+}
+/* The hairline appears on scroll. Scroll-driven where supported, a class otherwise. */
+.site-header.is-scrolled { border-bottom-color: var(--line-strong); }
+@supports (animation-timeline: scroll()) {
+  @keyframes hairline { from { border-bottom-color: transparent; } to { border-bottom-color: var(--line-strong); } }
+  .site-header {
+    animation: hairline linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 24px;
+  }
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .6rem;
+  color: var(--text);
+  text-decoration: none;
+  flex: none;
+}
+/* The mark is a mask, so it takes the accent colour of the active theme. The image
+   itself is pushed out of its own box. */
+.brand-mark {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: block;
+  object-fit: none;
+  object-position: 300% 0;
+  background: var(--accent);
+  -webkit-mask: var(--i-mark) center / contain no-repeat;
+  mask: var(--i-mark) center / contain no-repeat;
+}
+.brand-name {
+  font: 500 1.5rem/1 var(--font-display);
+  letter-spacing: -.02em;
+  padding-bottom: .12rem;
+}
+
+.site-nav {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  gap: .15rem;
+  margin-left: clamp(.25rem, 2vw, 1.5rem);
+}
+.site-nav a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: .8rem;
+  color: var(--text-2);
+  font: 500 .9rem/1 var(--font-sans);
+  text-decoration: none;
+  transition: color var(--t-fast);
+}
+.site-nav a::after {
+  content: "";
+  position: absolute;
+  left: .8rem; right: .8rem; bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform var(--t-med) var(--ease);
+}
+.site-nav a:hover { color: var(--text); }
+.site-nav a:hover::after { transform: scaleX(.35); }
+.site-nav a[aria-current] { color: var(--text); }
+.site-nav a[aria-current]::after { transform: scaleX(1); }
+
+.site-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+/* search: looks like a field, opens the palette */
+.search-open {
+  --icon: var(--i-search);
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  min-width: 11.5rem;
+  height: 2.375rem;
+  padding: 0 .5rem 0 .7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--text-3);
+  font: 400 .875rem/1 var(--font-sans);
+  text-align: left;
+  transition: border-color var(--t-fast), color var(--t-fast);
+}
+.search-open::before {
+  content: "";
+  flex: none;
+  width: 1rem; height: 1rem;
+  background: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
+.search-open kbd { margin-left: auto; }
+.search-open:hover { border-color: var(--text-3); color: var(--text-2); }
+
+/* theme toggle: icon drawn in CSS, follows the resolved theme */
+#theme-toggle {
+  --icon: var(--i-moon);
+  width: 2.5rem; height: 2.5rem;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--text-2);
+}
+#theme-toggle::before {
+  content: "";
+  width: 1.2rem; height: 1.2rem;
+  background: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
+#theme-toggle:hover { background: var(--surface-2); color: var(--text); }
+:root[data-theme="dark"] #theme-toggle { --icon: var(--i-sun); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #theme-toggle { --icon: var(--i-sun); }
+}
+/* buttons that need script are hidden until it runs */
+html:not(.js) #theme-toggle, html:not(.js) .search-open { display: none; }
+
+.site-header .btn { --cut: .55rem; min-height: 2.25rem; padding: .35rem 1rem; font-size: .86rem; margin-left: .25rem; }
+
+/* reading progress hairline (doc pages) */
+.read-progress {
+  position: fixed;
+  left: 0; top: 0;
+  z-index: 70;
+  width: 100%;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(var(--p, 0));
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+/* ---- phones and small tablets: brand row, then a scrolling nav row ---- */
+@media (max-width: 59.99rem) {
+  .site-header {
+    position: relative;
+    flex-wrap: wrap;
+    height: auto;
+    gap: 0 .5rem;
+    padding-block: .5rem 0;
+    border-bottom-color: var(--line);
+  }
+  .site-header .brand { min-height: 2.5rem; }
+  .site-tools { order: 2; }
+  .site-nav {
+    order: 3;
+    flex: 1 0 100%;
+    margin: .35rem calc(var(--gutter) * -1) 0;
+    padding-inline: calc(var(--gutter) - .8rem);
+    height: 2.75rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-top: 1px solid var(--line);
+  }
+  .site-nav::-webkit-scrollbar { display: none; }
+  .site-nav a { flex: none; padding-inline: .8rem; }
+  .site-nav a::after { left: .8rem; right: .8rem; bottom: 0; }
+  .site-header { animation: none; }
+}
+@media (max-width: 41rem) {
+  .search-open { min-width: 0; width: 2.5rem; padding: 0; justify-content: center; font-size: 0; border-color: transparent; background: transparent; }
+  .search-open kbd { display: none; }
+  .search-open::before { width: 1.2rem; height: 1.2rem; }
+  .site-header .btn { padding: .35rem .85rem; }
+}
+
+/* ---- site footer: one row of links under the page, ruled like a band ---- */
+.site-footer {
+  position: relative;
+  margin-top: auto;
+  overflow-x: clip; /* the crosshairs never widen the page */
+  border-top: 1px solid var(--line-strong);
+}
+.foot-inner {
+  position: relative;
+  max-width: var(--sheet);
+  margin-inline: auto;
+  padding: 1.5rem var(--gutter) 1.35rem;
+  background: var(--surface);
+  border-inline: 1px solid var(--line);
+}
+.foot-inner::before, .foot-inner::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  width: 11px; height: 11px;
+  background:
+    linear-gradient(var(--text-3), var(--text-3)) 50% 50% / 100% 1px no-repeat,
+    linear-gradient(var(--text-3), var(--text-3)) 50% 50% / 1px 100% no-repeat;
+  pointer-events: none;
+}
+.foot-inner::before { left: -6px; }
+.foot-inner::after { right: -6px; }
+/* the name and the first sentence of the description on the left, the links on the right */
+.foot-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .7rem 2.5rem; }
+.foot-brand { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .9rem; margin: 0; }
+.foot-title {
+  margin: 0;
+  font: 500 .72rem/1.3 var(--font-mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.foot-tag { color: var(--text-2); font-size: .9rem; }
+.foot-nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 0; }
+.foot-nav ul { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; margin: 0; padding: 0; list-style: none; }
+.foot-nav .foot-project { margin-left: 1.5rem; padding-left: 1.5rem; border-left: 1px solid var(--line-strong); }
+.foot-nav a { color: var(--text-2); font-size: .875rem; text-decoration: none; }
+.foot-nav a:hover { color: var(--text); text-decoration: underline; }
+@media (max-width: 41rem) { .foot-nav .foot-project { margin-left: 0; padding-left: 0; border-left: 0; flex-basis: 100%; } }
+/* the rule runs the full width of the sheet; the text keeps a readable measure */
+.site-footer .legal { margin: 1rem 0 0; padding: .9rem max(0px, calc(100% - 62rem)) 0 0; border-top: 1px solid var(--line); color: var(--text-3); font-size: .78rem; line-height: 1.55; }
+.site-footer .legal .applies { font-family: var(--font-mono); font-size: .72rem; }
+
+.repo-link {
+  color: var(--text-2);
+  font: 500 .86rem/1 var(--font-sans);
+  text-decoration: none;
+  padding: 0 .35rem;
+}
+.repo-link:hover { color: var(--text); }
+@media (max-width: 41rem) { .repo-link { display: none; } }
+
+/* touch: 44 px targets */
+@media (pointer: coarse) {
+  #theme-toggle, .icon-btn { width: 2.75rem; height: 2.75rem; }
+  .search-open { height: 2.75rem; }
+}
+
+/* moved-page stub: no chrome */
+.page-redirect { max-width: 40rem; margin: 4rem auto; padding: 0 var(--gutter); font-size: 1.05rem; }

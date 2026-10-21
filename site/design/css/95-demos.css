@@ -1,0 +1,16 @@
+/* ==========================================================================
+   95 demos inside a page of the documentation
+   A demo (:::demo NAME) was drawn for a wide band. In the reading column the
+   layouts that sit side by side stack, and the large type comes down.
+   ========================================================================== */
+
+.demo { margin: 2.25rem 0; max-width: none; }
+.demo > * { min-width: 0; }
+
+/* ---------- idea ---------- */
+.demo #idea { --idea-fs: clamp(1.45rem, 1.1rem + 1.2vw, 2rem); }
+.demo .idea-lattice { display: none; }
+.demo .idea-s { padding-left: 2.6rem; }
+.demo .idea-n { top: calc(var(--idea-fs) * .3); }
+.demo .idea-lab { grid-template-columns: minmax(0, 1fr); margin-top: 1.5rem; }
+.demo .idea-note { margin-top: .8rem; }

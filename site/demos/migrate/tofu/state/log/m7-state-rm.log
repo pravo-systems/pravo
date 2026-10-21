@@ -1,0 +1,14 @@
+Removed random_password.admin
+Successfully removed 1 resource instance(s).
+Removed module.service["api"].local_file.config
+Successfully removed 1 resource instance(s).
+Removed module.service["api"].random_pet.host
+Successfully removed 1 resource instance(s).
+Removed module.service["web"].local_file.config
+Successfully removed 1 resource instance(s).
+Removed module.service["web"].random_pet.host
+Successfully removed 1 resource instance(s).
+Removed module.service["worker"].local_file.config
+Successfully removed 1 resource instance(s).
+Removed module.service["worker"].random_pet.host
+Successfully removed 1 resource instance(s).

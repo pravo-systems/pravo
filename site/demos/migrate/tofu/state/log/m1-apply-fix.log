@@ -1,0 +1,61 @@
+data.terraform_remote_state.net: Reading...
+data.terraform_remote_state.net: Read complete after 0s
+random_pet.logs: Refreshing state... [id=logs-powerful-ringtail]
+module.db.random_pet.main: Refreshing state... [id=db-positive-glowworm]
+local_file.web[1]: Refreshing state... [id=68f1cd2e0b1d04d5cf751daf0b84253f90249fe5]
+local_file.web[1] (deposed object 6d47a1a2): Refreshing state... [id=68f1cd2e0b1d04d5cf751daf0b84253f90249fe5]
+local_file.web[0]: Refreshing state... [id=57415a3c8fdc1eff74651f6f5e7b686fee43ec65]
+null_resource.gate: Refreshing state... [id=4294265792588050385]
+
+OpenTofu used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+-/+ destroy and then create replacement
+
+OpenTofu will perform the following actions:
+
+  # local_file.web[1] (deposed object 6d47a1a2) will be destroyed
+  # (left over from a partially-failed replacement of this instance)
+  - resource "local_file" "web" {
+      - content              = <<-EOT
+            web 1
+        EOT -> null
+      - content_base64sha256 = "OC5+eWPSpOJiDCUeih4h8of79H80KNf05MaB0vP9Bz8=" -> null
+      - content_base64sha512 = "mris9VuBFyzh4f69pLlOZfrlFVC4LQI6ZLt4dAKFysCIwGeqIhEUirQZxopR69M8K2tjKQ7TXZejzeCOCPvxwQ==" -> null
+      - content_md5          = "186c9637117f3fd5b9b1297dc8da0a55" -> null
+      - content_sha1         = "68f1cd2e0b1d04d5cf751daf0b84253f90249fe5" -> null
+      - content_sha256       = "382e7e7963d2a4e2620c251e8a1e21f287fbf47f3428d7f4e4c681d2f3fd073f" -> null
+      - content_sha512       = "9ab8acf55b81172ce1e1febda4b94e65fae51550b82d023a64bb78740285cac088c067aa2211148ab419c68a51ebd33c2b6b63290ed35d97a3cde08e08fbf1c1" -> null
+      - directory_permission = "0777" -> null
+      - file_permission      = "0777" -> null
+      - filename             = "out/web1-1.txt" -> null
+      - id                   = "68f1cd2e0b1d04d5cf751daf0b84253f90249fe5" -> null
+    }
+
+  # null_resource.gate is tainted, so it must be replaced
+-/+ resource "null_resource" "gate" {
+      ~ id       = "4294265792588050385" -> (known after apply)
+        # (1 unchanged attribute hidden)
+    }
+
+  # random_pet.logs is tainted, so it must be replaced
+-/+ resource "random_pet" "logs" {
+      ~ id        = "logs-powerful-ringtail" -> (known after apply)
+        # (3 unchanged attributes hidden)
+    }
+
+Plan: 2 to add, 0 to change, 3 to destroy.
+random_pet.logs: Destroying... [id=logs-powerful-ringtail]
+random_pet.logs: Destruction complete after 0s
+random_pet.logs: Creating...
+random_pet.logs: Creation complete after 0s [id=logs-diverse-drake]
+null_resource.gate: Destroying... [id=4294265792588050385]
+null_resource.gate: Destruction complete after 0s
+null_resource.gate: Creating...
+null_resource.gate: Provisioning with 'local-exec'...
+null_resource.gate (local-exec): Executing: ["/bin/sh" "-c" "true"]
+null_resource.gate: Creation complete after 0s [id=4961598679908393618]
+local_file.web[1] (deposed object 6d47a1a2): Destroying... [id=68f1cd2e0b1d04d5cf751daf0b84253f90249fe5]
+local_file.web[1]: Destruction complete after 0s
+
+Apply complete! Resources: 2 added, 0 changed, 3 destroyed.

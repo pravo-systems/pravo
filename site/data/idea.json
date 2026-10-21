@@ -1,0 +1,111 @@
+{
+  "blocks": [
+    {
+      "block": 2,
+      "command": "pravo eval",
+      "exit": 0,
+      "expect_exit": 0,
+      "line": 18,
+      "ok": true,
+      "output": "size: 3",
+      "stage": "main"
+    },
+    {
+      "block": 5,
+      "command": "pravo eval",
+      "exit": 6,
+      "expect_exit": 6,
+      "line": 35,
+      "ok": true,
+      "output": "Error: evaluating .:\nsize: invalid value 0 (out of bound >=1):\n    ./main.cue:3:13\n    ./main.cue:4:7",
+      "stage": "main"
+    },
+    {
+      "block": 8,
+      "command": "pravo eval",
+      "exit": 6,
+      "expect_exit": 6,
+      "line": 55,
+      "ok": true,
+      "output": "Error: evaluating .:\nsize: invalid value 11 (out of bound <=10):\n    ./main.cue:3:19\n    ./main.cue:4:7",
+      "stage": "main"
+    },
+    {
+      "block": 11,
+      "command": "pravo eval",
+      "exit": 6,
+      "expect_exit": 6,
+      "line": 75,
+      "ok": true,
+      "output": "Error: evaluating .:\nsize: conflicting values int and \"3\" (mismatched types int and string):\n    ./main.cue:3:7\n    ./main.cue:4:7",
+      "stage": "main"
+    }
+  ],
+  "constraint": "int & >=1 & <=10",
+  "page": "site/demos/idea/page.md",
+  "runs": [
+    {
+      "value": "3",
+      "ok": true,
+      "exit": 0,
+      "output": "size: 3"
+    },
+    {
+      "value": "0",
+      "ok": false,
+      "exit": 6,
+      "output": "Error: evaluating .:\nsize: invalid value 0 (out of bound >=1):\n    ./main.cue:3:13\n    ./main.cue:4:7"
+    },
+    {
+      "value": "11",
+      "ok": false,
+      "exit": 6,
+      "output": "Error: evaluating .:\nsize: invalid value 11 (out of bound <=10):\n    ./main.cue:3:19\n    ./main.cue:4:7"
+    },
+    {
+      "value": "\"3\"",
+      "ok": false,
+      "exit": 6,
+      "output": "Error: evaluating .:\nsize: conflicting values int and \"3\" (mismatched types int and string):\n    ./main.cue:3:7\n    ./main.cue:4:7"
+    }
+  ],
+  "title": "The idea in three sentences",
+  "version": [
+    "pravo 0.1.0-dev",
+    "cue v0.17.1"
+  ],
+  "widget": {
+    "chips": [
+      {
+        "value": "3",
+        "ok": true,
+        "result": "size: 3"
+      },
+      {
+        "value": "0",
+        "ok": false,
+        "result": "size: invalid value 0 (out of bound >=1):\n    ./main.cue:3:13\n    ./main.cue:4:7"
+      },
+      {
+        "value": "11",
+        "ok": false,
+        "result": "size: invalid value 11 (out of bound <=10):\n    ./main.cue:3:19\n    ./main.cue:4:7"
+      },
+      {
+        "value": "\"3\"",
+        "ok": false,
+        "result": "size: conflicting values int and \"3\" (mismatched types int and string):\n    ./main.cue:3:7\n    ./main.cue:4:7"
+      }
+    ],
+    "left": {
+      "label": "int",
+      "tag": "a type"
+    },
+    "merged": "int & >=1 & <=10",
+    "right": {
+      "label": ">=1 & <=10",
+      "tag": "a range"
+    },
+    "title": "Unification"
+  }
+}

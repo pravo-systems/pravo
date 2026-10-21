@@ -1,0 +1,61 @@
+<section class="band band-grid hero-band" id="hero" data-band="hero" data-light><div class="wrap">
+<div class="split hero-split">
+
+<div class="hero-copy">
+<p class="kicker">A study in declarative infrastructure</p>
+<h1 class="display hero-title">The declarative layer, <em>reimagined.</em></h1>
+<p class="band-lede">pravo is an open study of what OpenTofu and Terraform&#39;s declarative layer could be if it started today: state, plans, policy and language rebuilt from a clean slate, on the providers that already exist. It is built from ten years of running them.</p>
+<div class="row hero-cta">
+<a class="btn btn-primary btn-lg" href="{{start}}">Take it for a spin <span class="arrow"></span></a>
+<a class="btn btn-lg" href="#about">Tell me what you found</a>
+</div>
+<p class="hero-micro">{{start_minutes}} minutes &middot; no account &middot; no cloud &middot; Apache 2.0</p>
+</div>
+
+<div class="stage-wrap hero-stage">
+<div class="hero-stack" role="group" aria-label="A CUE file and the plan that pravo prints for it">
+<figure class="code" data-lang="cue" data-status="valid" data-ln>
+<figcaption class="code-title"><span class="code-file">main.cue</span><span class="code-badge" title="Accepted">valid</span></figcaption>
+<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> estate
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-kw">import</span> loc <span class="tok-str">&#34;pravo.dev/providers/hashicorp/local&#34;</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">$local</span>: loc.<span class="tok-def">#Provider</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-def">#Service</span>: {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">name</span>: <span class="tok-type">string</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">port</span>: <span class="tok-type">int</span> <span class="tok-op">&amp;</span> <span class="tok-op">&gt;=</span><span class="tok-num">1024</span> <span class="tok-op">&amp;</span> <span class="tok-op">&lt;=</span><span class="tok-num">65535</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">file</span>: $local.<span class="tok-def">#Resource</span>.local_file <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>		<span class="tok-id">filename</span>: <span class="tok-str">&#34;</span><span class="tok-op">\(</span>name<span class="tok-op">)</span><span class="tok-str">.env&#34;</span>
+</span><span class="line"><span class="ln"></span>		<span class="tok-id">content</span>:  <span class="tok-str">&#34;PORT=</span><span class="tok-op">\(</span>port<span class="tok-op">)</span><span class="tok-str">\n&#34;</span>
+</span><span class="line"><span class="ln"></span>	}
+</span><span class="line"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">api</span>: <span class="tok-def">#Service</span> <span class="tok-op">&amp;</span> {<span class="tok-id">name</span>: <span class="tok-str">&#34;api&#34;</span>, <span class="tok-id">port</span>: <span class="tok-num">8080</span>, <span class="tok-id">file</span>: <span class="tok-id">file_permission</span>: <span class="tok-str">&#34;0600&#34;</span>}
+</span><span class="line"><span class="ln"></span><span class="tok-id">web</span>: <span class="tok-def">#Service</span> <span class="tok-op">&amp;</span> {<span class="tok-id">name</span>: <span class="tok-str">&#34;web&#34;</span>, <span class="tok-id">port</span>: <span class="tok-num">8081</span>}
+</span></code></pre></div>
+<button class="copy" type="button" aria-label="Copy main.cue"></button>
+</figure>
+<figure class="term" data-exit="0" data-ran="0.1">
+<figcaption class="code-title"><span class="code-file">terminal</span></figcaption>
+<div class="term-body">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo plan</span></div>
+<pre class="term-out"><code>pravo will perform the following actions:
+
+<span class="out-dim">  # api.file (local_file) will be created</span>
+<span class="out-add">  + api: file: {</span>
+<span class="out-dim">...</span>
+<span class="out-add">  +     file_permission:      &#34;0600&#34;</span>
+<span class="out-add">  +     filename:             &#34;api.env&#34;</span>
+<span class="out-dim">...</span>
+Plan: <span class="out-add">2 to add</span>, <span class="out-change">0 to change</span>, <span class="out-destroy">0 to destroy</span>.
+Graph: planned 2 of 2.</code></pre>
+</div>
+<button class="copy" type="button" data-copy="pravo plan" aria-label="Copy command">Copy</button>
+</figure>
+</div>
+<p class="stage-caption">One definition, two instances and the plan for both.</p>
+</div>
+
+</div>
+</div></section>

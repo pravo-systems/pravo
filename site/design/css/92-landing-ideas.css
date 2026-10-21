@@ -1,0 +1,154 @@
+/* ==========================================================================
+   92 demos: idea (unify)
+   Built on the primitives of 70-landing.css and the widgets of 80-widgets.css.
+   Everything is complete without JavaScript; html.js adds the overlays.
+   ========================================================================== */
+
+/* ---------- idea ---------- */
+#idea { --idea-fs: clamp(1.9rem, .8rem + 3.9vw, 4rem); }
+
+.idea-p {
+  position: relative;
+  margin: 0;
+  display: grid;
+  gap: .08em;
+  font: 500 var(--idea-fs)/1.06 var(--font-display);
+  letter-spacing: -.022em;
+}
+.idea-s {
+  position: relative;
+  display: block;
+  padding-left: clamp(2.4rem, 5.4vw, 4.6rem);
+  color: var(--text-3);
+  text-wrap: balance;
+  transition: color 420ms var(--ease);
+}
+.idea-s.reveal { transition: color 420ms var(--ease), opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease); transition-delay: 0s, calc(var(--i, 0) * 90ms), calc(var(--i, 0) * 90ms); }
+.idea-s.on { color: var(--text); }
+.idea-s[data-s="3"].on { color: var(--conflict); }
+.idea-n {
+  position: absolute;
+  left: 0;
+  top: calc(var(--idea-fs) * .24);
+  font: 600 .72rem/1 var(--font-mono);
+  letter-spacing: .08em;
+  color: var(--accent);
+  transition: color 420ms var(--ease);
+}
+.idea-s[data-s="3"].on .idea-n { color: var(--conflict); }
+.idea-lattice {
+  position: absolute;
+  right: 0;
+  top: -1.5rem;
+  width: clamp(6.5rem, 15vw, 12.5rem);
+  height: auto;
+  color: var(--line-strong);
+  pointer-events: none;
+}
+.idea-lattice .e path { fill: none; stroke: currentColor; stroke-width: 2; transition: stroke 420ms var(--ease); }
+.idea-lattice .n rect { fill: currentColor; transition: fill 420ms var(--ease); }
+/* the lattice of the mark: the first sentence lights the top, the second the middle, the third the bottom */
+.idea-lattice .n-top rect { fill: var(--accent); }
+.idea-lattice .e-top path { stroke: color-mix(in srgb, var(--accent) 55%, var(--line-strong)); }
+#idea[data-lit="2"] .e-top path, #idea[data-lit="3"] .e-top path,
+#idea[data-lit="2"] .e-mid path, #idea[data-lit="3"] .e-mid path { stroke: var(--accent); }
+#idea[data-lit="2"] .n-mid rect, #idea[data-lit="3"] .n-mid rect { fill: var(--accent); }
+#idea[data-lit="3"] .e-bot path { stroke: var(--conflict); }
+#idea[data-lit="3"] .n-bot rect { fill: var(--conflict); }
+@media (max-width: 47.99rem) { .idea-lattice { display: none; } }
+
+.idea-lab {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  align-items: start;
+  margin-top: clamp(2rem, 5vw, 3.5rem);
+}
+@media (max-width: 59.99rem) { .idea-lab { grid-template-columns: minmax(0, 1fr); } }
+.idea-widget.widget { margin: 0; }
+#idea .w-field { height: 12.5rem; }
+#idea .w-card { width: min(17rem, 44%); padding: 1rem 1.1rem 1.1rem; }
+#idea .w-merged { width: min(21rem, 72%); }
+#idea .w-val { font-size: 1.28rem; }
+#idea .w-field::before {
+  content: "&"; content: "&" / "";
+  position: absolute;
+  left: 50%; top: 50%;
+  translate: -50% -52%;
+  font: 500 2.4rem/1 var(--font-display);
+  color: var(--text-3);
+  transition: opacity 260ms ease-out;
+}
+#idea .widget:not([data-state="apart"]) .w-field::before { opacity: 0; }
+#idea .w-chips .chip { min-height: 2.4rem; padding: 0 1rem; font-size: .9rem; }
+@media (max-width: 30rem) {
+  #idea .w-field { height: 11rem; }
+  #idea .w-card { width: 43%; min-width: 0; padding: .75rem .8rem .85rem; }
+  #idea .w-val { font-size: 1rem; }
+  #idea .w-merged { width: 80%; }
+  #idea .w-left { --x: -54%; }
+  #idea .w-right { --x: 54%; }
+  #idea .w-field::before { font-size: 1.8rem; }
+}
+.idea-prog { display: grid; gap: .9rem; min-width: 0; }
+.idea-pair { display: grid; gap: .9rem; min-width: 0; }
+.idea-pair .code, .idea-pair .term { margin: 0; }
+.idea-pair .term-body { padding-block: .7rem .5rem; }
+.idea-pair .term .code-title { min-height: 2.1rem; }
+.idea-pair .term .code-title::before { display: none; }
+
+/* with the script: one pair at a time, the widget's own result is read aloud only */
+#idea.is-live .idea-prog { gap: 0; }
+#idea.is-live .idea-pair { grid-area: 1 / 1; opacity: 0; visibility: hidden; transition: opacity 160ms linear, visibility 0s linear 160ms; }
+#idea.is-live .idea-pair.is-on { opacity: 1; visibility: visible; transition-delay: 0s; }
+#idea.is-live .w-result {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: 0; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* without the script the widget is a note and the four programs sit in a grid */
+html:not(.js) .idea-lab { grid-template-columns: minmax(0, 1fr); }
+html:not(.js) .idea-prog { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem 1rem; }
+@media (max-width: 47.99rem) { html:not(.js) .idea-prog { grid-template-columns: minmax(0, 1fr); } }
+
+/* before a value is dropped: the second value is still to be written */
+.idea-pair.is-pending .code-badge, .idea-pair.is-pending .term .code-badge { visibility: hidden; }
+.idea-pair.is-pending .code .line:nth-child(4) > :last-child { position: relative; color: transparent; }
+.idea-pair.is-pending .code .line:nth-child(4) > :last-child::after {
+  content: "";
+  position: absolute;
+  left: 0; top: .2em;
+  width: .6ch; height: 1.15em;
+  background: var(--code-text);
+  animation: caret 1s steps(2, jump-none) infinite;
+}
+.idea-pair.is-pending .term-out { visibility: hidden; }
+.idea-pair.is-pending .code { --status: var(--code-key); }
+.idea-pair.is-pending .code .code-body { box-shadow: none; }
+.idea-pair.is-pending .term { --status: var(--code-dim); }
+@keyframes idea-line { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+@keyframes idea-flash-bad { from { background-color: color-mix(in srgb, var(--conflict) 26%, transparent); } to { background-color: transparent; } }
+.idea-pair.is-enter .term-out { animation: idea-line 340ms var(--ease) 140ms backwards; }
+.idea-pair.is-enter .code .line:nth-child(4) { animation: flash 700ms ease-out; }
+.idea-pair.is-enter .code[data-status="conflict"] .line:nth-child(4) { animation-name: idea-flash-bad; }
+.idea-pair.is-enter .code[data-status="conflict"] .line:nth-child(4) > :last-child { display: inline-block; animation: shake 180ms var(--ease) 120ms; }
+
+.idea-note { margin: 1rem 0 0; font: 400 .74rem/1.5 var(--font-mono); color: var(--text-3); }
+.idea-note code { font-size: inherit; background: none; border: 0; padding: 0; color: var(--text-2); }
+
+/* ---------- inline code in the bands ---------- */
+.band-lede code, .stage-caption code {
+  padding: .08em .36em;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface-2);
+  font: 500 .86em var(--font-mono);
+  color: var(--text);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* the lede is set in the display face at 1.2 to 1.3 rem: its code is one step smaller */
+.band-lede code { font-size: .74em; }

@@ -1,0 +1,31 @@
+<div class="idea-demo" id="idea">
+<p class="idea-p" id="idea-p" data-stagger>
+<span class="idea-s reveal on" data-s="1"><span class="idea-n" aria-hidden="true">&sect;1</span>A value can also be a type.</span>
+<span class="idea-s reveal" data-s="2"><span class="idea-n" aria-hidden="true">&sect;2</span>Writing a field twice adds detail.</span>
+<span class="idea-s reveal" data-s="3"><span class="idea-n" aria-hidden="true">&sect;3</span>A conflict is an error.</span>
+<svg class="idea-lattice" viewBox="0 0 200 220" aria-hidden="true" focusable="false"><g class="e e-top"><path d="M40 86L100 36M100 86V36M160 86L100 36"/></g><g class="e e-mid"><path d="M40 146V86M40 146L100 86M100 146L40 86M100 146L160 86M160 146L100 86M160 146V86"/></g><g class="e e-bot"><path d="M100 196L40 146M100 196V146M100 196L160 146"/></g><g class="n n-top"><rect x="92" y="28" width="16" height="16"/></g><g class="n n-mid"><rect x="32" y="78" width="16" height="16"/><rect x="92" y="78" width="16" height="16"/><rect x="152" y="78" width="16" height="16"/><rect x="32" y="138" width="16" height="16"/><rect x="92" y="138" width="16" height="16"/><rect x="152" y="138" width="16" height="16"/></g><g class="n n-bot"><rect x="92" y="188" width="16" height="16"/></g></svg>
+</p>
+<div class="idea-lab">
+<div class="widget idea-widget" data-widget="unify"><script type="application/json">{{json idea.widget}}</script><noscript><p>A type and a range unify into one value, {{data idea.constraint}}. The four programs below write a second value against it and show what pravo eval printed.</p></noscript></div>
+<div class="idea-prog" id="idea-prog" role="group" aria-label="The programs that pravo eval ran">
+<div class="idea-pair" data-i="0">
+{{fig v3 ln}}
+{{fig r3}}
+</div>
+<div class="idea-pair" data-i="1">
+{{fig v0 ln}}
+{{fig r0}}
+</div>
+<div class="idea-pair" data-i="2">
+{{fig v11 ln}}
+{{fig r11}}
+</div>
+<div class="idea-pair" data-i="3">
+{{fig vs3 ln}}
+{{fig rs3}}
+</div>
+</div>
+</div>
+<p class="idea-note">Printed by <code>pravo eval</code> ({{data idea.version.0}}) when the page was built.</p>
+<script defer src="assets/demos/idea.js"></script>
+</div>

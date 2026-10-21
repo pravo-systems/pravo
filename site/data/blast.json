@@ -1,0 +1,1565 @@
+{
+  "page": "site/demos/blast/page.md",
+  "title": "Blast radius scenes",
+  "version": [
+    "pravo 0.1.0-dev",
+    "cue v0.17.1"
+  ],
+  "blocks": [
+    {
+      "block": 6,
+      "line": 191,
+      "stage": "main",
+      "command": "pravo init\npravo validate\npravo apply -auto-approve | tail -n 1",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "Configuration does not load yet; generating schemas for the declared providers first.\nProviders:\n  local = hashicorp/local v2.9.1\n  tls = hashicorp/tls v4.4.1\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/local (2 resource types, 3 data sources, 1 ephemeral, 1 functions)\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/tls (4 resource types, 2 data sources, 2 ephemeral, 0 functions)\n\npravo has been initialised. Run \"pravo plan\" to see what it would do.\nSuccess! 39 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 2 providers.\nApply complete! Resources: 39 added, 0 changed, 0 destroyed. [txn \u003cid\u003e]",
+      "ok": true
+    },
+    {
+      "block": 8,
+      "line": 214,
+      "stage": "main",
+      "command": "pravo state query '{for a, r in resources {(a): r.type}}'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "{\n\t\"root.cert\":          \"tls_self_signed_cert\"\n\t\"root.file\":          \"local_file\"\n\t\"root.key\":           \"tls_private_key\"\n\t\"service.a.api.cert\": \"tls_locally_signed_cert\"\n\t\"service.a.api.csr\":  \"tls_cert_request\"\n\t\"service.a.api.file\": \"local_file\"\n\t\"service.a.api.key\":  \"tls_private_key\"\n\t\"service.a.web.cert\": \"tls_locally_signed_cert\"\n\t\"service.a.web.csr\":  \"tls_cert_request\"\n\t\"service.a.web.file\": \"local_file\"\n\t\"service.a.web.key\":  \"tls_private_key\"\n\t\"service.b.api.cert\": \"tls_locally_signed_cert\"\n\t\"service.b.api.csr\":  \"tls_cert_request\"\n\t\"service.b.api.file\": \"local_file\"\n\t\"service.b.api.key\":  \"tls_private_key\"\n\t\"service.b.web.cert\": \"tls_locally_signed_cert\"\n\t\"service.b.web.csr\":  \"tls_cert_request\"\n\t\"service.b.web.file\": \"local_file\"\n\t\"service.b.web.key\":  \"tls_private_key\"\n\t\"service.c.api.cert\": \"tls_locally_signed_cert\"\n\t\"service.c.api.csr\":  \"tls_cert_request\"\n\t\"service.c.api.file\": \"local_file\"\n\t\"service.c.api.key\":  \"tls_private_key\"\n\t\"service.c.web.cert\": \"tls_locally_signed_cert\"\n\t\"service.c.web.csr\":  \"tls_cert_request\"\n\t\"service.c.web.file\": \"local_file\"\n\t\"service.c.web.key\":  \"tls_private_key\"\n\t\"zone.a.cert\":        \"tls_locally_signed_cert\"\n\t\"zone.a.csr\":         \"tls_cert_request\"\n\t\"zone.a.file\":        \"local_file\"\n\t\"zone.a.key\":         \"tls_private_key\"\n\t\"zone.b.cert\":        \"tls_locally_signed_cert\"\n\t\"zone.b.csr\":         \"tls_cert_request\"\n\t\"zone.b.file\":        \"local_file\"\n\t\"zone.b.key\":         \"tls_private_key\"\n\t\"zone.c.cert\":        \"tls_locally_signed_cert\"\n\t\"zone.c.csr\":         \"tls_cert_request\"\n\t\"zone.c.file\":        \"local_file\"\n\t\"zone.c.key\":         \"tls_private_key\"\n}",
+      "ok": true
+    },
+    {
+      "block": 10,
+      "line": 262,
+      "stage": "main",
+      "command": "pravo state graph",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "root.cert -\u003e root.key\nroot.file -\u003e root.cert\nservice.a.api.cert -\u003e service.a.api.csr\nservice.a.api.cert -\u003e zone.a.cert\nservice.a.api.cert -\u003e zone.a.key\nservice.a.api.csr -\u003e service.a.api.key\nservice.a.api.file -\u003e service.a.api.cert\nservice.a.api.file -\u003e zone.a.cert\nservice.a.web.cert -\u003e service.a.web.csr\nservice.a.web.cert -\u003e zone.a.cert\nservice.a.web.cert -\u003e zone.a.key\nservice.a.web.csr -\u003e service.a.web.key\nservice.a.web.file -\u003e service.a.web.cert\nservice.a.web.file -\u003e zone.a.cert\nservice.b.api.cert -\u003e service.b.api.csr\nservice.b.api.cert -\u003e zone.b.cert\nservice.b.api.cert -\u003e zone.b.key\nservice.b.api.csr -\u003e service.b.api.key\nservice.b.api.file -\u003e service.b.api.cert\nservice.b.api.file -\u003e zone.b.cert\nservice.b.web.cert -\u003e service.b.web.csr\nservice.b.web.cert -\u003e zone.b.cert\nservice.b.web.cert -\u003e zone.b.key\nservice.b.web.csr -\u003e service.b.web.key\nservice.b.web.file -\u003e service.b.web.cert\nservice.b.web.file -\u003e zone.b.cert\nservice.c.api.cert -\u003e service.c.api.csr\nservice.c.api.cert -\u003e zone.c.cert\nservice.c.api.cert -\u003e zone.c.key\nservice.c.api.csr -\u003e service.c.api.key\nservice.c.api.file -\u003e service.c.api.cert\nservice.c.api.file -\u003e zone.c.cert\nservice.c.web.cert -\u003e service.c.web.csr\nservice.c.web.cert -\u003e zone.c.cert\nservice.c.web.cert -\u003e zone.c.key\nservice.c.web.csr -\u003e service.c.web.key\nservice.c.web.file -\u003e service.c.web.cert\nservice.c.web.file -\u003e zone.c.cert\nzone.a.cert -\u003e root.cert\nzone.a.cert -\u003e root.key\nzone.a.cert -\u003e zone.a.csr\nzone.a.csr -\u003e zone.a.key\nzone.a.file -\u003e zone.a.cert\nzone.b.cert -\u003e root.cert\nzone.b.cert -\u003e root.key\nzone.b.cert -\u003e zone.b.csr\nzone.b.csr -\u003e zone.b.key\nzone.b.file -\u003e zone.b.cert\nzone.c.cert -\u003e root.cert\nzone.c.cert -\u003e root.key\nzone.c.cert -\u003e zone.c.csr\nzone.c.csr -\u003e zone.c.key\nzone.c.file -\u003e zone.c.cert",
+      "ok": true
+    },
+    {
+      "block": 12,
+      "line": 322,
+      "stage": "main",
+      "command": "for a in $(pravo state list); do echo \"$a: $(pravo state dependents $a | tr '\\n' ' ')\"; done",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "root.cert: root.file service.a.api.cert service.a.api.file service.a.web.cert service.a.web.file service.b.api.cert service.b.api.file service.b.web.cert service.b.web.file service.c.api.cert service.c.api.file service.c.web.cert service.c.web.file zone.a.cert zone.a.file zone.b.cert zone.b.file zone.c.cert zone.c.file\nroot.file:\nroot.key: root.cert root.file service.a.api.cert service.a.api.file service.a.web.cert service.a.web.file service.b.api.cert service.b.api.file service.b.web.cert service.b.web.file service.c.api.cert service.c.api.file service.c.web.cert service.c.web.file zone.a.cert zone.a.file zone.b.cert zone.b.file zone.c.cert zone.c.file\nservice.a.api.cert: service.a.api.file\nservice.a.api.csr: service.a.api.cert service.a.api.file\nservice.a.api.file:\nservice.a.api.key: service.a.api.cert service.a.api.csr service.a.api.file\nservice.a.web.cert: service.a.web.file\nservice.a.web.csr: service.a.web.cert service.a.web.file\nservice.a.web.file:\nservice.a.web.key: service.a.web.cert service.a.web.csr service.a.web.file\nservice.b.api.cert: service.b.api.file\nservice.b.api.csr: service.b.api.cert service.b.api.file\nservice.b.api.file:\nservice.b.api.key: service.b.api.cert service.b.api.csr service.b.api.file\nservice.b.web.cert: service.b.web.file\nservice.b.web.csr: service.b.web.cert service.b.web.file\nservice.b.web.file:\nservice.b.web.key: service.b.web.cert service.b.web.csr service.b.web.file\nservice.c.api.cert: service.c.api.file\nservice.c.api.csr: service.c.api.cert service.c.api.file\nservice.c.api.file:\nservice.c.api.key: service.c.api.cert service.c.api.csr service.c.api.file\nservice.c.web.cert: service.c.web.file\nservice.c.web.csr: service.c.web.cert service.c.web.file\nservice.c.web.file:\nservice.c.web.key: service.c.web.cert service.c.web.csr service.c.web.file\nzone.a.cert: service.a.api.cert service.a.api.file service.a.web.cert service.a.web.file zone.a.file\nzone.a.csr: service.a.api.cert service.a.api.file service.a.web.cert service.a.web.file zone.a.cert zone.a.file\nzone.a.file:\nzone.a.key: service.a.api.cert service.a.api.file service.a.web.cert service.a.web.file zone.a.cert zone.a.csr zone.a.file\nzone.b.cert: service.b.api.cert service.b.api.file service.b.web.cert service.b.web.file zone.b.file\nzone.b.csr: service.b.api.cert service.b.api.file service.b.web.cert service.b.web.file zone.b.cert zone.b.file\nzone.b.file:\nzone.b.key: service.b.api.cert service.b.api.file service.b.web.cert service.b.web.file zone.b.cert zone.b.csr zone.b.file\nzone.c.cert: service.c.api.cert service.c.api.file service.c.web.cert service.c.web.file zone.c.file\nzone.c.csr: service.c.api.cert service.c.api.file service.c.web.cert service.c.web.file zone.c.cert zone.c.file\nzone.c.file:\nzone.c.key: service.c.api.cert service.c.api.file service.c.web.cert service.c.web.file zone.c.cert zone.c.csr zone.c.file",
+      "ok": true
+    },
+    {
+      "block": 15,
+      "line": 402,
+      "stage": "main",
+      "command": "pravo plan | grep -E '^(  #|Plan|Graph)'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "  # root.key (tls_private_key) must be replaced\n  # root.cert (tls_self_signed_cert) must be replaced\n  # root.file (local_file) must be replaced\n  # zone.a.cert (tls_locally_signed_cert) must be replaced\n  # zone.a.file (local_file) must be replaced\n  # zone.b.cert (tls_locally_signed_cert) must be replaced\n  # zone.b.file (local_file) must be replaced\n  # zone.c.cert (tls_locally_signed_cert) must be replaced\n  # zone.c.file (local_file) must be replaced\n  # service.a.api.cert (tls_locally_signed_cert) must be replaced\n  # service.a.api.file (local_file) must be replaced\n  # service.a.web.cert (tls_locally_signed_cert) must be replaced\n  # service.a.web.file (local_file) must be replaced\n  # service.b.api.cert (tls_locally_signed_cert) must be replaced\n  # service.b.api.file (local_file) must be replaced\n  # service.b.web.cert (tls_locally_signed_cert) must be replaced\n  # service.b.web.file (local_file) must be replaced\n  # service.c.api.cert (tls_locally_signed_cert) must be replaced\n  # service.c.api.file (local_file) must be replaced\n  # service.c.web.cert (tls_locally_signed_cert) must be replaced\n  # service.c.web.file (local_file) must be replaced\nPlan: 21 to add, 0 to change, 21 to destroy.\nGraph: planned 21 of 39, 18 unchanged and skipped, 33 refreshed, 6 not read.",
+      "ok": true
+    },
+    {
+      "block": 19,
+      "line": 521,
+      "stage": "main",
+      "command": "pravo plan | grep -E '^(  #|Plan|Graph)'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "  # service.b.web.cert (tls_locally_signed_cert) will be updated in-place\nPlan: 0 to add, 1 to change, 0 to destroy.\nGraph: planned 1 of 39, 38 unchanged and skipped, 4 refreshed, 35 not read.",
+      "ok": true
+    },
+    {
+      "block": 22,
+      "line": 590,
+      "stage": "main",
+      "command": "pravo plan --replace zone.a.key --out a.plan --actor ana | grep -E '^(Plan|Graph)'\npravo plan --replace zone.b.key --out b.plan --actor bob | grep -E '^(Plan|Graph)'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "Plan: 8 to add, 0 to change, 8 to destroy.\nGraph: planned 8 of 39, 31 unchanged and skipped, 12 refreshed, 27 not read.\nPlan: 8 to add, 0 to change, 8 to destroy.\nGraph: planned 8 of 39, 31 unchanged and skipped, 12 refreshed, 27 not read.",
+      "ok": true
+    },
+    {
+      "block": 25,
+      "line": 614,
+      "stage": "main",
+      "command": "pravo apply a.plan --actor ana \u003e a.log 2\u003e\u00261 \u0026\nsh wait-for-lock.sh zone.a.key\npravo apply b.plan --actor bob \u003e b.log 2\u003e\u00261 \u0026\nsh wait-for-lock.sh zone.b.key\npravo state locks | cut -d, -f1\nwait\ngrep -h '^Apply complete' a.log b.log\npravo state locks",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "service.a.api.cert  locked by ana\nservice.a.api.file  locked by ana\nservice.a.web.cert  locked by ana\nservice.a.web.file  locked by ana\nservice.b.api.cert  locked by bob\nservice.b.api.file  locked by bob\nservice.b.web.cert  locked by bob\nservice.b.web.file  locked by bob\nzone.a.cert  locked by ana\nzone.a.csr  locked by ana\nzone.a.file  locked by ana\nzone.a.key  locked by ana\nzone.b.cert  locked by bob\nzone.b.csr  locked by bob\nzone.b.file  locked by bob\nzone.b.key  locked by bob\nApply complete! Resources: 8 added, 0 changed, 8 destroyed. [txn \u003cid\u003e]\nApply complete! Resources: 8 added, 0 changed, 8 destroyed. [txn \u003cid\u003e]\nNo locks or reservations held.",
+      "ok": true
+    },
+    {
+      "block": 28,
+      "line": 705,
+      "stage": "main",
+      "command": "pravo plan | grep -E '^(  #|Plan|Graph)'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "  # zone.d.key (tls_private_key) will be created\n  # zone.d.csr (tls_cert_request) will be created\n  # zone.d.cert (tls_locally_signed_cert) will be created\n  # zone.d.file (local_file) will be created\nPlan: 4 to add, 0 to change, 0 to destroy.\nGraph: planned 4 of 43, 39 unchanged and skipped, 2 refreshed, 37 not read.",
+      "ok": true
+    },
+    {
+      "block": 30,
+      "line": 720,
+      "stage": "main",
+      "command": "pravo apply -auto-approve | tail -n 1\npravo state graph | grep '^zone.d'\nfor a in root.key root.cert $(pravo state list | grep '^zone.d'); do echo \"$a: $(pravo state dependents $a | tr '\\n' ' ')\"; done",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "Apply complete! Resources: 4 added, 0 changed, 0 destroyed. [txn \u003cid\u003e]\nzone.d.cert -\u003e root.cert\nzone.d.cert -\u003e root.key\nzone.d.cert -\u003e zone.d.csr\nzone.d.csr -\u003e zone.d.key\nzone.d.file -\u003e zone.d.cert\nroot.key: root.cert root.file service.a.api.cert service.a.api.file service.a.web.cert service.a.web.file service.b.api.cert service.b.api.file service.b.web.cert service.b.web.file service.c.api.cert service.c.api.file service.c.web.cert service.c.web.file zone.a.cert zone.a.file zone.b.cert zone.b.file zone.c.cert zone.c.file zone.d.cert zone.d.file\nroot.cert: root.file service.a.api.cert service.a.api.file service.a.web.cert service.a.web.file service.b.api.cert service.b.api.file service.b.web.cert service.b.web.file service.c.api.cert service.c.api.file service.c.web.cert service.c.web.file zone.a.cert zone.a.file zone.b.cert zone.b.file zone.c.cert zone.c.file zone.d.cert zone.d.file\nzone.d.cert: zone.d.file\nzone.d.csr: zone.d.cert zone.d.file\nzone.d.file:\nzone.d.key: zone.d.cert zone.d.csr zone.d.file",
+      "ok": true
+    }
+  ],
+  "view": {
+    "all": 58,
+    "cue": "v0.17.1",
+    "edges": 42,
+    "ghosts": 4,
+    "js": {
+      "nodes": [
+        {
+          "id": "root.key",
+          "t": "tls_private_key",
+          "s": "root.key",
+          "n": [],
+          "r": [
+            1,
+            2,
+            5,
+            6,
+            9,
+            10,
+            13,
+            14,
+            17,
+            18,
+            21,
+            22,
+            25,
+            26,
+            29,
+            30,
+            33,
+            34,
+            37,
+            38
+          ],
+          "rz": [
+            1,
+            2,
+            5,
+            6,
+            9,
+            10,
+            13,
+            14,
+            17,
+            18,
+            21,
+            22,
+            25,
+            26,
+            29,
+            30,
+            33,
+            34,
+            37,
+            38,
+            41,
+            42
+          ]
+        },
+        {
+          "id": "root.cert",
+          "t": "tls_self_signed_cert",
+          "s": "root.cert",
+          "n": [
+            0
+          ],
+          "r": [
+            2,
+            5,
+            6,
+            9,
+            10,
+            13,
+            14,
+            17,
+            18,
+            21,
+            22,
+            25,
+            26,
+            29,
+            30,
+            33,
+            34,
+            37,
+            38
+          ],
+          "rz": [
+            2,
+            5,
+            6,
+            9,
+            10,
+            13,
+            14,
+            17,
+            18,
+            21,
+            22,
+            25,
+            26,
+            29,
+            30,
+            33,
+            34,
+            37,
+            38,
+            41,
+            42
+          ]
+        },
+        {
+          "id": "root.file",
+          "t": "local_file",
+          "s": "root.file",
+          "n": [
+            1
+          ],
+          "r": []
+        },
+        {
+          "id": "zone.a.key",
+          "t": "tls_private_key",
+          "s": "zone.key",
+          "n": [],
+          "r": [
+            4,
+            5,
+            6,
+            9,
+            10,
+            13,
+            14
+          ]
+        },
+        {
+          "id": "zone.a.csr",
+          "t": "tls_cert_request",
+          "s": "zone.csr",
+          "n": [
+            3
+          ],
+          "r": [
+            5,
+            6,
+            9,
+            10,
+            13,
+            14
+          ]
+        },
+        {
+          "id": "zone.a.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "zone.cert",
+          "n": [
+            0,
+            1,
+            4
+          ],
+          "r": [
+            6,
+            9,
+            10,
+            13,
+            14
+          ]
+        },
+        {
+          "id": "zone.a.file",
+          "t": "local_file",
+          "s": "zone.file",
+          "n": [
+            5
+          ],
+          "r": []
+        },
+        {
+          "id": "service.a.api.key",
+          "t": "tls_private_key",
+          "s": "service.key",
+          "n": [],
+          "r": [
+            8,
+            9,
+            10
+          ]
+        },
+        {
+          "id": "service.a.api.csr",
+          "t": "tls_cert_request",
+          "s": "service.csr",
+          "n": [
+            7
+          ],
+          "r": [
+            9,
+            10
+          ]
+        },
+        {
+          "id": "service.a.api.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "service.cert",
+          "n": [
+            3,
+            5,
+            8
+          ],
+          "r": [
+            10
+          ]
+        },
+        {
+          "id": "service.a.api.file",
+          "t": "local_file",
+          "s": "service.file",
+          "n": [
+            5,
+            9
+          ],
+          "r": []
+        },
+        {
+          "id": "service.a.web.key",
+          "t": "tls_private_key",
+          "s": "service.key",
+          "n": [],
+          "r": [
+            12,
+            13,
+            14
+          ]
+        },
+        {
+          "id": "service.a.web.csr",
+          "t": "tls_cert_request",
+          "s": "service.csr",
+          "n": [
+            11
+          ],
+          "r": [
+            13,
+            14
+          ]
+        },
+        {
+          "id": "service.a.web.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "service.cert",
+          "n": [
+            3,
+            5,
+            12
+          ],
+          "r": [
+            14
+          ]
+        },
+        {
+          "id": "service.a.web.file",
+          "t": "local_file",
+          "s": "service.file",
+          "n": [
+            5,
+            13
+          ],
+          "r": []
+        },
+        {
+          "id": "zone.b.key",
+          "t": "tls_private_key",
+          "s": "zone.key",
+          "n": [],
+          "r": [
+            16,
+            17,
+            18,
+            21,
+            22,
+            25,
+            26
+          ]
+        },
+        {
+          "id": "zone.b.csr",
+          "t": "tls_cert_request",
+          "s": "zone.csr",
+          "n": [
+            15
+          ],
+          "r": [
+            17,
+            18,
+            21,
+            22,
+            25,
+            26
+          ]
+        },
+        {
+          "id": "zone.b.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "zone.cert",
+          "n": [
+            0,
+            1,
+            16
+          ],
+          "r": [
+            18,
+            21,
+            22,
+            25,
+            26
+          ]
+        },
+        {
+          "id": "zone.b.file",
+          "t": "local_file",
+          "s": "zone.file",
+          "n": [
+            17
+          ],
+          "r": []
+        },
+        {
+          "id": "service.b.api.key",
+          "t": "tls_private_key",
+          "s": "service.key",
+          "n": [],
+          "r": [
+            20,
+            21,
+            22
+          ]
+        },
+        {
+          "id": "service.b.api.csr",
+          "t": "tls_cert_request",
+          "s": "service.csr",
+          "n": [
+            19
+          ],
+          "r": [
+            21,
+            22
+          ]
+        },
+        {
+          "id": "service.b.api.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "service.cert",
+          "n": [
+            15,
+            17,
+            20
+          ],
+          "r": [
+            22
+          ]
+        },
+        {
+          "id": "service.b.api.file",
+          "t": "local_file",
+          "s": "service.file",
+          "n": [
+            17,
+            21
+          ],
+          "r": []
+        },
+        {
+          "id": "service.b.web.key",
+          "t": "tls_private_key",
+          "s": "service.key",
+          "n": [],
+          "r": [
+            24,
+            25,
+            26
+          ]
+        },
+        {
+          "id": "service.b.web.csr",
+          "t": "tls_cert_request",
+          "s": "service.csr",
+          "n": [
+            23
+          ],
+          "r": [
+            25,
+            26
+          ]
+        },
+        {
+          "id": "service.b.web.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "service.cert",
+          "n": [
+            15,
+            17,
+            24
+          ],
+          "r": [
+            26
+          ]
+        },
+        {
+          "id": "service.b.web.file",
+          "t": "local_file",
+          "s": "service.file",
+          "n": [
+            17,
+            25
+          ],
+          "r": []
+        },
+        {
+          "id": "zone.c.key",
+          "t": "tls_private_key",
+          "s": "zone.key",
+          "n": [],
+          "r": [
+            28,
+            29,
+            30,
+            33,
+            34,
+            37,
+            38
+          ]
+        },
+        {
+          "id": "zone.c.csr",
+          "t": "tls_cert_request",
+          "s": "zone.csr",
+          "n": [
+            27
+          ],
+          "r": [
+            29,
+            30,
+            33,
+            34,
+            37,
+            38
+          ]
+        },
+        {
+          "id": "zone.c.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "zone.cert",
+          "n": [
+            0,
+            1,
+            28
+          ],
+          "r": [
+            30,
+            33,
+            34,
+            37,
+            38
+          ]
+        },
+        {
+          "id": "zone.c.file",
+          "t": "local_file",
+          "s": "zone.file",
+          "n": [
+            29
+          ],
+          "r": []
+        },
+        {
+          "id": "service.c.api.key",
+          "t": "tls_private_key",
+          "s": "service.key",
+          "n": [],
+          "r": [
+            32,
+            33,
+            34
+          ]
+        },
+        {
+          "id": "service.c.api.csr",
+          "t": "tls_cert_request",
+          "s": "service.csr",
+          "n": [
+            31
+          ],
+          "r": [
+            33,
+            34
+          ]
+        },
+        {
+          "id": "service.c.api.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "service.cert",
+          "n": [
+            27,
+            29,
+            32
+          ],
+          "r": [
+            34
+          ]
+        },
+        {
+          "id": "service.c.api.file",
+          "t": "local_file",
+          "s": "service.file",
+          "n": [
+            29,
+            33
+          ],
+          "r": []
+        },
+        {
+          "id": "service.c.web.key",
+          "t": "tls_private_key",
+          "s": "service.key",
+          "n": [],
+          "r": [
+            36,
+            37,
+            38
+          ]
+        },
+        {
+          "id": "service.c.web.csr",
+          "t": "tls_cert_request",
+          "s": "service.csr",
+          "n": [
+            35
+          ],
+          "r": [
+            37,
+            38
+          ]
+        },
+        {
+          "id": "service.c.web.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "service.cert",
+          "n": [
+            27,
+            29,
+            36
+          ],
+          "r": [
+            38
+          ]
+        },
+        {
+          "id": "service.c.web.file",
+          "t": "local_file",
+          "s": "service.file",
+          "n": [
+            29,
+            37
+          ],
+          "r": []
+        },
+        {
+          "id": "zone.d.key",
+          "t": "tls_private_key",
+          "s": "zone.key",
+          "n": [],
+          "r": [
+            40,
+            41,
+            42
+          ],
+          "g": true
+        },
+        {
+          "id": "zone.d.csr",
+          "t": "tls_cert_request",
+          "s": "zone.csr",
+          "n": [
+            39
+          ],
+          "r": [
+            41,
+            42
+          ],
+          "g": true
+        },
+        {
+          "id": "zone.d.cert",
+          "t": "tls_locally_signed_cert",
+          "s": "zone.cert",
+          "n": [
+            0,
+            1,
+            40
+          ],
+          "r": [
+            42
+          ],
+          "g": true
+        },
+        {
+          "id": "zone.d.file",
+          "t": "local_file",
+          "s": "zone.file",
+          "n": [
+            41
+          ],
+          "r": [],
+          "g": true
+        }
+      ],
+      "snips": {
+        "root.cert": {
+          "file": "pki/root.cue",
+          "from": 16,
+          "to": 22,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003ecert\u003c/span\u003e: tls.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.tls_self_signed_cert \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eprivate_key_pem\u003c/span\u003e: key.private_key_pem\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003esubject\u003c/span\u003e: [{\u003cspan class=\"tok-id\"\u003ecommon_name\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;estate root\u0026#34;\u003c/span\u003e}]\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eis_ca_certificate\u003c/span\u003e:     \u003cspan class=\"tok-num\"\u003etrue\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003evalidity_period_hours\u003c/span\u003e: \u003cspan class=\"tok-num\"\u003e87600\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eallowed_uses\u003c/span\u003e: [\u003cspan class=\"tok-str\"\u003e\u0026#34;cert_signing\u0026#34;\u003c/span\u003e]\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "root.file": {
+          "file": "pki/root.cue",
+          "from": 23,
+          "to": 26,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003efile\u003c/span\u003e: local.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.local_file \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003efilename\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;out/root.pem\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003econtent\u003c/span\u003e:  cert.cert_pem\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "root.key": {
+          "file": "pki/root.cue",
+          "from": 12,
+          "to": 15,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003ekey\u003c/span\u003e: tls.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.tls_private_key \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003ealgorithm\u003c/span\u003e:   \u003cspan class=\"tok-str\"\u003e\u0026#34;ECDSA\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eecdsa_curve\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;P256\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "service.cert": {
+          "file": "pki/service.cue",
+          "from": 26,
+          "to": 33,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003ecert\u003c/span\u003e: tls.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.tls_locally_signed_cert \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003ecert_request_pem\u003c/span\u003e:      csr.cert_request_pem\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eca_private_key_pem\u003c/span\u003e:    issuer_key\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eca_cert_pem\u003c/span\u003e:           issuer_cert\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003evalidity_period_hours\u003c/span\u003e: \u003cspan class=\"tok-num\"\u003e2160\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eearly_renewal_hours\u003c/span\u003e:   renewal_hours\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eallowed_uses\u003c/span\u003e: [\u003cspan class=\"tok-str\"\u003e\u0026#34;server_auth\u0026#34;\u003c/span\u003e]\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "service.csr": {
+          "file": "pki/service.cue",
+          "from": 21,
+          "to": 25,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003ecsr\u003c/span\u003e: tls.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.tls_cert_request \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eprivate_key_pem\u003c/span\u003e: key.private_key_pem\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003esubject\u003c/span\u003e: [{\u003cspan class=\"tok-id\"\u003ecommon_name\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;\\(name).\\(zone_name).estate\u0026#34;\u003c/span\u003e}]\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003edns_names\u003c/span\u003e: [\u003cspan class=\"tok-str\"\u003e\u0026#34;\\(name).\\(zone_name).estate\u0026#34;\u003c/span\u003e]\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "service.file": {
+          "file": "pki/service.cue",
+          "from": 34,
+          "to": 37,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003efile\u003c/span\u003e: local.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.local_file \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003efilename\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;out/\\(zone_name)/\\(name).pem\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003econtent\u003c/span\u003e:  cert.cert_pem + issuer_cert\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "service.key": {
+          "file": "pki/service.cue",
+          "from": 17,
+          "to": 20,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003ekey\u003c/span\u003e: tls.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.tls_private_key \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003ealgorithm\u003c/span\u003e:   \u003cspan class=\"tok-str\"\u003e\u0026#34;ECDSA\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eecdsa_curve\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;P256\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "zone.cert": {
+          "file": "pki/zone.cue",
+          "from": 23,
+          "to": 30,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003ecert\u003c/span\u003e: tls.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.tls_locally_signed_cert \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003ecert_request_pem\u003c/span\u003e:      csr.cert_request_pem\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eca_private_key_pem\u003c/span\u003e:    issuer_key\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eca_cert_pem\u003c/span\u003e:           issuer_cert\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eis_ca_certificate\u003c/span\u003e:     \u003cspan class=\"tok-num\"\u003etrue\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003evalidity_period_hours\u003c/span\u003e: \u003cspan class=\"tok-num\"\u003e43800\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eallowed_uses\u003c/span\u003e: [\u003cspan class=\"tok-str\"\u003e\u0026#34;cert_signing\u0026#34;\u003c/span\u003e]\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "zone.csr": {
+          "file": "pki/zone.cue",
+          "from": 19,
+          "to": 22,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003ecsr\u003c/span\u003e: tls.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.tls_cert_request \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003eprivate_key_pem\u003c/span\u003e: key.private_key_pem\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003esubject\u003c/span\u003e: [{\u003cspan class=\"tok-id\"\u003ecommon_name\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;\\(name).estate\u0026#34;\u003c/span\u003e}]\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "zone.file": {
+          "file": "pki/zone.cue",
+          "from": 31,
+          "to": 34,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003efile\u003c/span\u003e: local.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.local_file \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003efilename\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;out/\\(name)/zone.pem\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003econtent\u003c/span\u003e:  cert.cert_pem\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        },
+        "zone.key": {
+          "file": "pki/zone.cue",
+          "from": 15,
+          "to": 18,
+          "html": "\u003cspan class=\"line\"\u003e\u003cspan class=\"tok-id\"\u003ekey\u003c/span\u003e: tls.\u003cspan class=\"tok-def\"\u003e#Resource\u003c/span\u003e.tls_private_key \u003cspan class=\"tok-op\"\u003e\u0026amp;\u003c/span\u003e {\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003ealgorithm\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;RSA\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e    \u003cspan class=\"tok-id\"\u003ersa_bits\u003c/span\u003e:  \u003cspan class=\"tok-num\"\u003e4096\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line\"\u003e}\n\u003c/span\u003e"
+        }
+      },
+      "scenes": [
+        {
+          "id": "setting",
+          "title": "Change a setting",
+          "sub": "1 of 39 planned",
+          "say": "One certificate gets a longer renewal window, an attribute that the provider updates in place. 1 of 39 nodes are planned. The file that holds the certificate and the 37 other nodes are skipped.",
+          "planned": 1,
+          "total": 39,
+          "skipped": 38,
+          "graph": "Graph: planned 1 of 39, 38 unchanged and skipped, 4 refreshed, 35 not read.",
+          "plan": "Plan: 0 to add, 1 to change, 0 to destroy.",
+          "act": {
+            "service.b.web.cert": "change"
+          },
+          "ord": {
+            "service.b.web.cert": 0
+          },
+          "lines": {
+            "service.b.web.cert": "# service.b.web.cert (tls_locally_signed_cert) will be updated in-place"
+          },
+          "term": "\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003epravo plan | grep -E \u0026#39;^(  #|Plan|Graph)\u0026#39;\u003c/span\u003e\u003c/div\u003e\n\u003cpre class=\"term-out\"\u003e\u003ccode\u003e\u003cspan class=\"bl-pl out-change\" data-n=\"service.b.web.cert\" style=\"--o:0\"\u003e  # service.b.web.cert (tls_locally_signed_cert) will be updated in-place\n\u003c/span\u003e\u003cspan class=\"bl-pl bl-sum\" style=\"--o:1\"\u003ePlan: \u003cspan class=\"out-add\"\u003e0 to add\u003c/span\u003e, \u003cspan class=\"out-change\"\u003e1 to change\u003c/span\u003e, \u003cspan class=\"out-destroy\"\u003e0 to destroy\u003c/span\u003e.\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" style=\"--o:1\"\u003eGraph: planned 1 of 39, 38 unchanged and skipped, 4 refreshed, 35 not read.\n\u003c/span\u003e\u003c/code\u003e\u003c/pre\u003e\n",
+          "change": {
+            "file": "main.cue",
+            "lines": "\u003cspan class=\"line ctx\"\u003e\u003cspan class=\"bl-ln\"\u003e15\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e\u003c/span\u003e\u003cspan class=\"tok-id\"\u003ea\u003c/span\u003e: \u003cspan class=\"tok-id\"\u003eservices\u003c/span\u003e: {\u003cspan class=\"tok-id\"\u003eapi\u003c/span\u003e: {}, \u003cspan class=\"tok-id\"\u003eweb\u003c/span\u003e: {}}\n\u003c/span\u003e\u003cspan class=\"line ins\"\u003e\u003cspan class=\"bl-ln\"\u003e16\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e+\u003c/span\u003e\u003cspan class=\"tok-id\"\u003eb\u003c/span\u003e: \u003cspan class=\"tok-id\"\u003eservices\u003c/span\u003e: {\u003cspan class=\"tok-id\"\u003eapi\u003c/span\u003e: {}, \u003cspan class=\"tok-id\"\u003eweb\u003c/span\u003e: {\u003cspan class=\"tok-id\"\u003erenewal_hours\u003c/span\u003e: \u003cspan class=\"tok-num\"\u003e48\u003c/span\u003e}}\n\u003c/span\u003e\u003cspan class=\"line del\"\u003e\u003cspan class=\"bl-ln\"\u003e16\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e-\u003c/span\u003e\u003cspan class=\"tok-id\"\u003eb\u003c/span\u003e: \u003cspan class=\"tok-id\"\u003eservices\u003c/span\u003e: {\u003cspan class=\"tok-id\"\u003eapi\u003c/span\u003e: {}, \u003cspan class=\"tok-id\"\u003eweb\u003c/span\u003e: {}}\n\u003c/span\u003e\u003cspan class=\"line ctx\"\u003e\u003cspan class=\"bl-ln\"\u003e17\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e\u003c/span\u003e\u003cspan class=\"tok-id\"\u003ec\u003c/span\u003e: \u003cspan class=\"tok-id\"\u003eservices\u003c/span\u003e: {\u003cspan class=\"tok-id\"\u003eapi\u003c/span\u003e: {}, \u003cspan class=\"tok-id\"\u003eweb\u003c/span\u003e: {}}\n\u003c/span\u003e",
+            "plain": "  a: services: {api: {}, web: {}}\n+ b: services: {api: {}, web: {renewal_hours: 48}}\n- b: services: {api: {}, web: {}}\n  c: services: {api: {}, web: {}}"
+          },
+          "origin": "service.b.web.cert",
+          "ghost": false,
+          "cmd": "pravo plan | grep -E '^(  #|Plan|Graph)'",
+          "unit": "nodes planned"
+        },
+        {
+          "id": "replace",
+          "title": "Replace a root key",
+          "sub": "21 of 39 planned",
+          "say": "The root key changes its curve, which cannot change in place. The key is replaced, and the replacement follows the edges to every certificate below it and to the files that hold them: 21 of 39 nodes. The 18 keys and certificate requests that do not read the root are skipped.",
+          "planned": 21,
+          "total": 39,
+          "skipped": 18,
+          "graph": "Graph: planned 21 of 39, 18 unchanged and skipped, 33 refreshed, 6 not read.",
+          "plan": "Plan: 21 to add, 0 to change, 21 to destroy.",
+          "act": {
+            "root.cert": "replace",
+            "root.file": "replace",
+            "root.key": "replace",
+            "service.a.api.cert": "replace",
+            "service.a.api.file": "replace",
+            "service.a.web.cert": "replace",
+            "service.a.web.file": "replace",
+            "service.b.api.cert": "replace",
+            "service.b.api.file": "replace",
+            "service.b.web.cert": "replace",
+            "service.b.web.file": "replace",
+            "service.c.api.cert": "replace",
+            "service.c.api.file": "replace",
+            "service.c.web.cert": "replace",
+            "service.c.web.file": "replace",
+            "zone.a.cert": "replace",
+            "zone.a.file": "replace",
+            "zone.b.cert": "replace",
+            "zone.b.file": "replace",
+            "zone.c.cert": "replace",
+            "zone.c.file": "replace"
+          },
+          "ord": {
+            "root.cert": 1,
+            "root.file": 2,
+            "root.key": 0,
+            "service.a.api.cert": 3,
+            "service.a.api.file": 4,
+            "service.a.web.cert": 3,
+            "service.a.web.file": 4,
+            "service.b.api.cert": 3,
+            "service.b.api.file": 4,
+            "service.b.web.cert": 3,
+            "service.b.web.file": 4,
+            "service.c.api.cert": 3,
+            "service.c.api.file": 4,
+            "service.c.web.cert": 3,
+            "service.c.web.file": 4,
+            "zone.a.cert": 2,
+            "zone.a.file": 3,
+            "zone.b.cert": 2,
+            "zone.b.file": 3,
+            "zone.c.cert": 2,
+            "zone.c.file": 3
+          },
+          "lines": {
+            "root.cert": "# root.cert (tls_self_signed_cert) must be replaced",
+            "root.file": "# root.file (local_file) must be replaced",
+            "root.key": "# root.key (tls_private_key) must be replaced",
+            "service.a.api.cert": "# service.a.api.cert (tls_locally_signed_cert) must be replaced",
+            "service.a.api.file": "# service.a.api.file (local_file) must be replaced",
+            "service.a.web.cert": "# service.a.web.cert (tls_locally_signed_cert) must be replaced",
+            "service.a.web.file": "# service.a.web.file (local_file) must be replaced",
+            "service.b.api.cert": "# service.b.api.cert (tls_locally_signed_cert) must be replaced",
+            "service.b.api.file": "# service.b.api.file (local_file) must be replaced",
+            "service.b.web.cert": "# service.b.web.cert (tls_locally_signed_cert) must be replaced",
+            "service.b.web.file": "# service.b.web.file (local_file) must be replaced",
+            "service.c.api.cert": "# service.c.api.cert (tls_locally_signed_cert) must be replaced",
+            "service.c.api.file": "# service.c.api.file (local_file) must be replaced",
+            "service.c.web.cert": "# service.c.web.cert (tls_locally_signed_cert) must be replaced",
+            "service.c.web.file": "# service.c.web.file (local_file) must be replaced",
+            "zone.a.cert": "# zone.a.cert (tls_locally_signed_cert) must be replaced",
+            "zone.a.file": "# zone.a.file (local_file) must be replaced",
+            "zone.b.cert": "# zone.b.cert (tls_locally_signed_cert) must be replaced",
+            "zone.b.file": "# zone.b.file (local_file) must be replaced",
+            "zone.c.cert": "# zone.c.cert (tls_locally_signed_cert) must be replaced",
+            "zone.c.file": "# zone.c.file (local_file) must be replaced"
+          },
+          "term": "\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003epravo plan | grep -E \u0026#39;^(  #|Plan|Graph)\u0026#39;\u003c/span\u003e\u003c/div\u003e\n\u003cpre class=\"term-out\"\u003e\u003ccode\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"root.key\" style=\"--o:0\"\u003e  # root.key (tls_private_key) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"root.cert\" style=\"--o:1\"\u003e  # root.cert (tls_self_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"root.file\" style=\"--o:2\"\u003e  # root.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"zone.a.cert\" style=\"--o:2\"\u003e  # zone.a.cert (tls_locally_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"zone.a.file\" style=\"--o:3\"\u003e  # zone.a.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"zone.b.cert\" style=\"--o:2\"\u003e  # zone.b.cert (tls_locally_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"zone.b.file\" style=\"--o:3\"\u003e  # zone.b.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"zone.c.cert\" style=\"--o:2\"\u003e  # zone.c.cert (tls_locally_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"zone.c.file\" style=\"--o:3\"\u003e  # zone.c.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.a.api.cert\" style=\"--o:3\"\u003e  # service.a.api.cert (tls_locally_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.a.api.file\" style=\"--o:4\"\u003e  # service.a.api.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.a.web.cert\" style=\"--o:3\"\u003e  # service.a.web.cert (tls_locally_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.a.web.file\" style=\"--o:4\"\u003e  # service.a.web.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.b.api.cert\" style=\"--o:3\"\u003e  # service.b.api.cert (tls_locally_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.b.api.file\" style=\"--o:4\"\u003e  # service.b.api.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.b.web.cert\" style=\"--o:3\"\u003e  # service.b.web.cert (tls_locally_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.b.web.file\" style=\"--o:4\"\u003e  # service.b.web.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.c.api.cert\" style=\"--o:3\"\u003e  # service.c.api.cert (tls_locally_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.c.api.file\" style=\"--o:4\"\u003e  # service.c.api.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.c.web.cert\" style=\"--o:3\"\u003e  # service.c.web.cert (tls_locally_signed_cert) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl out-replace\" data-n=\"service.c.web.file\" style=\"--o:4\"\u003e  # service.c.web.file (local_file) must be replaced\n\u003c/span\u003e\u003cspan class=\"bl-pl bl-sum\" style=\"--o:5\"\u003ePlan: \u003cspan class=\"out-add\"\u003e21 to add\u003c/span\u003e, \u003cspan class=\"out-change\"\u003e0 to change\u003c/span\u003e, \u003cspan class=\"out-destroy\"\u003e21 to destroy\u003c/span\u003e.\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" style=\"--o:5\"\u003eGraph: planned 21 of 39, 18 unchanged and skipped, 33 refreshed, 6 not read.\n\u003c/span\u003e\u003c/code\u003e\u003c/pre\u003e\n",
+          "change": {
+            "file": "pki/root.cue",
+            "lines": "\u003cspan class=\"line ctx\"\u003e\u003cspan class=\"bl-ln\"\u003e13\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e\u003c/span\u003e\u003cspan class=\"tok-id\"\u003ealgorithm\u003c/span\u003e:   \u003cspan class=\"tok-str\"\u003e\u0026#34;ECDSA\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line ins\"\u003e\u003cspan class=\"bl-ln\"\u003e14\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e+\u003c/span\u003e\u003cspan class=\"tok-id\"\u003eecdsa_curve\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;P384\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line del\"\u003e\u003cspan class=\"bl-ln\"\u003e14\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e-\u003c/span\u003e\u003cspan class=\"tok-id\"\u003eecdsa_curve\u003c/span\u003e: \u003cspan class=\"tok-str\"\u003e\u0026#34;P256\u0026#34;\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"line ctx\"\u003e\u003cspan class=\"bl-ln\"\u003e15\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e\u003c/span\u003e}\n\u003c/span\u003e",
+            "plain": "  algorithm:   \"ECDSA\"\n+ ecdsa_curve: \"P384\"\n- ecdsa_curve: \"P256\"\n  }"
+          },
+          "origin": "root.key",
+          "ghost": false,
+          "cmd": "pravo plan | grep -E '^(  #|Plan|Graph)'",
+          "unit": "nodes planned"
+        },
+        {
+          "id": "zone",
+          "title": "Add a zone",
+          "sub": "4 of 43 planned",
+          "say": "A fourth zone, d, joins the specification. Its 4 resources are created, and the 39 existing nodes are skipped: planned 4 of 43.",
+          "planned": 4,
+          "total": 43,
+          "skipped": 39,
+          "graph": "Graph: planned 4 of 43, 39 unchanged and skipped, 2 refreshed, 37 not read.",
+          "plan": "Plan: 4 to add, 0 to change, 0 to destroy.",
+          "act": {
+            "zone.d.cert": "add",
+            "zone.d.csr": "add",
+            "zone.d.file": "add",
+            "zone.d.key": "add"
+          },
+          "ord": {
+            "zone.d.cert": 2,
+            "zone.d.csr": 1,
+            "zone.d.file": 3,
+            "zone.d.key": 0
+          },
+          "lines": {
+            "zone.d.cert": "# zone.d.cert (tls_locally_signed_cert) will be created",
+            "zone.d.csr": "# zone.d.csr (tls_cert_request) will be created",
+            "zone.d.file": "# zone.d.file (local_file) will be created",
+            "zone.d.key": "# zone.d.key (tls_private_key) will be created"
+          },
+          "term": "\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003epravo plan | grep -E \u0026#39;^(  #|Plan|Graph)\u0026#39;\u003c/span\u003e\u003c/div\u003e\n\u003cpre class=\"term-out\"\u003e\u003ccode\u003e\u003cspan class=\"bl-pl out-add\" data-n=\"zone.d.key\" style=\"--o:0\"\u003e  # zone.d.key (tls_private_key) will be created\n\u003c/span\u003e\u003cspan class=\"bl-pl out-add\" data-n=\"zone.d.csr\" style=\"--o:1\"\u003e  # zone.d.csr (tls_cert_request) will be created\n\u003c/span\u003e\u003cspan class=\"bl-pl out-add\" data-n=\"zone.d.cert\" style=\"--o:2\"\u003e  # zone.d.cert (tls_locally_signed_cert) will be created\n\u003c/span\u003e\u003cspan class=\"bl-pl out-add\" data-n=\"zone.d.file\" style=\"--o:3\"\u003e  # zone.d.file (local_file) will be created\n\u003c/span\u003e\u003cspan class=\"bl-pl bl-sum\" style=\"--o:4\"\u003ePlan: \u003cspan class=\"out-add\"\u003e4 to add\u003c/span\u003e, \u003cspan class=\"out-change\"\u003e0 to change\u003c/span\u003e, \u003cspan class=\"out-destroy\"\u003e0 to destroy\u003c/span\u003e.\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" style=\"--o:4\"\u003eGraph: planned 4 of 43, 39 unchanged and skipped, 2 refreshed, 37 not read.\n\u003c/span\u003e\u003c/code\u003e\u003c/pre\u003e\n",
+          "change": {
+            "file": "main.cue",
+            "lines": "\u003cspan class=\"line ctx\"\u003e\u003cspan class=\"bl-ln\"\u003e17\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e\u003c/span\u003e\u003cspan class=\"tok-id\"\u003ec\u003c/span\u003e: \u003cspan class=\"tok-id\"\u003eservices\u003c/span\u003e: {\u003cspan class=\"tok-id\"\u003eapi\u003c/span\u003e: {}, \u003cspan class=\"tok-id\"\u003eweb\u003c/span\u003e: {}}\n\u003c/span\u003e\u003cspan class=\"line ins\"\u003e\u003cspan class=\"bl-ln\"\u003e18\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e+\u003c/span\u003e\u003cspan class=\"tok-id\"\u003ed\u003c/span\u003e: \u003cspan class=\"tok-id\"\u003eservices\u003c/span\u003e: {}\n\u003c/span\u003e\u003cspan class=\"line ctx\"\u003e\u003cspan class=\"bl-ln\"\u003e19\u003c/span\u003e\u003cspan class=\"bl-sg\"\u003e\u003c/span\u003e}\n\u003c/span\u003e",
+            "plain": "  c: services: {api: {}, web: {}}\n+ d: services: {}\n  }"
+          },
+          "origin": "zone.d.key",
+          "ghost": true,
+          "cmd": "pravo plan | grep -E '^(  #|Plan|Graph)'",
+          "unit": "nodes planned"
+        },
+        {
+          "id": "lanes",
+          "title": "Two applies at once",
+          "sub": "16 locks held at once",
+          "say": "Ana replaces the key of zone a and Bob replaces the key of zone b. The two plans share no node and no output, so both applies hold their locks at once: 16 locks, two holders. Both applies complete.",
+          "planned": 16,
+          "total": 39,
+          "skipped": 23,
+          "graph": "Graph: planned 8 of 39, 31 unchanged and skipped, 12 refreshed, 27 not read.\nGraph: planned 8 of 39, 31 unchanged and skipped, 12 refreshed, 27 not read.",
+          "plan": "",
+          "act": {
+            "service.a.api.cert": "replace",
+            "service.a.api.file": "replace",
+            "service.a.web.cert": "replace",
+            "service.a.web.file": "replace",
+            "service.b.api.cert": "replace",
+            "service.b.api.file": "replace",
+            "service.b.web.cert": "replace",
+            "service.b.web.file": "replace",
+            "zone.a.cert": "replace",
+            "zone.a.csr": "replace",
+            "zone.a.file": "replace",
+            "zone.a.key": "replace",
+            "zone.b.cert": "replace",
+            "zone.b.csr": "replace",
+            "zone.b.file": "replace",
+            "zone.b.key": "replace"
+          },
+          "ord": {
+            "service.a.api.cert": 3,
+            "service.a.api.file": 4,
+            "service.a.web.cert": 3,
+            "service.a.web.file": 4,
+            "service.b.api.cert": 3,
+            "service.b.api.file": 4,
+            "service.b.web.cert": 3,
+            "service.b.web.file": 4,
+            "zone.a.cert": 2,
+            "zone.a.csr": 1,
+            "zone.a.file": 3,
+            "zone.a.key": 0,
+            "zone.b.cert": 2,
+            "zone.b.csr": 1,
+            "zone.b.file": 3,
+            "zone.b.key": 0
+          },
+          "lock": {
+            "service.a.api.cert": "ana",
+            "service.a.api.file": "ana",
+            "service.a.web.cert": "ana",
+            "service.a.web.file": "ana",
+            "service.b.api.cert": "bob",
+            "service.b.api.file": "bob",
+            "service.b.web.cert": "bob",
+            "service.b.web.file": "bob",
+            "zone.a.cert": "ana",
+            "zone.a.csr": "ana",
+            "zone.a.file": "ana",
+            "zone.a.key": "ana",
+            "zone.b.cert": "bob",
+            "zone.b.csr": "bob",
+            "zone.b.file": "bob",
+            "zone.b.key": "bob"
+          },
+          "lines": {
+            "service.a.api.cert": "service.a.api.cert  locked by ana",
+            "service.a.api.file": "service.a.api.file  locked by ana",
+            "service.a.web.cert": "service.a.web.cert  locked by ana",
+            "service.a.web.file": "service.a.web.file  locked by ana",
+            "service.b.api.cert": "service.b.api.cert  locked by bob",
+            "service.b.api.file": "service.b.api.file  locked by bob",
+            "service.b.web.cert": "service.b.web.cert  locked by bob",
+            "service.b.web.file": "service.b.web.file  locked by bob",
+            "zone.a.cert": "zone.a.cert  locked by ana",
+            "zone.a.csr": "zone.a.csr  locked by ana",
+            "zone.a.file": "zone.a.file  locked by ana",
+            "zone.a.key": "zone.a.key  locked by ana",
+            "zone.b.cert": "zone.b.cert  locked by bob",
+            "zone.b.csr": "zone.b.csr  locked by bob",
+            "zone.b.file": "zone.b.file  locked by bob",
+            "zone.b.key": "zone.b.key  locked by bob"
+          },
+          "lanes": [
+            {
+              "lane": "a",
+              "actor": "ana",
+              "n": 8,
+              "text": "ana · 8 locks"
+            },
+            {
+              "lane": "b",
+              "actor": "bob",
+              "n": 8,
+              "text": "bob · 8 locks"
+            }
+          ],
+          "term": "\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003epravo plan --replace zone.a.key --out a.plan --actor ana | grep -E \u0026#39;^(Plan|Graph)\u0026#39;\u003c/span\u003e\u003c/div\u003e\n\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003epravo plan --replace zone.b.key --out b.plan --actor bob | grep -E \u0026#39;^(Plan|Graph)\u0026#39;\u003c/span\u003e\u003c/div\u003e\n\u003cpre class=\"term-out\"\u003e\u003ccode\u003e\u003cspan class=\"bl-pl bl-sum\" style=\"--o:5\"\u003ePlan: \u003cspan class=\"out-add\"\u003e8 to add\u003c/span\u003e, \u003cspan class=\"out-change\"\u003e0 to change\u003c/span\u003e, \u003cspan class=\"out-destroy\"\u003e8 to destroy\u003c/span\u003e.\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" style=\"--o:5\"\u003eGraph: planned 8 of 39, 31 unchanged and skipped, 12 refreshed, 27 not read.\n\u003c/span\u003e\u003cspan class=\"bl-pl bl-sum\" style=\"--o:5\"\u003ePlan: \u003cspan class=\"out-add\"\u003e8 to add\u003c/span\u003e, \u003cspan class=\"out-change\"\u003e0 to change\u003c/span\u003e, \u003cspan class=\"out-destroy\"\u003e8 to destroy\u003c/span\u003e.\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" style=\"--o:5\"\u003eGraph: planned 8 of 39, 31 unchanged and skipped, 12 refreshed, 27 not read.\n\u003c/span\u003e\u003c/code\u003e\u003c/pre\u003e\n\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003epravo apply a.plan --actor ana \u0026gt; a.log 2\u0026gt;\u0026amp;1 \u0026amp;\u003c/span\u003e\u003c/div\u003e\n\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003esh wait-for-lock.sh zone.a.key\u003c/span\u003e\u003c/div\u003e\n\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003epravo apply b.plan --actor bob \u0026gt; b.log 2\u0026gt;\u0026amp;1 \u0026amp;\u003c/span\u003e\u003c/div\u003e\n\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003esh wait-for-lock.sh zone.b.key\u003c/span\u003e\u003c/div\u003e\n\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003epravo state locks | cut -d, -f1\u003c/span\u003e\u003c/div\u003e\n\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003ewait\u003c/span\u003e\u003c/div\u003e\n\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003egrep -h \u0026#39;^Apply complete\u0026#39; a.log b.log\u003c/span\u003e\u003c/div\u003e\n\u003cdiv class=\"term-line cmd\"\u003e\u003cspan class=\"prompt\"\u003e$\u003c/span\u003e\u003cspan class=\"cmd-text\"\u003epravo state locks\u003c/span\u003e\u003c/div\u003e\n\u003cpre class=\"term-out\"\u003e\u003ccode\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"service.a.api.cert\" style=\"--o:3\"\u003eservice.a.api.cert  locked by \u003cspan class=\"bl-actor\"\u003eana\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"service.a.api.file\" style=\"--o:4\"\u003eservice.a.api.file  locked by \u003cspan class=\"bl-actor\"\u003eana\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"service.a.web.cert\" style=\"--o:3\"\u003eservice.a.web.cert  locked by \u003cspan class=\"bl-actor\"\u003eana\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"service.a.web.file\" style=\"--o:4\"\u003eservice.a.web.file  locked by \u003cspan class=\"bl-actor\"\u003eana\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"service.b.api.cert\" style=\"--o:3\"\u003eservice.b.api.cert  locked by \u003cspan class=\"bl-actor\"\u003ebob\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"service.b.api.file\" style=\"--o:4\"\u003eservice.b.api.file  locked by \u003cspan class=\"bl-actor\"\u003ebob\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"service.b.web.cert\" style=\"--o:3\"\u003eservice.b.web.cert  locked by \u003cspan class=\"bl-actor\"\u003ebob\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"service.b.web.file\" style=\"--o:4\"\u003eservice.b.web.file  locked by \u003cspan class=\"bl-actor\"\u003ebob\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"zone.a.cert\" style=\"--o:2\"\u003ezone.a.cert  locked by \u003cspan class=\"bl-actor\"\u003eana\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"zone.a.csr\" style=\"--o:1\"\u003ezone.a.csr  locked by \u003cspan class=\"bl-actor\"\u003eana\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"zone.a.file\" style=\"--o:3\"\u003ezone.a.file  locked by \u003cspan class=\"bl-actor\"\u003eana\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"zone.a.key\" style=\"--o:0\"\u003ezone.a.key  locked by \u003cspan class=\"bl-actor\"\u003eana\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"zone.b.cert\" style=\"--o:2\"\u003ezone.b.cert  locked by \u003cspan class=\"bl-actor\"\u003ebob\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"zone.b.csr\" style=\"--o:1\"\u003ezone.b.csr  locked by \u003cspan class=\"bl-actor\"\u003ebob\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"zone.b.file\" style=\"--o:3\"\u003ezone.b.file  locked by \u003cspan class=\"bl-actor\"\u003ebob\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" data-n=\"zone.b.key\" style=\"--o:0\"\u003ezone.b.key  locked by \u003cspan class=\"bl-actor\"\u003ebob\u003c/span\u003e\n\u003c/span\u003e\u003cspan class=\"bl-pl bl-sum\" style=\"--o:5\"\u003e\u003cspan class=\"out-add\"\u003eApply complete!\u003c/span\u003e Resources: \u003cspan class=\"out-add\"\u003e8 added\u003c/span\u003e, \u003cspan class=\"out-change\"\u003e0 changed\u003c/span\u003e, \u003cspan class=\"out-destroy\"\u003e8 destroyed\u003c/span\u003e.\n\u003c/span\u003e\u003cspan class=\"bl-pl bl-sum\" style=\"--o:5\"\u003e\u003cspan class=\"out-add\"\u003eApply complete!\u003c/span\u003e Resources: \u003cspan class=\"out-add\"\u003e8 added\u003c/span\u003e, \u003cspan class=\"out-change\"\u003e0 changed\u003c/span\u003e, \u003cspan class=\"out-destroy\"\u003e8 destroyed\u003c/span\u003e.\n\u003c/span\u003e\u003cspan class=\"bl-pl out-dim\" style=\"--o:5\"\u003eNo locks or reservations held.\n\u003c/span\u003e\u003c/code\u003e\u003c/pre\u003e\n",
+          "change": {
+            "file": "two plans",
+            "lines": "\u003cspan class=\"line\"\u003epravo plan --replace zone.a.key --out a.plan --actor ana\n\u003c/span\u003e\u003cspan class=\"line\"\u003epravo plan --replace zone.b.key --out b.plan --actor bob\n\u003c/span\u003e",
+            "plain": "pravo plan --replace zone.a.key --out a.plan --actor ana\npravo plan --replace zone.b.key --out b.plan --actor bob"
+          },
+          "origin": "zone.a.key",
+          "ghost": false,
+          "cmd": "pravo plan --replace zone.a.key --out a.plan --actor ana | grep -E '^(Plan|Graph)'",
+          "unit": "nodes planned by two plans"
+        }
+      ],
+      "tall": {
+        "w": 398,
+        "h": 362,
+        "nodes": [
+          [
+            30,
+            74
+          ],
+          [
+            30,
+            136
+          ],
+          [
+            30,
+            198
+          ],
+          [
+            71,
+            74
+          ],
+          [
+            71,
+            136
+          ],
+          [
+            71,
+            198
+          ],
+          [
+            71,
+            260
+          ],
+          [
+            100,
+            74
+          ],
+          [
+            100,
+            136
+          ],
+          [
+            100,
+            260
+          ],
+          [
+            100,
+            322
+          ],
+          [
+            129,
+            74
+          ],
+          [
+            129,
+            136
+          ],
+          [
+            129,
+            260
+          ],
+          [
+            129,
+            322
+          ],
+          [
+            170,
+            74
+          ],
+          [
+            170,
+            136
+          ],
+          [
+            170,
+            198
+          ],
+          [
+            170,
+            260
+          ],
+          [
+            199,
+            74
+          ],
+          [
+            199,
+            136
+          ],
+          [
+            199,
+            260
+          ],
+          [
+            199,
+            322
+          ],
+          [
+            228,
+            74
+          ],
+          [
+            228,
+            136
+          ],
+          [
+            228,
+            260
+          ],
+          [
+            228,
+            322
+          ],
+          [
+            269,
+            74
+          ],
+          [
+            269,
+            136
+          ],
+          [
+            269,
+            198
+          ],
+          [
+            269,
+            260
+          ],
+          [
+            298,
+            74
+          ],
+          [
+            298,
+            136
+          ],
+          [
+            298,
+            260
+          ],
+          [
+            298,
+            322
+          ],
+          [
+            327,
+            74
+          ],
+          [
+            327,
+            136
+          ],
+          [
+            327,
+            260
+          ],
+          [
+            327,
+            322
+          ],
+          [
+            368,
+            74
+          ],
+          [
+            368,
+            136
+          ],
+          [
+            368,
+            198
+          ],
+          [
+            368,
+            260
+          ]
+        ],
+        "edges": [
+          "M30 84L30 121",
+          "M30 146L30 183",
+          "M100 146L100 245",
+          "M71 208L71 222Q71 229 78 229L93 229Q100 229 100 236L100 245",
+          "M100 84L100 121",
+          "M100 270L100 307",
+          "M129 146L129 245",
+          "M71 208L71 222Q71 229 78 229L122 229Q129 229 129 236L129 245",
+          "M129 84L129 121",
+          "M129 270L129 307",
+          "M199 146L199 245",
+          "M170 208L170 222Q170 229 177 229L192 229Q199 229 199 236L199 245",
+          "M199 84L199 121",
+          "M199 270L199 307",
+          "M228 146L228 245",
+          "M170 208L170 222Q170 229 177 229L221 229Q228 229 228 236L228 245",
+          "M228 84L228 121",
+          "M228 270L228 307",
+          "M298 146L298 245",
+          "M269 208L269 222Q269 229 276 229L291 229Q298 229 298 236L298 245",
+          "M298 84L298 121",
+          "M298 270L298 307",
+          "M327 146L327 245",
+          "M269 208L269 222Q269 229 276 229L320 229Q327 229 327 236L327 245",
+          "M327 84L327 121",
+          "M327 270L327 307",
+          "M30 146L30 160Q30 167 37 167L64 167Q71 167 71 174L71 183",
+          "M71 146L71 183",
+          "M71 84L71 121",
+          "M71 208L71 245",
+          "M30 146L30 160Q30 167 37 167L163 167Q170 167 170 174L170 183",
+          "M170 146L170 183",
+          "M170 84L170 121",
+          "M170 208L170 245",
+          "M30 146L30 160Q30 167 37 167L262 167Q269 167 269 174L269 183",
+          "M269 146L269 183",
+          "M269 84L269 121",
+          "M269 208L269 245",
+          "M30 146L30 160Q30 167 37 167L361 167Q368 167 368 174L368 183",
+          "M368 146L368 183",
+          "M368 84L368 121",
+          "M368 208L368 245"
+        ],
+        "arrows": [
+          "26.8,121 30,126 33.2,121",
+          "26.8,183 30,188 33.2,183",
+          "96.8,245 100,250 103.2,245",
+          "96.8,245 100,250 103.2,245",
+          "96.8,121 100,126 103.2,121",
+          "96.8,307 100,312 103.2,307",
+          "125.8,245 129,250 132.2,245",
+          "125.8,245 129,250 132.2,245",
+          "125.8,121 129,126 132.2,121",
+          "125.8,307 129,312 132.2,307",
+          "195.8,245 199,250 202.2,245",
+          "195.8,245 199,250 202.2,245",
+          "195.8,121 199,126 202.2,121",
+          "195.8,307 199,312 202.2,307",
+          "224.8,245 228,250 231.2,245",
+          "224.8,245 228,250 231.2,245",
+          "224.8,121 228,126 231.2,121",
+          "224.8,307 228,312 231.2,307",
+          "294.8,245 298,250 301.2,245",
+          "294.8,245 298,250 301.2,245",
+          "294.8,121 298,126 301.2,121",
+          "294.8,307 298,312 301.2,307",
+          "323.8,245 327,250 330.2,245",
+          "323.8,245 327,250 330.2,245",
+          "323.8,121 327,126 330.2,121",
+          "323.8,307 327,312 330.2,307",
+          "67.8,183 71,188 74.2,183",
+          "67.8,183 71,188 74.2,183",
+          "67.8,121 71,126 74.2,121",
+          "67.8,245 71,250 74.2,245",
+          "166.8,183 170,188 173.2,183",
+          "166.8,183 170,188 173.2,183",
+          "166.8,121 170,126 173.2,121",
+          "166.8,245 170,250 173.2,245",
+          "265.8,183 269,188 272.2,183",
+          "265.8,183 269,188 272.2,183",
+          "265.8,121 269,126 272.2,121",
+          "265.8,245 269,250 272.2,245",
+          "364.8,183 368,188 371.2,183",
+          "364.8,183 368,188 371.2,183",
+          "364.8,121 368,126 371.2,121",
+          "364.8,245 368,250 371.2,245"
+        ],
+        "dots": [
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            100,
+            229
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            129,
+            229
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            199,
+            229
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            228,
+            229
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            298,
+            229
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            327,
+            229
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            71,
+            167
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            170,
+            167
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            269,
+            167
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            368,
+            167
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ],
+          [
+            -9,
+            -9
+          ]
+        ],
+        "bands": [
+          [
+            13,
+            24,
+            34,
+            332
+          ],
+          [
+            54,
+            24,
+            92,
+            332
+          ],
+          [
+            153,
+            24,
+            92,
+            332
+          ],
+          [
+            252,
+            24,
+            92,
+            332
+          ],
+          [
+            351,
+            24,
+            34,
+            332
+          ]
+        ],
+        "caps": [
+          [
+            30,
+            44,
+            1
+          ],
+          [
+            100,
+            44,
+            1
+          ],
+          [
+            199,
+            44,
+            1
+          ],
+          [
+            298,
+            44,
+            1
+          ],
+          [
+            368,
+            44,
+            1
+          ]
+        ]
+      },
+      "slots": 43
+    },
+    "ran": "0.1.0-dev",
+    "rows": 11,
+    "slots": 43,
+    "total": 39
+  }
+}

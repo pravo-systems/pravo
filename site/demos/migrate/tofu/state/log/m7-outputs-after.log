@@ -1,0 +1,6 @@
+admin_password = <sensitive>
+endpoints = tolist([
+  "api-whole-tarpon:8080",
+  "web-ethical-humpback:8081",
+  "worker-capital-elk:8082",
+])

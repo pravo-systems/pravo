@@ -1,0 +1,20 @@
+
+OpenTofu used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+OpenTofu will perform the following actions:
+
+  # random_pet.pet will be created
+  + resource "random_pet" "pet" {
+      + id        = (known after apply)
+      + length    = 1
+      + prefix    = "dev"
+      + separator = "-"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+random_pet.pet: Creating...
+random_pet.pet: Creation complete after 0s [id=dev-flounder]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.

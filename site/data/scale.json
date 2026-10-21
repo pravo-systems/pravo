@@ -1,0 +1,91 @@
+{
+  "page": "site/demos/scale/page.md",
+  "title": "Large estate scenario",
+  "version": [
+    "pravo 0.1.0-dev",
+    "cue v0.17.1"
+  ],
+  "blocks": [
+    {
+      "block": 3,
+      "line": 54,
+      "stage": "main",
+      "command": "mkdir -p out tf/out\npravo init\npravo apply --auto-approve | tail -n 1\ntofu -chdir=tf init -no-color \u003e/dev/null\ntofu -chdir=tf apply -auto-approve -no-color | tail -n 1",
+      "hidden": true,
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "Configuration does not load yet; generating schemas for the declared providers first.\nCreated cue.mod/module.cue\nProviders:\n  local = hashicorp/local v2.9.1\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/local (2 resource types, 3 data sources, 1 ephemeral, 1 functions)\n\npravo has been initialised. Run \"pravo plan\" to see what it would do.\nApply complete! Resources: 2001 added, 0 changed, 0 destroyed. [txn \u003cid\u003e]\nApply complete! Resources: 2001 added, 0 changed, 0 destroyed.",
+      "ok": true
+    },
+    {
+      "block": 4,
+      "line": 64,
+      "stage": "main",
+      "command": "pravo plan -t version=2 | grep -E '^(Plan|Graph)'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "Plan: 1 to add, 0 to change, 1 to destroy.\nGraph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read.",
+      "ok": true
+    },
+    {
+      "block": 6,
+      "line": 73,
+      "stage": "main",
+      "command": "tofu -chdir=tf plan -no-color -var version_tag=2 | grep -E '^Plan'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "Plan: 1 to add, 0 to change, 1 to destroy.",
+      "ok": true
+    },
+    {
+      "block": 8,
+      "line": 83,
+      "stage": "main",
+      "command": "pravo plan -t version=2 | grep -c 'Refreshing state' || true",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "1",
+      "ok": true
+    },
+    {
+      "block": 10,
+      "line": 93,
+      "stage": "main",
+      "command": "tofu -chdir=tf plan -no-color -var version_tag=2 | grep -c 'Refreshing state'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "2001",
+      "ok": true
+    },
+    {
+      "block": 12,
+      "line": 103,
+      "stage": "main",
+      "command": "pravo plan -t version=1 | grep -E '^(No changes|Graph)'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "No changes. The specification matches the state. 2001 records were not read; run pravo drift to compare them with the infrastructure.\nGraph: planned 0 of 2001, 2001 unchanged and skipped, 2001 not read.",
+      "ok": true
+    },
+    {
+      "block": 14,
+      "line": 114,
+      "stage": "main",
+      "command": "pravo apply --auto-approve -v -t version=2 2\u003e\u00261 | grep -E '^(Graph|Apply)|locked [0-9]+ resources' | sed 's/^+[0-9.]*s debug //'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read.\nlocked 1 resources\nApply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn \u003cid\u003e]",
+      "ok": true
+    },
+    {
+      "block": 16,
+      "line": 124,
+      "stage": "main",
+      "command": "tofu -chdir=tf apply -auto-approve -no-color -var version_tag=2 | grep -c 'Refreshing state'",
+      "expect_exit": 0,
+      "exit": 0,
+      "output": "2001",
+      "ok": true
+    }
+  ]
+}

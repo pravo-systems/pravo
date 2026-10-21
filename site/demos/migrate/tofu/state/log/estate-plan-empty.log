@@ -1,0 +1,12 @@
+module.notes.local_file.note["alpha"]: Refreshing state... [id=d046cd9b7ffb7661e449683313d41f6fc33e3130]
+module.notes.local_file.note["beta"]: Refreshing state... [id=6c007a14875d53d9bf0ef5a6fc0257c817f0fb83]
+data.local_file.banner: Reading...
+data.local_file.banner: Read complete after 0s [id=fd9c765da1ef3d530b673c2069003cd07dd3c4da]
+random_pet.server: Refreshing state... [id=acme-dev-charmed-buzzard]
+random_pet.region["us"]: Refreshing state... [id=us-exciting-barnacle]
+random_pet.region["eu"]: Refreshing state... [id=eu-just-salmon]
+random_integer.port[1]: Refreshing state... [id=8974]
+random_integer.port[0]: Refreshing state... [id=8111]
+local_file.hello: Refreshing state... [id=16fa07316cd5759c13c1380c5503af94b58ef1cc]
+
+No changes. Your infrastructure matches the configuration.

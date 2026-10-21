@@ -1,0 +1,43 @@
+/* ==========================================================================
+   90 print
+   ========================================================================== */
+@media print {
+  /* paper values whatever the theme: the dark blocks have the same specificity and come earlier */
+  :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+    color-scheme: light;
+    --bg: #fff; --surface: #fff; --surface-2: #f3f3f3; --surface-3: #e8e8e8; --text: #000; --text-2: #222; --text-3: #444;
+    --line: #ccc; --line-strong: #999; --accent: #064d3c; --change: #7c5000; --conflict: #a11; --key: #1a2a9c;
+    --on-accent: #fff; --accent-wash: #e6f2ee; --change-wash: #f6efe0; --conflict-wash: #f9e8e6; --key-wash: #eceefb;
+    --code-bg: #fff; --code-bar: #f3f3f3;
+    --code-edge: #bbb; --code-text: #000; --code-dim: #555;
+    --tok-kw: #1a2a9c; --tok-def: #5b2a99; --tok-type: #045a73; --tok-fn: #7a4b00; --tok-str: #0a5a3c; --tok-num: #8a3b00;
+    --tok-com: #555; --tok-op: #333; --tok-id: #000;
+    --code-add: #064d3c; --code-chg: #7a4b00; --code-del: #a11; --code-key: #1a2a9c; --code-hl: #e8ebff;
+  }
+  html, body, body.page { background: #fff !important; }
+  .site-header, .doc-sidebar, .doc-toc, .drawer-bar, .scrim, .read-progress, .pager, .mark-done, .copy, .copy-page, .doc-actions, .tl-controls,
+  .search-dialog, .skip-link, .breadcrumb, .site-footer .foot-row, .stage-foot, .marquee-toggle, .toc-inline, .doc-foot .applies { display: none !important; }
+  /* the footer is the independence statement: no ticks, no box */
+  .site-footer { border: 0 !important; }
+  .site-footer *::before, .site-footer *::after { display: none !important; }
+  .doc-shell { display: block !important; border: 0 !important; max-width: none; }
+  .doc-main { padding: 0 !important; }
+  .doc { font-size: 11pt; }
+  .doc h1 { font-size: 26pt; }
+  .doc h2 { break-after: avoid; }
+  .doc a { color: #000; text-decoration: underline; }
+  .doc a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; color: #444; }
+  .code, .term, .callout, .exercise, .predict, .check details, figure, .fig, .compare > * { break-inside: avoid; }
+  .code, .term { border-color: #888 !important; }
+  /* a long line of code wraps on paper: nothing is cut at the edge of the page */
+  .code pre, .term pre, .code code, .term code, .code-body, .term-body, .line { white-space: pre-wrap !important; overflow: visible !important; overflow-wrap: anywhere; }
+  .code-body > pre, .term-out { break-inside: auto; }
+  .code::before, .term::before, .fig-body::before, .widget::before, .lesson-meta::before, .ticks::before { display: none !important; }
+  .tab-panel[hidden] { display: block !important; }
+  .tab-list { display: none !important; }
+  .tab-panel[data-title]::before { display: block !important; }
+  details > :not(summary) { display: block !important; }
+  .compare { display: block; }
+  .compare > * { margin-bottom: 1rem; }
+  .reveal, [data-reveal] { opacity: 1 !important; transform: none !important; }
+}

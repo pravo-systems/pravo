@@ -1,0 +1,7 @@
+random_password.admin
+module.service["api"].local_file.config
+module.service["api"].random_pet.host
+module.service["web"].local_file.config
+module.service["web"].random_pet.host
+module.service["worker"].local_file.config
+module.service["worker"].random_pet.host

@@ -1,0 +1,105 @@
+
+OpenTofu used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+OpenTofu will perform the following actions:
+
+  # random_password.admin will be created
+  + resource "random_password" "admin" {
+      + bcrypt_hash = (sensitive value)
+      + id          = (known after apply)
+      + length      = 24
+      + lower       = true
+      + min_lower   = 0
+      + min_numeric = 0
+      + min_special = 0
+      + min_upper   = 0
+      + number      = true
+      + numeric     = true
+      + result      = (sensitive value)
+      + special     = false
+      + upper       = true
+    }
+
+  # module.service["api"].local_file.config will be created
+  + resource "local_file" "config" {
+      + content              = (known after apply)
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "out/api.conf"
+      + id                   = (known after apply)
+    }
+
+  # module.service["api"].random_pet.host will be created
+  + resource "random_pet" "host" {
+      + id        = (known after apply)
+      + length    = 2
+      + prefix    = "api"
+      + separator = "-"
+    }
+
+  # module.service["web"].local_file.config will be created
+  + resource "local_file" "config" {
+      + content              = (known after apply)
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "out/web.conf"
+      + id                   = (known after apply)
+    }
+
+  # module.service["web"].random_pet.host will be created
+  + resource "random_pet" "host" {
+      + id        = (known after apply)
+      + length    = 2
+      + prefix    = "web"
+      + separator = "-"
+    }
+
+  # module.service["worker"].local_file.config will be created
+  + resource "local_file" "config" {
+      + content              = (known after apply)
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "out/worker.conf"
+      + id                   = (known after apply)
+    }
+
+  # module.service["worker"].random_pet.host will be created
+  + resource "random_pet" "host" {
+      + id        = (known after apply)
+      + length    = 2
+      + prefix    = "worker"
+      + separator = "-"
+    }
+
+Plan: 7 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  ~ admin_password = (sensitive value)
+  ~ endpoints      = [
+      - "api-whole-tarpon:8080",
+      - "web-ethical-humpback:8081",
+      - "worker-capital-elk:8082",
+      + (known after apply),
+      + (known after apply),
+      + (known after apply),
+    ]

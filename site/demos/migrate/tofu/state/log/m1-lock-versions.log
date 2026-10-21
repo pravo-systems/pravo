@@ -1,0 +1,5 @@
+provider "registry.opentofu.org/hashicorp/local" {
+  version     = "2.9.1"
+--
+provider "registry.opentofu.org/hashicorp/random" {
+  version     = "3.9.1"

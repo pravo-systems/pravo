@@ -1,0 +1,5 @@
+Created and switched to workspace "prod"!
+
+You're now on a new, empty workspace. Workspaces isolate their state,
+so if you run "tofu plan" OpenTofu will not see any existing state
+for this configuration.

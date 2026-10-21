@@ -1,0 +1,85 @@
+FAIL    testdata/pages/fail.md
+  testdata/pages/fail.md:27: block 4: output differs from the out block at line 31
+      $ pravo lines 6
+      output line 3 differs
+        expected (page line 34): line 33
+        actual   (output line 3): line 3
+      diff (- expected, + actual):
+          line 1
+          line 2
+        - line 33
+        + line 3
+          line 4
+          line 5
+          ... 1 line unchanged
+  testdata/pages/fail.md:42: block 6: exit status 3, expected 0
+      $ pravo fail
+      if the failure is the point of the example, write exit=3 on the run block
+      output:
+        boom: .
+  testdata/pages/fail.md:52: block 8: exit status 0, expected 2
+      $ pravo lines 1
+      output:
+        line 1
+  testdata/pages/fail.md:62: block 10: the run block prints output but has no out block
+      $ pravo lines 2
+      output:
+        line 1
+        line 2
+      run with -update to add the out block
+  testdata/pages/fail.md:68: block 11: output differs from the out block at line 72
+      $ pravo lines 20
+      output line 20 differs (the lines after '...' must end the output)
+        expected (page line 75): line 21
+        actual   (output line 20): line 20
+      output:
+        line 1
+        line 2
+        line 3
+        line 4
+        line 5
+        line 6
+        line 7
+        line 8
+        line 9
+        line 10
+        line 11
+        line 12
+        line 13
+        line 14
+        line 15
+        line 16
+        line 17
+        line 18
+        line 19
+        line 20
+  testdata/pages/fail.md:80: block 13: output differs from the out block at line 84
+      $ pravo lines 10
+      lines 3 to 4 of the out block are not found, in order, after output line 1
+        expected (page line 87): line 5
+      output:
+        line 1
+        line 2
+        line 3
+        line 4
+        line 5
+        line 6
+        line 7
+        line 8
+        line 9
+        line 10
+  testdata/pages/fail.md:95: block 15: output differs from the out block at line 99
+      $ pravo lines 2
+      the output ends after line 2; the out block has more
+        expected (page line 102): line 3
+        actual: (nothing)
+      diff (- expected, + actual):
+          line 1
+          line 2
+        - line 3
+  testdata/pages/fail.md:111: block 17 (solution): exit status 3, expected 0
+      $ pravo fail
+      a check block must exit 0
+      output:
+        boom: .
+capture: 1 page, 9 commands run, 1 page failed

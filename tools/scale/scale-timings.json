@@ -1,0 +1,6551 @@
+{
+  "schema": 1,
+  "date": "2026-10-21T05:55:52Z",
+  "machine": {
+    "model": "Apple M5",
+    "cpus": 10,
+    "memory_gb": 32,
+    "os": "macOS 26.6.2 (Darwin 25.6.0 arm64)",
+    "load_start": "1.60 2.27 3.11",
+    "load_end": "5.28 5.31 5.50"
+  },
+  "build": {
+    "pravo_sha256": "666cbdbbc75e775608397196fcc8d22683939f96987dcf734dc5a9187e8fa805",
+    "revision": "112c71ec1800-dirty"
+  },
+  "tools": {
+    "cue": "cue v0.17.1",
+    "go": "go version go1.26.1 darwin/arm64",
+    "pravo": "pravo 0.1.0-dev",
+    "tofu": "OpenTofu v1.13.1"
+  },
+  "providers": {
+    "pravo": "hashicorp/local@2.9.1",
+    "tofu": "hashicorp/local@2.9.1"
+  },
+  "reps": 3,
+  "sizes": [
+    500,
+    2000,
+    5000,
+    10000
+  ],
+  "notes": [
+    "OpenTofu was not run on the layered estate above 2000 resources.",
+    "pravo was not run on the layered estate above 5000 resources."
+  ],
+  "rows": [
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "init",
+      "reps": 1,
+      "wall_s": 0.233,
+      "user_s": 0.098,
+      "sys_s": 0.024,
+      "rss_mb": 54.4,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.233
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "apply_create",
+      "reps": 3,
+      "wall_s": 0.822,
+      "user_s": 3.132,
+      "sys_s": 1.329,
+      "rss_mb": 112.1,
+      "reads": 0,
+      "locks": 501,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.822,
+        0.825,
+        0.816
+      ],
+      "summary": "Plan: 501 to add, 0 to change, 0 to destroy.|Graph: planned 501 of 501.|Apply complete! Resources: 501 added, 0 changed, 0 destroyed. [txn 20261021T043647Z-3880f5]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "destroy",
+      "reps": 3,
+      "wall_s": 0.398,
+      "user_s": 1.054,
+      "sys_s": 0.972,
+      "rss_mb": 78.1,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.398,
+        0.406,
+        0.396
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 501 to destroy.|Graph: 501 resources in state, 501 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 501 destroyed. [txn 20261021T043654Z-4afea4]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "plan_nochange_default",
+      "reps": 3,
+      "wall_s": 0.154,
+      "user_s": 0.276,
+      "sys_s": 0.054,
+      "rss_mb": 56.9,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.155,
+        0.154,
+        0.154
+      ],
+      "summary": "No changes. The specification matches the state. 501 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 501, 501 unchanged and skipped, 501 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "plan_change_default",
+      "reps": 3,
+      "wall_s": 0.173,
+      "user_s": 0.311,
+      "sys_s": 0.069,
+      "rss_mb": 60.7,
+      "reads": 1,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.175,
+        0.171,
+        0.173
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 1 refreshed, 500 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "plan_out_change_default",
+      "reps": 3,
+      "wall_s": 0.174,
+      "user_s": 0.319,
+      "sys_s": 0.066,
+      "rss_mb": 60.5,
+      "reads": 1,
+      "locks": null,
+      "plan_file_bytes": 3131,
+      "exit": 0,
+      "wall_s_all": [
+        0.196,
+        0.173,
+        0.174
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 1 refreshed, 500 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "apply_change_default",
+      "reps": 3,
+      "wall_s": 0.207,
+      "user_s": 0.329,
+      "sys_s": 0.069,
+      "rss_mb": 63.4,
+      "reads": 1,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.208,
+        0.186,
+        0.207
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 1 refreshed, 500 not read.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043650Z-39efd2]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "plan_nochange_6h",
+      "reps": 3,
+      "wall_s": 0.155,
+      "user_s": 0.278,
+      "sys_s": 0.057,
+      "rss_mb": 56.9,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.155,
+        0.154,
+        0.156
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration.|Graph: planned 0 of 501, 501 unchanged and skipped, 501 within refresh age."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "plan_change_6h",
+      "reps": 3,
+      "wall_s": 0.176,
+      "user_s": 0.315,
+      "sys_s": 0.065,
+      "rss_mb": 60.9,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.185,
+        0.174,
+        0.176
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 501 within refresh age."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "apply_change_6h",
+      "reps": 3,
+      "wall_s": 0.189,
+      "user_s": 0.334,
+      "sys_s": 0.07,
+      "rss_mb": 61.9,
+      "reads": 0,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.189,
+        0.197,
+        0.188
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 501 within refresh age.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043652Z-b1eb95]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "plan_nochange_norefresh",
+      "reps": 3,
+      "wall_s": 0.155,
+      "user_s": 0.276,
+      "sys_s": 0.053,
+      "rss_mb": 56.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.153,
+        0.155,
+        0.155
+      ],
+      "summary": "No changes. The specification matches the state. Nothing was read from the infrastructure.|Graph: planned 0 of 501, 501 unchanged and skipped."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "plan_change_norefresh",
+      "reps": 3,
+      "wall_s": 0.178,
+      "user_s": 0.315,
+      "sys_s": 0.065,
+      "rss_mb": 60.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.178,
+        0.175,
+        0.184
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "apply_change_norefresh",
+      "reps": 3,
+      "wall_s": 0.19,
+      "user_s": 0.33,
+      "sys_s": 0.07,
+      "rss_mb": 62,
+      "reads": 0,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.188,
+        0.19,
+        0.202
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043654Z-6b2ac7]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "hub_init",
+      "reps": 1,
+      "wall_s": 0.131,
+      "user_s": 0.067,
+      "sys_s": 0.013,
+      "rss_mb": 54.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.131
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "hub_apply_create",
+      "reps": 1,
+      "wall_s": 0.834,
+      "user_s": 3.154,
+      "sys_s": 1.281,
+      "rss_mb": 120.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.834
+      ],
+      "summary": "Plan: 501 to add, 0 to change, 0 to destroy.|Graph: planned 501 of 501.|Apply complete! Resources: 501 added, 0 changed, 0 destroyed. [txn 20261021T043655Z-9fea31]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "hub_plan_change",
+      "reps": 3,
+      "wall_s": 0.737,
+      "user_s": 2.903,
+      "sys_s": 1.071,
+      "rss_mb": 108.8,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.737,
+        0.736,
+        0.741
+      ],
+      "summary": "Plan: 501 to add, 0 to change, 501 to destroy.|Graph: planned 501 of 501, 501 refreshed."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "hub_apply_change",
+      "reps": 3,
+      "wall_s": 1.372,
+      "user_s": 5.639,
+      "sys_s": 2.351,
+      "rss_mb": 184.8,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.364,
+        1.401,
+        1.372
+      ],
+      "summary": "Plan: 501 to add, 0 to change, 501 to destroy.|Graph: planned 501 of 501, 501 refreshed.|Apply complete! Resources: 501 added, 0 changed, 501 destroyed. [txn 20261021T043701Z-be501f]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "hub_destroy",
+      "reps": 1,
+      "wall_s": 0.413,
+      "user_s": 1.101,
+      "sys_s": 0.99,
+      "rss_mb": 79.9,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.413
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 501 to destroy.|Graph: 501 resources in state, 501 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 501 destroyed. [txn 20261021T043702Z-b80951]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "layered_init",
+      "reps": 1,
+      "wall_s": 0.118,
+      "user_s": 0.067,
+      "sys_s": 0.012,
+      "rss_mb": 53.3,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.118
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "layered_apply_create",
+      "reps": 1,
+      "wall_s": 1.029,
+      "user_s": 3.336,
+      "sys_s": 1.431,
+      "rss_mb": 175.4,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.029
+      ],
+      "summary": "Plan: 498 to add, 0 to change, 0 to destroy.|Graph: planned 498 of 498.|Apply complete! Resources: 498 added, 0 changed, 0 destroyed. [txn 20261021T043703Z-6c8a39]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "layered_plan_nochange",
+      "reps": 3,
+      "wall_s": 0.268,
+      "user_s": 0.465,
+      "sys_s": 0.067,
+      "rss_mb": 130.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.268,
+        0.268,
+        0.265
+      ],
+      "summary": "No changes. The specification matches the state. 498 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 498, 498 unchanged and skipped, 498 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "layered_plan_change",
+      "reps": 3,
+      "wall_s": 0.308,
+      "user_s": 0.54,
+      "sys_s": 0.084,
+      "rss_mb": 136,
+      "reads": 3,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.308,
+        0.309,
+        0.308
+      ],
+      "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 498, 495 unchanged and skipped, 3 refreshed, 495 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "layered_apply_change",
+      "reps": 3,
+      "wall_s": 0.35,
+      "user_s": 0.583,
+      "sys_s": 0.094,
+      "rss_mb": 158.1,
+      "reads": 3,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.35,
+        0.353,
+        0.35
+      ],
+      "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 498, 495 unchanged and skipped, 3 refreshed, 495 not read.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed. [txn 20261021T043706Z-67ca76]"
+    },
+    {
+      "tool": "pravo",
+      "n": 500,
+      "scenario": "layered_destroy",
+      "reps": 1,
+      "wall_s": 0.422,
+      "user_s": 1.105,
+      "sys_s": 0.994,
+      "rss_mb": 73.4,
+      "reads": 498,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.422
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 498 to destroy.|Graph: 498 resources in state, 498 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 498 destroyed. [txn 20261021T043706Z-7242a4]"
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "init",
+      "reps": 1,
+      "wall_s": 1.425,
+      "user_s": 0.138,
+      "sys_s": 0.067,
+      "rss_mb": 66.3,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.425
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "apply_create",
+      "reps": 3,
+      "wall_s": 0.725,
+      "user_s": 3.235,
+      "sys_s": 0.957,
+      "rss_mb": 93.2,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.997,
+        0.721,
+        0.725
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 501 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 501 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "destroy",
+      "reps": 3,
+      "wall_s": 0.864,
+      "user_s": 3.399,
+      "sys_s": 0.834,
+      "rss_mb": 110.6,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.864,
+        0.861,
+        0.905
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 501 to destroy.|Destroy complete! Resources: 501 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "plan_nochange_default",
+      "reps": 3,
+      "wall_s": 0.508,
+      "user_s": 2.135,
+      "sys_s": 0.569,
+      "rss_mb": 100.4,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.51,
+        0.508,
+        0.504
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "plan_change_default",
+      "reps": 3,
+      "wall_s": 0.513,
+      "user_s": 2.139,
+      "sys_s": 0.578,
+      "rss_mb": 99.8,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.513,
+        0.508,
+        0.516
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "plan_out_change_default",
+      "reps": 3,
+      "wall_s": 0.519,
+      "user_s": 2.174,
+      "sys_s": 0.566,
+      "rss_mb": 104.9,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": 456505,
+      "exit": 0,
+      "wall_s_all": [
+        0.519,
+        0.516,
+        0.526
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "apply_change_default",
+      "reps": 3,
+      "wall_s": 0.551,
+      "user_s": 2.197,
+      "sys_s": 0.585,
+      "rss_mb": 108.8,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.559,
+        0.551,
+        0.539
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "plan_nochange_norefresh",
+      "reps": 3,
+      "wall_s": 0.427,
+      "user_s": 1.728,
+      "sys_s": 0.401,
+      "rss_mb": 98.8,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.427,
+        0.425,
+        0.435
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "plan_change_norefresh",
+      "reps": 3,
+      "wall_s": 0.435,
+      "user_s": 1.731,
+      "sys_s": 0.407,
+      "rss_mb": 100.2,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.43,
+        0.435,
+        0.456
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "apply_change_norefresh",
+      "reps": 3,
+      "wall_s": 0.474,
+      "user_s": 1.767,
+      "sys_s": 0.422,
+      "rss_mb": 109.7,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.474,
+        0.475,
+        0.474
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "hub_init",
+      "reps": 1,
+      "wall_s": 0.94,
+      "user_s": 0.14,
+      "sys_s": 0.055,
+      "rss_mb": 66.3,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.94
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "hub_apply_create",
+      "reps": 1,
+      "wall_s": 0.753,
+      "user_s": 3.339,
+      "sys_s": 0.931,
+      "rss_mb": 96,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.753
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 501 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 501 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "hub_plan_change",
+      "reps": 3,
+      "wall_s": 0.924,
+      "user_s": 3.493,
+      "sys_s": 0.955,
+      "rss_mb": 109.8,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.924,
+        0.914,
+        0.94
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 501 to add, 0 to change, 501 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "hub_apply_change",
+      "reps": 3,
+      "wall_s": 1.564,
+      "user_s": 6.368,
+      "sys_s": 1.6,
+      "rss_mb": 122.2,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.564,
+        1.584,
+        1.548
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 501 to add, 0 to change, 501 to destroy.|Apply complete! Resources: 501 added, 0 changed, 501 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "hub_destroy",
+      "reps": 1,
+      "wall_s": 0.948,
+      "user_s": 3.628,
+      "sys_s": 0.833,
+      "rss_mb": 113.7,
+      "reads": 501,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.948
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 501 to destroy.|Destroy complete! Resources: 501 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "layered_init",
+      "reps": 1,
+      "wall_s": 0.918,
+      "user_s": 0.131,
+      "sys_s": 0.05,
+      "rss_mb": 66.1,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.918
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "layered_apply_create",
+      "reps": 1,
+      "wall_s": 2.04,
+      "user_s": 10.803,
+      "sys_s": 1.085,
+      "rss_mb": 121.1,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.04
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 498 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 498 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "layered_plan_nochange",
+      "reps": 3,
+      "wall_s": 0.593,
+      "user_s": 3.229,
+      "sys_s": 0.53,
+      "rss_mb": 123.8,
+      "reads": 498,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.603,
+        0.59,
+        0.593
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "layered_plan_change",
+      "reps": 3,
+      "wall_s": 0.6,
+      "user_s": 3.264,
+      "sys_s": 0.538,
+      "rss_mb": 121.6,
+      "reads": 498,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.598,
+        0.602,
+        0.6
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 3 to add, 0 to change, 3 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "layered_apply_change",
+      "reps": 3,
+      "wall_s": 0.66,
+      "user_s": 3.352,
+      "sys_s": 0.54,
+      "rss_mb": 127,
+      "reads": 498,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.655,
+        0.66,
+        0.672
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 3 to add, 0 to change, 3 to destroy.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 500,
+      "scenario": "layered_destroy",
+      "reps": 1,
+      "wall_s": 1.672,
+      "user_s": 5.386,
+      "sys_s": 0.793,
+      "rss_mb": 141.5,
+      "reads": 498,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.672
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 498 to destroy.|Destroy complete! Resources: 498 destroyed."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "init",
+      "reps": 1,
+      "wall_s": 0.2,
+      "user_s": 0.207,
+      "sys_s": 0.018,
+      "rss_mb": 94.4,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.2
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "apply_create",
+      "reps": 3,
+      "wall_s": 3.62,
+      "user_s": 13.643,
+      "sys_s": 5.505,
+      "rss_mb": 580.3,
+      "reads": 0,
+      "locks": 2001,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.606,
+        3.62,
+        3.679
+      ],
+      "summary": "Plan: 2001 to add, 0 to change, 0 to destroy.|Graph: planned 2001 of 2001.|Apply complete! Resources: 2001 added, 0 changed, 0 destroyed. [txn 20261021T043802Z-e7fbbe]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "destroy",
+      "reps": 3,
+      "wall_s": 1.491,
+      "user_s": 4.356,
+      "sys_s": 4.116,
+      "rss_mb": 230.7,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.48,
+        1.491,
+        1.502
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 2001 to destroy.|Graph: 2001 resources in state, 2001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 2001 destroyed. [txn 20261021T043824Z-2cd4f8]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "plan_nochange_default",
+      "reps": 3,
+      "wall_s": 0.529,
+      "user_s": 1.041,
+      "sys_s": 0.151,
+      "rss_mb": 107.4,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.533,
+        0.529,
+        0.523
+      ],
+      "summary": "No changes. The specification matches the state. 2001 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 2001, 2001 unchanged and skipped, 2001 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "plan_change_default",
+      "reps": 3,
+      "wall_s": 0.593,
+      "user_s": 1.143,
+      "sys_s": 0.169,
+      "rss_mb": 111.6,
+      "reads": 1,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.594,
+        0.593,
+        0.578
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "plan_out_change_default",
+      "reps": 3,
+      "wall_s": 0.584,
+      "user_s": 1.13,
+      "sys_s": 0.168,
+      "rss_mb": 112.4,
+      "reads": 1,
+      "locks": null,
+      "plan_file_bytes": 3135,
+      "exit": 0,
+      "wall_s_all": [
+        0.581,
+        0.593,
+        0.584
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "apply_change_default",
+      "reps": 3,
+      "wall_s": 0.632,
+      "user_s": 1.18,
+      "sys_s": 0.171,
+      "rss_mb": 131.9,
+      "reads": 1,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.644,
+        0.632,
+        0.626
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043811Z-b4f79d]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "plan_nochange_6h",
+      "reps": 3,
+      "wall_s": 0.526,
+      "user_s": 1.038,
+      "sys_s": 0.152,
+      "rss_mb": 107.1,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.528,
+        0.523,
+        0.526
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration.|Graph: planned 0 of 2001, 2001 unchanged and skipped, 2001 within refresh age."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "plan_change_6h",
+      "reps": 3,
+      "wall_s": 0.592,
+      "user_s": 1.133,
+      "sys_s": 0.169,
+      "rss_mb": 112.6,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.58,
+        0.596,
+        0.592
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 2001 within refresh age."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "apply_change_6h",
+      "reps": 3,
+      "wall_s": 0.629,
+      "user_s": 1.188,
+      "sys_s": 0.175,
+      "rss_mb": 136,
+      "reads": 0,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.639,
+        0.625,
+        0.629
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 2001 within refresh age.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043817Z-0b28da]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "plan_nochange_norefresh",
+      "reps": 3,
+      "wall_s": 0.526,
+      "user_s": 1.046,
+      "sys_s": 0.149,
+      "rss_mb": 107.2,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.529,
+        0.523,
+        0.526
+      ],
+      "summary": "No changes. The specification matches the state. Nothing was read from the infrastructure.|Graph: planned 0 of 2001, 2001 unchanged and skipped."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "plan_change_norefresh",
+      "reps": 3,
+      "wall_s": 0.58,
+      "user_s": 1.131,
+      "sys_s": 0.171,
+      "rss_mb": 111.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.58,
+        0.584,
+        0.577
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "apply_change_norefresh",
+      "reps": 3,
+      "wall_s": 0.629,
+      "user_s": 1.195,
+      "sys_s": 0.171,
+      "rss_mb": 124.5,
+      "reads": 0,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.629,
+        0.641,
+        0.62
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043823Z-f67250]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "hub_init",
+      "reps": 1,
+      "wall_s": 0.235,
+      "user_s": 0.217,
+      "sys_s": 0.018,
+      "rss_mb": 95.9,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.235
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "hub_apply_create",
+      "reps": 1,
+      "wall_s": 3.801,
+      "user_s": 14.003,
+      "sys_s": 5.516,
+      "rss_mb": 602.8,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.801
+      ],
+      "summary": "Plan: 2001 to add, 0 to change, 0 to destroy.|Graph: planned 2001 of 2001.|Apply complete! Resources: 2001 added, 0 changed, 0 destroyed. [txn 20261021T043827Z-fd3336]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "hub_plan_change",
+      "reps": 3,
+      "wall_s": 3.137,
+      "user_s": 12.593,
+      "sys_s": 4.478,
+      "rss_mb": 325.7,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.137,
+        3.12,
+        3.152
+      ],
+      "summary": "Plan: 2001 to add, 0 to change, 2001 to destroy.|Graph: planned 2001 of 2001, 2001 refreshed."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "hub_apply_change",
+      "reps": 3,
+      "wall_s": 6.266,
+      "user_s": 25.435,
+      "sys_s": 10.457,
+      "rss_mb": 648.1,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        6.138,
+        6.266,
+        6.272
+      ],
+      "summary": "Plan: 2001 to add, 0 to change, 2001 to destroy.|Graph: planned 2001 of 2001, 2001 refreshed.|Apply complete! Resources: 2001 added, 0 changed, 2001 destroyed. [txn 20261021T043854Z-fddf78]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "hub_destroy",
+      "reps": 1,
+      "wall_s": 1.606,
+      "user_s": 4.577,
+      "sys_s": 4.311,
+      "rss_mb": 238,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.606
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 2001 to destroy.|Graph: 2001 resources in state, 2001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 2001 destroyed. [txn 20261021T043858Z-7c38b8]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "layered_init",
+      "reps": 1,
+      "wall_s": 0.293,
+      "user_s": 0.207,
+      "sys_s": 0.02,
+      "rss_mb": 94,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.293
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "layered_apply_create",
+      "reps": 1,
+      "wall_s": 5.271,
+      "user_s": 15.167,
+      "sys_s": 5.679,
+      "rss_mb": 1138.7,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        5.271
+      ],
+      "summary": "Plan: 1998 to add, 0 to change, 0 to destroy.|Graph: planned 1998 of 1998.|Apply complete! Resources: 1998 added, 0 changed, 0 destroyed. [txn 20261021T043902Z-641d61]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "layered_plan_nochange",
+      "reps": 3,
+      "wall_s": 1.3,
+      "user_s": 2.061,
+      "sys_s": 0.203,
+      "rss_mb": 654.2,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.304,
+        1.3,
+        1.289
+      ],
+      "summary": "No changes. The specification matches the state. 1998 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 1998, 1998 unchanged and skipped, 1998 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "layered_plan_change",
+      "reps": 3,
+      "wall_s": 1.295,
+      "user_s": 2.102,
+      "sys_s": 0.228,
+      "rss_mb": 608.8,
+      "reads": 3,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.579,
+        1.287,
+        1.295
+      ],
+      "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 1998, 1995 unchanged and skipped, 3 refreshed, 1995 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "layered_apply_change",
+      "reps": 3,
+      "wall_s": 1.438,
+      "user_s": 2.242,
+      "sys_s": 0.244,
+      "rss_mb": 685.1,
+      "reads": 3,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.467,
+        1.438,
+        1.43
+      ],
+      "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 1998, 1995 unchanged and skipped, 3 refreshed, 1995 not read.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed. [txn 20261021T043917Z-5e2f7f]"
+    },
+    {
+      "tool": "pravo",
+      "n": 2000,
+      "scenario": "layered_destroy",
+      "reps": 1,
+      "wall_s": 1.508,
+      "user_s": 4.402,
+      "sys_s": 4.05,
+      "rss_mb": 241.4,
+      "reads": 1998,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.508
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 1998 to destroy.|Graph: 1998 resources in state, 1998 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 1998 destroyed. [txn 20261021T043918Z-94bb85]"
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "init",
+      "reps": 1,
+      "wall_s": 0.893,
+      "user_s": 0.142,
+      "sys_s": 0.061,
+      "rss_mb": 65.9,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.893
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "apply_create",
+      "reps": 3,
+      "wall_s": 2.733,
+      "user_s": 13.823,
+      "sys_s": 3.779,
+      "rss_mb": 214.2,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.733,
+        2.732,
+        2.751
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 2001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 2001 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "destroy",
+      "reps": 3,
+      "wall_s": 5.856,
+      "user_s": 21.774,
+      "sys_s": 3.424,
+      "rss_mb": 279.4,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        5.809,
+        5.856,
+        5.963
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 2001 to destroy.|Destroy complete! Resources: 2001 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "plan_nochange_default",
+      "reps": 3,
+      "wall_s": 2.522,
+      "user_s": 10.627,
+      "sys_s": 2.384,
+      "rss_mb": 279.6,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.539,
+        2.506,
+        2.522
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "plan_change_default",
+      "reps": 3,
+      "wall_s": 2.522,
+      "user_s": 10.687,
+      "sys_s": 2.382,
+      "rss_mb": 285.8,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.521,
+        2.576,
+        2.522
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "plan_out_change_default",
+      "reps": 3,
+      "wall_s": 2.601,
+      "user_s": 10.797,
+      "sys_s": 2.444,
+      "rss_mb": 285.9,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": 1812906,
+      "exit": 0,
+      "wall_s_all": [
+        2.596,
+        2.608,
+        2.601
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "apply_change_default",
+      "reps": 3,
+      "wall_s": 2.611,
+      "user_s": 10.847,
+      "sys_s": 2.424,
+      "rss_mb": 277.4,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.611,
+        2.597,
+        2.639
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "plan_nochange_norefresh",
+      "reps": 3,
+      "wall_s": 2.195,
+      "user_s": 8.822,
+      "sys_s": 1.726,
+      "rss_mb": 220.1,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.181,
+        2.217,
+        2.195
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "plan_change_norefresh",
+      "reps": 3,
+      "wall_s": 2.191,
+      "user_s": 8.799,
+      "sys_s": 1.715,
+      "rss_mb": 214.7,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.191,
+        2.21,
+        2.188
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "apply_change_norefresh",
+      "reps": 3,
+      "wall_s": 2.254,
+      "user_s": 8.874,
+      "sys_s": 1.689,
+      "rss_mb": 221.1,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.254,
+        2.251,
+        2.288
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "hub_init",
+      "reps": 1,
+      "wall_s": 0.977,
+      "user_s": 0.149,
+      "sys_s": 0.065,
+      "rss_mb": 66.6,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.977
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "hub_apply_create",
+      "reps": 1,
+      "wall_s": 2.832,
+      "user_s": 14.599,
+      "sys_s": 3.815,
+      "rss_mb": 219.1,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.832
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 2001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 2001 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "hub_plan_change",
+      "reps": 3,
+      "wall_s": 6.769,
+      "user_s": 23.413,
+      "sys_s": 4.508,
+      "rss_mb": 321.8,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        6.64,
+        6.795,
+        6.769
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 2001 to add, 0 to change, 2001 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "hub_apply_change",
+      "reps": 3,
+      "wall_s": 12.193,
+      "user_s": 44.707,
+      "sys_s": 8.297,
+      "rss_mb": 351.3,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        11.891,
+        12.193,
+        12.338
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 2001 to add, 0 to change, 2001 to destroy.|Apply complete! Resources: 2001 added, 0 changed, 2001 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "hub_destroy",
+      "reps": 1,
+      "wall_s": 6.845,
+      "user_s": 25.339,
+      "sys_s": 4.044,
+      "rss_mb": 275.9,
+      "reads": 2001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        6.845
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 2001 to destroy.|Destroy complete! Resources: 2001 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "layered_init",
+      "reps": 1,
+      "wall_s": 0.9,
+      "user_s": 0.144,
+      "sys_s": 0.063,
+      "rss_mb": 66.4,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.9
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "layered_apply_create",
+      "reps": 1,
+      "wall_s": 47.202,
+      "user_s": 196.712,
+      "sys_s": 7.493,
+      "rss_mb": 557,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        47.202
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1998 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 1998 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "layered_plan_nochange",
+      "reps": 3,
+      "wall_s": 4.915,
+      "user_s": 34.975,
+      "sys_s": 2.639,
+      "rss_mb": 263.8,
+      "reads": 1998,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        4.893,
+        4.915,
+        4.932
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "layered_plan_change",
+      "reps": 3,
+      "wall_s": 4.929,
+      "user_s": 35.245,
+      "sys_s": 2.634,
+      "rss_mb": 257.5,
+      "reads": 1998,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        4.923,
+        4.929,
+        5
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 3 to add, 0 to change, 3 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "layered_apply_change",
+      "reps": 3,
+      "wall_s": 5.128,
+      "user_s": 35.772,
+      "sys_s": 2.675,
+      "rss_mb": 273.7,
+      "reads": 1998,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        5.156,
+        5.116,
+        5.128
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 3 to add, 0 to change, 3 to destroy.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 2000,
+      "scenario": "layered_destroy",
+      "reps": 1,
+      "wall_s": 42.392,
+      "user_s": 82.521,
+      "sys_s": 4.312,
+      "rss_mb": 795.7,
+      "reads": 1998,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        42.392
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 1998 to destroy.|Destroy complete! Resources: 1998 destroyed."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "init",
+      "reps": 1,
+      "wall_s": 0.42,
+      "user_s": 0.48,
+      "sys_s": 0.033,
+      "rss_mb": 178.9,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.42
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "apply_create",
+      "reps": 3,
+      "wall_s": 12.654,
+      "user_s": 46.29,
+      "sys_s": 17.53,
+      "rss_mb": 2566.7,
+      "reads": 0,
+      "locks": 5001,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        12.511,
+        12.654,
+        12.688
+      ],
+      "summary": "Plan: 5001 to add, 0 to change, 0 to destroy.|Graph: planned 5001 of 5001.|Apply complete! Resources: 5001 added, 0 changed, 0 destroyed. [txn 20261021T044458Z-0ea20c]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "destroy",
+      "reps": 3,
+      "wall_s": 4.767,
+      "user_s": 13.851,
+      "sys_s": 13.774,
+      "rss_mb": 554.1,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        4.75,
+        4.767,
+        4.793
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 5001 to destroy.|Graph: 5001 resources in state, 5001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 5001 destroyed. [txn 20261021T044559Z-e4e047]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "plan_nochange_default",
+      "reps": 3,
+      "wall_s": 1.386,
+      "user_s": 2.729,
+      "sys_s": 0.377,
+      "rss_mb": 210.3,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.353,
+        1.407,
+        1.386
+      ],
+      "summary": "No changes. The specification matches the state. 5001 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 5001, 5001 unchanged and skipped, 5001 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "plan_change_default",
+      "reps": 3,
+      "wall_s": 1.541,
+      "user_s": 2.926,
+      "sys_s": 0.401,
+      "rss_mb": 212.7,
+      "reads": 1,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.542,
+        1.541,
+        1.493
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 1 refreshed, 5000 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "plan_out_change_default",
+      "reps": 3,
+      "wall_s": 1.509,
+      "user_s": 2.922,
+      "sys_s": 0.387,
+      "rss_mb": 217.4,
+      "reads": 1,
+      "locks": null,
+      "plan_file_bytes": 3135,
+      "exit": 0,
+      "wall_s_all": [
+        1.504,
+        1.509,
+        1.512
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 1 refreshed, 5000 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "apply_change_default",
+      "reps": 3,
+      "wall_s": 1.619,
+      "user_s": 3.031,
+      "sys_s": 0.403,
+      "rss_mb": 234.8,
+      "reads": 1,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.631,
+        1.619,
+        1.612
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 1 refreshed, 5000 not read.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T044524Z-bee5e3]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "plan_nochange_6h",
+      "reps": 3,
+      "wall_s": 1.37,
+      "user_s": 2.722,
+      "sys_s": 0.356,
+      "rss_mb": 210.2,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.344,
+        1.37,
+        1.382
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration.|Graph: planned 0 of 5001, 5001 unchanged and skipped, 5001 within refresh age."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "plan_change_6h",
+      "reps": 3,
+      "wall_s": 1.505,
+      "user_s": 2.91,
+      "sys_s": 0.394,
+      "rss_mb": 211.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.533,
+        1.505,
+        1.499
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 5001 within refresh age."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "apply_change_6h",
+      "reps": 3,
+      "wall_s": 1.632,
+      "user_s": 3.072,
+      "sys_s": 0.404,
+      "rss_mb": 266.6,
+      "reads": 0,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.636,
+        1.629,
+        1.632
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 5001 within refresh age.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T044539Z-37c57d]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "plan_nochange_norefresh",
+      "reps": 3,
+      "wall_s": 1.364,
+      "user_s": 2.713,
+      "sys_s": 0.369,
+      "rss_mb": 211.6,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.35,
+        1.364,
+        1.372
+      ],
+      "summary": "No changes. The specification matches the state. Nothing was read from the infrastructure.|Graph: planned 0 of 5001, 5001 unchanged and skipped."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "plan_change_norefresh",
+      "reps": 3,
+      "wall_s": 1.51,
+      "user_s": 2.917,
+      "sys_s": 0.385,
+      "rss_mb": 213.3,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.51,
+        1.524,
+        1.503
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "apply_change_norefresh",
+      "reps": 3,
+      "wall_s": 1.621,
+      "user_s": 3.048,
+      "sys_s": 0.401,
+      "rss_mb": 273,
+      "reads": 0,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.624,
+        1.621,
+        1.615
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T044554Z-520ab6]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "hub_init",
+      "reps": 1,
+      "wall_s": 0.391,
+      "user_s": 0.488,
+      "sys_s": 0.031,
+      "rss_mb": 176.1,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.391
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "hub_apply_create",
+      "reps": 1,
+      "wall_s": 12.9,
+      "user_s": 47.253,
+      "sys_s": 17.614,
+      "rss_mb": 2645.1,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        12.9
+      ],
+      "summary": "Plan: 5001 to add, 0 to change, 0 to destroy.|Graph: planned 5001 of 5001.|Apply complete! Resources: 5001 added, 0 changed, 0 destroyed. [txn 20261021T044607Z-1825e5]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "hub_plan_change",
+      "reps": 3,
+      "wall_s": 10.619,
+      "user_s": 42.154,
+      "sys_s": 15.276,
+      "rss_mb": 1104.4,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        10.592,
+        10.619,
+        10.626
+      ],
+      "summary": "Plan: 5001 to add, 0 to change, 5001 to destroy.|Graph: planned 5001 of 5001, 5001 refreshed."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "hub_apply_change",
+      "reps": 3,
+      "wall_s": 21.493,
+      "user_s": 84.905,
+      "sys_s": 34.93,
+      "rss_mb": 2708.9,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        21.025,
+        21.54,
+        21.493
+      ],
+      "summary": "Plan: 5001 to add, 0 to change, 5001 to destroy.|Graph: planned 5001 of 5001, 5001 refreshed.|Apply complete! Resources: 5001 added, 0 changed, 5001 destroyed. [txn 20261021T044740Z-2c329f]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "hub_destroy",
+      "reps": 1,
+      "wall_s": 5.089,
+      "user_s": 14.597,
+      "sys_s": 14.036,
+      "rss_mb": 631.3,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        5.089
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 5001 to destroy.|Graph: 5001 resources in state, 5001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 5001 destroyed. [txn 20261021T044754Z-1385fa]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "layered_init",
+      "reps": 1,
+      "wall_s": 0.504,
+      "user_s": 0.513,
+      "sys_s": 0.034,
+      "rss_mb": 169.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.504
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "layered_apply_create",
+      "reps": 1,
+      "wall_s": 20.509,
+      "user_s": 50.633,
+      "sys_s": 17.189,
+      "rss_mb": 5738,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        20.509
+      ],
+      "summary": "Plan: 4998 to add, 0 to change, 0 to destroy.|Graph: planned 4998 of 4998.|Apply complete! Resources: 4998 added, 0 changed, 0 destroyed. [txn 20261021T044806Z-beb7b3]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "layered_plan_nochange",
+      "reps": 3,
+      "wall_s": 4.814,
+      "user_s": 6.627,
+      "sys_s": 0.584,
+      "rss_mb": 2583.6,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        4.814,
+        4.754,
+        4.923
+      ],
+      "summary": "No changes. The specification matches the state. 4998 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 4998, 4998 unchanged and skipped, 4998 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "layered_plan_change",
+      "reps": 3,
+      "wall_s": 4.762,
+      "user_s": 6.643,
+      "sys_s": 0.616,
+      "rss_mb": 2603.6,
+      "reads": 3,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        4.798,
+        4.762,
+        4.756
+      ],
+      "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 4998, 4995 unchanged and skipped, 3 refreshed, 4995 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "layered_apply_change",
+      "reps": 3,
+      "wall_s": 5.055,
+      "user_s": 6.941,
+      "sys_s": 0.631,
+      "rss_mb": 2733.7,
+      "reads": 3,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        5.07,
+        5.055,
+        5.045
+      ],
+      "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 4998, 4995 unchanged and skipped, 3 refreshed, 4995 not read.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed. [txn 20261021T044901Z-1ca30c]"
+    },
+    {
+      "tool": "pravo",
+      "n": 5000,
+      "scenario": "layered_destroy",
+      "reps": 1,
+      "wall_s": 4.779,
+      "user_s": 14.475,
+      "sys_s": 13.691,
+      "rss_mb": 556.1,
+      "reads": 4998,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        4.779
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 4998 to destroy.|Graph: 4998 resources in state, 4998 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 4998 destroyed. [txn 20261021T044904Z-3e02bf]"
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "init",
+      "reps": 1,
+      "wall_s": 1.461,
+      "user_s": 0.151,
+      "sys_s": 0.077,
+      "rss_mb": 66.8,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.461
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "apply_create",
+      "reps": 3,
+      "wall_s": 8.579,
+      "user_s": 45.693,
+      "sys_s": 12.471,
+      "rss_mb": 518.7,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        8.077,
+        8.579,
+        8.702
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 5001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 5001 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "destroy",
+      "reps": 3,
+      "wall_s": 33.168,
+      "user_s": 107.498,
+      "sys_s": 11.734,
+      "rss_mb": 650.4,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        32.792,
+        33.168,
+        33.479
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 5001 to destroy.|Destroy complete! Resources: 5001 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "plan_nochange_default",
+      "reps": 3,
+      "wall_s": 11.348,
+      "user_s": 42.146,
+      "sys_s": 7.974,
+      "rss_mb": 665.9,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        11.301,
+        11.348,
+        11.357
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "plan_change_default",
+      "reps": 3,
+      "wall_s": 11.307,
+      "user_s": 42.002,
+      "sys_s": 8.003,
+      "rss_mb": 664.6,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        11.285,
+        11.357,
+        11.307
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "plan_out_change_default",
+      "reps": 3,
+      "wall_s": 11.409,
+      "user_s": 42.122,
+      "sys_s": 8.001,
+      "rss_mb": 669,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": 4525470,
+      "exit": 0,
+      "wall_s_all": [
+        11.352,
+        11.422,
+        11.409
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "apply_change_default",
+      "reps": 3,
+      "wall_s": 11.367,
+      "user_s": 42.12,
+      "sys_s": 7.923,
+      "rss_mb": 681.5,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        11.362,
+        11.379,
+        11.367
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "plan_nochange_norefresh",
+      "reps": 3,
+      "wall_s": 10.11,
+      "user_s": 36.009,
+      "sys_s": 5.667,
+      "rss_mb": 514.6,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        10.142,
+        10.097,
+        10.11
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "plan_change_norefresh",
+      "reps": 3,
+      "wall_s": 10.138,
+      "user_s": 36.112,
+      "sys_s": 5.705,
+      "rss_mb": 513.7,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        10.135,
+        10.138,
+        10.225
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "apply_change_norefresh",
+      "reps": 3,
+      "wall_s": 10.354,
+      "user_s": 36.4,
+      "sys_s": 5.707,
+      "rss_mb": 511,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        10.354,
+        10.388,
+        10.343
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "hub_init",
+      "reps": 1,
+      "wall_s": 1.492,
+      "user_s": 0.155,
+      "sys_s": 0.071,
+      "rss_mb": 66.4,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.492
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "hub_apply_create",
+      "reps": 1,
+      "wall_s": 8.686,
+      "user_s": 47.459,
+      "sys_s": 11.924,
+      "rss_mb": 519.9,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        8.686
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 5001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 5001 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "hub_plan_change",
+      "reps": 3,
+      "wall_s": 37.416,
+      "user_s": 112.13,
+      "sys_s": 14.385,
+      "rss_mb": 800.2,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        37.435,
+        37.416,
+        37.23
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 5001 to add, 0 to change, 5001 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "hub_apply_change",
+      "reps": 3,
+      "wall_s": 65.78,
+      "user_s": 204.509,
+      "sys_s": 24.71,
+      "rss_mb": 831.5,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        65.78,
+        66.458,
+        65.446
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 5001 to add, 0 to change, 5001 to destroy.|Apply complete! Resources: 5001 added, 0 changed, 5001 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 5000,
+      "scenario": "hub_destroy",
+      "reps": 1,
+      "wall_s": 37.216,
+      "user_s": 117.6,
+      "sys_s": 12.09,
+      "rss_mb": 681.8,
+      "reads": 5001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        37.216
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 5001 to destroy.|Destroy complete! Resources: 5001 destroyed."
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "init",
+      "reps": 1,
+      "wall_s": 0.758,
+      "user_s": 1.06,
+      "sys_s": 0.056,
+      "rss_mb": 317,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.758
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "apply_create",
+      "reps": 3,
+      "wall_s": 31.986,
+      "user_s": 104.298,
+      "sys_s": 38.096,
+      "rss_mb": 9754.8,
+      "reads": 0,
+      "locks": 10001,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        31.983,
+        32.136,
+        31.986
+      ],
+      "summary": "Plan: 10001 to add, 0 to change, 0 to destroy.|Graph: planned 10001 of 10001.|Apply complete! Resources: 10001 added, 0 changed, 0 destroyed. [txn 20261021T050323Z-605593]"
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "destroy",
+      "reps": 3,
+      "wall_s": 10.312,
+      "user_s": 29.31,
+      "sys_s": 29.033,
+      "rss_mb": 1088.3,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        10.312,
+        10.601,
+        10.112
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 10001 to destroy.|Graph: 10001 resources in state, 10001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 10001 destroyed. [txn 20261021T050536Z-99689c]"
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "plan_nochange_default",
+      "reps": 3,
+      "wall_s": 2.994,
+      "user_s": 6.034,
+      "sys_s": 0.87,
+      "rss_mb": 380,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.098,
+        2.994,
+        2.993
+      ],
+      "summary": "No changes. The specification matches the state. 10001 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 10001, 10001 unchanged and skipped, 10001 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "plan_change_default",
+      "reps": 3,
+      "wall_s": 3.3,
+      "user_s": 6.323,
+      "sys_s": 0.965,
+      "rss_mb": 385.8,
+      "reads": 1,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.314,
+        3.201,
+        3.3
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 1 refreshed, 10000 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "plan_out_change_default",
+      "reps": 3,
+      "wall_s": 3.305,
+      "user_s": 6.481,
+      "sys_s": 1.003,
+      "rss_mb": 391.9,
+      "reads": 1,
+      "locks": null,
+      "plan_file_bytes": 3139,
+      "exit": 0,
+      "wall_s_all": [
+        3.29,
+        3.336,
+        3.305
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 1 refreshed, 10000 not read."
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "apply_change_default",
+      "reps": 3,
+      "wall_s": 3.484,
+      "user_s": 6.611,
+      "sys_s": 0.943,
+      "rss_mb": 520.5,
+      "reads": 1,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.527,
+        3.484,
+        3.481
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 1 refreshed, 10000 not read.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T050420Z-d63ca7]"
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "plan_nochange_6h",
+      "reps": 3,
+      "wall_s": 2.896,
+      "user_s": 5.756,
+      "sys_s": 0.77,
+      "rss_mb": 381,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.846,
+        2.896,
+        2.935
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration.|Graph: planned 0 of 10001, 10001 unchanged and skipped, 10001 within refresh age."
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "plan_change_6h",
+      "reps": 3,
+      "wall_s": 3.162,
+      "user_s": 6.044,
+      "sys_s": 0.812,
+      "rss_mb": 384.7,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.196,
+        3.162,
+        3.135
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 10001 within refresh age."
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "apply_change_6h",
+      "reps": 3,
+      "wall_s": 3.406,
+      "user_s": 6.251,
+      "sys_s": 0.783,
+      "rss_mb": 516.5,
+      "reads": 0,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.406,
+        3.396,
+        3.414
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 10001 within refresh age.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T050452Z-1607f4]"
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "plan_nochange_norefresh",
+      "reps": 3,
+      "wall_s": 2.963,
+      "user_s": 5.994,
+      "sys_s": 0.93,
+      "rss_mb": 378.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        2.913,
+        2.963,
+        3.114
+      ],
+      "summary": "No changes. The specification matches the state. Nothing was read from the infrastructure.|Graph: planned 0 of 10001, 10001 unchanged and skipped."
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "plan_change_norefresh",
+      "reps": 3,
+      "wall_s": 3.214,
+      "user_s": 6.364,
+      "sys_s": 0.945,
+      "rss_mb": 389.2,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.214,
+        3.21,
+        3.269
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped."
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "apply_change_norefresh",
+      "reps": 3,
+      "wall_s": 3.478,
+      "user_s": 6.64,
+      "sys_s": 0.94,
+      "rss_mb": 428.7,
+      "reads": 0,
+      "locks": 1,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        3.478,
+        3.511,
+        3.432
+      ],
+      "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T050524Z-7220d9]"
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "hub_init",
+      "reps": 1,
+      "wall_s": 0.782,
+      "user_s": 1.036,
+      "sys_s": 0.063,
+      "rss_mb": 315.1,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        0.782
+      ]
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "hub_apply_create",
+      "reps": 1,
+      "wall_s": 32.685,
+      "user_s": 105.812,
+      "sys_s": 38.377,
+      "rss_mb": 9187.3,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        32.685
+      ],
+      "summary": "Plan: 10001 to add, 0 to change, 0 to destroy.|Graph: planned 10001 of 10001.|Apply complete! Resources: 10001 added, 0 changed, 0 destroyed. [txn 20261021T050554Z-3bdc24]"
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "hub_plan_change",
+      "reps": 3,
+      "wall_s": 25.349,
+      "user_s": 92.308,
+      "sys_s": 33.658,
+      "rss_mb": 3364.9,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        25.13,
+        25.349,
+        25.792
+      ],
+      "summary": "Plan: 10001 to add, 0 to change, 10001 to destroy.|Graph: planned 10001 of 10001, 10001 refreshed."
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "hub_apply_change",
+      "reps": 3,
+      "wall_s": 51.064,
+      "user_s": 183.9,
+      "sys_s": 74.953,
+      "rss_mb": 8874.9,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        51.299,
+        51.064,
+        50.543
+      ],
+      "summary": "Plan: 10001 to add, 0 to change, 10001 to destroy.|Graph: planned 10001 of 10001, 10001 refreshed.|Apply complete! Resources: 10001 added, 0 changed, 10001 destroyed. [txn 20261021T050937Z-4577e9]"
+    },
+    {
+      "tool": "pravo",
+      "n": 10000,
+      "scenario": "hub_destroy",
+      "reps": 1,
+      "wall_s": 11.048,
+      "user_s": 29.491,
+      "sys_s": 30.636,
+      "rss_mb": 1045.4,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        11.048
+      ],
+      "summary": "Plan: 0 to add, 0 to change, 10001 to destroy.|Graph: 10001 resources in state, 10001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 10001 destroyed. [txn 20261021T051010Z-c07df2]"
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "init",
+      "reps": 1,
+      "wall_s": 1.698,
+      "user_s": 0.155,
+      "sys_s": 0.11,
+      "rss_mb": 66.8,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.698
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "apply_create",
+      "reps": 3,
+      "wall_s": 18.272,
+      "user_s": 97.655,
+      "sys_s": 26.151,
+      "rss_mb": 969.8,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        18.296,
+        18.272,
+        18.236
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 10001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 10001 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "destroy",
+      "reps": 3,
+      "wall_s": 138.76,
+      "user_s": 377.576,
+      "sys_s": 26.685,
+      "rss_mb": 1335.7,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        138.305,
+        138.986,
+        138.76
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 10001 to destroy.|Destroy complete! Resources: 10001 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "plan_nochange_default",
+      "reps": 3,
+      "wall_s": 39.757,
+      "user_s": 117.621,
+      "sys_s": 16.392,
+      "rss_mb": 1300.7,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        39.757,
+        39.765,
+        39.576
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "plan_change_default",
+      "reps": 3,
+      "wall_s": 39.393,
+      "user_s": 117.047,
+      "sys_s": 16.605,
+      "rss_mb": 1247.8,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        39.393,
+        39.121,
+        39.48
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "plan_out_change_default",
+      "reps": 3,
+      "wall_s": 39.651,
+      "user_s": 117.763,
+      "sys_s": 16.679,
+      "rss_mb": 1291.8,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": 9042165,
+      "exit": 0,
+      "wall_s_all": [
+        39.625,
+        39.86,
+        39.651
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "apply_change_default",
+      "reps": 3,
+      "wall_s": 39.589,
+      "user_s": 117.814,
+      "sys_s": 16.452,
+      "rss_mb": 1341,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        39.589,
+        39.666,
+        39.551
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "plan_nochange_norefresh",
+      "reps": 3,
+      "wall_s": 37.066,
+      "user_s": 104.158,
+      "sys_s": 11.676,
+      "rss_mb": 983.5,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        36.854,
+        37.066,
+        37.157
+      ],
+      "summary": "No changes. Your infrastructure matches the configuration."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "plan_change_norefresh",
+      "reps": 3,
+      "wall_s": 37.169,
+      "user_s": 104.369,
+      "sys_s": 11.863,
+      "rss_mb": 989.8,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        37.169,
+        37.196,
+        37.166
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "apply_change_norefresh",
+      "reps": 3,
+      "wall_s": 37.209,
+      "user_s": 105.322,
+      "sys_s": 11.66,
+      "rss_mb": 990.9,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        37.945,
+        37.209,
+        37.104
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "hub_init",
+      "reps": 1,
+      "wall_s": 1.478,
+      "user_s": 0.153,
+      "sys_s": 0.07,
+      "rss_mb": 66.4,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        1.478
+      ]
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "hub_apply_create",
+      "reps": 1,
+      "wall_s": 19.234,
+      "user_s": 105.635,
+      "sys_s": 26.024,
+      "rss_mb": 1004,
+      "reads": 0,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        19.234
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 10001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 10001 added, 0 changed, 0 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "hub_plan_change",
+      "reps": 3,
+      "wall_s": 153.727,
+      "user_s": 395.111,
+      "sys_s": 31.198,
+      "rss_mb": 1522.9,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        155.222,
+        152.85,
+        153.727
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 10001 to add, 0 to change, 10001 to destroy."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "hub_apply_change",
+      "reps": 3,
+      "wall_s": 269.822,
+      "user_s": 713.396,
+      "sys_s": 53.959,
+      "rss_mb": 1594.7,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        269.822,
+        275.284,
+        267.936
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 10001 to add, 0 to change, 10001 to destroy.|Apply complete! Resources: 10001 added, 0 changed, 10001 destroyed."
+    },
+    {
+      "tool": "tofu",
+      "n": 10000,
+      "scenario": "hub_destroy",
+      "reps": 1,
+      "wall_s": 157.693,
+      "user_s": 419.164,
+      "sys_s": 26.899,
+      "rss_mb": 1303,
+      "reads": 10001,
+      "locks": null,
+      "plan_file_bytes": null,
+      "exit": 0,
+      "wall_s_all": [
+        157.693
+      ],
+      "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 10001 to destroy.|Destroy complete! Resources: 10001 destroyed."
+    }
+  ],
+  "by": {
+    "n10000": {
+      "apply_change_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "apply_change_6h",
+          "reps": 3,
+          "wall_s": 3.406,
+          "user_s": 6.251,
+          "sys_s": 0.783,
+          "rss_mb": 516.5,
+          "reads": 0,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.406,
+            3.396,
+            3.414
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 10001 within refresh age.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T050452Z-1607f4]"
+        }
+      },
+      "apply_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "apply_change_default",
+          "reps": 3,
+          "wall_s": 3.484,
+          "user_s": 6.611,
+          "sys_s": 0.943,
+          "rss_mb": 520.5,
+          "reads": 1,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.527,
+            3.484,
+            3.481
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 1 refreshed, 10000 not read.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T050420Z-d63ca7]"
+        },
+        "speedup": 11.4,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "apply_change_default",
+          "reps": 3,
+          "wall_s": 39.589,
+          "user_s": 117.814,
+          "sys_s": 16.452,
+          "rss_mb": 1341,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            39.589,
+            39.666,
+            39.551
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+        }
+      },
+      "apply_change_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "apply_change_norefresh",
+          "reps": 3,
+          "wall_s": 3.478,
+          "user_s": 6.64,
+          "sys_s": 0.94,
+          "rss_mb": 428.7,
+          "reads": 0,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.478,
+            3.511,
+            3.432
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T050524Z-7220d9]"
+        },
+        "speedup": 10.7,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "apply_change_norefresh",
+          "reps": 3,
+          "wall_s": 37.209,
+          "user_s": 105.322,
+          "sys_s": 11.66,
+          "rss_mb": 990.9,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            37.945,
+            37.209,
+            37.104
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+        }
+      },
+      "apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "apply_create",
+          "reps": 3,
+          "wall_s": 31.986,
+          "user_s": 104.298,
+          "sys_s": 38.096,
+          "rss_mb": 9754.8,
+          "reads": 0,
+          "locks": 10001,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            31.983,
+            32.136,
+            31.986
+          ],
+          "summary": "Plan: 10001 to add, 0 to change, 0 to destroy.|Graph: planned 10001 of 10001.|Apply complete! Resources: 10001 added, 0 changed, 0 destroyed. [txn 20261021T050323Z-605593]"
+        },
+        "speedup": 0.6,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "apply_create",
+          "reps": 3,
+          "wall_s": 18.272,
+          "user_s": 97.655,
+          "sys_s": 26.151,
+          "rss_mb": 969.8,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            18.296,
+            18.272,
+            18.236
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 10001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 10001 added, 0 changed, 0 destroyed."
+        }
+      },
+      "destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "destroy",
+          "reps": 3,
+          "wall_s": 10.312,
+          "user_s": 29.31,
+          "sys_s": 29.033,
+          "rss_mb": 1088.3,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            10.312,
+            10.601,
+            10.112
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 10001 to destroy.|Graph: 10001 resources in state, 10001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 10001 destroyed. [txn 20261021T050536Z-99689c]"
+        },
+        "speedup": 13.5,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "destroy",
+          "reps": 3,
+          "wall_s": 138.76,
+          "user_s": 377.576,
+          "sys_s": 26.685,
+          "rss_mb": 1335.7,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            138.305,
+            138.986,
+            138.76
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 10001 to destroy.|Destroy complete! Resources: 10001 destroyed."
+        }
+      },
+      "hub_apply_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "hub_apply_change",
+          "reps": 3,
+          "wall_s": 51.064,
+          "user_s": 183.9,
+          "sys_s": 74.953,
+          "rss_mb": 8874.9,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            51.299,
+            51.064,
+            50.543
+          ],
+          "summary": "Plan: 10001 to add, 0 to change, 10001 to destroy.|Graph: planned 10001 of 10001, 10001 refreshed.|Apply complete! Resources: 10001 added, 0 changed, 10001 destroyed. [txn 20261021T050937Z-4577e9]"
+        },
+        "speedup": 5.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "hub_apply_change",
+          "reps": 3,
+          "wall_s": 269.822,
+          "user_s": 713.396,
+          "sys_s": 53.959,
+          "rss_mb": 1594.7,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            269.822,
+            275.284,
+            267.936
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 10001 to add, 0 to change, 10001 to destroy.|Apply complete! Resources: 10001 added, 0 changed, 10001 destroyed."
+        }
+      },
+      "hub_apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "hub_apply_create",
+          "reps": 1,
+          "wall_s": 32.685,
+          "user_s": 105.812,
+          "sys_s": 38.377,
+          "rss_mb": 9187.3,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            32.685
+          ],
+          "summary": "Plan: 10001 to add, 0 to change, 0 to destroy.|Graph: planned 10001 of 10001.|Apply complete! Resources: 10001 added, 0 changed, 0 destroyed. [txn 20261021T050554Z-3bdc24]"
+        },
+        "speedup": 0.6,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "hub_apply_create",
+          "reps": 1,
+          "wall_s": 19.234,
+          "user_s": 105.635,
+          "sys_s": 26.024,
+          "rss_mb": 1004,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            19.234
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 10001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 10001 added, 0 changed, 0 destroyed."
+        }
+      },
+      "hub_destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "hub_destroy",
+          "reps": 1,
+          "wall_s": 11.048,
+          "user_s": 29.491,
+          "sys_s": 30.636,
+          "rss_mb": 1045.4,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            11.048
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 10001 to destroy.|Graph: 10001 resources in state, 10001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 10001 destroyed. [txn 20261021T051010Z-c07df2]"
+        },
+        "speedup": 14.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "hub_destroy",
+          "reps": 1,
+          "wall_s": 157.693,
+          "user_s": 419.164,
+          "sys_s": 26.899,
+          "rss_mb": 1303,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            157.693
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 10001 to destroy.|Destroy complete! Resources: 10001 destroyed."
+        }
+      },
+      "hub_init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "hub_init",
+          "reps": 1,
+          "wall_s": 0.782,
+          "user_s": 1.036,
+          "sys_s": 0.063,
+          "rss_mb": 315.1,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.782
+          ]
+        },
+        "speedup": 1.9,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "hub_init",
+          "reps": 1,
+          "wall_s": 1.478,
+          "user_s": 0.153,
+          "sys_s": 0.07,
+          "rss_mb": 66.4,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.478
+          ]
+        }
+      },
+      "hub_plan_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "hub_plan_change",
+          "reps": 3,
+          "wall_s": 25.349,
+          "user_s": 92.308,
+          "sys_s": 33.658,
+          "rss_mb": 3364.9,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            25.13,
+            25.349,
+            25.792
+          ],
+          "summary": "Plan: 10001 to add, 0 to change, 10001 to destroy.|Graph: planned 10001 of 10001, 10001 refreshed."
+        },
+        "speedup": 6.1,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "hub_plan_change",
+          "reps": 3,
+          "wall_s": 153.727,
+          "user_s": 395.111,
+          "sys_s": 31.198,
+          "rss_mb": 1522.9,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            155.222,
+            152.85,
+            153.727
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 10001 to add, 0 to change, 10001 to destroy."
+        }
+      },
+      "init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "init",
+          "reps": 1,
+          "wall_s": 0.758,
+          "user_s": 1.06,
+          "sys_s": 0.056,
+          "rss_mb": 317,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.758
+          ]
+        },
+        "speedup": 2.2,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "init",
+          "reps": 1,
+          "wall_s": 1.698,
+          "user_s": 0.155,
+          "sys_s": 0.11,
+          "rss_mb": 66.8,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.698
+          ]
+        }
+      },
+      "plan_change_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "plan_change_6h",
+          "reps": 3,
+          "wall_s": 3.162,
+          "user_s": 6.044,
+          "sys_s": 0.812,
+          "rss_mb": 384.7,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.196,
+            3.162,
+            3.135
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 10001 within refresh age."
+        }
+      },
+      "plan_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "plan_change_default",
+          "reps": 3,
+          "wall_s": 3.3,
+          "user_s": 6.323,
+          "sys_s": 0.965,
+          "rss_mb": 385.8,
+          "reads": 1,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.314,
+            3.201,
+            3.3
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 1 refreshed, 10000 not read."
+        },
+        "speedup": 11.9,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "plan_change_default",
+          "reps": 3,
+          "wall_s": 39.393,
+          "user_s": 117.047,
+          "sys_s": 16.605,
+          "rss_mb": 1247.8,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            39.393,
+            39.121,
+            39.48
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      },
+      "plan_change_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "plan_change_norefresh",
+          "reps": 3,
+          "wall_s": 3.214,
+          "user_s": 6.364,
+          "sys_s": 0.945,
+          "rss_mb": 389.2,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.214,
+            3.21,
+            3.269
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped."
+        },
+        "speedup": 11.6,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "plan_change_norefresh",
+          "reps": 3,
+          "wall_s": 37.169,
+          "user_s": 104.369,
+          "sys_s": 11.863,
+          "rss_mb": 989.8,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            37.169,
+            37.196,
+            37.166
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      },
+      "plan_nochange_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "plan_nochange_6h",
+          "reps": 3,
+          "wall_s": 2.896,
+          "user_s": 5.756,
+          "sys_s": 0.77,
+          "rss_mb": 381,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.846,
+            2.896,
+            2.935
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration.|Graph: planned 0 of 10001, 10001 unchanged and skipped, 10001 within refresh age."
+        }
+      },
+      "plan_nochange_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "plan_nochange_default",
+          "reps": 3,
+          "wall_s": 2.994,
+          "user_s": 6.034,
+          "sys_s": 0.87,
+          "rss_mb": 380,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.098,
+            2.994,
+            2.993
+          ],
+          "summary": "No changes. The specification matches the state. 10001 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 10001, 10001 unchanged and skipped, 10001 not read."
+        },
+        "speedup": 13.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "plan_nochange_default",
+          "reps": 3,
+          "wall_s": 39.757,
+          "user_s": 117.621,
+          "sys_s": 16.392,
+          "rss_mb": 1300.7,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            39.757,
+            39.765,
+            39.576
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_nochange_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "plan_nochange_norefresh",
+          "reps": 3,
+          "wall_s": 2.963,
+          "user_s": 5.994,
+          "sys_s": 0.93,
+          "rss_mb": 378.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.913,
+            2.963,
+            3.114
+          ],
+          "summary": "No changes. The specification matches the state. Nothing was read from the infrastructure.|Graph: planned 0 of 10001, 10001 unchanged and skipped."
+        },
+        "speedup": 12.5,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "plan_nochange_norefresh",
+          "reps": 3,
+          "wall_s": 37.066,
+          "user_s": 104.158,
+          "sys_s": 11.676,
+          "rss_mb": 983.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            36.854,
+            37.066,
+            37.157
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_out_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 10000,
+          "scenario": "plan_out_change_default",
+          "reps": 3,
+          "wall_s": 3.305,
+          "user_s": 6.481,
+          "sys_s": 1.003,
+          "rss_mb": 391.9,
+          "reads": 1,
+          "locks": null,
+          "plan_file_bytes": 3139,
+          "exit": 0,
+          "wall_s_all": [
+            3.29,
+            3.336,
+            3.305
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 10001, 10000 unchanged and skipped, 1 refreshed, 10000 not read."
+        },
+        "speedup": 12,
+        "tofu": {
+          "tool": "tofu",
+          "n": 10000,
+          "scenario": "plan_out_change_default",
+          "reps": 3,
+          "wall_s": 39.651,
+          "user_s": 117.763,
+          "sys_s": 16.679,
+          "rss_mb": 1291.8,
+          "reads": 10001,
+          "locks": null,
+          "plan_file_bytes": 9042165,
+          "exit": 0,
+          "wall_s_all": [
+            39.625,
+            39.86,
+            39.651
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      }
+    },
+    "n2000": {
+      "apply_change_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "apply_change_6h",
+          "reps": 3,
+          "wall_s": 0.629,
+          "user_s": 1.188,
+          "sys_s": 0.175,
+          "rss_mb": 136,
+          "reads": 0,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.639,
+            0.625,
+            0.629
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 2001 within refresh age.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043817Z-0b28da]"
+        }
+      },
+      "apply_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "apply_change_default",
+          "reps": 3,
+          "wall_s": 0.632,
+          "user_s": 1.18,
+          "sys_s": 0.171,
+          "rss_mb": 131.9,
+          "reads": 1,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.644,
+            0.632,
+            0.626
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043811Z-b4f79d]"
+        },
+        "speedup": 4.1,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "apply_change_default",
+          "reps": 3,
+          "wall_s": 2.611,
+          "user_s": 10.847,
+          "sys_s": 2.424,
+          "rss_mb": 277.4,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.611,
+            2.597,
+            2.639
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+        }
+      },
+      "apply_change_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "apply_change_norefresh",
+          "reps": 3,
+          "wall_s": 0.629,
+          "user_s": 1.195,
+          "sys_s": 0.171,
+          "rss_mb": 124.5,
+          "reads": 0,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.629,
+            0.641,
+            0.62
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043823Z-f67250]"
+        },
+        "speedup": 3.6,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "apply_change_norefresh",
+          "reps": 3,
+          "wall_s": 2.254,
+          "user_s": 8.874,
+          "sys_s": 1.689,
+          "rss_mb": 221.1,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.254,
+            2.251,
+            2.288
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+        }
+      },
+      "apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "apply_create",
+          "reps": 3,
+          "wall_s": 3.62,
+          "user_s": 13.643,
+          "sys_s": 5.505,
+          "rss_mb": 580.3,
+          "reads": 0,
+          "locks": 2001,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.606,
+            3.62,
+            3.679
+          ],
+          "summary": "Plan: 2001 to add, 0 to change, 0 to destroy.|Graph: planned 2001 of 2001.|Apply complete! Resources: 2001 added, 0 changed, 0 destroyed. [txn 20261021T043802Z-e7fbbe]"
+        },
+        "speedup": 0.8,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "apply_create",
+          "reps": 3,
+          "wall_s": 2.733,
+          "user_s": 13.823,
+          "sys_s": 3.779,
+          "rss_mb": 214.2,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.733,
+            2.732,
+            2.751
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 2001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 2001 added, 0 changed, 0 destroyed."
+        }
+      },
+      "destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "destroy",
+          "reps": 3,
+          "wall_s": 1.491,
+          "user_s": 4.356,
+          "sys_s": 4.116,
+          "rss_mb": 230.7,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.48,
+            1.491,
+            1.502
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 2001 to destroy.|Graph: 2001 resources in state, 2001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 2001 destroyed. [txn 20261021T043824Z-2cd4f8]"
+        },
+        "speedup": 3.9,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "destroy",
+          "reps": 3,
+          "wall_s": 5.856,
+          "user_s": 21.774,
+          "sys_s": 3.424,
+          "rss_mb": 279.4,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            5.809,
+            5.856,
+            5.963
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 2001 to destroy.|Destroy complete! Resources: 2001 destroyed."
+        }
+      },
+      "hub_apply_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "hub_apply_change",
+          "reps": 3,
+          "wall_s": 6.266,
+          "user_s": 25.435,
+          "sys_s": 10.457,
+          "rss_mb": 648.1,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            6.138,
+            6.266,
+            6.272
+          ],
+          "summary": "Plan: 2001 to add, 0 to change, 2001 to destroy.|Graph: planned 2001 of 2001, 2001 refreshed.|Apply complete! Resources: 2001 added, 0 changed, 2001 destroyed. [txn 20261021T043854Z-fddf78]"
+        },
+        "speedup": 1.9,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "hub_apply_change",
+          "reps": 3,
+          "wall_s": 12.193,
+          "user_s": 44.707,
+          "sys_s": 8.297,
+          "rss_mb": 351.3,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            11.891,
+            12.193,
+            12.338
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 2001 to add, 0 to change, 2001 to destroy.|Apply complete! Resources: 2001 added, 0 changed, 2001 destroyed."
+        }
+      },
+      "hub_apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "hub_apply_create",
+          "reps": 1,
+          "wall_s": 3.801,
+          "user_s": 14.003,
+          "sys_s": 5.516,
+          "rss_mb": 602.8,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.801
+          ],
+          "summary": "Plan: 2001 to add, 0 to change, 0 to destroy.|Graph: planned 2001 of 2001.|Apply complete! Resources: 2001 added, 0 changed, 0 destroyed. [txn 20261021T043827Z-fd3336]"
+        },
+        "speedup": 0.7,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "hub_apply_create",
+          "reps": 1,
+          "wall_s": 2.832,
+          "user_s": 14.599,
+          "sys_s": 3.815,
+          "rss_mb": 219.1,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.832
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 2001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 2001 added, 0 changed, 0 destroyed."
+        }
+      },
+      "hub_destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "hub_destroy",
+          "reps": 1,
+          "wall_s": 1.606,
+          "user_s": 4.577,
+          "sys_s": 4.311,
+          "rss_mb": 238,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.606
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 2001 to destroy.|Graph: 2001 resources in state, 2001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 2001 destroyed. [txn 20261021T043858Z-7c38b8]"
+        },
+        "speedup": 4.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "hub_destroy",
+          "reps": 1,
+          "wall_s": 6.845,
+          "user_s": 25.339,
+          "sys_s": 4.044,
+          "rss_mb": 275.9,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            6.845
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 2001 to destroy.|Destroy complete! Resources: 2001 destroyed."
+        }
+      },
+      "hub_init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "hub_init",
+          "reps": 1,
+          "wall_s": 0.235,
+          "user_s": 0.217,
+          "sys_s": 0.018,
+          "rss_mb": 95.9,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.235
+          ]
+        },
+        "speedup": 4.2,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "hub_init",
+          "reps": 1,
+          "wall_s": 0.977,
+          "user_s": 0.149,
+          "sys_s": 0.065,
+          "rss_mb": 66.6,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.977
+          ]
+        }
+      },
+      "hub_plan_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "hub_plan_change",
+          "reps": 3,
+          "wall_s": 3.137,
+          "user_s": 12.593,
+          "sys_s": 4.478,
+          "rss_mb": 325.7,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            3.137,
+            3.12,
+            3.152
+          ],
+          "summary": "Plan: 2001 to add, 0 to change, 2001 to destroy.|Graph: planned 2001 of 2001, 2001 refreshed."
+        },
+        "speedup": 2.2,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "hub_plan_change",
+          "reps": 3,
+          "wall_s": 6.769,
+          "user_s": 23.413,
+          "sys_s": 4.508,
+          "rss_mb": 321.8,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            6.64,
+            6.795,
+            6.769
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 2001 to add, 0 to change, 2001 to destroy."
+        }
+      },
+      "init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "init",
+          "reps": 1,
+          "wall_s": 0.2,
+          "user_s": 0.207,
+          "sys_s": 0.018,
+          "rss_mb": 94.4,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.2
+          ]
+        },
+        "speedup": 4.5,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "init",
+          "reps": 1,
+          "wall_s": 0.893,
+          "user_s": 0.142,
+          "sys_s": 0.061,
+          "rss_mb": 65.9,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.893
+          ]
+        }
+      },
+      "layered_apply_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "layered_apply_change",
+          "reps": 3,
+          "wall_s": 1.438,
+          "user_s": 2.242,
+          "sys_s": 0.244,
+          "rss_mb": 685.1,
+          "reads": 3,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.467,
+            1.438,
+            1.43
+          ],
+          "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 1998, 1995 unchanged and skipped, 3 refreshed, 1995 not read.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed. [txn 20261021T043917Z-5e2f7f]"
+        },
+        "speedup": 3.6,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "layered_apply_change",
+          "reps": 3,
+          "wall_s": 5.128,
+          "user_s": 35.772,
+          "sys_s": 2.675,
+          "rss_mb": 273.7,
+          "reads": 1998,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            5.156,
+            5.116,
+            5.128
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 3 to add, 0 to change, 3 to destroy.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed."
+        }
+      },
+      "layered_apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "layered_apply_create",
+          "reps": 1,
+          "wall_s": 5.271,
+          "user_s": 15.167,
+          "sys_s": 5.679,
+          "rss_mb": 1138.7,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            5.271
+          ],
+          "summary": "Plan: 1998 to add, 0 to change, 0 to destroy.|Graph: planned 1998 of 1998.|Apply complete! Resources: 1998 added, 0 changed, 0 destroyed. [txn 20261021T043902Z-641d61]"
+        },
+        "speedup": 9,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "layered_apply_create",
+          "reps": 1,
+          "wall_s": 47.202,
+          "user_s": 196.712,
+          "sys_s": 7.493,
+          "rss_mb": 557,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            47.202
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1998 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 1998 added, 0 changed, 0 destroyed."
+        }
+      },
+      "layered_destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "layered_destroy",
+          "reps": 1,
+          "wall_s": 1.508,
+          "user_s": 4.402,
+          "sys_s": 4.05,
+          "rss_mb": 241.4,
+          "reads": 1998,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.508
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 1998 to destroy.|Graph: 1998 resources in state, 1998 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 1998 destroyed. [txn 20261021T043918Z-94bb85]"
+        },
+        "speedup": 28.1,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "layered_destroy",
+          "reps": 1,
+          "wall_s": 42.392,
+          "user_s": 82.521,
+          "sys_s": 4.312,
+          "rss_mb": 795.7,
+          "reads": 1998,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            42.392
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 1998 to destroy.|Destroy complete! Resources: 1998 destroyed."
+        }
+      },
+      "layered_init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "layered_init",
+          "reps": 1,
+          "wall_s": 0.293,
+          "user_s": 0.207,
+          "sys_s": 0.02,
+          "rss_mb": 94,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.293
+          ]
+        },
+        "speedup": 3.1,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "layered_init",
+          "reps": 1,
+          "wall_s": 0.9,
+          "user_s": 0.144,
+          "sys_s": 0.063,
+          "rss_mb": 66.4,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.9
+          ]
+        }
+      },
+      "layered_plan_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "layered_plan_change",
+          "reps": 3,
+          "wall_s": 1.295,
+          "user_s": 2.102,
+          "sys_s": 0.228,
+          "rss_mb": 608.8,
+          "reads": 3,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.579,
+            1.287,
+            1.295
+          ],
+          "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 1998, 1995 unchanged and skipped, 3 refreshed, 1995 not read."
+        },
+        "speedup": 3.8,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "layered_plan_change",
+          "reps": 3,
+          "wall_s": 4.929,
+          "user_s": 35.245,
+          "sys_s": 2.634,
+          "rss_mb": 257.5,
+          "reads": 1998,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            4.923,
+            4.929,
+            5
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 3 to add, 0 to change, 3 to destroy."
+        }
+      },
+      "layered_plan_nochange": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "layered_plan_nochange",
+          "reps": 3,
+          "wall_s": 1.3,
+          "user_s": 2.061,
+          "sys_s": 0.203,
+          "rss_mb": 654.2,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.304,
+            1.3,
+            1.289
+          ],
+          "summary": "No changes. The specification matches the state. 1998 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 1998, 1998 unchanged and skipped, 1998 not read."
+        },
+        "speedup": 3.8,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "layered_plan_nochange",
+          "reps": 3,
+          "wall_s": 4.915,
+          "user_s": 34.975,
+          "sys_s": 2.639,
+          "rss_mb": 263.8,
+          "reads": 1998,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            4.893,
+            4.915,
+            4.932
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_change_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "plan_change_6h",
+          "reps": 3,
+          "wall_s": 0.592,
+          "user_s": 1.133,
+          "sys_s": 0.169,
+          "rss_mb": 112.6,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.58,
+            0.596,
+            0.592
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 2001 within refresh age."
+        }
+      },
+      "plan_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "plan_change_default",
+          "reps": 3,
+          "wall_s": 0.593,
+          "user_s": 1.143,
+          "sys_s": 0.169,
+          "rss_mb": 111.6,
+          "reads": 1,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.594,
+            0.593,
+            0.578
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read."
+        },
+        "speedup": 4.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "plan_change_default",
+          "reps": 3,
+          "wall_s": 2.522,
+          "user_s": 10.687,
+          "sys_s": 2.382,
+          "rss_mb": 285.8,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.521,
+            2.576,
+            2.522
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      },
+      "plan_change_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "plan_change_norefresh",
+          "reps": 3,
+          "wall_s": 0.58,
+          "user_s": 1.131,
+          "sys_s": 0.171,
+          "rss_mb": 111.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.58,
+            0.584,
+            0.577
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped."
+        },
+        "speedup": 3.8,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "plan_change_norefresh",
+          "reps": 3,
+          "wall_s": 2.191,
+          "user_s": 8.799,
+          "sys_s": 1.715,
+          "rss_mb": 214.7,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.191,
+            2.21,
+            2.188
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      },
+      "plan_nochange_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "plan_nochange_6h",
+          "reps": 3,
+          "wall_s": 0.526,
+          "user_s": 1.038,
+          "sys_s": 0.152,
+          "rss_mb": 107.1,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.528,
+            0.523,
+            0.526
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration.|Graph: planned 0 of 2001, 2001 unchanged and skipped, 2001 within refresh age."
+        }
+      },
+      "plan_nochange_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "plan_nochange_default",
+          "reps": 3,
+          "wall_s": 0.529,
+          "user_s": 1.041,
+          "sys_s": 0.151,
+          "rss_mb": 107.4,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.533,
+            0.529,
+            0.523
+          ],
+          "summary": "No changes. The specification matches the state. 2001 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 2001, 2001 unchanged and skipped, 2001 not read."
+        },
+        "speedup": 4.8,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "plan_nochange_default",
+          "reps": 3,
+          "wall_s": 2.522,
+          "user_s": 10.627,
+          "sys_s": 2.384,
+          "rss_mb": 279.6,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.539,
+            2.506,
+            2.522
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_nochange_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "plan_nochange_norefresh",
+          "reps": 3,
+          "wall_s": 0.526,
+          "user_s": 1.046,
+          "sys_s": 0.149,
+          "rss_mb": 107.2,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.529,
+            0.523,
+            0.526
+          ],
+          "summary": "No changes. The specification matches the state. Nothing was read from the infrastructure.|Graph: planned 0 of 2001, 2001 unchanged and skipped."
+        },
+        "speedup": 4.2,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "plan_nochange_norefresh",
+          "reps": 3,
+          "wall_s": 2.195,
+          "user_s": 8.822,
+          "sys_s": 1.726,
+          "rss_mb": 220.1,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.181,
+            2.217,
+            2.195
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_out_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 2000,
+          "scenario": "plan_out_change_default",
+          "reps": 3,
+          "wall_s": 0.584,
+          "user_s": 1.13,
+          "sys_s": 0.168,
+          "rss_mb": 112.4,
+          "reads": 1,
+          "locks": null,
+          "plan_file_bytes": 3135,
+          "exit": 0,
+          "wall_s_all": [
+            0.581,
+            0.593,
+            0.584
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read."
+        },
+        "speedup": 4.5,
+        "tofu": {
+          "tool": "tofu",
+          "n": 2000,
+          "scenario": "plan_out_change_default",
+          "reps": 3,
+          "wall_s": 2.601,
+          "user_s": 10.797,
+          "sys_s": 2.444,
+          "rss_mb": 285.9,
+          "reads": 2001,
+          "locks": null,
+          "plan_file_bytes": 1812906,
+          "exit": 0,
+          "wall_s_all": [
+            2.596,
+            2.608,
+            2.601
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      }
+    },
+    "n500": {
+      "apply_change_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "apply_change_6h",
+          "reps": 3,
+          "wall_s": 0.189,
+          "user_s": 0.334,
+          "sys_s": 0.07,
+          "rss_mb": 61.9,
+          "reads": 0,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.189,
+            0.197,
+            0.188
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 501 within refresh age.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043652Z-b1eb95]"
+        }
+      },
+      "apply_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "apply_change_default",
+          "reps": 3,
+          "wall_s": 0.207,
+          "user_s": 0.329,
+          "sys_s": 0.069,
+          "rss_mb": 63.4,
+          "reads": 1,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.208,
+            0.186,
+            0.207
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 1 refreshed, 500 not read.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043650Z-39efd2]"
+        },
+        "speedup": 2.7,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "apply_change_default",
+          "reps": 3,
+          "wall_s": 0.551,
+          "user_s": 2.197,
+          "sys_s": 0.585,
+          "rss_mb": 108.8,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.559,
+            0.551,
+            0.539
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+        }
+      },
+      "apply_change_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "apply_change_norefresh",
+          "reps": 3,
+          "wall_s": 0.19,
+          "user_s": 0.33,
+          "sys_s": 0.07,
+          "rss_mb": 62,
+          "reads": 0,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.188,
+            0.19,
+            0.202
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T043654Z-6b2ac7]"
+        },
+        "speedup": 2.5,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "apply_change_norefresh",
+          "reps": 3,
+          "wall_s": 0.474,
+          "user_s": 1.767,
+          "sys_s": 0.422,
+          "rss_mb": 109.7,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.474,
+            0.475,
+            0.474
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+        }
+      },
+      "apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "apply_create",
+          "reps": 3,
+          "wall_s": 0.822,
+          "user_s": 3.132,
+          "sys_s": 1.329,
+          "rss_mb": 112.1,
+          "reads": 0,
+          "locks": 501,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.822,
+            0.825,
+            0.816
+          ],
+          "summary": "Plan: 501 to add, 0 to change, 0 to destroy.|Graph: planned 501 of 501.|Apply complete! Resources: 501 added, 0 changed, 0 destroyed. [txn 20261021T043647Z-3880f5]"
+        },
+        "speedup": 0.9,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "apply_create",
+          "reps": 3,
+          "wall_s": 0.725,
+          "user_s": 3.235,
+          "sys_s": 0.957,
+          "rss_mb": 93.2,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.997,
+            0.721,
+            0.725
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 501 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 501 added, 0 changed, 0 destroyed."
+        }
+      },
+      "destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "destroy",
+          "reps": 3,
+          "wall_s": 0.398,
+          "user_s": 1.054,
+          "sys_s": 0.972,
+          "rss_mb": 78.1,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.398,
+            0.406,
+            0.396
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 501 to destroy.|Graph: 501 resources in state, 501 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 501 destroyed. [txn 20261021T043654Z-4afea4]"
+        },
+        "speedup": 2.2,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "destroy",
+          "reps": 3,
+          "wall_s": 0.864,
+          "user_s": 3.399,
+          "sys_s": 0.834,
+          "rss_mb": 110.6,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.864,
+            0.861,
+            0.905
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 501 to destroy.|Destroy complete! Resources: 501 destroyed."
+        }
+      },
+      "hub_apply_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "hub_apply_change",
+          "reps": 3,
+          "wall_s": 1.372,
+          "user_s": 5.639,
+          "sys_s": 2.351,
+          "rss_mb": 184.8,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.364,
+            1.401,
+            1.372
+          ],
+          "summary": "Plan: 501 to add, 0 to change, 501 to destroy.|Graph: planned 501 of 501, 501 refreshed.|Apply complete! Resources: 501 added, 0 changed, 501 destroyed. [txn 20261021T043701Z-be501f]"
+        },
+        "speedup": 1.1,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "hub_apply_change",
+          "reps": 3,
+          "wall_s": 1.564,
+          "user_s": 6.368,
+          "sys_s": 1.6,
+          "rss_mb": 122.2,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.564,
+            1.584,
+            1.548
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 501 to add, 0 to change, 501 to destroy.|Apply complete! Resources: 501 added, 0 changed, 501 destroyed."
+        }
+      },
+      "hub_apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "hub_apply_create",
+          "reps": 1,
+          "wall_s": 0.834,
+          "user_s": 3.154,
+          "sys_s": 1.281,
+          "rss_mb": 120.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.834
+          ],
+          "summary": "Plan: 501 to add, 0 to change, 0 to destroy.|Graph: planned 501 of 501.|Apply complete! Resources: 501 added, 0 changed, 0 destroyed. [txn 20261021T043655Z-9fea31]"
+        },
+        "speedup": 0.9,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "hub_apply_create",
+          "reps": 1,
+          "wall_s": 0.753,
+          "user_s": 3.339,
+          "sys_s": 0.931,
+          "rss_mb": 96,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.753
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 501 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 501 added, 0 changed, 0 destroyed."
+        }
+      },
+      "hub_destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "hub_destroy",
+          "reps": 1,
+          "wall_s": 0.413,
+          "user_s": 1.101,
+          "sys_s": 0.99,
+          "rss_mb": 79.9,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.413
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 501 to destroy.|Graph: 501 resources in state, 501 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 501 destroyed. [txn 20261021T043702Z-b80951]"
+        },
+        "speedup": 2.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "hub_destroy",
+          "reps": 1,
+          "wall_s": 0.948,
+          "user_s": 3.628,
+          "sys_s": 0.833,
+          "rss_mb": 113.7,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.948
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 501 to destroy.|Destroy complete! Resources: 501 destroyed."
+        }
+      },
+      "hub_init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "hub_init",
+          "reps": 1,
+          "wall_s": 0.131,
+          "user_s": 0.067,
+          "sys_s": 0.013,
+          "rss_mb": 54.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.131
+          ]
+        },
+        "speedup": 7.2,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "hub_init",
+          "reps": 1,
+          "wall_s": 0.94,
+          "user_s": 0.14,
+          "sys_s": 0.055,
+          "rss_mb": 66.3,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.94
+          ]
+        }
+      },
+      "hub_plan_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "hub_plan_change",
+          "reps": 3,
+          "wall_s": 0.737,
+          "user_s": 2.903,
+          "sys_s": 1.071,
+          "rss_mb": 108.8,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.737,
+            0.736,
+            0.741
+          ],
+          "summary": "Plan: 501 to add, 0 to change, 501 to destroy.|Graph: planned 501 of 501, 501 refreshed."
+        },
+        "speedup": 1.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "hub_plan_change",
+          "reps": 3,
+          "wall_s": 0.924,
+          "user_s": 3.493,
+          "sys_s": 0.955,
+          "rss_mb": 109.8,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.924,
+            0.914,
+            0.94
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 501 to add, 0 to change, 501 to destroy."
+        }
+      },
+      "init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "init",
+          "reps": 1,
+          "wall_s": 0.233,
+          "user_s": 0.098,
+          "sys_s": 0.024,
+          "rss_mb": 54.4,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.233
+          ]
+        },
+        "speedup": 6.1,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "init",
+          "reps": 1,
+          "wall_s": 1.425,
+          "user_s": 0.138,
+          "sys_s": 0.067,
+          "rss_mb": 66.3,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.425
+          ]
+        }
+      },
+      "layered_apply_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "layered_apply_change",
+          "reps": 3,
+          "wall_s": 0.35,
+          "user_s": 0.583,
+          "sys_s": 0.094,
+          "rss_mb": 158.1,
+          "reads": 3,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.35,
+            0.353,
+            0.35
+          ],
+          "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 498, 495 unchanged and skipped, 3 refreshed, 495 not read.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed. [txn 20261021T043706Z-67ca76]"
+        },
+        "speedup": 1.9,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "layered_apply_change",
+          "reps": 3,
+          "wall_s": 0.66,
+          "user_s": 3.352,
+          "sys_s": 0.54,
+          "rss_mb": 127,
+          "reads": 498,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.655,
+            0.66,
+            0.672
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 3 to add, 0 to change, 3 to destroy.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed."
+        }
+      },
+      "layered_apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "layered_apply_create",
+          "reps": 1,
+          "wall_s": 1.029,
+          "user_s": 3.336,
+          "sys_s": 1.431,
+          "rss_mb": 175.4,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.029
+          ],
+          "summary": "Plan: 498 to add, 0 to change, 0 to destroy.|Graph: planned 498 of 498.|Apply complete! Resources: 498 added, 0 changed, 0 destroyed. [txn 20261021T043703Z-6c8a39]"
+        },
+        "speedup": 2,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "layered_apply_create",
+          "reps": 1,
+          "wall_s": 2.04,
+          "user_s": 10.803,
+          "sys_s": 1.085,
+          "rss_mb": 121.1,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            2.04
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 498 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 498 added, 0 changed, 0 destroyed."
+        }
+      },
+      "layered_destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "layered_destroy",
+          "reps": 1,
+          "wall_s": 0.422,
+          "user_s": 1.105,
+          "sys_s": 0.994,
+          "rss_mb": 73.4,
+          "reads": 498,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.422
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 498 to destroy.|Graph: 498 resources in state, 498 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 498 destroyed. [txn 20261021T043706Z-7242a4]"
+        },
+        "speedup": 4,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "layered_destroy",
+          "reps": 1,
+          "wall_s": 1.672,
+          "user_s": 5.386,
+          "sys_s": 0.793,
+          "rss_mb": 141.5,
+          "reads": 498,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.672
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 498 to destroy.|Destroy complete! Resources: 498 destroyed."
+        }
+      },
+      "layered_init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "layered_init",
+          "reps": 1,
+          "wall_s": 0.118,
+          "user_s": 0.067,
+          "sys_s": 0.012,
+          "rss_mb": 53.3,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.118
+          ]
+        },
+        "speedup": 7.8,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "layered_init",
+          "reps": 1,
+          "wall_s": 0.918,
+          "user_s": 0.131,
+          "sys_s": 0.05,
+          "rss_mb": 66.1,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.918
+          ]
+        }
+      },
+      "layered_plan_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "layered_plan_change",
+          "reps": 3,
+          "wall_s": 0.308,
+          "user_s": 0.54,
+          "sys_s": 0.084,
+          "rss_mb": 136,
+          "reads": 3,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.308,
+            0.309,
+            0.308
+          ],
+          "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 498, 495 unchanged and skipped, 3 refreshed, 495 not read."
+        },
+        "speedup": 1.9,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "layered_plan_change",
+          "reps": 3,
+          "wall_s": 0.6,
+          "user_s": 3.264,
+          "sys_s": 0.538,
+          "rss_mb": 121.6,
+          "reads": 498,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.598,
+            0.602,
+            0.6
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 3 to add, 0 to change, 3 to destroy."
+        }
+      },
+      "layered_plan_nochange": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "layered_plan_nochange",
+          "reps": 3,
+          "wall_s": 0.268,
+          "user_s": 0.465,
+          "sys_s": 0.067,
+          "rss_mb": 130.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.268,
+            0.268,
+            0.265
+          ],
+          "summary": "No changes. The specification matches the state. 498 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 498, 498 unchanged and skipped, 498 not read."
+        },
+        "speedup": 2.2,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "layered_plan_nochange",
+          "reps": 3,
+          "wall_s": 0.593,
+          "user_s": 3.229,
+          "sys_s": 0.53,
+          "rss_mb": 123.8,
+          "reads": 498,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.603,
+            0.59,
+            0.593
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_change_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "plan_change_6h",
+          "reps": 3,
+          "wall_s": 0.176,
+          "user_s": 0.315,
+          "sys_s": 0.065,
+          "rss_mb": 60.9,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.185,
+            0.174,
+            0.176
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 501 within refresh age."
+        }
+      },
+      "plan_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "plan_change_default",
+          "reps": 3,
+          "wall_s": 0.173,
+          "user_s": 0.311,
+          "sys_s": 0.069,
+          "rss_mb": 60.7,
+          "reads": 1,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.175,
+            0.171,
+            0.173
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 1 refreshed, 500 not read."
+        },
+        "speedup": 3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "plan_change_default",
+          "reps": 3,
+          "wall_s": 0.513,
+          "user_s": 2.139,
+          "sys_s": 0.578,
+          "rss_mb": 99.8,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.513,
+            0.508,
+            0.516
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      },
+      "plan_change_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "plan_change_norefresh",
+          "reps": 3,
+          "wall_s": 0.178,
+          "user_s": 0.315,
+          "sys_s": 0.065,
+          "rss_mb": 60.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.178,
+            0.175,
+            0.184
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped."
+        },
+        "speedup": 2.4,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "plan_change_norefresh",
+          "reps": 3,
+          "wall_s": 0.435,
+          "user_s": 1.731,
+          "sys_s": 0.407,
+          "rss_mb": 100.2,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.43,
+            0.435,
+            0.456
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      },
+      "plan_nochange_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "plan_nochange_6h",
+          "reps": 3,
+          "wall_s": 0.155,
+          "user_s": 0.278,
+          "sys_s": 0.057,
+          "rss_mb": 56.9,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.155,
+            0.154,
+            0.156
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration.|Graph: planned 0 of 501, 501 unchanged and skipped, 501 within refresh age."
+        }
+      },
+      "plan_nochange_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "plan_nochange_default",
+          "reps": 3,
+          "wall_s": 0.154,
+          "user_s": 0.276,
+          "sys_s": 0.054,
+          "rss_mb": 56.9,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.155,
+            0.154,
+            0.154
+          ],
+          "summary": "No changes. The specification matches the state. 501 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 501, 501 unchanged and skipped, 501 not read."
+        },
+        "speedup": 3.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "plan_nochange_default",
+          "reps": 3,
+          "wall_s": 0.508,
+          "user_s": 2.135,
+          "sys_s": 0.569,
+          "rss_mb": 100.4,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.51,
+            0.508,
+            0.504
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_nochange_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "plan_nochange_norefresh",
+          "reps": 3,
+          "wall_s": 0.155,
+          "user_s": 0.276,
+          "sys_s": 0.053,
+          "rss_mb": 56.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.153,
+            0.155,
+            0.155
+          ],
+          "summary": "No changes. The specification matches the state. Nothing was read from the infrastructure.|Graph: planned 0 of 501, 501 unchanged and skipped."
+        },
+        "speedup": 2.8,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "plan_nochange_norefresh",
+          "reps": 3,
+          "wall_s": 0.427,
+          "user_s": 1.728,
+          "sys_s": 0.401,
+          "rss_mb": 98.8,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.427,
+            0.425,
+            0.435
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_out_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 500,
+          "scenario": "plan_out_change_default",
+          "reps": 3,
+          "wall_s": 0.174,
+          "user_s": 0.319,
+          "sys_s": 0.066,
+          "rss_mb": 60.5,
+          "reads": 1,
+          "locks": null,
+          "plan_file_bytes": 3131,
+          "exit": 0,
+          "wall_s_all": [
+            0.196,
+            0.173,
+            0.174
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 501, 500 unchanged and skipped, 1 refreshed, 500 not read."
+        },
+        "speedup": 3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 500,
+          "scenario": "plan_out_change_default",
+          "reps": 3,
+          "wall_s": 0.519,
+          "user_s": 2.174,
+          "sys_s": 0.566,
+          "rss_mb": 104.9,
+          "reads": 501,
+          "locks": null,
+          "plan_file_bytes": 456505,
+          "exit": 0,
+          "wall_s_all": [
+            0.519,
+            0.516,
+            0.526
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      }
+    },
+    "n5000": {
+      "apply_change_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "apply_change_6h",
+          "reps": 3,
+          "wall_s": 1.632,
+          "user_s": 3.072,
+          "sys_s": 0.404,
+          "rss_mb": 266.6,
+          "reads": 0,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.636,
+            1.629,
+            1.632
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 5001 within refresh age.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T044539Z-37c57d]"
+        }
+      },
+      "apply_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "apply_change_default",
+          "reps": 3,
+          "wall_s": 1.619,
+          "user_s": 3.031,
+          "sys_s": 0.403,
+          "rss_mb": 234.8,
+          "reads": 1,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.631,
+            1.619,
+            1.612
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 1 refreshed, 5000 not read.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T044524Z-bee5e3]"
+        },
+        "speedup": 7,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "apply_change_default",
+          "reps": 3,
+          "wall_s": 11.367,
+          "user_s": 42.12,
+          "sys_s": 7.923,
+          "rss_mb": 681.5,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            11.362,
+            11.379,
+            11.367
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+        }
+      },
+      "apply_change_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "apply_change_norefresh",
+          "reps": 3,
+          "wall_s": 1.621,
+          "user_s": 3.048,
+          "sys_s": 0.401,
+          "rss_mb": 273,
+          "reads": 0,
+          "locks": 1,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.624,
+            1.621,
+            1.615
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn 20261021T044554Z-520ab6]"
+        },
+        "speedup": 6.4,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "apply_change_norefresh",
+          "reps": 3,
+          "wall_s": 10.354,
+          "user_s": 36.4,
+          "sys_s": 5.707,
+          "rss_mb": 511,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            10.354,
+            10.388,
+            10.343
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy.|Apply complete! Resources: 1 added, 0 changed, 1 destroyed."
+        }
+      },
+      "apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "apply_create",
+          "reps": 3,
+          "wall_s": 12.654,
+          "user_s": 46.29,
+          "sys_s": 17.53,
+          "rss_mb": 2566.7,
+          "reads": 0,
+          "locks": 5001,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            12.511,
+            12.654,
+            12.688
+          ],
+          "summary": "Plan: 5001 to add, 0 to change, 0 to destroy.|Graph: planned 5001 of 5001.|Apply complete! Resources: 5001 added, 0 changed, 0 destroyed. [txn 20261021T044458Z-0ea20c]"
+        },
+        "speedup": 0.7,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "apply_create",
+          "reps": 3,
+          "wall_s": 8.579,
+          "user_s": 45.693,
+          "sys_s": 12.471,
+          "rss_mb": 518.7,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            8.077,
+            8.579,
+            8.702
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 5001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 5001 added, 0 changed, 0 destroyed."
+        }
+      },
+      "destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "destroy",
+          "reps": 3,
+          "wall_s": 4.767,
+          "user_s": 13.851,
+          "sys_s": 13.774,
+          "rss_mb": 554.1,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            4.75,
+            4.767,
+            4.793
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 5001 to destroy.|Graph: 5001 resources in state, 5001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 5001 destroyed. [txn 20261021T044559Z-e4e047]"
+        },
+        "speedup": 7,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "destroy",
+          "reps": 3,
+          "wall_s": 33.168,
+          "user_s": 107.498,
+          "sys_s": 11.734,
+          "rss_mb": 650.4,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            32.792,
+            33.168,
+            33.479
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 5001 to destroy.|Destroy complete! Resources: 5001 destroyed."
+        }
+      },
+      "hub_apply_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "hub_apply_change",
+          "reps": 3,
+          "wall_s": 21.493,
+          "user_s": 84.905,
+          "sys_s": 34.93,
+          "rss_mb": 2708.9,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            21.025,
+            21.54,
+            21.493
+          ],
+          "summary": "Plan: 5001 to add, 0 to change, 5001 to destroy.|Graph: planned 5001 of 5001, 5001 refreshed.|Apply complete! Resources: 5001 added, 0 changed, 5001 destroyed. [txn 20261021T044740Z-2c329f]"
+        },
+        "speedup": 3.1,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "hub_apply_change",
+          "reps": 3,
+          "wall_s": 65.78,
+          "user_s": 204.509,
+          "sys_s": 24.71,
+          "rss_mb": 831.5,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            65.78,
+            66.458,
+            65.446
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 5001 to add, 0 to change, 5001 to destroy.|Apply complete! Resources: 5001 added, 0 changed, 5001 destroyed."
+        }
+      },
+      "hub_apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "hub_apply_create",
+          "reps": 1,
+          "wall_s": 12.9,
+          "user_s": 47.253,
+          "sys_s": 17.614,
+          "rss_mb": 2645.1,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            12.9
+          ],
+          "summary": "Plan: 5001 to add, 0 to change, 0 to destroy.|Graph: planned 5001 of 5001.|Apply complete! Resources: 5001 added, 0 changed, 0 destroyed. [txn 20261021T044607Z-1825e5]"
+        },
+        "speedup": 0.7,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "hub_apply_create",
+          "reps": 1,
+          "wall_s": 8.686,
+          "user_s": 47.459,
+          "sys_s": 11.924,
+          "rss_mb": 519.9,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            8.686
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 5001 to add, 0 to change, 0 to destroy.|Apply complete! Resources: 5001 added, 0 changed, 0 destroyed."
+        }
+      },
+      "hub_destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "hub_destroy",
+          "reps": 1,
+          "wall_s": 5.089,
+          "user_s": 14.597,
+          "sys_s": 14.036,
+          "rss_mb": 631.3,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            5.089
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 5001 to destroy.|Graph: 5001 resources in state, 5001 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 5001 destroyed. [txn 20261021T044754Z-1385fa]"
+        },
+        "speedup": 7.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "hub_destroy",
+          "reps": 1,
+          "wall_s": 37.216,
+          "user_s": 117.6,
+          "sys_s": 12.09,
+          "rss_mb": 681.8,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            37.216
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 0 to add, 0 to change, 5001 to destroy.|Destroy complete! Resources: 5001 destroyed."
+        }
+      },
+      "hub_init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "hub_init",
+          "reps": 1,
+          "wall_s": 0.391,
+          "user_s": 0.488,
+          "sys_s": 0.031,
+          "rss_mb": 176.1,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.391
+          ]
+        },
+        "speedup": 3.8,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "hub_init",
+          "reps": 1,
+          "wall_s": 1.492,
+          "user_s": 0.155,
+          "sys_s": 0.071,
+          "rss_mb": 66.4,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.492
+          ]
+        }
+      },
+      "hub_plan_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "hub_plan_change",
+          "reps": 3,
+          "wall_s": 10.619,
+          "user_s": 42.154,
+          "sys_s": 15.276,
+          "rss_mb": 1104.4,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            10.592,
+            10.619,
+            10.626
+          ],
+          "summary": "Plan: 5001 to add, 0 to change, 5001 to destroy.|Graph: planned 5001 of 5001, 5001 refreshed."
+        },
+        "speedup": 3.5,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "hub_plan_change",
+          "reps": 3,
+          "wall_s": 37.416,
+          "user_s": 112.13,
+          "sys_s": 14.385,
+          "rss_mb": 800.2,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            37.435,
+            37.416,
+            37.23
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 5001 to add, 0 to change, 5001 to destroy."
+        }
+      },
+      "init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "init",
+          "reps": 1,
+          "wall_s": 0.42,
+          "user_s": 0.48,
+          "sys_s": 0.033,
+          "rss_mb": 178.9,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.42
+          ]
+        },
+        "speedup": 3.5,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "init",
+          "reps": 1,
+          "wall_s": 1.461,
+          "user_s": 0.151,
+          "sys_s": 0.077,
+          "rss_mb": 66.8,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.461
+          ]
+        }
+      },
+      "layered_apply_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "layered_apply_change",
+          "reps": 3,
+          "wall_s": 5.055,
+          "user_s": 6.941,
+          "sys_s": 0.631,
+          "rss_mb": 2733.7,
+          "reads": 3,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            5.07,
+            5.055,
+            5.045
+          ],
+          "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 4998, 4995 unchanged and skipped, 3 refreshed, 4995 not read.|Apply complete! Resources: 3 added, 0 changed, 3 destroyed. [txn 20261021T044901Z-1ca30c]"
+        }
+      },
+      "layered_apply_create": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "layered_apply_create",
+          "reps": 1,
+          "wall_s": 20.509,
+          "user_s": 50.633,
+          "sys_s": 17.189,
+          "rss_mb": 5738,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            20.509
+          ],
+          "summary": "Plan: 4998 to add, 0 to change, 0 to destroy.|Graph: planned 4998 of 4998.|Apply complete! Resources: 4998 added, 0 changed, 0 destroyed. [txn 20261021T044806Z-beb7b3]"
+        }
+      },
+      "layered_destroy": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "layered_destroy",
+          "reps": 1,
+          "wall_s": 4.779,
+          "user_s": 14.475,
+          "sys_s": 13.691,
+          "rss_mb": 556.1,
+          "reads": 4998,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            4.779
+          ],
+          "summary": "Plan: 0 to add, 0 to change, 4998 to destroy.|Graph: 4998 resources in state, 4998 refreshed.|Destroy complete! Resources: 0 added, 0 changed, 4998 destroyed. [txn 20261021T044904Z-3e02bf]"
+        }
+      },
+      "layered_init": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "layered_init",
+          "reps": 1,
+          "wall_s": 0.504,
+          "user_s": 0.513,
+          "sys_s": 0.034,
+          "rss_mb": 169.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            0.504
+          ]
+        }
+      },
+      "layered_plan_change": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "layered_plan_change",
+          "reps": 3,
+          "wall_s": 4.762,
+          "user_s": 6.643,
+          "sys_s": 0.616,
+          "rss_mb": 2603.6,
+          "reads": 3,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            4.798,
+            4.762,
+            4.756
+          ],
+          "summary": "Plan: 3 to add, 0 to change, 3 to destroy.|Graph: planned 3 of 4998, 4995 unchanged and skipped, 3 refreshed, 4995 not read."
+        }
+      },
+      "layered_plan_nochange": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "layered_plan_nochange",
+          "reps": 3,
+          "wall_s": 4.814,
+          "user_s": 6.627,
+          "sys_s": 0.584,
+          "rss_mb": 2583.6,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            4.814,
+            4.754,
+            4.923
+          ],
+          "summary": "No changes. The specification matches the state. 4998 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 4998, 4998 unchanged and skipped, 4998 not read."
+        }
+      },
+      "plan_change_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "plan_change_6h",
+          "reps": 3,
+          "wall_s": 1.505,
+          "user_s": 2.91,
+          "sys_s": 0.394,
+          "rss_mb": 211.5,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.533,
+            1.505,
+            1.499
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 5001 within refresh age."
+        }
+      },
+      "plan_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "plan_change_default",
+          "reps": 3,
+          "wall_s": 1.541,
+          "user_s": 2.926,
+          "sys_s": 0.401,
+          "rss_mb": 212.7,
+          "reads": 1,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.542,
+            1.541,
+            1.493
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 1 refreshed, 5000 not read."
+        },
+        "speedup": 7.3,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "plan_change_default",
+          "reps": 3,
+          "wall_s": 11.307,
+          "user_s": 42.002,
+          "sys_s": 8.003,
+          "rss_mb": 664.6,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            11.285,
+            11.357,
+            11.307
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      },
+      "plan_change_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "plan_change_norefresh",
+          "reps": 3,
+          "wall_s": 1.51,
+          "user_s": 2.917,
+          "sys_s": 0.385,
+          "rss_mb": 213.3,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.51,
+            1.524,
+            1.503
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped."
+        },
+        "speedup": 6.7,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "plan_change_norefresh",
+          "reps": 3,
+          "wall_s": 10.138,
+          "user_s": 36.112,
+          "sys_s": 5.705,
+          "rss_mb": 513.7,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            10.135,
+            10.138,
+            10.225
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      },
+      "plan_nochange_6h": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "plan_nochange_6h",
+          "reps": 3,
+          "wall_s": 1.37,
+          "user_s": 2.722,
+          "sys_s": 0.356,
+          "rss_mb": 210.2,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.344,
+            1.37,
+            1.382
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration.|Graph: planned 0 of 5001, 5001 unchanged and skipped, 5001 within refresh age."
+        }
+      },
+      "plan_nochange_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "plan_nochange_default",
+          "reps": 3,
+          "wall_s": 1.386,
+          "user_s": 2.729,
+          "sys_s": 0.377,
+          "rss_mb": 210.3,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.353,
+            1.407,
+            1.386
+          ],
+          "summary": "No changes. The specification matches the state. 5001 records were not read; run pravo drift to compare them with the infrastructure.|Graph: planned 0 of 5001, 5001 unchanged and skipped, 5001 not read."
+        },
+        "speedup": 8.2,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "plan_nochange_default",
+          "reps": 3,
+          "wall_s": 11.348,
+          "user_s": 42.146,
+          "sys_s": 7.974,
+          "rss_mb": 665.9,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            11.301,
+            11.348,
+            11.357
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_nochange_norefresh": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "plan_nochange_norefresh",
+          "reps": 3,
+          "wall_s": 1.364,
+          "user_s": 2.713,
+          "sys_s": 0.369,
+          "rss_mb": 211.6,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            1.35,
+            1.364,
+            1.372
+          ],
+          "summary": "No changes. The specification matches the state. Nothing was read from the infrastructure.|Graph: planned 0 of 5001, 5001 unchanged and skipped."
+        },
+        "speedup": 7.4,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "plan_nochange_norefresh",
+          "reps": 3,
+          "wall_s": 10.11,
+          "user_s": 36.009,
+          "sys_s": 5.667,
+          "rss_mb": 514.6,
+          "reads": 0,
+          "locks": null,
+          "plan_file_bytes": null,
+          "exit": 0,
+          "wall_s_all": [
+            10.142,
+            10.097,
+            10.11
+          ],
+          "summary": "No changes. Your infrastructure matches the configuration."
+        }
+      },
+      "plan_out_change_default": {
+        "pravo": {
+          "tool": "pravo",
+          "n": 5000,
+          "scenario": "plan_out_change_default",
+          "reps": 3,
+          "wall_s": 1.509,
+          "user_s": 2.922,
+          "sys_s": 0.387,
+          "rss_mb": 217.4,
+          "reads": 1,
+          "locks": null,
+          "plan_file_bytes": 3135,
+          "exit": 0,
+          "wall_s_all": [
+            1.504,
+            1.509,
+            1.512
+          ],
+          "summary": "Plan: 1 to add, 0 to change, 1 to destroy.|Graph: planned 1 of 5001, 5000 unchanged and skipped, 1 refreshed, 5000 not read."
+        },
+        "speedup": 7.6,
+        "tofu": {
+          "tool": "tofu",
+          "n": 5000,
+          "scenario": "plan_out_change_default",
+          "reps": 3,
+          "wall_s": 11.409,
+          "user_s": 42.122,
+          "sys_s": 8.001,
+          "rss_mb": 669,
+          "reads": 5001,
+          "locks": null,
+          "plan_file_bytes": 4525470,
+          "exit": 0,
+          "wall_s_all": [
+            11.352,
+            11.422,
+            11.409
+          ],
+          "summary": "OpenTofu will perform the following actions:|Plan: 1 to add, 0 to change, 1 to destroy."
+        }
+      }
+    }
+  }
+}

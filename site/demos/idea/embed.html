@@ -1,0 +1,100 @@
+<div class="idea-demo" id="idea">
+<p class="idea-p" id="idea-p" data-stagger>
+<span class="idea-s reveal on" data-s="1"><span class="idea-n" aria-hidden="true">&sect;1</span>A value can also be a type.</span>
+<span class="idea-s reveal" data-s="2"><span class="idea-n" aria-hidden="true">&sect;2</span>Writing a field twice adds detail.</span>
+<span class="idea-s reveal" data-s="3"><span class="idea-n" aria-hidden="true">&sect;3</span>A conflict is an error.</span>
+<svg class="idea-lattice" viewBox="0 0 200 220" aria-hidden="true" focusable="false"><g class="e e-top"><path d="M40 86L100 36M100 86V36M160 86L100 36"/></g><g class="e e-mid"><path d="M40 146V86M40 146L100 86M100 146L40 86M100 146L160 86M160 146L100 86M160 146V86"/></g><g class="e e-bot"><path d="M100 196L40 146M100 196V146M100 196L160 146"/></g><g class="n n-top"><rect x="92" y="28" width="16" height="16"/></g><g class="n n-mid"><rect x="32" y="78" width="16" height="16"/><rect x="92" y="78" width="16" height="16"/><rect x="152" y="78" width="16" height="16"/><rect x="32" y="138" width="16" height="16"/><rect x="92" y="138" width="16" height="16"/><rect x="152" y="138" width="16" height="16"/></g><g class="n n-bot"><rect x="92" y="188" width="16" height="16"/></g></svg>
+</p>
+<div class="idea-lab">
+<div class="widget idea-widget" data-widget="unify"><script type="application/json">{{json idea.widget}}</script><noscript><p>A type and a range unify into one value, {{data idea.constraint}}. The four programs below write a second value against it and show what pravo eval printed.</p></noscript></div>
+<div class="idea-prog" id="idea-prog" role="group" aria-label="The programs that pravo eval ran">
+<div class="idea-pair" data-i="0">
+<figure class="code" data-lang="cue" data-status="valid" data-ln>
+<figcaption class="code-title"><span class="code-file">main.cue</span><span class="code-badge" title="Accepted">valid</span></figcaption>
+<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> main
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">size</span>: <span class="tok-type">int</span> <span class="tok-op">&amp;</span> <span class="tok-op">&gt;=</span><span class="tok-num">1</span> <span class="tok-op">&amp;</span> <span class="tok-op">&lt;=</span><span class="tok-num">10</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">size</span>: <span class="tok-num">3</span>
+</span></code></pre></div>
+<button class="copy" type="button" aria-label="Copy main.cue"></button>
+</figure>
+<figure class="term" data-exit="0" data-ran="0.1">
+<figcaption class="code-title"><span class="code-file">terminal</span></figcaption>
+<div class="term-body">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo eval</span></div>
+<pre class="term-out"><code>size: 3</code></pre>
+</div>
+<button class="copy" type="button" data-copy="pravo eval" aria-label="Copy command">Copy</button>
+</figure>
+</div>
+<div class="idea-pair" data-i="1">
+<figure class="code" data-lang="cue" data-status="conflict" data-ln>
+<figcaption class="code-title"><span class="code-file">main.cue</span><span class="code-badge" title="Two values for one field disagree">conflict</span></figcaption>
+<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> main
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">size</span>: <span class="tok-type">int</span> <span class="tok-op">&amp;</span> <span class="tok-op">&gt;=</span><span class="tok-num">1</span> <span class="tok-op">&amp;</span> <span class="tok-op">&lt;=</span><span class="tok-num">10</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">size</span>: <span class="tok-num">0</span>
+</span></code></pre></div>
+<button class="copy" type="button" aria-label="Copy main.cue"></button>
+</figure>
+<figure class="term" data-exit="6" data-ran="0.1">
+<figcaption class="code-title"><span class="code-file">terminal</span><span class="code-badge" data-exit="6" title="Exit code">exit 6</span></figcaption>
+<div class="term-body">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo eval</span></div>
+<pre class="term-out"><code><span class="out-err">Error: evaluating .:</span>
+<span class="out-err">size: invalid value 0 (out of bound &gt;=1):</span>
+<span class="out-dim">    ./main.cue:3:13</span>
+<span class="out-dim">    ./main.cue:4:7</span></code></pre>
+</div>
+<button class="copy" type="button" data-copy="pravo eval" aria-label="Copy command">Copy</button>
+</figure>
+</div>
+<div class="idea-pair" data-i="2">
+<figure class="code" data-lang="cue" data-status="conflict" data-ln>
+<figcaption class="code-title"><span class="code-file">main.cue</span><span class="code-badge" title="Two values for one field disagree">conflict</span></figcaption>
+<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> main
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">size</span>: <span class="tok-type">int</span> <span class="tok-op">&amp;</span> <span class="tok-op">&gt;=</span><span class="tok-num">1</span> <span class="tok-op">&amp;</span> <span class="tok-op">&lt;=</span><span class="tok-num">10</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">size</span>: <span class="tok-num">11</span>
+</span></code></pre></div>
+<button class="copy" type="button" aria-label="Copy main.cue"></button>
+</figure>
+<figure class="term" data-exit="6" data-ran="0.1">
+<figcaption class="code-title"><span class="code-file">terminal</span><span class="code-badge" data-exit="6" title="Exit code">exit 6</span></figcaption>
+<div class="term-body">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo eval</span></div>
+<pre class="term-out"><code><span class="out-err">Error: evaluating .:</span>
+<span class="out-err">size: invalid value 11 (out of bound &lt;=10):</span>
+<span class="out-dim">    ./main.cue:3:19</span>
+<span class="out-dim">    ./main.cue:4:7</span></code></pre>
+</div>
+<button class="copy" type="button" data-copy="pravo eval" aria-label="Copy command">Copy</button>
+</figure>
+</div>
+<div class="idea-pair" data-i="3">
+<figure class="code" data-lang="cue" data-status="conflict" data-ln>
+<figcaption class="code-title"><span class="code-file">main.cue</span><span class="code-badge" title="Two values for one field disagree">conflict</span></figcaption>
+<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> main
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">size</span>: <span class="tok-type">int</span> <span class="tok-op">&amp;</span> <span class="tok-op">&gt;=</span><span class="tok-num">1</span> <span class="tok-op">&amp;</span> <span class="tok-op">&lt;=</span><span class="tok-num">10</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">size</span>: <span class="tok-str">&#34;3&#34;</span>
+</span></code></pre></div>
+<button class="copy" type="button" aria-label="Copy main.cue"></button>
+</figure>
+<figure class="term" data-exit="6" data-ran="0.1">
+<figcaption class="code-title"><span class="code-file">terminal</span><span class="code-badge" data-exit="6" title="Exit code">exit 6</span></figcaption>
+<div class="term-body">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo eval</span></div>
+<pre class="term-out"><code><span class="out-err">Error: evaluating .:</span>
+<span class="out-err">size: conflicting values int and &#34;3&#34; (mismatched types int and string):</span>
+<span class="out-dim">    ./main.cue:3:7</span>
+<span class="out-dim">    ./main.cue:4:7</span></code></pre>
+</div>
+<button class="copy" type="button" data-copy="pravo eval" aria-label="Copy command">Copy</button>
+</figure>
+</div>
+</div>
+</div>
+<p class="idea-note">Printed by <code>pravo eval</code> ({{data idea.version.0}}) when the page was built.</p>
+<script defer src="assets/demos/idea.js"></script>
+</div>

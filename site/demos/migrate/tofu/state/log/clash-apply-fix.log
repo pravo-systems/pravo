@@ -1,0 +1,14 @@
+random_pet.eu_extra: Refreshing state... [id=eu-fancy-mongrel]
+random_pet.region["eu"]: Refreshing state... [id=eu-fair-wahoo]
+
+OpenTofu will perform the following actions:
+
+  # random_pet.region_eu has moved to random_pet.eu_extra
+    resource "random_pet" "eu_extra" {
+        id        = "eu-fancy-mongrel"
+        # (3 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 0 to change, 0 to destroy.
+
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.

@@ -1,0 +1,3 @@
+---
+redirect: command-eval.md
+---

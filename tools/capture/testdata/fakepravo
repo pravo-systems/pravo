@@ -1,0 +1,56 @@
+#!/bin/sh
+# A stand-in for the pravo binary, used by the tests of tools/capture. It
+# prints the working directory in several spellings so that the tests can
+# check that capture hides them.
+case "$1" in
+version)
+	echo "pravo 0.0.0-test"
+	echo "cue v0.0.0"
+	;;
+eval)
+	echo "evaluating $PWD"
+	echo "real $(pwd -P)"
+	for f in *.cue; do
+		[ -f "$f" ] && echo "file $(pwd -P)/$f"
+	done
+	;;
+fail)
+	echo "boom: $PWD" >&2
+	exit 3
+	;;
+init)
+	# Installing a provider is not safe to do twice at once.
+	if mkdir "$CAPTURE_TEST_LOCK" 2>/dev/null; then
+		sleep 0.3
+		rmdir "$CAPTURE_TEST_LOCK"
+	else
+		echo "CONCURRENT"
+	fi
+	;;
+lines)
+	i=1
+	while [ "$i" -le "$2" ]; do
+		echo "line $i"
+		i=$((i + 1))
+	done
+	;;
+slow)
+	sleep 30
+	;;
+spaces)
+	printf 'trailing   \n\n\n'
+	;;
+color)
+	printf '\033[31mred\033[0m text\n'
+	;;
+home)
+	echo "cache at $HOME/.pravo and ${TMPDIR%/}/x"
+	;;
+env)
+	echo "PRAVO_LOG=${PRAVO_LOG-unset} NO_COLOR=${NO_COLOR-unset}"
+	;;
+*)
+	echo "pravo: unknown command $1" >&2
+	exit 64
+	;;
+esac

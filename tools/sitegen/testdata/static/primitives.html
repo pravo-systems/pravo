@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing primitives · pravo</title>
+<meta name="description" content="Specimen of the landing page primitives">
+<script>if(/[?&]reduced/.test(location.search)){var _mm=window.matchMedia.bind(window);window.matchMedia=function(q){return /prefers-reduced-motion: reduce/.test(q)?{matches:true,media:q,addEventListener:function(){},addListener:function(){}}:_mm(q)}}</script>
+<link rel="icon" type="image/svg+xml" href="../../../../site/assets/logo.svg">
+<link rel="preload" href="../../../../site/assets/fonts/newsreader-500.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../../../site/assets/style.css">
+<script>(function(){var d=document.documentElement;d.className=d.className.replace('no-js','js');try{var t=localStorage.getItem("pravo-theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t)}catch(e){}})();</script>
+<script src="../../../../site/assets/site.js" defer></script>
+<script src="../../../../site/assets/widgets.js" defer></script>
+</head>
+<body class="page page-landing">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="site-header"><a class="brand" href="primitives.html"><img class="brand-mark" src="../../../../site/assets/logo.svg" alt="" width="26" height="26"> <span class="brand-name">pravo</span></a><nav class="site-nav" aria-label="Sections"><a href="contract.html">Learn</a> <a href="contract.html">Migrate</a> <a href="contract.html">Guides</a> <a href="contract.html">Concepts</a> <a href="contract.html">Reference</a></nav><div class="site-tools"><button class="search-open" type="button">Search <kbd>/</kbd></button><button id="theme-toggle" type="button"></button><a class="btn btn-primary btn-sm" href="contract.html">Start</a></div></header>
+<main id="content">
+<section class="band band-grid" id="hero" data-band="hero" data-light><div class="wrap"><div class="split">
+<div class="stack" style="--gap:1.5rem">
+<p class="kicker"><span class="kicker-type">&sect; 01 &middot; specimen</span></p>
+<h1 class="display">A conflicting value is an <em>error</em>, not an override.</h1>
+<p class="band-lede">pravo specifies infrastructure in CUE and runs the OpenTofu providers you already use, unchanged. Constraints are checked before any provider starts.</p>
+
+<div class="row"><a class="btn btn-primary btn-lg" href="contract.html">Run your first plan <span class="arrow"></span></a><a class="btn btn-lg" href="contract.html">Coming from OpenTofu</a></div>
+<p class="hero-micro">10 minutes &middot; no account &middot; no cloud</p>
+</div>
+<div class="stage-wrap reveal">
+<div class="stage" data-stage style="--stage-h:21rem">
+<div class="tabs"><div class="tab-list" role="tablist"><button role="tab" id="s1" aria-selected="true" aria-controls="sp1">main.tf</button><button role="tab" id="s2" aria-selected="false" aria-controls="sp2">platform.cue</button><button role="tab" id="s3" aria-selected="false" aria-controls="sp3">team.cue</button><button role="tab" id="s4" aria-selected="false" aria-controls="sp4">terminal</button></div>
+<div class="tab-panel" role="tabpanel" id="sp1"><figure class="code" data-lang="hcl"><figcaption class="code-title"><span class="code-file">main.tf</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">module</span> <span class="tok-str">"log_key"</span> <span class="tok-op">{</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-id">source</span>          <span class="tok-op">=</span> <span class="tok-str">"./tls_key"</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-id">file_permission</span> <span class="tok-op">=</span> <span class="tok-str">"0600"</span>
+</span><span class="line"><span class="ln"></span><span class="tok-op">}</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-kw">module</span> <span class="tok-str">"app"</span> <span class="tok-op">{</span>
+</span><span class="line hl"><span class="ln"></span>  <span class="tok-id">source</span>          <span class="tok-op">=</span> <span class="tok-str">"./tls_key"</span>
+</span><span class="line"><span class="ln"></span>  <span class="tok-id">file_permission</span> <span class="tok-op">=</span> <span class="tok-str">"0644"</span>
+</span><span class="line"><span class="ln"></span><span class="tok-op">}</span>
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure></div>
+<div class="tab-panel" role="tabpanel" id="sp2" data-title="platform.cue"><figure class="code" data-lang="cue"><figcaption class="code-title"><span class="code-file">platform.cue</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="typed" style="--n:16"><span class="tok-kw">package</span> <span class="tok-id">platform</span></span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:1"> </span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:26"><span class="tok-def">#Strict</span><span class="tok-op">:</span> <span class="tok-id">loc</span>.<span class="tok-def">#Provider</span> <span class="tok-op">&amp;</span> {</span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:25">	<span class="tok-def">#Resource</span><span class="tok-op">:</span> <span class="tok-id">local_file</span><span class="tok-op">:</span> {</span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:25">		<span class="tok-id">file_permission</span><span class="tok-op">:</span> <span class="tok-str">"0600"</span></span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:2">	}</span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:1">}</span>
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure></div>
+<div class="tab-panel" role="tabpanel" id="sp3" data-title="team.cue"><figure class="code" data-lang="cue" data-status="conflict"><figcaption class="code-title"><span class="code-file">team.cue</span><span class="code-badge">conflict</span></figcaption><div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="typed" style="--n:12"><span class="tok-kw">package</span> <span class="tok-id">team</span></span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:1"> </span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:40"><span class="tok-id">secrets</span><span class="tok-op">:</span> <span class="tok-def">$local</span>.<span class="tok-def">#Resource</span>.<span class="tok-id">local_file</span> <span class="tok-op">&amp;</span> {</span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:24">	<span class="tok-id">file_permission</span><span class="tok-op">:</span> <span class="tok-str">"0644"</span></span>
+</span><span class="line"><span class="ln"></span><span class="typed" style="--n:1">}</span>
+</span></code></pre></div><button class="copy" type="button" aria-label="Copy"></button></figure></div>
+<div class="tab-panel" role="tabpanel" id="sp4" data-title="terminal"><figure class="term" data-exit="1"><figcaption class="code-title"><span class="code-file">terminal</span></figcaption><div class="term-body"><div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text" id="hero-cmd">pravo plan</span></div><pre class="term-out" id="hero-out"><code><span class="out-err">secrets.file_permission: conflicting values <span class="wavy" id="hero-wavy">"0644"</span> and "0600":</span>
+<span class="out-dim">    ./platform.cue:5:19
+    ./team.cue:4:19</span>
+</code></pre></div><button class="copy" data-copy="pravo plan">Copy</button></figure></div></div>
+<div class="stage-foot" id="hero-foot"><span class="anno anno-err" id="hero-anno">rejected before any provider started</span></div></div>
+<p class="stage-caption"><span class="fig-n">fig. 1</span> The platform file pins the permission. The team file asks for another value. <span class="sr-only" id="hero-live" aria-live="polite"></span></p></div>
+</div></div></section>
+
+
+<section class="band" id="idea" data-band="idea"><div class="wrap">
+<div class="band-head"><p class="kicker"><span class="kicker-type">&sect; 02 &middot; unification</span></p><h2 class="band-title">The idea in <em>three</em> sentences.</h2></div>
+<p class="display-p"><span class="on">A value can also be a type.</span> Writing a field twice adds detail. A conflict is an error.</p>
+<div class="widget reveal" data-widget="unify" style="margin-top:2.5rem"><script type="application/json">{"title":"Unification","left":{"tag":"a type","label":"int"},"right":{"tag":"a range","label":">=1 & <=10"},"merged":"int & >=1 & <=10","chips":[{"value":"3","ok":true,"result":"3"},{"value":"11","ok":false,"result":"invalid value 11 (out of bound <=10)"}]}</script><noscript>int unified with a range gives one constrained value.</noscript></div>
+</div></section>
+
+<section class="band" id="learn" data-band="learn"><div class="wrap">
+<div class="band-head"><p class="kicker"><span class="kicker-type">&sect; 03 &middot; learn</span></p><h2 class="band-title">One path, three doors.</h2><p class="band-lede">Persona cards with a spotlight border that follows the pointer.</p></div>
+<div class="cards" data-stagger>
+<a class="card spot reveal" href="contract.html"><span class="card-kicker">I run OpenTofu</span><h3 class="card-title">Translate and convert</h3><p class="card-text">Back up, translate the specification, convert the state, plan until it is empty.</p><span class="card-more">Start the runbook</span></a>
+<a class="card spot reveal" href="contract.html"><span class="card-kicker">I have never seen CUE</span><h3 class="card-title">CUE from zero</h3><p class="card-text">Fourteen lessons, about two hours, no cloud account.</p><span class="card-more">Begin Track A</span></a>
+<a class="card spot reveal" href="contract.html"><span class="card-kicker">Run something now</span><h3 class="card-title">Ten minutes to a plan</h3><p class="card-text">Install, plan, apply, break it, destroy.</p><span class="card-more">Open Start</span></a>
+<a class="card spot reveal" href="contract.html"><span class="card-kicker">Show me the reference</span><h3 class="card-title">Look it up</h3><p class="card-text">One page per command and per topic, tables first.</p><span class="card-more">Open Reference</span></a>
+</div>
+<div style="height:3rem"></div>
+
+
+<p><a class="btn btn-primary" data-continue href="contract.html" hidden>Continue at <span data-continue-label></span> <span class="arrow"></span></a></p>
+</div></section>
+
+<section class="band" id="parts" data-band="parts"><div class="wrap">
+<div class="band-head"><p class="kicker"><span class="kicker-type">&sect; 04 &middot; parts</span></p><h2 class="band-title">Buttons, chips, annotations.</h2></div>
+<div class="row"><a class="btn btn-primary" href="#">Primary</a><a class="btn" href="#">Secondary</a><a class="btn btn-quiet" href="#">Quiet</a><a class="btn btn-primary btn-sm" href="#">Small</a><button class="btn" disabled>Disabled</button><a class="link-arrow" href="#">Link with arrow</a></div>
+<div class="row" style="margin-top:1.5rem"><button class="chip" aria-pressed="true">pressed</button><button class="chip">chip</button><span class="anno">amber label</span><span class="anno anno-ok">valid label</span><span class="anno anno-err">conflict label</span><span class="pill"><b>new</b> a pill</span></div>
+<div class="row" style="margin-top:1.5rem;color:var(--text-3)"><span class="lattice" style="width:5rem;aspect-ratio:200/220;display:block;background:currentColor;-webkit-mask:var(--i-lattice) center/contain no-repeat;mask:var(--i-lattice) center/contain no-repeat"></span><span class="mono" style="font-size:.8rem">the lattice of the mark, as a mask: colour follows the text colour</span></div>
+</div></section>
+</main>
+<footer class="site-footer"><div class="foot-inner"><div class="foot-row"><p class="foot-brand"><span class="foot-title">pravo</span> <span class="foot-tag">Infrastructure as code in CUE, running the OpenTofu providers you already use.</span></p><nav class="foot-nav" aria-label="Footer"><ul class="foot-sections"><li><a href="contract.html">Learn</a></li><li><a href="contract.html">Migrate</a></li><li><a href="contract.html">Guides</a></li><li><a href="contract.html">Concepts</a></li><li><a href="contract.html">Reference</a></li></ul><ul class="foot-project"><li><a href="contract.html">All pages</a></li><li><a href="contract.html">llms.txt</a></li></ul></nav></div><p class="legal"><span class="applies">pravo 0.1 &middot; CUE 0.17</span> &middot; pravo is an independent project, licensed under Apache-2.0. Providers keep their own licences. Discrepancies between this documentation and the behaviour of the system are defects of the documentation.</p></div></footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var stage = document.querySelector('[data-stage]');
+  var tabs = stage.querySelector('.tabs');
+  function tab(i) { return function () { pravoUI.selectTab(tabs, i); }; }
+  var p1 = stage.querySelectorAll('#sp2 .typed'), t1 = stage.querySelectorAll('#sp3 .typed');
+  var out = document.getElementById('hero-out'), anno = document.getElementById('hero-anno'), cmd = document.getElementById('hero-cmd'), wavy = document.getElementById('hero-wavy');
+  function lines(list, from, gap) { var s = []; list.forEach(function (el, i) { s.push([from + i * gap, function () { el.classList.add('is-on'); }]); }); return s; }
+  var steps = [[0, tab(0)], [3000, tab(1)]]
+    .concat(lines([].slice.call(p1), 3400, 650))
+    .concat([[8000, tab(2)]]).concat(lines([].slice.call(t1), 8300, 600))
+    .concat([[10500, tab(3)], [10600, function (c) { c.type(cmd, 'pravo plan', 35); }],
+             [12200, function () { out.style.visibility = 'visible'; out.classList.add('is-flash'); }],
+             [12500, function () { anno.style.visibility = 'visible'; wavy.parentNode.classList.add('is-shake'); }]]);
+  pravoUI.timeline(function (T) {
+  var tl = T.create(stage, {
+    steps: steps, length: 15000, loops: 2, live: document.getElementById('hero-live'),
+    beats: [
+      { t: 0, label: 'Write', say: 'The HCL module default is 0600 and a caller passes 0644.' },
+      { t: 3000, label: 'Constrain', say: 'The platform file pins the permission to 0600.' },
+      { t: 8000, label: 'Override', say: 'The team file asks for 0644.' },
+      { t: 10500, label: 'Conflict', say: 'pravo reports a conflict before any provider starts.' }
+    ],
+    reset: function () {
+      tab(0)();
+      [].forEach.call(stage.querySelectorAll('.typed'), function (e) { e.classList.remove('is-on'); });
+      out.style.visibility = 'hidden'; out.classList.remove('is-flash'); anno.style.visibility = 'hidden';
+      wavy.parentNode.classList.remove('is-shake'); cmd.textContent = '';
+    }
+  });
+  document.getElementById('hero-foot').appendChild(tl.controls());
+  });
+});
+</script>
+</body>
+</html>

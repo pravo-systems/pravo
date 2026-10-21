@@ -1,0 +1,7 @@
+Would remove random_password.admin
+Would remove module.service["api"].local_file.config
+Would remove module.service["api"].random_pet.host
+Would remove module.service["web"].local_file.config
+Would remove module.service["web"].random_pet.host
+Would remove module.service["worker"].local_file.config
+Would remove module.service["worker"].random_pet.host

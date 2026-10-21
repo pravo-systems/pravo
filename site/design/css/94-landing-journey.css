@@ -1,0 +1,297 @@
+/* ==========================================================================
+   94 demo: the migration (mig-, mo-)
+   Everything is visible without a script. The rules keyed on .is-scripted
+   describe the state before a script plays; only the script sets that class.
+   ========================================================================== */
+
+.mig-band { --band-pad: clamp(3.5rem, 7vw, 6.5rem); }
+.mig-split { gap: clamp(2rem, 4vw, 3.75rem); }
+.mig-col { min-width: 0; }
+.mig-col .stage-caption { max-width: 40rem; }
+.mig-col .stage-caption code { font-size: .92em; }
+
+/* the two files */
+.mig-files { --stage-h: 43.5rem; }
+.mig-tab { display: inline-flex; align-items: center; }
+.mig-tab[data-link]::before {
+  content: "";
+  flex: none;
+  width: 6px; height: 6px;
+  margin-right: .55rem;
+  background: var(--code-key);
+  transform: rotate(45deg);
+}
+.mig-code .code-body pre { padding: .8rem 0 1rem; }
+.mig-ill { --status: var(--code-dim); }
+.mig-ill::before { display: none; }
+.mig-code .line { position: relative; transition: background-color 150ms linear, box-shadow 150ms linear; }
+.mig-code .line[data-g] { box-shadow: inset 2px 0 0 rgba(154, 169, 255, .16); }
+.mig-code .line.is-linked { background: var(--code-hl); box-shadow: inset 2px 0 0 var(--code-key); }
+.mig-foot { gap: .5rem 1rem; min-height: 2.9rem; }
+.mig-note { min-width: 0; font: 400 .72rem/1.5 var(--font-mono); color: var(--code-dim); }
+.mig-note b { font-weight: 600; color: var(--code-text); }
+.mig-note code { padding: 0; border: 0; background: none; font-size: inherit; color: var(--code-text); }
+.mig-jump {
+  flex: none;
+  padding: .4rem .6rem;
+  border: 1px solid color-mix(in srgb, var(--code-key) 45%, transparent);
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--code-key);
+  font: 500 .7rem/1 var(--font-mono);
+  letter-spacing: .03em;
+  white-space: nowrap;
+  transition: background-color var(--t-fast);
+}
+.mig-jump:empty { display: none; }
+.mig-jump:not(.is-on) { visibility: hidden; }
+.mig-jump:hover { background: var(--code-hl); }
+
+/* On a sheet too narrow for two columns but wide enough for two windows, the files stand side by side and
+   the tabs are not needed: both sides of a pair are visible at once. */
+@media (min-width: 60rem) and (max-width: 74.99rem) {
+  .mig-split { grid-template-columns: minmax(0, 1fr); }
+  .mig-files .tab-list, .mig-jump { display: none; }
+  .mig-files .tabs.is-ready, .mig-files .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mig-files .tab-panel[hidden] { display: block !important; }
+  .mig-files .tabs.is-ready .tab-panel[data-title]::before {
+    content: attr(data-title);
+    display: block;
+    padding: .72rem 1rem;
+    border-bottom: 1px solid var(--code-edge);
+    background: var(--code-bar);
+    color: var(--code-text);
+    font: 500 .75rem/1.2 var(--font-mono);
+  }
+  .mig-files .tab-panel + .tab-panel { border-left: 1px solid var(--code-edge); }
+  .mig-files .code-title { top: .5rem; right: .75rem; }
+}
+
+/* the pairs: buttons that select the lines that correspond */
+.mig-pairs { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 0; padding: 0; list-style: none; }
+.mig-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 2.25rem;
+  padding: 0 .75rem;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text-2);
+  font: 500 .72rem/1 var(--font-mono);
+  transition: border-color var(--t-fast), background-color var(--t-fast);
+}
+.mig-pair b { font-weight: 600; color: var(--text); }
+.mig-pair > span:last-child:not(:first-child) { color: var(--key); }
+.mig-arr {
+  flex: none;
+  width: .95em; height: .95em;
+  background: var(--text-3);
+  -webkit-mask: var(--i-arrow) center / contain no-repeat;
+  mask: var(--i-arrow) center / contain no-repeat;
+}
+.mig-pair:hover, .mig-pair[data-on], .mig-pair[aria-pressed="true"] { border-color: var(--key); background: var(--key-wash); }
+@media (pointer: coarse) { .mig-pair { min-height: 2.75rem; } }
+
+/* the terminal */
+.mig-run .tab-panel { padding: 0; }
+.mig-term .code-title { display: none; }
+.mig-term .term-body { padding: 0; overflow-x: hidden; }
+.mo-runs { padding: 1rem 0 1.4rem; }
+.mo-run + .mo-run { margin-top: 1.15rem; }
+.mig-term .term-line { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mig-term .term-out { margin-top: .3rem; }
+.mig-term .term-out code { min-width: 0; }
+.mo { display: block; position: relative; min-height: 1.7em; padding-left: 4ch; text-indent: -4ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mo.mo-gap { min-height: .8em; line-height: .8; }
+.mig-run.is-scripted .mo { opacity: 0; transition: opacity 120ms linear; }
+.mig-run.is-scripted .mo.is-on { opacity: 1; }
+.mig-run.is-scripted .mo-run:not(.is-on) { visibility: hidden; }
+.mo-run.is-typing .cmd-text .t-typed::after {
+  content: "";
+  display: inline-block;
+  width: .6ch; height: 1.1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--code-text);
+  animation: caret 1s steps(2, jump-none) infinite;
+}
+
+.t-rest { visibility: hidden; }
+
+/* the check that lands on the empty plan */
+.mo-check {
+  display: inline-block;
+  position: relative;
+  width: 1.25em; height: 1.25em;
+  margin-left: 1.2ch;
+  vertical-align: -.3em;
+  border: 1px solid var(--code-add);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--code-add) 18%, transparent);
+}
+.mo-check::before {
+  content: "";
+  position: absolute;
+  inset: 24%;
+  background: var(--code-add);
+  -webkit-mask: var(--i-check) center / contain no-repeat;
+  mask: var(--i-check) center / contain no-repeat;
+}
+.mo-check::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--code-add);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.mig-run.is-scripted .mo-check { transform: scale(.6); opacity: 0; transition: transform 220ms var(--ease), opacity 160ms linear; }
+.mig-run.is-scripted .mo-check.is-on { transform: none; opacity: 1; }
+.mig-run.is-scripted .mo-check.is-on::after { animation: mig-halo 700ms ease-out 1; }
+@keyframes mig-halo { from { opacity: .6; transform: scale(1); } to { opacity: 0; transform: scale(2.4); } }
+
+/* what stays, what changes */
+.mig-ledger {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1.4rem 0 0;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+.mig-led { min-width: 0; padding: .95rem 1.05rem 1.05rem; }
+.mig-led + .mig-led { border-left: 1px solid var(--line-strong); }
+.mig-led h3 {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  margin: 0 0 .8rem;
+  font: 500 .68rem/1.3 var(--font-mono);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.mig-dia { flex: none; width: 8px; height: 8px; background: var(--accent); transform: rotate(45deg); }
+.mig-changes .mig-dia { background: var(--change); }
+.mig-chips { display: grid; gap: .6rem; margin: 0; padding: 0; list-style: none; }
+.mig-chips li {
+  padding: .05rem 0 .05rem .75rem;
+  border-left: 2px solid var(--accent);
+  font-size: .8rem;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.mig-changes .mig-chips li { border-left-color: var(--change); }
+.mig-chips b { display: block; font-size: .84rem; font-weight: 600; color: var(--text); }
+.mig-chips code { font-size: .92em; }
+@media (max-width: 41rem) {
+  .mig-ledger { grid-template-columns: minmax(0, 1fr); }
+  .mig-led + .mig-led { border-left: 0; border-top: 1px solid var(--line-strong); }
+}
+
+/* the six steps: a dimension line with a node at each step */
+.mig-flow { margin-top: clamp(2.75rem, 5vw, 4.5rem); }
+.mig-steps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mig-step { position: relative; min-width: 0; padding-right: 1.1rem; }
+.mig-step > a {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .2rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.mig-node { position: relative; display: block; flex: none; width: 26px; height: 26px; margin-bottom: .6rem; }
+.mig-node::before, .mig-node i {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 12px; height: 12px;
+  margin: -6px 0 0 -6px;
+  transform: rotate(45deg);
+}
+.mig-node::before { border: 2px solid var(--accent); background: var(--bg); transition: transform var(--t-med) var(--ease); }
+.mig-node i { background: var(--accent); transition: transform var(--t-med) var(--ease); }
+.mig-step > a:hover .mig-node::before, .mig-step > a:focus-visible .mig-node::before { transform: rotate(45deg) scale(1.3); }
+.mig-n { font: 600 .72rem/1.2 var(--font-mono); letter-spacing: .06em; color: var(--text-3); }
+.mig-t { font: 500 1.35rem/1.15 var(--font-display); letter-spacing: -.012em; }
+.mig-d { max-width: 17rem; margin-top: .25rem; font-size: .84rem; line-height: 1.5; color: var(--text-2); }
+.mig-d code { font-size: .9em; overflow-wrap: anywhere; }
+.mig-d q { quotes: none; font-family: var(--font-mono); font-size: .92em; color: var(--text); }
+.mig-step:not(:last-child)::before, .mig-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 13px; top: 12px;
+  width: 100%; height: 2px;
+  background: var(--line-strong);
+}
+.mig-step:not(:last-child)::after {
+  background: var(--accent);
+  transform-origin: 0 50%;
+  transition: transform 520ms var(--ease);
+}
+
+/* the gate: larger, ringed, tagged */
+.mig-gate .mig-node::before, .mig-gate .mig-node i { width: 18px; height: 18px; margin: -9px 0 0 -9px; }
+.mig-gate .mig-node::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 28px; height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 1px solid var(--accent);
+  transform: rotate(45deg);
+}
+.mig-gate .mig-t { font-size: 1.55rem; }
+.mig-tag {
+  margin-top: .55rem;
+  padding: .18rem .45rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--accent-wash);
+  color: var(--accent);
+  font: 600 .68rem/1.3 var(--font-mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+/* before the band scrolls into place the steps are outlines and the line is not drawn */
+.mig-steps.is-scripted .mig-step:not(.is-reached) .mig-node::before { border-color: var(--text-3); }
+.mig-steps.is-scripted .mig-step:not(.is-reached) .mig-node i { transform: rotate(45deg) scale(0); }
+.mig-steps.is-scripted .mig-step:not(.is-drawn)::after { transform: scaleX(0); }
+@keyframes mig-ring { from { transform: rotate(45deg) scale(.7); opacity: 0; } to { transform: rotate(45deg) scale(1); opacity: 1; } }
+.mig-steps.is-scripted .mig-gate.is-reached .mig-node::after { animation: mig-ring 520ms var(--ease) both; }
+.mig-steps.is-scripted .mig-gate:not(.is-reached) .mig-node::after { opacity: 0; }
+
+.mig-promise {
+  margin: 1.75rem 0 0;
+  padding: 1.1rem max(0px, calc(100% - 62rem)) 0 0;
+  border-top: 1px solid var(--line);
+  font: 400 .8rem/1.65 var(--font-mono);
+  color: var(--text-2);
+}
+.mig-promise code { font-size: .95em; }
+.mig-promise .link-arrow { display: flex; width: max-content; margin: .4rem 0 0; white-space: nowrap; }
+
+@media (max-width: 59.99rem) {
+  .mig-steps { grid-template-columns: minmax(0, 1fr); }
+  .mig-step { padding: 0 0 1.5rem; }
+  .mig-step:last-child { padding-bottom: 0; }
+  .mig-step > a { display: grid; grid-template-columns: 26px minmax(0, 1fr); column-gap: .95rem; row-gap: .15rem; align-items: start; }
+  .mig-node { grid-column: 1; grid-row: 1 / span 2; margin: 0; }
+  .mig-n, .mig-t, .mig-d, .mig-tag { grid-column: 2; }
+  .mig-tag { justify-self: start; margin-top: .4rem; }
+  .mig-step:not(:last-child)::before, .mig-step:not(:last-child)::after { left: 12px; top: 12px; width: 2px; height: 100%; }
+  .mig-step:not(:last-child)::after { transform-origin: 50% 0; }
+  .mig-steps.is-scripted .mig-step:not(.is-drawn)::after { transform: scaleY(0); }
+}
+
+@media print {
+  .mig-band .tl-controls { display: none; }
+}

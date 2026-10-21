@@ -1,0 +1,68 @@
+/* ==========================================================================
+   95 landing: kept and revisited, plans, about
+   ========================================================================== */
+
+/* ---------- kept, revisited, tried ---------- */
+.shift-band .band-lede { max-width: 44rem; margin-top: 1rem; }
+.shift-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); }
+@media (max-width: 66rem) { .shift-cols { grid-template-columns: minmax(0, 1fr); } }
+.shift-col { gap: .55rem; }
+.shift-col .card-kicker { color: var(--accent); }
+.shift-list { margin: .5rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .7rem; }
+.shift-list li { position: relative; padding-left: 1.2rem; font-size: .98rem; line-height: 1.5; color: var(--text-2); }
+.shift-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: .5em;
+  width: .45rem;
+  height: .45rem;
+  background: var(--accent);
+}
+.shift-list a { color: var(--text); text-decoration-color: var(--accent); text-underline-offset: .2em; }
+.shift-list a:hover { color: var(--accent); }
+
+/* ---------- plans and applies ---------- */
+.reach-band .band-head { margin-bottom: clamp(1.5rem, 3vw, 2.5rem); }
+.reach-band .band-title em { display: block; font-style: italic; color: var(--accent); }
+.reach-band .band-lede { max-width: 46rem; margin-top: 1rem; }
+.reach-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1rem, 2.5vw, 2rem); }
+@media (max-width: 47.99rem) { .reach-compare { grid-template-columns: minmax(0, 1fr); } }
+.reach-side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; padding: 1.4rem 1.4rem 1.2rem; background: var(--surface); border: 1px solid var(--line-strong); }
+.reach-side-pravo { border-color: var(--accent); }
+.reach-name { margin: 0; font: 500 .74rem/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.reach-side-pravo .reach-name { color: var(--accent); }
+.reach-side .stats { margin: 0; border: 0; display: block; }
+.reach-side .stat { padding: 0; border: 0; background: none; }
+.reach-side .stat dd { font-size: clamp(3.2rem, 2rem + 4.5vw, 5.4rem); font-weight: 400; color: var(--text); }
+.reach-side-pravo .stat dd { color: var(--accent); }
+.reach-side .term-body .term-out, .reach-side .term-body .term-out code { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reach-side .term { margin: 0; }
+.reach-caption { margin: 1rem 0 clamp(2.5rem, 5vw, 4rem); max-width: 52rem; }
+.reach-caption code { font-size: .92em; }
+.reach-sub { margin: 0 0 1rem; }
+.reach-why { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 66rem) { .reach-why { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 41rem) { .reach-why { grid-template-columns: minmax(0, 1fr); } }
+.reach-why .card-title { font-size: 1.35rem; }
+.reach-limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem clamp(1.5rem, 4vw, 3rem); margin-top: clamp(1.5rem, 3vw, 2rem); padding: 1.1rem 1.4rem; border-left: 3px solid var(--change); background: var(--change-wash); }
+@media (max-width: 47.99rem) { .reach-limits { grid-template-columns: minmax(0, 1fr); } }
+.reach-limits p { margin: 0; max-width: 40rem; font-size: .95rem; line-height: 1.55; color: var(--text); }
+.reach-limits b { display: block; margin-bottom: .3rem; font: 500 .72rem/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+.reach-limits code { font-size: .88em; overflow-wrap: anywhere; }
+
+/* ---------- about, and the door that is not open yet ---------- */
+.about-copy { display: flex; flex-direction: column; gap: 1.3rem; min-width: 0; }
+.about-copy > * { margin: 0; }
+.about-note { max-width: 38rem; font: 400 clamp(1.1rem, 1rem + .4vw, 1.25rem)/1.6 var(--font-display); color: var(--text); text-wrap: pretty; }
+.about-act { gap: .7rem; }
+.door-note {
+  display: none;
+  max-width: 38rem;
+  padding: .75rem 1rem;
+  border-left: 3px solid var(--change);
+  background: var(--change-wash);
+  font: 400 .85rem/1.55 var(--font-mono);
+  color: var(--text);
+}
+.about-band:target .door-note { display: block; }

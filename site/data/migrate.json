@@ -1,0 +1,256 @@
+{
+  "page": "site/demos/migrate/page.md",
+  "title": "Migration demo",
+  "version": [
+    "pravo 0.1.0-dev",
+    "cue v0.17.1"
+  ],
+  "blocks": [
+    {
+      "block": 7,
+      "command": "pravo init",
+      "exit": 0,
+      "expect_exit": 0,
+      "hidden": true,
+      "line": 231,
+      "ok": true,
+      "output": "Configuration does not load yet; generating schemas for the declared providers first.\nCreated cue.mod/module.cue\nProviders:\n  local = hashicorp/local v2.9.1\n  random = hashicorp/random v3.9.1\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/local (2 resource types, 3 data sources, 1 ephemeral, 1 functions)\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/random (10 resource types, 0 data sources, 2 ephemeral, 0 functions)\n\npravo has been initialised. Run \"pravo plan\" to see what it would do.",
+      "stage": "main"
+    },
+    {
+      "block": 8,
+      "command": "pravo state import-tfstate terraform.tfstate",
+      "exit": 0,
+      "expect_exit": 0,
+      "line": 237,
+      "ok": true,
+      "output": "Imported 4 resources and 0 outputs from terraform.tfstate into ./pravo.state\n\nRenamed instances (these are the addresses now in the state; point each at its place in the specification with $from):\n  local_file.note[\"alpha\"] -> local_file.note_alpha\n  local_file.note[\"beta\"] -> local_file.note_beta",
+      "stage": "main"
+    },
+    {
+      "block": 10,
+      "command": "pravo plan",
+      "exit": 0,
+      "expect_exit": 0,
+      "line": 253,
+      "ok": true,
+      "output": "pravo will perform the following actions:\n\n  # random_pet.server was moved to server (record renamed; no change to the object)\n\n  # local_file.motd was moved to motd (record renamed; no change to the object)\n\n  # local_file.note_alpha was moved to note.alpha (record renamed; no change to the object)\n\n  # local_file.note_beta was moved to note.beta (record renamed; no change to the object)\n\nPlan: 0 to add, 0 to change, 0 to destroy.\nGraph: planned 4 of 4, 4 refreshed, 4 moved.",
+      "stage": "main"
+    },
+    {
+      "block": 12,
+      "command": "pravo plan",
+      "exit": 0,
+      "expect_exit": 0,
+      "line": 272,
+      "ok": true,
+      "output": "No changes. Your infrastructure matches the configuration.\nGraph: planned 4 of 4, 4 refreshed.",
+      "stage": "main"
+    },
+    {
+      "block": 14,
+      "command": "pravo validate",
+      "exit": 0,
+      "expect_exit": 0,
+      "line": 283,
+      "ok": true,
+      "output": "Success! 4 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 2 providers.",
+      "stage": "main"
+    },
+    {
+      "block": 16,
+      "command": "pravo state list",
+      "exit": 0,
+      "expect_exit": 0,
+      "line": 291,
+      "ok": true,
+      "output": "motd\nnote.alpha\nnote.beta\nserver",
+      "stage": "main"
+    }
+  ],
+  "view": {
+    "cue": "v0.17.1",
+    "cue_file": "stack.cue",
+    "groups": [
+      {
+        "cue": "$random, $local",
+        "cue_lines": [
+          3,
+          9
+        ],
+        "hcl": "required_providers",
+        "hcl_lines": [
+          1,
+          12
+        ],
+        "id": "g1",
+        "kind": "providers",
+        "label": "providers"
+      },
+      {
+        "cue": "server",
+        "cue_lines": [
+          11,
+          14
+        ],
+        "hcl": "random_pet.server",
+        "hcl_lines": [
+          14,
+          16
+        ],
+        "id": "g2",
+        "kind": "resource",
+        "label": "random_pet.server to server"
+      },
+      {
+        "cue": "motd",
+        "cue_lines": [
+          16,
+          20
+        ],
+        "hcl": "local_file.motd",
+        "hcl_lines": [
+          18,
+          21
+        ],
+        "id": "g3",
+        "kind": "resource",
+        "label": "local_file.motd to motd"
+      },
+      {
+        "cue": "note.alpha, note.beta",
+        "cue_lines": [
+          22,
+          30
+        ],
+        "hcl": "local_file.note",
+        "hcl_lines": [
+          23,
+          27
+        ],
+        "id": "g4",
+        "kind": "resource",
+        "label": "local_file.note to note.alpha, note.beta"
+      }
+    ],
+    "hcl_file": "main.tf",
+    "imported": 4,
+    "moved": 4,
+    "providers": 2,
+    "ran": "0.1.0-dev",
+    "records": [
+      "random_pet.server -> server",
+      "local_file.motd -> motd",
+      "local_file.note_alpha -> note.alpha",
+      "local_file.note_beta -> note.beta"
+    ],
+    "resources": 4,
+    "runs": [
+      {
+        "cmd": "pravo state import-tfstate terraform.tfstate",
+        "exit": 0,
+        "lines": [
+          {
+            "cls": "",
+            "t": "Imported 4 resources and 0 outputs from terraform.tfstate into ./pravo.state"
+          },
+          {
+            "cls": "",
+            "t": ""
+          },
+          {
+            "cls": "out-dim",
+            "t": "Renamed instances (these are the addresses now in the state; point each at its place in the specification with $from):"
+          },
+          {
+            "cls": "",
+            "t": "  local_file.note[\"alpha\"] -> local_file.note_alpha"
+          },
+          {
+            "cls": "",
+            "t": "  local_file.note[\"beta\"] -> local_file.note_beta"
+          }
+        ]
+      },
+      {
+        "cmd": "pravo plan",
+        "exit": 0,
+        "lines": [
+          {
+            "cls": "out-dim",
+            "t": "pravo will perform the following actions:"
+          },
+          {
+            "cls": "",
+            "t": ""
+          },
+          {
+            "cls": "out-dim",
+            "t": "  # random_pet.server was moved to server (record renamed; no change to the object)"
+          },
+          {
+            "cls": "",
+            "t": ""
+          },
+          {
+            "cls": "out-dim",
+            "t": "  # local_file.motd was moved to motd (record renamed; no change to the object)"
+          },
+          {
+            "cls": "",
+            "t": ""
+          },
+          {
+            "cls": "out-dim",
+            "t": "  # local_file.note_alpha was moved to note.alpha (record renamed; no change to the object)"
+          },
+          {
+            "cls": "",
+            "t": ""
+          },
+          {
+            "cls": "out-dim",
+            "t": "  # local_file.note_beta was moved to note.beta (record renamed; no change to the object)"
+          },
+          {
+            "cls": "",
+            "t": ""
+          },
+          {
+            "cls": "",
+            "t": "Plan: 0 to add, 0 to change, 0 to destroy."
+          },
+          {
+            "cls": "out-dim",
+            "t": "Graph: planned 4 of 4, 4 refreshed, 4 moved."
+          }
+        ]
+      },
+      {
+        "cmd": "pravo plan",
+        "exit": 0,
+        "lines": [
+          {
+            "cls": "out-add",
+            "t": "No changes. Your infrastructure matches the configuration."
+          },
+          {
+            "cls": "out-dim",
+            "t": "Graph: planned 4 of 4, 4 refreshed."
+          }
+        ]
+      }
+    ],
+    "status": "No changes",
+    "summary": {
+      "add": "0 to add",
+      "chg": "0 to change",
+      "dst": "0 to destroy",
+      "m1": ", ",
+      "m2": ", ",
+      "post": ".",
+      "pre": "Plan: "
+    },
+    "tofu": "1.13.1"
+  }
+}

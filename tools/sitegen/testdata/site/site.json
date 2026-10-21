@@ -1,0 +1,20 @@
+{
+  "name": "pravo",
+  "title": "pravo · infrastructure as code in CUE",
+  "description": "pravo specifies infrastructure in CUE and runs the OpenTofu providers you already use, unchanged.",
+  "pravo_version": "0.1",
+  "cue_version": "0.17",
+  "repo": "",
+  "start_href": "start/index.html",
+  "footer_note": "pravo is an independent project, licensed under Apache-2.0.",
+  "sections": [
+    {"id": "start", "title": "Start", "blurb": "Ten minutes from install to a first plan.", "nav": false, "progress": true},
+    {"id": "learn", "title": "Learn", "blurb": "Two tracks in order.", "progress": true,
+     "groups": ["Track A, CUE from zero", "Track B, pravo"],
+     "pinned": [{"title": "Glossary", "href": "reference/glossary.md"}, {"title": "pravo eval", "href": "reference/command-eval.md"}]},
+    {"id": "migrate", "title": "Migrate", "blurb": "From OpenTofu or Terraform.", "progress": true},
+    {"id": "guides", "title": "Guides", "blurb": "How to do one thing."},
+    {"id": "concepts", "title": "Concepts", "blurb": "How pravo behaves."},
+    {"id": "reference", "title": "Reference", "blurb": "Lookup pages."}
+  ]
+}

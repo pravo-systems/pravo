@@ -1,0 +1,262 @@
+# Architecture
+
+pravo is one Go binary, built from the module `pravo.dev/pravo`. It evaluates a CUE package, compares the result with a graph of recorded resources, and drives OpenTofu providers over the provider plugin protocol. This file describes how the code is arranged. The behaviour that users rely on is documented in `docs/`.
+
+```text
+ *.cue files             internal/config          internal/convert
+ one CUE package  --->   load, discover    --->   CUE values <-> provider values
+                                 |
+                                 v
+ internal/state   <---   internal/engine    --->   internal/plugin   --->   provider binary
+ records, locks          graph, plan, apply        protocol 5 and 6          separate process
+ transactions            policies, saved plans
+```
+
+## 1. Layout
+
+| Path | Contents |
+|---|---|
+| `cmd/pravo/` | The command line: cobra commands, flags, text and JSON output, the MCP server. |
+| `internal/config/` | Loads a root, finds resources, providers and outputs in the evaluated value, scans for provider requirements, fingerprints a root. |
+| `internal/convert/` | CUE values to provider values (known, unknown, null), provider values back into CUE, reference analysis. |
+| `internal/engine/` | Dependency graph and scheduler, plan, apply, saved plans, plan policies, moves and imports, ephemeral resources, function calls, provider management, the lock file. |
+| `internal/state/` | The state store: records, outputs, transactions, locks, local and S3 backends. |
+| `internal/plugin/` | The `Provider` interface, the protocol 5 and 6 adapters, process start and reattach, recording and replay, tracing. |
+| `internal/tfplugin/` | The `.proto` files, the generated message types and hand-written gRPC client stubs for protocols 5 and 6. |
+| `internal/registry/` | Provider registry client, container registry client, download, checksum, unpack, provider store. |
+| `internal/schema/` | The provider schema model, its JSON cache form and the CUE generator. |
+| `internal/tfstate/` | Converts an OpenTofu or Terraform state file (format version 4) to state records. |
+| `internal/ui/` | Plan rendering for the terminal. |
+| `internal/plog/` | The debug log behind `-v`, `-vv` and `PRAVO_LOG`. |
+| `internal/telemetry/` | OpenTelemetry setup, spans and metrics. |
+| `internal/fakes3/` | An in-memory S3-compatible server, used by tests and by `tools/fakes3`. |
+| `tools/` | Programs for building and checking the repository. See section 8. |
+| `docs/` | Markdown sources of the documentation site. `docs/AUTHORING.md` fixes the format. |
+| `site/` | `site.json`, landing page partials, style sheet parts, scripts, fonts, recorded landing data and the programs that produce it. `site/README.md` describes it. |
+| `examples/` | Four runnable roots: `getting-started`, `modules-and-data`, `ephemeral`, `functions`. |
+| `templates/module/` | A template repository for a shared module, with a publish workflow. |
+
+Files in `cmd/pravo/`:
+
+| File | Contents |
+|---|---|
+| `main.go` | `main`, the root command, global flags, `normaliseArgs`, `versionCmd`, command span and exit handling. |
+| `commands.go` | `init`, `gen`, `plan`, `show`, `apply`, `destroy`, `output`, `import`, `providers` (with `schema`, `lock`, `copy`), `validate`, `eval`, `fmt`; `--policy` loading. |
+| `session.go` | `newSession`: loads the root, reads the lock file, opens the state, resolves providers, fetches schemas; writes the generated packages. |
+| `statecmd.go` | `state list`, `show`, `rm`, `mv`, `log`, `locks`, `unlock`, `pull`, `push`, `graph`, `dependents`, `query`, `import-tfstate`. |
+| `agent.go` | `schema`, `why`, `drift`; JSON helpers; `exitCodeOf`. |
+| `mcp.go` | `mcp`: a stdio server whose tools run the binary itself with `--json`. |
+| `mod.go` | `mod`: embeds the CUE module commands, adds `publish`, `list` and `verify`. |
+| `helpers.go`, `webhook.go` | Small shared helpers (`noArgs`, `refreshValueHint`, `typesOf`); the drift webhook POST. |
+
+## 2. The life of a run
+
+A command that evaluates the specification passes through these phases.
+
+| Phase | Where | What happens |
+|---|---|---|
+| Start | `main`, `newRootCmd` | `normaliseArgs` rewrites single-dash long flags to double-dash. `telemetry.Setup` installs exporters. `PersistentPreRunE` configures `plog`, the printer (standard output; standard error under `--json`), the actor and reason (`--actor`, `PRAVO_ACTOR`, `--reason`, `PRAVO_REASON`) and `-C`. `startCommand` opens the command span. |
+| Policies | `loadPolicies`, `engine.LoadPolicyFiles` | `plan`, `apply` and `destroy` read the `--policy` files before anything else, and `mcp` reads them at start. An empty path, an unreadable or uncompilable file, an import outside the standard library and a file in the root directory fail with exit 5. |
+| Load | `loadRoot`, `config.Load` | `checkPackageClauses` rejects a file outside the package. `ConfigureRegistry` sets a default `CUE_REGISTRY`. `load.Instances` applies `-t` tags and `-T` system tags. `BuildInstance` and `Validate` evaluate. `collectTree` records the module root, every loaded file and the dependency modules with content hashes. A failure exits 6. |
+| Discover | `Root.extract` | `extractSettings` reads `$settings` (`state` and `refresh`; any other key is an error). `discover` and `walk` visit every field except `$settings`. `register` records each struct that carries `$kind`: `resource`, `data`, `ephemeral`, `call`, `provider`, `output`, `env`, `secret_env`, `remote_outputs`. It collects `$from` and `$import`. `resolveProviders` gives each provider struct an instance key and each resource its provider. `walk` refuses a required provider field that no instance filled (`provider docs.tls was not supplied`), and `resolveProviders` refuses configuration on a struct that shares another struct's instance (`extraConfig`). |
+| Session | `newSession` | `engine.ReadLock`; `openState` or `openStateReadOnly`; `NewProviders`; `Providers.Resolve`; `Lock.UpdateModules`; `writeLock`; `warnStaleSchemas`; `Providers.Schemas`. |
+| Engine | `session.engine`, `engine.New` | Builds the `Engine` with the root, state, providers, schemas and options. `SetPolicies` compiles the policies in the root's CUE context. |
+| Graph | `Engine.run`, `buildGraph` | See section 2.1. |
+| Plan | `Engine.Plan`, `planRun` | See section 2.2. |
+| Judge | `Engine.NewView`, `CheckPolicyView` | See section 2.3. |
+| Apply | `Engine.Apply`, `applyRun` | See section 2.4. |
+| Record | `state.Store`, `state.Txn` | See section 3. |
+| Finish | `exitCodeOf`, `finishCommand` | The error is mapped to an exit code (`engine.ExitCode`: 1 error, 2 changes, 3 stale, 4 locked, 5 refused, 6 invalid). Duration and rejection reasons go to telemetry. |
+
+### 2.1 Graph and scheduler
+
+`buildGraph` creates one node per declared resource, data source, ephemeral resource, function call and built-in (`pravo.#Env`, `pravo.#SecretEnv`, `pravo.#RemoteOutputs`). An edge comes from `convert.Dependencies`, which reads the expression tree of each body and follows references through interpolation, calls, arithmetic, comprehensions and intermediate fields. A reference to a struct or list that holds resources, and is not itself a resource, is an edge to every resource below it, whether it is a comprehension source, an index, an argument or an entry of `$depends_on`; the struct that holds the referencing resource is not an edge. `convert.Resolver` is the interface through which the engine answers what is a resource, what lies below a path and what a plain field holds. `$depends_on` adds references. A resource also waits for whatever its provider's configuration references (`providerDeps`). `checkCycles` removes nodes whose dependencies are done; the remainder is grouped into strongly connected components, and each group of two or more is reported as `dependency cycle between ...` with exit 6. `CheckGraph` runs the same build for `validate`.
+
+`run` starts a goroutine for each node whose dependencies have finished, at most `Parallelism` (10) at once. All CUE evaluation and filling is serialised by `Engine.cueMu`. Only provider calls run concurrently. The first error cancels the context of the run: no further node starts, a node whose task has not begun is counted, and a run that stops with no error of its own because its context was cancelled fails with `interrupted: N of M tasks were not started`. A call that changes an object is not cancelled with it (section 2.4). `closeEphemerals` closes every ephemeral resource that the run opened.
+
+Each node runs `runTask` in a span, then `runTaskInner`:
+
+| Mode | Function |
+|---|---|
+| built-in | `builtinTask`: `envTask` reads an environment variable; `remoteOutputsTask` reads another root's `outputs.json`. |
+| `call` | `callTask`: converts `args`, calls the function on an unconfigured provider when the arguments are known, fills `result`. |
+| `ephemeral` | `ephemeralTask`: validates, opens, renews on the provider's deadline in `renewLoop`. |
+| `managed`, `data` | `planTask` or `applyTask`, both through `planResource`. |
+
+After a node runs, `convert.Fill` computes the provider's values for every part of the body that is not yet concrete, and `Engine.fill` queues them; `settleAllLocked` unifies the queued fills into the current value in one step, when a task that reads them starts or when the run ends. Dependents of the node then see concrete values. The fields of a struct are in the order in which they were first met, and a fill meets a field before the comprehension that declares it does, so the order of a container of nodes would follow the order in which the nodes finished. `below` notes every container of nodes that something reads, and the first batch of fills of a run starts with `seedFills`: an empty fill for each node below such a container, in the order the specification declares them. A comprehension over the container visits the nodes in that order, in the plan and in the apply of it.
+
+### 2.2 Plan
+
+`planRun` does the following in order:
+
+1. `checkOutputs` refuses an output that references an ephemeral value. `checkReplace` validates `--replace`. With `--destroy`, `checkDestroy` builds the graph and applies `prevent_destroy`.
+2. `State.Begin("plan", command)` starts the transaction.
+3. `relabelProviders` carries out a provider `$from`. `applyMoves` carries out `$from` declarations by renaming records and rewriting the dependencies of other records (`moveNode`).
+4. `run(ctx, false)` walks the graph.
+5. `planOrphans` plans a delete for every record whose address the specification does not declare (`planDelete`), ordered with dependents first (`orderForDestroy`). With `--destroy` it plans a delete for every record and nothing else runs.
+6. `renameHints` pairs a create and a delete of the same type and configuration hash.
+7. Outputs are evaluated (`canonicalOutput` sorts struct keys).
+8. `checkReservations` and `reserve` apply and take reservations.
+9. `Txn.Finish("planned", ...)` writes the transaction when it recorded a change.
+
+`planResource` plans one managed resource or data source:
+
+1. `convert.Converter.Block` converts the body against the provider schema. A concrete value is the value. An absent optional field is null. A non-concrete value that references a task is unknown, or an error at apply time (`Strict`). A non-concrete value that references no task is null, or an error when it depends on an incomplete value outside any task. `configHash` hashes the result when it is fully known.
+2. The node is unchanged when the record exists and carries no mark (`Resource.Marked`: `drifted_at` or `gone`), `--full` and `--replace` do not apply, the hash equals `config_hash`, and the schema version, provider version and provider key equal those recorded. An apply that stopped halfway stored an empty `config_hash`, so the node is changed, with the reason `the last apply of it did not finish`. A different key adds the reason `provider instance changed (A -> B)`; the plan still proposes no change to the object, and the apply writes the record again (`writeState`).
+3. A data source that is unchanged, has no dependency with a pending change and is not due for refresh reuses its record. A data source whose configuration is unknown, or with a pending dependency, is deferred to apply. Otherwise `ReadDataSource` runs. A read of an unchanged data source that returns the attributes, edges and provider of its record (`recordHolds`) sets `Change.Kept`: `Change.writes` is false for it, so the plan does not list it in `Plan.Write`, the apply takes no lock and writes nothing for it, and the nodes that read it take its record (`roleInput`). `renewData` writes the time of that read with `Store.Refresh`, which keeps the revision, when the refresh age is a duration, no other process holds the lock and the record in the state is still the one the command read; with `always` or `never` nothing is written.
+4. An unchanged node with a record that this run has not read is turned into a skipped no-op by `quiet` in `RefreshAge` (and in `RefreshNone` outside the apply): the plan starts no provider for it, does not call `UpgradeResourceState` or `ReadResource` and writes nothing, whatever the age of its record. `quiet` does not skip a node that sets its own `$lifecycle.refresh` and is past it, nor one that `readReason` names (below). The record is decoded into `Change.Prior` and `Change.Planned` (`storedValue`) only when `Engine.readers` has the node, a set that `buildGraph` makes of the nodes that something reads: a dependent, the configuration of a provider or an output. A node nobody reads is not decoded and not filled into the configuration; the constraint of a user on its computed attributes is checked when the node is next planned. For any other node with a record, `priorState` calls `UpgradeResourceState`, then `ReadResource` when `refreshDue` says so, and a read made earlier in the run (`cachedRead`) is used in place of a second one. The refresh age is `$lifecycle.refresh`, else `$settings.refresh`, else `always`. `RefreshExpired` skips `quiet` and reads every node whose age has run out; `RefreshAll` and `RefreshNone` override the ages. `persistRefreshed` writes the refreshed record when no other process holds its lock and the record in the state is still the one the command read (`Store.Refresh`); a read that returns other attributes also writes `drifted_at`, and `persistGone` writes `gone` and `drifted_at` for an object that does not exist.
+5. An unchanged node with a record, and no drift, becomes a skipped no-op.
+
+In `RefreshAge`, `planRun` calls `readInputs` after the walk. It reads in parallel (`Parallelism`) the nodes that a reached node reads, that were skipped without a read and whose record is past its age (`readInput`). A read that finds other attributes or no object writes the mark and the plan walks again from the records as they are now (`rewalk`, `run`), with every read already made kept in `Engine.reads`. Each walk reaches the nodes that the marks make reachable, and reads one level of their inputs, so a chain of changed records takes one round for each; the rounds end when a read finds nothing. A record found changed in a round after it was found changed in an earlier one fails the plan with `changed while the plan read it; run pravo plan again`, and the marks it wrote stay for the next plan. `countUnread` then counts the nodes that were not read as `Stats.Fresh` (within their age) or `Stats.NotRead`. `pravo drift --due` calls `Engine.DriftDue`: it visits the managed records, reads the ones past their age, the oldest first and at most the limit of them, writes what it reads and the marks, and plans nothing. Before the reads, `fillProviderInputs` sets up the providers of those records as a plan does: it walks the nodes their configuration reads with an `applyScope`, a managed or data node that has a record as `roleInput` (its value is its record, and only what its own configuration reads comes with it), and a built-in value, ephemeral resource or function call as `roleSupport`, which runs. `keepOpen` leaves the ephemeral resources open for the reads, and `DriftDue` closes them. A record that a provider is set up from and the state does not hold is an error.
+
+`readReason` names the three reasons for which a plan reads a record whatever its refresh age, in the modes that read by age (`RefreshAge`, `RefreshExpired`). `quiet` does not skip such a node, `priorState` reads it, and `Change.forced` is the reason it prints; a data source takes the same path. The first reason is a stale lock on the node: `loadSuspects` calls `Store.Suspects` once per plan, which lists the locks and returns the stale ones that are not reservations, and the read that follows removes the lock, because `persistRefreshed` takes the node's lock with `TryHold`, which reclaims a stale lock. With `-refresh=false` `warnSuspects` prints a warning and nothing is read. The second is a provider that points somewhere else: every record written by an apply, a refresh or an import carries `provider_config`, the digest `providerTarget` works out, once per walk and provider instance, from the configuration of the instance (`providerConfig`) and the provider schema, without starting the provider. `targetBlock` leaves out an attribute that is sensitive or write-only, one that references an ephemeral resource and one that is unknown; a configuration with an unknown value has no digest (`ok` false) and neither forces a read nor is stamped, and an instance with no attribute left has the empty digest, which no record carries. A record whose digest is not empty and differs from the one of its instance now is read, and planned only if the read finds drift. A record with no digest forces nothing. The third reason is a record that an apply wrote and that has no `refreshed_at` (`Resource.NoReadTime`), which is what `unsettle` leaves; `priorState` takes `readReason` also for a node whose age has run out, so that the plan says why it read the node. With `-refresh=false` `warnSuspects` prints a warning for these nodes as well. `Store.Refresh` does not count a change of `provider_config` as a change of the record.
+6. `ValidateResourceConfig`, `applyIgnoreChanges`, `ProposedNew`, then `PlanResourceChange`. The action is create (no prior), replace (`requires_replace` and a changed planned state, or `--replace`), no-op (planned equals prior) or update. A replacement plans the create again from a null prior (`PlannedCreate`).
+7. `applyIgnoreChanges` copies the prior value over each top-level attribute named in `ignore_changes`, or over all of them for `"*"`. `ProposedNew` (`proposed.go`) merges prior and configuration as OpenTofu core does: the configuration wins, and a null configuration value for a computed attribute inherits the prior value. `withoutWriteOnly` removes write-only attributes before a plan is saved.
+
+Each `Change` carries `Reasons`, the sentences that `pravo why` and the plan document print.
+
+### 2.3 Judge and saved plans
+
+The command prints the plan before it judges it. `NewView` builds the plan document (`View`, with `Summary`, `Stats`, `ChangeView` entries, `Outputs`, `Hints`, `Providers`) and the blast radius from `State.Reach`. The document lists the nodes the plan ran; with `ViewOptions.Skipped` it lists the others too, each as an entry built from the record in the state (`withSkipped`). `CheckPolicyView` always judges a document that has them. `ui.Printer.RenderPlan` prints it as text; `emitJSON` prints it under `--json`. `CheckPolicyView` marshals the same `View` to JSON, converts it to a CUE value (`cuejson.Extract`) and, for each policy, unifies the policy with it and calls `Validate(cue.Concrete(true))`. A failure is exit 5 and nothing is applied. A policy that is satisfied prints `Policy <file> (sha256:...) is satisfied.`
+
+`SavePlan` writes a `PlanFile` (format 1, mode `0600`): the change of every node the plan ran, with provider values as msgpack, the config fingerprint (`Root.Fingerprint`), the state lineage, provider versions, tags, the revision of each node it changes and, in `inputs`, the revision of every record those changes read, and the outputs it evaluates (`eval_outputs`) and removes (`drop_outputs`). A node the plan left alone has no entry. `apply <planfile>` runs `ReadPlanFile`, `LoadPlanFor` (which returns `ErrStalePlan`, exit 3, when the fingerprint, lineage or a provider version differs, when a node the apply writes, or one of the selected nodes with `--only`, has another revision, or when an input has another revision; a file of format 1 lists no inputs, so `legacyInputs` takes the revisions of the records that the changes read, as `scopeFor` finds them, from the entries of the file for the nodes the plan left alone), `Plan.Remaining`, `PlanFile.LeftToApply` (a change to a provider, or records and outputs that no apply from the file has written, which `apply_txn` records), `CheckPolicy` on the whole remainder, `Plan.Subset` for `--only` (the selection must be closed under dependencies, else `ErrNotClosed`; a data source whose read returned something other than its record counts as a dependency to select, `needed`), `ApplySaved`, then `MarkApplied`, which locks the plan file (`flock`), marks the changes in the file as it is then, not in the copy the apply loaded, and writes it by a rename: applies of disjoint parts of one file that run at once keep every mark, and a file that holds another plan (another `created`, lineage or fingerprint) is left as it is. `ApplySaved` hands the engine the changes to apply and the answer of each data source the plan read (`rememberData`), so that the walk reads no data source again. During apply, `checkSaved` compares each re-planned change with the saved one: the same action or nothing left to do, every planned value that the saved plan knew (`consistent`), the data of a data source, and, for a node with nothing left to do, that its record holds what the saved change would have made. The apply of a plan that the same run printed makes the same comparison. A difference is exit 3 for both. The comparison runs in the walk, as it reaches each node, so nodes applied before the one that differs keep their changes and the plan file is not marked.
+
+### 2.4 Apply
+
+`applyRun` runs one transaction of kind `apply` or `destroy`:
+
+1. For a destroy, `checkPreventDestroy`.
+2. `lockAll` returns the `heldLocks` that hold the lock of every record in `Plan.writeAddrs`, and of no other, before the first change. `heldLocks.acquire` takes the first address alone and the others 16 at a time, each group after the one before it (`heldLocks.attempt`). An apply never holds some of its locks while it waits for the others. When another process holds a lock, the locks taken are released at once and `heldLocks.waits` decides whether to look again: a lock whose transaction has the status `running` (`Store.TxnRunning`), and a reservation, reject the apply with exit 4; any other lock may belong to an apply that is taking its own locks and releases them if it meets another, so the apply looks at the lock with `Store.Conflict` until it is free, for `patience` (ten times the time one try took, between `minPatience` and `maxPatience`), and tries again. The addresses that were held (`contested`) are then taken first, one at a time and in order, so that applies that meet at the same nodes meet at the first of them, and a random pause that grows with each round keeps applies that were turned away together from meeting again. An apply is rejected only because a lock is held by an apply that took it, or when the patience is spent. `heldLocks.rejected` looks at the locks the apply needs, in order and for at most `scanTime`, so that the error names the smallest address that is held and counts the others (`at least` when it did not look at all). A goroutine renews the locks every `state.HeartbeatInterval`, 16 at a time, with `Store.Renew`. Before each `ApplyResourceChange`, `heldLocks.fence` renews them if more than half of `state.StaleAfter` has passed since every lock was last known to be the apply's; a lock that another process has taken over is exit 4, `lock lost`. `checkRevisions` then reads the version, the revision and the generation, of every record the plan writes (`Change.PriorRevision`, `Change.PriorGeneration`) and every record of the scope that the plan lists as read (`Plan.Inputs`, `Plan.InputGenerations`, narrowed to the inputs of the scope by `applyScope.inputsOf`, so that the part of a saved plan applied with `--only` checks the records it reads) with `Store.Versions`, 16 reads at a time, which asks the backend and not the nodes the store loaded when the command started. A record at another revision, or in another generation because it was removed and created again, is exit 3 before anything changes: `ErrStalePlan` for a plan loaded from a file, `the plan changed while it waited` for the plan the command printed. The transaction is recorded as `rejected`. Otherwise an apply that locked a node writes its transaction with the status `running` (`Txn.Start`) before the first change.
+3. Unless destroying, `scopeFor` computes what the apply walks: the nodes the plan writes (`Plan.Write`), the records they read and, because a field of a record can be an expression over the nodes it reads, the records those read in turn, which run as `fromState` (`roleInput`), and the ephemeral resources, function calls and built-in values they read, with what those read (`roleSupport`). `applyScope.nodes` makes the graph of the scope: each node waits for the nodes of the scope that it reads, directly or through nodes outside the scope, and a record is one of them. What `fromState` fills in from a record then meets the values that the apply writes, and `snapshot` unifies the pending fills of those nodes before the task starts. `resetRun` and `run(ctx, true)` walk that part of the graph, which `buildGraph` built once, on a fresh evaluation. `applyTask` calls `planResource` with `Strict` and known values, then performs the action through `applyChange` (`ApplyResourceChange`) and `writeState`. A plan made by the same run reads nothing again: `readResult` and `dataRead` hold what the plan read. A replacement is destroy then create, or create then destroy with `create_before_destroy`. A partial state returned with an error is written. `applyChange` calls `ApplyResourceChange` on `context.WithoutCancel`: a node that fails, or a signal, stops the walk from starting nodes, and a call that has begun finishes and its state is written before the locks are released. `Engine.fly` and `land` keep the nodes whose call is under way. A call that fails, that ends with an error and no state for an update or a destruction of a node that has a record, or that ends with an error and no state after the providers were asked to stop, leaves a change whose result is not known: `unsettle` writes the record again with `Store.Invalidate`, which clears `refreshed_at` and moves the revision, records the action `unsettled` in the transaction, and `withUnsettled` adds `creation of X was in flight; its result is unknown; check the provider` to the error (`creation`, `update` or `destruction`). A creation that has no record has none to write. A write of the record that fails after the provider finished the change (`recordApplied`, and the removal of the record after a destroy) is noted by `unrecorded` in the same way, with `creation of X finished, but the state does not record it; check the provider`; the error of a partial state that cannot be recorded names the failure of the provider and the failure of the write.
+4. Deleted records are destroyed in the order the plan fixed. Data records are only forgotten.
+5. The outputs in `Plan.EvalOutputs` (those that read a node the plan writes, those the plan could not tell and those whose value differs from the recorded one) are checked for concreteness; the others keep the recorded value. A recorded output that the specification does not declare (`Plan.DropOutputs`) is removed. `State.LoadOutputs` reads them and says whether `outputs.json` exists. When the outputs have changed or the object does not exist yet, `State.UpdateOutputs` takes the lock object `outputs.lock`, reads the outputs again, and `mergeOutputs` merges the apply's outputs into them before they are written, so that two applies that end together keep each other's outputs; a sensitive output is stored as `{"$sensitive": value}`. A plan that writes no node, no output and removes no output is not applied: no lock, no record, no transaction.
+6. `Txn.Finish("applied", ...)` replaces the running transaction; `release` stops the heartbeat and removes the locks, 16 at a time, each after a check that it is still this process's.
+
+`cmd/pravo/main.go` handles `SIGINT` and `SIGTERM` in stages (`watchSignals`) through an `engine.Interrupt` that the context of the command carries and `applyRun` registers with (`register`). The first signal cancels the context and prints `Interrupted. Waiting for N operations; interrupt again to ask the providers to stop.` with the number `Interrupt.InFlight` gives. The second calls `Interrupt.Stop`, which calls `Providers.StopAll`: `Stop` on every provider that pravo started, not on a reattached one, so a provider returns the state it had reached; it waits up to 30 seconds (`interruptGrace`). The third, or the end of the wait, or the second when nothing is in flight, calls `Interrupt.Abandon`: `Engine.abandon` makes `unsettle` of every call still under way, writes the transaction as `failed`, releases the locks, and the process exits with code 1. `watchSignals` waits for `Abandon` for `abandonWait`, 20 seconds, and exits without it when the state does not answer. The state is opened with the context that the first signal cancels, and its calls after the opening do not end with that context (`state.OpenBackend`), so the records, the transaction and the locks are written to a bucket after a signal as they are to a directory. A process that is killed does it none of this, and its locks go stale.
+
+## 3. State store
+
+`state.Store` holds every record in memory and writes through a `Backend`. `OpenBackend(ctx, b)` uses `ctx` to open the store; every call to the backend after that is made with `context.WithoutCancel(ctx)`, since a command that is interrupted still has to record what it did. The `Backend` interface is: `Get`, `Put`, `PutIfAbsent`, `DeleteIf`, `ReplaceIf`, `Delete`, `List`, `Name`, `Local`. `LocalBackend` writes each object to a temporary file of its own (`os.CreateTemp`, named after the key and ending in `.tmp`, which `List` skips) and renames it, so two writers of one key do not share a file. It creates a lock by writing the temporary file whole and renaming it to the key without replacing (`renamex_np` with `RENAME_EXCL` on macOS, `renameat2` with `RENAME_NOREPLACE` on Linux), or linking it where the filesystem cannot, so a lock that exists has all its contents; only a filesystem with neither gets `O_EXCL` followed by a write. `DeleteIf` and `ReplaceIf` open the object, take an exclusive `flock` on the file they opened, check that the name still refers to that file, read it, and delete it or write the new contents over it: of callers that judge the same lock, one acts, and a lock that was replaced after it was judged is left alone. `S3Backend` uses the AWS SDK with optional endpoint and path-style addressing, creates locks with a conditional put (`If-None-Match: *`), and implements `DeleteIf` and `ReplaceIf` as a read of the object and a delete or a put conditional on its entity tag (`If-Match`). A store that ignores either condition lets two commands that judge the same lock both act on it. `$settings.state` selects the backend; `openStateStore` builds it. `openStateReadOnly` wraps a backend so that commands that only look write nothing, not even `meta.json`.
+
+`Set`, `Refresh` and `Remove` encode and write outside the mutex that guards the maps of the store, so a read of the graph does not wait for a backend. One of 64 mutexes, chosen by address, orders the writes of one record. The revision, the generation and the times are set on a copy; the node of the store is replaced, and the node that was passed in is updated, only when the backend has acknowledged the write, so a write that fails changes nothing in memory. `Refresh` reads the record from the backend once more, under the stripe, and writes nothing and returns `ErrChanged` when its revision or generation is not that of the node the store holds; `Engine.recordRefresh` prints a warning in that case. `Verify` is the same check for a command that rewrites a node from the copy it holds, and `LockDependents` locks the records that depend on a node and verifies them, for `moveNode` and `state mv`, which rewrite the dependencies of those records. The local backend acknowledges a write once the file is renamed into place and does not flush it to disk.
+
+```text
+<state>/
+  meta.json                format (2, or 3 once a record has a mark), lineage, creation time
+  resources/<addr>.json    one record per resource or data source
+  outputs.json             recorded outputs
+  outputs.lock             present while a command updates outputs.json
+  txn/<id>.json            one file per recorded transaction
+  locks/<addr>.lock        one file per lock or reservation
+```
+
+`<addr>` is the CUE path of the resource. `encodeAddr` writes every character other than letters, digits, `.`, `_` and `-` as `%` and four hexadecimal digits.
+
+A record (`state.Resource`) holds `addr`, `mode`, `type`, `name`, `provider`, `provider_key`, `provider_protocol`, `provider_version`, `schema_version`, `attributes`, `private`, `dependencies`, `config_hash`, `provider_config`, `revision`, `generation`, `refreshed_at`, `applied_at`, `updated_at` and `txn`. `Set` increments the revision and gives a record that has no generation the id of its transaction, which a record that is removed and written again has too, at revision 1; a record written before generations were recorded has none until `Set` writes it. `Refresh` keeps the revision and the generation when only timestamps differ. Dependents and the blast radius are derived from `dependencies` (`Dependents`, `Reach`, `Edges`). A record that a read marked also holds `drifted_at` and, for an object that does not exist, `gone`; `Refresh` counts a change of either as a change, so the revision moves.
+
+A transaction (`state.Transaction`) holds `id` (`<UTC time>-<6 hex digits>`), `kind` (`plan`, `apply`, `destroy`, `import`, `edit`), `command`, `user`, `host`, times, `status` (`running`, `planned`, `applied`, `rejected`, `failed`), `summary`, the changes with before and after revisions, and the actor, reason, git revision and trace id. `Txn.Start` writes the file with the status `running`, and `Txn.Finish` replaces it; `Finish` writes the file only when the transaction recorded a change or the caller asks for it. A command that is killed leaves the file as it is. `Store.Interrupted` finds the running transactions that no lock which is not stale carries the id of, and `state log` shows them as `interrupted`.
+
+A lock (`state.Lock`) holds the process id, host, user, command, transaction, a per-process nonce, the actor, `since`, `renewed_at`, `kind` (`lock` or `reservation`) and, for a reservation, `expires`. `Store.lock` creates it with `PutIfAbsent` and reads a lock that exists with `readHolder`, which keeps the bytes it read and reads again a lock that cannot be parsed before it takes it for broken, for a filesystem that creates a lock before it writes it. A lock that is stale, or broken, or a reservation of the owner is replaced by deleting it with `deleteLock`, which is a `DeleteIf` on the bytes that were read, and creating it again; a lock that was taken since is another object and is not deleted. `Renew` is a `ReplaceIf` and `Unlock` a `DeleteIf` that check the nonce of the lock they act on, so a command whose lock was reclaimed neither renews nor deletes the lock of the command that reclaimed it; `Unlock` leaves a lock that cannot be read. `Store.Conflict` returns what `Lock` would return and takes nothing. `stale` decides whether another process may reclaim it: a reservation after its expiry; a lock whose process is gone on this host (local backend); any lock not renewed for `state.StaleAfter`. `Locks` sets `Lock.Stale` from it, and `ReleaseStale` deletes the stale locks. `HeartbeatInterval` is 2 minutes and `StaleAfter` 10. `ReserveAll` takes reservations for all addresses or none. The lock on `outputs.json` is taken the same way; an update waits for it for `outputsLockWait`, which is longer than `outputsLockStale`, the time after which the lock of a holder on another host is reclaimed.
+
+`state.Copy` backs `state pull` and `state push`. `tfstate.Convert` backs `state import-tfstate`.
+
+## 4. Providers and the plugin layer
+
+`config` turns each provider struct's `$version`, `$path`, `$protocol`, `$address` and `$from` into a `ProviderReq`. `config.ScanProviders` reads the literal `$version`, `$path`, `$protocol` and `$address` from the syntax of every `.cue` file below the module root, without evaluating, so that `init` can install providers before the specification can load.
+
+`Providers.Resolve` chooses a binary for each requirement, in this order: replay mode; reattach (`$protocol: "tfplugin+reattach"` with `$address`, or `TF_REATTACH_PROVIDERS`); `$path`; the version in `pravo.lock.cue` when it satisfies the constraint; the newest version the source offers for this platform with plugin protocol 5 or 6 (`registry.Client.Resolve`). `FindInstalled` looks in `$PRAVO_HOME/providers`, then `$TF_PLUGIN_CACHE_DIR`, then `~/.terraform.d/plugin-cache`. `Install` downloads the archive, compares its SHA-256 with the source's checksum, unpacks it and returns the hash that `UpdateLock` pins per platform.
+
+A source is `[host/]namespace/type` on a provider registry (default host `registry.opentofu.org`) or `oci://host/path/type` in a container registry, where each version is a tag on an image index with one manifest per platform. `providers copy` writes such a repository.
+
+`Providers.Provider(ctx, key)` starts one process per provider instance on first use and configures it once: `ConfigConvert` converts the provider struct's current value (so provider configuration may reference resources and ephemeral values), then `ValidateProviderConfig` and `Configure`. `Unconfigured` serves function calls. `Close` stops every process it started and only disconnects from a reattached one.
+
+`plugin.Start` launches the binary with go-plugin: the magic cookie handshake, versioned plugins 5 and 6, gRPC only, automatic mTLS. `v5` and `v6` adapt the generated clients in `internal/tfplugin/tfplugin5` and `tfplugin6` to the `plugin.Provider` interface. `plugin.Reattach` connects to a running provider, probing protocol 6 then 5 unless told, and accepts a unix socket or a loopback TCP address. `plugin.Wrap` adds a `Recorder` when `PRAVO_RECORD` names a directory, a replayer when `PRAVO_REPLAY` does, and `Traced` when telemetry is on. A recorded response is keyed by method and a digest of the request. The recording directory has mode `0700` and each file `0600`. The stored request keeps the plain fields `name`, `type` and `version` and no configuration, state or private data; the responses are stored as they were returned.
+
+`internal/tfplugin/proto/*.proto` are copies of the protocol definitions. `tools/protogen` produces the message types: `go run ./tools/protogen internal/tfplugin/proto tfplugin6.proto internal/tfplugin/tfplugin6`. The client stubs are written by hand for the RPCs pravo uses.
+
+## 5. Schema generator
+
+`schema.ProviderSchema` holds the provider block, resources, data sources, ephemeral resources and functions as returned by `GetProviderSchema`. Its JSON form is cached at `$PRAVO_HOME/schemas/<source>/<version>.json`; `CacheVersion` invalidates old caches.
+
+`schema.GenerateCUE` writes one package per provider. `session.writeGenerated` places it at `cue.mod/gen/pravo.dev/providers/<namespace>/<type>/<package>_gen.cue` (a non-default host adds a path element before the namespace; `oci/<host>` precedes an OCI source) and writes `cue.mod/gen/pravo.dev/pravo/settings_gen.cue` from `schema.SettingsPackage`. The package exports `#Provider`. `#Resource`, `#Data`, `#Ephemeral` and `#Function` are members of it, which is how a resource built as `$p.#Resource.type & {...}` names its provider. Each definition of a resource, data source, ephemeral resource or function carries `$kind`, `$type` and `$source`; `#Provider` carries `$kind` and `$source`. `$from`, `$import`, `$depends_on` and `$lifecycle` come from constants in `cue.go`. Attribute mapping:
+
+| Provider schema | CUE |
+|---|---|
+| required attribute | `name: T` |
+| optional attribute | `name?: T` |
+| computed attribute, optional or not | `name: T \| null` |
+| `list`, `set` | `[...T]` |
+| `map` | `{[string]: T}` |
+| `tuple` | `[T1, T2]` |
+| `object`, nested block | a struct, a list of structs or a map of structs by nesting mode; block fields are optional |
+| `dynamic` | `_` |
+
+`CUEType` renders types. A field name that is not a plain identifier, or is a CUE keyword, is quoted. When any attribute is named `string`, `number`, `bool`, `int`, `float`, `bytes` or `len`, the file refers to the types as `__string`, `__number` and `__bool`. A package name that is a CUE keyword gets a trailing underscore, and one that starts with a digit gets a `p` prefix. The description becomes a comment; `sensitive`, `deprecated` and `write_only` become `@pravo(...)` attributes.
+
+`init` runs `loadOrGenerate`: when the specification does not load, it scans providers from the imports (`LoadSettingsWith`), generates their packages, and loads again, up to six rounds to find providers that only an imported module needs.
+
+## 6. Modules and the lock file
+
+A shared module is a CUE module. `FindModuleRoot` walks up to the nearest `cue.mod`, so several roots may share one module and its generated packages. Dependencies come from `deps` in `cue.mod/module.cue` through the CUE loader; `ConfigureRegistry` maps `github.com/<owner>` to `ghcr.io/<owner>/cue` when `CUE_REGISTRY` is unset. `pravo mod` runs the embedded `cue mod` commands in the same process.
+
+`pravo.lock.cue` is CUE without a package clause. `engine.Lock` holds `providers` (version, constraints, hashes per platform) and `modules` (version, content hash). `UpdateModules` returns `ErrModuleChanged`, exit 5, when a locked version has different content; `init` relocks.
+
+## 7. Machine interface
+
+`--json` prints one document on standard output and moves text to standard error. `apply` and `destroy` stream `engine.Event` lines (`kind`, `addr`, `phase`, `id`, `elapsed_ms`, `txn`, `trace_id`) and end with a summary line. Errors print as `{"kind":"error","code":N,"message":...}`.
+
+`pravo mcp` reads JSON-RPC from standard input. Each tool in `mcpTools` builds an argument list, and `runSelf` runs the same executable with `--json --no-color`, the actor and reason, and, for `plan` and `apply`, the server's `--policy` arguments. `positional` refuses an argument that is empty or starts with `-`.
+
+`internal/telemetry` is off unless `OTEL_*` variables select an exporter (`otlp`, `console`). A command is a span; `engine plan`, `engine apply`, `resource <addr>` and `provider <RPC>` nest under it. Spans and metrics carry addresses, types, actions, counts and outcomes, never values. `TRACEPARENT` continues a caller's trace. `plog` writes the same events to standard error at `-v` (debug) and `-vv` (trace), and attaches them to the active span.
+
+## 8. tools/
+
+| Directory | Purpose |
+|---|---|
+| `tools/sitegen/` | Builds the site from `docs/` and `site/`. Flags and files are in `tools/sitegen/README.md`; the HTML it writes is specified in `tools/sitegen/HTML.md`. |
+| `tools/sitegen/contrast/` | Reads the colour tokens of `site/assets/style.css` and checks every text and interface colour pair in both themes. |
+| `tools/capture/` | Runs the examples in the documentation and compares their output with the pages. A page can start `fakes3` or `fakeoci` through `services` and set variables through `env`. See `tools/capture/README.md`. |
+| `tools/hclcheck/` | Runs every `hcl` listing of `docs/` and `site/demos/` through `tofu fmt`, `init` and `validate`; `claims.sh` checks the statements about OpenTofu behaviour. See `tools/hclcheck/README.md`. |
+| `tools/fakes3/` | `go run ./tools/fakes3 -addr 127.0.0.1:9000` serves an in-memory bucket for the `s3` state backend. |
+| `tools/fakeoci/` | `go run ./tools/fakeoci -addr 127.0.0.1:5000` serves an in-memory container registry for `pravo mod publish` and `providers copy`. |
+| `tools/protogen/` | Compiles the plugin protocol `.proto` files to Go messages without `protoc`. |
+
+`sitegen` runs these steps: `discover` and `arrange` read pages and order them by section, group and `order`; the lint matches `banned.txt`; `loadGlossary` collects definitions; `renderPage` runs goldmark after a pre-pass (`scan`) that replaces containers and callouts with placeholders, renders code fences (`fence.go`, `highlight.go`, `output.go`), and collects headings; `prepareLanding` assembles `site/landing/*.html` and substitutes `{{data}}` and `{{json}}` tokens; `writeAll` writes pages, Markdown twins, the landing page, `contents.html`, the search index, the sitemap and the `llms` files; `checkOutput` verifies every link, fragment and identifier in the output.
+
+`capture` runs these steps: `collectPages`; `parsePage` finds fenced blocks, containers and parts; `prepareBinary` builds `./cmd/pravo` once, or uses `-bin`; `runPage` writes `file=` blocks into an empty workspace, runs each `run` block with `sh -c` through `runBlock`, normalises the output (`normalize.go`) and compares it with the `out` block, allowing `...` lines to stand for any lines; `-update` rewrites `out` blocks; `-json` records the blocks for `site/data`. A page with `services` in its front matter gets a fresh `fakes3` or `fakeoci` process (`services.go`) that is stopped when the page ends; pages that name the same port run one after another.
+
+## 9. Tests
+
+```sh
+go test ./...                 # every package
+go test -short ./...          # skips the tests that build the binary or run sitegen
+go vet ./...
+```
+
+| Package | How it tests |
+|---|---|
+| `internal/engine` | `harness_test.go` defines `fakeProvider`, an in-process provider of one resource type, so that plan, apply, saved plans, policies, reservations, replacement and write-only attributes run without a plugin process. |
+| `cmd/pravo` | `cli_test.go` defines `runPravo`, which runs the root command in the test process against a temporary directory made by `specDir`. `mcp_test.go` tests the arguments of the MCP tools. |
+| `internal/state` | Local backend tests, and `s3_test.go` against `internal/fakes3`. `internal/state/statetest` wraps a backend for the tests of other packages: `Counting` counts calls, `Latency` delays them and `Honouring` refuses a call made with a context that is done, as the S3 client does. |
+| `internal/config`, `internal/convert`, `internal/schema`, `internal/registry`, `internal/plugin`, `internal/tfstate`, `internal/ui`, `internal/plog`, `internal/telemetry` | Unit tests of each package. |
+| `tools/capture` | Unit tests; end-to-end tests with a stand-in `pravo` script in `testdata/fakepravo`; one test that builds the real binary; `TestAgreesWithSitegen`, which checks that `capture` and `sitegen` read the Markdown grammar the same way. |
+| `tools/sitegen` | Tests of fences, containers, highlighting, the lint, the link check and a build of the kitchen-sink pages in `testdata/`. |
+| `tools/sitegen/contrast` | The colour check as a test. |
+
+Tests that need a built binary or `go run` skip under `-short`; `TestDetectVersions` in `tools/sitegen` skips when no `pravo` binary exists at the module root.
+
+## 10. How the documentation is verified
+
+Every command shown on a page is a `run` block that `capture` executes with the real binary; the output beside it is an `out` block that `capture` compares. A page passes when nothing differs.
+
+| Command | Checks |
+|---|---|
+| `go run ./tools/capture -check ./docs` | Every page: commands, exit codes, output. `-update` rewrites `out` blocks from a run. |
+| `go run ./tools/sitegen -pravo-bin <binary>` | Front matter, containers, code attributes, links between pages, banned phrases in `docs/`, `site/` and `README.md`, landing partials and data tokens, then every link and fragment of the output. Takes the version line from the binary. |
+| `go run ./tools/sitegen -readme ARCHITECTURE.md -out <scratch directory>` | The same build with `ARCHITECTURE.md` in place of `README.md` for the banned-phrase check. |
+| `go run ./tools/hclcheck` | Every OpenTofu listing of the pages is valid, or marked as expected to fail. Needs `tofu` and the network. |
+| `sh tools/hclcheck/claims.sh` | The statements about OpenTofu behaviour that the pages make. |
+| `go run ./tools/sitegen/contrast` | Contrast of the style sheet. |
+| `go test ./tools/...` | The tools themselves. |
+
+`site/data/*.json` holds recorded output and values read from the sources. `site/demos/<name>/build.sh` records a demo with `capture -json` and derives the values its `embed.html` or the front page embeds; `go run site/demos/facts/facts.go` reads the state format and the plugin protocols.

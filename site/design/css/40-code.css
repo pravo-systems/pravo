@@ -1,0 +1,320 @@
+/* ==========================================================================
+   40 code windows, terminals, copy button, compare, tabs
+   Dark in both themes. Highlighting is done by the generator (tok-* spans).
+   ========================================================================== */
+
+.code, .term {
+  --status: var(--code-key);
+  position: relative;
+  margin: 1.75rem 0;
+  background: var(--code-bg);
+  color: var(--code-text);
+  border: 1px solid var(--code-edge);
+  border-radius: var(--r);
+  font-family: var(--font-mono);
+  font-size: .8125rem;
+  line-height: 1.7;
+  text-align: left;
+}
+.code[data-status="valid"], .term[data-status="valid"] { --status: var(--code-add); }
+.code[data-status="conflict"], .code[data-status="rejected"], .term[data-status="conflict"], .term[data-status="rejected"] { --status: var(--code-del); }
+.code[data-status="unintended"], .term[data-status="unintended"] { --status: var(--code-chg); }
+
+/* ---- title bar: three dots, a filename tab, a status badge ---- */
+.code-title {
+  display: flex;
+  align-items: stretch;
+  min-height: 2.5rem;
+  padding: 0 3.25rem 0 .9rem;
+  background: var(--code-bar);
+  border-bottom: 1px solid var(--code-edge);
+  border-radius: var(--r) var(--r) 0 0;
+  font: 500 .75rem/1 var(--font-mono);
+  color: var(--code-dim);
+}
+.code-title::before {
+  content: "";
+  align-self: center;
+  flex: none;
+  width: 7px; height: 7px;
+  margin: 0 31px 0 0;
+  border-radius: 50%;
+  background: #3a424f;
+  box-shadow: 14px 0 0 #3a424f, 28px 0 0 #3a424f;
+}
+.code-file {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: -1px;
+  padding: 0 1rem;
+  background: var(--code-bg);
+  border: 1px solid var(--code-edge);
+  border-top: 2px solid var(--status);
+  border-bottom-color: var(--code-bg);
+  color: var(--code-text);
+  letter-spacing: .01em;
+}
+.code-badge, .code-ran {
+  align-self: center;
+  margin-left: auto;
+}
+.code-ran { color: var(--code-dim); font-weight: 400; margin-left: .75rem; white-space: nowrap; }
+.code-ran + .code-badge, .code-badge + .code-ran { margin-left: .75rem; }
+.code-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .28rem .55rem .28rem .45rem;
+  border: 1px solid color-mix(in srgb, var(--status) 50%, transparent);
+  background: color-mix(in srgb, var(--status) 12%, transparent);
+  color: var(--status);
+  font: 600 .68rem/1 var(--font-mono);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.code-badge::before {
+  content: "";
+  width: .8rem; height: .8rem;
+  background: currentColor;
+  -webkit-mask: var(--i-check) center / contain no-repeat;
+  mask: var(--i-check) center / contain no-repeat;
+}
+[data-status="conflict"] .code-badge::before { -webkit-mask-image: var(--i-neq); mask-image: var(--i-neq); }
+[data-status="rejected"] .code-badge::before { -webkit-mask-image: var(--i-ban); mask-image: var(--i-ban); }
+[data-status="rejected"] .code-badge { border-style: dashed; }
+[data-status="unintended"] .code-badge::before { -webkit-mask-image: var(--i-bang); mask-image: var(--i-bang); }
+/* the exit code of a terminal that failed */
+.code-badge[data-exit] { --status: var(--code-del); border-color: color-mix(in srgb, var(--code-del) 50%, transparent); background: color-mix(in srgb, var(--code-del) 12%, transparent); color: var(--code-del); }
+.code-badge[data-exit]::before { -webkit-mask-image: var(--i-x); mask-image: var(--i-x); }
+.code-badge + .code-badge { margin-left: .5rem; }
+.code[data-status] .code-body { box-shadow: inset 2px 0 0 var(--status); }
+.code[data-status="rejected"] .code-body {
+  background-image: repeating-linear-gradient(315deg, rgba(255, 123, 107, .09) 0 1px, transparent 0 50%);
+  background-size: 10px 10px;
+  box-shadow: inset 2px 0 0 var(--status);
+}
+
+@media (max-width: 41rem) {
+  .code-title { padding-left: 0; padding-right: 2.9rem; }
+  .code-title::before, .code-ran { display: none; }
+  .code-file { padding: 0 .85rem; }
+  .code-badge { flex: none; margin-left: auto; letter-spacing: .05em; }
+}
+
+/* ---- body ---- */
+.code-body { overflow-x: auto; scrollbar-width: thin; scrollbar-color: #3a424f transparent; border-radius: 0 0 var(--r) var(--r); }
+.code pre, .term pre { margin: 0; padding: .9rem 0; font: inherit; tab-size: 4; }
+.code code, .term code { display: block; min-width: max-content; font: inherit; color: inherit; background: none; border: 0; padding: 0; }
+.code code:has(> .line) { white-space: normal; counter-reset: ln; }
+.line { display: block; white-space: pre; padding: 0 1.1rem 0 1.15rem; min-height: 1.7em; }
+.line.hl { background: var(--code-hl); box-shadow: inset 2px 0 0 var(--code-key); }
+/* a highlighted line says so to a screen reader; generated text is not copied */
+.line.hl::before {
+  content: "highlighted: ";
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.line.add, .line.ins { background: rgba(94, 224, 168, .1); box-shadow: inset 2px 0 0 var(--code-add); }
+.line.del { background: rgba(255, 123, 107, .1); box-shadow: inset 2px 0 0 var(--code-del); }
+
+/* line numbers: shown when the figure carries data-ln */
+.ln { display: none; }
+.code[data-ln] .ln {
+  display: inline-block;
+  width: 2.2ch;
+  margin-right: 1.8ch;
+  text-align: right;
+  color: var(--code-dim);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.code[data-ln] .line { counter-increment: ln; }
+.code[data-ln] .ln:empty::before { content: counter(ln); }
+
+/* ---- tokens ---- */
+.tok-kw { color: var(--tok-kw); }
+.tok-def { color: var(--tok-def); }
+.tok-type { color: var(--tok-type); }
+.tok-fn { color: var(--tok-fn); }
+.tok-str { color: var(--tok-str); }
+.tok-num { color: var(--tok-num); }
+.tok-com { color: var(--tok-com); font-style: italic; }
+.tok-op { color: var(--tok-op); }
+.tok-id { color: var(--tok-id); }
+
+/* no title bar: keep the first line clear of the copy button */
+.code:not(:has(> .code-title)) .line:first-child { padding-right: 2.6rem; }
+.code:not(:has(> .code-title)) .copy { background: var(--code-bar); border-color: var(--code-edge); }
+@media (hover: hover) {
+  .code:not(:has(> .code-title)) .copy { opacity: 0; transition: opacity var(--t-fast), color var(--t-fast), background-color var(--t-fast), border-color var(--t-fast); }
+  .code:not(:has(> .code-title)):hover .copy, .code:not(:has(> .code-title)) .copy:focus-visible, .code:not(:has(> .code-title)) .copy.is-copied { opacity: 1; }
+}
+
+/* ---- copy button ---- */
+.copy {
+  position: absolute;
+  top: .3rem; right: .4rem;
+  z-index: 3;
+  display: inline-grid;
+  place-items: center;
+  width: 1.9rem; height: 1.9rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--code-dim);
+  font-size: 0;
+  line-height: 0;
+  transition: color var(--t-fast), background-color var(--t-fast), border-color var(--t-fast);
+}
+.copy::before {
+  content: "";
+  width: 1rem; height: 1rem;
+  background: currentColor;
+  -webkit-mask: var(--i-copy) center / contain no-repeat;
+  mask: var(--i-copy) center / contain no-repeat;
+}
+.copy:hover { color: var(--code-text); background: rgba(255, 255, 255, .07); }
+.copy.is-copied { color: var(--code-add); border-color: color-mix(in srgb, var(--code-add) 40%, transparent); }
+.copy.is-copied::before { -webkit-mask-image: var(--i-check); mask-image: var(--i-check); }
+.copy.is-copied::after {
+  content: "Copied";
+  position: absolute;
+  right: calc(100% + .4rem); top: 50%;
+  transform: translateY(-50%);
+  padding: .25rem .5rem;
+  background: var(--code-bar);
+  border: 1px solid var(--code-edge);
+  color: var(--code-add);
+  font: 500 .68rem/1 var(--font-mono);
+  letter-spacing: .04em;
+}
+.copy:focus-visible { outline-color: var(--code-key); }
+html:not(.js) .copy { display: none; }
+
+/* ---- terminal ---- */
+.term { --status: var(--code-add); }
+.term[data-exit]:not([data-exit="0"]) { --status: var(--code-del); }
+.term .code-title { padding-right: 3.25rem; }
+.term .code-file { border-top-color: var(--status); }
+/* where the output was captured: a faint receipt in the corner */
+.term[data-ran]::after {
+  content: "ran on " attr(data-ran);
+  position: absolute;
+  right: .9rem; bottom: .45rem;
+  font: 400 .68rem/1 var(--font-mono);
+  letter-spacing: .03em;
+  color: var(--code-dim);
+  pointer-events: none;
+}
+.term[data-ran] .term-body { padding-bottom: 1.6rem; }
+.term-body { padding: .9rem 0; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #3a424f transparent; }
+/* a window that scrolls sideways shows a faint edge on the side where the text continues.
+   The first two layers move with the text and cover the edge once the end is reached. */
+.code-body, .term-body {
+  background:
+    linear-gradient(to right, var(--code-bg), var(--code-bg)) left center / 1rem 100% no-repeat local,
+    linear-gradient(to left, var(--code-bg), var(--code-bg)) right center / 1rem 100% no-repeat local,
+    linear-gradient(to right, rgba(255, 255, 255, .11), transparent) left center / .6rem 100% no-repeat scroll,
+    linear-gradient(to left, rgba(255, 255, 255, .11), transparent) right center / .6rem 100% no-repeat scroll;
+}
+.term-line { display: flex; gap: 1.1ch; padding: 0 1.15rem; white-space: pre; min-width: max-content; }
+.term-line .prompt { color: var(--code-chg); user-select: none; -webkit-user-select: none; }
+.term-line .cmd-text { color: var(--code-text); font-weight: 500; }
+.term pre.term-out { padding: 0; margin-top: .35rem; }
+.term-out code { padding: 0 1.15rem; color: var(--code-text); opacity: .94; }
+.term-line + .term-line { margin-top: .1rem; }
+.term-out + .term-line, .term-line + .term-out { margin-top: .35rem; }
+.out-add { color: var(--code-add); }
+.out-change { color: var(--code-chg); }
+.out-replace { color: var(--code-chg); font-weight: 600; }
+.out-destroy { color: var(--code-del); }
+.out-err { color: var(--code-del); font-weight: 600; }
+.out-dim { color: var(--code-dim); }
+.term .term-body > .term-out:first-child { margin-top: 0; }
+
+/* ---- compare: same intent side by side, stacked on phones ---- */
+.compare {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.75rem 0;
+  align-items: stretch;
+}
+.compare[data-count="1"] { --n: 1; }
+.compare[data-count="2"] { --n: 2; }
+.compare[data-count="3"] { --n: 3; }
+.compare[data-count="4"] { --n: 2; }
+.compare > .code, .compare > .term { margin: 0; display: flex; flex-direction: column; }
+.compare > .code .code-body { flex: 1; }
+.compare .code-title { padding-right: 3.25rem; }
+.compare .code-title::before { display: none; }
+@media (max-width: 51.24rem) {
+  .compare { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- tabs ---- */
+.tabs { margin: 1.75rem 0; }
+.tabs .code, .tabs .term { margin: 0; }
+.tab-list {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--line-strong);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-list::-webkit-scrollbar { display: none; }
+.tab-list [role="tab"] {
+  position: relative;
+  flex: none;
+  min-height: 2.6rem;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: 500 .8125rem/1 var(--font-mono);
+  white-space: nowrap;
+  transition: color var(--t-fast), background-color var(--t-fast);
+}
+.tab-list [role="tab"]::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform var(--t-med) var(--ease);
+}
+.tab-list [role="tab"]:hover { color: var(--text); background: var(--surface-2); }
+.tab-list [role="tab"][aria-selected="true"] { color: var(--text); }
+.tab-list [role="tab"][aria-selected="true"]::after { transform: scaleX(1); }
+.tab-panel { padding-top: 1rem; }
+.tab-panel:focus-visible { outline-offset: 4px; }
+/* without script, panels stack and the tab list is not shown */
+.tabs:not(.is-ready) .tab-list { display: none; }
+.tabs:not(.is-ready) .tab-panel + .tab-panel { margin-top: 1rem; }
+.tab-panel[data-title]::before {
+  content: attr(data-title);
+  display: block;
+  margin-bottom: .5rem;
+  font: 500 .72rem/1.3 var(--font-mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.tabs.is-ready .tab-panel[data-title]::before { display: none; }
+
+@media (pointer: coarse) {
+  .code-title { min-height: 2.75rem; }
+  .copy { top: 0; right: 0; width: 2.75rem; height: 2.75rem; }
+  .tab-list [role="tab"] { min-height: 2.75rem; }
+}

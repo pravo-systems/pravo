@@ -1,0 +1,249 @@
+{
+  "source": "front matter of 24 of 24 pages in docs/learn; the page map for the rest",
+  "found": 24,
+  "total": {
+    "lessons": 24,
+    "minutes": 272
+  },
+  "extra": {
+    "pages": 8,
+    "minutes": 153,
+    "labs": 2,
+    "project": 1,
+    "companions": 5
+  },
+  "a": {
+    "name": "Track A",
+    "title": "CUE from zero",
+    "lessons": 14,
+    "minutes": 136,
+    "first": "learn/a01-your-data-is-already-cue.html",
+    "stops": [
+      {
+        "id": "A1",
+        "page": "learn/a01-your-data-is-already-cue.html",
+        "title": "Your data is already CUE",
+        "short": "Your data is already CUE",
+        "minutes": 6,
+        "idea": "A CUE file may contain plain JSON. You shorten it one piece of punctuation at a time, and the data never changes.",
+        "from": "front matter"
+      },
+      {
+        "id": "A2",
+        "page": "learn/a02-a-value-can-be-a-type.html",
+        "title": "A value can be a type",
+        "short": "A value can be a type",
+        "minutes": 8,
+        "idea": "In CUE, int and 30 are both values. One allows every integer and the other allows one.",
+        "from": "front matter"
+      },
+      {
+        "id": "A3",
+        "page": "learn/a03-writing-a-field-twice.html",
+        "title": "Writing a field twice",
+        "short": "Writing a field twice",
+        "minutes": 10,
+        "idea": "Writing a field twice adds detail. The copies must agree, and a disagreement is an error, not an override.",
+        "from": "front matter"
+      },
+      {
+        "id": "A4",
+        "page": "learn/a04-order-does-not-matter.html",
+        "title": "Order does not matter",
+        "short": "Order does not matter",
+        "minutes": 8,
+        "idea": "Lines and files can come in any order. The result is the same, so there is no precedence list to learn.",
+        "from": "front matter"
+      },
+      {
+        "id": "A5",
+        "page": "learn/a05-constraints-narrow-a-value.html",
+        "title": "Constraints narrow a value",
+        "short": "Constraints narrow a value",
+        "minutes": 9,
+        "idea": "A rule in CUE is a value written on the field. Bounds and regular expressions narrow what the field may hold.",
+        "from": "front matter"
+      },
+      {
+        "id": "A6",
+        "page": "learn/a06-choices-and-defaults.html",
+        "title": "Choices and defaults",
+        "short": "Choices and defaults",
+        "minutes": 9,
+        "idea": "Offer a short list of values, mark one as the default, and select it from the command line.",
+        "from": "front matter"
+      },
+      {
+        "id": "A7",
+        "page": "learn/a07-required-optional-regular.html",
+        "title": "Required, optional, regular",
+        "short": "Required, optional, regular",
+        "minutes": 8,
+        "idea": "Decide for each field whether it must be supplied, may be supplied, or is a plain field.",
+        "from": "front matter"
+      },
+      {
+        "id": "A8",
+        "page": "learn/a08-definitions-reject-typos.html",
+        "title": "Definitions reject typos",
+        "short": "Definitions reject typos",
+        "minutes": 10,
+        "idea": "Write a shape once, build values from it, and let the shape refuse every field it does not declare.",
+        "from": "front matter"
+      },
+      {
+        "id": "A9",
+        "page": "learn/a09-patterns.html",
+        "title": "One rule for every entry",
+        "short": "One rule for every entry",
+        "minutes": 8,
+        "idea": "Write a rule once for every entry of a collection with a pattern. Each entry states only what differs.",
+        "from": "front matter"
+      },
+      {
+        "id": "A10",
+        "page": "learn/a10-comprehensions.html",
+        "title": "Generating fields from data",
+        "short": "Generating fields from data",
+        "minutes": 12,
+        "idea": "Build fields from a list or a struct with for. Choose keys that stay the same when the data is reordered.",
+        "from": "front matter"
+      },
+      {
+        "id": "A11",
+        "page": "learn/a11-references-let-hidden.html",
+        "title": "Naming a value once",
+        "short": "Naming a value once",
+        "minutes": 8,
+        "idea": "Use the value of one field in another. Keep helper values out of the output with let. Share them across files with hidden fields.",
+        "from": "front matter"
+      },
+      {
+        "id": "A12",
+        "page": "learn/a12-conditions-and-strings.html",
+        "title": "Conditions and strings",
+        "short": "Conditions and strings",
+        "minutes": 8,
+        "idea": "Include a field only when a condition holds. Build strings from values. See why a condition needs a concrete value.",
+        "from": "front matter"
+      },
+      {
+        "id": "A13",
+        "page": "learn/a13-packages-and-the-standard-library.html",
+        "title": "Packages and the standard library",
+        "short": "Packages and the standard library",
+        "minutes": 12,
+        "idea": "Import validators and functions from the standard library, and share a definition between directories with your own package.",
+        "from": "front matter"
+      },
+      {
+        "id": "A14",
+        "page": "learn/a14-project-three-environments.html",
+        "title": "Project, three environments from one definition",
+        "short": "Project",
+        "minutes": 20,
+        "idea": "Write one specification from a brief. It runs in dev, staging and prod, is stricter in prod, and refuses every other environment.",
+        "from": "front matter"
+      }
+    ]
+  },
+  "b": {
+    "name": "Track B",
+    "title": "pravo",
+    "lessons": 10,
+    "minutes": 136,
+    "first": "learn/b01-providers-and-resources.html",
+    "stops": [
+      {
+        "id": "B1",
+        "page": "learn/b01-providers-and-resources.html",
+        "title": "Providers and resources",
+        "short": "Providers and resources",
+        "minutes": 10,
+        "idea": "A provider is a struct built from a generated definition. A resource is a struct built through it. Its address is its path.",
+        "from": "front matter"
+      },
+      {
+        "id": "B2",
+        "page": "learn/b02-reading-a-plan.html",
+        "title": "Reading a plan",
+        "short": "Reading a plan",
+        "minutes": 12,
+        "idea": "A plan is a diff with a legend. Learn the glyphs, unknown values, the replacement marker and the Graph line, then predict three plans.",
+        "from": "front matter"
+      },
+      {
+        "id": "B3",
+        "page": "learn/b03-apply-outputs-state.html",
+        "title": "Apply, outputs, state",
+        "short": "Apply, outputs, state",
+        "minutes": 10,
+        "idea": "Apply a plan, read the outputs and open the state. A plan with no changes shows that a refactor changed nothing.",
+        "from": "front matter"
+      },
+      {
+        "id": "B4",
+        "page": "learn/b04-inputs-tags-environments.html",
+        "title": "Inputs, tags, environments",
+        "short": "Inputs, tags, environments",
+        "minutes": 12,
+        "idea": "Run one specification as dev, staging and prod. Use a constrained field, a tag and a state path derived from it.",
+        "from": "front matter"
+      },
+      {
+        "id": "B5",
+        "page": "learn/b05-many-resources-from-one-rule.html",
+        "title": "Many resources from one rule",
+        "short": "Many resources from one rule",
+        "minutes": 10,
+        "idea": "A comprehension produces resources. Each key becomes the last element of an address, so reordering the source replaces nothing.",
+        "from": "front matter"
+      },
+      {
+        "id": "B6",
+        "page": "learn/b06-modules-providers-credentials.html",
+        "title": "Modules, providers, credentials",
+        "short": "Modules, providers, credentials",
+        "minutes": 20,
+        "idea": "Share one definition between instances, pass a provider in as an input, and keep a credential out of the state.",
+        "from": "front matter"
+      },
+      {
+        "id": "B7",
+        "page": "learn/b07-changing-live-infrastructure.html",
+        "title": "Changing live infrastructure",
+        "short": "Changing live infrastructure",
+        "minutes": 15,
+        "idea": "Save a plan, apply exactly that plan or nothing, and apply it in stages. Read the refusal when the plan is stale.",
+        "from": "front matter"
+      },
+      {
+        "id": "B8",
+        "page": "learn/b08-renames-moves-imports.html",
+        "title": "Renames, moves, imports",
+        "short": "Renames, moves, imports",
+        "minutes": 15,
+        "idea": "Keep the object of a resource when its address changes, and adopt an object that already exists.",
+        "from": "front matter"
+      },
+      {
+        "id": "B9",
+        "page": "learn/b09-drift.html",
+        "title": "Drift: find and reconcile changes",
+        "short": "Drift: find and reconcile changes",
+        "minutes": 12,
+        "idea": "Change a resource outside pravo, find the change with pravo drift, and reconcile it in both directions.",
+        "from": "front matter"
+      },
+      {
+        "id": "B10",
+        "page": "learn/b10-policy.html",
+        "title": "Policy on providers and on plans",
+        "short": "Policy on providers and on plans",
+        "minutes": 20,
+        "idea": "A constraint on a provider binds every resource built through it, and a policy file judges what a plan does.",
+        "from": "front matter"
+      }
+    ]
+  }
+}

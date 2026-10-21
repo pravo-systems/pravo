@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="pravo">
+  <!-- pravo mark: the Hasse diagram of the simplest lattice. CUE's value
+       lattice is what makes unification, constraints and unknowns one thing. -->
+  <rect width="64" height="64" fill="#2f5d50"/>
+  <path d="M32 14 L14 32 L32 50 L50 32 Z" fill="none" stroke="#efe9d8" stroke-width="3.5"/>
+  <g fill="#efe9d8">
+    <rect x="27" y="9" width="10" height="10"/>
+    <rect x="9" y="27" width="10" height="10"/>
+    <rect x="45" y="27" width="10" height="10"/>
+    <rect x="27" y="45" width="10" height="10"/>
+  </g>
+</svg>
