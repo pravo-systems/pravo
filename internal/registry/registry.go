@@ -133,7 +133,7 @@ type Client struct {
 
 // NewClient returns a client using the default home directory.
 func NewClient() *Client {
-	return &Client{HTTP: http.DefaultClient, Home: Home()}
+	return &Client{HTTP: &http.Client{Transport: &retryTransport{}}, Home: Home()}
 }
 
 // Home returns $PRAVO_HOME or ~/.pravo.
