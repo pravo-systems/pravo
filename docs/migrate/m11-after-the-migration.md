@@ -16,7 +16,7 @@ normalize:
     replace: "[txn <txn>]"
   - pattern: "v[0-9]+\\.[0-9]+\\.[0-9]+"
     replace: "v<version>"
-  - pattern: "after [0-9]+s"
+  - pattern: "after ([0-9]+m)?[0-9.]+s"
     replace: "after 0s"
   - pattern: 'server_name: "acme-dev-[a-z]+-[a-z]+"'
     replace: 'server_name: "acme-dev-<pet>"'

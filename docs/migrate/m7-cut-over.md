@@ -20,7 +20,7 @@ normalize:
     replace: "[id=<id>]"
   - pattern: "\\(revision [0-9]+, plan expected [0-9]+\\)"
     replace: "(revision <n>, plan expected <n>)"
-  - pattern: "after [0-9]+s"
+  - pattern: "after ([0-9]+m)?[0-9.]+s"
     replace: "after 0s"
 ---
 

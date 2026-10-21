@@ -15,7 +15,7 @@ normalize:
     replace: "txn <txn>"
   - pattern: "created [0-9-]+ [0-9:]+"
     replace: "created <time>"
-  - pattern: "after [0-9]+s"
+  - pattern: "after ([0-9]+m)?[0-9.]+s"
     replace: "after 0s"
 keywords: "saved plan plan -out apply stale plan -target"
 ---

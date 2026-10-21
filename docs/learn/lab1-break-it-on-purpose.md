@@ -13,7 +13,7 @@ normalize:
     replace: ''
   - pattern: "txn [0-9TZ]+-[0-9a-f]+"
     replace: "txn <txn>"
-  - pattern: "after [0-9]+s"
+  - pattern: "after ([0-9]+m)?[0-9.]+s"
     replace: "after 0s"
   - pattern: "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})"
     replace: "<time>"

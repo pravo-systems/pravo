@@ -15,7 +15,7 @@ normalize:
     replace: "txn <txn>"
   - pattern: "(?m)^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}"
     replace: "<txn>"
-  - pattern: "after [0-9]+s"
+  - pattern: "after ([0-9]+m)?[0-9.]+s"
     replace: "after 0s"
   - pattern: "\\[id=[0-9a-f]{40}\\]"
     replace: "[id=<id>]"

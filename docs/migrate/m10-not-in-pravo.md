@@ -17,7 +17,7 @@ normalize:
     replace: "[txn <txn>]"
   - pattern: "\\[id=[a-z0-9-]+\\]"
     replace: "[id=<id>]"
-  - pattern: "after [0-9]+s"
+  - pattern: "after ([0-9]+m)?[0-9.]+s"
     replace: "after 0s"
 keywords: "workspace provisioner taint lifecycle precondition postcondition check"
 ---

@@ -14,7 +14,7 @@ normalize:
     replace: ""
   - pattern: "\\[id=[a-z-]+\\]"
     replace: "[id=<id>]"
-  - pattern: "after [0-9]+s"
+  - pattern: "after ([0-9]+m)?[0-9.]+s"
     replace: "after 0s"
   - pattern: "\\[txn [0-9TZ]+-[0-9a-f]+\\]"
     replace: "[txn <txn>]"
