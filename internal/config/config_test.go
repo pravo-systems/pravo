@@ -469,7 +469,7 @@ shared: #RemoteOutputs & {state: {backend: "s3", bucket: "b", prefix: "net"}}
 	for _, res := range r.Resources {
 		got[res.Address()] = res
 	}
-	if l := got["local"]; l == nil || !l.Builtin || l.Mode != "builtin" || l.Remote == nil || !strings.HasSuffix(l.Remote.Dir, "/net/pravo.state") && !strings.HasSuffix(l.Remote.Dir, "net/pravo.state") {
+	if l := got["local"]; l == nil || !l.Builtin || l.Mode != "builtin" || l.Remote == nil || !strings.HasSuffix(filepath.ToSlash(l.Remote.Dir), "net/pravo.state") {
 		t.Errorf("local = %+v", l)
 	}
 	if s := got["shared"]; s == nil || s.Remote == nil || s.Remote.State.Backend != "s3" || s.Remote.State.Bucket != "b" {

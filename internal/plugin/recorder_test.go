@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -150,6 +151,9 @@ func walk(t *testing.T, dir string) (dirs, files map[string]fs.FileMode) {
 
 // A recording is as sensitive as state: only its owner reads it.
 func TestRecordingIsPrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not enforced on Windows")
+	}
 	root := filepath.Join(t.TempDir(), "rec")
 	dir := filepath.Join(root, "thing")
 	r, err := NewRecorder(recordedProvider{}, dir)
@@ -179,6 +183,9 @@ func TestRecordingIsPrivate(t *testing.T) {
 // A recording made into a directory and over files that exist from before is
 // private too. The directory above the recording is not touched.
 func TestRecordingTightensWhatItOwns(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not enforced on Windows")
+	}
 	root := filepath.Join(t.TempDir(), "rec")
 	dir := filepath.Join(root, "thing")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

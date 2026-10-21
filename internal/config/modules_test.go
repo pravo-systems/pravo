@@ -62,8 +62,8 @@ func TestConfigureRegistryRespectsUser(t *testing.T) {
 }
 
 func TestModuleRootOf(t *testing.T) {
-	root, ver := moduleRootOf("/c/mod/extract/github.com/acme/vpc@v1.2.0/net/net.cue")
-	if root != "/c/mod/extract/github.com/acme/vpc@v1.2.0" || ver != "v1.2.0" {
+	root, ver := moduleRootOf(filepath.FromSlash("/c/mod/extract/github.com/acme/vpc@v1.2.0/net/net.cue"))
+	if root != filepath.FromSlash("/c/mod/extract/github.com/acme/vpc@v1.2.0") || ver != "v1.2.0" {
 		t.Errorf("moduleRootOf = %q %q", root, ver)
 	}
 }

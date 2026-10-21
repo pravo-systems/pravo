@@ -2,9 +2,7 @@ package engine
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -16,20 +14,14 @@ import (
 // before the edit or after it and never half of it. Two updates of one file
 // take turns: the second edits what the first wrote.
 //
-// The lock is on the file that was opened and not on its name, which a rename
-// replaces; a lock that was taken on a file that has been replaced since is
-// given up and taken again on the new one. A filesystem that has no file locks
-// gets none.
+// The lock is not on the file, which the rename replaces; see filelock.Exclusive.
+// A filesystem that has no file locks gets none.
 func updatePlanFile(path string, edit func(*PlanFile) error) error {
 	if real, err := filepath.EvalSymlinks(path); err == nil {
 		path = real
 	}
-	f, err := lockPlanFile(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(f)
+	defer filelock.Exclusive(path)()
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -45,7 +37,7 @@ func updatePlanFile(path string, edit func(*PlanFile) error) error {
 		return err
 	}
 	perm := os.FileMode(0o600)
-	if info, err := f.Stat(); err == nil {
+	if info, err := os.Stat(path); err == nil {
 		perm = info.Mode().Perm()
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
@@ -68,31 +60,9 @@ func updatePlanFile(path string, edit func(*PlanFile) error) error {
 		_ = os.Remove(tmp.Name())
 		return werr
 	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
+	if err := filelock.Rename(tmp.Name(), path); err != nil {
 		_ = os.Remove(tmp.Name())
 		return err
 	}
 	return nil
-}
-
-// lockPlanFile opens the plan file and takes an exclusive lock on it. The
-// caller closes the file, which releases the lock.
-func lockPlanFile(path string) (*os.File, error) {
-	for {
-		f, err := os.Open(path)
-		if err != nil {
-			return nil, err
-		}
-		_ = filelock.Lock(f)
-		held, herr := f.Stat()
-		now, nerr := os.Stat(path)
-		switch {
-		case herr != nil || nerr != nil:
-			_ = f.Close()
-			return nil, errors.Join(herr, nerr)
-		case os.SameFile(held, now):
-			return f, nil
-		}
-		_ = f.Close()
-	}
 }

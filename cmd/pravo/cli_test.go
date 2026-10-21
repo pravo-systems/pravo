@@ -87,7 +87,7 @@ func TestInitInADirectoryWithoutASpecification(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("%s: init exited %d:\n%s", name, code, text)
 		}
-		for _, want := range []string{"Created cue.mod/module.cue", "There is no specification yet", `"pravo eval"`, `"pravo validate"`} {
+		for _, want := range []string{"Created " + filepath.Join("cue.mod", "module.cue"), "There is no specification yet", `"pravo eval"`, `"pravo validate"`} {
 			if !strings.Contains(text, want) {
 				t.Errorf("%s: the output lacks %q:\n%s", name, want, text)
 			}

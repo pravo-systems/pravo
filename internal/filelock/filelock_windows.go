@@ -3,13 +3,46 @@
 package filelock
 
 import (
+	"errors"
 	"os"
+	"time"
 
 	"golang.org/x/sys/windows"
 )
 
-// Lock waits for an exclusive lock on f. The lock covers the first byte of the
-// file, which is enough for the callers: they all lock the same byte.
-func Lock(f *os.File) error {
+// lock waits for an exclusive lock on the first byte of f, which the system
+// releases when f is closed.
+func lock(f *os.File) error {
 	return windows.LockFileEx(windows.Handle(f.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, new(windows.Overlapped))
+}
+
+// busy reports whether err says that another process has the file open.
+func busy(err error) bool {
+	return errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION) || errors.Is(err, windows.ERROR_LOCK_VIOLATION)
+}
+
+// retry runs fn until it succeeds or fails for another reason than a busy file,
+// for up to two seconds.
+func retry(fn func() error) error {
+	deadline := time.Now().Add(2 * time.Second)
+	for wait := 2 * time.Millisecond; ; wait *= 2 {
+		err := fn()
+		if err == nil || !busy(err) || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(wait)
+		if wait > 100*time.Millisecond {
+			wait = 100 * time.Millisecond
+		}
+	}
+}
+
+// Rename is os.Rename, tried again while the file at newpath is open elsewhere.
+func Rename(oldpath, newpath string) error {
+	return retry(func() error { return os.Rename(oldpath, newpath) })
+}
+
+// Remove is os.Remove, tried again while the file is open elsewhere.
+func Remove(path string) error {
+	return retry(func() error { return os.Remove(path) })
 }

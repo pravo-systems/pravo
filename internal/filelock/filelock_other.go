@@ -4,5 +4,11 @@ package filelock
 
 import "os"
 
-// Lock takes no lock on a system without file locks.
-func Lock(f *os.File) error { return nil }
+// lock takes no lock on a system without file locks.
+func lock(f *os.File) error { return nil }
+
+// Rename is os.Rename.
+func Rename(oldpath, newpath string) error { return os.Rename(oldpath, newpath) }
+
+// Remove is os.Remove.
+func Remove(path string) error { return os.Remove(path) }

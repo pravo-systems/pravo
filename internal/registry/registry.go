@@ -408,12 +408,22 @@ func FindBinary(dir, typ string) (string, bool) {
 			continue
 		}
 		info, err := e.Info()
-		if err != nil || info.Mode()&0o111 == 0 {
+		if err != nil || !executable(name, info.Mode()) {
 			continue
 		}
 		return filepath.Join(dir, name), true
 	}
 	return "", false
+}
+
+// executable reports whether a file of this name and mode is a program: on
+// Windows a file named for an executable type, elsewhere a file with an
+// execute bit.
+func executable(name string, mode os.FileMode) bool {
+	if runtime.GOOS == "windows" {
+		return strings.HasSuffix(strings.ToLower(name), ".exe")
+	}
+	return mode&0o111 != 0
 }
 
 // InstallResult describes an installed provider binary.

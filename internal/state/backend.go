@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -90,7 +89,7 @@ func (b *LocalBackend) Put(ctx context.Context, key string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, p); err != nil {
+	if err := filelock.Rename(tmp, p); err != nil {
 		_ = os.Remove(tmp)
 		return err
 	}
@@ -158,52 +157,23 @@ func (b *LocalBackend) PutIfAbsent(ctx context.Context, key string, data []byte)
 	return true, cerr
 }
 
-// open opens the object at key for DeleteIf and ReplaceIf and takes an
-// exclusive lock on the file, which every caller of the two takes before it
-// reads. The lock is on the file that was opened and not on the name: the name
-// may refer to another file by the time the lock is held, which open reports as
-// a nil file. The caller closes the file, which releases the lock. A filesystem
-// that has no file locks gets none.
-func (b *LocalBackend) open(key string) (*os.File, error) {
-	p := b.path(key)
-	f, err := os.Open(p)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	_ = filelock.Lock(f)
-	held, herr := f.Stat()
-	now, nerr := os.Stat(p)
-	switch {
-	case errors.Is(nerr, os.ErrNotExist):
-		_ = f.Close()
-		return nil, ErrNotFound
-	case herr != nil || nerr != nil:
-		_ = f.Close()
-		return nil, errors.Join(herr, nerr)
-	case !os.SameFile(held, now):
-		_ = f.Close()
-		return nil, nil
-	}
-	return f, nil
-}
-
+// DeleteIf reads the object and deletes it if match accepts what it read, while
+// no other DeleteIf or ReplaceIf of an object in the same directory runs, in
+// this process or in another.
 func (b *LocalBackend) DeleteIf(ctx context.Context, key string, match func(current []byte) bool) (bool, error) {
-	f, err := b.open(key)
-	if f == nil {
-		return false, err
+	p := b.path(key)
+	defer filelock.Exclusive(filepath.Dir(p))()
+	data, err := os.ReadFile(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, ErrNotFound
 	}
-	defer f.Close()
-	data, err := io.ReadAll(f)
 	if err != nil {
 		return false, err
 	}
 	if !match(data) {
 		return false, nil
 	}
-	if err := os.Remove(b.path(key)); err != nil {
+	if err := filelock.Remove(p); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, ErrNotFound
 		}
@@ -212,13 +182,15 @@ func (b *LocalBackend) DeleteIf(ctx context.Context, key string, match func(curr
 	return true, nil
 }
 
+// ReplaceIf reads the object and writes what update makes of it, under the
+// same lock as DeleteIf.
 func (b *LocalBackend) ReplaceIf(ctx context.Context, key string, update func(current []byte) ([]byte, bool)) (bool, error) {
-	f, err := b.open(key)
-	if f == nil {
-		return false, err
+	p := b.path(key)
+	defer filelock.Exclusive(filepath.Dir(p))()
+	data, err := os.ReadFile(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, ErrNotFound
 	}
-	defer f.Close()
-	data, err := io.ReadAll(f)
 	if err != nil {
 		return false, err
 	}
@@ -233,7 +205,7 @@ func (b *LocalBackend) ReplaceIf(ctx context.Context, key string, update func(cu
 }
 
 func (b *LocalBackend) Delete(ctx context.Context, key string) error {
-	err := os.Remove(b.path(key))
+	err := filelock.Remove(b.path(key))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}

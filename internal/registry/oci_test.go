@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -44,7 +45,11 @@ func TestOCICopyResolveInstall(t *testing.T) {
 	zp := filepath.Join(dir, "p.zip")
 	f, _ := os.Create(zp)
 	zw := zip.NewWriter(f)
-	hdr := &zip.FileHeader{Name: "terraform-provider-thing_v1.2.3", Method: zip.Deflate}
+	name := "terraform-provider-thing_v1.2.3"
+	if runtime.GOOS == "windows" {
+		name += ".exe" // a provider is a program only by its name there
+	}
+	hdr := &zip.FileHeader{Name: name, Method: zip.Deflate}
 	hdr.SetMode(0o755)
 	w, _ := zw.CreateHeader(hdr)
 	w.Write([]byte("#!/bin/sh\n"))
