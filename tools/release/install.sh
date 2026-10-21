@@ -30,7 +30,12 @@ esac
 
 tag=${PRAVO_VERSION:-}
 if [ -z "$tag" ]; then
-	tag=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
+	# The latest release is the newest one that is not a pre-release. Until there
+	# is one, the newest pre-release is the one to install.
+	tag=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1 || true)
+	if [ -z "$tag" ]; then
+		tag=$(curl -fsSL "https://api.github.com/repos/$repo/releases?per_page=1" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1 || true)
+	fi
 	[ -n "$tag" ] || fail "no release found; set PRAVO_VERSION to a tag such as v0.1.0-rc1"
 fi
 version=${tag#v}

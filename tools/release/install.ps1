@@ -19,7 +19,10 @@ $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
 
 $tag = $env:PRAVO_VERSION
 if (-not $tag) {
-	$tag = (Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest").tag_name
+	# The latest release is the newest one that is not a pre-release. Until there
+	# is one, the newest pre-release is the one to install.
+	try { $tag = (Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest").tag_name } catch { $tag = $null }
+	if (-not $tag) { $tag = (Invoke-RestMethod "https://api.github.com/repos/$repo/releases?per_page=1" | Select-Object -First 1).tag_name }
 	if (-not $tag) { throw "install: no release found; set PRAVO_VERSION to a tag such as v0.1.0-rc1" }
 }
 $version = $tag.TrimStart("v")
