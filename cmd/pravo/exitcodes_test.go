@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -42,7 +43,7 @@ func docTable(t *testing.T) (rows []struct {
 		t.Fatal(err)
 	}
 	row := regexp.MustCompile(`^\| (\d+) \| ([a-z]+) \| (.*) \|$`)
-	for _, line := range strings.Split(string(data), "\n") {
+	for _, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
 		m := row.FindStringSubmatch(line)
 		if m == nil {
 			continue
@@ -210,7 +211,7 @@ func exitScenarios() map[int][]exitScenario {
 			{"a policy file that does not exist", func(t *testing.T) (string, int) {
 				dir, _ := pendingDir(t)
 				return runPravo(t, dir, "plan", "--policy", filepath.Join(t.TempDir(), "missing.cue"))
-			}, "no such file"},
+			}, missingFileMessage},
 			{"a policy without a saved plan", func(t *testing.T) (string, int) {
 				dir, _ := pendingDir(t)
 				return runPravo(t, dir, "apply", "--policy", writePolicy(t, "any.cue", "summary: destroy: <=5\n"))
@@ -284,6 +285,9 @@ func TestProcessExitStatus(t *testing.T) {
 		t.Skip("no go tool on the path")
 	}
 	bin := filepath.Join(t.TempDir(), "pravo")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
 	build := exec.Command(goBin, "build", "-o", bin, ".")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
@@ -327,3 +331,11 @@ func TestProcessExitStatus(t *testing.T) {
 		t.Errorf("validate --json: exit status %d:\n%s", got, out)
 	}
 }
+
+// missingFileMessage is what the system says of a file that does not exist.
+var missingFileMessage = func() string {
+	if runtime.GOOS == "windows" {
+		return "cannot find the file specified"
+	}
+	return "no such file"
+}()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -62,7 +63,7 @@ func TestLocalBackendPutsOfOneKeyDoNotCollide(t *testing.T) {
 		}
 	}
 	info, err := os.Stat(filepath.Join(dir, "outputs.json"))
-	if err != nil || info.Mode().Perm() != 0o600 {
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Errorf("outputs.json mode = %v, %v; want 0600", info.Mode().Perm(), err)
 	}
 }

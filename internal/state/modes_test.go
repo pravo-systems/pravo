@@ -4,12 +4,16 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
 // State holds provider attributes in clear text, so what pravo creates is
 // readable by its owner only.
 func TestLocalStateIsPrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not enforced on Windows")
+	}
 	dir := filepath.Join(t.TempDir(), "pravo.state")
 	b, err := NewLocalBackend(dir)
 	if err != nil {
