@@ -198,7 +198,7 @@ pravo apply -auto-approve | tail -n 1
 Configuration does not load yet; generating schemas for the declared providers first.
 Providers:
   local = hashicorp/local v2.9.1
-  tls = hashicorp/tls v4.4.1
+  tls = hashicorp/tls v4.4.2
 Up to date cue.mod/gen/pravo.dev/providers/hashicorp/local (2 resource types, 3 data sources, 1 ephemeral, 1 functions)
 Up to date cue.mod/gen/pravo.dev/providers/hashicorp/tls (4 resource types, 2 data sources, 2 ephemeral, 0 functions)
 

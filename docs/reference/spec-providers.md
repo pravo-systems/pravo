@@ -252,7 +252,7 @@ pravo plan --json | jq -c '.changes[] | select(.addr == "key") | {addr, dependen
 Configuration does not load yet; generating schemas for the declared providers first.
 Providers:
   random = hashicorp/random v3.9.1
-  tls = hashicorp/tls v4.4.1
+  tls = hashicorp/tls v4.4.2
 Up to date cue.mod/gen/pravo.dev/providers/hashicorp/random (10 resource types, 0 data sources, 2 ephemeral, 0 functions)
 Up to date cue.mod/gen/pravo.dev/providers/hashicorp/tls (4 resource types, 2 data sources, 2 ephemeral, 0 functions)
 

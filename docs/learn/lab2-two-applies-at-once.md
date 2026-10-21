@@ -61,7 +61,7 @@ Configuration does not load yet; generating schemas for the declared providers f
 Created cue.mod/module.cue
 Providers:
   local = hashicorp/local v2.9.1
-  tls = hashicorp/tls v4.4.1
+  tls = hashicorp/tls v4.4.2
 ...
 pravo has been initialised. Run "pravo plan" to see what it would do.
 ...

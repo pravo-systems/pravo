@@ -13,7 +13,7 @@
       "command": "pravo init\npravo validate\npravo apply -auto-approve | tail -n 1",
       "expect_exit": 0,
       "exit": 0,
-      "output": "Configuration does not load yet; generating schemas for the declared providers first.\nProviders:\n  local = hashicorp/local v2.9.1\n  tls = hashicorp/tls v4.4.1\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/local (2 resource types, 3 data sources, 1 ephemeral, 1 functions)\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/tls (4 resource types, 2 data sources, 2 ephemeral, 0 functions)\n\npravo has been initialised. Run \"pravo plan\" to see what it would do.\nSuccess! 39 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 2 providers.\nApply complete! Resources: 39 added, 0 changed, 0 destroyed. [txn \u003cid\u003e]",
+      "output": "Configuration does not load yet; generating schemas for the declared providers first.\nProviders:\n  local = hashicorp/local v2.9.1\n  tls = hashicorp/tls v4.4.2\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/local (2 resource types, 3 data sources, 1 ephemeral, 1 functions)\nUp to date cue.mod/gen/pravo.dev/providers/hashicorp/tls (4 resource types, 2 data sources, 2 ephemeral, 0 functions)\n\npravo has been initialised. Run \"pravo plan\" to see what it would do.\nSuccess! 39 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 2 providers.\nApply complete! Resources: 39 added, 0 changed, 0 destroyed. [txn \u003cid\u003e]",
       "ok": true
     },
     {
