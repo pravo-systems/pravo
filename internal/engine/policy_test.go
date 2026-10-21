@@ -12,7 +12,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 
-	"pravo.dev/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/config"
 )
 
 // judge builds an engine that holds the given policy sources and judges view.

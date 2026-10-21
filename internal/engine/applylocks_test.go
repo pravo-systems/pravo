@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"pravo.dev/pravo/internal/plog"
-	"pravo.dev/pravo/internal/state"
-	"pravo.dev/pravo/internal/state/statetest"
+	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state/statetest"
 )
 
 // lockEstate is n independent resources, r000 and up, and in addition a data

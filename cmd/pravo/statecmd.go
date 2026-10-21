@@ -14,9 +14,9 @@ import (
 	cuejson "cuelang.org/go/encoding/json"
 	"github.com/spf13/cobra"
 
-	"pravo.dev/pravo/internal/state"
-	"pravo.dev/pravo/internal/tfstate"
-	"pravo.dev/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/tfstate"
+	"github.com/pravo-systems/pravo/internal/ui"
 )
 
 func stateCmd() *cobra.Command {

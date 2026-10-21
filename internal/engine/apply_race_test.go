@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // engineOn returns an engine for s that works on the store st, as a command of

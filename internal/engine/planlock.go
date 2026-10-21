@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"pravo.dev/pravo/internal/filelock"
+	"github.com/pravo-systems/pravo/internal/filelock"
 )
 
 // updatePlanFile reads the plan file under an exclusive lock, lets edit change

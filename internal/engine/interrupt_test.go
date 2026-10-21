@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"pravo.dev/pravo/internal/state"
-	"pravo.dev/pravo/internal/state/statetest"
+	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state/statetest"
 )
 
 // applying runs the apply of a plan in the background and returns the channel

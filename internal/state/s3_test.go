@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"pravo.dev/pravo/internal/fakes3"
+	"github.com/pravo-systems/pravo/internal/fakes3"
 )
 
 func newFakeS3(t *testing.T) (*fakes3.Server, *S3Backend) {

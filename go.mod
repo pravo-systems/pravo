@@ -1,4 +1,6 @@
-module pravo.dev/pravo
+// The Go module path. The CUE package that every specification imports,
+// pravo.dev/pravo, is a different name: the language's namespace, not Go's.
+module github.com/pravo-systems/pravo
 
 go 1.26.0
 

@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
-	pb5 "pravo.dev/pravo/internal/tfplugin/tfplugin5"
-	pb6 "pravo.dev/pravo/internal/tfplugin/tfplugin6"
+	pb5 "github.com/pravo-systems/pravo/internal/tfplugin/tfplugin5"
+	pb6 "github.com/pravo-systems/pravo/internal/tfplugin/tfplugin6"
 )
 
 // The stubs below stand in for a provider built on the plugin framework: they

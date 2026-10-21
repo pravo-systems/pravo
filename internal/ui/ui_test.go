@@ -8,8 +8,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 var pageType = tftypes.Object{AttributeTypes: map[string]tftypes.Type{

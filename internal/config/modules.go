@@ -13,7 +13,7 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/mod/modfile"
 
-	"pravo.dev/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/registry"
 )
 
 // ProviderPackagePrefix is the import path under which pravo generates

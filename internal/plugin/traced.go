@@ -8,8 +8,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/telemetry"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // Traced wraps a Provider so that every RPC is an OpenTelemetry span and a

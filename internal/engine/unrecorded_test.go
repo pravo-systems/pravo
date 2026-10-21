@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // flakyWrites fails the writes of chosen objects, as a connection that is reset

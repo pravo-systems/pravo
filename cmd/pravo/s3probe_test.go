@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/fakes3"
-	"pravo.dev/pravo/internal/state"
-	"pravo.dev/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/fakes3"
+	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/ui"
 )
 
 func probeRoot(t *testing.T, ignore bool) (*config.Root, state.Backend) {

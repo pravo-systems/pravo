@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"pravo.dev/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/registry"
 )
 
 func TestSourceOfPackage(t *testing.T) {

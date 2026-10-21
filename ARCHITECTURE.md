@@ -1,6 +1,6 @@
 # Architecture
 
-pravo is one Go binary, built from the module `pravo.dev/pravo`. It evaluates a CUE package, compares the result with a graph of recorded resources, and drives OpenTofu providers over the provider plugin protocol. This file describes how the code is arranged. The behaviour that users rely on is documented in `docs/`.
+pravo is one Go binary, built from the module `github.com/pravo-systems/pravo`. The name `pravo.dev/pravo` that appears in specifications is something else: the CUE package that `pravo init` generates and every specification imports. It evaluates a CUE package, compares the result with a graph of recorded resources, and drives OpenTofu providers over the provider plugin protocol. This file describes how the code is arranged. The behaviour that users rely on is documented in `docs/`.
 
 ```text
  *.cue files             internal/config          internal/convert

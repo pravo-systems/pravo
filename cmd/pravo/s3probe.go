@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/plog"
-	"pravo.dev/pravo/internal/registry"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // s3ProbeAge is how long the verdict on a store holds before pravo asks again.

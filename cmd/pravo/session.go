@@ -14,12 +14,12 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/plog"
-	"pravo.dev/pravo/internal/registry"
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // session bundles everything a command needs after loading the root.

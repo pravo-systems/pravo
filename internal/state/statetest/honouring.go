@@ -3,7 +3,7 @@ package statetest
 import (
 	"context"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // Honouring wraps a Backend and refuses every call made with a context that is

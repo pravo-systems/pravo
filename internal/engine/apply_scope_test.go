@@ -15,7 +15,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/config"
 )
 
 // walked records the tasks that the apply pass of e starts.

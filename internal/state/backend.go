@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"pravo.dev/pravo/internal/filelock"
+	"github.com/pravo-systems/pravo/internal/filelock"
 )
 
 // ErrNotFound is returned by Backend.Get for a missing key.

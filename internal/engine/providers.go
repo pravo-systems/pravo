@@ -13,12 +13,12 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/plog"
-	"pravo.dev/pravo/internal/plugin"
-	"pravo.dev/pravo/internal/registry"
-	"pravo.dev/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 // ResolvedProvider is a provider requirement resolved to a binary on disk.

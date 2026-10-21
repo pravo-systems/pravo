@@ -11,8 +11,8 @@ import (
 	goplugin "github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
-	"pravo.dev/pravo/internal/tfplugin/tfplugin5"
-	"pravo.dev/pravo/internal/tfplugin/tfplugin6"
+	"github.com/pravo-systems/pravo/internal/tfplugin/tfplugin5"
+	"github.com/pravo-systems/pravo/internal/tfplugin/tfplugin6"
 )
 
 // Handshake is the go-plugin handshake OpenTofu providers expect.

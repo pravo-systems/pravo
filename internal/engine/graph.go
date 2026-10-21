@@ -12,9 +12,9 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/plog"
 )
 
 // Parallelism bounds how many resources are planned or applied at once.

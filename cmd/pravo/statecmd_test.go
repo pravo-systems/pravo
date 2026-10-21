@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // importRoot makes a root with an empty specification and a copy of a state

@@ -55,7 +55,7 @@ func main() {
 		add(f)
 	}
 
-	param := fmt.Sprintf("M%s=pravo.dev/pravo/internal/tfplugin/%s;%s", file, pkg, pkg)
+	param := fmt.Sprintf("M%s=github.com/pravo-systems/pravo/internal/tfplugin/%s;%s", file, pkg, pkg)
 	req := &pluginpb.CodeGeneratorRequest{
 		FileToGenerate: []string{file},
 		Parameter:      proto.String(param),

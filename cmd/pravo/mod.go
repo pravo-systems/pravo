@@ -14,9 +14,9 @@ import (
 	cuecmd "cuelang.org/go/cmd/cue/cmd"
 	"github.com/spf13/cobra"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/ui"
 )
 
 // pravo mod: sharing modules. CUE's own module commands (init, tidy, get,

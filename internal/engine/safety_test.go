@@ -13,8 +13,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // targetSpec is a specification with two provider instances. The instance fake

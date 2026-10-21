@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/convert"
 )
 
 // ViewFormat is the layout version of the plan document.

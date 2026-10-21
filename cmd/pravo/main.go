@@ -19,11 +19,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/plog"
-	"pravo.dev/pravo/internal/plugin"
-	"pravo.dev/pravo/internal/telemetry"
-	"pravo.dev/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/telemetry"
+	"github.com/pravo-systems/pravo/internal/ui"
 )
 
 // Version is the pravo version string.

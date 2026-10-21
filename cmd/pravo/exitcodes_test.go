@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // exitCodeTable is the table of docs/reference/exit-codes.md as the code

@@ -17,12 +17,12 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/plugin"
-	"pravo.dev/pravo/internal/registry"
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/state"
-	"pravo.dev/pravo/internal/state/statetest"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state/statetest"
 )
 
 // fakeProvider is an in-process provider of one resource type, fake_thing,

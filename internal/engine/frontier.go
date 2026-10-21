@@ -3,8 +3,8 @@ package engine
 import (
 	"sort"
 
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // role says what the walk of an apply does with a task.

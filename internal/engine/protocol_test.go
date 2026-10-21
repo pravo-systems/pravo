@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"pravo.dev/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/config"
 )
 
 func loadSettings(t *testing.T, cue string) (*config.Root, error) {

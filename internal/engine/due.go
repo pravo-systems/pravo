@@ -8,10 +8,10 @@ import (
 	"sort"
 	"sync"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // DueReport is what DriftDue found.

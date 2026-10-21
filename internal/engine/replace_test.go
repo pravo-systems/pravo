@@ -7,8 +7,8 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 func TestCheckReplace(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // Counting wraps a Backend and counts the calls made through it, by operation

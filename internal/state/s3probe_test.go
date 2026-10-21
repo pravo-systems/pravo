@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"pravo.dev/pravo/internal/fakes3"
+	"github.com/pravo-systems/pravo/internal/fakes3"
 )
 
 // probeStore serves a fake store that mangles the conditional requests the way

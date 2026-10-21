@@ -16,8 +16,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/telemetry"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // pravo mcp: a Model Context Protocol server over stdio. Every tool runs the

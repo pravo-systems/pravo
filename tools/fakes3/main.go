@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"os"
 
-	"pravo.dev/pravo/internal/fakes3"
+	"github.com/pravo-systems/pravo/internal/fakes3"
 )
 
 func main() {

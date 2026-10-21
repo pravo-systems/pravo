@@ -8,7 +8,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 // Converter converts CUE values to tftypes values. Unknowns records whether

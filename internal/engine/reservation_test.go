@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // reserveRun is one pravo command run by an actor ("" for none) against the

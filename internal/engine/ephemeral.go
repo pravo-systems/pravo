@@ -9,9 +9,9 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/plugin"
 )
 
 // ActionOpen marks an ephemeral resource opened for the run.

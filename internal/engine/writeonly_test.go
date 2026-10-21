@@ -9,7 +9,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 func strAttr(name string, writeOnly bool) *schema.Attribute {

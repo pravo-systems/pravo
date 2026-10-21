@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 func TestCountingCountsByOperationAndPrefix(t *testing.T) {

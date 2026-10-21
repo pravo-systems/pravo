@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // Latency wraps a Backend and makes every call take at least Delay, as a call

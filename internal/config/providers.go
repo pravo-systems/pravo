@@ -13,7 +13,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/parser"
 
-	"pravo.dev/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/registry"
 )
 
 // ProviderDecl is a provider declared in the specification: a struct built

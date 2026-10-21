@@ -14,7 +14,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 
-	"pravo.dev/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/config"
 )
 
 // within fails the test when f has not returned after a while: a plan that

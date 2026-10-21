@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // fixture is a tfstate document (format version 4) with a managed resource

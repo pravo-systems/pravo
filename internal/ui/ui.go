@@ -14,9 +14,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/mattn/go-isatty"
 
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 // Printer writes coloured output.

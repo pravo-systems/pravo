@@ -7,7 +7,7 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"pravo.dev/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/registry"
 )
 
 // reservedTop lists the top-level fields that are not searched for

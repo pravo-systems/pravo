@@ -10,7 +10,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 func str(s string) tftypes.Value { return tftypes.NewValue(tftypes.String, s) }

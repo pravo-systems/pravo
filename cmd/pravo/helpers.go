@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/spf13/cobra"
 
-	"pravo.dev/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 func typesOf(ps *schema.ProviderSchema) map[string]tftypes.Type {

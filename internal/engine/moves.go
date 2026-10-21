@@ -7,11 +7,11 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/plugin"
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // ActionMove marks a record renamed by a "moved" declaration.

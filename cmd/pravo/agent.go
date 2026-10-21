@@ -13,10 +13,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/registry"
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/ui"
 )
 
 // Machine-facing surface: JSON output, attribution, explanations.

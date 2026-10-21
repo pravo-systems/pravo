@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // <, > and & are written as they are, in the values pravo encodes and in the

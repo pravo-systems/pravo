@@ -3,7 +3,7 @@ package engine
 import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 // withoutWriteOnly returns v with every write-only attribute set to null,

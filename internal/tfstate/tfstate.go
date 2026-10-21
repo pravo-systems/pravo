@@ -26,9 +26,9 @@ import (
 	"strconv"
 	"strings"
 
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/registry"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // Rename records an instance whose pravo address differs from its

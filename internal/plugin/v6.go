@@ -6,8 +6,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/schema"
-	pb "pravo.dev/pravo/internal/tfplugin/tfplugin6"
+	"github.com/pravo-systems/pravo/internal/schema"
+	pb "github.com/pravo-systems/pravo/internal/tfplugin/tfplugin6"
 )
 
 type v6 struct {

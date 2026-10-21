@@ -14,8 +14,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/telemetry"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // Recorder wraps a Provider and records every response under a directory,

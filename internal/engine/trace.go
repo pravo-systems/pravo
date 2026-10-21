@@ -8,9 +8,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/plog"
-	"pravo.dev/pravo/internal/telemetry"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // The spans below carry addresses, types, actions and counts, never

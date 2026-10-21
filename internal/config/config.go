@@ -23,7 +23,7 @@ import (
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/load"
 
-	"pravo.dev/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/registry"
 )
 
 // refreshAge matches the values of $settings.refresh and $lifecycle.refresh.

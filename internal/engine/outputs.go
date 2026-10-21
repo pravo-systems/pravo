@@ -11,10 +11,10 @@ import (
 	"cuelang.org/go/cue"
 	cuejson "cuelang.org/go/encoding/json"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/plog"
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // sensitiveKey marks a recorded output that listings must not show.

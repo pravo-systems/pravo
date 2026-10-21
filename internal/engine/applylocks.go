@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"pravo.dev/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // lockWidth is how many lock objects an apply takes, renews or releases at the

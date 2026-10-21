@@ -29,13 +29,13 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/plog"
-	"pravo.dev/pravo/internal/plugin"
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/state"
-	"pravo.dev/pravo/internal/telemetry"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // Action is what will happen to a resource.

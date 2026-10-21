@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"pravo.dev/pravo/internal/state"
-	"pravo.dev/pravo/internal/state/statetest"
+	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state/statetest"
 )
 
 // newLocks returns the set of locks of an apply on the store st.

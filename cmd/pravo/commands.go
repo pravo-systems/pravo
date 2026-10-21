@@ -19,13 +19,13 @@ import (
 	cuejson "cuelang.org/go/encoding/json"
 	"github.com/spf13/cobra"
 
-	"pravo.dev/pravo/internal/config"
-	"pravo.dev/pravo/internal/convert"
-	"pravo.dev/pravo/internal/engine"
-	"pravo.dev/pravo/internal/registry"
-	"pravo.dev/pravo/internal/schema"
-	"pravo.dev/pravo/internal/state"
-	"pravo.dev/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/ui"
 )
 
 func sortStrings(s []string) { sort.Strings(s) }

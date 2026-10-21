@@ -11,7 +11,7 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"pravo.dev/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/convert"
 )
 
 // manySpec is a specification of n independent resources named r000, r001 and

@@ -16,8 +16,8 @@ import (
 	"sync"
 	"testing"
 
-	"pravo.dev/pravo/internal/state"
-	"pravo.dev/pravo/internal/state/statetest"
+	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/state/statetest"
 )
 
 // A default plan looks at what a change reaches and at the records those nodes

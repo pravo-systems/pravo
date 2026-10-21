@@ -7,7 +7,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"pravo.dev/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 const testCfg = `
