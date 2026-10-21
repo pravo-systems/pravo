@@ -50,5 +50,8 @@ func Exclusive(name string) (unlock func()) {
 		_ = f.Close()
 		return func() {}
 	}
-	return func() { _ = f.Close() }
+	return func() {
+		unlockFile(f)
+		_ = f.Close()
+	}
 }

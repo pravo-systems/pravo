@@ -16,6 +16,12 @@ func lock(f *os.File) error {
 	return windows.LockFileEx(windows.Handle(f.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, new(windows.Overlapped))
 }
 
+// unlockFile releases the lock on f. Closing the file releases it too, but the
+// system may take its time over that, and the next command waits for it meanwhile.
+func unlockFile(f *os.File) {
+	_ = windows.UnlockFileEx(windows.Handle(f.Fd()), 0, 1, 0, new(windows.Overlapped))
+}
+
 // busy reports whether err says that another process has the file open.
 func busy(err error) bool {
 	return errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION) || errors.Is(err, windows.ERROR_LOCK_VIOLATION)

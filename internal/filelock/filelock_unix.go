@@ -19,6 +19,10 @@ func lock(f *os.File) error {
 	}
 }
 
+// unlockFile releases the lock on f before it is closed. The system does it
+// when the file is closed, which is enough here.
+func unlockFile(f *os.File) {}
+
 // Rename is os.Rename.
 func Rename(oldpath, newpath string) error { return os.Rename(oldpath, newpath) }
 
