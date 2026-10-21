@@ -43,13 +43,13 @@ jobs:
           - {os: windows, arch: amd64}
           - {os: windows, arch: arm64}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Package
         run: sh tools/release/package.sh "${{ needs.version.outputs.version }}" ${{ matrix.target.os }} ${{ matrix.target.arch }} dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pravo_${{ matrix.target.os }}_${{ matrix.target.arch }}
           path: dist/*
@@ -71,7 +71,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: pravo_${{ matrix.os }}_${{ matrix.arch }}
           path: dl
@@ -96,15 +96,15 @@ jobs:
       attestations: write
       actions: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: pravo_*
           path: dist
           merge-multiple: true
       - name: Checksums
         run: sh tools/release/checksums.sh dist
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/*
       - name: Create the release

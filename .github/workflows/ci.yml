@@ -28,8 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: gofmt
@@ -77,8 +77,8 @@ jobs:
             os: macos-latest
             run: go test -count=1 ./internal/state/... ./cmd/...
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: ${{ matrix.run }}
@@ -108,8 +108,8 @@ jobs:
           - {name: "engine 8/8", run: "sh tools/ci/test-shard.sh ./internal/engine 7 8 -v -timeout 25m"}
           - {name: "other packages", run: "go test -count=1 -timeout 25m $(go list ./internal/... ./cmd/... | grep -v '/internal/engine$')"}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: ${{ matrix.run }}
@@ -120,11 +120,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: opentofu/setup-opentofu@v1
+      - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
@@ -141,12 +141,12 @@ jobs:
       matrix:
         section: [concepts, how-to, learn, migrate, reference]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Cache the providers that the pages download
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.pravo
           key: pravo-home-${{ runner.os }}-${{ matrix.section }}-${{ hashFiles('docs/**/*.md') }}
@@ -164,15 +164,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: opentofu/setup-opentofu@v1
+      - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.pravo
           key: pravo-home-${{ runner.os }}-demos-${{ hashFiles('site/demos/**/page.md') }}
@@ -186,15 +186,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: opentofu/setup-opentofu@v1
+      - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/hclcheck-plugins
           key: hclcheck-plugins-${{ hashFiles('docs/**/*.md', 'site/demos/**/page.md') }}
@@ -208,8 +208,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go build -o bin/pravo ./cmd/pravo
