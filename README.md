@@ -138,6 +138,8 @@ go run ./tools/hclcheck                              # validate every OpenTofu l
 go run ./tools/sitegen -pravo-bin bin/pravo           # build the site, lint it, check every link
 ```
 
+Continuous integration. `.github/workflows/ci.yml` runs on every push to `main` and on every pull request. Its jobs start together and run side by side: formatting, vet and a build for Linux and macOS; the Go tests split by package, with the race detector on the engine and the state; the tools; the documentation, one job for each section; the demos; the OpenTofu listings; and the site. The job `ci` passes when all of them do, and is the one check to require.
+
 ## License
 
 Apache-2.0. The protocol definitions under `internal/tfplugin/proto` are copied from the terraform-plugin-go repository and are licensed MPL-2.0. pravo is an independent project, affiliated with neither the OpenTofu project nor HashiCorp.

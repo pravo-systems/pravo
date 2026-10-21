@@ -1,0 +1,193 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to a branch cancels the run that is still going for it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GOFLAGS: -mod=readonly
+  # The version of OpenTofu that the documentation was written against.
+  TOFU_VERSION: 1.13.1
+
+jobs:
+  # Formatting, vet, module hygiene, and a build for every platform that pravo
+  # supports. The slow jobs below do not wait for this one: they all start at once.
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"; echo "$unformatted"; exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: go mod tidy changes nothing
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+      - name: Build for every platform
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            GOOS=${target%/*} GOARCH=${target#*/} go build ./... && echo "built $target"
+          done
+
+  # The Go tests, split by package so that the long ones run side by side.
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: engine, race
+            os: ubuntu-latest
+            run: go test -race -count=1 ./internal/engine
+          - name: state, race
+            os: ubuntu-latest
+            run: go test -race -count=1 ./internal/state/...
+          - name: cmd
+            os: ubuntu-latest
+            run: go test -count=1 ./cmd/...
+          - name: other packages
+            os: ubuntu-latest
+            run: go test -count=1 $(go list ./... | grep -v -E '/(internal/engine|internal/state|cmd|tools)(/|$)')
+          - name: state and cmd on macOS
+            os: macos-latest
+            run: go test -count=1 ./internal/state/... ./cmd/...
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: ${{ matrix.run }}
+
+  # The tools of the documentation: capture, sitegen, hclcheck and the scale
+  # benchmark. Their tests start the binary and some of them run tofu.
+  tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+      - run: go test -count=1 ./tools/...
+
+  # Every command of every page of the documentation runs against the real
+  # binary, and its output is compared with the page. One job for each section.
+  docs:
+    name: docs (${{ matrix.section }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        section: [concepts, how-to, learn, migrate, reference]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Cache the providers that the pages download
+        uses: actions/cache@v4
+        with:
+          path: ~/.pravo
+          key: pravo-home-${{ runner.os }}-${{ matrix.section }}-${{ hashFiles('docs/**/*.md') }}
+          restore-keys: pravo-home-${{ runner.os }}-${{ matrix.section }}-
+      - name: Install cue at the version that pravo embeds
+        run: go install cuelang.org/go/cmd/cue@$(go list -m -f '{{.Version}}' cuelang.org/go)
+      - name: Build pravo
+        run: go build -o bin/pravo ./cmd/pravo
+      - name: Check the pages
+        run: go run ./tools/capture -check -j 4 -bin bin/pravo ./docs/${{ matrix.section }}
+
+  # The recorded scenarios behind the landing page and the demos. They run
+  # OpenTofu next to pravo.
+  demos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pravo
+          key: pravo-home-${{ runner.os }}-demos-${{ hashFiles('site/demos/**/page.md') }}
+          restore-keys: pravo-home-${{ runner.os }}-demos-
+      - run: go build -o bin/pravo ./cmd/pravo
+      - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos
+
+  # The OpenTofu listings of the documentation are valid, and the statements
+  # about OpenTofu that the pages make still hold.
+  opentofu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+      - uses: actions/cache@v4
+        with:
+          path: ~/hclcheck-plugins
+          key: hclcheck-plugins-${{ hashFiles('docs/**/*.md', 'site/demos/**/page.md') }}
+          restore-keys: hclcheck-plugins-
+      - run: go run ./tools/hclcheck -j 4 -cache ~/hclcheck-plugins
+      - run: sh tools/hclcheck/claims.sh
+
+  # The site builds, the phrase lint passes, every link resolves and the facts
+  # on the landing page are the ones that the sources give.
+  site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build -o bin/pravo ./cmd/pravo
+      - run: go run ./tools/sitegen -pravo-bin bin/pravo
+      - run: go run site/demos/facts/facts.go -check
+
+  # One check to require in the branch protection settings.
+  ci:
+    if: always()
+    needs: [static, test, tools, docs, demos, opentofu, site]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed
+        run: |
+          echo '${{ toJSON(needs) }}'
+          test "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false"
