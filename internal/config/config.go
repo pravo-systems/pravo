@@ -20,7 +20,6 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/cuecontext"
 	cueerrors "cuelang.org/go/cue/errors"
-	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/load"
 
 	"github.com/pravo-systems/pravo/internal/registry"
@@ -355,20 +354,20 @@ func LoadSettings(dir string) (*Root, error) {
 // loaded with, so that a block which depends on a tagged field is read with
 // the value the tag is given.
 func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
-	r, unset, err := loadSettings(dir, opts, true)
-	return r, withUnset(err, unset)
+	r, notes, err := loadSettings(dir, opts, true)
+	return r, notes.after(err)
 }
 
 // loadSettings is LoadSettingsWith that also returns the environment variables
 // that the block reads through a pravo.#Env and that have no value.
-func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, unset []string, err error) {
+func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, notes envNotes, err error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, nil, err
+		return nil, notes, err
 	}
 	names, err := checkPackageClauses(abs)
 	if err != nil {
-		return nil, nil, err
+		return nil, notes, err
 	}
 	var files []*ast.File
 	pkg := ""
@@ -381,10 +380,10 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, unset []
 		}
 		insts := load.Instances([]string{"."}, cfg)
 		if len(insts) == 0 {
-			return nil, unset, fmt.Errorf("no CUE package found in %s", abs)
+			return nil, notes, fmt.Errorf("no CUE package found in %s", abs)
 		}
 		if insts[0].Err != nil {
-			return nil, unset, fmt.Errorf("loading %s:\n%s", abs, cueerrors.Details(insts[0].Err, nil))
+			return nil, notes, fmt.Errorf("loading %s:\n%s", abs, cueerrors.Details(insts[0].Err, nil))
 		}
 		files, pkg = insts[0].Files, insts[0].PkgName
 	}
@@ -392,14 +391,8 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, unset []
 	// The pravo block is read before the imports can resolve. It may refer to
 	// other top-level fields (a tagged env, say), so those that do not
 	// themselves depend on an import are included.
-	var pravoDecls, otherDecls []ast.Decl
-	type candidate struct {
-		decl    ast.Decl // a field, or a let clause that fields of the file refer to
-		val     ast.Expr
-		label   string
-		imports bool // refers to an imported package, which cannot resolve yet
-	}
-	var others []candidate
+	var pravoDecls []ast.Decl
+	var others candidates
 	for _, f := range files {
 		if strings.HasSuffix(f.Filename, "_gen.cue") {
 			continue
@@ -438,70 +431,35 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, unset []
 				}
 				pravoDecls = append(pravoDecls, &cp)
 			} else {
+				c := candidate{decl: fld, val: fld.Value, label: name}
 				// A pravo.#Env is read from its variable, as the run does, so
 				// that a setting can name a bucket by one.
-				fld, missing := envValue(fld, pravoAlias)
-				if missing != "" {
-					unset = append(unset, missing)
+				if plain, ok := envOperand(fld, pravoAlias); ok {
+					c.val, c.env = plain, true
 				}
-				others = append(others, candidate{decl: fld, val: fld.Value, label: name, imports: mentionsAny(fld.Value, aliases)})
+				c.imports = mentionsAny(c.val, aliases)
+				others = append(others, c)
 			}
 		}
 	}
-	// A field that refers to a package cannot be read yet, and neither can one
-	// that refers to such a field: leave out everything that depends on one.
-	excluded := map[string]bool{}
-	for changed := true; changed; {
-		changed = false
-		for i, c := range others {
-			if c.imports {
-				if !excluded[c.label] {
-					excluded[c.label] = true
-					changed = true
-				}
-				continue
-			}
-			if mentionsAny(c.val, excluded) {
-				others[i].imports = true
-				excluded[c.label] = true
-				changed = true
-			}
-		}
-	}
-	for _, c := range others {
-		if !c.imports {
-			otherDecls = append(otherDecls, c.decl)
-		}
-	}
-	build := func(decls []ast.Decl) (cue.Value, error) {
-		if len(decls) == 0 {
-			return ctx.CompileString("{}"), nil
-		}
-		// Compile from text: the declarations came from different files, so
-		// references between them must be resolved afresh.
-		src, err := format.Node(&ast.File{Decls: decls})
-		if err != nil {
-			return cue.Value{}, err
-		}
-		fv := ctx.CompileBytes(src)
-		return fv, fv.Err()
-	}
+	otherDecls, notes := readableDecls(ctx, others)
+	build := func(decls []ast.Decl) (cue.Value, error) { return compileDecls(ctx, decls) }
 	v, err := build(append(append([]ast.Decl{}, otherDecls...), pravoDecls...))
 	if err != nil {
 		// Something the block does not need could not be evaluated; read the
 		// block on its own.
 		if v, err = build(pravoDecls); err != nil {
-			return nil, unset, fmt.Errorf("evaluating pravo settings:\n%s", cueerrors.Details(err, nil))
+			return nil, notes, fmt.Errorf("evaluating pravo settings:\n%s", cueerrors.Details(err, nil))
 		}
 	}
 	r := &Root{Dir: abs, PkgName: pkg, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath, ModRoot: FindModuleRoot(abs)}
 	if settings := v.LookupPath(cue.MakePath(cue.Str("$settings"))); settings.Exists() {
 		if err := r.extractSettings(settings); err != nil {
-			return nil, unset, err
+			return nil, notes, err
 		}
 	}
 	if !scan {
-		return r, unset, nil
+		return r, notes, nil
 	}
 	// The providers the code needs are the ones whose definitions it imports;
 	// the module, not just this root, may import them.
@@ -511,10 +469,10 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, unset []
 	}
 	reqs, err := ScanProviders(scanDir)
 	if err != nil {
-		return nil, unset, err
+		return nil, notes, err
 	}
 	r.Providers = reqs
-	return r, unset, nil
+	return r, notes, nil
 }
 
 // StateFile returns the absolute path of the state directory.

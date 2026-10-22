@@ -71,7 +71,7 @@ Error: $settings.state.path is not concrete: $settings.state.path: non-concrete 
 (if it depends on a tagged field such as env, pass -t env=...)
 ```
 
-The block can read an environment variable too. A [`pravo.#Env`](spec-env.md#env) is filled in before the block is read, with the variable when it is set and with its `default` when it is not, so one specification can keep its state where a variable says. The `name` and the `default` are strings written out in the field. A `pravo.#SecretEnv` is not read into the block. A variable that is not set and has no default leaves the setting not concrete, and the error names the variable.
+The block can read an environment variable too. A [`pravo.#Env`](spec-env.md#env) is filled in before the block is read, with the variable when it is set and with its `default` when it is not, so one specification can keep its state where a variable says. The block reads the `name` and the `default` of a `pravo.#Env` as strings, which may interpolate the value of another `pravo.#Env`, as in `name: "BUCKET_\(stage.value)"`. A function of an imported package cannot be read there. A `pravo.#SecretEnv` is not read into the block. A variable that is not set and has no default leaves the setting not concrete, and the error names the variable.
 
 ```cue file=main.cue
 package demo

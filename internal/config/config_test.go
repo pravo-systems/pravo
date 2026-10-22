@@ -435,6 +435,74 @@ func TestLoadSettingsReadsReferencesAcrossFiles(t *testing.T) {
 	}
 }
 
+func TestSettingsReadAnEnvironmentVariableThatNamesAnother(t *testing.T) {
+	read := func(t *testing.T, body string) (*Root, error) {
+		t.Helper()
+		return LoadSettingsWith(writeFiles(t, map[string]string{"main.cue": "package estate\n\nimport \"pravo.dev/pravo\"\n\n" + body}), LoadOptions{})
+	}
+	const chain = `
+_stage: pravo.#Env & {name: "PRAVO_TEST_CHAIN_STAGE", default: "dev"}
+where:  pravo.#Env & {name: "PRAVO_TEST_CHAIN_DIR_\(_stage.value)", default: "state/\(_stage.value)"}
+$settings: pravo.#Settings & {state: path: where.value}
+`
+	t.Run("the default of the second", func(t *testing.T) {
+		r, err := read(t, chain)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.StatePath != "state/dev" {
+			t.Errorf("path = %q", r.StatePath)
+		}
+	})
+	t.Run("the variable of the second, named by the first", func(t *testing.T) {
+		t.Setenv("PRAVO_TEST_CHAIN_STAGE", "prod")
+		t.Setenv("PRAVO_TEST_CHAIN_DIR_prod", "elsewhere")
+		r, err := read(t, chain)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.StatePath != "elsewhere" {
+			t.Errorf("path = %q", r.StatePath)
+		}
+	})
+	t.Run("a variable that is not set", func(t *testing.T) {
+		_, err := read(t, `
+stage: pravo.#Env & {name: "PRAVO_TEST_CHAIN_STAGE"}
+where: pravo.#Env & {name: "PRAVO_TEST_CHAIN_DIR_\(stage.value)", default: "x"}
+$settings: pravo.#Settings & {state: path: where.value}
+`)
+		if err == nil || !strings.Contains(err.Error(), "PRAVO_TEST_CHAIN_STAGE, which is not set and has no default") {
+			t.Errorf("error = %v", err)
+		}
+	})
+	t.Run("a cycle", func(t *testing.T) {
+		_, err := read(t, `
+a: pravo.#Env & {name: "PRAVO_TEST_CHAIN_\(b.value)", default: "x"}
+b: pravo.#Env & {name: "PRAVO_TEST_CHAIN_\(a.value)", default: "y"}
+$settings: pravo.#Settings & {state: path: a.value}
+`)
+		if err == nil || !strings.Contains(err.Error(), "pravo.#Env a") || !strings.Contains(err.Error(), "cannot be read here") {
+			t.Errorf("error = %v", err)
+		}
+	})
+	t.Run("a function of a package", func(t *testing.T) {
+		dir := writeFiles(t, map[string]string{"main.cue": `package estate
+
+import (
+	"strings"
+	"pravo.dev/pravo"
+)
+
+where: pravo.#Env & {name: strings.ToUpper("pravo_test_chain_dir"), default: "x"}
+$settings: pravo.#Settings & {state: path: where.value}
+`})
+		_, err := LoadSettingsWith(dir, LoadOptions{})
+		if err == nil || !strings.Contains(err.Error(), "pravo.#Env where cannot be read here") {
+			t.Errorf("error = %v", err)
+		}
+	})
+}
+
 // A label names what a field declares: a struct with a field called data does
 // not refer to a top-level field called data, which imports a package. A let
 // clause that a field refers to is read with it.
