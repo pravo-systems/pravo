@@ -78,6 +78,8 @@ func analyseFollowingOperands(v cue.Value, resolve Resolver, self *cue.Path, via
 		tasks[task.String()] = true
 	}
 	scanned := map[ast.Node]bool{}
+	letSeen := map[*ast.LetClause]bool{}
+	var scanLet func(lc *ast.LetClause)
 	var walk func(v cue.Value, depth int, nav bool)
 	follow := func(p cue.Path, depth int) bool {
 		target := resolve.Value(p)
@@ -92,8 +94,24 @@ func analyseFollowingOperands(v cue.Value, resolve Resolver, self *cue.Path, via
 		}
 		return true
 	}
+	scanLet = func(lc *ast.LetClause) {
+		if letSeen[lc] || lc.Expr == nil {
+			return
+		}
+		letSeen[lc] = true
+		var anc []cue.Selector
+		if self != nil {
+			anc = self.Selectors()
+		}
+		sc := &refScan{resolve: resolve, anc: anc, add: addTask, follow: func(p cue.Path) bool { return follow(p, 0) }, local: map[string]bool{}, let: scanLet}
+		ast.Walk(lc.Expr, sc.visit, nil)
+	}
 	walk = func(v cue.Value, depth int, nav bool) {
 		if depth > 64 {
+			return
+		}
+		if lc := letReference(v.Source()); lc != nil {
+			scanLet(lc)
 			return
 		}
 		root, p := v.ReferencePath()
@@ -137,7 +155,7 @@ func analyseFollowingOperands(v cue.Value, resolve Resolver, self *cue.Path, via
 		}
 		op, args := v.Expr()
 		if op == cue.NoOp {
-			scanComprehensions(v.Source(), resolve, self, scanned, addTask, func(p cue.Path) bool { return follow(p, depth) })
+			scanComprehensions(v.Source(), resolve, self, scanned, addTask, func(p cue.Path) bool { return follow(p, depth) }, scanLet)
 			switch {
 			case v.IncompleteKind() == cue.ListKind:
 				if it, err := v.List(); err == nil {
