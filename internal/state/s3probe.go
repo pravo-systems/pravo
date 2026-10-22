@@ -5,12 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"net/http"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/smithy-go"
 )
 
 // ProbeError says that the store does not honour a conditional request that
@@ -82,11 +81,7 @@ func (b *S3Backend) ProbeSteps(ctx context.Context, report func(check string, er
 	// the condition, or the store does not implement it. Anything else is a
 	// fault of the connection, the credentials or the bucket.
 	unsupported := func(err error) bool {
-		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotImplemented" {
-			return true
-		}
-		return strings.Contains(err.Error(), "501") || strings.Contains(err.Error(), "NotImplemented")
+		return codeOf(err) == "NotImplemented" || statusOf(err) == http.StatusNotImplemented
 	}
 	check := func(what, header string, err error) error {
 		if err == nil || preconditionFailed(err) {
