@@ -382,6 +382,23 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 		res.GroupsRefused = why
 		return nil
 	}
+	// A command that opened the state before the readers last changed goes on
+	// sealing in the group it opened with, until it looks at meta.json again. A group
+	// is dropped only once no such command can be left: a record sealed in a group
+	// that meta.json does not list stops the state opening for anyone.
+	now := time.Now
+	if o.Now != nil {
+		now = o.Now
+	}
+	for i := len(m.History) - 1; i >= 0; i-- {
+		if h := m.History[i]; h.What != "gc" {
+			if age := now().Sub(h.At); age < sweepGrace() {
+				return refuse(fmt.Sprintf("the readers or the records were changed %s ago, and a command that opened the state before then may still seal in the old group; run it again after %s",
+					age.Round(time.Second), sweepGrace().Round(time.Second)))
+			}
+			break
+		}
+	}
 	// A record that a pointer names and that cannot be read says nothing of its
 	// group: it may be sealed in the one that would be dropped.
 	for k := range named {

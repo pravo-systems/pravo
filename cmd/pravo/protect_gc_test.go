@@ -217,9 +217,31 @@ func (s *sealed) groups(t *testing.T) []string {
 	return out
 }
 
+// ageHistory makes every entry of the history of meta.json two hours old, as a
+// rewrap that was made a while ago: gc keeps the groups of a state whose readers
+// changed a moment ago.
+func (e *s3Env) ageHistory(t *testing.T) {
+	t.Helper()
+	const key = "prod/meta.json"
+	var m map[string]any
+	if err := json.Unmarshal(e.f.Objects[key], &m); err != nil {
+		t.Fatal(err)
+	}
+	hist, _ := m["history"].([]any)
+	for _, h := range hist {
+		h.(map[string]any)["at"] = time.Now().UTC().Add(-2 * time.Hour)
+	}
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.f.Objects[key] = data
+}
+
 func TestProtectGCDropsTheGroupOfARemovedReader(t *testing.T) {
 	s := sealedBucket(t)
 	s.removeDan(t, false)
+	s.ageHistory(t)
 
 	// The records are still in g1: it stays, and the command says what to do.
 	text, code := runPravo(t, s.dir, "protect", "gc")
@@ -231,6 +253,12 @@ func TestProtectGCDropsTheGroupOfARemovedReader(t *testing.T) {
 	}
 
 	s.removeDan(t, true)
+	// A moment after the rewrap, a command that opened the state before it may still
+	// seal in g1, so g1 stays.
+	if text, code := runPravo(t, s.dir, "protect", "gc"); code != 0 || !strings.Contains(text, "Groups were kept: the readers or the records were changed") || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
+		t.Fatalf("gc right after the rewrap: exit %d, groups %v\n%s", code, s.groups(t), text)
+	}
+	s.ageHistory(t)
 	snapshot, puts := s.bucketText(), s.puts()
 	text, code = runPravo(t, s.dir, "protect", "gc", "--dry-run")
 	if code != 0 || !strings.Contains(text, "Would drop group g1: nothing refers to it.") || s.bucketText() != snapshot || s.puts() != puts {
@@ -288,6 +316,7 @@ func TestProtectGCDropsTheGroupOfARemovedReader(t *testing.T) {
 func TestProtectGCOfGroupsNeedsTheStateAtRest(t *testing.T) {
 	s := sealedBucket(t)
 	s.removeDan(t, true)
+	s.ageHistory(t)
 	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.ada})
 	if err != nil {
 		t.Fatal(err)
@@ -324,6 +353,7 @@ func TestProtectGCOfGroupsNeedsTheStateAtRest(t *testing.T) {
 func TestProtectGCHonoursTheAccessDirectory(t *testing.T) {
 	s := sealedBucket(t)
 	s.removeDan(t, true)
+	s.ageHistory(t)
 	other := filepath.Join(t.TempDir(), "access")
 	writeReaders(t, other, s.adaLine, s.danLine)
 	t.Setenv("PRAVO_ACCESS_DIR", other)

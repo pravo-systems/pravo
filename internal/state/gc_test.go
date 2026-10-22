@@ -324,7 +324,7 @@ func TestGCDropsTheGroupOfARemovedReader(t *testing.T) {
 
 			// Before the records are sealed again, everything is in g1. The record of
 			// the writer is young, and spared.
-			res, err := s.GC(ctx, GCOptions{Groups: true, Plans: planCount})
+			res, err := s.GC(ctx, GCOptions{Groups: true, Plans: planCount, Now: ahead(5 * time.Minute)})
 			if err != nil || len(res.Groups) != 1 || res.Groups[0].ID != "g1" || res.Groups[0].Dropped || res.Groups[0].Records != s.Len() || res.Groups[0].Spare != 1 || !res.Groups[0].Outputs {
 				t.Fatalf("GC before rewrap --all = %+v, %v", res, err)
 			}
@@ -341,12 +341,12 @@ func TestGCDropsTheGroupOfARemovedReader(t *testing.T) {
 				t.Fatal("the sweep of rewrap --all deleted the young record")
 			}
 			plans["g1"] = 2
-			res, err = s.GC(ctx, GCOptions{Groups: true, Plans: planCount})
+			res, err = s.GC(ctx, GCOptions{Groups: true, Plans: planCount, Now: ahead(5 * time.Minute)})
 			if err != nil || len(res.Groups) != 1 || res.Groups[0].Dropped || res.Groups[0].Plans != 2 || res.Groups[0].Records != 0 || res.Groups[0].Outputs || res.Groups[0].Spare != 1 {
 				t.Fatalf("GC with stored plans in g1 = %+v, %v", res, err)
 			}
 			delete(plans, "g1")
-			res, err = s.GC(ctx, GCOptions{Groups: true, Plans: planCount})
+			res, err = s.GC(ctx, GCOptions{Groups: true, Plans: planCount, Now: ahead(5 * time.Minute)})
 			if err != nil || len(res.Groups) != 1 || res.Groups[0].Dropped || res.Groups[0].Spare != 1 || !exists(t, b, stale) {
 				t.Fatalf("GC with a stale writer's record in g1 = %+v, %v", res, err)
 			}
@@ -473,7 +473,7 @@ func TestGCOfGroupsNeedsAReaderAndAStateAtRest(t *testing.T) {
 		t.Fatal(err)
 	}
 	var locks *ErrLocked
-	if _, err := s.GC(ctx, GCOptions{Groups: true, Plans: none}); !errors.As(err, &locks) {
+	if _, err := s.GC(ctx, GCOptions{Groups: true, Plans: none, Now: ahead(5 * time.Minute)}); !errors.As(err, &locks) {
 		t.Errorf("GC of groups while a lock is held = %v, want ErrLocked", err)
 	}
 	if got := groupsOf(t, b); fmt.Sprint(got) != "[g1 g2]" {
@@ -482,7 +482,7 @@ func TestGCOfGroupsNeedsAReaderAndAStateAtRest(t *testing.T) {
 	if err := s.Unlock("net.vpc"); err != nil {
 		t.Fatal(err)
 	}
-	res, err = s.GC(ctx, GCOptions{Groups: true, Plans: none})
+	res, err = s.GC(ctx, GCOptions{Groups: true, Plans: none, Now: ahead(5 * time.Minute)})
 	if err != nil || len(res.Groups) != 1 || !res.Groups[0].Dropped {
 		t.Fatalf("GC at rest = %+v, %v", res, err)
 	}
@@ -490,12 +490,12 @@ func TestGCOfGroupsNeedsAReaderAndAStateAtRest(t *testing.T) {
 		t.Errorf("groups = %v", got)
 	}
 	// The current group is never dropped: with nothing in it either.
-	if res, err = s.GC(ctx, GCOptions{Groups: true, Plans: none}); err != nil || len(res.Groups) != 0 {
+	if res, err = s.GC(ctx, GCOptions{Groups: true, Plans: none, Now: ahead(5 * time.Minute)}); err != nil || len(res.Groups) != 0 {
 		t.Errorf("GC of a single group = %+v, %v", res, err)
 	}
 	// Bytes unchanged: a state with nothing to drop writes no meta.json.
 	before, _ := b.Get(ctx, "meta.json")
-	if _, err := s.GC(ctx, GCOptions{Groups: true, Plans: none}); err != nil {
+	if _, err := s.GC(ctx, GCOptions{Groups: true, Plans: none, Now: ahead(5 * time.Minute)}); err != nil {
 		t.Fatal(err)
 	}
 	if after, _ := b.Get(ctx, "meta.json"); !bytes.Equal(before, after) {
@@ -524,7 +524,7 @@ func TestGCDropsOnlyTheGroupsNothingIsSealedIn(t *testing.T) {
 		t.Fatalf("groups = %v", got)
 	}
 	none := func(context.Context) (map[string]int, error) { return nil, nil }
-	res, err := s.GC(ctx, GCOptions{Groups: true, Plans: none})
+	res, err := s.GC(ctx, GCOptions{Groups: true, Plans: none, Now: ahead(5 * time.Minute)})
 	if err != nil || len(res.Groups) != 2 || !res.Groups[0].Dropped || res.Groups[0].ID != "g1" || res.Groups[1].Dropped || res.Groups[1].Records != s.Len() {
 		t.Fatalf("GC = %+v, %v", res, err)
 	}
@@ -620,7 +620,7 @@ func TestGCKeepsEveryGroupWhenAPointerNamesNothing(t *testing.T) {
 	if err := b.Delete(ctx, pointerAt(t, b, "net.vpc").Record); err != nil {
 		t.Fatal(err)
 	}
-	res, err := s.GC(ctx, GCOptions{Groups: true, Plans: none})
+	res, err := s.GC(ctx, GCOptions{Groups: true, Plans: none, Now: ahead(5 * time.Minute)})
 	if err != nil || res.GroupsRefused == "" || len(res.Groups) != 0 || fmt.Sprint(groupsOf(t, b)) != "[g1 g2]" {
 		t.Fatalf("GC with a pointer that names nothing = %+v, %v", res, err)
 	}
