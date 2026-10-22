@@ -188,7 +188,7 @@ pravo apply change.plan
 
 ```text out
 Error: saved plan is stale; run "pravo plan" again:
-  - the configuration changed since the plan was made
+  - the configuration changed since the plan was made (main.cue changed)
 ```
 
 The reason is listed under the error. `pravo show` prints the same reason as a warning above the plan. Use it to check a plan before you apply it.
@@ -198,7 +198,7 @@ pravo show change.plan | head -n 2
 ```
 
 ```text out
-Warning: this plan can no longer be applied: the configuration changed since the plan was made
+Warning: this plan can no longer be applied: the configuration changed since the plan was made (main.cue changed)
 Saved plan created <time> by "pravo plan --out change.plan"
 ```
 

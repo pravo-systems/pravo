@@ -88,7 +88,7 @@ pravo show change.plan | head -n 2
 ```
 
 ```text out
-Warning: this plan can no longer be applied: the configuration changed since the plan was made
+Warning: this plan can no longer be applied: the configuration changed since the plan was made (main.cue changed)
 Saved plan created <time> by "pravo plan --out change.plan --actor ci --reason first base" (actor ci)
 ```
 
@@ -105,7 +105,7 @@ pravo show change.plan --json 2>/dev/null | grep -A4 '"stale"'
 ```text out
   "stale": {
     "reasons": [
-      "the configuration changed since the plan was made"
+      "the configuration changed since the plan was made (main.cue changed)"
     ]
   }
 ```
@@ -153,7 +153,7 @@ pravo plan list
 ```
 
 ```text out
-Warning: this plan can no longer be applied: the configuration changed since the plan was made
+Warning: this plan can no longer be applied: the configuration changed since the plan was made (main.cue changed)
 plan-<id>  pending  ci  just now  +1 ~0 -0  expires in 7 days
 ```
 
@@ -166,7 +166,7 @@ pravo show $id --json 2>/dev/null | jq -c 'keys, .stale.reasons, (.stored | {id,
 
 ```text out
 ["plan","plan_id","stale","stored"]
-["the configuration changed since the plan was made"]
+["the configuration changed since the plan was made (main.cue changed)"]
 {"id":"plan-<id>","status":"pending","author":"ci"}
 ```
 

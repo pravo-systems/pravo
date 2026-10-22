@@ -110,6 +110,73 @@ func TestFingerprintCoversSharedPackages(t *testing.T) {
 	}
 }
 
+// The file hashes list what the fingerprint digests, by the names that a person
+// knows the files by: where the fingerprints differ, the lists say which files do.
+func TestFileHashesNameTheFilesThatTheFingerprintDigests(t *testing.T) {
+	d := t.TempDir()
+	write(t, d, "cue.mod/module.cue", "module: \"example.com/infra@v0\"\nlanguage: version: \"v0.14.0\"\n")
+	write(t, d, "modules/net/net.cue", "package net\n\n#Net: {name: string}\n")
+	write(t, d, "envs/dev/main.cue", "package dev\n\nimport \"example.com/infra/modules/net\"\n\nn: net.#Net & {name: \"x\"}\n")
+	write(t, d, "envs/dev/notes.txt", "not CUE")
+	load := func() *Root {
+		r, err := Load(filepath.Join(d, "envs", "dev"), LoadOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	r := load()
+	h1, err := r.FileHashes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"envs/dev/main.cue", "modules/net/net.cue", "cue.mod/module.cue"} {
+		if len(h1[name]) != 12 {
+			t.Errorf("no short digest for %s in %v", name, h1)
+		}
+	}
+	if len(h1) != 3 {
+		t.Errorf("files %v", h1)
+	}
+	if h2, _ := load().FileHashes(); !equalHashes(h1, h2) {
+		t.Error("the hashes are not stable across loads")
+	}
+	// A changed shared package differs in that file and no other, and the fingerprint follows.
+	f1, _ := r.Fingerprint()
+	write(t, d, "modules/net/net.cue", "package net\n\n#Net: {name: string, extra: *1 | int}\n")
+	r2 := load()
+	h3, _ := r2.FileHashes()
+	var differ []string
+	for name := range h1 {
+		if h1[name] != h3[name] {
+			differ = append(differ, name)
+		}
+	}
+	if len(differ) != 1 || differ[0] != "modules/net/net.cue" {
+		t.Errorf("files that differ: %v", differ)
+	}
+	if f2, _ := r2.Fingerprint(); f2 == f1 {
+		t.Error("the fingerprint did not change")
+	}
+	// The module file is named as it is written in the repository.
+	write(t, d, "cue.mod/module.cue", "// a comment\nmodule: \"example.com/infra@v0\"\nlanguage: version: \"v0.14.0\"\n")
+	if h4, _ := load().FileHashes(); h4["cue.mod/module.cue"] == h3["cue.mod/module.cue"] {
+		t.Error("a changed module file has the digest it had")
+	}
+}
+
+func equalHashes(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
 func TestUnusedPackageDoesNotAffectFingerprint(t *testing.T) {
 	d := t.TempDir()
 	write(t, d, "cue.mod/module.cue", "module: \"example.com/infra@v0\"\nlanguage: version: \"v0.14.0\"\n")

@@ -556,6 +556,33 @@ func Fingerprint(dir string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil))[:32], nil
 }
 
+// FileHashes lists the files that Fingerprint(dir) digests, each by its path
+// below dir and a short digest of its contents.
+func FileHashes(dir string) (map[string]string, error) {
+	var files []string
+	top, err := filepath.Glob(filepath.Join(dir, "*.cue"))
+	if err != nil {
+		return nil, err
+	}
+	files = append(files, top...)
+	_ = filepath.WalkDir(filepath.Join(dir, "cue.mod"), func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".cue") {
+			files = append(files, p)
+		}
+		return nil
+	})
+	out := map[string]string{}
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			return nil, err
+		}
+		rel, _ := filepath.Rel(dir, f)
+		out[filepath.ToSlash(rel)] = shortDigest(data)
+	}
+	return out, nil
+}
+
 // dropImportRefs removes operands of a unification that are references into
 // an imported package, which cannot be resolved while only the pravo block
 // is being read.

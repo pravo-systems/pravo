@@ -173,10 +173,10 @@ pravo -C bob plan show $(cat alice.id) | grep '^Warning'
 Output:
 
 ```text
-Warning: this plan can no longer be applied: the configuration changed since the plan was made
+Warning: this plan can no longer be applied: the configuration changed since the plan was made (main.cue changed)
 ```
 
-Bob cannot apply alice's plan from this checkout. Alice can apply it from hers.
+Bob cannot apply alice's plan from this checkout. Alice can apply it from hers. The reason names the files that differ. When it names `cue.mod/module.cue`, the two checkouts have different module files, as they do when `pravo init` wrote the module in directories with different names: commit `cue.mod/module.cue` and use the same commit.
 
 ## 5. Apply by id
 

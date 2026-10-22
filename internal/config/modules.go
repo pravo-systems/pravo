@@ -259,6 +259,37 @@ func (r *Root) Fingerprint() (string, error) {
 	return hex.EncodeToString(h.Sum(nil))[:32], nil
 }
 
+// FileHashes lists the files that Fingerprint digests, each by the name a person
+// knows it by and a short digest of its contents: the files that were loaded for
+// the root, and the module file, which pins the versions of the dependencies. Two
+// roots whose fingerprints are equal have equal lists, and where the fingerprints
+// differ the lists say which files do.
+func (r *Root) FileHashes() (map[string]string, error) {
+	if len(r.Sources) == 0 {
+		return FileHashes(r.Dir)
+	}
+	out := map[string]string{}
+	for _, f := range r.Sources {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			return nil, err
+		}
+		out[strings.TrimPrefix(r.relName(f), "module/")] = shortDigest(data)
+	}
+	if mf := filepath.Join(r.modRootOrDir(), "cue.mod", "module.cue"); fileExists(mf) {
+		data, _ := os.ReadFile(mf)
+		out["cue.mod/module.cue"] = shortDigest(data)
+	}
+	return out, nil
+}
+
+// shortDigest is the first twelve hexadecimal digits of the SHA-256 of data: enough
+// to tell that two copies of a file differ.
+func shortDigest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:12]
+}
+
 func (r *Root) modRootOrDir() string {
 	if r.ModRoot != "" {
 		return r.ModRoot

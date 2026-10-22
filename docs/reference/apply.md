@@ -352,7 +352,7 @@ pravo apply change.plan
 
 ```text out
 Error: saved plan is stale; run "pravo plan" again:
-  - the configuration changed since the plan was made
+  - the configuration changed since the plan was made (main.cue changed)
 ```
 
 Plan again. The new plan holds what is left, and applies in one step.

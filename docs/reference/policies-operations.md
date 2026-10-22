@@ -193,7 +193,7 @@ pravo -C infra apply change.plan --policy ../policy/no-destroy.cue
 
 ```text out
 Error: saved plan is stale; run "pravo plan" again:
-  - the configuration changed since the plan was made
+  - the configuration changed since the plan was made (main.cue changed)
 ```
 
 A job that treats exit code 5 as the only refusal misses this one.

@@ -479,3 +479,28 @@ shared: #RemoteOutputs & {state: {backend: "s3", bucket: "b", prefix: "net"}}
 		t.Errorf("a state with neither path nor bucket should be rejected, got %v", err)
 	}
 }
+
+// Without a loaded root the hashes list the CUE files of the directory and of
+// cue.mod, as the fingerprint digests them.
+func TestFileHashesOfADirectory(t *testing.T) {
+	dir := t.TempDir()
+	for name, content := range map[string]string{"main.cue": "package x\na: 1\n", "cue.mod/module.cue": "module: \"x.y\"\n", "cue.mod/gen/p/p.cue": "package p\n", "notes.txt": "ignored"} {
+		p := filepath.Join(dir, name)
+		_ = os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h, err := FileHashes(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for n := range h {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	if got := strings.Join(names, ","); got != "cue.mod/gen/p/p.cue,cue.mod/module.cue,main.cue" {
+		t.Errorf("files %s", got)
+	}
+}

@@ -242,7 +242,7 @@ Output:
 
 ```text
 Error: saved plan is stale; run "pravo plan" again:
-  - the configuration changed since the plan was made
+  - the configuration changed since the plan was made (modules/service/service.cue changed)
 ```
 
 The fingerprint of a saved plan covers every file that was loaded for the root, including packages elsewhere in the repository. A package that the root does not import does not change it. The exit code is 3. [B7](../learn/b07-changing-live-infrastructure.md) covers saved plans.

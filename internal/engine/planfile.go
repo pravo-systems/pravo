@@ -32,9 +32,13 @@ type PlanFile struct {
 	// Lineage of the state graph the plan was made against.
 	Lineage string `json:"lineage"`
 	// ConfigFingerprint digests every CUE file of the root.
-	ConfigFingerprint string   `json:"config_fingerprint"`
-	Tags              []string `json:"tags,omitempty"`
-	SysTags           bool     `json:"sys_tags,omitempty"`
+	ConfigFingerprint string `json:"config_fingerprint"`
+	// ConfigFiles maps the name of each file that the fingerprint digests to a short
+	// digest of it, so that an apply that finds the configuration changed can say
+	// which files differ.
+	ConfigFiles map[string]string `json:"config_files,omitempty"`
+	Tags        []string          `json:"tags,omitempty"`
+	SysTags     bool              `json:"sys_tags,omitempty"`
 	// Providers maps provider local names to the versions the plan used.
 	Providers map[string]string `json:"providers"`
 	Destroy   bool              `json:"destroy,omitempty"`
@@ -147,6 +151,9 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 		return nil, err
 	}
 	pf.ConfigFingerprint = fp
+	if files, err := e.Root.FileHashes(); err == nil {
+		pf.ConfigFiles = files
+	}
 	for local, rp := range e.Providers.Resolved {
 		pf.Providers[local] = rp.Version
 	}
@@ -319,8 +326,8 @@ func (e *Engine) LoadPlan(pf *PlanFile) (*Plan, error) {
 // that the plan left alone and that no change reads is not looked at.
 func (e *Engine) LoadPlanFor(pf *PlanFile, only []string) (*Plan, error) {
 	var reasons []string
-	if fp, err := e.Root.Fingerprint(); err == nil && fp != pf.ConfigFingerprint {
-		reasons = append(reasons, "the configuration changed since the plan was made")
+	if reason := ConfigChange(e.Root, pf); reason != "" {
+		reasons = append(reasons, reason)
 	}
 	if pf.Lineage != e.State.Lineage() {
 		reasons = append(reasons, "the plan was made against a different state (lineage mismatch)")

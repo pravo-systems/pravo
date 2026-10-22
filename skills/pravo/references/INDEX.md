@@ -85,7 +85,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/how-pravo-works.md](concepts/how-pravo-works.md) | One run of pravo in seven stages, from the CUE files of a directory to the providers, the state and the output. | 11 KB |
 | [concepts/evaluation.md](concepts/evaluation.md) | How pravo turns the CUE files of a directory into one value, finds resources by identity and builds the dependency graph before any provider is asked anything. | 13 KB |
 | [concepts/resources-and-addresses.md](concepts/resources-and-addresses.md) | What makes a struct a resource, how its address is its path, and what renaming, moving or reordering does to the record of an object. | 10 KB |
-| [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, how a saved plan is checked and how a plan lives in the state. | 55 KB |
+| [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, how a saved plan is checked and how a plan lives in the state. | 56 KB |
 | [concepts/state.md](concepts/state.md) | What pravo records for each resource, how revisions, locks and transactions work, why the cost of a run follows the change, and where the state lives. | 26 KB |
 | [concepts/what-a-plan-reaches.md](concepts/what-a-plan-reaches.md) | Change one setting, replace a root key, add a zone or run two applies on one estate, and see which resources each plan reaches and which locks each apply holds. | 2 KB |
 | [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 20 KB |
@@ -129,7 +129,7 @@ One task each, for a reader who knows the basics.
 | [how-to/agents-and-mcp.md](how-to/agents-and-mcp.md) | Give a program or an AI agent the schema, a plan file, a reservation and a tool server bound to a policy, and see what that does and does not protect. | 13 KB |
 | [how-to/secrets.md](how-to/secrets.md) | Read a secret from the environment with pravo.#SecretEnv, hand it to a provider and see where pravo allows the value and where it refuses. | 9 KB |
 | [how-to/explore-your-estate.md](how-to/explore-your-estate.md) | Start pravo serve, read the graph, find a resource, open and close modules, read the source, overlay a saved plan, see what your team has planned, find drift and share a view. | 23 KB |
-| [how-to/share-a-plan-before-you-apply-it.md](how-to/share-a-plan-before-you-apply-it.md) | Store a plan in the state so that a team can list it, read it, see who else plans the same resources and apply it by its id. | 13 KB |
+| [how-to/share-a-plan-before-you-apply-it.md](how-to/share-a-plan-before-you-apply-it.md) | Store a plan in the state so that a team can list it, read it, see who else plans the same resources and apply it by its id. | 14 KB |
 
 ### Maintain
 

@@ -1342,7 +1342,7 @@ Output:
 
 ```text
 Error: saved plan is stale; run "pravo plan" again:
-  - the configuration changed since the plan was made
+  - the configuration changed since the plan was made (main.cue changed)
 exit=3
 ```
 

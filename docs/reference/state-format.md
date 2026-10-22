@@ -433,7 +433,7 @@ jq -r 'keys | join(" ")' pravo.state/plans/plan-*.plan.json
 ```
 
 ```text out
-actor changes command config_fingerprint created format input_generations inputs lineage outputs providers reason stats
+actor changes command config_files config_fingerprint created format input_generations inputs lineage outputs providers reason stats
 ```
 
 ### Progress

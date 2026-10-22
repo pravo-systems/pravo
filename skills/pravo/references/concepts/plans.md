@@ -945,7 +945,7 @@ pravo will perform the following actions:
 
 Before anything is applied, pravo checks the file against the root. Four things must match.
 
-- The fingerprint of the `.cue` files. Any edit, a comment included, changes it.
+- The fingerprint of the `.cue` files. Any edit, a comment included, changes it. The reason names the files that differ: `(main.cue changed)`, `(extra.cue added)`, `(old.cue removed)`. The module file is `cue.mod/module.cue`.
 - The lineage of the state.
 - The versions of the providers.
 - The revision of every node that the plan changes, and of every record that those changes read.
@@ -964,7 +964,7 @@ Output:
 
 ```text
 Error: saved plan is stale; run "pravo plan" again:
-  - the configuration changed since the plan was made
+  - the configuration changed since the plan was made (override.cue changed)
 ```
 
 Restore the file. The plan is current again.

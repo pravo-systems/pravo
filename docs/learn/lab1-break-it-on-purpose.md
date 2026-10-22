@@ -262,7 +262,7 @@ pravo -C root apply change.plan
 
 ```text out
 Error: saved plan is stale; run "pravo plan" again:
-  - the configuration changed since the plan was made
+  - the configuration changed since the plan was made (extra.cue changed)
 ```
 
 Exit code 3 is a saved plan that does not match its files. Revert by planning again. This time apply the specification, so that `extra` exists.

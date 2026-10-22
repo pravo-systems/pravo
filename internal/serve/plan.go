@@ -304,8 +304,8 @@ func (s *Server) decodePlan(m *model, pf *engine.PlanFile, unchecked bool) (*eng
 func (s *Server) staleReasons(m *model, pf *engine.PlanFile) (bool, []string) {
 	var reasons []string
 	if m.spec.root != nil {
-		if fp, err := m.spec.root.Fingerprint(); err == nil && fp != pf.ConfigFingerprint {
-			reasons = append(reasons, "the configuration changed since the plan was made")
+		if reason := engine.ConfigChange(m.spec.root, pf); reason != "" {
+			reasons = append(reasons, reason)
 		}
 	}
 	if pf.Lineage != m.store.Lineage() {

@@ -429,10 +429,10 @@ pravo apply change.plan
 Output:
 
 ```text
-{"reasons":["the configuration changed since the plan was made"]}
+{"reasons":["the configuration changed since the plan was made (main.cue changed)"]}
 
 Error: saved plan is stale; run "pravo plan" again:
-  - the configuration changed since the plan was made
+  - the configuration changed since the plan was made (main.cue changed)
 ```
 
 ## The saved plan file
@@ -445,6 +445,7 @@ Error: saved plan is stale; run "pravo plan" again:
 | `created`, `command` | When it was made and the command line that made it. |
 | `lineage` | The lineage of the state the plan was made against. |
 | `config_fingerprint` | A digest of every CUE file of the root. |
+| `config_files` | The files that the digest covers, each by its name and the first twelve hexadecimal digits of its own digest. The module file is `cue.mod/module.cue`. A file made before the list was recorded has none. |
 | `tags`, `sys_tags` | The `-t` and `-T` values. `pravo apply <planfile>` uses them. |
 | `providers` | The provider versions the plan used. |
 | `destroy`, `stats` | As in the document. |
@@ -455,7 +456,7 @@ Error: saved plan is stale; run "pravo plan" again:
 | `actor`, `reason`, `git_revision`, `reservation` | As in the document. |
 | `apply_txn` | The transaction of the last apply made from the file. A file whose only changes are records and outputs to write has them left to apply until it has one. |
 
-`pravo apply <planfile>` refuses a plan that is stale: the configuration changed (`config_fingerprint`), the state has another lineage, a provider has another version, or a node that the plan writes, or a record listed in `inputs`, was written since the plan was made (its revision differs), or was removed and created again (its generation differs, at whatever revision). A node that the plan neither writes nor reads does not count. The exit code is 3. The apply compares the revisions and generations again, with the state itself, once it holds the locks of the nodes it writes, so a write that lands between loading the file and taking the locks is refused the same way.
+`pravo apply <planfile>` refuses a plan that is stale: the configuration changed (`config_fingerprint`; the reason names the files from `config_files` that differ, as in `(main.cue changed)`, `(extra.cue added)` or `(old.cue removed)`, and lists at most six), the state has another lineage, a provider has another version, or a node that the plan writes, or a record listed in `inputs`, was written since the plan was made (its revision differs), or was removed and created again (its generation differs, at whatever revision). A node that the plan neither writes nor reads does not count. The exit code is 3. The apply compares the revisions and generations again, with the state itself, once it holds the locks of the nodes it writes, so a write that lands between loading the file and taking the locks is refused the same way.
 
 ## Apply events
 

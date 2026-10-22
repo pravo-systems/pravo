@@ -605,6 +605,99 @@ func TestListSaysWhichPlansItCouldNotRead(t *testing.T) {
 	}
 }
 
+// When the configuration is not the one that a plan was made from, the reason names
+// the files that differ, for a stored plan and for a plan file alike.
+func TestAPlanThatFindsTheConfigurationChangedNamesTheFiles(t *testing.T) {
+	dir := localRoot(t, "")
+	id := storePlanAs(t, dir, "alice")
+	if text, code := runPravo(t, dir, "plan", "--out", "saved.plan"); code != 0 {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+	main := filepath.Join(dir, "main.cue")
+	original, err := os.ReadFile(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(main, append(original, []byte("// edited\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []string{id, "saved.plan"} {
+		text, code := runPravo(t, dir, "apply", target)
+		if code != int(engine.ExitStale) || !strings.Contains(text, "the configuration changed since the plan was made (main.cue changed)") {
+			t.Errorf("apply %s: exit %d:\n%s", target, code, text)
+		}
+	}
+	text, _ := runPravo(t, dir, "show", id)
+	if !strings.Contains(text, "(main.cue changed)") {
+		t.Errorf("show:\n%s", text)
+	}
+	// The module file is named as it is written in the repository.
+	if err := os.WriteFile(main, original, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	module := filepath.Join(dir, "cue.mod", "module.cue")
+	modData, err := os.ReadFile(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(module, append([]byte("// edited\n"), modData...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if text, code := runPravo(t, dir, "apply", id); code != int(engine.ExitStale) || !strings.Contains(text, "(cue.mod/module.cue changed)") {
+		t.Errorf("module file: exit %d:\n%s", code, text)
+	}
+	// A file that is added, and a file that is gone.
+	if err := os.WriteFile(module, modData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	extra := filepath.Join(dir, "extra.cue")
+	if err := os.WriteFile(extra, []byte("package infra\n\nextra: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if text, code := runPravo(t, dir, "apply", id); code != int(engine.ExitStale) || !strings.Contains(text, "(extra.cue added)") {
+		t.Errorf("added file: exit %d:\n%s", code, text)
+	}
+	os.Remove(extra)
+	// With the configuration as it was, the plan applies.
+	if text, code := runPravo(t, dir, "apply", id); code != 0 {
+		t.Errorf("unchanged: exit %d:\n%s", code, text)
+	}
+}
+
+// A plan file made before the files were recorded gives the plain reason.
+func TestAPlanFileWithoutTheListOfFilesGivesThePlainReason(t *testing.T) {
+	dir := localRoot(t, "")
+	if text, code := runPravo(t, dir, "plan", "--out", "old.plan"); code != 0 {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+	path := filepath.Join(dir, "old.plan")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := doc["config_files"]; !ok {
+		t.Fatal("the plan file does not list its files")
+	}
+	delete(doc, "config_files")
+	data, _ = json.Marshal(doc)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	main := filepath.Join(dir, "main.cue")
+	original, _ := os.ReadFile(main)
+	if err := os.WriteFile(main, append(original, []byte("// edited\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	text, code := runPravo(t, dir, "apply", "old.plan")
+	if code != int(engine.ExitStale) || !strings.Contains(text, "the configuration changed since the plan was made\n") || strings.Contains(text, "main.cue changed") {
+		t.Errorf("exit %d:\n%s", code, text)
+	}
+}
+
 func TestOlderThanZeroIsRefused(t *testing.T) {
 	dir, _ := pendingDir(t)
 	if text, code := runPravo(t, dir, "plan", "gc", "--older-than", "0"); code != 1 || !strings.Contains(text, "above zero") {
