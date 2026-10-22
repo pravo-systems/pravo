@@ -28,6 +28,12 @@ Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in 
 | `--policy FILE` | none | A CUE file the saved plan must satisfy before anything is applied. Repeatable. Without a plan file or a plan id the command is refused. |
 | `-t`, `--tag key=value`, `-T` | none | Tags, as for `pravo plan`. Refused with a plan file: the plan carries its own tags. With a plan id they must be the ones the plan was made with: see [The tags of a stored plan](#the-tags-of-a-stored-plan). |
 
+### Reads after the apply
+
+When an apply has written its nodes, it reads each of them once more from its provider and records what the provider returns, with no drift mark. A resource that is made later in the same run can change one that was made earlier: a policy attached to a role changes the role, and a queue policy changes the queue. Without the read, the next one finds the records out of date and reports drift that no one caused.
+
+The cost is one read for each node that the apply wrote, and none for the nodes that it only read, so it follows the change and not the size of the state. A read that fails, finds no object or takes more than 30 seconds leaves the record as the apply wrote it, and the apply still succeeds.
+
 `ID` is `plan-` and eight hexadecimal digits, as `pravo plan --store` printed them. The first six digits are enough when no other plan starts with them. A file with that name is a file.
 
 The [global flags](global-flags.md) apply. With `--json`, a plain apply needs `--auto-approve`.

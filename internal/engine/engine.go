@@ -291,6 +291,9 @@ func (p *Plan) HasChanges() bool {
 // Options tune a run.
 type Options struct {
 	Refresh RefreshMode
+	// NoReadBack stops an apply from reading back the nodes it wrote. The tests that
+	// count the reads of an apply use it; no command sets it.
+	NoReadBack bool
 	// DefaultRefresh is the refresh age for resources that set none
 	// ("always", "never" or a duration such as "30m"); empty means always.
 	DefaultRefresh string
@@ -968,6 +971,12 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 // holds on the node is not touched: only an apply of the node, or expiry, ends
 // it.
 func (e *Engine) persistRefreshed(addr string, sr *state.Resource, attrs, private []byte) {
+	e.persistRead(addr, sr, attrs, private, true)
+}
+
+// persistRead writes the record that a read returned. With markDrift, a read that
+// differs from the record leaves the mark; the read that follows an apply does not.
+func (e *Engine) persistRead(addr string, sr *state.Resource, attrs, private []byte, markDrift bool) {
 	release, ok, _ := e.State.TryHold(addr, e.Opts.Command+" refresh", e.txnID())
 	if !ok {
 		return
@@ -980,7 +989,7 @@ func (e *Engine) persistRefreshed(addr string, sr *state.Resource, attrs, privat
 	n.ProviderConfig = e.stamp(sr.ProviderKey, sr.ProviderConfig)
 	n.Gone = false
 	action := "refresh"
-	if !sameAttributes(attrs, sr.Attributes) {
+	if markDrift && !sameAttributes(attrs, sr.Attributes) {
 		n.DriftedAt = state.Now()
 		action = "drift"
 	}
@@ -2224,6 +2233,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	result.Destroyed += destroyed
 	if err != nil {
 		return fail(err)
+	}
+	if !e.Opts.Destroy {
+		e.readBack(ctx)
 	}
 	// The outputs are recorded by a read, a merge and a write while their lock is
 	// held: an apply that finished meanwhile has recorded outputs of its own.

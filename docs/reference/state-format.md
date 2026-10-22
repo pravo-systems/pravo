@@ -492,7 +492,7 @@ An apply writes the changes it finished into `applied` when it ends. When it end
 
 Every write replaces the object only if it is still what the writer read. A command that lost the race reads the object again and retries. A progress object that cannot be parsed keeps the plan from being listed and applied. A collection makes it empty once the plan is older than an hour, and the plan can be listed and applied again.
 
-An apply holds a claim while it runs. The root `slow` has one file that is a named pipe. Writing to a pipe waits until something reads it, so the apply waits and its claim can be read.
+An apply holds a claim while it runs. The root `slow` has one file that is a named pipe. Writing to a pipe waits until something reads it, so the apply waits and its claim can be read. The apply reads the file back once it has written it, and reading a pipe waits for something to write, so the example writes to it a second time.
 
 ```cue file=slow/main.cue
 package slow
@@ -513,6 +513,7 @@ pravo -C slow apply $id > /dev/null &
 until jq -e '.applying' slow/pravo.state/plans/$id.progress.json > /dev/null 2>&1; do sleep 0.1; done
 jq '.applying' slow/pravo.state/plans/$id.progress.json
 cat slow/pipe > /dev/null
+echo slow > slow/pipe
 wait
 jq '.applying' slow/pravo.state/plans/$id.progress.json
 ```

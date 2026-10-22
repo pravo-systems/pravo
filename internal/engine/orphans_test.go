@@ -410,6 +410,7 @@ func TestOrphanReadsAreAnnouncedInOrder(t *testing.T) {
 	s := orphanSpec(n, 0)
 	h := newHarness(t)
 	h.apply(s)
+	h.fake.resetCalls()
 	h.fake.jitterUpgrades(8 * time.Millisecond)
 	h.fake.setLatency(5 * time.Millisecond)
 	var (

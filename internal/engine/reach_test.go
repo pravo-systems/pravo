@@ -423,8 +423,8 @@ func TestDriftSurvivesUntilApplied(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// A command that applies a file does not read the nodes.
-			e = h.engine(two, Options{Refresh: RefreshNone})
+			// A command that applies a file does not read the nodes before it writes them.
+			e = h.engine(two, Options{Refresh: RefreshNone, NoReadBack: true})
 			loaded, err := e.LoadPlan(pf)
 			if err != nil {
 				t.Fatal(err)

@@ -28,6 +28,9 @@ import (
 // fakeProvider is an in-process provider of one resource type, fake_thing,
 // with a computed id, a required name that cannot change in place and an
 // optional content. It lets a test run the engine without a plugin process.
+// effect is what the apply of one resource does to another.
+type effect struct{ target, content string }
+
 type fakeProvider struct {
 	mu   sync.Mutex
 	next int
@@ -38,6 +41,10 @@ type fakeProvider struct {
 	// whose name attribute is the key: another content, or no object at all.
 	drifted  map[string]string
 	vanished map[string]bool
+	// sideEffect makes the apply of the resource with this name change another
+	// resource that exists already: ReadResource reports the content that it names
+	// for the target from then on, as a provider whose attachment changes the role.
+	sideEffect map[string]effect
 	// read lists the names of the resources that ReadResource was asked about,
 	// in order.
 	read []string
@@ -244,6 +251,16 @@ func (f *fakeProvider) drift(name, content string) {
 }
 
 // vanish removes the object of the resource named name from the real world.
+// changeOnApply makes the apply of name change target, as in sideEffect.
+func (f *fakeProvider) changeOnApply(name, target, content string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sideEffect == nil {
+		f.sideEffect = map[string]effect{}
+	}
+	f.sideEffect[name] = effect{target, content}
+}
+
 func (f *fakeProvider) vanish(name string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -415,6 +432,16 @@ func (f *fakeProvider) ApplyResourceChange(ctx context.Context, _ string, prior,
 	}
 	f.mu.Lock()
 	partial := f.partial[name]
+	// The object is now what the apply wrote: what was changed outside, or taken
+	// away, is not any more.
+	delete(f.drifted, name)
+	delete(f.vanished, name)
+	if fx, ok := f.sideEffect[name]; ok {
+		if f.drifted == nil {
+			f.drifted = map[string]string{}
+		}
+		f.drifted[fx.target] = fx.content
+	}
 	f.mu.Unlock()
 	if partial {
 		m["content"] = tftypes.NewValue(tftypes.String, nil)

@@ -88,7 +88,7 @@ func TestApplyReusesThePlansReads(t *testing.T) {
 		h.apply(manySpec(n, v1))
 		h.fake.resetCalls()
 
-		e := h.engine(manySpec(n, one), Options{})
+		e := h.engine(manySpec(n, one), Options{NoReadBack: true})
 		p := plan(t, e)
 		apply(t, e, p)
 		expectCalls(t, h, map[string]int{"ReadResource": 1, "UpgradeResourceState": 1, "ApplyResourceChange": 1})
@@ -106,7 +106,7 @@ func TestApplyReusesThePlansReads(t *testing.T) {
 		h := newHarness(t)
 		h.apply(chain(3, "1"))
 		h.fake.resetCalls()
-		e := h.engine(chain(3, "2"), Options{})
+		e := h.engine(chain(3, "2"), Options{NoReadBack: true})
 		p := plan(t, e)
 		// top reads c2, which reads c1, which reads c0.
 		if want := []string{"c0", "c1", "c2"}; !reflect.DeepEqual(keysOf(p.Inputs), want) {
@@ -128,7 +128,7 @@ func TestApplyOfAPlanThatFoundDrift(t *testing.T) {
 	h.fake.drift("c1", "changed")
 	h.fake.resetCalls()
 
-	e := h.engine(chain(2, "2"), Options{})
+	e := h.engine(chain(2, "2"), Options{NoReadBack: true})
 	p := plan(t, e)
 	if want := []string{"c1", "top"}; !slices.Equal(p.Write, want) || len(p.Inputs) != 1 || p.Inputs["c0"] != 1 {
 		t.Fatalf("write %v, inputs %v: c1 drifted and is planned, c0 is read by c1", p.Write, p.Inputs)
@@ -207,7 +207,7 @@ func TestApplyOfARequestedReplacement(t *testing.T) {
 	h.apply(chain(2, "1"))
 	h.fake.resetCalls()
 
-	e := h.engine(chain(2, "1"), Options{Replace: []string{"c0"}})
+	e := h.engine(chain(2, "1"), Options{Replace: []string{"c0"}, NoReadBack: true})
 	p := plan(t, e)
 	if want := []string{"c0", "c1"}; !slices.Equal(p.Write, want) {
 		t.Fatalf("write %v, want %v: the replaced node and the one that reads its id", p.Write, want)
@@ -292,7 +292,7 @@ func TestApplyWalksOnlyReachedNodes(t *testing.T) {
 			h := newHarness(t)
 			h.apply(c.apply)
 			// With a refresh age, a data source whose record is young is not read again.
-			e := h.engine(c.change, Options{DefaultRefresh: c.age})
+			e := h.engine(c.change, Options{DefaultRefresh: c.age, NoReadBack: true})
 			p := plan(t, e)
 			if !slices.Equal(p.Write, c.write) || !slices.Equal(keysOf(p.Inputs), c.inputs) || !slices.Equal(p.Support, c.support) {
 				t.Fatalf("write %v, inputs %v, support %v; want %v, %v, %v", p.Write, keysOf(p.Inputs), p.Support, c.write, c.inputs, c.support)

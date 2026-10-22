@@ -164,7 +164,7 @@ func TestSavedPlanStaleness(t *testing.T) {
 		if got := staleReasons(t, h, s, pf); got != nil {
 			t.Fatalf("the plan is stale after an apply that wrote a node it does not touch: %v", got)
 		}
-		e := h.engine(s, Options{Refresh: RefreshNone})
+		e := h.engine(s, Options{Refresh: RefreshNone, NoReadBack: true})
 		loaded, err := e.LoadPlan(pf)
 		if err != nil {
 			t.Fatal(err)
