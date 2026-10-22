@@ -1,0 +1,41 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "plan": {
+  "file": "plan-2f9c1a4e",
+  "id": "plan-2f9c1a4e",
+  "status": "pending",
+  "created": "2026-10-21T11:02:11Z",
+  "actor": "ana@acme",
+  "summary": {
+   "add": 0,
+   "change": 4,
+   "destroy": 0,
+   "read": 0,
+   "blast_radius": 7
+  },
+  "planned": 4,
+  "total": 47
+ },
+ "nodes": [
+  {
+   "addr": "api.db",
+   "action": "update"
+  },
+  {
+   "addr": "api.service",
+   "action": "update"
+  },
+  {
+   "addr": "api.task",
+   "action": "update"
+  },
+  {
+   "addr": "api.worker.service",
+   "action": "update"
+  }
+ ],
+ "reason": "raise the database to m6g.large",
+ "command": "pravo plan --store --reason \"raise the database to m6g.large\"",
+ "git_revision": "9f3c2ab"
+}

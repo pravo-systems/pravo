@@ -8,6 +8,7 @@ import { isChange, chain } from './model.js';
 import { codeWindow, kindLabel } from './ui.js';
 import { StateView, withheld, unknownEl, timeRow } from './values.js';
 import { projectPanel, modulePanel } from './panels.js';
+import { avatar, statusChip } from './plans.js';
 
 const TABS = [
   { key: 'state', label: 'State' },
@@ -23,6 +24,7 @@ export class Inspector {
     this.cb = cb;
     this.head = root.querySelector('.ih');
     this.strip = root.querySelector('.istrip');
+    this.plansRow = root.querySelector('.iplans');
     this.tabs = root.querySelector('.itabs');
     this.body = root.querySelector('.ibody');
     this.cache = new Map();
@@ -47,6 +49,12 @@ export class Inspector {
       if (rc) { cb.onReach(rc.dataset.reach); return; }
       const rt = ev.target.closest('[data-retry]');
       if (rt) { this.cache.clear(); this.render(); return; }
+      const pl = ev.target.closest('[data-plan]');
+      if (pl) { cb.onPlan(pl.dataset.plan); return; }
+    });
+    this.plansRow.addEventListener('click', (ev) => {
+      const pl = ev.target.closest('[data-plan]');
+      if (pl) cb.onPlan(pl.dataset.plan);
     });
     this.head.addEventListener('click', (ev) => {
       const mod = ev.target.closest('[data-gomod]');
@@ -113,6 +121,8 @@ export class Inspector {
     clear(this.tabs);
     this.strip.hidden = true;
     clear(this.strip);
+    this.plansRow.hidden = true;
+    clear(this.plansRow);
     this.ink.style.opacity = '0';
   }
 
@@ -216,6 +226,23 @@ export class Inspector {
     cells.push(cell('Revision', n.revision ? String(n.revision) : '—', n.revision ? '' : 'dimv', 'The revision of the record'));
     const when = n.refreshed_at || (detail && detail.times && detail.times.refreshed_at);
     cells.push(cell('Refreshed', when ? relTime(when) : '—', when ? '' : 'dimv', when ? 'Last read from the provider: ' + stamp(when) : 'Never read'));
+    const open = n.plans || [];
+    if (open.length) {
+      // the stored plans that can still be applied and change this resource, on a row of their own: each is a way to lay it over the graph
+      const chips = open.slice(0, 4).map((id) => {
+        const author = model.authors.get(id) || '?';
+        return h('button', { class: 'plchip', type: 'button', data: { plan: id }, 'aria-label': `Lay ${id} by ${author} over the graph`, 'data-tip': `${id}\nby ${author}\nClick to lay it over the graph` }, avatar(author));
+      });
+      if (open.length > 4) chips.push(h('span', { class: 'plmore' }, '+' + (open.length - 4)));
+      // a row of its own under the strip, and not a cell of it: the cells keep the room that they have
+      clear(this.plansRow);
+      this.plansRow.className = 'iplans' + (open.length > 1 ? ' ovl' : '');
+      this.plansRow.append(h('span', { class: 'cl' }, 'Plans'), h('span', { class: 'plchips' }, chips),
+        h('span', { class: 'plsay' }, open.length > 1 ? `${open.length} open plans change it` : '1 open plan changes it'), open.length > 1 ? h('span', { class: 'plovl' }, 'overlap') : null);
+      this.plansRow.dataset.tip = open.length > 1 ? 'Applying one of these makes the others stale' : 'A stored plan that can be applied changes this resource';
+    }
+    this.plansRow.hidden = !open.length;
+    if (!open.length) clear(this.plansRow);
     clear(this.strip);
     this.strip.append(...cells);
     this.strip.hidden = false;
@@ -271,14 +298,16 @@ export class Inspector {
   render(keepScroll) {
     const node = this.node, model = this.model;
     const my = ++this.token;
-    const key = (k) => `${k}:${node.addr}:${model.graph.revision}`;
+    // the plan the answers are about: a stored plan by id, none at all, or (not given) the plan of the graph
+    const plan = model.planParam;
+    const key = (k) => `${k}:${node.addr}:${model.graph.revision}:${plan || ''}`;
     this.nodeHead(node, null);
     this.ensureTabs();
     if (!keepScroll) this.body.scrollTop = 0;
     this.body.classList.add('loading');
     const timer = setTimeout(() => { if (my === this.token && this.body.classList.contains('loading')) { clear(this.body); this.body.append(this.skeleton()); } }, 150);
-    const need = [this.fetch(key('detail'), () => api.detail(node.addr))];
-    if (this.tab === 'source') need.push(this.fetch(key('source'), () => api.source(node.addr)));
+    const need = [this.fetch(key('detail'), () => api.detail(node.addr, plan))];
+    if (this.tab === 'source') need.push(this.fetch(key('source'), () => api.source(node.addr, plan)));
     Promise.all(need).then(([detail, source]) => {
       clearTimeout(timer);
       if (my !== this.token) return;
@@ -468,10 +497,32 @@ export class Inspector {
 
   // ---- Change ----
 
+  // openPlans lists the stored plans that can still be applied and change the resource; each lays itself over the graph
+  openPlans(node) {
+    const ids = node.plans || [];
+    if (!ids.length) return null;
+    const model = this.model;
+    const cur = model.graph.plan && model.graph.plan.id;
+    return h('section', { class: 'sec' },
+      h('h3', { class: 'h' }, 'Open plans that change it', h('span', { class: 'cnt' }, String(ids.length))),
+      h('ul', { class: 'plist' }, ids.map((id) => {
+        const p = model.planById.get(id);
+        const touch = p && (p.touches || []).find((t) => t.addr === node.addr);
+        const a = touch && actionOf(touch.action);
+        return h('li', null, h('button', { class: 'plrow' + (id === cur ? ' on' : ''), type: 'button', data: { plan: id }, 'aria-pressed': String(id === cur), 'aria-label': `${id}${p ? ' by ' + p.author : ''}${a ? ', ' + a.label : ''}` },
+          avatar(p ? p.author : '?'), h('code', null, id), p ? h('span', { class: 'pa' }, p.author) : null,
+          a ? h('span', { class: 'act' }, h('i', { class: 'sq ' + a.cls }), a.label) : null, p ? statusChip(p.status) : null));
+      })),
+      ids.length > 1 ? h('p', { class: 'hint ovl' }, 'They overlap: applying one makes the others stale.') : null);
+  }
+
   changePane(d, node) {
     const c = d.change;
     if (!c) {
-      return h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('info'), h('p', null, node.action === 'no-op' ? 'The plan ran this resource and found nothing to change.' : node.action ? 'The plan has no attribute changes for this resource.' : 'The loaded plan did not run this resource. It was not read.')));
+      const pane = h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('info'), h('p', null, node.action === 'no-op' ? 'The plan ran this resource and found nothing to change.' : node.action ? 'The plan has no attribute changes for this resource.' : 'The loaded plan did not run this resource. It was not read.')));
+      const open = this.openPlans(node);
+      if (open) pane.append(open);
+      return pane;
     }
     const a = actionOf(c.action);
     const wrap = h('div', { class: 'pane' });
@@ -486,6 +537,8 @@ export class Inspector {
     for (const ch of c.attrs || []) diffs.append(this.diffRow(ch, rr));
     if (!(c.attrs || []).length) diffs.append(h('div', { class: 'blank' }, icon('info'), h('p', null, 'No attribute is listed for this change.')));
     wrap.append(diffs);
+    const open = this.openPlans(node);
+    if (open) wrap.append(open);
     return wrap;
   }
 

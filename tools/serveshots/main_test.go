@@ -16,8 +16,16 @@ func TestReplacements(t *testing.T) {
 	if len(pairs) < 2 {
 		t.Fatalf("pairs = %q", pairs)
 	}
-	if pairs[0] != [2]string{dir, "~/estate/platform"} {
-		t.Errorf("the directory: %q", pairs[0])
+	found := false
+	for i, p := range pairs {
+		found = found || p == [2]string{dir, "~/estate/platform"}
+		// The longest first: a directory that is the end of another is not replaced inside it.
+		if i > 0 && i < len(pairs)-1 && len(p[0]) > len(pairs[i-1][0]) {
+			t.Errorf("%q comes after the shorter %q", p[0], pairs[i-1][0])
+		}
+	}
+	if !found {
+		t.Errorf("the directory is not replaced: %q", pairs)
 	}
 	if last := pairs[len(pairs)-1]; last != [2]string{"127.0.0.1:43211", "127.0.0.1:8700"} {
 		t.Errorf("the address: %q", last)

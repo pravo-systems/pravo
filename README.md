@@ -123,7 +123,7 @@ pravo serve --plan change.plan       # overlay a saved plan
 | `cmd/pravo/` | The command line, the JSON output and the MCP server. |
 | `internal/config/` | Loads a root; finds resources, providers and outputs; fingerprints a root. |
 | `internal/convert/` | CUE values to provider values and back; known, unknown and null; reference analysis. |
-| `internal/engine/` | Dependency graph, scheduler, plan, apply, saved plans, plan policies. |
+| `internal/engine/` | Dependency graph, scheduler, plan, apply, saved and stored plans, plan policies. |
 | `internal/state/` | The state store: records, transactions, locks; local and S3 backends. |
 | `internal/plugin/` | Provider processes; plugin protocol 5 and 6 adapters; recording and replay. |
 | `internal/tfplugin/` | Protocol definitions (`.proto`, MPL-2.0), generated messages, client stubs. |

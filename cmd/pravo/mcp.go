@@ -131,7 +131,7 @@ func mcpTools() []mcpTool {
 		{Name: "pravo_show_plan", Description: "Show a saved plan file as data, and whether it is still applicable.",
 			InputSchema: obj(map[string]any{"planfile": map[string]any{"type": "string"}}, "planfile"),
 			args: func(in map[string]any) ([]string, error) {
-				if err := positional("planfile", strArg(in, "planfile")); err != nil {
+				if err := planFileArg(strArg(in, "planfile")); err != nil {
 					return nil, err
 				}
 				return []string{"show", strArg(in, "planfile")}, nil
@@ -139,7 +139,7 @@ func mcpTools() []mcpTool {
 		{Name: "pravo_apply_plan", Description: "Apply a saved plan file exactly as reviewed, optionally only a dependency-closed subset of its changes. Refused when the plan is stale, when a node is locked or reserved by another actor, or when a policy named by the server forbids it. Streams progress events and ends with a summary.",
 			InputSchema: obj(map[string]any{"planfile": map[string]any{"type": "string"}, "only": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "addresses to apply now"}}, "planfile"),
 			args: func(in map[string]any) ([]string, error) {
-				if err := positional("planfile", strArg(in, "planfile")); err != nil {
+				if err := planFileArg(strArg(in, "planfile")); err != nil {
 					return nil, err
 				}
 				a := []string{"apply", strArg(in, "planfile")}
@@ -425,6 +425,19 @@ func serverPolicyArgs(args []string) []string {
 // positional refuses a tool argument that the command line would read as a
 // flag, such as a plan file named -auto-approve or an address -C=/other, and
 // an empty one. The tools pass these values as positional arguments.
+// planFileArg checks the plan file of a tool call. The tools take plan files. The
+// commands they run also take the id of a plan stored in the state, which the
+// tools do not offer: an id that no file has is refused.
+func planFileArg(v string) error {
+	if err := positional("planfile", v); err != nil {
+		return err
+	}
+	if isStoredRef(v) {
+		return fmt.Errorf("planfile %q is the id of a stored plan, and the tools take plan files: write the plan to a file with \"pravo plan pull %s FILE\"", v, v)
+	}
+	return nil
+}
+
 func positional(name string, values ...string) error {
 	for _, v := range values {
 		if v == "" || strings.HasPrefix(v, "-") {

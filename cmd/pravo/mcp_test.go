@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -54,6 +57,32 @@ func TestToolsRefuseArgumentsThatLookLikeFlags(t *testing.T) {
 	ok := map[string]any{"planfile": "change.plan"}
 	if args, err := byName["pravo_apply_plan"].args(ok); err != nil || args[1] != "change.plan" {
 		t.Errorf("an ordinary plan file must still work: %v %v", args, err)
+	}
+}
+
+// The commands that the tools run take the id of a stored plan; the tools do not,
+// unless a file has that name.
+func TestToolsTakePlanFilesAndNotStoredPlanIDs(t *testing.T) {
+	byName := map[string]mcpTool{}
+	for _, tool := range mcpTools() {
+		byName[tool.Name] = tool
+	}
+	dir := t.TempDir()
+	wd, _ := os.Getwd()
+	defer os.Chdir(wd)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"pravo_apply_plan", "pravo_show_plan"} {
+		in := map[string]any{"planfile": "plan-2f9c1a4e"}
+		if _, err := byName[name].args(in); err == nil || !strings.Contains(err.Error(), "stored plan") {
+			t.Errorf("%s took the id of a stored plan: %v", name, err)
+		}
+		os.WriteFile(filepath.Join(dir, "plan-2f9c1a4e"), []byte("{}"), 0o644)
+		if _, err := byName[name].args(in); err != nil {
+			t.Errorf("%s refused a file that is called like an id: %v", name, err)
+		}
+		os.Remove(filepath.Join(dir, "plan-2f9c1a4e"))
 	}
 }
 

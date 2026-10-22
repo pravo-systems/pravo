@@ -21,6 +21,7 @@ The JSON document that pravo plan --json prints, the form of a saved plan file, 
 | `hints` | when there are any | The text of each `Hint:` line the plan prints. |
 | `providers` | when the root has providers | The resolved version of each provider, by local name. |
 | `reservation` | in `pravo show --json` only | The nodes a `--reserve` plan reserved and until when. |
+| `stored` | in `pravo plan --store --json`, for a plan that was stored | The `id`, the expiry, the `apply_command` and the plans that overlap. See [Store a plan](plan.md#store-a-plan). |
 
 Work in an empty directory. This root has a managed resource that depends on another, a data source, an ephemeral resource, a function call and an output.
 
@@ -436,7 +437,7 @@ Error: saved plan is stale; run "pravo plan" again:
 
 ## The saved plan file
 
-`pravo plan --out FILE` writes the plan as JSON, with mode `0600`. The values of the objects are msgpack inside the JSON, so that unknown values survive. A `--policy` does not enter the file. The file is not signed.
+`pravo plan --out FILE` writes the plan as JSON, with mode `0600`. `pravo plan --store` writes the same object into the state, where [State format](state-format.md#plans) describes it, and `pravo plan pull` writes it back to a file. The values of the objects are msgpack inside the JSON, so that unknown values survive. A `--policy` does not enter the file. The file is not signed.
 
 | Key | Contents |
 |---|---|

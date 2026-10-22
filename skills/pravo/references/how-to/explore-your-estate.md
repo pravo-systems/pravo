@@ -2,13 +2,13 @@
 
 # Explore an estate in a browser
 
-Start pravo serve, read the graph, find a resource, open and close modules, read the source, overlay a saved plan, find drift and share a view.
+Start pravo serve, read the graph, find a resource, open and close modules, read the source, overlay a saved plan, see what your team has planned, find drift and share a view.
 
-`pravo serve` shows the specification, the state and a saved plan of one root as a graph in a browser. It reads and never writes. This page starts the viewer, reads the graph, finds a resource, opens and closes modules, reads the source of a resource, overlays a plan, finds drift and shares a view. [The viewer](../concepts/the-viewer.md) explains what the viewer shows, and [`pravo serve`](../reference/serve.md) lists its flags, keys and parameters.
+`pravo serve` shows the specification, the state and a saved plan of one root as a graph in a browser. It reads and never writes. This page starts the viewer, reads the graph, finds a resource, opens and closes modules, reads the source of a resource, overlays a plan, reads the plans that your team stored, finds drift and shares a view. [The viewer](../concepts/the-viewer.md) explains what the viewer shows, and [`pravo serve`](../reference/serve.md) lists its flags, keys and parameters.
 
 The pictures come from the `platform` estate. It has 47 resources in three modules, `network`, `api` and `edge`, built from the `random`, `local` and `null` providers, so it needs no cloud account. `api.services.billing` is an instance of the definition `#Service`, which a second package, `kit`, defines. The estate is in `tools/serveshots/scenarios/platform` of the pravo source tree, and the steps work in any root.
 
-The pictures of steps 6, 7 and 9 were taken after three edits: a resource added to the specification, a resource removed from it and a port changed. Those pictures count 48 resources. One is declared and not created yet, and one is recorded and not declared.
+The pictures of steps 6, 8 and 10 were taken after three edits: a resource added to the specification, a resource removed from it and a port changed. Those pictures count 48 resources. One is declared and not created yet, and one is recorded and not declared.
 
 ## 1. Start the viewer
 
@@ -150,7 +150,34 @@ A resource that the plan changes carries a badge and a ring in the colour of its
 
 The Change tab lists the reasons that the plan gives, the attributes that force a replacement and each attribute that changes with its value before and after. A value that the viewer withholds is withheld in the plan too. A value that is not known until the apply reads `known after apply`.
 
-## 7. Find drift
+## 7. See what your team has planned
+
+`pravo plan --store` writes a plan into the state, so that a teammate can read it before anyone applies it. [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) follows two people through it. The viewer reads the state, so it lists those plans without a flag. The pictures of this step come from a state in which `ana` and `ben` stored plans for the same resources, and `ci` stored one that expired.
+
+```sh
+pravo plan --store --actor ana --reason "move orders to port 9082"
+pravo serve
+```
+
+The sidebar has a section, Plans, when the state holds a plan. Each row is one plan, newest first: the initials of the author, the id, the status, the author, the age and the counts of resources to add, change and destroy. Pending lists the plans that can be applied. A mark of two rings on a row says that another plan changes one of the same resources.
+
+Click a row. The plan is laid over the graph, as a saved plan is in step 6. The graph shows its actions, the Change tab shows its attributes, and a bar above the graph names it. The row opens and shows the reason, what overlaps, and the command that applies the plan, with a button that copies it. A second click on the row, Esc in the list or the button in the bar takes the plan off the graph.
+
+*Figure: The platform with the plan of ana laid over the graph. The plan of ben also replaces what writes orders, so those resources carry two discs and a ring, and the sidebar says that the plans overlap.*
+
+Look for the discs before you apply. Each disc on a resource is the initial of the author of a plan that can be applied and changes it. A resource with two discs and a ring is one that two people have planned and not applied. A plan that has applied its change on a resource has no disc there. Applying one of the plans makes the other stale, because the resource is then at another revision. The Plans cell of the resource, above the tabs, lists the plans, and a click on a disc lays that plan over the graph. The legend names `plan author` and `overlap`.
+
+The viewer applies nothing and has no control that approves or removes a plan. Copy the command, and run it in a checkout that has the files the plan was made from. The status that the list shows comes from the state alone. `pravo apply` also compares the configuration and the providers, and refuses the plan when they differ.
+
+Choose All to list the plans that cannot be applied: the stale, the applied and the expired, until a collection removes them. A plan that cannot be applied has no command to copy, and none of its resources carries a disc.
+
+*Figure: The plan of ci under All. It expired two days ago. Its row has a note instead of a command, and the inspector shows the plan: its counts, who made it, when it expired, the reason and the command that made it.*
+
+Leave the viewer open and the list follows the state. A plan that a teammate stores gets a row, and a notice names it. The status of a plan changes when an apply from it records progress, and when something else changes a resource it expects. A plan that is collected leaves the list, and a plan that expires without an apply moves to All. When the plan that is laid over the graph is collected, a notice says so and the graph shows no plan.
+
+`pravo serve --plan ID` starts the viewer with a stored plan laid over the graph. Give the same `-t` and `-T` that you give to `pravo plan list`. The fragment of the address names the plan: `plan=plan-2f9c1a4e` lays that plan, and `plan=none` takes off the one that `--plan ID` laid. [The viewer](../concepts/the-viewer.md#stored-plans) explains what each mark means, and [`pravo serve`](../reference/serve.md#stored-plans) lists the keys and the endpoints.
+
+## 8. Find drift
 
 `pravo drift` reads every resource and marks the records whose real object differs or is gone. The viewer shows the marks. Choose the Drifted chip to see only those resources.
 
@@ -162,7 +189,7 @@ pravo drift
 
 The viewer reads the marks from the state. It does not read the real objects, so it shows the drift that a command found and does not look for more. Run `pravo drift` again, and the viewer updates when the state changes: a notice says that the state changed and how many resources differ, and the resources that changed flash once.
 
-## 8. See what the viewer withholds
+## 9. See what the viewer withholds
 
 Select a resource that holds a secret. The State tab lists its sensitive attributes in the Sensitive group, with a name and a type and a locked mark where the value would be. Hover over the mark, or move the keyboard focus to it, for the reason.
 
@@ -170,7 +197,7 @@ Select a resource that holds a secret. The State tab lists its sensitive attribu
 
 The server removes the value before it answers. The page never has it, and a copy of the page's data holds no secret. The server also withholds a value that contains a secret although the schema does not mark it: `api.cache.config` is a plain file that embeds the password of the cache, and its content is withheld too. [The viewer](../concepts/the-viewer.md#withheld-values) lists the rules.
 
-## 9. Share a view by link
+## 10. Share a view by link
 
 The viewer keeps its view in the fragment of the address: the selected resource or module, the tab, the modules that you opened or closed, the filter, the search text, the view and the theme that you chose. Copy the address to share the view.
 
@@ -192,7 +219,7 @@ Below 1100 pixels the sidebar becomes a drawer that the menu button in the bar o
 
 *Figure: A window of 900 pixels. The graph keeps the top of the window, and the inspector is a panel under it.*
 
-## 10. Use it in a container or over SSH
+## 11. Use it in a container or over SSH
 
 The viewer listens on the loopback interface of the machine that runs it, and no flag changes that. A browser on another machine cannot reach it directly.
 
@@ -214,6 +241,7 @@ In a container, the viewer listens on the loopback interface of the container. A
 - `pravo serve` shows the specification, the state and an optional saved plan as modules and resources. It reads and writes nothing.
 - The first view opens the modules that fit. Click a card to open a module, and open a cluster to see its members.
 - The Source tab shows the definition and the instance that write a resource. The Change tab shows what a saved plan changes.
+- The Plans section lists the plans that your team stored in the state. A disc on a resource names who plans to change it, and a ring marks two plans on one resource. The viewer copies the command that applies a plan and applies nothing.
 - A value that is sensitive, or has a secret's name, or contains a secret, never reaches the page.
 - The fragment of the address holds the view, so a link reproduces it. Press `?` in the viewer for the shortcuts.
 

@@ -40,6 +40,9 @@
   --conflict-wash: rgba(179, 41, 23, .09);
   --key-wash: rgba(51, 71, 201, .08);
   --glow: rgba(10, 115, 90, .20);
+  /* two stored plans that change one resource: a colour of its own, clear of the green, amber, red and blue that the plan and the structure use */
+  --overlap: #a3208f;
+  --overlap-wash: rgba(163, 32, 143, .09);
   color-scheme: light;
 
   /* ---- code windows and terminals: dark in both themes ---- */
@@ -157,6 +160,8 @@
     --conflict-wash: rgba(255, 107, 94, .10);
     --key-wash: rgba(142, 162, 255, .10);
     --glow: rgba(61, 219, 176, .22);
+    --overlap: #f27ae0;
+    --overlap-wash: rgba(242, 122, 224, .10);
     --sh: 55%;
     color-scheme: dark;
   }
@@ -183,6 +188,8 @@
   --conflict-wash: rgba(255, 107, 94, .10);
   --key-wash: rgba(142, 162, 255, .10);
   --glow: rgba(61, 219, 176, .22);
+  --overlap: #f27ae0;
+  --overlap-wash: rgba(242, 122, 224, .10);
   --sh: 55%;
   color-scheme: dark;
 }

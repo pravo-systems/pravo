@@ -5,7 +5,7 @@ order: 10
 minutes: 9
 ---
 
-`pravo serve` shows an estate in a browser. It joins three things by address: the specification, which it evaluates, the state, which it reads, and optionally a saved plan. The result is one graph of modules and resources. This page explains how the viewer builds that graph and what it leaves out. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows the steps, and [`pravo serve`](../reference/serve.md) is the reference.
+`pravo serve` shows an estate in a browser. It joins three things by address: the specification, which it evaluates, the state, which it reads, and optionally a plan, which is a saved plan file or a plan that someone stored in the state. The result is one graph of modules and resources. This page explains how the viewer builds that graph and what it leaves out. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows the steps, and [`pravo serve`](../reference/serve.md) is the reference.
 
 ## One address, three sources
 
@@ -16,6 +16,7 @@ A resource has one address, such as `api.services.billing.config`. The specifica
 | Specification | Whether the resource is declared, the file and line where it is written, the edges that its references make. |
 | State | The record: attributes, revision, the times of the last apply and the last read, the marks that a read left, locks and the transactions that wrote it. |
 | Saved plan | The action for the node, and the attributes that the action changes. |
+| Stored plans | The plans in the state that can be applied and change the node, and who made them. |
 
 A node is a resource, a data source, an ephemeral resource or a function call. The viewer shows what the specification declares and what the state records, so a node can come from either one or from both.
 
@@ -153,11 +154,39 @@ An edge runs from a dependency to its dependent, the direction in which data flo
 
 The viewer does not make a plan. A plan is the result of a refresh, a policy and a lock, and each of those is a command that changes something.
 
+## Stored plans
+
+A plan that someone made with `pravo plan --store` lives in the state, where everyone who can read the state finds it. The viewer reads the state, so it lists those plans whether or not it was started with `--plan`. [Plans](plans.md#stored-plans) explains how a stored plan is kept. This section explains what the viewer makes of one.
+
+### The list
+
+The sidebar has a section, Plans, when the state holds at least one plan. Each row is one plan: a badge with the initials of its author, the id, a chip with the status, the author, the age, and the counts of resources to add, change and destroy. Pending lists the plans that can be applied. All adds the plans that are stale, applied or expired and that no collection has removed yet. A plan that changes a resource which another plan that can be applied changes too carries a mark of two rings.
+
+The status is judged against the state alone, as `pravo plan list` judges it. A plan is `stale` when the state has another lineage, or when a node that a change not applied yet writes or reads has another revision or generation. The whole plan is then stale. The viewer does not compare the configuration or the providers. They belong to one checkout, and `pravo apply` compares them. A plan that is `pending` in the viewer can still be refused by `pravo apply` in a checkout whose files differ.
+
+### One plan over the graph
+
+A click on a row lays the plan over the graph. What the [saved plan overlay](#the-plan-overlay) does follows: the actions of the plan replace the actions on the nodes, the Change tab lists the attributes that the plan changes, and the inspector shows the numbers of its summary. The first view is made again, and the modules that the plan touches open first. A bar on the canvas names the plan that is laid over the graph, with its author, id, status and counts. Detail in the bar moves the focus to the row, and the button beside it takes the plan off.
+
+The selected row opens. It shows the reason that the author gave and, for a stale plan, the reasons that it is stale. The reason, the command and the revision come with the plan itself, which the page reads when you choose the row. The list does not carry them. It lists the other plans that overlap, each a link that lays that plan over the graph instead. A closed part holds the expiry, the command line that made the plan and its revision. For a plan that can be applied, the row ends with the command `pravo apply ID` and a button that copies it. For a plan that is applied, stale or expired, a note says so.
+
+The viewer applies nothing. It has no control that approves, applies, claims or removes a plan, and the server has no endpoint that would carry one. The command is text for a terminal in a checkout. It is the plain command. A plan that was made with `-t` or `-T` needs the same tags, and `pravo apply` names them when they are missing.
+
+### Who plans what
+
+A resource that plans which can be applied still have a change to apply on carries a disc on the top edge of its box, with the initial of the author of each plan. Three discs show, and a number counts the rest. When two plans each have a change left on one resource, a solid ring in a colour of its own marks the box. The two plans overlap: applying one makes the other stale, because the resource is then at another revision. Each of the two sees the other. A plan that has applied its change on a resource has no disc there and no overlap. The legend names `plan author` and `overlap` while the graph has them. The inspector shows the same for the selected resource, as a cell, Plans, with a disc for each plan. A click on a disc lays that plan over the graph. A plan that is stale, applied or expired is not on a resource.
+
+A plan whose objects cannot be read, because they are damaged or a newer pravo wrote them, is not listed. A warning above the graph names up to five of them, with a short reason, so that a person who looks for a colleague's plan can tell why it is not there.
+
+Badges are drawn on boxes and in the rows of the sidebar. The cards of closed modules and the Tree view show none.
+
+[Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md) stores plans for two people. [Explore an estate in a browser](../how-to/explore-your-estate.md#7-see-what-your-team-has-planned) reads them in the viewer.
+
 ## Withheld values
 
 The viewer shows attribute values, and some of them are secrets. The state holds a sensitive value as the provider returned it, and the state is a store that you protect. A viewer that sent every value to a browser would copy those values into a browser's memory, history and extensions. The server therefore decides which values leave it, and a value that it withholds is not in the response. Nothing in the page can show it, because the page never received it.
 
-A value is sent only when the provider schema says that it is not sensitive and not write-only. The rule follows the schema down through nested attributes and blocks. Three more rules apply.
+A value is sent only when the provider schema says that it is not sensitive and not write-only. The rule follows the schema down through nested attributes and blocks. Three more rules apply. A stored plan is withheld by the same rules as a plan file, with the secrets of that plan: those of the state and the values that the plan would write. What a person wrote into it, the author, the reason and the reasons of a stale plan, is masked as the history of a record is. Its command line is masked too, and the values of `-t` and of flags named like a secret are withheld from it. Each text is cut at 4 KiB. The reason, the command and the revision are sent only with the plan that you choose.
 
 - When the schema of a resource type cannot be read, or does not know an attribute, the value is withheld, because nothing says whether it is sensitive. The reason is `schema`.
 - An attribute whose name contains `password`, `passwd`, `secret`, `token`, `private_key`, `credential`, `api_key` or `access_key`, in any letter case, is withheld whatever the schema says. A schema can omit a flag, and the name is a second guard. The reason is `name`.
@@ -183,12 +212,15 @@ The server writes nothing. It creates no record and no transaction, takes no loc
 
 Three consequences follow. You can leave the viewer open while someone else applies: it never contends for a lock, and it shows the locks that the apply holds. You can start it on any root that you can read, because starting it changes no file. And the page has no button that changes anything, since the server has no endpoint that would carry the request.
 
-The viewer stays current without writing. It watches the state, the files that the evaluation loaded and the plan file. When any of them changes, it sends one event to the page, and the page fetches the graph again, and the open node with it. The page says what changed, the state, the specification, the plan or a lock, with how many resources changed, are new or are gone, and the resources that changed flash once. When the resource that you were reading is gone, a notice says so and the inspector shows the project again. When the server stops, the page says that it is not answering, keeps the last picture and reads the project again when the server returns.
+The viewer stays current without writing. It watches the state, the files that the evaluation loaded, the plan file and the plans stored in the state. When any of them changes, it sends one event to the page, and the page fetches the graph, the list of plans and the open node again. The page says what changed, the state, the specification, the plan, the stored plans or a lock, with how many resources changed, are new or are gone, and the resources that changed flash once.
+
+A plan appears in the list when someone stores it. It becomes partial or applied when an apply from it records progress, and stale when something else changes a node that it expects. It leaves the list when a collection removes it. A plan that nobody applies expires without any write, so the viewer counts the moment that the nearest expiry of a plan that can be applied, or is stale, passes as a change. When the plan that is laid over the graph is collected, a notice says so and the graph shows no plan. The badges on the resources follow the plans that can be applied. When the resource that you were reading is gone, a notice says so and the inspector shows the project again. When the server stops, the page says that it is not answering, keeps the last picture and reads the project again when the server returns.
 
 ## Recap
 
 - A node is one address with what the specification, the state and a saved plan know about it.
 - A module is any struct that holds resources. Presence says whether a node is declared, recorded or both.
+- A stored plan is a plan that lives in the state. The viewer lists it, lays it over the graph and shows who else plans the same resource. It copies the command that applies it and applies nothing.
 - The server withholds sensitive values, values of a type with no schema and values whose names say secret. A withheld value is not in the response.
 - The first view opens modules one level at a time, the ones that hold a change or a mark first, as far as the drawing stays readable. The rest are cards that a click opens.
 - A cluster stands for many resources of one type in one module. Closing a module and clustering hide detail and remove no node.

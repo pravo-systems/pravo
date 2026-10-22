@@ -1,0 +1,28 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "plan": {
+  "file": "plan-e0a17c33",
+  "id": "plan-e0a17c33",
+  "status": "expired",
+  "created": "2026-10-12T14:02:11Z",
+  "actor": "ada@acme",
+  "summary": {
+   "add": 0,
+   "change": 1,
+   "destroy": 0,
+   "read": 0,
+   "blast_radius": 4
+  },
+  "planned": 1,
+  "total": 47
+ },
+ "nodes": [
+  {
+   "addr": "network.private.nat",
+   "action": "update"
+  }
+ ],
+ "reason": "tune the nat gateway",
+ "command": "pravo plan --store --reason \"tune the nat gateway\" --ttl 7d"
+}

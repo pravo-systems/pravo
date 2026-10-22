@@ -23,7 +23,7 @@ func serveCmd() *cobra.Command {
 		Short: "Show the specification, the state and a saved plan in a browser, read-only",
 		Long: `Serve a read-only viewer on the loopback interface and open it in the default browser.
 
-The viewer shows the specification and the state as a graph of modules and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top. It updates when the state, the specification or the plan file changes.
+The viewer shows the specification and the state as a graph of modules and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top: a plan file, or the id of a plan stored in the state with "pravo plan --store". The plans stored in the state are listed in the viewer whether or not --plan is given, and any of them can be laid over the graph. It updates when the state, the specification, the plan file or the stored plans change.
 
 The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.`,
 		Args: noArgs,
@@ -36,7 +36,11 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 				return err
 			}
 			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: openStateReadOnly}
-			if planFile != "" {
+			if isStoredRef(planFile) {
+				// The id of a plan in the state (a file of that name wins). The plan is
+				// looked up when the state is read, with the tags given here.
+				opts.PlanID = planFile
+			} else if planFile != "" {
 				pf, err := engine.ReadPlanFile(planFile)
 				if err != nil {
 					return err
@@ -80,7 +84,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 	}
 	cmd.Flags().IntVar(&port, "port", 0, "the port to listen on (0 picks a free one)")
 	cmd.Flags().BoolVar(&noOpen, "no-open", false, "do not open a browser")
-	cmd.Flags().StringVar(&planFile, "plan", "", "a saved plan to show on top of the graph")
+	cmd.Flags().StringVar(&planFile, "plan", "", "a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-2f9c1a4e)")
 	addTagFlags(cmd)
 	return cmd
 }

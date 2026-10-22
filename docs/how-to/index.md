@@ -16,6 +16,7 @@ How-to pages are for when you know the basics and need to do one thing: share st
 | Publish a module, or use one that someone else published | [Publishing a module](publishing-a-module.md), [Using a module](using-a-module.md) | [B6, Modules, providers, credentials](../learn/b06-modules-providers-credentials.md) |
 | Use a provider from a registry other than the default | [Providers from a registry](providers-from-a-registry.md) | [Providers](../concepts/providers.md) |
 | Run pravo in a pipeline | [CI](ci.md) | [Exit codes](../reference/exit-codes.md) |
+| Let a team list, read and apply a plan before anyone applies it | [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) | [Plans](../concepts/plans.md#stored-plans) |
 | Refuse plans that break a rule | [Policies](policies.md) | [B10, Policy on providers and on plans](../learn/b10-policy.md) |
 | Let an agent plan and apply | [Agents and MCP](agents-and-mcp.md) | [pravo mcp](../reference/mcp.md) |
 | Handle secrets and credentials | [Secrets](secrets.md) | [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) |

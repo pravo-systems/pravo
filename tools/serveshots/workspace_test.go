@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,10 +59,25 @@ func fakePravo(args []string) int {
 		}
 		return 2
 	case "plan":
+		store, actor := false, ""
 		for i, a := range args {
 			if a == "--out" && i+1 < len(args) {
 				os.WriteFile(args[i+1], []byte("plan"), 0o644)
 			}
+			store = store || a == "--store"
+			if a == "--actor" && i+1 < len(args) {
+				actor = args[i+1]
+			}
+		}
+		if store {
+			// A stored plan is two objects below pravo.state/plans, named by its id.
+			dir := filepath.Join("pravo.state", "plans")
+			os.MkdirAll(dir, 0o755)
+			have, _ := filepath.Glob(filepath.Join(dir, "*.meta.json"))
+			id := fmt.Sprintf("plan-%08x", len(have)+1)
+			now := time.Now().UTC().Format(time.RFC3339Nano)
+			os.WriteFile(filepath.Join(dir, id+".plan.json"), []byte(`{"format":1,"created":"`+now+`","providers":{},"changes":[]}`), 0o644)
+			os.WriteFile(filepath.Join(dir, id+".meta.json"), []byte(`{"format":1,"id":"`+id+`","author":"`+actor+`","created":"`+now+`","expires":"`+now+`"}`), 0o644)
 		}
 		fmt.Println("Plan: 6 to add, 0 to change, 3 to destroy.")
 		return 0
@@ -159,6 +175,72 @@ func TestPrepareChanged(t *testing.T) {
 	}
 	if _, err := os.Stat(w.Plan); err != nil {
 		t.Error("no plan:", err)
+	}
+}
+
+// The stored situation stores a plan for each actor, from the specification
+// edited for it, puts the specification back each time, and moves the times of
+// the plans into the past.
+func TestPrepareStored(t *testing.T) {
+	r, log := fake(t)
+	sc, _ := findScenario("platform")
+	dir := filepath.Join(t.TempDir(), "ws")
+	w, err := prepareStored(context.Background(), r, sc, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Situation != situationStored || len(w.Plans) != 3 {
+		t.Fatalf("workspace = %+v", w)
+	}
+	want := []string{"init", "apply -auto-approve",
+		"plan --store --actor ana --reason move orders to port 9082",
+		"plan --store --actor ben --reason new ports for orders and search",
+		"plan --store --actor ci --reason listen on 8443 at the edge"}
+	if got := calls(t, log); !reflect.DeepEqual(got, want) {
+		t.Errorf("calls = %q, want %q", got, want)
+	}
+	original, _ := scenarioFS.ReadFile("scenarios/platform/api.cue")
+	if got := readFile(t, filepath.Join(dir, "api.cue")); got != string(original) {
+		t.Error("the specification was not put back")
+	}
+	for _, actor := range []string{"ana", "ben", "ci"} {
+		if !planIDRe.MatchString(w.Plans[actor]) {
+			t.Errorf("the plan of %s has the id %q", actor, w.Plans[actor])
+		}
+	}
+	var meta struct {
+		Created, Expires time.Time
+	}
+	age := func(actor string) (time.Duration, time.Duration) {
+		data := readFile(t, filepath.Join(dir, "pravo.state", "plans", w.Plans[actor]+".meta.json"))
+		if err := json.Unmarshal([]byte(data), &meta); err != nil {
+			t.Fatal(err)
+		}
+		return time.Since(meta.Created), time.Until(meta.Expires)
+	}
+	if made, left := age("ana"); made < 179*time.Minute || made > 181*time.Minute || left < 6*24*time.Hour {
+		t.Errorf("ana's plan: made %s ago, %s left", made, left)
+	}
+	if made, left := age("ci"); made < 9*24*time.Hour-time.Minute || left > -time.Hour {
+		t.Errorf("the expired plan: made %s ago, %s left", made, left)
+	}
+	plan := readFile(t, filepath.Join(dir, "pravo.state", "plans", w.Plans["ben"]+".plan.json"))
+	if !strings.Contains(plan, `"format"`) || !strings.Contains(plan, `"created"`) {
+		t.Errorf("the plan object: %s", plan)
+	}
+}
+
+func TestPrepareStoredNeedsPlansAndOldEnoughOnes(t *testing.T) {
+	r, _ := fake(t)
+	fleet, _ := findScenario("fleet")
+	if _, err := prepareStored(context.Background(), r, fleet, filepath.Join(t.TempDir(), "ws")); err == nil {
+		t.Error("a scenario without stored plans: no error")
+	}
+	sc, _ := findScenario("platform")
+	young := sc
+	young.Stored = []storedPlan{{Actor: "ci", Reason: "x", Expired: true, Age: time.Hour, Edits: sc.Stored[0].Edits}}
+	if _, err := prepareStored(context.Background(), r, young, filepath.Join(t.TempDir(), "ws")); err == nil || !strings.Contains(err.Error(), "not old enough") {
+		t.Errorf("a plan that did not expire: %v", err)
 	}
 }
 

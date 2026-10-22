@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -102,6 +103,9 @@ type workspace struct {
 	Situation string
 	// Plan is the saved plan, for the plan situation.
 	Plan string
+	// Plans are the ids of the stored plans by the actor that made each, for
+	// the stored situation.
+	Plans map[string]string
 }
 
 // prepareClean copies the scenario to dir, initialises it and applies it.
@@ -159,6 +163,137 @@ func prepareChanged(ctx context.Context, r *pravoRunner, sc scenario, dir string
 	w.Situation = situationChanged
 	w.Plan = filepath.Join(dir, planFile)
 	return w, nil
+}
+
+// prepareStored is prepareClean followed by the stored plans of the scenario.
+// For each, the specification is edited, pravo plan --store puts the plan in the
+// state as its actor, and the specification is put back, so that the estate is
+// as it was applied and each plan is a plan that someone made earlier, against
+// the same state. The times of the plan are then moved into the past.
+func prepareStored(ctx context.Context, r *pravoRunner, sc scenario, dir string) (*workspace, error) {
+	if !sc.hasStored() {
+		return nil, fmt.Errorf("scenario %s has no stored plans", sc.Name)
+	}
+	w, err := prepareClean(ctx, r, sc, dir)
+	if err != nil {
+		return nil, err
+	}
+	w.Plans = map[string]string{}
+	now := time.Now()
+	for _, sp := range sc.Stored {
+		id, err := storePlan(ctx, r, dir, sp, w.Plans)
+		if err != nil {
+			return nil, fmt.Errorf("the plan of %s: %w", sp.Actor, err)
+		}
+		w.Plans[sp.Actor] = id
+		created := now.Add(-sp.Age)
+		expires := created.Add(7 * 24 * time.Hour)
+		if sp.Expired && !expires.Before(now) {
+			return nil, fmt.Errorf("the plan of %s is not old enough to have expired: %s old, the time to live is 7 days", sp.Actor, sp.Age)
+		}
+		if err := backdate(dir, id, created, expires); err != nil {
+			return nil, fmt.Errorf("the plan of %s: %w", sp.Actor, err)
+		}
+	}
+	w.Situation = situationStored
+	return w, nil
+}
+
+// storePlan makes one stored plan from the edits of sp and returns its id, the
+// one of the plans that is new in the state and that sp.Actor made. The files that
+// the edits touch are put back whatever happens.
+func storePlan(ctx context.Context, r *pravoRunner, dir string, sp storedPlan, have map[string]string) (string, error) {
+	saved := map[string][]byte{}
+	for _, e := range sp.Edits {
+		if _, ok := saved[e.File]; ok {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(e.File)))
+		if err != nil {
+			return "", err
+		}
+		saved[e.File] = data
+	}
+	restore := func() error {
+		for file, data := range saved {
+			if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(file)), data, 0o644); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := applyEdits(dir, sp.Edits); err != nil {
+		restore()
+		return "", err
+	}
+	_, runErr := r.mustRun(ctx, dir, []int{0}, "plan", "--store", "--actor", sp.Actor, "--reason", sp.Reason)
+	if err := restore(); err != nil {
+		return "", err
+	}
+	if runErr != nil {
+		return "", runErr
+	}
+	known := map[string]bool{}
+	for _, id := range have {
+		known[id] = true
+	}
+	metas, err := filepath.Glob(filepath.Join(dir, "pravo.state", "plans", "*.meta.json"))
+	if err != nil {
+		return "", err
+	}
+	for _, m := range metas {
+		id := strings.TrimSuffix(filepath.Base(m), ".meta.json")
+		if known[id] {
+			continue
+		}
+		var meta struct {
+			Author string `json:"author"`
+		}
+		data, err := os.ReadFile(m)
+		if err != nil {
+			return "", err
+		}
+		if json.Unmarshal(data, &meta) == nil && meta.Author == sp.Actor {
+			return id, nil
+		}
+	}
+	return "", fmt.Errorf("pravo plan --store stored no plan of %s: %d plans are in the state", sp.Actor, len(metas))
+}
+
+// backdate moves the times of a stored plan: when it was made and when it
+// lapses. A command cannot store a plan in the past, and the picture of a
+// plan that is hours old, or has expired, is made from one that was made a
+// moment ago.
+func backdate(dir, id string, created, expires time.Time) error {
+	stamp := func(t time.Time) json.RawMessage {
+		b, _ := json.Marshal(t.UTC().Format(time.RFC3339Nano))
+		return b
+	}
+	for kind, set := range map[string]map[string]json.RawMessage{
+		"plan": {"created": stamp(created)},
+		"meta": {"created": stamp(created), "expires": stamp(expires)},
+	} {
+		p := filepath.Join(dir, "pravo.state", "plans", id+"."+kind+".json")
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		var doc map[string]json.RawMessage
+		if err := json.Unmarshal(data, &doc); err != nil {
+			return fmt.Errorf("%s: %w", filepath.Base(p), err)
+		}
+		for k, v := range set {
+			doc[k] = v
+		}
+		out, err := json.MarshalIndent(doc, "", " ")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(p, append(out, '\n'), 0o600); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var driftLineRe = regexp.MustCompile(`(?m)^  ([^\s:]+): \S+$`)

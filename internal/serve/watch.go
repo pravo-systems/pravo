@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,8 +18,9 @@ import (
 )
 
 // The components of the signature the watcher keeps, in the order they are
-// named in an event.
-var components = []string{"state", "spec", "plan", "locks"}
+// named in an event. "plan" is the plan file of --plan, "plans" the plans stored
+// in the state.
+var components = []string{"state", "spec", "plan", "locks", "plans"}
 
 // fullScanEvery is how often, in polls, a state directory of many records is
 // read entry by entry. In between, the directories themselves are looked at:
@@ -50,6 +52,14 @@ type watcher struct {
 	backend  state.Backend
 	plan     string
 	remote   int // polls since the remote state was looked at
+
+	// The stored plans are signed by what is written: the base. A plan that is
+	// not applied expires without anything being written, so the nearest expiry of
+	// the plans that are open counts as well: when it passes, the epoch moves and
+	// the model, built again, names the next one.
+	plansBase string
+	expiry    time.Time
+	epoch     int
 
 	// scan is what the full reads of a large state directory found.
 	scan struct {
@@ -83,17 +93,36 @@ func (w *watcher) setState(location string, b state.Backend) {
 	w.mu.Unlock()
 }
 
+// setPlanExpiry tells the watcher when the first of the open stored plans
+// expires, the zero time if none does.
+func (w *watcher) setPlanExpiry(t time.Time) {
+	w.mu.Lock()
+	w.expiry = t
+	w.mu.Unlock()
+}
+
 // sample reads the signature of every component now. It also applies it, as a
 // poll does, so that the revision a model is labelled with is the one the
 // watcher holds, and an event is sent if the sample differs from the last. It
 // returns the revision and the signatures.
 func (w *watcher) sample() (string, map[string]string) {
+	// A bucket is looked at without the lock: every request asks the watcher for the
+	// revision, and none of them waits for the requests to the bucket.
+	w.mu.Lock()
+	b, due := w.backend, w.location == "" && w.backend != nil && (w.remote == 0 || w.sigs["state"] == "")
+	w.mu.Unlock()
+	var remote []string
+	if due {
+		state, locks, plans := remoteStateSignature(b)
+		remote = []string{state, locks, plans}
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return w.sampleLocked()
+	return w.sampleLocked(remote)
 }
 
-func (w *watcher) sampleLocked() (string, map[string]string) {
+// sampleLocked is sample with what the bucket said, if it was looked at.
+func (w *watcher) sampleLocked(remote []string) (string, map[string]string) {
 	w.n++
 	next := map[string]string{
 		"spec":  specSignature(w.dir, w.files, w.noSpec()),
@@ -103,12 +132,18 @@ func (w *watcher) sampleLocked() (string, map[string]string) {
 	}
 	if w.location != "" {
 		next["state"], next["locks"] = w.localState()
+		w.plansBase = localPlansSignature(w.location)
 	} else if w.backend != nil {
-		if w.remote == 0 || w.sigs["state"] == "" {
-			next["state"], next["locks"] = remoteStateSignature(w.backend)
+		if remote != nil {
+			next["state"], next["locks"], w.plansBase = remote[0], remote[1], remote[2]
 		}
 		w.remote = (w.remote + 1) % remoteEvery
 	}
+	if !w.expiry.IsZero() && !time.Now().Before(w.expiry) {
+		w.epoch++
+		w.expiry = time.Time{}
+	}
+	next["plans"] = w.plansBase + "#" + strconv.Itoa(w.epoch)
 	var what []string
 	first := w.rev == ""
 	for _, c := range components {
@@ -243,10 +278,65 @@ func (w *watcher) localState() (stateSig, locksSig string) {
 	return digest(strings.Join(parts, "\n")), dirSignature(filepath.Join(dir, "locks"), true)
 }
 
+// localPlansSignature signs the plans stored in a local state: the entries of the
+// plans directory, by name, size and time. A plan is three files, and the third,
+// the progress, is replaced by a rename when anything is applied from the plan or
+// a collector marks it, which changes its time and its size. Nothing is read, and
+// a state without stored plans costs one failed directory read.
+func localPlansSignature(location string) string {
+	dir := filepath.Join(location, "plans")
+	list, err := os.ReadDir(dir)
+	if err != nil {
+		return "-"
+	}
+	return dirSignature(dir, len(list) <= fullScanLimit)
+}
+
+// remotePlansSignature signs the plans stored in a bucket. The listing says which
+// plans there are: one that is stored or collected changes it. The plan and its
+// summary are never written twice, but the progress of a plan keeps its key when
+// it is replaced, and the listing carries no time, so the progress objects, which
+// are small and which only a plan that something was done with has, are read and
+// digested. The cost of a sample is a listing and a read for each of them.
+func remotePlansSignature(ctx context.Context, b state.Backend) string {
+	keys, err := b.List(ctx, "plans")
+	if err != nil {
+		return "!"
+	}
+	parts := make([]string, len(keys))
+	// Only the progress objects of plans are read, up to a few at a time: a key
+	// that is not one is part of the listing and nothing more.
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+	for i, key := range keys {
+		parts[i] = key
+		if !progressKeyRe.MatchString(key) {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if data, err := b.Get(ctx, key); err == nil {
+				parts[i] += "|" + digest(string(data))
+			} else {
+				parts[i] += "|-"
+			}
+		}()
+	}
+	wg.Wait()
+	return digest(strings.Join(parts, ";"))
+}
+
+// progressKeyRe matches the key of the progress object of a plan.
+var progressKeyRe = regexp.MustCompile(`^plans/plan-[0-9a-f]{6,64}\.progress\.json$`)
+
 // remoteStateSignature signs a state in a bucket by listing it. A record that is
 // written again keeps its key, so the listing alone would miss it; the
 // transactions, which every apply adds, and the outputs are looked at as well.
-func remoteStateSignature(b state.Backend) (stateSig, locksSig string) {
+// The third signature is that of the stored plans.
+func remoteStateSignature(b state.Backend) (stateSig, locksSig, plansSig string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	var parts []string
@@ -267,7 +357,7 @@ func remoteStateSignature(b state.Backend) (stateSig, locksSig string) {
 		parts = append(parts, key+"|"+digest(string(data)))
 	}
 	keys, _ := b.List(ctx, "locks")
-	return digest(strings.Join(parts, "\n")), digest(strings.Join(keys, ";"))
+	return digest(strings.Join(parts, "\n")), digest(strings.Join(keys, ";")), remotePlansSignature(ctx, b)
 }
 
 // specSignature signs the files the specification is made of, the files that

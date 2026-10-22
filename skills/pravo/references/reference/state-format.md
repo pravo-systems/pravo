@@ -2,7 +2,7 @@
 
 # State format
 
-The files of the state graph: nodes, outputs, transactions, locks and the metadata that identifies a store.
+The files of the state graph: nodes, outputs, transactions, locks, stored plans and the metadata that identifies a store.
 
 pravo records what it manages in a state graph, not a state file. Every resource and data source is a node with its own record and its own revision history. Dependencies are edges between nodes. A node is written on its own, so two commands that write different nodes never conflict.
 
@@ -13,6 +13,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 | `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. |
 | `txn/<id>.json` | One recorded transaction. |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |
+| `plans/<id>.plan.json`, `plans/<id>.meta.json`, `plans/<id>.progress.json` | A stored plan: the plan, its summary and what was applied from it. See [Plans](#plans). |
 
 The graph lives in a directory, `pravo.state` next to the specification by default. [Settings](spec-settings.md#state) sets another directory or an S3 bucket. A state path that names a file is an error, and pravo changes nothing. Keep the directory on storage that every user of the root can reach. Treat nodes as sensitive: provider attributes can include secrets.
 
@@ -306,12 +307,220 @@ There is no global lock and no queue. An apply that needs a node another process
 
 On a store that is not on this machine, the lock files rely on conditional requests: `If-None-Match: *` to create a lock, and `If-Match` on the entity tag to renew, release or reclaim one. A store that ignores them lets two commands hold or reclaim one lock.
 
+## Plans
+
+A stored plan is three objects. `pravo plan --store` writes the first two, and the third appears when an apply or a collection first touches the plan. The id is `plan-` and the first eight hexadecimal digits of the SHA-256 digest of the plan object. The id has more digits when two different plans share the first eight.
+
+| Object | Written | Contents |
+|---|---|---|
+| `plans/<id>.plan.json` | Once, with a conditional create. Never changed. | The plan, in the form of a [saved plan file](plan-document.md#the-saved-plan-file). |
+| `plans/<id>.meta.json` | Once, after the plan. Never changed. | The summary that a listing reads. |
+| `plans/<id>.progress.json` | At the first change to it, then replaced by a conditional replace. | What was applied from the plan, and who applies or removes it. |
+
+A plan without a summary is a write that did not finish. A listing does not show it, and a collection removes its objects after an hour. A summary that exists and cannot be read, because a newer pravo wrote it or the object is damaged, is not that: the listing leaves the plan out, and a collection leaves it alone. A plan that nothing was done with has no progress object.
+
+Change the specification and store a plan as `ci`. The reservation from the section above belongs to `ci`, so the plan is allowed.
+
+```sh
+pravo plan --store --actor ci --reason example > /dev/null
+ls pravo.state/plans
+```
+
+Output:
+
+```text
+plan-<id>.meta.json
+plan-<id>.plan.json
+```
+
+### The summary
+
+```sh
+jq . pravo.state/plans/plan-*.meta.json
+```
+
+Output:
+
+```text
+{
+  "format": 1,
+  "id": "plan-<id>",
+  "created": "2026-01-01T00:00:00Z",
+  "expires": "2026-01-01T00:00:00Z",
+  "author": "ci",
+  "actor": "ci",
+  "reason": "example",
+  "command": "pravo plan --store --actor ci --reason example",
+  "lineage": "<lineage>",
+  "config_fingerprint": "<fingerprint>",
+  "summary": {
+    "add": 1,
+    "change": 0,
+    "destroy": 1,
+    "read": 1
+  },
+  "changes": [
+    {
+      "addr": "hello",
+      "mode": "managed",
+      "type": "local_file",
+      "action": "replace"
+    },
+    {
+      "addr": "readme",
+      "mode": "data",
+      "type": "local_file",
+      "action": "read"
+    }
+  ],
+  "bases": {
+    "hello": {
+      "revision": 1,
+      "generation": "<txn>"
+    },
+    "pet": {
+      "revision": 1,
+      "generation": "<txn>",
+      "reads": true
+    },
+    "readme": {
+      "revision": 1,
+      "generation": "<txn>"
+    }
+  },
+  "size": 0
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `format` | The layout of the summary and the progress object. It is `1`. |
+| `id` | The id of the plan. |
+| `created`, `expires` | When the plan was made, and when an unapplied plan is collected: `created` plus the `--ttl`, seven days by default. |
+| `author` | The `--actor` label, or the operating system user when there is none. It is a label that nobody verifies. |
+| `actor`, `reason`, `git_revision` | The labels of the run, when set. |
+| `command` | The command line that made the plan. |
+| `tags`, `sys_tags` | The `-t` and `-T` of that command. The commands that show or apply the plan need the same. |
+| `lineage` | The lineage of the state the plan was made against. |
+| `config_fingerprint` | A digest of the files the plan was made from. |
+| `destroy` | `true` for a destroy plan. |
+| `summary` | The counts `add`, `change` and `destroy`, and `read`. A replacement counts under `add` and `destroy`. The reads are counted as `plan --json` counts them. |
+| `changes` | What the plan does, one entry for each resource that it creates, changes, replaces, destroys, imports or moves, and for each read that is left to the apply: `addr`, `mode`, `type` and `action`. Sorted by address. |
+| `bases` | The records the plan expects, by address: the `revision` and the `generation` of the record when the plan was made, and `reads` for a record that the plan reads and does not write. A listing compares them with the state, and nothing else, to tell that the plan is stale. A listing calls the plan stale as a whole when any change that is not applied yet expects a record that moved, though `apply --only` could still apply a part that does not use it. |
+| `reservation` | The nodes the plan reserved and until when, when it was made with `--reserve`. |
+| `size` | The size of the plan object in bytes. |
+
+### The plan
+
+The plan object is what `plan --out` writes. `pravo plan pull` writes it to a file, and `pravo show` reads it.
+
+```sh
+jq -r 'keys | join(" ")' pravo.state/plans/plan-*.plan.json
+```
+
+Output:
+
+```text
+actor changes command config_fingerprint created format input_generations inputs lineage outputs providers reason stats
+```
+
+### Progress
+
+Store a second plan, apply the first one and collect. The apply writes the progress object of the first plan. The second plan is stale, and the collection marks it.
+
+```sh
+pravo plan --store --actor ci --reason second > /dev/null
+first=$(pravo plan list --json | jq -r '.plans[-1].id')
+second=$(pravo plan list --json | jq -r '.plans[0].id')
+pravo apply $first --actor ci | grep '^Apply complete'
+pravo plan gc > /dev/null
+jq . pravo.state/plans/$first.progress.json pravo.state/plans/$second.progress.json
+```
+
+Output:
+
+```text
+Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
+{
+  "format": 1,
+  "id": "plan-<id>",
+  "applied": {
+    "hello": "<txn>",
+    "readme": "<txn>"
+  },
+  "apply_txn": "<txn>",
+  "done_at": "2026-01-01T00:00:00Z",
+  "updated": "2026-01-01T00:00:00Z"
+}
+{
+  "format": 1,
+  "id": "plan-<id>",
+  "stale_since": "2026-01-01T00:00:00Z",
+  "updated": "2026-01-01T00:00:00Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `format`, `id` | As in the summary. |
+| `applied` | The address of each change applied from the plan, with the transaction that applied it. |
+| `apply_txn` | The transaction of the last apply. |
+| `applying` | A list of claims, one for each apply from the plan that runs, so that no collection removes the plan. Each has `by`, who runs the apply, and `at`, when it began. `by` is `WHO@HOST#PID.TOKEN`: the actor or the user of the machine, the host, the process and a token that tells it from another process with the same number. Applies of separate parts of one plan, with `--only`, run at the same time. Each holds its own claim and ends only its own. A claim that a killed apply left does not count after 24 hours. |
+| `collecting` | `by` and `at` of the collection that is about to remove the plan, in the form of `applying`. An apply that starts meanwhile is refused with exit code 3. A claim older than 10 minutes does not count. |
+| `stale_since` | When a collection first saw the plan stale. A collection that runs more than an hour later removes the plan. A collection clears the field when it finds that the plan is not stale any more. |
+| `done_at` | When every change that was pending has been applied, by whichever apply finished last. A collection removes the plan 24 hours later. |
+| `updated` | When the object was last written. |
+
+An apply writes its changes into `applied` when it ends without an error. An apply that fails or is interrupted writes nothing there, as an apply from a plan file marks nothing in the file. Recording progress leaves the claims as they are.
+
+Every write replaces the object only if it is still what the writer read. A command that lost the race reads the object again and retries. A progress object that cannot be parsed keeps the plan from being listed and applied. A collection makes it empty once the plan is older than an hour, and the plan can be listed and applied again.
+
+An apply holds a claim while it runs. The root `slow` has one file that is a named pipe. Writing to a pipe waits until something reads it, so the apply waits and its claim can be read.
+
+File `slow/main.cue`:
+
+```cue
+package slow
+
+import loc "pravo.dev/providers/hashicorp/local"
+
+$local: loc.#Provider
+
+pipe: $local.#Resource.local_file & {filename: "pipe", content: "slow"}
+```
+
+```sh
+pravo -C slow init > /dev/null
+mkfifo slow/pipe
+pravo -C slow plan --store --actor ci > /dev/null
+id=$(pravo -C slow plan list --json | jq -r '.plans[0].id')
+pravo -C slow apply $id > /dev/null &
+until jq -e '.applying' slow/pravo.state/plans/$id.progress.json > /dev/null 2>&1; do sleep 0.1; done
+jq '.applying' slow/pravo.state/plans/$id.progress.json
+cat slow/pipe > /dev/null
+wait
+jq '.applying' slow/pravo.state/plans/$id.progress.json
+```
+
+Output:
+
+```text
+[
+  {
+    "by": "<who>@<host>#<pid>.<token>",
+    "at": "2026-01-01T00:00:00Z"
+  }
+]
+null
+```
+
 ## Remote layout
 
-On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `outputs.json`, `txn/<id>.json` and `locks/<addr>.lock`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and the transactions. They do not copy locks.
+On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes, the transactions and the stored plans, with the claims on them. They do not copy locks.
 
 ## See also
 
 - [State](../concepts/state.md) explains revisions, transactions and locks.
+- [Plans](../concepts/plans.md#stored-plans) explains the life of a stored plan.
 - [`pravo state`](state.md) reads and edits the state.
 - [Keep the state in a shared bucket](../how-to/remote-state.md) moves a root to S3.

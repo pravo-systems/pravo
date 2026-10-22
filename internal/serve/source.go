@@ -28,7 +28,10 @@ const (
 // each instance that fills it in, and everything else that shapes it. It reads
 // files that the evaluation loaded and no other, selected by the address of the
 // node, and masks what a sensitive attribute is given as a literal.
-func (m *model) source(mn *mnode) *Source {
+func (m *model) source(mn *mnode) *Source { return m.sourceFor(mn, m.plan) }
+
+// sourceFor is source with the lines marked that the plan po changes.
+func (m *model) sourceFor(mn *mnode, po *planOverlay) *Source {
 	src := &Source{Version: APIVersion, Addr: mn.Addr, Blocks: []SourceBlock{}, Contributions: []Contribution{}}
 	ss := m.spec
 	switch {
@@ -48,8 +51,8 @@ func (m *model) source(mn *mnode) *Source {
 	} else if mn.res.Mode == "managed" || mn.res.Mode == "data" {
 		src.Notes = append(src.Notes, "The schema of the type is not cached, so only literals assigned to attributes with a name that looks like a secret are masked.")
 	}
-	changed := m.changedTop(mn)
-	reader := &blockReader{ss: ss, sens: sens, secrets: m.secrets, changed: changed, notes: &src.Notes}
+	changed := m.changedTop(mn, po)
+	reader := &blockReader{ss: ss, sens: sens, secrets: m.secretsFor(po), changed: changed, notes: &src.Notes}
 
 	if mn.Source != nil {
 		if b := reader.read("definition", "", mn.Source, true); b != nil {
@@ -558,7 +561,7 @@ func (m *model) tagContributions(mn *mnode, r *blockReader) []Contribution {
 				}
 				done[tag] = true
 				val := values[tag]
-				if guarded(name) || guarded(tag) || m.secrets.leaks(val) {
+				if guarded(name) || guarded(tag) || r.secrets.leaks(val) {
 					val = "(withheld)"
 				}
 				out = append(out, Contribution{Kind: "tag", Where: "-t " + tag + "=" + val, Note: fmt.Sprintf("the value of %s comes from the command line", name)})
@@ -570,9 +573,9 @@ func (m *model) tagContributions(mn *mnode, r *blockReader) []Contribution {
 	return out
 }
 
-// changedTop lists the top-level attributes the loaded plan changes in the node.
-func (m *model) changedTop(mn *mnode) map[string]bool {
-	ch := m.changeOf(mn)
+// changedTop lists the top-level attributes the plan changes in the node.
+func (m *model) changedTop(mn *mnode, po *planOverlay) map[string]bool {
+	ch := m.changeIn(po, mn)
 	if ch == nil || len(ch.Attrs) == 0 {
 		return nil
 	}

@@ -262,6 +262,20 @@ func (p *Plan) PendingCount() int {
 	return n
 }
 
+// PendingAddrs returns the addresses of the changes that PendingCount counts.
+func (p *Plan) PendingAddrs() []string {
+	var out []string
+	for _, c := range p.Changes {
+		if c.Applied {
+			continue
+		}
+		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove {
+			out = append(out, c.Addr)
+		}
+	}
+	return out
+}
+
 func (p *Plan) HasChanges() bool {
 	for _, c := range p.Changes {
 		if c.Applied {

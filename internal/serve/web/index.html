@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="assets/app.css">
 <link rel="stylesheet" href="assets/inspector.css">
 <link rel="stylesheet" href="assets/graph.css">
+<link rel="stylesheet" href="assets/plans.css">
 <script type="module" src="assets/app.js"></script>
 </head>
 <body>
@@ -44,6 +45,7 @@
     <div class="rail-head">
       <h2 class="h">Show</h2>
       <div class="chips" role="group" aria-label="Filters"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
+      <section class="rail-plans" id="rail-plans" aria-label="Stored plans" hidden></section>
       <div class="rail-title"><h2 class="h">Modules</h2><button class="rail-project" id="rail-root" type="button" aria-label="Show the project"><span></span><em></em></button></div>
     </div>
     <div class="tree" role="tree" aria-label="Modules and resources"><div class="rail-sk" aria-hidden="true"><i style="--w:55%"></i><i style="--w:70%"></i><i style="--w:48%"></i><i style="--w:62%"></i><i style="--w:40%"></i><i style="--w:66%"></i><i style="--w:52%"></i></div></div>
@@ -75,6 +77,7 @@
     <div class="pane graph-pane" id="graph-pane">
       <div class="canvas" id="canvas" tabindex="0" role="application" aria-roledescription="dependency graph" aria-label="Dependency graph. Arrow keys follow dependencies. Enter opens or closes the selected module. Press ? for all shortcuts.">
         <div class="overlay reachbar" id="reachbar" hidden></div>
+        <div class="overlay planbar" id="planbar" role="group" aria-label="The plan laid over the graph" hidden></div>
         <div class="overlay legend" id="legend"></div>
         <div class="gskel" id="skeleton" aria-hidden="true">
           <svg viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet"><g class="gs-e"><path d="M150 100C210 100 210 150 270 150M150 100C210 100 210 220 270 220M150 200C210 200 210 150 270 150M150 200C210 200 210 220 270 220M330 150C390 150 390 110 450 110M330 150C390 150 390 220 450 220M330 220C390 220 390 250 450 250"/></g><g class="gs-n"><rect x="60" y="80" width="90" height="40"/><rect x="60" y="180" width="90" height="40"/><rect x="270" y="130" width="60" height="40"/><rect x="270" y="200" width="60" height="40"/><rect x="450" y="90" width="90" height="40"/><rect x="450" y="200" width="90" height="40"/><rect x="450" y="230" width="90" height="40"/></g></svg>
@@ -98,6 +101,7 @@
     </div>
     <div class="ih" id="ih"></div>
     <div class="istrip" id="istrip" hidden></div>
+    <div class="iplans" id="iplans" hidden></div>
     <div class="itabs" role="tablist" aria-label="Sections" hidden></div>
     <div class="ibody" id="ibody" role="tabpanel" tabindex="-1"><div class="isk" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></div>
   </aside>

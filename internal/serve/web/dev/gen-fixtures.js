@@ -118,6 +118,7 @@ function platform() {
   b.deps('release_marker', 'build_id', 'api.service');
   b.deps('edge.old_lb', 'network.sg_lb');
 
+  const stored = storedPlans(b, 'r-7c41e9b2');
   const plan = planOf(b, {
     file: '.pravo/plans/release-42.plan',
     createdAgo: 14 * MIN,
@@ -144,7 +145,86 @@ function platform() {
     plan,
     warnings: ['The schema of aws_wafv2_web_acl is not cached: its values are withheld. Run pravo providers schema to cache it.'],
   });
-  return { b, g };
+  return { b, g, stored };
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// the plans stored in the state of the platform: two that can be applied, by two authors, and that both change
+// api.db; one the state moved on from; one applied; one that expired. storedPlans marks the nodes (Node.plans,
+// Node.overlap), and returns the list that /api/plans sends and the overlay of each plan that /api/plan sends.
+
+function storedPlans(b, revision) {
+  const defs = [
+    { id: 'plan-7b04d1c9', status: 'pending', author: 'ben@acme', ago: 40 * MIN, reason: 'rotate the database secret', git: 'c41e07d',
+      command: 'pravo plan --store --reason "rotate the database secret"',
+      changes: { 'api.db': 'update', 'api.secret_version': 'update', 'edge.lb': 'update', 'edge.dns': 'create' } },
+    { id: 'plan-c3e8a052', status: 'stale', author: 'ci@acme', ago: 1 * H + 5 * MIN, reason: 'renew the certificate', git: '3b9d6f0',
+      command: 'pravo plan --store --reason "renew the certificate"',
+      changes: { 'edge.cert': 'create', 'edge.lb': 'update' },
+      why: ['edge.cert changed in state (revision 3, plan expected 2)', 'edge.lb changed in state (revision 6, plan expected 5)'] },
+    { id: 'plan-2f9c1a4e', status: 'pending', author: 'ana@acme', ago: 3 * H, reason: 'raise the database to m6g.large', git: '9f3c2ab',
+      command: 'pravo plan --store --reason "raise the database to m6g.large"',
+      changes: { 'api.db': 'update', 'api.task': 'update', 'api.service': 'update', 'api.worker.service': 'update' } },
+    { id: 'plan-5a2c9e71', status: 'partial', author: 'dee@acme', ago: 5 * H, reason: 'retire the nat gateway and its route', git: 'e5a1b08',
+      command: 'pravo plan --store --reason "retire the nat gateway and its route"',
+      changes: { 'network.private.nat': 'update', 'network.private.rt': 'update' }, done: ['network.private.nat'] },
+    { id: 'plan-91d5f6b8', status: 'applied', author: 'grace@acme', ago: 26 * H, reason: 'add the cache and a dead letter queue', git: '71ae2c5',
+      command: 'pravo plan --store --reason "add the cache and a dead letter queue"',
+      changes: { 'api.cache': 'create', 'api.worker.dlq': 'create' }, done: ['api.cache', 'api.worker.dlq'] },
+    { id: 'plan-e0a17c33', status: 'expired', author: 'ada@acme', ago: 9 * D, reason: 'tune the nat gateway',
+      command: 'pravo plan --store --reason "tune the nat gateway" --ttl 7d',
+      changes: { 'network.private.nat': 'update' } },
+  ];
+  const open = (d) => d.status === 'pending' || d.status === 'partial';
+  const counts = (acts) => {
+    const c = { add: 0, change: 0, destroy: 0, read: 0 };
+    for (const a of acts) {
+      if (a === 'create') c.add++;
+      else if (a === 'update') c.change++;
+      else if (a === 'delete') c.destroy++;
+      else if (a === 'replace') { c.add++; c.destroy++; }
+      else if (a === 'read') c.read++;
+    }
+    return c;
+  };
+  // what a plan has left to do: the addresses it has not applied
+  const left = (d) => Object.keys(d.changes).filter((a) => !(d.done || []).includes(a)).sort();
+  // the nodes: the plans that can be applied, newest first, on the nodes that they have a change left on
+  for (const d of defs.filter(open)) {
+    for (const addr of left(d)) {
+      const n = b.index.get(addr);
+      n.plans = (n.plans || []).concat(d.id);
+      n.overlap = n.plans.length > 1 ? true : undefined;
+    }
+  }
+  const plans = [], overlays = {};
+  for (const d of defs) {
+    const touches = Object.keys(d.changes).sort().map((addr) => ({ addr, action: d.changes[addr], applied: (d.done || []).includes(addr) ? true : undefined }));
+    // the other open plans that have a change left on a resource that this one has one left on: symmetric
+    const overlaps = !open(d) ? undefined : defs.filter((o) => o !== d && open(o))
+      .map((o) => { const shared = left(o).filter((a) => left(d).includes(a)); return { id: o.id, count: shared.length, addrs: shared.slice(0, 20) }; }).filter((o) => o.count);
+    const summary = counts(touches.map((t) => t.action));
+    const applied = (d.done || []).length;
+    plans.push(prune({
+      id: d.id, status: d.status, open: open(d) ? true : undefined, author: d.author, created: iso(d.ago), expires: iso(d.ago - 7 * D),
+      summary, planned: touches.length, applied, reasons: d.why,
+      touches, overlaps: overlaps && overlaps.length ? overlaps : undefined, apply: 'pravo apply ' + d.id,
+    }));
+    const blast = new Set();
+    for (const t of touches) if (['create', 'update', 'replace', 'delete'].includes(t.action) && !t.applied) { blast.add(t.addr); for (const r of b.reach(t.addr)) blast.add(r); }
+    overlays[d.id] = prune({
+      version: 1,
+      revision,
+      plan: {
+        file: d.id, id: d.id, status: d.status, created: iso(d.ago), actor: d.author, stale: d.status === 'stale' ? true : undefined, reasons: d.why,
+        summary: Object.assign({}, summary, { blast_radius: blast.size }), planned: touches.length, total: b.nodes.length, applied,
+      },
+      nodes: touches.map((t) => ({ addr: t.addr, action: t.action, applied: t.applied })),
+      warnings: d.status === 'stale' ? ['The plan is stale and can no longer be applied: ' + d.why.join('; ') + '.'] : undefined,
+      reason: d.reason, command: d.command, git_revision: d.git,
+    });
+  }
+  return { list: { version: 1, revision, plans }, overlays };
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -587,6 +667,8 @@ out('detail.password.json', detailPassword(P.b, P.g));
 out('detail.drifted.json', detailDrifted(P.b, P.g));
 out('source.db.json', sourceDB(P.g));
 out('source.password.json', sourcePassword(P.g));
+out('plans.platform.json', P.stored.list);
+for (const [id, overlay] of Object.entries(P.stored.overlays)) out(`plan.${id.replace(/^plan-/, '')}.json`, overlay);
 const F = fleet();
 out('graph.fleet.json', F.g);
 out('graph.empty.json', empty());

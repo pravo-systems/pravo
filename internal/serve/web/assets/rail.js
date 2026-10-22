@@ -5,6 +5,7 @@
 
 import { h, icon, actionOf, tick, motionOn, baseName } from './util.js';
 import { FILTERS } from './model.js';
+import { avatar } from './plans.js';
 
 const LEAF_LIMIT = 120;
 const ANIMATE_MAX = 40;
@@ -207,6 +208,8 @@ export class Rail {
       h('span', { class: cls }),
       h('span', { class: 'nm' }, n.name),
       h('span', { class: 'marks' },
+        n.overlap ? h('span', { class: 'i i-overlap', title: 'changed by ' + (n.plans || []).length + ' open plans' }) : null,
+        (n.plans || []).slice(0, 2).map((id) => avatar(s.model.authors.get(id) || '?', 'tiny')),
         n.drifted || n.gone ? h('span', { class: 'i ' + (n.gone ? 'i-gone' : 'i-drift') + ' warn', title: n.gone ? 'gone' : 'drifted' }) : null,
         n.locked ? h('span', { class: 'i i-hold', title: 'locked' }) : null,
         n.sensitive > 0 ? h('span', { class: 'i i-lock key', title: `${n.sensitive} sensitive values` }) : null));
@@ -319,5 +322,5 @@ function signature(r, s) {
   if (r.kind === 'mod') { const a = r.mod.agg; return ['m', r.mod.name, r.depth, r.open, a.n, a.plan, a.create, a.update, a.replace, a.delete, a.read, a.drifted, a.gone].join('|'); }
   if (r.kind === 'more') return ['x', r.depth, r.rest].join('|');
   const n = r.n;
-  return ['n', n.addr, r.depth, n.action || '', n.drifted ? 1 : 0, n.gone ? 1 : 0, n.locked ? 1 : 0, n.sensitive || 0, s.model.hasPlan ? 1 : 0].join('|');
+  return ['n', n.addr, r.depth, n.action || '', n.drifted ? 1 : 0, n.gone ? 1 : 0, n.locked ? 1 : 0, n.sensitive || 0, s.model.hasPlan ? 1 : 0, (n.plans || []).join(',')].join('|');
 }

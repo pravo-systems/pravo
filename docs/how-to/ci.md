@@ -207,6 +207,16 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 
 Under a policy an apply is of a saved plan. A plain `pravo apply --policy ...` is refused with exit code 5. The second plan that it makes is not the one that was judged. [Write and roll out plan policies](policies.md) covers the policy.
 
+A plan file travels between jobs as an artifact. When the jobs share a state in a bucket, the plan job can store the plan in the state, and the apply job can name it by its id. With `--json`, the id is `stored.id` in the one document that the plan job prints. A plan with no changes is not stored and has no `stored` field.
+
+```text
+plan job       pravo plan --store --json --actor ci --reason "$REV" --policy "$POLICY" > plan.json
+               jq -r .stored.id plan.json
+apply job      pravo apply "$PLAN_ID" --policy "$POLICY"
+```
+
+Both jobs need the same checkout, because the apply compares the files, and the same `-t` and `-T`. A stored plan expires after seven days, or after the `--ttl` of the plan job. [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) follows a stored plan from the plan to the apply.
+
 ## 5. Find drift on a schedule
 
 `pravo drift` reads every resource from its provider, ignores refresh ages and exits 2 when something changed outside pravo. Delete the file behind pravo's back.
@@ -349,7 +359,7 @@ The plan is printed first and judged afterwards. Exit code 5 means that a policy
 | 0 | Success. For `plan -detailed-exitcode`, no changes. | Every command. |
 | 1 | An error: a missing recording, `apply --json` without `-auto-approve`, a provider or state error. | Step 6. |
 | 2 | Changes pending (`plan -detailed-exitcode`) or drift found (`drift`). | Steps 2 and 5. |
-| 3 | A saved plan is stale, or a node that an apply writes or reads moved after the plan was made. A job plans again and retries. | Step 4. |
+| 3 | A saved plan is stale, or a node that an apply writes or reads moved after the plan was made. A stored plan that expired is refused with this code too. A job plans again and retries. | Step 4. |
 | 4 | Rejected: a node is locked or reserved by another actor. A job retries later. | [Let an agent plan and apply](agents-and-mcp.md). |
 | 5 | Refused by a policy, or by a module that does not match its lock. | Steps 4 and 7. |
 | 6 | A command that loads the specification found that it does not load or evaluate. | Step 1. |
@@ -373,5 +383,6 @@ schedule       pravo drift --due --limit 500 --actor drift-cron
 ## What next
 
 - [Write and roll out plan policies](policies.md) writes the policy file and tests it.
+- [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) stores a plan in the state, where a team can list it and apply it by its id.
 - [Let an agent plan and apply](agents-and-mcp.md) adds reservations and the tool server.
 - [Find out why a run fails](debugging.md) reads the log of a job that failed.

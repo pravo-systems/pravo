@@ -133,8 +133,9 @@ func unpackValue(data []byte, t tftypes.Type) (tftypes.Value, error) {
 	return tftypes.ValueFromMsgPack(data, t)
 }
 
-// SavePlan writes the plan to path.
-func (e *Engine) SavePlan(path string, plan *Plan, tags []string, sysTags bool) error {
+// buildPlanFile makes the plan file of a plan: what SavePlan writes and what a
+// stored plan holds.
+func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFile, error) {
 	pf := &PlanFile{
 		Format: PlanFileFormat, Created: time.Now().UTC(), Command: e.Opts.Command, Lineage: e.State.Lineage(),
 		Tags: tags, SysTags: sysTags, Providers: map[string]string{}, Destroy: plan.Destroy, NoRefresh: plan.NoRefresh, Stats: plan.Stats,
@@ -143,7 +144,7 @@ func (e *Engine) SavePlan(path string, plan *Plan, tags []string, sysTags bool) 
 	}
 	fp, err := e.Root.Fingerprint()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	pf.ConfigFingerprint = fp
 	for local, rp := range e.Providers.Resolved {
@@ -181,16 +182,16 @@ func (e *Engine) SavePlan(path string, plan *Plan, tags []string, sysTags bool) 
 			cfg = withoutWriteOnly(ch.Schema.Block, cfg)
 		}
 		if sc.Config, err = packValue(cfg); err != nil {
-			return fmt.Errorf("%s: %w", ch.Addr, err)
+			return nil, fmt.Errorf("%s: %w", ch.Addr, err)
 		}
 		if sc.Prior, err = packValue(ch.Prior); err != nil {
-			return fmt.Errorf("%s: %w", ch.Addr, err)
+			return nil, fmt.Errorf("%s: %w", ch.Addr, err)
 		}
 		if sc.Planned, err = packValue(ch.Planned); err != nil {
-			return fmt.Errorf("%s: %w", ch.Addr, err)
+			return nil, fmt.Errorf("%s: %w", ch.Addr, err)
 		}
 		if sc.PlannedCreate, err = packValue(ch.PlannedCreate); err != nil {
-			return fmt.Errorf("%s: %w", ch.Addr, err)
+			return nil, fmt.Errorf("%s: %w", ch.Addr, err)
 		}
 		for _, p := range ch.RequiresReplace {
 			if steps := p.Steps(); len(steps) > 0 {
@@ -220,14 +221,29 @@ func (e *Engine) SavePlan(path string, plan *Plan, tags []string, sysTags bool) 
 		}
 		b, err := outputJSON(v)
 		if err != nil {
-			return fmt.Errorf("output %s: %w", n, err)
+			return nil, fmt.Errorf("output %s: %w", n, err)
 		}
 		pf.Outputs[n] = b
+	}
+	return pf, nil
+}
+
+// SavePlan writes the plan to path.
+func (e *Engine) SavePlan(path string, plan *Plan, tags []string, sysTags bool) error {
+	pf, err := e.buildPlanFile(plan, tags, sysTags)
+	if err != nil {
+		return err
 	}
 	data, err := indentJSON(pf)
 	if err != nil {
 		return err
 	}
+	return writeFile0600(path, data)
+}
+
+// writeFile0600 writes a plan to a file that only its owner can read: it holds
+// the values of what it changes.
+func writeFile0600(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
@@ -237,15 +253,21 @@ func ReadPlanFile(path string) (*PlanFile, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parsePlanFile(path, data)
+}
+
+// parsePlanFile parses the bytes of a plan file. name is what the plan is called
+// in messages: a path, or the id of a stored plan.
+func parsePlanFile(name string, data []byte) (*PlanFile, error) {
 	var pf PlanFile
 	if err := json.Unmarshal(data, &pf); err != nil {
-		return nil, fmt.Errorf("%s is not a pravo plan file: %w", path, err)
+		return nil, fmt.Errorf("%s is not a pravo plan file: %w", name, err)
 	}
 	if pf.Format == 0 || pf.Changes == nil && pf.Providers == nil {
-		return nil, fmt.Errorf("%s is not a pravo plan file", path)
+		return nil, fmt.Errorf("%s is not a pravo plan file", name)
 	}
 	if pf.Format > PlanFileFormat {
-		return nil, fmt.Errorf("%s was written by a newer pravo (plan format %d)", path, pf.Format)
+		return nil, fmt.Errorf("%s was written by a newer pravo (plan format %d)", name, pf.Format)
 	}
 	return &pf, nil
 }

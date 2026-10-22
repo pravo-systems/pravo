@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestScenariosAreEmbedded(t *testing.T) {
@@ -78,6 +79,45 @@ func TestScenarioEditsApply(t *testing.T) {
 		if err := applyEdits(dir, sc.Edits); err != nil {
 			t.Errorf("%s: %v", sc.Name, err)
 		}
+	}
+}
+
+// The edits of each stored plan apply to a fresh copy of the scenario, the actors
+// are distinct, and two of the plans that can be applied change the same thing
+// (the port of orders), which is what the picture of an overlap needs.
+func TestStoredPlanEditsApply(t *testing.T) {
+	for _, sc := range scenarios {
+		actors := map[string]bool{}
+		for _, sp := range sc.Stored {
+			if actors[sp.Actor] || sp.Actor == "" || sp.Reason == "" || len(sp.Edits) == 0 {
+				t.Errorf("%s: the stored plan of %q is not a plan: %+v", sc.Name, sp.Actor, sp)
+			}
+			actors[sp.Actor] = true
+			dir := t.TempDir()
+			if err := copyScenario(sc.Name, dir); err != nil {
+				t.Fatal(err)
+			}
+			if err := applyEdits(dir, sp.Edits); err != nil {
+				t.Errorf("%s, %s: %v", sc.Name, sp.Actor, err)
+			}
+			if (sp.Age > 7*24*time.Hour) != sp.Expired {
+				t.Errorf("%s, %s: age %s and expired %v disagree with a time to live of 7 days", sc.Name, sp.Actor, sp.Age, sp.Expired)
+			}
+		}
+	}
+	sc, _ := findScenario("platform")
+	ports := 0
+	for _, sp := range sc.Stored {
+		if !sp.Expired {
+			for _, e := range sp.Edits {
+				if e.Old == "port:     8082" {
+					ports++
+				}
+			}
+		}
+	}
+	if ports != 2 {
+		t.Errorf("%d plans that can be applied change the port of orders, want 2", ports)
 	}
 }
 

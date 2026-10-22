@@ -13,23 +13,23 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/init.md](reference/init.md) | Install the providers a root needs, write the lock file and generate the CUE packages that a specification imports. | 10 KB |
-| [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, judged by a policy and applied later. | 14 KB |
-| [reference/apply.md](reference/apply.md) | Plan, ask for confirmation and apply, or apply a saved plan exactly as it was reviewed, in whole or in closed parts. | 17 KB |
+| [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, stored in the state, judged by a policy and applied later. | 27 KB |
+| [reference/apply.md](reference/apply.md) | Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in the state exactly as it was reviewed, in whole or in closed parts. | 25 KB |
 | [reference/destroy.md](reference/destroy.md) | Destroy every resource recorded in the state, dependents first, after a plan and a confirmation. | 7 KB |
-| [reference/show.md](reference/show.md) | Print a saved plan, with the time, the command and the actor that made it, and a warning when it cannot be applied. | 4 KB |
+| [reference/show.md](reference/show.md) | Print a saved plan or a plan stored in the state, with the time, the command and the actor that made it, and a warning when it cannot be applied. | 7 KB |
 | [reference/output.md](reference/output.md) | Print the output values that the last apply recorded in the state, as CUE or as JSON. | 4 KB |
-| [reference/state.md](reference/state.md) | Inspect and edit the state graph: list, show, move or forget a node, read the log and the locks, copy the state, query it, convert an OpenTofu state file. | 13 KB |
+| [reference/state.md](reference/state.md) | Inspect and edit the state graph: list, show, move or forget a node, read the log and the locks, copy the state, query it, convert an OpenTofu state file. | 14 KB |
 | [reference/import.md](reference/import.md) | Bring an existing object under management from the command line, by the address of a declared resource and the provider's import id. | 4 KB |
 | [reference/providers.md](reference/providers.md) | List the providers a root resolves, print a provider's schema, pin archive hashes for more platforms and copy a provider to a container registry. | 6 KB |
 | [reference/validate-eval-fmt-gen.md](reference/validate-eval-fmt-gen.md) | Check a specification without planning it, print its evaluated value, format the CUE files and regenerate the provider packages. | 9 KB |
 | [reference/schema.md](reference/schema.md) | Print the CUE definition of a resource, data source, ephemeral resource or function type, with the provider's documentation. | 8 KB |
 | [reference/why-and-drift.md](reference/why-and-drift.md) | Explain why a plan creates, changes, replaces or skips a resource, and read the records that a plan does not read to report what changed outside pravo. | 13 KB |
-| [reference/serve.md](reference/serve.md) | Serve a read-only viewer on the loopback interface: a graph of modules and resources from the specification, the state and a saved plan. | 20 KB |
+| [reference/serve.md](reference/serve.md) | Serve a read-only viewer on the loopback interface: a graph of modules and resources from the specification, the state, a saved plan and the plans stored in the state. | 34 KB |
 | [reference/mcp.md](reference/mcp.md) | Serve pravo to an agent over the Model Context Protocol on stdio. Thirteen tools, applies only from saved plans, and plan policies the agent cannot remove. | 10 KB |
 | [reference/skill.md](reference/skill.md) | Install or print the skill that teaches an AI agent to use pravo. It is built from this documentation and is part of the binary, so it matches the version that installed it. | 6 KB |
 | [reference/mod.md](reference/mod.md) | Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file. | 6 KB |
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
-| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 12 KB |
+| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 13 KB |
 
 ### Language
 
@@ -60,19 +60,19 @@ One page for each command and each part of the specification, tables first.
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/state-format.md](reference/state-format.md) | The files of the state graph: nodes, outputs, transactions, locks and the metadata that identifies a store. | 14 KB |
-| [reference/plan-document.md](reference/plan-document.md) | The JSON document that pravo plan --json prints, the form of a saved plan file, and the events that apply and destroy stream. | 19 KB |
-| [reference/exit-codes.md](reference/exit-codes.md) | The exit status of every pravo command, what each code means, and how --json reports an error. | 9 KB |
+| [reference/state-format.md](reference/state-format.md) | The files of the state graph: nodes, outputs, transactions, locks, stored plans and the metadata that identifies a store. | 22 KB |
+| [reference/plan-document.md](reference/plan-document.md) | The JSON document that pravo plan --json prints, the form of a saved plan file, and the events that apply and destroy stream. | 20 KB |
+| [reference/exit-codes.md](reference/exit-codes.md) | The exit status of every pravo command, what each code means, and how --json reports an error. | 10 KB |
 | [reference/telemetry.md](reference/telemetry.md) | OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables. | 11 KB |
 | [reference/compatibility.md](reference/compatibility.md) | The versions and formats that pravo reads and writes, the provider protocol it speaks, and what it does with a version it does not know. | 8 KB |
-| [reference/s3-stores.md](reference/s3-stores.md) | The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state. | 4 KB |
+| [reference/s3-stores.md](reference/s3-stores.md) | The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state. | 5 KB |
 
 ### Lookup
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/errors.md](reference/errors.md) | Every error a user is likely to meet, as pravo prints it: the symptom, the cause and the fix. | 53 KB |
-| [reference/glossary.md](reference/glossary.md) | The terms of CUE and of pravo, each with a definition of one or two sentences and a link to the lesson that teaches it. | 23 KB |
+| [reference/errors.md](reference/errors.md) | Every error a user is likely to meet, as pravo prints it: the symptom, the cause and the fix. | 56 KB |
+| [reference/glossary.md](reference/glossary.md) | The terms of CUE and of pravo, each with a definition of one or two sentences and a link to the lesson that teaches it. | 24 KB |
 | [reference/faq.md](reference/faq.md) | Short, factual answers to the questions asked first. | 10 KB |
 | [reference/not-in-pravo.md](reference/not-in-pravo.md) | The commands, flags, blocks and files of OpenTofu and Terraform that pravo does not have, and what to use in each place. | 9 KB |
 
@@ -85,13 +85,13 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/how-pravo-works.md](concepts/how-pravo-works.md) | One run of pravo in seven stages, from the CUE files of a directory to the providers, the state and the output. | 11 KB |
 | [concepts/evaluation.md](concepts/evaluation.md) | How pravo turns the CUE files of a directory into one value, finds resources by identity and builds the dependency graph before any provider is asked anything. | 13 KB |
 | [concepts/resources-and-addresses.md](concepts/resources-and-addresses.md) | What makes a struct a resource, how its address is its path, and what renaming, moving or reordering does to the record of an object. | 10 KB |
-| [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works and how a saved plan is checked. | 47 KB |
-| [concepts/state.md](concepts/state.md) | What pravo records for each resource, how revisions, locks and transactions work, why the cost of a run follows the change, and where the state lives. | 25 KB |
+| [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, how a saved plan is checked and how a plan lives in the state. | 55 KB |
+| [concepts/state.md](concepts/state.md) | What pravo records for each resource, how revisions, locks and transactions work, why the cost of a run follows the change, and where the state lives. | 26 KB |
 | [concepts/what-a-plan-reaches.md](concepts/what-a-plan-reaches.md) | Change one setting, replace a root key, add a zone or run two applies on one estate, and see which resources each plan reaches and which locks each apply holds. | 2 KB |
 | [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 20 KB |
 | [concepts/policies.md](concepts/policies.md) | One idea at two moments: a constraint on a provider is checked at evaluation, a policy file against a plan. What each binds and what neither guarantees. | 21 KB |
 | [concepts/secrets-and-ephemeral-values.md](concepts/secrets-and-ephemeral-values.md) | Which values pravo records in state, saved plans and outputs, what an ephemeral value is, where it may go, and what hiding a value does and does not do. | 12 KB |
-| [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a module is, what presence means, which values are withheld and why the viewer changes nothing. | 14 KB |
+| [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a module is, what presence means, which values are withheld and why the viewer changes nothing. | 20 KB |
 
 ## How-to
 
@@ -124,11 +124,12 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/ci.md](how-to/ci.md) | Validate without credentials, plan under a policy, apply a saved plan, find drift and test offline, with the exit code of every step. | 14 KB |
+| [how-to/ci.md](how-to/ci.md) | Validate without credentials, plan under a policy, apply a saved plan, find drift and test offline, with the exit code of every step. | 15 KB |
 | [how-to/policies.md](how-to/policies.md) | Write a plan policy, test it on fixtures with the matching cue version, roll a new rule out as advice, exempt by type and name the policy in the apply job. | 14 KB |
 | [how-to/agents-and-mcp.md](how-to/agents-and-mcp.md) | Give a program or an AI agent the schema, a plan file, a reservation and a tool server bound to a policy, and see what that does and does not protect. | 13 KB |
 | [how-to/secrets.md](how-to/secrets.md) | Read a secret from the environment with pravo.#SecretEnv, hand it to a provider and see where pravo allows the value and where it refuses. | 9 KB |
-| [how-to/explore-your-estate.md](how-to/explore-your-estate.md) | Start pravo serve, read the graph, find a resource, open and close modules, read the source, overlay a saved plan, find drift and share a view. | 19 KB |
+| [how-to/explore-your-estate.md](how-to/explore-your-estate.md) | Start pravo serve, read the graph, find a resource, open and close modules, read the source, overlay a saved plan, see what your team has planned, find drift and share a view. | 23 KB |
+| [how-to/share-a-plan-before-you-apply-it.md](how-to/share-a-plan-before-you-apply-it.md) | Store a plan in the state so that a team can list it, read it, see who else plans the same resources and apply it by its id. | 13 KB |
 
 ### Maintain
 

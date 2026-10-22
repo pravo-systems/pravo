@@ -8,6 +8,7 @@ import { GraphView, Minimap } from './graph.js';
 import { Rail } from './rail.js';
 import { TableView } from './table.js';
 import { Inspector } from './inspector.js';
+import { Plans, planBar, avatar } from './plans.js';
 import { Palette, Sheet } from './palette.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
 import { h, s as svgEl, clear, store, relTime, clock, plural, schedule, actionOf, icon, copyText, pathParts, tilde, motionOn, tick } from './util.js';
@@ -19,13 +20,15 @@ const STICKY_TABS = new Set(['source', 'schema', 'history']);
 const root = document.documentElement;
 
 const S = {
-  graph: null, model: null, vis: null, lay: null,
+  // graph is what the page draws; raw is what the server sent, and the stored plan that is laid over it (plan, with
+  // its overlay when the server did not lay it itself) makes the difference
+  graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null,
   view: 'graph', sel: null, tab: null, filter: null, q: '',
   collapsed: new Set(), auto: new Set(), clusters: new Map(), trail: [],
   theme: null, motion: true, reach: false, zoom: 'fit',
   live: 'connecting', focus: null, palette: false, help: false,
 };
-let gv, minimap, rail, table, insp, palette, sheet, conn, backBtn;
+let gv, minimap, rail, table, insp, palette, sheet, conn, backBtn, plansList;
 let booted = false;
 
 // ---------------------------------------------------------------------------------------------------------
@@ -105,6 +108,8 @@ function readFragment() {
     sel: p.sel || null,
     tab: TABKEYS.includes(p.tab) ? p.tab : null,
     filter: Object.hasOwn(FILTERS, p.filter) ? p.filter : null,
+    // a stored plan by id, 'none' for no plan at all, '' for the plan the server laid over the graph (if any)
+    plan: p.plan === 'none' || /^plan-[0-9a-f]{6,64}$/.test(p.plan || '') ? p.plan : '',
     q: p.q || '',
     view: p.view === 'tree' ? 'tree' : 'graph',
     theme: p.theme === 'light' || p.theme === 'dark' ? p.theme : null,
@@ -132,7 +137,7 @@ function syncFragment() {
     if (expand.length && S.collapsed.size === 0) expand = ['all'];
     expand = expand.concat([...S.clusters.keys()].sort());
     const hash = writeFragment({
-      sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, filter: S.filter, q: S.q,
+      sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, filter: S.filter, plan: planFragment(), q: S.q,
       view: S.view, theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
       motion: S.motion ? '' : 'off', zoom: S.zoom,
     });
@@ -178,9 +183,185 @@ function revealSel(frag, sel) {
   }
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// the stored plans
+//
+// The state holds plans that people stored for each other to look at (pravo plan --store). One of them can be
+// laid over the graph: its actions replace the actions on the nodes, and the details of a node answer for it.
+// The server lays one itself when it was started with --plan ID; the page can take that one off, or lay another.
+
+// ownPlan is the id of the stored plan that the server laid over the graph itself.
+const ownPlan = (raw) => (raw && raw.plan && raw.plan.id) || null;
+
+// shown is the graph the page draws: what the server sent, with the selected stored plan laid over it.
+function shown(raw) {
+  const own = ownPlan(raw);
+  const o = S.overlay;
+  if (S.plan && S.plan !== own && o && o.plan.id === S.plan) {
+    const act = new Map(o.nodes.map((n) => [n.addr, n.action]));
+    return Object.assign({}, raw, {
+      plan: o.plan,
+      // what the server says of its own plan is not said of this one; the stale plan has its own banner
+      warnings: withoutPlanWarnings(raw.warnings).concat((o.warnings || []).filter((w) => !/^The plan is stale/.test(w))),
+      nodes: raw.nodes.map((n) => { const c = Object.assign({}, n); if (act.has(n.addr)) c.action = act.get(n.addr); else delete c.action; return c; }),
+    });
+  }
+  if (!S.plan && own) {
+    return Object.assign({}, raw, { plan: undefined, warnings: withoutPlanWarnings(raw.warnings), nodes: raw.nodes.map((n) => { const c = Object.assign({}, n); delete c.action; return c; }) });
+  }
+  return raw;
+}
+
+// The sentences that the server adds to the warnings of the graph for the plan that it laid over it.
+const PLAN_WARNING = /^(The plan is stale and can no longer be applied|The values of the plan are not shown|The stored plan could not be read|The plan file could not be read)/;
+function withoutPlanWarnings(list) { return (list || []).filter((w) => !PLAN_WARNING.test(w)); }
+
+// planParam says which plan the details of a node are about: a stored plan by id, 'none' when the plan of the
+// server was taken off, nothing for the plan the graph has.
+function planParam() {
+  return S.plan || (ownPlan(S.raw) ? 'none' : null);
+}
+
+// planFragment is plan= in the fragment: a plan other than the one the page opens with, or none where it opens with one.
+function planFragment() {
+  const own = ownPlan(S.raw);
+  if (S.plan) return S.plan === own ? null : S.plan;
+  return own ? 'none' : null;
+}
+
+// wantedPlan is the stored plan a fragment asks for, null for none, and the default where it says nothing.
+function wantedPlan(f) {
+  if (f.plan === 'none') return null;
+  if (f.plan && S.plans.some((p) => p.id === f.plan)) return f.plan;
+  return f.plan ? S.plan : ownPlan(S.raw);
+}
+
+// fetchAll reads the graph and the stored plans of one revision and, when the plan to show is a stored plan that
+// the server did not lay itself, its overlay. want is a plan id, 'none', or undefined for the page's own choice.
+async function fetchAll(want) {
+  let raw, list;
+  for (let i = 0; ; i++) {
+    [raw, list] = await Promise.all([api.graph(), api.plans()]);
+    if (!list.revision || list.revision === raw.revision || i >= 2) break; // the project changed between the two requests
+  }
+  const plans = list.plans || [];
+  const own = ownPlan(raw);
+  let plan = want === undefined ? own : want === 'none' ? null : want;
+  let gone = null; // a plan that was asked for and is not stored: the page falls back to the plan the server laid, if any
+  if (plan && !plans.some((p) => p.id === plan)) { gone = plan; plan = own; }
+  // The overlay of a plan carries what the author wrote with it and, for a plan other than the server's, its actions. A
+  // plan whose overlay cannot be read does not stop the page: it falls back to the plan of the server, and the page says so.
+  let failed = null;
+  const read = async (id) => {
+    try { return await api.plan(id); } catch (err) {
+      if (err instanceof api.Unauthorized || err instanceof api.Unreachable) throw err;
+      if (err.status === 404) gone = gone || id; else failed = { id, message: err.message };
+      return null;
+    }
+  };
+  let overlay = plan ? await read(plan) : null;
+  if (plan && !overlay && plan !== own) {
+    plan = own;
+    overlay = plan ? await read(plan) : null;
+  }
+  return { raw, plans, plan, overlay, gone, failed };
+}
+
+// the overlay of the plan that is laid over the graph, which has what the author wrote with it
+function planText() { return S.overlay && S.plan && S.overlay.plan.id === S.plan ? S.overlay : null; }
+
+// diffPlans says what changed in the list: plans that came, went, or stand elsewhere now
+function diffPlans(before, after) {
+  const was = new Map(before.map((p) => [p.id, p]));
+  const now = new Map(after.map((p) => [p.id, p]));
+  const added = after.filter((p) => !was.has(p.id)).map((p) => p.id);
+  const removed = before.filter((p) => !now.has(p.id)).map((p) => p.id);
+  const moved = after.filter((p) => was.has(p.id) && (was.get(p.id).status !== p.status || was.get(p.id).applied !== p.applied)).map((p) => `${p.id} ${p.status}`);
+  return { added, removed, moved };
+}
+
+function renderPlans() {
+  plansList.render({ plans: S.plans, sel: S.plan, text: planText() });
+  const p = S.plan && S.plans.find((x) => x.id === S.plan);
+  planBar($('planbar'), p, {
+    onClear: () => selectPlan(null),
+    onDetail: () => {
+      if (narrow() && !$('app').classList.contains('rail-open')) toggleRail();
+      const el = document.querySelector('#rail-plans .rp[aria-pressed="true"]');
+      if (el) el.focus();
+    },
+  });
+}
+
+// selectPlan lays a stored plan over the graph, or, with null, takes it off. The first view is made again for
+// it: the modules the plan touches open first.
+// planSeq counts the choices that were begun; planMark also counts the ones that were made, so that a read of the
+// project that began before a choice does not put the old plan back.
+let planSeq = 0;
+let planMark = 0;
+async function selectPlan(id) {
+  id = id || null;
+  if (!S.model) return;
+  const seq = ++planSeq;
+  planMark++;
+  if (id === S.plan) { renderPlans(); return; }
+  let overlay = null;
+  if (id) {
+    if (!S.plans.some((p) => p.id === id)) { toast(`${id} is not stored any more`, 'warn', 6000); return; }
+    // the overlay has what the author wrote with the plan and, for a plan other than the server's, its actions
+    try { overlay = await api.plan(id); } catch (err) {
+      if (err instanceof api.Unauthorized || err instanceof api.Unreachable) return;
+      if (id !== ownPlan(S.raw)) {
+        toast(`Could not read ${id}: ${err.message}`, 'error', 6000);
+        if (err.status === 404) onChange(null);
+        return;
+      }
+    }
+    if (seq !== planSeq) return; // another plan was picked while this one was read
+  }
+  planMark++;
+  S.plan = id;
+  S.overlay = overlay;
+  applyPlan();
+  const p = id && S.plans.find((x) => x.id === id);
+  announce(p ? `${id} by ${p.author} is laid over the graph, ${p.status}.` : 'No plan is laid over the graph.');
+}
+
+// applyPlan draws the graph again for the plan that is selected.
+function applyPlan() {
+  const g = shown(S.raw);
+  S.graph = g;
+  S.model = buildModel(g, S.plans);
+  S.model.planParam = planParam();
+  S.model.planText = planText();
+  S.trail = [];
+  updateBack();
+  S.auto = autoCollapsed(S.model);
+  S.collapsed = new Set(S.auto);
+  S.clusters = new Map();
+  if (S.sel && !(S.model.nodes.has(S.sel) || S.model.modules.has(S.sel))) { S.sel = null; S.reach = false; S.tab = null; }
+  revealSel({ collapse: [], expand: [] }, S.sel);
+  insp.invalidate();
+  palette.setModel(S.model);
+  relayout({ animate: true });
+  renderRail();
+  renderBanners();
+  renderLegend();
+  renderPlans();
+  renderStatus();
+  if (S.view === 'tree') renderTable();
+  showInspector();
+  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'm:' + S.sel, false);
+  gv.fit(true);
+  syncFragment();
+}
+
+// setModel makes the model of the graph that the page opens with, and the modules that its link asks to open or close.
 function setModel(g, frag) {
   S.graph = g;
-  S.model = buildModel(g);
+  S.model = buildModel(g, S.plans);
+  S.model.planParam = planParam();
+  S.model.planText = planText();
   S.clusters = new Map();
   S.trail = [];
   const mods = S.model.modules;
@@ -207,7 +388,7 @@ function relayout(o = {}) {
   S.lay = lay;
   S.layoutMs = performance.now() - t0;
   S.shaped = sh.fit.w > 0; // false while the canvas is hidden (the tree view): the layout is made again when it shows
-  gv.setScene(vis, lay, { animate: o.animate !== false, intro: !!o.intro, hasPlan: S.model.hasPlan });
+  gv.setScene(vis, lay, { animate: o.animate !== false, intro: !!o.intro, hasPlan: S.model.hasPlan, authors: S.model.authors });
   applyMatch();
   applySelection(false);
   renderStatus();
@@ -599,7 +780,7 @@ function renderBanners() {
     box.append(banner('bad', 'alert', [h('b', null, 'The specification does not load.'), ' Showing the state alone.', h('pre', null, p.spec_error)]));
   }
   if (g.plan && g.plan.stale) {
-    box.append(banner('chg', 'status', [h('b', null, 'The saved plan is stale.'), ' It can no longer be applied.',
+    box.append(banner('chg', 'status', [h('b', null, g.plan.id ? `The stored plan ${g.plan.id} is stale.` : 'The saved plan is stale.'), ' It can no longer be applied.',
       (g.plan.reasons || []).length ? h('ul', null, g.plan.reasons.map((r) => h('li', null, r))) : null]));
   }
   const warn = (g.warnings || []).filter((w) => !(p.spec_error && /does not load/i.test(w)) && !dismissed.has(w));
@@ -669,7 +850,7 @@ function renderStatus() {
   if (!g) return;
   const plan = g.plan;
   const set = (id, kids) => { const el = $(id); clear(el); el.hidden = !kids; if (kids) el.append(kids); };
-  set('st-plan', plan ? h('span', null, 'planned ', h('b', null, `${plan.planned} of ${plan.total}`)) : h('span', { class: 'quiet' }, 'no plan loaded'));
+  set('st-plan', plan ? h('span', null, plan.id ? [h('b', null, plan.id), ' · '] : null, 'planned ', h('b', null, `${plan.planned} of ${plan.total}`)) : h('span', { class: 'quiet' }, 'no plan loaded'));
   set('st-notread', plan ? h('span', null, h('b', null, String(plan.total - plan.planned)), ' not read') : null);
   set('st-rev', h('span', null, 'revision ', h('b', null, (g.revision || '').replace(/^r-/, ''))));
   set('st-time', h('span', { title: g.project.loaded_at }, 'updated ', h('b', null, clock(g.project.loaded_at)), ' ', h('span', { class: 'quiet' }, relTime(g.project.loaded_at))));
@@ -700,6 +881,9 @@ function renderLegend() {
     sel(h('i', { class: 'ln up' }), 'depends on'), sel(h('i', { class: 'ln down' }), 'used by'),
     item(h('span', { class: 'i i-lock key' }), 'sensitive'),
     item(h('span', { class: 'i i-drift warn' }), 'drifted'));
+  // the badges of the authors of open plans, and the ring of a resource that two of them change
+  if (m.list.some((n) => (n.plans || []).length)) el.append(item(avatar('author', 'tiny'), 'plan author'));
+  if (m.list.some((n) => n.overlap)) el.append(item(h('i', { class: 'ringkey' }), 'overlap'));
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -760,22 +944,38 @@ function toggleInspSize() {
 // ---------------------------------------------------------------------------------------------------------
 // live updates
 
-const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock' };
+const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock', plans: 'the stored plans' };
 let pendingWhat = new Set();
 
 async function refresh() {
-  let g;
+  let r;
   const what = [...pendingWhat];
   pendingWhat = new Set();
-  try { g = await api.graph(); } catch (err) {
+  const mark = planMark, asked = S.plan;
+  try { r = await fetchAll(asked === null ? 'none' : asked); } catch (err) {
     if (err instanceof api.Unauthorized) return; // the gate is up
     if (err instanceof api.Unreachable) return; // the connection says so; the page asks again when it is back
     toast(`Could not read the project again: ${err.message}`, 'error');
     return;
   }
-  if (g.revision === S.graph.revision) return;
+  if (r.raw.revision === S.raw.revision) return;
+  if (mark !== planMark) {
+    // the person chose a plan while the project was read: that choice stands, and what was read for the old one is dropped
+    r.plan = S.plan;
+    r.overlay = S.overlay;
+    r.gone = r.failed = null;
+  }
   const old = S.model;
-  const nm = buildModel(g);
+  const dp = diffPlans(S.plans, r.plans);
+  const droppedPlan = asked && r.plan !== asked && mark === planMark ? asked : null; // the plan that was laid over the graph is not stored any more
+  S.raw = r.raw;
+  S.plans = r.plans;
+  S.plan = r.plan;
+  S.overlay = r.overlay;
+  const g = shown(r.raw);
+  const nm = buildModel(g, S.plans);
+  nm.planParam = planParam();
+  nm.planText = planText();
   const d = diffModels(old, nm);
   // what the person was looking at may be gone: the page says so, and shows the project
   const lost = S.sel && !(nm.nodes.has(S.sel) || nm.modules.has(S.sel)) ? S.sel : null;
@@ -794,6 +994,7 @@ async function refresh() {
   renderBanners();
   renderHeader();
   renderLegend();
+  renderPlans();
   if (S.view === 'tree') renderTable();
   const flash = [...d.changed, ...d.added].map((a) => S.vis.rep.get(a)).filter(Boolean);
   gv.flash(new Set(flash));
@@ -803,10 +1004,15 @@ async function refresh() {
   if (d.changed.length) bits.push(`${d.changed.length} changed`);
   if (d.added.length) bits.push(`${d.added.length} new`);
   if (d.removed.length) bits.push(`${d.removed.length} gone`);
+  if (dp.added.length) bits.push(dp.added.length === 1 ? `${dp.added[0]} stored` : `${dp.added.length} plans stored`);
+  if (dp.removed.length) bits.push(dp.removed.length === 1 ? `${dp.removed[0]} collected` : `${dp.removed.length} plans collected`);
+  for (const m of dp.moved.slice(0, 2)) bits.push(m);
   const names = what.filter((w) => WHAT[w]).map((w) => WHAT[w]);
   const title = names.length ? `${names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0]} changed` : 'The project changed';
   toast(title.charAt(0).toUpperCase() + title.slice(1), 'info', 5200, bits.length ? bits.join(' · ') : 'no resource differs');
   if (lost) toast(`${lost} is no longer there`, 'warn', 7000, 'The inspector shows the project again.');
+  if (droppedPlan) toast(`${droppedPlan} is not stored any more`, 'warn', 7000, 'It was collected. The graph shows no plan now.');
+  if (r.failed) toast(`Could not read ${r.failed.id}: ${r.failed.message}`, 'warn', 7000, 'The page shows the plan of the server instead.');
   beat();
   syncFragment();
 }
@@ -986,8 +1192,10 @@ function wire() {
     onSelectModule: (p) => selectModule(p, { center: true }),
     onRoot: () => { if (S.sel) clearSelection(); else if (narrow()) openDrawer(); },
   });
+  plansList = new Plans($('rail-plans'), { onSelect: (id) => selectPlan(id) });
   table = new TableView($('tree-pane'), { onSelectNode: (a) => selectNode(a) });
   insp = new Inspector($('insp'), {
+    onPlan: (id) => selectPlan(id),
     onSelectNode: (a) => selectNode(a, { center: true }),
     onSelectModule: (p) => selectModule(p, { center: true }),
     onTab: setTab,
@@ -1029,7 +1237,8 @@ function wire() {
   $('insp-size').addEventListener('click', toggleInspSize);
   document.addEventListener('click', (ev) => {
     const c = ev.target instanceof Element && ev.target.closest('[data-copy]');
-    if (c) copyText(c.dataset.copy).then((ok) => { c.classList.add('done'); const i = c.querySelector('.i'); if (i) i.className = 'i i-check'; setTimeout(() => { c.classList.remove('done'); if (i) i.className = 'i i-copy'; }, 1400); announce(ok ? 'Copied' : 'Could not copy'); });
+    // the check mark is for a copy that worked; a copy that did not shows the cross, as the other copy buttons do
+    if (c) copyText(c.dataset.copy).then((ok) => { c.classList.toggle('done', ok); c.classList.toggle('failed', !ok); const i = c.querySelector('.i'); if (i) i.className = 'i ' + (ok ? 'i-check' : 'i-x'); setTimeout(() => { c.classList.remove('done', 'failed'); if (i) i.className = 'i i-copy'; }, 1400); announce(ok ? 'Copied' : 'Could not copy'); });
   });
   initTips();
   // the skip link goes to the graph, or to the table in the tree view; it must not write #canvas into the address, which is the view
@@ -1057,11 +1266,24 @@ function wire() {
   document.addEventListener('keydown', onKey);
   window.addEventListener('hashchange', () => { if (booted) applyExternal(readFragment()); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(S.theme, false));
-  setInterval(() => { if (S.graph) renderStatus(); }, 30000);
+  // the ages of the plans move on; a list that has the focus is left alone until the focus goes
+  setInterval(() => { if (S.graph) { renderStatus(); if (!$('rail-plans').contains(document.activeElement)) renderPlans(); } }, 30000);
 }
 
 // applyExternal brings the view in line with a fragment that someone else wrote (a pasted link).
 function applyExternal(f) {
+  const want = wantedPlan(f);
+  // a link that names a plan that the state does not hold: said, as it is when the page opens with it
+  if (f.plan && f.plan !== 'none' && !S.plans.some((p) => p.id === f.plan)) toast(`${f.plan} is not stored`, 'warn', 7000, 'The link names a plan that the state does not hold.');
+  if (want !== S.plan) {
+    // another plan is laid over the graph first; the rest of the link is applied to that picture
+    selectPlan(want).then(() => applyView(f));
+    return;
+  }
+  applyView(f);
+}
+
+function applyView(f) {
   if (f.theme && f.theme !== S.theme) applyTheme(f.theme, false);
   applyMotion(f.motion);
   const collapsedBefore = [...S.collapsed].sort().join('|') + '#' + [...S.clusters.keys()].sort().join('|');
@@ -1126,8 +1348,8 @@ async function boot() {
 }
 
 async function load(frag) {
-  let g;
-  try { g = await api.graph(); } catch (err) {
+  let r;
+  try { r = await fetchAll(frag.plan || undefined); } catch (err) {
     $('skeleton').hidden = true;
     if (err instanceof api.Unauthorized) showGate();
     else {
@@ -1140,7 +1362,11 @@ async function load(frag) {
   }
   gv.resize();
   S.autoSize = { w: gv.size.w, h: gv.size.h };
-  setModel(g, frag);
+  S.raw = r.raw;
+  S.plans = r.plans;
+  S.plan = r.plan;
+  S.overlay = r.overlay;
+  setModel(shown(r.raw), frag);
   S.view = frag.view;
   S.filter = frag.filter;
   S.q = frag.q;
@@ -1154,6 +1380,9 @@ async function load(frag) {
   renderHeader();
   renderBanners();
   renderLegend();
+  renderPlans();
+  if (r.gone) toast(`${r.gone} is not stored`, 'warn', 7000, 'The link names a plan that the state does not hold.');
+  if (r.failed) toast(`Could not read ${r.failed.id}: ${r.failed.message}`, 'warn', 7000, 'The page shows the plan of the server instead.');
   palette.setModel(S.model);
   $('empty').hidden = S.model.list.length > 0;
   $('app').classList.toggle('is-empty', S.model.list.length === 0);
@@ -1182,7 +1411,7 @@ async function load(frag) {
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, rail, table, insp, palette, relayout, selectNode, selectModule, toggleModule, clusterAction, setFilter, setView, refresh, toast, applyExternal, readFragment, resetView };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, rail, plansList, table, insp, palette, relayout, selectNode, selectModule, toggleModule, clusterAction, setFilter, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

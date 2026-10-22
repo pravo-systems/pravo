@@ -9,7 +9,7 @@ A term links to the lesson that teaches it, or to the page that describes it. A 
 | Group | Terms |
 |---|---|
 | CUE | [attribute](#attribute), [bottom](#bottom), [bound](#bound), [closed](#closed), [comprehension](#comprehension), [concrete](#concrete), [conflict](#conflict), [constraint](#constraint), [default](#default), [definition](#definition), [disjunction](#disjunction), [embedding](#embedding), [evaluation](#evaluation), [field](#field), [hidden field](#hidden-field), [import](#import), [incomplete](#incomplete), [interpolation](#interpolation), [let](#let), [list](#list), [open](#open), [optional field](#optional-field), [package](#package), [pattern](#pattern), [reference](#reference), [regular field](#regular-field), [required field](#required-field), [standard library](#standard-library), [struct](#struct), [tag](#tag), [type](#type), [unification](#unification) |
-| pravo | [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [data source](#data-source), [dependency](#dependency), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [plan](#plan), [plan document](#plan-document), [policy](#policy), [provider](#provider), [reach](#reach), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
+| pravo | [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
 
 ## Terms of CUE
 
@@ -237,6 +237,12 @@ A provider-defined function declared as a struct built from `#Function.<name>`. 
 
 See [Resources](spec-resources.md#function-calls).
 
+### collection
+
+The removal of the stored plans that nobody needs. `pravo plan gc` runs one, and `pravo plan --store` runs a small one on its way. It removes a plan that expired, a plan that was applied completely a day ago and a plan that a collection saw stale more than an hour ago. It never removes a plan that an apply is running from.
+
+See [`pravo plan`](plan.md#collect-stored-plans).
+
 ### data source
 
 An object that pravo reads and does not manage, built from `#Data.<type>`. It is read during the plan when its configuration is known, and during the apply otherwise.
@@ -351,6 +357,12 @@ The JSON that `pravo plan --json` prints, and that a plan policy is judged again
 
 See [The plan document](plan-document.md).
 
+### plan id
+
+`plan-` and the first eight hexadecimal digits of the SHA-256 digest of a stored plan. The first six digits are enough when no other plan starts with them. `pravo plan --store` prints it, and `pravo apply` and `pravo show` take it.
+
+See [State format](state-format.md#plans).
+
 ### policy
 
 A CUE file that a plan must satisfy, named with `--policy` by whoever runs pravo. A specification cannot name, weaken or exempt it. A refusal is exit code 5.
@@ -428,6 +440,12 @@ See [The specification](spec-overview.md).
 The record of what pravo manages: a graph of nodes in a directory or a bucket, with outputs and a log of transactions. There is no state file and no global lock.
 
 Taught in [B3](../learn/b03-apply-outputs-state.md). See [State format](state-format.md).
+
+### stored plan
+
+A plan that `pravo plan --store` wrote into the state, as objects below `plans/`. Anyone who can read the state can list it, show it and apply it by its [plan id](#plan-id). A listing judges it by the state alone, and a [collection](#collection) removes it when nobody needs it.
+
+Taught in [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md). See [Plans](../concepts/plans.md#stored-plans).
 
 ### transaction
 

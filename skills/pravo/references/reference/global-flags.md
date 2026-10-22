@@ -17,7 +17,7 @@ These flags belong to the command `pravo` and every subcommand accepts them.
 | `-v` | off | Log what pravo decides and does to stderr. See [The debug log](#the-debug-log). |
 | `-vv` | off | Finer detail, and the log of the providers. |
 | `--json` | off | Machine-readable output on stdout, progress on stderr. See [JSON](#json). |
-| `--actor LABEL` | `$PRAVO_ACTOR` | A label for who is acting. Recorded on transactions, locks, reservations and plans. It is not verified. |
+| `--actor LABEL` | `$PRAVO_ACTOR` | A label for who is acting. Recorded on transactions, locks, reservations and plans, and it is the author that `pravo plan list` shows for a stored plan. It is not verified. |
 | `--reason TEXT` | `$PRAVO_REASON` | Why. Recorded with the actor. |
 | `-h`, `--help` | | Print the help of the command. |
 
@@ -158,7 +158,7 @@ Error: open missing.plan: no such file or directory
 | `addr`, `message`, `id`, `elapsed_ms`, `trace_id` | The address of the resource, the line a person reads, the provider id, the duration in milliseconds, and the trace id (each if set). |
 | `txn` | The transaction. |
 
-The event of kind `plan` carries the plan document. The last event, of kind `apply`, has `added`, `changed`, `destroyed`, `outputs`, `planfile` and `remaining`. [`pravo apply`](apply.md#json) shows events.
+The event of kind `plan` carries the plan document. The last event, of kind `apply`, has `added`, `changed`, `destroyed`, `outputs`, `planfile` and `remaining`. An apply of a plan stored in the state has `plan`, the id, in place of `planfile`. [`pravo apply`](apply.md#json) shows events.
 
 A string is written as it is: `<`, `>` and `&` are not escaped as `\u003c`, `\u003e` and `\u0026`. That holds for the commands above, for `pravo output --json`, for the events of `apply` and `destroy`, and for the messages of [`pravo mcp`](mcp.md). A list with no entries is `[]` and never `null`. The root `text` declares one output and no resource:
 
@@ -195,7 +195,7 @@ Output:
 
 ### Actor and reason
 
-`--actor` and `--reason` are labels. pravo records them and does not check them. They appear in `pravo state log`, in `pravo state locks`, in `pravo show` and in the plan document. An actor also owns the reservations it takes; without a label, the operating system user owns them.
+`--actor` and `--reason` are labels. pravo records them and does not check them. They appear in `pravo state log`, in `pravo state locks`, in `pravo show` and in the plan document. An actor is also the author of a plan that `pravo plan --store` writes into the state, and `pravo plan list` shows it; without a label, the author is the operating system user. An actor also owns the reservations it takes; without a label, the operating system user owns them.
 
 ```sh
 pravo -C app apply -auto-approve --actor ci --reason "first apply" > /dev/null

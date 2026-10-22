@@ -1,8 +1,8 @@
 ---
 title: Plans
-description: "What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works and how a saved plan is checked."
+description: "What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, how a saved plan is checked and how a plan lives in the state."
 order: 4
-minutes: 18
+minutes: 21
 normalize:
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
@@ -18,14 +18,16 @@ normalize:
     replace: 'the record is <age> old'
   - pattern: '\[id=[0-9a-f]{40}\]'
     replace: '[id=<sha1>]'
-keywords: "-target scoped plan targeting unknown value refresh age"
+  - pattern: 'plan-[0-9a-f]{8}'
+    replace: 'plan-<id>'
+keywords: "-target scoped plan targeting unknown value refresh age stored plan plan id plan list plan gc"
 ---
 
 A plan is the list of actions that make the real infrastructure match the specification. pravo computes it from the evaluated specification, the records in the state and the answers of the providers.
 
 A plan changes nothing in the infrastructure. It can write to the state: refreshed records, moved records and imported records. Everything else stays as it was.
 
-This page uses six small roots: `zones`, `deferred`, `ages`, `reads`, `target` and `feed`. The global flag `-C DIR` runs pravo in one of them.
+This page uses seven small roots: `zones`, `deferred`, `ages`, `reads`, `target`, `feed` and `store`. The global flag `-C DIR` runs pravo in one of them.
 
 ## What a plan contains
 
@@ -967,7 +969,7 @@ The first command read the record, found no drift and wrote the digest of the ne
 
 `pravo plan -out FILE` writes the plan to a file, and `pravo apply FILE` applies those actions without a prompt. The reviewed file is what runs.
 
-The file records the change of every node the plan ran, with its configuration, its prior and its planned values, unknown values included. It records the private data of the providers and the refresh and skip decisions. It records the tags of the plan, the provider versions and a fingerprint of every `.cue` file of the root. It records the lineage of the state, the revision of every node that the plan changes and the revision of every record that those changes read. A node that the plan left alone has no entry. Values in it can be secrets. pravo creates the file with owner-only permissions.
+The file records the change of every node the plan ran, with its configuration, its prior and its planned values, unknown values included. It records the private data of the providers and the refresh and skip decisions. It records the tags of the plan, the provider versions and a fingerprint of every `.cue` file of the root. It records the lineage of the state, the revision of every node that the plan changes and the revision of every record that those changes read. A node that the plan left alone has no entry. Values in it can be secrets. pravo creates the file with owner-only permissions. A plan can also be [stored in the state](#stored-plans).
 
 :::figure What apply does with a saved plan, in order.
 <svg viewBox="0 0 780 346" role="img" aria-label="A saved plan is made by plan with out, held in a file with owner-only permissions, and read by apply with the file. Apply checks four things: the configuration fingerprint, the state lineage, the provider versions and the revision of the nodes it writes and reads. A difference is stale and exits 3. Apply then judges the plan by any policy, plans each change again, compares the result with the saved change, and only then changes the resource." style="min-width:700px">
@@ -1283,11 +1285,161 @@ A saved plan is not signed. pravo checks that the file still matches the root, t
 
 `pravo apply FILE --policy POLICY` judges the changes that remain in the file, all of them, before any provider is asked to change anything. The file records the command that made it. Nothing reads that line as a requirement. A policy file is not part of the fingerprint. [Policies](policies.md) covers the rest.
 
+## Stored plans
+
+A saved plan is a file. A [stored plan](../reference/glossary.md#stored-plan) is the same plan written into the state. `pravo plan --store` writes it, and anyone who can read the state can list it, read it and apply it. [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md) follows two people through it.
+
+The plan is the object that `plan --out` writes: [the saved plan file](../reference/plan-document.md#the-saved-plan-file). A stored plan is three objects below `plans/` in the state. `plan --store` writes the plan and its summary, and the progress object appears when an apply or a collection first touches the plan.
+
+| Object | Holds | Changes |
+|---|---|---|
+| `plans/ID.plan.json` | The plan. | Never. |
+| `plans/ID.meta.json` | The summary that a listing reads: who made the plan, when it expires, what it changes and which records it expects. | Never. |
+| `plans/ID.progress.json` | What was applied from the plan and by which transaction, and who is applying or removing it. | By a conditional replace, and only this one. |
+
+The id is `plan-` and the first eight hexadecimal digits of the SHA-256 digest of the plan object, so the same bytes are always the same plan. Any unique prefix of six digits or more finds a plan. [State format](../reference/state-format.md#plans) lists every field.
+
+The root `store` has two resources that do not depend on each other. Store a plan for it.
+
+```cue file=store/main.cue
+package store
+
+import rnd "pravo.dev/providers/hashicorp/random"
+
+$random: rnd.#Provider
+
+a: $random.#Resource.random_integer & {min: 1, max: 9, seed: "a"}
+b: $random.#Resource.random_integer & {min: 1, max: 9, seed: "b"}
+```
+
+```sh run
+pravo -C store init > /dev/null
+pravo -C store plan --store --actor alice | tail -n 3
+```
+
+```text out
+Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
+  pravo apply plan-<id>
+```
+
+The plan prints as usual, then pravo says where it went. Nothing is applied, and a plan with no changes is not stored. The listing shows who made it and where it stands.
+
+```sh run
+pravo -C store plan list
+```
+
+```text out
+plan-<id>  pending  alice  just now  +2 ~0 -0  expires in 7 days
+```
+
+### Where a stored plan stands
+
+A listing reads the summaries and the progress objects, and compares each plan with the state. It does not read the plan objects, and it does not compare the configuration or the providers. A plan whose summary or progress object cannot be read is not listed. The command that shows or applies the plan does, because they belong to a checkout and the people who share a state have several.
+
+| Status | Meaning |
+|---|---|
+| `pending` | The plan can be applied. |
+| `partial` | `apply --only` applied some changes. The rest can be applied. |
+| `stale` | The plan cannot be applied: the state has another lineage, or a record that a change not applied yet writes or reads has another revision or generation. |
+| `applied` | Every change was applied. |
+| `expired` | The time to live ended before the plan was applied. |
+
+A plan is stale as a whole. One moved record that an unapplied change expects is enough, though `apply --only` could still apply a part that does not use that record. The plan is then marked and collected like any stale plan, and the rest is planned again.
+
+:::figure What happens to a stored plan, from the plan that is applied to the plan that nobody applies. A plan that is in use is never removed.
+<svg viewBox="0 0 780 236" role="img" aria-label="A timeline with three rows. A plan that is applied is pending, then applied, is kept for 24 hours and is then removed. A plan that the state moved away from is pending, then stale; the first collection that sees it marks it, and a collection that runs an hour later removes it. A plan that nobody applies is pending until its time to live ends, is then expired, and the next collection removes it." style="min-width:680px">
+<text x="0" y="62" style="fill:var(--text-2);font-size:12px;font-weight:500">applied</text>
+<line x1="120" y1="70" x2="770" y2="70" style="stroke:var(--line);stroke-width:1"/>
+<text x="0" y="122" style="fill:var(--text-2);font-size:12px;font-weight:500">state moved</text>
+<line x1="120" y1="130" x2="770" y2="130" style="stroke:var(--line);stroke-width:1"/>
+<text x="0" y="182" style="fill:var(--text-2);font-size:12px;font-weight:500">not applied</text>
+<line x1="120" y1="190" x2="770" y2="190" style="stroke:var(--line);stroke-width:1"/>
+<rect x="135" y="44" width="150" height="26" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.2"/>
+<text x="145" y="62" style="fill:var(--text);font-size:12px">pending</text>
+<rect x="285" y="44" width="130" height="26" rx="2" style="fill:var(--accent-wash);stroke:var(--accent);stroke-width:1.4"/>
+<text x="295" y="62" style="fill:var(--text);font-size:12px;font-weight:500">applied</text>
+<rect x="415" y="44" width="150" height="26" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.2" stroke-dasharray="4 3"/>
+<text x="425" y="62" style="fill:var(--text-2);font-size:12px">kept for 24 hours</text>
+<rect x="565" y="44" width="70" height="26" rx="2" style="fill:var(--surface-2);stroke:var(--line-strong);stroke-width:1"/>
+<text x="575" y="62" style="fill:var(--text-2);font-size:12px">removed</text>
+<text x="285" y="38" style="fill:var(--text-3);font-size:10px">last change applied</text>
+<rect x="135" y="104" width="120" height="26" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.2"/>
+<text x="145" y="122" style="fill:var(--text);font-size:12px">pending</text>
+<rect x="255" y="104" width="100" height="26" rx="2" style="fill:var(--conflict-wash);stroke:var(--conflict);stroke-width:1.4"/>
+<text x="265" y="122" style="fill:var(--conflict);font-size:12px;font-weight:600">stale</text>
+<rect x="355" y="104" width="210" height="26" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.2" stroke-dasharray="4 3"/>
+<text x="365" y="122" style="fill:var(--text-2);font-size:12px">marked, kept for 1 hour</text>
+<rect x="565" y="104" width="70" height="26" rx="2" style="fill:var(--surface-2);stroke:var(--line-strong);stroke-width:1"/>
+<text x="575" y="122" style="fill:var(--text-2);font-size:12px">removed</text>
+<text x="255" y="98" style="fill:var(--text-3);font-size:10px">a record moved</text>
+<text x="355" y="98" style="fill:var(--text-3);font-size:10px">a collection sees it</text>
+<rect x="135" y="164" width="310" height="26" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.2"/>
+<text x="145" y="182" style="fill:var(--text);font-size:12px">pending until the time to live ends</text>
+<rect x="445" y="164" width="120" height="26" rx="2" style="fill:var(--change-wash);stroke:var(--change);stroke-width:1.4"/>
+<text x="455" y="182" style="fill:var(--text);font-size:12px;font-weight:500">expired</text>
+<rect x="565" y="164" width="70" height="26" rx="2" style="fill:var(--surface-2);stroke:var(--line-strong);stroke-width:1"/>
+<text x="575" y="182" style="fill:var(--text-2);font-size:12px">removed</text>
+<text x="445" y="158" style="fill:var(--text-3);font-size:10px">7 days, or --ttl</text>
+<text x="565" y="158" style="fill:var(--text-3);font-size:10px">next collection</text>
+<line x1="120" y1="212" x2="770" y2="212" style="stroke:var(--text-3);stroke-width:1.2"/>
+<polygon points="770,212 764,208.4 764,215.6" style="fill:var(--text-3)"/>
+<text x="770" y="230" text-anchor="end" style="fill:var(--text-3);font-size:10.5px">time</text>
+</svg>
+:::
+
+### Two plans for one resource
+
+Stored plans do not exclude each other. Two people can plan the same resource. The first plan applied changes the record, and the other is stale. A plan that finds an open plan changing one of its resources prints a warning that names the other plan, its author and the resources, each once. A change that the other plan has applied already does not count. The warning informs and blocks nothing. A reservation, made with `plan --reserve`, is what keeps another actor from planning or applying a node.
+
+### Applying a stored plan
+
+`pravo apply ID` reads the plan from the state and then does what `pravo apply FILE` does, with the same checks. [`pravo apply`](../reference/apply.md#apply-a-stored-plan) lists them. Before it reads the plan, apply writes a claim into the progress object, so that no collection removes the plan while the apply runs. The claim is that apply's own, so applies of separate parts of one plan run at the same time, and each ends only its own. An apply fails with exit code 3 when a collection has claimed the plan to remove it, and when the plan was not applied and has expired and no collection has removed it yet. Any other failure to claim the plan is exit code 1, and so is a plan that a collection removed. A plan that was applied completely has nothing left to apply, also after it expired.
+
+An apply that ends without an error records what it did in the progress object: the changes applied and the transaction. The plan object stays as it was written. An apply that fails or is interrupted records nothing, as an apply from a plan file marks nothing in the file. The records that it changed make the plan stale, and what is left is planned again. The plan is `applied` when every change that was pending has been applied, whichever apply finishes last. Apply part of the plan and the listing shows it.
+
+```sh run
+id=$(pravo -C store plan list --json | jq -r '.plans[0].id')
+pravo -C store apply $id --only a | tail -n 2
+pravo -C store plan list
+```
+
+```text out
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
+1 change remains in plan-<id>; apply with "pravo apply plan-<id>".
+plan-<id>  partial  alice  just now  +2 ~0 -0  1 of 2 changes applied; expires in 7 days
+```
+
+The rest of the plan can still be applied. When the last change is applied the plan is `applied`.
+
+```sh run
+id=$(pravo -C store plan list --json | jq -r '.plans[0].id')
+pravo -C store apply $id | tail -n 1
+pravo -C store plan list --all
+```
+
+```text out
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
+plan-<id>  applied  alice  just now  +2 ~0 -0  applied just now
+```
+
+### Collection
+
+`pravo plan gc` removes the plans that nobody needs, and `pravo plan --store` removes a few on its way. The rules are in [`pravo plan`](../reference/plan.md#collect-stored-plans). A collection claims a plan in its progress object before it deletes anything. The deletes are conditional: pravo removes an object only if it is what its name says it is: a plan whose digest gives its id, or a summary that names the id. Two collections and an apply that run at once cannot damage each other, on a directory or in a bucket. Only the objects below `plans/` that have the names of plan objects are ever removed. A plan whose summary cannot be read is left alone, and a progress object that cannot be parsed is made empty once the plan is older than an hour. The small collection of `plan --store` never removes the plan that it has just stored.
+
+### What a stored plan does not do
+
+The author of a stored plan is the `--actor` label, or the operating system user when there is none. pravo does not verify it.
+
+A stored plan holds the same values as a plan file, sensitive values included. The objects are as readable as the rest of the state: whoever can read the state can read its plans, exactly as they can read the records. [The viewer](the-viewer.md#stored-plans) lists stored plans and withholds their sensitive values as it does for a plan file. [Secrets and ephemeral values](secrets-and-ephemeral-values.md) says what the state holds.
+
+A stored plan applies to the files it was made from. It records the `-t` and `-T` of the command that made it. `plan show` and `apply` need the same, because the tags select the state, and refuse others with the command to run. `plan list` reads the state that its own `-t` and `-T` select.
+
 ## Recap
 
 - A plan is a list of actions with reasons. It is printed for people and available as JSON for programs.
 - A value that depends on a resource that does not exist yet is unknown. The plan shows it as `(known after apply)`.
 - A plan reaches the resources that changed and the resources that read them. The rest is skipped, and the `Graph:` line counts both.
 - A saved plan is checked against the files, the state and the providers, and then each resource is planned again.
+- A stored plan is a saved plan in the state, with a summary and a progress object. A listing judges it by the state, and a collection removes it when nobody needs it.
 
 Next: [State](state.md) describes the records that a plan compares with.

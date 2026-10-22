@@ -39,6 +39,8 @@ type model struct {
 	locks      map[string]state.Lock
 	secrets    *secretSet
 	plan       *planOverlay
+	// stored are the plans in the state, whether or not one of them is the plan.
+	stored *storedPlans
 	// definitions counts the nodes written by the same lines, by "file:line:col".
 	definitions map[string]int
 
@@ -127,6 +129,13 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 		warnings = append(warnings, fmt.Sprintf("The schema of provider %s is not cached, so the values of %d %s are withheld. Run \"pravo init\" to fetch it.",
 			ms.name, ms.count, plural(ms.count, "resource", "resources")))
 	}
+	m.stored = s.loadStored(ctx, m)
+	if m.stored.err != nil {
+		warnings = append(warnings, "The plans stored in the state could not be listed: "+m.stored.err.Error())
+	}
+	if w := m.stored.skippedWarning(); w != "" {
+		warnings = append(warnings, w)
+	}
 	m.plan = s.loadPlan(ctx, m)
 	if m.plan != nil {
 		warnings = append(warnings, m.plan.warnings...)
@@ -157,11 +166,14 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 // scrubText masks, in a sentence for the reader, the sensitive values of the
 // state and the values of the tags that were given on the command line under a
 // name that says secret.
-func (m *model) scrubText(text string) string {
+func (m *model) scrubText(text string) string { return m.scrubTextWith(m.secrets, text) }
+
+// scrubTextWith is scrubText against another set of secrets: the one of a plan.
+func (m *model) scrubTextWith(sec *secretSet, text string) string {
 	if text == "" {
 		return text
 	}
-	out, _ := m.secrets.scrub(text)
+	out, _ := sec.scrub(text)
 	for _, t := range m.srv.opts.Tags {
 		if k, v, ok := strings.Cut(t, "="); ok && len(v) >= 4 && guarded(k) {
 			out = strings.ReplaceAll(out, v, mask)
@@ -624,6 +636,7 @@ func (m *model) assemble() {
 			}
 		}
 	}
+	m.markNodes()
 }
 
 // planInfo returns the plan section of the graph.
@@ -631,7 +644,7 @@ func (m *model) planInfo() *PlanInfo {
 	if m.plan == nil || m.plan.failed {
 		return nil
 	}
-	info := m.plan.info
+	info := m.cleanInfo(m.plan)
 	info.Total = len(m.order)
 	return &info
 }

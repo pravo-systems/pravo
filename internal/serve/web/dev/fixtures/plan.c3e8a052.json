@@ -1,0 +1,41 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "plan": {
+  "file": "plan-c3e8a052",
+  "id": "plan-c3e8a052",
+  "status": "stale",
+  "created": "2026-10-21T12:57:11Z",
+  "actor": "ci@acme",
+  "stale": true,
+  "reasons": [
+   "edge.cert changed in state (revision 3, plan expected 2)",
+   "edge.lb changed in state (revision 6, plan expected 5)"
+  ],
+  "summary": {
+   "add": 1,
+   "change": 1,
+   "destroy": 0,
+   "read": 0,
+   "blast_radius": 5
+  },
+  "planned": 2,
+  "total": 47
+ },
+ "nodes": [
+  {
+   "addr": "edge.cert",
+   "action": "create"
+  },
+  {
+   "addr": "edge.lb",
+   "action": "update"
+  }
+ ],
+ "warnings": [
+  "The plan is stale and can no longer be applied: edge.cert changed in state (revision 3, plan expected 2); edge.lb changed in state (revision 6, plan expected 5)."
+ ],
+ "reason": "renew the certificate",
+ "command": "pravo plan --store --reason \"renew the certificate\"",
+ "git_revision": "3b9d6f0"
+}

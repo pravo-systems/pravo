@@ -193,18 +193,30 @@ func genCmd() *cobra.Command {
 }
 
 func planCmd() *cobra.Command {
-	var refresh, outFile string
-	var destroy, full, detailed, includeSkipped bool
+	var refresh, outFile, ttlText string
+	var destroy, full, detailed, includeSkipped, store bool
 	var reserve time.Duration
 	var replace []string
 	cmd := &cobra.Command{
 		Use:   "plan",
 		Short: "Show the changes required by the configuration",
-		Args:  noArgs,
+		Args:  noArgsBesidesSubcommands,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mode, err := parseRefresh(refresh)
 			if err != nil {
 				return err
+			}
+			ttl := engine.DefaultPlanTTL
+			if cmd.Flags().Changed("ttl") {
+				if !store {
+					return fmt.Errorf("--ttl applies to --store")
+				}
+				if ttl, err = parseSpan("ttl", ttlText); err != nil {
+					return err
+				}
+				if ttl == 0 {
+					return fmt.Errorf("--ttl %s: want a length of time above zero", ttlText)
+				}
 			}
 			policies, err := loadPolicies()
 			if err != nil {
@@ -224,10 +236,41 @@ func planCmd() *cobra.Command {
 				return err
 			}
 			// The plan is printed before it is judged, and the document that is
-			// judged is the one that is printed.
+			// judged is the one that is printed. With --store and --json the document
+			// says where the plan was stored, so the plan is judged and stored first.
 			view := eng.NewView(plan, engine.ViewOptions{Skipped: includeSkipped})
+			var policyErr error
+			var stored *storedPlan
+			judged := false
+			savedOut := false
+			saveOut := func() error {
+				if outFile == "" || savedOut {
+					return nil
+				}
+				savedOut = true
+				return eng.SavePlan(outFile, plan, flagTags, flagSysTags)
+			}
+			if store && flagJSON {
+				policyErr, judged = eng.CheckPolicyView(view), true
+				if policyErr == nil && planWorth(plan) {
+					// The file is written before the plan is stored, as it is without
+					// --json: a plan that cannot be saved is not stored either.
+					if err := saveOut(); err != nil {
+						_ = emitJSON(view)
+						return err
+					}
+					if stored, err = storePlan(cmd.Context(), s, eng, plan, ttl); err != nil {
+						return err
+					}
+				}
+			}
 			if flagJSON {
-				if err := emitJSON(view); err != nil {
+				if stored != nil {
+					err = emitJSON(storedPlanDoc{View: view, Stored: stored.info()})
+				} else {
+					err = emitJSON(view)
+				}
+				if err != nil {
 					return err
 				}
 			} else {
@@ -244,16 +287,34 @@ func planCmd() *cobra.Command {
 					out.Printf("%s %d %s until %s.\n", out.C(ui.Dim, "Reserved"), len(plan.Reservation.Addrs), noun, plan.Reservation.Until.Local().Format(time.RFC3339))
 				}
 			}
-			if err := eng.CheckPolicyView(view); err != nil {
+			if !judged {
+				policyErr = eng.CheckPolicyView(view)
+			}
+			if policyErr != nil {
+				return policyErr
+			}
+			if err := saveOut(); err != nil {
 				return err
 			}
-			if outFile != "" {
-				if err := eng.SavePlan(outFile, plan, flagTags, flagSysTags); err != nil {
+			if outFile != "" && !flagJSON {
+				out.Println()
+				out.Printf("Saved the plan to %s. To apply exactly these actions, run:\n  pravo apply %s\n", outFile, outFile)
+			}
+			switch {
+			case store && stored == nil && !planWorth(plan):
+				out.Println()
+				out.Println("Nothing to store: the plan has no changes.")
+			case store && stored == nil:
+				if stored, err = storePlan(cmd.Context(), s, eng, plan, ttl); err != nil {
 					return err
 				}
-				if !flagJSON {
+				printStored(stored)
+			case store:
+				printStored(stored)
+			case planWorth(plan):
+				if overlaps := storedOverlapsOf(cmd.Context(), s, eng, plan); len(overlaps) > 0 {
 					out.Println()
-					out.Printf("Saved the plan to %s. To apply exactly these actions, run:\n  pravo apply %s\n", outFile, outFile)
+					warnOverlaps(overlaps)
 				}
 			}
 			if detailed && plan.HasChanges() {
@@ -266,20 +327,29 @@ func planCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&destroy, "destroy", false, "plan the destruction of everything in state")
 	cmd.Flags().StringSliceVar(&replace, "replace", nil, "destroy and create this resource again even though the specification did not change (repeatable)")
 	cmd.Flags().StringVar(&outFile, "out", "", "save the plan to this file, to be applied later with \"pravo apply <file>\"")
+	cmd.Flags().BoolVar(&store, "store", false, "store the plan in the state, where others can list and apply it with \"pravo apply <plan-id>\"")
+	cmd.Flags().StringVar(&ttlText, "ttl", "", "with --store: keep the plan this long if it is not applied (90m, 36h, 7d; the default is 7d)")
 	cmd.Flags().BoolVar(&detailed, "detailed-exitcode", false, "exit 2 when the plan has changes, 0 when it has none")
 	cmd.Flags().BoolVar(&includeSkipped, "include-skipped", false, "with --json, list the nodes the plan left alone too, each as an entry with its address, mode, type and name")
 	cmd.Flags().DurationVar(&reserve, "reserve", 0, "reserve the nodes with pending changes for this long (e.g. 15m), so other actors cannot plan or apply them meanwhile")
 	addPolicyFlag(cmd)
-	addTagFlags(cmd)
+	// The tags select the state, so the commands that list stored plans take them too.
+	pf := cmd.PersistentFlags()
+	pf.StringArrayVarP(&flagTags, "tag", "t", nil, tagUsage)
+	pf.BoolVarP(&flagSysTags, "inject-vars", "T", false, sysTagsUsage)
+	cmd.AddCommand(planCommands()...)
 	return cmd
 }
 
 func showCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "show <planfile>",
-		Short: "Print a saved plan",
+		Use:   "show <planfile|plan-id>",
+		Short: "Print a saved plan, or a plan stored in the state",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if isStoredRef(args[0]) {
+				return showStored(cmd, args[0])
+			}
 			pf, err := engine.ReadPlanFile(args[0])
 			if err != nil {
 				return err
@@ -314,7 +384,19 @@ func showCmd() *cobra.Command {
 			return nil
 		},
 	}
+	// A plan in the state is found by the state, which the tags select.
+	addTagFlags(cmd)
 	return cmd
+}
+
+// isStoredRef says whether the argument of show and apply names a plan in the
+// state: it is the id of one and no file has that name.
+func isStoredRef(arg string) bool {
+	if !engine.IsPlanID(arg) {
+		return false
+	}
+	_, err := os.Stat(arg)
+	return err != nil
 }
 
 func addRunFlags(cmd *cobra.Command, refresh *string, full *bool) {
@@ -328,7 +410,7 @@ func applyCmd() *cobra.Command {
 	var autoApprove, full bool
 	var only, replace []string
 	cmd := &cobra.Command{
-		Use:   "apply [planfile]",
+		Use:   "apply [planfile|plan-id]",
 		Short: "Create, update or destroy infrastructure to match the configuration, or apply a saved plan",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -346,6 +428,9 @@ func applyCmd() *cobra.Command {
 			if len(args) == 1 {
 				if len(replace) > 0 {
 					return fmt.Errorf("-replace is decided when the plan is made: use \"pravo plan -replace <addr> -out <file>\"")
+				}
+				if isStoredRef(args[0]) {
+					return applyStored(cmd, args[0], refresh, full, only)
 				}
 				return applySaved(cmd, args[0], refresh, full, only)
 			}
@@ -414,6 +499,22 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	if err := eng.SetPolicies(policies); err != nil {
 		return err
 	}
+	mark := func(applied []string, txn string, pending []string) error {
+		if err := engine.MarkApplied(path, pf, applied, txn); err != nil {
+			return fmt.Errorf("the changes were applied but %s could not be updated: %w", path, err)
+		}
+		return nil
+	}
+	return applyPlanFile(cmd, eng, pf, path, "planfile", "pravo apply "+path, only, mark)
+}
+
+// applyPlanFile applies what is left of a plan that was saved, in a file or in
+// the state. name says which, and kind is the key under which --json repeats it.
+// again is the command that applies the rest of the plan. mark records what was
+// applied: the changes, the transaction and the changes that were left to apply
+// when this apply began.
+func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, name, kind, again string, only []string, mark func(applied []string, txn string, pending []string) error) error {
+	ctx := cmd.Context()
 	plan, err := eng.LoadPlanFor(pf, only)
 	if err != nil {
 		return engine.WithCode(engine.ExitStale, err)
@@ -421,7 +522,7 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	remaining := plan.Remaining()
 	if !pf.LeftToApply(remaining) {
 		if flagJSON {
-			emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", "planfile": path})
+			emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", kind: name})
 			return nil
 		}
 		out.Println(out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
@@ -438,7 +539,7 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 		if err != nil {
 			return err
 		}
-		out.Printf("Applying %d of %d remaining changes from %s.\n", selected.PendingCount(), remaining.PendingCount(), path)
+		out.Printf("Applying %d of %d remaining changes from %s.\n", selected.PendingCount(), remaining.PendingCount(), name)
 	}
 	res, err := eng.ApplySaved(ctx, selected)
 	if err != nil {
@@ -448,10 +549,11 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	for _, ch := range selected.Changes {
 		applied = append(applied, ch.Addr)
 	}
-	if err := engine.MarkApplied(path, pf, applied, res.Txn); err != nil {
-		return fmt.Errorf("the changes were applied but %s could not be updated: %w", path, err)
+	left := remaining.PendingCount() - selected.PendingCount()
+	if err := mark(applied, res.Txn, remaining.PendingAddrs()); err != nil {
+		return err
 	}
-	reportApply(res, plan.Destroy, path, remaining.PendingCount()-selected.PendingCount())
+	reportApply(res, plan.Destroy, kind, name, again, left)
 	return nil
 }
 
@@ -521,15 +623,18 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 	if err != nil {
 		return err
 	}
-	reportApply(res, destroy, "", 0)
+	reportApply(res, destroy, "", "", "", 0)
 	return nil
 }
 
 // reportApply prints the outcome of an apply, as text or as a final JSON line.
-func reportApply(res *engine.ApplyResult, destroy bool, planfile string, remaining int) {
+func reportApply(res *engine.ApplyResult, destroy bool, kind, planfile, again string, remaining int) {
 	if flagJSON {
+		if kind == "" {
+			kind = "planfile"
+		}
 		emitLine(map[string]any{"kind": "apply", "phase": "done", "txn": res.Txn, "added": res.Added, "changed": res.Changed,
-			"destroyed": res.Destroyed, "outputs": unwrapAll(res.Outputs), "planfile": planfile, "remaining": remaining})
+			"destroyed": res.Destroyed, "outputs": unwrapAll(res.Outputs), kind: planfile, "remaining": remaining})
 		return
 	}
 	out.Println()
@@ -543,7 +648,7 @@ func reportApply(res *engine.ApplyResult, destroy bool, planfile string, remaini
 		if remaining == 1 {
 			noun = "change remains"
 		}
-		out.Printf("%d %s in %s; apply with \"pravo apply %s\".\n", remaining, noun, planfile, planfile)
+		out.Printf("%d %s in %s; apply with \"%s\".\n", remaining, noun, planfile, again)
 	}
 	if len(res.Outputs) > 0 {
 		out.Println()

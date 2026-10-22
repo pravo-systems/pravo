@@ -20,16 +20,23 @@ async function get(path) {
   if (!r.ok) {
     let msg = r.statusText || `status ${r.status}`;
     try { const j = await r.json(); if (j && j.error) msg = j.error; } catch { /* not JSON */ }
-    throw new Error(msg);
+    throw Object.assign(new Error(msg), { status: r.status });
   }
   try { return await r.json(); } catch { throw new Error('the answer is not JSON'); }
 }
 
+// plan is the id of a stored plan, or 'none' for no plan at all; without it the plan is the one the graph has.
+const withPlan = (plan) => (plan ? '&plan=' + encodeURIComponent(plan) : '');
+
 export const graph = () => get('/api/graph');
-export const detail = (addr) => get('/api/detail?addr=' + encodeURIComponent(addr));
-export const source = (addr) => get('/api/source?addr=' + encodeURIComponent(addr));
+export const detail = (addr, plan) => get('/api/detail?addr=' + encodeURIComponent(addr) + withPlan(plan));
+export const source = (addr, plan) => get('/api/source?addr=' + encodeURIComponent(addr) + withPlan(plan));
 export const search = (q) => get('/api/search?q=' + encodeURIComponent(q));
 export const ping = () => get('/api/ping');
+// plans lists the plans stored in the state; a server that does not know them has none.
+export const plans = () => get('/api/plans').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', plans: [] }; throw err; });
+// plan is a stored plan as an overlay of the graph: the plan, and the action of each node it ran.
+export const plan = (id) => get('/api/plan?id=' + encodeURIComponent(id));
 
 // events opens /api/events. onChange gets the Event of a "change"; onState gets "live", "reconnecting" or
 // "offline". EventSource reconnects by itself unless the server answered with an error status.

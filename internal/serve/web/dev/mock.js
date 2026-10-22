@@ -5,8 +5,11 @@
 //   &fail=detail                          /api/detail answers 500 {"error": ...}
 //   &latency=300                          every answer is delayed by that many milliseconds
 //   &stale=1                              the saved plan is stale, with reasons
-// window.__mock.mutate() changes the graph and sends a "change" event; window.__errors collects the
-// errors and warnings of the page, for a headless run.
+//   &plan=plan-2f9c1a4e                   the server lays that stored plan itself (pravo serve --plan plan-2f9c1a4e)
+// The plans stored in the state are plans.NAME.json (the platform has six) and plan.ID.json, one for each.
+// window.__mock.mutate() changes the graph and sends a "change" event; storePlan() stores another plan and
+// collectPlan(id) removes one, each with its event; window.__errors collects the errors and warnings of the
+// page, for a headless run.
 
 const here = new URL('.', import.meta.url);
 const params = new URLSearchParams(location.search);
@@ -49,6 +52,28 @@ if (graph) {
 }
 const detailFiles = NAME === 'platform' ? { 'api.db': 'detail.db.json', 'api.db_password': 'detail.password.json', 'edge.lb': 'detail.drifted.json' } : {};
 const sourceFiles = NAME === 'platform' ? { 'api.db': 'source.db.json', 'api.db_password': 'source.password.json' } : {};
+
+// ---- the plans stored in the state: plans.NAME.json, and plan.ID.json for the overlay of each (the id without "plan-") ----
+// pravo serve --plan plan-ID is mock=NAME&plan=plan-ID before the fragment: the graph then has that plan as its own.
+let stored = graph && NAME === 'platform' ? await fixture(`plans.${NAME}.json`) : null;
+stored = stored ? shift(stored, by) : { version: 1, revision: graph ? graph.revision : '', plans: [] };
+const overlays = new Map();
+async function overlayOf(id) {
+  if (!overlays.has(id)) {
+    const o = await fixture(`plan.${id.replace(/^plan-/, '')}.json`);
+    overlays.set(id, o ? shift(o, by) : null);
+  }
+  return overlays.get(id);
+}
+if (graph && params.get('plan')) {
+  // the server laid the plan itself: its actions are on the nodes and it is the plan of the graph
+  const o = await overlayOf(params.get('plan'));
+  if (o) {
+    const act = new Map(o.nodes.map((n) => [n.addr, n.action]));
+    graph.plan = o.plan;
+    for (const n of graph.nodes) { if (act.has(n.addr)) n.action = act.get(n.addr); else delete n.action; }
+  }
+}
 
 // ---- synthesised answers ----
 
@@ -215,12 +240,30 @@ window.fetch = async (input, init) => {
   const p = url.pathname;
   if (p === '/api/ping') return json(200, { ok: true, version: 1 });
   if (p === '/api/graph') return json(200, graph);
+  if (p === '/api/plans') return json(200, Object.assign({}, stored, { revision: graph.revision }));
+  if (p === '/api/plan') {
+    const id = url.searchParams.get('id') || '';
+    if (!/^plan-[0-9a-f]{6,64}$/.test(id)) return json(400, { error: 'id is required: the id of a stored plan, such as plan-2f9c1a4e' });
+    const o = stored.plans.some((x) => x.id === id) ? await overlayOf(id) : null;
+    if (!o) return json(404, { error: 'no such stored plan' });
+    return json(200, Object.assign({}, o, { revision: graph.revision }));
+  }
   if (p === '/api/detail' || p === '/api/source') {
     const addr = url.searchParams.get('addr') || '';
-    const n = graph.nodes.find((x) => x.addr === addr);
+    let n = graph.nodes.find((x) => x.addr === addr);
     if (!n) return json(404, { error: 'unknown address ' + addr });
     const kind = p === '/api/detail' ? 'detail' : 'source';
     if (params.get('fail') === kind) return json(500, { error: `could not read the record of ${addr}` });
+    // plan=ID answers for a stored plan, plan=none for no plan: the action of the node is that plan's
+    const plan = url.searchParams.get('plan');
+    if (plan) {
+      const o = plan === 'none' ? null : await overlayOf(plan);
+      if (plan !== 'none' && !o) return json(404, { error: 'no such stored plan' });
+      const a = o && o.nodes.find((x) => x.addr === addr);
+      n = Object.assign({}, n);
+      if (a) n.action = a.action; else delete n.action;
+      return json(200, kind === 'detail' ? synthDetail(n) : synthSource(n));
+    }
     const files = kind === 'detail' ? detailFiles : sourceFiles;
     if (files[addr] && mutations === 0) { const v = await fixture(files[addr]); if (v) return json(200, shift(v, by)); }
     return json(200, kind === 'detail' ? synthDetail(n) : synthSource(n));
@@ -263,6 +306,46 @@ window.__mock = {
     graph = g;
     this.emit({ revision: g.revision, what: ['state'] });
     return pick.map((n) => n.addr);
+  },
+  // storePlan stores another plan, by a third author, that changes api.db too, and sends the event for it: the
+  // page shows it without a reload
+  storePlan() {
+    const g = JSON.parse(JSON.stringify(graph));
+    const id = 'plan-d4b7e913';
+    const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const touches = [{ addr: 'api.db', action: 'update' }, { addr: 'api.worker.queue', action: 'update' }];
+    // a listing row has no reason, command or git revision: the overlay of the plan has them
+    const plan = { id, status: 'pending', open: true, author: 'dee@acme', created: now, expires: new Date(Date.now() + 7 * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      summary: { add: 0, change: 2, destroy: 0, read: 0 }, planned: 2, touches, apply: 'pravo apply ' + id };
+    const others = [];
+    for (const o of stored.plans) {
+      if (!o.open) continue;
+      // only the changes that a plan has left count, on both sides
+      const addrs = o.touches.filter((t) => !t.applied && touches.some((x) => x.addr === t.addr)).map((t) => t.addr).sort();
+      if (!addrs.length) continue;
+      (o.overlaps = o.overlaps || []).push({ id, count: addrs.length, addrs });
+      others.push({ id: o.id, count: addrs.length, addrs });
+    }
+    if (others.length) plan.overlaps = others;
+    stored = Object.assign({}, stored, { plans: [plan].concat(stored.plans) });
+    for (const t of touches) { const n = g.nodes.find((x) => x.addr === t.addr); n.plans = [id].concat(n.plans || []); if (n.plans.length > 1) n.overlap = true; }
+    overlays.set(id, { version: 1, revision: '', plan: { file: id, id, status: 'pending', created: now, actor: plan.author, summary: { add: 0, change: 2, destroy: 0, read: 0, blast_radius: 6 }, planned: 2, total: g.nodes.length }, nodes: touches,
+      reason: 'resize the queue', command: 'pravo plan --store --reason "resize the queue"', git_revision: 'e5a1b08' });
+    g.revision = 'r-plans-' + (++mutations);
+    graph = g;
+    this.emit({ revision: g.revision, what: ['plans'] });
+    return id;
+  },
+  // collectPlan removes a stored plan, as a collection does
+  collectPlan(id) {
+    const g = JSON.parse(JSON.stringify(graph));
+    stored = Object.assign({}, stored, { plans: stored.plans.filter((p) => p.id !== id) });
+    for (const p of stored.plans) if (p.overlaps) { p.overlaps = p.overlaps.filter((o) => o.id !== id); if (!p.overlaps.length) delete p.overlaps; }
+    for (const n of g.nodes) if (n.plans) { n.plans = n.plans.filter((x) => x !== id); if (!n.plans.length) delete n.plans; if ((n.plans || []).length < 2) delete n.overlap; }
+    overlays.delete(id);
+    g.revision = 'r-plans-' + (++mutations);
+    graph = g;
+    this.emit({ revision: g.revision, what: ['plans'] });
   },
   drop() { for (const s of sources) { s.readyState = 0; s.fire('error', {}); } },
   restore() { for (const s of sources) { s.readyState = 1; s.fire('open', {}); } },

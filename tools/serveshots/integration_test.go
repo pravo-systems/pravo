@@ -72,6 +72,31 @@ func TestScenariosWithPravo(t *testing.T) {
 			}
 		})
 	}
+	t.Run("platform stored", func(t *testing.T) {
+		sc, _ := findScenario("platform")
+		dir := filepath.Join(t.TempDir(), "ws")
+		w, err := prepareStored(ctx, r, sc, dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := r.mustRun(ctx, dir, []int{0}, "plan", "list", "--all")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for actor, id := range w.Plans {
+			if !strings.Contains(res.Out, id) {
+				t.Errorf("pravo plan list --all does not list the plan of %s, %s:\n%s", actor, id, lastLines(res.Out, 8))
+			}
+		}
+		// The plan of ana is the one that the shots lay over the graph.
+		res, err = r.mustRun(ctx, dir, []int{0}, "show", w.Plans["ana"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "# api.services.orders.config (local_file) must be replaced"; !strings.Contains(res.Out, want) {
+			t.Errorf("the plan of ana lacks %q:\n%s", want, lastLines(res.Out, 12))
+		}
+	})
 	t.Run("platform changed", func(t *testing.T) {
 		sc, _ := findScenario("platform")
 		dir := filepath.Join(t.TempDir(), "ws")

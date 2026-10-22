@@ -1,0 +1,218 @@
+// The plans stored in the state: the list in the rail, the plan bar on the canvas, the badges that name an
+// author, and the detail of one plan. A stored plan is a plan that someone made with "pravo plan --store" and
+// that anyone who reads the state finds. The page only reads: nothing here applies a plan, approves it or
+// removes it. What it offers is the exact command that applies a plan, to copy and run elsewhere.
+
+import { h, clear, icon, relTime, relUntil, stamp, plural } from './util.js';
+
+// STATUS says where a plan stands. The word is the carrier; the colour agrees with it: green can be applied,
+// blue is part way, amber moved on, grey is over.
+export const STATUS = {
+  pending: { cls: 'ok', tip: 'It can be applied.' },
+  partial: { cls: 'lock', tip: 'Some of its changes were applied; the rest can be.' },
+  stale: { cls: 'chg', tip: 'The state moved on, so it can no longer be applied.' },
+  applied: { cls: 'done', tip: 'Every change was applied.' },
+  expired: { cls: 'gone', tip: 'It was not applied before it expired.' },
+};
+
+// initials are the letters of an author that the badges show: "ana@acme" is A, "ben.ortiz@acme" is BO.
+export function initials(author) {
+  const name = String(author || '?').split('@')[0];
+  const parts = name.split(/[\s._-]+/).filter(Boolean);
+  // by code points: a letter outside the basic plane is two UTF-16 units, and half of one is no letter
+  const first = (w) => Array.from(w)[0] || '?';
+  const out = parts.length > 1 ? first(parts[0]) + first(parts[1]) : first(parts[0] || '?');
+  return out.toUpperCase();
+}
+
+// hueOf picks one of the six hues of the providers' tints for an author, so that two authors with the same
+// initial usually differ. The hues are clear of green, amber and red, which belong to the plan.
+export function hueOf(author) {
+  let x = 0;
+  for (const c of String(author || '')) x = (x * 31 + c.charCodeAt(0)) >>> 0;
+  return x % 6;
+}
+
+// avatar is the badge of an author in the rail and the inspector (the graph draws its own in SVG).
+export function avatar(author, cls) {
+  return h('span', { class: `au au${hueOf(author)}${cls ? ' ' + cls : ''}`, 'aria-hidden': 'true', 'data-tip': author }, initials(author));
+}
+
+export function statusChip(status) {
+  const st = STATUS[status] || STATUS.expired;
+  return h('span', { class: 'b ps ps-' + st.cls, 'data-tip': st.tip }, status === 'applied' ? icon('check') : null, status);
+}
+
+// counts are the adds, changes and destroys of a plan, in the colours of the actions
+export function counts(c, cls = '') {
+  const parts = [];
+  if (c.add) parts.push(h('b', { class: 'ok' }, '+' + c.add));
+  if (c.change) parts.push(h('b', { class: 'chg' }, '~' + c.change));
+  if (c.destroy) parts.push(h('b', { class: 'bad' }, '−' + c.destroy));
+  if (!parts.length) parts.push(h('b', { class: 'dim' }, c.read ? plural(c.read, 'read') : 'no changes'));
+  return h('span', { class: 'pcnt' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, parts);
+}
+
+const countWords = (c) => [c.add && `${c.add} to add`, c.change && `${c.change} to change`, c.destroy && `${c.destroy} to destroy`].filter(Boolean).join(', ') || 'no changes';
+
+// describe is the label of a plan for a screen reader
+export function describe(p) {
+  const bits = [p.id, p.status, `by ${p.author}`, relTime(p.created), countWords(p.summary || {})];
+  if ((p.overlaps || []).length) bits.push('overlaps ' + plural(p.overlaps.length, 'other plan'));
+  if (p.applying) bits.push('an apply is running');
+  return bits.join(', ');
+}
+
+// the command that applies the plan, in the look of the other commands of the page
+export function applyCommand(p) {
+  return h('div', { class: 'cmdline' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, p.apply || 'pravo apply ' + p.id),
+    h('button', { class: 'cpbtn', type: 'button', 'data-copy': p.apply || 'pravo apply ' + p.id, 'data-fk': 'copy', 'aria-label': 'Copy the command that applies ' + p.id, 'data-tip': 'Copy the command' }, icon('copy')));
+}
+
+// facts are what the inspector says of a plan, as rows of a list: by whom, when it lapses, why, what it was made
+// with. The list in the rail keeps to what a person acts on (the reason, the overlaps, the command).
+// The reason, the command and the revision are in the overlay of the plan (text), not in the list.
+export function facts(p, text) {
+  text = text || {};
+  return [
+    ['made by', [p.author, h('span', { class: 'dim', title: stamp(p.created) }, ' · ' + relTime(p.created))]],
+    ['expires', h('span', { title: stamp(p.expires) }, p.status === 'expired' ? 'expired ' + relTime(p.expires) : relUntil(p.expires))],
+    text.reason ? ['reason', text.reason] : null,
+    text.command ? ['command', h('code', { class: 'cmd' }, text.command)] : null,
+    text.git_revision ? ['git', h('code', null, text.git_revision)] : null,
+  ].filter(Boolean);
+}
+
+// detail is what the rail shows under the plan that is laid over the graph: the reason, what stops it or crosses
+// it, and the command that applies it.
+export function detail(p, { onPlan, byId, text } = {}) {
+  const body = [];
+  text = text || {};
+  if (text.reason) body.push(h('p', { class: 'rp-reason', title: text.reason }, text.reason));
+  if (p.applying) body.push(h('p', { class: 'rp-note chg' }, icon('hold'), h('span', null, 'An apply from this plan is running.')));
+  if (p.applied && p.planned > 0) body.push(h('p', { class: 'rp-note' }, `${p.applied} of ${p.planned} changes applied.`));
+  if ((p.reasons || []).length) {
+    body.push(h('div', { class: 'rp-why' }, h('b', null, p.status === 'stale' ? 'Stale: it can no longer be applied.' : 'Why'), h('ul', null, p.reasons.map((r) => h('li', null, r)))));
+  }
+  if ((p.overlaps || []).length) {
+    body.push(h('div', { class: 'rp-why ovl' }, h('b', null, 'Overlaps: applying one makes the other stale.'),
+      h('ul', null, p.overlaps.map((o) => {
+        const other = byId && byId.get(o.id);
+        return h('li', null, h('button', { class: 'linkbtn', type: 'button', 'data-plan': o.id, 'data-fk': 'ovl-' + o.id, on: onPlan ? { click: () => onPlan(o.id) } : null }, o.id),
+          other ? ' ' + other.author : '', h('span', { class: 'dim' }, ' · ' + plural(o.count, 'resource')));
+      }))));
+  }
+  // the rest of what is known of the plan, closed until it is wanted: the project panel of the inspector has it too
+  body.push(h('details', { class: 'rp-more' }, h('summary', { 'data-fk': 'more' }, 'Expires, command, revision'),
+    h('dl', { class: 'meta' }, facts(p, text).filter(([k]) => k !== 'reason').map(([k, v]) => [h('dt', null, k), h('dd', null, v)]))));
+  if (p.status === 'pending' || p.status === 'partial') body.push(applyCommand(p));
+  else body.push(h('p', { class: 'rp-note dim' }, p.status === 'applied' ? 'Every change of this plan was applied.' : p.status === 'expired' ? 'This plan expired and will be collected.' : 'Make the plan again with pravo plan --store.'));
+  return body;
+}
+
+// Plans is the list in the rail: one row for each plan, the filter that keeps the pending ones, and the detail
+// of the plan that is laid over the graph. The rows are toggle buttons with the arrow keys of a list.
+export class Plans {
+  constructor(root, cb) {
+    this.root = root;
+    this.cb = cb;
+    this.filter = null; // null: pending if any plan is, else all
+    this.s = null;
+    root.addEventListener('click', (ev) => {
+      const f = ev.target.closest('button[data-filter]');
+      if (f) { this.filter = f.dataset.filter; this.render(this.s); return; }
+      const all = ev.target.closest('button[data-showall]');
+      if (all) { this.filter = 'all'; this.render(this.s); return; }
+      const row = ev.target.closest('button.rp');
+      if (row) cb.onSelect(row.getAttribute('aria-pressed') === 'true' ? null : row.dataset.id);
+    });
+    root.addEventListener('keydown', (ev) => this.onKey(ev));
+  }
+
+  // mode is the filter: the one that was chosen, else the pending plans, else all of them; a plan that is not
+  // pending and is laid over the graph (a link names it) shows the whole list around it
+  mode(plans, sel) {
+    if (this.filter) return this.filter;
+    const picked = sel && plans.find((p) => p.id === sel);
+    return plans.some((p) => p.open) && !(picked && !picked.open) ? 'pending' : 'all';
+  }
+
+  // render draws the section. s: { plans, sel } ; a section with no plan is not there
+  render(s) {
+    this.s = s;
+    const { plans, sel } = s;
+    const root = this.root;
+    root.hidden = !plans.length;
+    if (!plans.length) { clear(root); return; }
+    const mode = this.mode(plans, sel);
+    const open = plans.filter((p) => p.open).length;
+    const shown = plans.filter((p) => mode === 'all' || p.open || p.id === sel);
+    // what has the focus is found again after the section is drawn: a row, a filter, or a control of the detail
+    const at = root.contains(document.activeElement) ? document.activeElement.dataset : null;
+    const focus = at && (at.id ? ['id', at.id] : at.filter ? ['filter', at.filter] : at.fk ? ['fk', at.fk] : null);
+    const seg = (key, label, n) => h('button', { type: 'button', 'aria-pressed': String(mode === key), data: { filter: key }, 'data-tip': key === 'pending' ? 'Plans that can still be applied' : 'Every plan in the state, applied and expired too' }, label, h('em', null, String(n)));
+    const rows = shown.map((p, i) => this.row(p, p.id === sel, sel ? p.id === sel : i === 0));
+    const list = h('div', { class: 'rp-list', role: 'group', 'aria-label': 'Stored plans' }, rows);
+    if (!shown.length) {
+      list.append(h('p', { class: 'rp-none' }, 'No plan can be applied. ', h('button', { class: 'linkbtn', type: 'button', data: { showall: '1' } }, `Show all ${plans.length}`)));
+    }
+    const picked = sel && plans.find((p) => p.id === sel);
+    const detailEl = picked ? h('div', { class: 'rp-detail', role: 'region', 'aria-label': 'Plan ' + picked.id }, detail(picked, { onPlan: (id) => this.cb.onSelect(id), byId: new Map(plans.map((p) => [p.id, p])), text: s.text })) : null;
+    // the detail sits under its row
+    if (detailEl) rows[shown.findIndex((p) => p.id === sel)].after(detailEl);
+    clear(root);
+    root.append(
+      h('div', { class: 'rp-head' }, h('h2', { class: 'h' }, 'Plans'), h('div', { class: 'seg rp-seg', role: 'group', 'aria-label': 'Which plans to list' }, seg('pending', 'Pending', open), seg('all', 'All', plans.length))),
+      list);
+    // the closed part of the detail stays as the person left it when the list is drawn again
+    const more = root.querySelector('.rp-more');
+    if (more) { more.open = !!this.moreOpen; more.addEventListener('toggle', () => { this.moreOpen = more.open; }); }
+    // the section scrolls to the plan that is laid over the graph when that changes, and not each time it is drawn
+    if (picked && this.shownSel !== sel) { const el = root.querySelector('.rp[aria-pressed="true"]'); if (el) el.scrollIntoView({ block: 'nearest' }); }
+    this.shownSel = sel;
+    if (focus) { const el = root.querySelector(`[data-${focus[0]}="${CSS.escape(focus[1])}"]`); if (el) el.focus({ preventScroll: true }); }
+  }
+
+  row(p, on, tab) {
+    const overlaps = (p.overlaps || []).length;
+    return h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (on ? ' sel' : ''), type: 'button', 'aria-pressed': String(on), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p) },
+      avatar(p.author),
+      h('span', { class: 'rp-main' },
+        h('span', { class: 'rp-l1' }, h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null, statusChip(p.status)),
+        h('span', { class: 'rp-l2' }, h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(p.summary || {}))));
+  }
+
+  onKey(ev) {
+    const row = ev.target.closest('button.rp');
+    if (ev.key === 'Escape' && this.s && this.s.sel) { ev.preventDefault(); this.cb.onSelect(null); return; }
+    if (!row) return;
+    const rows = [...this.root.querySelectorAll('button.rp')];
+    const i = rows.indexOf(row);
+    const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: rows.length - 1 }[ev.key];
+    if (to === undefined) return;
+    ev.preventDefault();
+    const next = rows[Math.max(0, Math.min(rows.length - 1, to))];
+    for (const r of rows) r.tabIndex = -1;
+    next.tabIndex = 0;
+    next.focus();
+  }
+}
+
+// The bar on the canvas that says which plan is laid over the graph, with the way back. It is the only sign on
+// the picture that the colours are a plan's, and it is there on a narrow screen, where the rail is a drawer.
+export function planBar(el, p, cb) {
+  // a bar that says the same is left as it is: drawing it again takes the focus from the button that has it
+  const sig = p ? [p.id, p.status, p.author, JSON.stringify(p.summary || {})].join('|') : '';
+  if (el.dataset.sig === sig) return;
+  el.dataset.sig = sig;
+  clear(el);
+  if (!p) { el.hidden = true; return; }
+  el.hidden = false;
+  el.append(
+    avatar(p.author),
+    h('span', { class: 'pb-id' }, p.id),
+    statusChip(p.status),
+    counts(p.summary || {}),
+    h('button', { class: 'pb-det', type: 'button', 'aria-label': 'Show the detail of ' + p.id, on: { click: cb.onDetail } }, 'Detail'),
+    h('button', { class: 'pb-x', type: 'button', 'aria-label': 'Take the plan off the graph', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })));
+}

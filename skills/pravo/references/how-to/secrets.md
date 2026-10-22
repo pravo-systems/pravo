@@ -103,7 +103,7 @@ pravo.state/resources/key.json
 -rw-------
 ```
 
-Protect the state as you protect the secrets in it. A saved plan is created with owner-only permissions, because its values can include secrets.
+Protect the state as you protect the secrets in it. A saved plan is created with owner-only permissions, because its values can include secrets. A plan that `pravo plan --store` writes into the state holds the same values, and whoever can read the state can read it. `pravo serve` withholds them from a stored plan as it does from a plan file.
 
 ## 3. Break it: a secret in a recorded place
 
@@ -193,7 +193,7 @@ An unset `pravo.#Env` takes its `default`. Without a default, the run stops with
 
 ## 5. Keep secrets out of tags and logs
 
-A value that goes through `-t` is written into saved plans and feeds the configuration hash. Tags are for configuration such as an environment name.
+A value that goes through `-t` is written into saved plans and stored plans, and feeds the configuration hash. Tags are for configuration such as an environment name.
 
 File `tag.cue`:
 

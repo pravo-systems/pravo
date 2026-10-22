@@ -18,8 +18,8 @@ import (
 // maxAttrChanges bounds the attribute changes of one node that are sent.
 const maxAttrChanges = 400
 
-// planOverlay is the saved plan that the viewer was started with, as it applies
-// to the model of one revision.
+// planOverlay is a plan laid over the model of one revision: the saved plan that
+// the viewer was started with, or a stored plan.
 type planOverlay struct {
 	info    PlanInfo
 	entries map[string]*planEntry
@@ -28,6 +28,17 @@ type planOverlay struct {
 	changes  map[string]*engine.Change
 	warnings []string
 	failed   bool
+	err      error // why the plan failed
+	// secrets are the sensitive strings that the values of this plan are judged
+	// against: those of the state, and the ones the plan would write. The plan the
+	// viewer was started with adds its own to the set of the model; a stored plan
+	// that is asked for later has a copy, so that the model does not change.
+	secrets *secretSet
+	// order lists the addresses of entries, sorted.
+	order []string
+	// reason, command and git are what the author of a stored plan wrote with it,
+	// as it was written: PlanOverlay sends them masked against secrets.
+	reason, command, git string
 }
 
 // planEntry is what the plan file says of one node.
@@ -62,19 +73,48 @@ func (s *Server) readPlan() (*engine.PlanFile, error) {
 // the cached schemas allow, decodes the values of the changes. It starts no
 // provider and writes nothing.
 func (s *Server) loadPlan(ctx context.Context, m *model) *planOverlay {
-	if s.opts.PlanFile == "" {
-		return nil
-	}
-	po := &planOverlay{entries: map[string]*planEntry{}}
-	pf, err := s.readPlan()
-	if err != nil {
-		po.failed = true
-		po.warnings = append(po.warnings, "The plan file could not be read: "+err.Error())
+	switch {
+	case s.opts.PlanFile != "":
+		po := &planOverlay{entries: map[string]*planEntry{}, secrets: m.secrets}
+		pf, err := s.readPlan()
+		if err != nil {
+			po.failed = true
+			po.warnings = append(po.warnings, "The plan file could not be read: "+err.Error())
+			return po
+		}
+		return s.overlay(m, pf, s.planDisplay(), nil, m.secrets)
+	case s.opts.PlanID != "":
+		po := &planOverlay{entries: map[string]*planEntry{}, secrets: m.secrets}
+		e, err := m.stored.resolve(s.opts.PlanID)
+		if err == nil {
+			var pf *engine.PlanFile
+			if pf, err = m.stored.readFile(ctx, e.Meta.ID); err == nil {
+				return s.overlay(m, pf, e.Meta.ID, e, m.secrets)
+			}
+		}
+		po.failed, po.err = true, err
+		po.warnings = append(po.warnings, "The stored plan could not be read: "+err.Error())
 		return po
 	}
-	po.info.File = s.planDisplay()
+	return nil
+}
+
+// overlay lays a plan on the model: the action of each node it ran and, when the
+// cached schemas allow, the values of its changes. stored is the listing entry
+// of a stored plan, which says where the plan stands: it is judged against the
+// shared state alone, as the listing is, and not against this working copy. For
+// the plan of a file the configuration counts too.
+func (s *Server) overlay(m *model, pf *engine.PlanFile, display string, stored *engine.PlanEntry, secrets *secretSet) *planOverlay {
+	po := &planOverlay{entries: map[string]*planEntry{}, secrets: secrets}
+	po.info.File = display
 	po.info.Created = pf.Created
 	po.info.Actor = pf.Actor
+	if stored != nil {
+		po.info.ID = stored.Meta.ID
+		po.info.Actor = stored.Meta.Author
+		po.info.Status = string(stored.Status)
+		po.reason, po.command, po.git = stored.Meta.Reason, stored.Meta.Command, stored.Meta.GitRevision
+	}
 	for _, sc := range pf.Changes {
 		a := engine.Action(sc.Action)
 		if a == engine.ActionOpen || a == engine.ActionCall {
@@ -91,13 +131,18 @@ func (s *Server) loadPlan(ctx context.Context, m *model) *planOverlay {
 	}
 	po.info.Planned = len(po.entries)
 
-	plan, stale, derr := s.decodePlan(m, pf)
+	plan, stale, derr := s.decodePlan(m, pf, stored != nil)
 	switch {
 	case derr != nil:
 		po.warnings = append(po.warnings, "The values of the plan are not shown: "+derr.Error()+".")
-		po.info.Stale, po.info.Reasons = s.staleReasons(m, pf)
+		if stored == nil {
+			po.info.Stale, po.info.Reasons = s.staleReasons(m, pf)
+		}
 	case stale != nil:
 		po.info.Stale, po.info.Reasons = true, stale.Reasons
+	}
+	if stored != nil {
+		po.info.Stale, po.info.Reasons = stored.Status == engine.PlanStale, stored.Reasons
 	}
 	if plan != nil {
 		po.changes = map[string]*engine.Change{}
@@ -155,6 +200,11 @@ func (s *Server) loadPlan(ctx context.Context, m *model) *planOverlay {
 		touched[d] = true
 	}
 	po.info.Summary.BlastRadius = len(touched)
+	po.order = make([]string, 0, len(po.entries))
+	for addr := range po.entries {
+		po.order = append(po.order, addr)
+	}
+	sort.Strings(po.order)
 	return po
 }
 
@@ -173,8 +223,9 @@ func (s *Server) planDisplay() string {
 
 // decodePlan loads the plan into an engine that has the cached schemas and no
 // provider. A plan that cannot be applied any more is returned as stale, and
-// still decoded.
-func (s *Server) decodePlan(m *model, pf *engine.PlanFile) (*engine.Plan, *engine.ErrStalePlan, error) {
+// still decoded. With unchecked the plan is decoded and not judged: a stored
+// plan is judged by the listing, against the state.
+func (s *Server) decodePlan(m *model, pf *engine.PlanFile, unchecked bool) (*engine.Plan, *engine.ErrStalePlan, error) {
 	root := m.spec.root
 	if root == nil {
 		return nil, nil, errors.New("the specification does not load")
@@ -228,6 +279,10 @@ func (s *Server) decodePlan(m *model, pf *engine.PlanFile) (*engine.Plan, *engin
 		}
 	}
 	eng := engine.New(root, m.store, provs, schemas, root.Value, engine.Options{})
+	if unchecked {
+		plan, err := eng.LoadPlanUnchecked(pf)
+		return plan, nil, err
+	}
 	plan, err := eng.LoadPlanFor(pf, nil)
 	var stale *engine.ErrStalePlan
 	if errors.As(err, &stale) {
@@ -278,7 +333,16 @@ func (m *model) collectPlanSecrets() {
 	if m.plan == nil {
 		return
 	}
-	for _, ch := range m.plan.changes {
+	if m.plan.secrets == nil {
+		m.plan.secrets = m.secrets
+	}
+	m.plan.collectSecrets()
+}
+
+// collectSecrets adds to the secrets of the overlay the sensitive values that its
+// plan would write.
+func (po *planOverlay) collectSecrets() {
+	for _, ch := range po.changes {
 		if ch == nil || ch.Schema == nil || ch.Schema.Block == nil {
 			continue
 		}
@@ -286,25 +350,32 @@ func (m *model) collectPlanSecrets() {
 		if ch.Action == engine.ActionReplace && ch.PlannedCreate.Type() != nil {
 			after = ch.PlannedCreate
 		}
-		d := &differ{sink: m.secrets}
+		d := &differ{sink: po.secrets}
 		d.block("", ch.Schema.Block, before, after)
 	}
 }
 
-// changeOf describes what the plan does to a node, with the attributes it
-// changes. Values are redacted as in the record.
-func (m *model) changeOf(mn *mnode) *Change {
-	if m.plan == nil || m.plan.failed {
+// changeOf describes what the plan the viewer was started with does to a node,
+// with the attributes it changes. Values are redacted as in the record.
+func (m *model) changeOf(mn *mnode) *Change { return m.changeIn(m.plan, mn) }
+
+// changeIn is changeOf for any plan laid over the model.
+func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
+	if po == nil || po.failed {
 		return nil
 	}
-	e := m.plan.entries[mn.Addr]
+	e := po.entries[mn.Addr]
 	if e == nil {
 		return nil
 	}
 	c := &Change{Action: e.action, Applied: e.applied, Reasons: e.reasons, RequiresReplace: e.requiresReplace}
-	ch := m.plan.changes[mn.Addr]
+	ch := po.changes[mn.Addr]
 	if ch == nil || ch.Schema == nil || ch.Schema.Block == nil {
 		return c
+	}
+	secrets := po.secrets
+	if secrets == nil {
+		secrets = m.secrets
 	}
 	before, after := ch.Prior, ch.Planned
 	switch ch.Action {
@@ -317,7 +388,7 @@ func (m *model) changeOf(mn *mnode) *Change {
 	case engine.ActionNoop:
 		return c
 	}
-	d := &differ{secrets: m.secrets}
+	d := &differ{secrets: secrets}
 	d.block("", ch.Schema.Block, before, after)
 	c.Attrs = d.out
 	return c

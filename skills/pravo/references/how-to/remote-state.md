@@ -208,6 +208,8 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
 No locks or reservations held.
 ```
 
+A reservation keeps others out. To let a colleague see, read and apply a plan, store it in the bucket: [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) shows how.
+
 An apply locks the resources it writes and no others. After it holds the locks, it reads the revision of each resource it writes, and of each record it reads, from the bucket, and stops with exit code 3 if another command wrote one of them since the plan was made. The bucket must return the object that was last written when it is read back. S3 does. Opening the state reads one object for each record before a command starts, 64 at a time, so the time to open grows with the size of the estate and with the latency of the bucket. A plan then reads from the providers only the records it looks at.
 
 ## 6. Move a local state into the bucket
@@ -350,11 +352,12 @@ pravo reads only the object `outputs.json` under the prefix. A bucket policy tha
 
 ## 8. Decide who may write the bucket
 
-The bucket holds the record of what exists. Whoever can write to it can change what the next plan believes: `pravo state rm`, `pravo state mv` and `pravo import` are not plans, so no [policy](policies.md) sees them. The locks and the transaction log are objects in the same bucket. Give read, write, delete and list permission to the identities that run pravo against this root, and treat the right to write the bucket as the right to change what pravo knows.
+The bucket holds the record of what exists. Whoever can write to it can change what the next plan believes: `pravo state rm`, `pravo state mv` and `pravo import` are not plans, so no [policy](policies.md) sees them. The locks and the transaction log are objects in the same bucket. Give read, write, delete and list permission to the identities that run pravo against this root, and treat the right to write the bucket as the right to change what pravo knows. The bucket also holds the plans that `pravo plan --store` writes. A stored plan holds the same values as a plan file, sensitive values included, so whoever can read the bucket can read its plans.
 
 ## What next
 
 - [Environments](environments.md) computes the prefix from the environment.
 - [CI](ci.md) runs plan and apply as separate jobs against the shared state.
+- [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) stores a plan in the bucket, where a colleague can list and apply it.
 - [State](../concepts/state.md) describes what the bucket holds.
 - [state](../reference/state.md) and [Settings](../reference/spec-settings.md) are the reference for `pravo state push`, `pull` and the `state` block. [Environment variables and remote outputs](../reference/spec-env.md) covers `pravo.#RemoteOutputs`.

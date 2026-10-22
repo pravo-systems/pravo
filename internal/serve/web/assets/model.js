@@ -23,7 +23,9 @@ export const FILTERS = {
   declared: (n) => n.presence === 'spec',
 };
 
-export function buildModel(graph) {
+// buildModel indexes a graph. plans are the stored plans (the answer of /api/plans), which the badges on the
+// nodes name by id.
+export function buildModel(graph, plans) {
   const g = graph;
   const nodes = new Map();
   const list = [];
@@ -95,7 +97,11 @@ export function buildModel(graph) {
   };
   sum(root);
   const planned = list.filter((n) => n.action).length;
-  return { graph: g, nodes, list, modules, root, edges, counts, planned, hasPlan: !!g.plan, specError };
+  const stored = plans || [];
+  return {
+    graph: g, nodes, list, modules, root, edges, counts, planned, hasPlan: !!g.plan, specError,
+    plans: stored, planById: new Map(stored.map((p) => [p.id, p])), authors: new Map(stored.map((p) => [p.id, p.author])),
+  };
 }
 
 // descendants calls fn for every node below a module.
@@ -374,13 +380,13 @@ export function fuzzy(q, text) {
 
 // ---- diff of two graphs ----
 
-const FIELDS = ['action', 'drifted', 'gone', 'locked', 'sensitive', 'revision', 'presence'];
+const FIELDS = ['action', 'drifted', 'gone', 'locked', 'sensitive', 'revision', 'presence', 'overlap'];
 export function diffModels(a, b) {
   const added = [], removed = [], changed = [];
   for (const [addr, n] of b.nodes) {
     const o = a.nodes.get(addr);
     if (!o) { added.push(addr); continue; }
-    if (FIELDS.some((f) => (o[f] || 0) !== (n[f] || 0))) changed.push(addr);
+    if (FIELDS.some((f) => (o[f] || 0) !== (n[f] || 0)) || (o.plans || []).join() !== (n.plans || []).join()) changed.push(addr);
   }
   for (const addr of a.nodes.keys()) if (!b.nodes.has(addr)) removed.push(addr);
   const edgeKey = (m) => m.edges.length + ':' + m.edges.map((e) => e.a + '>' + e.b).sort().join('|');

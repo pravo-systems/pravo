@@ -14,7 +14,7 @@ Read them in this order. Later pages use terms that earlier pages define.
 1. [How pravo works](how-pravo-works.md). The path of a command from the specification to the providers, the state and the output.
 2. [Evaluation](evaluation.md). How pravo turns the CUE files of a directory into values, and where it stops before any provider starts.
 3. [Resources and addresses](resources-and-addresses.md). What makes a struct a resource, and how its address identifies it.
-4. [Plans](plans.md). How a plan is computed, what unknown values are, and how a plan can cover part of a graph.
+4. [Plans](plans.md). How a plan is computed, what unknown values are, how a plan can cover part of a graph, and how a plan is saved, stored in the state and collected.
 5. [State](state.md). What pravo records for each resource, how transactions and locks work, and why the cost of a command follows the change.
 6. [What a plan reaches](what-a-plan-reaches.md). Four changes to one estate, shown: which resources a plan reaches and which locks an apply holds.
 7. [Providers](providers.md). How pravo finds, starts and talks to a provider.

@@ -25,10 +25,10 @@ Every page opens with the synopsis, the flags with their defaults, and the exit 
 | Command | Does | Page |
 |---|---|---|
 | `pravo init` | Installs providers, writes the lock file, generates the CUE packages. | [init](init.md) |
-| `pravo plan` | Shows the actions that apply takes. Saves, refreshes, reserves, judges. | [plan](plan.md) |
-| `pravo apply` | Applies the specification or a saved plan, whole or in closed parts. | [apply](apply.md) |
+| `pravo plan` | Shows the actions that apply takes. Saves, stores, refreshes, reserves, judges. Lists, shows, pulls and collects stored plans. | [plan](plan.md) |
+| `pravo apply` | Applies the specification, a saved plan or a stored plan, whole or in closed parts. | [apply](apply.md) |
 | `pravo destroy` | Destroys everything in the state. | [destroy](destroy.md) |
-| `pravo show` | Prints a saved plan. | [show](show.md) |
+| `pravo show` | Prints a saved plan or a stored plan. | [show](show.md) |
 | `pravo output` | Prints the outputs the last apply recorded. | [output](output.md) |
 | `pravo state` | Lists, shows, moves and forgets nodes. Reads the log and the locks. Queries, copies and converts the state. | [state](state.md) |
 | `pravo import` | Brings an existing object under management. | [import](import.md) |

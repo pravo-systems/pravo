@@ -5,15 +5,17 @@ order: 55
 group: Data and formats
 ---
 
-The S3 backend keeps one object for each record and one object for each lock. Its locks rest on three conditional requests. A store that honours all three keeps two applies apart. A store that ignores one lets two commands hold the same lock, and nothing says so.
+The S3 backend keeps one object for each record, one object for each lock and up to three objects for each stored plan. Its locks rest on three conditional requests, and so do the stored plans. A store that honours all three keeps two applies apart. A store that ignores one lets two commands hold the same lock, and nothing says so.
 
 | Request | Used for | A store that honours it answers a failed condition with |
 |---|---|---|
-| `PutObject` with `If-None-Match: *` | Creating a lock: the object must not exist. | `412 PreconditionFailed`, or `409 ConditionalRequestConflict` when another conditional request on the key is running. |
-| `PutObject` with `If-Match: ETAG` | Renewing a lock and replacing a record that the command read. | The same. |
-| `DeleteObject` with `If-Match: ETAG` | Releasing a lock, and reclaiming one that went stale. | The same. |
+| `PutObject` with `If-None-Match: *` | Creating a lock: the object must not exist. Storing a plan, and writing the first progress object of one. | `412 PreconditionFailed`, or `409 ConditionalRequestConflict` when another conditional request on the key is running. |
+| `PutObject` with `If-Match: ETAG` | Renewing a lock, replacing a record that the command read and replacing the progress object of a stored plan. | The same. |
+| `DeleteObject` with `If-Match: ETAG` | Releasing a lock, reclaiming one that went stale and removing the objects of a stored plan. | The same. |
 
 `If-Match` on an object that does not exist is answered with `404 NoSuchKey` by some stores. pravo treats that as a missing object, as it does for a plain read.
+
+A collection of stored plans deletes an object only through `If-Match`, after it has claimed the plan in the progress object with the same request. A store that ignores `If-Match` lets a collection remove a plan that an apply has just claimed. The permissions are those of the rest of the state: get, put, delete and list, here on the keys below `PREFIX/plans/` as well.
 
 Before a command that writes the state first uses a bucket, pravo probes the store. It writes scratch objects under `PREFIX/probe/` and tries each of the three requests with a tag that must be refused and with one that must be accepted. It reads the contents back after a refused request, and it starts eight creates of one key at once and requires one winner. It deletes the scratch objects when it ends. A store that ignores a condition, or answers `501`, is refused with a message that names the condition:
 

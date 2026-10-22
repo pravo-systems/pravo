@@ -41,8 +41,8 @@ An address is the CUE path of a resource: `pet`, `api.config`, `servers[0]`. Quo
 | `locks` | The locks and reservations held. | no | yes |
 | `probe` | Checks that the S3 store honours the conditional requests that locks need. One line for each check. See [S3-compatible stores](s3-stores.md#test-a-store). | no, it writes and deletes scratch objects | yes |
 | `unlock ADDR`, `unlock --stale` | Releases a lock or a reservation, or every one that may be reclaimed. | yes | no |
-| `pull DIR` | Copies the configured state into the local directory `DIR`. | no | no |
-| `push DIR` | Copies the local directory `DIR` into the configured backend. | yes | no |
+| `pull DIR` | Copies the configured state, stored plans included, into the local directory `DIR`. | no | no |
+| `push DIR` | Copies the local directory `DIR`, stored plans included, into the configured backend. | yes | no |
 | `graph [--dot]` | The dependency edges, as `from -> to` or as Graphviz. | no | no |
 | `dependents ADDR` | Every node a change to `ADDR` can reach. | no | no |
 | `query EXPR` | The value of a CUE expression over the state. | no | yes |
@@ -287,7 +287,7 @@ resources
 txn
 ```
 
-`push` copies a local directory into the configured backend. To move a root to a bucket, add the `state` block to `$settings`, run `pravo state push pravo.state`, and archive the local directory. See [Remote state](../how-to/remote-state.md).
+`pull` and `push` copy the stored plans below `plans/` with the records, the claims on them included. A stored plan that a collection removes during the copy is left out of it. `push` copies a local directory into the configured backend. To move a root to a bucket, add the `state` block to `$settings`, run `pravo state push pravo.state`, and archive the local directory. See [Remote state](../how-to/remote-state.md).
 
 ### import-tfstate
 

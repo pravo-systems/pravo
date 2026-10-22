@@ -1,0 +1,35 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "plan": {
+  "file": "plan-5a2c9e71",
+  "id": "plan-5a2c9e71",
+  "status": "partial",
+  "created": "2026-10-21T09:02:11Z",
+  "actor": "dee@acme",
+  "summary": {
+   "add": 0,
+   "change": 2,
+   "destroy": 0,
+   "read": 0,
+   "blast_radius": 3
+  },
+  "planned": 2,
+  "total": 47,
+  "applied": 1
+ },
+ "nodes": [
+  {
+   "addr": "network.private.nat",
+   "action": "update",
+   "applied": true
+  },
+  {
+   "addr": "network.private.rt",
+   "action": "update"
+  }
+ ],
+ "reason": "retire the nat gateway and its route",
+ "command": "pravo plan --store --reason \"retire the nat gateway and its route\"",
+ "git_revision": "e5a1b08"
+}

@@ -1,0 +1,41 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "plan": {
+  "file": "plan-7b04d1c9",
+  "id": "plan-7b04d1c9",
+  "status": "pending",
+  "created": "2026-10-21T13:22:11Z",
+  "actor": "ben@acme",
+  "summary": {
+   "add": 1,
+   "change": 3,
+   "destroy": 0,
+   "read": 0,
+   "blast_radius": 10
+  },
+  "planned": 4,
+  "total": 47
+ },
+ "nodes": [
+  {
+   "addr": "api.db",
+   "action": "update"
+  },
+  {
+   "addr": "api.secret_version",
+   "action": "update"
+  },
+  {
+   "addr": "edge.dns",
+   "action": "create"
+  },
+  {
+   "addr": "edge.lb",
+   "action": "update"
+  }
+ ],
+ "reason": "rotate the database secret",
+ "command": "pravo plan --store --reason \"rotate the database secret\"",
+ "git_revision": "c41e07d"
+}

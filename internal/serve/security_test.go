@@ -419,6 +419,16 @@ func TestScrubCommand(t *testing.T) {
 		"pravo apply -t\ta=b\n":                         "pravo apply -t\ta=" + mask + "\n",
 		"":                                              "",
 		"pravo apply --tag":                             "pravo apply --tag",
+		// A short flag clustered with others that take no argument, which pflag accepts.
+		"pravo -v plan --store -vt pw=hunter2value": "pravo -v plan --store -vt pw=" + mask,
+		"pravo plan -Tt owner=SECRETV1":             "pravo plan -Tt owner=" + mask,
+		"pravo plan -vtowner=SECRETV1":              "pravo plan -vtowner=" + mask,
+		"pravo plan -Ttowner=SECRETV1 -v":           "pravo plan -Ttowner=" + mask + " -v",
+		"pravo plan -vvt k=a b --yes":               "pravo plan -vvt k=" + mask + " " + mask + " --yes",
+		"pravo plan -vt 'owner=SECRETV1' -vt j=w":   "pravo plan -vt owner=" + mask + " -vt j=" + mask,
+		"pravo plan -t=k=SECRETV1 -v":               "pravo plan -t=" + mask + " -v",
+		"pravo plan -out plan.pravo":                "pravo plan -out plan.pravo",
+		"pravo plan -vtaa -T":                       "pravo plan -vtaa -T",
 	} {
 		if got := scrubCommand(in, s); got != want {
 			t.Errorf("scrubCommand(%q) = %q, want %q", in, got, want)

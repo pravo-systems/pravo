@@ -98,6 +98,19 @@ export function relTime(iso, now = Date.now()) {
   if (d < 60) return `${d} d ago`;
   return `${Math.round(d / 30)} mo ago`;
 }
+// relUntil says how long it is to a time, or how long ago it was: "in 6 d", "2 d ago".
+export function relUntil(iso, now = Date.now()) {
+  const t = Date.parse(iso);
+  if (!t) return '';
+  const s = Math.round((t - now) / 1000);
+  if (s <= 0) return relTime(iso, now);
+  const m = Math.round(s / 60);
+  if (m < 1) return 'in under a min';
+  if (m < 60) return `in ${m} min`;
+  const hh = Math.round(m / 60);
+  if (hh < 36) return `in ${hh} h`;
+  return `in ${Math.round(hh / 24)} d`;
+}
 export function clock(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return '';

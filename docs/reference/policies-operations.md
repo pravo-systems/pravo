@@ -270,7 +270,7 @@ Error: apply cancelled
 - The files are read and compiled when the server starts. A relative path, an empty value, a missing file or a file that cannot be used fails the start with exit code 5.
 - The server appends `--policy` to its `plan` and `apply` tool calls, and to no other command, because none of the others takes the flag.
 - A tool argument cannot remove a policy that the server names.
-- The server applies only from saved plan files. It refuses a tool argument that is empty or begins with `-` for the values that reach the command line as a word of their own: `planfile`, `addr`, `addrs`, `types` and `expression`. The refusal is a tool result with `isError` true, returned before any pravo process runs.
+- The server applies only from saved plan files, and refuses the id of a plan stored in the state: `pravo plan pull ID FILE` writes one to a file. It refuses a tool argument that is empty or begins with `-` for the values that reach the command line as a word of their own: `planfile`, `addr`, `addrs`, `types` and `expression`. The refusal is a tool result with `isError` true, returned before any pravo process runs.
 - Without `--policy` the server judges nothing. It still applies only a saved plan.
 
 ```sh run exit=5

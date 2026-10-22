@@ -1,6 +1,6 @@
 ---
 title: pravo serve
-description: "Serve a read-only viewer on the loopback interface: a graph of modules and resources from the specification, the state and a saved plan."
+description: "Serve a read-only viewer on the loopback interface: a graph of modules and resources from the specification, the state, a saved plan and the plans stored in the state."
 order: 13
 group: Commands
 normalize:
@@ -14,6 +14,8 @@ normalize:
     replace: '<token>'
   - pattern: '127\.0\.0\.1:[0-9]+'
     replace: '127.0.0.1:<port>'
+  - pattern: 'plan-[0-9a-f]{8}'
+    replace: 'plan-<id>'
 keywords: "viewer web ui browser graph dashboard visualise localhost token"
 ---
 
@@ -23,8 +25,8 @@ keywords: "viewer web ui browser graph dashboard visualise localhost token"
 |---|---|
 | Synopsis | `pravo serve [flags]` |
 | Changes infrastructure | No. |
-| Reads | The specification, the state, the provider schemas that are cached already and, with `--plan`, a saved plan. |
-| Writes | Nothing: no state record, no transaction, no lock, no `pravo.lock.cue`, no generated package. It starts no provider and downloads nothing. |
+| Reads | The specification, the state, the plans stored in it, the provider schemas that are cached already and, with `--plan FILE`, a saved plan. |
+| Writes | Nothing: no state record, no transaction, no lock, no `pravo.lock.cue`, no generated package, and nothing of a stored plan: no claim, no progress, no removal. It starts no provider and downloads nothing. |
 | Prints | The address of the viewer, with its token. With `--json`, one line of JSON. Then nothing until it stops. |
 | Taught in | [Explore an estate in a browser](../how-to/explore-your-estate.md). |
 
@@ -36,7 +38,7 @@ The command runs until a signal ends it. The viewer is one page that the server 
 |---|---|---|
 | `--port N` | `0` | The port to listen on. `0` picks a free port. |
 | `--no-open` | off | Do not open a browser. The address is printed either way. |
-| `--plan FILE` | none | A saved plan to show on top of the graph. The viewer reads the file and never makes a plan. |
+| `--plan FILE\|ID` | none | A plan to show on top of the graph: a saved plan file, or the id of a plan stored in the state, whole or its first six hexadecimal digits when no other plan starts with them. A file with that name is a file. The viewer reads the plan and never makes one. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field, as `pravo plan` does. Repeatable. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE into tags written `@tag(name,var=os)`. |
 
@@ -46,7 +48,7 @@ The [global flags](global-flags.md) apply. With `--json`, the address is printed
 {"port":8700,"token":"3f6d...","url":"http://127.0.0.1:8700/?token=3f6d..."}
 ```
 
-With `--plan` and no `-t` or `-T`, the specification is read with the tags that the plan was made with.
+With `--plan FILE` and no `-t` or `-T`, the specification is read with the tags that the plan was made with. `--plan ID` does not take the tags of the plan. The stored plans are read from the state that the tags select, so give the `-t` and `-T` that `pravo plan list` takes for the same state. The viewer lists the stored plans whether or not `--plan` is given.
 
 There is no flag for the address. The server listens on `127.0.0.1`.
 
@@ -55,7 +57,7 @@ There is no flag for the address. The server listens on `127.0.0.1`.
 | Code | Meaning |
 |---|---|
 | 0 | The command was stopped by a signal. |
-| 1 | An error: a port that is not a number from 0 to 65535, a port that is in use, a plan file that cannot be read, a state that cannot be opened, or an argument, since `serve` takes none. |
+| 1 | An error: a port that is not a number from 0 to 65535, a port that is in use, a plan file that cannot be read, an id that no stored plan has or that fits several, a state that cannot be opened, or an argument, since `serve` takes none. |
 
 ## What the viewer shows
 
@@ -65,9 +67,10 @@ There is no flag for the address. The server listens on `127.0.0.1`.
 - **The schema.** The attributes of the resource type with their types and the provider's descriptions.
 - **The history.** The transactions that wrote the node: the kind, the time, the user and actor, and the command. The values of `-t` tags, and of flags and `key=value` words that are named like a secret, are withheld from the command.
 - **The plan.** With `--plan`, the action of the plan for each node and the attributes that it changes, the numbers of its summary and its hints. A plan that cannot be applied is shown with its reasons.
+- **The stored plans.** The plans in the state, who made each, when, where each stands and what it changes. A plan that the page lays over the graph shows as a plan does. A resource that plans which can be applied change carries the author of each, and a ring when two of them do. See [Stored plans](#stored-plans).
 - **The project.** The directory, the package, the state location, lineage and record count, the providers and the outputs. A sensitive output has no value.
 
-The viewer follows the project. It watches the state, the files that the evaluation loaded and the plan file, and when any of them changes the page fetches the graph again. A specification that does not load is shown as the state alone, with the error as a warning.
+The viewer follows the project. It watches the state, the files that the evaluation loaded, the plan file and the plans stored in the state, and when any of them changes the page fetches the graph and the list of plans again. A plan that is stored, applied from or collected changes the state. A plan that nobody applies expires without any write, so the viewer counts the moment that the nearest expiry of a plan that can be applied, or is stale, passes as a change, once. For a bucket it lists `plans/` and reads the progress objects, up to eight at a time and only those that have the name of a plan, without keeping a request for the revision waiting. A specification that does not load is shown as the state alone, with the error as a warning.
 
 ## The page
 
@@ -76,11 +79,11 @@ The viewer is one page with a bar, a sidebar, a graph with its toolbar, an inspe
 | Part | Holds |
 |---|---|
 | Bar | The project directory and the state location, each a button that copies the path. The switch Graph and Tree. The search button, Find a resource. The mark `read-only` with the address of the server. The theme button. |
-| Sidebar | Under the heading Show, the filter chips. Under Modules, the project and the tree of modules with their resources. |
+| Sidebar | Under the heading Show, the filter chips. Under Plans, the stored plans, when the state holds any. Under Modules, the project and the tree of modules with their resources. |
 | Toolbar | Collapse all, Expand all and Reset view. The filter box, Filter by address or type, with the number of matches. The number of items shown, when it differs from the number of resources. The zoom buttons, minus, Fit and plus. |
-| Graph | The lanes of open modules, the cards of closed ones and the boxes of resources. The legend. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a module. |
+| Graph | The lanes of open modules, the cards of closed ones and the boxes of resources. The plan bar, while a stored plan is laid over the graph. The legend. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a module. |
 | Inspector | The project, a module or a resource. A resource has a strip of cells and the tabs. |
-| Status bar | `no plan loaded`, or `planned N of M` and the number `not read`. The revision. When the data was read. `live`, `reconnecting`, `offline` or `connecting`. `localhost only`. |
+| Status bar | `no plan loaded`, or the id of a stored plan, `planned N of M` and the number `not read`. The revision. When the data was read. `live`, `reconnecting`, `offline` or `connecting`. `localhost only`. |
 
 ### Filters
 
@@ -103,13 +106,42 @@ The chips set `filter`. The box sets `q`, which matches an address or a type.
 | Source | The lines that write the resource, the definition and the instance, and what else shapes it. | `source` |
 | Schema | The attribute definitions of the resource type: name, type, kind and description. | `schema` |
 | History | The transactions that wrote the resource. | `history` |
-| Change | What the loaded plan does to the resource. The tab exists only when a plan is loaded. | `change` |
+| Change | What the loaded plan does to the resource, and the stored plans that can be applied and change it. The tab exists only when a plan is loaded or laid over the graph. | `change` |
 
-The strip above the tabs has the cells Action, Record, Lock, Revision and Refreshed. Action is the action of the plan, `no change`, `not read` or `no plan`. Record is `in sync`, `drifted`, `gone`, `declared only` or `orphan`. Lock shows when a lock or a reservation holds the resource.
+The strip above the tabs has the cells Action, Record, Lock, Revision and Refreshed, and Plans when plans that can be applied change the resource. Action is the action of the plan, `no change`, `not read` or `no plan`. Record is `in sync`, `drifted`, `gone`, `declared only` or `orphan`. Lock shows when a lock or a reservation holds the resource.
+
+### Stored plans
+
+The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The sidebar lists them under the heading Plans, newest first. The section is not there when the state holds none. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
+
+| Part | Holds |
+|---|---|
+| Pending and All | The filter of the list. Pending lists the plans that can be applied, `pending` and `partial`. All lists every plan that no collection has removed. Each shows its number. The list opens on Pending when a plan can be applied. |
+| A row | The badge with the initials of the author, the id, the status chip, the author, the age, and the counts `+add ~change −destroy`. A mark of two rings says that another plan that can be applied changes a resource of this plan. |
+| The selected row | The reason. For a stale plan, the reasons, twenty at most. The other plans that overlap, each a link that lays that plan over the graph. A closed part, Expires, command, revision. For a plan that can be applied, the command `pravo apply ID` and a button that copies it. For the others, a note. The reason, the command and the revision come from the plan itself, which the page reads when the row is chosen, and not from the list. |
+| The plan bar | Above the graph, while a plan is laid over it: the badge, the id, the status, the counts, Detail, which moves the focus to the row, and a button that takes the plan off the graph. |
+
+A row lays its plan over the graph, as `--plan FILE` lays a plan file: the actions on the nodes are the plan's, the Change tab answers for it, and the first view opens the modules that the plan touches first. A second click on the row takes the plan off. Without `--plan`, the graph shows no plan until a row is chosen.
+
+| Status | Meaning |
+|---|---|
+| `pending` | The plan can be applied. |
+| `partial` | Some changes were applied. The rest can be. |
+| `stale` | The state moved on, so the plan cannot be applied. The reasons say how. |
+| `applied` | Every change was applied. |
+| `expired` | The plan was not applied before it expired. |
+
+A plan whose objects cannot be read, because they are damaged or a newer pravo wrote them, is not listed. The graph carries one warning, `Stored plans that cannot be read are not listed`, with the ids of up to five and a short reason for each.
+
+The status is judged against the state alone, as `pravo plan list` judges it: the lineage, and the revision and the generation of the nodes that the plan changes. The configuration and the providers belong to one checkout. `pravo apply` and `pravo plan show` compare them, and the viewer does not, so a plan that is `pending` here can still be refused in a checkout whose files differ.
+
+A resource that a plan which can be applied still has a change to apply on carries a disc with the initial of the author, one for each plan, the newest at the right. A plan that has applied its change on a resource has no disc there. Three discs show, and a number counts the rest. Two plans that each have a change left on one resource draw a solid ring in the colour of overlap: applying one makes the other stale. The relation is the same for both plans. The legend names `plan author` and `overlap` when the graph has them. The cards of closed modules and the Tree view show no badges. In the sidebar, a resource shows the mark of overlap and the first two discs. The Plans cell of the strip has a disc for each plan that changes the resource, four at most, and a click on a disc lays that plan over the graph.
+
+The viewer never applies, approves or removes a plan. It shows the command that applies a plan, and the button copies it.
 
 ## What it never does
 
-- It writes no state, takes no lock, makes no plan, runs no apply, writes no lock file and generates no package. The project directory and the state hold the same bytes after a session as before it.
+- It writes no state, takes no lock, makes no plan, runs no apply, writes no lock file and generates no package. It takes no claim on a stored plan, marks no progress and collects none. The project directory and the state hold the same bytes after a session as before it, stored plans included.
 - It listens on no interface but loopback.
 - It sends no value that the provider schema marks sensitive or write-only, no value of an attribute that the schema does not know, no value of an attribute that is named like a secret, no value that contains a string that the state keeps in a sensitive attribute, and no value of a sensitive output.
 - It serves no file by path. A request names an address, and the server looks the address up in the specification that it loaded.
@@ -118,7 +150,7 @@ The strip above the tabs has the cells Action, Record, Lock, Revision and Refres
 
 The viewer reads a state that holds secrets and sends it to a browser. These rules are what stands between the two.
 
-**Loopback only.** The listener binds `127.0.0.1`. A request from another machine does not reach it. Over SSH or in a container, see [Explore an estate in a browser](../how-to/explore-your-estate.md#10-use-it-in-a-container-or-over-ssh).
+**Loopback only.** The listener binds `127.0.0.1`. A request from another machine does not reach it. Over SSH or in a container, see [Explore an estate in a browser](../how-to/explore-your-estate.md#11-use-it-in-a-container-or-over-ssh).
 
 **A token for each run.** Each run makes a 128-bit random token and prints it in the address. A request for `/?token=TOKEN` sets a cookie named `pravo_serve_PORT` that is `HttpOnly` and `SameSite=Strict`, and redirects to `/` without the token. Every request to `/api/` needs that cookie, or the header `Authorization: Bearer TOKEN`. The server compares tokens in constant time. A request without either gets 401 and a body that names nothing.
 
@@ -137,9 +169,11 @@ The viewer reads a state that holds secrets and sends it to a browser. These rul
 
 The `private` blob, the configuration hash and the provider configuration of a record are never sent. A response cuts a long list, the text of an attribute at 4 KiB and a block of source at 200 lines.
 
+A stored plan is redacted as a plan file is, by the same rules: the values of its changes are withheld by the schema, by the name and by the derived rule, and the sensitive values that the plan would write count as secrets for the values of that plan. The answers that are about one plan, `/api/plan`, and `/api/detail` and `/api/source` with `plan=ID`, are masked with the secrets of that plan: those of the state and the values that the plan would write. What a person wrote into a stored plan, the author, the reason, the revision of the repository and the reasons of a stale plan, is masked as the history of a record is, and so are the actor and the hints of its plan. Its command is masked as a recorded command line is: the values of `-t` and `--tag`, and of flags named like a secret, are withheld, also in a cluster such as `-vt`. Each text is cut at 4 KiB. The list of plans, which is about no plan in particular, holds the author only. The reason, the command and the revision of a plan are in the answer of `/api/plan` and nowhere else.
+
 **Source from loaded files only.** The server reads the lines of files that the evaluation lists, and of no other path. A request names a resource and never a path. A string literal that is assigned to a sensitive attribute, or to one whose name matches the rule above, is masked in the lines and the line is marked. A line that holds a sensitive string of the state is masked wherever it is. A file is read only if it still resolves to the path that it had when the specification was loaded.
 
-**Read-only.** Every endpoint is a `GET`. There is no request that changes the project, the state or a plan.
+**Read-only.** Every endpoint is a `GET`. There is no request that changes the project, the state or a plan, and the page has no control that approves, applies or removes a stored plan.
 
 **The state that the specification names.** The viewer opens the state backend that the specification configures, as every other command does. For a remote state it prints `reading state from s3://BUCKET/PREFIX` at the start, with the endpoint when the specification sets one. A specification from a source that you do not trust can name any endpoint: read it before you serve it.
 
@@ -162,6 +196,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `palette` | `1` | The search palette open. |
 | `pq` | Text | The text typed into the palette. |
 | `help` | `1` | The sheet of shortcuts open. |
+| `plan` | `plan-` and the hexadecimal digits of an id, or `none` | A stored plan laid over the graph, by its whole id. The page writes it when you choose a plan, and leaves it out when the plan is the one that `--plan ID` laid. `none` takes off the plan that `--plan ID` laid. An id that the state does not hold is told in a notice and ignored. |
 
 ## Keyboard
 
@@ -193,6 +228,14 @@ In the graph:
 | Click a cluster | Open the cluster. |
 | Double-click the title of a lane | Close or open the module. |
 
+In the list of stored plans:
+
+| Key | Action |
+|---|---|
+| Up arrow, Down arrow, Home, End | Move between rows. |
+| Enter, Space | Lay the plan of the row over the graph, or take it off when it is laid. |
+| Esc | Take the plan off the graph. |
+
 In the tree of modules in the sidebar:
 
 | Key | Action |
@@ -215,12 +258,14 @@ The interface of the page is a set of read-only endpoints. They are for the page
 | `GET /` and `/assets/...` | The page, with no data. |
 | `GET /api/ping` | `{"ok":true,"version":1}`. |
 | `GET /api/graph` | The nodes, edges, modules, outputs, the project, the plan and the warnings. No attribute values. |
-| `GET /api/detail?addr=ADDR` | One node with its attributes, dependencies, the plan's change, history, lock and times. |
-| `GET /api/source?addr=ADDR` | The lines that write the node, and everything that shapes it. |
+| `GET /api/detail?addr=ADDR` | One node with its attributes, dependencies, the plan's change, history, lock and times. With `&plan=ID` the plan is that stored plan, and with `&plan=none` there is none. |
+| `GET /api/source?addr=ADDR` | The lines that write the node, and everything that shapes it. `&plan=ID` marks the lines that stored plan changes. |
+| `GET /api/plans` | The plans stored in the state, newest first, as a list of stored plans. The free text of a plan is not in it. |
+| `GET /api/plan?id=ID` | A stored plan laid over the graph: the plan, the action of each node that it ran, and the `reason`, `command` and `git_revision` that the author wrote with it. |
 | `GET /api/search?q=TEXT` | The nodes and modules that match. |
-| `GET /api/events` | A stream of server-sent events. Each event `change` carries the new revision and what changed: `state`, `spec`, `plan` or `locks`. |
+| `GET /api/events` | A stream of server-sent events. Each event `change` carries the new revision and what changed: `state`, `spec`, `plan`, `locks` or `plans`. `plan` is the plan file of `--plan`, and `plans` are the plans stored in the state. |
 
-`ADDR` is URL-encoded. An address that is not known gets 404 and `{"error":"..."}`.
+`ADDR` is URL-encoded. An address that is not known gets 404 and `{"error":"..."}`. An `id` or `plan` that is not `plan-` and six or more hexadecimal digits gets 400, and an id that no stored plan has gets 404. The server looks an id up among the plans that it lists. It is never a path, and the beginning of an id is not taken for it. The additions are `/api/plans`, `/api/plan`, the `plan` parameter, `Node.plans` and `Node.overlap` in the graph, and `id` and `status` in the plan of the graph. A reader that does not know them reads the rest as before.
 
 ## Examples
 
@@ -295,6 +340,126 @@ no token: 401
 other host: 421
 ```
 
+### Read the stored plans
+
+The viewer lists the plans that `pravo plan --store` wrote into the state. Change the specification, so that the plan replaces `pet` and `config`, and store it as `alice`.
+
+```cue file=main.cue hl="11"
+package demo
+
+import (
+	rnd "pravo.dev/providers/hashicorp/random"
+	loc "pravo.dev/providers/hashicorp/local"
+)
+
+$random: rnd.#Provider
+$local:  loc.#Provider
+
+pet: $random.#Resource.random_pet & {length: 3}
+
+config: $local.#Resource.local_file & {
+	filename: "server.env"
+	content:  "NAME=\(pet.id)\n"
+}
+```
+
+```sh run
+pravo plan --store --actor alice --reason "longer pet name" > /dev/null
+```
+
+`GET /api/plans` lists the plan. The page reads the same answer.
+
+```sh run
+rm -f serve.json
+pravo serve --no-open --json > serve.json &
+pid=$!
+until [ -s serve.json ]; do sleep 0.1; done
+url=$(sed 's/.*"url":"\([^"]*\)".*/\1/' serve.json)
+base=${url%%/\?*}
+token=${url##*token=}
+curl -s -H "Authorization: Bearer $token" "$base/api/plans" | jq -c '.plans[0] | {id, status, open, author, summary, planned, touches, apply}'
+kill $pid
+```
+
+```text out
+{"id":"plan-<id>","status":"pending","open":true,"author":"alice","summary":{"add":2,"change":0,"destroy":2,"read":0},"planned":2,"touches":[{"addr":"config","action":"replace"},{"addr":"pet","action":"replace"}],"apply":"pravo apply plan-<id>"}
+```
+
+| Field of a stored plan | Meaning |
+|---|---|
+| `id`, `status`, `open` | The id, `pending`, `partial`, `stale`, `applied` or `expired`, and whether the plan can be applied: `pending` and `partial`. |
+| `author`, `created`, `expires` | Who made the plan, cut at 4 KiB, when, and when an unapplied plan is collected. The list holds no reason, command or revision. |
+| `destroy` | `true` for a destroy plan. |
+| `summary` | The counts `add`, `change`, `destroy` and `read`. A replacement counts as an add and a destroy. |
+| `planned`, `applied`, `applying` | The number of changes, how many were applied already, and whether an apply from the plan runs now. |
+| `reasons`, `reasons_omitted` | Why a stale plan cannot be applied: twenty reasons at most, each cut at 300 characters. `reasons_omitted` counts the others. |
+| `touches`, `truncated` | The resources the plan changes, each with its `addr`, its `action` and `applied` when the plan has applied that change, up to 2000. `truncated` counts the rest. |
+| `overlaps` | The other plans that can be applied and have a change left on a resource that this plan has a change left on, in both directions: `id`, `count`, the first twenty addresses in `addrs`, and `truncated` for the rest. A change that a plan has applied does not count. |
+| `apply` | The command that applies the plan, `pravo apply ID`. It names no tag and no state. |
+
+`GET /api/plan?id=ID` lays a stored plan over the graph, as `--plan FILE` does for a plan file: the plan, the action of each node that it ran, and the `reason`, `command` and `git_revision` that the author wrote with it, which the list does not carry. `/api/detail` and `/api/source` take `plan=ID` for the same plan, and `plan=none` for no plan at all. An id that does not have the form of a plan id is 400. An id that no stored plan has is 404, and so is the beginning of an id: the server wants the whole id.
+
+```sh run
+rm -f serve.json
+pravo serve --no-open --json > serve.json &
+pid=$!
+until [ -s serve.json ]; do sleep 0.1; done
+url=$(sed 's/.*"url":"\([^"]*\)".*/\1/' serve.json)
+base=${url%%/\?*}
+token=${url##*token=}
+id=$(curl -s -H "Authorization: Bearer $token" "$base/api/plans" | jq -r '.plans[0].id')
+curl -s -H "Authorization: Bearer $token" "$base/api/plan?id=$id" | jq -c '{plan: (.plan | {id, status, planned, total}), reason, command, nodes}'
+curl -s -H "Authorization: Bearer $token" "$base/api/detail?addr=pet&plan=$id" | jq -c '.change | {action}'
+curl -s -H "Authorization: Bearer $token" "$base/api/detail?addr=pet&plan=none" | jq -c '.change'
+curl -s -o /dev/null -w "malformed: %{http_code}\n" -H "Authorization: Bearer $token" "$base/api/plan?id=x"
+curl -s -o /dev/null -w "absent: %{http_code}\n" -H "Authorization: Bearer $token" "$base/api/plan?id=plan-000000"
+curl -s -o /dev/null -w "beginning of an id: %{http_code}\n" -H "Authorization: Bearer $token" "$base/api/plan?id=${id%??}"
+kill $pid
+```
+
+```text out
+{"plan":{"id":"plan-<id>","status":"pending","planned":2,"total":2},"reason":"longer pet name","command":"pravo plan --store --actor alice --reason longer pet name","nodes":[{"addr":"config","action":"replace"},{"addr":"pet","action":"replace"}]}
+{"action":"replace"}
+null
+malformed: 400
+absent: 404
+beginning of an id: 404
+```
+
+The graph carries the plans as well. `Node.plans` lists the ids of the plans that can be applied and still have a change to apply on the node, newest first, and `Node.overlap` is set when two or more do. A plan that is stale, applied or expired is not on a node, and neither is a plan whose change on that node was applied already. The lists of `overlaps` and the nodes agree.
+
+### Start the viewer with a stored plan
+
+`--plan` takes the id of a stored plan in place of a file. The viewer then lays that plan over the graph when it opens. An id that no plan has stops the viewer before it listens.
+
+```sh run exit=1
+pravo serve --no-open --plan plan-000000
+```
+
+```text out
+Error: no such stored plan: plan-000000 (see: pravo plan list --all)
+```
+
+```sh run
+rm -f serve.json
+id=$(pravo plan list --json | jq -r '.plans[0].id')
+pravo serve --no-open --json --plan "$id" > serve.json &
+pid=$!
+until [ -s serve.json ]; do sleep 0.1; done
+url=$(sed 's/.*"url":"\([^"]*\)".*/\1/' serve.json)
+base=${url%%/\?*}
+token=${url##*token=}
+curl -s -H "Authorization: Bearer $token" "$base/api/graph" | jq -c '.plan | {id, status, planned, total}'
+curl -s -H "Authorization: Bearer $token" "$base/api/graph" | jq -c '.nodes[] | {addr, action, plans}'
+kill $pid
+```
+
+```text out
+{"id":"plan-<id>","status":"pending","planned":2,"total":2}
+{"addr":"config","action":"replace","plans":["plan-<id>"]}
+{"addr":"pet","action":"replace","plans":["plan-<id>"]}
+```
+
 ### The flags
 
 ```sh run
@@ -304,7 +469,7 @@ pravo serve --help
 ```text out
 Serve a read-only viewer on the loopback interface and open it in the default browser.
 
-The viewer shows the specification and the state as a graph of modules and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top. It updates when the state, the specification or the plan file changes.
+The viewer shows the specification and the state as a graph of modules and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top: a plan file, or the id of a plan stored in the state with "pravo plan --store". The plans stored in the state are listed in the viewer whether or not --plan is given, and any of them can be laid over the graph. It updates when the state, the specification, the plan file or the stored plans change.
 
 The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.
 
@@ -315,7 +480,7 @@ Flags:
   -h, --help              help for serve
   -T, --inject-vars       inject system tag variables (os, arch, cwd, ...)
       --no-open           do not open a browser
-      --plan string       a saved plan to show on top of the graph
+      --plan string       a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-<id>)
       --port int          the port to listen on (0 picks a free one)
   -t, --tag stringArray   inject a value for an @tag() field: -t key=value
 

@@ -1,0 +1,36 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "plan": {
+  "file": "plan-91d5f6b8",
+  "id": "plan-91d5f6b8",
+  "status": "applied",
+  "created": "2026-10-20T12:02:11Z",
+  "actor": "grace@acme",
+  "summary": {
+   "add": 2,
+   "change": 0,
+   "destroy": 0,
+   "read": 0,
+   "blast_radius": 0
+  },
+  "planned": 2,
+  "total": 47,
+  "applied": 2
+ },
+ "nodes": [
+  {
+   "addr": "api.cache",
+   "action": "create",
+   "applied": true
+  },
+  {
+   "addr": "api.worker.dlq",
+   "action": "create",
+   "applied": true
+  }
+ ],
+ "reason": "add the cache and a dead letter queue",
+ "command": "pravo plan --store --reason \"add the cache and a dead letter queue\"",
+ "git_revision": "71ae2c5"
+}

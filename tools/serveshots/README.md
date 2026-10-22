@@ -48,23 +48,26 @@ A reference inside a comprehension to a loop variable that stands for a resource
 
 ## Situations
 
-A shot is made from one of three situations of a scenario.
+A shot is made from one of four situations of a scenario.
 
 | Situation | How the workspace gets there |
 |---|---|
 | `clean` | `pravo init` and `pravo apply -auto-approve`. |
 | `changed` | `clean`, then a file that a resource wrote is edited and another is deleted and `pravo drift` runs, then the specification is edited without an apply (a resource added, a resource removed, a value changed), then `pravo plan --out change.plan`. |
 | `plan` | `changed`, served with `--plan change.plan`. |
+| `stored` | `clean`, then for each stored plan of the scenario the specification is edited, `pravo plan --store --actor ACTOR --reason TEXT` puts a plan in the state, and the specification is put back. The times in the objects of the plans are then moved into the past, which no command can do: the plan of `ana` is made 3 hours ago, the plan of `ben` 40 minutes ago, and the plan of `ci` 9 days ago, which is 2 days past its time to live. Served without `--plan`. |
 
-The changes of `platform` are in `scenarios.go`. The provider `local` reports a file whose content changed as gone, as it does a deleted file, so both drifted resources carry the mark gone. The new port of `orders` replaces three resources, since every attribute of `local_file` and `null_resource` forces a replacement, and the removed `edge.balancer.reload` is the one that the plan destroys.
+The changes of `platform` are in `scenarios.go`. The provider `local` reports a file whose content changed as gone, as it does a deleted file, so both drifted resources carry the mark gone. The new port of `orders` replaces three resources, since every attribute of `local_file` and `null_resource` forces a replacement, and the removed `edge.balancer.reload` is the one that the plan destroys. The stored plans of `platform` are the same new port of `orders` (`ana`), a different one with a new port of `search` (`ben`), which overlaps the first on the three resources that `orders` replaces, and a new port of the balancer (`ci`), which expired.
 
 ## Shots
 
 `shots.go` lists them: a name, a scenario, a situation, the fragment of the address and the size of the viewport. The name ends in `-dark` or `-light`, which the fragment states as `theme=`. Every fragment has `motion=off`. A shot selects a resource or a module (`sel=eu.prod`), and names the modules to close and to open with `collapse` and `expand`, because the first view that the page chooses depends on the size of the canvas and on the plan: a link that names the modules gives the same picture on every run. The tests check that the names are unique, that the list agrees with the PNGs in `docs/img/serve` and with the pages that link them, that the `width` and `height` of each `img` tag are the size of its viewport, and that every listing of a scenario file in the documentation shows lines that the file has, that a paired shot is linked with the theme classes, and that the reference names the chips and the tabs of the interface as it does. `SERVESHOTS_BIN` adds a check that every address or module a shot selects or names exists in the state of its scenario.
 
-Four shots come as a dark and a light picture of one view. A page links both in one figure, with the classes `shot-dark` and `shot-light` on the two links, and the style sheet of the site shows the one that matches the theme of the page, whether it follows the system or the visitor chose it. A test checks the markup. A shot that has one picture only is linked with the class `shot`.
+A stored plan has an id that depends on the plan, so a shot names it by the actor that made it, `plan=@ana`, and the program puts the id in when it makes the address. The viewer lists the stored plans whether or not one is laid over the graph.
 
-The shots `overview`, `modules-collapsed`, `modules-expanded`, `clusters`, `source`, `sensitive`, `palette` and `narrow` are made from the `clean` situation, which has the 47 resources that the apply wrote. The shots `plan`, `drift` and `tree` are made from the `changed` situation, which has 48.
+Five shots come as a dark and a light picture of one view. A page links both in one figure, with the classes `shot-dark` and `shot-light` on the two links, and the style sheet of the site shows the one that matches the theme of the page, whether it follows the system or the visitor chose it. A test checks the markup. A shot that has one picture only is linked with the class `shot`.
+
+The shots `overview`, `modules-collapsed`, `modules-expanded`, `clusters`, `source`, `sensitive`, `palette` and `narrow` are made from the `clean` situation, which has the 47 resources that the apply wrote. The shots `plan`, `drift` and `tree` are made from the `changed` situation, which has 48. The shots `plans` (the plan of `ana` laid over the graph, with `api.services.orders.config` selected, which both pending plans replace) and `plan-expired` (the plan of `ci`, which expired) are made from the `stored` situation, which has the 47 resources of the clean one.
 
 To add a shot, add it to `allShots`, run `-placeholders`, link `img/serve/NAME.png` from a page with the `width` and `height` of the viewport, and run the program for it.
 

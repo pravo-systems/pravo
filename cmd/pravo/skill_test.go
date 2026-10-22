@@ -190,6 +190,12 @@ func checkPravoLine(root *cobra.Command, line string) string {
 		switch {
 		case strings.HasPrefix(t, "-"):
 			flags = append(flags, t)
+			// The word after a flag that takes a value is its value.
+			if name := strings.TrimLeft(t, "-"); !strings.Contains(name, "=") {
+				if f := lookupFlag(cmd, name); f != nil && f.Value.Type() != "bool" && f.NoOptDefVal == "" && i+1 < len(toks) {
+					i++
+				}
+			}
 		case placeholderRe.MatchString(t):
 			descend = false // an address, a file or COMMAND
 		case descend:

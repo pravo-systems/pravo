@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // The scenarios are CUE roots. They are embedded so that the program does not
@@ -30,6 +31,24 @@ type scenario struct {
 	// is not applied, remove one that is, and change values, so that a plan has
 	// something to do.
 	Edits []edit
+	// Stored are the plans that the stored situation puts in the state, each
+	// made by an actor from an edit of the specification that is undone after.
+	Stored []storedPlan
+}
+
+// A storedPlan is a plan that pravo plan --store puts in the state.
+type storedPlan struct {
+	// Actor makes the plan (--actor) and is its author; a shot names the plan
+	// by it, as "@ana".
+	Actor  string
+	Reason string
+	// Edits are made to the specification for the plan, and undone after it.
+	Edits []edit
+	// Age is how long ago the plan was made. The program changes the times in
+	// the objects of the plan, which a command cannot make in the past. A plan
+	// that Expired is older than its time to live.
+	Age     time.Duration
+	Expired bool
 }
 
 // diskChange changes a file in the workspace the way a person would outside
@@ -80,6 +99,19 @@ edge: waf: rules: $local.#Resource.local_file & {
 		}
 `, New: ""},
 		},
+		// Two plans of two people that both replace what writes orders, and a
+		// third that nobody applied in time.
+		Stored: []storedPlan{
+			{Actor: "ana", Reason: "move orders to port 9082", Age: 3 * time.Hour,
+				Edits: []edit{{File: "api.cue", Old: "port:     8082", New: "port:     9082"}}},
+			{Actor: "ben", Reason: "new ports for orders and search", Age: 40 * time.Minute,
+				Edits: []edit{
+					{File: "api.cue", Old: "port:     8082", New: "port:     9092"},
+					{File: "api.cue", Old: "port:     8083", New: "port:     8084"},
+				}},
+			{Actor: "ci", Reason: "listen on 8443 at the edge", Age: 9 * 24 * time.Hour, Expired: true,
+				Edits: []edit{{File: "edge.cue", Old: `listen 443\n`, New: `listen 8443\n`}}},
+		},
 	},
 	{
 		Name:      "fleet",
@@ -99,6 +131,9 @@ func findScenario(name string) (scenario, bool) {
 
 // hasChanges reports whether the scenario has a changed situation.
 func (s scenario) hasChanges() bool { return len(s.Disk) > 0 || len(s.Edits) > 0 }
+
+// hasStored reports whether the scenario has a stored situation.
+func (s scenario) hasStored() bool { return len(s.Stored) > 0 }
 
 // copyScenario writes the files of the scenario into dir, which exists.
 func copyScenario(name, dir string) error {

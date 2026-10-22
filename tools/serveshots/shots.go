@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -18,6 +19,10 @@ const (
 	// situationPlan is situationChanged served with the plan that
 	// pravo plan --out saved, so the viewer overlays its actions.
 	situationPlan = "plan"
+	// situationStored is the clean estate with the plans that people stored in
+	// the state with pravo plan --store, served without --plan: the viewer lists
+	// them, and the fragment of a shot lays one over the graph.
+	situationStored = "stored"
 )
 
 // Fragment is the view that the interface keeps in the URL fragment, so that a
@@ -31,8 +36,12 @@ type Fragment struct {
 	Theme    string
 	Q        string
 	Filter   string
-	View     string
-	Zoom     string
+	// Plan is a stored plan to lay over the graph: its id, "none", or "@ACTOR"
+	// for the plan that an actor of the scenario made, whose id is not known
+	// until the plans are stored.
+	Plan string
+	View string
+	Zoom string
 	// Motion is "off" in every shot, so that a capture does not depend on the
 	// moment it is taken.
 	Motion string
@@ -51,8 +60,8 @@ var (
 )
 
 // String is the fragment without the leading #, in the order of the deep-link
-// table: sel, tab, collapse, expand, theme, q, filter, view, motion, zoom, and
-// then palette, pq and help.
+// table: sel, tab, collapse, expand, theme, q, filter, plan, view, motion, zoom,
+// and then palette, pq and help.
 // Values are URL-encoded, and a list is written comma separated with each
 // element encoded.
 func (f Fragment) String() string {
@@ -79,6 +88,7 @@ func (f Fragment) String() string {
 	add("theme", f.Theme)
 	add("q", f.Q)
 	add("filter", f.Filter)
+	add("plan", f.Plan)
 	add("view", f.View)
 	add("motion", f.Motion)
 	add("zoom", f.Zoom)
@@ -98,8 +108,36 @@ func escape(s string) string {
 	return strings.ReplaceAll(url.QueryEscape(s), "+", "%20")
 }
 
+var (
+	planIDRe    = regexp.MustCompile(`^plan-[0-9a-f]{6,64}$`)
+	planActorRe = regexp.MustCompile(`^@[a-z][a-z0-9_-]*$`)
+)
+
+// resolvePlans puts the id of the stored plan that an actor made in the place of
+// "@ACTOR" in a fragment, and reports an actor that made none.
+func resolvePlans(fragment string, ids map[string]string) (string, error) {
+	i := strings.Index(fragment, "plan="+escape("@"))
+	if i < 0 {
+		return fragment, nil
+	}
+	start := i + len("plan=")
+	end := start + len(escape("@"))
+	for end < len(fragment) && fragment[end] != '&' {
+		end++
+	}
+	actor := fragment[start+len(escape("@")) : end]
+	id, ok := ids[actor]
+	if !ok {
+		return "", fmt.Errorf("the fragment names the plan of %q, which the workspace does not have", actor)
+	}
+	return fragment[:start] + id + fragment[end:], nil
+}
+
 // validate reports a parameter that the interface does not know.
 func (f Fragment) validate() error {
+	if p := f.Plan; p != "" && p != "none" && !planIDRe.MatchString(p) && !planActorRe.MatchString(p) {
+		return fmt.Errorf("plan=%q is not an id, none or @ACTOR", p)
+	}
 	check := func(name, v string, ok []string) error {
 		if v == "" {
 			return nil
@@ -226,6 +264,12 @@ func allShots() []Shot {
 		}
 	}
 	s = append(s, both("plan", "platform", situationPlan, Fragment{Sel: ordersConfig, Tab: "change", Collapse: []string{"network", "edge"}})...)
+	// Three people stored a plan each. Those of ana and ben can be applied and
+	// both replace what writes the configuration of orders, which carries both
+	// badges and the ring of an overlap; the plan of ana is laid over the graph.
+	// The third expired, and is laid over the graph in its own picture.
+	s = append(s, both("plans", "platform", situationStored, Fragment{Sel: ordersConfig, Tab: "change", Plan: "@ana", Collapse: []string{"network", "edge"}})...)
+	s = append(s, shot("plan-expired-dark", "platform", situationStored, Fragment{Plan: "@ci", Collapse: []string{"network", "api"}}))
 	s = append(s,
 		shot("drift-dark", "platform", situationChanged, Fragment{Sel: dnsRecords, Tab: "state", Filter: "drifted"}),
 		shot("sensitive-dark", "platform", situationClean, Fragment{Sel: dbDSN, Tab: "state", Collapse: []string{"network", "edge"}}),

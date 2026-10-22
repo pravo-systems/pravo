@@ -101,8 +101,9 @@ pravo.state/txn/<id>.json
 | `outputs.json` | The outputs recorded by the last apply. |
 | `txn/ID.json` | One recorded transaction. |
 | `locks/ADDRESS.lock` | A lock or a reservation, present while it is held. |
+| `plans/ID.plan.json`, `plans/ID.meta.json`, `plans/ID.progress.json` | A stored plan: the plan, its summary, and what was applied from it. They exist after `pravo plan --store` and until a collection removes them. See [Stored plans](plans.md#stored-plans). |
 
-The lineage identifies the store for its whole life. A saved plan records it, and an apply refuses the plan when the lineage differs.
+The lineage identifies the store for its whole life. A saved plan records it, and an apply refuses the plan when the lineage differs. A stored plan records it too, and a listing marks a plan stale when the lineage differs.
 
 In a file name, every other character of an address is written as `%` and four hexadecimal digits. The characters that stay are letters, digits, `.`, `_` and `-`. The address `replicas[0]` is stored as `resources/replicas%005B0%005D.json`.
 
@@ -451,9 +452,9 @@ $settings: pravo.#Settings & {state: pravo.#S3State & {
 
 The block is typed by backend. Local fields with an S3 backend, S3 fields with the local backend, and `backend: "s3"` without a `bucket` are errors at evaluation. A `bucket` with no `backend` means `s3`. Credentials come from the usual AWS chain: the environment, a profile, or a role. Static `access_key` and `secret_key` fields end up in the specification.
 
-Every property of the local store holds in a bucket. Each node is one object, written on its own. The bucket holds a log of transactions and a lock for each node. A lock is an object created with the `If-None-Match: *` conditional write. Two commands on different machines cannot both create it, so the store must honour that header, and `If-Match` on renew, release and reclaim. [S3-compatible stores](../reference/s3-stores.md) says how to test a store. The prefix lets several roots share a bucket.
+Every property of the local store holds in a bucket. Each node is one object, written on its own. The bucket holds a log of transactions, a lock for each node and the stored plans. A lock is an object created with the `If-None-Match: *` conditional write. Two commands on different machines cannot both create it, so the store must honour that header, and `If-Match` on renew, release and reclaim. Stored plans use the same requests: a plan is created with `If-None-Match: *`, and its progress object is replaced and its objects are deleted with `If-Match`. [S3-compatible stores](../reference/s3-stores.md) says how to test a store. The prefix lets several roots share a bucket.
 
-`pravo state pull DIR` copies the configured graph into a local directory. `pravo state push DIR` copies a local directory into the configured backend, objects and transaction log included.
+`pravo state pull DIR` copies the configured graph into a local directory. `pravo state push DIR` copies a local directory into the configured backend, objects, transaction log and stored plans included.
 
 ## Cost follows the change
 
@@ -497,6 +498,7 @@ Split a state for ownership, permissions or blast radius.
 - A revision counts writes. A saved plan records the revision of every node it touches.
 - An apply locks every node it writes. A plan holds a lock only while it writes a refreshed record. A reservation is a lock that outlives its plan.
 - A transaction records who ran what, and which nodes changed. The log is evidence and prevents nothing.
+- A stored plan is three objects below `plans/`. The plan and its summary are written once. The progress object is the only one that changes.
 - The cost of a plan, an apply and a lock follows the change. Ownership, permissions and blast radius decide whether to split a state.
 
 Next: [Providers](providers.md) describes the processes behind the records.

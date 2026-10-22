@@ -61,6 +61,8 @@ Five arguments reach the command line as a word of their own: `planfile`, `addr`
 
 It is a tool result with `isError` true. It is made before any `pravo` process runs, so it carries no `structuredContent`. `planfile` set to `-auto-approve` therefore does not make a plain apply, and `addr` set to `-C=/other` does not change the root. A value that passes the check is given to the command as it is. The server does not check that a plan file was reviewed.
 
+`pravo_show_plan` and `pravo_apply_plan` take plan files only. A `planfile` that has the form of the id of a plan stored in the state, such as `plan-2f9c1a4e`, and that names no file, is refused in the same way, before any process runs. The message says to write the plan to a file with `pravo plan pull ID FILE`.
+
 ### Policies on the server
 
 Each `--policy` is read and compiled when the server starts, so a bad path fails the start and not every later call. The server adds `--policy` to its `pravo_plan` and `pravo_apply_plan` runs, and to no other tool, since no other command takes the flag. A tool argument cannot remove a policy that the server names.

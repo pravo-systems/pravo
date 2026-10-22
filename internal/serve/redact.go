@@ -76,6 +76,16 @@ func (s *secretSet) add(v any) {
 	}
 }
 
+// clone returns a set that holds the same strings and that adding to does not
+// change this one.
+func (s *secretSet) clone() *secretSet {
+	c := &secretSet{set: make(map[string]struct{}, len(s.set)), list: append([]string(nil), s.list...)}
+	for k := range s.set {
+		c.set[k] = struct{}{}
+	}
+	return c
+}
+
 func (s *secretSet) put(x string) {
 	if _, ok := s.set[x]; !ok {
 		s.set[x] = struct{}{}
@@ -720,8 +730,11 @@ func scrubCommand(cmd string, secrets *secretSet) string {
 		switch {
 		case inValue && !isFlag(bare):
 			out = mask
-		case prev == "-t" || prev == "--tag" || prev == "-tag":
+		case prev == "-t" || prev == "--tag" || prev == "-tag" || clusterEndT.MatchString(strings.Trim(prev, `"'`)):
 			out, inValue = tagWithoutValue(bare), true
+		case clusterT.MatchString(bare) && strings.Contains(clusterT.FindStringSubmatch(bare)[2], "="):
+			m := clusterT.FindStringSubmatch(bare)
+			out, inValue = m[1]+"t"+tagWithoutValue(m[2]), true
 		case strings.HasPrefix(bare, "--tag="):
 			out, inValue = "--tag="+tagWithoutValue(strings.TrimPrefix(bare, "--tag=")), true
 		case strings.HasPrefix(bare, "-t") && strings.Contains(bare, "=") && !strings.HasPrefix(bare, "--"):
@@ -747,6 +760,16 @@ func scrubCommand(cmd string, secrets *secretSet) string {
 }
 
 func isFlag(w string) bool { return strings.HasPrefix(w, "-") }
+
+// A short flag may be clustered with others that take no argument, and the last
+// of the cluster then takes the next word, or the rest of this one: -vt k=v,
+// -Tt k=v, -vtk=v. The flags that take no argument and have a short name are -v,
+// -T, -c and -O. clusterT reads a word that carries the tag in it, clusterEndT one
+// that ends in t, so that the next word is the tag.
+var (
+	clusterT    = regexp.MustCompile(`^(-[vTcO]+)t(.*)$`)
+	clusterEndT = regexp.MustCompile(`^-[vTcO]+t$`)
+)
 
 // tagWithoutValue writes a tag, name=value, without the value.
 func tagWithoutValue(tag string) string {

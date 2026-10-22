@@ -232,16 +232,22 @@ func (b *LocalBackend) List(ctx context.Context, prefix string) ([]string, error
 	return out, nil
 }
 
-// Copy copies every object from src to dst and returns the number copied.
+// Copy copies every object from src to dst and returns the number copied. The
+// stored plans are copied with the records, claims on them included.
 func Copy(ctx context.Context, src, dst Backend) (int, error) {
 	n := 0
-	for _, prefix := range []string{"resources", "txn"} {
+	for _, prefix := range []string{"resources", "txn", "plans"} {
 		keys, err := src.List(ctx, prefix)
 		if err != nil {
 			return n, err
 		}
 		for _, k := range keys {
 			data, err := src.Get(ctx, k)
+			if errors.Is(err, ErrNotFound) && prefix == "plans" {
+				// A stored plan is removed on its own schedule by a collection: one
+				// that went since the listing is not part of the copy.
+				continue
+			}
 			if err != nil {
 				return n, fmt.Errorf("%s: %w", k, err)
 			}

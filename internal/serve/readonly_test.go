@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -22,6 +23,15 @@ func session(t *testing.T, p *project) {
 		p.get("/api/source?addr=" + queryEscape(n.Addr))
 	}
 	p.get("/api/search?q=db")
+	// The stored plans, each laid over the graph and asked about in its nodes.
+	for _, sp := range p.plans().Plans {
+		p.get("/api/plan?id=" + sp.ID)
+		for _, c := range sp.Touches {
+			p.get("/api/detail?addr=" + queryEscape(c.Addr) + "&plan=" + sp.ID)
+			p.get("/api/source?addr=" + queryEscape(c.Addr) + "&plan=" + sp.ID)
+		}
+	}
+	p.do("GET", "/api/plan?id=plan-ffffffff", nil)
 	p.do("GET", "/", nil)
 	p.do("GET", "/?token="+p.srv.Token(), nil)
 	req, _ := http.NewRequest("GET", p.base+"/api/events", nil)
@@ -46,6 +56,19 @@ func TestReadOnly(t *testing.T) {
 			path := filepath.Join(dir, "plan.pravo")
 			writePlan(t, &project{t: t, dir: dir, store: st}, path)
 			return dir, Options{PlanFile: path}
+		},
+		"a project with stored plans, one of them partly applied": func(t *testing.T) (string, Options) {
+			dir := t.TempDir()
+			writeSpec(t, dir, specCUE)
+			st, _ := state.Open(filepath.Join(dir, "pravo.state"))
+			seed(t, st)
+			holder := &project{t: t, dir: dir, store: st}
+			storePlan(t, holder, stored{Author: "ana@acme", Addrs: []string{"services.a.db", "services.b.file"}})
+			id := storePlan(t, holder, stored{Author: "ben@acme", Created: time.Now().Add(-time.Hour), Addrs: []string{"services.a.db", "hosts.x"}})
+			if err := engine.NewPlanStore(st.Backend()).MarkApplied(context.Background(), id, []string{"hosts.x"}, "txn-1", []string{"left"}); err != nil {
+				t.Fatal(err)
+			}
+			return dir, Options{PlanID: id}
 		},
 		"a project without state": func(t *testing.T) (string, Options) {
 			dir := t.TempDir()

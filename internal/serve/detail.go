@@ -17,9 +17,23 @@ const maxSearch = 50
 // detail builds the answer of /api/detail for a node. The values of its record
 // are read from the state as it was loaded, rendered against the schema of its
 // type, and redacted.
-func (m *model) detail(mn *mnode) *Detail {
+func (m *model) detail(mn *mnode) *Detail { return m.detailFor(mn, m.plan) }
+
+// detailFor is detail for the plan po, which is the one laid over the graph or a
+// stored plan that a request names: the action of the node and its Change are
+// that plan's.
+func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 	addr := mn.Addr
+	sec := m.secretsFor(po)
 	d := &Detail{Version: APIVersion, Node: mn.Node, Attrs: []Attr{}, DependsOn: nonNil(m.deps[addr]), UsedBy: nonNil(m.used[addr])}
+	if po != m.plan {
+		d.Node.Action = ""
+		if po != nil {
+			if e := po.entries[addr]; e != nil {
+				d.Node.Action = e.action
+			}
+		}
+	}
 	d.Provider = m.providerRef(mn)
 	d.SchemaKnown = mn.sch != nil || mn.rec == nil || transient(mn.Mode)
 	rec := mn.rec
@@ -33,7 +47,7 @@ func (m *model) detail(mn *mnode) *Detail {
 		case err != nil:
 			d.Notes = append(d.Notes, "The attributes of the record cannot be read: "+err.Error()+".")
 		case mn.sch != nil:
-			w := &walk{secrets: m.secrets, build: true}
+			w := &walk{secrets: sec, build: true}
 			d.Attrs = w.block(mn.sch.Block, attrs, 0)
 			if w.derived > 0 {
 				d.Notes = append(d.Notes, fmt.Sprintf("%d %s withheld: %s a sensitive value that the state keeps in another attribute.",
@@ -47,17 +61,21 @@ func (m *model) detail(mn *mnode) *Detail {
 	if mn.schNote != "" {
 		d.Notes = append(d.Notes, mn.schNote)
 	}
-	d.Change = m.changeOf(mn)
-	if d.Change != nil && m.plan != nil {
-		if e := m.plan.entries[addr]; e != nil {
+	d.Change = m.changeIn(po, mn)
+	if d.Change != nil && po != nil {
+		if e := po.entries[addr]; e != nil {
 			if e.applied {
-				d.Notes = append(d.Notes, "This change was applied already from the plan file.")
+				from := "plan file"
+				if po.info.ID != "" {
+					from = "stored plan"
+				}
+				d.Notes = append(d.Notes, "This change was applied already from the "+from+".")
 			}
 			if e.moved != "" {
 				d.Notes = append(d.Notes, "The plan moves the record here from "+e.moved+".")
 			}
 		}
-		if d.Change.Attrs == nil && m.plan.changes == nil && d.Change.Action != "no-op" {
+		if d.Change.Attrs == nil && po.changes == nil && d.Change.Action != "no-op" {
 			d.Notes = append(d.Notes, "The attribute changes of the plan are not shown; the warnings of the graph say why.")
 		}
 	}
@@ -66,8 +84,8 @@ func (m *model) detail(mn *mnode) *Detail {
 			if c.Addr != addr {
 				continue
 			}
-			d.History = append(d.History, HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: m.scrub(t.User), Actor: m.scrub(t.Actor),
-				Command: scrubCommand(t.Command, m.secrets), Reason: m.scrub(t.Reason), Action: c.Action, RevBefore: c.Before, RevAfter: c.After})
+			d.History = append(d.History, HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: maskWith(sec, t.User), Actor: maskWith(sec, t.Actor),
+				Command: scrubCommand(t.Command, sec), Reason: maskWith(sec, t.Reason), Action: c.Action, RevBefore: c.Before, RevAfter: c.After})
 			break
 		}
 		if len(d.History) >= maxHistory {
@@ -79,7 +97,7 @@ func (m *model) detail(mn *mnode) *Detail {
 		if kind == "" {
 			kind = "lock"
 		}
-		d.Lock = &LockInfo{Kind: kind, User: m.scrub(l.User), Host: m.scrub(l.Host), Command: scrubCommand(l.Command, m.secrets), Actor: m.scrub(l.Actor), Since: l.Since, Expires: l.Expires}
+		d.Lock = &LockInfo{Kind: kind, User: maskWith(sec, l.User), Host: maskWith(sec, l.Host), Command: scrubCommand(l.Command, sec), Actor: maskWith(sec, l.Actor), Since: l.Since, Expires: l.Expires}
 		if l.Stale {
 			d.Notes = append(d.Notes, "The lock is stale: its holder is gone or has not renewed it, and the next command may take it over.")
 		}
@@ -100,6 +118,23 @@ func (m *model) detail(mn *mnode) *Detail {
 		d.Notes = append(d.Notes, "A read found that the object differs from this record.")
 	}
 	return d
+}
+
+// secretsFor is the set of sensitive strings that a response about the plan po is
+// judged against: those of the state and the ones the plan would write. A plan
+// that has none of its own (the plan of the graph, which adds its secrets to the
+// model's set, or no plan) is judged against the model's.
+func (m *model) secretsFor(po *planOverlay) *secretSet {
+	if po != nil && po.secrets != nil {
+		return po.secrets
+	}
+	return m.secrets
+}
+
+// maskWith masks the sensitive strings of a set in a text.
+func maskWith(sec *secretSet, text string) string {
+	out, _ := sec.scrub(text)
+	return out
 }
 
 // scrub masks the sensitive strings of the state in a text that comes from the

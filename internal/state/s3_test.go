@@ -156,6 +156,110 @@ func TestCopyBetweenBackends(t *testing.T) {
 	}
 }
 
+// The plans stored in the state go with it when it is copied, claims on them
+// included, and the locks do not.
+func TestCopyCarriesTheStoredPlans(t *testing.T) {
+	f, remote := newFakeS3(t)
+	ctx := context.Background()
+	local, err := NewLocalBackend(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenBackend(ctx, local); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"plans/plan-2f9c1a4e.plan.json":     `{"plan":1}`,
+		"plans/plan-2f9c1a4e.meta.json":     `{"meta":1}`,
+		"plans/plan-2f9c1a4e.progress.json": `{"applying":{"by":"alice"}}`,
+	}
+	for k, v := range want {
+		if err := local.Put(ctx, k, []byte(v)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := local.Put(ctx, "locks/x.json", []byte(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Copy(ctx, local, remote); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range want {
+		if got, err := remote.Get(ctx, k); err != nil || string(got) != v {
+			t.Errorf("%s: %q %v", k, got, err)
+		}
+	}
+	if _, ok := f.Objects["team/app/locks/x.json"]; ok {
+		t.Error("a lock was copied")
+	}
+	back, err := NewLocalBackend(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Copy(ctx, remote, back); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range want {
+		if got, err := back.Get(ctx, k); err != nil || string(got) != v {
+			t.Errorf("back %s: %q %v", k, got, err)
+		}
+	}
+}
+
+// vanishing lists an object that is gone when it is read, as a stored plan is when
+// a collection removes it during a copy.
+type vanishing struct {
+	Backend
+	key string
+}
+
+func (v *vanishing) Get(ctx context.Context, key string) ([]byte, error) {
+	if key == v.key {
+		return nil, ErrNotFound
+	}
+	return v.Backend.Get(ctx, key)
+}
+
+// A stored plan that a collection removes while the state is copied is left out of
+// the copy; the records and the metadata are still copied.
+func TestCopyLeavesOutAPlanThatVanishes(t *testing.T) {
+	ctx := context.Background()
+	local, err := NewLocalBackend(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := OpenBackend(ctx, local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Set(&Resource{Mode: "managed", Type: "t", Name: "n", Attributes: json.RawMessage(`{}`)}, "")
+	for _, k := range []string{"plans/plan-2f9c1a4e.plan.json", "plans/plan-2f9c1a4e.meta.json", "plans/plan-8b03d1e7.plan.json"} {
+		if err := local.Put(ctx, k, []byte(`{}`)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dst, err := NewLocalBackend(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Copy(ctx, &vanishing{Backend: local, key: "plans/plan-2f9c1a4e.meta.json"}, dst); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dst.Get(ctx, "plans/plan-2f9c1a4e.meta.json"); err == nil {
+		t.Error("the plan that vanished was copied")
+	}
+	if _, err := dst.Get(ctx, "plans/plan-8b03d1e7.plan.json"); err != nil {
+		t.Errorf("another plan was not copied: %v", err)
+	}
+	if _, err := dst.Get(ctx, "meta.json"); err != nil {
+		t.Errorf("the metadata was not copied: %v", err)
+	}
+	// Anything else that cannot be read is still an error.
+	if _, err := Copy(ctx, &vanishing{Backend: local, key: "meta.json"}, dst); err != nil {
+		t.Errorf("a missing meta.json is skipped as it always was: %v", err)
+	}
+}
+
 // The lock on the outputs and the writes outside the store's mutex work over a
 // bucket as they do over a directory: commands that finish together keep each
 // other's outputs, and the lock object is gone afterwards.

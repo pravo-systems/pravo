@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -235,9 +236,12 @@ func (m *maker) workspace(sc scenario, situation string) (*workspace, error) {
 		w   *workspace
 		err error
 	)
-	if kind == situationClean {
+	switch kind {
+	case situationClean:
 		w, err = prepareClean(m.ctx, m.runner, sc, dir)
-	} else {
+	case situationStored:
+		w, err = prepareStored(m.ctx, m.runner, sc, dir)
+	default:
 		w, err = prepareChanged(m.ctx, m.runner, sc, dir)
 	}
 	if err != nil {
@@ -289,10 +293,14 @@ func (m *maker) make(s Shot) (info imageInfo, notes []string, err error) {
 		return info, nil, err
 	}
 	profile := filepath.Join(m.work, "chrome-profile")
-	m.logf("shot %s: %s", s.Name, s.URLFragment())
+	fragment, err := resolvePlans(s.URLFragment(), m.spaces[sc.Name+"/"+workspaceKind(s.Situation)].Plans)
+	if err != nil {
+		return info, nil, fmt.Errorf("shot %s: %w", s.Name, err)
+	}
+	m.logf("shot %s: %s", s.Name, fragment)
 	opts := m.opts
 	opts.Replace = m.replacements(sc, s.Situation, v)
-	notes, err = screenshotRetry(m.ctx, m.chrome, profile, tmp, v.open(s.URLFragment()), s.Width, s.Height, opts)
+	notes, err = screenshotRetry(m.ctx, m.chrome, profile, tmp, v.open(fragment), s.Width, s.Height, opts)
 	if err != nil {
 		return info, notes, err
 	}
@@ -327,6 +335,10 @@ func (m *maker) replacements(sc scenario, situation string, v *viewer) [][2]stri
 			pairs = append(pairs, [2]string{slash, to})
 		}
 	}
+	// The longest first: /var/folders/x/y is the end of /private/var/folders/x/y,
+	// which a system that links /var to /private/var shows, and replacing the
+	// short one first would leave "/private" in front of the replacement.
+	sort.SliceStable(pairs, func(i, j int) bool { return len(pairs[i][0]) > len(pairs[j][0]) })
 	if _, hostPort, ok := strings.Cut(v.Base, "://"); ok {
 		pairs = append(pairs, [2]string{hostPort, "127.0.0.1:8700"})
 	}
@@ -335,8 +347,9 @@ func (m *maker) replacements(sc scenario, situation string, v *viewer) [][2]stri
 
 // workspaceKind is the kind of workspace that a situation is made in.
 func workspaceKind(situation string) string {
-	if situation == situationClean {
-		return situationClean
+	switch situation {
+	case situationClean, situationStored:
+		return situation
 	}
 	return situationChanged
 }
@@ -376,11 +389,24 @@ func validateShots(shots []Shot) error {
 			if !sc.hasChanges() {
 				return fmt.Errorf("shot %s: scenario %s has no changed situation", s.Name, s.Scenario)
 			}
+		case situationStored:
+			if !sc.hasStored() {
+				return fmt.Errorf("shot %s: scenario %s has no stored plans", s.Name, s.Scenario)
+			}
 		default:
 			return fmt.Errorf("shot %s: unknown situation %q", s.Name, s.Situation)
 		}
 		if err := s.Fragment.validate(); err != nil {
 			return fmt.Errorf("shot %s: %w", s.Name, err)
+		}
+		if actor, ok := strings.CutPrefix(s.Fragment.Plan, "@"); ok {
+			found := false
+			for _, sp := range sc.Stored {
+				found = found || sp.Actor == actor
+			}
+			if s.Situation != situationStored || !found {
+				return fmt.Errorf("shot %s: plan=@%s needs the stored situation and a stored plan of that actor", s.Name, actor)
+			}
 		}
 		if s.Fragment.Motion != "off" {
 			return fmt.Errorf("shot %s: the fragment lacks motion=off", s.Name)

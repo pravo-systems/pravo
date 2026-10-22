@@ -1,0 +1,198 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "plans": [
+  {
+   "id": "plan-7b04d1c9",
+   "status": "pending",
+   "open": true,
+   "author": "ben@acme",
+   "created": "2026-10-21T13:22:11Z",
+   "expires": "2026-10-28T13:22:11Z",
+   "summary": {
+    "add": 1,
+    "change": 3,
+    "destroy": 0,
+    "read": 0
+   },
+   "planned": 4,
+   "touches": [
+    {
+     "addr": "api.db",
+     "action": "update"
+    },
+    {
+     "addr": "api.secret_version",
+     "action": "update"
+    },
+    {
+     "addr": "edge.dns",
+     "action": "create"
+    },
+    {
+     "addr": "edge.lb",
+     "action": "update"
+    }
+   ],
+   "overlaps": [
+    {
+     "id": "plan-2f9c1a4e",
+     "count": 1,
+     "addrs": [
+      "api.db"
+     ]
+    }
+   ],
+   "apply": "pravo apply plan-7b04d1c9"
+  },
+  {
+   "id": "plan-c3e8a052",
+   "status": "stale",
+   "author": "ci@acme",
+   "created": "2026-10-21T12:57:11Z",
+   "expires": "2026-10-28T12:57:11Z",
+   "summary": {
+    "add": 1,
+    "change": 1,
+    "destroy": 0,
+    "read": 0
+   },
+   "planned": 2,
+   "reasons": [
+    "edge.cert changed in state (revision 3, plan expected 2)",
+    "edge.lb changed in state (revision 6, plan expected 5)"
+   ],
+   "touches": [
+    {
+     "addr": "edge.cert",
+     "action": "create"
+    },
+    {
+     "addr": "edge.lb",
+     "action": "update"
+    }
+   ],
+   "apply": "pravo apply plan-c3e8a052"
+  },
+  {
+   "id": "plan-2f9c1a4e",
+   "status": "pending",
+   "open": true,
+   "author": "ana@acme",
+   "created": "2026-10-21T11:02:11Z",
+   "expires": "2026-10-28T11:02:11Z",
+   "summary": {
+    "add": 0,
+    "change": 4,
+    "destroy": 0,
+    "read": 0
+   },
+   "planned": 4,
+   "touches": [
+    {
+     "addr": "api.db",
+     "action": "update"
+    },
+    {
+     "addr": "api.service",
+     "action": "update"
+    },
+    {
+     "addr": "api.task",
+     "action": "update"
+    },
+    {
+     "addr": "api.worker.service",
+     "action": "update"
+    }
+   ],
+   "overlaps": [
+    {
+     "id": "plan-7b04d1c9",
+     "count": 1,
+     "addrs": [
+      "api.db"
+     ]
+    }
+   ],
+   "apply": "pravo apply plan-2f9c1a4e"
+  },
+  {
+   "id": "plan-5a2c9e71",
+   "status": "partial",
+   "open": true,
+   "author": "dee@acme",
+   "created": "2026-10-21T09:02:11Z",
+   "expires": "2026-10-28T09:02:11Z",
+   "summary": {
+    "add": 0,
+    "change": 2,
+    "destroy": 0,
+    "read": 0
+   },
+   "planned": 2,
+   "applied": 1,
+   "touches": [
+    {
+     "addr": "network.private.nat",
+     "action": "update",
+     "applied": true
+    },
+    {
+     "addr": "network.private.rt",
+     "action": "update"
+    }
+   ],
+   "apply": "pravo apply plan-5a2c9e71"
+  },
+  {
+   "id": "plan-91d5f6b8",
+   "status": "applied",
+   "author": "grace@acme",
+   "created": "2026-10-20T12:02:11Z",
+   "expires": "2026-10-27T12:02:11Z",
+   "summary": {
+    "add": 2,
+    "change": 0,
+    "destroy": 0,
+    "read": 0
+   },
+   "planned": 2,
+   "applied": 2,
+   "touches": [
+    {
+     "addr": "api.cache",
+     "action": "create",
+     "applied": true
+    },
+    {
+     "addr": "api.worker.dlq",
+     "action": "create",
+     "applied": true
+    }
+   ],
+   "apply": "pravo apply plan-91d5f6b8"
+  },
+  {
+   "id": "plan-e0a17c33",
+   "status": "expired",
+   "author": "ada@acme",
+   "created": "2026-10-12T14:02:11Z",
+   "expires": "2026-10-19T14:02:11Z",
+   "summary": {
+    "add": 0,
+    "change": 1,
+    "destroy": 0,
+    "read": 0
+   },
+   "planned": 1,
+   "touches": [
+    {
+     "addr": "network.private.nat",
+     "action": "update"
+    }
+   ],
+   "apply": "pravo apply plan-e0a17c33"
+  }
+ ]
+}

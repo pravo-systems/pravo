@@ -92,6 +92,11 @@ type Node struct {
 	Gone    bool `json:"gone,omitempty"`
 	// Locked is set when a lock or reservation holds the node.
 	Locked bool `json:"locked,omitempty"`
+	// Plans lists the stored plans (see StoredPlan) that can still be applied and
+	// change the node, newest first. Overlap is set when two or more do: applying
+	// one makes the other stale. Both are as of the revision of the graph.
+	Plans   []string `json:"plans,omitempty"`
+	Overlap bool     `json:"overlap,omitempty"`
 	// Sensitive counts the attributes of the record whose values are withheld,
 	// the ones that hold a value and not null.
 	Sensitive int `json:"sensitive,omitempty"`
@@ -152,9 +157,14 @@ type Output struct {
 	Unknown  bool   `json:"unknown,omitempty"`
 }
 
-// PlanInfo is the saved plan the viewer was started with (--plan).
+// PlanInfo is the saved plan the viewer was started with (--plan), or a stored
+// plan (PlanOverlay).
 type PlanInfo struct {
+	// File is the path of the plan file, or the id of a stored plan, which ID names
+	// too. Status is the status of a stored plan, as StoredPlan.Status says it.
 	File    string    `json:"file"`
+	ID      string    `json:"id,omitempty"`
+	Status  string    `json:"status,omitempty"`
 	Created time.Time `json:"created"`
 	Actor   string    `json:"actor,omitempty"`
 	// Stale reports that the plan can no longer be applied; Reasons say why.
@@ -356,11 +366,121 @@ type Search struct {
 	Modules []Module `json:"modules"`
 }
 
+// PlanCounts are the actions of a plan, as the plan prints them: a replace
+// counts as an add and a destroy.
+type PlanCounts struct {
+	Add     int `json:"add"`
+	Change  int `json:"change"`
+	Destroy int `json:"destroy"`
+	Read    int `json:"read"`
+}
+
+// PlanChange is a resource that a stored plan changes.
+type PlanChange struct {
+	Addr string `json:"addr"`
+	// Action is "create", "update", "replace", "delete", "read", "move" or
+	// "import".
+	Action string `json:"action"`
+	// Applied is set when the change was applied already from the plan: the plan
+	// has nothing left to do on the resource, so it does not count for an overlap.
+	Applied bool `json:"applied,omitempty"`
+}
+
+// PlanOverlap is another open stored plan that has a change left to apply on a
+// resource that a plan has a change left on. The relation is symmetric. Count is
+// the number of such resources, Addrs the first of them (at most 20), Truncated
+// how many are left out.
+type PlanOverlap struct {
+	ID        string   `json:"id"`
+	Count     int      `json:"count"`
+	Addrs     []string `json:"addrs"`
+	Truncated int      `json:"truncated,omitempty"`
+}
+
+// StoredPlan is a plan that was stored in the state with "pravo plan --store",
+// where everyone who can read the state finds it.
+type StoredPlan struct {
+	ID string `json:"id"`
+	// Status is "pending" (it can be applied), "partial" (some of its changes were
+	// applied and the rest can be), "stale" (the state moved on, Reasons say how),
+	// "applied" (every change was applied) or "expired" (it was not applied before
+	// it expired). Open is set for pending and partial: those can be applied, and
+	// two of them that change one resource overlap.
+	// Author is clipped to 4 KiB and masked against the sensitive values of the
+	// state. The text that the author wrote with the plan (the reason, the command
+	// line, the git revision) is not in a listing: it can quote a value that the
+	// plan writes and the state does not hold yet, which only the plan says, so
+	// PlanOverlay carries it, masked against the plan's own values.
+	Status  string     `json:"status"`
+	Open    bool       `json:"open,omitempty"`
+	Author  string     `json:"author"`
+	Created time.Time  `json:"created"`
+	Expires time.Time  `json:"expires"`
+	Destroy bool       `json:"destroy,omitempty"`
+	Summary PlanCounts `json:"summary"`
+	// Planned is the number of changes, Applied how many of them were applied
+	// already. Applying is set while an apply from the plan runs.
+	Planned  int  `json:"planned"`
+	Applied  int  `json:"applied,omitempty"`
+	Applying bool `json:"applying,omitempty"`
+	// Reasons say why a stale plan can no longer be applied: the first 20, each
+	// clipped to 300 characters; ReasonsOmitted counts the others.
+	Reasons        []string `json:"reasons,omitempty"`
+	ReasonsOmitted int      `json:"reasons_omitted,omitempty"`
+	// Touches lists the resources the plan changes, by address, up to 2000;
+	// Truncated counts those left out. Overlaps lists the other open plans that
+	// change one of them.
+	Touches   []PlanChange  `json:"touches"`
+	Truncated int           `json:"truncated,omitempty"`
+	Overlaps  []PlanOverlap `json:"overlaps,omitempty"`
+	// Apply is the command that applies the plan.
+	Apply string `json:"apply"`
+}
+
+// PlanList is GET /api/plans: the plans stored in the state, newest first.
+type PlanList struct {
+	Version int `json:"version"`
+	// Revision is the revision of the graph that the list goes with.
+	Revision string       `json:"revision"`
+	Plans    []StoredPlan `json:"plans"`
+}
+
+// PlanNode is what a plan does to a resource.
+type PlanNode struct {
+	Addr   string `json:"addr"`
+	Action string `json:"action"`
+	// Applied is set when the change was applied already.
+	Applied bool `json:"applied,omitempty"`
+}
+
+// PlanOverlay is GET /api/plan?id=...: what a stored plan lays over the graph, as
+// the plan file of --plan does. Plan is the PlanInfo that Graph.Plan has in that
+// case, Nodes the action of each node the plan ran (Node.Action; a node that is
+// not listed was not read). GET /api/detail and GET /api/source take the same id
+// as plan=... and answer for that plan: the Change of the node, the lines marked.
+// plan=none asks for no plan at all.
+type PlanOverlay struct {
+	Version  int        `json:"version"`
+	Revision string     `json:"revision"`
+	Plan     PlanInfo   `json:"plan"`
+	Nodes    []PlanNode `json:"nodes"`
+	Warnings []string   `json:"warnings,omitempty"`
+	// Reason, Command and GitRevision are what the author wrote with the plan,
+	// each clipped to 4 KiB and masked against the sensitive values of the state
+	// and the ones the plan would write. Command has the values of -t and of
+	// flags that look secret withheld.
+	Reason      string `json:"reason,omitempty"`
+	Command     string `json:"command,omitempty"`
+	GitRevision string `json:"git_revision,omitempty"`
+}
+
 // Event is the data of a server-sent event on /api/events. The event name is
 // "change" and the page fetches /api/graph again, and the open node, when the
 // Revision differs from the one it holds.
 type Event struct {
 	Revision string `json:"revision"`
-	// What is any of "state", "spec", "plan", "locks".
+	// What is any of "state", "spec", "plan", "locks", "plans". "plan" is the plan
+	// file of --plan; "plans" are the plans stored in the state: one appeared, was
+	// collected, was applied from, or passed its expiry.
 	What []string `json:"what"`
 }

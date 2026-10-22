@@ -10,6 +10,7 @@
 import { s, h, clamp, ease, schedule, actionOf } from './util.js';
 import { G, FIT, fitScale, pathOf, midOf, lengthOf } from './layout.js';
 import { eachNode, cellsOf } from './model.js';
+import { initials, hueOf } from './plans.js';
 
 // glyphs on a 16 by 16 grid
 const GLYPH = {
@@ -47,7 +48,7 @@ function providerOf(type) {
 
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
-  if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, ctx.hasPlan, x.tint].join('|');
+  if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, ctx.hasPlan, x.tint, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   return [x.kind, a.n, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.tint, x.h, x.kind === 'module' ? x.mod.kids.length : ''].join('|');
@@ -69,12 +70,19 @@ export function nodeClasses(n, ctx) {
   if (n.presence === 'spec') c += ' spec';
   if (n.presence === 'state') c += ' orphan';
   if (n.mode && n.mode !== 'managed') c += ' m-' + n.mode;
+  if (n.overlap) c += ' overlap';
   return c;
 }
 
-export function describeNode(n) {
+// authorsOf lists the authors of the open stored plans that change a node, one for each plan, newest first
+export function authorsOf(n, ctx) {
+  return (n.plans || []).map((id) => ({ id, author: (ctx.authors && ctx.authors.get(id)) || '?' }));
+}
+
+export function describeNode(n, ctx) {
   const bits = [`${n.name}, ${n.type}`];
   if (n.action) bits.push(n.action === 'no-op' ? 'no change planned' : 'plan: ' + n.action);
+  if ((n.plans || []).length) bits.push(`${n.overlap ? 'overlap: ' : ''}changed by ${authorsOf(n, ctx || {}).map((p) => `${p.id} of ${p.author}`).join(', ')}`);
   if (n.drifted) bits.push('drifted');
   if (n.gone) bits.push('gone');
   if (n.locked) bits.push('locked');
@@ -128,7 +136,7 @@ export class GraphView {
     this.cb = cb;
     this.vis = null;
     this.lay = null;
-    this.ctx = { hasPlan: false };
+    this.ctx = { hasPlan: false, authors: new Map() };
     this.items = new Map();
     this.lanes = new Map();
     this.edges = new Map();
@@ -200,7 +208,7 @@ export class GraphView {
     const prevVis = this.vis, prevLay = this.lay;
     this.vis = vis;
     this.lay = lay;
-    this.ctx = { hasPlan: !!opts.hasPlan };
+    this.ctx = { hasPlan: !!opts.hasPlan, authors: opts.authors || new Map() };
     const animate = !!opts.animate && !first && !this.reduced;
     this.stopTween();
     const moves = { items: [], lanes: [], edges: [] };
@@ -488,10 +496,12 @@ export class GraphView {
     const act = actionOf(n.action);
     const badge = !!(act && act.glyph);
     const pv = providerOf(n.type);
-    const g = s('g', { class: nodeClasses(n, this.ctx) + ' pv' + pv.tint, role: 'button', 'aria-label': describeNode(n) });
+    const g = s('g', { class: nodeClasses(n, this.ctx) + ' pv' + pv.tint, role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
     inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
     if (n.drifted || n.gone || (this.ctx.hasPlan && n.action && n.action !== 'no-op')) inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 9 }));
+    // two open plans that change the node: a solid ring outside the dotted one of the action, in a colour of its own
+    if (n.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 10.5 }));
     inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
@@ -508,7 +518,25 @@ export class GraphView {
     }
     let mx = W - 12 - 13;
     for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
+    const aus = this.authorBadges(n, W);
+    if (aus) inn.append(aus);
     g.append(inn);
+    return g;
+  }
+
+  // authorBadges hang on the top edge of a node that open stored plans change: a disc with the initial of the author
+  // of each plan, newest at the right, overlapping a little; more than three give their number
+  authorBadges(n, W) {
+    const list = authorsOf(n, this.ctx);
+    if (!list.length) return null;
+    const g = s('g', { class: 'aus' });
+    const SHOWN = 3, R = 7.5, PITCH = 11;
+    list.slice(0, SHOWN).forEach((p, i) => {
+      const b = s('g', { class: 'au au' + hueOf(p.author), transform: `translate(${W - 15 - i * PITCH} 0)` });
+      b.append(s('circle', { class: 'aur', r: R + 1.6 }), s('circle', { class: 'aub', r: R }), s('text', { y: 2.7 }, initials(p.author).slice(0, 2)));
+      g.append(b);
+    });
+    if (list.length > SHOWN) g.append(s('text', { class: 'aun', x: W - 15 - SHOWN * PITCH - 1, y: 3.2 }, '+' + (list.length - SHOWN)));
     return g;
   }
 
@@ -868,7 +896,10 @@ export class GraphView {
     if (n.locked) chips.push(h('span', { class: 'gchip hold' }, 'locked'));
     if (n.presence === 'state') chips.push(h('span', { class: 'gchip gone' }, 'orphan'));
     if (n.presence === 'spec') chips.push(h('span', { class: 'gchip skip' }, 'declared only'));
+    if (n.overlap) chips.push(h('span', { class: 'gchip ovl' }, 'overlap'));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
+    const authors = authorsOf(n, this.ctx);
+    if (authors.length) out.push(h('div', { class: 'gtip-plans' }, authors.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${p.author} · ${p.id}`))));
     out.push(h('div', { class: 'gtip-meta' }, `${n.deps.length} ${n.deps.length === 1 ? 'dependency' : 'dependencies'} · ${n.used.length} ${n.used.length === 1 ? 'dependent' : 'dependents'}`));
     return out;
   }
@@ -1234,7 +1265,7 @@ export class Minimap {
   refreshColors() {
     const cs = getComputedStyle(this.canvas);
     const g = (n) => cs.getPropertyValue(n).trim() || '#888';
-    this.colors = { line: g('--line-strong'), text: g('--text-3'), accent: g('--accent'), change: g('--change'), conflict: g('--conflict'), key: g('--key'), surface: g('--surface-3'), hue: [0, 1, 2, 3, 4].map((i) => parseFloat(g('--th' + i)) || 232), lane: g('--mm-lane') || '60% 62%' };
+    this.colors = { line: g('--line-strong'), text: g('--text-3'), accent: g('--accent'), change: g('--change'), conflict: g('--conflict'), key: g('--key'), overlap: g('--overlap'), surface: g('--surface-3'), hue: [0, 1, 2, 3, 4].map((i) => parseFloat(g('--th' + i)) || 232), lane: g('--mm-lane') || '60% 62%' };
   }
 
   draw() {
@@ -1274,7 +1305,7 @@ export class Minimap {
       let fill = col.text, a = 0.5;
       if (it && it.kind === 'node') {
         const act = it.n.action;
-        if (act === 'create') { fill = col.accent; a = 1; } else if (act === 'update' || act === 'replace') { fill = col.change; a = 1; } else if (act === 'delete') { fill = col.conflict; a = 1; } else if (it.n.drifted || it.n.gone) { fill = col.change; a = 0.9; }
+        if (it.n.overlap) { fill = col.overlap; a = 1; } else if (act === 'create') { fill = col.accent; a = 1; } else if (act === 'update' || act === 'replace') { fill = col.change; a = 1; } else if (act === 'delete') { fill = col.conflict; a = 1; } else if (it.n.drifted || it.n.gone) { fill = col.change; a = 0.9; }
       } else if (it) { fill = col.key; a = 0.85; }
       ctx.fillStyle = fill;
       ctx.globalAlpha = a;

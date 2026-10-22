@@ -214,7 +214,7 @@ changes.0: a: replace is not allowed:
 planfile "-auto-approve" is not a usable value: it is empty or begins with "-"
 ```
 
-The server appends `--policy` to its `pravo_plan` and `pravo_apply_plan` calls and to no other, because no other command takes it. A tool argument cannot remove it. The server applies only from saved plan files. It refuses an `addr`, `addrs`, `types`, `expression` or `planfile` that is empty or begins with `-`, with or without `--policy`. Its instructions to the agent give the order of work and say to treat a refusal as a decision by the operators.
+The server appends `--policy` to its `pravo_plan` and `pravo_apply_plan` calls and to no other, because no other command takes it. A tool argument cannot remove it. The server applies only from saved plan files, and refuses the id of a plan stored in the state. It refuses an `addr`, `addrs`, `types`, `expression` or `planfile` that is empty or begins with `-`, with or without `--policy`. Its instructions to the agent give the order of work and say to treat a refusal as a decision by the operators.
 
 The tools take the options of the commands that a scheduled job uses. `pravo_plan` takes `refresh` (`age`, `expired`, `false` or `all`) and `include_skipped`, which adds the nodes the plan left alone to the document. `pravo_drift` takes `due` and `limit`, the sweep of [CI](ci.md) that reads the oldest records past their refresh age.
 

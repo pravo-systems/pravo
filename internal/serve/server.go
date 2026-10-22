@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -60,6 +61,10 @@ type Options struct {
 	SysTags bool
 	// PlanFile is a saved plan to show on top of the graph, "" for none.
 	PlanFile string
+	// PlanID is the id, or the beginning of the id, of a plan stored in the state
+	// to show on top of the graph, "" for none. It excludes PlanFile. The page can
+	// show any other stored plan in its place.
+	PlanID string
 	// Version is the version of the pravo binary.
 	Version string
 	// OpenState opens the state for reading. It must not create or change
@@ -116,6 +121,9 @@ func New(opts Options) (*Server, error) {
 	if opts.Dir == "" {
 		return nil, errors.New("serve: no project directory")
 	}
+	if opts.PlanFile != "" && opts.PlanID != "" {
+		return nil, errors.New("serve: a plan file and a stored plan cannot both be shown")
+	}
 	if opts.OpenState == nil {
 		opts.OpenState = OpenReadOnly
 	}
@@ -134,8 +142,14 @@ func New(opts Options) (*Server, error) {
 	}
 	s := &Server{opts: opts, token: opts.Token, schemas: newCacheStore(), hosts: map[string]bool{}, stop: make(chan struct{})}
 	s.watch = newWatcher(opts.Poll, opts.Dir, opts.PlanFile)
-	if _, err := s.current(); err != nil {
+	m, err := s.current()
+	if err != nil {
 		return nil, err
+	}
+	// A plan that is named and cannot be found is told at once, as a plan file that
+	// cannot be read is: the page would show the state alone and a warning.
+	if opts.PlanID != "" && m.plan != nil && m.plan.failed {
+		return nil, m.plan.err
 	}
 	return s, nil
 }
@@ -365,7 +379,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/events":
 		s.events(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/plans", "/api/plan":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -380,11 +394,22 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusOK, m.graphJSON)
 	case "/api/detail":
 		if mn := s.node(w, r, m); mn != nil {
-			writeJSON(w, http.StatusOK, m.detail(mn))
+			if po, ok := s.planOf(w, r, m); ok {
+				writeJSON(w, http.StatusOK, m.detailFor(mn, po))
+			}
 		}
 	case "/api/source":
 		if mn := s.node(w, r, m); mn != nil {
-			writeJSON(w, http.StatusOK, m.source(mn))
+			if po, ok := s.planOf(w, r, m); ok {
+				writeJSON(w, http.StatusOK, m.sourceFor(mn, po))
+			}
+		}
+	case "/api/plans":
+		writeJSON(w, http.StatusOK, m.planList())
+	case "/api/plan":
+		id := r.URL.Query().Get("id")
+		if po, ok := s.storedPlan(w, r, m, id); ok {
+			writeJSON(w, http.StatusOK, m.planOverlayDoc(po))
 		}
 	case "/api/search":
 		q := r.URL.Query().Get("q")
@@ -409,6 +434,40 @@ func (s *Server) node(w http.ResponseWriter, r *http.Request, m *model) *mnode {
 		return nil
 	}
 	return mn
+}
+
+// planOf finds the plan a request is about: the one that plan=ID names, no plan
+// at all for plan=none, else the plan that is laid over the graph.
+func (s *Server) planOf(w http.ResponseWriter, r *http.Request, m *model) (*planOverlay, bool) {
+	if !r.URL.Query().Has("plan") {
+		return m.plan, true
+	}
+	id := r.URL.Query().Get("plan")
+	if id == "none" {
+		return nil, true
+	}
+	return s.storedPlan(w, r, m, id)
+}
+
+// storedPlan finds the overlay of the stored plan with the id. The id is looked
+// up among the plans that the model lists, and is never used as a path. An id
+// that begins another is not taken for it: the page has the whole id from the
+// listing.
+func (s *Server) storedPlan(w http.ResponseWriter, r *http.Request, m *model, id string) (*planOverlay, bool) {
+	if id == "" || len(id) > 80 || !engine.IsPlanID(id) {
+		writeError(w, http.StatusBadRequest, "id is required: the id of a stored plan, such as plan-2f9c1a4e")
+		return nil, false
+	}
+	po, err := m.overlayOf(r.Context(), id)
+	switch {
+	case errors.Is(err, errNoSuchPlan):
+		writeError(w, http.StatusNotFound, "no such stored plan")
+		return nil, false
+	case err != nil:
+		writeError(w, http.StatusServiceUnavailable, "the plan cannot be read: "+err.Error())
+		return nil, false
+	}
+	return po, true
 }
 
 // events streams a "change" event whenever the revision changes. The first event
@@ -567,7 +626,9 @@ func (s *Server) build() (*model, error) {
 	if local == "" {
 		s.watch.setState("", store.Backend())
 	}
-	return s.newModel(ctx, rev, ss, store, root), nil
+	m := s.newModel(ctx, rev, ss, store, root)
+	s.watch.setPlanExpiry(m.stored.nextExpiry())
+	return m, nil
 }
 
 // stateRoot returns the root that says where the state is: the specification,

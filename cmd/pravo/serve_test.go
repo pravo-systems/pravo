@@ -12,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/serve"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // serveInfo is what "pravo serve --json" prints.
@@ -283,5 +285,80 @@ func TestServeFlags(t *testing.T) {
 	// Nothing was made in a directory with a specification and no state.
 	if _, err := os.Stat(filepath.Join(dir, "pravo.state")); err == nil {
 		t.Errorf("pravo serve made a state")
+	}
+}
+
+// storeTestPlan puts a plan in the state of dir, the way "pravo plan --store"
+// does, with one change that no provider of the root can decode: the viewer then
+// shows its actions and counts and warns that it cannot show the values.
+func storeTestPlan(t *testing.T, dir, author string, created time.Time) string {
+	t.Helper()
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, _ := json.Marshal(map[string]any{
+		"format": 1, "created": created.UTC(), "lineage": st.Lineage(), "config_fingerprint": "x", "actor": author,
+		"providers": map[string]string{},
+		"changes":   []map[string]any{{"addr": "size", "mode": "managed", "type": "null_resource", "name": "size", "action": "create", "provider_key": "null", "prior_revision": 0}},
+	})
+	meta := &engine.PlanMeta{Format: engine.PlanMetaFormat, Created: created.UTC(), Expires: created.Add(engine.DefaultPlanTTL).UTC(), Author: author, Lineage: st.Lineage(),
+		Summary: engine.PlanCounts{Add: 1}, Bases: map[string]engine.PlanBase{"size": {}}, Changes: []engine.PlanTouch{{Addr: "size", Mode: "managed", Type: "null_resource", Action: engine.ActionCreate}}}
+	if err := engine.NewPlanStore(st.Backend()).Put(context.Background(), doc, meta); err != nil {
+		t.Fatal(err)
+	}
+	return meta.ID
+}
+
+// pravo serve --plan ID: a plan stored in the state is the plan of the page, a
+// file of that name wins, an id that nothing stores is an error, and the page
+// lists the stored plans whether or not one was named.
+func TestServeAStoredPlan(t *testing.T) {
+	dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n"})
+	ana := storeTestPlan(t, dir, "ana@acme", time.Now().Add(-time.Hour))
+	ben := storeTestPlan(t, dir, "ben@acme", time.Now())
+
+	info, stop := runServe(t, dir, "--plan", ana[:len("plan-")+6])
+	var g serve.Graph
+	if err := json.Unmarshal(fetch(t, info, "/api/graph"), &g); err != nil {
+		t.Fatal(err)
+	}
+	if g.Plan == nil || g.Plan.ID != ana || g.Plan.File != ana || g.Plan.Actor != "ana@acme" || g.Plan.Status != "pending" || g.Plan.Summary.Add != 1 {
+		t.Fatalf("plan %+v", g.Plan)
+	}
+	var l serve.PlanList
+	if err := json.Unmarshal(fetch(t, info, "/api/plans"), &l); err != nil {
+		t.Fatal(err)
+	}
+	if len(l.Plans) != 2 || l.Plans[0].ID != ben || l.Plans[1].ID != ana || l.Plans[1].Apply != "pravo apply "+ana || l.Revision != g.Revision {
+		t.Errorf("plans %+v", l)
+	}
+	var o serve.PlanOverlay
+	if err := json.Unmarshal(fetch(t, info, "/api/plan?id="+ben), &o); err != nil || o.Plan.ID != ben || o.Plan.Actor != "ben@acme" {
+		t.Errorf("overlay %+v %v", o.Plan, err)
+	}
+	if err := stop(); err != nil {
+		t.Errorf("pravo serve returned %v", err)
+	}
+
+	// Without --plan the page lists the stored plans and lays none over the graph.
+	info, _ = runServe(t, dir)
+	g = serve.Graph{}
+	json.Unmarshal(fetch(t, info, "/api/graph"), &g)
+	l = serve.PlanList{}
+	json.Unmarshal(fetch(t, info, "/api/plans"), &l)
+	if g.Plan != nil || len(l.Plans) != 2 {
+		t.Errorf("without --plan: plan %+v, %d stored plans", g.Plan, len(l.Plans))
+	}
+
+	if text, code := runPravo(t, dir, "serve", "--plan", "plan-ffffff", "--no-open"); code != 1 || !strings.Contains(text, "no such stored plan") {
+		t.Errorf("an id that nothing stores: exit %d %s", code, text)
+	}
+	// A file with the form of an id is a plan file, as it is for pravo apply.
+	if err := os.WriteFile(filepath.Join(dir, ana), []byte("not a plan"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if text, code := runPravo(t, dir, "serve", "--plan", ana, "--no-open"); code != 1 || !strings.Contains(text, "not a pravo plan file") {
+		t.Errorf("a file that has the name of an id: exit %d %s", code, text)
 	}
 }

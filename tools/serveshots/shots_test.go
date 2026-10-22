@@ -20,10 +20,12 @@ func TestFragmentString(t *testing.T) {
 		{"keeps dots, dashes and underscores", Fragment{Sel: "eu.prod-1.n_04"}, "/?sel=eu.prod-1.n_04"},
 		{"palette", Fragment{Palette: true, PQ: "api key", Help: true}, "/?palette=1&pq=api%20key&help=1"},
 		{"a cluster", Fragment{Expand: []string{"c:eu.prod.nodes|managed|null_resource"}}, "/?expand=c%3Aeu.prod.nodes%7Cmanaged%7Cnull_resource"},
+		{"a stored plan", Fragment{Sel: "a", Plan: "plan-2f9c1a4e", Motion: "off"}, "/?sel=a&plan=plan-2f9c1a4e&motion=off"},
+		{"the plan of an actor", Fragment{Plan: "@ana"}, "/?plan=%40ana"},
 		{"all", Fragment{
 			Sel: "a", Tab: "change", Collapse: []string{"x"}, Expand: []string{"y"}, Theme: "light",
-			Q: "k", Filter: "plan", View: "tree", Motion: "off", Zoom: "fit",
-		}, "/?sel=a&tab=change&collapse=x&expand=y&theme=light&q=k&filter=plan&view=tree&motion=off&zoom=fit"},
+			Q: "k", Filter: "plan", Plan: "plan-2f9c1a4e", View: "tree", Motion: "off", Zoom: "fit",
+		}, "/?sel=a&tab=change&collapse=x&expand=y&theme=light&q=k&filter=plan&plan=plan-2f9c1a4e&view=tree&motion=off&zoom=fit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -35,13 +37,15 @@ func TestFragmentString(t *testing.T) {
 }
 
 func TestFragmentValidate(t *testing.T) {
-	ok := []Fragment{{}, {Tab: "state", Theme: "dark", Filter: "drifted", View: "tree", Zoom: "fit", Motion: "off"}}
+	ok := []Fragment{{}, {Tab: "state", Theme: "dark", Filter: "drifted", View: "tree", Zoom: "fit", Motion: "off"},
+		{Plan: "plan-2f9c1a4e"}, {Plan: "none"}, {Plan: "@ana"}}
 	for _, f := range ok {
 		if err := f.validate(); err != nil {
 			t.Errorf("%+v: %v", f, err)
 		}
 	}
-	bad := []Fragment{{Tab: "files"}, {Theme: "sepia"}, {Filter: "all"}, {View: "list"}, {Zoom: "100"}, {Motion: "on"}}
+	bad := []Fragment{{Tab: "files"}, {Theme: "sepia"}, {Filter: "all"}, {View: "list"}, {Zoom: "100"}, {Motion: "on"},
+		{Plan: "2f9c1a4e"}, {Plan: "plan-xyz"}, {Plan: "@"}, {Plan: "@Ana"}}
 	for _, f := range bad {
 		if err := f.validate(); err == nil {
 			t.Errorf("%+v: no error", f)
@@ -58,6 +62,8 @@ var wantShots = []string{
 	"clusters-dark",
 	"source-dark", "source-light",
 	"plan-dark", "plan-light",
+	"plans-dark", "plans-light",
+	"plan-expired-dark",
 	"drift-dark",
 	"sensitive-dark",
 	"palette-dark",
@@ -137,8 +143,8 @@ func TestThemePairsShowTheSameView(t *testing.T) {
 			t.Errorf("%s and %s differ in more than the theme", name, base+"-light")
 		}
 	}
-	if pairs != 4 {
-		t.Errorf("%d pairs of dark and light shots, want 4", pairs)
+	if pairs != 5 {
+		t.Errorf("%d pairs of dark and light shots, want 5", pairs)
 	}
 }
 
@@ -149,9 +155,37 @@ func TestShotsUseKnownScenarios(t *testing.T) {
 			t.Errorf("%s: unknown scenario %q", s.Name, s.Scenario)
 			continue
 		}
-		if s.Situation != situationClean && !sc.hasChanges() {
-			t.Errorf("%s: %s has no changes for the situation %s", s.Name, s.Scenario, s.Situation)
+		switch s.Situation {
+		case situationClean:
+		case situationStored:
+			if !sc.hasStored() {
+				t.Errorf("%s: %s has no stored plans for the situation %s", s.Name, s.Scenario, s.Situation)
+			}
+		default:
+			if !sc.hasChanges() {
+				t.Errorf("%s: %s has no changes for the situation %s", s.Name, s.Scenario, s.Situation)
+			}
 		}
+	}
+}
+
+// The plan of an actor is named in the fragment as @ACTOR, and the id of the plan
+// that the actor stored takes its place when the address is made.
+func TestResolvePlans(t *testing.T) {
+	ids := map[string]string{"ana": "plan-2f9c1a4e", "ben": "plan-7b04d1c9"}
+	for in, want := range map[string]string{
+		"#/?plan=%40ana&motion=off":            "#/?plan=plan-2f9c1a4e&motion=off",
+		"#/?sel=a&plan=%40ben":                 "#/?sel=a&plan=plan-7b04d1c9",
+		"#/?sel=a&plan=plan-2f9c1a4e&zoom=fit": "#/?sel=a&plan=plan-2f9c1a4e&zoom=fit",
+		"#/?sel=a":                             "#/?sel=a",
+	} {
+		got, err := resolvePlans(in, ids)
+		if err != nil || got != want {
+			t.Errorf("resolvePlans(%q) = %q, %v, want %q", in, got, err, want)
+		}
+	}
+	if _, err := resolvePlans("#/?plan=%40eve", ids); err == nil {
+		t.Error("an actor that made no plan: no error")
 	}
 }
 

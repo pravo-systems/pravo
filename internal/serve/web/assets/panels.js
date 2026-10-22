@@ -4,6 +4,7 @@
 import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, baseName, fmt } from './util.js';
 import { eachNode } from './model.js';
 import { codeWindow } from './ui.js';
+import { statusChip, facts, applyCommand } from './plans.js';
 import { withheld, unknownEl } from './values.js';
 import * as api from './api.js';
 
@@ -68,15 +69,19 @@ function overview(model) {
       tile(Math.max(0, model.modules.size - 1), model.modules.size - 1 === 1 ? 'module' : 'modules', ''),
       tile(c.drifted, 'drifted', c.drifted ? 'chg' : ''),
       tile(c.sensitive, 'secrets', c.sensitive ? 'lock' : '')),
-    h('p', { class: 'hint' }, 'No plan is loaded. Start the viewer with ', h('code', null, '--plan FILE'), ' to see what a plan changes.'));
+    model.plans.length
+      ? h('p', { class: 'hint' }, 'No plan is laid over the graph. Pick one of the stored plans in the list to see what it changes.')
+      : h('p', { class: 'hint' }, 'No plan is loaded. Start the viewer with ', h('code', null, '--plan FILE'), ' to see what a plan changes.'));
 }
 
 function planSection(ins, plan, model) {
   const c = plan.summary || {};
   const tile = (n, label, cls) => h('div', { class: 'tile ' + cls + (n ? '' : ' zero') }, num(n), h('span', { class: 'tlb' }, label));
   const notRead = plan.total - plan.planned;
+  const stored = !!plan.id;
+  const sp = stored ? model.planById.get(plan.id) : null; // what the list says of it: the reason, the command, when it expires
   return h('section', { class: 'sec plan' },
-    h('h3', { class: 'h' }, 'The plan'),
+    h('h3', { class: 'h' }, stored ? 'The stored plan' : 'The plan'),
     h('div', { class: 'planned' },
       h('span', { class: 'pl-big' }, num(plan.planned), h('span', { class: 'of' }, ' of '), h('span', { class: 'bn' }, fmt(plan.total))),
       h('span', { class: 'pl-sub' }, `resources planned${notRead ? ` · ${notRead} not read` : ''}`),
@@ -85,11 +90,14 @@ function planSection(ins, plan, model) {
       tile(c.add, 'add', 'ok'), tile(c.change, 'change', 'chg'), tile(c.destroy, 'destroy', 'bad'), tile(c.read, 'read', 'lock')),
     h('div', { class: 'plan-meta' },
       kv([
-        ['file', h('span', { class: 'mono-s' }, baseName(plan.file))],
-        ['created', stamp(plan.created) + (plan.actor ? ' · ' + plan.actor : '')],
+        stored ? ['plan', h('span', { class: 'mono-s' }, plan.id)] : ['file', h('span', { class: 'mono-s' }, baseName(plan.file))],
+        stored && plan.status ? ['status', statusChip(plan.status)] : null,
+        ...(sp ? facts(sp, model.planText) : [['created', stamp(plan.created) + (plan.actor ? ' · ' + plan.actor : '')]]),
         ['blast radius', plural(c.blast_radius || 0, 'resource')],
         plan.applied ? ['applied', `${plan.applied} of ${plan.planned}`] : null,
       ])),
+    // the page applies nothing: it gives the command, for a terminal
+    sp && sp.open ? h('div', { class: 'plan-apply' }, applyCommand(sp)) : null,
     plan.stale ? h('p', { class: 'note bad' }, icon('bang'), h('span', null, 'This plan is stale: ' + (plan.reasons || []).join('; '))) : null,
     (plan.hints || []).map((x) => h('p', { class: 'note' }, icon('bang'), h('span', null, x))));
 }

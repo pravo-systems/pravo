@@ -27,13 +27,24 @@ func tftypesFromJSON(attrs json.RawMessage, s *schema.Schema) (tftypes.Value, er
 // noArgs is the argument rule of a command that takes none: a stray word is an
 // error and not something to ignore. A flag whose value is optional takes it
 // only in the form -flag=value, so a value after a space ends up here; the
-// message says how to write it.
+// message says how to write it. A command that only groups subcommands says that
+// the word is not one of them.
 func noArgs(cmd *cobra.Command, args []string) error {
+	return rejectArgs(cmd, args, cmd.HasSubCommands())
+}
+
+// noArgsBesidesSubcommands is noArgs for a command that does its own work and has
+// subcommands too, like "plan": a word that is not a subcommand is a stray argument.
+func noArgsBesidesSubcommands(cmd *cobra.Command, args []string) error {
+	return rejectArgs(cmd, args, false)
+}
+
+func rejectArgs(cmd *cobra.Command, args []string, groups bool) error {
 	if len(args) == 0 {
 		return nil
 	}
 	path := cmd.CommandPath()
-	if cmd.HasSubCommands() {
+	if groups {
 		return fmt.Errorf("unknown command %q for %q; run \"%s -h\" for the commands", args[0], path, path)
 	}
 	err := fmt.Errorf("%s takes no arguments, but got %q", path, strings.Join(args, " "))
