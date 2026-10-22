@@ -65,7 +65,7 @@ A state has three formats.
 | 4 | A command is running or a lock is held. `protect init` and `protect check` do not run then, and neither does `rewrap --all`. `protect gc` collects the records and then exits with 4 without looking at the groups. |
 | 5 | You are not a reader of the state, your identity is not on the readers file, or the readers file and the state differ for a command that writes. For any other command that writes a sealed state, such as `state rm` or `apply`: the readers file is missing. |
 | 6 | The readers file is invalid, for `protect check`, `init` and `rewrap` and for a command that writes a sealed state. For `protect check`, `init` and `rewrap`: the readers file is missing. |
-| 7 | A record does not match its name. [Exit codes](exit-codes.md#7-untrusted) says what to do. |
+| 7 | A record does not match its name. `protect init` also stops with 7, before it writes anything, when the state says it is not sealed and a record in it is: `meta.json` was lowered or replaced by an older one. Put it back from a version of the bucket. [Exit codes](exit-codes.md#7-untrusted) says what to do. |
 
 ## The readers file
 

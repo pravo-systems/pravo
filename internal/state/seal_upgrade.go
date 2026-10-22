@@ -67,8 +67,13 @@ func (s *Store) upgradeSealed(ctx context.Context, o UpgradeOptions) (UpgradeRes
 		if s.Locked() {
 			return res, fmt.Errorf("the seal of the state at %s was begun by someone else, and identity %s is not one of its readers: %w", s.b.Name(), o.Identity.Name, ErrNotReader)
 		}
-	} else if err := s.beginSeal(o); err != nil {
-		return res, err
+	} else {
+		if err := s.refuseSealedRecords(ctx); err != nil {
+			return res, err
+		}
+		if err := s.beginSeal(o); err != nil {
+			return res, err
+		}
 	}
 
 	by := o.By
@@ -127,6 +132,84 @@ func (s *Store) upgradeSealed(ctx context.Context, o UpgradeOptions) (UpgradeRes
 		return nil
 	})
 	return res, err
+}
+
+// refuseSealedRecords stops a seal of a state whose records are sealed already.
+// That is a state whose meta.json was lowered or replaced by an older one: the
+// keys that open the records are in the meta.json that is gone, and beginSeal
+// would write new keys over what is left of it, after which nothing could open
+// them. It reads every record once, as the conversion does, before anything is
+// written.
+func (s *Store) refuseSealedRecords(ctx context.Context) error {
+	if s.Format() < FormatImmutable {
+		return nil // a record of format 1 is the whole record, never sealed
+	}
+	keys, err := s.b.List(s.ctx, "resources")
+	if err != nil {
+		return err
+	}
+	keys = jsonKeysOf(keys)
+	var (
+		mu       sync.Mutex
+		firstErr error
+		next     atomic.Int64
+		wg       sync.WaitGroup
+	)
+	width := convertWidthLocal
+	if !s.b.Local() {
+		width = convertWidthRemote
+	}
+	fail := func(err error) {
+		mu.Lock()
+		if firstErr == nil {
+			firstErr = err
+		}
+		mu.Unlock()
+	}
+	for w := 0; w < min(width, len(keys)); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				i := int(next.Add(1)) - 1
+				if i >= len(keys) || ctx.Err() != nil {
+					return
+				}
+				raw, err := s.b.Get(s.ctx, keys[i])
+				if errors.Is(err, ErrNotFound) {
+					continue
+				}
+				if err != nil {
+					fail(fmt.Errorf("reading %s: %w", keys[i], err))
+					return
+				}
+				p, isPtr, err := parsePointer(raw)
+				if err != nil || !isPtr {
+					continue // convertNode reports it
+				}
+				rec, err := s.b.Get(s.ctx, p.Record)
+				if errors.Is(err, ErrNotFound) {
+					continue
+				}
+				if err != nil {
+					fail(fmt.Errorf("reading %s: %w", p.Record, err))
+					return
+				}
+				var probe struct {
+					Sealed json.RawMessage `json:"sealed"`
+				}
+				if json.Unmarshal(rec, &probe) == nil && len(probe.Sealed) > 0 && string(probe.Sealed) != "null" {
+					fail(fmt.Errorf("%s names a sealed record, and meta.json says the state is not sealed: meta.json was changed, or replaced by an older one. Sealing would write new keys over what is left of it, and the sealed records could not be opened again. Nothing was written. Put meta.json back from a version of the bucket: %w", keys[i], ErrUntrusted))
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return firstErr
+	}
+	return ctx.Err()
 }
 
 // beginSeal makes the sealed part of meta.json and flips the store to format 3
