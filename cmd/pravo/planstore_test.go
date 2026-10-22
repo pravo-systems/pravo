@@ -799,3 +799,28 @@ func TestAnApplyTakesTheReasonOfThePlan(t *testing.T) {
 		t.Errorf("the log of the second apply:\n%s", text)
 	}
 }
+
+// A plan that holds a reservation says so in the list, and a plan that a collection holds is
+// not offered for applying.
+func TestListAndShowSayWhatStopsAPlan(t *testing.T) {
+	dir := localRoot(t, "")
+	id := storePlanAs(t, dir, "alice", "--reserve", "15m")
+	text, _ := runPravo(t, dir, "plan", "list")
+	if !regexp.MustCompile(id + `.*reserved until \d\d:\d\d`).MatchString(text) {
+		t.Errorf("list:\n%s", text)
+	}
+	progress := filepath.Join(dir, "pravo.state", "plans", id+".progress.json")
+	claim := `{"format":1,"id":"` + id + `","collecting":{"by":"other#1","at":"` + time.Now().UTC().Format(time.RFC3339) + `"},"updated":"` + time.Now().UTC().Format(time.RFC3339) + `"}`
+	if err := os.WriteFile(progress, []byte(claim), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// the JSON run comes first: a run with --json leaves the printer on the error stream for the test after it
+	text, _ = runPravo(t, dir, "--json", "plan", "show", id)
+	if !strings.Contains(text, `"being_collected": true`) {
+		t.Errorf("show --json:\n%s", text)
+	}
+	text, code := runPravo(t, dir, "plan", "show", id)
+	if code != 0 || strings.Contains(text, "apply:   pravo apply") || !strings.Contains(text, "a collection is removing this plan") {
+		t.Errorf("show: exit %d:\n%s", code, text)
+	}
+}

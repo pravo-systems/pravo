@@ -159,7 +159,7 @@ pravo plan --store --actor ana --reason "move orders to port 9082"
 pravo serve
 ```
 
-The sidebar has a section, Plans, when the state holds a plan. Each row is one plan, newest first: the initials of the author, the id, the status, the author, the age and the counts of resources to add, change and destroy. Pending lists the plans that can be applied. A mark of two rings on a row says that another plan changes one of the same resources.
+The sidebar has a section, Plans, when the state holds a plan. Each row is one plan, newest first: the initials of the author, the note that the author wrote with the plan (`--reason`) as the title, or the id when there is none, the status, the author, the age, the id under a note, and the counts of resources to add, change and destroy. Pending lists the plans that can be applied. A mark of two rings on a row says that another plan changes one of the same resources.
 
 Click a row. The plan is laid over the graph, as a saved plan is in step 6. The graph shows its actions, the Change tab shows its attributes, and a bar above the graph names it. The row opens and shows the reason, what overlaps, and the command that applies the plan, with a button that copies it. A second click on the row, Esc in the list or the button in the bar takes the plan off the graph.
 

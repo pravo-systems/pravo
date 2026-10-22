@@ -67,12 +67,12 @@ export function counts(c, cls = '') {
 const countWords = (c) => [c.add && `${c.add} to add`, c.change && `${c.change} to change`, c.destroy && `${c.destroy} to destroy`].filter(Boolean).join(', ') || 'no changes';
 
 // describe is the label of a plan for a screen reader
-export function describe(p) {
-  const bits = [p.id, statusLabel(p.status), `by ${p.author}`, relTime(p.created), countWords(p.summary || {})];
+export function describe(p, reason) {
+  const bits = [reason || p.id, reason ? p.id : null, statusLabel(p.status), `by ${p.author}`, relTime(p.created), countWords(p.summary || {})];
   if (conflictCount(p)) bits.push(plural(conflictCount(p), 'change') + (conflictCount(p) === 1 ? ' conflicts' : ' conflict'));
   if ((p.overlaps || []).length) bits.push('overlaps ' + plural(p.overlaps.length, 'other plan'));
   if (p.applying) bits.push('an apply is running');
-  return bits.join(', ');
+  return bits.filter(Boolean).join(', ');
 }
 
 // the command that applies the plan, in the look of the other commands of the page; for a plan that is partly
@@ -123,7 +123,7 @@ export function facts(p, text) {
 export function detail(p, { onPlan, byId, text } = {}) {
   const body = [];
   text = text || {};
-  if (text.reason) body.push(h('p', { class: 'rp-reason', title: text.reason }, text.reason));
+  if (text.reason && text.reason.length > 60) body.push(h('p', { class: 'rp-reason', title: text.reason }, text.reason));
   if (p.applying) body.push(h('p', { class: 'rp-note chg' }, icon('hold'), h('span', null, 'An apply from this plan is running.')));
   if (p.applied && p.planned > 0) body.push(h('p', { class: 'rp-note' }, `${p.applied} of ${p.planned} changes applied.`));
   if ((p.reasons || []).length) {
@@ -187,7 +187,7 @@ export class Plans {
     const at = root.contains(document.activeElement) ? document.activeElement.dataset : null;
     const focus = at && (at.id ? ['id', at.id] : at.filter ? ['filter', at.filter] : at.fk ? ['fk', at.fk] : null);
     const seg = (key, label, n) => h('button', { type: 'button', 'aria-pressed': String(mode === key), data: { filter: key }, 'data-tip': key === 'pending' ? 'Plans that can still be applied' : 'Every plan in the state, applied and expired too' }, label, h('em', null, String(n)));
-    const rows = shown.map((p, i) => this.row(p, p.id === sel, sel ? p.id === sel : i === 0));
+    const rows = shown.map((p, i) => this.row(p, p.id === sel, sel ? p.id === sel : i === 0, (s.reasons && s.reasons.get(p.id)) || ""));
     const list = h('div', { class: 'rp-list', role: 'group', 'aria-label': 'Stored plans' }, rows);
     if (!shown.length) {
       list.append(h('p', { class: 'rp-none' }, 'No plan can be applied. ', h('button', { class: 'linkbtn', type: 'button', data: { showall: '1' } }, `Show all ${plans.length}`)));
@@ -209,13 +209,16 @@ export class Plans {
     if (focus) { const el = root.querySelector(`[data-${focus[0]}="${CSS.escape(focus[1])}"]`); if (el) el.focus({ preventScroll: true }); }
   }
 
-  row(p, on, tab) {
+  // The title of a row is what the author wrote with the plan, which says more to a person than the id; the id is
+  // the title of a plan that has no note, and the line under the title of one that has.
+  row(p, on, tab, reason) {
     const overlaps = (p.overlaps || []).length;
-    return h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (on ? ' sel' : ''), type: 'button', 'aria-pressed': String(on), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p) },
+    return h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (on ? ' sel' : ''), type: 'button', 'aria-pressed': String(on), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) },
       avatar(p.author),
       h('span', { class: 'rp-main' },
-        h('span', { class: 'rp-l1' }, h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null, statusChip(p.status)),
-        h('span', { class: 'rp-l2' }, h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(p.summary || {}))));
+        h('span', { class: 'rp-l1' }, reason ? h('span', { class: 'rp-title', title: reason }, reason) : h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null, statusChip(p.status)),
+        h('span', { class: 'rp-l2' }, h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(p.summary || {})),
+        reason ? h('code', { class: 'rp-l3' }, p.id) : null));
   }
 
   onKey(ev) {

@@ -280,8 +280,35 @@ function diffPlans(before, after) {
   return { added, removed, moved };
 }
 
+// The notes of the plans, for the titles of the rows. A note is text that a person wrote, and the server masks it with
+// the secrets of its own plan, so it comes with the overlay of the plan, which is asked for a few at a time and kept:
+// a plan does not change.
+const reasons = new Map();
+let reasonsAsked = false;
+async function loadReasons() {
+  if (reasonsAsked) return;
+  const want = S.plans.filter((p) => !reasons.has(p.id)).slice(0, 40).map((p) => p.id);
+  if (!want.length) return;
+  reasonsAsked = true;
+  for (const id of want) reasons.set(id, '');
+  let drawn = false;
+  const draw = () => { if (drawn) return; drawn = true; requestAnimationFrame(() => { drawn = false; renderPlans(); }); };
+  const worker = async () => {
+    while (want.length) {
+      const id = want.shift();
+      try { const o = await api.plan(id); if (o && o.reason) { reasons.set(id, String(o.reason).replace(/\s+/g, ' ').trim()); draw(); } } catch (err) { /* the title stays the id */ }
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  reasonsAsked = false;
+  if (S.plans.some((p) => !reasons.has(p.id))) loadReasons();
+}
+
 function renderPlans() {
-  plansList.render({ plans: S.plans, sel: S.plan, text: planText() });
+  const text = planText();
+  if (text && text.reason) reasons.set(text.plan.id, String(text.reason).replace(/\s+/g, ' ').trim());
+  plansList.render({ plans: S.plans, sel: S.plan, text, reasons });
+  loadReasons();
   const p = S.plan && S.plans.find((x) => x.id === S.plan);
   planBar($('planbar'), p, {
     onClear: () => selectPlan(null),

@@ -89,11 +89,13 @@ const staleModelFor = 5 * time.Second
 // nothing: it reads the specification, the state and a plan file, builds a model
 // of them for each revision, and serves it.
 type Server struct {
-	opts    Options
-	token   string
-	cookie  string
-	schemas *cacheStore
-	watch   *watcher
+	// planMeta keeps the summaries of the stored plans between the models.
+	planMeta *engine.PlanMetaCache
+	opts     Options
+	token    string
+	cookie   string
+	schemas  *cacheStore
+	watch    *watcher
 
 	// buildMu orders the builds of models, and guards spec, plan and failedAt.
 	buildMu     sync.Mutex
@@ -140,7 +142,7 @@ func New(opts Options) (*Server, error) {
 		}
 		opts.Token = hex.EncodeToString(b[:])
 	}
-	s := &Server{opts: opts, token: opts.Token, schemas: newCacheStore(), hosts: map[string]bool{}, stop: make(chan struct{})}
+	s := &Server{opts: opts, planMeta: engine.NewPlanMetaCache(), token: opts.Token, schemas: newCacheStore(), hosts: map[string]bool{}, stop: make(chan struct{})}
 	s.watch = newWatcher(opts.Poll, opts.Dir, opts.PlanFile)
 	m, err := s.current()
 	if err != nil {

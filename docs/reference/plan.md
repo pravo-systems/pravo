@@ -466,7 +466,7 @@ A plan that is not stored has no `stored` field.
 
 ### Overlapping plans
 
-pravo compares a plan with the plans that can still be applied, and warns when they change the same resources. The warning names each resource once, and leaves out a change that the other plan has applied already and a change that a partly stale plan cannot apply. The warning informs and blocks nothing. A plan that is not stored warns too. `plan list --touching` counts a change in the same way.
+pravo compares a plan with the plans that can still be applied, and warns when they change the same resources. The warning names each resource once, and leaves out a change that the other plan has applied already and a change that a partly stale plan cannot apply. A move changes the address that it takes the record from, so a plan that changes that address overlaps with it. A plan that only reads a record is made stale by the plan that changes it, and the warning says so in each direction: `changes X, which this plan reads` and `reads X, which this plan changes`. The warning informs and blocks nothing. A plan that is not stored warns too. `plan list` ends the note of a plan that holds a reservation with `reserved until HH:MM`. `plan list --touching` counts a change in the same way.
 
 ```sh run
 pravo plan --actor carol | tail -n 2
@@ -593,7 +593,7 @@ Error: no such stored plan: plan-000000 (see: pravo plan list --all)
 | `--older-than DURATION` is given | It was not applied and was made longer ago than `DURATION`, stale or not. |
 | Its objects are not whole | One hour after it was written: the plan was not stored whole. |
 
-A plan is never removed while an apply from it runs (a claim that lapses after 24 hours), while another collection removes it (a claim that lapses after 10 minutes), or while it holds a reservation that has not ended. `plan gc` lists such a plan under `Kept`. Only the objects below `plans/` that have the names of plan objects are removed, and an object only if it is what its name says it is.
+A plan is never removed while an apply from it runs (a claim that the apply renews every 30 minutes, and that lapses after 24 hours when nothing renews it), while another collection removes it (a claim that lapses after 10 minutes until the collection commits to the removal, and then keeps every apply out, so that a collection that is slow, or whose clock differs, cannot remove a plan that an apply has begun on), or while it holds a reservation that has not ended. `plan gc` lists such a plan under `Kept`. Only the objects below `plans/` that have the names of plan objects are removed, and an object only if it is what its name says it is.
 
 A summary that exists and cannot be read, because a newer pravo wrote it, because it is damaged or because the read failed, leaves the plan alone: it is never removed. A progress object that cannot be parsed is made empty by a collection once the plan is older than one hour, so that the plan can be listed and applied again. The small collection of `--store` never removes the plan that it has just stored. A collection lists a plan as removed only when it removed it. `plan gc` in a project whose state does not exist makes no state.
 

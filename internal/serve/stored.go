@@ -49,6 +49,9 @@ type storedPlans struct {
 	// touched maps the id of each plan to the addresses that it still has a change
 	// to apply on, once each, in the order of its summary.
 	touched map[string][]string
+	// lapse is when the first claim on a plan lapses: a plan that a collector hid
+	// shows again, an apply that left its claim stops counting as running.
+	lapse time.Time
 
 	listOnce sync.Once
 	list     *PlanList
@@ -63,13 +66,17 @@ type storedPlans struct {
 func (s *Server) loadStored(ctx context.Context, m *model) *storedPlans {
 	sp := &storedPlans{srv: s, byID: map[string]*engine.PlanEntry{}, overlays: map[string]*planOverlay{}, touched: map[string][]string{}}
 	sp.ps = engine.NewPlanStore(m.store.Backend())
-	entries, skipped, err := sp.ps.EntriesAndSkipped(ctx, engine.PlanCheckFor(m.store))
+	// The summaries are written once: a rebuild of the model reads them again only
+	// for a plan it has not seen, and forgets the ones that were collected.
+	sp.ps.Cache = s.planMeta
+	listing, err := sp.ps.List(ctx, engine.PlanCheckFor(m.store))
 	if err != nil {
 		sp.err = err
 		return sp
 	}
-	sp.skipped = skipped
-	for _, e := range entries {
+	sp.skipped = listing.Skipped
+	sp.lapse = listing.NextLapse()
+	for _, e := range listing.Entries {
 		// An id that the summary says is not taken on trust: it ends in a command
 		// that a person copies and in the name of an object that is read.
 		if id := e.Meta.ID; !engine.IsPlanID(id) || sp.byID[id] != nil {
@@ -155,7 +162,7 @@ func (sp *storedPlans) readFile(ctx context.Context, id string) (*engine.PlanFil
 	return pf, err
 }
 
-// nextExpiry is when the first of the plans that can still be applied (a partly
+// nextExpiry is when the first claim on a plan lapses, or when the first of the plans that can still be applied (a partly
 // stale one too), or that went stale, expires, or the zero time. A plan that
 // passes its expiry is expired without anything being written, so the watcher
 // counts that moment as a change.
@@ -165,6 +172,9 @@ func (sp *storedPlans) nextExpiry() time.Time {
 		if (e.Status.Open() || e.Status == engine.PlanStale) && (next.IsZero() || e.Meta.Expires.Before(next)) {
 			next = e.Meta.Expires
 		}
+	}
+	if !sp.lapse.IsZero() && (next.IsZero() || sp.lapse.Before(next)) {
+		next = sp.lapse
 	}
 	return next
 }

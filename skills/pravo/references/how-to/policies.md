@@ -430,7 +430,7 @@ Output:
 ```text
 <txn>  apply    applied   <date> <time> <took>
     pravo -C root apply change.plan --actor ci --policy ../policy/plan.cue
-    actor ci
+    actor ci  add extra
 ```
 
 The log is evidence and prevents nothing. It is as writable as the state. Under a policy an apply is of a saved plan, and a plain apply is refused:

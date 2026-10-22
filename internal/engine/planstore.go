@@ -71,7 +71,79 @@ var (
 	// ErrPlanRemoving is returned when a plan is being removed by a collector.
 	ErrPlanRemoving = errors.New("the plan is being removed")
 	errSkip         = errors.New("skip")
+	// ErrTooLarge is returned for an object of a stored plan that is larger than
+	// what is read of it. It is wrapped with the id, the kind and the size.
+	ErrTooLarge = errors.New("a stored plan object is too large")
 )
+
+// What is read of one stored plan. The objects are written by whoever can write
+// to the state, so what a reader takes in, and decodes, is bounded: a larger
+// object is refused with ErrTooLarge. The size is known once the object is
+// read, so the bytes were transferred once; they are not decoded or kept.
+const (
+	// MaxPlanMetaBytes bounds the summary of a plan.
+	MaxPlanMetaBytes = 8 << 20
+	// MaxPlanProgressBytes bounds the progress object of a plan.
+	MaxPlanProgressBytes = 1 << 20
+	// MaxPlanFileBytes bounds the plan itself.
+	MaxPlanFileBytes = 256 << 20
+)
+
+func tooLarge(kind, id string, size, limit int) error {
+	return fmt.Errorf("%w: the %s of %s is %d bytes, and at most %d are read", ErrTooLarge, kind, id, size, limit)
+}
+
+// PlanMetaCache keeps the summaries that a PlanStore has read, by plan id. A
+// summary is written once and never changed, so a listing that is made again
+// need not read and decode it again; the progress, which is replaced, is read
+// each time. A summary that is refused or cannot be decoded is kept as the
+// error, for the same reason. An error of the backend is not kept. The cache is
+// of use to one reader that lists the state again and again, as the viewer does;
+// it assumes that an id is not stored again with another summary while it is
+// listed.
+type PlanMetaCache struct {
+	mu sync.Mutex
+	m  map[string]metaResult
+}
+
+type metaResult struct {
+	meta *PlanMeta
+	err  error
+}
+
+// NewPlanMetaCache returns an empty cache.
+func NewPlanMetaCache() *PlanMetaCache { return &PlanMetaCache{m: map[string]metaResult{}} }
+
+// Len is the number of summaries held.
+func (c *PlanMetaCache) Len() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.m)
+}
+
+func (c *PlanMetaCache) get(id string) (metaResult, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	r, ok := c.m[id]
+	return r, ok
+}
+
+func (c *PlanMetaCache) put(id string, r metaResult) {
+	c.mu.Lock()
+	c.m[id] = r
+	c.mu.Unlock()
+}
+
+// retain forgets the ids that the listing did not show a summary for.
+func (c *PlanMetaCache) retain(all map[string]map[string]bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for id := range c.m {
+		if !all[id]["meta"] {
+			delete(c.m, id)
+		}
+	}
+}
 
 // PlanCounts is the number of actions of a plan, as the plan prints them.
 type PlanCounts struct {
@@ -83,7 +155,9 @@ type PlanCounts struct {
 
 // PlanTouch is a change of a stored plan: what it does to which resource.
 type PlanTouch struct {
-	Addr   string `json:"addr"`
+	Addr string `json:"addr"`
+	// From is the address that a move takes the record from: the plan changes that resource too.
+	From   string `json:"from,omitempty"`
 	Mode   string `json:"mode,omitempty"`
 	Type   string `json:"type,omitempty"`
 	Action Action `json:"action"`
@@ -165,6 +239,24 @@ func shellWord(s string) string {
 type PlanClaim struct {
 	By string    `json:"by"`
 	At time.Time `json:"at"`
+	// Committed is set on the claim of a collector in a write that only succeeds while
+	// the claim is its own and no apply runs, just before it deletes. An apply from the
+	// plan is refused from then on, whatever the clocks say: the plan is going. A
+	// claim that is not committed lapses after claimTimeout.
+	Committed bool `json:"committed,omitempty"`
+}
+
+// holds reports whether the claim of a collector keeps an apply from using the plan at
+// now: a committed claim always does, the others for claimTimeout.
+func (c *PlanClaim) holds(now time.Time) bool {
+	return c != nil && (c.Committed || now.Sub(c.At) < claimTimeout)
+}
+
+// adoptable reports whether a collector may finish the removal that another began: the
+// claim is committed, and has not been renewed for claimTimeout, so that collector is
+// gone.
+func (c *PlanClaim) adoptable(now time.Time) bool {
+	return c != nil && c.Committed && now.Sub(c.At) >= claimTimeout
 }
 
 // PlanProgress is what happened to a plan after it was stored.
@@ -375,6 +467,9 @@ type PlanStore struct {
 	B state.Backend
 	// Now is the clock; tests set it.
 	Now func() time.Time
+	// Cache, when set, keeps the summaries that a listing reads (see
+	// PlanMetaCache). The summaries it returns are shared: they are not to be changed.
+	Cache *PlanMetaCache
 }
 
 // NewPlanStore returns the plan store of a state backend.
@@ -450,7 +545,7 @@ func newPlanMeta(pf *PlanFile, author string, ttl time.Duration, size int) *Plan
 			touches = false
 		}
 		if touches {
-			m.Changes = append(m.Changes, PlanTouch{Addr: sc.Addr, Mode: sc.Mode, Type: sc.Type, Action: sc.Action})
+			m.Changes = append(m.Changes, PlanTouch{Addr: sc.Addr, From: sc.MovedFrom, Mode: sc.Mode, Type: sc.Type, Action: sc.Action})
 			touched[sc.Addr] = true
 		}
 		if sc.Applied || sc.Skipped || sc.Kept || sc.Action == ActionMove {
@@ -634,6 +729,14 @@ func (ps *PlanStore) Meta(ctx context.Context, id string) (*PlanMeta, error) {
 	if err != nil {
 		return nil, err
 	}
+	return decodeMeta(id, data)
+}
+
+// decodeMeta decodes and checks the summary of a plan.
+func decodeMeta(id string, data []byte) (*PlanMeta, error) {
+	if len(data) > MaxPlanMetaBytes {
+		return nil, tooLarge("summary", id, len(data), MaxPlanMetaBytes)
+	}
 	var m PlanMeta
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, fmt.Errorf("the summary of %s is not readable: %w", id, err)
@@ -659,6 +762,9 @@ func (ps *PlanStore) Progress(ctx context.Context, id string) (*PlanProgress, er
 	if err != nil {
 		return nil, err
 	}
+	if len(data) > MaxPlanProgressBytes {
+		return nil, tooLarge("progress", id, len(data), MaxPlanProgressBytes)
+	}
 	var p PlanProgress
 	if err := json.Unmarshal(data, &p); err != nil {
 		return nil, fmt.Errorf("the progress of %s is not readable: %w", id, err)
@@ -676,6 +782,9 @@ func (ps *PlanStore) ReadFile(ctx context.Context, id string) (*PlanFile, *PlanP
 	}
 	if err != nil {
 		return nil, nil, err
+	}
+	if len(data) > MaxPlanFileBytes {
+		return nil, nil, tooLarge("plan", id, len(data), MaxPlanFileBytes)
 	}
 	pf, err := parsePlanFile(id, data)
 	if err != nil {
@@ -788,7 +897,7 @@ func (ps *PlanStore) updateProgress(ctx context.Context, id string, edit func(p 
 func (ps *PlanStore) BeginApply(ctx context.Context, id, owner string) error {
 	now := ps.now()
 	err := ps.updateProgress(ctx, id, func(p *PlanProgress) error {
-		if p.Collecting != nil && now.Sub(p.Collecting.At) < claimTimeout {
+		if p.Collecting.holds(now) {
 			return ErrPlanRemoving
 		}
 		p.Collecting = nil
@@ -805,6 +914,47 @@ func (ps *PlanStore) BeginApply(ctx context.Context, id, owner string) error {
 		return fmt.Errorf("%w: a collection is removing %s; run \"pravo plan --store\" again", ErrPlanRemoving, id)
 	}
 	return err
+}
+
+// applyRenewEvery is how often a running apply renews its claim: a claim that is not renewed
+// lapses after applyingKeep, and an apply may run for longer than that.
+var applyRenewEvery = applyingKeep / 48
+
+// RenewApply moves the time of the claim of the apply of owner to now, so that an apply that
+// runs for a long time stays in use. It does nothing when the claim is gone.
+func (ps *PlanStore) RenewApply(ctx context.Context, id, owner string) {
+	now := ps.now()
+	_ = ps.updateProgress(ctx, id, func(p *PlanProgress) error {
+		for i := range p.Applying {
+			if p.Applying[i].By == owner {
+				p.Applying[i].At = now
+				return nil
+			}
+		}
+		return errSkip
+	})
+}
+
+// KeepApply renews the claim of the apply of owner while the apply runs, until the function
+// that it returns is called.
+func (ps *PlanStore) KeepApply(ctx context.Context, id, owner string) (stop func()) {
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		t := time.NewTicker(applyRenewEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				ps.RenewApply(ctx, id, owner)
+			}
+		}
+	}()
+	var once sync.Once
+	return func() { once.Do(func() { close(done) }); <-finished }
 }
 
 // EndApply says that the apply of the owner is over. It is best effort: a claim
@@ -858,6 +1008,26 @@ func (ps *PlanStore) MarkApplied(ctx context.Context, id string, addrs []string,
 	})
 }
 
+// cachedMeta is Meta through the cache of the store, if it has one.
+func (ps *PlanStore) cachedMeta(ctx context.Context, id string) (*PlanMeta, error) {
+	if ps.Cache == nil {
+		return ps.Meta(ctx, id)
+	}
+	if r, ok := ps.Cache.get(id); ok {
+		return r.meta, r.err
+	}
+	data, err := ps.B.Get(ctx, metaKey2(id))
+	if errors.Is(err, state.ErrNotFound) {
+		return nil, fmt.Errorf("%w: %s", ErrNoPlan, id)
+	}
+	if err != nil {
+		return nil, err // not kept: the next listing asks again
+	}
+	m, err := decodeMeta(id, data)
+	ps.Cache.put(id, metaResult{m, err})
+	return m, err
+}
+
 // planReadWidth is how many plans are read at the same time.
 const planReadWidth = 16
 
@@ -885,7 +1055,7 @@ func (ps *PlanStore) readPlans(ctx context.Context, all map[string]map[string]bo
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			r.meta, r.metaErr = ps.Meta(ctx, id)
+			r.meta, r.metaErr = ps.cachedMeta(ctx, id)
 			if all[id]["progress"] {
 				r.progress, r.progErr = ps.Progress(ctx, id)
 			} else {
@@ -915,9 +1085,79 @@ func (ps *PlanStore) Entries(ctx context.Context, check *PlanCheck) ([]*PlanEntr
 
 // EntriesAndSkipped is Entries that also says which plans it could not read.
 func (ps *PlanStore) EntriesAndSkipped(ctx context.Context, check *PlanCheck) ([]*PlanEntry, []SkippedPlan, error) {
-	all, err := ps.ids(ctx)
+	l, err := ps.List(ctx, check)
 	if err != nil {
 		return nil, nil, err
+	}
+	return l.Entries, l.Skipped, nil
+}
+
+// HiddenPlan is a plan that a listing does not show because a collector holds a
+// claim on it, and until when the claim holds.
+type HiddenPlan struct {
+	ID    string
+	Until time.Time
+}
+
+// PlanListing is what a listing of the stored plans found.
+type PlanListing struct {
+	// Entries are the plans that are listed, newest first.
+	Entries []*PlanEntry
+	// Skipped are the plans that could not be read.
+	Skipped []SkippedPlan
+	// Hidden are the plans that a collector is removing.
+	Hidden []HiddenPlan
+	// At is the time that the listing was judged at.
+	At time.Time
+}
+
+// NextLapse is the first moment after the listing at which a claim lapses: the
+// claim of a collector on a hidden plan, which then shows again, or a claim of an
+// apply or a collector on a listed one, which then no longer counts. The clock
+// alone changes what a listing shows at that moment, and nothing is written. It
+// is the zero time when no claim is held.
+func (l *PlanListing) NextLapse() time.Time {
+	var next time.Time
+	for _, h := range l.Hidden {
+		if h.Until.After(l.At) && (next.IsZero() || h.Until.Before(next)) {
+			next = h.Until
+		}
+	}
+	for _, e := range l.Entries {
+		if t := e.Progress.NextLapse(l.At); !t.IsZero() && (next.IsZero() || t.Before(next)) {
+			next = t
+		}
+	}
+	return next
+}
+
+// NextLapse is the first moment after now at which a claim in the progress
+// lapses, or the zero time when none is held.
+func (p *PlanProgress) NextLapse(now time.Time) time.Time {
+	var next time.Time
+	consider := func(t time.Time) {
+		if t.After(now) && (next.IsZero() || t.Before(next)) {
+			next = t
+		}
+	}
+	if p.Collecting != nil && !p.Collecting.Committed {
+		consider(p.Collecting.At.Add(claimTimeout))
+	}
+	for _, c := range p.Applying {
+		consider(c.At.Add(applyingKeep))
+	}
+	return next
+}
+
+// List reads every stored plan as Entries does, and says which plans it could
+// not read and which a collector's claim hides.
+func (ps *PlanStore) List(ctx context.Context, check *PlanCheck) (*PlanListing, error) {
+	all, err := ps.ids(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if ps.Cache != nil {
+		ps.Cache.retain(all)
 	}
 	var whole []string
 	for id, kinds := range all {
@@ -929,26 +1169,31 @@ func (ps *PlanStore) EntriesAndSkipped(ctx context.Context, check *PlanCheck) ([
 	reads := ps.readPlans(ctx, all, whole)
 	now := ps.now()
 	check = memoized(check)
-	var out []*PlanEntry
-	var skipped []SkippedPlan
+	l := &PlanListing{At: now}
 	for _, id := range whole {
 		r := reads[id]
 		if r.metaErr != nil || r.progErr != nil {
-			skipped = append(skipped, SkippedPlan{ID: id, Err: errors.Join(r.metaErr, r.progErr)})
+			l.Skipped = append(l.Skipped, SkippedPlan{ID: id, Err: errors.Join(r.metaErr, r.progErr)})
 			continue
 		}
-		if r.progress.Collecting != nil && now.Sub(r.progress.Collecting.At) < claimTimeout {
+		if r.progress.Collecting.holds(now) {
+			h := HiddenPlan{ID: id}
+			if !r.progress.Collecting.Committed {
+				h.Until = r.progress.Collecting.At.Add(claimTimeout)
+			}
+			l.Hidden = append(l.Hidden, h)
 			continue
 		}
-		out = append(out, newPlanEntry(r.meta, r.progress, check, now))
+		l.Entries = append(l.Entries, newPlanEntry(r.meta, r.progress, check, now))
 	}
+	out := l.Entries
 	sort.Slice(out, func(i, j int) bool {
 		if !out[i].Meta.Created.Equal(out[j].Meta.Created) {
 			return out[i].Meta.Created.After(out[j].Meta.Created)
 		}
 		return out[i].Meta.ID < out[j].Meta.ID
 	})
-	return out, skipped, nil
+	return l, nil
 }
 
 // Entry reads one stored plan, by its id, with its progress and where it stands.
@@ -1203,6 +1448,10 @@ type Overlap struct {
 	Plan *PlanMeta
 	// Addrs are the resources both plans change.
 	Addrs []string
+	// Changes are the resources that the other plan changes and this plan reads: applying the other makes this plan stale.
+	Changes []string
+	// ReadBy are the resources that this plan changes and the other plan reads: applying this makes the other stale.
+	ReadBy []string
 }
 
 // touchedBy returns the addresses that the plan of e still changes: those of the
@@ -1211,13 +1460,83 @@ func (e *PlanEntry) touchedBy() []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, t := range e.Meta.Changes {
-		if _, done := e.Progress.Applied[t.Addr]; done || seen[t.Addr] {
+		if _, done := e.Progress.Applied[t.Addr]; done {
 			continue
 		}
-		seen[t.Addr] = true
-		out = append(out, t.Addr)
+		// a move changes the resource that it takes the record from, too
+		for _, a := range []string{t.Addr, t.From} {
+			if a != "" && !seen[a] {
+				seen[a] = true
+				out = append(out, a)
+			}
+		}
 	}
 	return out
+}
+
+// readsOf returns the addresses of the records that the plan of e reads and does not write, and that it has
+// not applied.
+func (e *PlanEntry) readsOf() []string {
+	var out []string
+	for a, b := range e.Meta.Bases {
+		if _, done := e.Progress.Applied[a]; b.Reads && !done {
+			out = append(out, a)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// OverlapsOf is Overlaps for a plan that is known by its summary, and also finds the plans that read what this
+// plan changes, and change what it reads: a move takes its record from an address, which counts as changed, and a
+// plan that reads a record is made stale by the plan that changes it, though it changes nothing there itself.
+func OverlapsOf(entries []*PlanEntry, meta *PlanMeta) []Overlap {
+	writes, reads := map[string]bool{}, map[string]bool{}
+	for _, t := range meta.Changes {
+		writes[t.Addr] = true
+		if t.From != "" {
+			writes[t.From] = true
+		}
+	}
+	for a, b := range meta.Bases {
+		if b.Reads && !writes[a] {
+			reads[a] = true
+		}
+	}
+	var out []Overlap
+	for _, e := range entries {
+		if e.Meta.ID == meta.ID || !e.Status.Open() {
+			continue
+		}
+		var o Overlap
+		for _, a := range e.changing() {
+			switch {
+			case writes[a]:
+				o.Addrs = append(o.Addrs, a)
+			case reads[a]:
+				o.Changes = append(o.Changes, a)
+			}
+		}
+		for _, a := range e.readsOf() {
+			if writes[a] {
+				o.ReadBy = append(o.ReadBy, a)
+			}
+		}
+		if len(o.Addrs)+len(o.Changes)+len(o.ReadBy) > 0 {
+			sort.Strings(o.Addrs)
+			sort.Strings(o.Changes)
+			sort.Strings(o.ReadBy)
+			o.Plan = e.Meta
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+// BeingCollected reports whether a collector holds a claim on the plan at now: it cannot be applied, and it is about
+// to be removed.
+func (p *PlanProgress) BeingCollected(now time.Time) bool {
+	return p.Collecting.holds(now)
 }
 
 // changing returns the addresses that the plan of e will still change: the
@@ -1241,6 +1560,9 @@ func Overlaps(entries []*PlanEntry, self string, touches []PlanTouch) []Overlap 
 	mine := map[string]bool{}
 	for _, t := range touches {
 		mine[t.Addr] = true
+		if t.From != "" {
+			mine[t.From] = true
+		}
 	}
 	var out []Overlap
 	for _, e := range entries {

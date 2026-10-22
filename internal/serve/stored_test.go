@@ -1106,3 +1106,82 @@ func TestUnreadableStoredPlansAreWarnedAbout(t *testing.T) {
 		t.Error("the hostile id was sent")
 	}
 }
+
+// A summary that is far larger than a summary can be is refused, the plan is listed
+// as one that cannot be read and the other plans are not affected. The summary is
+// written once, so it is read once: what the viewer saw of it is kept for the
+// rebuilds that follow, and forgotten with the plan.
+func TestHostileSummaryIsRefusedAndReadOnce(t *testing.T) {
+	p := newProject(t)
+	good := storePlan(t, p, stored{Author: "ana@acme", Addrs: []string{"services.a.db"}})
+	victim := storePlan(t, p, stored{Author: "ben@acme", Addrs: []string{"hosts.x"}})
+	key := "plans/" + victim + ".meta.json"
+	hostile := `{"format":1,"id":"` + victim + `","author":"` + strings.Repeat("x", 20<<20) + `"}`
+	if err := p.store.Backend().Put(context.Background(), key, []byte(hostile)); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the warning", func() bool {
+		for _, w := range p.graph().Warnings {
+			if strings.Contains(w, victim) && strings.Contains(w, "too large") {
+				return true
+			}
+		}
+		return false
+	})
+	if l := p.plans(); len(l.Plans) != 1 || l.Plans[0].ID != good {
+		t.Errorf("listed %v, want only %s", ids(l), good)
+	}
+	// Rebuilds: the summary of the good plan is not read again, nor is the refused one.
+	if n := p.srv.planMeta.Len(); n != 2 {
+		t.Errorf("the cache holds %d summaries, want 2", n)
+	}
+	if err := p.store.Backend().Put(context.Background(), key, []byte(`{"format":1,"id":"`+victim+`","author":"ok"}`)); err != nil {
+		t.Fatal(err)
+	}
+	r := *p.store.Get("shared")
+	r.Attributes = json.RawMessage(`{"name":"moved","port":5432}`)
+	if err := p.store.Set(&r, ""); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "a rebuild", func() bool { return strings.Contains(string(p.get("/api/detail?addr=shared")), "moved") })
+	if l := p.plans(); len(l.Plans) != 1 || l.Plans[0].ID != good {
+		t.Errorf("after a rebuild, listed %v: the refused summary was read again", ids(l))
+	}
+	// The plan is collected: the cache forgets it.
+	for _, k := range []string{".progress.json", ".meta.json", ".plan.json"} {
+		p.store.Backend().Delete(context.Background(), "plans/"+victim+k)
+	}
+	waitFor(t, "the cache to forget", func() bool { p.plans(); return p.srv.planMeta.Len() == 1 })
+}
+
+// A plan that a collector claimed is hidden, and it shows again when the claim
+// lapses, without anything being written: the server schedules that moment as it
+// does an expiry, and sends one plans event.
+func TestLapsingCollectorClaimIsPickedUpLive(t *testing.T) {
+	p := newProject(t)
+	id := storePlan(t, p, stored{Author: "ana@acme", Addrs: []string{"services.a.db"}})
+	at := time.Now().Add(-10*time.Minute + 2*time.Second)
+	claim, _ := json.Marshal(map[string]any{"format": 1, "id": id, "collecting": map[string]any{"by": "gc", "at": at}, "updated": at})
+	waitFor(t, "the plan", func() bool { return len(p.plans().Plans) == 1 })
+	next := eventsOf(t, p)
+	if err := p.store.Backend().Put(context.Background(), "plans/"+id+".progress.json", claim); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the plan to be hidden", func() bool { return len(p.plans().Plans) == 0 })
+	deadline := time.Now().Add(8 * time.Second)
+	for len(p.plans().Plans) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the plan did not show again when the claim lapsed")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	for {
+		ev, ok := next(time.Second)
+		if !ok {
+			t.Fatal("no plans event")
+		}
+		if contains(ev.What, "plans") && len(p.plans().Plans) == 1 {
+			break
+		}
+	}
+}

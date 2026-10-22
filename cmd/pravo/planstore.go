@@ -86,8 +86,10 @@ type storedPlanJSON struct {
 	ApplyOnly        []string                `json:"apply_only,omitempty"`
 	ApplyOnlyCommand string                  `json:"apply_only_command,omitempty"`
 	Reservation      *engine.ReservationView `json:"reservation,omitempty"`
-	Size             int                     `json:"size"`
-	ApplyCommand     string                  `json:"apply_command"`
+	// BeingCollected is set while a collection holds the plan: an apply from it is refused.
+	BeingCollected bool   `json:"being_collected,omitempty"`
+	Size           int    `json:"size"`
+	ApplyCommand   string `json:"apply_command"`
 }
 
 func storedPlanView(e *engine.PlanEntry) storedPlanJSON {
@@ -95,7 +97,7 @@ func storedPlanView(e *engine.PlanEntry) storedPlanJSON {
 	v := storedPlanJSON{
 		ID: m.ID, Status: e.Status, Author: m.Author, Actor: m.Actor, Reason: m.Reason, Command: m.Command, GitRevision: m.GitRevision,
 		Created: m.Created, Expires: m.Expires, Summary: m.Summary, Changes: m.Changes, Applied: e.AppliedCount(),
-		StaleReasons: e.Reasons, Reservation: m.Reservation, Size: m.Size, ApplyCommand: m.ApplyCommand(),
+		StaleReasons: e.Reasons, Reservation: m.Reservation, BeingCollected: e.Progress.BeingCollected(time.Now()), Size: m.Size, ApplyCommand: m.ApplyCommand(),
 	}
 	if e.Status == engine.PlanPartlyStale {
 		// The reasons of a partly-stale plan are its conflicts.
@@ -220,6 +222,9 @@ plan is applied.`,
 					note = e.Reasons[0]
 				case e.Status == engine.PlanPartial:
 					note = fmt.Sprintf("%d of %d changes applied; %s", e.AppliedCount(), len(m.Changes), expiry(m))
+				}
+				if r := m.Reservation; r != nil && r.Until.After(time.Now()) && e.Status.Open() {
+					note += "; reserved until " + r.Until.Local().Format("15:04")
 				}
 				out.Printf("%s  %s  %-*s  %-*s  %-*s  %s\n", m.ID, pad(statusText(e.Status), string(e.Status), statusWidth), width, m.Author, ageWidth, since(m.Created), countWidth, counts(m.Summary), out.C(ui.Dim, note))
 			}
@@ -469,12 +474,15 @@ type storedOverlapJSON struct {
 	ID     string   `json:"id"`
 	Author string   `json:"author"`
 	Addrs  []string `json:"addrs"`
+	// Changes are what the other plan changes and this one reads; ReadBy what this one changes and the other reads.
+	Changes []string `json:"changes,omitempty"`
+	ReadBy  []string `json:"read_by,omitempty"`
 }
 
 func (sp *storedPlan) info() *storedInfo {
 	info := &storedInfo{ID: sp.Meta.ID, Expires: sp.Meta.Expires, ApplyCommand: sp.Meta.ApplyCommand(), Removed: sp.Removed}
 	for _, o := range sp.Overlaps {
-		info.Overlaps = append(info.Overlaps, storedOverlapJSON{ID: o.Plan.ID, Author: o.Plan.Author, Addrs: o.Addrs})
+		info.Overlaps = append(info.Overlaps, storedOverlapJSON{ID: o.Plan.ID, Author: o.Plan.Author, Addrs: o.Addrs, Changes: o.Changes, ReadBy: o.ReadBy})
 	}
 	return info
 }
@@ -494,7 +502,7 @@ func storePlan(ctx context.Context, s *session, eng *engine.Engine, plan *engine
 	ps := engine.NewPlanStore(s.state.Backend())
 	check := engine.PlanCheckFor(s.state)
 	if entries, err := ps.Entries(ctx, check); err == nil {
-		sp.Overlaps = engine.Overlaps(entries, meta.ID, meta.Changes)
+		sp.Overlaps = engine.OverlapsOf(entries, meta)
 	}
 	if res, err := ps.GC(ctx, engine.GCOptions{Owner: collector(s.state), Check: check, Limit: opportunisticGC, Skip: meta.ID}); err == nil {
 		sp.Removed = res.Removed
@@ -505,14 +513,25 @@ func storePlan(ctx context.Context, s *session, eng *engine.Engine, plan *engine
 // warnOverlaps tells who else has a plan that changes the same resources. It
 // only tells: the plans are not touched.
 func warnOverlaps(overlaps []engine.Overlap) {
+	names := func(addrs []string) string {
+		if len(addrs) > 4 {
+			return strings.Join(addrs[:4], ", ") + fmt.Sprintf(", and %d more", len(addrs)-4)
+		}
+		return strings.Join(addrs, ", ")
+	}
 	for _, o := range overlaps {
 		m := o.Plan
-		what := fmt.Sprintf("%d of these resources", len(o.Addrs))
-		names := strings.Join(o.Addrs, ", ")
-		if len(o.Addrs) > 4 {
-			names = strings.Join(o.Addrs[:4], ", ") + fmt.Sprintf(", and %d more", len(o.Addrs)-4)
+		var parts []string
+		if len(o.Addrs) > 0 {
+			parts = append(parts, fmt.Sprintf("also changes %d of these resources: %s", len(o.Addrs), names(o.Addrs)))
 		}
-		out.Warning(fmt.Sprintf("%s by %s (%s) also changes %s: %s", m.ID, m.Author, since(m.Created), what, names))
+		if len(o.Changes) > 0 {
+			parts = append(parts, fmt.Sprintf("changes %s, which this plan reads", names(o.Changes)))
+		}
+		if len(o.ReadBy) > 0 {
+			parts = append(parts, fmt.Sprintf("reads %s, which this plan changes", names(o.ReadBy)))
+		}
+		out.Warning(fmt.Sprintf("%s by %s (%s) %s", m.ID, m.Author, since(m.Created), strings.Join(parts, "; ")))
 	}
 }
 
@@ -543,7 +562,7 @@ func storedOverlapsOf(ctx context.Context, s *session, eng *engine.Engine, plan 
 	if err != nil {
 		return nil
 	}
-	return engine.Overlaps(entries, "", meta.Changes)
+	return engine.OverlapsOf(entries, meta)
 }
 
 // planTagsMatch checks that the -t and -T of this command are the ones that the
@@ -632,11 +651,17 @@ func showStored(cmd *cobra.Command, ref string) error {
 	if r := m.Reservation; r != nil && r.Until.After(time.Now()) {
 		out.Printf("  reserved until %s: %s\n", r.Until.Local().Format(time.RFC3339), strings.Join(r.Addrs, ", "))
 	}
+	collecting := entry.Progress.BeingCollected(time.Now())
 	switch {
+	case collecting:
+		// a collection holds the plan: an apply is refused until the claim lapses, so no command is offered
 	case entry.Status == engine.PlanPartlyStale:
 		out.Printf("  apply:   %s\n", entry.ApplyLiveCommand())
 	case entry.Status.Open():
 		out.Printf("  apply:   %s\n", m.ApplyCommand())
+	}
+	if collecting {
+		out.Warning("a collection is removing this plan, so it cannot be applied; make it again with \"pravo plan --store\"")
 	}
 	switch {
 	case entry.Status == engine.PlanPartlyStale:
@@ -732,6 +757,8 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	}
 	background := context.WithoutCancel(ctx)
 	defer ps.EndApply(background, id, owner)
+	// An apply may run for longer than a claim lasts: the claim is renewed until it ends.
+	defer ps.KeepApply(background, id, owner)()
 	pf, _, err := ps.ReadFile(ctx, id)
 	if err != nil {
 		return err

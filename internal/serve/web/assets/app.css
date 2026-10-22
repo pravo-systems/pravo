@@ -251,7 +251,7 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
 .tv-scroll:focus-visible { outline-offset: -2px; }
 .tv-spacer { width: 1px; }
 .tv-rows { position: absolute; left: 0; right: 0; top: 0; }
-.tv-row { height: 30px; font: 400 .76rem/1 var(--font-mono); color: var(--text-2); border-bottom: 1px solid var(--line); cursor: pointer; position: relative; transition: background var(--t-fast); }
+.tv-row { height: 30px; font: 400 .76rem/1.4 var(--font-mono); /* room for the descenders: the cells clip */ color: var(--text-2); border-bottom: 1px solid var(--line); cursor: pointer; position: relative; transition: background var(--t-fast); }
 .tv-row:hover { background: var(--surface-2); }
 .tv-row.sel { background: var(--accent-wash); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
 .tv-row > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

@@ -257,6 +257,9 @@ func (ps *PlanStore) GC(ctx context.Context, o GCOptions) (*GCResult, error) {
 		}
 		m, p := r.meta, r.progress
 		v := gcJudge(m, p, &o, now)
+		if p.Collecting.adoptable(now) {
+			v = gcVerdict{collect: true, reason: "its removal was begun by another collection and not finished"}
+		}
 		item := GCItem{ID: id, Author: m.Author, Reason: v.reason}
 		switch {
 		case v.inUse != "":
@@ -356,11 +359,14 @@ func (ps *PlanStore) remove(ctx context.Context, id string, o *GCOptions, m *Pla
 		// The rules are applied again to the progress as it is now, so that an apply
 		// that began, or ended, since the plan was judged is respected.
 		q := *p
-		if q.Collecting != nil && q.Collecting.By == o.Owner {
+		// A removal that another collector committed to and did not finish is finished by this one,
+		// whatever the rules say now: no apply can have begun since the commit.
+		adopt := q.Collecting.adoptable(now) && q.Collecting.By != o.Owner
+		if q.Collecting != nil && (q.Collecting.By == o.Owner || adopt) {
 			q.Collecting = nil
 		}
-		if m == nil {
-			if planInUse(nil, &q, now) != "" {
+		if m == nil || adopt {
+			if planInUse(m, &q, now) != "" {
 				return errSkip
 			}
 		} else if v := gcJudge(m, &q, o, now); !v.collect {
@@ -375,6 +381,19 @@ func (ps *PlanStore) remove(ctx context.Context, id string, o *GCOptions, m *Pla
 	// The claim holds for claimTimeout; a collector that was stopped for most of it
 	// leaves the plan alone.
 	if ps.now().Sub(now) > claimTimeout/2 || !ps.claimed(ctx, id, o.Owner) {
+		return false
+	}
+	// The commit: after this write no apply is let in, whatever its clock says, so nothing
+	// that an apply could read is deleted from under it. The write fails when the claim is not
+	// this collector's any more, because an apply that saw it lapse took the plan, or when an
+	// apply runs.
+	if err := ps.updateProgress(ctx, id, func(p *PlanProgress) error {
+		if p.Collecting == nil || p.Collecting.By != o.Owner || p.ApplyRunning(ps.now()) {
+			return errSkip
+		}
+		p.Collecting.Committed = true
+		return nil
+	}); err != nil {
 		return false
 	}
 	// Another collector may have removed the plan after this one judged it: the claim

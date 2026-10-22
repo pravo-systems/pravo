@@ -140,6 +140,7 @@ pravo will perform the following actions:
 | `git:` | The revision of the repository, when the plan was made in a git repository. |
 | `expires in ...` | When the plan is collected, in up to two units, such as `1 day 12 hours`. Shown for a plan that can be applied and for a stale one. |
 | `N of M changes applied` | Shown after a part of the plan was applied. M is the number of changes that the plan lists, and N counts only those. |
+| `Warning: a collection is removing this plan` | Shown while a collection holds the plan. No `apply:` line is given then, since an apply is refused until the claim lapses (ten minutes), and `--json` says `being_collected`. |
 | `reserved until ...` | Shown while a reservation that the plan took has not ended, with the resources it holds. |
 | `apply:` | The command that applies the plan. Shown for a plan that can be applied. For a `partly-stale` plan it is the command with the `--only` set that applies the live part. |
 | `Warning: N of M unapplied changes conflict ...` | Shown for a `partly-stale` plan: the changes that cannot be applied, one line for each reason. See [Show a partly stale plan](#show-a-partly-stale-plan). |
