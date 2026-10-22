@@ -476,3 +476,37 @@ func TestS3CounterUnderLostAnswersAndConflicts(t *testing.T) {
 		t.Errorf("only %d of %d increments were made", reported.Load(), workers*each)
 	}
 }
+
+// The probe writes to scratch objects, and the answer to a write that the store
+// applied can be lost like any other. The winner of the race, whose request was
+// sent again and refused, is still the winner; a probe that counted it as a
+// loser told the person that the store cannot hold a state.
+func TestProbeCountsAWriteWhoseAnswerWasLost(t *testing.T) {
+	quickRetries(t)
+	for name, match := range map[string]func(r *http.Request) bool{
+		"the create": func(r *http.Request) bool {
+			return fakes3.Conditional(r) && !strings.HasSuffix(r.URL.Path, "-race") && !strings.HasSuffix(r.URL.Path, "-swap")
+		},
+		"the race": func(r *http.Request) bool {
+			return fakes3.Conditional(r) && (strings.HasSuffix(r.URL.Path, "-race") || strings.HasSuffix(r.URL.Path, "-swap"))
+		},
+		"any write":    fakes3.Conditional,
+		"two in a row": fakes3.Conditional,
+	} {
+		t.Run(name, func(t *testing.T) {
+			f, b := newFakeS3(t)
+			n := 1
+			if name == "two in a row" {
+				n = 2
+			}
+			f.Lost = fakes3.FailFirst(n, http.StatusInternalServerError, "InternalError", match)
+			if err := b.Probe(context.Background()); err != nil {
+				t.Fatalf("Probe: %v", err)
+			}
+			f.Lost = fakes3.FailFirst(n, http.StatusInternalServerError, "InternalError", match)
+			if err := b.ProbeStrict(context.Background(), nil); err != nil {
+				t.Fatalf("ProbeStrict: %v", err)
+			}
+		})
+	}
+}

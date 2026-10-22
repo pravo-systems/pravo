@@ -66,7 +66,14 @@ func (b *S3Backend) ProbeSteps(ctx context.Context, report func(check string, er
 		if ifMatch != "" {
 			in.IfMatch = aws.String(ifMatch)
 		}
-		_, err := b.client.PutObject(ctx, in)
+		tries, opt := b.counting()
+		_, err := b.client.PutObject(ctx, in, opt)
+		if err != nil && preconditionFailed(err) && b.landed(ctx, tries, key, []byte(body)) {
+			// The store applied the request and its answer was lost; the request that
+			// was sent again was refused because the object is the one that was
+			// written. It would be counted as a store that refuses every create.
+			return nil
+		}
 		return err
 	}
 	del := func(key, ifMatch string) error {
@@ -227,7 +234,11 @@ func (b *S3Backend) ProbeStrict(ctx context.Context, report func(check string, e
 		if ifMatch != "" {
 			in.IfMatch = aws.String(ifMatch)
 		}
-		_, err := b.client.PutObject(ctx, in)
+		tries, opt := b.counting()
+		_, err := b.client.PutObject(ctx, in, opt)
+		if err != nil && preconditionFailed(err) && b.landed(ctx, tries, key, []byte(body)) {
+			return nil // see Probe: the answer to a write that was applied was lost
+		}
 		return err
 	}
 	replaces := func() error {
