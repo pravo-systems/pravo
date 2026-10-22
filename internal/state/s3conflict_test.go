@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -301,4 +302,44 @@ func TestS3AWriteWhoseAnswerWasLostIsNotRefused(t *testing.T) {
 			t.Errorf("%d reads to check a refusal that had no retry", gets)
 		}
 	})
+}
+
+// A store that sends no entity tag cannot make a write conditional. The request
+// would carry no If-Match and replace or delete whatever the object has become, so
+// the call is an error.
+func TestS3AStoreWithoutEntityTagsIsAnErrorForConditionalWrites(t *testing.T) {
+	f := fakes3.New()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.ServeHTTP(&noTags{w}, r)
+	}))
+	t.Cleanup(srv.Close)
+	b, err := NewS3Backend(context.Background(), S3Config{Bucket: "state", Prefix: "team/app", Region: "us-east-1", Endpoint: srv.URL, PathStyle: true, AccessKey: "test", SecretKey: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := b.Put(ctx, "k", []byte("one")); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := b.ReplaceIf(ctx, "k", func([]byte) ([]byte, bool) { return []byte("two"), true })
+	if err == nil || ok || string(f.Objects["team/app/k"]) != "one" {
+		t.Errorf("ReplaceIf = %v, %v and the object holds %q, want an error and no write", ok, err, f.Objects["team/app/k"])
+	}
+	ok, err = b.DeleteIf(ctx, "k", func([]byte) bool { return true })
+	if err == nil || ok || f.Objects["team/app/k"] == nil {
+		t.Errorf("DeleteIf = %v, %v, want an error and no delete", ok, err)
+	}
+}
+
+// noTags is a response writer that leaves the entity tag out.
+type noTags struct{ http.ResponseWriter }
+
+func (w *noTags) WriteHeader(status int) {
+	w.Header().Del("ETag")
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *noTags) Write(p []byte) (int, error) {
+	w.Header().Del("ETag")
+	return w.ResponseWriter.Write(p)
 }

@@ -307,6 +307,12 @@ func (b *S3Backend) PutIfAbsent(ctx context.Context, key string, data []byte) (b
 	return true, nil
 }
 
+// noEntityTag is the error for a store that sent no entity tag with an object. The
+// request would go without its If-Match and be a write that nothing conditions.
+func noEntityTag(op, key string) error {
+	return fmt.Errorf("s3 conditional %s %s: the store sent no entity tag, so the write cannot be made conditional", op, key)
+}
+
 // DeleteIf reads the object and deletes the version that it read with an
 // If-Match condition on its entity tag. A store that ignores the condition
 // deletes whatever is there, and two callers that judged the same lock could both
@@ -315,6 +321,9 @@ func (b *S3Backend) DeleteIf(ctx context.Context, key string, match func(current
 	data, etag, err := b.getTagged(ctx, key)
 	if err != nil {
 		return false, err
+	}
+	if aws.ToString(etag) == "" {
+		return false, noEntityTag("delete", key)
 	}
 	if !match(data) {
 		return false, nil
@@ -337,6 +346,9 @@ func (b *S3Backend) ReplaceIf(ctx context.Context, key string, update func(curre
 	data, etag, err := b.getTagged(ctx, key)
 	if err != nil {
 		return false, err
+	}
+	if aws.ToString(etag) == "" {
+		return false, noEntityTag("put", key)
 	}
 	next, ok := update(data)
 	if !ok {

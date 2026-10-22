@@ -36,6 +36,11 @@ func realStore(t *testing.T) *S3Backend {
 	if endpoint == "" {
 		t.Skip("PRAVO_TEST_S3_ENDPOINT is not set")
 	}
+	if os.Getenv("PRAVO_TEST_S3_ACCESS_KEY") == "" || os.Getenv("PRAVO_TEST_S3_SECRET_KEY") == "" {
+		// Without both, the client would take the keys of the environment or of
+		// ~/.aws, and sign requests to the server with them.
+		t.Skip("PRAVO_TEST_S3_ACCESS_KEY and PRAVO_TEST_S3_SECRET_KEY are not both set")
+	}
 	bucket := os.Getenv("PRAVO_TEST_S3_BUCKET")
 	if bucket == "" {
 		bucket = "pravo"
