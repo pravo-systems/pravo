@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -17,7 +18,13 @@ func OpenReadOnly(ctx context.Context, root *config.Root) (*state.Store, error) 
 	if root.State.Backend == "s3" {
 		return nil, errors.New("the state is in a bucket: the caller has to open it")
 	}
-	return state.OpenBackend(ctx, ReadOnly(&state.LocalBackend{Dir: root.StateFile()}))
+	path := root.StateFile()
+	if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
+		// Windows reports a path below a file as absent, which would read as an
+		// empty state: let state.Open say that the path is a file.
+		return state.Open(path)
+	}
+	return state.OpenBackend(ctx, ReadOnly(&state.LocalBackend{Dir: path}))
 }
 
 // ReadOnly wraps a backend so that every write is refused. The store writes its

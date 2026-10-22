@@ -575,7 +575,16 @@ func TestSymlinkToASecretFile(t *testing.T) {
 // A file that was loaded and is then replaced by a link to another file is not
 // served as the file that was loaded.
 func TestRetargetedSymlinkIsNotServed(t *testing.T) {
-	p := newProject(t)
+	// The watcher must not reload the specification while the link is swapped: a
+	// slow machine would otherwise load the new file as the specification.
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	p := start(t, dir, st, Options{Poll: time.Hour})
 	if _, err := p.srv.current(); err != nil {
 		t.Fatal(err)
 	}
