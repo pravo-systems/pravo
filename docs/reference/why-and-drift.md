@@ -143,7 +143,7 @@ The reasons that `why` can print:
 | `refreshed because a node that the plan reaches reads it; no drift` | The plan read the resource because a resource that it reaches reads it. |
 | `refreshed because -refresh=all was given; no drift` | The provider was read under `-refresh=all`. |
 | `refresh skipped: -refresh=false was given` | The provider was not read under `-refresh=false`. |
-| `refresh found the real state differs from the state (drift)` | The provider was read, and the object differs. |
+| `refresh found the real state differs from the state (drift)` | The provider was read, and the object differs. A list or a map that is null in the record and empty in the read, or the other way round, is not a difference: providers write a null and read back an empty collection. |
 | `skipped: nothing the provider saw has changed` | No provider planned the resource. |
 | `the last apply of it did not finish` | An apply stopped halfway. The record holds the state the provider had reached, and no configuration hash, so the plan changes the resource again. |
 | `an earlier read found the real state differs from the state (drift); it is planned until an apply writes the record`, `an earlier read did not find the object; it is planned until an apply writes the record` | A read left a mark on the record. |

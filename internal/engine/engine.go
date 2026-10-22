@@ -947,7 +947,7 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 	}
 	attrs, err := convert.ToJSON(newState)
 	if err == nil {
-		changed := !jsonEqual(attrs, sr.Attributes)
+		changed := !sameAttributes(attrs, sr.Attributes)
 		// An object that is back after a read did not find it differs from the
 		// record, which says it is gone.
 		rd.drifted = changed || sr.Gone
@@ -980,7 +980,7 @@ func (e *Engine) persistRefreshed(addr string, sr *state.Resource, attrs, privat
 	n.ProviderConfig = e.stamp(sr.ProviderKey, sr.ProviderConfig)
 	n.Gone = false
 	action := "refresh"
-	if !jsonEqual(attrs, sr.Attributes) {
+	if !sameAttributes(attrs, sr.Attributes) {
 		n.DriftedAt = state.Now()
 		action = "drift"
 	}
@@ -1244,6 +1244,46 @@ func jsonEqual(a, b []byte) bool {
 	ax, _ := json.Marshal(x)
 	by, _ := json.Marshal(y)
 	return string(ax) == string(by)
+}
+
+// sameAttributes reports whether two records of a resource say the same for the
+// purpose of drift. It differs from jsonEqual in one way: a list or a map that
+// one leaves null and the other has empty is the same. Providers write a null where
+// the configuration has none and read back an empty list or map, so that a record
+// would differ from the read of the object that it was made from.
+func sameAttributes(a, b []byte) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return string(a) == string(b)
+	}
+	ax, _ := json.Marshal(emptyAsNull(x))
+	by, _ := json.Marshal(emptyAsNull(y))
+	return string(ax) == string(by)
+}
+
+// emptyAsNull replaces every empty list and empty map in a decoded value with null.
+func emptyAsNull(v any) any {
+	switch t := v.(type) {
+	case []any:
+		if len(t) == 0 {
+			return nil
+		}
+		out := make([]any, len(t))
+		for i, e := range t {
+			out[i] = emptyAsNull(e)
+		}
+		return out
+	case map[string]any:
+		if len(t) == 0 {
+			return nil
+		}
+		out := make(map[string]any, len(t))
+		for k, e := range t {
+			out[k] = emptyAsNull(e)
+		}
+		return out
+	}
+	return v
 }
 
 // revisionOf returns the revision of the record at addr, 0 when there is none.
