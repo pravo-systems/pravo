@@ -502,7 +502,9 @@ func recordsText(r AccessRecords, locked bool) string {
 	case r.Unreadable > 0:
 		return fmt.Sprintf("%s %s sealed under a group that this key cannot open.", commas(r.Unreadable), plural(r.Unreadable, "record is", "records are"))
 	case r.Plain > 0:
-		return fmt.Sprintf("%s %s not sealed yet: they were written before the seal and are sealed when next written.", commas(r.Plain), plural(r.Plain, "record is", "records are"))
+		// Only a seal that is not finished leaves records in the clear, and writers are
+		// refused until it is.
+		return fmt.Sprintf("%s %s not sealed yet: finishing the seal %s.", commas(r.Plain), plural(r.Plain, "record is", "records are"), plural(r.Plain, "seals it", "seals them"))
 	}
 	return ""
 }

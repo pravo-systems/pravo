@@ -45,7 +45,7 @@
   "sealed": 25,
   "plain": 21,
   "unreadable": 0,
-  "text": "21 records are not sealed yet: they were written before the seal and are sealed when next written."
+  "text": "21 records are not sealed yet: finishing the seal seals them."
  },
  "groups": [
   {

@@ -989,3 +989,13 @@ func TestAccessExpectedSealed(t *testing.T) {
 		}
 	})
 }
+
+// Records that are not sealed yet are the ones a seal that did not finish left, and
+// the sentence says what seals them, in the singular as well.
+func TestAccessSaysWhatSealsTheRecordsThatAreNot(t *testing.T) {
+	for n, want := range map[int]string{1: "1 record is not sealed yet: finishing the seal seals it.", 3: "3 records are not sealed yet: finishing the seal seals them."} {
+		if got := recordsText(AccessRecords{Plain: n}, false); got != want {
+			t.Errorf("%d plain: %q, want %q", n, got, want)
+		}
+	}
+}
