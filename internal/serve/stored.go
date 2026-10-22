@@ -438,7 +438,7 @@ func (m *model) cleanInfo(po *planOverlay) PlanInfo {
 func (m *model) planOverlayDoc(po *planOverlay) *PlanOverlay {
 	sec := m.secretsFor(po)
 	doc := &PlanOverlay{Version: APIVersion, Revision: m.rev, Plan: m.cleanInfo(po), Nodes: make([]PlanNode, 0, len(po.order)), Warnings: []string{}}
-	doc.Plan.Total = len(m.order)
+	doc.Plan.Total = m.resources
 	for _, addr := range po.order {
 		if m.nodes[addr] == nil {
 			continue

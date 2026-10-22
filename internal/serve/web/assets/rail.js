@@ -3,7 +3,7 @@
 // A change of the rows reuses the rows that stay, so that a module opens and closes with a motion and the
 // focus stays where it was.
 
-import { h, icon, actionOf, tick, motionOn, baseName } from './util.js';
+import { h, icon, tick, motionOn, baseName, nodeMark } from './util.js';
 import { FILTERS } from './model.js';
 import { avatar } from './plans.js';
 
@@ -17,6 +17,7 @@ export const CHIPS = [
   { key: 'sensitive', label: 'Sensitive', count: 'sensitive', hint: 'Resources with values that are withheld' },
   { key: 'orphans', label: 'Orphans', count: 'orphans', hint: 'In the state, no longer declared' },
   { key: 'declared', label: 'Not created', count: 'declared', hint: 'Declared only: in the specification, not created yet' },
+  { key: 'outputs', label: 'Outputs', count: 'outputs', hint: 'The values the root publishes' },
 ];
 
 export class Rail {
@@ -77,7 +78,7 @@ export class Rail {
     if (this.titleEl) {
       const g = model.graph.project;
       this.titleEl.firstChild.textContent = g.package || baseName(g.dir);
-      tick(this.titleEl.lastChild, model.list.length);
+      tick(this.titleEl.lastChild, model.nres);
       this.titleEl.classList.toggle('sel', !s.sel);
       this.titleEl.setAttribute('aria-current', !s.sel ? 'true' : 'false');
     }
@@ -196,23 +197,23 @@ export class Rail {
       return h('div', Object.assign(base, { class: 'row mod', 'aria-expanded': r.open ? 'true' : 'false', data: { key: r.key, mod: m.path }, title: m.path }),
         h('button', { class: 'chev' + (r.open ? ' open' : ''), type: 'button', tabIndex: -1, 'aria-label': (r.open ? 'Collapse ' : 'Expand ') + m.name, data: { toggle: m.path } }, icon('chev')),
         h('span', { class: 'nm' }, m.name),
-        h('span', { class: 'mk' }, plan, drift ? h('span', { class: 'i i-drift warn', title: `${drift} drifted` }) : null, h('span', { class: 'n' }, String(a.n))));
+        h('span', { class: 'mk' }, plan, drift ? h('span', { class: 'i i-drift warn', title: `${drift} drifted` }) : null,
+          a.out ? h('span', { class: 'mout', title: `${a.out} ${a.out === 1 ? 'output' : 'outputs'}` }, icon('output'), String(a.out)) : null,
+          h('span', { class: 'n' }, String(a.n))));
     }
     if (r.kind === 'more') {
       return h('div', Object.assign(base, { class: 'row more', data: { key: r.key, more: r.mod.path } }), h('span', { class: 'nm' }, `${r.rest} more…`));
     }
     const n = r.n;
-    const act = actionOf(n.action);
-    const cls = 'sq' + (act ? ' ' + act.cls : '') + (s.model.hasPlan && !n.action ? ' skip' : '');
-    return h('div', Object.assign(base, { class: 'row leaf', data: { key: r.key, addr: n.addr }, title: `${n.addr}\n${n.type}` }),
-      h('span', { class: cls }),
+    return h('div', Object.assign(base, { class: 'row leaf' + (n.mode === 'output' ? ' out' : ''), data: { key: r.key, addr: n.addr }, title: n.mode === 'output' ? `${n.addr}\noutput` : `${n.addr}\n${n.type}` }),
+      nodeMark(n, s.model.hasPlan),
       h('span', { class: 'nm' }, n.name),
       h('span', { class: 'marks' },
         n.overlap ? h('span', { class: 'i i-overlap', title: 'changed by ' + (n.plans || []).length + ' open plans' }) : null,
         (n.plans || []).slice(0, 2).map((id) => avatar(s.model.authors.get(id) || '?', 'tiny')),
         n.drifted || n.gone ? h('span', { class: 'i ' + (n.gone ? 'i-gone' : 'i-drift') + ' warn', title: n.gone ? 'gone' : 'drifted' }) : null,
         n.locked ? h('span', { class: 'i i-hold', title: 'locked' }) : null,
-        n.sensitive > 0 ? h('span', { class: 'i i-lock key', title: `${n.sensitive} sensitive values` }) : null));
+        n.sensitive > 0 ? h('span', { class: 'i i-lock key', title: n.mode === 'output' ? 'the value is withheld' : `${n.sensitive} sensitive values` }) : null));
   }
 
   onClick(ev) {
@@ -319,8 +320,8 @@ export class Rail {
 
 // signature is what a row looks like, apart from its selection: when it changes the row is drawn again.
 function signature(r, s) {
-  if (r.kind === 'mod') { const a = r.mod.agg; return ['m', r.mod.name, r.depth, r.open, a.n, a.plan, a.create, a.update, a.replace, a.delete, a.read, a.drifted, a.gone].join('|'); }
+  if (r.kind === 'mod') { const a = r.mod.agg; return ['m', r.mod.name, r.depth, r.open, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.read, a.drifted, a.gone].join('|'); }
   if (r.kind === 'more') return ['x', r.depth, r.rest].join('|');
   const n = r.n;
-  return ['n', n.addr, r.depth, n.action || '', n.drifted ? 1 : 0, n.gone ? 1 : 0, n.locked ? 1 : 0, n.sensitive || 0, s.model.hasPlan ? 1 : 0, (n.plans || []).join(','), n.overlap ? 1 : 0].join('|');
+  return ['n', n.addr, r.depth, n.mode, n.action || '', n.drifted ? 1 : 0, n.gone ? 1 : 0, n.locked ? 1 : 0, n.sensitive || 0, s.model.hasPlan ? 1 : 0, (n.plans || []).join(','), n.overlap ? 1 : 0].join('|');
 }

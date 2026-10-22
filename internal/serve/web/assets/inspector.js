@@ -2,9 +2,9 @@
 // State, Source, Schema, History and Change. Values arrive redacted from the server; this file never asks
 // for more and has no control that reveals a withheld value.
 
-import { h, clear, icon, relTime, stamp, copyButton, actionOf, plural, motionOn, splitPath, pathEl, baseName } from './util.js';
+import { h, clear, icon, relTime, stamp, copyButton, actionOf, plural, motionOn, splitPath, pathEl, baseName, nodeMark } from './util.js';
 import * as api from './api.js';
-import { isChange, chain } from './model.js';
+import { isChange, chain, isOut } from './model.js';
 import { codeWindow, kindLabel } from './ui.js';
 import { StateView, withheld, unknownEl, timeRow } from './values.js';
 import { projectPanel, modulePanel } from './panels.js';
@@ -157,7 +157,7 @@ export class Inspector {
       long: mod.name.length > 22,
       path: this.crumbs(mod.up && !mod.up.isRoot ? mod.up : null, model, null),
       copy: mod.path,
-      tags: [h('span', { class: 'b' }, plural(a.n, 'resource')), mod.kids.length ? h('span', { class: 'b' }, plural(mod.kids.length, 'sub-module')) : null],
+      tags: [h('span', { class: 'b' }, plural(a.n, 'resource')), mod.kids.length ? h('span', { class: 'b' }, plural(mod.kids.length, 'sub-module')) : null, a.out ? h('span', { class: 'b' }, plural(a.out, 'output')) : null],
     });
     this.paint(modulePanel(this, mod, model, collapsed));
     this.root.dataset.mode = 'module';
@@ -184,7 +184,11 @@ export class Inspector {
     if (this.mode === 'node') this.render(true);
   }
 
-  tabList() { return TABS.filter((t) => t.key !== 'change' || this.model.hasPlan); }
+  // an output has a value and a declaration: no schema, no history, and a plan never changes it
+  tabList() {
+    if (this.node && isOut(this.node)) return TABS.filter((t) => t.key === 'state' || t.key === 'source');
+    return TABS.filter((t) => t.key !== 'change' || this.model.hasPlan);
+  }
 
   // ---- header, strip, tabs of a node ----
 
@@ -192,14 +196,15 @@ export class Inspector {
     const n = detail ? detail.node : node;
     const prov = detail ? detail.provider : null;
     const tags = [];
-    tags.push(h('span', { class: 'b ty', title: n.type }, n.type));
+    const out = isOut(n);
+    if (!out) tags.push(h('span', { class: 'b ty', title: n.type }, n.type));
     const pv = prov ? [prov.key, prov.version].filter(Boolean).join(' ') : node.provider;
     if (pv) tags.push(h('span', { class: 'b' }, pv));
-    if (n.mode !== 'managed') tags.push(h('span', { class: 'b' }, n.mode));
-    if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), `${n.sensitive} sensitive`));
+    if (n.mode !== 'managed' && !out) tags.push(h('span', { class: 'b' }, n.mode));
+    if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), out ? 'sensitive' : `${n.sensitive} sensitive`));
     if (n.no_schema) tags.push(h('span', { class: 'b chg' }, 'no schema'));
     this.header({
-      kick: n.mode === 'managed' ? 'Resource' : n.mode === 'data' ? 'Data source' : n.mode,
+      kick: n.mode === 'managed' ? 'Resource' : n.mode === 'data' ? 'Data source' : n.mode === 'output' ? 'Output' : n.mode,
       title: n.name,
       long: n.name.length > 22,
       path: this.crumbs(this.model.nodes.get(n.addr) ? this.model.nodes.get(n.addr).mod : null, this.model, null),
@@ -214,6 +219,20 @@ export class Inspector {
     const model = this.model;
     const cells = [];
     const a = actionOf(n.action);
+    if (isOut(n)) {
+      // an output has no record, no revision, no lock and no read time: what it has is a value and a place in the state
+      const sens = n.sensitive > 0;
+      let rec, rcls, rtip;
+      if (n.presence === 'spec') { rec = 'not published'; rcls = 'dimv'; rtip = 'Declared in the specification; no apply has recorded its value yet'; } else if (n.presence === 'state') { rec = 'orphan'; rcls = 'bad'; rtip = 'Recorded in the state, no longer declared: the next apply would remove it'; } else { rec = [icon('check'), 'recorded']; rcls = 'ok'; rtip = 'Declared, and the last apply recorded its value'; }
+      cells.push(cell('Value', sens ? [icon('lock'), 'withheld'] : n.presence === 'spec' ? 'not known yet' : 'shown', sens ? 'lock' : n.presence === 'spec' ? 'dimv' : '', sens ? 'The output is sensitive: the server does not send the value' : 'The value the last apply recorded'));
+      cells.push(cell('Record', rec, rcls, rtip));
+      clear(this.plansRow);
+      this.plansRow.hidden = true;
+      clear(this.strip);
+      this.strip.append(...cells);
+      this.strip.hidden = false;
+      return;
+    }
     if (model.hasPlan) {
       if (a && n.action !== 'no-op') cells.push(cell('Plan', [h('i', { class: 'sq ' + a.cls }), a.label], 'act-' + n.action, 'What the loaded plan does to this resource'));
       else if (n.action === 'no-op') cells.push(cell('Plan', 'no change', '', 'The plan ran this resource and found nothing to change'));
@@ -360,15 +379,35 @@ export class Inspector {
 
   // ---- State ----
 
+  // refsRow is the two lists of what a node reads and what reads it
+  refsRow(d, node) {
+    const model = this.model;
+    const refs = (title, addrs) => h('section', { class: 'sec' }, h('h3', { class: 'h' }, title, h('span', { class: 'cnt' }, String(addrs.length))),
+      addrs.length ? this.nodeList(addrs.map((a) => model.nodes.get(a) || { addr: a, name: a, type: '' }), model, node) : h('p', { class: 'dim none' }, 'none'));
+    return h('div', { class: 'cols2' }, refs('Depends on', d.depends_on || []), refs('Used by', d.used_by || []));
+  }
+
+  // outputPane is the State tab of an output: what it is for, its value (or the lock that says it is withheld), and the
+  // nodes it reads and the outputs that read it
+  outputPane(d, node) {
+    const wrap = h('div', { class: 'pane state-pane out-pane' });
+    const attrs = d.attrs || [];
+    const desc = attrs.find((a) => a.name === 'description');
+    if (desc && desc.value) wrap.append(h('p', { class: 'out-desc' }, desc.value));
+    wrap.append(this.state.render(Object.assign({}, d, { attrs: attrs.filter((a) => a.name !== 'description'), bare: true }), new Set()));
+    wrap.append(this.refsRow(d, node));
+    for (const note of d.notes || []) wrap.append(h('p', { class: 'note' }, icon('info'), h('span', null, note)));
+    wrap.append(h('p', { class: 'note quiet' }, icon('lock'), h('span', null, 'A value marked sensitive is withheld by the server. This page receives its name, never its content.')));
+    return wrap;
+  }
+
   statePane(d, node) {
+    if (isOut(node)) return this.outputPane(d, node);
     const wrap = h('div', { class: 'pane state-pane' });
     const changed = new Set((d.change && d.change.attrs || []).map((a) => a.path));
     wrap.append(this.state.render(d, changed));
 
-    const model = this.model;
-    const refs = (title, addrs) => h('section', { class: 'sec' }, h('h3', { class: 'h' }, title, h('span', { class: 'cnt' }, String(addrs.length))),
-      addrs.length ? this.nodeList(addrs.map((a) => model.nodes.get(a) || { addr: a, name: a, type: '' }), model, node) : h('p', { class: 'dim none' }, 'none'));
-    wrap.append(h('div', { class: 'cols2' }, refs('Depends on', d.depends_on || []), refs('Used by', d.used_by || [])));
+    wrap.append(this.refsRow(d, node));
     const reach = d.reach && d.reach.length ? d.reach : null;
     wrap.append(h('section', { class: 'sec' }, h('h3', { class: 'h' }, 'Reach'),
       reach
@@ -411,10 +450,8 @@ export class Inspector {
       const shown = all ? nodes : nodes.slice(0, LIMIT);
       for (const n of shown) {
         const full = model.nodes.get(n.addr);
-        const act = actionOf(n.action);
-        const cls = 'sq' + (act ? ' ' + act.cls : '') + (model.hasPlan && full && !full.action ? ' skip' : '');
         const where = full && full.module ? full.module : '';
-        ul.append(h('li', null, h('a', { class: 'navrow', href: '#', data: { goto: n.addr }, title: n.addr }, h('i', { class: cls }), h('span', { class: 'nn' }, full ? full.name : n.addr), where ? h('span', { class: 'nt' }, where) : null)));
+        ul.append(h('li', null, h('a', { class: 'navrow', href: '#', data: { goto: n.addr }, title: n.addr }, nodeMark(full || n, model.hasPlan && !!full), h('span', { class: 'nn' }, full ? full.name : n.addr), where ? h('span', { class: 'nt' }, where) : null)));
       }
       if (!all && nodes.length > LIMIT) ul.append(h('li', null, h('button', { class: 'more-btn', type: 'button', on: { click: () => draw(true) } }, `Show all ${nodes.length}`)));
     };

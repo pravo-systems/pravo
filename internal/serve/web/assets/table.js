@@ -2,7 +2,7 @@
 // Only the rows in view are in the document, so an estate of thousands of resources scrolls freely.
 
 import { h, clear, relTime, stamp, actionOf, store } from './util.js';
-import { FILTERS, natural } from './model.js';
+import { FILTERS, natural, isOut } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 
 const ROW = 30;
@@ -45,9 +45,9 @@ export class TableView {
     }
     this.spacer = h('div', { class: 'tv-spacer' });
     this.body = h('div', { class: 'tv-rows' });
-    this.scroller = h('div', { class: 'tv-scroll', tabIndex: 0, role: 'rowgroup', 'aria-label': 'Resources' }, this.spacer, this.body);
+    this.scroller = h('div', { class: 'tv-scroll', tabIndex: 0, role: 'rowgroup', 'aria-label': 'Resources and outputs' }, this.spacer, this.body);
     this.empty = h('p', { class: 'tv-empty', hidden: true }, 'Nothing matches.');
-    this.grid = h('div', { class: 'tv-grid', role: 'grid', 'aria-label': 'All resources', 'aria-readonly': 'true' }, h('div', { class: 'tv-inner', role: 'presentation' }, this.head, this.scroller, this.empty));
+    this.grid = h('div', { class: 'tv-grid', role: 'grid', 'aria-label': 'All resources and outputs', 'aria-readonly': 'true' }, h('div', { class: 'tv-inner', role: 'presentation' }, this.head, this.scroller, this.empty));
     root.append(this.grid);
     this.scroller.addEventListener('scroll', () => this.paint(), { passive: true });
     this.scroller.addEventListener('keydown', (ev) => this.onKey(ev));
@@ -121,11 +121,12 @@ export class TableView {
     if (n.drifted && !n.gone) stat.push(h('span', { class: 'b chg' }, h('span', { class: 'i i-drift' }), 'drifted'));
     if (n.locked) stat.push(h('span', { class: 'b lock' }, h('span', { class: 'i i-hold' }), 'locked'));
     if (n.sensitive > 0) stat.push(h('span', { class: 'b lock' }, h('span', { class: 'i i-lock' }), String(n.sensitive)));
-    if (n.presence === 'spec') stat.push(h('span', { class: 'b' }, 'declared only'));
+    if (n.presence === 'spec') stat.push(h('span', { class: 'b' }, isOut(n) ? 'not published' : 'declared only'));
     if (n.presence === 'state') stat.push(h('span', { class: 'b bad' }, 'orphan'));
-    const act = a ? h('span', { class: 'act' }, h('span', { class: 'sq ' + a.cls }), a.label) : (this.s.model.hasPlan ? h('span', { class: 'dim' }, 'not read') : '');
+    // a plan lists the value of every output and does not say which it changes: an output is neither planned nor "not read"
+    const act = a ? h('span', { class: 'act' }, h('span', { class: 'sq ' + a.cls }), a.label) : (this.s.model.hasPlan && !isOut(n) ? h('span', { class: 'dim' }, 'not read') : '');
     return h('div', { class: 'tv-row' + (on ? ' sel' : ''), role: 'row', 'aria-rowindex': String(i + 2), 'aria-selected': on ? 'true' : 'false', data: { addr: n.addr } },
-      h('div', { class: 'c-addr', role: 'gridcell', title: n.addr }, n.addr.length > n.name.length && n.addr.endsWith(n.name) ? [h('span', { class: 'pre' }, n.addr.slice(0, n.addr.length - n.name.length)), h('b', null, n.name)] : n.addr),
+      h('div', { class: 'c-addr' + (isOut(n) ? ' out' : ''), role: 'gridcell', title: n.addr }, isOut(n) ? h('span', { class: 'i i-output omark', 'aria-hidden': 'true' }) : null, n.addr.length > n.name.length && n.addr.endsWith(n.name) ? [h('span', { class: 'pre' }, n.addr.slice(0, n.addr.length - n.name.length)), h('b', null, n.name)] : n.addr),
       h('div', { class: 'c-type', role: 'gridcell', title: n.type }, n.type),
       h('div', { class: 'c-prov', role: 'gridcell', title: n.provider ? 'The provider instance: ' + n.provider : '' }, n.provider ? [h('span', { class: 'pvdot ' + pvClass(providerOf(n.type, n.provider)), 'aria-hidden': 'true' }), n.provider] : h('span', { class: 'dim' }, '—')),
       h('div', { class: 'c-mode', role: 'gridcell' }, n.mode),

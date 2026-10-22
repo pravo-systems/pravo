@@ -9,7 +9,7 @@
 
 import { s, h, clamp, ease, schedule, actionOf } from './util.js';
 import { G, FIT, fitScale, pathOf, midOf, lengthOf } from './layout.js';
-import { eachNode, cellsOf } from './model.js';
+import { eachNode, cellsOf, isOut } from './model.js';
 import { initials, hueOf } from './plans.js';
 import { providerOf, pvClass } from './provider.js';
 
@@ -25,6 +25,8 @@ const GLYPH = {
   grid: [['fill', 'M3 3h3v3H3zM6.5 3h3v3h-3zM10 3h3v3h-3zM3 6.5h3v3H3zM6.5 6.5h3v3h-3zM10 6.5h3v3h-3zM3 10h3v3H3zM6.5 10h3v3h-3zM10 10h3v3h-3z']],
   up: [['line', 'M4.5 9.8L8 6.2l3.5 3.6']],
   plus: [['line', 'M8 3.5v9M3.5 8h9']],
+  // an output: a value leaves the root through a door
+  out: [['line', 'M7 3.5H3.6v9H7M7.6 8h5.8M11 5.4L13.6 8 11 10.6']],
 };
 
 function glyph(name, x, y, size, cls) {
@@ -38,7 +40,7 @@ function itemSig(x, ctx) {
   if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.tint, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
-  return [x.kind, a.n, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.tint, x.h, x.kind === 'module' ? x.mod.kids.length : ''].join('|');
+  return [x.kind, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.tint, x.h, x.kind === 'module' ? x.mod.kids.length : ''].join('|');
 }
 
 const trunc = (t, n) => (t.length > n ? t.slice(0, Math.max(1, n - 1)) + '…' : t);
@@ -49,7 +51,7 @@ export function nodeClasses(n, ctx) {
   let c = 'node';
   const a = actionOf(n.action);
   if (a) c += ' ' + a.cls;
-  if (ctx.hasPlan && !n.action) c += ' notread';
+  if (ctx.hasPlan && !n.action && !isOut(n)) c += ' notread';
   if (n.drifted) c += ' drifted';
   if (n.gone) c += ' gone';
   if (n.locked) c += ' held';
@@ -67,13 +69,13 @@ export function authorsOf(n, ctx) {
 }
 
 export function describeNode(n, ctx) {
-  const bits = [`${n.name}, ${n.type}`];
+  const bits = [isOut(n) ? `${n.name}, output` : `${n.name}, ${n.type}`];
   if (n.action) bits.push(n.action === 'no-op' ? 'no change planned' : 'plan: ' + n.action);
   if ((n.plans || []).length) bits.push(`${n.overlap ? 'overlap: ' : ''}changed by ${authorsOf(n, ctx || {}).map((p) => `${p.id} of ${p.author}`).join(', ')}`);
   if (n.drifted) bits.push('drifted');
   if (n.gone) bits.push('gone');
   if (n.locked) bits.push('locked');
-  if (n.sensitive) bits.push(`${n.sensitive} sensitive values`);
+  if (n.sensitive) bits.push(isOut(n) ? 'sensitive, the value is withheld' : `${n.sensitive} sensitive values`);
   if (n.presence === 'spec') bits.push('declared only');
   if (n.presence === 'state') bits.push('orphan');
   return bits.join(', ');
@@ -472,7 +474,36 @@ export class GraphView {
     r.base = g.getAttribute('class');
   }
 
+  // buildOutput draws an output: a small pill with the glyph of an output, the name, and a lock when the value is withheld
+  buildOutput(it) {
+    const n = it.n, W = it.w, H = it.h;
+    const act = actionOf(n.action);
+    const badge = !!(act && act.glyph);
+    const g = s('g', { class: nodeClasses(n, this.ctx), role: 'button', 'aria-label': describeNode(n, this.ctx) });
+    const inn = s('g', { class: 'in' });
+    inn.append(s('rect', { class: 'halo', x: -5, y: -5, width: W + 10, height: H + 10, rx: H / 2 + 5 }));
+    if (this.ctx.hasPlan && n.action && n.action !== 'no-op') inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: H / 2 + 3 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: H / 2 }));
+    inn.append(glyph('out', 11, (H - 14) / 2, 14, 'mk mk-out'));
+    const marks = [];
+    if (n.sensitive > 0) marks.push('lock');
+    if (n.presence === 'state') marks.push('orphan');
+    const room = W - 32 - 10 - marks.length * 17 - (badge ? 18 : 0);
+    inn.append(s('text', { class: 'nm', x: 32, y: 19.6 }, trunc(n.name, chars(room, 12.5))));
+    let mx = W - 12 - 13;
+    if (badge) {
+      const b = s('g', { class: 'act', transform: `translate(${W - 24} ${(H - 16) / 2})` });
+      b.append(s('circle', { class: 'ab', cx: 8, cy: 8, r: 8 }), s('path', { class: 'ag', d: act.glyph, transform: 'translate(2 2)' }));
+      inn.append(b);
+      mx -= 18;
+    }
+    for (const m of marks) { inn.append(glyph(m, mx, (H - 13) / 2, 13, 'mk mk-' + m)); mx -= 17; }
+    g.append(inn);
+    return g;
+  }
+
   buildNode(it) {
+    if (isOut(it.n)) return this.buildOutput(it);
     const n = it.n, W = it.w, H = it.h;
     const marks = [];
     if (n.sensitive > 0) marks.push('lock');
@@ -530,7 +561,7 @@ export class GraphView {
   // the cells of a module or a group: one for each resource, in the colour of what is to become of it
   cells(it, x, y, w) {
     const nodes = [];
-    if (it.kind === 'module') eachNode(it.mod, (n) => nodes.push(n)); else for (const n of it.members) nodes.push(n);
+    if (it.kind === 'module') eachNode(it.mod, (n) => { if (!isOut(n)) nodes.push(n); }); else for (const n of it.members) nodes.push(n);
     const list = cellsOf(nodes);
     const g = s('g', { class: 'cells' });
     const pitch = 11, per = Math.max(1, Math.floor((w + 3) / pitch));
@@ -545,7 +576,9 @@ export class GraphView {
     const isMod = it.kind === 'module';
     const agg = it.agg;
     const pv = it.tint >= 0 ? ' tn' + (it.tint % TINTS) : '';
-    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isMod ? `module ${it.mod.name}, ${agg.n} resources, collapsed` : `${it.type}, ${agg.n} resources, grouped` });
+    const outs = it.mode === 'output';
+    const outsNote = agg.out ? `, ${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
+    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isMod ? `module ${it.mod.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
     const inn = s('g', { class: 'in' });
     inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
     inn.append(s('rect', { class: 'stack s2', x: 10, y: 10, width: W - 20, height: H, rx: 7 }));
@@ -556,7 +589,7 @@ export class GraphView {
     // a CSS transform replaces the transform attribute, so it must not sit on the
     // element that is placed and scaled by that attribute.
     inn.append(s('g', { class: 'cico' }, glyph(isMod ? 'chevR' : 'grid', 14, 12, 18)));
-    const title = isMod ? it.mod.name : it.type;
+    const title = isMod ? it.mod.name : outs ? 'outputs' : it.type;
     const marks = stateMarks(agg);
     const counts = [agg.create, agg.update + agg.replace, agg.delete].filter(Boolean);
     const pbw = (bare) => counts.reduce((w, n) => w + (bare ? 14 : 17 + String(n).length * 6.4), 0) + (counts.length ? 6 : 0);
@@ -578,8 +611,11 @@ export class GraphView {
     let opts;
     if (isMod) {
       const kids = it.mod.kids.length;
-      const res = `${agg.n} ${agg.n === 1 ? 'resource' : 'resources'}`;
-      opts = kids ? [`${res} · ${kids} ${kids === 1 ? 'module' : 'modules'}`, res, String(agg.n)] : [res, String(agg.n)];
+      const res = agg.n || !agg.out ? `${agg.n} ${agg.n === 1 ? 'resource' : 'resources'}` : '';
+      const mods = kids ? `${kids} ${kids === 1 ? 'module' : 'modules'}` : '';
+      const out = agg.out ? `${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
+      const join = (...p) => p.filter(Boolean).join(' · ');
+      opts = [...new Set([join(res, mods, out), join(res, mods), join(res, out), res || out, String(agg.n || agg.out)])];
     } else opts = it.mod.name ? [`× ${agg.n} in ${it.mod.name}`, `× ${agg.n}`] : [`× ${agg.n}`];
     inn.append(s('text', { class: 'ty', x: 38, y: 45 }, opts.find((o) => o.length <= room) || trunc(opts[opts.length - 1], room)));
     let mx = W - 14;
@@ -643,12 +679,14 @@ export class GraphView {
     const label = L.label || '';
     r.lbl.textContent = label;
     const agg = mod ? mod.agg : null;
-    r.cnt.textContent = agg ? String(agg.n) : '';
+    // a lane that holds outputs only counts them
+    const count = agg ? (agg.n || !agg.out ? String(agg.n) : agg.out + ' out') : '';
+    r.cnt.textContent = count;
     const w = label.length * 8.2 + 8;
     r.cnt.setAttribute('x', 20 + w + 6);
     const pb = r.head.querySelector('.lpb');
     while (pb.firstChild) pb.removeChild(pb.firstChild);
-    const cw = agg ? String(agg.n).length * 7.4 + 6 : 0;
+    const cw = agg ? count.length * 7.4 + 6 : 0;
     if (agg && agg.plan) pb.append(planBadges(agg, 20 + w + 6 + cw + 10, 1, false));
     // how far the title may be scaled up before it outgrows the lane
     const textW = 20 + w + 6 + cw + 6;
@@ -875,28 +913,30 @@ export class GraphView {
   }
 
   tipNode(n) {
-    const out = [h('div', { class: 'gtip-addr' }, n.addr), h('div', { class: 'gtip-type' }, (n.mode && n.mode !== 'managed' ? n.mode + ' · ' : '') + n.type)];
+    const isO = isOut(n);
+    const out = [h('div', { class: 'gtip-addr' }, n.addr), h('div', { class: 'gtip-type' }, isO ? 'output' : (n.mode && n.mode !== 'managed' ? n.mode + ' · ' : '') + n.type)];
     const chips = [];
     const a = actionOf(n.action);
     if (a && n.action !== 'no-op') chips.push(h('span', { class: 'gchip ' + a.cls }, a.label));
     else if (this.ctx.hasPlan && !n.action) chips.push(h('span', { class: 'gchip skip' }, 'not read'));
-    if (n.sensitive > 0) chips.push(h('span', { class: 'gchip sens' }, `${n.sensitive} sensitive`));
+    if (n.sensitive > 0) chips.push(h('span', { class: 'gchip sens' }, isO ? 'sensitive' : `${n.sensitive} sensitive`));
     if (n.gone) chips.push(h('span', { class: 'gchip gone' }, 'gone'));
     else if (n.drifted) chips.push(h('span', { class: 'gchip drift' }, 'drifted'));
     if (n.locked) chips.push(h('span', { class: 'gchip hold' }, 'locked'));
     if (n.presence === 'state') chips.push(h('span', { class: 'gchip gone' }, 'orphan'));
-    if (n.presence === 'spec') chips.push(h('span', { class: 'gchip skip' }, 'declared only'));
+    if (n.presence === 'spec') chips.push(h('span', { class: 'gchip skip' }, isO ? 'not published yet' : 'declared only'));
     if (n.overlap) chips.push(h('span', { class: 'gchip ovl' }, 'overlap'));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
     const authors = authorsOf(n, this.ctx);
     if (authors.length) out.push(h('div', { class: 'gtip-plans' }, authors.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${p.author} · ${p.id}`))));
-    out.push(h('div', { class: 'gtip-meta' }, `${n.deps.length} ${n.deps.length === 1 ? 'dependency' : 'dependencies'} · ${n.used.length} ${n.used.length === 1 ? 'dependent' : 'dependents'}`));
+    out.push(h('div', { class: 'gtip-meta' }, isO ? `reads ${n.deps.length} · read by ${n.used.length}` : `${n.deps.length} ${n.deps.length === 1 ? 'dependency' : 'dependencies'} · ${n.used.length} ${n.used.length === 1 ? 'dependent' : 'dependents'}`));
     return out;
   }
 
   tipModule(mod, open) {
     const a = mod.agg;
-    const out = [h('div', { class: 'gtip-addr' }, mod.path), h('div', { class: 'gtip-type' }, `${a.n} ${a.n === 1 ? 'resource' : 'resources'}` + (mod.kids.length ? ` in ${mod.kids.length} ${mod.kids.length === 1 ? 'module' : 'modules'}` : ''))];
+    const outs = a.out ? `${a.out} ${a.out === 1 ? 'output' : 'outputs'}` : '';
+    const out = [h('div', { class: 'gtip-addr' }, mod.path), h('div', { class: 'gtip-type' }, [a.n || !outs ? `${a.n} ${a.n === 1 ? 'resource' : 'resources'}` : '', mod.kids.length ? `${mod.kids.length} ${mod.kids.length === 1 ? 'module' : 'modules'}` : '', outs].filter(Boolean).join(' · '))];
     const chips = [];
     if (a.create) chips.push(h('span', { class: 'gchip a-create' }, `${a.create} create`));
     if (a.update + a.replace) chips.push(h('span', { class: 'gchip a-update' }, `${a.update + a.replace} change`));
@@ -910,7 +950,7 @@ export class GraphView {
 
   tipCluster(it) {
     const a = it.agg;
-    const out = [h('div', { class: 'gtip-addr' }, it.type), h('div', { class: 'gtip-type' }, `${a.n} resources` + (it.mod.name ? ` in ${it.mod.name}` : ''))];
+    const out = [h('div', { class: 'gtip-addr' }, it.mode === 'output' ? 'outputs' : it.type), h('div', { class: 'gtip-type' }, `${a.n} ${it.mode === 'output' ? 'outputs' : 'resources'}` + (it.mod.name ? ` in ${it.mod.name}` : ''))];
     const chips = [];
     if (a.create) chips.push(h('span', { class: 'gchip a-create' }, `${a.create} create`));
     if (a.update + a.replace) chips.push(h('span', { class: 'gchip a-update' }, `${a.update + a.replace} change`));

@@ -175,6 +175,12 @@ func TestPlanOverlay(t *testing.T) {
 			t.Errorf("%s: action %q, want %q", addr, n.Action, want)
 		}
 	}
+	// A plan lists the value of every output and does not say which it changes: the outputs stay without an action.
+	for _, n := range g.Nodes {
+		if n.Mode == "output" && n.Action != "" {
+			t.Errorf("output %s has the action %q", n.Addr, n.Action)
+		}
+	}
 	raw := p.get("/api/detail?addr=services.a.db")
 	noSecrets(t, "detail", raw, append(allSecrets, "new-blob-value-9999", "new-map-secret-5555", "new-nested-key-6666", "new-pin-value-7777")...)
 	var d Detail
@@ -310,7 +316,7 @@ func TestUnreadablePlan(t *testing.T) {
 	if g.Plan != nil || len(g.Warnings) == 0 || !strings.Contains(g.Warnings[0], "plan file") {
 		t.Errorf("plan %+v warnings %v", g.Plan, g.Warnings)
 	}
-	if len(g.Nodes) != 8 {
-		t.Errorf("%d nodes", len(g.Nodes))
+	if len(resourceNodes(g)) != 8 {
+		t.Errorf("%d resources", len(resourceNodes(g)))
 	}
 }

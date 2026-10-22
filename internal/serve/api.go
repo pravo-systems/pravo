@@ -72,12 +72,17 @@ type ProviderInstance struct {
 	Count int    `json:"count"`
 }
 
-// Node is one resource, data source, ephemeral resource or function call.
+// Node is one resource, data source, ephemeral resource, function call or built-in
+// value, or one output of the root: the other end of the data flow, a value that
+// the root publishes. An output is not a resource. It has no record, no history,
+// no lock and no refresh time, and no resource count (Module.Resources, the
+// "planned N of M" of a plan) includes it.
 type Node struct {
 	// Addr is the CUE path of the node, such as "services.api.secret". It is
 	// opaque to the page: it is a key, never split. Use Module for the parent.
 	Addr string `json:"addr"`
-	// Mode is "managed", "data", "ephemeral", "call" or "builtin".
+	// Mode is "managed", "data", "ephemeral", "call", "builtin" or "output". The
+	// Type of an output is "output".
 	Mode string `json:"mode"`
 	Type string `json:"type"`
 	// Name is the last label of the address.
@@ -89,11 +94,16 @@ type Node struct {
 	// Presence is "both" (declared and recorded), "spec" (declared, not yet
 	// created) or "state" (recorded, no longer declared). An ephemeral resource,
 	// a function call and a built-in value are never recorded: they are "both"
-	// while the specification declares them, and are not pending a creation.
+	// while the specification declares them, and are not pending a creation. For an
+	// output the record is its value in the outputs of the state: "spec" is an
+	// output that no apply has published yet, "state" one that the specification
+	// no longer declares and the next apply would remove.
 	Presence string `json:"presence"`
 	// Action is the action of the loaded plan for the node: "create", "update",
 	// "replace", "delete", "read", "move", "import" or "no-op". It is "" when no
-	// plan is loaded or the plan did not run the node.
+	// plan is loaded or the plan did not run the node. It is always "" for an
+	// output: a plan lists the value of every output and does not say which one
+	// it changes.
 	Action string `json:"action,omitempty"`
 	// Drifted and Gone are the marks of the record: a read found that the real
 	// object differs, or is absent.
@@ -109,7 +119,9 @@ type Node struct {
 	Plans   []string `json:"plans,omitempty"`
 	Overlap bool     `json:"overlap,omitempty"`
 	// Sensitive counts the attributes of the record whose values are withheld,
-	// the ones that hold a value and not null.
+	// the ones that hold a value and not null. For an output it is 1 when the
+	// value is withheld: the output is marked sensitive, or its value holds a
+	// sensitive value of the state.
 	Sensitive int `json:"sensitive,omitempty"`
 	// NoSchema is set when the schema of the node's type is not cached, so that
 	// every value of the record is withheld and Sensitive says nothing.
@@ -135,8 +147,10 @@ type Module struct {
 	Path   string `json:"path"`
 	Parent string `json:"parent"`
 	Name   string `json:"name"`
-	// Resources counts the nodes below the module, nested modules included.
+	// Resources counts the nodes below the module, nested modules included, the
+	// outputs not. Outputs counts the outputs below it.
 	Resources int `json:"resources"`
+	Outputs   int `json:"outputs,omitempty"`
 	Depth     int `json:"depth"`
 	// Declared is where the instance is written. Definition is where the
 	// definition it instantiates is written, when that can be told.
@@ -156,7 +170,7 @@ type Ref struct {
 }
 
 // Output is a declared or recorded output of the root. A sensitive output has
-// no value.
+// no value. Every output is a Node too (Mode "output", Node.Addr = Name).
 type Output struct {
 	Name      string `json:"name"`
 	Sensitive bool   `json:"sensitive,omitempty"`
@@ -202,7 +216,11 @@ type PlanInfo struct {
 }
 
 // Detail is GET /api/detail?addr=...: one node with its attributes. Values
-// that are sensitive are absent, with Redacted saying why.
+// that are sensitive are absent, with Redacted saying why. For an output the
+// only attributes are "value" (Type "output": withheld when the output is
+// sensitive or its value holds a sensitive value of the state, Unknown when no
+// apply has recorded it) and "description" when the output has one; it has no
+// Provider, History, Lock or Times, and its schema is always known.
 type Detail struct {
 	Version  int         `json:"version"`
 	Node     Node        `json:"node"`

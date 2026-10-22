@@ -118,6 +118,23 @@ function platform() {
   b.deps('release_marker', 'build_id', 'api.service');
   b.deps('edge.old_lb', 'network.sg_lb');
 
+  // the outputs of the root are nodes too, joined to what they read; one reads other outputs, one is not declared any more
+  b.output('url', { source: src('main.cue', 58, 61) });
+  b.output('db_endpoint', { source: src('main.cue', 63, 66) });
+  b.output('db_password', { sensitive: true, source: src('main.cue', 68, 72) });
+  b.output('cache_endpoint', { presence: 'spec', source: src('main.cue', 74, 77) });
+  b.output('summary', { source: src('main.cue', 79, 86) });
+  b.output('legacy_url', { presence: 'state' });
+  b.output('network.cidr', { source: src(N, 112, 114) });
+  b.output('api.cluster_arn', { source: src(A, 192, 195) });
+  b.deps('url', 'edge.dns');
+  b.deps('db_endpoint', 'api.db');
+  b.deps('db_password', 'api.db_pass');
+  b.deps('cache_endpoint', 'api.cache');
+  b.deps('summary', 'build_id', 'db_endpoint', 'url');
+  b.deps('network.cidr', 'network.vpc');
+  b.deps('api.cluster_arn', 'api.cluster');
+
   const stored = storedPlans(b, 'r-7c41e9b2');
   const plan = planOf(b, {
     file: '.pravo/plans/release-42.plan',
@@ -137,10 +154,14 @@ function platform() {
       loaded_at: iso(0),
     },
     outputs: [
-      { name: 'url', value: 'https://api.estate.example.com' },
-      { name: 'db_endpoint', value: 'estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432' },
-      { name: 'db_password', sensitive: true },
+      { name: 'api.cluster_arn', value: 'arn:aws:ecs:eu-west-1:412058817224:cluster/estate-api' },
       { name: 'cache_endpoint', unknown: true },
+      { name: 'db_endpoint', value: 'estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432' },
+      { name: 'db_password', sensitive: true, redacted: 'sensitive' },
+      { name: 'legacy_url', value: 'https://old.estate.example.com' },
+      { name: 'network.cidr', value: '10.20.0.0/16' },
+      { name: 'summary', value: { endpoint: 'estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432', release: 'a3f9c012', url: 'https://api.estate.example.com' } },
+      { name: 'url', value: 'https://api.estate.example.com' },
     ],
     plan,
     warnings: ['The schema of aws_wafv2_web_acl is not cached: its values are withheld. Run pravo providers schema to cache it.'],
@@ -232,7 +253,7 @@ function storedPlans(b, revision) {
       revision,
       plan: {
         file: d.id, id: d.id, status: d.status, created: iso(d.ago), actor: d.author, stale: d.status === 'stale' ? true : undefined, reasons: d.why,
-        summary: Object.assign({}, summary, { blast_radius: blast.size }), planned: touches.length, total: b.nodes.length, applied,
+        summary: Object.assign({}, summary, { blast_radius: blast.size }), planned: touches.length, total: b.nodes.filter((n) => n.mode !== 'output').length, applied,
       },
       nodes: touches.map((t) => ({ addr: t.addr, action: t.action, applied: t.applied })),
       warnings: d.status === 'stale' ? ['The plan is stale and can no longer be applied: ' + d.why.join('; ') + '.'] : undefined,
@@ -410,6 +431,53 @@ function detailDrifted(b, g) {
   });
 }
 
+// the details of two outputs: a plain one that has a description, and a sensitive one. An output has one attribute,
+// value, and a description when it has one; no history, no lock and no times; its schema is always known.
+function detailOutput(b, g, addr, o) {
+  const n = g.nodes.find((x) => x.addr === addr);
+  return prune({
+    version: 1,
+    node: n,
+    provider: { key: '' },
+    attrs: o.attrs,
+    schema_known: true,
+    depends_on: b.dependsOn(addr),
+    used_by: b.usedBy(addr),
+    times: {},
+    notes: o.notes,
+  });
+}
+
+function detailURL(b, g) {
+  return detailOutput(b, g, 'url', {
+    attrs: [
+      { name: 'value', type: 'output', value: 'https://api.estate.example.com' },
+      { name: 'description', type: 'string', value: 'Public address of the service' },
+    ],
+    notes: ['The value is the one the last apply recorded.'],
+  });
+}
+
+function detailSummary(b, g) {
+  return detailOutput(b, g, 'summary', {
+    attrs: [
+      { name: 'value', type: 'output', children: kv({ endpoint: 'estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432', release: 'a3f9c012', url: 'https://api.estate.example.com' }, undefined) },
+      { name: 'description', type: 'string', value: 'What an operator needs to reach the service' },
+    ],
+    notes: ['The value is the one the last apply recorded.'],
+  });
+}
+
+function detailDBPassword(b, g) {
+  return detailOutput(b, g, 'db_password', {
+    attrs: [
+      { name: 'value', type: 'output', sensitive: true, redacted: 'sensitive' },
+      { name: 'description', type: 'string', value: 'Password of the database administrator' },
+    ],
+    notes: ['The value is the one the last apply recorded.'],
+  });
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // sources of the platform
 
@@ -461,6 +529,29 @@ function sourceDB(g) {
     ],
     generated: 1,
     notes: ['main.cue changed 40 minutes ago, after the state was written.'],
+  });
+}
+
+function sourceURL(g) {
+  return prune({
+    version: 1,
+    addr: 'url',
+    blocks: [
+      { role: 'definition', label: 'url', file: 'main.cue', kind: 'file', start_line: 56, end_line: 63, modified: iso(40 * MIN), lines: [
+        L(56, '', undefined, true),
+        L(57, '// The address that clients use.', undefined, true),
+        L(58, 'url: pravo.#Output & {', 'focus'),
+        L(59, '\tvalue:       "https://\(edge.dns.name)"', 'focus'),
+        L(60, '\tdescription: "Public address of the service"', 'focus'),
+        L(61, '}', 'focus'),
+        L(62, '', undefined, true),
+        L(63, '// The database, for the people who run it.', undefined, true),
+      ] },
+    ],
+    contributions: [
+      { kind: 'file', where: 'main.cue:58-61', note: 'writes the output' },
+      { kind: 'builtin', where: 'pravo.dev/pravo', note: 'the built-in package gives pravo.#Output' },
+    ],
   });
 }
 
@@ -588,6 +679,12 @@ function fleet() {
   b.deps('global.cdn', 'global.oai', 'global.cert', 'regions.eu_west.web.lb');
   b.deps('global.cert', 'global.zone');
 
+  // the outputs: two at the root and one for each region
+  b.output('cdn_domain', { source: src('main.cue', 62, 64) });
+  b.output('regions', { source: src('main.cue', 66, 68) });
+  b.deps('cdn_domain', 'global.cdn');
+  for (const [r] of regions) { b.output(`regions.${r}.web.url`, { source: src('modules/web/main.cue', 70, 72) }); b.deps(`regions.${r}.web.url`, `regions.${r}.web.lb`); }
+
   // plan: a release of us_east
   const A = (addr, action, extra) => Object.assign(b.index.get(addr), { action }, extra || {});
   A('regions.us_east.api.task', 'update'); A('regions.us_east.api.service', 'update', { locked: true });
@@ -607,11 +704,11 @@ function fleet() {
       dir: '/srv/infra/fleet',
       package: 'fleet',
       version: '0.9.0-dev',
-      state: { location: '/srv/infra/fleet/.pravo/state', backend: 'local', lineage: '0e1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b', format: 3, records: b.nodes.length - 2, locks: 1 },
+      state: { location: '/srv/infra/fleet/.pravo/state', backend: 'local', lineage: '0e1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b', format: 3, records: b.nodes.filter((n) => n.mode !== 'output').length - 2, locks: 1 },
       providers: [{ ...AWS, instances: ['aws', 'aws.us'].map((key) => ({ key, count: b.nodes.filter((n) => (n.provider || n.type.split('_')[0]) === key).length })) }, RANDOM],
       loaded_at: iso(0),
     },
-    outputs: [{ name: 'cdn_domain', value: 'd2f8x1q0.cloudfront.net' }, { name: 'regions', value: ['eu-west-1', 'us-east-1', 'ap-south-1'] }],
+    outputs: [{ name: 'cdn_domain', value: 'd2f8x1q0.cloudfront.net' }, { name: 'regions', value: ['eu-west-1', 'us-east-1', 'ap-south-1'] }, ...[...regions].map(([r]) => ({ name: `regions.${r}.web.url`, value: `https://web.${r.replace('_', '-')}.fleet.example.com` })).sort((x, y) => (x.name < y.name ? -1 : 1))].sort((x, y) => (x.name < y.name ? -1 : 1)),
     plan,
   });
   return { b, g };
@@ -653,6 +750,8 @@ function specError() {
   b.add('edge.tg', 'aws_lb_target_group', { presence: 'state', revision: 4 });
   b.add('edge.dns', 'aws_route53_record', { presence: 'state', revision: 2 });
   b.add('build_id', 'random_id', { presence: 'state', provider: 'random', revision: 3 });
+  b.output('db_endpoint', { presence: 'state' });
+  b.output('url', { presence: 'state' });
   b.deps('network.subnet_a', 'network.vpc'); b.deps('network.subnet_b', 'network.vpc'); b.deps('network.sg_db', 'network.vpc');
   b.deps('api.db', 'api.db_pass', 'network.sg_db', 'network.subnet_a', 'network.subnet_b');
   b.deps('api.task', 'api.db'); b.deps('api.service', 'api.task', 'edge.tg');
@@ -668,6 +767,10 @@ function specError() {
       spec_error: 'modules/api/main.cue:26:21: reference "db_pass.reslt" not found\n    (did you mean "db_pass.result"?)',
       loaded_at: iso(0),
     },
+    outputs: [
+      { name: 'db_endpoint', value: 'estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432' },
+      { name: 'url', value: 'https://api.estate.example.com' },
+    ],
     warnings: ['The specification does not load: showing the state alone. Fix main.cue and the page updates.'],
   });
 }
@@ -681,6 +784,10 @@ out('detail.password.json', detailPassword(P.b, P.g));
 out('detail.drifted.json', detailDrifted(P.b, P.g));
 out('source.db.json', sourceDB(P.g));
 out('source.password.json', sourcePassword(P.g));
+out('detail.output.json', detailURL(P.b, P.g));
+out('detail.outputmap.json', detailSummary(P.b, P.g));
+out('detail.outputsecret.json', detailDBPassword(P.b, P.g));
+out('source.output.json', sourceURL(P.g));
 out('plans.platform.json', P.stored.list);
 for (const [id, overlay] of Object.entries(P.stored.overlays)) out(`plan.${id.replace(/^plan-/, '')}.json`, overlay);
 const F = fleet();

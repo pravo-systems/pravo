@@ -50,8 +50,8 @@ if (graph) {
     graph.plan.reasons = ['the state changed after the plan was made: api.db is at revision 15, the plan read revision 14', 'the provider aws is now version 5.62.0, the plan was made with 5.61.0'];
   }
 }
-const detailFiles = NAME === 'platform' ? { 'api.db': 'detail.db.json', 'api.db_password': 'detail.password.json', 'edge.lb': 'detail.drifted.json' } : {};
-const sourceFiles = NAME === 'platform' ? { 'api.db': 'source.db.json', 'api.db_password': 'source.password.json' } : {};
+const detailFiles = NAME === 'platform' ? { 'api.db': 'detail.db.json', 'api.db_password': 'detail.password.json', 'edge.lb': 'detail.drifted.json', url: 'detail.output.json', summary: 'detail.outputmap.json', db_password: 'detail.outputsecret.json' } : {};
+const sourceFiles = NAME === 'platform' ? { 'api.db': 'source.db.json', 'api.db_password': 'source.password.json', url: 'source.output.json' } : {};
 
 // ---- the plans stored in the state: plans.NAME.json, and plan.ID.json for the overlay of each (the id without "plan-") ----
 // pravo serve --plan plan-ID is mock=NAME&plan=plan-ID before the fragment: the graph then has that plan as its own.
@@ -137,7 +137,23 @@ function synthAttrs(n) {
   return attrs;
 }
 
+// the detail of an output: one attribute, value, shaped by what the graph lists for it; no record, no history, no lock
+function synthOutput(n) {
+  const g = graph;
+  const o = (g.outputs || []).find((x) => x.name === n.addr) || {};
+  const val = { name: 'value', type: 'output' };
+  const kids = (v) => (Array.isArray(v) ? v.map((x, i) => [String(i), x]) : Object.entries(v)).map(([k, x]) => (x && typeof x === 'object' ? { name: k, children: kids(x) } : { name: k, value: x }));
+  if (o.sensitive || n.sensitive) { val.sensitive = true; val.redacted = o.redacted || 'sensitive'; } else if (o.unknown || n.presence === 'spec') val.unknown = true;
+  else if (o.value && typeof o.value === 'object') val.children = kids(o.value);
+  else val.value = o.value;
+  const attrs = [val];
+  const notes = [n.presence === 'state' ? 'Recorded in the state, and the specification no longer declares it: the next apply would remove it.' : n.presence === 'spec' ? 'Declared in the specification and not published yet: no apply has recorded its value.' : 'The value is the one the last apply recorded.'];
+  return { version: 1, node: { ...n, deps: undefined, used: undefined, mod: undefined }, provider: { key: '' }, attrs, schema_known: true,
+    depends_on: g.edges.filter((e) => e.dependent === n.addr).map((e) => e.dependency).sort(), used_by: g.edges.filter((e) => e.dependency === n.addr).map((e) => e.dependent).sort(), times: {}, notes };
+}
+
 function synthDetail(n) {
+  if (n.mode === 'output') return synthOutput(n);
   const g = graph;
   const attrs = synthAttrs(n);
   const deps = g.edges.filter((e) => e.dependent === n.addr).map((e) => e.dependency).sort();
@@ -190,6 +206,15 @@ function synthDetail(n) {
 }
 
 function synthSource(n) {
+  if (n.mode === 'output') {
+    const f = n.source ? n.source.file : 'main.cue';
+    const start = n.source ? n.source.line : 10;
+    const text = n.presence === 'state' ? null : [`${n.name}: pravo.#Output & {`, n.sensitive ? '\tvalue:     "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"' : `\tvalue:     ${JSON.stringify(n.name + ' value')}`, n.sensitive ? '\tsensitive: true' : null, '}'].filter(Boolean);
+    if (!text) return { version: 1, addr: n.addr, blocks: [], contributions: [], notes: ['The node is recorded in the state and the specification no longer declares it, so there are no lines to show.'] };
+    const lines = text.map((t, i) => ({ no: start + i, text: t, mark: n.sensitive && i === 1 ? 'sensitive' : 'focus' }));
+    return { version: 1, addr: n.addr, blocks: [{ role: 'definition', label: n.addr, file: f, kind: 'file', start_line: start, end_line: start + lines.length - 1, modified: new Date(Date.now() - 3 * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), lines }],
+      contributions: [{ kind: 'file', where: `${f}:${start}-${start + lines.length - 1}`, note: 'writes the output' }, { kind: 'builtin', where: 'pravo.dev/pravo', note: 'the built-in package gives pravo.#Output' }] };
+  }
   const t = TPL[n.type] || GENERIC;
   const f = n.source ? n.source.file : 'main.cue';
   const start = n.source ? n.source.line : 10;
@@ -312,7 +337,7 @@ window.__mock = {
   mutate() {
     mutations++;
     const g = JSON.parse(JSON.stringify(graph));
-    const pick = g.nodes.filter((n) => !n.action).slice(0, 3);
+    const pick = g.nodes.filter((n) => !n.action && n.mode !== 'output').slice(0, 3);
     for (const n of pick) { n.revision = (n.revision || 0) + 1; n.action = 'update'; n.refreshed_at = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'); }
     const first = g.nodes[0];
     if (first && first.mode === 'managed') first.drifted = true;
@@ -344,7 +369,7 @@ window.__mock = {
     if (others.length) plan.overlaps = others;
     stored = Object.assign({}, stored, { plans: [plan].concat(stored.plans) });
     for (const t of touches) { const n = g.nodes.find((x) => x.addr === t.addr); n.plans = [id].concat(n.plans || []); if (canApply(n) > 1) n.overlap = true; }
-    overlays.set(id, { version: 1, revision: '', plan: { file: id, id, status: 'pending', created: now, actor: plan.author, summary: { add: 0, change: 2, destroy: 0, read: 0, blast_radius: 6 }, planned: 2, total: g.nodes.length }, nodes: touches,
+    overlays.set(id, { version: 1, revision: '', plan: { file: id, id, status: 'pending', created: now, actor: plan.author, summary: { add: 0, change: 2, destroy: 0, read: 0, blast_radius: 6 }, planned: 2, total: g.nodes.filter((n) => n.mode !== 'output').length }, nodes: touches,
       reason: 'resize the queue', command: 'pravo plan --store --reason "resize the queue"', git_revision: 'e5a1b08' });
     g.revision = 'r-plans-' + (++mutations);
     graph = g;

@@ -88,6 +88,14 @@
    "refreshed_at": "2026-10-21T12:01:11Z"
   },
   {
+   "addr": "db_endpoint",
+   "mode": "output",
+   "type": "output",
+   "name": "db_endpoint",
+   "module": "",
+   "presence": "state"
+  },
+  {
    "addr": "edge.dns",
    "mode": "managed",
    "type": "aws_route53_record",
@@ -163,6 +171,14 @@
    "presence": "state",
    "revision": 4,
    "refreshed_at": "2026-10-21T12:02:11Z"
+  },
+  {
+   "addr": "url",
+   "mode": "output",
+   "type": "output",
+   "name": "url",
+   "module": "",
+   "presence": "state"
   }
  ],
  "edges": [
@@ -246,7 +262,16 @@
    "depth": 0
   }
  ],
- "outputs": [],
+ "outputs": [
+  {
+   "name": "db_endpoint",
+   "value": "estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432"
+  },
+  {
+   "name": "url",
+   "value": "https://api.estate.example.com"
+  }
+ ],
  "warnings": [
   "The specification does not load: showing the state alone. Fix main.cue and the page updates."
  ]

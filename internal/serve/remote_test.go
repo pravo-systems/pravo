@@ -36,7 +36,7 @@ $settings: state: {backend: "s3", bucket: "state", prefix: "team/app", region: "
 	before := len(f.Objects)
 	p := start(t, dir, st, opts)
 	g := p.graph()
-	if g.Project.State.Backend != "s3" || g.Project.State.Records != 5 || len(g.Nodes) != 8 || g.Project.SpecError != "" {
+	if g.Project.State.Backend != "s3" || g.Project.State.Records != 5 || len(resourceNodes(g)) != 8 || g.Project.SpecError != "" {
 		t.Fatalf("project %+v nodes %d, spec error %q", g.Project.State, len(g.Nodes), g.Project.SpecError)
 	}
 	noSecrets(t, "graph", p.get("/api/graph"))

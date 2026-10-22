@@ -18,7 +18,8 @@ const check = (ok, msg) => { if (!ok) { failed++; console.log('FAIL', msg); } };
 
 for (const name of ['graph.platform.json', 'graph.fleet.json', 'graph.big.json']) {
   const m = load(name);
-  const touched = touchedModules(m, (n) => isChange(n.action) || n.drifted || n.gone || n.presence !== 'both');
+  // an output is a light item: it does not decide which modules open first (see autoCollapsed in app.js)
+  const touched = touchedModules(m, (n) => n.mode !== 'output' && (isChange(n.action) || n.drifted || n.gone || n.presence !== 'both'));
   for (const [w, h] of sizes) {
     const t0 = performance.now();
     const fv = firstView(m, new Map(), { width: w, height: h, touched });

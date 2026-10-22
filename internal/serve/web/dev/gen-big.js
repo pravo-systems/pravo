@@ -116,6 +116,16 @@ for (const x of all) if (x.action === 'create' && !x.gone) { x.presence = 'spec'
 const old = b.add('observability.alerts.old_pager', 'aws_sns_topic', { presence: 'state', action: 'delete' });
 b.dep('observability.alerts.sns_topic', old.addr);
 
+b.output('regions', { source: { file: 'main.cue', line: 90, col: 2, end_line: 93 } });
+// a root with many outputs: each reads one resource, and the first view has to stay legible
+const pool = all.filter((n) => n.mode !== 'output');
+const outList = [{ name: 'regions', value: ['eu-west-1'] }];
+for (let i = 1; i <= 26; i++) {
+  const name = 'endpoint_' + String(i).padStart(2, '0');
+  b.output(name, { sensitive: i % 9 === 0, source: { file: 'main.cue', line: 94 + i * 4, col: 2, end_line: 97 + i * 4 } });
+  b.dep(pool[(i * 71) % pool.length].addr, name);
+  outList.push(i % 9 === 0 ? { name, sensitive: true, redacted: 'sensitive' } : { name, value: `https://e${i}.atlas.example.com` });
+}
 const plan = planOf(b, { file: '.pravo/plans/nightly.plan', createdAgo: 8 * MIN, actor: 'nightly', hints: [] });
 const g = b.graph({
   revision: 'r-big-31d2c07a',
@@ -123,11 +133,11 @@ const g = b.graph({
     dir: '/srv/infra/atlas',
     package: 'atlas',
     version: '0.9.0-dev',
-    state: { location: 's3://acme-atlas-state/prod', backend: 's3', lineage: '9b1de7f0-2c4a-4f33-8d0e-5a6b7c8d9e0f', format: 3, records: b.nodes.length - 1, locks: 4 },
+    state: { location: 's3://acme-atlas-state/prod', backend: 's3', lineage: '9b1de7f0-2c4a-4f33-8d0e-5a6b7c8d9e0f', format: 3, records: b.nodes.filter((n) => n.mode !== 'output').length - 1, locks: 4 },
     providers: [{ local: 'aws', source: 'registry.opentofu.org/hashicorp/aws', version: '5.61.0' }],
     loaded_at: iso(0),
   },
-  outputs: [{ name: 'regions', value: ['eu-west-1'] }],
+  outputs: outList.sort((x, y) => (x.name < y.name ? -1 : 1)),
   plan,
 });
 fs.writeFileSync(path.join(__dirname, 'fixtures', 'graph.big.json'), JSON.stringify(g) + '\n');

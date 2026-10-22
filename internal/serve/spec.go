@@ -52,6 +52,9 @@ type specState struct {
 	modules map[string][2]*Ref
 	// byPath finds a declared resource by address.
 	byPath map[string]*config.Resource
+	// outputs finds a declared output by address, which is its name. Its edges are
+	// in edges, with those of the resources.
+	outputs map[string]*config.Output
 	// files are the files whose change makes the specification stale.
 	files []string
 	// abs maps a display path to the file it was made from.
@@ -68,7 +71,7 @@ type specState struct {
 func loadSpec(opts Options, sig string) *specState {
 	ss := &specState{sig: sig, loaded: time.Now().UTC(), edges: map[string][]string{}, refs: map[string]*Ref{},
 		allowed: map[string]bool{}, real: map[string]string{}, modules: map[string][2]*Ref{}, byPath: map[string]*config.Resource{},
-		abs: map[string]string{}, typeDefs: map[string]*Ref{}}
+		abs: map[string]string{}, typeDefs: map[string]*Ref{}, outputs: map[string]*config.Output{}}
 	dir := opts.Dir
 	lo := config.LoadOptions{Tags: opts.Tags, SysTags: opts.SysTags}
 	ss.lock, _ = engine.ReadLock(dir)
@@ -113,6 +116,11 @@ func loadSpec(opts Options, sig string) *specState {
 			ss.byPath[r.Address()] = r
 		}
 	}
+	for _, o := range root.Outputs {
+		if _, ok := ss.outputs[o.Name]; !ok {
+			ss.outputs[o.Name] = o
+		}
+	}
 	ss.computeEdges()
 	for _, r := range root.Resources {
 		if _, ok := ss.refs[r.Address()]; ok {
@@ -120,6 +128,14 @@ func loadSpec(opts Options, sig string) *specState {
 		}
 		if ref := ss.refOf(root.Value.LookupPath(r.Path)); ref != nil {
 			ss.refs[r.Address()] = ref
+		}
+	}
+	for _, o := range root.Outputs {
+		if _, ok := ss.refs[o.Name]; ok {
+			continue
+		}
+		if ref := ss.refOf(root.Value.LookupPath(o.Path)); ref != nil {
+			ss.refs[o.Name] = ref
 		}
 	}
 	return ss
@@ -179,24 +195,42 @@ func uncachedModule(dir string) string {
 	return ""
 }
 
-// specResolver tells the reference analysis where the resources are.
+// specResolver tells the reference analysis where the resources are. With
+// outputs it takes the outputs of the root for tasks as well, so that an output
+// that reads another is seen to read it, and not what the other one reads.
 type specResolver struct {
-	root   *config.Root
-	byPath map[string]*config.Resource
-	below  map[string][]cue.Path
+	root    *config.Root
+	byPath  map[string]*config.Resource
+	outputs map[string]*config.Output
+	below   map[string][]cue.Path
 }
 
 func newSpecResolver(root *config.Root) *specResolver {
-	r := &specResolver{root: root, byPath: map[string]*config.Resource{}, below: map[string][]cue.Path{}}
+	r := &specResolver{root: root, byPath: map[string]*config.Resource{}, outputs: map[string]*config.Output{}, below: map[string][]cue.Path{}}
 	for _, res := range root.Resources {
 		r.byPath[res.Path.String()] = res
-		sels := res.Path.Selectors()
-		for i := 1; i < len(sels); i++ {
-			k := cue.MakePath(sels[:i]...).String()
-			r.below[k] = append(r.below[k], res.Path)
+		r.addBelow(res.Path)
+	}
+	return r
+}
+
+// withOutputs makes the outputs of the root tasks of the resolver.
+func (r *specResolver) withOutputs() *specResolver {
+	for _, o := range r.root.Outputs {
+		if _, ok := r.outputs[o.Path.String()]; !ok {
+			r.outputs[o.Path.String()] = o
+			r.addBelow(o.Path)
 		}
 	}
 	return r
+}
+
+func (r *specResolver) addBelow(p cue.Path) {
+	sels := p.Selectors()
+	for i := 1; i < len(sels); i++ {
+		k := cue.MakePath(sels[:i]...).String()
+		r.below[k] = append(r.below[k], p)
+	}
 }
 
 func (r *specResolver) Task(p cue.Path) (cue.Path, cue.Path, bool) {
@@ -204,6 +238,9 @@ func (r *specResolver) Task(p cue.Path) (cue.Path, cue.Path, bool) {
 	for i := 1; i <= len(sels); i++ {
 		cand := cue.MakePath(sels[:i]...)
 		if _, ok := r.byPath[cand.String()]; ok {
+			return cand, cand, true
+		}
+		if _, ok := r.outputs[cand.String()]; ok {
 			return cand, cand, true
 		}
 	}
@@ -260,6 +297,27 @@ func (ss *specState) computeEdges() {
 		for _, d := range providerDeps[r.ProviderKey] {
 			if d != r.Address() {
 				deps[r.Address()][d] = true
+			}
+		}
+	}
+	// An output reads what its value reads: a resource, a built-in value or another
+	// output. The reference analysis is the engine's, with the outputs counted as
+	// tasks, so a reference through a module or an intermediate field is followed
+	// and an output that reads another one is joined to it, not to what it reads.
+	outRes := newSpecResolver(root).withOutputs()
+	for _, o := range root.Outputs {
+		if _, done := deps[o.Name]; done {
+			continue
+		}
+		set := map[string]bool{}
+		deps[o.Name] = set
+		p := o.ValuePath()
+		ds, _ := convert.Dependencies(root.Value.LookupPath(p), p, outRes)
+		for _, d := range ds {
+			if dr, ok := outRes.byPath[d.String()]; ok {
+				set[dr.Address()] = true
+			} else if do, ok := outRes.outputs[d.String()]; ok && do != o {
+				set[do.Name] = true
 			}
 		}
 	}

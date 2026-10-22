@@ -1,9 +1,12 @@
 package serve
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
+
+	"cuelang.org/go/cue"
 
 	"github.com/pravo-systems/pravo/internal/registry"
 )
@@ -23,6 +26,9 @@ func (m *model) detail(mn *mnode) *Detail { return m.detailFor(mn, m.plan) }
 // stored plan that a request names: the action of the node and its Change are
 // that plan's.
 func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
+	if mn.isOutput() {
+		return m.outputDetail(mn, po)
+	}
 	addr := mn.Addr
 	sec := m.secretsFor(po)
 	d := &Detail{Version: APIVersion, Node: mn.Node, Attrs: []Attr{}, DependsOn: nonNil(m.deps[addr]), UsedBy: nonNil(m.used[addr])}
@@ -125,6 +131,76 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		d.Notes = append(d.Notes, "A read found that the object differs from this record.")
 	}
 	return d
+}
+
+// outputDetail is detail for an output: its value, as one attribute, and its
+// description. An output has no record, so no history, lock or times, and no
+// schema to be unknown. The value is withheld when the output is sensitive or the
+// value holds a sensitive string of the state (or of the plan po): it is the
+// recorded value and not the one the specification would give now, and when no
+// apply has recorded it, it is not known.
+func (m *model) outputDetail(mn *mnode, po *planOverlay) *Detail {
+	addr := mn.Addr
+	sec := m.secretsFor(po)
+	d := &Detail{Version: APIVersion, Node: mn.Node, Attrs: []Attr{}, DependsOn: nonNil(m.deps[addr]), UsedBy: nonNil(m.used[addr]), SchemaKnown: true}
+	d.Node.Action = ""
+	at := Attr{Name: "value", Type: "output"}
+	switch {
+	case mn.output.Sensitive:
+		at.Sensitive, at.Redacted = true, mn.output.Redacted
+	case mn.recorded == nil:
+		at.Unknown = true
+	default:
+		dv, err := decodeAttrs(json.RawMessage(`{"v":` + string(mn.recorded) + `}`))
+		switch v := dv["v"]; {
+		case err != nil:
+			at.Unknown = true
+			d.Notes = append(d.Notes, "The recorded value cannot be read: "+err.Error()+".")
+		case v == nil:
+			at.Null = true
+		default:
+			w := &walk{secrets: sec, build: true}
+			w.free(&at, v, 0, nil)
+			if at.Redacted != "" {
+				at.Sensitive = true
+			}
+		}
+	}
+	d.Attrs = append(d.Attrs, at)
+	if text := m.outputDescription(mn); text != "" {
+		d.Attrs = append(d.Attrs, Attr{Name: "description", Type: "string", Value: clip(maskWith(sec, text), maxText)})
+	}
+	switch {
+	case mn.Presence == "state" && m.spec.root != nil:
+		d.Notes = append(d.Notes, "Recorded in the state, and the specification no longer declares it: the next apply would remove it.")
+	case mn.Presence == "state":
+		d.Notes = append(d.Notes, "Shown from the state alone: the specification does not load.")
+	case mn.Presence == "spec":
+		d.Notes = append(d.Notes, "Declared in the specification and not published yet: no apply has recorded its value.")
+	default:
+		d.Notes = append(d.Notes, "The value is the one the last apply recorded.")
+	}
+	return d
+}
+
+// outputDescription is the description of a declared output, "" when it has none
+// or when it is not a concrete string.
+func (m *model) outputDescription(mn *mnode) string {
+	if mn.out == nil || m.spec.root == nil {
+		return ""
+	}
+	ss := m.spec
+	ss.cueMu.Lock()
+	defer ss.cueMu.Unlock()
+	v := ss.root.Value.LookupPath(cue.MakePath(append(mn.out.Path.Selectors(), cue.Str("description"))...))
+	if !v.Exists() {
+		return ""
+	}
+	text, err := v.String()
+	if err != nil {
+		return ""
+	}
+	return text
 }
 
 // secretsFor is the set of sensitive strings that a response about the plan po is

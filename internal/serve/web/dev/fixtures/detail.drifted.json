@@ -163,7 +163,9 @@
  "reach": [
   "edge.assoc",
   "edge.dns",
-  "edge.listener"
+  "edge.listener",
+  "summary",
+  "url"
  ],
  "change": {
   "action": "update",

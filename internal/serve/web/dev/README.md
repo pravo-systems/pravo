@@ -13,9 +13,9 @@ Open `http://127.0.0.1:8830/index.html?mock=platform`. The text between `?` and 
 
 | Query | Effect |
 |---|---|
-| `mock=platform` | About 45 nodes: modules `network`, `api` and `edge` with nested modules, a plan with creates, updates, one replace and one delete, a drifted and a gone node, a spec-only node, an orphan, a locked node, sensitive attributes. |
+| `mock=platform` | About 45 resources and eight outputs: modules `network`, `api` and `edge` with nested modules, a plan with creates, updates, one replace and one delete, a drifted and a gone node, a spec-only node, an orphan, a locked node, sensitive attributes. The outputs are a plain one, a sensitive one, one that is not recorded yet (`cache_endpoint`), one that reads two other outputs (`summary`), an orphan (`legacy_url`) and two that sit in modules. |
 | `mock=fleet` | About 170 nodes: regions, services and resources three modules deep, with for-each groups of twelve or more siblings of one type, so that clustering shows. |
-| `mock=big` | About 1900 nodes in 30 modules, flat groups of siblings. The first view shows about twenty items. |
+| `mock=big` | About 1900 nodes in 30 modules, flat groups of siblings, and 27 outputs at the root, which the page groups into one card. The first view shows about twenty items. |
 | `mock=empty` | No nodes: the empty state. |
 | `mock=specerror` | `spec_error` set, state only. |
 | `plan=plan-2f9c1a4e` | The server lays that stored plan over the graph itself, as `pravo serve --plan plan-2f9c1a4e` does: it is the plan of the graph and the page opens with it selected. Taking it off in the page is `plan=none` in the fragment. |
@@ -23,7 +23,7 @@ Open `http://127.0.0.1:8830/index.html?mock=platform`. The text between `?` and 
 | `fail=detail` | `/api/detail` answers 500 with a message: the error toast. |
 | `latency=300` | Delays every answer by that many milliseconds: the loading skeletons. |
 
-Only the platform has detail and source answers written out (`detail.db.json`, `detail.password.json`, `detail.drifted.json`, `source.db.json`, `source.password.json`: `api.db`, `api.db_password` and `edge.lb`). For every other node the shim makes the answer from the graph, from a small table of attributes by type: schema known or not (`aws_wafv2_web_acl` has no schema), sensitive attributes, a history from the revision, the plan's change, a lock.
+Only the platform has detail and source answers written out (`detail.db.json`, `detail.password.json`, `detail.drifted.json`, `source.db.json`, `source.password.json`: `api.db`, `api.db_password` and `edge.lb`; `detail.output.json`, `detail.outputmap.json`, `detail.outputsecret.json` and `source.output.json`: the outputs `url`, `summary` and `db_password`). For every other node the shim makes the answer from the graph, from a small table of attributes by type: schema known or not (`aws_wafv2_web_acl` has no schema), sensitive attributes, a history from the revision, the plan's change, a lock.
 
 The platform also has seven plans stored in the state: `plans.platform.json` is the answer of `/api/plans`, and `plan.2f9c1a4e.json` and its six siblings are the answers of `/api/plan?id=plan-2f9c1a4e` and so on. Four of the plans can be applied: `ana@acme` and `ben@acme` both change `api.db`, which has the ring of an overlap and two author badges, `dee@acme` has applied one of its two changes (`partial`: the applied one is marked `applied` in its touches and is on no node, and the overlaps of a plan count only the changes that are left), and `kim@acme` has a plan that is `partly-stale` (`plan-b86e2d14`): `api.role` moved in the state, so it conflicts, and `api.policy` has to be applied with it; `api.secret` and `api.logs` are the part that can be applied, by `--only`. The plan has `conflicts`, `unapplied`, `apply_only` and `apply_live`, a `conflict` mark on two of its touches, and its badge on all four nodes; its conflicting changes do not count for an overlap. One plan is stale, one applied and one expired. A listing row (`plans.platform.json`) has no `reason`, `command` or `git_revision`; the overlay (`plan.*.json`) has them, as the server sends them. An overlap is `{id, count, addrs}` and is symmetric. `detail` and `source` take `plan=ID` (or `plan=none`) and the shim makes the answer for that plan from the overlay. The other mocks have no stored plans: the section of the rail is not there.
 
@@ -33,7 +33,7 @@ In a mock session `window.__mock` has `mutate()` (changes three nodes and sends 
 
 ## The fragment
 
-The view is in the fragment: `#/?sel=ADDR&tab=state|source|schema|history|change&collapse=A,B&expand=C,D&theme=light|dark&q=TEXT&filter=plan|drifted|sensitive|orphans|declared&plan=plan-2f9c1a4e&view=graph|table&motion=off&zoom=fit`. Values are URL-encoded; lists are comma separated, each item encoded. Besides those:
+The view is in the fragment: `#/?sel=ADDR&tab=state|source|schema|history|change&collapse=A,B&expand=C,D&theme=light|dark&q=TEXT&filter=plan|drifted|sensitive|orphans|declared|outputs&plan=plan-2f9c1a4e&view=graph|table&motion=off&zoom=fit`. Values are URL-encoded; lists are comma separated, each item encoded. Besides those:
 
 | Parameter | Meaning |
 |---|---|

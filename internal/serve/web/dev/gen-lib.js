@@ -18,7 +18,7 @@ function rng(seed) {
 }
 
 // Fields of api.go that are not omitempty: their zero value is sent.
-const KEEP = new Set(['records', 'locks', 'add', 'change', 'destroy', 'read', 'blast_radius', 'planned', 'total', 'resources', 'depth', 'line', 'no', 'schema_known', 'start_line', 'version', 'value', 'before', 'after', 'module', 'parent', 'text']);
+const KEEP = new Set(['records', 'locks', 'add', 'change', 'destroy', 'read', 'blast_radius', 'planned', 'total', 'resources', 'depth', 'line', 'no', 'schema_known', 'key', 'start_line', 'version', 'value', 'before', 'after', 'module', 'parent', 'text']);
 
 // Drop keys whose value is the zero value of an omitempty field.
 function prune(o) {
@@ -67,6 +67,24 @@ class Builder {
     this.index.set(addr, n);
     return n;
   }
+  // output records the node of an output of the root: it has no provider, no revision and no refresh time, and
+  // it is a node of the graph and not a resource (Module.resources and the counts of a plan leave it out)
+  output(addr, o = {}) {
+    const parts = addr.split('.');
+    const n = {
+      addr,
+      mode: 'output',
+      type: 'output',
+      name: parts[parts.length - 1],
+      module: parts.slice(0, -1).join('.'),
+      presence: o.presence || 'both',
+      sensitive: o.sensitive ? 1 : undefined,
+      source: o.presence === 'state' ? undefined : o.source,
+    };
+    this.nodes.push(n);
+    this.index.set(addr, n);
+    return n;
+  }
   dep(dependency, dependent) {
     if (!this.index.has(dependency) || !this.index.has(dependent)) throw new Error(`edge ${dependency} -> ${dependent}: unknown node`);
     this.edges.push({ dependency, dependent });
@@ -83,10 +101,10 @@ class Builder {
         let e = m.get(path);
         if (!e) {
           const r = this.refs.get(path) || {};
-          e = { path, parent: parts.slice(0, i - 1).join('.'), name: parts[i - 1], resources: 0, depth: i - 1, declared: r.declared, definition: r.definition };
+          e = { path, parent: parts.slice(0, i - 1).join('.'), name: parts[i - 1], resources: 0, outputs: 0, depth: i - 1, declared: r.declared, definition: r.definition };
           m.set(path, e);
         }
-        e.resources++;
+        if (n.mode === 'output') e.outputs++; else e.resources++;
       }
     }
     return [...m.values()].sort((a, b) => (a.path < b.path ? -1 : 1));
@@ -144,7 +162,7 @@ function planOf(b, o) {
     reasons: o.reasons,
     summary: { add: c.add, change: c.change, destroy: c.destroy, read: c.read, blast_radius: blast.size },
     planned,
-    total: b.nodes.length,
+    total: b.nodes.filter((n) => n.mode !== 'output').length,
     hints: o.hints,
   });
 }

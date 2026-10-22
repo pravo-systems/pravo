@@ -6,6 +6,14 @@ import { setProviders } from './provider.js';
 
 export const CLUSTER_MIN = 8;
 export const CLUSTER_CAP = 200;
+// outputs are small pills: they group later than resources do, and weigh less in the budget of the first view
+export const OUT_CLUSTER_MIN = 16;
+export const OUT_WEIGHT = 0.35;
+
+// isOut says that a node is an output of the root. An output is not a resource: it has no record, and the counts
+// of resources, of the chips and of the modules leave it out.
+export const isOut = (n) => n.mode === 'output';
+export const clusterMin = (n) => (isOut(n) ? OUT_CLUSTER_MIN : CLUSTER_MIN);
 
 const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 export const natural = (a, b) => collator.compare(a, b);
@@ -13,15 +21,17 @@ export const natural = (a, b) => collator.compare(a, b);
 const CHANGING = new Set(['create', 'update', 'replace', 'delete', 'move', 'import']);
 export const isChange = (a) => CHANGING.has(a);
 
-const zero = () => ({ n: 0, plan: 0, create: 0, update: 0, replace: 0, delete: 0, read: 0, drifted: 0, gone: 0, sensitive: 0, locked: 0, orphan: 0, spec: 0 });
+// n counts the resources of a module, out its outputs
+const zero = () => ({ n: 0, out: 0, plan: 0, create: 0, update: 0, replace: 0, delete: 0, read: 0, drifted: 0, gone: 0, sensitive: 0, locked: 0, orphan: 0, spec: 0 });
 
-// FILTERS match a node; the key is the value of filter= in the fragment.
+// FILTERS match a node; the key is the value of filter= in the fragment. All but outputs match resources only.
 export const FILTERS = {
-  plan: (n) => !!n.action && n.action !== 'no-op',
-  drifted: (n) => !!(n.drifted || n.gone),
-  sensitive: (n) => n.sensitive > 0,
-  orphans: (n) => n.presence === 'state',
-  declared: (n) => n.presence === 'spec',
+  plan: (n) => !isOut(n) && !!n.action && n.action !== 'no-op',
+  drifted: (n) => !isOut(n) && !!(n.drifted || n.gone),
+  sensitive: (n) => !isOut(n) && n.sensitive > 0,
+  orphans: (n) => !isOut(n) && n.presence === 'state',
+  declared: (n) => !isOut(n) && n.presence === 'spec',
+  outputs: (n) => isOut(n),
 };
 
 // buildModel indexes a graph. plans are the stored plans (the answer of /api/plans), which the badges on the
@@ -32,7 +42,8 @@ export function buildModel(graph, plans) {
   const list = [];
   // when the specification does not load every node is "state only": that says nothing about any one node
   const specError = !!(g.project && g.project.spec_error);
-  setProviders(g.nodes, g.project);
+  // an output has no provider: it must not take a look from the providers
+  setProviders((g.nodes || []).filter((n) => n.mode !== 'output'), g.project);
   for (const raw of g.nodes || []) {
     const n = Object.assign({}, raw, { deps: [], used: [], sensitive: raw.sensitive || 0 });
     if (specError) n.presence = 'both';
@@ -67,12 +78,14 @@ export function buildModel(graph, plans) {
     b.deps.push(a.addr);
     edges.push({ a: a.addr, b: b.addr });
   }
-  const counts = { all: list.length, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0 };
+  const nout = list.filter(isOut).length;
+  const counts = { all: list.length - nout, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0 };
   for (const n of list) {
     for (const k of Object.keys(FILTERS)) if (FILTERS[k](n)) counts[k]++;
   }
   // aggregates, bottom-up
   const add = (agg, n) => {
+    if (isOut(n)) { agg.out++; return; }
     agg.n++;
     if (n.action && n.action !== 'no-op') agg.plan++;
     if (n.action === 'create') agg.create++;
@@ -101,7 +114,7 @@ export function buildModel(graph, plans) {
   const planned = list.filter((n) => n.action).length;
   const stored = plans || [];
   return {
-    graph: g, nodes, list, modules, root, edges, counts, planned, hasPlan: !!g.plan, specError,
+    graph: g, nodes, list, modules, root, edges, counts, planned, hasPlan: !!g.plan, specError, nres: list.length - nout, nout,
     plans: stored, planById: new Map(stored.map((p) => [p.id, p])), authors: new Map(stored.map((p) => [p.id, p.author])),
   };
 }
@@ -125,6 +138,9 @@ export const isUnder = (mod, path) => { for (let m = mod; m; m = m.up) if (m.pat
 
 export const clusterId = (modPath, n) => 'c:' + modPath + '|' + n.mode + '|' + n.type;
 
+// sizeOf is the size of the item of a node: an output is a pill, lighter than a resource
+const sizeOf = (n) => (isOut(n) ? { w: G.OW, h: G.OH } : { w: G.W, h: G.H });
+
 function groupsOf(mod) {
   const groups = new Map();
   for (const n of mod.nodes) {
@@ -141,7 +157,7 @@ export const CELLS_ROW = 18;
 export const CELLS_MAX = 36;
 export const cardHeight = (n) => (n > CELLS_ROW ? G.MH2 : G.MH);
 
-const aggOf = (nodes) => { const a = zero(); for (const n of nodes) { a.n++; if (n.action && n.action !== 'no-op') a.plan++; if (n.action === 'create') a.create++; else if (n.action === 'update') a.update++; else if (n.action === 'replace') a.replace++; else if (n.action === 'delete') a.delete++; else if (n.action === 'read') a.read++; if (n.drifted) a.drifted++; if (n.gone) a.gone++; if (n.sensitive > 0) a.sensitive++; if (n.locked) a.locked++; if (n.presence === 'state') a.orphan++; if (n.presence === 'spec') a.spec++; } return a; };
+const aggOf = (nodes) => { const a = zero(); for (const n of nodes) { a.n++; if (isOut(n)) a.out++; if (n.action && n.action !== 'no-op') a.plan++; if (n.action === 'create') a.create++; else if (n.action === 'update') a.update++; else if (n.action === 'replace') a.replace++; else if (n.action === 'delete') a.delete++; else if (n.action === 'read') a.read++; if (n.drifted) a.drifted++; if (n.gone) a.gone++; if (n.sensitive > 0) a.sensitive++; if (n.locked) a.locked++; if (n.presence === 'state') a.orphan++; if (n.presence === 'spec') a.spec++; } return a; };
 
 // buildItems computes what is visible: the lane tree for the layout, the items, the merged edges and, for
 // every node, the item that stands for it.
@@ -156,7 +172,7 @@ export function buildItems(model, collapsed, clusters) {
   function walk(mod, lane) {
     for (const [k, ns] of groupsOf(mod)) {
       const cid = 'c:' + mod.path + '|' + k;
-      if (ns.length >= CLUSTER_MIN) {
+      if (ns.length >= clusterMin(ns[0])) {
         const lim = clusters.get(cid);
         if (lim === undefined) {
           const it = put({ id: cid, kind: 'cluster', type: ns[0].type, mode: ns[0].mode, members: ns, mod, agg: aggOf(ns), w: G.CW, h: cardHeight(ns.length), lane: mod.path });
@@ -167,7 +183,7 @@ export function buildItems(model, collapsed, clusters) {
         const shown = Math.min(lim, ns.length);
         for (let i = 0; i < shown; i++) {
           const n = ns[i];
-          const it = put({ id: 'n:' + n.addr, kind: 'node', n, w: G.W, h: G.H, lane: mod.path, cluster: cid });
+          const it = put({ id: 'n:' + n.addr, kind: 'node', n, w: sizeOf(n).w, h: sizeOf(n).h, lane: mod.path, cluster: cid });
           lane.items.push(it.id);
           rep.set(n.addr, it.id);
         }
@@ -177,7 +193,7 @@ export function buildItems(model, collapsed, clusters) {
         continue;
       }
       for (const n of ns) {
-        const it = put({ id: 'n:' + n.addr, kind: 'node', n, w: G.W, h: G.H, lane: mod.path });
+        const it = put({ id: 'n:' + n.addr, kind: 'node', n, w: sizeOf(n).w, h: sizeOf(n).h, lane: mod.path });
         lane.items.push(it.id);
         rep.set(n.addr, it.id);
       }
@@ -216,8 +232,10 @@ export function countItems(model, collapsed, clusters) {
     let c = 0;
     for (const [k, ns] of groupsOf(mod)) {
       const lim = clusters.get('c:' + mod.path + '|' + k);
-      if (ns.length >= CLUSTER_MIN) c += lim === undefined ? 1 : Math.min(lim, ns.length) + 1;
-      else c += ns.length;
+      // an output is a light item: it weighs a part of a resource
+      const w = isOut(ns[0]) ? OUT_WEIGHT : 1;
+      if (ns.length >= clusterMin(ns[0])) c += lim === undefined ? 1 : Math.min(lim, ns.length) * w + 1;
+      else c += ns.length * w;
     }
     return c;
   }
@@ -278,7 +296,7 @@ export function firstView(model, clusters, o = {}) {
   for (let level = 0; level < 12; level++) {
     const cands = [];
     for (const m of model.modules.values()) {
-      if (m.isRoot || !collapsed.has(m.path) || failed.has(m.path) || !m.total) continue;
+      if (m.isRoot || !collapsed.has(m.path) || failed.has(m.path) || (!m.total && !m.agg.out)) continue;
       if (m.up && !m.up.isRoot && collapsed.has(m.up.path)) continue;
       cands.push(m);
     }
@@ -347,7 +365,7 @@ export function reveal(model, addr, collapsed, clusters) {
   let changed = false;
   for (const m of chain(n.mod)) if (collapsed.delete(m.path)) changed = true;
   const ns = n.mod.nodes.filter((x) => x.mode === n.mode && x.type === n.type);
-  if (ns.length >= CLUSTER_MIN) {
+  if (ns.length >= clusterMin(n)) {
     const cid = clusterId(n.mod.path, n);
     const lim = clusters.get(cid);
     const idx = ns.indexOf(n);

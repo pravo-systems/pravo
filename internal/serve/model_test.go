@@ -20,6 +20,17 @@ func nodeOf(g Graph, addr string) *Node {
 	return nil
 }
 
+// resourceNodes are the nodes of the graph that are not outputs.
+func resourceNodes(g Graph) []Node {
+	var out []Node
+	for _, n := range g.Nodes {
+		if n.Mode != "output" {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 func moduleOf(g Graph, path string) *Module {
 	for i := range g.Modules {
 		if g.Modules[i].Path == path {
@@ -53,8 +64,8 @@ func TestGraph(t *testing.T) {
 		"services.b.file": "spec", "hosts.x": "spec", "hosts.y": "spec",
 		"old.thing": "state",
 	}
-	if len(g.Nodes) != len(want) {
-		t.Errorf("%d nodes, want %d", len(g.Nodes), len(want))
+	if n := len(resourceNodes(g)); n != len(want) {
+		t.Errorf("%d resources, want %d", n, len(want))
 	}
 	for addr, presence := range want {
 		n := nodeOf(g, addr)
@@ -180,8 +191,8 @@ func TestSpecErrorShowsTheStateAlone(t *testing.T) {
 	writeSpec(t, p.dir, "package demo\n\nbroken: {\n")
 	waitFor(t, "the specification error", func() bool { return p.graph().Project.SpecError != "" })
 	g := p.graph()
-	if len(g.Nodes) != 5 {
-		t.Fatalf("%d nodes from the state alone, want 5", len(g.Nodes))
+	if len(resourceNodes(g)) != 5 {
+		t.Fatalf("%d resources from the state alone, want 5", len(resourceNodes(g)))
 	}
 	for _, n := range g.Nodes {
 		if n.Presence != "state" || n.Source != nil {

@@ -209,8 +209,17 @@ func TestServeARealRoot(t *testing.T) {
 	if err := json.Unmarshal(raw, &g); err != nil {
 		t.Fatal(err)
 	}
-	if g.Project.SpecError != "" || len(g.Nodes) != 9 || g.Project.State.Records != 9 || g.Plan == nil {
-		t.Fatalf("graph: spec error %q, %d nodes, %d records, plan %v", g.Project.SpecError, len(g.Nodes), g.Project.State.Records, g.Plan)
+	// the three outputs of the example are nodes too, and are not resources
+	resources, outputs := 0, 0
+	for _, n := range g.Nodes {
+		if n.Mode == "output" {
+			outputs++
+		} else {
+			resources++
+		}
+	}
+	if g.Project.SpecError != "" || resources != 9 || outputs != 3 || g.Project.State.Records != 9 || g.Plan == nil || g.Plan.Total != 9 {
+		t.Fatalf("graph: spec error %q, %d resources, %d outputs, %d records, plan %v", g.Project.SpecError, resources, outputs, g.Project.State.Records, g.Plan)
 	}
 	if g.Plan.Summary.Add != 5 || g.Plan.Summary.Destroy != 5 || g.Plan.Stale {
 		t.Errorf("plan %+v", g.Plan)

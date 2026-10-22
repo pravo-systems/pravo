@@ -266,7 +266,7 @@ func TestStoredPlansAreListed(t *testing.T) {
 		Nodes []struct{ Addr, Action string }
 		Plan  *PlanInfo
 	}
-	if err := json.Unmarshal(p.get("/api/graph"), &old); err != nil || len(old.Nodes) != 8 || old.Plan != nil {
+	if err := json.Unmarshal(p.get("/api/graph"), &old); err != nil || len(old.Nodes) != 8+3 || old.Plan != nil {
 		t.Errorf("the graph for an old reader: %d nodes, plan %v, %v", len(old.Nodes), old.Plan, err)
 	}
 }

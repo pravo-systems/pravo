@@ -64,7 +64,7 @@ export class StateView {
     for (const a of attrs) this.buckets[bucketOf(a)].push(a);
     const wrap = h('div', { class: 'state' });
     if (!d.schema_known) wrap.append(h('p', { class: 'note warn' }, icon('bang'), h('span', null, 'The provider schema could not be read, so no one can say which values are sensitive. Every value is withheld.')));
-    if (attrs.length) {
+    if (attrs.length && !d.bare) {
       const input = h('input', { class: 'sfilter', type: 'search', placeholder: 'Filter attributes and values', 'aria-label': 'Filter the attributes', autocomplete: 'off', spellcheck: 'false' });
       input.addEventListener('input', () => { this.q = input.value.trim().toLowerCase(); this.draw(); });
       const sw = h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': this.showComputed ? 'true' : 'false', 'data-tip': 'Computed attributes are filled in by the provider: ids, hashes, timestamps.' },
@@ -97,7 +97,9 @@ export class StateView {
       return;
     }
     let shown = 0;
-    const order = [['configured', 'Configured', 'Set by the specification'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Computed', 'Filled in by the provider']];
+    const order = this.d.bare
+      ? [['configured', 'Value', 'What the root publishes'], ['sensitive', 'Value', 'Withheld by the server'], ['computed', 'Value', '']]
+      : [['configured', 'Configured', 'Set by the specification'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Computed', 'Filled in by the provider']];
     for (const [key, title, hint] of order) {
       const list = this.buckets[key];
       if (!list.length) continue;
@@ -148,7 +150,7 @@ export class StateView {
     const isChanged = this.changed.has(path) || [...this.changed].some((c) => c.startsWith(path + '.'));
     const flash = this.prev && !hasKids && this.prev.get(path) !== JSON.stringify([a.redacted || '', !!a.sensitive, !!a.unknown, !!a.null, a.value === undefined ? null : a.value]);
     const locked = !!(a.redacted || a.sensitive);
-    const idx = parent && isList(parent.type) && /^\d+$/.test(a.name);
+    const idx = parent && (isList(parent.type) || (parent.type === 'output' && (parent.children || []).every((k) => /^\d+$/.test(k.name)))) && /^\d+$/.test(a.name);
     const kind = (a.kind || '').split(',').filter(Boolean);
     const tags = [];
     if (kind.includes('required')) tags.push(h('em', { class: 'tg req' }, 'required'));
@@ -193,7 +195,9 @@ export class StateView {
     if (a.sensitive) return { el: withheld('sensitive') };
     if (a.unknown) return { el: unknownEl() };
     if (a.null) return { el: nullEl() };
-    const t = a.type || '';
+    let t = a.type || '';
+    // the value of an output has no type of its own: its shape says it
+    if (t === 'output') t = kids.length ? (kids.every((k) => /^\d+$/.test(k.name)) ? 'list' : 'object') : a.value === undefined ? 'object' : 'string';
     if (kids.length || (/^(object|list|set|map|tuple)/.test(t) && a.value === undefined)) return this.collection(a, kids, t);
     return this.scalar(a.value, a.name, path, a.truncated);
   }

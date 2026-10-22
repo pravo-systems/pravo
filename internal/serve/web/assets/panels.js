@@ -1,8 +1,8 @@
 // The inspector when nothing is selected (the project) and when a module is: summaries, bars, navigable lists,
 // and the places where a module is written.
 
-import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, baseName, fmt } from './util.js';
-import { eachNode } from './model.js';
+import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, baseName, fmt, nodeMark } from './util.js';
+import { eachNode, isOut } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { codeWindow } from './ui.js';
 import { statusChip, facts, planActions, conflictsBox } from './plans.js';
@@ -53,8 +53,11 @@ export function projectPanel(ins, model) {
   }
   if ((p.policies || []).length) body.push(sec(`Policies · ${p.policies.length}`, h('ul', { class: 'rows' }, p.policies.map((v) => h('li', null, h('b', { class: 'mono-s' }, v))))));
   if ((g.outputs || []).length) {
+    // each output is a node of the graph: the name leads to it
     body.push(sec(`Outputs · ${g.outputs.length}`, h('ul', { class: 'rows outs' }, g.outputs.map((o) => h('li', null,
-      h('b', null, o.name),
+      model.nodes.has(o.name) && isOut(model.nodes.get(o.name))
+        ? h('a', { class: 'ol', href: '#', data: { goto: o.name }, title: `Show ${o.name} in the graph` }, icon('output'), h('b', null, o.name))
+        : h('b', null, o.name),
       h('span', { class: 'ov' }, o.sensitive ? withheld(o.redacted || 'sensitive') : o.unknown ? unknownEl() : ins.values.scalar(o.value, o.name, 'out:' + o.name).el))))));
   }
   if ((g.warnings || []).length) body.push(sec(`Warnings · ${g.warnings.length}`, g.warnings.map((w) => h('p', { class: 'note warn' }, icon('bang'), h('span', null, w)))));
@@ -138,7 +141,7 @@ export function modulePanel(ins, mod, model, collapsed) {
 
   // by resource type
   const types = new Map();
-  eachNode(mod, (n) => types.set(n.type, (types.get(n.type) || 0) + 1));
+  eachNode(mod, (n) => { if (!isOut(n)) types.set(n.type, (types.get(n.type) || 0) + 1); });
   const tlist = [...types.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
   if (tlist.length) {
     const max = tlist[0][1];
@@ -162,7 +165,7 @@ export function modulePanel(ins, mod, model, collapsed) {
 
   // children
   if (mod.kids.length) {
-    const maxKid = Math.max(...mod.kids.map((k) => k.agg.n));
+    const maxKid = Math.max(1, ...mod.kids.map((k) => k.agg.n));
     body.push(sec(`Sub-modules · ${mod.kids.length}`, h('ul', { class: 'nav' }, mod.kids.map((k) =>
       h('li', null, h('a', { class: 'navrow mod', href: '#', data: { gomod: k.path }, title: k.path },
         icon('chev', 'tiny'), h('span', { class: 'nn' }, k.name),
@@ -171,7 +174,8 @@ export function modulePanel(ins, mod, model, collapsed) {
         h('span', { class: 'nb', 'aria-hidden': 'true' }, h('i', { style: `--w:${Math.max(6, (k.agg.n / maxKid) * 100)}%` })),
         h('span', { class: 'nc' }, String(k.agg.n))))))));
   }
-  if (mod.nodes.length) body.push(resourcesSection(ins, mod, model));
+  if (mod.nodes.some((n) => !isOut(n))) body.push(resourcesSection(ins, mod, model, false));
+  if (mod.nodes.some(isOut)) body.push(resourcesSection(ins, mod, model, true));
 
   // where it is written
   const where = h('div', { class: 'where' });
@@ -191,19 +195,17 @@ function flags(a) {
   return f.length ? h('div', { class: 'badges' }, f) : null;
 }
 
-function resourcesSection(ins, mod, model) {
+function resourcesSection(ins, mod, model, outputs) {
   const LIMIT = 12;
-  const nodes = mod.nodes;
+  const nodes = mod.nodes.filter((n) => isOut(n) === outputs);
   const host = h('ul', { class: 'nav' });
   const draw = (q, all) => {
     host.textContent = '';
     const list = nodes.filter((n) => !q || n.addr.toLowerCase().includes(q) || n.type.toLowerCase().includes(q));
     const shown = all || q ? list : list.slice(0, LIMIT);
     for (const n of shown) {
-      const act = actionOf(n.action);
-      const cls = 'sq' + (act ? ' ' + act.cls : '') + (model.hasPlan && !n.action ? ' skip' : '');
       host.append(h('li', null, h('a', { class: 'navrow', href: '#', data: { goto: n.addr }, title: n.addr },
-        h('i', { class: cls }), h('span', { class: 'nn' }, n.name), h('span', { class: 'nt' }, n.type),
+        nodeMark(n, model.hasPlan), h('span', { class: 'nn' }, n.name), outputs ? null : h('span', { class: 'nt' }, n.type),
         n.drifted || n.gone ? h('span', { class: 'i ' + (n.gone ? 'i-gone' : 'i-drift') + ' warn' }) : null,
         n.sensitive > 0 ? h('span', { class: 'i i-lock key' }) : null)));
     }
@@ -212,7 +214,7 @@ function resourcesSection(ins, mod, model) {
   };
   draw('', false);
   const filter = nodes.length > LIMIT ? h('input', { class: 'filter', type: 'search', placeholder: 'Filter these resources', 'aria-label': 'Filter the resources of the module', on: { input: (ev) => draw(ev.target.value.trim().toLowerCase(), false) } }) : null;
-  return sec(`Resources · ${nodes.length}`, filter, host);
+  return sec(`${outputs ? 'Outputs' : 'Resources'} · ${nodes.length}`, filter, host);
 }
 
 // fillWhere shows the module's own lines: where the instance is written and the definition it comes from. The
@@ -225,7 +227,7 @@ async function fillWhere(ins, host, mod, model) {
   refs.push(ref('declared', mod.declared), ref('definition', mod.definition));
   const fallback = () => { host.textContent = ''; const r = refs.filter(Boolean); host.append(...(r.length ? r : [h('p', { class: 'hint' }, 'The specification does not say where this module is written.')])); };
   let rep = null;
-  eachNode(mod, (n) => { if (!rep && n.presence !== 'state') rep = n; });
+  eachNode(mod, (n) => { if (!rep && n.presence !== 'state' && !isOut(n)) rep = n; });
   if (!rep || !(mod.declared || mod.definition)) { fallback(); return; }
   host.append(h('div', { class: 'cw-skel', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i')));
   let src;

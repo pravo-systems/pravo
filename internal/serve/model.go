@@ -43,6 +43,8 @@ type model struct {
 	stored *storedPlans
 	// definitions counts the nodes written by the same lines, by "file:line:col".
 	definitions map[string]int
+	// resources counts the nodes that are not outputs: the M of "planned N of M".
+	resources int
 
 	graph     Graph
 	graphJSON []byte
@@ -63,7 +65,17 @@ type mnode struct {
 	// provider is the provider as the record or the specification names it.
 	providerSource  string
 	providerVersion string
+	// out is the declaration of an output node, nil for any other node and for an
+	// output that is only recorded. output is the output as the graph lists it
+	// (Graph.Outputs), and recorded its value as the state holds it, without the
+	// mark of a sensitive one.
+	out      *config.Output
+	output   Output
+	recorded json.RawMessage
 }
+
+// isOutput reports whether the node is an output of the root.
+func (mn *mnode) isOutput() bool { return mn.Mode == "output" }
 
 // transient reports whether a mode is never written to the state.
 func transient(mode string) bool {
@@ -89,7 +101,8 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 		warnings = append(warnings, "The locks could not be listed: "+err.Error())
 	}
 
-	// The nodes: every declared resource and every record.
+	// The nodes: every declared resource and every record, and the outputs, which
+	// are declared, recorded or both.
 	recs := map[string]*state.Resource{}
 	for _, r := range store.List() {
 		recs[r.Address()] = r
@@ -103,9 +116,32 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 			addrs = append(addrs, a)
 		}
 	}
+	// An output has the address of its path, which no resource shares; a record in
+	// the state may, and then the record is the node.
+	outs := m.outputSet(recs)
+	for a := range outs.byAddr {
+		addrs = append(addrs, a)
+	}
+	for _, a := range outs.shadowed {
+		warnings = append(warnings, fmt.Sprintf("The output %s has the address of a record in the state, so only the record is shown.", a))
+	}
 	sort.Strings(addrs)
 	missing := map[string]*missingSchema{}
 	for _, addr := range addrs {
+		if st, ok := outs.byAddr[addr]; ok {
+			mn := &mnode{out: ss.outputs[addr]}
+			mn.Node = outputNode(addr, st)
+			if ss.root != nil {
+				mn.Source = ss.refs[addr]
+			}
+			if mn.Source != nil {
+				m.definitions[refKey(mn.Source)]++
+			}
+			m.nodes[addr] = mn
+			m.order = append(m.order, addr)
+			m.place(addr, mn)
+			continue
+		}
 		mn := &mnode{rec: recs[addr], res: ss.byPath[addr]}
 		mn.Node = m.baseNode(addr, mn)
 		if ss.root != nil {
@@ -122,9 +158,9 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 			m.countNode(mn, missing)
 		}
 	}
+	m.graph.Outputs = m.outputs(outs)
 	m.linkModules()
 	m.linkEdges()
-	m.graph.Outputs = m.outputs()
 	for _, ms := range sortedMissing(missing) {
 		warnings = append(warnings, fmt.Sprintf("The schema of provider %s is not cached, so the values of %d %s are withheld. Run \"pravo init\" to fetch it.",
 			ms.name, ms.count, plural(ms.count, "resource", "resources")))
@@ -140,6 +176,12 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	if m.plan != nil {
 		warnings = append(warnings, m.plan.warnings...)
 		m.collectPlanSecrets()
+	}
+	m.resources = 0
+	for _, a := range m.order {
+		if !m.nodes[a].isOutput() {
+			m.resources++
+		}
 	}
 	m.graph.Version = APIVersion
 	m.graph.Revision = rev
@@ -268,7 +310,11 @@ func (m *model) place(addr string, mn *mnode) {
 			m.modules[p] = mod
 			m.modList = append(m.modList, p)
 		}
-		mod.Resources++
+		if mn.isOutput() {
+			mod.Outputs++
+		} else {
+			mod.Resources++
+		}
 	}
 	mn.Module = path.prefix(len(path.names) - 1)
 }
@@ -317,7 +363,7 @@ func (m *model) linkEdges() {
 	for _, addr := range m.order {
 		mn := m.nodes[addr]
 		var deps []string
-		if m.spec.root != nil && mn.res != nil {
+		if m.spec.root != nil && (mn.res != nil || mn.out != nil) {
 			deps = m.spec.edges[addr]
 		} else if mn.rec != nil {
 			deps = mn.rec.Dependencies
@@ -473,9 +519,63 @@ func providerName(mn *mnode) string {
 	return name
 }
 
-// outputs lists the declared and the recorded outputs. A sensitive one has no
-// value, and neither has one that holds a sensitive value of the state.
-func (m *model) outputs() []Output {
+// outputState says where an output is: declared by the specification, recorded
+// by an apply, or both.
+type outputState struct{ declared, recorded bool }
+
+// outputSet is the outputs of one revision. shadowed lists the declared outputs
+// whose address is the one of a record, which keeps the address.
+type outputSet struct {
+	byAddr   map[string]outputState
+	shadowed []string
+}
+
+// outputSet finds the outputs that become nodes: those the specification declares
+// and those the state records. recs are the records, by address.
+func (m *model) outputSet(recs map[string]*state.Resource) *outputSet {
+	set := &outputSet{byAddr: map[string]outputState{}}
+	if m.spec.root != nil {
+		for name := range m.spec.outputs {
+			set.byAddr[name] = outputState{declared: true}
+		}
+	}
+	for name := range m.store.Outputs() {
+		st := set.byAddr[name]
+		st.recorded = true
+		set.byAddr[name] = st
+	}
+	for name, st := range set.byAddr {
+		_, isRec := recs[name]
+		if _, isRes := m.spec.byPath[name]; isRec || isRes {
+			if st.declared {
+				set.shadowed = append(set.shadowed, name)
+			}
+			delete(set.byAddr, name)
+		}
+	}
+	sort.Strings(set.shadowed)
+	return set
+}
+
+// outputNode is the node of an output. It has no provider, no record and no lock,
+// and its module is set by place.
+func outputNode(addr string, st outputState) Node {
+	n := Node{Addr: addr, Mode: "output", Type: "output", Presence: "state"}
+	switch {
+	case st.recorded && st.declared:
+		n.Presence = "both"
+	case st.declared:
+		n.Presence = "spec"
+	}
+	names := splitAddr(addr).names
+	n.Name = names[len(names)-1]
+	return n
+}
+
+// outputs lists the declared and the recorded outputs, and sets what the nodes of
+// the outputs hold. A sensitive one has no value, and neither has one that holds a
+// sensitive value of the state.
+func (m *model) outputs(set *outputSet) []Output {
 	names := map[string]bool{}
 	declared := map[string]bool{}
 	if m.spec.root != nil {
@@ -537,6 +637,15 @@ func (m *model) outputs() []Output {
 			}
 		}
 		out = append(out, o)
+		if mn := m.nodes[n]; mn != nil && mn.isOutput() {
+			mn.output = o
+			if isRecorded && !o.Sensitive {
+				mn.recorded = val
+			}
+			if o.Sensitive {
+				mn.Sensitive = 1
+			}
+		}
 	}
 	return out
 }
@@ -665,7 +774,7 @@ func (m *model) planInfo() *PlanInfo {
 		return nil
 	}
 	info := m.cleanInfo(m.plan)
-	info.Total = len(m.order)
+	info.Total = m.resources
 	return &info
 }
 

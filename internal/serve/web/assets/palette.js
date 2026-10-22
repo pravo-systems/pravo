@@ -1,6 +1,6 @@
 // The search palette (slash or Cmd/Ctrl-K) and the sheet of shortcuts (?).
 
-import { h, clear, icon, actionOf, plural } from './util.js';
+import { h, clear, icon, plural, nodeMark } from './util.js';
 import { fuzzy } from './model.js';
 
 const MAX_NODES = 40, MAX_MODS = 8;
@@ -70,7 +70,7 @@ export class Palette {
       // without a query: the modules and the resources the plan changes
       for (const m of model.modules.values()) if (!m.isRoot && m.depth === 0) mods.push({ kind: 'mod', m, score: 0, cs: [] });
       for (const n of model.list) if (n.action && n.action !== 'no-op' && nodes.length < 12) nodes.push({ kind: 'node', n, score: 0, cs: [] });
-      if (!nodes.length) for (const n of model.list.slice(0, 12)) nodes.push({ kind: 'node', n, score: 0, cs: [] });
+      if (!nodes.length) for (const n of model.list.filter((x) => x.mode !== 'output').concat(model.list.filter((x) => x.mode === 'output')).slice(0, 12)) nodes.push({ kind: 'node', n, score: 0, cs: [] });
     } else {
       for (const m of model.modules.values()) {
         if (m.isRoot) continue;
@@ -88,10 +88,12 @@ export class Palette {
       mods.sort((a, b) => b.score - a.score);
       nodes.sort((a, b) => b.score - a.score);
     }
-    const m = mods.slice(0, MAX_MODS), n = nodes.slice(0, MAX_NODES);
+    const m = mods.slice(0, MAX_MODS), found = nodes.slice(0, MAX_NODES);
+    // the outputs are a group of their own, after the resources
+    const n = found.filter((x) => x.n.mode !== 'output'), o = found.filter((x) => x.n.mode === 'output');
     this.total = mods.length + nodes.length;
-    this.results = [...m, ...n];
-    this.groups = { mods: m.length, nodes: n.length, q };
+    this.results = [...m, ...n, ...o];
+    this.groups = { mods: m.length, nodes: n.length, outs: o.length, q };
     this.active = 0;
     this.draw();
     const msg = this.results.length ? `${plural(this.total, 'result')}` : 'No results';
@@ -100,14 +102,15 @@ export class Palette {
 
   draw() {
     clear(this.list);
-    const { mods, nodes, q } = this.groups;
+    const { mods, nodes, outs, q } = this.groups;
     let i = 0;
     const add = (title, count, items) => {
       this.list.append(h('div', { class: 'pal-grp', role: 'presentation' }, title, h('em', null, String(count))));
       for (const r of items) this.list.append(this.option(r, i++));
     };
     if (mods) add('Modules', this.total > this.results.length && q ? `${mods}` : String(mods), this.results.slice(0, mods));
-    if (nodes) add(q ? 'Resources' : 'In the plan', String(nodes), this.results.slice(mods));
+    if (nodes) add(q ? 'Resources' : 'In the plan', String(nodes), this.results.slice(mods, mods + nodes));
+    if (outs) add('Outputs', String(outs), this.results.slice(mods + nodes));
     if (!this.results.length) this.list.append(h('p', { class: 'pal-none' }, q ? `Nothing matches “${q}”.` : 'Nothing to show.'));
     const extra = this.total - this.results.length;
     this.foot.textContent = this.results.length ? `${this.results.length}${extra > 0 ? ' of ' + this.total : ''} shown` : '';
@@ -122,10 +125,9 @@ export class Palette {
         h('span', { class: 'pal-t' }, this.hl(r.m.path, r.cs)),
         h('span', { class: 'pal-r' }, plural(r.m.agg.n, 'resource')));
     }
-    const n = r.n, a = actionOf(n.action);
-    const cls = 'sq' + (a ? ' ' + a.cls : '') + (this.model.hasPlan && !n.action ? ' skip' : '');
+    const n = r.n;
     return h('div', { class: 'pal-opt', role: 'option', id, data: { i: String(i) }, 'aria-selected': 'false' },
-      h('span', { class: 'pal-ico' }, h('i', { class: cls })),
+      h('span', { class: 'pal-ico' }, nodeMark(n, this.model.hasPlan)),
       h('span', { class: 'pal-t' }, this.hl(n.addr, r.cs)),
       h('span', { class: 'pal-r' }, n.type));
   }

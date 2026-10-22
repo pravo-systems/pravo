@@ -151,6 +151,12 @@
 .node.orphan .box { stroke: var(--conflict); stroke-dasharray: 2 3; }
 .node.gone .box { stroke: var(--conflict); stroke-dasharray: 6 3; }
 .mk { opacity: var(--sub); transition: opacity .2s; }
+/* an output: a small pill, lighter than a resource, with the glyph of a value leaving through a door */
+.node.m-output .box { fill: color-mix(in srgb, var(--g-card) 42%, var(--bg)); }
+.node.m-output .nm { font-size: 12.5px; }
+.node.m-output .mk-out { color: var(--key); }
+.node.m-output.sel .mk-out, .node.m-output.hov .mk-out { color: var(--text); }
+.node.m-output.orphan .box { stroke-dasharray: 2 3; }
 .mk-lock, .mk-hold { color: var(--key); } .mk-drift { color: var(--change); } .mk-gone, .mk-orphan { color: var(--conflict); } .mk-hold { color: var(--change); }
 .node:hover .box, .node.hov .box { stroke: var(--g-edge-hi); }
 .node.up .box { stroke: var(--key); stroke-width: 1.6; }

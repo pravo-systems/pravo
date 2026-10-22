@@ -1,0 +1,59 @@
+{
+ "version": 1,
+ "node": {
+  "addr": "summary",
+  "mode": "output",
+  "type": "output",
+  "name": "summary",
+  "module": "",
+  "presence": "both",
+  "source": {
+   "file": "main.cue",
+   "line": 79,
+   "col": 2,
+   "end_line": 86
+  }
+ },
+ "provider": {
+  "key": ""
+ },
+ "attrs": [
+  {
+   "name": "value",
+   "type": "output",
+   "children": [
+    {
+     "name": "endpoint",
+     "type": "string",
+     "value": "estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432"
+    },
+    {
+     "name": "release",
+     "type": "string",
+     "value": "a3f9c012"
+    },
+    {
+     "name": "url",
+     "type": "string",
+     "value": "https://api.estate.example.com"
+    }
+   ]
+  },
+  {
+   "name": "description",
+   "type": "string",
+   "value": "What an operator needs to reach the service"
+  }
+ ],
+ "schema_known": true,
+ "depends_on": [
+  "build_id",
+  "db_endpoint",
+  "url"
+ ],
+ "used_by": [],
+ "times": {},
+ "notes": [
+  "The value is the one the last apply recorded."
+ ]
+}

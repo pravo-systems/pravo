@@ -101,6 +101,25 @@ for (const f of files) {
     for (const n of v.nodes) if (n.module !== '' && !mods.has(n.module)) fail(f, `node ${n.addr} in unknown module ${n.module}`);
     for (const m of v.modules || []) if (m.parent !== '' && !mods.has(m.parent)) fail(f, `module ${m.path} has unknown parent ${m.parent}`);
     if (new Set(v.nodes.map((n) => n.addr)).size !== v.nodes.length) fail(f, 'duplicate addresses');
+    // an output is a node but not a resource: no provider, no record, no action; the modules and the plan count it apart
+    const outs = new Map((v.outputs || []).map((o) => [o.name, o]));
+    for (const n of v.nodes.filter((x) => x.mode === 'output')) {
+      const w = `${f} output ${n.addr}`;
+      if (n.type !== 'output') fail(w, `type ${n.type}`);
+      for (const k of ['provider', 'revision', 'refreshed_at', 'action', 'locked', 'drifted', 'gone', 'plans', 'overlap', 'no_schema']) if (n[k] !== undefined) fail(w, `${k} on an output`);
+      if (n.name !== n.addr.split('.').pop() || n.module !== n.addr.split('.').slice(0, -1).join('.')) fail(w, 'name or module');
+      const o = outs.get(n.addr);
+      if (!o) fail(w, 'not among the outputs of the graph');
+      else if ((n.sensitive === 1) !== !!o.sensitive) fail(w, 'sensitive does not agree with the list of outputs');
+      if (n.presence === 'state' && n.source) fail(w, 'an output that is not declared has no source');
+    }
+    for (const name of outs.keys()) if (!v.nodes.some((n) => n.addr === name && n.mode === 'output')) fail(f, `output ${name} is not a node`);
+    for (const e of v.edges || []) if (v.nodes.find((n) => n.addr === e.dependency).mode === 'output' && v.nodes.find((n) => n.addr === e.dependent).mode !== 'output') fail(f, `a resource reads an output: ${e.dependency} -> ${e.dependent}`);
+    for (const m of v.modules || []) {
+      const below = v.nodes.filter((n) => n.addr.startsWith(m.path + '.'));
+      if (m.resources !== below.filter((n) => n.mode !== 'output').length || (m.outputs || 0) !== below.filter((n) => n.mode === 'output').length) fail(f, `module ${m.path} counts ${m.resources} resources and ${m.outputs || 0} outputs`);
+    }
+    if (v.plan && v.plan.total !== v.nodes.filter((n) => n.mode !== 'output').length) fail(f, 'plan.total counts the outputs');
   }
   console.log(`${errors === before ? 'ok  ' : 'FAIL'} ${f}`);
 }
@@ -189,7 +208,7 @@ for (const f of files) {
       if (p.status !== 'stale' && (o.plan.reasons || []).length) fail(of, 'reasons on a plan that is not stale');
       if (o.nodes.map((n) => n.addr).join() !== p.touches.map((t) => t.addr).join() || o.nodes.some((n, i) => n.action !== p.touches[i].action || !!n.applied !== !!p.touches[i].applied)) fail(of, 'the nodes are not the touches of the plan');
       for (const k of ['add', 'change', 'destroy', 'read']) if (o.plan.summary[k] !== p.summary[k]) fail(of, `summary.${k}`);
-      if (o.plan.planned !== p.planned || o.plan.total !== g.nodes.length) fail(of, 'planned of total');
+      if (o.plan.planned !== p.planned || o.plan.total !== g.nodes.filter((n) => n.mode !== 'output').length) fail(of, 'planned of total');
     }
     console.log(`${errors === before ? 'ok  ' : 'FAIL'} ${f} goes with ${graphFile}`);
   }

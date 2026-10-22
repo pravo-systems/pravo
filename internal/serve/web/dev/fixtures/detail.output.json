@@ -1,0 +1,43 @@
+{
+ "version": 1,
+ "node": {
+  "addr": "url",
+  "mode": "output",
+  "type": "output",
+  "name": "url",
+  "module": "",
+  "presence": "both",
+  "source": {
+   "file": "main.cue",
+   "line": 58,
+   "col": 2,
+   "end_line": 61
+  }
+ },
+ "provider": {
+  "key": ""
+ },
+ "attrs": [
+  {
+   "name": "value",
+   "type": "output",
+   "value": "https://api.estate.example.com"
+  },
+  {
+   "name": "description",
+   "type": "string",
+   "value": "Public address of the service"
+  }
+ ],
+ "schema_known": true,
+ "depends_on": [
+  "edge.dns"
+ ],
+ "used_by": [
+  "summary"
+ ],
+ "times": {},
+ "notes": [
+  "The value is the one the last apply recorded."
+ ]
+}

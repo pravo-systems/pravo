@@ -2,7 +2,7 @@
 // graph, the rail, the table, the inspector and the palette. It only reads: every request is a GET.
 
 import * as api from './api.js';
-import { buildModel, buildItems, firstView, touchedModules, reveal, diffModels, FILTERS, CLUSTER_CAP, isChange, chain } from './model.js';
+import { buildModel, buildItems, firstView, touchedModules, reveal, diffModels, FILTERS, CLUSTER_CAP, isChange, chain, isOut } from './model.js';
 import { layout } from './layout.js';
 import { GraphView, Minimap } from './graph.js';
 import { Rail } from './rail.js';
@@ -165,7 +165,8 @@ function linkHides(frag, mod) {
 // (the selection, a filter, a search): the fragment states the open and closed modules relative to it, so a
 // reload, which works it out again, must reach the same answer.
 function autoCollapsed(model) {
-  const touched = touchedModules(model, (n) => isChange(n.action) || n.drifted || n.gone || n.presence === 'state' || n.presence === 'spec');
+  // an output is a light item: it does not decide which modules open first
+  const touched = touchedModules(model, (n) => !isOut(n) && (isChange(n.action) || n.drifted || n.gone || n.presence === 'state' || n.presence === 'spec'));
   // the canvas as it was when the page opened, before the inspector took room from it on a narrow screen
   const sz = S.autoSize || (gv ? gv.size : { w: 0, h: 0 });
   const fv = firstView(model, new Map(), { width: sz.w, height: sz.h, touched });
@@ -483,10 +484,11 @@ function renderReach() {
   const el = $('reachbar');
   if (S.reach && S.sel && S.model.nodes.has(S.sel)) {
     const n = S.model.nodes.get(S.sel);
-    const count = dist(S.model, S.sel, 'down').size;
+    const reached = [...dist(S.model, S.sel, 'down').keys()].map((a) => S.model.nodes.get(a)).filter(Boolean);
+    const outs = reached.filter(isOut).length;
     clear(el);
     el.hidden = false;
-    el.append(h('span', null, 'Reach of ', h('b', null, n.name), ' · ', plural(count, 'resource')),
+    el.append(h('span', null, 'Reach of ', h('b', null, n.name), ' · ', plural(reached.length - outs, 'resource'), outs ? ` and ${plural(outs, 'output')}` : ''),
       h('button', { type: 'button', 'aria-label': 'Clear the reach', on: { click: () => setReach(false) } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })));
   } else el.hidden = true;
 }
@@ -552,7 +554,8 @@ function selectNode(addr, o = {}) {
   gv.setFocus(o.kbd ? id : null);
   if (S.view === 'graph' && id && (o.center || !gv.visible(id, 60))) gv.centerOn(id);
   syncFragment();
-  announce(`${n.name}, ${n.type}${n.action ? ', ' + n.action : ''}. ${plural(n.deps.length, 'dependency', 'dependencies')}, ${plural(n.used.length, 'dependent')}.`);
+  announce(isOut(n) ? `${n.name}, output${n.sensitive ? ', sensitive' : ''}. Reads ${n.deps.length}, read by ${n.used.length}.`
+    : `${n.name}, ${n.type}${n.action ? ', ' + n.action : ''}. ${plural(n.deps.length, 'dependency', 'dependencies')}, ${plural(n.used.length, 'dependent')}.`);
 }
 
 function selectModule(path, o = {}) {
@@ -575,7 +578,7 @@ function selectModule(path, o = {}) {
     if (lane) gv.centerOnBox(lane); else if (id) gv.centerOn(id);
   }
   syncFragment();
-  announce(`Module ${mod.name}, ${plural(mod.agg.n, 'resource')}.`);
+  announce(`Module ${mod.name}, ${plural(mod.agg.n, 'resource')}${mod.agg.out ? ' and ' + plural(mod.agg.out, 'output') : ''}.`);
 }
 
 function clearSelection() {
@@ -604,6 +607,8 @@ function showInspector() {
 }
 
 function effectiveTab(n) {
+  // an output has a value and a declaration only: the other tabs are not there for it
+  if (isOut(n)) return S.tab === 'source' ? 'source' : 'state';
   if (S.tab && TABKEYS.includes(S.tab) && (S.tab !== 'change' || S.model.hasPlan)) return S.tab;
   return S.model.hasPlan && isChange(n.action) ? 'change' : 'state';
 }
@@ -887,7 +892,7 @@ function renderStatus() {
   const shown = S.vis ? S.vis.items.size : 0;
   const sc = $('shown-count');
   sc.textContent = shown && shown !== m.list.length ? `${shown} items shown` : '';
-  sc.title = shown !== m.list.length ? `${m.list.length} resources, grouped into ${shown} items` : '';
+  sc.title = shown !== m.list.length ? `${plural(m.nres, 'resource')}${m.nout ? ' and ' + plural(m.nout, 'output') : ''}, grouped into ${shown} items` : '';
 }
 
 function renderLive() {
@@ -909,6 +914,7 @@ function renderLegend() {
   }
   el.append(
     sel(h('i', { class: 'ln up' }), 'depends on'), sel(h('i', { class: 'ln down' }), 'used by'),
+    ...(m.nout ? [item(h('span', { class: 'i i-output key' }), 'output')] : []),
     item(h('span', { class: 'i i-lock key' }), 'sensitive'),
     item(h('span', { class: 'i i-drift warn' }), 'drifted'));
   // the badges of the authors of open plans, and the ring of a resource that two of them change

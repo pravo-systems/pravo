@@ -88,6 +88,20 @@
    }
   },
   {
+   "addr": "api.cluster_arn",
+   "mode": "output",
+   "type": "output",
+   "name": "cluster_arn",
+   "module": "api",
+   "presence": "both",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 192,
+    "col": 2,
+    "end_line": 195
+   }
+  },
+  {
    "addr": "api.db",
    "mode": "managed",
    "type": "aws_db_instance",
@@ -417,6 +431,49 @@
    }
   },
   {
+   "addr": "cache_endpoint",
+   "mode": "output",
+   "type": "output",
+   "name": "cache_endpoint",
+   "module": "",
+   "presence": "spec",
+   "source": {
+    "file": "main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 77
+   }
+  },
+  {
+   "addr": "db_endpoint",
+   "mode": "output",
+   "type": "output",
+   "name": "db_endpoint",
+   "module": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 63,
+    "col": 2,
+    "end_line": 66
+   }
+  },
+  {
+   "addr": "db_password",
+   "mode": "output",
+   "type": "output",
+   "name": "db_password",
+   "module": "",
+   "presence": "both",
+   "sensitive": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 68,
+    "col": 2,
+    "end_line": 72
+   }
+  },
+  {
    "addr": "edge.assoc",
    "mode": "managed",
    "type": "aws_wafv2_web_acl_association",
@@ -575,6 +632,28 @@
     "line": 4,
     "col": 2,
     "end_line": 6
+   }
+  },
+  {
+   "addr": "legacy_url",
+   "mode": "output",
+   "type": "output",
+   "name": "legacy_url",
+   "module": "",
+   "presence": "state"
+  },
+  {
+   "addr": "network.cidr",
+   "mode": "output",
+   "type": "output",
+   "name": "cidr",
+   "module": "network",
+   "presence": "both",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 112,
+    "col": 2,
+    "end_line": 114
    }
   },
   {
@@ -886,9 +965,45 @@
     "col": 2,
     "end_line": 17
    }
+  },
+  {
+   "addr": "summary",
+   "mode": "output",
+   "type": "output",
+   "name": "summary",
+   "module": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 79,
+    "col": 2,
+    "end_line": 86
+   }
+  },
+  {
+   "addr": "url",
+   "mode": "output",
+   "type": "output",
+   "name": "url",
+   "module": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 61
+   }
   }
  ],
  "edges": [
+  {
+   "dependency": "api.cache",
+   "dependent": "cache_endpoint"
+  },
+  {
+   "dependency": "api.cluster",
+   "dependent": "api.cluster_arn"
+  },
   {
    "dependency": "api.cluster",
    "dependent": "api.scaling"
@@ -910,6 +1025,10 @@
    "dependent": "api.db_password"
   },
   {
+   "dependency": "api.db_pass",
+   "dependent": "db_password"
+  },
+  {
    "dependency": "api.db_subnets",
    "dependent": "api.db"
   },
@@ -920,6 +1039,10 @@
   {
    "dependency": "api.db",
    "dependent": "api.task"
+  },
+  {
+   "dependency": "api.db",
+   "dependent": "db_endpoint"
   },
   {
    "dependency": "api.logs",
@@ -982,8 +1105,20 @@
    "dependent": "release_marker"
   },
   {
+   "dependency": "build_id",
+   "dependent": "summary"
+  },
+  {
+   "dependency": "db_endpoint",
+   "dependent": "summary"
+  },
+  {
    "dependency": "edge.cert",
    "dependent": "edge.listener"
+  },
+  {
+   "dependency": "edge.dns",
+   "dependent": "url"
   },
   {
    "dependency": "edge.lb",
@@ -1135,6 +1270,10 @@
   },
   {
    "dependency": "network.vpc",
+   "dependent": "network.cidr"
+  },
+  {
+   "dependency": "network.vpc",
    "dependent": "network.igw"
   },
   {
@@ -1172,6 +1311,10 @@
   {
    "dependency": "network.vpc",
    "dependent": "network.sg_lb"
+  },
+  {
+   "dependency": "url",
+   "dependent": "summary"
   }
  ],
  "modules": [
@@ -1180,6 +1323,7 @@
    "parent": "",
    "name": "api",
    "resources": 18,
+   "outputs": 1,
    "depth": 0,
    "declared": {
     "file": "main.cue",
@@ -1237,6 +1381,7 @@
    "parent": "",
    "name": "network",
    "resources": 17,
+   "outputs": 1,
    "depth": 0,
    "declared": {
     "file": "main.cue",
@@ -1292,8 +1437,12 @@
  ],
  "outputs": [
   {
-   "name": "url",
-   "value": "https://api.estate.example.com"
+   "name": "api.cluster_arn",
+   "value": "arn:aws:ecs:eu-west-1:412058817224:cluster/estate-api"
+  },
+  {
+   "name": "cache_endpoint",
+   "unknown": true
   },
   {
    "name": "db_endpoint",
@@ -1301,11 +1450,28 @@
   },
   {
    "name": "db_password",
-   "sensitive": true
+   "sensitive": true,
+   "redacted": "sensitive"
   },
   {
-   "name": "cache_endpoint",
-   "unknown": true
+   "name": "legacy_url",
+   "value": "https://old.estate.example.com"
+  },
+  {
+   "name": "network.cidr",
+   "value": "10.20.0.0/16"
+  },
+  {
+   "name": "summary",
+   "value": {
+    "endpoint": "estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432",
+    "release": "a3f9c012",
+    "url": "https://api.estate.example.com"
+   }
+  },
+  {
+   "name": "url",
+   "value": "https://api.estate.example.com"
   }
  ],
  "plan": {
@@ -1317,7 +1483,7 @@
    "change": 5,
    "destroy": 2,
    "read": 2,
-   "blast_radius": 10
+   "blast_radius": 14
   },
   "planned": 18,
   "total": 47,

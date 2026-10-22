@@ -158,6 +158,14 @@ export const ACTIONS = {
 };
 export const actionOf = (a) => ACTIONS[a] || null;
 
+// nodeMark is the small figure before a node in a list: the square of its plan action, or, for an output, the
+// glyph of a value that leaves the root. An output has no action, and a plan never "does not read" it.
+export function nodeMark(n, hasPlan) {
+  if (n.mode === 'output') return h('span', { class: 'i i-output omark', 'aria-hidden': 'true' });
+  const act = actionOf(n.action);
+  return h('i', { class: 'sq' + (act ? ' ' + act.cls : '') + (hasPlan && !n.action ? ' skip' : '') });
+}
+
 // ---- motion ----
 // motionOn is false under the fragment's motion=off and under prefers-reduced-motion: then nothing animates.
 export function motionOn() {

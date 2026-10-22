@@ -321,14 +321,17 @@
  ],
  "used_by": [
   "api.secret_version",
-  "api.task"
+  "api.task",
+  "db_endpoint"
  ],
  "reach": [
   "api.scaling",
   "api.secret_version",
   "api.service",
   "api.task",
-  "release_marker"
+  "db_endpoint",
+  "release_marker",
+  "summary"
  ],
  "change": {
   "action": "update",

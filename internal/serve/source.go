@@ -38,7 +38,7 @@ func (m *model) sourceFor(mn *mnode, po *planOverlay) *Source {
 	case ss.root == nil:
 		src.Notes = append(src.Notes, "The specification does not load, so no lines are shown.")
 		return src
-	case mn.res == nil:
+	case mn.res == nil && mn.out == nil:
 		src.Notes = append(src.Notes, "The node is recorded in the state and the specification no longer declares it, so there are no lines to show.")
 		return src
 	}
@@ -46,9 +46,13 @@ func (m *model) sourceFor(mn *mnode, po *planOverlay) *Source {
 	defer ss.cueMu.Unlock()
 
 	sens := map[string]bool{}
-	if mn.sch != nil {
+	switch {
+	case mn.out != nil:
+		// A literal that a sensitive output is given is its value: it is masked.
+		sens["value"] = mn.out.Sensitive || mn.output.Sensitive
+	case mn.sch != nil:
 		sens = sensitiveNames(mn.sch.Block)
-	} else if mn.res.Mode == "managed" || mn.res.Mode == "data" {
+	case mn.res.Mode == "managed" || mn.res.Mode == "data":
 		src.Notes = append(src.Notes, "The schema of the type is not cached, so only literals assigned to attributes with a name that looks like a secret are masked.")
 	}
 	changed := m.changedTop(mn, po)
@@ -470,6 +474,8 @@ func modeNoun(mode string) string {
 		return "function call"
 	case "builtin":
 		return "built-in value"
+	case "output":
+		return "output"
 	}
 	return "resource"
 }
@@ -480,6 +486,10 @@ func modeNoun(mode string) string {
 func (m *model) otherContributions(mn *mnode, r *blockReader) []Contribution {
 	ss := m.spec
 	var out []Contribution
+	if mn.out != nil {
+		out = append(out, Contribution{Kind: "builtin", Where: "pravo.dev/pravo", Note: "the built-in package gives pravo.#Output"})
+		return append(out, m.tagContributions(mn, r)...)
+	}
 	switch mn.res.Mode {
 	case "builtin":
 		out = append(out, Contribution{Kind: "builtin", Where: "pravo.dev/pravo", Note: "the built-in package gives pravo." + builtinName(mn.res.Type)})

@@ -61,14 +61,14 @@ There is no flag for the address. The server listens on `127.0.0.1`.
 
 ## What the viewer shows
 
-- **The graph.** Every resource, data source, ephemeral resource and function call of the specification and of the state, in the module that holds it, with the edges between them. Each node says whether it is declared, recorded or both, whether a read marked it drifted or gone, whether a lock holds it, and how many of its values are withheld.
+- **The graph.** Every resource, data source, ephemeral resource and function call of the specification and of the state, in the module that holds it, with the edges between them. Each node says whether it is declared, recorded or both, whether a read marked it drifted or gone, whether a lock holds it, and how many of its values are withheld. The outputs of the root are nodes too, with `mode` and `type` `output`, and edges from what their values read. An output is not a resource: it has no record, no history, no lock, and no count of resources includes it.
 - **The attributes.** The record of a node in the order of the provider schema, with the type of each attribute and whether it is required, optional or computed. Sensitive values are withheld.
 - **The source.** The lines of the specification that write the node: the definition of the resource and each instance that fills it in. Only files that the evaluation loaded are shown.
 - **The schema.** The attributes of the resource type with their types and the provider's descriptions.
 - **The history.** The transactions that wrote the node, applies and imports among them; a plan only reads the node, so its transactions are not listed: the kind, the time, the user and actor, and the command. The values of `-t` tags, and of flags and `key=value` words that are named like a secret, are withheld from the command.
 - **The plan.** With `--plan`, the action of the plan for each node and the attributes that it changes, the numbers of its summary and its hints. A plan that cannot be applied is shown with its reasons.
 - **The stored plans.** The plans in the state, who made each, when, where each stands and what it changes. A plan that the page lays over the graph shows as a plan does. A resource that plans which can be applied change carries the author of each, and a ring when two of them do. See [Stored plans](#stored-plans).
-- **The project.** The directory, the package, the state location, lineage and record count, the providers and the outputs. A sensitive output has no value.
+- **The project.** The directory, the package, the state location, lineage and record count, the providers and the outputs, each of which leads to its node. A sensitive output has no value.
 
 The viewer follows the project. It watches the state, the files that the evaluation loaded, the plan file and the plans stored in the state, and when any of them changes the page fetches the graph and the list of plans again. A plan that is stored, applied from or collected changes the state. A plan that nobody applies expires without any write, so the viewer counts the moment that the nearest expiry of a plan that can be applied, or is stale, passes as a change, once. For a bucket it lists `plans/` and reads the progress objects, up to eight at a time and only those that have the name of a plan, without keeping a request for the revision waiting. A specification that does not load is shown as the state alone, with the error as a warning.
 
@@ -97,6 +97,7 @@ The chips set `filter`. The box sets `q`, which matches an address or a type.
 | Sensitive | The resources that hold at least one withheld value. | `sensitive` |
 | Orphans | The resources that are recorded and not declared. | `orphans` |
 | Not created | The resources that are declared and not recorded. | `declared` |
+| Outputs | The outputs of the root. | `outputs` |
 
 ### The inspector
 
@@ -190,7 +191,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `expand` | Module paths, `c:MODULE\|MODE\|TYPE` or `all` | Modules drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `q` | Text | The filter box above the graph. |
-| `filter` | `plan`, `drifted`, `sensitive`, `orphans` or `declared` | Only the nodes that match. |
+| `filter` | `plan`, `drifted`, `sensitive`, `orphans`, `declared` or `outputs` | Only the nodes that match. `outputs` shows the outputs of the root, and every other value shows resources only. |
 | `view` | `graph` or `table` | The graph, or the table. |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
@@ -259,7 +260,7 @@ The interface of the page is a set of read-only endpoints. They are for the page
 | `GET /` and `/assets/...` | The page, with no data. |
 | `GET /api/ping` | `{"ok":true,"version":1}`. |
 | `GET /api/graph` | The nodes, edges, modules, outputs, the project, the plan and the warnings. No attribute values. |
-| `GET /api/detail?addr=ADDR` | One node with its attributes, dependencies, the plan's change, history, lock and times. With `&plan=ID` the plan is that stored plan, and with `&plan=none` there is none. |
+| `GET /api/detail?addr=ADDR` | One node with its attributes, dependencies, the plan's change, history, lock and times. With `&plan=ID` the plan is that stored plan, and with `&plan=none` there is none. For an output the one attribute is `value`, which is withheld when the output is sensitive or its value contains a sensitive string, and `description` when the output has one. |
 | `GET /api/source?addr=ADDR` | The lines that write the node, and everything that shapes it. `&plan=ID` marks the lines that stored plan changes. |
 | `GET /api/plans` | The plans stored in the state, newest first, as a list of stored plans. The free text of a plan is not in it. |
 | `GET /api/plan?id=ID` | A stored plan laid over the graph: the plan, the action of each node that it ran, and the `reason`, `command` and `git_revision` that the author wrote with it. |

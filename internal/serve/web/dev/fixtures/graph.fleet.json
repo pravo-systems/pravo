@@ -56,6 +56,20 @@
    }
   },
   {
+   "addr": "cdn_domain",
+   "mode": "output",
+   "type": "output",
+   "name": "cdn_domain",
+   "module": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 62,
+    "col": 2,
+    "end_line": 64
+   }
+  },
+  {
    "addr": "global.admins",
    "mode": "managed",
    "type": "aws_iam_group",
@@ -189,6 +203,20 @@
     "line": 3,
     "col": 2,
     "end_line": 5
+   }
+  },
+  {
+   "addr": "regions",
+   "mode": "output",
+   "type": "output",
+   "name": "regions",
+   "module": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 68
    }
   },
   {
@@ -1075,6 +1103,20 @@
     "line": 26,
     "col": 2,
     "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.url",
+   "mode": "output",
+   "type": "output",
+   "name": "url",
+   "module": "regions.ap_south.web",
+   "presence": "both",
+   "source": {
+    "file": "modules/web/main.cue",
+    "line": 70,
+    "col": 2,
+    "end_line": 72
    }
   },
   {
@@ -1966,6 +2008,20 @@
     "line": 26,
     "col": 2,
     "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.url",
+   "mode": "output",
+   "type": "output",
+   "name": "url",
+   "module": "regions.eu_west.web",
+   "presence": "both",
+   "source": {
+    "file": "modules/web/main.cue",
+    "line": 70,
+    "col": 2,
+    "end_line": 72
    }
   },
   {
@@ -2894,9 +2950,27 @@
     "col": 2,
     "end_line": 33
    }
+  },
+  {
+   "addr": "regions.us_east.web.url",
+   "mode": "output",
+   "type": "output",
+   "name": "url",
+   "module": "regions.us_east.web",
+   "presence": "both",
+   "source": {
+    "file": "modules/web/main.cue",
+    "line": 70,
+    "col": 2,
+    "end_line": 72
+   }
   }
  ],
  "edges": [
+  {
+   "dependency": "global.cdn",
+   "dependent": "cdn_domain"
+  },
   {
    "dependency": "global.cert",
    "dependent": "global.cdn"
@@ -3242,6 +3316,10 @@
    "dependent": "regions.ap_south.web.listener"
   },
   {
+   "dependency": "regions.ap_south.web.lb",
+   "dependent": "regions.ap_south.web.url"
+  },
+  {
    "dependency": "regions.ap_south.web.listener",
    "dependent": "regions.ap_south.web.service"
   },
@@ -3552,6 +3630,10 @@
   {
    "dependency": "regions.eu_west.web.lb",
    "dependent": "regions.eu_west.web.listener"
+  },
+  {
+   "dependency": "regions.eu_west.web.lb",
+   "dependent": "regions.eu_west.web.url"
   },
   {
    "dependency": "regions.eu_west.web.listener",
@@ -3926,6 +4008,10 @@
    "dependent": "regions.us_east.web.listener"
   },
   {
+   "dependency": "regions.us_east.web.lb",
+   "dependent": "regions.us_east.web.url"
+  },
+  {
    "dependency": "regions.us_east.web.listener",
    "dependent": "regions.us_east.web.service"
   },
@@ -3987,6 +4073,7 @@
    "parent": "",
    "name": "regions",
    "resources": 158,
+   "outputs": 3,
    "depth": 0,
    "declared": {
     "file": "main.cue",
@@ -4006,6 +4093,7 @@
    "parent": "regions",
    "name": "ap_south",
    "resources": 52,
+   "outputs": 1,
    "depth": 1,
    "declared": {
     "file": "main.cue",
@@ -4101,6 +4189,7 @@
    "parent": "regions.ap_south",
    "name": "web",
    "resources": 21,
+   "outputs": 1,
    "depth": 2,
    "declared": {
     "file": "modules/region/main.cue",
@@ -4120,6 +4209,7 @@
    "parent": "regions",
    "name": "eu_west",
    "resources": 52,
+   "outputs": 1,
    "depth": 1,
    "declared": {
     "file": "main.cue",
@@ -4234,6 +4324,7 @@
    "parent": "regions.eu_west",
    "name": "web",
    "resources": 9,
+   "outputs": 1,
    "depth": 2,
    "declared": {
     "file": "modules/region/main.cue",
@@ -4253,6 +4344,7 @@
    "parent": "regions",
    "name": "us_east",
    "resources": 54,
+   "outputs": 1,
    "depth": 1,
    "declared": {
     "file": "main.cue",
@@ -4367,6 +4459,7 @@
    "parent": "regions.us_east",
    "name": "web",
    "resources": 9,
+   "outputs": 1,
    "depth": 2,
    "declared": {
     "file": "modules/region/main.cue",
@@ -4394,6 +4487,18 @@
     "us-east-1",
     "ap-south-1"
    ]
+  },
+  {
+   "name": "regions.ap_south.web.url",
+   "value": "https://web.ap-south.fleet.example.com"
+  },
+  {
+   "name": "regions.eu_west.web.url",
+   "value": "https://web.eu-west.fleet.example.com"
+  },
+  {
+   "name": "regions.us_east.web.url",
+   "value": "https://web.us-east.fleet.example.com"
   }
  ],
  "plan": {
@@ -4405,7 +4510,7 @@
    "change": 7,
    "destroy": 2,
    "read": 1,
-   "blast_radius": 20
+   "blast_radius": 23
   },
   "planned": 15,
   "total": 167,
