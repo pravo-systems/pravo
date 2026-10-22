@@ -157,7 +157,7 @@ const replaceScript = `((pairs) => {
 // and when it logs an error: an uncaught exception, a console.error, a failed
 // request, a refused policy. The notes are the other messages that it logged.
 func screenshot(ctx context.Context, chrome, userData, out, address string, w, h int, o shotOptions) (notes []string, err error) {
-	if err := os.RemoveAll(userData); err != nil {
+	if err := removeProfile(userData); err != nil {
 		return nil, err
 	}
 	if err := os.Remove(out); err != nil && !os.IsNotExist(err) {
@@ -279,4 +279,19 @@ func screenshotRetry(ctx context.Context, chrome, userData, out, address string,
 		return screenshot(ctx, chrome, userData, out, address, w, h, o)
 	}
 	return notes, err
+}
+
+// removeProfile removes the profile of a browser that has been stopped. The
+// helper processes of Chrome can outlive the main one for a moment and write to
+// the profile, which makes the removal fail with "directory not empty": it is
+// tried again for a few seconds.
+func removeProfile(dir string) error {
+	var err error
+	for i := 0; i < 40; i++ {
+		if err = os.RemoveAll(dir); err == nil {
+			return nil
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return err
 }

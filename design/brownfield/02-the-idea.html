@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The idea | pravo brownfield design</title>
+<meta name="description" content="The chosen design as a story: the life of one object from seen to managed, the golden rule that pravo never touches what it has not been given, and what proving it with an empty plan means.">
+<script>(function(){var r=document.documentElement;r.classList.add('js');try{var t=localStorage.getItem('bf-theme');if(t==='light'||t==='dark')r.setAttribute('data-theme',t)}catch(e){}})()</script>
+<link rel="stylesheet" href="assets/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a735a'/%3E%3Cpath d='M16 7v18M8 12l8-5 8 5M8 20l8 5 8-5' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<style>
+/* shared-css workaround: an idle glossary tooltip must not widen the page on a phone */
+.term[data-def]:not(:hover):not(:focus)::after { display: none; }
+/* page-scoped pieces: card headings, the "next" box and small diagram text */
+.why-grid .heading-anchor, .rules-grid .heading-anchor { display: none; }
+.next-box { margin-top: 2.5rem; padding: 1.4rem 1.5rem; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface); max-width: none !important; }
+.next-box h2 { margin: 0 0 .3rem; font: 500 1.5rem/1.2 var(--font-display); }
+.next-box > p { margin: 0 0 1rem; color: var(--text-2); max-width: var(--measure); }
+.next-links { list-style: none; margin: 0; padding: 0 !important; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.next-links li { margin: 0 !important; }
+.next-links a { display: block; height: 100%; padding: .85rem 1rem; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); color: inherit; text-decoration: none; }
+.next-links a:hover { border-color: var(--accent); }
+.next-links strong { display: block; font: 500 1.1rem/1.3 var(--font-display); }
+.next-links span { display: block; margin-top: .2rem; font-size: .9rem; color: var(--text-2); }
+.dg text.cap { font: 600 11px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; fill: var(--text-2); }
+.dg .fence { fill: none; stroke: var(--conflict); stroke-width: 2; stroke-dasharray: 7 5; }
+.dg .bar-spec rect { fill: var(--accent); stroke: none; }
+.dg .bar-inh rect { fill: color-mix(in srgb, var(--change) 55%, var(--surface)); stroke: none; }
+.dg .bar-spec text, .dg .bar-inh text { font-weight: 600; }
+.rules-grid { display: grid; gap: .9rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin: 0; padding: 0 !important; list-style: none; max-width: none !important; }
+.rules-grid li { margin: 0 !important; padding: 1rem 1.1rem; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface); }
+.rules-grid h3 { margin: 0 0 .3rem !important; font: 500 1.2rem/1.25 var(--font-display) !important; }
+.rules-grid p { margin: 0; font-size: .94rem; color: var(--text-2); }
+</style>
+</head>
+<body data-page="02-the-idea.html">
+<a class="skip-link" href="#content">Skip to content</a>
+<header data-site-header></header>
+
+<main id="content" tabindex="-1">
+  <header class="page-header">
+    <div class="wrap">
+      <p class="kicker">Chapter 2 of 7</p>
+      <h1>One toy, from the floor to a labelled box</h1>
+      <p class="lede">The chosen design, told as the life of a single object. Look first, write it down, let a person decide, label it, prove the label, and only then take charge.</p>
+      <ul class="page-meta">
+        <li class="chip">8 minute read</li>
+        <li class="chip">For everyone, then engineers</li>
+        <li class="chip">Has an interactive stepper</li>
+      </ul>
+      <nav data-toc aria-label="On this page"></nav>
+    </div>
+  </header>
+
+  <div class="wrap page-body">
+
+    <section class="section" id="story" data-reveal>
+      <h2>Four rules for a careful tidier</h2>
+      <p>Go back to the shared toy room. A tidier called pravo arrives. A careful tidier follows four rules. The whole design is these four rules, written down. They are a closer look at the five verbs on the front page: look and write down are rules 1 and 2, decide is rule 3, adopt and prove are rule 4.</p>
+      <ul class="rules-grid">
+        <li><h3>1. Look before you touch</h3><p>Ask the caretaker (the provider) to read out what is on the floor. Pick nothing up.</p></li>
+        <li><h3>2. Write down what you saw</h3><p>Keep a notebook (the found list, called the ledger). It is facts only, and it can be thrown away and rebuilt.</p></li>
+        <li><h3>3. A person says "ours"</h3><p>The helper never decides alone. The decision is written in a text file with a reason.</p></li>
+        <li><h3>4. Prove the label first</h3><p>Hold the label up against the toy. Tape it on only if nothing would change.</p></li>
+      </ul>
+      <aside class="eli5">
+        <div class="eli5-icon" aria-hidden="true"></div>
+        <div class="eli5-body">
+          <p class="eli5-label">Explain it like I am five</p>
+          <p>pravo is the tidier. The provider is the caretaker who knows the room. The cloud is the room. A resource is a toy. The notebook (the found list) says what is on the floor. The state is the list on the wall. "Adopting" a toy means: pick it up, label it, put it in a box, and add it to the wall list.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section" id="lifecycle" data-reveal>
+      <h2>The life of one toy</h2>
+      <p>Press Play, or click a step. The left side is the toy room. The right side is what pravo writes down. Follow the blue car. The drum is the neighbour's.</p>
+      <p>The blue car could be a storage bucket called <code>legacy-logs-2019</code>. The drum could be a resource that belongs to another team.</p>
+
+      <section class="stepper" data-stepper data-interval="4200" aria-label="The life of one object, from unknown to managed">
+        <div class="stepper-stage">
+          <svg class="dg" viewBox="0 0 480 380" role="img" aria-label="Left: the toy room, with a blue car and the neighbour's drum. Right: pravo's papers, which are the found list, the rules, the records and the check. As the steps advance the car goes from unknown to seen to declared to managed, while the drum becomes ignored.">
+            <g class="zone"><rect x="6" y="6" width="214" height="368"/><text class="zone-label" x="20" y="26">the toy room</text></g>
+            <g class="zone zone--solid"><rect x="236" y="6" width="238" height="368"/><text class="zone-label" x="250" y="26">pravo's papers</text></g>
+
+            <!-- toy room -->
+            <g class="node node--soft" data-cls="1:node--soft 2:node--seen 3:node--ignored"><rect x="20" y="46" width="186" height="60" rx="9"/><text x="113" y="72" text-anchor="middle">neighbour's drum</text><text class="sub" x="113" y="92" text-anchor="middle" data-text="1:on the floor 2:seen 3:elsewhere">on the floor</text></g>
+            <g data-show="6" class="zone zone--solid"><rect x="14" y="122" width="198" height="104"/></g>
+            <g class="node node--soft" data-cls="1:node--soft 2:node--seen 4:node--claimed 6:node--managed"><rect x="20" y="132" width="186" height="62" rx="9"/><text x="113" y="158" text-anchor="middle">blue car</text><text class="sub" x="113" y="178" text-anchor="middle" data-text="1:on the floor 2:seen 4:declared 6:managed">on the floor</text></g>
+            <text class="sub mono" x="113" y="214" text-anchor="middle" data-show="6">label on the lid</text>
+
+            <g class="node node--struct" data-cls="1:node--struct 3:node--you 4:node--struct"><rect x="20" y="290" width="186" height="60" rx="9"/><text x="113" y="316" text-anchor="middle" data-text="1:pravo 3:you 4:pravo">pravo</text><text class="sub" x="113" y="336" text-anchor="middle" data-text="1:waiting 2:walking the floor 3:deciding what is ours 4:reading one toy 5:planning 6:applying the plan">waiting</text></g>
+
+            <!-- pravo's papers -->
+            <g class="node node--soft" data-cls="1:node--soft 2:node--seen"><rect x="250" y="40" width="210" height="66" rx="9"/><text x="355" y="64" text-anchor="middle">found list</text><text class="sub" x="355" y="82" text-anchor="middle" data-text="1:empty 2:2 toys, names only">empty</text><text class="sub mono" x="355" y="98" text-anchor="middle">the ledger, a cache</text></g>
+            <g class="node node--soft" data-cls="1:node--soft 3:node--ignored 4:node--claimed"><rect x="250" y="116" width="210" height="66" rx="9"/><text x="355" y="140" text-anchor="middle">the rules</text><text class="sub" x="355" y="158" text-anchor="middle" data-text="1:empty 3:ignore drum, with a reason 4:ignore drum, import car">empty</text><text class="sub mono" x="355" y="174" text-anchor="middle">CUE, reviewed in git</text></g>
+            <g class="node node--soft" data-cls="1:node--soft 6:node--managed"><rect x="250" y="192" width="210" height="66" rx="9"/><text x="355" y="216" text-anchor="middle">the records</text><text class="sub" x="355" y="234" text-anchor="middle" data-text="1:empty 6:1 record: blue car">empty</text><text class="sub mono" x="355" y="250" text-anchor="middle">state, one file each</text></g>
+            <g class="node node--soft" data-show="4-6" data-cls="4:node--claimed 6:node--managed"><rect x="250" y="288" width="210" height="62" rx="9"/><text x="355" y="312" text-anchor="middle" data-text="4:check in a scratch copy 5:the saved plan 6:a second plan">check</text><text class="sub" x="355" y="332" text-anchor="middle" data-text="4:clean, nothing would change 5:0 add, 0 change, 0 destroy 6:no changes: the Graph line plans 0">clean</text></g>
+
+            <!-- arrows: what pravo does at each step -->
+            <g data-show="2"><path class="arrow arrow--struct flow" d="M113 288 V230"/><path class="arrow arrow--struct flow" d="M208 316 H228 V74 H246"/><text class="cap" x="124" y="262">looks</text></g>
+            <g data-show="3"><path class="arrow arrow--warn flow" d="M208 316 H228 V150 H246"/></g>
+            <g data-show="4"><path class="arrow arrow--warn flow" d="M113 288 V230"/><path class="arrow arrow--warn flow" d="M208 316 H228 V150 H246"/><path class="arrow arrow--warn flow" d="M208 330 H228 V319 H246"/></g>
+            <g data-show="5"><path class="arrow arrow--warn flow" d="M208 320 H246"/></g>
+            <g data-show="6"><path class="arrow arrow--good flow" d="M208 316 H228 V226 H246"/><path class="arrow arrow--good flow" d="M208 330 H228 V324 H246"/></g>
+          </svg>
+        </div>
+        <div class="stepper-panel">
+          <ol class="stepper-steps">
+            <li><h4>On the floor</h4><p>The blue car is real. Nobody wrote it down. pravo does not know it is there, so pravo cannot hurt it. In the cloud: an object that no record in pravo's state owns.</p></li>
+            <li><h4>Seen</h4><p><span class="pill pill--seen">seen</span> pravo asks the provider (the caretaker) to read out the floor and writes the names in its notebook, the found list. This is a <span class="term" tabindex="0" data-def="One run of list calls for chosen types. It only reads, and it writes the answer to the found list.">sweep</span>. pravo asks only for names and ids and keeps only those.</p></li>
+            <li><h4>Decided</h4><p><span class="pill pill--neutral">elsewhere</span> You read the list. The drum is on the neighbour's list, so it is marked elsewhere and left alone. (A toy that is ours but rubbish for now would be <span class="pill pill--ignored">ignored</span>, with a reason you write down.) The car is left for you to pick. This step covers ignored, elsewhere and the choice to adopt.</p></li>
+            <li><h4>Declared</h4><p><span class="pill pill--claimed">declared</span> You say: adopt the car. pravo reads it in memory, drafts the label as CUE, and tests the draft against a scratch copy of the room (assumed feasible; the first spike checks it). Only a draft that passes is written to a file.</p></li>
+            <li><h4>Proved</h4><p>pravo makes a plan and saves it. The plan must say 0 to add, 0 to change, 0 to destroy. A policy we would write (not written yet; whether the policy language can say this is unchecked) refuses any other plan. An empty plan is the proof.</p></li>
+            <li><h4>Managed</h4><p><span class="pill pill--managed">managed</span> You apply the saved plan. pravo writes one record and the car is in its box. A second plan must say "no changes". From now on, pravo takes charge of it.</p></li>
+          </ol>
+        </div>
+      </section>
+
+      <aside class="plain">
+        <span class="plain-icon" aria-hidden="true"></span>
+        <div class="plain-body">
+          <p class="plain-label">In plain words</p>
+          <p>The toy never moves until a person says so, and the label has to pass a test first.</p>
+        </div>
+      </aside>
+
+      <details class="eng">
+        <summary>For engineers: the six states and who moves an object</summary>
+        <div class="eng-body">
+          <p>These states are a view, computed on read from the ledger, the specification and the records. Nothing stores a state name. The names in the picture are the plain-language ones: "on the floor" and "decided" are not states of their own.</p>
+          <div class="cmp-wrap" tabindex="0" role="region" aria-label="The states of an object and who moves it">
+            <table class="cmp">
+              <thead><tr><th scope="col">State</th><th scope="col">How pravo knows</th><th scope="col">Moved by</th></tr></thead>
+              <tbody>
+                <tr><th scope="row"><span class="pill pill--seen">seen</span></th><td>In the latest ledger shard, no record, no <code>$import</code>, no ignore rule, not in a known state</td><td><code>pravo sweep</code>, or <code>--from FILE</code></td></tr>
+                <tr><th scope="row"><span class="pill pill--ignored">ignored</span></th><td>An ignore rule matches. A reason is mandatory</td><td>A human edits CUE and merges it</td></tr>
+                <tr><th scope="row"><span class="pill pill--neutral">elsewhere</span></th><td>Present in a state named under <code>$discover.known</code></td><td>The known state. Adopting it is refused</td></tr>
+                <tr><th scope="row"><span class="pill pill--claimed">declared</span></th><td>An <code>$import</code> names it and no record exists</td><td><code>pravo adopt</code> writes the CUE</td></tr>
+                <tr><th scope="row"><span class="pill pill--managed">managed</span></th><td>A record in <code>resources/</code> matches the identity</td><td><code>pravo apply</code> of a saved plan</td></tr>
+                <tr><th scope="row"><span class="pill pill--bad">unlisted</span></th><td>Listed before, absent from a later complete sweep</td><td>A later sweep. Only a hint</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Source: <code>DESIGN.md</code> section 4. The state names are the design's proposal; no code exists. "Unlisted" is not called "gone" because <code>docs/reference/state-format.md</code> already uses "gone" as a mark on a record.</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="section" id="golden-rule" data-reveal>
+      <h2>The golden rule: nothing, ever, unless claimed</h2>
+      <p>pravo may do exactly two things to a toy it was not given: look at its name, and read it when you ask to adopt it. It never changes it, tags it, plans a change for it or deletes it.</p>
+      <p>A toy is "given" in exactly one way: you adopt it, the plan is reviewed and you apply it. Looking round does not give anything. Ignoring does not give anything. A sweep does not give anything.</p>
+      <aside class="eli5">
+        <div class="eli5-icon" aria-hidden="true"></div>
+        <div class="eli5-body">
+          <p class="eli5-label">Explain it like I am five</p>
+          <p>The tidier is allowed to look at any toy. It is only allowed to touch a toy after you hand it over. Floor toys are on a different shelf from the boxed ones, so the tidier cannot grab one by mistake.</p>
+        </div>
+      </aside>
+
+      <figure class="diagram" style="max-width:40rem">
+        <svg class="dg" viewBox="0 0 480 330" role="img" aria-label="A fence in the middle. Above the fence are the records. The commands plan, apply and destroy only read the records. Below the fence are the found list and the ignore rules, which a sweep and a person write. The only way across is to adopt a toy and apply the saved plan.">
+          <g class="node node--soft"><rect x="12" y="22" width="170" height="60" rx="9"/><text x="97" y="48" text-anchor="middle">plan, apply, destroy</text><text class="sub" x="97" y="66" text-anchor="middle">walk the records</text></g>
+          <g class="node node--managed"><rect x="290" y="22" width="160" height="60" rx="9"/><text x="370" y="48" text-anchor="middle">the records</text><text class="sub" x="370" y="66" text-anchor="middle">managed toys</text></g>
+          <path class="arrow arrow--good" d="M184 52 H286"/>
+
+          <path class="fence" d="M8 118 H472"/>
+          <text class="cap" x="8" y="112">the fence</text>
+          <path class="arrow arrow--bad arrow--dashed" d="M97 84 V112"/>
+          <text class="sub" x="108" y="102">cannot see below</text>
+
+          <g class="node node--soft"><rect x="12" y="150" width="170" height="60" rx="9"/><text x="97" y="176" text-anchor="middle">pravo sweep</text><text class="sub" x="97" y="194" text-anchor="middle">only reads</text></g>
+          <g class="node node--seen"><rect x="290" y="150" width="160" height="60" rx="9"/><text x="370" y="176" text-anchor="middle">the found list</text><text class="sub" x="370" y="194" text-anchor="middle">facts, not decisions</text></g>
+          <path class="arrow arrow--struct" d="M184 180 H286"/>
+
+          <g class="node node--you"><rect x="12" y="236" width="170" height="60" rx="9"/><text x="97" y="262" text-anchor="middle">a person, in git</text><text class="sub" x="97" y="280" text-anchor="middle">writes the rules</text></g>
+          <g class="node node--ignored"><rect x="290" y="236" width="160" height="60" rx="9"/><text x="370" y="262" text-anchor="middle">ignore rules</text><text class="sub" x="370" y="280" text-anchor="middle">each with a reason</text></g>
+          <path class="arrow arrow--struct" d="M184 266 H286"/>
+
+          <path class="arrow arrow--good flow" d="M452 180 H466 V52 H454"/>
+          <text class="sub" x="456" y="138" text-anchor="end">the only way across:</text><text class="sub" x="456" y="154" text-anchor="end">adopt, then apply</text>
+        </svg>
+        <figcaption>Above the fence is managed. Below it is only written down. Plan, apply and destroy walk the records, so by design they cannot see, and cannot delete, anything below the fence. The build must pass the 10,000-entry test to prove it (chapter 7, phase 3).</figcaption>
+      </figure>
+
+      <details class="eng">
+        <summary>For engineers: why the found list is not a record</summary>
+        <div class="eng-body">
+          <p>A shadow object is never a record in <code>resources/</code>. A probe found that a record with no matching declaration is planned for deletion (<code>dice will be destroyed</code>, action <code>delete</code>), and that <code>destroy</code> deletes every record. Ten more code sites walk all records. One missed site would delete a real object.</p>
+          <p>So the ledger lives under <code>inventory/</code>, a sibling of <code>resources/</code>. <code>Store.load</code> never touches it. The build must pass one test: with 10,000 ledger entries and no records, <code>plan</code>, <code>apply</code> and <code>destroy</code> read none of them and propose no change.</p>
+          <p>Source: <code>DESIGN.md</code> sections 4 and 5, evidence rows 33, 34 and 37 (probes and code reads in the pravo repository).</p>
+        </div>
+      </details>
+
+      <article class="pushback" data-sev="uncertain">
+        <div class="pushback-head"><span class="pushback-tag">Where this gets messy</span><span class="pill pill--struct pill--plain">uncertain</span></div>
+        <h3>"Read only" is a habit of providers, not a rule of the protocol</h3>
+        <dl class="pushback-body">
+          <dt>What goes wrong</dt><dd>The listing call and the import call are read calls by convention. The plugin protocol does not forbid a provider from doing more, and nobody read a provider's list or import code in this research. pravo itself writes nothing to the cloud, but it cannot prove what a provider does.</dd>
+          <dt>So we propose</dt><dd>A second fence: sweeps run with a dedicated read-only cloud role. That role, not pravo, is the real guarantee.</dd>
+        </dl>
+      </article>
+
+      <article class="pushback" data-sev="impractical">
+        <div class="pushback-head"><span class="pushback-tag">Where this gets messy</span><span class="pill pill--warn pill--plain">impractical</span></div>
+        <h3>Adopting makes a toy deletable, on purpose</h3>
+        <dl class="pushback-body">
+          <dt>What goes wrong</dt><dd>Once a toy is managed, removing its text from the specification plans its deletion. That is how pravo works today, and no tool can make it safe for every case.</dd>
+          <dt>So we propose</dt><dd>Adopted records are protected, and a protected record whose text is gone makes the plan an error, not a delete. That changes a documented property of pravo, so it is an open decision. See the decisions page.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <section class="section" id="empty-plan" data-reveal>
+      <h2>"Prove it with an empty plan"</h2>
+      <p>Before pravo tapes a label on a toy, it holds the label up against the toy. If they match, nothing needs to change. In pravo words: the <span class="term" tabindex="0" data-def="A list of the changes pravo would make, written before it makes any. A plan changes nothing by itself.">plan</span> is empty.</p>
+      <p>An empty plan reads <code>0 to add, 0 to change, 0 to destroy</code>. It is the success test for the whole design.</p>
+      <aside class="eli5">
+        <div class="eli5-icon" aria-hidden="true"></div>
+        <div class="eli5-body">
+          <p class="eli5-label">Explain it like I am five</p>
+          <p>You draw a picture of your toy. You hold the picture next to the toy. If the picture is right, nothing needs fixing. If the picture is wrong, you would need to change the toy to match it, and we do not want that.</p>
+        </div>
+      </aside>
+
+      <h3>The test is run twice, on purpose</h3>
+      <ol class="steps">
+        <li><h4>The gate, before anything is saved</h4><p>pravo makes the label, then plans it inside a scratch copy of the room. If the plan is not empty, nothing is written. The gate is advisory, because the toy may change before you apply.</p></li>
+        <li><h4>The proof, after the apply</h4><p>The saved plan is applied. Then a new plan must reach zero resources. This one is the authority.</p></li>
+      </ol>
+
+      <h3>What an empty plan does not prove</h3>
+      <p>This is the honest part. An empty plan says only that your label does not <em>contradict</em> the toy. It does not say your label <em>describes</em> the toy.</p>
+      <p>If a setting is left blank in the CUE, the plan inherits the toy's current value. A blank picture matches everything. A plan can be empty because the CUE says very little.</p>
+
+      <figure class="diagram" style="max-width:40rem">
+        <svg class="dg" viewBox="0 0 480 220" role="img" aria-label="Two bars. The first, a minimal label, specifies 2 settings and inherits 8, and the empty plan means little. The second, the default full label, specifies 8 settings and inherits 2, and the empty plan means more.">
+          <text class="cap" x="8" y="20">Same empty plan, different meaning</text>
+          <text x="8" y="56" style="font-size:12px">minimal: tracked, not specified</text>
+          <g class="bar-spec"><rect x="8" y="66" width="60" height="30" rx="4"/><text x="38" y="86" text-anchor="middle" style="fill:var(--on-accent)">2</text></g>
+          <g class="bar-inh"><rect x="72" y="66" width="400" height="30" rx="4"/><text x="272" y="86" text-anchor="middle" style="fill:var(--text)">8 left to the provider</text></g>
+          <text class="sub" x="8" y="114">specified 2, inherited 8: the gate warns, because inherited is more than specified</text>
+
+          <text x="8" y="154" style="font-size:12px">full (the default): written down</text>
+          <g class="bar-spec"><rect x="8" y="164" width="300" height="30" rx="4"/><text x="158" y="184" text-anchor="middle" style="fill:var(--on-accent)">8 specified</text></g>
+          <g class="bar-inh"><rect x="312" y="164" width="75" height="30" rx="4"/><text x="349" y="184" text-anchor="middle" style="fill:var(--text)">2</text></g>
+          <text class="sub" x="8" y="212">specified 8, inherited 2: the plan is empty because the CUE says enough</text>
+        </svg>
+        <figcaption>The numbers in the picture are made up to show the idea. In the real report, pravo prints "specified N, inherited M" for every object, and warns when M is larger than N.</figcaption>
+      </figure>
+
+      <div class="tabs" data-tabs data-sync="path">
+        <div class="tab" data-tab-title="Manual path" data-tab-icon="cursor" data-key="manual">
+          <p>One toy, by hand. You choose the bucket, run one command, read the report, plan, apply and plan again.</p>
+          <figure class="window">
+            <div class="window-bar"><span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="window-title">terminal</span><span class="window-kind">sample</span></div>
+<pre data-lang="term"># sample output; placeholder commands, nothing here is built yet
+$ pravo adopt aws_s3_bucket legacy-logs-2019
+adopt  aws_s3_bucket "legacy-logs-2019"
+  import     {g|ok}   by id
+  read       {g|ok}
+  generate   specified 5, inherited 2 (--spec full), 1 pinned, 2 frozen by profile
+  validate   {g|ok}
+  gate       {g|clean}   0 to add, 0 to change, 0 to destroy   (scratch copy)
+wrote adopted_s3_bucket.cue
+$ pravo plan --out adopt.plan
+Plan: 0 to add, 0 to change, 0 to destroy. 1 imported.
+$ pravo apply adopt.plan
+$ pravo plan
+No changes. reached 0</pre>
+          </figure>
+        </div>
+        <div class="tab" data-tab-title="With an agent" data-tab-icon="spark" data-key="agent">
+          <p>An agent runs the same commands through pravo's read-only tools and proposes the choices. It sees values only if the operator allows it. You still read the report and merge.</p>
+          <ul>
+            <li>It may read the found list and propose ignore rules, each with a reason.</li>
+            <li>It may print a redacted proposal of the label, and explain why a gate said "differs".</li>
+            <li>It may suggest where a secret should come from. It never chooses the secret.</li>
+          </ul>
+          <aside class="plain"><span class="plain-icon" aria-hidden="true"></span><div class="plain-body"><p class="plain-label">In plain words</p><p>The agent is a fast helper, not a different road. The check at the end is the same for a person and for an agent.</p></div></aside>
+        </div>
+      </div>
+
+      <details class="eng">
+        <summary>For engineers: what the gate checks and what it freezes</summary>
+        <div class="eng-body">
+          <p>The generator writes optional-and-computed attributes it can read (<code>--spec full</code>, the default), so an S3 bucket's <code>bucket</code> and <code>region</code> are in the CUE and a later change to them shows up as a diff. The cost is that a value the provider defaulted is frozen as if the owner chose it. The report lists every pinned and every frozen attribute.</p>
+          <p>The protocol cannot tell a default from a choice. A <code>--spec minimal</code> result is labelled "tracked, not specified", a way to put an object under the engine and not a description of it.</p>
+          <p>Adoption always ends with an apply, even when the plan changes nothing, because an adopted record has no dependency edges or config hash until an apply writes them. Source: <code>DESIGN.md</code> sections 2 and 7 (steps 3 to 9); the dependency-edges fact is evidence row 38, from a probe.</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="section" id="limits" data-reveal>
+      <h2>What the idea cannot promise</h2>
+      <p>Two limits belong next to the idea, not hidden at the back.</p>
+      <article class="pushback" data-sev="impractical">
+        <div class="pushback-head"><span class="pushback-tag">Where this gets messy</span><span class="pill pill--warn pill--plain">impractical</span></div>
+        <h3>Most toys cannot be found by walking the floor</h3>
+        <dl class="pushback-body">
+          <dt>What goes wrong</dt><dd>A provider can list only some types. In the installed aws provider that is 253 of 1,735 managed types. The cached Kubernetes provider lists none. For the rest, pravo discovers nothing: you bring the ids.</dd>
+          <dt>So we propose</dt><dd>Adoption by id comes first and works for any type. Listing is an accelerator for the minority that supports it.</dd>
+        </dl>
+      </article>
+      <article class="pushback" data-sev="uncertain">
+        <div class="pushback-head"><span class="pushback-tag">Where this gets messy</span><span class="pill pill--struct pill--plain">uncertain</span></div>
+        <h3>The first release changes pravo's core</h3>
+        <p>In toy-room words: before the tidier starts, three loose floorboards must be fixed, and each changes a promise pravo makes today.</p>
+        <dl class="pushback-body">
+          <dt>What goes wrong</dt><dd>Import must stop writing state at plan time, an adopted record must be protected against the delete that follows removing its text, and two records must never own one object. Each touches something pravo documents today.</dd>
+          <dt>So we propose</dt><dd>Treat these as the first work, and decide them before building the rest. They are decisions D1, D2 and D13 on the decisions page.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <section class="next-box" aria-labelledby="next-h" data-reveal>
+      <h2 id="next-h">What to read or decide next</h2>
+      <p>If the idea makes sense, see it on a real account. If it worries you, read the messy page first. If you are ready to choose, the decisions are numbered.</p>
+      <ul class="next-links">
+        <li><a href="03-a-worked-example.html"><strong>03 A worked example</strong><span>One account, from sweep to second plan.</span></a></li>
+        <li><a href="04-how-it-works.html"><strong>04 How it works</strong><span>The found list, the rules and the gate in detail.</span></a></li>
+        <li><a href="06-where-it-gets-messy.html"><strong>06 Where it gets messy</strong><span>Everything that is impossible or unknown.</span></a></li>
+        <li><a href="07-decisions-and-roadmap.html"><strong>07 Decisions and roadmap</strong><span>D1, D2 and D13 first.</span></a></li>
+      </ul>
+    </section>
+
+  </div>
+</main>
+
+<footer data-site-footer></footer>
+<script src="assets/site.js" defer></script>
+</body>
+</html>

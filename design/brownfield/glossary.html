@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glossary | pravo brownfield design</title>
+<meta name="description" content="Every term used on this site, in alphabetical order. Each has a plain meaning, an analogy from the toy room, and the technical meaning below.">
+<script>(function(){var r=document.documentElement;r.classList.add('js');try{var t=localStorage.getItem('bf-theme');if(t==='light'||t==='dark')r.setAttribute('data-theme',t)}catch(e){}})()</script>
+<link rel="stylesheet" href="assets/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a735a'/%3E%3Cpath d='M16 7v18M8 12l8-5 8 5M8 20l8 5 8-5' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<style>
+  /* page-local: one glossary entry. Anchors are the term ids, so other pages can link to glossary.html#shadow */
+  .gloss-entry { padding: 1.1rem 0 1.2rem; border-top: 1px solid var(--line); max-width: 44rem; scroll-margin-top: 5.5rem; }
+  .gloss-entry:target { background: color-mix(in srgb, var(--key) 7%, transparent); box-shadow: -1rem 0 0 color-mix(in srgb, var(--key) 7%, transparent), 1rem 0 0 color-mix(in srgb, var(--key) 7%, transparent); border-radius: 4px; }
+  .gloss-entry h3 { margin: 0 0 .35rem; font: 500 1.35rem/1.25 var(--font-display); }
+  .gloss-entry h3 a { color: inherit; text-decoration: none; }
+  .gloss-entry h3 a:hover { text-decoration: underline; text-decoration-color: var(--key); text-underline-offset: 3px; }
+  .gloss-entry p { margin: 0; }
+  .gloss-entry p + p { margin-top: .45rem; }
+  .gloss-plain { font-size: 1.06rem; }
+  .gloss-like { color: var(--text-2); }
+  .gloss-tech { color: var(--text-2); font-size: .93rem; }
+  .gloss-tag { display: inline-block; margin-right: .4rem; font: 600 0.75rem/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+  .gloss-like .gloss-tag { color: var(--note-ink, var(--change)); }
+  .gloss-group > h2 { font-size: 2.2rem; color: var(--text-3); }
+</style>
+</head>
+<body data-page="glossary.html">
+<a class="skip-link" href="#content">Skip to content</a>
+<header data-site-header></header>
+
+<main id="content" tabindex="-1">
+  <header class="page-header">
+    <div class="wrap">
+      <p class="kicker">Reference</p>
+      <h1>Glossary</h1>
+      <p class="lede">Every term used on this site, in alphabetical order. Each entry gives a plain meaning, then a picture from the toy room, then the technical meaning for engineers. Every entry has its own link, so other pages can point straight to it.</p>
+      <ul class="page-meta">
+        <li class="chip">86 terms</li>
+        <li class="chip">Alphabetical</li>
+      </ul>
+      <nav data-toc aria-label="Jump to a letter"></nav>
+    </div>
+  </header>
+
+  <div class="wrap page-body">
+    <section class="section" id="how-to-read" data-reveal>
+      <h2>How to read an entry</h2>
+      <p>The big line is the plain meaning. The line marked <strong>Like</strong> is a comparison with the toy room that the whole site uses. The line marked <strong>Technical</strong> is what an engineer needs.</p>
+      <aside class="eli5">
+        <div class="eli5-icon" aria-hidden="true"></div>
+        <div class="eli5-body">
+          <p class="eli5-label">The toy room, in one breath</p>
+          <p>Many children share one room. Toys in labelled boxes are written on the list: pravo manages them. Toys on the floor are the shadow estate: they are in the room and not on the list. The neighbour's toys are to be left alone. Onboarding means picking a toy up, labelling it, writing its name on the list, and checking that the list matches the room.</p>
+        </div>
+      </aside>
+      <p class="small muted">Words marked <span class="pill pill--good">verified</span> or <span class="pill pill--warn">unverified</span> elsewhere on the site follow the definitions in the entry for <a href="#unverified">verified and unverified</a>.</p>
+    </section>
+
+    <section class="section gloss-group" id="letter-a" data-reveal>
+      <h2>A</h2>
+      <article class="gloss-entry" id="account">
+        <h3><a href="#account" aria-label="Link to account">account</a></h3>
+        <p class="gloss-plain">The cloud login that owns a set of things. One company can have several.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The whole toy room, with its own front-door key.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The unit that owns cloud objects and is billed for them. In aws it has a twelve digit id. A pravo scope names one account and one region.</p>
+      </article>
+      <article class="gloss-entry" id="address">
+        <h3><a href="#address" aria-label="Link to address">address</a></h3>
+        <p class="gloss-plain">The name pravo gives a thing in your files.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The label on the outside of the box.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A CUE path, for example <code>adopted.s3_bucket."legacy-logs-2019"</code>. It is a human handle. Matching to the real object is by identity or id and never by address, so renaming a label before the first apply costs nothing.</p>
+      </article>
+      <article class="gloss-entry" id="adopt">
+        <h3><a href="#adopt" aria-label="Link to adopt">adopt</a></h3>
+        <p class="gloss-plain">Turn a thing lying on the floor into a labelled toy that is on the list.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Pick up the toy, give it a label, write its name on the list, then check the list matches the room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo adopt</code>. It reads the object in memory, generates CUE with <code>$import</code>, validates, pins differences, runs the empty-plan gate in a scratch overlay and only then writes a file. Landing is an ordinary saved plan and apply. See <a href="#gate">gate</a> and <a href="#hydrate">hydrate</a>.</p>
+      </article>
+      <article class="gloss-entry" id="agent">
+        <h3><a href="#agent" aria-label="Link to agent">agent</a></h3>
+        <p class="gloss-plain">An AI helper that can read, search and suggest.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A fast helper who points at toys and suggests labels, and never holds the keys.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Software driven by a model that uses pravo's read-only tools (<code>pravo mcp</code>) and edits files. It may propose ignore rules, scope, ids files, pins and pull request text. It may not write the ledger, the state or the cloud, apply anything except a saved plan, or choose a secret. A person merges.</p>
+      </article>
+      <article class="gloss-entry" id="apply">
+        <h3><a href="#apply" aria-label="Link to apply">apply</a></h3>
+        <p class="gloss-plain">Make the plan real.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Do what the list says, once someone has read it.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo apply PLAN</code>. Adoption ends with an apply even when the plan changes nothing, because only an apply writes the dependency edges and the config hash of an adopted record.</p>
+      </article>
+      <article class="gloss-entry" id="assumption">
+        <h3><a href="#assumption" aria-label="Link to assumption">assumption</a></h3>
+        <p class="gloss-plain">A number the designers chose and expect to change.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A guess written in pencil.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> One of three marks in the design: verified, unverified and assumption. Examples: a batch of 50, three pin rounds, a limit of 10,000 per shard. They are tuned on real data in phase 0.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-b" data-reveal>
+      <h2>B</h2>
+      <article class="gloss-entry" id="bucket">
+        <h3><a href="#bucket" aria-label="Link to bucket">bucket</a></h3>
+        <p class="gloss-plain">A folder in the cloud where you keep files.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A big cupboard in the toy room with a name on the door.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> An object store container, for example an S3 bucket in aws. In this site the resource type is <code>aws_s3_bucket</code>.</p>
+      </article>
+      <article class="gloss-entry" id="backend">
+        <h3><a href="#backend" aria-label="Link to backend">backend</a></h3>
+        <p class="gloss-plain">The place where pravo keeps its saved records.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The cupboard where the lists are stored.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The storage behind <code>pravo.state</code>: a local directory or an S3 bucket. The ledger lives under <code>inventory/</code> in it, or on a separate backend if you set <code>$discover.ledger</code>.</p>
+      </article>
+      <article class="gloss-entry" id="batch">
+        <h3><a href="#batch" aria-label="Link to batch">batch</a></h3>
+        <p class="gloss-plain">A small group of things adopted together.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> One tray of toys carried across the room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Whatever one <code>adopt</code> run writes. Default cap about 50 (assumption), one pull request. A thousand objects are twenty batches, and they land one after another.</p>
+      </article>
+      <article class="gloss-entry" id="brownfield">
+        <h3><a href="#brownfield" aria-label="Link to brownfield">brownfield</a></h3>
+        <p class="gloss-plain">A project where things already exist.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A room that is already full of toys.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A project that starts from existing infrastructure: some in OpenTofu or Terraform, some made in a console, some made by another team's pipeline. The opposite is <a href="#greenfield">greenfield</a>.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-c" data-reveal>
+      <h2>C</h2>
+      <article class="gloss-entry" id="cloud">
+        <h3><a href="#cloud" aria-label="Link to cloud">cloud</a></h3>
+        <p class="gloss-plain">Computers, storage and databases that you rent and reach over the internet.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The whole toy room, which belongs to a landlord and is shared out in pieces.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A provider account (for example one aws account and region) and everything created in it. Also called the estate.</p>
+      </article>
+      <article class="gloss-entry" id="claimed">
+        <h3><a href="#claimed" aria-label="Link to claimed">claimed</a></h3>
+        <p class="gloss-plain">An older name for <a href="#declared">declared</a>. This site now says declared everywhere.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The toy is in your hands but has no label yet.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The name this site's colours use for the stage the design calls <a href="#declared">declared</a>: an <code>$import</code> exists in the specification and no record does.</p>
+      </article>
+      <article class="gloss-entry" id="clickops">
+        <h3><a href="#clickops" aria-label="Link to ClickOps">ClickOps</a></h3>
+        <p class="gloss-plain">Making cloud things by clicking in a web page.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Building with your hands instead of from instructions.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Informal word for infrastructure created through a web console, which leaves no code or record behind.</p>
+      </article>
+      <article class="gloss-entry" id="coverage">
+        <h3><a href="#coverage" aria-label="Link to coverage">coverage</a></h3>
+        <p class="gloss-plain">Which kinds of toy pravo can see, and how the last look went.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A note on the caretaker's door saying which shelves were checked.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> One word per type: <code>listed</code>, <code>truncated</code>, <code>failed</code>, <code>needs-parent</code>, <code>no-list</code>, <code>not-asked</code>. Absence from the ledger means unknown, never "does not exist". See <a href="#no-list">no-list</a>, <a href="#needs-parent">needs-parent</a> and <a href="#truncated">truncated</a>.</p>
+      </article>
+      <article class="gloss-entry" id="cue">
+        <h3><a href="#cue" aria-label="Link to CUE">CUE</a></h3>
+        <p class="gloss-plain">The language pravo's files are written in.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The language the labels are written in.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A configuration language. In pravo the specification is CUE, and a resource is any CUE struct built through a provider, for example <code>$aws.#Resource.aws_s3_bucket &amp; {...}</code>.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-d" data-reveal>
+      <h2>D</h2>
+      <article class="gloss-entry" id="database">
+        <h3><a href="#database" aria-label="Link to database">database</a></h3>
+        <p class="gloss-plain">A place where a shop or an app keeps its facts, such as customers and orders.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The notebook where the toy room writes down who borrowed what.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> In this site the resource type is <code>aws_db_instance</code>. The password is optional and sensitive in the aws 6.69.1 schema we read.</p>
+      </article>
+      <article class="gloss-entry" id="declared">
+        <h3><a href="#declared" aria-label="Link to declared">declared</a></h3>
+        <p class="gloss-plain">The label is written but the toy is not yet on the list.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> You have written the name on a sticker and not stuck it on.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A state: an <code>$import</code> in the specification names the object and no record exists. Mid-adoption. It becomes <a href="#managed">managed</a> when a saved plan is applied.</p>
+      </article>
+      <article class="gloss-entry" id="dependency">
+        <h3><a href="#dependency" aria-label="Link to dependency">dependency</a></h3>
+        <p class="gloss-plain">One thing that needs another.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A toy that only works with its batteries.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> An edge between records, written at apply. Adopted records have none until an apply, so a missed reference means no ordering and no blast radius.</p>
+      </article>
+      <article class="gloss-entry" id="display-name">
+        <h3><a href="#display-name" aria-label="Link to display name">display name</a></h3>
+        <p class="gloss-plain">The name made for people to read.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The name written on the box lid.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A string returned in a list event. It is untrusted text, since whoever can create cloud objects chooses it. Control characters are escaped when written to the ledger, and a name is never treated as an instruction.</p>
+      </article>
+      <article class="gloss-entry" id="drift">
+        <h3><a href="#drift" aria-label="Link to drift">drift</a></h3>
+        <p class="gloss-plain">The cloud no longer matches what pravo wrote down.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Someone moved a toy after you wrote the list.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Found by <code>pravo drift</code>, which leaves a durable mark on the record. It concerns managed things. A shadow object is a different case: pravo holds no record of it to drift from.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-e" data-reveal>
+      <h2>E</h2>
+      <article class="gloss-entry" id="elsewhere">
+        <h3><a href="#elsewhere" aria-label="Link to elsewhere">elsewhere</a></h3>
+        <p class="gloss-plain">It belongs to someone else's list.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A toy that is on the neighbour's list.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A state: the object appears in a state named in <code>$discover.known</code>, such as a <code>.tfstate</code> file or another pravo state. Adoption is refused. Each known entry has an <code>as_of</code> date and <code>shadow</code> warns when it is stale.</p>
+      </article>
+      <article class="gloss-entry" id="empty-plan">
+        <h3><a href="#empty-plan" aria-label="Link to empty plan">empty plan</a></h3>
+        <p class="gloss-plain">The plan says there is nothing to do.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> You check the list against the room and everything matches.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>0 to add, 0 to change, 0 to destroy</code>. It is the success test of onboarding. It proves only that the CUE does not contradict what the provider reads. It does not prove the CUE describes the object. See <a href="#specified-inherited">specified and inherited</a>.</p>
+      </article>
+      <article class="gloss-entry" id="estate">
+        <h3><a href="#estate" aria-label="Link to estate">estate</a></h3>
+        <p class="gloss-plain">Everything that really exists in the account.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> All the toys in the room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The set of real objects. pravo never sees all of it, because providers list only some types.</p>
+      </article>
+      <article class="gloss-entry" id="eventual-consistency">
+        <h3><a href="#eventual-consistency" aria-label="Link to eventual consistency">eventual consistency</a></h3>
+        <p class="gloss-plain">A new thing may take a moment to show up in a list.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> You put a toy down and the caretaker's list is updated a minute later.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Cloud list calls are commonly like this. No cloud statement was read in this study, so it is an assumption. The defence is that the ledger is a hint, and an object is read again before anything is done to it.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-f" data-reveal>
+      <h2>F</h2>
+      <article class="gloss-entry" id="for-each">
+        <h3><a href="#for-each" aria-label="Link to for_each">for_each</a></h3>
+        <p class="gloss-plain">A way to write many similar things once.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> One recipe that makes twelve cookies.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A loop in the configuration language. Adoption writes flat files with one block per object. Folding twins into loops or modules is later work for a person or an agent, proven by the same empty-plan gate.</p>
+      </article>
+      <article class="gloss-entry" id="frozen-by-profile">
+        <h3><a href="#frozen-by-profile" aria-label="Link to frozen by profile">frozen by profile</a></h3>
+        <p class="gloss-plain">A default value written down as if someone had chosen it.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Writing "red" on the label because the toy happens to be red.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> With <code>--spec full</code> the generator writes the optional-and-computed values it reads. The protocol cannot tell a provider default from an owner's choice, so the report lists these values.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-g" data-reveal>
+      <h2>G</h2>
+      <article class="gloss-entry" id="git">
+        <h3><a href="#git" aria-label="Link to git">git</a></h3>
+        <p class="gloss-plain">A tool that keeps every version of a set of text files and who changed them.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A photo album of the wall list that never loses an old photo.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The version control system whose history and reviews hold pravo's decisions, such as ignore rules. Changes are proposed as a <a href="#pull-request">pull request</a>.</p>
+      </article>
+      <article class="gloss-entry" id="gate">
+        <h3><a href="#gate" aria-label="Link to gate">gate</a></h3>
+        <p class="gloss-plain">The check that runs before anything is written.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A guard at the door who compares the list with the room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A provider-level validate and plan per object, then the real engine run over the generated files in a scratch overlay. It is advisory. The saved plan that follows is the authority.</p>
+      </article>
+      <article class="gloss-entry" id="generateresourceconfig">
+        <h3><a href="#generateresourceconfig" aria-label="Link to GenerateResourceConfig">GenerateResourceConfig</a></h3>
+        <p class="gloss-plain">A provider call that drafts a configuration from what exists.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The caretaker writes a first draft of the label.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> In the protocol, gated by the <code>generate_resource_config</code> capability bit. It returns a data object, not source code. pravo does not use it in the first version: it uses its own generator so every provider behaves the same.</p>
+      </article>
+      <article class="gloss-entry" id="glob">
+        <h3><a href="#glob" aria-label="Link to glob">glob</a></h3>
+        <p class="gloss-plain">A pattern with a star in it.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> "Every box whose name starts with Scratch".</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> In an ignore rule a pattern needs <code>glob: true</code> and <code>expect: N</code>, the number of objects it hides at review time. Extras show as <code>seen (rule overflow)</code>.</p>
+      </article>
+      <article class="gloss-entry" id="gone">
+        <h3><a href="#gone" aria-label="Link to gone">gone</a></h3>
+        <p class="gloss-plain">A mark on a record: the last read did not find the object.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A toy that is on your list and not in the room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A record mark in <code>docs/reference/state-format.md</code>. It is about managed records. The ledger word for an object that vanished from a later complete sweep is <a href="#unlisted">unlisted</a>.</p>
+      </article>
+      <article class="gloss-entry" id="greenfield">
+        <h3><a href="#greenfield" aria-label="Link to greenfield">greenfield</a></h3>
+        <p class="gloss-plain">A new project where nothing exists yet.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> An empty room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The opposite of <a href="#brownfield">brownfield</a>. Most tools assume it.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-h" data-reveal>
+      <h2>H</h2>
+      <article class="gloss-entry" id="hole">
+        <h3><a href="#hole" aria-label="Link to hole">hole</a></h3>
+        <p class="gloss-plain">A blank on the label that a person has to fill in.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A line on the form that says "write the secret code here".</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A required sensitive or write-only attribute that the API never returns. The generator writes the field as its schema type, so <code>pravo validate</code> fails until a person supplies a source such as <code>pravo.#Env</code>.</p>
+      </article>
+      <article class="gloss-entry" id="hydrate">
+        <h3><a href="#hydrate" aria-label="Link to hydrate">hydrate</a></h3>
+        <p class="gloss-plain">Fill in the full picture of one thing.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Pick the toy up and look at it properly.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>ImportResourceState</code> then <code>ReadResource</code>, in memory. The result is never written to the state and never stored in the ledger.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-i" data-reveal>
+      <h2>I</h2>
+      <article class="gloss-entry" id="infrastructure-as-code">
+        <h3><a href="#infrastructure-as-code" aria-label="Link to infrastructure as code">infrastructure as code</a></h3>
+        <p class="gloss-plain">Describing your cloud in text files, so a tool can build it and keep it the same.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Writing a recipe instead of cooking by hand each time.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Declarative configuration (here CUE) that an engine such as pravo, OpenTofu or Terraform compares with reality and applies.</p>
+      </article>
+      <article class="gloss-entry" id="identity">
+        <h3><a href="#identity" aria-label="Link to identity">identity</a></h3>
+        <p class="gloss-plain">The serial number that says exactly which thing this is.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The number on the bottom of the toy. The name on the box can change; this does not.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The provider's own key for an object, versioned separately from the resource schema. For an S3 bucket the bucket name is required and the account and region are optional. The ledger key uses the scope and the required attributes. See <a href="#upgrade-identity">UpgradeResourceIdentity</a>.</p>
+      </article>
+      <article class="gloss-entry" id="identity-lock">
+        <h3><a href="#identity-lock" aria-label="Link to identity lock">identity lock</a></h3>
+        <p class="gloss-plain">A rule that stops two records owning one thing.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Two children cannot both write "mine" on the same toy.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Decision D13. At commit time a record written from an import takes a lock keyed by canonical identity and is refused if another record holds it. It is a second lock kind. It cannot see across roots.</p>
+      </article>
+      <article class="gloss-entry" id="ignore-rule">
+        <h3><a href="#ignore-rule" aria-label="Link to ignore rule">ignore rule</a></h3>
+        <p class="gloss-plain">A reviewed note that says "not ours, leave it".</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A sign on a toy: "neighbour's, do not touch".</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> CUE under <code>$discover.ignore</code> with a mandatory <code>why</code>. Exact identity is the default match. It can expire. Rules are the only way to make shadow objects disappear from a report, so they are reviewed like code.</p>
+      </article>
+      <article class="gloss-entry" id="import">
+        <h3><a href="#import" aria-label="Link to import">import</a></h3>
+        <p class="gloss-plain">Bring an existing thing under management.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Add a toy that was already in the room to your list.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo import ADDR ID</code> and the <code>$import</code> field adopt one object per call, with the provider's id string. <code>adopt</code> builds on the same provider call.</p>
+      </article>
+      <article class="gloss-entry" id="importresourcestate">
+        <h3><a href="#importresourcestate" aria-label="Link to ImportResourceState">ImportResourceState</a></h3>
+        <p class="gloss-plain">A provider call that pulls one existing thing in.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Handing the caretaker a serial number and getting the toy back.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Takes a type and an id or an identity and returns one or more imported resources. The state it returns is often a skeleton, so a read follows. Whether aws honours identity-only import is unverified.</p>
+      </article>
+      <article class="gloss-entry" id="inherited">
+        <h3><a href="#inherited" aria-label="Link to inherited">inherited</a></h3>
+        <p class="gloss-plain">See <a href="#specified-inherited">specified and inherited</a>.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The part of the toy you did not write on the label.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> An optional-and-computed attribute the CUE leaves null, so the plan takes the prior value.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-j" data-reveal>
+      <h2>J</h2>
+      <article class="gloss-entry" id="jsonlines">
+        <h3><a href="#jsonlines" aria-label="Link to JSON lines">JSON lines</a></h3>
+        <p class="gloss-plain">A list with one item per line.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A shopping list, one toy per line.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Format of the ids file for <code>sweep --from</code> and <code>adopt --ids</code>. Chosen over tab-separated text because names and ids are untrusted, and a tab or newline in one would corrupt a TSV file.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-k" data-reveal>
+      <h2>K</h2>
+      <article class="gloss-entry" id="known-state">
+        <h3><a href="#known-state" aria-label="Link to known state">known state</a></h3>
+        <p class="gloss-plain">Another list that pravo is told to trust.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The neighbour's list, pinned on your wall.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>$discover.known</code>: a <code>.tfstate</code> or another pravo state, local or remote, read-only. Objects in it show as <a href="#elsewhere">elsewhere</a>.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-l" data-reveal>
+      <h2>L</h2>
+      <article class="gloss-entry" id="ledger">
+        <h3><a href="#ledger" aria-label="Link to ledger">ledger</a></h3>
+        <p class="gloss-plain">The notebook of what the last looks saw.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A walker's notebook: "three toys on the floor on Tuesday".</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Sharded JSON pages under <code>inventory/</code> in the state backend, written only by <code>pravo sweep</code>. It holds identity, display name and times, no attribute values. It is disposable and rebuildable.</p>
+      </article>
+      <article class="gloss-entry" id="list">
+        <h3><a href="#list" aria-label="Link to list (ListResource)">list (ListResource)</a></h3>
+        <p class="gloss-plain">Ask a provider what it can find.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> "Tell me everything in the room."</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>ListResource</code> is a streaming call in the protocol. The request names a list type, its config, a limit and whether to include the full object. Events carry an identity, a display name, an optional object and diagnostics. There is no pagination, total or changed-since marker. <code>ValidateListResourceConfig</code> checks the question first.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-m" data-reveal>
+      <h2>M</h2>
+      <article class="gloss-entry" id="managed">
+        <h3><a href="#managed" aria-label="Link to managed">managed</a></h3>
+        <p class="gloss-plain">pravo has a record of it and plans changes to it.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A toy in a labelled box, written on the list.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A record in this root's state matches the identity. Managed is computed by matching the ledger against records; it is never stored. Removing the declaration of a managed object plans its deletion unless the record is protected.</p>
+      </article>
+      <article class="gloss-entry" id="mcp">
+        <h3><a href="#mcp" aria-label="Link to MCP">MCP</a></h3>
+        <p class="gloss-plain">A standard plug that lets an AI helper use a program's tools.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A socket on the wall that helpers can plug into.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Model Context Protocol. <code>pravo mcp</code> serves tools to agents. Today it has 13, none of which edits state or applies without a saved plan. The design adds read-only tools for the shadow estate.</p>
+      </article>
+      <article class="gloss-entry" id="module">
+        <h3><a href="#module" aria-label="Link to module">module</a></h3>
+        <p class="gloss-plain">A reusable bundle of several things.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A toy set that comes in its own box.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> pravo does not infer modules when it adopts. Moving resources into modules is later work, proven by the same gate.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-n" data-reveal>
+      <h2>N</h2>
+      <article class="gloss-entry" id="needs-parent">
+        <h3><a href="#needs-parent" aria-label="Link to needs-parent">needs-parent</a></h3>
+        <p class="gloss-plain">A kind of thing that can only be listed inside another thing.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> You can only list the cards inside a box if you already know which box.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A coverage word. The list config has a required parent attribute such as <code>rest_api_id</code>. 76 aws list types are like this. Not swept in the first version.</p>
+      </article>
+      <article class="gloss-entry" id="no-list">
+        <h3><a href="#no-list" aria-label="Link to no-list">no-list</a></h3>
+        <p class="gloss-plain">The provider cannot list this kind of thing.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The caretaker shrugs when asked to read out this shelf.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A coverage word. Adoption is by id or file only. True for the great majority of aws types, every Kubernetes type in the cached provider, and any provider built only on the older plugin kit.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-o" data-reveal>
+      <h2>O</h2>
+      <article class="gloss-entry" id="opentofu">
+        <h3><a href="#opentofu" aria-label="Link to OpenTofu">OpenTofu</a></h3>
+        <p class="gloss-plain">An open-source tool that builds cloud things from files.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A builder who follows written plans.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> pravo drives unmodified OpenTofu and Terraform providers. Identity in <code>import</code> blocks is in the v1.12 line. No <code>tofu query</code> was found in v1.13.2, and the request for it was open on 20 October 2026.</p>
+      </article>
+      <article class="gloss-entry" id="orphan-delete">
+        <h3><a href="#orphan-delete" aria-label="Link to orphan delete">orphan delete</a></h3>
+        <p class="gloss-plain">A thing that has no text in your files gets removed.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Cross a toy off the list and the caretaker throws it away.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A record with no declaration is planned for deletion. Adopting makes an object destroyable by design. Decision D2 proposes that a protected, undeclared record makes the plan an error instead.</p>
+      </article>
+      <article class="gloss-entry" id="overlay">
+        <h3><a href="#overlay" aria-label="Link to overlay">overlay</a></h3>
+        <p class="gloss-plain">A scratch copy for trying things safely.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Tracing paper laid over the list. You draw on the paper.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Reads fall through to the real state read-only. Writes go to a temporary directory (mode 0700) that is deleted after. Whether such a backend is cheap to build is an assumption.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-p" data-reveal>
+      <h2>P</h2>
+      <article class="gloss-entry" id="pravo">
+        <h3><a href="#pravo" aria-label="Link to pravo">pravo</a></h3>
+        <p class="gloss-plain">The tool this site is about: you describe your cloud in text files and it changes the cloud to match, and remembers what it made.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The tidier in the toy room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A CUE-based declarative infrastructure engine written in Go that drives unmodified OpenTofu and Terraform providers over the plugin protocol. The name is lowercase.</p>
+      </article>
+      <article class="gloss-entry" id="pull-request">
+        <h3><a href="#pull-request" aria-label="Link to pull request">pull request</a></h3>
+        <p class="gloss-plain">A proposal to change some files, which other people read and approve before it takes effect.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Handing your drawing to a friend to check before it goes on the wall.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The review step in git hosting. The design suggests one pull request per batch of adoptions.</p>
+      </article>
+      <article class="gloss-entry" id="pin">
+        <h3><a href="#pin" aria-label="Link to pin">pin</a></h3>
+        <p class="gloss-plain">Write the value you saw so the plan matches.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Pin a note to the label: "this toy really is blue".</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> If a plan shows a difference on an attribute, adopt sets it to the observed value and plans again. At most three rounds (assumption). Pins are listed in the report.</p>
+      </article>
+      <article class="gloss-entry" id="plan">
+        <h3><a href="#plan" aria-label="Link to plan">plan</a></h3>
+        <p class="gloss-plain">A list of the changes pravo would make.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A to-do list you read before doing anything.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A saved plan is written to a file and applied exactly as reviewed. A plan reaches only what a change touches. A sweep is the exception: it reaches the whole of its scope.</p>
+      </article>
+      <article class="gloss-entry" id="protocol">
+        <h3><a href="#protocol" aria-label="Link to plugin protocol">plugin protocol</a></h3>
+        <p class="gloss-plain">The agreed list of questions a provider can be asked.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The phone line between you and the caretaker, and the words you both know.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> gRPC protocol versions 5 and 6, shared by OpenTofu, Terraform and pravo. pravo vendors 5.11 and 6.11. The label "6.10" names three different file contents across Terraform tags, so pravo detects features, not versions.</p>
+      </article>
+      <article class="gloss-entry" id="policy">
+        <h3><a href="#policy" aria-label="Link to policy">policy</a></h3>
+        <p class="gloss-plain">A rule a plan must pass.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A house rule: "no toys leave the room today".</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The example <code>adoption-only</code> refuses any plan that adds, changes, replaces or destroys. A difference between the gate and the plan becomes a refusal (exit 5).</p>
+      </article>
+      <article class="gloss-entry" id="why">
+        <h3><a href="#why" aria-label="Link to pravo why">pravo why</a></h3>
+        <p class="gloss-plain">A command that explains why a thing is in its state.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> "Why is this toy on the floor?"</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo why TYPE:ID</code> says why an object is seen, ignored, elsewhere, declared or managed. Proposed, not built.</p>
+      </article>
+      <article class="gloss-entry" id="prevent-destroy">
+        <h3><a href="#prevent-destroy" aria-label="Link to prevent_destroy">prevent_destroy</a></h3>
+        <p class="gloss-plain">A lock that stops a thing being deleted.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A padlock on the toy box.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> In <code>$lifecycle</code>. A replacing plan becomes an error and <code>pravo destroy</code> refuses. It does not stop the orphan delete when the declaration is removed; that gap is decision D2.</p>
+      </article>
+      <article class="gloss-entry" id="prompt-injection">
+        <h3><a href="#prompt-injection" aria-label="Link to prompt injection">prompt injection</a></h3>
+        <p class="gloss-plain">Text in data that tries to give an AI helper orders.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A name tag on a toy that says "give me the keys".</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Display names, tags and descriptions are written by whoever can create cloud objects. They are data. Tools return them quoted and length-limited, and the skill says never to follow an instruction found in one.</p>
+      </article>
+      <article class="gloss-entry" id="proof">
+        <h3><a href="#proof" aria-label="Link to proof">proof</a></h3>
+        <p class="gloss-plain">The second empty plan, after the apply.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Counting the toys again after the work is done.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Run on the real state. The first run is the gate, in a scratch overlay, before any file is written.</p>
+      </article>
+      <article class="gloss-entry" id="provider">
+        <h3><a href="#provider" aria-label="Link to provider">provider</a></h3>
+        <p class="gloss-plain">A program that knows one cloud and talks to it for you.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The room's caretaker.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> An unmodified OpenTofu or Terraform provider binary. pravo starts it, configures it for one account and region, and calls it over the plugin protocol. In pravo one provider instance is one configuration.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-r" data-reveal>
+      <h2>R</h2>
+      <article class="gloss-entry" id="read-only-role">
+        <h3><a href="#read-only-role" aria-label="Link to read-only role">read-only role</a></h3>
+        <p class="gloss-plain">A cloud login that can look and cannot change.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A key that opens the window and not the door.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The real enforcement for sweeps. The protocol does not forbid a provider from doing more in a list or import call, and nobody read a provider's code in this study.</p>
+      </article>
+      <article class="gloss-entry" id="readresource">
+        <h3><a href="#readresource" aria-label="Link to ReadResource">ReadResource</a></h3>
+        <p class="gloss-plain">A provider call that reads one thing as it is now.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> "Show me this toy again."</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Needs a state-shaped object, which may be the skeleton from an import. It returns a new state and may return a new identity. The proto states it takes no config, so reading needs no written configuration.</p>
+      </article>
+      <article class="gloss-entry" id="recipe">
+        <h3><a href="#recipe" aria-label="Link to recipe">recipe</a></h3>
+        <p class="gloss-plain">A ready-made shell command that prints a list of ids.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A recipe card for finding one kind of toy.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Shipped, versioned data for thirty aws types chosen from those that cannot list (not yet picked, none written), with the type's import id format beside it. Unverified: none has been written, and recipes can only be tested against a sandbox account.</p>
+      </article>
+      <article class="gloss-entry" id="record">
+        <h3><a href="#record" aria-label="Link to record">record</a></h3>
+        <p class="gloss-plain">pravo's saved note about one managed thing.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> One index card per toy.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> One JSON file per resource under <code>resources/</code>. A shadow object is never a record.</p>
+      </article>
+      <article class="gloss-entry" id="region">
+        <h3><a href="#region" aria-label="Link to region">region</a></h3>
+        <p class="gloss-plain">The part of the world where a cloud thing lives.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Which shelf in the room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> In aws a list call covers one region. A provider instance is one account and one region, so a multi-region sweep needs one declared instance per region.</p>
+      </article>
+      <article class="gloss-entry" id="resource">
+        <h3><a href="#resource" aria-label="Link to resource">resource</a></h3>
+        <p class="gloss-plain">One thing in the cloud.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> One toy.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> In pravo, any CUE struct built through a provider. In the provider, a managed type such as <code>aws_s3_bucket</code>.</p>
+      </article>
+      <article class="gloss-entry" id="root">
+        <h3><a href="#root" aria-label="Link to root">root</a></h3>
+        <p class="gloss-plain">One pravo project and its saved records.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> One room's list.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> "Managed" is relative to a root. The same object can be managed in one root and shadow in another. Nothing detects double adoption across roots.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-s" data-reveal>
+      <h2>S</h2>
+      <article class="gloss-entry" id="saved-plan">
+        <h3><a href="#saved-plan" aria-label="Link to saved plan">saved plan</a></h3>
+        <p class="gloss-plain">A plan stored in a file and carried out exactly as it was read.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A signed work order.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo plan --out FILE</code> then <code>pravo apply FILE</code>. Agents can apply only a saved plan.</p>
+      </article>
+      <article class="gloss-entry" id="schema">
+        <h3><a href="#schema" aria-label="Link to schema">schema</a></h3>
+        <p class="gloss-plain">The description of what fields a thing has.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The spec sheet that comes with a toy.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo schema</code> prints provider schemas. Attributes are required, optional, computed or sensitive. The design extends it with <code>--list TYPE</code> to print list filters.</p>
+      </article>
+      <article class="gloss-entry" id="scope">
+        <h3><a href="#scope" aria-label="Link to scope">scope</a></h3>
+        <p class="gloss-plain">Which account and which region a sweep looks in.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Which room, and which shelf of it.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Declared in <code>$discover</code> with a read-only <code>sweep</code> instance and a <code>manage</code> instance. The account label is a property of the scope.</p>
+      </article>
+      <article class="gloss-entry" id="seen">
+        <h3><a href="#seen" aria-label="Link to seen">seen</a></h3>
+        <p class="gloss-plain">pravo has noticed it and written it down.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A toy on the floor that the walker has put in the notebook.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A state: in the latest ledger shard, no record, no <code>$import</code>, no ignore rule, not in a known state. It is a shadow object nobody has decided about.</p>
+      </article>
+      <article class="gloss-entry" id="sensitive">
+        <h3><a href="#sensitive" aria-label="Link to sensitive value">sensitive value</a></h3>
+        <p class="gloss-plain">A secret, such as a password.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The code to the toy cupboard.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The API never returns some, and provider flags are incomplete. Sensitive and write-only values are never emitted into generated files. The agent never chooses a secret and sees values only if the operator allows it.</p>
+      </article>
+      <article class="gloss-entry" id="shadow">
+        <h3><a href="#shadow" aria-label="Link to shadow estate">shadow estate</a></h3>
+        <p class="gloss-plain">Things that exist in the cloud and that pravo does not manage.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The toys on the floor that nobody put away.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Objects that exist and that no record in this root owns. pravo may list them and may read them when asked to adopt one. It never writes to, tags, plans or deletes one.</p>
+      </article>
+      <article class="gloss-entry" id="shard">
+        <h3><a href="#shard" aria-label="Link to shard">shard</a></h3>
+        <p class="gloss-plain">One page of the ledger.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> One page of the walker's notebook, for one shelf.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> One type, one provider instance (account and region), one sweep. The unit of cost, age and absence. Shards over 5,000 entries are split into parts with a manifest.</p>
+      </article>
+      <article class="gloss-entry" id="specification">
+        <h3><a href="#specification" aria-label="Link to specification">specification</a></h3>
+        <p class="gloss-plain">The CUE files that say what you want.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The written plan of the room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The files in the project root. <code>$discover</code> is a proposed top-level field in it that holds decisions: scope, ignore rules and known states.</p>
+      </article>
+      <article class="gloss-entry" id="specified-inherited">
+        <h3><a href="#specified-inherited" aria-label="Link to specified and inherited">specified and inherited</a></h3>
+        <p class="gloss-plain">How much of the label you wrote and how much you left to the provider.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> "I wrote 5 lines on the label and left 2 blank."</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> The gate prints <code>specified N, inherited M</code> per object and warns when M exceeds N, because then the plan is empty because the CUE says little.</p>
+      </article>
+      <article class="gloss-entry" id="state">
+        <h3><a href="#state" aria-label="Link to state">state</a></h3>
+        <p class="gloss-plain">pravo's saved record of what it manages.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The cupboard of index cards.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo.state</code>: one JSON record per resource, per-resource locks, plus an <code>inventory/</code> directory for the ledger. A graph store: a plan reaches only what a change touches.</p>
+      </article>
+      <article class="gloss-entry" id="state-identify">
+        <h3><a href="#state-identify" aria-label="Link to state identify">state identify</a></h3>
+        <p class="gloss-plain">A one-time pass that adds serial numbers to old records.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Writing the serial number on cards that only had names.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo state identify</code> reads each record through the provider and writes an <code>identity</code> field. It is a state write and no cloud write. A type with any unmatched record is never listed as seen.</p>
+      </article>
+      <article class="gloss-entry" id="state-rm">
+        <h3><a href="#state-rm" aria-label="Link to state rm">state rm</a></h3>
+        <p class="gloss-plain">Forget a record without touching the real thing.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Cross a toy off the list and leave it in the room.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo state rm ADDR</code> exists today. It is how a managed object goes back to seen. Remove the text in the same change.</p>
+      </article>
+      <article class="gloss-entry" id="stream">
+        <h3><a href="#stream" aria-label="Link to stream">stream</a></h3>
+        <p class="gloss-plain">Answers that arrive one at a time.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The caretaker reading the list aloud, one toy per sentence.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A server-streaming call. It ends with the gRPC status. A broken stream is a failure and never "no results".</p>
+      </article>
+      <article class="gloss-entry" id="sweep">
+        <h3><a href="#sweep" aria-label="Link to sweep">sweep</a></h3>
+        <p class="gloss-plain">One run of list calls for chosen kinds of thing.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The walker goes round the room once with a notebook.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> <code>pravo sweep</code>. Read-only. Full scan of its scope every time, since the protocol has no changed-since marker. Scheduling is the user's: cron or CI.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-t" data-reveal>
+      <h2>T</h2>
+      <article class="gloss-entry" id="tag">
+        <h3><a href="#tag" aria-label="Link to tag">tag</a></h3>
+        <p class="gloss-plain">A small label the cloud lets you attach to a thing.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A sticker on the toy. Not the same as pravo's address.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Key and value pairs. The list protocol carries none, so a sweep cannot filter by tag unless the provider's own list config offers it.</p>
+      </article>
+      <article class="gloss-entry" id="terraform">
+        <h3><a href="#terraform" aria-label="Link to Terraform">Terraform</a></h3>
+        <p class="gloss-plain">The original tool that builds cloud things from files.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The other builder who follows written plans.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Shipped <code>terraform query</code> and <code>list</code> blocks in 1.14.0 (19 November 2025). pravo uses the same provider calls without using either tool.</p>
+      </article>
+      <article class="gloss-entry" id="toy-room">
+        <h3><a href="#toy-room" aria-label="Link to toy room">toy room</a></h3>
+        <p class="gloss-plain">The picture this site uses for a cloud account.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> See the whole site.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Toys in labelled boxes are managed by pravo. Toys on the floor are the shadow estate. The neighbour's toys are ignored or elsewhere. Onboarding is picking a toy up, labelling it, writing its name on the list and checking the list matches the room.</p>
+      </article>
+      <article class="gloss-entry" id="truncated">
+        <h3><a href="#truncated" aria-label="Link to truncated">truncated</a></h3>
+        <p class="gloss-plain">The list was cut off because it hit the limit.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The caretaker stopped reading at toy number 10,000.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A coverage word. If events equal the limit, the shard is marked truncated and the old entries are kept. What a limit of 0 means is unverified.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-u" data-reveal>
+      <h2>U</h2>
+      <article class="gloss-entry" id="unimplemented">
+        <h3><a href="#unimplemented" aria-label="Link to Unimplemented">Unimplemented</a></h3>
+        <p class="gloss-plain">A provider's way of saying "I do not do that".</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> The caretaker says "not my job".</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A gRPC status. Every new call must tolerate it. The scottwinkler shell provider and aws 5.100.0 answer it for identity calls.</p>
+      </article>
+      <article class="gloss-entry" id="unlisted">
+        <h3><a href="#unlisted" aria-label="Link to unlisted">unlisted</a></h3>
+        <p class="gloss-plain">Seen once, and missing from a later full look.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A toy in last week's notebook that is not in this week's.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> A ledger state, a hint only. Produced only by a complete shard: the stream ended with success, no error diagnostic appeared, and the count is under the limit. Pruned after 30 days (assumption).</p>
+      </article>
+      <article class="gloss-entry" id="upgrade-identity">
+        <h3><a href="#upgrade-identity" aria-label="Link to UpgradeResourceIdentity">UpgradeResourceIdentity</a></h3>
+        <p class="gloss-plain">A provider call that updates an old serial number to the new format.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Re-stamping an old serial number in the new style.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Takes a type, an old version and the stored identity as JSON. Entries of differing identity versions are unequal until it has run.</p>
+      </article>
+    </section>
+    <section class="section gloss-group" id="letter-v" data-reveal>
+      <h2>V</h2>
+      <article class="gloss-entry" id="virtual-machine">
+        <h3><a href="#virtual-machine" aria-label="Link to virtual machine">virtual machine</a></h3>
+        <p class="gloss-plain">A computer that lives in the cloud and that you rent.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> A play table that appears on demand and goes when you stop paying.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> In this site the resource type is <code>aws_instance</code>.</p>
+      </article>
+      <article class="gloss-entry" id="unverified">
+        <h3><a href="#unverified" aria-label="Link to verified and unverified">verified and unverified</a></h3>
+        <p class="gloss-plain">Checked in this study, or not checked.</p>
+        <p class="gloss-like"><span class="gloss-tag">Like</span> Seen with your own eyes, or only heard about.</p>
+        <p class="gloss-tech"><span class="gloss-tag">Technical</span> Verified means someone read a file, fetched a page or ran a binary and the source is named. Unverified means nobody did. The design either does not depend on it or has a fallback.</p>
+      </article>
+    </section>
+  </div>
+</main>
+
+<footer data-site-footer></footer>
+<script src="assets/site.js" defer></script>
+</body>
+</html>

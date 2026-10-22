@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The problem | pravo brownfield design</title>
+<meta name="description" content="What brownfield, shadow infrastructure and drift mean, why they hurt, and why the ways teams deal with them today are slow and fragile. Told with a toy room.">
+<script>(function(){var r=document.documentElement;r.classList.add('js');try{var t=localStorage.getItem('bf-theme');if(t==='light'||t==='dark')r.setAttribute('data-theme',t)}catch(e){}})()</script>
+<link rel="stylesheet" href="assets/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a735a'/%3E%3Cpath d='M16 7v18M8 12l8-5 8 5M8 20l8 5 8-5' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<style>
+/* shared-css workaround: an idle glossary tooltip must not widen the page on a phone */
+.term[data-def]:not(:hover):not(:focus)::after { display: none; }
+/* page-scoped pieces: card headings, the "next" box */
+.why-grid .heading-anchor, .rules-grid .heading-anchor { display: none; }
+.next-box { margin-top: 2.5rem; padding: 1.4rem 1.5rem; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface); max-width: none !important; }
+.next-box h2 { margin: 0 0 .3rem; font: 500 1.5rem/1.2 var(--font-display); }
+.next-box > p { margin: 0 0 1rem; color: var(--text-2); max-width: var(--measure); }
+.next-links { list-style: none; margin: 0; padding: 0 !important; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.next-links li { margin: 0 !important; }
+.next-links a { display: block; height: 100%; padding: .85rem 1rem; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); color: inherit; text-decoration: none; }
+.next-links a:hover { border-color: var(--accent); }
+.next-links strong { display: block; font: 500 1.1rem/1.3 var(--font-display); }
+.next-links span { display: block; margin-top: .2rem; font-size: .9rem; color: var(--text-2); }
+.dg text.cap { font: 600 11px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; fill: var(--text-2); }
+.why-grid { list-style: none; margin: 0; padding: 0 !important; display: grid; gap: .9rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); max-width: none !important; }
+.why-grid li { margin: 0 !important; padding: 1rem 1.1rem; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface); }
+.why-grid h3 { margin: 0 0 .3rem !important; font: 500 1.25rem/1.25 var(--font-display) !important; }
+.why-grid p { margin: 0; font-size: .95rem; color: var(--text-2); }
+</style>
+</head>
+<body data-page="01-the-problem.html">
+<a class="skip-link" href="#content">Skip to content</a>
+<header data-site-header></header>
+
+<main id="content" tabindex="-1">
+  <header class="page-header">
+    <div class="wrap">
+      <p class="kicker">Chapter 1 of 7</p>
+      <h1>Nobody starts with an empty room</h1>
+      <p class="lede">Real cloud accounts are full of things that tools do not know about. That is the problem. This page shows what it looks like, why it hurts, and why the usual fixes are slow.</p>
+      <ul class="page-meta">
+        <li class="chip">7 minute read</li>
+        <li class="chip">For everyone</li>
+        <li class="chip">Engineers: open the boxes marked "For engineers"</li>
+      </ul>
+      <nav data-toc aria-label="On this page"></nav>
+    </div>
+  </header>
+
+  <div class="wrap page-body">
+
+    <section class="section" id="room" data-reveal>
+      <h2>The room was never empty</h2>
+      <p>Think of a toy room that a whole street of children has played in for years. Today you are asked to keep it tidy, with a list on the wall that says where every toy lives.</p>
+      <p>You walk in. Some toys are in labelled boxes, and they are on the list. Many are not. A blue car is under the sofa. A robot is behind the door. A drum belongs to the neighbour.</p>
+      <p>Nobody can start the list from a clean room. The list has to be written while the room is in use.</p>
+      <aside class="eli5">
+        <div class="eli5-icon" aria-hidden="true"></div>
+        <div class="eli5-body">
+          <p class="eli5-label">Explain it like I am five</p>
+          <p>"Brownfield" is a word from building. A brownfield site already has buildings on it, so you must work around them. A greenfield site is an empty field. Almost every real cloud account is brownfield.</p>
+        </div>
+      </aside>
+      <article class="analogy">
+        <p class="analogy-label">Think of it like</p>
+        <h3>A toy room that was never tidied from scratch</h3>
+        <p>The list on the wall is only as good as the last child who remembered to update it.</p>
+        <dl class="analogy-map">
+          <div><dt>The toy room</dt><span class="eq" aria-hidden="true"></span><dd>Your cloud account</dd></div>
+          <div><dt>A toy</dt><span class="eq" aria-hidden="true"></span><dd>A <span class="term" tabindex="0" data-def="A single thing in the cloud: a storage bucket, a network, a server, a user role. Tools call these resources.">resource</span></dd></div>
+          <div><dt>The list on the wall</dt><span class="eq" aria-hidden="true"></span><dd>The <span class="term" tabindex="0" data-def="OpenTofu and Terraform call the saved record of what exists 'state'. pravo keeps one small record per resource.">state</span>, plus your CUE files</dd></div>
+          <div><dt>Toys on the floor</dt><span class="eq" aria-hidden="true"></span><dd>Shadow infrastructure</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="section" id="shadow-and-drift" data-reveal>
+      <h2>Two different messes: shadow and drift</h2>
+      <p>People use "shadow infrastructure" and "drift" as if they were the same thing. They are not, and the design treats them differently.</p>
+      <dl class="defs">
+        <div><dt>Shadow</dt><dd>A toy on the floor. It exists, and nothing on the list mentions it. In cloud words: a resource that exists in the account and that no record in your state owns.</dd></div>
+        <div><dt>Drift</dt><dd>A toy that is in a labelled box, but someone repainted it after it was listed. The list says "red car", and the car is now blue. In cloud words: a resource that is managed, but whose real settings no longer match the specification.</dd></div>
+      </dl>
+      <p>pravo already knows about drift: it can find it and leave a mark. What it cannot do today is notice the toys on the floor. That is what this design adds.</p>
+      <figure class="diagram" style="max-width:40rem">
+        <svg class="dg" viewBox="0 0 480 330" role="img" aria-label="Four ways a toy ends up in trouble. Made by hand in a console, made by another team's pipeline, and made before anyone kept a list all end up on the floor, as shadow. Changed after it was listed ends up in a labelled box that no longer matches, which is drift.">
+          <text class="cap" x="8" y="18">How it happens</text>
+          <g class="node node--soft"><rect x="8" y="34" width="190" height="50" rx="9"/><text x="103" y="56" text-anchor="middle">made by hand</text><text class="sub" x="103" y="73" text-anchor="middle">someone clicked in a console</text></g>
+          <g class="node node--soft"><rect x="8" y="96" width="190" height="50" rx="9"/><text x="103" y="118" text-anchor="middle">made by another team</text><text class="sub" x="103" y="135" text-anchor="middle">their pipeline, their list</text></g>
+          <g class="node node--soft"><rect x="8" y="158" width="190" height="50" rx="9"/><text x="103" y="180" text-anchor="middle">made before the list</text><text class="sub" x="103" y="197" text-anchor="middle">nobody kept one</text></g>
+          <g class="node node--soft"><rect x="8" y="240" width="190" height="50" rx="9"/><text x="103" y="262" text-anchor="middle">changed afterwards</text><text class="sub" x="103" y="279" text-anchor="middle">it was listed, then edited</text></g>
+
+          <text class="cap" x="262" y="18">Where it ends up</text>
+          <g class="zone"><rect x="262" y="28" width="210" height="190"/></g>
+          <g class="node node--seen"><rect x="282" y="76" width="170" height="86" rx="9"/><text x="367" y="112" text-anchor="middle">on the floor</text><text class="sub" x="367" y="132" text-anchor="middle">shadow</text></g>
+          <g class="node node--claimed"><rect x="262" y="240" width="210" height="50" rx="9"/><text x="367" y="262" text-anchor="middle">in a box, but different</text><text class="sub" x="367" y="279" text-anchor="middle">drift</text></g>
+
+          <path class="arrow arrow--struct" d="M200 59 H236 V100 H278"/>
+          <path class="arrow arrow--struct" d="M200 121 H278"/>
+          <path class="arrow arrow--struct" d="M200 183 H236 V140 H278"/>
+          <path class="arrow arrow--warn" d="M200 265 H258"/>
+        </svg>
+        <figcaption>Three roads lead to the floor. One road leads to a box whose contents no longer match its label. The first needs finding. The second needs comparing.</figcaption>
+      </figure>
+    </section>
+
+    <section class="section" id="why-it-hurts" data-reveal>
+      <h2>Why a messy floor hurts</h2>
+      <p>None of this is dramatic on day one. It gets expensive slowly, and always at a bad moment. These are the four usual ways. They are ordinary reasoning, not measured figures.</p>
+      <ul class="why-grid">
+        <li><h3>You pay for what you forgot</h3><p>A server nobody remembers keeps running and keeps costing money. It is not on any list, so nobody asks about it.</p></li>
+        <li><h3>Nobody looks after it</h3><p>A storage bucket no one owns gets no review, no tidy-up and no updates. Security teams look for exactly these.</p></li>
+        <li><h3>You cannot rebuild the room</h3><p>If the room floods, you rebuild from the list. A toy that is not on the list is lost. Writing the room down is the point of the list.</p></li>
+        <li><h3>People become afraid to clean</h3><p>If you cannot tell which toys matter, you stop touching any of them. The room grows more cluttered, because tidying feels dangerous.</p></li>
+      </ul>
+      <aside class="plain">
+        <span class="plain-icon" aria-hidden="true"></span>
+        <div class="plain-body">
+          <p class="plain-label">In plain words</p>
+          <p>The first job is not to tidy. It is to know what is on the floor.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section" id="today" data-reveal>
+      <h2>What people do today, and why it is slow</h2>
+      <p>To bring a toy onto the list you do three things. You find it. You write its label. You check the label is right. Today the tools help with the second and third, a little, and rarely with the first.</p>
+
+      <h3>Way 1: label each toy by hand</h3>
+      <p>You write the label yourself and tell the tool the toy's secret name, called its <span class="term" tabindex="0" data-def="The text a provider uses to find one object, such as a bucket name.">import id</span>. You do this once per toy. pravo works this way today, with <code>pravo import ADDR ID</code> or the <code>$import</code> field. You must write the CUE first, and you must already know the id.</p>
+
+      <h3>Way 2: let the tool draft the label</h3>
+      <p>Two older tools, OpenTofu and Terraform, do the same job as pravo. Both can write a first draft of the configuration for objects you point at, and both label that generation experimental. Drafts also tend to copy every value as a fixed number or word, which is a snapshot, not a design. Nobody ran either tool for this site.</p>
+      <details class="eng"><summary>For engineers: the evidence</summary><div class="eng-body"><p>OpenTofu has <code>-generate-config-out</code> and labels it experimental (research note 2, verified from its documentation). Terraform's documentation also calls generation experimental, and a public issue (number 35178, a Terraform issue) shows it dropping a required nested id. These claims come from the sources in the design's evidence list.</p></div></details>
+
+      <h3>Way 3: ask the provider to list what exists</h3>
+      <p>This is the missing half. A provider can answer the question "what exists?", and the newer tooling asks it. OpenTofu is not there yet; Terraform is. The details are for engineers.</p>
+      <details class="eng"><summary>For engineers: versions, dates and issue numbers</summary><div class="eng-body"><p>OpenTofu first: we found no <code>tofu query</code> in OpenTofu v1.13.2, and the tracking issue (number 3787) was open and marked "pending-decision" on 20 October 2026. That is a narrow claim: we read three Go files, not the whole repository, so check again before you wait for it. Terraform 1.14.0 (19 November 2025) shipped list blocks and a <code>terraform query</code> command that use a listing call in the provider.</p></div></details>
+
+      <h3>Way 4: one-off export tools</h3>
+      <p>Older community tools tried to export a whole account into configuration. At least one of the best known was archived in March 2026, and another is in maintenance mode. Each of them wrote a lot of text quickly. None solved what to do after the text exists.</p>
+
+      <div class="cmp-wrap" tabindex="0" role="region" aria-label="What pravo does today compared with this design">
+        <table class="cmp">
+          <caption>What pravo does for you, today and in this design</caption>
+          <thead><tr><th scope="col">Question</th><th scope="col">pravo today</th><th scope="col" class="hl">This design</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Finds toys nobody wrote down</th><td class="no">No</td><td class="hl part">Only for types a provider can list. For the rest you bring the ids</td></tr>
+            <tr><th scope="row">Writes the CUE label</th><td class="no">No, you write it</td><td class="hl yes">Yes, with one generator, flat and literal</td></tr>
+            <tr><th scope="row">Checks the label before saving it</th><td class="no">No</td><td class="hl yes">Yes, with an empty plan in a scratch copy</td></tr>
+            <tr><th scope="row">Remembers what it saw</th><td class="no">No</td><td class="hl yes">Yes, as a found list that can be rebuilt</td></tr>
+            <tr><th scope="row">Adopts many toys in one go</th><td class="no">One per call</td><td class="hl yes">Batches of about 50 (a starting guess)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <aside class="plain">
+        <span class="plain-icon" aria-hidden="true"></span>
+        <div class="plain-body">
+          <p class="plain-label">In plain words</p>
+          <p>Today: you find the toy, you write the label, you hope it matches. The design adds a finder, a label writer and a check.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section" id="good-answer" data-reveal>
+      <h2>What a good answer must do</h2>
+      <p>If we are going to build something, five things have to be true. These become the rules of the design on the next page.</p>
+      <ol class="steps">
+        <li><h4>See the floor</h4><p>Find what is out there and write it down. Never touch it.</p></li>
+        <li><h4>Remember it</h4><p>Keep the found list, so nobody has to start again each morning.</p></li>
+        <li><h4>Let a person decide</h4><p>"Ours", "not ours", "later". The decision is text in git, with a reason.</p></li>
+        <li><h4>Adopt in batches, with a check</h4><p>Write the label, test it, and save nothing that fails the test.</p></li>
+        <li><h4>Work with or without an AI</h4><p>An agent may help. Every step after the list of ids works by hand, and the check is the same for a person and an agent.</p></li>
+      </ol>
+    </section>
+
+    <section class="section" id="for-engineers" data-reveal>
+      <h2>The detail, for engineers</h2>
+      <details class="eng">
+        <summary>For engineers: ten ways brownfield imports go wrong, and the answer</summary>
+        <div class="eng-body">
+          <p>Brownfield imports fail in ten recurring ways. The design answers each one. The list comes from the research notes behind <code>DESIGN.md</code>, section 2; I did not rebuild it from scratch.</p>
+          <div class="cmp-wrap" tabindex="0" role="region" aria-label="Ten failure modes and the design's answers">
+            <table class="cmp">
+              <thead><tr><th scope="col">What goes wrong in the field</th><th scope="col">What the design does</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Generated config is a snapshot of literals</th><td>Generate once, flat. Restructuring into modules and loops is a later, separate step under the same check.</td></tr>
+                <tr><th scope="row">Generated config is invalid</th><td>Own generator, then validation and a provider-level plan. Failures are listed and never written.</td></tr>
+                <tr><th scope="row">First plan after import is not clean</th><td>Omit computed-only values, write optional-and-computed ones, pin what the plan shows differs, at most three rounds.</td></tr>
+                <tr><th scope="row">Secrets cannot be read back, or leak into git</th><td>Sensitive and write-only values are never written. A required one becomes a visible hole for a human.</td></tr>
+                <tr><th scope="row">Wrong granularity (inline block or separate resource)</th><td>Reported per type. The choice stays human. Not solved.</td></tr>
+                <tr><th scope="row">Adopting things that belong to someone else</th><td>Ignore rules with a reason, states owned elsewhere, a marker check at adopt time. Ownership in general is not solved.</td></tr>
+                <tr><th scope="row">Silent coverage holes</th><td>A coverage table. "Unknown" is a state of its own.</td></tr>
+                <tr><th scope="row">Tools rot</th><td>pravo speaks the provider protocol directly, not a command that may change.</td></tr>
+                <tr><th scope="row">Import and config land apart; review does not scale</th><td>Gate before writing; batches of about 50; review by rule and by batch.</td></tr>
+                <tr><th scope="row">Identity and naming</th><td>Identity keys, names derived from the display name, <code>$from</code> to rename.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Two sentences from the design are worth keeping in your head. First: nothing in the listing protocol tells you who created an object, so ownership is detected only by markers and rules. Second: the protocol has no "changed since" call, so every sweep is a full scan.</p>
+        </div>
+      </details>
+      <details class="eng">
+        <summary>For engineers: what pravo has today, exactly</summary>
+        <div class="eng-body">
+          <ul>
+            <li><code>pravo import ADDR ID</code> and <code>$import</code> adopt one object per call. The CUE must exist first and the import id must be known.</li>
+            <li><code>pravo state import-tfstate</code> handles only what an existing <code>.tfstate</code> file already knows.</li>
+            <li><code>pravo drift</code> finds differences for records pravo owns and leaves a durable mark.</li>
+            <li>Nothing lists objects nobody declared, nothing writes the CUE, and nothing remembers what was found.</li>
+          </ul>
+          <p>Source: <code>DESIGN.md</code> section 2, built on a read of the pravo repository by the research notes. I did not re-run these commands for this page.</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="next-box" aria-labelledby="next-h" data-reveal>
+      <h2 id="next-h">What to read or decide next</h2>
+      <p>You now know the mess. The next page shows the proposed fix as the life of one toy. If you only want to argue about the hard bits, go straight to the messy page.</p>
+      <ul class="next-links">
+        <li><a href="02-the-idea.html"><strong>02 The idea</strong><span>One toy, from the floor to a labelled box.</span></a></li>
+        <li><a href="06-where-it-gets-messy.html"><strong>06 Where it gets messy</strong><span>What will not work, said plainly.</span></a></li>
+        <li><a href="glossary.html"><strong>Glossary</strong><span>Shadow, drift, state, import id and the rest.</span></a></li>
+      </ul>
+    </section>
+
+  </div>
+</main>
+
+<footer data-site-footer></footer>
+<script src="assets/site.js" defer></script>
+</body>
+</html>
