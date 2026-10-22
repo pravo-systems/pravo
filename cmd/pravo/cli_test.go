@@ -311,6 +311,36 @@ $settings: pravo.#Settings & {state: path: "state/\(env)"}
 	}
 }
 
+// The state of a root may be where a variable says: the $settings block reads
+// a pravo.#Env, also in init, which reads it before the packages exist.
+func TestSettingsReadAnEnvironmentVariable(t *testing.T) {
+	dir := specDir(t, map[string]string{"main.cue": `package estate
+
+import "pravo.dev/pravo"
+
+where: pravo.#Env & {name: "PRAVO_TEST_STATE_DIR", default: "state/dev"}
+
+$settings: pravo.#Settings & {state: path: where.value}
+`})
+	if text, code := runPravo(t, dir, "init"); code != 0 {
+		t.Fatalf("init exited %d:\n%s", code, text)
+	}
+	st, err := state.Open(filepath.Join(dir, "state", "prod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Set(&state.Resource{Addr: "bucket", Mode: "managed", Type: "t_bucket", Name: "bucket", Attributes: []byte(`{"id":"b1"}`)}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if text, _ := runPravo(t, dir, "state", "list"); strings.TrimSpace(text) != "" {
+		t.Errorf("the default location holds nothing:\n%s", text)
+	}
+	t.Setenv("PRAVO_TEST_STATE_DIR", "state/prod")
+	if text, code := runPravo(t, dir, "state", "list"); code != 0 || strings.TrimSpace(text) != "bucket" {
+		t.Errorf("state list with the variable set: exit %d:\n%s", code, text)
+	}
+}
+
 // pravo fmt must have nothing to do right after pravo init wrote the lock.
 func TestLockFileIsWrittenFormatted(t *testing.T) {
 	dir := t.TempDir()

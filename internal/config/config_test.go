@@ -328,12 +328,20 @@ func TestStateBackendFields(t *testing.T) {
 }
 
 func TestSettingsReadAnEnvironmentVariable(t *testing.T) {
-	const spec = `
-dir:         #Env & {name: "PRAVO_TEST_SETTINGS_DIR", default: "state/dev"}
-stateBucket: #Env & {name: "PRAVO_TEST_SETTINGS_BUCKET"}
-`
+	read := func(t *testing.T, block string) (*Root, error) {
+		t.Helper()
+		return LoadSettingsWith(writeFiles(t, map[string]string{"main.cue": `package estate
+
+import "pravo.dev/pravo"
+
+dir:         pravo.#Env & {name: "PRAVO_TEST_SETTINGS_DIR", default: "state/dev"}
+stateBucket: pravo.#Env & {name: "PRAVO_TEST_SETTINGS_BUCKET"}
+key:         pravo.#SecretEnv & {name: "PRAVO_TEST_SETTINGS_SECRET"}
+
+` + block}), LoadOptions{})
+	}
 	t.Run("the default", func(t *testing.T) {
-		r, err := loadSpec(t, spec+`$settings: state: path: dir.value`)
+		r, err := read(t, `$settings: pravo.#Settings & {state: path: dir.value}`)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -343,7 +351,7 @@ stateBucket: #Env & {name: "PRAVO_TEST_SETTINGS_BUCKET"}
 	})
 	t.Run("the variable", func(t *testing.T) {
 		t.Setenv("PRAVO_TEST_SETTINGS_DIR", "state/prod")
-		r, err := loadSpec(t, spec+`$settings: state: path: dir.value`)
+		r, err := read(t, `$settings: pravo.#Settings & {state: path: dir.value}`)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -353,7 +361,7 @@ stateBucket: #Env & {name: "PRAVO_TEST_SETTINGS_BUCKET"}
 	})
 	t.Run("a bucket", func(t *testing.T) {
 		t.Setenv("PRAVO_TEST_SETTINGS_BUCKET", "estate")
-		r, err := loadSpec(t, spec+`$settings: state: {bucket: stateBucket.value, prefix: "demo/\(dir.value)"}`)
+		r, err := read(t, `$settings: pravo.#Settings & {state: pravo.#S3State & {bucket: stateBucket.value, prefix: "demo/\(dir.value)"}}`)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -362,18 +370,15 @@ stateBucket: #Env & {name: "PRAVO_TEST_SETTINGS_BUCKET"}
 		}
 	})
 	t.Run("a variable that is not set", func(t *testing.T) {
-		_, err := loadSpec(t, spec+`$settings: state: bucket: stateBucket.value`)
-		if err == nil || !strings.Contains(err.Error(), "$settings.state.bucket is not concrete") || !strings.Contains(err.Error(), "PRAVO_TEST_SETTINGS_BUCKET, which is not set and has no default") {
+		_, err := read(t, `$settings: pravo.#Settings & {state: pravo.#S3State & {bucket: stateBucket.value}}`)
+		if err == nil || !strings.Contains(err.Error(), "PRAVO_TEST_SETTINGS_BUCKET, which is not set and has no default") {
 			t.Errorf("error = %v", err)
 		}
 	})
 	t.Run("a secret", func(t *testing.T) {
 		t.Setenv("PRAVO_TEST_SETTINGS_SECRET", "x")
-		_, err := loadSpec(t, `
-key: #SecretEnv & {name: "PRAVO_TEST_SETTINGS_SECRET"}
-$settings: state: path: key.value`)
-		if err == nil || !strings.Contains(err.Error(), "is not concrete") {
-			t.Errorf("a secret must not be read into a setting: %v", err)
+		if _, err := read(t, `$settings: pravo.#Settings & {state: path: key.value}`); err == nil {
+			t.Error("a secret must not be read into a setting")
 		}
 	})
 }
@@ -427,6 +432,23 @@ func TestLoadSettingsReadsReferencesAcrossFiles(t *testing.T) {
 	}
 	if r.Providers["random"] == nil {
 		t.Errorf("providers = %+v; want random from the import", r.Providers)
+	}
+}
+
+// A label names what a field declares: a struct with a field called data does
+// not refer to a top-level field called data, which imports a package. A let
+// clause that a field refers to is read with it.
+func TestLoadSettingsReadsFieldsThatOnlyShareANameWithAnImportedOne(t *testing.T) {
+	dir := writeFiles(t, map[string]string{
+		"a.cue": "package t\n\nimport rnd \"pravo.dev/providers/hashicorp/random\"\n\ndata: rnd.#Provider\n",
+		"b.cue": "package t\n\nregions: {data: \"eu\", edge: \"us\"}\n\nlet zones = [\"a\", \"b\"]\n\nzone: zones[0]\n\n$settings: state: path: \"state/\\(regions.data)-\\(zone)\"\n",
+	})
+	r, err := LoadSettings(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.StatePath != "state/eu-a" {
+		t.Errorf("state path = %q", r.StatePath)
 	}
 }
 

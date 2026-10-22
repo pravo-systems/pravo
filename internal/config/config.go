@@ -221,18 +221,18 @@ func Load(dir string, opts LoadOptions) (*Root, error) {
 	}
 	r := &Root{Dir: abs, PkgName: inst.PkgName, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath}
 	r.collectTree(inst)
-	if err := r.extract(); err != nil {
+	if err := r.extract(opts); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-func (r *Root) extract() error {
+func (r *Root) extract(opts LoadOptions) error {
 	v := r.Value
 	settings := v.LookupPath(cue.MakePath(cue.Str("$settings")))
 	if settings.Exists() {
 		if err := r.extractSettings(settings); err != nil {
-			if err = r.settingsWithEnv(err); err != nil {
+			if err = r.settingsWithEnv(err, opts); err != nil {
 				return err
 			}
 		}
@@ -355,13 +355,20 @@ func LoadSettings(dir string) (*Root, error) {
 // loaded with, so that a block which depends on a tagged field is read with
 // the value the tag is given.
 func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
+	r, unset, err := loadSettings(dir, opts, true)
+	return r, withUnset(err, unset)
+}
+
+// loadSettings is LoadSettingsWith that also returns the environment variables
+// that the block reads through a pravo.#Env and that have no value.
+func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, unset []string, err error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	names, err := checkPackageClauses(abs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var files []*ast.File
 	pkg := ""
@@ -374,10 +381,10 @@ func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
 		}
 		insts := load.Instances([]string{"."}, cfg)
 		if len(insts) == 0 {
-			return nil, fmt.Errorf("no CUE package found in %s", abs)
+			return nil, unset, fmt.Errorf("no CUE package found in %s", abs)
 		}
 		if insts[0].Err != nil {
-			return nil, fmt.Errorf("loading %s:\n%s", abs, cueerrors.Details(insts[0].Err, nil))
+			return nil, unset, fmt.Errorf("loading %s:\n%s", abs, cueerrors.Details(insts[0].Err, nil))
 		}
 		files, pkg = insts[0].Files, insts[0].PkgName
 	}
@@ -387,7 +394,8 @@ func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
 	// themselves depend on an import are included.
 	var pravoDecls, otherDecls []ast.Decl
 	type candidate struct {
-		fld     *ast.Field
+		decl    ast.Decl // a field, or a let clause that fields of the file refer to
+		val     ast.Expr
 		label   string
 		imports bool // refers to an imported package, which cannot resolve yet
 	}
@@ -397,14 +405,25 @@ func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
 			continue
 		}
 		aliases := map[string]bool{}
+		pravoAlias := "" // what the file calls pravo.dev/pravo
 		for imp := range f.ImportSpecs() {
 			if imp.Name != nil {
 				aliases[imp.Name.Name] = true
 			} else if ip, err := strconv.Unquote(imp.Path.Value); err == nil {
 				aliases[path.Base(ip)] = true
 			}
+			if ip, err := strconv.Unquote(imp.Path.Value); err == nil && ip == "pravo.dev/pravo" {
+				pravoAlias = path.Base(ip)
+				if imp.Name != nil {
+					pravoAlias = imp.Name.Name
+				}
+			}
 		}
 		for _, d := range f.Decls {
+			if let, ok := d.(*ast.LetClause); ok {
+				others = append(others, candidate{decl: let, val: let.Expr, label: let.Ident.Name, imports: mentionsAny(let.Expr, aliases)})
+				continue
+			}
 			fld, ok := d.(*ast.Field)
 			if !ok {
 				continue
@@ -419,7 +438,13 @@ func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
 				}
 				pravoDecls = append(pravoDecls, &cp)
 			} else {
-				others = append(others, candidate{fld: fld, label: name, imports: mentionsAny(fld.Value, aliases)})
+				// A pravo.#Env is read from its variable, as the run does, so
+				// that a setting can name a bucket by one.
+				fld, missing := envValue(fld, pravoAlias)
+				if missing != "" {
+					unset = append(unset, missing)
+				}
+				others = append(others, candidate{decl: fld, val: fld.Value, label: name, imports: mentionsAny(fld.Value, aliases)})
 			}
 		}
 	}
@@ -436,7 +461,7 @@ func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
 				}
 				continue
 			}
-			if mentionsAny(c.fld.Value, excluded) {
+			if mentionsAny(c.val, excluded) {
 				others[i].imports = true
 				excluded[c.label] = true
 				changed = true
@@ -445,7 +470,7 @@ func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
 	}
 	for _, c := range others {
 		if !c.imports {
-			otherDecls = append(otherDecls, c.fld)
+			otherDecls = append(otherDecls, c.decl)
 		}
 	}
 	build := func(decls []ast.Decl) (cue.Value, error) {
@@ -466,14 +491,17 @@ func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
 		// Something the block does not need could not be evaluated; read the
 		// block on its own.
 		if v, err = build(pravoDecls); err != nil {
-			return nil, fmt.Errorf("evaluating pravo settings:\n%s", cueerrors.Details(err, nil))
+			return nil, unset, fmt.Errorf("evaluating pravo settings:\n%s", cueerrors.Details(err, nil))
 		}
 	}
 	r := &Root{Dir: abs, PkgName: pkg, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath, ModRoot: FindModuleRoot(abs)}
 	if settings := v.LookupPath(cue.MakePath(cue.Str("$settings"))); settings.Exists() {
 		if err := r.extractSettings(settings); err != nil {
-			return nil, err
+			return nil, unset, err
 		}
+	}
+	if !scan {
+		return r, unset, nil
 	}
 	// The providers the code needs are the ones whose definitions it imports;
 	// the module, not just this root, may import them.
@@ -483,10 +511,10 @@ func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
 	}
 	reqs, err := ScanProviders(scanDir)
 	if err != nil {
-		return nil, err
+		return nil, unset, err
 	}
 	r.Providers = reqs
-	return r, nil
+	return r, unset, nil
 }
 
 // StateFile returns the absolute path of the state directory.
@@ -637,12 +665,30 @@ func dropImportRefs(e ast.Expr, aliases map[string]bool) ast.Expr {
 // mentionsAny reports whether the expression refers to any of the names.
 func mentionsAny(e ast.Expr, names map[string]bool) bool {
 	found := false
-	ast.Walk(e, func(n ast.Node) bool {
-		if id, ok := n.(*ast.Ident); ok && names[id.Name] {
-			found = true
+	var visit func(n ast.Node) bool
+	visit = func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.Ident:
+			if names[x.Name] {
+				found = true
+			}
+		case *ast.Field:
+			// A label names what the field declares, not what it refers to:
+			// {data: 1} does not mention a field called data.
+			if _, ok := x.Label.(*ast.Ident); ok {
+				ast.Walk(x.Value, visit, nil)
+				return false
+			}
+		case *ast.SelectorExpr:
+			ast.Walk(x.X, visit, nil)
+			return false
+		case *ast.LetClause:
+			ast.Walk(x.Expr, visit, nil)
+			return false
 		}
 		return !found
-	}, nil)
+	}
+	ast.Walk(e, visit, nil)
 	return found
 }
 
