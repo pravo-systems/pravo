@@ -6,14 +6,10 @@ import { setProviders } from './provider.js';
 
 export const CLUSTER_MIN = 8;
 export const CLUSTER_CAP = 200;
-// outputs are small pills: they group later than resources do, and weigh less in the budget of the first view
-export const OUT_CLUSTER_MIN = 16;
-export const OUT_WEIGHT = 0.35;
 
 // isOut says that a node is an output of the root. An output is not a resource: it has no record, and the counts
 // of resources, of the chips and of the modules leave it out.
 export const isOut = (n) => n.mode === 'output';
-export const clusterMin = (n) => (isOut(n) ? OUT_CLUSTER_MIN : CLUSTER_MIN);
 
 const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 export const natural = (a, b) => collator.compare(a, b);
@@ -138,9 +134,6 @@ export const isUnder = (mod, path) => { for (let m = mod; m; m = m.up) if (m.pat
 
 export const clusterId = (modPath, n) => 'c:' + modPath + '|' + n.mode + '|' + n.type;
 
-// sizeOf is the size of the item of a node: an output is a pill, lighter than a resource
-const sizeOf = (n) => (isOut(n) ? { w: G.OW, h: G.OH } : { w: G.W, h: G.H });
-
 function groupsOf(mod) {
   const groups = new Map();
   for (const n of mod.nodes) {
@@ -172,7 +165,7 @@ export function buildItems(model, collapsed, clusters) {
   function walk(mod, lane) {
     for (const [k, ns] of groupsOf(mod)) {
       const cid = 'c:' + mod.path + '|' + k;
-      if (ns.length >= clusterMin(ns[0])) {
+      if (ns.length >= CLUSTER_MIN) {
         const lim = clusters.get(cid);
         if (lim === undefined) {
           const it = put({ id: cid, kind: 'cluster', type: ns[0].type, mode: ns[0].mode, members: ns, mod, agg: aggOf(ns), w: G.CW, h: cardHeight(ns.length), lane: mod.path });
@@ -183,7 +176,7 @@ export function buildItems(model, collapsed, clusters) {
         const shown = Math.min(lim, ns.length);
         for (let i = 0; i < shown; i++) {
           const n = ns[i];
-          const it = put({ id: 'n:' + n.addr, kind: 'node', n, w: sizeOf(n).w, h: sizeOf(n).h, lane: mod.path, cluster: cid });
+          const it = put({ id: 'n:' + n.addr, kind: 'node', n, w: G.W, h: G.H, lane: mod.path, cluster: cid });
           lane.items.push(it.id);
           rep.set(n.addr, it.id);
         }
@@ -193,7 +186,7 @@ export function buildItems(model, collapsed, clusters) {
         continue;
       }
       for (const n of ns) {
-        const it = put({ id: 'n:' + n.addr, kind: 'node', n, w: sizeOf(n).w, h: sizeOf(n).h, lane: mod.path });
+        const it = put({ id: 'n:' + n.addr, kind: 'node', n, w: G.W, h: G.H, lane: mod.path });
         lane.items.push(it.id);
         rep.set(n.addr, it.id);
       }
@@ -232,10 +225,8 @@ export function countItems(model, collapsed, clusters) {
     let c = 0;
     for (const [k, ns] of groupsOf(mod)) {
       const lim = clusters.get('c:' + mod.path + '|' + k);
-      // an output is a light item: it weighs a part of a resource
-      const w = isOut(ns[0]) ? OUT_WEIGHT : 1;
-      if (ns.length >= clusterMin(ns[0])) c += lim === undefined ? 1 : Math.min(lim, ns.length) * w + 1;
-      else c += ns.length * w;
+      if (ns.length >= CLUSTER_MIN) c += lim === undefined ? 1 : Math.min(lim, ns.length) + 1;
+      else c += ns.length;
     }
     return c;
   }
@@ -365,7 +356,7 @@ export function reveal(model, addr, collapsed, clusters) {
   let changed = false;
   for (const m of chain(n.mod)) if (collapsed.delete(m.path)) changed = true;
   const ns = n.mod.nodes.filter((x) => x.mode === n.mode && x.type === n.type);
-  if (ns.length >= clusterMin(n)) {
+  if (ns.length >= CLUSTER_MIN) {
     const cid = clusterId(n.mod.path, n);
     const lim = clusters.get(cid);
     const idx = ns.indexOf(n);

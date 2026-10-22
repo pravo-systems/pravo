@@ -474,30 +474,34 @@ export class GraphView {
     r.base = g.getAttribute('class');
   }
 
-  // buildOutput draws an output: a small pill with the glyph of an output, the name, and a lock when the value is withheld
+  // buildOutput draws an output as a card like the others: the bar, the tile with the glyph of a
+  // value leaving the root, the name, "output" under it, and the marks at the right
   buildOutput(it) {
     const n = it.n, W = it.w, H = it.h;
     const act = actionOf(n.action);
     const badge = !!(act && act.glyph);
-    const g = s('g', { class: nodeClasses(n, this.ctx), role: 'button', 'aria-label': describeNode(n, this.ctx) });
-    const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -5, y: -5, width: W + 10, height: H + 10, rx: H / 2 + 5 }));
-    if (this.ctx.hasPlan && n.action && n.action !== 'no-op') inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: H / 2 + 3 }));
-    inn.append(s('rect', { class: 'box', width: W, height: H, rx: H / 2 }));
-    inn.append(glyph('out', 11, (H - 14) / 2, 14, 'mk mk-out'));
     const marks = [];
     if (n.sensitive > 0) marks.push('lock');
     if (n.presence === 'state') marks.push('orphan');
-    const room = W - 32 - 10 - marks.length * 17 - (badge ? 18 : 0);
-    inn.append(s('text', { class: 'nm', x: 32, y: 19.6 }, trunc(n.name, chars(room, 12.5))));
-    let mx = W - 12 - 13;
+    const g = s('g', { class: nodeClasses(n, this.ctx), role: 'button', 'aria-label': describeNode(n, this.ctx) });
+    const inn = s('g', { class: 'in' });
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
+    if (this.ctx.hasPlan && n.action && n.action !== 'no-op') inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 9 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
+    inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
+    const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
+    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 6 }), glyph('out', 5, 5, 16, 'mk mk-out'));
+    inn.append(tile);
+    const nameRoom = W - 52 - (badge ? 34 : 14);
+    inn.append(s('text', { class: 'nm', x: 53, y: 22.5 }, trunc(n.name, chars(nameRoom, 14))));
+    inn.append(s('text', { class: 'ty', x: 53, y: 40 }, 'output'));
     if (badge) {
-      const b = s('g', { class: 'act', transform: `translate(${W - 24} ${(H - 16) / 2})` });
+      const b = s('g', { class: 'act', transform: `translate(${W - 26} 8)` });
       b.append(s('circle', { class: 'ab', cx: 8, cy: 8, r: 8 }), s('path', { class: 'ag', d: act.glyph, transform: 'translate(2 2)' }));
       inn.append(b);
-      mx -= 18;
     }
-    for (const m of marks) { inn.append(glyph(m, mx, (H - 13) / 2, 13, 'mk mk-' + m)); mx -= 17; }
+    let mx = W - 12 - 13;
+    for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
     g.append(inn);
     return g;
   }

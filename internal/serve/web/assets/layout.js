@@ -12,7 +12,7 @@
 
 export const G = {
   W: 224, H: 52, CW: 224, MH: 80, MH2: 94, CTL: 36,
-  OW: 176, OH: 30, GAPX: 50, GAPY: 12, FOLDX: 14, ROWGAP: 26,
+  GAPX: 50, GAPY: 12, FOLDX: 14, ROWGAP: 26,
   PAD: 14, HEAD: 38, LANEGAP: 20,
   TB: 1.5, TL: 1.55,
 };
