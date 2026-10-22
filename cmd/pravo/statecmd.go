@@ -242,6 +242,12 @@ func stateCmd() *cobra.Command {
 				if interrupted[txns[i].ID] {
 					txns[i].Status = "interrupted"
 				}
+				// A reader of a sealed state gets the text of an error that the
+				// transaction keeps sealed; anyone else sees the summary as it is.
+				if txns[i].SummarySealed != nil {
+					txns[i].Summary = st.SummaryText(txns[i])
+					txns[i].SummarySealed = nil
+				}
 			}
 			if flagJSON {
 				return emitJSON(txns)

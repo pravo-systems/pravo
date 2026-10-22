@@ -789,7 +789,7 @@ func (p *protectRun) init(yes, allowLocal bool) error {
 	out.Println(out.C(ui.Green, fmt.Sprintf("%s sealed in %s", counted(res.Records, "record", "records"), elapsed(time.Since(began)))))
 	out.Println(out.C(ui.Green, "outputs sealed · recipients written to meta.json"))
 	if res.PlansSkipped > 0 {
-		out.Println(plansInUseLine(res.PlansSkipped))
+		out.Println(plansInUseLine(res.PlansSkipped, false))
 	}
 	out.Println()
 	out.Printf("The state is sealed to %s.\n", names)
@@ -1078,7 +1078,7 @@ func (p *protectRun) rewrap(all bool) error {
 		return err
 	}
 	if flagJSON {
-		return emitJSON(map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup, "resealed": res.Resealed})
+		return emitJSON(map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup, "resealed": res.Resealed, "plans_skipped": res.PlansSkipped})
 	}
 	line := "Readers in " + p.rf.shown() + ": " + nameList(readerNames(p.rf.Readers))
 	if len(res.Change.Removed) > 0 {
@@ -1099,6 +1099,9 @@ func (p *protectRun) rewrap(all bool) error {
 	}
 	if all {
 		out.Printf("Sealed %s again in %s.\n", counted(res.Resealed, "record", "records"), elapsed(time.Since(began)))
+		if res.PlansSkipped > 0 {
+			out.Println(plansInUseLine(res.PlansSkipped, true))
+		}
 		// A plan that an apply uses is left alone, and stays as readable as it was.
 		if entries, _, err := engine.NewPlanStoreFor(st).EntriesAndSkipped(p.ctx, engine.PlanCheckFor(st)); err == nil {
 			warnUnsealed(unsealedPlans(entries))
@@ -1109,11 +1112,17 @@ func (p *protectRun) rewrap(all bool) error {
 	return nil
 }
 
-// plansInUseLine says that n stored plans were left unsealed because
-// something uses them, in the number that n takes.
-func plansInUseLine(n int) string {
-	if n == 1 {
-		return "1 stored plan in use was not sealed; run pravo protect rewrap --all when it is done."
+// plansInUseLine says that n stored plans were left as they were because
+// something uses them, in the number that n takes. again is set for the plans that
+// a rewrap leaves under the group they were sealed in, and not for those that an
+// upgrade leaves in the clear.
+func plansInUseLine(n int, again bool) string {
+	sealed := "sealed"
+	if again {
+		sealed = "sealed again"
 	}
-	return fmt.Sprintf("%d stored plans in use were not sealed; run pravo protect rewrap --all when they are done.", n)
+	if n == 1 {
+		return "1 stored plan in use was not " + sealed + "; run pravo protect rewrap --all when it is done."
+	}
+	return fmt.Sprintf("%d stored plans in use were not %s; run pravo protect rewrap --all when they are done.", n, sealed)
 }

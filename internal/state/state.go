@@ -1732,7 +1732,11 @@ type Transaction struct {
 	Finished *time.Time `json:"finished,omitempty"`
 	Status   string     `json:"status"`
 	Summary  string     `json:"summary,omitempty"`
-	Changes  []Change   `json:"changes"`
+	// SummarySealed holds the full text of the error of a run that failed or
+	// was rejected, in a sealed state, where Summary says only that the text is
+	// sealed. It is bound to the id of the transaction.
+	SummarySealed *protect.Sealed `json:"summary_sealed,omitempty"`
+	Changes       []Change        `json:"changes"`
 	// Actor, Reason and GitRevision attribute the run: who (a person or
 	// an agent), why, and which revision of the specification.
 	Actor       string `json:"actor,omitempty"`
@@ -1800,6 +1804,16 @@ func (t *Txn) Len() int {
 // Finish writes the transaction with the given status and summary. A
 // transaction without changes is not recorded unless record is true.
 func (t *Txn) Finish(status, summary string, record bool) error {
+	return t.FinishError(status, summary, "", record)
+}
+
+// FinishError is Finish for a run that failed or was rejected, whose full text
+// can hold a value that a provider returned. In a sealed state summary is what
+// anyone who can read the bucket sees, and full is kept sealed for the readers
+// (see Store.SummaryText); when the store holds no key, or the state is not
+// sealed, full is dropped and summary is all there is. full is empty when there
+// is nothing to keep.
+func (t *Txn) FinishError(status, summary, full string, record bool) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if len(t.t.Changes) == 0 && !record {
@@ -1809,11 +1823,83 @@ func (t *Txn) Finish(status, summary string, record bool) error {
 	t.t.Finished = &now
 	t.t.Status = status
 	t.t.Summary = summary
+	t.t.SummarySealed = nil
+	if sl := t.store.Sealer(); sl != nil && full != "" {
+		if box, err := sl.Seal(protect.KindSummary, t.t.ID, []byte(full)); err == nil {
+			t.t.SummarySealed = &box
+		}
+	}
 	sort.Slice(t.t.Changes, func(i, j int) bool { return t.t.Changes[i].Addr < t.t.Changes[j].Addr })
 	if err := t.store.writable(); err != nil {
 		return err
 	}
 	return t.store.putJSON("txn/"+t.t.ID+".json", t.t)
+}
+
+// SealedErrorText is what the summary of a transaction that failed or was rejected
+// says in a sealed state, in place of the text of the error. The text is kept
+// sealed beside it (Transaction.SummarySealed), for the readers.
+const SealedErrorText = "the text of the error is sealed to the readers of the state"
+
+// SummaryText returns the summary of t as the holder of this store may read it:
+// the full text of the error that a sealed state keeps for its readers when the
+// store can open it, and the summary that anyone sees otherwise.
+func (s *Store) SummaryText(t Transaction) string {
+	sl := s.Sealer()
+	if sl == nil || t.SummarySealed == nil {
+		return t.Summary
+	}
+	full, err := sl.Open(protect.KindSummary, t.ID, *t.SummarySealed)
+	if err != nil {
+		return t.Summary
+	}
+	return string(full)
+}
+
+// resealSummaries seals the text of the errors that transactions keep sealed again
+// under the current group, as the records are by a rewrap. A box that does not open
+// is left as it is: a transaction is a log, and one that is damaged is not a reason
+// to stop.
+func (s *Store) resealSummaries(ctx context.Context, current string) error {
+	sl := s.Sealer()
+	keys, err := s.b.List(ctx, "txn")
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		if !strings.HasSuffix(k, ".json") {
+			continue
+		}
+		data, err := s.b.Get(ctx, k)
+		if errors.Is(err, ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		var t Transaction
+		if json.Unmarshal(data, &t) != nil || t.SummarySealed == nil || t.SummarySealed.Group == current {
+			continue
+		}
+		plain, err := sl.Open(protect.KindSummary, t.ID, *t.SummarySealed)
+		if err != nil {
+			continue
+		}
+		box, err := sl.Seal(protect.KindSummary, t.ID, plain)
+		clear(plain)
+		if err != nil {
+			return err
+		}
+		t.SummarySealed = &box
+		next, err := indentJSON(t)
+		if err != nil {
+			return err
+		}
+		if _, err := s.b.ReplaceIf(ctx, k, func(cur []byte) ([]byte, bool) { return next, bytes.Equal(cur, data) }); err != nil && !errors.Is(err, ErrNotFound) {
+			return err
+		}
+	}
+	return nil
 }
 
 // Transactions lists recorded transactions, newest first.

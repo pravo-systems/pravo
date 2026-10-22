@@ -11,11 +11,12 @@ import (
 // Kinds of sealed object. The kind is part of the associated data, so a sealed
 // outputs.json cannot be presented as a record.
 const (
-	KindRecord  = "record"   // attributes + private data (+ config hash) of one resource
-	KindOutputs = "outputs"  // outputs.json
-	KindPlan    = "plan"     // plans/<id>.plan.json
-	KindCommand = "txn-cmd"  // the sealed values of a transaction's command line
-	KindPlanCmd = "plan-cmd" // the same, in plans/<id>.meta.json
+	KindRecord  = "record"      // attributes + private data (+ config hash) of one resource
+	KindOutputs = "outputs"     // outputs.json
+	KindPlan    = "plan"        // plans/<id>.plan.json
+	KindCommand = "txn-cmd"     // the sealed values of a transaction's command line
+	KindPlanCmd = "plan-cmd"    // the same, in plans/<id>.meta.json
+	KindSummary = "txn-summary" // the text of the error of a transaction that failed or was rejected
 )
 
 // Ctx says where a sealed value belongs. Every field is bound into the AEAD as

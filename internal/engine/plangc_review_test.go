@@ -236,30 +236,67 @@ func TestACollectorWhoseClaimWasTakenOverLeavesThePlanAlone(t *testing.T) {
 	})
 }
 
-// A plan object that is not what its name says is not deleted, and is not
-// reported as removed by a collection that did not remove it.
-func TestAPlanObjectWhoseDigestIsNotItsNameIsNeitherDeletedNorReportedRemoved(t *testing.T) {
+// A plan object that is not what its name says, and that has no summary, is not a
+// write that did not finish: the first collection marks it, a collection that runs
+// after the grace removes it, and a listing says that it cannot read it.
+func TestAPlanObjectWhoseDigestIsNotItsNameIsMarkedAndRemovedAfterTheGrace(t *testing.T) {
 	eachBackend(t, func(t *testing.T, ps *PlanStore, clock *time.Time) {
-		ctx := context.Background()
-		data, _ := indentJSON(gcPlan(t0, change("a", ActionCreate, 0)))
-		const id = "plan-dddddd00"
-		if ok, err := ps.B.PutIfAbsent(ctx, planKey(id), data); err != nil || !ok {
-			t.Fatal(ok, err)
-		}
-		*clock = t0.Add(2 * time.Hour)
-		for i := 0; i < 2; i++ {
-			res := collect(t, ps, GCOptions{})
-			if len(res.Removed) != 0 {
-				t.Errorf("collection %d: reported %+v removed", i, res.Removed)
-			}
-			if got, err := ps.B.Get(ctx, planKey(id)); err != nil || string(got) != string(data) {
-				t.Errorf("collection %d: a plan object whose digest is not its id was deleted: %v", i, err)
-			}
-		}
-		if got := listKeys(t, ps.B, PlanDir); len(got) != 1 {
-			t.Errorf("objects %v", got)
-		}
+		foreignPlanObject(t, ps, clock)
 	})
+	eachSealed(t, func(t *testing.T, s *sealedStore, clock *time.Time) {
+		foreignPlanObject(t, s.PlanStore, clock)
+	})
+}
+
+func foreignPlanObject(t *testing.T, ps *PlanStore, clock *time.Time) {
+	ctx := context.Background()
+	data, _ := indentJSON(gcPlan(t0, change("a", ActionCreate, 0)))
+	const id = "plan-dddddd00"
+	if ok, err := ps.B.PutIfAbsent(ctx, planKey(id), data); err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	*clock = t0.Add(2 * time.Hour)
+
+	l, err := ps.List(ctx, nil)
+	if err != nil || len(l.Skipped) != 1 || l.Skipped[0].ID != id || !errors.Is(l.Skipped[0].Err, ErrForeignPlan) {
+		t.Fatalf("a listing says %+v, %v", l.Skipped, err)
+	}
+	if got := listKeys(t, ps.B, PlanDir); len(got) != 1 {
+		t.Fatalf("a listing wrote: %v", got)
+	}
+
+	// A dry run says that it would mark, and writes nothing.
+	if res := collect(t, ps, GCOptions{DryRun: true}); ids(res.Marked) != id || len(res.Removed) != 0 {
+		t.Errorf("dry run: %+v", res)
+	}
+	if got := listKeys(t, ps.B, PlanDir); len(got) != 1 {
+		t.Errorf("a dry run wrote: %v", got)
+	}
+	// The first collection marks it and removes nothing, as for any other write that
+	// may still be running.
+	if res := collect(t, ps, GCOptions{}); ids(res.Marked) != id || len(res.Removed) != 0 {
+		t.Errorf("first collection: %+v", res)
+	}
+	if got, err := ps.B.Get(ctx, planKey(id)); err != nil || string(got) != string(data) {
+		t.Errorf("the object was touched: %v", err)
+	}
+	*clock = t0.Add(2*time.Hour + 30*time.Minute)
+	if res := collect(t, ps, GCOptions{}); len(res.Removed) != 0 || len(res.Marked) != 0 {
+		t.Errorf("within the grace: %+v", res)
+	}
+	*clock = t0.Add(3*time.Hour + time.Minute)
+	if res := collect(t, ps, GCOptions{DryRun: true}); ids(res.Removed) != id {
+		t.Errorf("dry run after the grace: %+v", res)
+	}
+	if got := listKeys(t, ps.B, PlanDir); len(got) != 2 {
+		t.Errorf("a dry run deleted: %v", got)
+	}
+	if res := collect(t, ps, GCOptions{}); ids(res.Removed) != id {
+		t.Errorf("after the grace: %+v", res)
+	}
+	if got := listKeys(t, ps.B, PlanDir); len(got) != 0 {
+		t.Errorf("left over: %v", got)
+	}
 }
 
 // A summary that names another id is not deleted, and the plan it sits beside is

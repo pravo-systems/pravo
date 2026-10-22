@@ -527,7 +527,7 @@ func TestSealAllNeedsASealedState(t *testing.T) {
 		if _, _, err := ps.SealAll(context.Background()); err == nil {
 			t.Error("a store that seals nothing cannot seal")
 		}
-		if _, err := ps.ResealAll(context.Background()); err == nil {
+		if _, _, err := ps.ResealAll(context.Background()); err == nil {
 			t.Error("a store that seals nothing cannot seal again")
 		}
 	})
@@ -608,9 +608,9 @@ func TestResealAllMovesThePlansToTheCurrentGroup(t *testing.T) {
 			t.Fatalf("groups %s %s", group(m1.ID), group(m3.ID))
 		}
 
-		n, err := s.ResealAll(ctx)
-		if err != nil || n != 2 {
-			t.Fatalf("resealed %d, %v", n, err)
+		n, skipped, err := s.ResealAll(ctx)
+		if err != nil || n != 2 || skipped != 0 {
+			t.Fatalf("resealed %d and left %d, %v", n, skipped, err)
 		}
 		for _, id := range []string{m1.ID, m2.ID, m3.ID} {
 			if group(id) != "g2" {
@@ -639,8 +639,8 @@ func TestResealAllMovesThePlansToTheCurrentGroup(t *testing.T) {
 			t.Errorf("the summary shows its readable part to anyone: %v", err)
 		}
 		// Again: nothing to do.
-		if n, err := s.ResealAll(ctx); err != nil || n != 0 {
-			t.Errorf("again: %d, %v", n, err)
+		if n, skipped, err := s.ResealAll(ctx); err != nil || n != 0 || skipped != 0 {
+			t.Errorf("again: %d, %d, %v", n, skipped, err)
 		}
 	})
 }
@@ -662,9 +662,9 @@ func TestResealAllSealsThePlansThatWereNotSealedAndSkipsThoseInUse(t *testing.T)
 		if err := s.BeginApply(ctx, b.ID, "dan@host#7"); err != nil {
 			t.Fatal(err)
 		}
-		n, err := s.ResealAll(ctx)
-		if err != nil || n != 1 {
-			t.Fatalf("%d, %v", n, err)
+		n, skipped, err := s.ResealAll(ctx)
+		if err != nil || n != 1 || skipped != 1 {
+			t.Fatalf("sealed %d and left %d, %v", n, skipped, err)
 		}
 		if data, _ := s.B.Get(ctx, planKey(a.ID)); !bytes.Contains(data, []byte(`"sealed"`)) {
 			t.Error("a was not sealed")
@@ -867,3 +867,29 @@ var (
 	_ = state.UpgradeOptions{Plans: (*PlanStore)(nil).SealAll}
 	_ = state.RewrapOptions{Plans: (*PlanStore)(nil).ResealAll}
 )
+
+func TestTheCommandsOfAPlanWhoseTagsAreSealedHavePlaceholders(t *testing.T) {
+	m := &PlanMeta{ID: "plan-2f9c1a4e", Command: "pravo plan --store -t secret=<sealed:6173f96e> --webhook <sealed:0badc0de> --limit 5",
+		Tags: []string{"secret=<sealed:6173f96e>", "env=<sealed:11223344>"}, SysTags: true, Redacted: true}
+	if got, want := m.ApplyCommand(), "pravo apply plan-2f9c1a4e -t secret=<value> -t env=<value> -T"; got != want {
+		t.Errorf("apply: %q, want %q", got, want)
+	}
+	if got, want := m.ApplyTemplate(), m.ApplyCommand(); got != want {
+		t.Errorf("template: %q, want %q", got, want)
+	}
+	if got, want := m.CommandText(), "pravo plan --store -t secret=<value> --webhook <value> --limit 5"; got != want {
+		t.Errorf("command: %q, want %q", got, want)
+	}
+	// A summary that was opened shows the command as it was typed, and the template
+	// still hides the values.
+	open := &PlanMeta{ID: "plan-2f9c1a4e", Command: "pravo plan --store -t secret=hunter2", Tags: []string{"secret=hunter2", "odd=a b"}}
+	if got := open.CommandText(); got != open.Command {
+		t.Errorf("command: %q", got)
+	}
+	if got, want := open.ApplyCommand(), "pravo apply plan-2f9c1a4e -t secret=hunter2 -t 'odd=a b'"; got != want {
+		t.Errorf("apply: %q, want %q", got, want)
+	}
+	if got, want := open.ApplyTemplate(), "pravo apply plan-2f9c1a4e -t secret=<value> -t odd=<value>"; got != want {
+		t.Errorf("template: %q, want %q", got, want)
+	}
+}

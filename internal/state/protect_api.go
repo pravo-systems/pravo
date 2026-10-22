@@ -240,8 +240,9 @@ type RewrapOptions struct {
 	By       string
 	Progress func(done, total int)
 	// Plans, if set and All is set, seals the stored plans again under the
-	// current group, as Upgrade's does, and returns how many it sealed.
-	Plans func(ctx context.Context) (sealed int, err error)
+	// current group, as Upgrade's does, and returns how many it sealed and how
+	// many it left because an apply holds a claim on them.
+	Plans func(ctx context.Context) (sealed, skipped int, err error)
 }
 
 // RewrapResult says what a rewrap did. Change is empty when the store already
@@ -249,6 +250,10 @@ type RewrapOptions struct {
 type RewrapResult struct {
 	Change   protect.Change
 	Resealed int
+	// PlansSealed and PlansSkipped count the stored plans sealed again and the
+	// ones left as they were because an apply holds a claim on them. They are
+	// zero unless All is set and Plans is.
+	PlansSealed, PlansSkipped int
 }
 
 // VerifyResult is what VerifyAll found.

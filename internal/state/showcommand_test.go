@@ -328,3 +328,98 @@ func mustJSON(t *testing.T, v any) []byte {
 	}
 	return data
 }
+
+// testFlags is a command tree with the flags that the tests below use: the long
+// name of each flag with its shorthand, and whether it takes a value.
+var testFlags = []struct {
+	long, short string
+	takes       bool
+}{
+	{"tag", "t", true}, {"expression", "e", true}, {"webhook", "", true},
+	{"actor", "", true}, {"reason", "", true}, {"profile", "P", true},
+	{"only", "", true}, {"policy", "", true}, {"chdir", "C", true},
+	{"inject-vars", "T", false}, {"auto-approve", "", false}, {"store", "", false},
+	{"json", "", false}, {"verbose", "v", false},
+}
+
+// withFlags sets LookupFlag to a command tree that has testFlags for the length of
+// the test.
+func withFlags(t *testing.T) {
+	t.Helper()
+	was := LookupFlag
+	t.Cleanup(func() { LookupFlag = was })
+	LookupFlag = func(name string, short bool) (FlagKind, bool) {
+		for _, f := range testFlags {
+			if (short && f.short == name) || (!short && f.long == name) {
+				return FlagKind{Long: f.long, TakesValue: f.takes}, true
+			}
+		}
+		return FlagKind{}, false
+	}
+}
+
+func TestRedactArgsSealsTheValueOfAFlagThatTakesOneInTheSpaceForm(t *testing.T) {
+	withFlags(t)
+	keys := testKeys(t)
+	tok := func(canon, value string) string { return "<sealed:" + keys.Tag(canon+"\x00"+value) + ">" }
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"a flag and its value", []string{"apply", "--actor", "ada@example.com", "plan-2f9c1a4e"},
+			"pravo apply --actor " + tok("actor", "ada@example.com") + " plan-2f9c1a4e"},
+		{"two flags, repeated", []string{"apply", "--actor", "ada", "--reason", "fix the db", "--actor", "bob"},
+			"pravo apply --actor " + tok("actor", "ada") + " --reason " + tok("reason", "fix the db") + " --actor " + tok("actor", "bob")},
+		{"the same value in the other form has the same tag", []string{"apply", "--actor=ada"}, "pravo apply --actor=" + tok("actor", "ada")},
+		{"a boolean flag leaves the next word alone", []string{"apply", "--auto-approve", "plan-2f9c1a4e", "--store", "ada"},
+			"pravo apply --auto-approve plan-2f9c1a4e --store ada"},
+		{"a boolean flag with a value", []string{"apply", "--json=false", "ada"}, "pravo apply --json=false ada"},
+		{"a value that looks like a flag", []string{"apply", "--actor", "-t", "x"}, "pravo apply --actor " + tok("actor", "-t") + " x"},
+		{"a flag at the end", []string{"apply", "--actor"}, "pravo apply --actor"},
+		{"public flags keep their value", []string{"apply", "--only", "a.b,c.d", "--policy", "p.cue", "--chdir", "/srv/w", "-C", "/srv/w"},
+			"pravo apply --only a.b,c.d --policy p.cue --chdir /srv/w -C /srv/w"},
+		{"a short flag, separate", []string{"plan", "-P", "prod-admin", "x"}, "pravo plan -P " + tok("profile", "prod-admin") + " x"},
+		{"a short flag, attached", []string{"plan", "-Pprod-admin"}, "pravo plan -P" + tok("profile", "prod-admin")},
+		{"a short flag, attached with an equals sign", []string{"plan", "-P=prod-admin"}, "pravo plan -P=" + tok("profile", "prod-admin")},
+		{"a short flag in a cluster", []string{"plan", "-vTP", "prod-admin", "x"}, "pravo plan -vTP " + tok("profile", "prod-admin") + " x"},
+		{"a cluster of boolean flags", []string{"plan", "-vT", "ada"}, "pravo plan -vT ada"},
+		{"tag, in every spelling", []string{"plan", "-t", "a=1", "-tb=2", "-t=c=3", "--tag", "d=4", "--tag=e=5"},
+			"pravo plan -t a=" + tok("tag", "a=1") + " -tb=" + tok("tag", "b=2") + " -t=c=" + tok("tag", "c=3") + " --tag d=" + tok("tag", "d=4") + " --tag=e=" + tok("tag", "e=5")},
+		{"a flag that the tree does not know", []string{"plan", "--unknown", "value"}, "pravo plan --unknown value"},
+		{"after the double dash", []string{"state", "mv", "--actor", "ada", "--", "--actor", "ada"},
+			"pravo state mv --actor " + tok("actor", "ada") + " -- --actor ada"},
+		{"a positional word that is a secret stays", []string{"state", "mv", "hunter2", "--actor", "ada"},
+			"pravo state mv hunter2 --actor " + tok("actor", "ada")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := RedactArgs(tt.args, keys.Tag); got != tt.want {
+				t.Errorf("RedactArgs(%q)\n got %s\nwant %s", tt.args, got, tt.want)
+			}
+		})
+	}
+	t.Run("without the tree", func(t *testing.T) {
+		LookupFlag = nil
+		args := []string{"apply", "--actor", "ada", "-P", "prod-admin"}
+		if got, want := RedactArgs(args, keys.Tag), "pravo "+strings.Join(args, " "); got != want {
+			t.Errorf("got %s, want %s", got, want)
+		}
+	})
+}
+
+func TestRedactArgsInTheSpaceFormLeaksNothing(t *testing.T) {
+	withFlags(t)
+	keys := testKeys(t)
+	secrets := []string{"hunter2-planted", "sk-live-planted", "planted reason with spaces"}
+	args := []string{"apply", "--actor", secrets[0], "-P", secrets[1], "--reason", secrets[2], "--auto-approve", "plan-2f9c1a4e"}
+	got := RedactArgs(args, keys.Tag)
+	for _, s := range secrets {
+		if strings.Contains(got, s) {
+			t.Errorf("the redacted line %q holds %q", got, s)
+		}
+	}
+	if !strings.HasSuffix(got, " --auto-approve plan-2f9c1a4e") {
+		t.Errorf("the boolean flag and the plan id should stay: %q", got)
+	}
+}

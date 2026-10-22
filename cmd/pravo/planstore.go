@@ -664,7 +664,7 @@ func showStored(cmd *cobra.Command, ref string) error {
 	if m.Reason != "" {
 		out.Printf("  reason:  %s\n", m.Reason)
 	}
-	out.Printf("  command: %s\n", m.Command)
+	out.Printf("  command: %s\n", m.CommandText())
 	if m.GitRevision != "" {
 		out.Printf("  git:     %s\n", m.GitRevision)
 	}

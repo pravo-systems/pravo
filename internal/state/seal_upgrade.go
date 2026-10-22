@@ -421,7 +421,7 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 	if err := s.checkAtRest(); err != nil {
 		return res, err
 	}
-	n, err := s.reseal(ctx, o)
+	n, err := s.reseal(ctx, o, &res)
 	res.Resealed = n
 	if err != nil {
 		return res, err
@@ -446,9 +446,10 @@ func cloneGroups(gs []protect.Group) []protect.Group {
 	return out
 }
 
-// reseal seals every record, the outputs and the stored plans again under the
-// current group.
-func (s *Store) reseal(ctx context.Context, o RewrapOptions) (int, error) {
+// reseal seals every record, the outputs, the stored plans and the sealed text of
+// the errors of transactions again under the current group, and returns how many
+// records it sealed. It sets the counts of the plans in res.
+func (s *Store) reseal(ctx context.Context, o RewrapOptions, res *RewrapResult) (int, error) {
 	s.mu.Lock()
 	current := s.ring.current()
 	s.mu.Unlock()
@@ -473,9 +474,14 @@ func (s *Store) reseal(ctx context.Context, o RewrapOptions) (int, error) {
 		return n, err
 	}
 	if o.Plans != nil {
-		if _, err := o.Plans(ctx); err != nil {
+		var err error
+		res.PlansSealed, res.PlansSkipped, err = o.Plans(ctx)
+		if err != nil {
 			return n, err
 		}
+	}
+	if err := s.resealSummaries(ctx, current); err != nil {
+		return n, err
 	}
 	return n, s.sweepRecords(func(group string) bool { return group == current })
 }

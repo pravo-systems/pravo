@@ -239,22 +239,49 @@ type PlanMeta struct {
 
 // ApplyCommand is the command that applies the plan, as it is typed. For a summary
 // that is Redacted the values of the tags are placeholders.
-func (m *PlanMeta) ApplyCommand() string {
+func (m *PlanMeta) ApplyCommand() string { return m.applyCommand(m.Redacted) }
+
+// ApplyTemplate is ApplyCommand with a placeholder for the value of every tag,
+// whether or not the summary could be opened: the command for a place that shows
+// what the plan was made with and not the values it was given, such as the viewer.
+func (m *PlanMeta) ApplyTemplate() string { return m.applyCommand(true) }
+
+func (m *PlanMeta) applyCommand(placeholders bool) string {
 	var b strings.Builder
 	b.WriteString("pravo apply " + m.ID)
 	for _, t := range m.Tags {
-		if k, _, ok := strings.Cut(t, "="); ok && m.Redacted {
-			// The value is sealed and this store cannot open it: a placeholder that
-			// a shell does not take for a value, so that pasting the line fails.
-			b.WriteString(" -t " + shellWord(k) + "=<value>")
+		if !placeholders {
+			b.WriteString(" -t " + shellWord(t))
 			continue
 		}
-		b.WriteString(" -t " + shellWord(t))
+		// The value is not shown (it is sealed and this store cannot open it, or it
+		// is not for this place): a placeholder that a shell does not take for a
+		// value, so that pasting the line fails.
+		k, _, ok := strings.Cut(t, "=")
+		if !ok {
+			b.WriteString(" -t <value>")
+			continue
+		}
+		b.WriteString(" -t " + shellWord(k) + "=<value>")
 	}
 	if m.SysTags {
 		b.WriteString(" -T")
 	}
 	return b.String()
+}
+
+// sealedTokenRe matches the tag that a sealed state shows in place of a value.
+var sealedTokenRe = regexp.MustCompile(`<sealed(?::[0-9a-f]+)?>`)
+
+// CommandText is the command line of the plan as a person is shown it. For a
+// summary that is Redacted each sealed value, a tag as <sealed:a1b2c3d4>, is a
+// placeholder, <value>, as in ApplyCommand: the tag is not a value that a shell
+// takes, and the key before it stays.
+func (m *PlanMeta) CommandText() string {
+	if !m.Redacted {
+		return m.Command
+	}
+	return sealedTokenRe.ReplaceAllString(m.Command, "<value>")
 }
 
 // ShellWord quotes s for a shell when it needs it.
@@ -1176,6 +1203,10 @@ func (ps *PlanStore) readPlans(ctx context.Context, all map[string]map[string]bo
 	return out
 }
 
+// ErrForeignPlan is why a listing cannot read a plan object that is not what its
+// name says it is and has no summary: it was planted or damaged.
+var ErrForeignPlan = errors.New("the plan file is not the plan that its name says (its digest is not the id) and has no summary; pravo plan gc removes it")
+
 // SkippedPlan is a stored plan that a listing could not read: its summary or its
 // progress is damaged, or was written by a newer pravo.
 type SkippedPlan struct {
@@ -1301,6 +1332,18 @@ func (ps *PlanStore) List(ctx context.Context, check *PlanCheck) (*PlanListing, 
 		if r.meta.Unsealed {
 			l.Unsealed = append(l.Unsealed, id)
 		}
+	}
+	// A plan object that is not the plan its name says it is, and has no summary,
+	// is not a write that did not finish: nobody's write makes one.
+	var foreign []string
+	for id, kinds := range all {
+		if kinds["plan"] && !kinds["meta"] && ps.foreignPlan(ctx, id) {
+			foreign = append(foreign, id)
+		}
+	}
+	sort.Strings(foreign)
+	for _, id := range foreign {
+		l.Skipped = append(l.Skipped, SkippedPlan{ID: id, Err: ErrForeignPlan})
 	}
 	out := l.Entries
 	sort.Slice(out, func(i, j int) bool {

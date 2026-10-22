@@ -367,7 +367,8 @@ func TestCollectionRemovesNothingButObjectsOfPlans(t *testing.T) {
 				t.Fatal(k, ok, err)
 			}
 		}
-		// A plan object that is not what its name says is left alone.
+		// A plan object that is not what its name says is marked, and not removed by
+		// the collection that marks it.
 		if err := ps.B.Put(ctx, planKey("plan-cccccc00"), []byte(`{"format":1}`)); err != nil {
 			t.Fatal(err)
 		}

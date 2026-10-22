@@ -175,6 +175,7 @@ func operations(n int) string {
 
 // startCommand opens the command's span; called once the command is known.
 func startCommand(cmd *cobra.Command) {
+	runningCommand = cmd
 	cmdName = cmd.CommandPath()
 	cmdStart = time.Now()
 	ctx, span := telemetry.Tracer().Start(cmd.Context(), cmdName, trace.WithSpanKind(trace.SpanKindServer), trace.WithAttributes(

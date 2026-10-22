@@ -723,6 +723,13 @@ func TestPlanListWarnsOfPlansThatAreNotSealed(t *testing.T) {
 	if code != 0 || !strings.Contains(text, "Warning: stored before the state was sealed and not sealed: "+id) {
 		t.Fatalf("rewrap --all: exit %d, want the warning:\n%s", code, text)
 	}
+	if !strings.Contains(text, "1 stored plan in use was not sealed again; run pravo protect rewrap --all when it is done.\n") {
+		t.Errorf("rewrap --all does not count the plan that it left:\n%s", text)
+	}
+	text, code = runPravo(t, e.dir, "protect", "rewrap", "--all", "--json")
+	if code != 0 || !strings.Contains(text, `"plans_skipped": 1`) {
+		t.Errorf("rewrap --all --json: exit %d, want the count of plans left:\n%s", code, text)
+	}
 }
 
 // rewrap --all deletes the records that nothing names, so it runs only at rest,
@@ -805,5 +812,76 @@ func TestProtectStatusOfADamagedSealedPart(t *testing.T) {
 		if code != 7 || !strings.Contains(text, "the sealed part of meta.json is damaged") || strings.Contains(text, "not a reader") {
 			t.Errorf("pravo %s: exit %d\n%s", strings.Join(args, " "), code, text)
 		}
+	}
+}
+
+// The text of the error of a run that failed is sealed in a transaction: a reader
+// sees it in the log, and anyone else sees that it is sealed.
+func TestStateLogShowsTheTextOfAnErrorToAReader(t *testing.T) {
+	s := sealedBucket(t)
+	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const secretError = "the provider said TOPSECRET-error-5550123"
+	txn := st.Begin("apply", "pravo apply")
+	txn.Record("net.vpc", "update", 1, 2)
+	if err := txn.FinishError("failed", "the text of the error is sealed to the readers of the state", secretError, true); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(s.bucketText(), "TOPSECRET-error") {
+		t.Fatal("the bucket holds the text of the error")
+	}
+	text, code := runPravo(t, s.dir, "state", "log")
+	if code != 0 || !strings.Contains(text, "\n    "+secretError+"\n") {
+		t.Errorf("a reader: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, s.dir, "state", "log", "--json")
+	if code != 0 || !strings.Contains(text, secretError) || strings.Contains(text, "summary_sealed") {
+		t.Errorf("a reader, as JSON: exit %d\n%s", code, text)
+	}
+	s.asNobody(t)
+	text, code = runPravo(t, s.dir, "state", "log")
+	if code != 0 || strings.Contains(text, "TOPSECRET-error") || !strings.Contains(text, "sealed to the readers of the state") {
+		t.Errorf("no identity: exit %d\n%s", code, text)
+	}
+}
+
+// A flag that is given its value as the next argument is sealed in the command
+// line that a sealed state shows, as it is when it is written with an equals sign;
+// a boolean flag is not taken for one that has a value.
+func TestASealedStateSealsTheValueAfterAFlagInTheCommandLine(t *testing.T) {
+	requireSealing(t)
+	ids := isolateIdentities(t)
+	e := newS3Env(t, false)
+	st := e.store(t)
+	attrs := fmt.Sprintf(`{"id":"cfg","password":%q}`, secretA)
+	if err := st.Set(&state.Resource{Addr: "cfg", Mode: "data", Type: "t_data", Name: "cfg", Attributes: []byte(attrs)}, ""); err != nil {
+		t.Fatal(err)
+	}
+	_, ada := person(t, ids, "ada")
+	e.readers(t, ada)
+	if text, code := runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
+		t.Fatalf("protect init exited %d:\n%s", code, text)
+	}
+	if err := os.WriteFile(filepath.Join(e.dir, "tag.cue"), []byte("package t\n\nk: *\"x\" | string @tag(k)\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	was := os.Args
+	t.Cleanup(func() { os.Args = was })
+	os.Args = []string{"pravo", "--actor", "ci-bot-7", "plan", "--store", "--no-color", "-t", "k=" + secretB}
+	text, code := runPravo(t, e.dir, os.Args[1:]...)
+	if code != 0 || !strings.Contains(text, "plan-") {
+		t.Fatalf("plan --store exited %d:\n%s", code, text)
+	}
+	listed, code := runPravo(t, e.dir, "plan", "list", "--all", "--json")
+	if code != 0 || !strings.Contains(listed, "--actor ci-bot-7 plan --store --no-color -t k="+secretB) {
+		t.Errorf("a reader sees the line as it was typed: exit %d\n%s", code, listed)
+	}
+	s := &sealed{s3Env: e}
+	s.asNobody(t)
+	listed, code = runPravo(t, e.dir, "plan", "list", "--all", "--json")
+	if code != 0 || strings.Contains(listed, "ci-bot-7 plan") || strings.Contains(listed, secretB) || !strings.Contains(listed, "--actor <sealed:") || !strings.Contains(listed, " plan --store --no-color -t k=<sealed:") {
+		t.Errorf("without a key: exit %d\n%s", code, listed)
 	}
 }

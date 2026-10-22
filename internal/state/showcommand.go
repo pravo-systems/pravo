@@ -33,8 +33,39 @@ var sealedFlags = map[string]string{
 }
 
 // shortValueFlags are the short flags that take a value and are not sealed. A
-// cluster of short flags ends at the first of them.
+// cluster of short flags ends at the first of them. Without LookupFlag, they are
+// the only short flags that are known to take a value.
 const shortValueFlags = "C"
+
+// FlagKind says what the command tree knows of a flag.
+type FlagKind struct {
+	// Long is the long name of the flag, without the dashes.
+	Long string
+	// TakesValue is set for a flag that reads the argument after it as its value
+	// (--flag value, -f value), which a boolean flag does not.
+	TakesValue bool
+}
+
+// LookupFlag, when the program sets it, says what the flags of the command that is
+// running are. name is a long name without the dashes, or with short set the letter
+// of a shorthand; ok is false for a flag that the command does not have. The
+// state package cannot tell a boolean flag from one that takes a value, and the
+// command tree can, so the program sets the function when it starts, as it sets
+// PravoVersion. Without it only -t, --webhook and -e, and the flags that are
+// written --flag=value, have their values sealed.
+var LookupFlag func(name string, short bool) (kind FlagKind, ok bool)
+
+// valueFlag reports whether the flag takes a value, and its long name. It is false
+// for a flag that is not known to.
+func valueFlag(name string, short bool) (long string, takes bool) {
+	if LookupFlag == nil {
+		return "", false
+	}
+	if k, ok := LookupFlag(name, short); ok && k.TakesValue {
+		return k.Long, true
+	}
+	return "", false
+}
 
 // ShowCommand returns what the history of the state and the lock files show of
 // a command line. When the state is sealed, the values of -t/--tag, --webhook
@@ -72,9 +103,11 @@ func TagFunc(sl Sealer) func(value string) string {
 //
 // The values of -t/--tag (in all of the spellings -t k=v, -tk=v, -t=k=v, --tag
 // k=v and --tag=k=v: the key stays readable), --webhook and -e/--expression are
-// replaced. So is the value of any other flag that is written with an equals sign
-// and is not one of the flags whose value is public (see publicFlags). The words
-// and the positional arguments stay as they are: an address, a plan id, a flag.
+// replaced. So is the value of any other flag that takes a value and is not one of
+// the flags whose value is public (see publicFlags): written with an equals sign,
+// or in the next argument when LookupFlag says that the flag takes one. The
+// positional arguments stay as they are: an address, a plan id, and the argument
+// after a boolean flag.
 func RedactArgs(args []string, tag func(value string) string) string {
 	out := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
@@ -97,6 +130,15 @@ func RedactArgs(args []string, tag func(value string) string) string {
 				}
 			case hasValue && !publicFlags[name] && value != "true" && value != "false":
 				out = append(out, "--"+name+"="+token(name, value, tag))
+			case !hasValue:
+				// A flag that takes a value reads the next argument as it, whatever it
+				// looks like; a boolean flag does not, and the next argument is its own.
+				long, takes := valueFlag(name, false)
+				out = append(out, a)
+				if takes && i+1 < len(args) {
+					i++
+					out = append(out, valueWord(long, args[i], tag))
+				}
 			default:
 				out = append(out, a)
 			}
@@ -105,7 +147,7 @@ func RedactArgs(args []string, tag func(value string) string) string {
 			out = append(out, word)
 			if takesNext && i+1 < len(args) {
 				i++
-				out = append(out, sealedValue(canon, args[i], tag))
+				out = append(out, valueWord(canon, args[i], tag))
 			}
 		default:
 			out = append(out, a)
@@ -175,7 +217,16 @@ func RedactTag(t string, tag func(value string) string) string {
 var publicFlags = map[string]bool{
 	"ttl": true, "reserve": true, "refresh": true, "limit": true, "older-than": true,
 	"platforms": true, "port": true, "replace": true, "only": true, "touching": true,
-	"out": true, "policy": true, "plan": true, "store": true,
+	"out": true, "policy": true, "plan": true, "store": true, "chdir": true,
+}
+
+// valueWord is the value of the flag canon as the history shows it: sealed, unless
+// the flag is one whose value is public.
+func valueWord(canon, value string, tag func(string) string) string {
+	if publicFlags[canon] {
+		return value
+	}
+	return sealedValue(canon, value, tag)
 }
 
 // sealedValue replaces the value of the flag canon. For a tag the key stays.
@@ -191,7 +242,8 @@ func sealedValue(canon, value string, tag func(string) string) string {
 // redactShort handles one argument that is a cluster of short flags, such as -T,
 // -t, -tk=v, -t=k=v or -Tt. It returns the argument as it is shown, and when the
 // cluster ends in a flag whose value is the next argument, the canonical name of
-// that flag and takesNext.
+// that flag and takesNext. The caller seals that value unless the flag is one whose
+// value is public.
 func redactShort(a string, tag func(string) string) (word, canon string, takesNext bool) {
 	for j := 1; j < len(a); j++ {
 		c := string(a[j])
@@ -200,7 +252,21 @@ func redactShort(a string, tag func(string) string) (word, canon string, takesNe
 		}
 		canon, ok := sealedFlags[c]
 		if !ok {
-			continue
+			// A flag that takes a value ends the cluster: the rest of it, or the next
+			// argument, is the value. Any other is a boolean flag, and the cluster goes on.
+			long, takes := valueFlag(c, true)
+			if !takes {
+				continue
+			}
+			rest := a[j+1:]
+			if rest == "" {
+				return a, long, true
+			}
+			eq := ""
+			if strings.HasPrefix(rest, "=") {
+				eq, rest = "=", rest[1:]
+			}
+			return a[:j+1] + eq + valueWord(long, rest, tag), "", false
 		}
 		rest := a[j+1:]
 		if rest == "" {
@@ -240,7 +306,8 @@ var _ Tagger = storeSealer{}
 // before the seal, and of each lock file that a command left behind, in the form
 // that a sealed state shows, so that the values of -t that earlier commands were
 // given do not stay in the history. A line that shows nothing to hide is not
-// written, and nor is one that already shows a tag. It is called by the upgrade
+// written, and nor is one that already shows a tag. The text of the error of a
+// transaction that failed is sealed in the same write. It is called by the upgrade
 // to a sealed state, which needs the state at rest, and may be called again
 // after a crash.
 func (s *Store) redactHistory(ctx context.Context) error {
@@ -253,10 +320,20 @@ func (s *Store) redactHistory(ctx context.Context) error {
 	}{
 		{"txn", ".json", func(data []byte) ([]byte, error) {
 			var t Transaction
-			if json.Unmarshal(data, &t) != nil || !redactable(t.Command) {
+			if json.Unmarshal(data, &t) != nil {
 				return nil, nil
 			}
-			t.Command = RedactLine(t.Command, tag)
+			changed := false
+			if redactable(t.Command) {
+				t.Command = RedactLine(t.Command, tag)
+				changed = true
+			}
+			if s.sealErrorText(&t) {
+				changed = true
+			}
+			if !changed {
+				return nil, nil
+			}
 			return indentJSON(t)
 		}},
 		{"locks", ".lock", func(data []byte) ([]byte, error) {
@@ -296,6 +373,27 @@ func (s *Store) redactHistory(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// sealErrorText moves the text of the error of a transaction that failed or was
+// rejected before the seal into a sealed box, and puts SealedErrorText in its place.
+// It reports whether it changed t. The summary of an interrupted run names
+// addresses and actions, and stays.
+func (s *Store) sealErrorText(t *Transaction) bool {
+	if (t.Status != "failed" && t.Status != "rejected") || t.Summary == "" || t.SummarySealed != nil ||
+		strings.HasPrefix(t.Summary, SealedErrorText) || strings.HasPrefix(t.Summary, "interrupted; ") {
+		return false
+	}
+	sl := s.Sealer()
+	if sl == nil {
+		return false
+	}
+	box, err := sl.Seal(protect.KindSummary, t.ID, []byte(t.Summary))
+	if err != nil {
+		return false
+	}
+	t.SummarySealed, t.Summary = &box, SealedErrorText
+	return true
 }
 
 // redactable reports whether a command line recorded before the seal has

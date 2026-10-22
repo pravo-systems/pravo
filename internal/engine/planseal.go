@@ -249,10 +249,10 @@ func (ps *PlanStore) SealAll(ctx context.Context) (sealed, skipped int, err erro
 
 // ResealAll seals every stored plan again under the current group of the state,
 // as SealAll does for the plans that are not sealed, and returns how many plans it
-// changed. A plan that is under the current group already is not written.
-func (ps *PlanStore) ResealAll(ctx context.Context) (int, error) {
-	n, _, err := ps.sealAll(ctx, true)
-	return n, err
+// changed and how many it left alone. A plan that is under the current group
+// already is not written.
+func (ps *PlanStore) ResealAll(ctx context.Context) (sealed, skipped int, err error) {
+	return ps.sealAll(ctx, true)
 }
 
 func (ps *PlanStore) sealAll(ctx context.Context, again bool) (changed, skipped int, err error) {

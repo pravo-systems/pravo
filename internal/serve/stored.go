@@ -320,7 +320,7 @@ func (m *model) storedPlan(e *engine.PlanEntry) StoredPlan {
 		Planned: len(meta.Changes), Applied: e.AppliedCount(),
 		Applying: prog.ApplyRunning(time.Now()),
 		Touches:  make([]PlanChange, 0, min(len(meta.Changes), maxTouches)),
-		Apply:    "pravo apply " + meta.ID,
+		Apply:    meta.ApplyTemplate(),
 	}
 	if e.Status == engine.PlanPartlyStale {
 		m.partlyStale(&sp, e)
@@ -361,8 +361,8 @@ func (m *model) partlyStale(sp *StoredPlan, e *engine.PlanEntry) {
 	if len(sp.ApplyOnly) > maxTouches {
 		sp.ApplyOnly, sp.ApplyOnlyOmitted = sp.ApplyOnly[:maxTouches], len(e.Live)-maxTouches
 	}
-	// The tags that the plan was made with are not part of the command, as they are
-	// not of Apply: they are what a person wrote, and a listing carries none of it.
+	// The tags that the plan was made with are placeholders in the command, as they
+	// are in Apply: they are what a person wrote, and a listing carries none of it.
 	if only := e.OnlyFlag(); only != "" && len(only) <= maxCommand {
 		sp.ApplyLive = sp.Apply + " " + only
 	}

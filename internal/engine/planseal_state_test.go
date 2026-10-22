@@ -136,29 +136,83 @@ func TestSealedStateKeepsTheValuesOfPlansAndCommandsFromAThief(t *testing.T) {
 	}
 }
 
-func TestSealedStateRecordsNoErrorTextForAFailedRun(t *testing.T) {
+// A failed run in a sealed state leaves no byte of the text of its error in the
+// bucket, where anyone who can read the bucket would find the value that a
+// provider echoed, and keeps the text sealed for the readers.
+func TestSealedStateKeepsTheTextOfAnErrorForItsReadersAndNotForTheBucket(t *testing.T) {
 	h, _, _ := sealedHarness(t)
-	h.fake.partial = map[string]bool{"a": true}
-	e := h.engine(s2(), Options{})
+	ctx := context.Background()
+	s := spec{cue: "a: " + thing("a", `content: "`+plantedContent+`-3"`) + "\n", resources: []string{"a"}}
+	e := h.engine(s, Options{})
 	p := plan(t, e)
-	if _, err := e.Apply(context.Background(), p); err == nil {
-		t.Fatal("the apply should fail")
+	hd := h.fake.hold("a")
+	done := applyingResult(e, ctx, p)
+	waitFor(t, hd)
+	hd.release <- errors.New("the provider said " + plantedValue)
+	if got := finished(t, done); got.err == nil || !strings.Contains(got.err.Error(), plantedValue) {
+		t.Fatalf("the apply should fail with the text of the provider: %v", got.err)
 	}
-	txns, err := h.state.Transactions()
+	for name, text := range walk(t, filepath.Join(h.dir, "state")) {
+		if strings.Contains(text, plantedValue) {
+			t.Errorf("%s holds the text of the error:\n%s", name, text)
+		}
+	}
+
+	failed := func(st *state.Store) state.Transaction {
+		t.Helper()
+		txns, err := st.Transactions()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tx := range txns {
+			if tx.Status == "failed" {
+				return tx
+			}
+		}
+		t.Fatal("no failed transaction")
+		return state.Transaction{}
+	}
+	tx := failed(h.state)
+	if !strings.HasPrefix(tx.Summary, state.SealedErrorText) || tx.SummarySealed == nil {
+		t.Fatalf("the transaction shows %q and a box %v", tx.Summary, tx.SummarySealed != nil)
+	}
+	if got := h.state.SummaryText(tx); !strings.Contains(got, "the provider said "+plantedValue) {
+		t.Errorf("a reader sees %q", got)
+	}
+
+	// A store with no key sees the fixed text.
+	locked, err := state.OpenBackendWith(ctx, h.backend, state.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var failed int
-	for _, tx := range txns {
-		if tx.Status == "failed" {
-			failed++
-			if strings.Contains(tx.Summary, "provider") || tx.Summary == "" {
-				t.Errorf("summary %q", tx.Summary)
-			}
-		}
+	if got := locked.SummaryText(tx); got != tx.Summary {
+		t.Errorf("a store without a key sees %q", got)
 	}
-	if failed == 0 {
-		t.Error("no failed transaction")
+	// The box is bound to its transaction: moved to another one it does not open.
+	moved := tx
+	moved.ID = "20260101T000000Z-aaaaaa"
+	if got := h.state.SummaryText(moved); got != tx.Summary {
+		t.Errorf("a box moved to another transaction opens: %q", got)
+	}
+}
+
+func TestTheSummaryOfAFailureInASealedStateKeepsTheNotesAndNotTheError(t *testing.T) {
+	unsealedStart(t)
+	plain := newHarness(t)
+	ep := plain.engine(spec{}, Options{})
+	if got := ep.errText(errors.New("diagnostic")); got != "diagnostic" {
+		t.Errorf("an unsealed state records the error: %q", got)
+	}
+
+	h, _, _ := sealedHarness(t)
+	e := h.engine(s2(), Options{})
+	boom := errors.New("the provider said " + plantedValue)
+	if got := e.errText(boom); strings.Contains(got, plantedValue) || got == "" {
+		t.Errorf("a sealed state records %q", got)
+	}
+	e.unsettled = map[string]string{"c": "create of c finished, but the state does not record it; check the provider"}
+	if got := e.errText(boom); strings.Contains(got, plantedValue) || !strings.Contains(got, "create of c finished") {
+		t.Errorf("the notes about changes whose result is unknown stay: %q", got)
 	}
 }
 
@@ -348,26 +402,6 @@ func TestRewrapAllSealsThePlansAgainForTheReadersThatStay(t *testing.T) {
 	}
 	if _, _, err := NewPlanStoreFor(asDan).ReadFile(ctx, meta.ID); !errors.Is(err, state.ErrNotReader) {
 		t.Errorf("the reader that left should not open the plan any more: %v", err)
-	}
-}
-
-func TestTheSummaryOfAFailureInASealedStateKeepsTheNotesAndNotTheError(t *testing.T) {
-	unsealedStart(t)
-	plain := newHarness(t)
-	ep := plain.engine(spec{}, Options{})
-	if got := ep.errText(errors.New("diagnostic")); got != "diagnostic" {
-		t.Errorf("an unsealed state records the error: %q", got)
-	}
-
-	h, _, _ := sealedHarness(t)
-	e := h.engine(s2(), Options{})
-	boom := errors.New("the provider said " + plantedValue)
-	if got := e.errText(boom); strings.Contains(got, plantedValue) || got == "" {
-		t.Errorf("a sealed state records %q", got)
-	}
-	e.unsettled = map[string]string{"c": "create of c finished, but the state does not record it; check the provider"}
-	if got := e.errText(boom); strings.Contains(got, plantedValue) || !strings.Contains(got, "create of c finished") {
-		t.Errorf("the notes about changes whose result is unknown stay: %q", got)
 	}
 }
 

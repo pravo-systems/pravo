@@ -615,12 +615,18 @@ func TestConfirm(t *testing.T) {
 }
 
 func TestPlansInUseLineAgreesWithTheNumber(t *testing.T) {
-	for n, want := range map[int]string{
-		1: "1 stored plan in use was not sealed; run pravo protect rewrap --all when it is done.",
-		2: "2 stored plans in use were not sealed; run pravo protect rewrap --all when they are done.",
+	for _, c := range []struct {
+		n     int
+		again bool
+		want  string
+	}{
+		{1, false, "1 stored plan in use was not sealed; run pravo protect rewrap --all when it is done."},
+		{2, false, "2 stored plans in use were not sealed; run pravo protect rewrap --all when they are done."},
+		{1, true, "1 stored plan in use was not sealed again; run pravo protect rewrap --all when it is done."},
+		{3, true, "3 stored plans in use were not sealed again; run pravo protect rewrap --all when they are done."},
 	} {
-		if got := plansInUseLine(n); got != want {
-			t.Errorf("plansInUseLine(%d) = %q, want %q", n, got, want)
+		if got := plansInUseLine(c.n, c.again); got != c.want {
+			t.Errorf("plansInUseLine(%d, %v) = %q, want %q", c.n, c.again, got, c.want)
 		}
 	}
 }

@@ -605,8 +605,8 @@ func TestRewrapAddsAndRemovesReaders(t *testing.T) {
 			// The record that the write above replaced is old enough for the sweep.
 			defer func(was func() time.Duration) { sweepGrace = was }(sweepGrace)
 			sweepGrace = func() time.Duration { return 0 }
-			res, err = s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada, dan), All: true, Plans: func(context.Context) (int, error) { return 1, nil }})
-			if err != nil || res.Resealed != 3 || res.Change.NewGroup != "" {
+			res, err = s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada, dan), All: true, Plans: func(context.Context) (int, int, error) { return 1, 2, nil }})
+			if err != nil || res.Resealed != 3 || res.Change.NewGroup != "" || res.PlansSealed != 1 || res.PlansSkipped != 2 {
 				t.Fatalf("rewrap --all = %+v, %v", res, err)
 			}
 			for _, r := range s.List() {
@@ -1311,5 +1311,115 @@ func TestSweepLeavesAYoungUnnamedRecordAlone(t *testing.T) {
 	}
 	if _, err := b.Get(ctx, p.Record); err != nil {
 		t.Errorf("the record that a pointer names was deleted: %v", err)
+	}
+}
+
+// The text of an error that a transaction keeps sealed is sealed again by rewrap
+// --all, so that a reader who was removed does not read it in the bucket.
+func TestRewrapAllSealsTheTextOfAnErrorAgain(t *testing.T) {
+	for _, bk := range testBackends() {
+		t.Run(bk.name, func(t *testing.T) {
+			b := bk.make(t)
+			ctx := context.Background()
+			ada, fay := testIdentity(t, "ada"), testIdentity(t, "fay")
+			s := sealedStore(t, b, ada, fay)
+			const text = "the provider said planted-diagnostic-0042"
+			txn := s.Begin("apply", "pravo apply")
+			txn.Record("db.main", "update", 1, 2)
+			if err := txn.FinishError("failed", "the text of the error is sealed", text, true); err != nil {
+				t.Fatal(err)
+			}
+			summary := func(st *Store) string {
+				t.Helper()
+				txns, err := st.Transactions()
+				if err != nil || len(txns) != 1 {
+					t.Fatalf("%v %v", txns, err)
+				}
+				return st.SummaryText(txns[0])
+			}
+			if got := summary(openIdentity(t, b, fay)); got != text {
+				t.Fatalf("fay reads %q before she leaves", got)
+			}
+			assertNoSecret(t, b, "planted-diagnostic-0042")
+
+			if _, err := s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada)}); err != nil {
+				t.Fatal(err)
+			}
+			txns, _ := s.Transactions()
+			if txns[0].SummarySealed.Group != "g1" {
+				t.Fatalf("a rewrap that removes a reader seals the text again: %s", txns[0].SummarySealed.Group)
+			}
+			if _, err := s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada), All: true}); err != nil {
+				t.Fatal(err)
+			}
+			txns, _ = s.Transactions()
+			if g := txns[0].SummarySealed.Group; g != "g2" {
+				t.Errorf("rewrap --all leaves the text in %s", g)
+			}
+			if got := summary(openIdentity(t, b, ada)); got != text {
+				t.Errorf("ada reads %q after rewrap --all", got)
+			}
+			assertNoSecret(t, b, "planted-diagnostic-0042")
+			// The key of g1 that fay holds opens nothing of what is in g2.
+			if got := summary(openIdentity(t, b, fay)); got == text {
+				t.Error("fay reads the text after rewrap --all")
+			}
+		})
+	}
+}
+
+// The text of the error of a transaction that failed before the seal moves into a
+// sealed box when the state is sealed, and the readers keep it.
+func TestUpgradeToSealedSealsTheTextOfEarlierErrors(t *testing.T) {
+	for _, bk := range testBackends() {
+		t.Run(bk.name, func(t *testing.T) {
+			b := bk.make(t)
+			ctx := context.Background()
+			ada := testIdentity(t, "ada")
+			s, err := OpenBackendWith(ctx, b, Options{NewFormat: Format, Identity: ada})
+			if err != nil {
+				t.Fatal(err)
+			}
+			seedSecrets(t, s)
+			const planted = "planted-diagnostic-0042"
+			finish := func(status, summary string) string {
+				t.Helper()
+				txn := s.Begin("apply", "pravo apply")
+				txn.Record("db.main", "update", 1, 2)
+				if err := txn.Finish(status, summary, true); err != nil {
+					t.Fatal(err)
+				}
+				return txn.ID()
+			}
+			failed := finish("failed", "the provider said "+planted)
+			rejected := finish("rejected", "policy: "+planted)
+			interrupted := finish("failed", "interrupted; update of db.main was in flight; check the provider")
+			applied := finish("applied", "3 added, 0 changed, 0 destroyed")
+
+			if _, err := s.Upgrade(ctx, UpgradeOptions{To: FormatSealed, Readers: readersOf(ada), Identity: ada}); err != nil {
+				t.Fatal(err)
+			}
+			assertNoSecret(t, b, planted)
+			r := openIdentity(t, b, ada)
+			txns, err := r.Transactions()
+			if err != nil || len(txns) != 4 {
+				t.Fatalf("%v %v", txns, err)
+			}
+			byID := map[string]Transaction{}
+			for _, tx := range txns {
+				byID[tx.ID] = tx
+			}
+			for id, want := range map[string]string{failed: "the provider said " + planted, rejected: "policy: " + planted} {
+				tx := byID[id]
+				if tx.Summary != SealedErrorText || tx.SummarySealed == nil || r.SummaryText(tx) != want {
+					t.Errorf("%s: summary %q, text %q", id, tx.Summary, r.SummaryText(tx))
+				}
+			}
+			for id, want := range map[string]string{interrupted: "interrupted; update of db.main was in flight; check the provider", applied: "3 added, 0 changed, 0 destroyed"} {
+				if tx := byID[id]; tx.Summary != want || tx.SummarySealed != nil {
+					t.Errorf("%s: summary %q is changed", id, tx.Summary)
+				}
+			}
+		})
 	}
 }

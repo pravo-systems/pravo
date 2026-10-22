@@ -51,7 +51,7 @@ A state has three formats.
 | `--allow-local` | `protect check`, `protect init` | Accept a state in a local directory. |
 | `--encrypt` | `protect init` | Required. Seal the attributes, outputs and stored plans to the readers. |
 | `--yes` | `protect init` | Do not ask for confirmation. |
-| `--all` | `protect rewrap` | Seal every record, the outputs and the stored plans again under the current key. |
+| `--all` | `protect rewrap` | Seal every record, the outputs, the stored plans and the sealed text of errors again under the current key. |
 
 ### Exit codes
 
@@ -228,7 +228,7 @@ It shows what it will do and asks `Proceed? [y/N]`. `--yes` answers it. Without 
 
 1. Every record is written once as the object `rec/SHA256`, and `resources/ADDRESS.json` becomes a pointer to it. A record is never overwritten again.
 2. The attributes and the private data of each record are encrypted with one data key, which is locked for each reader.
-3. `outputs.json`, the values of the stored plans and the values in the command lines of transactions are sealed the same way. The words of a command and the names of its flags stay readable, and so does a positional argument and a value written after its flag with a space, `--flag value`, unless the flag is `-t`, `--tag`, `--webhook` or `-e`. A secret belongs in `-t`.
+3. `outputs.json`, the values of the stored plans, the values in the command lines of transactions and the text of the errors of transactions that failed are sealed the same way. The words of a command and the names of its flags stay readable, and so does a positional argument. The value of a flag that takes one is sealed, written `--flag value` or `--flag=value`, unless it is a flag with a public value such as `--limit`, `--ttl`, `--only`, `--out`, `--policy` or `--chdir`. A word after a flag that takes no value is a positional argument. A secret belongs in `-t`.
 4. The state is set to format 3, and `meta.json` holds the locks.
 
 A run that is interrupted leaves the state in the middle of sealing, and an earlier pravo cannot open it. A kill leaves it where it was. An interrupt (`Ctrl-C`) finishes the records that are being sealed, starts no other and ends with `interrupted after N records were sealed in this run`. Run the command again to finish: it skips the records it has done. `pravo protect status` says `migrating` until then, and commands that write the state refuse with `a seal is in progress; run pravo protect init --encrypt to finish`. Commit the readers file when the command ends.
@@ -307,9 +307,11 @@ A record that does not match its name, a pointer that disagrees with its record,
 
 **Adding a reader.** The new reader makes an identity and sends the line it prints. A reader adds the line to the file, commits it and runs `rewrap`. The data keys are locked for the new reader in every group, so that the new reader can open what is already there. No record is rewritten.
 
-**Removing a reader.** A reader who is removed loses their lock in every group, and the state gets a new data key. Records are sealed under it as they are next written. Until then they stay under the old key. `--all` seals every record, the outputs and the stored plans again under the new key at once. A copy of the state that was made before the removal still opens with the removed reader's key, and the reader has read what they read. Replace the secrets they could read where they live.
+**Removing a reader.** A reader who is removed loses their lock in every group, and the state gets a new data key. Records are sealed under it as they are next written. Until then they stay under the old key. `--all` seals every record, the outputs, the stored plans and the sealed text of the errors of transactions again under the new key at once. A copy of the state that was made before the removal still opens with the removed reader's key, and the reader has read what they read. Replace the secrets they could read where they live.
 
 `--all` needs the state at rest: run it while nobody plans or applies. It seals again and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [What sealing protects](../concepts/sealed-state.md) lists what stays in the bucket.
+
+A stored plan that an apply holds a claim on is left as it is. `--all` counts these plans and prints `2 stored plans in use were not sealed again; run pravo protect rewrap --all when they are done.` With `--json` the count is `plans_skipped`.
 
 ## See also
 
