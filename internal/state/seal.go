@@ -253,7 +253,11 @@ func (s *Store) reloadSealed() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.meta.Sealed, s.meta.History = m.Sealed, m.History
-	if keys != nil {
+	switch {
+	case keys == nil:
+	case s.closed:
+		keys.Close() // a closed store does not take keys again
+	default:
 		s.ring.set(keys)
 		s.openable = openable
 	}
@@ -371,10 +375,14 @@ func (s *Store) recheckSeal() {
 		return
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		keys.Close()
+		return
+	}
 	s.ring.set(keys)
 	s.meta.Sealed, s.meta.History = m.Sealed, m.History
 	s.openable = openableGroups(m.Sealed, id)
-	s.mu.Unlock()
 }
 
 // openableGroups lists the groups of the sealed part that the identity holds a

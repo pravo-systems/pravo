@@ -174,3 +174,29 @@ func TestKeysSwapUnderUse(t *testing.T) {
 	default:
 	}
 }
+
+// A closed store does not take its keys back: a value sealed in a group that the
+// store has not heard of makes it read meta.json again, and it must not unlock the
+// group with the identity it was opened with.
+func TestClosedStoreDoesNotTakeItsKeysBack(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	ada, fay := testIdentity(t, "ada"), testIdentity(t, "fay")
+	b, _ := NewLocalBackend(t.TempDir())
+	admin := sealedStore(t, b, ada, fay)
+	s := openIdentity(t, b, ada)
+	s.Close()
+	// A rewrap in another process: a new group, and the outputs sealed in it.
+	if err := admin.SetOutputs(map[string]json.RawMessage{"o": json.RawMessage(`1`)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada), All: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ReloadOutputs(); err == nil {
+		t.Error("a closed store reads the outputs of a group it learned of after it was closed")
+	}
+	if heldKeys(s) != nil {
+		t.Error("a closed store holds data keys again")
+	}
+}

@@ -219,6 +219,8 @@ type Store struct {
 	ring     keyring
 	openable map[string]bool
 	locked   bool
+	// closed is set by Close: the store takes no keys again.
+	closed   bool
 	you      You
 	metaRead time.Time
 	// groupReload is when meta.json was last read again because a value is sealed in

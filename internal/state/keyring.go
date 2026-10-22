@@ -94,6 +94,7 @@ func (r *keyring) set(keys *protect.Keys) {
 // stay as they are. Close may be called more than once.
 func (s *Store) Close() {
 	s.mu.Lock()
+	s.closed = true
 	if s.meta.Format >= FormatSealed {
 		s.locked, s.openable = true, nil
 	}
