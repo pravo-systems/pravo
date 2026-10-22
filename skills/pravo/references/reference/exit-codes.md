@@ -271,7 +271,7 @@ pravo -C plain schema random_pet; echo "exit=$?"
 Output:
 
 ```text
-Error: no provider "random" for type random_pet; declare a provider struct for it, or write provider/type
+Error: no provider "random" for type random_pet; declare a provider struct for it, or name its address: NAMESPACE/TYPE/random_pet
 exit=6
 ```
 

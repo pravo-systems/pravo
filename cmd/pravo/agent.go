@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
@@ -136,37 +138,52 @@ func schemaCmd() *cobra.Command {
 		Short: "Print the CUE definition of resource, data source, ephemeral or function types",
 		Long: `Prints the generated CUE definition of one or more types, with the
 provider's documentation as comments. The provider is inferred from the type
-prefix (random_pet -> random) or given explicitly as provider/type. With
--required only the attributes that must be set are shown, which is the
-shortest useful description for writing a specification. With --json the
-definitions are returned as {"type": "...cue..."}.`,
+prefix (random_pet -> random) or given explicitly as provider/type, where
+provider is its local name in the specification. A type written with the
+address of its provider, as in hashicorp/random/random_pet, needs no
+specification: pravo installs the provider if it is not installed and prints
+the type from any directory. With -required only the attributes that must be
+set are shown, which is the shortest useful description for writing a
+specification. With --json the definitions are returned as {"type":
+"...cue..."}.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := newSession(cmd.Context(), sessionOptions{install: true})
+			targets, err := parseSchemaArgs(args)
 			if err != nil {
-				return err
+				return engine.WithCode(engine.ExitInvalid, err)
 			}
-			defer s.close()
+			var s *session
+			if targets[0].src != nil {
+				// Every type names its provider: no specification is needed.
+				var cleanup func()
+				if s, cleanup, err = rootlessSession(cmd.Context(), targets); err != nil {
+					return err
+				}
+				defer cleanup()
+			} else {
+				if s, err = newSession(cmd.Context(), sessionOptions{install: true}); err != nil {
+					var none *config.NoSpecificationError
+					if errors.As(err, &none) {
+						err = fmt.Errorf("%w\n\nhint: this directory has no specification. To print a type without one, name its provider: pravo schema hashicorp/random/random_pet", err)
+					}
+					return err
+				}
+				defer s.close()
+			}
 			results := map[string]string{}
-			for _, arg := range args {
-				local, typ := arg, arg
-				if i := strings.IndexByte(arg, '/'); i >= 0 {
-					local, typ = arg[:i], arg[i+1:]
-				} else if i := strings.IndexByte(arg, '_'); i > 0 {
-					local = arg[:i]
+			for _, t := range targets {
+				if _, ok := s.providers.Resolved[t.local]; !ok {
+					return engine.WithCode(engine.ExitInvalid, fmt.Errorf("no provider %q for type %s; declare a provider struct for it, or name its address: NAMESPACE/TYPE/%s", t.local, t.typ, t.typ))
 				}
-				if _, ok := s.providers.Resolved[local]; !ok {
-					return engine.WithCode(engine.ExitInvalid, fmt.Errorf("no provider %q for type %s; declare a provider struct for it, or write provider/type", local, typ))
-				}
-				ps, err := s.providers.Schema(cmd.Context(), local)
+				ps, err := s.providers.Schema(cmd.Context(), t.local)
 				if err != nil {
 					return err
 				}
-				text, err := schemaText(ps, typ, required, s.providers.Resolved[local].Req.Source)
+				text, err := schemaText(ps, t.typ, required, s.providers.Resolved[t.local].Req.Source)
 				if err != nil {
 					return engine.WithCode(engine.ExitInvalid, err)
 				}
-				results[arg] = text
+				results[t.arg] = text
 			}
 			if flagJSON {
 				return emitJSON(results)
@@ -503,3 +520,80 @@ func dueSummary(rep *engine.DueReport) string {
 
 // errSilent signals a non-zero exit without a message.
 var errSilent = errors.New("")
+
+// schemaTarget is one argument of "pravo schema": the type, the local name of
+// its provider and, when the argument names the address of the provider, that
+// address.
+type schemaTarget struct {
+	arg   string
+	local string
+	typ   string
+	src   *registry.Source
+}
+
+// parseSchemaArgs reads the arguments of "pravo schema". A type is written
+// random_pet (the provider is the prefix), random/random_pet (the local name of
+// a provider of the root), hashicorp/random/random_pet or
+// registry.example.com/hashicorp/random/random_pet (the address of a provider,
+// which needs no specification). The forms do not mix.
+func parseSchemaArgs(args []string) ([]schemaTarget, error) {
+	var out []schemaTarget
+	explicit := 0
+	for _, arg := range args {
+		t := schemaTarget{arg: arg, local: arg, typ: arg}
+		parts := strings.Split(arg, "/")
+		switch {
+		case len(parts) == 3 || (len(parts) == 4 && strings.Contains(parts[0], ".")):
+			src, err := registry.ParseSource(strings.Join(parts[:len(parts)-1], "/"))
+			if err != nil {
+				return nil, err
+			}
+			t.typ, t.src, t.local = parts[len(parts)-1], &src, src.Type
+			explicit++
+		case len(parts) == 2:
+			t.local, t.typ = parts[0], parts[1]
+		case len(parts) == 1:
+			if i := strings.IndexByte(arg, '_'); i > 0 {
+				t.local = arg[:i]
+			}
+		default:
+			return nil, fmt.Errorf("%q is not a type: write random_pet, random/random_pet or hashicorp/random/random_pet", arg)
+		}
+		out = append(out, t)
+	}
+	if explicit != 0 && explicit != len(out) {
+		return nil, fmt.Errorf("name every type the same way: either each with the address of its provider (hashicorp/random/random_pet), or none")
+	}
+	// Two providers with one type name need distinct local names.
+	seen := map[string]string{}
+	for i := range out {
+		if out[i].src == nil {
+			continue
+		}
+		if prev, ok := seen[out[i].local]; ok && prev != out[i].src.String() {
+			out[i].local = out[i].src.Namespace + "_" + out[i].src.Type
+		}
+		seen[out[i].local] = out[i].src.String()
+	}
+	return out, nil
+}
+
+// rootlessSession installs and starts the providers that the targets name, in
+// a root that is a temporary directory: nothing is written to the working
+// directory, and no specification is read.
+func rootlessSession(ctx context.Context, targets []schemaTarget) (*session, func(), error) {
+	dir, err := os.MkdirTemp("", "pravo-schema-")
+	if err != nil {
+		return nil, nil, err
+	}
+	root := &config.Root{Dir: dir, Providers: map[string]*config.ProviderReq{}}
+	for _, t := range targets {
+		root.Providers[t.local] = &config.ProviderReq{LocalName: t.local, Source: *t.src, Implied: true, Protocol: config.ProtocolTfplugin}
+	}
+	s, err := newSession(ctx, sessionOptions{install: true, root: root})
+	if err != nil {
+		os.RemoveAll(dir)
+		return nil, nil, err
+	}
+	return s, func() { s.close(); os.RemoveAll(dir) }, nil
+}

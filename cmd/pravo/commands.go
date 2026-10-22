@@ -232,6 +232,10 @@ func planCmd() *cobra.Command {
 				}
 			} else {
 				out.RenderPlan(plan)
+				if h := hclHint(s.root); h != "" {
+					out.Println()
+					out.Println(h)
+				}
 				if plan.Reservation != nil {
 					noun := "nodes"
 					if len(plan.Reservation.Addrs) == 1 {
@@ -875,6 +879,10 @@ func validateCmd() *cobra.Command {
 			}
 			out.Printf("%s %d resources, %d data sources, %d ephemeral, %d function calls, %d outputs across %d providers.\n", out.C(ui.Bold+ui.Green, "Success!"),
 				countMode(s.root, "managed"), countMode(s.root, "data"), countMode(s.root, "ephemeral"), countMode(s.root, "call"), len(s.root.Outputs), len(s.root.Providers))
+			if h := hclHint(s.root); h != "" {
+				out.Println()
+				out.Println(h)
+			}
 			return nil
 		},
 	}

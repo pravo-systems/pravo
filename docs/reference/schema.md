@@ -12,9 +12,9 @@ normalize:
 
 | | |
 |---|---|
-| Synopsis | `pravo schema TYPE [TYPE...] [--required]` |
+| Synopsis | `pravo schema TYPE [TYPE...] [--required]`, or `pravo schema NAMESPACE/PROVIDER/TYPE ...` |
 | Changes infrastructure | No. It starts no provider after `pravo init`. |
-| Provider | The prefix of the type up to the first underscore (`random_pet` is in `random`), or `provider/type` with the local name of the provider. The provider must be declared in the root. |
+| Provider | The prefix of the type up to the first underscore (`random_pet` is in `random`), or `provider/type` with the local name of the provider. The provider must be declared in the root. A type written with the address of its provider, `hashicorp/random/random_pet`, needs no root. |
 | Taught in | [B1, Providers and resources](../learn/b01-providers-and-resources.md). |
 
 ### Flags
@@ -155,6 +155,36 @@ pravo schema random/random_pet random_integer | grep '^// resource'
 // resource random_integer, from hashicorp/random
 ```
 
+### A type without a specification
+
+A type written with the address of its provider needs no specification. `pravo schema` installs the provider if it is not installed, prints the type and writes nothing to the working directory. The address is `NAMESPACE/PROVIDER/TYPE`, or `HOST/NAMESPACE/PROVIDER/TYPE` for a registry other than the default one. Every type in one call is written this way, or none is.
+
+```sh run
+mkdir empty
+pravo -C empty schema --required hashicorp/random/random_pet | sed -n 1,3p
+ls empty
+```
+
+```text out
+// resource random_pet, from hashicorp/random
+// Use it with:
+//
+```
+
+In a directory that has no specification, a type written as `random_pet` has no provider to come from. The error says how to name one.
+
+```sh run exit=6
+pravo -C empty schema random_pet
+```
+
+```text out
+Error: loading ./empty:
+cue: "." matched no packages
+
+
+hint: this directory has no specification. To print a type without one, name its provider: pravo schema hashicorp/random/random_pet
+```
+
 ### Types that do not resolve
 
 ```sh run exit=6
@@ -162,7 +192,7 @@ pravo schema aws_s3_bucket
 ```
 
 ```text out
-Error: no provider "aws" for type aws_s3_bucket; declare a provider struct for it, or write provider/type
+Error: no provider "aws" for type aws_s3_bucket; declare a provider struct for it, or name its address: NAMESPACE/TYPE/aws_s3_bucket
 ```
 
 ```sh run exit=6

@@ -214,7 +214,7 @@ func Load(dir string, opts LoadOptions) (*Root, error) {
 	ctx := cuecontext.New()
 	v := ctx.BuildInstance(inst)
 	if err := v.Err(); err != nil {
-		return nil, fmt.Errorf("evaluating %s:\n%s", abs, cueerrors.Details(err, nil))
+		return nil, ModuleNotFoundHint(fmt.Errorf("evaluating %s:\n%s", abs, cueerrors.Details(err, nil)))
 	}
 	if err := v.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration:\n%s", cueerrors.Details(err, nil))

@@ -176,9 +176,42 @@ exit=6
 |---|---|---|
 | `import failed: cannot find package "pravo.dev/providers/hashicorp/random": cannot find module providing package pravo.dev/providers/hashicorp/random:` | The generated package of a provider does not exist yet. | Run `pravo init`. The hint on the last line says so. |
 | `import failed: cannot find package "pravo.dev/providers/hashicorp/null": no files in package directory with package name "null":` | The import omits the package name `null_`. | Write `"pravo.dev/providers/hashicorp/null:null_"`. See [Generated packages](spec-generated-packages.md#package-names). |
+| `builtin package "hashicorp/random" undefined` or `import failed: cannot find package "registry.opentofu.org/hashicorp/random"` | The import path is the address of a provider in a registry. A provider is imported from `pravo.dev/providers` followed by that address. The hint under the error names the path. | Write `import rnd "pravo.dev/providers/hashicorp/random"`. |
 | `import failed: imports are unavailable because there is no cue.mod/module.cue file:` | The root imports a package and has no module yet. | Run `pravo init`. The hint on the last line says so. |
 | `other.cue is package other; the other files are package errors` | A `.cue` file of the root has a package clause that differs from the others. | Give the files one package name, or move the file to another directory. |
 | `other.cue has no package clause; the other files are package errors` | A `.cue` file of the root starts without a package clause. | Add the package clause of the other files. `pravo.lock.cue` has no clause and is not part of the package, and neither are files whose names start with `.` or `_`. |
+
+### An import that is the address of a provider
+
+A provider is imported from `pravo.dev/providers`, followed by its address. The address alone is read as a package of the CUE standard library, or as a module that does not exist. The error ends with a hint that names the path:
+
+File `imports/main.cue`:
+
+```cue
+package imports
+
+import rnd "hashicorp/random"
+
+$random: rnd.#Provider
+```
+
+```sh
+pravo -C imports init > /dev/null 2>&1
+pravo -C imports validate
+```
+
+Output:
+
+```text
+Error: evaluating ./imports:
+builtin package "hashicorp/random" undefined:
+    ./imports/main.cue:3:8
+
+
+hint: a provider is imported from pravo.dev/providers/hashicorp/random, as in
+  import random "pravo.dev/providers/hashicorp/random"
+pravo init generates the package.
+```
 
 ## Evaluating CUE
 
@@ -1651,11 +1684,39 @@ exit=5
 
 ## Warnings
 
-A warning is printed as `Warning:` and does not change the exit code.
+A warning is printed as `Warning:` and does not change the exit code. A hint is printed as `hint:`, after the result or the error that it explains.
+
+A specification written as HCL loads, since every field is valid CUE, and declares nothing that pravo reads. `validate` and `plan` say so:
+
+File `hcl/main.cue`:
+
+```cue
+package hcl
+
+provider: random: source: "hashicorp/random"
+
+resource: random_pet: pet: length: 2
+```
+
+```sh
+pravo -C hcl validate
+```
+
+Output:
+
+```text
+Success! 0 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 0 providers.
+
+hint: this specification declares no resources. The fields "provider", "resource" are named like blocks of HCL, but pravo has no blocks and does not read them. A resource is built through a provider:
+  $random: rnd.#Provider
+  pet: $random.#Resource.random_pet & {length: 2}
+with rnd imported from "pravo.dev/providers/hashicorp/random". See https://pravo.systems/reference/spec-overview.html
+```
 
 | Message | Cause | Fix |
 |---|---|---|
 | `Warning: the generated schema for provider random was made from a different version than the selected v3.9.1; run "pravo init" to refresh it` | The package under `cue.mod/gen` was generated for another provider version. Every command that loads the specification prints it except `init` and `gen`, which write the package again. | Run `pravo init`. |
+| `hint: this specification declares no resources. The field "resource" is named like a block of HCL, but pravo has no blocks and does not read them.` | Printed under the result of `pravo validate` and `pravo plan` when the specification declares no resource and no provider and has top-level fields named like blocks of HCL: `providers`, `provider`, `required_providers`, `resource`, `resources`, `data`, `variable`, `variables`, `module`, `modules`, `terraform`, `locals`, `local`, `output`, `outputs` or `backend`, with or without a leading `$`. | Declare a provider and build the resource through it. See [The specification](spec-overview.md). |
 | `pravo: telemetry export problem (further ones are not shown): ...` | The collector is unreachable. | Check `OTEL_EXPORTER_OTLP_ENDPOINT`. The exit code is not affected. See [Telemetry](telemetry.md). |
 
 ## See also

@@ -277,6 +277,9 @@ func ModuleNotFoundHint(err error) error {
 	if err == nil {
 		return nil
 	}
+	if h := providerImportHint(err.Error()); h != "" {
+		return fmt.Errorf("%w\n\n%s", err, h)
+	}
 	if strings.Contains(err.Error(), ProviderPackagePrefix) && strings.Contains(err.Error(), "cannot find package") {
 		return fmt.Errorf("%w\n\nhint: a provider schema package is missing. Run \"pravo init\" to generate it", err)
 	}
@@ -341,4 +344,67 @@ var portSuffix = regexp.MustCompile(`_(\d+)$`)
 // element: "localhost_5000" is localhost:5000.
 func hostOfPackage(s string) string {
 	return strings.ToLower(portSuffix.ReplaceAllString(s, ":$1"))
+}
+
+var (
+	badPackageRe = regexp.MustCompile(`(?:cannot find package|builtin package) "([^"]+)"`)
+	segmentRe    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+)
+
+// cueStdlibRoots are the first elements of the packages of the CUE standard
+// library, which are not provider addresses.
+var cueStdlibRoots = map[string]bool{"bytes": true, "crypto": true, "encoding": true, "html": true, "list": true, "math": true,
+	"net": true, "path": true, "regexp": true, "strconv": true, "strings": true, "struct": true, "text": true, "time": true, "tool": true, "uuid": true}
+
+// providerImportHint names the import path of a provider when the path of an
+// import that failed is the address of one in a registry: "hashicorp/random",
+// or "registry.opentofu.org/hashicorp/random". A provider is imported from
+// pravo.dev/providers, below the address.
+func providerImportHint(text string) string {
+	m := badPackageRe.FindStringSubmatch(text)
+	if m == nil {
+		return ""
+	}
+	p := m[1]
+	if i := strings.IndexByte(p, ':'); i >= 0 {
+		p = p[:i]
+	}
+	for _, host := range []string{"registry.opentofu.org/", "registry.terraform.io/"} {
+		p = strings.TrimPrefix(p, host)
+	}
+	parts := strings.Split(p, "/")
+	if len(parts) != 2 || !segmentRe.MatchString(parts[0]) || !segmentRe.MatchString(parts[1]) || cueStdlibRoots[parts[0]] {
+		return ""
+	}
+	alias := strings.ReplaceAll(parts[1], "-", "_")
+	return fmt.Sprintf("hint: a provider is imported from pravo.dev/providers/%s/%s, as in\n  import %s \"pravo.dev/providers/%s/%s\"\npravo init generates the package.", parts[0], parts[1], alias, parts[0], parts[1])
+}
+
+// hclBlocks are the names of the blocks of HCL. A specification that reads no
+// resource and has top-level fields with these names was written as HCL.
+var hclBlocks = map[string]bool{"providers": true, "provider": true, "required_providers": true, "resource": true, "resources": true,
+	"data": true, "variable": true, "variables": true, "module": true, "modules": true, "terraform": true, "locals": true, "local": true,
+	"output": true, "outputs": true, "backend": true}
+
+// HCLFieldNames lists the top-level fields named like blocks of HCL, when the
+// specification declares no resource and no provider: pravo reads neither a
+// field named resource nor one named providers, and a reader who wrote them
+// sees "Success! 0 resources". It is empty when anything was found.
+func (r *Root) HCLFieldNames() []string {
+	if len(r.Resources) > 0 || len(r.ProviderDecls) > 0 {
+		return nil
+	}
+	it, err := r.Value.Fields()
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for it.Next() {
+		name := strings.Trim(it.Selector().String(), `"`)
+		if hclBlocks[strings.TrimPrefix(name, "$")] {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }

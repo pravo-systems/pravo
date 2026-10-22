@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
 
@@ -53,4 +54,25 @@ func refreshValueHint(cmd *cobra.Command, word string) string {
 		return ""
 	}
 	return fmt.Sprintf("write the value of -refresh with =, as in -refresh=%s", word)
+}
+
+// hclHint is the hint for a specification that declares no resource and no
+// provider and has fields named like blocks of HCL; "" for any other.
+func hclHint(root *config.Root) string {
+	names := root.HCLFieldNames()
+	if len(names) == 0 {
+		return ""
+	}
+	quoted := make([]string, len(names))
+	for i, n := range names {
+		quoted[i] = "\"" + n + "\""
+	}
+	subject := "The field " + quoted[0] + " is named like a block"
+	if len(names) > 1 {
+		subject = "The fields " + strings.Join(quoted, ", ") + " are named like blocks"
+	}
+	return "hint: this specification declares no resources. " + subject + " of HCL, but pravo has no blocks and does not read them. " +
+		"A resource is built through a provider:\n" +
+		"  $random: rnd.#Provider\n  pet: $random.#Resource.random_pet & {length: 2}\n" +
+		"with rnd imported from \"pravo.dev/providers/hashicorp/random\". See https://pravo.systems/reference/spec-overview.html"
 }

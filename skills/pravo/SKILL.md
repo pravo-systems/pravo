@@ -13,7 +13,7 @@ This skill is the short guide. The full documentation is in `references/`, one f
 
 1. Run `pravo version`. The references describe the version that installed this skill; a newer pravo may differ, and `pravo COMMAND --help` is always current.
 2. A **root** is a directory holding one CUE package, inside a CUE module (a `cue.mod` directory at or above it). Work in the root, or pass `-C DIR` to any command.
-3. Never guess the attributes of a resource. Ask the provider schema: `pravo schema aws_s3_bucket` prints the CUE definition with the provider's documentation as comments, and `pravo schema --required aws_s3_bucket` prints the attributes that must be set.
+3. Never guess the attributes of a resource. Ask the provider schema: `pravo schema aws_s3_bucket` prints the CUE definition with the provider's documentation as comments, and `pravo schema --required aws_s3_bucket` prints the attributes that must be set. In a directory with no specification, name the provider: `pravo schema hashicorp/random/random_pet`.
 4. Never edit `cue.mod/gen/` or `pravo.lock.cue`. `pravo init` writes both. Run it after a checkout, after adding an import of a provider, and with `--upgrade` to take newer provider versions.
 
 ## What a specification looks like
@@ -42,7 +42,7 @@ hello: $local.#Resource.local_file & {
 file: pravo.#Output & {value: hello.filename}
 ```
 
-- A **provider** is a struct from the generated package: `$aws: awsp.#Provider & {$version: "~> 5.0", region: "eu-west-1"}`. Its own fields are its configuration. Every resource is built through a declared provider.
+- A **provider** is a struct from the generated package: `$aws: awsp.#Provider & {$version: "~> 5.0", region: "eu-west-1"}`. Its own fields are its configuration. Every resource is built through a declared provider. A provider is imported from `pravo.dev/providers/NAMESPACE/TYPE`, as in `import awsp "pravo.dev/providers/hashicorp/aws"`, never from `hashicorp/aws`; `pravo init` generates the package.
 - A **resource** is `$provider.#Resource.TYPE & {...}`; a data source is `#Data`, an ephemeral resource `#Ephemeral`, a provider function call `#Function`.
 - The **address** of a resource is the CUE path where its struct sits: `pet`, `api.config`, `pets.eu`. `pravo state list` prints them. Flags and commands that name a resource take the address.
 - References between resources are plain CUE references (`pet.id`). They are the dependencies. `$depends_on` and `$lifecycle` carry the rest.
@@ -62,7 +62,8 @@ More: `references/reference/spec-overview.md`, `spec-resources.md`, `spec-provid
 7. **A policy is named by whoever runs pravo**, with `--policy FILE` on `plan`, `apply`, `destroy` or `mcp`. The specification cannot name or remove it. A plan that violates it exits with code 5.
 8. **A saved plan is applied exactly as it was reviewed.** `pravo plan --out plan.pravo`, then `pravo show plan.pravo`, then `pravo apply plan.pravo`. A plan that no longer matches exits with code 3. A policy is judged against the saved plan, so `apply` without a file is refused under `--policy`.
 9. **State is a directory of records** (`pravo.state/` by default) or an S3-compatible bucket. Do not edit the files. Use `pravo state show|list|mv|rm|query|log|locks|unlock`. `pravo state import-tfstate FILE` converts an OpenTofu or Terraform state file once.
-10. **Locks are per resource.** A command that needs a resource held by another command is rejected with exit code 4. `pravo state locks` lists the holders; `pravo state unlock ADDR` is for a lock left by a crashed command, never for a running one.
+10. **`Success! 0 resources` means that pravo read nothing.** A specification written with HCL names (`provider`, `resource`, `variable`) is valid CUE and declares nothing. `validate` and `plan` print a hint when they see such fields. Build every resource through a provider struct.
+11. **Locks are per resource.** A command that needs a resource held by another command is rejected with exit code 4. `pravo state locks` lists the holders; `pravo state unlock ADDR` is for a lock left by a crashed command, never for a running one.
 
 ## The workflow
 
