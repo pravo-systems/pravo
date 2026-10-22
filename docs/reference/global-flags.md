@@ -1,7 +1,7 @@
 ---
 title: Global flags, environment and exit codes
 description: The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed.
-order: 17
+order: 18
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'
@@ -134,6 +134,7 @@ With `--json`, stdout holds JSON and nothing else. Human progress lines go to st
 | `apply`, `destroy` | Newline-delimited events, and a summary line last. |
 | `mcp` | Not affected. The server speaks JSON-RPC. |
 | `serve` | One line: the address of the viewer, its token and its port. See [`pravo serve`](serve.md). |
+| `skill install`, `skill list` | One JSON document. See [`pravo skill`](skill.md). |
 
 An error prints `{"code":N,"kind":"error","message":"..."}` on stdout, where `N` is the exit code, and the text of the error on stderr.
 

@@ -2849,6 +2849,8 @@ html:not(.js) .metro::after { transform: scaleX(1); }
 .shift-band .band-head, .start-band .band-head { margin-bottom: clamp(1.5rem, 3vw, 2.5rem); }
 .shift-band .kicker, .reach-band .kicker, .start-band .kicker, .about-band .kicker { margin: 0 0 .8rem; }
 .start-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.start-agent { margin: 1.4rem 0 0; font-size: .95rem; line-height: 1.5; color: var(--text-2); }
+.start-agent a { color: var(--text); text-decoration: underline; text-underline-offset: .18em; }
 @media (max-width: 66rem) { .start-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 41rem) { .start-cards { grid-template-columns: minmax(0, 1fr); } }
 .shift-cols .card-title, .start-cards .card-title { font-size: 1.4rem; }

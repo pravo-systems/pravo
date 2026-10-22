@@ -106,6 +106,10 @@ pravo serve --plan change.plan       # overlay a saved plan
 
 `docs/how-to/explore-your-estate.md` walks through it, and `docs/reference/serve.md` is the reference. The pictures are made by `go run ./tools/serveshots -bin bin/pravo -out docs/img/serve`.
 
+## The skill for agents
+
+`pravo skill install` writes a skill for AI agents to `~/.claude/skills/pravo`: a short guide and the documentation as Markdown, built from `docs/` by `go run ./tools/skillgen` and embedded in the binary, so that it matches the version that installs it. `docs/reference/skill.md` describes it. Each release carries it as `pravo-skill.zip`.
+
 ## Documentation
 
 - `docs/` holds the Markdown sources: Learn (CUE from zero, then pravo), Migrate (from OpenTofu or Terraform), How-to, Concepts and Reference. Begin with `docs/how-to/quick-start.md`.

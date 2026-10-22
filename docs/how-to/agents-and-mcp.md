@@ -243,6 +243,16 @@ Exit code 5 means a policy refused the plan. Exit code 6 means the specification
 Do not try to bypass a refusal: a policy or a reservation is a decision by the operators. Report it and stop.
 ```
 
+## Give the agent the skill
+
+The instructions above are what an agent needs to run pravo safely. They do not teach it to write a specification. An agent that has not seen pravo writes HCL habits into CUE: `count`, variables files, module blocks. The skill is the guide and the documentation that prevent that.
+
+```sh
+pravo skill install
+```
+
+This writes `~/.claude/skills/pravo`, or `$CLAUDE_CONFIG_DIR/skills/pravo`, and Claude loads the skill when a task is about pravo. The skill is part of the binary, so it always matches the version that is installed. For an agent without a skills directory, install it into the project and name the guide in `AGENTS.md`: `pravo skill install .agents`, then "Read .agents/pravo/SKILL.md before you write or run pravo." Each release also carries `pravo-skill.zip` for tools that add a skill from an archive. [pravo skill](../reference/skill.md) describes the files and how they are kept current.
+
 ## What this does not prevent
 
 The policy binds the invocations that name it. A run that leaves out `--policy` is not checked. An agent with a shell can run `pravo apply` without the flag. An agent with the cloud credentials needs no pravo at all. A server that is started without `--policy` checks nothing against a policy.
@@ -254,7 +264,7 @@ For a boundary, use controls outside pravo:
 - **The state store.** Limit who can write to the bucket or directory that holds the state.
 - **Exceptions.** No flag turns a policy off. A privileged job names a narrower policy that the platform team owns, or none, and the recorded command line says which.
 
-[Policies](../concepts/policies.md) explains the model, and [pravo mcp](../reference/mcp.md) lists every tool.
+[Policies](../concepts/policies.md) explains the model, [pravo mcp](../reference/mcp.md) lists every tool and [pravo skill](../reference/skill.md) describes the skill.
 
 ## What next
 
