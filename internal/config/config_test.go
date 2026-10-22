@@ -6,6 +6,9 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 )
 
 func TestFingerprint(t *testing.T) {
@@ -643,5 +646,29 @@ func TestFileHashesOfADirectory(t *testing.T) {
 	sort.Strings(names)
 	if got := strings.Join(names, ","); got != "cue.mod/gen/p/p.cue,cue.mod/module.cue,main.cue" {
 		t.Errorf("files %s", got)
+	}
+}
+
+// referencePaths names what a value is built from, one path for each reference
+// of its unification, and does not take a reference apart: the parts of
+// eu.#Resource.bucket are not paths of their own.
+func TestReferencePathsReadsAReferenceAsAWhole(t *testing.T) {
+	v := cuecontext.New().CompileString(`
+eu: {#Resource: bucket: {a: string}}
+base: eu.#Resource.bucket
+b: eu.#Resource.bucket & {a: "x"}
+c: base & {a: "y"}
+`)
+	if err := v.Err(); err != nil {
+		t.Fatal(err)
+	}
+	for field, want := range map[string]string{"b": "eu.#Resource.bucket", "c": "base"} {
+		var got []string
+		for _, p := range referencePaths(v.LookupPath(cue.ParsePath(field))) {
+			got = append(got, p.String())
+		}
+		if len(got) != 1 || got[0] != want {
+			t.Errorf("%s: paths = %v, want [%s]", field, got, want)
+		}
 	}
 }

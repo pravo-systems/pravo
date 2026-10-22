@@ -323,7 +323,10 @@ func referencePaths(v cue.Value) []cue.Path {
 			return
 		}
 		if root, p := v.ReferencePath(); root.Exists() && len(p.Selectors()) > 0 {
+			// A reference is read as a whole: its operands are the parts of
+			// the path, and asking for them has CUE evaluate each one.
 			out = append(out, p)
+			return
 		}
 		_, args := v.Expr()
 		for _, a := range args {
