@@ -19,7 +19,7 @@ normalize:
 | 0 | success | The command did what it was asked. For `plan --detailed-exitcode`: no changes. For `drift`: no drift. For `serve`: a signal stopped the viewer. |
 | 1 | error | Any failure that has no code of its own: an unknown flag, a stray argument, a missing output, a provider or state error, an `apply --json` that has changes and no `--auto-approve`, an answer other than `yes`. |
 | 2 | changes | `plan --detailed-exitcode` found changes. `drift` found drift. This is a report and not a failure. |
-| 3 | stale | A saved plan cannot be applied: the configuration, a provider or a node changed after it was made. An apply that finds a resource different from the plan, saved or printed by the same command, stops with this code too. A plan stored in the state is refused with this code when it was not applied and its time to live ended, or when a collection is removing it. No other failure to claim a stored plan has this code. |
+| 3 | stale | A saved plan cannot be applied: the configuration, a provider or a node changed after it was made. An apply that finds a resource different from the plan, saved or printed by the same command, stops with this code too. A plan stored in the state is refused with this code when it was not applied and its time to live ended, when a collection is removing it, or when it is [partly stale](apply.md#a-partly-stale-plan) and the apply includes a change that conflicts, as the whole plan does. No other failure to claim a stored plan has this code. |
 | 4 | rejected | A node is locked by a running command, or reserved by another actor: before the apply changes anything, or, with `lock lost`, in the middle of an apply that another command took a lock from. The lock on the recorded outputs is held by a command that did not release it in time. |
 | 5 | refused | A plan policy refused the run, a policy file cannot be used, or a module does not match its lock. |
 | 6 | invalid | A command that loads the specification found that it does not load or evaluate: a syntax error, a conflict, a file outside the package, a setting that is not allowed, resources that depend on each other in a circle. `pravo validate` also exits 6 when a provider cannot be installed. `pravo schema` was asked for a type of a provider that is not declared. |
@@ -126,7 +126,7 @@ exit=1
 
 ## 3: stale
 
-A saved plan is refused when the configuration changed, the state has another lineage, a provider has another version, or a node was written after the plan was made. A plan stored in the state with `pravo plan --store` is refused for the same reasons, and when it was not applied and its time to live ended.
+A saved plan is refused when the configuration changed, the state has another lineage, a provider has another version, or a node was written after the plan was made. A plan stored in the state with `pravo plan --store` is refused for the same reasons, and when it was not applied and its time to live ended. A stored plan is judged change by change: when only some of its changes conflict with the state, it lists as `partly-stale`, the apply of the whole plan is refused with this code, and `--only` with the set that `pravo plan list` prints applies the rest. See [A partly stale plan](apply.md#a-partly-stale-plan).
 
 ```sh run
 echo 'extra: 1' >> infra/main.cue

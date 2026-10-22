@@ -1273,7 +1273,7 @@ A value that an expression builds from a container of resources is the same in t
 
 A data source that the plan read is not read again. The apply uses the answer the plan holds, and the resources that read the source are applied with it, whether the source answers the same now or not. A later plan reads the source as its refresh age says.
 
-The comparison runs as the apply reaches each resource, and resources that do not depend on each other are applied at the same time. When one resource differs, the apply stops. The resources it applied by then keep their changes, and the plan file is not marked. The next `pravo apply FILE` finds those resources written since the plan was made and is stale. Make a new plan.
+The comparison runs as the apply reaches each resource, and resources that do not depend on each other are applied at the same time. When one resource differs, the apply stops. The resources it applied by then keep their changes, and the apply records them in the plan: it marks them in the plan file, or writes them into the progress object of a stored plan, and prints the command that applies the rest. The resource that differed is not recorded. The next `pravo apply FILE` leaves the marked changes alone and does what is left. A provider that plans the resource differently again stops it again: make a new plan.
 
 While it runs, the apply renews its locks every two minutes, and before it asks a provider to change an object it renews them if more than five minutes have passed since it last knew that they were its own. A lock that another command took over meanwhile, which can happen after the computer was suspended and the lock went stale, stops the apply with `lock lost` and exit code 4. A renewal that fails for another reason, so that the locks cannot be confirmed, stops it with exit code 1. Either way the apply makes no further change, and the changes it made are recorded.
 
@@ -1339,12 +1339,15 @@ A listing reads the summaries and the progress objects, and compares each plan w
 | Status | Meaning |
 |---|---|
 | `pending` | The plan can be applied. |
-| `partial` | `apply --only` applied some changes. The rest can be applied. |
-| `stale` | The plan cannot be applied: the state has another lineage, or a record that a change not applied yet writes or reads has another revision or generation. |
+| `partial` | Some changes were applied, by `apply --only` or by an apply that failed after it finished them. The rest can be applied. |
+| `partly-stale` | A record that some changes not applied yet write has another revision or generation, and the other changes can still be applied. The whole plan is refused. `apply --only` with the changes that can be applied is not. |
+| `stale` | No part of the plan can be applied: the state has another lineage, a record that the plan only reads moved, or every change not applied yet conflicts. |
 | `applied` | Every change was applied. |
 | `expired` | The time to live ended before the plan was applied. |
 
-A plan is stale as a whole. One moved record that an unapplied change expects is enough, though `apply --only` could still apply a part that does not use that record. The plan is then marked and collected like any stale plan, and the rest is planned again.
+A plan is judged change by change. A change conflicts when the record it writes has another revision or generation than the plan expected. A change that has to be applied with one that conflicts conflicts too: the summary lists, for each change, the changes that an apply of it needs, which are the rules by which `--only` closes a selection. The changes that do not conflict, with the changes they need, are the live part. A change that is applied is not judged. The lineage of the state and a record that the plan only reads are not judged change by change: the plan was worked out from them, and when one moved, the whole plan is stale. So is a plan whose configuration or providers differ from the checkout, which `plan show` and `apply` compare.
+
+A listing of a partly stale plan names the conflicts and the `--only` set that applies the live part. The apply of the whole plan is refused with exit code 3, and so is an `--only` that holds a conflict. [`pravo apply`](../reference/apply.md#a-partly-stale-plan) runs it. A collection neither marks nor removes a partly stale plan: it stays until its time to live ends. When the live part is applied, nothing that can be applied is left, the plan is stale, and a collection marks it and removes it after the grace like any stale plan. The rest is planned again.
 
 :::figure What happens to a stored plan, from the plan that is applied to the plan that nobody applies. A plan that is in use is never removed.
 <svg viewBox="0 0 780 236" role="img" aria-label="A timeline with three rows. A plan that is applied is pending, then applied, is kept for 24 hours and is then removed. A plan that the state moved away from is pending, then stale; the first collection that sees it marks it, and a collection that runs an hour later removes it. A plan that nobody applies is pending until its time to live ends, is then expired, and the next collection removes it." style="min-width:680px">
@@ -1389,13 +1392,13 @@ A plan is stale as a whole. One moved record that an unapplied change expects is
 
 ### Two plans for one resource
 
-Stored plans do not exclude each other. Two people can plan the same resource. The first plan applied changes the record, and the other is stale. A plan that finds an open plan changing one of its resources prints a warning that names the other plan, its author and the resources, each once. A change that the other plan has applied already does not count. The warning informs and blocks nothing. A reservation, made with `plan --reserve`, is what keeps another actor from planning or applying a node.
+Stored plans do not exclude each other. Two people can plan the same resource. The first plan applied changes the record, and the other conflicts there: it is stale, or partly stale when it has changes that do not touch that record. A plan that finds an open plan changing one of its resources prints a warning that names the other plan, its author and the resources, each once. A change that the other plan has applied already does not count. The warning informs and blocks nothing. A reservation, made with `plan --reserve`, is what keeps another actor from planning or applying a node.
 
 ### Applying a stored plan
 
 `pravo apply ID` reads the plan from the state and then does what `pravo apply FILE` does, with the same checks. [`pravo apply`](../reference/apply.md#apply-a-stored-plan) lists them. Before it reads the plan, apply writes a claim into the progress object, so that no collection removes the plan while the apply runs. The claim is that apply's own, so applies of separate parts of one plan run at the same time, and each ends only its own. An apply fails with exit code 3 when a collection has claimed the plan to remove it, and when the plan was not applied and has expired and no collection has removed it yet. Any other failure to claim the plan is exit code 1, and so is a plan that a collection removed. A plan that was applied completely has nothing left to apply, also after it expired.
 
-An apply that ends without an error records what it did in the progress object: the changes applied and the transaction. The plan object stays as it was written. An apply that fails or is interrupted records nothing, as an apply from a plan file marks nothing in the file. The records that it changed make the plan stale, and what is left is planned again. The plan is `applied` when every change that was pending has been applied, whichever apply finishes last. Apply part of the plan and the listing shows it.
+An apply records what it did in the progress object: the changes applied and the transaction. The plan object stays as it was written. An apply that fails or is interrupted records the changes it finished, as an apply from a plan file marks them in the file. A change that failed, one whose result is not known and one that was never started are not recorded. The apply prints how many changes it recorded and the command that applies the rest, the plan lists as `partial`, and the next apply does what is left. A change that is recorded is not judged against the state again, so the records that the apply wrote for it do not make the plan stale. The plan is `applied` when every change that was pending has been applied, whichever apply finishes last. Apply part of the plan and the listing shows it. [`pravo apply`](../reference/apply.md#apply-a-stored-plan) runs a failure.
 
 ```sh run
 id=$(pravo -C store plan list --json | jq -r '.plans[0].id')

@@ -8,7 +8,7 @@ import { isChange, chain } from './model.js';
 import { codeWindow, kindLabel } from './ui.js';
 import { StateView, withheld, unknownEl, timeRow } from './values.js';
 import { projectPanel, modulePanel } from './panels.js';
-import { avatar, statusChip } from './plans.js';
+import { avatar, statusChip, conflictAt } from './plans.js';
 
 const TABS = [
   { key: 'state', label: 'State' },
@@ -235,11 +235,13 @@ export class Inspector {
       });
       if (open.length > 4) chips.push(h('span', { class: 'plmore' }, '+' + (open.length - 4)));
       // a row of its own under the strip, and not a cell of it: the cells keep the room that they have
+      // a partly stale plan lists the change although it cannot apply it now; it is no overlap
+      const stuck = open.filter((id) => conflictAt(model.planById.get(id), n.addr)).length;
       clear(this.plansRow);
-      this.plansRow.className = 'iplans' + (open.length > 1 ? ' ovl' : '');
+      this.plansRow.className = 'iplans' + (n.overlap ? ' ovl' : '');
       this.plansRow.append(h('span', { class: 'cl' }, 'Plans'), h('span', { class: 'plchips' }, chips),
-        h('span', { class: 'plsay' }, open.length > 1 ? `${open.length} open plans change it` : '1 open plan changes it'), open.length > 1 ? h('span', { class: 'plovl' }, 'overlap') : null);
-      this.plansRow.dataset.tip = open.length > 1 ? 'Applying one of these makes the others stale' : 'A stored plan that can be applied changes this resource';
+        h('span', { class: 'plsay' }, (open.length > 1 ? `${open.length} open plans change it` : '1 open plan changes it') + (stuck ? ` · ${stuck} can't apply it` : '')), ...(n.overlap ? [h('span', { class: 'plovl' }, 'overlap')] : []));
+      this.plansRow.dataset.tip = n.overlap ? 'Applying one of these makes the others stale' : stuck ? 'The state moved on under this resource: a partly stale plan cannot apply its change' : 'A stored plan that can be applied changes this resource';
     }
     this.plansRow.hidden = !open.length;
     if (!open.length) clear(this.plansRow);
@@ -509,11 +511,13 @@ export class Inspector {
         const p = model.planById.get(id);
         const touch = p && (p.touches || []).find((t) => t.addr === node.addr);
         const a = touch && actionOf(touch.action);
-        return h('li', null, h('button', { class: 'plrow' + (id === cur ? ' on' : ''), type: 'button', data: { plan: id }, 'aria-pressed': String(id === cur), 'aria-label': `${id}${p ? ' by ' + p.author : ''}${a ? ', ' + a.label : ''}` },
+        const stuck = !!(touch && touch.conflict);
+        return h('li', null, h('button', { class: 'plrow' + (id === cur ? ' on' : ''), type: 'button', data: { plan: id }, 'aria-pressed': String(id === cur), 'aria-label': `${id}${p ? ' by ' + p.author : ''}${a ? ', ' + a.label : ''}${stuck ? ', conflicts with the state' : ''}` },
           avatar(p ? p.author : '?'), h('code', null, id), p ? h('span', { class: 'pa' }, p.author) : null,
-          a ? h('span', { class: 'act' }, h('i', { class: 'sq ' + a.cls }), a.label) : null, p ? statusChip(p.status) : null));
+          a ? h('span', { class: 'act' }, h('i', { class: 'sq ' + a.cls }), a.label) : null,
+          h('span', { class: 'plst' }, stuck ? h('span', { class: 'b chg', 'data-tip': 'The state moved on under this resource, or under one that this change has to be applied with. The plan cannot apply it now.' }, 'conflict') : null, p ? statusChip(p.status) : null)));
       })),
-      ids.length > 1 ? h('p', { class: 'hint ovl' }, 'They overlap: applying one makes the others stale.') : null);
+      node.overlap ? h('p', { class: 'hint ovl' }, 'They overlap: applying one makes the others stale.') : null);
   }
 
   changePane(d, node) {

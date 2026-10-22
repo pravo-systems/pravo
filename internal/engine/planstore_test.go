@@ -336,13 +336,21 @@ func TestStatusOfAPlan(t *testing.T) {
 			}
 		}
 
-		// The record moved on: the plan that expects the old revision is stale, with the reason.
-		if got, why := status(fresh.ID, stateAt(map[string]int{"b": 5})); got != PlanStale || len(why) != 1 || !strings.Contains(why[0], "b") {
+		// The record moved on: the change that expects the old revision conflicts, with
+		// the reason, and the plan is stale in part.
+		if got, why := status(fresh.ID, stateAt(map[string]int{"b": 5})); got != PlanPartlyStale || len(why) != 1 || !strings.Contains(why[0], "b") {
 			t.Errorf("b moved: %s %v", got, why)
 		}
 		// A record that the plan creates, found by someone else.
-		if got, _ := status(fresh.ID, stateAt(map[string]int{"a": 1, "b": 4})); got != PlanStale {
+		if got, _ := status(fresh.ID, stateAt(map[string]int{"a": 1, "b": 4})); got != PlanPartlyStale {
 			t.Errorf("a was created: %s", got)
+		}
+		// The plan is stale when no change of it can be applied.
+		if got, why := status(fresh.ID, stateAt(map[string]int{"a": 1, "b": 5})); got != PlanStale || len(why) != 2 {
+			t.Errorf("a and b moved: %s %v", got, why)
+		}
+		if got, why := status(short.ID, stateAt(map[string]int{"c": 1})); got != PlanStale || len(why) != 1 {
+			t.Errorf("the only change moved: %s %v", got, why)
 		}
 		// A change that was applied from the plan does not make it stale when its record moves.
 		if got, _ := status(half.ID, stateAt(map[string]int{"e": 1})); got != PlanPartial {
@@ -417,8 +425,9 @@ func TestOverlapsNameTheOpenPlansThatChangeTheSameResources(t *testing.T) {
 		stale := putPlan(t, ps, t0.Add(3*time.Minute), "dave", 0, change("a", ActionUpdate, 1))
 		es, _ := ps.Entries(ctx, stateAt(map[string]int{"a": 2}))
 		over := Overlaps(es, mine.ID, mine.Changes)
-		// dave's plan expects a at revision 1 and the state is at 2, so it is stale and does not count; so is bob's.
-		if len(over) != 0 {
+		// dave's plan expects a at revision 1 and the state is at 2, so it is stale and does not count. Bob's
+		// plan is stale in part: its change of a conflicts and does not count, its change of b does.
+		if len(over) != 1 || over[0].Plan.ID != theirs.ID || strings.Join(over[0].Addrs, ",") != "b" {
 			t.Errorf("stale plans overlap: %+v", over)
 		}
 		es, _ = ps.Entries(ctx, stateAt(map[string]int{"a": 1}))

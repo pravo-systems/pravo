@@ -191,6 +191,7 @@ func (e *Engine) destroyOrphans(ctx context.Context, plan *Plan) (int, error) {
 				return err
 			}
 			e.txn.Record(ch.Addr, "forget", 0, 0)
+			e.complete(ch.Addr)
 			return nil
 		}
 		prov, err := e.Providers.Provider(ctx, ch.ProviderKey)
@@ -213,6 +214,7 @@ func (e *Engine) destroyOrphans(ctx context.Context, plan *Plan) (int, error) {
 			return fmt.Errorf("%s: the record could not be removed: %w", ch.Addr, err)
 		}
 		e.txn.Record(ch.Addr, "delete", before, 0)
+		e.complete(ch.Addr)
 		mu.Lock()
 		destroyed++
 		mu.Unlock()

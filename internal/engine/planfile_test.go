@@ -360,7 +360,8 @@ func TestLeftToApply(t *testing.T) {
 		{"an output to record", &PlanFile{}, &Plan{EvalOutputs: []string{"o"}}, true},
 		{"an output to remove", &PlanFile{}, &Plan{DropOutputs: []string{"o"}}, true},
 		{"an output recorded by an apply from the file", &PlanFile{ApplyTxn: "T1"}, &Plan{EvalOutputs: []string{"o"}}, false},
-		{"an output after an applied change", &PlanFile{Changes: []savedChange{{Addr: "b", Applied: true}}}, &Plan{Changes: []*Change{applied}, EvalOutputs: []string{"o"}}, false},
+		{"an output after a change applied by an apply that did not finish", &PlanFile{Changes: []savedChange{{Addr: "b", Applied: true}}}, &Plan{Changes: []*Change{applied}, EvalOutputs: []string{"o"}}, true},
+		{"an output after an applied change and an apply that finished", &PlanFile{ApplyTxn: "T1", Changes: []savedChange{{Addr: "b", Applied: true}}}, &Plan{Changes: []*Change{applied}, EvalOutputs: []string{"o"}}, false},
 		{"an output of a destroy", &PlanFile{}, &Plan{Destroy: true, EvalOutputs: []string{"o"}}, false},
 	} {
 		if got := c.pf.LeftToApply(c.plan.Remaining()); got != c.want {

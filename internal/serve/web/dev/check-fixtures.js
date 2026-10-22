@@ -109,8 +109,8 @@ for (const f of files) {
 // is a plan that can be applied, a node that two such plans change has the overlap, and the counts add up.
 {
   const read = (f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-  const OPEN = new Set(['pending', 'partial']);
-  const STATUS = new Set(['pending', 'partial', 'stale', 'applied', 'expired']);
+  const OPEN = new Set(['pending', 'partial', 'partly-stale']);
+  const STATUS = new Set(['pending', 'partial', 'partly-stale', 'stale', 'applied', 'expired']);
   const COUNT = { create: ['add'], update: ['change'], delete: ['destroy'], replace: ['add', 'destroy'], read: ['read'] };
   for (const f of files.filter((x) => x.startsWith('plans.'))) {
     const name = f.split('.')[1];
@@ -132,6 +132,26 @@ for (const f of files) {
       if (p.apply !== 'pravo apply ' + p.id) fail(w, `apply is ${p.apply}`);
       if (p.status === 'stale' && !(p.reasons || []).length) fail(w, 'stale without a reason');
       if (p.status !== 'stale' && (p.reasons || []).length) fail(w, 'reasons on a plan that is not stale');
+      // a partly stale plan says what conflicts and what can be applied by name; the others say neither
+      if (p.status === 'partly-stale') {
+        const left = p.touches.filter((t) => !t.applied).map((t) => t.addr);
+        const conflicts = p.conflicts || [];
+        const cAddrs = conflicts.map((c) => c.addr);
+        if (!conflicts.length) fail(w, 'partly stale without a conflict');
+        if (cAddrs.join() !== [...cAddrs].sort().join()) fail(w, 'the conflicts are not sorted by address');
+        for (const c of conflicts) if (!(c.reasons || []).length) fail(w, `conflict on ${c.addr} without a reason`);
+        if ((p.conflicts_omitted || 0) + conflicts.length > p.unapplied) fail(w, `${conflicts.length} conflicts and ${p.conflicts_omitted || 0} omitted of ${p.unapplied} unapplied`);
+        if (p.unapplied !== left.length) fail(w, `unapplied ${p.unapplied}, the touches say ${left.length}`);
+        const only = p.apply_only || [];
+        if (!only.length) fail(w, 'partly stale without a part to apply');
+        if (only.join() !== [...only].sort().join()) fail(w, 'apply_only is not sorted');
+        for (const a of only) if (cAddrs.includes(a)) fail(w, `${a} is both a conflict and in apply_only`);
+        if (p.apply_live !== `${p.apply} --only ${only.join(',')}`) fail(w, `apply_live is ${p.apply_live}`);
+        for (const t of p.touches) if (!!t.conflict !== (cAddrs.includes(t.addr) && !t.applied)) fail(w, `touch ${t.addr}: conflict does not agree with the conflicts`);
+      } else {
+        for (const k of ['conflicts', 'conflicts_omitted', 'unapplied', 'apply_only', 'apply_only_omitted', 'apply_live']) if (p[k] !== undefined) fail(w, `${k} on a plan that is not partly stale`);
+        if (p.touches.some((t) => t.conflict)) fail(w, 'a conflict on a plan that is not partly stale');
+      }
       if (p.planned !== p.touches.length) fail(w, `planned ${p.planned}, ${p.touches.length} touches`);
       if ((p.applied || 0) !== p.touches.filter((t) => t.applied).length) fail(w, 'applied does not agree with the touches');
       const sum = { add: 0, change: 0, destroy: 0, read: 0 };
@@ -144,7 +164,8 @@ for (const f of files) {
         const other = byId.get(o.id);
         if (!other || !OPEN.has(other.status) || !OPEN.has(p.status)) fail(w, `overlaps ${o.id}, which is not an open plan`);
         else if (!(other.overlaps || []).some((x) => x.id === p.id)) fail(w, `overlaps ${o.id}, which does not say so`);
-        const left = (q) => q.touches.filter((t) => !t.applied).map((t) => t.addr);
+        // what a plan can change: the changes it has left, less those that conflict
+        const left = (q) => q.touches.filter((t) => !t.applied && !t.conflict).map((t) => t.addr);
         for (const a of o.addrs) if (!other || !left(other).includes(a) || !left(p).includes(a)) fail(w, `overlap on ${a}, which the two do not both have a change left on`);
         const shared = other ? left(other).filter((a) => left(p).includes(a)).length : -1;
         if (o.count !== shared || o.addrs.length !== Math.min(shared, 20) || (o.truncated || 0) !== shared - o.addrs.length) fail(w, `overlap with ${o.id}: count ${o.count}, the plans share ${shared}`);
@@ -153,7 +174,9 @@ for (const f of files) {
     for (const [addr, n] of nodes) {
       const want = (l.plans.filter((p) => OPEN.has(p.status) && p.touches.some((t) => t.addr === addr && !t.applied))).map((p) => p.id);
       if ((n.plans || []).join() !== want.join()) fail(`${graphFile} ${addr}`, `plans [${(n.plans || []).join()}], the list says [${want.join()}]`);
-      if (!!n.overlap !== want.length > 1) fail(`${graphFile} ${addr}`, 'overlap does not agree with the plans');
+      // a change that a partly stale plan cannot apply keeps the plan on the node and is no overlap
+      const live = l.plans.filter((p) => OPEN.has(p.status) && p.touches.some((t) => t.addr === addr && !t.applied && !t.conflict));
+      if (!!n.overlap !== live.length > 1) fail(`${graphFile} ${addr}`, 'overlap does not agree with the plans');
     }
     // an overlay for each plan
     for (const p of l.plans) {
@@ -163,6 +186,7 @@ for (const f of files) {
       if (o.plan.id !== p.id || o.plan.file !== p.id) fail(of, 'the plan is not the one it is named after');
       if (o.revision !== g.revision) fail(of, `revision ${o.revision}, the graph ${g.revision}`);
       if (o.plan.status !== p.status || !!o.plan.stale !== (p.status === 'stale')) fail(of, 'status');
+      if (p.status !== 'stale' && (o.plan.reasons || []).length) fail(of, 'reasons on a plan that is not stale');
       if (o.nodes.map((n) => n.addr).join() !== p.touches.map((t) => t.addr).join() || o.nodes.some((n, i) => n.action !== p.touches[i].action || !!n.applied !== !!p.touches[i].applied)) fail(of, 'the nodes are not the touches of the plan');
       for (const k of ['add', 'change', 'destroy', 'read']) if (o.plan.summary[k] !== p.summary[k]) fail(of, `summary.${k}`);
       if (o.plan.planned !== p.planned || o.plan.total !== g.nodes.length) fail(of, 'planned of total');

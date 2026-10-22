@@ -66,31 +66,42 @@ func openPlanStore(ctx context.Context, write bool) (*state.Store, *engine.PlanS
 
 // storedPlanJSON is how --json describes a stored plan.
 type storedPlanJSON struct {
-	ID           string                  `json:"id"`
-	Status       engine.PlanStatus       `json:"status"`
-	Author       string                  `json:"author"`
-	Actor        string                  `json:"actor,omitempty"`
-	Reason       string                  `json:"reason,omitempty"`
-	Command      string                  `json:"command,omitempty"`
-	GitRevision  string                  `json:"git_revision,omitempty"`
-	Created      time.Time               `json:"created"`
-	Expires      time.Time               `json:"expires"`
-	Summary      engine.PlanCounts       `json:"summary"`
-	Changes      []engine.PlanTouch      `json:"changes"`
-	Applied      int                     `json:"applied,omitempty"`
-	StaleReasons []string                `json:"stale_reasons,omitempty"`
-	Reservation  *engine.ReservationView `json:"reservation,omitempty"`
-	Size         int                     `json:"size"`
-	ApplyCommand string                  `json:"apply_command"`
+	ID           string             `json:"id"`
+	Status       engine.PlanStatus  `json:"status"`
+	Author       string             `json:"author"`
+	Actor        string             `json:"actor,omitempty"`
+	Reason       string             `json:"reason,omitempty"`
+	Command      string             `json:"command,omitempty"`
+	GitRevision  string             `json:"git_revision,omitempty"`
+	Created      time.Time          `json:"created"`
+	Expires      time.Time          `json:"expires"`
+	Summary      engine.PlanCounts  `json:"summary"`
+	Changes      []engine.PlanTouch `json:"changes"`
+	Applied      int                `json:"applied,omitempty"`
+	StaleReasons []string           `json:"stale_reasons,omitempty"`
+	// Conflicts, ApplyOnly and ApplyOnlyCommand describe a partly-stale plan: the
+	// changes that cannot be applied now, with the reasons; the addresses that
+	// "--only" takes to apply the rest, and the command that does it.
+	Conflicts        map[string][]string     `json:"conflicts,omitempty"`
+	ApplyOnly        []string                `json:"apply_only,omitempty"`
+	ApplyOnlyCommand string                  `json:"apply_only_command,omitempty"`
+	Reservation      *engine.ReservationView `json:"reservation,omitempty"`
+	Size             int                     `json:"size"`
+	ApplyCommand     string                  `json:"apply_command"`
 }
 
 func storedPlanView(e *engine.PlanEntry) storedPlanJSON {
 	m := e.Meta
-	return storedPlanJSON{
+	v := storedPlanJSON{
 		ID: m.ID, Status: e.Status, Author: m.Author, Actor: m.Actor, Reason: m.Reason, Command: m.Command, GitRevision: m.GitRevision,
 		Created: m.Created, Expires: m.Expires, Summary: m.Summary, Changes: m.Changes, Applied: e.AppliedCount(),
 		StaleReasons: e.Reasons, Reservation: m.Reservation, Size: m.Size, ApplyCommand: m.ApplyCommand(),
 	}
+	if e.Status == engine.PlanPartlyStale {
+		// The reasons of a partly-stale plan are its conflicts.
+		v.StaleReasons, v.Conflicts, v.ApplyOnly, v.ApplyOnlyCommand = nil, e.Conflicts, e.Live, e.ApplyLiveCommand()
+	}
+	return v
 }
 
 // counts writes the numbers of a plan as the plan prints its summary: +2 ~1 -0.
@@ -120,7 +131,7 @@ func statusText(s engine.PlanStatus) string {
 	switch s {
 	case engine.PlanPending:
 		return out.C(ui.Green, string(s))
-	case engine.PlanPartial:
+	case engine.PlanPartial, engine.PlanPartlyStale:
 		return out.C(ui.Yellow, string(s))
 	case engine.PlanStale, engine.PlanExpired:
 		return out.C(ui.Red, string(s))
@@ -137,12 +148,15 @@ func planListCmd() *cobra.Command {
 		Args:  noArgs,
 		Long: `Lists the plans that were stored with "pravo plan --store": who made each, how
 long ago, where it stands and what it changes. A plan stands as pending (it can
-be applied), partial (some of it was applied and the rest can be), stale (the
-state moved on, so it can no longer be applied), applied, or expired.
+be applied), partial (some of it was applied and the rest can be), partly-stale
+(the state moved on under some of the changes, and the others can be applied by
+name with --only), stale (the state moved on, so it can no longer be applied),
+applied, or expired.
 
-By default the plans that can still be applied are listed. --all lists every
-plan that has not been collected yet. A plan is judged by the state alone; the
-configuration and the providers are compared when the plan is applied.`,
+By default the plans that can still be applied, all of them or a part, are
+listed. --all lists every plan that has not been collected yet. A plan is judged
+by the state alone; the configuration and the providers are compared when the
+plan is applied.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if pending && all {
 				return fmt.Errorf("--pending and --all exclude each other")
@@ -187,8 +201,9 @@ configuration and the providers are compared when the plan is applied.`,
 				}
 				return nil
 			}
-			width, ageWidth, countWidth := 0, 0, 0
+			width, ageWidth, countWidth, statusWidth := 0, 0, 0, 7
 			for _, e := range shown {
+				statusWidth = max(statusWidth, len(e.Status))
 				width = max(width, len(e.Meta.Author))
 				ageWidth = max(ageWidth, len(since(e.Meta.Created)))
 				countWidth = max(countWidth, len(counts(e.Meta.Summary)))
@@ -199,12 +214,14 @@ configuration and the providers are compared when the plan is applied.`,
 				switch {
 				case e.Status == engine.PlanApplied:
 					note = "applied " + since(*e.Progress.DoneAt)
+				case e.Status == engine.PlanPartlyStale:
+					note = fmt.Sprintf("%d of %d unapplied changes conflict: %s; apply with %s", len(e.Conflicts), e.Unapplied(), e.FirstConflict(), e.OnlyFlag())
 				case len(e.Reasons) > 0:
 					note = e.Reasons[0]
 				case e.Status == engine.PlanPartial:
 					note = fmt.Sprintf("%d of %d changes applied; %s", e.AppliedCount(), len(m.Changes), expiry(m))
 				}
-				out.Printf("%s  %s  %-*s  %-*s  %-*s  %s\n", m.ID, pad(statusText(e.Status), string(e.Status), 7), width, m.Author, ageWidth, since(m.Created), countWidth, counts(m.Summary), out.C(ui.Dim, note))
+				out.Printf("%s  %s  %-*s  %-*s  %-*s  %s\n", m.ID, pad(statusText(e.Status), string(e.Status), statusWidth), width, m.Author, ageWidth, since(m.Created), countWidth, counts(m.Summary), out.C(ui.Dim, note))
 			}
 			return nil
 		},
@@ -615,16 +632,55 @@ func showStored(cmd *cobra.Command, ref string) error {
 	if r := m.Reservation; r != nil && r.Until.After(time.Now()) {
 		out.Printf("  reserved until %s: %s\n", r.Until.Local().Format(time.RFC3339), strings.Join(r.Addrs, ", "))
 	}
-	if entry.Status.Open() {
+	switch {
+	case entry.Status == engine.PlanPartlyStale:
+		out.Printf("  apply:   %s\n", entry.ApplyLiveCommand())
+	case entry.Status.Open():
 		out.Printf("  apply:   %s\n", m.ApplyCommand())
 	}
-	if stale != nil {
+	switch {
+	case entry.Status == engine.PlanPartlyStale:
+		printConflicts(entry, stale)
+	case stale != nil:
 		out.Warning("this plan can no longer be applied: " + strings.Join(stale.Reasons, "; "))
-	} else if len(entry.Reasons) > 0 {
+	case len(entry.Reasons) > 0:
 		out.Warning("this plan can no longer be applied: " + strings.Join(entry.Reasons, "; "))
 	}
 	out.RenderPlan(plan)
 	return nil
+}
+
+// printConflicts says which changes of a partly-stale plan cannot be applied and
+// why. The command above it applies the others. stale holds what the plan finds
+// changed when it is loaded as a whole; what it adds to the conflicts, such as a
+// configuration that changed, keeps the rest of the plan from being applied from
+// here as well.
+func printConflicts(entry *engine.PlanEntry, stale *engine.ErrStalePlan) {
+	out.Warning(fmt.Sprintf("%d of %d unapplied changes conflict with the state and are left out of the command above:", len(entry.Conflicts), entry.Unapplied()))
+	addrs := make([]string, 0, len(entry.Conflicts))
+	for addr := range entry.Conflicts {
+		addrs = append(addrs, addr)
+	}
+	sort.Strings(addrs)
+	known := map[string]bool{}
+	for _, addr := range addrs {
+		for _, r := range entry.Conflicts[addr] {
+			known[r] = true
+			out.Printf("  - %s\n", r)
+		}
+	}
+	if stale == nil {
+		return
+	}
+	var others []string
+	for _, r := range stale.Reasons {
+		if !known[r] {
+			others = append(others, r)
+		}
+	}
+	if len(others) > 0 {
+		out.Warning("this plan can no longer be applied from here: " + strings.Join(others, "; "))
+	}
 }
 
 // applyStored applies a plan that is stored in the state. The checks are those of
@@ -664,9 +720,9 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 		return engine.WithCode(engine.ExitStale, fmt.Errorf("%s expired %s ago; plans are kept for a limited time: run \"pravo plan --store\" again", id, engine.DurationText(time.Since(meta.Expires))))
 	}
 	// From here no collection removes the plan, until the apply is over. What the
-	// apply did is recorded in the plan when it returns without an error, even if it
-	// was interrupted while it ran. An apply that fails records nothing, as one from
-	// a plan file does: the records it changed make the plan stale.
+	// apply did is recorded in the plan when it returns. An apply that fails or is
+	// interrupted records the changes it finished, as one from a plan file does; the
+	// change that failed is not among them.
 	owner := collector(s.state)
 	if err := ps.BeginApply(ctx, id, owner); err != nil {
 		if errors.Is(err, engine.ErrPlanRemoving) {
@@ -680,15 +736,44 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	if err != nil {
 		return err
 	}
+	// The note that the plan was made with is the reason of the apply, unless the
+	// apply was given its own: the history of the resources says why.
+	if flagReason == "" {
+		flagReason = meta.Reason
+	}
 	eng := s.engine(engine.Options{Refresh: engine.RefreshNone})
 	if err := eng.SetPolicies(policies); err != nil {
 		return err
 	}
-	mark := func(applied []string, txn string, pending []string) error {
-		if err := ps.MarkApplied(background, id, applied, txn, pending); err != nil {
+	mark := func(applied []string, txn string, pending []string, finished bool) error {
+		var err error
+		if finished {
+			err = ps.MarkApplied(background, id, applied, txn, pending)
+		} else {
+			err = ps.MarkPartlyApplied(background, id, applied, txn)
+		}
+		if err != nil {
 			return fmt.Errorf("the changes were applied (txn %s) but the progress of %s could not be recorded: %w", txn, id, err)
 		}
 		return nil
 	}
-	return applyPlanFile(cmd, eng, pf, id, "plan", meta.ApplyCommand(), only, mark)
+	// After a partial apply the plan is judged again: the records that the apply
+	// changed may have made the rest of it stale, or only a part.
+	again := meta.ApplyCommand()
+	if len(only) > 0 {
+		again += " --only " + engine.ShellWord(strings.Join(only, ","))
+	}
+	next := func() string {
+		e, err := ps.Entry(background, id, engine.PlanCheckFor(s.state))
+		switch {
+		case err != nil:
+			return fmt.Sprintf("run \"%s\" again to apply the rest", again)
+		case e.Status == engine.PlanPartlyStale:
+			return fmt.Sprintf("some of the rest is stale; apply the part that is still valid with \"%s\"", e.ApplyLiveCommand())
+		case e.Status == engine.PlanStale:
+			return "the rest is stale now and must be planned again with \"pravo plan --store\""
+		}
+		return fmt.Sprintf("run \"%s\" again to apply the rest", again)
+	}
+	return applyPlanFile(cmd, eng, pf, id, "plan", meta.ApplyCommand(), next, only, mark)
 }

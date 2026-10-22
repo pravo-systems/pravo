@@ -1,0 +1,41 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "plan": {
+  "file": "plan-b86e2d14",
+  "id": "plan-b86e2d14",
+  "status": "partly-stale",
+  "created": "2026-10-21T12:02:11Z",
+  "actor": "kim@acme",
+  "summary": {
+   "add": 0,
+   "change": 4,
+   "destroy": 0,
+   "read": 0,
+   "blast_radius": 12
+  },
+  "planned": 4,
+  "total": 47
+ },
+ "nodes": [
+  {
+   "addr": "api.logs",
+   "action": "update"
+  },
+  {
+   "addr": "api.policy",
+   "action": "update"
+  },
+  {
+   "addr": "api.role",
+   "action": "update"
+  },
+  {
+   "addr": "api.secret",
+   "action": "update"
+  }
+ ],
+ "reason": "narrow the task role and its policy",
+ "command": "pravo plan --store --reason \"narrow the task role and its policy\"",
+ "git_revision": "a7d3e19"
+}

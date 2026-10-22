@@ -18,7 +18,7 @@ These flags belong to the command `pravo` and every subcommand accepts them.
 | `-vv` | off | Finer detail, and the log of the providers. |
 | `--json` | off | Machine-readable output on stdout, progress on stderr. See [JSON](#json). |
 | `--actor LABEL` | `$PRAVO_ACTOR` | A label for who is acting. Recorded on transactions, locks, reservations and plans, and it is the author that `pravo plan list` shows for a stored plan. It is not verified. |
-| `--reason TEXT` | `$PRAVO_REASON` | Why. Recorded with the actor. |
+| `--reason TEXT` | `$PRAVO_REASON` | Why. Recorded with the actor. On a plan, it is the note that the viewer and `pravo plan show` give. An apply of a saved or stored plan records the reason of the plan, unless it is given its own. |
 | `-h`, `--help` | | Print the help of the command. |
 
 `pravo help COMMAND` prints the same help. `pravo completion bash`, `zsh`, `fish` or `powershell` prints a completion script for that shell.

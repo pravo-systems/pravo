@@ -388,6 +388,11 @@ Output:
       "generation": "<txn>"
     }
   },
+  "needs": {
+    "readme": [
+      "hello"
+    ]
+  },
   "size": 0
 }
 ```
@@ -406,7 +411,8 @@ Output:
 | `destroy` | `true` for a destroy plan. |
 | `summary` | The counts `add`, `change` and `destroy`, and `read`. A replacement counts under `add` and `destroy`. The reads are counted as `plan --json` counts them. |
 | `changes` | What the plan does, one entry for each resource that it creates, changes, replaces, destroys, imports or moves, and for each read that is left to the apply: `addr`, `mode`, `type` and `action`. Sorted by address. |
-| `bases` | The records the plan expects, by address: the `revision` and the `generation` of the record when the plan was made, and `reads` for a record that the plan reads and does not write. A listing compares them with the state, and nothing else, to tell that the plan is stale. A listing calls the plan stale as a whole when any change that is not applied yet expects a record that moved, though `apply --only` could still apply a part that does not use it. |
+| `bases` | The records the plan expects, by address: the `revision` and the `generation` of the record when the plan was made, and `reads` for a record that the plan reads and does not write. A listing compares them with the state, and nothing else, to tell where the plan stands. A moved record of a change that is not applied yet makes that change conflict, and a moved record with `reads` makes the whole plan stale. |
+| `needs` | For a change, the other changes of the plan that an apply of it has to apply with it, by address, sorted. These are its dependencies that are not applied yet, a data source whose read returned something other than its record among them. For a delete they are the deletes that depend on it. It is the one-step relation by which `--only` closes a selection: a change that is applied needs nothing, and so cuts a chain. Only a change that an apply can select has an entry, and a change that needs nothing has none. A new summary has the field at least as `{}`. A listing uses it to tell which changes conflict because one they need conflicts, and which are live. A summary without the field says nothing about the dependencies, and the plan is judged as a whole. |
 | `reservation` | The nodes the plan reserved and until when, when it was made with `--reserve`. |
 | `size` | The size of the plan object in bytes. |
 
@@ -463,15 +469,15 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 | Field | Meaning |
 |---|---|
 | `format`, `id` | As in the summary. |
-| `applied` | The address of each change applied from the plan, with the transaction that applied it. |
-| `apply_txn` | The transaction of the last apply. |
+| `applied` | The address of each change applied from the plan, with the transaction that applied it. An apply that failed or was interrupted adds the changes it finished, and not the one that failed. |
+| `apply_txn` | The transaction of the last apply that ended without an error. A failed apply leaves it as it was. |
 | `applying` | A list of claims, one for each apply from the plan that runs, so that no collection removes the plan. Each has `by`, who runs the apply, and `at`, when it began. `by` is `WHO@HOST#PID.TOKEN`: the actor or the user of the machine, the host, the process and a token that tells it from another process with the same number. Applies of separate parts of one plan, with `--only`, run at the same time. Each holds its own claim and ends only its own. A claim that a killed apply left does not count after 24 hours. |
 | `collecting` | `by` and `at` of the collection that is about to remove the plan, in the form of `applying`. An apply that starts meanwhile is refused with exit code 3. A claim older than 10 minutes does not count. |
 | `stale_since` | When a collection first saw the plan stale. A collection that runs more than an hour later removes the plan. A collection clears the field when it finds that the plan is not stale any more. |
-| `done_at` | When every change that was pending has been applied, by whichever apply finished last. A collection removes the plan 24 hours later. |
+| `done_at` | When every change that was pending has been applied, by whichever apply finished last. A collection removes the plan 24 hours later. A failed apply does not set it, so the outputs and the records that the plan only writes are left to the apply that finishes. |
 | `updated` | When the object was last written. |
 
-An apply writes its changes into `applied` when it ends without an error. An apply that fails or is interrupted writes nothing there, as an apply from a plan file marks nothing in the file. Recording progress leaves the claims as they are.
+An apply writes the changes it finished into `applied` when it ends. When it ends with an error or is interrupted, it writes the changes that completed before the error: the plan is `partial`, and the next apply of the plan does what is left. A change that failed, one whose result is not known and one that was not started are not written. Only an apply that ends without an error sets `apply_txn` and, when nothing is left, `done_at`. Recording progress leaves the claims as they are.
 
 Every write replaces the object only if it is still what the writer read. A command that lost the race reads the object again and retries. A progress object that cannot be parsed keeps the plan from being listed and applied. A collection makes it empty once the plan is older than an hour, and the plan can be listed and applied again.
 

@@ -86,7 +86,10 @@ type gcVerdict struct {
 //     OlderThan ago.
 //   - A plan that is stale is marked the first time a collection sees it so, and
 //     removed by a collection that runs StaleGrace later. A plan that is not stale
-//     any more loses its mark.
+//     any more loses its mark. A plan that is stale only in part can still be
+//     applied in part: it is neither marked nor removed for it, it is left to its
+//     time to live, and it loses a mark that it carries like a plan that is not
+//     stale at all.
 //   - Whatever the rules say, a plan that an apply is running from, that a collector
 //     has claimed, or that holds a reservation that has not ended is not removed.
 func gcJudge(m *PlanMeta, p *PlanProgress, o *GCOptions, now time.Time) gcVerdict {
@@ -119,6 +122,7 @@ func gcRules(m *PlanMeta, p *PlanProgress, o *GCOptions, now time.Time) gcVerdic
 			return gcVerdict{collect: true, reason: "stale for " + DurationText(now.Sub(*p.StaleSince)) + ", " + why[0]}
 		}
 	case p.StaleSince != nil:
+		// The plan is not stale as a whole, whether it is pending, partial or partly stale.
 		return gcVerdict{clear: true}
 	}
 	return gcVerdict{}

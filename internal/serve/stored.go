@@ -16,11 +16,15 @@ import (
 const (
 	// maxTouches bounds the changes of a stored plan that the listing carries.
 	maxTouches = 2000
-	// maxReasons bounds the reasons of a stale plan that are sent, maxReason the
-	// length of each, and maxOverlapAddrs the addresses named for one overlap.
+	// maxReasons bounds the reasons of a stale plan that are sent, and the changes
+	// of a partly stale plan that are named as conflicts; maxReason is the length
+	// of each reason, maxOverlapAddrs the addresses named for one overlap, and
+	// maxCommand the length of the command that applies the live part of a partly
+	// stale plan.
 	maxReasons      = 20
 	maxReason       = 300
 	maxOverlapAddrs = 20
+	maxCommand      = 16 << 10
 	// maxFreeText is how much of a text that a person wrote is looked at for
 	// secrets, before it is clipped to what is sent: more than the longest secret
 	// there is, so that one cut by this limit lies beyond the clip.
@@ -151,10 +155,10 @@ func (sp *storedPlans) readFile(ctx context.Context, id string) (*engine.PlanFil
 	return pf, err
 }
 
-// nextExpiry is when the first of the plans that can still be applied, or that
-// went stale, expires, or the zero time. A plan that passes its expiry is
-// expired without anything being written, so the watcher counts that moment as a
-// change.
+// nextExpiry is when the first of the plans that can still be applied (a partly
+// stale one too), or that went stale, expires, or the zero time. A plan that
+// passes its expiry is expired without anything being written, so the watcher
+// counts that moment as a change.
 func (sp *storedPlans) nextExpiry() time.Time {
 	var next time.Time
 	for _, e := range sp.entries {
@@ -166,9 +170,12 @@ func (sp *storedPlans) nextExpiry() time.Time {
 }
 
 // markNodes sets the plans that can still be applied on the nodes they have a
-// change left on, and the overlap of the nodes that two or more have. A plan that
-// applied its change on a node has nothing left to do there.
+// change left on, and the overlap of the nodes that two or more can apply it on.
+// A plan that applied its change on a node has nothing left to do there. A partly
+// stale plan keeps its mark on the node of a change that conflicts, which it
+// cannot apply: it does not count for the overlap.
 func (m *model) markNodes() {
+	live := map[string]int{}
 	for _, e := range m.stored.entries {
 		if !e.Status.Open() {
 			continue
@@ -176,7 +183,10 @@ func (m *model) markNodes() {
 		for _, addr := range m.stored.touched[e.Meta.ID] {
 			if mn := m.nodes[addr]; mn != nil {
 				mn.Plans = append(mn.Plans, e.Meta.ID)
-				mn.Overlap = len(mn.Plans) > 1
+				if _, blocked := e.Conflicts[addr]; !blocked {
+					live[addr]++
+				}
+				mn.Overlap = live[addr] > 1
 			}
 		}
 	}
@@ -216,15 +226,27 @@ func (m *model) planList() *PlanList {
 	return sp.list
 }
 
-// overlaps works out, for every open plan, the other open plans that have a change
-// left on a resource that it has one left on. The relation is symmetric. Each
+// changing lists the resources that a plan can still change: what it has left to
+// apply, less the changes that a partly stale plan cannot apply.
+func (sp *storedPlans) changing(e *engine.PlanEntry) []string {
+	var out []string
+	for _, addr := range sp.touched[e.Meta.ID] {
+		if _, blocked := e.Conflicts[addr]; !blocked {
+			out = append(out, addr)
+		}
+	}
+	return out
+}
+
+// overlaps works out, for every open plan, the other open plans that can apply a
+// change on a resource that it can apply one on. The relation is symmetric. Each
 // resource is looked at once for each plan that has a change on it.
 func (m *model) overlaps() map[string][]PlanOverlap {
 	sp := m.stored
 	byAddr := map[string][]string{}
 	for _, e := range sp.entries {
 		if e.Status.Open() {
-			for _, addr := range sp.touched[e.Meta.ID] {
+			for _, addr := range sp.changing(e) {
 				byAddr[addr] = append(byAddr[addr], e.Meta.ID)
 			}
 		}
@@ -234,7 +256,7 @@ func (m *model) overlaps() map[string][]PlanOverlap {
 		if !e.Status.Open() {
 			continue
 		}
-		mine := append([]string(nil), sp.touched[e.Meta.ID]...)
+		mine := sp.changing(e)
 		sort.Strings(mine)
 		with := map[string]*PlanOverlap{}
 		for _, addr := range mine {
@@ -278,16 +300,50 @@ func (m *model) storedPlan(e *engine.PlanEntry) StoredPlan {
 		Touches:  make([]PlanChange, 0, min(len(meta.Changes), maxTouches)),
 		Apply:    "pravo apply " + meta.ID,
 	}
-	sp.Reasons, sp.ReasonsOmitted = m.capReasons(m.secrets, e.Reasons)
+	if e.Status == engine.PlanPartlyStale {
+		m.partlyStale(&sp, e)
+	} else {
+		sp.Reasons, sp.ReasonsOmitted = m.capReasons(m.secrets, e.Reasons)
+	}
 	for i, t := range meta.Changes {
 		if i >= maxTouches {
 			sp.Truncated = len(meta.Changes) - maxTouches
 			break
 		}
 		_, done := prog.Applied[t.Addr]
-		sp.Touches = append(sp.Touches, PlanChange{Addr: t.Addr, Action: string(t.Action), Applied: done})
+		_, conflict := e.Conflicts[t.Addr]
+		sp.Touches = append(sp.Touches, PlanChange{Addr: t.Addr, Action: string(t.Action), Applied: done, Conflict: conflict && !done})
 	}
 	return sp
+}
+
+// partlyStale says what a partly stale plan cannot do and what it can: the
+// changes that conflict, with the reasons masked as those of a stale plan are,
+// and the part to apply by name, with the command that does.
+func (m *model) partlyStale(sp *StoredPlan, e *engine.PlanEntry) {
+	sp.Unapplied = e.Unapplied()
+	addrs := make([]string, 0, len(e.Conflicts))
+	for addr := range e.Conflicts {
+		addrs = append(addrs, addr)
+	}
+	sort.Strings(addrs)
+	for i, addr := range addrs {
+		if i == maxReasons {
+			sp.ConflictsOmitted = len(addrs) - maxReasons
+			break
+		}
+		reasons, _ := m.capReasons(m.secrets, e.Conflicts[addr])
+		sp.Conflicts = append(sp.Conflicts, PlanConflict{Addr: addr, Reasons: reasons})
+	}
+	sp.ApplyOnly = e.Live
+	if len(sp.ApplyOnly) > maxTouches {
+		sp.ApplyOnly, sp.ApplyOnlyOmitted = sp.ApplyOnly[:maxTouches], len(e.Live)-maxTouches
+	}
+	// The tags that the plan was made with are not part of the command, as they are
+	// not of Apply: they are what a person wrote, and a listing carries none of it.
+	if only := e.OnlyFlag(); only != "" && len(only) <= maxCommand {
+		sp.ApplyLive = sp.Apply + " " + only
+	}
 }
 
 // capReasons masks the reasons of a stale plan, clips each and keeps the first

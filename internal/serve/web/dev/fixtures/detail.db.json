@@ -370,17 +370,6 @@
  },
  "history": [
   {
-   "id": "20261021T093211Z-3fa09c",
-   "kind": "plan",
-   "status": "planned",
-   "time": "2026-10-21T13:48:11Z",
-   "actor": "ci@acme",
-   "command": "pravo plan -out release-42.plan",
-   "action": "update",
-   "rev_before": 14,
-   "rev_after": 14
-  },
-  {
    "id": "20261019T151044Z-b81c2e",
    "kind": "apply",
    "status": "applied",

@@ -134,14 +134,15 @@ pravo will perform the following actions:
 
 | Line | Meaning |
 |---|---|
-| `Stored plan ID by AUTHOR, AGE (STATUS)` | Who made the plan, how long ago, and where it stands: `pending`, `partial`, `stale`, `applied` or `expired`. |
+| `Stored plan ID by AUTHOR, AGE (STATUS)` | Who made the plan, how long ago, and where it stands: `pending`, `partial`, `partly-stale`, `stale`, `applied` or `expired`. |
 | `reason:` | The `--reason`, when there is one. |
 | `command:` | The command line that made the plan. |
 | `git:` | The revision of the repository, when the plan was made in a git repository. |
 | `expires in ...` | When the plan is collected, in up to two units, such as `1 day 12 hours`. Shown for a plan that can be applied and for a stale one. |
 | `N of M changes applied` | Shown after a part of the plan was applied. M is the number of changes that the plan lists, and N counts only those. |
 | `reserved until ...` | Shown while a reservation that the plan took has not ended, with the resources it holds. |
-| `apply:` | The command that applies the plan. Shown for a plan that can be applied. |
+| `apply:` | The command that applies the plan. Shown for a plan that can be applied. For a `partly-stale` plan it is the command with the `--only` set that applies the live part. |
+| `Warning: N of M unapplied changes conflict ...` | Shown for a `partly-stale` plan: the changes that cannot be applied, one line for each reason. See [Show a partly stale plan](#show-a-partly-stale-plan). |
 
 The status comes from the state alone. The warning comes from the comparison with the checkout, its configuration and the providers, which only `show` and `apply` make. A change to a file of the checkout leaves the plan pending in the listing and makes it stale here.
 
@@ -168,6 +169,54 @@ pravo show $id --json 2>/dev/null | jq -c 'keys, .stale.reasons, (.stored | {id,
 ["plan","plan_id","stale","stored"]
 ["the configuration changed since the plan was made (main.cue changed)"]
 {"id":"plan-<id>","status":"pending","author":"ci"}
+```
+
+### Show a partly stale plan
+
+A stored plan is `partly-stale` when another command wrote the record of some of the changes that are not applied yet, and the others can still be applied. `show` names the conflicts and prints the command for the live part. The root `moved` has three files. Store a plan that replaces them, then replace one of them from a plain apply.
+
+```cue file=moved/main.cue
+package moved
+
+import loc "pravo.dev/providers/hashicorp/local"
+
+$local: loc.#Provider
+
+a: $local.#Resource.local_file & {filename: "a.txt", content: "a"}
+b: $local.#Resource.local_file & {filename: "b.txt", content: "b"}
+c: $local.#Resource.local_file & {filename: "c.txt", content: "c"}
+```
+
+```sh run
+pravo -C moved init > /dev/null
+pravo -C moved apply --auto-approve > /dev/null
+pravo -C moved plan --store --replace a,b,c --actor alice > /dev/null
+pravo -C moved apply --auto-approve --replace a > /dev/null
+id=$(pravo -C moved plan list --json | jq -r '.plans[0].id')
+pravo -C moved show $id | head -n 8
+```
+
+```text out
+Stored plan plan-<id> by alice, just now (partly-stale)
+  command: pravo -C moved plan --store --replace a,b,c --actor alice
+  expires in 7 days
+  apply:   pravo apply plan-<id> --only b,c
+Warning: 1 of 3 unapplied changes conflict with the state and are left out of the command above:
+  - a changed in state (revision 2, plan expected 1)
+
+pravo will perform the following actions:
+```
+
+The conflicts are in `--json` as well. `stored.conflicts` maps each address that cannot be applied to its reasons, `stored.apply_only` lists the addresses of the live part, and `stored.apply_only_command` is the command that applies it. `stored.stale_reasons` is empty. `stale` is the answer for the plan as a whole, which cannot be applied: its reasons are the conflicts, and any other difference that `show` finds in the checkout.
+
+```sh run
+id=$(pravo -C moved plan list --json | jq -r '.plans[0].id')
+pravo -C moved show $id --json 2>/dev/null | jq -c '(.stored | {status, stale_reasons, conflicts, apply_only, apply_only_command}), .stale.reasons'
+```
+
+```text out
+{"status":"partly-stale","stale_reasons":null,"conflicts":{"a":["a changed in state (revision 2, plan expected 1)"]},"apply_only":["b","c"],"apply_only_command":"pravo apply plan-<id> --only b,c"}
+["a changed in state (revision 2, plan expected 1)"]
 ```
 
 ## See also

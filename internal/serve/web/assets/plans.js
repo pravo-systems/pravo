@@ -6,10 +6,12 @@
 import { h, clear, icon, relTime, relUntil, stamp, plural } from './util.js';
 
 // STATUS says where a plan stands. The word is the carrier; the colour agrees with it: green can be applied,
-// blue is part way, amber moved on, grey is over.
+// blue is part way, amber moved on, grey is over. A plan that is partly stale is amber with a green edge: the
+// state moved on under some of its changes, and the rest can be applied.
 export const STATUS = {
   pending: { cls: 'ok', tip: 'It can be applied.' },
   partial: { cls: 'lock', tip: 'Some of its changes were applied; the rest can be.' },
+  'partly-stale': { cls: 'half', tip: 'The state moved on under some of its changes. The rest can be applied by name.' },
   stale: { cls: 'chg', tip: 'The state moved on, so it can no longer be applied.' },
   applied: { cls: 'done', tip: 'Every change was applied.' },
   expired: { cls: 'gone', tip: 'It was not applied before it expired.' },
@@ -38,10 +40,19 @@ export function avatar(author, cls) {
   return h('span', { class: `au au${hueOf(author)}${cls ? ' ' + cls : ''}`, 'aria-hidden': 'true', 'data-tip': author }, initials(author));
 }
 
+// statusLabel is the word for a status: "partly stale" for partly-stale, the status itself for the others
+export const statusLabel = (status) => String(status || '').replace(/-/g, ' ');
+
 export function statusChip(status) {
   const st = STATUS[status] || STATUS.expired;
-  return h('span', { class: 'b ps ps-' + st.cls, 'data-tip': st.tip }, status === 'applied' ? icon('check') : null, status);
+  return h('span', { class: 'b ps ps-' + st.cls, 'data-tip': st.tip }, status === 'applied' ? icon('check') : null, statusLabel(status));
 }
+
+// conflictAt says whether a plan has a change on the resource that it cannot apply now (it is partly stale)
+export const conflictAt = (p, addr) => !!p && (p.touches || []).some((t) => t.addr === addr && t.conflict);
+
+// conflictCount is how many changes of a partly stale plan cannot be applied now, those that the list leaves out included
+const conflictCount = (p) => (p.conflicts || []).length + (p.conflicts_omitted || 0);
 
 // counts are the adds, changes and destroys of a plan, in the colours of the actions
 export function counts(c, cls = '') {
@@ -57,16 +68,40 @@ const countWords = (c) => [c.add && `${c.add} to add`, c.change && `${c.change} 
 
 // describe is the label of a plan for a screen reader
 export function describe(p) {
-  const bits = [p.id, p.status, `by ${p.author}`, relTime(p.created), countWords(p.summary || {})];
+  const bits = [p.id, statusLabel(p.status), `by ${p.author}`, relTime(p.created), countWords(p.summary || {})];
+  if (conflictCount(p)) bits.push(plural(conflictCount(p), 'change') + (conflictCount(p) === 1 ? ' conflicts' : ' conflict'));
   if ((p.overlaps || []).length) bits.push('overlaps ' + plural(p.overlaps.length, 'other plan'));
   if (p.applying) bits.push('an apply is running');
   return bits.join(', ');
 }
 
-// the command that applies the plan, in the look of the other commands of the page
+// the command that applies the plan, in the look of the other commands of the page; for a plan that is partly
+// stale it is the command that applies the part that can be, with --only, which the server words (apply_live).
+// A partly stale plan whose part has no command (it is too long) has none to give.
 export function applyCommand(p) {
-  return h('div', { class: 'cmdline' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, p.apply || 'pravo apply ' + p.id),
-    h('button', { class: 'cpbtn', type: 'button', 'data-copy': p.apply || 'pravo apply ' + p.id, 'data-fk': 'copy', 'aria-label': 'Copy the command that applies ' + p.id, 'data-tip': 'Copy the command' }, icon('copy')));
+  const cmd = p.status === 'partly-stale' ? p.apply_live : p.apply || 'pravo apply ' + p.id;
+  if (!cmd) return null;
+  const what = p.status === 'partly-stale' ? `the part of ${p.id} that can be applied` : p.id;
+  return h('div', { class: 'cmdline' + (p.status === 'partly-stale' ? ' live' : '') }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, cmd),
+    h('button', { class: 'cpbtn', type: 'button', 'data-copy': cmd, 'data-fk': 'copy', 'aria-label': 'Copy the command that applies ' + what, 'data-tip': 'Copy the command' }, icon('copy')));
+}
+
+// conflictsBox says which changes of a partly stale plan are left out and why: the reasons begin with the address
+export function conflictsBox(p) {
+  const n = conflictCount(p), left = p.unapplied || n;
+  const list = (p.conflicts || []).map((c) => h('li', null, (c.reasons || []).join('; ') || c.addr));
+  if (p.conflicts_omitted) list.push(h('li', { class: 'dim' }, `and ${p.conflicts_omitted} more`));
+  return h('div', { class: 'rp-why' }, h('b', null, `Partly stale: ${n} of ${left} unapplied ${left === 1 ? 'change conflicts' : 'changes conflict'} with the state and ${n === 1 ? 'is' : 'are'} left out.`), h('ul', null, list));
+}
+
+// planActions is what the page gives to do with an open plan: the command that applies it, and for a plan that is
+// partly stale the words that say what the command leaves out
+export function planActions(p) {
+  if (p.status !== 'partly-stale') return [applyCommand(p)];
+  const cmd = applyCommand(p);
+  if (cmd) return [h('p', { class: 'rp-note' }, 'The rest can be applied by name:'), cmd];
+  const n = (p.apply_only || []).length + (p.apply_only_omitted || 0);
+  return [h('p', { class: 'rp-note' }, h('span', null, `The part that can be applied is ${plural(n, 'change')}, too many for one command. `, h('code', null, `pravo plan show ${p.id}`), ' lists them.'))];
 }
 
 // facts are what the inspector says of a plan, as rows of a list: by whom, when it lapses, why, what it was made
@@ -94,6 +129,7 @@ export function detail(p, { onPlan, byId, text } = {}) {
   if ((p.reasons || []).length) {
     body.push(h('div', { class: 'rp-why' }, h('b', null, p.status === 'stale' ? 'Stale: it can no longer be applied.' : 'Why'), h('ul', null, p.reasons.map((r) => h('li', null, r)))));
   }
+  if (p.status === 'partly-stale') body.push(conflictsBox(p));
   if ((p.overlaps || []).length) {
     body.push(h('div', { class: 'rp-why ovl' }, h('b', null, 'Overlaps: applying one makes the other stale.'),
       h('ul', null, p.overlaps.map((o) => {
@@ -105,7 +141,7 @@ export function detail(p, { onPlan, byId, text } = {}) {
   // the rest of what is known of the plan, closed until it is wanted: the project panel of the inspector has it too
   body.push(h('details', { class: 'rp-more' }, h('summary', { 'data-fk': 'more' }, 'Expires, command, revision'),
     h('dl', { class: 'meta' }, facts(p, text).filter(([k]) => k !== 'reason').map(([k, v]) => [h('dt', null, k), h('dd', null, v)]))));
-  if (p.status === 'pending' || p.status === 'partial') body.push(applyCommand(p));
+  if (p.open) body.push(...planActions(p));
   else body.push(h('p', { class: 'rp-note dim' }, p.status === 'applied' ? 'Every change of this plan was applied.' : p.status === 'expired' ? 'This plan expired and will be collected.' : 'Make the plan again with pravo plan --store.'));
   return body;
 }

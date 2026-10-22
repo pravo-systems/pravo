@@ -11,7 +11,7 @@ A term links to the lesson that teaches it, or to the page that describes it. A 
 | Group | Terms |
 |---|---|
 | CUE | [attribute](#attribute), [bottom](#bottom), [bound](#bound), [closed](#closed), [comprehension](#comprehension), [concrete](#concrete), [conflict](#conflict), [constraint](#constraint), [default](#default), [definition](#definition), [disjunction](#disjunction), [embedding](#embedding), [evaluation](#evaluation), [field](#field), [hidden field](#hidden-field), [import](#import), [incomplete](#incomplete), [interpolation](#interpolation), [let](#let), [list](#list), [open](#open), [optional field](#optional-field), [package](#package), [pattern](#pattern), [reference](#reference), [regular field](#regular-field), [required field](#required-field), [standard library](#standard-library), [struct](#struct), [tag](#tag), [type](#type), [unification](#unification) |
-| pravo | [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
+| pravo | [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
 
 ## Terms of CUE
 
@@ -241,7 +241,7 @@ See [Resources](spec-resources.md#function-calls).
 
 ### collection
 
-The removal of the stored plans that nobody needs. `pravo plan gc` runs one, and `pravo plan --store` runs a small one on its way. It removes a plan that expired, a plan that was applied completely a day ago and a plan that a collection saw stale more than an hour ago. It never removes a plan that an apply is running from.
+The removal of the stored plans that nobody needs. `pravo plan gc` runs one, and `pravo plan --store` runs a small one on its way. It removes a plan that expired, a plan that was applied completely a day ago and a plan that a collection saw stale more than an hour ago. It leaves a [partly stale](#partly-stale) plan to its time to live. It never removes a plan that an apply is running from.
 
 See [`pravo plan`](plan.md#collect-stored-plans).
 
@@ -347,6 +347,12 @@ A value that the root publishes, built from `pravo.#Output`. It is recorded in s
 
 Taught in [B3](../learn/b03-apply-outputs-state.md). See [Outputs](spec-outputs.md).
 
+### partly stale
+
+The status of a stored plan when the state moved on under some of its changes that are not applied yet, and the other changes can still be applied. The changes that conflict are listed with their reasons, and `pravo apply ID --only` with the set that the listing prints applies the others. The plan as a whole is refused with exit code 3.
+
+See [`pravo apply`](apply.md#a-partly-stale-plan) and [`pravo plan`](plan.md#list-stored-plans).
+
 ### plan
 
 The list of actions that an apply takes, printed before anything changes: create, update, replace, delete, read. It is a diff with a legend.
@@ -445,7 +451,7 @@ Taught in [B3](../learn/b03-apply-outputs-state.md). See [State format](state-fo
 
 ### stored plan
 
-A plan that `pravo plan --store` wrote into the state, as objects below `plans/`. Anyone who can read the state can list it, show it and apply it by its [plan id](#plan-id). A listing judges it by the state alone, and a [collection](#collection) removes it when nobody needs it.
+A plan that `pravo plan --store` wrote into the state, as objects below `plans/`. Anyone who can read the state can list it, show it and apply it by its [plan id](#plan-id). A listing judges it by the state alone, change by change, and a [collection](#collection) removes it when nobody needs it. An apply that fails records the changes it finished, and the plan is `partial`.
 
 Taught in [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md). See [Plans](../concepts/plans.md#stored-plans).
 

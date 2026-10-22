@@ -4,7 +4,7 @@
 import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, baseName, fmt } from './util.js';
 import { eachNode } from './model.js';
 import { codeWindow } from './ui.js';
-import { statusChip, facts, applyCommand } from './plans.js';
+import { statusChip, facts, planActions, conflictsBox } from './plans.js';
 import { withheld, unknownEl } from './values.js';
 import * as api from './api.js';
 
@@ -97,7 +97,8 @@ function planSection(ins, plan, model) {
         plan.applied ? ['applied', `${plan.applied} of ${plan.planned}`] : null,
       ])),
     // the page applies nothing: it gives the command, for a terminal
-    sp && sp.open ? h('div', { class: 'plan-apply' }, applyCommand(sp)) : null,
+    sp && sp.status === 'partly-stale' ? conflictsBox(sp) : null,
+    sp && sp.open ? h('div', { class: 'plan-apply' }, planActions(sp)) : null,
     plan.stale ? h('p', { class: 'note bad' }, icon('bang'), h('span', null, 'This plan is stale: ' + (plan.reasons || []).join('; '))) : null,
     (plan.hints || []).map((x) => h('p', { class: 'note' }, icon('bang'), h('span', null, x))));
 }

@@ -765,11 +765,13 @@ func TestAPlanIsStaleWhenARecordItReadsMovedOrWasMadeAgain(t *testing.T) {
 		}
 		have["in"] = state.Version{Revision: 9, Generation: "g9"}
 		have["rep"] = state.Version{Revision: 3, Generation: "gr"}
-		if st, why := status(); st != PlanStale || strings.Contains(why, "the plan reads it") {
+		// A record that only a change writes conflicts for that change: the plan
+		// has other changes that it can still apply.
+		if st, why := status(); st != PlanPartlyStale || !strings.Contains(why, "rep changed") || strings.Contains(why, "the plan reads it") {
 			t.Errorf("a record that the plan writes moved: %s (%s)", st, why)
 		}
 		have["rep"] = state.Version{Revision: 2, Generation: "other"}
-		if st, why := status(); st != PlanStale || !strings.Contains(why, "created again") {
+		if st, why := status(); st != PlanPartlyStale || !strings.Contains(why, "created again") {
 			t.Errorf("a record that the plan writes was made again: %s (%s)", st, why)
 		}
 	})

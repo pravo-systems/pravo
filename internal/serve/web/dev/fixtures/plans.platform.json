@@ -75,6 +75,62 @@
    "apply": "pravo apply plan-c3e8a052"
   },
   {
+   "id": "plan-b86e2d14",
+   "status": "partly-stale",
+   "open": true,
+   "author": "kim@acme",
+   "created": "2026-10-21T12:02:11Z",
+   "expires": "2026-10-28T12:02:11Z",
+   "summary": {
+    "add": 0,
+    "change": 4,
+    "destroy": 0,
+    "read": 0
+   },
+   "planned": 4,
+   "conflicts": [
+    {
+     "addr": "api.policy",
+     "reasons": [
+      "api.policy must be applied with api.role, which cannot be applied"
+     ]
+    },
+    {
+     "addr": "api.role",
+     "reasons": [
+      "api.role changed in state (revision 7, plan expected 6)"
+     ]
+    }
+   ],
+   "unapplied": 4,
+   "apply_only": [
+    "api.logs",
+    "api.secret"
+   ],
+   "apply_live": "pravo apply plan-b86e2d14 --only api.logs,api.secret",
+   "touches": [
+    {
+     "addr": "api.logs",
+     "action": "update"
+    },
+    {
+     "addr": "api.policy",
+     "action": "update",
+     "conflict": true
+    },
+    {
+     "addr": "api.role",
+     "action": "update",
+     "conflict": true
+    },
+    {
+     "addr": "api.secret",
+     "action": "update"
+    }
+   ],
+   "apply": "pravo apply plan-b86e2d14"
+  },
+  {
    "id": "plan-2f9c1a4e",
    "status": "pending",
    "open": true,

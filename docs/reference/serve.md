@@ -65,7 +65,7 @@ There is no flag for the address. The server listens on `127.0.0.1`.
 - **The attributes.** The record of a node in the order of the provider schema, with the type of each attribute and whether it is required, optional or computed. Sensitive values are withheld.
 - **The source.** The lines of the specification that write the node: the definition of the resource and each instance that fills it in. Only files that the evaluation loaded are shown.
 - **The schema.** The attributes of the resource type with their types and the provider's descriptions.
-- **The history.** The transactions that wrote the node: the kind, the time, the user and actor, and the command. The values of `-t` tags, and of flags and `key=value` words that are named like a secret, are withheld from the command.
+- **The history.** The transactions that wrote the node, applies and imports among them; a plan only reads the node, so its transactions are not listed: the kind, the time, the user and actor, and the command. The values of `-t` tags, and of flags and `key=value` words that are named like a secret, are withheld from the command.
 - **The plan.** With `--plan`, the action of the plan for each node and the attributes that it changes, the numbers of its summary and its hints. A plan that cannot be applied is shown with its reasons.
 - **The stored plans.** The plans in the state, who made each, when, where each stands and what it changes. A plan that the page lays over the graph shows as a plan does. A resource that plans which can be applied change carries the author of each, and a ring when two of them do. See [Stored plans](#stored-plans).
 - **The project.** The directory, the package, the state location, lineage and record count, the providers and the outputs. A sensitive output has no value.
@@ -105,7 +105,7 @@ The chips set `filter`. The box sets `q`, which matches an address or a type.
 | State | The attributes in the groups Configured, Sensitive and Computed, what the resource depends on, what uses it, what a change to it reaches, the times of the record and a lock. | `state` |
 | Source | The lines that write the resource, the definition and the instance, and what else shapes it. | `source` |
 | Schema | The attribute definitions of the resource type: name, type, kind and description. | `schema` |
-| History | The transactions that wrote the resource. | `history` |
+| History | The transactions that wrote the resource. A plan is not one. | `history` |
 | Change | What the loaded plan does to the resource, and the stored plans that can be applied and change it. The tab exists only when a plan is loaded or laid over the graph. | `change` |
 
 The strip above the tabs has the cells Action, Record, Lock, Revision and Refreshed, and Plans when plans that can be applied change the resource. Action is the action of the plan, `no change`, `not read` or `no plan`. Record is `in sync`, `drifted`, `gone`, `declared only` or `orphan`. Lock shows when a lock or a reservation holds the resource.
@@ -116,9 +116,9 @@ The state may hold plans that someone stored with [`pravo plan --store`](plan.md
 
 | Part | Holds |
 |---|---|
-| Pending and All | The filter of the list. Pending lists the plans that can be applied, `pending` and `partial`. All lists every plan that no collection has removed. Each shows its number. The list opens on Pending when a plan can be applied. |
+| Pending and All | The filter of the list. Pending lists the plans that can be applied, all of them or a part: `pending`, `partial` and `partly stale`. All lists every plan that no collection has removed. Each shows its number. The list opens on Pending when a plan can be applied. |
 | A row | The badge with the initials of the author, the id, the status chip, the author, the age, and the counts `+add ~change −destroy`. A mark of two rings says that another plan that can be applied changes a resource of this plan. |
-| The selected row | The reason. For a stale plan, the reasons, twenty at most. The other plans that overlap, each a link that lays that plan over the graph. A closed part, Expires, command, revision. For a plan that can be applied, the command `pravo apply ID` and a button that copies it. For the others, a note. The reason, the command and the revision come from the plan itself, which the page reads when the row is chosen, and not from the list. |
+| The selected row | The reason. For a stale plan, the reasons, twenty at most. For a partly stale plan, how many of its unapplied changes conflict with the state, and the reason of each conflict, twenty at most. The other plans that overlap, each a link that lays that plan over the graph. A closed part, Expires, command, revision. For a plan that can be applied, the command `pravo apply ID` and a button that copies it. For a partly stale plan the command is `pravo apply ID --only ...`, with the changes that can be applied. For the others, a note. The reason, the command and the revision come from the plan itself, which the page reads when the row is chosen, and not from the list. |
 | The plan bar | Above the graph, while a plan is laid over it: the badge, the id, the status, the counts, Detail, which moves the focus to the row, and a button that takes the plan off the graph. |
 
 A row lays its plan over the graph, as `--plan FILE` lays a plan file: the actions on the nodes are the plan's, the Change tab answers for it, and the first view opens the modules that the plan touches first. A second click on the row takes the plan off. Without `--plan`, the graph shows no plan until a row is chosen.
@@ -127,15 +127,16 @@ A row lays its plan over the graph, as `--plan FILE` lays a plan file: the actio
 |---|---|
 | `pending` | The plan can be applied. |
 | `partial` | Some changes were applied. The rest can be. |
+| `partly stale` | The state moved on under some of the changes that are left, and the others can be applied by name. The chip is amber with a green edge. The conflicts say which changes cannot be applied, and why. The interface says `partly stale` where the API says `partly-stale`. |
 | `stale` | The state moved on, so the plan cannot be applied. The reasons say how. |
 | `applied` | Every change was applied. |
 | `expired` | The plan was not applied before it expired. |
 
 A plan whose objects cannot be read, because they are damaged or a newer pravo wrote them, is not listed. The graph carries one warning, `Stored plans that cannot be read are not listed`, with the ids of up to five and a short reason for each.
 
-The status is judged against the state alone, as `pravo plan list` judges it: the lineage, and the revision and the generation of the nodes that the plan changes. The configuration and the providers belong to one checkout. `pravo apply` and `pravo plan show` compare them, and the viewer does not, so a plan that is `pending` here can still be refused in a checkout whose files differ.
+The status is judged against the state alone, as `pravo plan list` judges it, change by change: the lineage, and the revision and the generation of the nodes that the plan changes. The configuration and the providers belong to one checkout. `pravo apply` and `pravo plan show` compare them, and the viewer does not, so a plan that is `pending` here can still be refused in a checkout whose files differ.
 
-A resource that a plan which can be applied still has a change to apply on carries a disc with the initial of the author, one for each plan, the newest at the right. A plan that has applied its change on a resource has no disc there. Three discs show, and a number counts the rest. Two plans that each have a change left on one resource draw a solid ring in the colour of overlap: applying one makes the other stale. The relation is the same for both plans. The legend names `plan author` and `overlap` when the graph has them. The cards of closed modules and the Tree view show no badges. In the sidebar, a resource shows the mark of overlap and the first two discs. The Plans cell of the strip has a disc for each plan that changes the resource, four at most, and a click on a disc lays that plan over the graph.
+A resource that a plan which can be applied still has a change to apply on carries a disc with the initial of the author, one for each plan, the newest at the right. A plan that has applied its change on a resource has no disc there. Three discs show, and a number counts the rest. Two plans that each have a change left on one resource draw a solid ring in the colour of overlap: applying one makes the other stale. The relation is the same for both plans. A change that a partly stale plan cannot apply does not count: the resource keeps the disc of the plan, no ring is drawn for it, and the Plans cell of the inspector says that the plan cannot apply the change and marks that plan with `conflict`. The Change tab of that resource gives the reason. The legend names `plan author` and `overlap` when the graph has them. The cards of closed modules and the Tree view show no badges. In the sidebar, a resource shows the mark of overlap and the first two discs. The Plans cell of the strip has a disc for each plan that changes the resource, four at most, and a click on a disc lays that plan over the graph.
 
 The viewer never applies, approves or removes a plan. It shows the command that applies a plan, and the button copies it.
 
@@ -387,15 +388,17 @@ kill $pid
 
 | Field of a stored plan | Meaning |
 |---|---|
-| `id`, `status`, `open` | The id, `pending`, `partial`, `stale`, `applied` or `expired`, and whether the plan can be applied: `pending` and `partial`. |
+| `id`, `status`, `open` | The id, `pending`, `partial`, `partly-stale`, `stale`, `applied` or `expired`, and whether the plan can be applied, all of it or a part: `pending`, `partial` and `partly-stale`. |
 | `author`, `created`, `expires` | Who made the plan, cut at 4 KiB, when, and when an unapplied plan is collected. The list holds no reason, command or revision. |
 | `destroy` | `true` for a destroy plan. |
 | `summary` | The counts `add`, `change`, `destroy` and `read`. A replacement counts as an add and a destroy. |
 | `planned`, `applied`, `applying` | The number of changes, how many were applied already, and whether an apply from the plan runs now. |
-| `reasons`, `reasons_omitted` | Why a stale plan cannot be applied: twenty reasons at most, each cut at 300 characters. `reasons_omitted` counts the others. |
-| `touches`, `truncated` | The resources the plan changes, each with its `addr`, its `action` and `applied` when the plan has applied that change, up to 2000. `truncated` counts the rest. |
-| `overlaps` | The other plans that can be applied and have a change left on a resource that this plan has a change left on, in both directions: `id`, `count`, the first twenty addresses in `addrs`, and `truncated` for the rest. A change that a plan has applied does not count. |
-| `apply` | The command that applies the plan, `pravo apply ID`. It names no tag and no state. |
+| `reasons`, `reasons_omitted` | Why a stale plan cannot be applied: twenty reasons at most, each cut at 300 characters. `reasons_omitted` counts the others. A partly stale plan has none. |
+| `conflicts`, `conflicts_omitted`, `unapplied` | For a partly stale plan: the changes that cannot be applied now, each with its `addr` and its `reasons`, twenty at most, sorted by address. `conflicts_omitted` counts the others, and `unapplied` is the number of changes the plan has left, the conflicts included. |
+| `apply_only`, `apply_only_omitted`, `apply_live` | For a partly stale plan: the addresses of the part that can be applied, sorted, up to 2000, with `apply_only_omitted` for the rest. The part is a closed selection for `pravo apply --only`. `apply_live` is the command that applies it, `pravo apply ID --only a,b,c`. It is absent when the part has no change, and when the command would be longer than 16 KiB. |
+| `touches`, `truncated` | The resources the plan changes, each with its `addr`, its `action`, `applied` when the plan has applied that change, and `conflict` when a partly stale plan cannot apply it, up to 2000. `truncated` counts the rest. |
+| `overlaps` | The other plans that can be applied and have a change left on a resource that this plan has a change left on, in both directions: `id`, `count`, the first twenty addresses in `addrs`, and `truncated` for the rest. A change that a plan has applied does not count, and neither does a change that a partly stale plan cannot apply. |
+| `apply` | The command that applies what is left of the plan, `pravo apply ID`. It names no tag and no state. A partly stale plan is refused by it: `apply_live` is the command for that plan. |
 
 `GET /api/plan?id=ID` lays a stored plan over the graph, as `--plan FILE` does for a plan file: the plan, the action of each node that it ran, and the `reason`, `command` and `git_revision` that the author wrote with it, which the list does not carry. `/api/detail` and `/api/source` take `plan=ID` for the same plan, and `plan=none` for no plan at all. An id that does not have the form of a plan id is 400. An id that no stored plan has is 404, and so is the beginning of an id: the server wants the whole id.
 
@@ -426,7 +429,55 @@ absent: 404
 beginning of an id: 404
 ```
 
-The graph carries the plans as well. `Node.plans` lists the ids of the plans that can be applied and still have a change to apply on the node, newest first, and `Node.overlap` is set when two or more do. A plan that is stale, applied or expired is not on a node, and neither is a plan whose change on that node was applied already. The lists of `overlaps` and the nodes agree.
+The graph carries the plans as well. `Node.plans` lists the ids of the plans that can be applied and still have a change to apply on the node, newest first, and `Node.overlap` is set when two or more can apply that change. A plan that is stale, applied or expired is not on a node, and neither is a plan whose change on that node was applied already. A partly stale plan is on the node of a change that it cannot apply, and it does not count for `overlap`. The lists of `overlaps` and the nodes agree. In `/api/plan`, `plan.stale` is not set for a partly stale plan.
+
+### Read a partly stale plan
+
+A stored plan is partly stale when another command moved the record of some of its changes and the others can still be applied. The root `moved` has three files that do not depend on each other. Alice stores a plan that replaces them, and a plain apply replaces `a`.
+
+```cue file=moved/main.cue
+package moved
+
+import loc "pravo.dev/providers/hashicorp/local"
+
+$local: loc.#Provider
+
+a: $local.#Resource.local_file & {filename: "a.txt", content: "a"}
+b: $local.#Resource.local_file & {filename: "b.txt", content: "b"}
+c: $local.#Resource.local_file & {filename: "c.txt", content: "c"}
+```
+
+```sh run
+pravo -C moved init > /dev/null
+pravo -C moved apply --auto-approve > /dev/null
+pravo -C moved plan --store --replace a,b,c --actor alice > /dev/null
+pravo -C moved apply --auto-approve --replace a > /dev/null
+```
+
+`GET /api/plans` gives the conflicts, the part that can be applied and the command for it. `GET /api/plan?id=ID` does not call the plan stale, and the node `a` still lists the plan.
+
+```sh run
+rm -f serve.json
+pravo -C moved serve --no-open --json > serve.json &
+pid=$!
+until [ -s serve.json ]; do sleep 0.1; done
+url=$(sed 's/.*"url":"\([^"]*\)".*/\1/' serve.json)
+base=${url%%/\?*}
+token=${url##*token=}
+curl -s -H "Authorization: Bearer $token" "$base/api/plans" | jq -c '.plans[0] | {status, open, reasons, unapplied, conflicts, apply_only, apply_live, touches}'
+id=$(curl -s -H "Authorization: Bearer $token" "$base/api/plans" | jq -r '.plans[0].id')
+curl -s -H "Authorization: Bearer $token" "$base/api/plan?id=$id" | jq -c '.plan | {status, stale}'
+curl -s -H "Authorization: Bearer $token" "$base/api/graph" | jq -c '.nodes[] | {addr, plans, overlap}'
+kill $pid
+```
+
+```text out
+{"status":"partly-stale","open":true,"reasons":null,"unapplied":3,"conflicts":[{"addr":"a","reasons":["a changed in state (revision 2, plan expected 1)"]}],"apply_only":["b","c"],"apply_live":"pravo apply plan-<id> --only b,c","touches":[{"addr":"a","action":"replace","conflict":true},{"addr":"b","action":"replace"},{"addr":"c","action":"replace"}]}
+{"status":"partly-stale","stale":null}
+{"addr":"a","plans":["plan-<id>"],"overlap":null}
+{"addr":"b","plans":["plan-<id>"],"overlap":null}
+{"addr":"c","plans":["plan-<id>"],"overlap":null}
+```
 
 ### Start the viewer with a stored plan
 

@@ -495,25 +495,36 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	defer s.close()
 	// The saved plan already refreshed what its refresh ages required; apply
 	// re-plans against the recorded state without refreshing again.
+	// The note that the plan was made with is the reason of the apply, unless the
+	// apply was given its own: the history of the resources says why.
+	if flagReason == "" {
+		flagReason = pf.Reason
+	}
 	eng := s.engine(engine.Options{Refresh: engine.RefreshNone})
 	if err := eng.SetPolicies(policies); err != nil {
 		return err
 	}
-	mark := func(applied []string, txn string, pending []string) error {
-		if err := engine.MarkApplied(path, pf, applied, txn); err != nil {
+	mark := func(applied []string, txn string, pending []string, finished bool) error {
+		mark := engine.MarkApplied
+		if !finished {
+			mark = engine.MarkPartlyApplied
+		}
+		if err := mark(path, pf, applied, txn); err != nil {
 			return fmt.Errorf("the changes were applied but %s could not be updated: %w", path, err)
 		}
 		return nil
 	}
-	return applyPlanFile(cmd, eng, pf, path, "planfile", "pravo apply "+path, only, mark)
+	return applyPlanFile(cmd, eng, pf, path, "planfile", "pravo apply "+path, nil, only, mark)
 }
 
 // applyPlanFile applies what is left of a plan that was saved, in a file or in
 // the state. name says which, and kind is the key under which --json repeats it.
 // again is the command that applies the rest of the plan. mark records what was
 // applied: the changes, the transaction and the changes that were left to apply
-// when this apply began.
-func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, name, kind, again string, only []string, mark func(applied []string, txn string, pending []string) error) error {
+// when this apply began; finished says whether the apply ran to its end. An apply
+// that failed or was interrupted records the changes it did finish, and the error
+// it returns is the error of the apply.
+func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, name, kind, again string, next func() string, only []string, mark func(applied []string, txn string, pending []string, finished bool) error) error {
 	ctx := cmd.Context()
 	plan, err := eng.LoadPlanFor(pf, only)
 	if err != nil {
@@ -543,6 +554,12 @@ func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, 
 	}
 	res, err := eng.ApplySaved(ctx, selected)
 	if err != nil {
+		if res != nil && len(res.Applied) > 0 {
+			if len(only) > 0 {
+				again += " --only " + engine.ShellWord(strings.Join(only, ","))
+			}
+			recordPartial(res, name, again, next, remaining.PendingAddrs(), mark)
+		}
 		return err
 	}
 	var applied []string
@@ -550,11 +567,54 @@ func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, 
 		applied = append(applied, ch.Addr)
 	}
 	left := remaining.PendingCount() - selected.PendingCount()
-	if err := mark(applied, res.Txn, remaining.PendingAddrs()); err != nil {
+	if err := mark(applied, res.Txn, remaining.PendingAddrs(), true); err != nil {
 		return err
 	}
 	reportApply(res, plan.Destroy, kind, name, again, left)
 	return nil
+}
+
+// recordPartial records in the saved plan the changes that an apply finished
+// before it failed or was interrupted, and says so, so that the rest of the plan
+// is applied by the same command. The error of the apply is the one the command
+// returns: a mark that fails is said here and does not replace it. The notice is
+// for the person who reads the output, and goes to the error stream with --json.
+//
+// next says what to do with the rest, once what was applied is recorded: it looks at
+// the plan as it stands then, since the records that the apply changed may have made
+// the rest of the plan stale. Without it the plan is a file, and the note says that
+// the same command applies the rest unless the resource that failed was changed.
+//
+// The number is that of the changes of the plan, which pending lists, and not of the
+// data sources and records that the apply also recorded: it is the number that
+// "plan list" gives.
+func recordPartial(res *engine.ApplyResult, name, again string, next func() string, pending []string, mark func(applied []string, txn string, pending []string, finished bool) error) {
+	isChange := map[string]bool{}
+	for _, a := range pending {
+		isChange[a] = true
+	}
+	n := 0
+	for _, a := range res.Applied {
+		if isChange[a] {
+			n++
+		}
+	}
+	noun, are := "changes were", "are"
+	if n == 1 {
+		noun, are = "change was", "is"
+	}
+	if err := mark(res.Applied, res.Txn, nil, false); err != nil {
+		out.Warning(fmt.Sprintf("%d %s applied before the error and could not be recorded in %s: %v", n, noun, name, err))
+		return
+	}
+	step := fmt.Sprintf("run \"%s\" again to apply the rest; if the resource that failed was changed, the plan is stale and must be made again", again)
+	if next != nil {
+		step = next()
+	}
+	if n == 0 {
+		return // only records were written; there is nothing to say about the plan's changes
+	}
+	out.Printf("%d %s applied before the error and %s recorded in %s; %s.\n", n, noun, are, name, step)
 }
 
 func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy bool, replace []string) error {

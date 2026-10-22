@@ -418,6 +418,9 @@ type Engine struct {
 	flying    map[string]string
 	unsettled map[string]string
 	interrupt *Interrupt
+	// completed holds the nodes whose change the current apply finished and
+	// recorded, by address.
+	completed map[string]bool
 	// open lists the ephemeral resources opened during the current run. keepOpen
 	// makes a run leave them open for its caller to close.
 	open     []*openEphemeral
@@ -1826,6 +1829,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			if err := e.writeState(ch, final, nil, "read"); err != nil {
 				return tftypes.Value{}, err
 			}
+			e.complete(ch.Addr)
 			e.step("read", ch.Addr, "done", "", start, "%s: Read complete after %s", ch.Addr, since(start))
 		}
 		return final, nil
@@ -1835,6 +1839,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			if err := e.writeState(ch, final, private, "refresh"); err != nil {
 				return tftypes.Value{}, err
 			}
+			e.complete(ch.Addr)
 		}
 		return final, nil
 	}
@@ -1906,6 +1911,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 	default:
 		return tftypes.Value{}, fmt.Errorf("%s: unexpected action %s during apply", ch.Addr, ch.Action)
 	}
+	e.complete(ch.Addr)
 	return final, nil
 }
 
@@ -1956,11 +1962,47 @@ func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Chan
 	return res, nil
 }
 
-// ApplyResult summarises an apply.
+// ApplyResult summarises an apply. It is returned with the error of an apply that
+// failed or was interrupted, so that the caller knows what that apply did.
 type ApplyResult struct {
 	Added, Changed, Destroyed int
 	Outputs                   map[string]json.RawMessage
 	Txn                       string
+	// Applied lists, sorted, the addresses of the plan's changes that the apply
+	// finished and recorded in the state: the creates, updates, replacements and
+	// deletes whose provider call returned and whose record was written, and the
+	// records and data sources the plan only wrote. A change that failed, that
+	// returned part of its state, whose result is not known or whose record
+	// could not be written is not in it, nor is a change that was not started.
+	// Outputs are not changes: an apply that fails before it records them
+	// leaves them to the next one, whatever Applied holds.
+	Applied []string
+}
+
+// complete notes that the apply finished and recorded the change at addr.
+func (e *Engine) complete(addr string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.completed == nil {
+		e.completed = map[string]bool{}
+	}
+	e.completed[addr] = true
+}
+
+// completedAddrs returns the addresses of the changes the apply has finished and
+// recorded, sorted. A node whose change is noted as one with an unknown result is
+// not among them.
+func (e *Engine) completedAddrs() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var out []string
+	for addr := range e.completed {
+		if _, unsettled := e.unsettled[addr]; !unsettled {
+			out = append(out, addr)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // lockAll takes the lock of every node the plan will write, and of no other,
@@ -2050,6 +2092,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		}
 	}
 	e.txn = e.State.Begin(kind, e.Opts.Command)
+	e.mu.Lock()
+	e.completed = nil
+	e.mu.Unlock()
 	result := &ApplyResult{Outputs: map[string]json.RawMessage{}, Txn: e.txn.ID()}
 	// The outputs as they were when this apply began. Another apply that runs
 	// at the same time may record outputs of its own; only the outputs this
@@ -2057,6 +2102,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	baseline := e.State.Outputs()
 	fail := func(err error) (*ApplyResult, error) {
 		err = e.withUnsettled(err)
+		result.Applied = e.completedAddrs()
 		_ = e.txn.Finish("failed", err.Error(), true)
 		return result, err
 	}
@@ -2183,6 +2229,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	if err != nil {
 		return fail(err)
 	}
+	result.Applied = e.completedAddrs()
 	summary := fmt.Sprintf("%d added, %d changed, %d destroyed", result.Added, result.Changed, result.Destroyed)
 	return result, e.txn.Finish("applied", summary, true)
 }

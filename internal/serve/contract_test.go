@@ -53,8 +53,10 @@ func TestInterfaceFixturesMatchTheContract(t *testing.T) {
 }
 
 // The stored plans of the platform fixture, its graph and the overlays say the
-// same things: the plans on a node are the open plans that change it, two of
-// them are an overlap, and each plan has an overlay whose nodes are its touches.
+// same things: the plans on a node are the open plans that change it, two that
+// can apply a change there are an overlap (a change that a partly stale plan
+// cannot apply is not one), and each plan has an overlay whose nodes are its
+// touches.
 func TestPlanFixturesAgree(t *testing.T) {
 	dir := filepath.Join("web", "dev", "fixtures")
 	var g Graph
@@ -74,7 +76,7 @@ func TestPlanFixturesAgree(t *testing.T) {
 	statuses := map[string]bool{}
 	for _, p := range l.Plans {
 		statuses[p.Status] = true
-		want := p.Status == "pending" || p.Status == "partial"
+		want := p.Status == "pending" || p.Status == "partial" || p.Status == "partly-stale"
 		if p.Open != want || p.Apply != "pravo apply "+p.ID {
 			t.Errorf("%s: open %v, apply %q", p.ID, p.Open, p.Apply)
 		}
@@ -87,11 +89,22 @@ func TestPlanFixturesAgree(t *testing.T) {
 		if err := json.Unmarshal(data, &o); err != nil {
 			t.Fatal(err)
 		}
+		if p.Status == "partly-stale" {
+			only := p.ApplyOnly
+			for _, c := range p.Conflicts {
+				if len(c.Reasons) == 0 {
+					t.Errorf("%s: no reason for the conflict on %s", p.ID, c.Addr)
+				}
+			}
+			if len(p.Conflicts) == 0 || len(only) == 0 || p.ApplyLive != p.Apply+" --only "+strings.Join(only, ",") || len(p.Reasons) > 0 || o.Plan.Stale {
+				t.Errorf("%s: conflicts %v, apply_only %v, apply_live %q, reasons %v, stale %v", p.ID, p.Conflicts, only, p.ApplyLive, p.Reasons, o.Plan.Stale)
+			}
+		}
 		if o.Plan.ID != p.ID || o.Plan.Status != p.Status || len(o.Nodes) != len(p.Touches) {
 			t.Errorf("%s: overlay %+v with %d nodes for %d touches", p.ID, o.Plan, len(o.Nodes), len(p.Touches))
 		}
 	}
-	for _, s := range []string{"pending", "partial", "stale", "applied", "expired"} {
+	for _, s := range []string{"pending", "partial", "partly-stale", "stale", "applied", "expired"} {
 		if !statuses[s] {
 			t.Errorf("no %s plan among the fixtures", s)
 		}
@@ -99,15 +112,19 @@ func TestPlanFixturesAgree(t *testing.T) {
 	overlap := false
 	for _, n := range g.Nodes {
 		var want []string
+		live := 0
 		for _, p := range l.Plans {
 			for _, c := range p.Touches {
 				if p.Open && c.Addr == n.Addr && !c.Applied {
 					want = append(want, p.ID)
+					if !c.Conflict {
+						live++
+					}
 				}
 			}
 		}
-		if strings.Join(n.Plans, " ") != strings.Join(want, " ") || n.Overlap != (len(want) > 1) {
-			t.Errorf("%s: plans %v overlap %v, the list says %v", n.Addr, n.Plans, n.Overlap, want)
+		if strings.Join(n.Plans, " ") != strings.Join(want, " ") || n.Overlap != (live > 1) {
+			t.Errorf("%s: plans %v overlap %v, the list says %v with %d that can apply it", n.Addr, n.Plans, n.Overlap, want, live)
 		}
 		overlap = overlap || n.Overlap
 	}

@@ -197,7 +197,7 @@ port: Creation complete after 0s [id=<id>]
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
-The plan is now `applied`. Bob's plan assumed that `port` does not exist, so it is `stale`: pravo cannot apply it any more. A plan is stale as a whole, even when another part of it could still be applied. `plan list` shows the plans that can be applied, and `--all` adds the others.
+The plan is now `applied`. Bob's plan assumed that `port` does not exist, so it is `stale`: no part of it can be applied any more. Its only change conflicts with the state. A plan with several changes is judged change by change. When the state moved under some of them and not under the others, it is `partly-stale`, and `plan list` prints the `--only` set that applies the rest: see [A partly stale plan](../reference/apply.md#a-partly-stale-plan). `plan list` shows the plans that can be applied, a partly stale one among them, and `--all` adds the others.
 
 ```sh run
 pravo -C bob plan list
@@ -210,7 +210,7 @@ plan-<id>  stale    bob    just now  +1 ~0 -0  port changed in state (revision 1
 plan-<id>  applied  alice  just now  +1 ~0 -0  applied just now
 ```
 
-An apply of a stale plan changes nothing and exits with code 3.
+An apply of a stale plan changes nothing and exits with code 3. An apply that fails part-way is different: it records the changes it finished, the plan is `partial`, and the same command applies the rest once the cause is gone. See [Apply a stored plan](../reference/apply.md#apply-a-stored-plan).
 
 ```sh run exit=3
 pravo -C bob apply $(cat bob.id)
@@ -241,7 +241,7 @@ A collection that runs more than an hour later removes the plan. Until then, a s
 | A plan is removed when | Rule |
 |---|---|
 | It expires | Seven days after it was made, or when `--ttl` says. |
-| It is stale | By the first collection that runs more than one hour after a collection saw it stale. |
+| It is stale | By the first collection that runs more than one hour after a collection saw it stale. A partly stale plan is not removed for this reason. |
 | It was applied completely | 24 hours after the last change was applied. |
 | `--older-than DURATION` is given | It was not applied and was made longer ago than `DURATION`. |
 

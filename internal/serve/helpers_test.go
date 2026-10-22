@@ -206,6 +206,12 @@ func seed(t *testing.T, st *state.Store) {
 	if err := txn.Finish("applied", "5 created", true); err != nil {
 		t.Fatal(err)
 	}
+	// A plan that refreshed a record is not in the history of the record: it did not write it.
+	plan := st.Begin("plan", "pravo plan")
+	plan.Record("services.a.db", "refresh", 1, 1)
+	if err := plan.Finish("planned", "1 refreshed", true); err != nil {
+		t.Fatal(err)
+	}
 	outs := map[string]json.RawMessage{
 		"host": json.RawMessage(`"db.example"`),
 		"leak": json.RawMessage(`"token=` + secretBlob + `"`),

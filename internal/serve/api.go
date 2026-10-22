@@ -92,9 +92,11 @@ type Node struct {
 	Gone    bool `json:"gone,omitempty"`
 	// Locked is set when a lock or reservation holds the node.
 	Locked bool `json:"locked,omitempty"`
-	// Plans lists the stored plans (see StoredPlan) that can still be applied and
-	// change the node, newest first. Overlap is set when two or more do: applying
-	// one makes the other stale. Both are as of the revision of the graph.
+	// Plans lists the stored plans (see StoredPlan) that can still be applied, all
+	// of them or in part, and have a change left on the node, newest first. Overlap
+	// is set when two or more can apply that change: applying one makes the other
+	// stale. A change that a partly stale plan cannot apply is listed in Plans and
+	// does not count for Overlap. Both are as of the revision of the graph.
 	Plans   []string `json:"plans,omitempty"`
 	Overlap bool     `json:"overlap,omitempty"`
 	// Sensitive counts the attributes of the record whose values are withheld,
@@ -167,7 +169,9 @@ type PlanInfo struct {
 	Status  string    `json:"status,omitempty"`
 	Created time.Time `json:"created"`
 	Actor   string    `json:"actor,omitempty"`
-	// Stale reports that the plan can no longer be applied; Reasons say why.
+	// Stale reports that the plan can no longer be applied; Reasons say why. A
+	// partly stale plan is not stale: it can be applied in part, and the list of
+	// stored plans (StoredPlan.Conflicts) says what cannot.
 	Stale   bool     `json:"stale,omitempty"`
 	Reasons []string `json:"reasons,omitempty"`
 	Summary struct {
@@ -384,6 +388,19 @@ type PlanChange struct {
 	// Applied is set when the change was applied already from the plan: the plan
 	// has nothing left to do on the resource, so it does not count for an overlap.
 	Applied bool `json:"applied,omitempty"`
+	// Conflict is set, for a partly stale plan, on a change that is left and that
+	// cannot be applied now: StoredPlan.Conflicts says why. Such a change does not
+	// count for an overlap either.
+	Conflict bool `json:"conflict,omitempty"`
+}
+
+// PlanConflict is a change of a partly stale plan that cannot be applied now: the
+// state moved on under the record that it expects, or it has to be applied with a
+// change that cannot be. Reasons are masked against the sensitive values of the
+// state and clipped to 300 characters, as the reasons of a stale plan are.
+type PlanConflict struct {
+	Addr    string   `json:"addr"`
+	Reasons []string `json:"reasons"`
 }
 
 // PlanOverlap is another open stored plan that has a change left to apply on a
@@ -402,10 +419,13 @@ type PlanOverlap struct {
 type StoredPlan struct {
 	ID string `json:"id"`
 	// Status is "pending" (it can be applied), "partial" (some of its changes were
-	// applied and the rest can be), "stale" (the state moved on, Reasons say how),
-	// "applied" (every change was applied) or "expired" (it was not applied before
-	// it expired). Open is set for pending and partial: those can be applied, and
-	// two of them that change one resource overlap.
+	// applied and the rest can be), "partly-stale" (the state moved on under some
+	// of the changes that are left and the rest can be applied by name:
+	// Conflicts say which and why, ApplyOnly and ApplyLive the part that can be),
+	// "stale" (the state moved on, Reasons say how), "applied" (every change was
+	// applied) or "expired" (it was not applied before it expired). Open is set for
+	// pending, partial and partly-stale: those can be applied, all of it or in part,
+	// and two of them that can apply a change on one resource overlap.
 	// Author is clipped to 4 KiB and masked against the sensitive values of the
 	// state. The text that the author wrote with the plan (the reason, the command
 	// line, the git revision) is not in a listing: it can quote a value that the
@@ -424,16 +444,33 @@ type StoredPlan struct {
 	Applied  int  `json:"applied,omitempty"`
 	Applying bool `json:"applying,omitempty"`
 	// Reasons say why a stale plan can no longer be applied: the first 20, each
-	// clipped to 300 characters; ReasonsOmitted counts the others.
+	// clipped to 300 characters; ReasonsOmitted counts the others. A partly stale
+	// plan has none: its reasons are those of Conflicts.
 	Reasons        []string `json:"reasons,omitempty"`
 	ReasonsOmitted int      `json:"reasons_omitted,omitempty"`
+	// Conflicts, for a partly stale plan, lists the changes that cannot be applied
+	// now, by address: the first 20, with the reasons; ConflictsOmitted counts the
+	// others. Unapplied is how many changes the plan has left, those included.
+	Conflicts        []PlanConflict `json:"conflicts,omitempty"`
+	ConflictsOmitted int            `json:"conflicts_omitted,omitempty"`
+	Unapplied        int            `json:"unapplied,omitempty"`
+	// ApplyOnly, for a partly stale plan, is the part that can be applied, sorted:
+	// the changes that are left, that do not conflict and that need nothing that
+	// does, with the changes they need, up to 2000 (ApplyOnlyOmitted counts the
+	// others). It is a closed selection for "pravo apply --only". ApplyLive is the
+	// command that applies it, "pravo apply ID --only a,b,c" as it is typed; it is
+	// absent when the part has no change or the command would be longer than 16 KiB.
+	ApplyOnly        []string `json:"apply_only,omitempty"`
+	ApplyOnlyOmitted int      `json:"apply_only_omitted,omitempty"`
+	ApplyLive        string   `json:"apply_live,omitempty"`
 	// Touches lists the resources the plan changes, by address, up to 2000;
 	// Truncated counts those left out. Overlaps lists the other open plans that
 	// change one of them.
 	Touches   []PlanChange  `json:"touches"`
 	Truncated int           `json:"truncated,omitempty"`
 	Overlaps  []PlanOverlap `json:"overlaps,omitempty"`
-	// Apply is the command that applies the plan.
+	// Apply is the command that applies the plan, all that is left of it. A partly
+	// stale plan is refused by it: ApplyLive is the command for that plan.
 	Apply string `json:"apply"`
 }
 

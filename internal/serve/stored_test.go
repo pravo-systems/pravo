@@ -33,6 +33,10 @@ type stored struct {
 	Addrs []string
 	// Dup lists a change of the summary twice more, as a summary may.
 	Dup string
+	// Needs is what the changes of the summary need (PlanMeta.Needs). A plan whose
+	// summary has none is judged as a whole when the state moves on; one that has
+	// them, even an empty map, is judged change by change.
+	Needs map[string][]string
 }
 
 // storePlan stores a plan in the state the way "pravo plan --store" does: the
@@ -90,7 +94,7 @@ func storePlan(t *testing.T, p *project, o stored) string {
 	}
 	meta := &engine.PlanMeta{Format: engine.PlanMetaFormat, Created: o.Created, Expires: o.Created.Add(o.TTL), Author: o.Author, Actor: o.Author,
 		Reason: o.Reason, Command: o.Command, GitRevision: o.Git, Lineage: pf.Lineage, Fingerprint: pf.ConfigFingerprint,
-		Bases: map[string]engine.PlanBase{}, Changes: []engine.PlanTouch{}}
+		Bases: map[string]engine.PlanBase{}, Changes: []engine.PlanTouch{}, Needs: o.Needs}
 	for _, sc := range pf.Changes {
 		switch sc.Action {
 		case engine.ActionCreate:

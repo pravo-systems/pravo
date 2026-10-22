@@ -136,7 +136,7 @@ func mcpTools() []mcpTool {
 				}
 				return a, nil
 			}},
-		{Name: "pravo_plan_list", Description: "List the plans stored in the state with pravo_plan (store=true): who made each, how long ago, where it stands (pending, partial, stale, applied or expired) and what it changes. By default the plans that can still be applied; all=true lists the others that are not collected yet. A plan is judged by the state alone.",
+		{Name: "pravo_plan_list", Description: "List the plans stored in the state with pravo_plan (store=true): who made each, how long ago, where it stands (pending, partial, partly-stale, stale, applied or expired; a partly stale plan can be applied in part, with the only list that the result gives) and what it changes. By default the plans that can still be applied; all=true lists the others that are not collected yet. A plan is judged by the state alone.",
 			InputSchema: obj(map[string]any{"tags": tagsProp, "all": map[string]any{"type": "boolean", "description": "also list the stale, applied and expired plans"},
 				"touching": map[string]any{"type": "string", "description": "only the plans that change this resource address"}}),
 			args: func(in map[string]any) ([]string, error) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -122,6 +123,14 @@ type PlanMeta struct {
 	Summary     PlanCounts          `json:"summary"`
 	Changes     []PlanTouch         `json:"changes"`
 	Bases       map[string]PlanBase `json:"bases,omitempty"`
+	// Needs says, for a change, which other changes of the plan an apply of it
+	// has to apply with it: the pending changes it depends on, and for a delete the
+	// pending deletes that depend on it. These are the rules of Plan.Subset, one
+	// step at a time; a selection is closed when it holds everything that its
+	// changes need. A change that needs nothing has no entry. Needs is nil in a
+	// summary that was written before it was kept, which says nothing about the
+	// dependencies: such a plan is judged as a whole.
+	Needs       map[string][]string `json:"needs"`
 	Reservation *ReservationView    `json:"reservation,omitempty"`
 	// Size is the size of the plan object in bytes.
 	Size int `json:"size"`
@@ -139,6 +148,9 @@ func (m *PlanMeta) ApplyCommand() string {
 	}
 	return b.String()
 }
+
+// ShellWord quotes s for a shell when it needs it.
+func ShellWord(s string) string { return shellWord(s) }
 
 // shellWord quotes s for a shell when it needs it.
 func shellWord(s string) string {
@@ -201,22 +213,99 @@ const (
 	PlanExpired PlanStatus = "expired"
 	// PlanStale: the configuration, the state or a provider moved on, so it can no longer be applied.
 	PlanStale PlanStatus = "stale"
+	// PlanPartlyStale: the state moved on under some of the changes that are left,
+	// and the rest can still be applied, by name: the entry lists both.
+	PlanPartlyStale PlanStatus = "partly-stale"
 	// PlanPartial: some changes were applied and the rest can still be.
 	PlanPartial PlanStatus = "partial"
 	// PlanPending: it can be applied.
 	PlanPending PlanStatus = "pending"
 )
 
-// Open reports whether a plan with the status can still be applied.
-func (s PlanStatus) Open() bool { return s == PlanPending || s == PlanPartial }
+// Open reports whether a plan with the status can still be applied, all of it or
+// a part.
+func (s PlanStatus) Open() bool {
+	return s == PlanPending || s == PlanPartial || s == PlanPartlyStale
+}
 
 // PlanEntry is a stored plan with its progress and where it stands now.
 type PlanEntry struct {
 	Meta     *PlanMeta
 	Progress *PlanProgress
 	Status   PlanStatus
-	// Reasons say why a plan is stale.
+	// Reasons say why a plan is stale. For a partly-stale plan they are the
+	// reasons of the conflicts, in the order of the addresses.
 	Reasons []string
+	// Conflicts, for a partly-stale plan, holds each change that cannot be applied
+	// now and why: a change whose record moved since the plan was made, with the
+	// reason, and a change that has to be applied with one that cannot be.
+	Conflicts map[string][]string
+	// Live, for a partly-stale plan, is the part that can still be applied, sorted:
+	// the changes that are left, that do not conflict and that need nothing that
+	// does, with the changes they need. It is a closed selection for "apply --only".
+	Live []string
+	// moved holds the addresses in Conflicts whose own record moved.
+	moved map[string]bool
+}
+
+// OnlyFlag returns the flag that makes an apply apply the live part of a
+// partly-stale plan, "--only a,b,c", written as the shell reads it, or "" when
+// the plan has no live part.
+func (e *PlanEntry) OnlyFlag() string {
+	if len(e.Live) == 0 {
+		return ""
+	}
+	// The flag reads its value as a line of comma separated values: an address that
+	// holds a comma, a quote or a line break needs quotes of its own.
+	var line strings.Builder
+	w := csv.NewWriter(&line)
+	_ = w.Write(e.Live)
+	w.Flush()
+	return "--only " + shellWord(strings.TrimSuffix(line.String(), "\n"))
+}
+
+// ApplyLiveCommand is the command that applies the live part of the plan, as it
+// is typed: the command that applies the plan, with the flag of OnlyFlag. It is
+// "" when the plan has no live part.
+func (e *PlanEntry) ApplyLiveCommand() string {
+	if len(e.Live) == 0 {
+		return ""
+	}
+	return e.Meta.ApplyCommand() + " " + e.OnlyFlag()
+}
+
+// FirstConflict returns the reason of the first change, by address, whose own
+// record moved, or "" when the plan has no conflict.
+func (e *PlanEntry) FirstConflict() string {
+	addrs := make([]string, 0, len(e.Conflicts))
+	for a := range e.Conflicts {
+		if e.moved[a] || e.moved == nil {
+			addrs = append(addrs, a)
+		}
+	}
+	sort.Strings(addrs)
+	for _, a := range addrs {
+		if reasons := e.Conflicts[a]; len(reasons) > 0 {
+			return reasons[0]
+		}
+	}
+	return ""
+}
+
+// Unapplied is how many changes the plan has left to apply: those of the summary
+// that were not applied, and the changes that conflict although the summary does
+// not list them, such as a data source that the plan read.
+func (e *PlanEntry) Unapplied() int {
+	seen := map[string]bool{}
+	for _, t := range e.Meta.Changes {
+		if _, done := e.Progress.Applied[t.Addr]; !done {
+			seen[t.Addr] = true
+		}
+	}
+	for a := range e.Conflicts {
+		seen[a] = true
+	}
+	return len(seen)
 }
 
 // AppliedCount is how many of the changes that the summary lists were applied.
@@ -333,6 +422,7 @@ func newPlanMeta(pf *PlanFile, author string, ttl time.Duration, size int) *Plan
 		Command: pf.Command, GitRevision: pf.GitRevision, Tags: pf.Tags, SysTags: pf.SysTags, Lineage: pf.Lineage, Fingerprint: pf.ConfigFingerprint, Destroy: pf.Destroy,
 		Reservation: pf.Reservation, Size: size, Bases: map[string]PlanBase{}, Changes: []PlanTouch{},
 	}
+	touched := map[string]bool{}
 	if m.Author == "" {
 		m.Author = "unknown"
 	}
@@ -361,6 +451,7 @@ func newPlanMeta(pf *PlanFile, author string, ttl time.Duration, size int) *Plan
 		}
 		if touches {
 			m.Changes = append(m.Changes, PlanTouch{Addr: sc.Addr, Mode: sc.Mode, Type: sc.Type, Action: sc.Action})
+			touched[sc.Addr] = true
 		}
 		if sc.Applied || sc.Skipped || sc.Kept || sc.Action == ActionMove {
 			continue
@@ -373,7 +464,78 @@ func newPlanMeta(pf *PlanFile, author string, ttl time.Duration, size int) *Plan
 		}
 	}
 	sort.Slice(m.Changes, func(i, j int) bool { return m.Changes[i].Addr < m.Changes[j].Addr })
+	m.Needs = needsOf(pf.Changes, touched)
 	return m
+}
+
+// needsOf works out the Needs of a summary from the saved changes of a plan.
+// touched holds the addresses that the summary lists. Only a change that an
+// apply can select has an entry: one that the summary lists, and one that another
+// change can need.
+func needsOf(saved []savedChange, touched map[string]bool) map[string][]string {
+	changes := make([]*Change, len(saved))
+	byAddr := make(map[string]*Change, len(saved))
+	for i, sc := range saved {
+		changes[i] = &Change{Addr: sc.Addr, Mode: sc.Mode, Action: sc.Action, Deps: sc.Deps, Deferred: sc.Deferred, Skipped: sc.Skipped, Kept: sc.Kept, Applied: sc.Applied}
+		byAddr[sc.Addr] = changes[i]
+	}
+	out := map[string][]string{}
+	for addr, need := range requirements(changes) {
+		if touched[addr] || needed(byAddr[addr]) {
+			out[addr] = need
+		}
+	}
+	return out
+}
+
+// requirements returns, for each change of a plan that was not applied, the
+// changes that an apply of it has to apply with it, sorted, and none for a change
+// that needs nothing. They are the rules of Plan.Subset, one step at a time: a
+// pending change, or a data source that returned something other than its record,
+// that a change depends on is needed by it, and a delete is needed by every
+// pending delete that depends on it. A change that was applied needs nothing and
+// is needed by no one.
+func requirements(changes []*Change) map[string][]string {
+	byAddr := make(map[string]*Change, len(changes))
+	deletedBy := map[string][]string{}
+	for _, ch := range changes {
+		byAddr[ch.Addr] = ch
+		if ch.Action != ActionDelete || ch.Applied {
+			continue
+		}
+		for _, d := range ch.Deps {
+			deletedBy[d] = append(deletedBy[d], ch.Addr)
+		}
+	}
+	out := map[string][]string{}
+	for _, ch := range changes {
+		if ch.Applied {
+			continue
+		}
+		var list []string
+		if ch.Action == ActionDelete {
+			list = deletedBy[ch.Addr]
+		} else {
+			for _, d := range ch.Deps {
+				if dep, ok := byAddr[d]; ok && needed(dep) && !dep.Applied {
+					list = append(list, d)
+				}
+			}
+		}
+		set := map[string]bool{}
+		var need []string
+		for _, a := range list {
+			if a != ch.Addr && !set[a] {
+				set[a] = true
+				need = append(need, a)
+			}
+		}
+		if len(need) > 0 {
+			sort.Strings(need)
+			out[ch.Addr] = need
+		}
+	}
+	return out
 }
 
 // Put stores a plan. data is the plan file, as SavePlan writes it, and meta its
@@ -778,9 +940,7 @@ func (ps *PlanStore) EntriesAndSkipped(ctx context.Context, check *PlanCheck) ([
 		if r.progress.Collecting != nil && now.Sub(r.progress.Collecting.At) < claimTimeout {
 			continue
 		}
-		e := &PlanEntry{Meta: r.meta, Progress: r.progress}
-		e.Status, e.Reasons = planStatus(r.meta, r.progress, check, now)
-		out = append(out, e)
+		out = append(out, newPlanEntry(r.meta, r.progress, check, now))
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if !out[i].Meta.Created.Equal(out[j].Meta.Created) {
@@ -801,39 +961,107 @@ func (ps *PlanStore) Entry(ctx context.Context, id string, check *PlanCheck) (*P
 	if err != nil {
 		return nil, err
 	}
-	e := &PlanEntry{Meta: m, Progress: p}
-	e.Status, e.Reasons = planStatus(m, p, check, ps.now())
-	return e, nil
+	return newPlanEntry(m, p, check, ps.now()), nil
 }
 
-// planStatus works out where a plan stands.
+// planStatus works out where a plan stands. The reasons are those that make it
+// stale, or for a partly-stale plan those of its conflicts.
 func planStatus(m *PlanMeta, p *PlanProgress, check *PlanCheck, now time.Time) (PlanStatus, []string) {
+	v := judgePlan(m, p, check, now)
+	return v.status, v.reasons
+}
+
+// newPlanEntry makes the entry of a plan, with where it stands.
+func newPlanEntry(m *PlanMeta, p *PlanProgress, check *PlanCheck, now time.Time) *PlanEntry {
+	v := judgePlan(m, p, check, now)
+	return &PlanEntry{Meta: m, Progress: p, Status: v.status, Reasons: v.reasons, Conflicts: v.conflicts, Live: v.live, moved: v.moved}
+}
+
+// planVerdict is where a plan stands.
+type planVerdict struct {
+	status  PlanStatus
+	reasons []string
+	// conflicts, live and moved are those of a partly-stale plan.
+	conflicts map[string][]string
+	live      []string
+	moved     map[string]bool
+}
+
+// judgePlan works out where a plan stands, change by change.
+//
+// A plan that was made against another state, or that reads a record that moved,
+// is stale as a whole: what its changes would do was worked out from those
+// records. Otherwise a change whose own record moved conflicts, and so does a
+// change that has to be applied with one that conflicts (Needs). The changes that
+// are left are the live part. A plan with a conflict and a live part is
+// partly-stale; one with no live part is stale, as is one whose summary does not
+// say what its changes need.
+func judgePlan(m *PlanMeta, p *PlanProgress, check *PlanCheck, now time.Time) planVerdict {
 	if p.DoneAt != nil {
-		return PlanApplied, nil
+		return planVerdict{status: PlanApplied}
 	}
 	if now.After(m.Expires) {
-		return PlanExpired, nil
+		return planVerdict{status: PlanExpired}
 	}
-	if reasons := planStaleReasons(m, p, check); len(reasons) > 0 {
-		return PlanStale, reasons
-	}
+	open := PlanPending
 	if len(p.Applied) > 0 {
-		return PlanPartial, nil
+		open = PlanPartial
 	}
-	return PlanPending, nil
+	moved := movedRecords(m, p, check)
+	if len(moved.reasons) == 0 {
+		return planVerdict{status: open}
+	}
+	whole := planVerdict{status: PlanStale, reasons: moved.reasons}
+	if moved.global || m.Needs == nil {
+		return whole
+	}
+	blocked := blockedChanges(m, p, moved.changes)
+	live := liveChanges(m, p, blocked)
+	if len(live) == 0 {
+		return whole
+	}
+	v := planVerdict{status: PlanPartlyStale, conflicts: map[string][]string{}, live: live, moved: map[string]bool{}}
+	addrs := make([]string, 0, len(blocked))
+	for addr := range blocked {
+		addrs = append(addrs, addr)
+	}
+	sort.Strings(addrs)
+	for _, addr := range addrs {
+		var reasons []string
+		if r, ok := moved.changes[addr]; ok {
+			reasons, v.moved[addr] = []string{r}, true
+		} else {
+			reasons = []string{fmt.Sprintf("%s must be applied with %s, which cannot be applied", addr, blocked[addr])}
+		}
+		v.conflicts[addr] = reasons
+		v.reasons = append(v.reasons, reasons...)
+	}
+	return v
 }
 
-// planStaleReasons says why a plan can no longer be applied to the state.
-func planStaleReasons(m *PlanMeta, p *PlanProgress, check *PlanCheck) []string {
+// planMoves is what a plan expects of the state and does not find.
+type planMoves struct {
+	// reasons lists why, in the order of the addresses.
+	reasons []string
+	// global is set when the plan is stale as a whole: it was made against another
+	// state, or it reads a record that moved.
+	global bool
+	// changes maps the address of each change whose own record moved to the reason.
+	changes map[string]string
+}
+
+// movedRecords compares the state with what the plan expects of it: the lineage,
+// and the record of each change and of each input that was not applied.
+func movedRecords(m *PlanMeta, p *PlanProgress, check *PlanCheck) planMoves {
+	var out planMoves
 	if check == nil {
-		return nil
+		return out
 	}
-	var reasons []string
 	if check.Lineage != "" && m.Lineage != check.Lineage {
-		reasons = append(reasons, "the plan was made against a different state (lineage mismatch)")
+		out.reasons, out.global = append(out.reasons, "the plan was made against a different state (lineage mismatch)"), true
 	}
-	if check.Versions == nil || len(reasons) > 0 {
-		return reasons
+	if check.Versions == nil || len(out.reasons) > 0 {
+		return out
 	}
 	var addrs []string
 	for addr := range m.Bases {
@@ -843,19 +1071,131 @@ func planStaleReasons(m *PlanMeta, p *PlanProgress, check *PlanCheck) []string {
 	}
 	sort.Strings(addrs)
 	if len(addrs) == 0 {
-		return reasons
+		return out
 	}
 	have, err := check.Versions(addrs)
 	if err != nil {
-		return reasons
+		return out
 	}
 	for _, addr := range addrs {
 		b := m.Bases[addr]
-		if r := staleReason(addr, have[addr], state.Version{Revision: b.Revision, Generation: b.Generation}, b.Reads); r != "" {
-			reasons = append(reasons, r)
+		r := staleReason(addr, have[addr], state.Version{Revision: b.Revision, Generation: b.Generation}, b.Reads)
+		if r == "" {
+			continue
+		}
+		out.reasons = append(out.reasons, r)
+		if b.Reads || !selectable(m, addr) {
+			// A record that the plan reads, or one that no apply of a part would take
+			// as a change of its own, such as a no-op that other changes read, makes the
+			// whole plan stale: the changes that read it were planned from the record as
+			// it was.
+			out.global = true
+			continue
+		}
+		if out.changes == nil {
+			out.changes = map[string]string{}
+		}
+		out.changes[addr] = r
+	}
+	return out
+}
+
+// selectable says whether an apply of a part can take addr as a change: it is a
+// change of the summary, or one that other changes have to be applied with.
+func selectable(m *PlanMeta, addr string) bool {
+	for _, t := range m.Changes {
+		if t.Addr == addr {
+			return true
 		}
 	}
-	return reasons
+	for a, need := range m.Needs {
+		if a == addr {
+			return true
+		}
+		for _, n := range need {
+			if n == addr {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// blockedChanges returns the changes that cannot be applied, each with the change
+// that blocks it, or for a change whose own record moved with "". A change that
+// has to be applied with one that cannot be is blocked itself, by the nearest
+// such change. A change that was applied is not part of it.
+func blockedChanges(m *PlanMeta, p *PlanProgress, moved map[string]string) map[string]string {
+	needing := map[string][]string{}
+	for addr, need := range m.Needs {
+		if _, done := p.Applied[addr]; done {
+			continue
+		}
+		for _, n := range need {
+			if _, done := p.Applied[n]; !done {
+				needing[n] = append(needing[n], addr)
+			}
+		}
+	}
+	queue := make([]string, 0, len(moved))
+	blocked := make(map[string]string, len(moved))
+	for addr := range moved {
+		queue = append(queue, addr)
+		blocked[addr] = ""
+	}
+	sort.Strings(queue)
+	for len(queue) > 0 {
+		n := queue[0]
+		queue = queue[1:]
+		dependents := needing[n]
+		sort.Strings(dependents)
+		for _, addr := range dependents {
+			if _, ok := blocked[addr]; !ok {
+				blocked[addr] = n
+				queue = append(queue, addr)
+			}
+		}
+	}
+	return blocked
+}
+
+// liveChanges returns the part of a plan that can still be applied, sorted: the
+// changes of the summary that were not applied and are not blocked, and the changes
+// that they need.
+func liveChanges(m *PlanMeta, p *PlanProgress, blocked map[string]string) []string {
+	live := map[string]bool{}
+	var walk func(addr string)
+	walk = func(addr string) {
+		if live[addr] {
+			return
+		}
+		live[addr] = true
+		for _, n := range m.Needs[addr] {
+			if _, done := p.Applied[n]; !done {
+				walk(n)
+			}
+		}
+	}
+	for _, t := range m.Changes {
+		if _, done := p.Applied[t.Addr]; done || t.Action == ActionMove {
+			continue // a move was made when the plan was, and no apply repeats it
+		}
+		if _, no := blocked[t.Addr]; !no {
+			walk(t.Addr)
+		}
+	}
+	out := make([]string, 0, len(live))
+	for addr := range live {
+		out = append(out, addr)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// planStaleReasons says why a plan, taken whole, can no longer be applied to the
+// state: what a plan that is stale as a whole reports.
+func planStaleReasons(m *PlanMeta, p *PlanProgress, check *PlanCheck) []string {
+	return movedRecords(m, p, check).reasons
 }
 
 // Overlap is a pending plan that changes a resource that another plan changes.
@@ -880,9 +1220,23 @@ func (e *PlanEntry) touchedBy() []string {
 	return out
 }
 
+// changing returns the addresses that the plan of e will still change: the
+// unapplied ones, less those that conflict in a partly-stale plan, which it can
+// not apply.
+func (e *PlanEntry) changing() []string {
+	var out []string
+	for _, a := range e.touchedBy() {
+		if _, blocked := e.Conflicts[a]; !blocked {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 // Overlaps returns the open plans among entries, other than the one with id
 // self, that change a resource that touches also changes. A change that a plan
-// already applied is not one it makes any more.
+// already applied is not one it makes any more, and nor is one that a partly-stale
+// plan cannot apply.
 func Overlaps(entries []*PlanEntry, self string, touches []PlanTouch) []Overlap {
 	mine := map[string]bool{}
 	for _, t := range touches {
@@ -894,7 +1248,7 @@ func Overlaps(entries []*PlanEntry, self string, touches []PlanTouch) []Overlap 
 			continue
 		}
 		var addrs []string
-		for _, a := range e.touchedBy() {
+		for _, a := range e.changing() {
 			if mine[a] {
 				addrs = append(addrs, a)
 			}

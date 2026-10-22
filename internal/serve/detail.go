@@ -74,12 +74,19 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 			if e.moved != "" {
 				d.Notes = append(d.Notes, "The plan moves the record here from "+e.moved+".")
 			}
+			if len(e.conflict) > 0 {
+				d.Notes = append(d.Notes, "This change conflicts with the state and is left out of the part of the plan that can be applied: "+
+					maskText(sec, strings.Join(e.conflict, "; "), maxReason)+".")
+			}
 		}
 		if d.Change.Attrs == nil && po.changes == nil && d.Change.Action != "no-op" {
 			d.Notes = append(d.Notes, "The attribute changes of the plan are not shown; the warnings of the graph say why.")
 		}
 	}
 	for _, t := range m.transactions() {
+		if t.Kind == "plan" {
+			continue // a plan reads the node, and may refresh its record; it does not write it
+		}
 		for _, c := range t.Changes {
 			if c.Addr != addr {
 				continue

@@ -42,7 +42,7 @@ normalize:
 | `--refresh=age\|expired\|false\|all` | `age` | As for [`pravo plan`](plan.md#refresh). Refused with a plan file or a plan id. |
 | `--full` | off | As for `pravo plan`. Refused with a plan file or a plan id. |
 | `--replace ADDR` | none | As for `pravo plan`. Refused with a plan file or a plan id: the replacement is decided when the plan is made. |
-| `--only ADDR,...` | none | With a plan file or a plan id: apply these changes now and leave the rest in the file or in the state. Each name must be a change in the plan: a node that the plan left alone has none. The selection must be closed under dependencies. Repeatable, or comma-separated. |
+| `--only ADDR,...` | none | With a plan file or a plan id: apply these changes now and leave the rest in the file or in the state. Each name must be a change in the plan: a node that the plan left alone has none. The selection must be closed under dependencies. Repeatable, or comma-separated. For a stored plan that is [partly stale](#a-partly-stale-plan), the set that `pravo plan list` and `pravo plan show` print. |
 | `--policy FILE` | none | A CUE file the saved plan must satisfy before anything is applied. Repeatable. Without a plan file or a plan id the command is refused. |
 | `-t`, `--tag key=value`, `-T` | none | Tags, as for `pravo plan`. Refused with a plan file: the plan carries its own tags. With a plan id they must be the ones the plan was made with: see [The tags of a stored plan](#the-tags-of-a-stored-plan). |
 
@@ -56,7 +56,7 @@ The [global flags](global-flags.md) apply. With `--json`, a plain apply needs `-
 |---|---|
 | 0 | Applied, or the saved plan has nothing left to apply. |
 | 1 | An error: the prompt was answered with anything but `yes`, a provider failed, the apply was interrupted, a flag does not combine with the form, `--only` names a node that has no change in the plan file, `--json` without `--auto-approve`, an id that no stored plan has, `-t` and `-T` that differ from the ones a stored plan was made with, or a stored plan that cannot be claimed for a reason other than a collection. |
-| 3 | The saved plan is stale, or an apply found that a resource is not what the plan said: a node that another command wrote since, or a provider that plans the resource differently. The reasons follow the error. A stored plan whose time to live ended before it was applied, or that a collection is removing, is refused with this code. |
+| 3 | The saved plan is stale, or an apply found that a resource is not what the plan said: a node that another command wrote since, or a provider that plans the resource differently. The reasons follow the error. A stored plan whose time to live ended before it was applied, or that a collection is removing, is refused with this code, and so is a stored plan that is [partly stale](#a-partly-stale-plan) when the apply includes a change that conflicts, as the whole plan does. |
 | 4 | Rejected: a node is locked or reserved by another actor, before anything changes, or a lock was taken over while the apply ran (`lock lost`). |
 | 5 | A policy refused the plan, a `--policy` file cannot be used, `--policy` was given without a plan file, or a module does not match its lock. |
 | 6 | The specification does not load or evaluate. |
@@ -395,7 +395,7 @@ solo: Replacement complete after 0s [id=93]
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
 ```
 
-When the apply ends without an error, it writes the changes it made and its transaction into the progress object of the plan. The plan object stays as it was written. The plan is `applied` when every change that was pending is applied. A second apply of it has nothing left to apply, also after the time to live of the plan.
+When the apply ends, it writes the changes it finished and its transaction into the progress object of the plan. The plan object stays as it was written. The plan is `applied` when every change that was pending is applied. A second apply of it has nothing left to apply, also after the time to live of the plan.
 
 ```sh run
 id=$(pravo plan list --all --json | jq -r '.plans[0].id')
@@ -423,7 +423,7 @@ pravo apply $id
 Error: plan-<id> expired a moment ago; plans are kept for a limited time: run "pravo plan --store" again
 ```
 
-An apply that fails or is interrupted records nothing in the plan, as an apply from a plan file marks nothing in the file. Only an apply that ends without an error records its changes. If the changes were applied and the record could not be written, the message says so, and names the transaction. The records that a failed apply did write make the plan stale, so the listing says so, and what is left is planned again. The root `fail` has a resource, `bad`, that cannot be created because `blocker` is a file. It waits for `first`.
+An apply that fails or is interrupted records the changes it finished. The progress object of a stored plan holds them, and a plan file is marked with them. A change that failed, a change whose result is not known and a change that was never started are not recorded. Before the error, the apply prints how many changes it recorded, where, and the command that applies the rest. The plan lists as `partial`, and the next apply of the plan applies what is left. The root `fail` has three resources. `bad` cannot be created because `blocker` is a file, and it waits for `first`. `after` waits for `bad`.
 
 ```cue file=fail/main.cue
 package fail
@@ -434,6 +434,7 @@ $local: loc.#Provider
 
 first: $local.#Resource.local_file & {filename: "first.txt", content: "first"}
 bad:   $local.#Resource.local_file & {filename: "blocker/x.txt", content: "after \(first.id)"}
+after: $local.#Resource.local_file & {filename: "after.txt", content: "after \(bad.id)"}
 ```
 
 ```sh run
@@ -442,26 +443,43 @@ echo blocker > fail/blocker
 pravo -C fail plan --store --actor ci > /dev/null
 id=$(pravo -C fail plan list --json | jq -r '.plans[0].id')
 pravo -C fail apply $id > apply.txt 2>&1; echo "exit $?"
-grep '^Error' apply.txt
+grep -E '^(1 change|Error)' apply.txt
 ```
 
 ```text out
 exit 1
+1 change was applied before the error and is recorded in plan-<id>; run "pravo apply plan-<id>" again to apply the rest.
 Error: bad: Create local file error: An unexpected error occurred while writing the file
 ```
 
-`first` was created, and `bad` was not. The plan has recorded nothing, and it is stale.
+`first` was created, and `bad` and `after` were not. The progress object names `first`, and the plan is `partial`. The exit code is that of the error.
 
 ```sh run
-id=$(pravo -C fail plan list --all --json | jq -r '.plans[0].id')
-pravo -C fail plan list --all
-jq -c '{applied, done_at}' fail/pravo.state/plans/$id.progress.json
+id=$(pravo -C fail plan list --json | jq -r '.plans[0].id')
+pravo -C fail plan list
+jq -c '{applied: (.applied | keys), done_at}' fail/pravo.state/plans/$id.progress.json
 ```
 
 ```text out
-plan-<id>  stale    ci  just now  +2 ~0 -0  first changed in state (revision 1, plan expected 0)
-{"applied":null,"done_at":null}
+plan-<id>  partial  ci  just now  +3 ~0 -0  1 of 3 changes applied; expires in 7 days
+{"applied":["first"],"done_at":null}
 ```
+
+Remove the cause and apply the plan again. The apply does what is left. `first` is not created a second time.
+
+```sh run
+id=$(pravo -C fail plan list --json | jq -r '.plans[0].id')
+rm fail/blocker
+pravo -C fail apply $id | tail -n 1
+pravo -C fail plan list --all
+```
+
+```text out
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
+plan-<id>  applied  ci  just now  +3 ~0 -0  applied just now
+```
+
+If the changes were applied and the record could not be written, the message says so, and names the transaction. An apply of a plan file marks the changes in the file in the same way, and prints the same note with `pravo apply FILE` as the command. With `--json`, the note goes to stderr, and stdout stays a stream of JSON lines. An apply that is stopped by a third signal exits without recording anything.
 
 A file whose name is an id is a file: `pravo apply plan-123456` applies that file when it exists.
 
@@ -484,6 +502,88 @@ pravo apply $id --json 2>/dev/null | tail -n 1
 
 ```text out
 {"added":1,"changed":0,"destroyed":1,"kind":"apply","outputs":{},"phase":"done","plan":"plan-<id>","remaining":0,"txn":"<txn>"}
+```
+
+### A partly stale plan
+
+A stored plan is judged change by change. When another command wrote the record of a change that is not applied yet, that change conflicts, and so does every change that has to be applied with it. The other changes are live. A plan with conflicts and a live part is `partly-stale`. [`pravo plan list`](plan.md#list-stored-plans) and [`pravo plan show`](show.md#show-a-stored-plan) name the conflicts and print the `--only` set that applies the live part. The lineage of the state and the records that the plan only reads are not judged change by change: when one of them moved, the whole plan is stale. So is a plan whose configuration or providers differ from the checkout, which `plan show` and `apply` compare.
+
+The root `moved` has three files that do not depend on each other. Create them, store a plan that replaces all three, and let another command replace `a`. The record of `a` is then at revision 2, and the plan expects revision 1.
+
+```cue file=moved/main.cue
+package moved
+
+import loc "pravo.dev/providers/hashicorp/local"
+
+$local: loc.#Provider
+
+a: $local.#Resource.local_file & {filename: "a.txt", content: "a"}
+b: $local.#Resource.local_file & {filename: "b.txt", content: "b"}
+c: $local.#Resource.local_file & {filename: "c.txt", content: "c"}
+```
+
+```sh run
+pravo -C moved init > /dev/null
+pravo -C moved apply --auto-approve | tail -n 1
+pravo -C moved plan --store --replace a,b,c --actor alice > /dev/null
+pravo -C moved apply --auto-approve --replace a | tail -n 1
+pravo -C moved plan list
+```
+
+```text out
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed. [txn <txn>]
+Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
+plan-<id>  partly-stale  alice  just now  +3 ~0 -3  1 of 3 unapplied changes conflict: a changed in state (revision 2, plan expected 1); apply with --only b,c
+```
+
+Applying the whole plan is refused with exit code 3, and nothing changes.
+
+```sh run exit=3
+id=$(pravo -C moved plan list --json | jq -r '.plans[0].id')
+pravo -C moved apply $id
+```
+
+```text out
+Error: saved plan is stale; run "pravo plan" again:
+  - a changed in state (revision 2, plan expected 1)
+```
+
+So is a selection that holds the conflict.
+
+```sh run exit=3
+id=$(pravo -C moved plan list --json | jq -r '.plans[0].id')
+pravo -C moved apply $id --only a,b
+```
+
+```text out
+Error: saved plan is stale; run "pravo plan" again:
+  - a changed in state (revision 2, plan expected 1)
+```
+
+The live set applies. The plan keeps the conflict, and it lists as `partly-stale` while a live change is left.
+
+```sh run
+id=$(pravo -C moved plan list --json | jq -r '.plans[0].id')
+pravo -C moved apply $id --only b | grep '^Apply complete'
+pravo -C moved plan list
+```
+
+```text out
+Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
+plan-<id>  partly-stale  alice  just now  +3 ~0 -3  1 of 2 unapplied changes conflict: a changed in state (revision 2, plan expected 1); apply with --only c
+```
+
+The listing gave the flag that applies the rest. When only the conflict is left, no part of the plan can be applied, and the plan is `stale`. Plan again for `a`.
+
+```sh run
+id=$(pravo -C moved plan list --json | jq -r '.plans[0].id')
+pravo -C moved apply $id --only c | grep '^Apply complete'
+pravo -C moved plan list --all
+```
+
+```text out
+Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
+plan-<id>  stale    alice  just now  +3 ~0 -3  a changed in state (revision 2, plan expected 1)
 ```
 
 ### The tags of a stored plan
@@ -575,7 +675,7 @@ slow
 | The second | pravo asks every provider to stop what it is doing, and waits up to 30 seconds. A provider that stops returns the state it had reached, and the apply records it. |
 | The third, or the end of the 30 seconds | pravo exits without waiting for the providers, with exit code 1. |
 
-The records of the changes that finished, the transaction and the release of the locks are written to the state after a signal as before it, also when the state is in a bucket. When the third signal comes and the state does not answer in 20 seconds, pravo exits anyway and says so.
+The records of the changes that finished, the transaction and the release of the locks are written to the state after a signal as before it, also when the state is in a bucket. An apply of a stored plan or a plan file that a signal stops records the changes that finished in the plan, as [a failed apply](#apply-a-stored-plan) does, except after the third signal. When the third signal comes and the state does not answer in 20 seconds, pravo exits anyway and says so.
 
 A change whose result is not known is named in the error: the call to its provider failed, or the provider answered an update or a destruction with an error and no state, or the provider was asked to stop and returned no state, or pravo exited without waiting. The message reads `creation of NODE was in flight; its result is unknown; check the provider`. The verb is `creation`, `update` or `destruction`. If the node has a record, the apply writes it again without `refreshed_at`: the revision moves, so a saved plan made against the record is stale, and the next plan reads the node whatever its refresh age, also when the plan does not reach it. [`pravo state log`](state.md) lists it as `unsettled`. A creation that has no record has none to mark, and the message is all that is left of it. A creation that the provider refused with an error and no state is not named: the object does not exist.
 

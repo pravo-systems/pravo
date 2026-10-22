@@ -773,3 +773,29 @@ func TestAStoredPlanCanBeAppliedInParts(t *testing.T) {
 		t.Errorf("list --all after all of it:\n%s", text)
 	}
 }
+
+// The note that a plan was made with (--reason) is the reason of the apply that
+// applies it, in the history of the resources, unless the apply has its own.
+func TestAnApplyTakesTheReasonOfThePlan(t *testing.T) {
+	dir := localRoot(t, "")
+	id := storePlanAs(t, dir, "alice", "--reason", "say hello to the team")
+	if text, code := runPravo(t, dir, "--actor", "bob", "apply", id); code != 0 {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+	text, _ := runPravo(t, dir, "state", "log")
+	if !strings.Contains(text, "bob") || !strings.Contains(text, "say hello to the team") {
+		t.Errorf("the log of the apply:\n%s", text)
+	}
+	// A plan file does the same, and a reason of the apply wins.
+	dir2 := localRoot(t, "")
+	if text, code := runPravo(t, dir2, "plan", "--out", "r.plan", "--reason", "from the file"); code != 0 {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+	if text, code := runPravo(t, dir2, "apply", "r.plan", "--reason", "my own"); code != 0 {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+	text, _ = runPravo(t, dir2, "state", "log")
+	if !strings.Contains(text, "my own") || strings.Contains(text, "from the file") {
+		t.Errorf("the log of the second apply:\n%s", text)
+	}
+}

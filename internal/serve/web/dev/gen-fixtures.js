@@ -150,8 +150,9 @@ function platform() {
 
 // ---------------------------------------------------------------------------------------------------------
 // the plans stored in the state of the platform: two that can be applied, by two authors, and that both change
-// api.db; one the state moved on from; one applied; one that expired. storedPlans marks the nodes (Node.plans,
-// Node.overlap), and returns the list that /api/plans sends and the overlay of each plan that /api/plan sends.
+// api.db; one the state moved on from; one the state moved on from under two of its four changes (partly stale: the
+// other two can be applied by name); one applied in part; one applied; one that expired. storedPlans marks the nodes
+// (Node.plans, Node.overlap), and returns the list that /api/plans sends and the overlay of each plan that /api/plan sends.
 
 function storedPlans(b, revision) {
   const defs = [
@@ -162,6 +163,12 @@ function storedPlans(b, revision) {
       command: 'pravo plan --store --reason "renew the certificate"',
       changes: { 'edge.cert': 'create', 'edge.lb': 'update' },
       why: ['edge.cert changed in state (revision 3, plan expected 2)', 'edge.lb changed in state (revision 6, plan expected 5)'] },
+    // api.role moved in the state, so it conflicts, and api.policy has to be applied with it; api.secret and api.logs are live
+    { id: 'plan-b86e2d14', status: 'partly-stale', author: 'kim@acme', ago: 2 * H, reason: 'narrow the task role and its policy', git: 'a7d3e19',
+      command: 'pravo plan --store --reason "narrow the task role and its policy"',
+      changes: { 'api.role': 'update', 'api.policy': 'update', 'api.secret': 'update', 'api.logs': 'update' },
+      conflicts: { 'api.policy': ['api.policy must be applied with api.role, which cannot be applied'], 'api.role': ['api.role changed in state (revision 7, plan expected 6)'] },
+      live: ['api.logs', 'api.secret'] },
     { id: 'plan-2f9c1a4e', status: 'pending', author: 'ana@acme', ago: 3 * H, reason: 'raise the database to m6g.large', git: '9f3c2ab',
       command: 'pravo plan --store --reason "raise the database to m6g.large"',
       changes: { 'api.db': 'update', 'api.task': 'update', 'api.service': 'update', 'api.worker.service': 'update' } },
@@ -175,7 +182,7 @@ function storedPlans(b, revision) {
       command: 'pravo plan --store --reason "tune the nat gateway" --ttl 7d',
       changes: { 'network.private.nat': 'update' } },
   ];
-  const open = (d) => d.status === 'pending' || d.status === 'partial';
+  const open = (d) => d.status === 'pending' || d.status === 'partial' || d.status === 'partly-stale';
   const counts = (acts) => {
     const c = { add: 0, change: 0, destroy: 0, read: 0 };
     for (const a of acts) {
@@ -189,25 +196,33 @@ function storedPlans(b, revision) {
   };
   // what a plan has left to do: the addresses it has not applied
   const left = (d) => Object.keys(d.changes).filter((a) => !(d.done || []).includes(a)).sort();
-  // the nodes: the plans that can be applied, newest first, on the nodes that they have a change left on
+  // what a plan can still change: a partly stale plan cannot apply the changes that conflict
+  const changing = (d) => left(d).filter((a) => !(d.conflicts || {})[a]);
+  // the nodes: the plans that can be applied, newest first, on the nodes that they have a change left on; two that can
+  // apply a change there are an overlap, and a change that conflicts is not one
+  const livePlans = new Map();
   for (const d of defs.filter(open)) {
     for (const addr of left(d)) {
       const n = b.index.get(addr);
       n.plans = (n.plans || []).concat(d.id);
-      n.overlap = n.plans.length > 1 ? true : undefined;
+      if (changing(d).includes(addr)) livePlans.set(addr, (livePlans.get(addr) || 0) + 1);
+      n.overlap = livePlans.get(addr) > 1 ? true : undefined;
     }
   }
   const plans = [], overlays = {};
   for (const d of defs) {
-    const touches = Object.keys(d.changes).sort().map((addr) => ({ addr, action: d.changes[addr], applied: (d.done || []).includes(addr) ? true : undefined }));
+    const touches = Object.keys(d.changes).sort().map((addr) => ({ addr, action: d.changes[addr], applied: (d.done || []).includes(addr) ? true : undefined, conflict: (d.conflicts || {})[addr] ? true : undefined }));
     // the other open plans that have a change left on a resource that this one has one left on: symmetric
     const overlaps = !open(d) ? undefined : defs.filter((o) => o !== d && open(o))
-      .map((o) => { const shared = left(o).filter((a) => left(d).includes(a)); return { id: o.id, count: shared.length, addrs: shared.slice(0, 20) }; }).filter((o) => o.count);
+      .map((o) => { const shared = changing(o).filter((a) => changing(d).includes(a)); return { id: o.id, count: shared.length, addrs: shared.slice(0, 20) }; }).filter((o) => o.count);
     const summary = counts(touches.map((t) => t.action));
     const applied = (d.done || []).length;
     plans.push(prune({
       id: d.id, status: d.status, open: open(d) ? true : undefined, author: d.author, created: iso(d.ago), expires: iso(d.ago - 7 * D),
       summary, planned: touches.length, applied, reasons: d.why,
+      conflicts: d.conflicts ? Object.keys(d.conflicts).sort().map((addr) => ({ addr, reasons: d.conflicts[addr] })) : undefined,
+      unapplied: d.conflicts ? left(d).length : undefined,
+      apply_only: d.live, apply_live: d.live ? `pravo apply ${d.id} --only ${d.live.join(',')}` : undefined,
       touches, overlaps: overlaps && overlaps.length ? overlaps : undefined, apply: 'pravo apply ' + d.id,
     }));
     const blast = new Set();
@@ -313,7 +328,6 @@ function detailDB(b, g) {
     ],
   };
   const history = [
-    { id: '20261021T093211Z-3fa09c', kind: 'plan', status: 'planned', time: iso(14 * MIN), actor: 'ci@acme', command: 'pravo plan -out release-42.plan', action: 'update', rev_before: 14, rev_after: 14 },
     { id: '20261019T151044Z-b81c2e', kind: 'apply', status: 'applied', time: iso(2 * D + 1 * H), user: 'ada', command: 'pravo apply', reason: 'raise the backup window', action: 'update', rev_before: 13, rev_after: 14 },
     { id: '20261012T080319Z-0d4e77', kind: 'apply', status: 'applied', time: iso(9 * D), user: 'ada', command: 'pravo apply', action: 'update', rev_before: 12, rev_after: 13 },
     { id: '20261002T170455Z-91ac3b', kind: 'apply', status: 'failed', time: iso(19 * D), actor: 'ci@acme', command: 'pravo apply release-39.plan', reason: 'timeout waiting for the instance to become available', action: 'update', rev_before: 11, rev_after: 11 },

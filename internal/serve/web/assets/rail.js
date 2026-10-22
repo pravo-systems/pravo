@@ -322,5 +322,5 @@ function signature(r, s) {
   if (r.kind === 'mod') { const a = r.mod.agg; return ['m', r.mod.name, r.depth, r.open, a.n, a.plan, a.create, a.update, a.replace, a.delete, a.read, a.drifted, a.gone].join('|'); }
   if (r.kind === 'more') return ['x', r.depth, r.rest].join('|');
   const n = r.n;
-  return ['n', n.addr, r.depth, n.action || '', n.drifted ? 1 : 0, n.gone ? 1 : 0, n.locked ? 1 : 0, n.sensitive || 0, s.model.hasPlan ? 1 : 0, (n.plans || []).join(',')].join('|');
+  return ['n', n.addr, r.depth, n.action || '', n.drifted ? 1 : 0, n.gone ? 1 : 0, n.locked ? 1 : 0, n.sensitive || 0, s.model.hasPlan ? 1 : 0, (n.plans || []).join(','), n.overlap ? 1 : 0].join('|');
 }

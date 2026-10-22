@@ -161,7 +161,7 @@ Every entry has `addr`, `mode`, `type`, `name` and `action`.
 | `skipped` | when true | Unchanged, and not planned with the provider. |
 | `refreshed` | when true | The record was read from the provider during this plan. |
 | `drifted` | when true | The refresh found the object changed. |
-| `applied` | when true | Already applied by a staged apply of the plan file. |
+| `applied` | when true | Already applied from the plan file, by a staged apply or by an apply that failed or was interrupted after it finished the change. |
 | `dependencies` | when there are any | The addresses this change depends on. |
 | `dependents` | for a pending change, when there are any | The addresses that depend on it in the state. |
 | `warnings` | when there are any | The summaries of the provider's warnings. |
@@ -454,7 +454,7 @@ Error: saved plan is stale; run "pravo plan" again:
 | `eval_outputs`, `drop_outputs` | The outputs that the apply evaluates, and the recorded outputs that it removes. The others keep the value that is recorded. |
 | `outputs`, `unknown_outputs`, `sensitive_outputs` | The outputs known after planning, the ones known only after apply, and the sensitive ones. |
 | `actor`, `reason`, `git_revision`, `reservation` | As in the document. |
-| `apply_txn` | The transaction of the last apply made from the file. A file whose only changes are records and outputs to write has them left to apply until it has one. |
+| `apply_txn` | The transaction of the last apply made from the file that ended without an error. A file whose only changes are records and outputs to write has them left to apply until it has one. An apply that fails or is interrupted marks the changes it finished with `applied` and `applied_txn` in `changes`, and leaves `apply_txn` unset. The next `pravo apply FILE` applies the changes that are not marked. |
 
 `pravo apply <planfile>` refuses a plan that is stale: the configuration changed (`config_fingerprint`; the reason names the files from `config_files` that differ, as in `(main.cue changed)`, `(extra.cue added)` or `(old.cue removed)`, and lists at most six), the state has another lineage, a provider has another version, or a node that the plan writes, or a record listed in `inputs`, was written since the plan was made (its revision differs), or was removed and created again (its generation differs, at whatever revision). A node that the plan neither writes nor reads does not count. The exit code is 3. The apply compares the revisions and generations again, with the state itself, once it holds the locks of the nodes it writes, so a write that lands between loading the file and taking the locks is refused the same way.
 

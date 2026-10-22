@@ -742,21 +742,14 @@ func (p *Plan) Subset(addrs []string) (*Plan, error) {
 // LeftToApply reports whether the apply of what remains of the plan does
 // anything. A change to a provider is left to apply until it is applied. The
 // records and outputs that a plan only writes are left until an apply from the
-// file has written them: a plan whose only change is an output has no other
-// change to mark.
+// file has finished: a plan whose only change is an output has no other change
+// to mark, and an apply that failed after it applied the other changes marked
+// them and did not record the outputs.
 func (pf *PlanFile) LeftToApply(remaining *Plan) bool {
 	if remaining.HasChanges() {
 		return true
 	}
-	if remaining.Destroy || !remaining.NeedsApply() || pf.ApplyTxn != "" {
-		return false
-	}
-	for _, sc := range pf.Changes {
-		if sc.Applied {
-			return false
-		}
-	}
-	return true
+	return !remaining.Destroy && remaining.NeedsApply() && pf.ApplyTxn == ""
 }
 
 // MarkApplied records in the plan file that the given changes were applied,
@@ -764,19 +757,37 @@ func (pf *PlanFile) LeftToApply(remaining *Plan) bool {
 // changes in the file as it is when the lock is held, not in pf, so that the
 // marks of applies from one file that run at the same time all stay in it.
 func MarkApplied(path string, pf *PlanFile, addrs []string, txn string) error {
-	pf.markApplied(addrs, txn)
+	return markApplied(path, pf, addrs, txn, true)
+}
+
+// MarkPartlyApplied records in the plan file the changes that an apply finished
+// before it failed or was interrupted, as MarkApplied does for one that
+// succeeded. The apply did not finish: the file does not say that an apply from it
+// did, so the outputs and the records the plan only writes are still left to
+// apply, and what is left of the plan can be applied from the file.
+func MarkPartlyApplied(path string, pf *PlanFile, addrs []string, txn string) error {
+	return markApplied(path, pf, addrs, txn, false)
+}
+
+func markApplied(path string, pf *PlanFile, addrs []string, txn string, finished bool) error {
+	pf.markApplied(addrs, txn, finished)
 	return updatePlanFile(path, func(cur *PlanFile) error {
 		if !cur.Created.Equal(pf.Created) || cur.Lineage != pf.Lineage || cur.ConfigFingerprint != pf.ConfigFingerprint {
 			return fmt.Errorf("%s holds another plan now", path)
 		}
-		cur.markApplied(addrs, txn)
+		cur.markApplied(addrs, txn, finished)
 		return nil
 	})
 }
 
-// markApplied marks the changes at the given addresses as applied by txn.
-func (pf *PlanFile) markApplied(addrs []string, txn string) {
-	pf.ApplyTxn = txn
+// markApplied marks the changes at the given addresses as applied by txn. The
+// transaction of the file is that of an apply that finished.
+func (pf *PlanFile) markApplied(addrs []string, txn string, finished bool) {
+	if finished {
+		pf.ApplyTxn = txn
+	} else {
+		pf.ApplyTxn = "" // an apply that did not finish did not record the outputs
+	}
 	done := stringSet(addrs)
 	for i := range pf.Changes {
 		if done[pf.Changes[i].Addr] {

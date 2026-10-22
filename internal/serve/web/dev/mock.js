@@ -6,7 +6,7 @@
 //   &latency=300                          every answer is delayed by that many milliseconds
 //   &stale=1                              the saved plan is stale, with reasons
 //   &plan=plan-2f9c1a4e                   the server lays that stored plan itself (pravo serve --plan plan-2f9c1a4e)
-// The plans stored in the state are plans.NAME.json (the platform has six) and plan.ID.json, one for each.
+// The plans stored in the state are plans.NAME.json (the platform has seven) and plan.ID.json, one for each.
 // window.__mock.mutate() changes the graph and sends a "change" event; storePlan() stores another plan and
 // collectPlan(id) removes one, each with its event; window.__errors collects the errors and warnings of the
 // page, for a headless run.
@@ -262,7 +262,14 @@ window.fetch = async (input, init) => {
       const a = o && o.nodes.find((x) => x.addr === addr);
       n = Object.assign({}, n);
       if (a) n.action = a.action; else delete n.action;
-      return json(200, kind === 'detail' ? synthDetail(n) : synthSource(n));
+      if (kind === 'detail') {
+        // a change that a partly stale plan cannot apply says so, as the server's note does
+        const d = synthDetail(n);
+        const cf = ((stored.plans.find((x) => x.id === plan) || {}).conflicts || []).find((c) => c.addr === addr);
+        if (cf) d.notes = (d.notes || []).concat('This change conflicts with the state and is left out of the part of the plan that can be applied: ' + cf.reasons.join('; ') + '.');
+        return json(200, d);
+      }
+      return json(200, synthSource(n));
     }
     const files = kind === 'detail' ? detailFiles : sourceFiles;
     if (files[addr] && mutations === 0) { const v = await fixture(files[addr]); if (v) return json(200, shift(v, by)); }
@@ -289,6 +296,14 @@ class MockEventSource {
   fire(t, ev) { for (const f of this.l[t] || []) f(ev); }
 }
 window.EventSource = MockEventSource;
+
+// canApply counts the plans on a node that can apply their change there: a partly stale plan that lists the node
+// because the change conflicts cannot, and is no overlap
+const canApply = (n) => (n.plans || []).filter((id) => {
+  const p = stored.plans.find((x) => x.id === id);
+  const t = p && p.touches.find((x) => x.addr === n.addr);
+  return !(t && t.conflict);
+}).length;
 
 window.__mock = {
   name: NAME,
@@ -320,15 +335,15 @@ window.__mock = {
     const others = [];
     for (const o of stored.plans) {
       if (!o.open) continue;
-      // only the changes that a plan has left count, on both sides
-      const addrs = o.touches.filter((t) => !t.applied && touches.some((x) => x.addr === t.addr)).map((t) => t.addr).sort();
+      // only the changes that a plan has left, and can apply, count, on both sides
+      const addrs = o.touches.filter((t) => !t.applied && !t.conflict && touches.some((x) => x.addr === t.addr)).map((t) => t.addr).sort();
       if (!addrs.length) continue;
       (o.overlaps = o.overlaps || []).push({ id, count: addrs.length, addrs });
       others.push({ id: o.id, count: addrs.length, addrs });
     }
     if (others.length) plan.overlaps = others;
     stored = Object.assign({}, stored, { plans: [plan].concat(stored.plans) });
-    for (const t of touches) { const n = g.nodes.find((x) => x.addr === t.addr); n.plans = [id].concat(n.plans || []); if (n.plans.length > 1) n.overlap = true; }
+    for (const t of touches) { const n = g.nodes.find((x) => x.addr === t.addr); n.plans = [id].concat(n.plans || []); if (canApply(n) > 1) n.overlap = true; }
     overlays.set(id, { version: 1, revision: '', plan: { file: id, id, status: 'pending', created: now, actor: plan.author, summary: { add: 0, change: 2, destroy: 0, read: 0, blast_radius: 6 }, planned: 2, total: g.nodes.length }, nodes: touches,
       reason: 'resize the queue', command: 'pravo plan --store --reason "resize the queue"', git_revision: 'e5a1b08' });
     g.revision = 'r-plans-' + (++mutations);
@@ -341,7 +356,7 @@ window.__mock = {
     const g = JSON.parse(JSON.stringify(graph));
     stored = Object.assign({}, stored, { plans: stored.plans.filter((p) => p.id !== id) });
     for (const p of stored.plans) if (p.overlaps) { p.overlaps = p.overlaps.filter((o) => o.id !== id); if (!p.overlaps.length) delete p.overlaps; }
-    for (const n of g.nodes) if (n.plans) { n.plans = n.plans.filter((x) => x !== id); if (!n.plans.length) delete n.plans; if ((n.plans || []).length < 2) delete n.overlap; }
+    for (const n of g.nodes) if (n.plans) { n.plans = n.plans.filter((x) => x !== id); if (!n.plans.length) delete n.plans; if (canApply(n) < 2) delete n.overlap; }
     overlays.delete(id);
     g.revision = 'r-plans-' + (++mutations);
     graph = g;

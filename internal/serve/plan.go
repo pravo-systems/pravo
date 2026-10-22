@@ -49,6 +49,9 @@ type planEntry struct {
 	applied         bool
 	deferred        bool
 	moved           string
+	// conflict is why a partly stale stored plan cannot apply this change now, as
+	// the engine words it: Detail masks it.
+	conflict []string
 }
 
 // planCache keeps the plan file while it stays the same.
@@ -121,6 +124,9 @@ func (s *Server) overlay(m *model, pf *engine.PlanFile, display string, stored *
 			continue
 		}
 		e := &planEntry{action: string(a), reasons: sc.Reasons, requiresReplace: sc.RequiresReplace, applied: sc.Applied, deferred: sc.Deferred, moved: sc.MovedFrom}
+		if stored != nil && !sc.Applied {
+			e.conflict = stored.Conflicts[sc.Addr]
+		}
 		if sc.Imported {
 			e.action = "import"
 		}
@@ -142,7 +148,12 @@ func (s *Server) overlay(m *model, pf *engine.PlanFile, display string, stored *
 		po.info.Stale, po.info.Reasons = true, stale.Reasons
 	}
 	if stored != nil {
-		po.info.Stale, po.info.Reasons = stored.Status == engine.PlanStale, stored.Reasons
+		// A partly stale plan is not stale: it can be applied in part, and its
+		// conflicts are in the listing and on the nodes (Detail.Notes).
+		po.info.Stale, po.info.Reasons = stored.Status == engine.PlanStale, nil
+		if po.info.Stale {
+			po.info.Reasons = stored.Reasons
+		}
 	}
 	if plan != nil {
 		po.changes = map[string]*engine.Change{}

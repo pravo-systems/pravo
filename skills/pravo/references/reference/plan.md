@@ -49,7 +49,7 @@ The [global flags](global-flags.md) apply. A single dash works as well: `-refres
 
 | Flag | Subcommand | Meaning |
 |---|---|---|
-| `--pending` | `list` | List the plans that can still be applied: `pending` and `partial`. This is the default. |
+| `--pending` | `list` | List the plans that can still be applied, all of them or a part: `pending`, `partial` and `partly-stale`. This is the default. |
 | `--all` | `list` | Also list the stale, applied and expired plans that no collection has removed. Refused with `--pending`. |
 | `--touching ADDR` | `list` | Only the plans that change the resource at `ADDR`. |
 | `--dry-run` | `gc` | Say what a collection would do and change nothing, not even a mark. |
@@ -483,7 +483,7 @@ A plan that is not stored has no `stored` field.
 
 ### Overlapping plans
 
-pravo compares a plan with the plans that can still be applied, and warns when they change the same resources. The warning names each resource once, and leaves out a change that the other plan has applied already. The warning informs and blocks nothing. A plan that is not stored warns too. `plan list --touching` counts a change in the same way.
+pravo compares a plan with the plans that can still be applied, and warns when they change the same resources. The warning names each resource once, and leaves out a change that the other plan has applied already and a change that a partly stale plan cannot apply. The warning informs and blocks nothing. A plan that is not stored warns too. `plan list --touching` counts a change in the same way.
 
 ```sh
 pravo plan --actor carol | tail -n 2
@@ -509,17 +509,61 @@ plan-<id>  pending  bob    just now  +2 ~0 -2  expires in 1 day 12 hours
 plan-<id>  pending  alice  just now  +2 ~0 -2  expires in 7 days
 ```
 
-The columns are the id, the status, the author, the age, the counts of resources to add, change and destroy, and a note. Each column is as wide as its longest value. A length of time is written in up to two units, rounded to the minute: `7 days`, `1 day 12 hours`, `1 hour 30 minutes`. The note says when an open plan expires, why a stale plan is stale, when an applied plan was applied and, for a partial plan, how many changes were applied. That count is of the changes that the plan lists. A plan whose summary or progress object cannot be read is not listed. A listing shows the plans that can be applied. `--all` adds the others, until a collection removes them. `--touching ADDR` keeps the plans that change one resource, and `--json` prints `{"plans": [...]}` with the same fields and the changes of each plan.
+The columns are the id, the status, the author, the age, the counts of resources to add, change and destroy, and a note. Each column is as wide as its longest value. A length of time is written in up to two units, rounded to the minute: `7 days`, `1 day 12 hours`, `1 hour 30 minutes`. The note says when an open plan expires, why a stale plan is stale, when an applied plan was applied, for a partial plan how many changes were applied, and for a partly stale plan which changes conflict and the `--only` set that applies the others. That count is of the changes that the plan lists. A plan whose summary or progress object cannot be read is not listed. A listing shows the plans that can be applied. `--all` adds the others, until a collection removes them. `--touching ADDR` keeps the plans that change one resource, and `--json` prints `{"plans": [...]}` with the same fields and the changes of each plan.
 
 | Status | Meaning |
 |---|---|
 | `pending` | The plan can be applied. |
-| `partial` | `pravo apply ID --only ADDR` applied some of the changes. The rest can be applied. |
-| `stale` | The plan cannot be applied. The state has another lineage, or a record that a change not applied yet writes or reads has another revision or generation. One such record makes the whole plan stale, though `pravo apply ID --only ADDR` could still apply a part that does not use it. |
+| `partial` | Some of the changes were applied, by `pravo apply ID --only ADDR` or by an apply that failed after it finished them. The rest can be applied. |
+| `partly-stale` | A record that some changes not applied yet write has another revision or generation, and the other changes can still be applied. `pravo apply ID` is refused with exit code 3. `pravo apply ID --only ADDR,...` with the live set that the listing prints applies the others. |
+| `stale` | No part of the plan can be applied. The state has another lineage, a record that the plan only reads moved, or every change not applied yet conflicts. |
 | `applied` | Every change was applied. |
 | `expired` | The time to live ended before the plan was applied. |
 
 A listing judges a plan by the state alone. The configuration and the providers are compared when the plan is shown or applied, because they belong to a checkout.
+
+A plan is judged change by change. A change conflicts when the record that it writes has another revision or generation than the plan expected, and a change conflicts when it has to be applied with one that does. A change that is applied is left out of the judgement. The changes that do not conflict are the live part, with the changes that they need. A plan with conflicts and a live part is `partly-stale`. A plan with no live part is `stale`. Two things make the whole plan stale: another lineage of the state, and a moved record that the plan reads and does not write. A summary without a `needs` field says nothing about which changes depend on which, so a record that moved makes such a plan stale as a whole. [State format](state-format.md#the-summary) describes `needs`.
+
+With `--json`, a plan has these fields besides those of every plan.
+
+| Field | Meaning |
+|---|---|
+| `stale_reasons` | Why a `stale` plan is stale. Absent for a `partly-stale` plan. |
+| `conflicts` | For a `partly-stale` plan: each address that cannot be applied, with its reasons. A change that waits for a conflict has the reason `x must be applied with y, which cannot be applied`. |
+| `apply_only` | For a `partly-stale` plan: the live addresses, sorted. The set is closed, so `--only` accepts it. |
+| `apply_only_command` | For a `partly-stale` plan: the command that applies the live part, with the `-t` and `-T` of the plan. |
+
+The root `moved` has three files. Alice stores a plan that replaces them, and another command replaces `a`. The listing names the conflict and the flag that applies the others.
+
+File `moved/main.cue`:
+
+```cue
+package moved
+
+import loc "pravo.dev/providers/hashicorp/local"
+
+$local: loc.#Provider
+
+a: $local.#Resource.local_file & {filename: "a.txt", content: "a"}
+b: $local.#Resource.local_file & {filename: "b.txt", content: "b"}
+c: $local.#Resource.local_file & {filename: "c.txt", content: "c"}
+```
+
+```sh
+pravo -C moved init > /dev/null
+pravo -C moved apply --auto-approve > /dev/null
+pravo -C moved plan --store --replace a,b,c --actor alice > /dev/null
+pravo -C moved apply --auto-approve --replace a > /dev/null
+pravo -C moved plan list
+pravo -C moved plan list --json | jq -c '.plans[] | {status, stale_reasons, conflicts, apply_only, apply_only_command}'
+```
+
+Output:
+
+```text
+plan-<id>  partly-stale  alice  just now  +3 ~0 -3  1 of 3 unapplied changes conflict: a changed in state (revision 2, plan expected 1); apply with --only b,c
+{"status":"partly-stale","stale_reasons":null,"conflicts":{"a":["a changed in state (revision 2, plan expected 1)"]},"apply_only":["b","c"],"apply_only_command":"pravo apply plan-<id> --only b,c"}
+```
 
 ```sh
 pravo plan list --touching port --json | jq '.plans | length'
@@ -574,7 +618,8 @@ Error: no such stored plan: plan-000000 (see: pravo plan list --all)
 | A plan is removed when | Rule |
 |---|---|
 | It expires | An unapplied plan, seven days after it was made, or when `--ttl` says. |
-| It is stale | The first collection that finds it stale marks it. A collection that runs more than one hour after the mark removes it. A plan that is not stale any more loses the mark. The whole plan is stale when one change that is not applied yet expects a record that moved, so a plan whose other parts could still be applied is marked and removed too. |
+| It is stale | The first collection that finds it stale marks it. A collection that runs more than one hour after the mark removes it. A plan that is not stale any more loses the mark. |
+| It is partly stale | It is neither marked nor removed for this reason. It stays until its time to live ends, and it loses a mark that it carries. When the live part is applied, the plan is stale, and the rule above applies. |
 | It was applied completely | 24 hours after the last change was applied. |
 | `--older-than DURATION` is given | It was not applied and was made longer ago than `DURATION`, stale or not. |
 | Its objects are not whole | One hour after it was written: the plan was not stored whole. |
@@ -627,6 +672,20 @@ Output:
 ```text
 1 plan can no longer be applied; a collection that runs 1 hour later removes it:
   plan-<id>  bob        stale, base changed in state (revision 2, plan expected 1)
+```
+
+A partly stale plan is not marked and not removed, however often a collection runs. The plan of `moved` stays until its time to live ends.
+
+```sh
+pravo -C moved plan gc
+pravo -C moved plan gc --json | jq -c '{looked, removed: (.removed | length), marked: (.marked | length)}'
+```
+
+Output:
+
+```text
+No stored plan needs to be removed.
+{"looked":1,"removed":0,"marked":0}
 ```
 
 `--older-than` removes the unapplied plans that were made longer ago than a length of time, without waiting for the hour.

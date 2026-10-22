@@ -8,7 +8,7 @@ import { GraphView, Minimap } from './graph.js';
 import { Rail } from './rail.js';
 import { TableView } from './table.js';
 import { Inspector } from './inspector.js';
-import { Plans, planBar, avatar } from './plans.js';
+import { Plans, planBar, avatar, statusLabel } from './plans.js';
 import { Palette, Sheet } from './palette.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
 import { h, s as svgEl, clear, store, relTime, clock, plural, schedule, actionOf, icon, copyText, pathParts, tilde, motionOn, tick } from './util.js';
@@ -276,7 +276,7 @@ function diffPlans(before, after) {
   const now = new Map(after.map((p) => [p.id, p]));
   const added = after.filter((p) => !was.has(p.id)).map((p) => p.id);
   const removed = before.filter((p) => !now.has(p.id)).map((p) => p.id);
-  const moved = after.filter((p) => was.has(p.id) && (was.get(p.id).status !== p.status || was.get(p.id).applied !== p.applied)).map((p) => `${p.id} ${p.status}`);
+  const moved = after.filter((p) => was.has(p.id) && (was.get(p.id).status !== p.status || was.get(p.id).applied !== p.applied)).map((p) => `${p.id} ${statusLabel(p.status)}`);
   return { added, removed, moved };
 }
 
@@ -324,7 +324,7 @@ async function selectPlan(id) {
   S.overlay = overlay;
   applyPlan();
   const p = id && S.plans.find((x) => x.id === id);
-  announce(p ? `${id} by ${p.author} is laid over the graph, ${p.status}.` : 'No plan is laid over the graph.');
+  announce(p ? `${id} by ${p.author} is laid over the graph, ${statusLabel(p.status)}.` : 'No plan is laid over the graph.');
 }
 
 // applyPlan draws the graph again for the plan that is selected.
