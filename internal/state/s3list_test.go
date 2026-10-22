@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/fakes3"
 )
@@ -147,5 +150,31 @@ func TestS3EntityTagsWithoutQuotes(t *testing.T) {
 	ok, err = b.DeleteIf(ctx, "k", func([]byte) bool { return true })
 	if err != nil || !ok {
 		t.Fatalf("DeleteIf with an unquoted tag = %v, %v", ok, err)
+	}
+}
+
+// A store that ignores the continuation token, and numbers its pages, sends the
+// first page again and again. The listing stops at the first key it has seen, and
+// says so, and does not run until the command is cancelled.
+func TestS3ListStopsOnAPageThatIsSentAgain(t *testing.T) {
+	var requests atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		fmt.Fprintf(w, `<ListBucketResult><IsTruncated>true</IsTruncated><NextContinuationToken>page-%d</NextContinuationToken>`+
+			`<Contents><Key>team/app/rec/a</Key></Contents><Contents><Key>team/app/rec/b</Key></Contents></ListBucketResult>`, requests.Add(1))
+	}))
+	t.Cleanup(srv.Close)
+	b, err := NewS3Backend(context.Background(), S3Config{Bucket: "state", Prefix: "team/app", Region: "us-east-1", Endpoint: srv.URL, PathStyle: true, AccessKey: "test", SecretKey: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	keys, err := b.List(ctx, "rec")
+	if err == nil || !strings.Contains(err.Error(), "does not advance") || ctx.Err() != nil {
+		t.Fatalf("List = %v, %v after %d requests, want an error that says that the listing does not advance", keys, err, requests.Load())
+	}
+	if requests.Load() > 3 {
+		t.Errorf("%d requests, want the listing to stop at the second page", requests.Load())
 	}
 }

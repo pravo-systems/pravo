@@ -368,13 +368,16 @@ func (b *S3Backend) Delete(ctx context.Context, key string) error {
 
 // List pages through the keys under prefix. A page that is cut short carries the
 // token of the next one; a store that does not send it is asked again after the
-// last key of the page, and a listing that does not advance, because the next
-// page starts where this one did, is an error and not an endless loop. The keys
-// are returned in the byte order that S3 lists them in, whatever the store did.
+// last key of the page. A listing that does not advance is an error and not an
+// endless loop: the next page starts where this one did, or it holds a key that
+// an earlier page held, which a store that ignores the token and numbers its
+// pages sends. The keys are returned in the byte order that S3 lists them in,
+// whatever the store did.
 func (b *S3Backend) List(ctx context.Context, prefix string) ([]string, error) {
 	full := b.key(strings.TrimSuffix(prefix, "/") + "/")
 	var out []string
 	var token, startAfter *string
+	seen := map[string]bool{}
 	for {
 		res, err := b.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{Bucket: aws.String(b.bucket), Prefix: aws.String(full), ContinuationToken: token, StartAfter: startAfter})
 		if err != nil {
@@ -390,6 +393,10 @@ func (b *S3Backend) List(ctx context.Context, prefix string) ([]string, error) {
 			if strings.HasSuffix(k, "/") {
 				continue
 			}
+			if seen[k] {
+				return nil, fmt.Errorf("s3 list %s: the listing does not advance (the store sent %s again, with a new token)", prefix, k)
+			}
+			seen[k] = true
 			out = append(out, k)
 		}
 		if res.IsTruncated == nil || !*res.IsTruncated {
