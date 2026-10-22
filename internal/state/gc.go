@@ -532,17 +532,25 @@ func (s *Store) sealedSummaries(ctx context.Context) (map[string]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	counts := map[string]int{}
-	for _, k := range keys {
+	var (
+		mu       sync.Mutex
+		counts   = map[string]int{}
+		firstErr error
+	)
+	s.each(len(keys), func(i int) {
+		k := keys[i]
 		if !strings.HasSuffix(k, ".json") {
-			continue
+			return
 		}
 		data, err := s.b.Get(ctx, k)
 		if errors.Is(err, ErrNotFound) {
-			continue
+			return
 		}
+		mu.Lock()
+		defer mu.Unlock()
 		if err != nil {
-			return nil, err
+			firstErr = errors.Join(firstErr, err)
+			return
 		}
 		var t struct {
 			Sealed *struct {
@@ -552,6 +560,6 @@ func (s *Store) sealedSummaries(ctx context.Context) (map[string]int, error) {
 		if json.Unmarshal(data, &t) == nil && t.Sealed != nil {
 			counts[t.Sealed.Group]++
 		}
-	}
-	return counts, nil
+	})
+	return counts, firstErr
 }
