@@ -58,7 +58,9 @@ func TestBigEstate(t *testing.T) {
 	if len(m.graphJSON) > 4<<20 {
 		t.Errorf("the graph is %d bytes", len(m.graphJSON))
 	}
-	limit := 1500 * time.Millisecond
+	// The limit catches a model that has become slow by an order of magnitude. A
+	// runner of CI, Windows in particular, takes up to twice as long as a laptop.
+	limit := 5 * time.Second
 	if raceOn {
 		limit = 15 * time.Second
 	}
