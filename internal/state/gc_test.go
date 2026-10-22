@@ -625,3 +625,69 @@ func TestGCKeepsEveryGroupWhenAPointerNamesNothing(t *testing.T) {
 		t.Fatalf("GC with a pointer that names nothing = %+v, %v", res, err)
 	}
 }
+
+// The text of the error of a transaction that failed is sealed in the group that
+// was current then, and only rewrap --all seals it again. A group that holds
+// nothing else is not dropped, or nobody could read the text again.
+func TestGCKeepsTheGroupOfTheTextOfAnError(t *testing.T) {
+	skipWhenSealed(t)
+	for _, bk := range testBackends() {
+		t.Run(bk.name, func(t *testing.T) {
+			b := bk.make(t)
+			ctx := context.Background()
+			ada, dan := testIdentity(t, "ada"), testIdentity(t, "dan")
+			s := sealedStore(t, b, ada, dan)
+			txn := s.Begin("apply", "pravo apply")
+			if err := txn.FinishError("failed", SealedErrorText, "provider said: hunter2-in-an-error", true); err != nil {
+				t.Fatal(err)
+			}
+			txns, err := s.Transactions()
+			if err != nil || len(txns) != 1 {
+				t.Fatalf("Transactions = %v, %v", txns, err)
+			}
+			key := "txn/" + txns[0].ID + ".json"
+			inG1, err := b.Get(ctx, key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			noPlans := func(context.Context) (int, int, error) { return 0, 0, nil }
+			if _, err := s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada), All: true, Plans: noPlans}); err != nil {
+				t.Fatal(err)
+			}
+			// The records and the outputs are in g2. The text of the error is in g1, as
+			// it is after a rewrap without --all that the records were written after.
+			if err := b.Put(ctx, key, inG1); err != nil {
+				t.Fatal(err)
+			}
+			plans := func(context.Context) (map[string]int, error) { return map[string]int{}, nil }
+			res, err := s.GC(ctx, GCOptions{Groups: true, Plans: plans, Now: ahead(1000 * time.Hour)})
+			if err != nil || len(res.Groups) != 1 || res.Groups[0].Dropped || res.Groups[0].Summaries != 1 || res.Groups[0].Records != 0 {
+				t.Fatalf("GC with the text of an error in g1 = %+v, %v", res, err)
+			}
+			if fmt.Sprint(groupsOf(t, b)) != "[g1 g2]" {
+				t.Fatalf("groups = %v, want g1 kept", groupsOf(t, b))
+			}
+			read := func() string {
+				txns, err := s.Transactions()
+				if err != nil || len(txns) != 1 {
+					t.Fatalf("Transactions = %v, %v", txns, err)
+				}
+				return s.SummaryText(txns[0])
+			}
+			if got := read(); got != "provider said: hunter2-in-an-error" {
+				t.Fatalf("the reader sees %q before the collection", got)
+			}
+			// Sealed again under the current group, the old one holds nothing.
+			if _, err := s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada), All: true, Plans: noPlans}); err != nil {
+				t.Fatal(err)
+			}
+			res, err = s.GC(ctx, GCOptions{Groups: true, Plans: plans, Now: ahead(1000 * time.Hour)})
+			if err != nil || len(res.Groups) != 1 || !res.Groups[0].Dropped {
+				t.Fatalf("GC after rewrap --all = %+v, %v", res, err)
+			}
+			if got := read(); got != "provider said: hunter2-in-an-error" {
+				t.Errorf("the reader sees %q after the group was dropped", got)
+			}
+		})
+	}
+}

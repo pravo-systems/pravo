@@ -348,7 +348,7 @@ No record is garbage: a pointer names every record.
 No group needs to be dropped: the state has only its current group.
 ```
 
-With `--json`, `gc` prints one document: `format`, `dry_run`, `older_than_seconds`, `records` (`listed`, `named`, `unnamed`, `young`, `unknown_age`, `deleted`, `bytes` and `foreign`) and, for a sealed state, `groups` (`examined`, `dropped`, `kept` with `id`, `records`, `unnamed_records`, `outputs` and `plans`, and `skipped` with the reason when the groups were not looked at).
+With `--json`, `gc` prints one document: `format`, `dry_run`, `older_than_seconds`, `records` (`listed`, `named`, `unnamed`, `young`, `unknown_age`, `deleted`, `bytes` and `foreign`) and, for a sealed state, `groups` (`examined`, `dropped`, `kept` with `id`, `records`, `unnamed_records`, `outputs`, `plans` and `summaries`, and `skipped` with the reason when the groups were not looked at).
 
 A stored plan that an apply holds a claim on is left as it is. `--all` counts these plans and prints `2 stored plans in use were not sealed again; run pravo protect rewrap --all when they are done.` With `--json` the count is `plans_skipped`.
 

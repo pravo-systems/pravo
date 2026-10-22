@@ -191,7 +191,7 @@ func gcJSON(format int, res state.GCResult, examined bool, skipped string) map[s
 			dropped = append(dropped, g.ID)
 			continue
 		}
-		kept = append(kept, map[string]any{"id": g.ID, "records": g.Records, "unnamed_records": g.Spare, "outputs": g.Outputs, "plans": g.Plans})
+		kept = append(kept, map[string]any{"id": g.ID, "records": g.Records, "unnamed_records": g.Spare, "outputs": g.Outputs, "plans": g.Plans, "summaries": g.Summaries})
 	}
 	gr := map[string]any{"examined": examined && res.GroupsRefused == "", "dropped": dropped, "kept": kept}
 	switch {
@@ -262,7 +262,7 @@ func printGCReport(res state.GCResult, sealed, groups bool, skipped string) {
 			out.Printf("%s group %s: nothing refers to it.\n", drop, g.ID)
 		default:
 			out.Printf("Kept group %s: %s.\n", g.ID, groupRefs(g, age))
-			if g.Records > 0 || g.Outputs || g.Plans > 0 {
+			if g.Records > 0 || g.Outputs || g.Plans > 0 || g.Summaries > 0 {
 				rewrap = true
 			}
 			if g.Spare > 0 {
@@ -271,7 +271,7 @@ func printGCReport(res state.GCResult, sealed, groups bool, skipped string) {
 		}
 	}
 	if rewrap {
-		out.Println("pravo protect rewrap --all seals records, outputs and stored plans again under the current group.")
+		out.Println("pravo protect rewrap --all seals records, outputs, stored plans and the texts of errors again under the current group.")
 	}
 	if later {
 		out.Printf("A record that no pointer names is kept until it is older than %s. Run pravo protect gc again then.\n", age)
@@ -289,6 +289,9 @@ func groupRefs(g state.GCGroup, age string) string {
 	}
 	if g.Plans > 0 {
 		parts = append(parts, counted(g.Plans, "object of a stored plan", "objects of stored plans"))
+	}
+	if g.Summaries > 0 {
+		parts = append(parts, counted(g.Summaries, "text of an error in the history", "texts of errors in the history"))
 	}
 	if g.Spare > 0 {
 		parts = append(parts, counted(g.Spare, "record that no pointer names and that is kept", "records that no pointer names and that are kept"))

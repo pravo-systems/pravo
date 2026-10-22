@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -97,10 +98,12 @@ type GCGroup struct {
 	// Records counts the records that a pointer names, Spare the ones that none
 	// names and that are kept (they may belong to a writer that has not yet
 	// pointed at them), Outputs says whether outputs.json is sealed in the group
-	// and Plans counts the sealed objects of stored plans.
+	// and Plans counts the sealed objects of stored plans. Summaries counts the
+	// texts of errors that transactions keep sealed.
 	Records, Spare int
 	Outputs        bool
 	Plans          int
+	Summaries      int
 	// Dropped is set for a group that was removed from meta.json, or with DryRun
 	// would be.
 	Dropped bool
@@ -108,7 +111,7 @@ type GCGroup struct {
 
 // Referenced reports whether anything is sealed in the group.
 func (g GCGroup) Referenced() bool {
-	return g.Records+g.Spare+g.Plans > 0 || g.Outputs
+	return g.Records+g.Spare+g.Plans+g.Summaries > 0 || g.Outputs
 }
 
 // recHead is what GC needs of a record: whether it is what its name says it is,
@@ -442,6 +445,19 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 			g.Plans = n
 		}
 	}
+	// The text of the error of a transaction that failed is sealed in the group
+	// that was current then, and is not written again by a record that is: only
+	// rewrap --all seals it again. A group that held only these would be dropped
+	// and the texts could not be opened by anyone.
+	summaries, err := s.sealedSummaries(ctx)
+	if err != nil {
+		return refuse("the transactions could not all be read (" + err.Error() + "), so the groups were not counted")
+	}
+	for id, n := range summaries {
+		if g := refs[id]; g != nil {
+			g.Summaries = n
+		}
+	}
 
 	unused := map[string]bool{}
 	for _, id := range order {
@@ -506,4 +522,36 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 		s.mu.Unlock()
 	}
 	return nil
+}
+
+// sealedSummaries counts the sealed texts of errors in the transactions, for each
+// group. A transaction that is not valid JSON is a damaged log entry, which
+// resealSummaries leaves alone as well, and counts for nothing.
+func (s *Store) sealedSummaries(ctx context.Context) (map[string]int, error) {
+	keys, err := s.b.List(ctx, "txn")
+	if err != nil {
+		return nil, err
+	}
+	counts := map[string]int{}
+	for _, k := range keys {
+		if !strings.HasSuffix(k, ".json") {
+			continue
+		}
+		data, err := s.b.Get(ctx, k)
+		if errors.Is(err, ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		var t struct {
+			Sealed *struct {
+				Group string `json:"group"`
+			} `json:"summary_sealed"`
+		}
+		if json.Unmarshal(data, &t) == nil && t.Sealed != nil {
+			counts[t.Sealed.Group]++
+		}
+	}
+	return counts, nil
 }
