@@ -247,6 +247,9 @@ func publicReaderKey(path string) (protect.ReaderPublic, bool) {
 	if err != nil {
 		return protect.ReaderPublic{}, false
 	}
+	// The file of an identity for a job holds its private keys in the clear, and this
+	// one may not be the one chosen.
+	defer clear(data)
 	var p publicIdentity
 	if json.Unmarshal(data, &p) != nil {
 		return protect.ReaderPublic{}, false
