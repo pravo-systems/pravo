@@ -11,6 +11,7 @@ import (
 	goplugin "github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/tfplugin/tfplugin5"
 	"github.com/pravo-systems/pravo/internal/tfplugin/tfplugin6"
 )
@@ -53,6 +54,14 @@ func Logger() hclog.Logger {
 	return hclog.New(&hclog.LoggerOptions{Name: "plugin", Level: level, Output: os.Stderr, Color: hclog.AutoColor})
 }
 
+// providerEnv is the environment of a provider: the one of the process, without
+// the variables that hold an identity or its passphrase, and the cookie of the
+// handshake. A provider is code that pravo did not write and has no use for the
+// key that opens the state.
+func providerEnv(environ []string) []string {
+	return append(protect.ScrubEnv(environ), "TF_PLUGIN_MAGIC_COOKIE="+Handshake.MagicCookieValue)
+}
+
 // Start launches the provider binary at path and negotiates the protocol.
 // The returned Provider must be closed with Close.
 func Start(path string, logger hclog.Logger) (Provider, error) {
@@ -60,7 +69,7 @@ func Start(path string, logger hclog.Logger) (Provider, error) {
 		logger = Logger()
 	}
 	cmd := exec.Command(path)
-	cmd.Env = append(os.Environ(), "TF_PLUGIN_MAGIC_COOKIE="+Handshake.MagicCookieValue)
+	cmd.Env = providerEnv(os.Environ())
 	client := goplugin.NewClient(&goplugin.ClientConfig{
 		HandshakeConfig: Handshake,
 		VersionedPlugins: map[int]goplugin.PluginSet{

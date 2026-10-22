@@ -70,6 +70,14 @@ type Options struct {
 	// OpenState opens the state for reading. It must not create or change
 	// anything. The default is OpenReadOnly, which reads a local directory.
 	OpenState func(ctx context.Context, root *config.Root) (*state.Store, error)
+	// Protection tells the Access view how the state is protected, from the store
+	// and the readers file. The command fills it from the state package. Nil means
+	// that the state is protected as its format says and no identity was given.
+	Protection Protection
+	// AccessDir is the directory that holds readers.txt. When it is empty the
+	// viewer looks for .pravo/access in the project directory and its parents up
+	// to the repository.
+	AccessDir string
 	// Schemas finds the schema of a provider at a version. The default reads
 	// the cache under $PRAVO_HOME.
 	Schemas SchemaFunc
@@ -381,7 +389,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/events":
 		s.events(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/plans", "/api/plan":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/plans", "/api/plan", "/api/access":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -408,6 +416,8 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		}
 	case "/api/plans":
 		writeJSON(w, http.StatusOK, m.planList())
+	case "/api/access":
+		writeRaw(w, http.StatusOK, m.accessJSON)
 	case "/api/plan":
 		id := r.URL.Query().Get("id")
 		if po, ok := s.storedPlan(w, r, m, id); ok {
@@ -613,6 +623,7 @@ func (s *Server) build() (*model, error) {
 		local = root.StateFile()
 	}
 	s.watch.setState(local, nil)
+	s.watch.setAccess(s.accessPath())
 	rev, sigs := s.watch.sample()
 	if loaded && sigs["spec"] != sig && !modifiedSince(ss.files, loadStart) {
 		// The file list grew with the load; that is not a change of the files.

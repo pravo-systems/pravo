@@ -6,9 +6,11 @@
 //   &latency=300                          every answer is delayed by that many milliseconds
 //   &stale=1                              the saved plan is stale, with reasons
 //   &plan=plan-2f9c1a4e                   the server lays that stored plan itself (pravo serve --plan plan-2f9c1a4e)
+//   &access=NAME                          the Access view answers access.NAME.json: platform (sealed, a reader), off, immutable,
+//                                         drift, locked (no identity: every record is sealed), notreader, missing (no readers file), migrating, invalid
 // The plans stored in the state are plans.NAME.json (the platform has seven) and plan.ID.json, one for each.
 // window.__mock.mutate() changes the graph and sends a "change" event; storePlan() stores another plan and
-// collectPlan(id) removes one, each with its event; window.__errors collects the errors and warnings of the
+// collectPlan(id) removes one, each with its event; setAccess(name) swaps the Access document, with the event for the readers file; window.__errors collects the errors and warnings of the
 // page, for a headless run.
 
 const here = new URL('.', import.meta.url);
@@ -50,6 +52,26 @@ if (graph) {
     graph.plan.reasons = ['the state changed after the plan was made: api.db is at revision 15, the plan read revision 14', 'the provider aws is now version 5.62.0, the plan was made with 5.61.0'];
   }
 }
+// ---- the Access view: access.NAME.json, the sealed platform unless the query says another ----
+let accessName = params.get('access') || (NAME === 'platform' ? 'platform' : 'off');
+let access = await fixture(`access.${accessName}.json`);
+// a state that is sealed to a process that holds no key lists its records and shows no value
+function lockGraph(g) {
+  g = JSON.parse(JSON.stringify(g));
+  let n = 0;
+  for (const x of g.nodes) {
+    if (x.presence === 'spec' || x.mode !== 'managed') continue;
+    x.sealed = true;
+    delete x.sensitive;
+    delete x.no_schema;
+    n++;
+  }
+  for (const o of g.outputs || []) { o.sensitive = true; o.redacted = 'sealed'; delete o.value; delete o.unknown; }
+  g.warnings = (g.warnings || []).concat(`The state is sealed and ${n} records could not be opened, so their values are not shown.`);
+  return g;
+}
+if (graph && access && access.you && access.you.state !== 'reader' && access.state !== 'off') graph = lockGraph(graph);
+if (graph && access) graph.project.state.sealed = access.state === 'sealed' || access.state === 'migrating' ? true : undefined;
 const detailFiles = NAME === 'platform' ? { 'api.db': 'detail.db.json', 'api.db_password': 'detail.password.json', 'edge.lb': 'detail.drifted.json', url: 'detail.output.json', summary: 'detail.outputmap.json', db_password: 'detail.outputsecret.json' } : {};
 const sourceFiles = NAME === 'platform' ? { 'api.db': 'source.db.json', 'api.db_password': 'source.password.json', url: 'source.output.json' } : {};
 
@@ -170,6 +192,7 @@ function synthDetail(n) {
   if (n.presence === 'spec') notes.push('This resource is declared and not created yet. The values below are the planned ones; the rest is known after apply.');
   if (n.gone) notes.push('The object does not exist at the provider any more. The next plan creates it again.');
   const d = { version: 1, node: { ...n, deps: undefined, used: undefined, mod: undefined }, provider: provRef(n), attrs, schema_known: n.type !== 'aws_wafv2_web_acl', depends_on: deps, used_by: used, times };
+  if (n.sealed) { d.attrs = []; d.schema_known = true; notes.push('The attributes of this record are sealed, and no identity was given. Start the viewer with pravo serve --identity NAME. Resources are listed and no value is shown.'); }
   if (!d.schema_known) d.attrs = attrs.map((a) => ({ name: a.name, type: a.type, kind: a.kind, redacted: 'schema' }));
   if (seen.size) d.reach = [...seen].sort();
   if (notes.length) d.notes = notes;
@@ -265,13 +288,16 @@ window.fetch = async (input, init) => {
   const p = url.pathname;
   if (p === '/api/ping') return json(200, { ok: true, version: 1 });
   if (p === '/api/graph') return json(200, graph);
+  if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
   if (p === '/api/plans') return json(200, Object.assign({}, stored, { revision: graph.revision }));
   if (p === '/api/plan') {
     const id = url.searchParams.get('id') || '';
     if (!/^plan-[0-9a-f]{6,64}$/.test(id)) return json(400, { error: 'id is required: the id of a stored plan, such as plan-2f9c1a4e' });
     const o = stored.plans.some((x) => x.id === id) ? await overlayOf(id) : null;
     if (!o) return json(404, { error: 'no such stored plan' });
-    return json(200, Object.assign({}, o, { revision: graph.revision }));
+    // a viewer without a key lays the plan over the graph from its summary, as the server does, and says so
+    const sealed = access && access.you && access.you.state !== 'reader' && access.state !== 'off';
+    return json(200, Object.assign({}, o, { revision: graph.revision }, sealed ? { warnings: (o.warnings || []).concat('The values of this plan are sealed.') } : {}));
   }
   if (p === '/api/detail' || p === '/api/source') {
     const addr = url.searchParams.get('addr') || '';
@@ -297,7 +323,7 @@ window.fetch = async (input, init) => {
       return json(200, synthSource(n));
     }
     const files = kind === 'detail' ? detailFiles : sourceFiles;
-    if (files[addr] && mutations === 0) { const v = await fixture(files[addr]); if (v) return json(200, shift(v, by)); }
+    if (files[addr] && mutations === 0 && !n.sealed) { const v = await fixture(files[addr]); if (v) return json(200, shift(v, by)); }
     return json(200, kind === 'detail' ? synthDetail(n) : synthSource(n));
   }
   if (p === '/api/search') {
@@ -386,6 +412,17 @@ window.__mock = {
     g.revision = 'r-plans-' + (++mutations);
     graph = g;
     this.emit({ revision: g.revision, what: ['plans'] });
+  },
+  // setAccess swaps the Access document for another fixture, as an edit of the readers file or a rewrap would, and sends the event
+  async setAccess(name) {
+    const a = await fixture(`access.${name}.json`);
+    if (!a) return false;
+    access = a;
+    const g = JSON.parse(JSON.stringify(graph));
+    g.revision = 'r-access-' + (++mutations);
+    graph = g;
+    this.emit({ revision: g.revision, what: ['access'] });
+    return true;
   },
   drop() { for (const s of sources) { s.readyState = 0; s.fire('error', {}); } },
   restore() { for (const s of sources) { s.readyState = 1; s.fire('open', {}); } },

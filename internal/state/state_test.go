@@ -555,8 +555,11 @@ func TestFormat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := formatOf(t, b); got != 1 || s.Format() != 1 {
-		t.Fatalf("a new store is format %d (in memory %d), want 1", got, s.Format())
+	// A new store is format 1, or the format that PRAVO_TEST_FORMAT asks the suite
+	// to run over.
+	want := NewStoreFormat
+	if got := formatOf(t, b); got != want || s.Format() != want {
+		t.Fatalf("a new store is format %d (in memory %d), want %d", got, s.Format(), want)
 	}
 	plain := &Resource{Mode: "managed", Type: "t", Name: "plain", Attributes: json.RawMessage(`{"id":"1"}`)}
 	if err := s.Set(plain, ""); err != nil {
@@ -568,8 +571,8 @@ func TestFormat(t *testing.T) {
 	if err := s.Set(&marked, ""); err != nil {
 		t.Fatal(err)
 	}
-	if got := formatOf(t, b); got != 1 {
-		t.Errorf("a store with a mark is format %d, want 1", got)
+	if got := formatOf(t, b); got != want {
+		t.Errorf("a store with a mark is format %d, want %d", got, want)
 	}
 	s2, err := OpenBackend(ctx, b)
 	if err != nil {
@@ -581,11 +584,11 @@ func TestFormat(t *testing.T) {
 	if got := s2.Get("t.plain"); got == nil || got.Marked() {
 		t.Errorf("a record without a mark has one: %+v", got)
 	}
-	if err := b.Put(ctx, "meta.json", []byte(`{"format":2,"lineage":"abc","created":"2026-01-01T00:00:00Z"}`)); err != nil {
+	if err := b.Put(ctx, "meta.json", []byte(`{"format":99,"lineage":"abc","created":"2026-01-01T00:00:00Z"}`)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := OpenBackend(ctx, b); err == nil || !strings.Contains(err.Error(), "written by a newer pravo (format 2)") {
-		t.Errorf("a store of format 2 opened: %v", err)
+	if _, err := OpenBackend(ctx, b); err == nil || !strings.Contains(err.Error(), "written by a newer pravo (format 99)") {
+		t.Errorf("a store of format 99 opened: %v", err)
 	}
 }
 

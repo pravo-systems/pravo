@@ -148,3 +148,81 @@ func TestProbeStepsReportsEachCheckInOrder(t *testing.T) {
 		t.Errorf("reports %q, last error %v, probe error %v; want three reports and the third failed", got, failed, err)
 	}
 }
+
+func TestProbeStrictAcceptsAStoreThatHonoursTheConditions(t *testing.T) {
+	f, b := probeStore(t, nil)
+	var got []string
+	if err := b.ProbeStrict(context.Background(), func(check string, err error) {
+		if err != nil {
+			t.Errorf("%s: %v", check, err)
+		}
+		got = append(got, check)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got, "|") != strings.Join(StrictChecks, "|") {
+		t.Errorf("reported %q, want %q", got, StrictChecks)
+	}
+	for k := range f.Objects {
+		t.Errorf("the probe left %q behind", k)
+	}
+}
+
+func TestProbeStrictRefusesAStoreThatIgnoresConditionalWrites(t *testing.T) {
+	// The store drops If-Match from every put: all eight writers win.
+	f, b := probeStore(t, func(r *http.Request) (bool, int) {
+		return r.Method == http.MethodPut && r.Header.Get("If-Match") != "", 0
+	})
+	var got []string
+	err := b.ProbeStrict(context.Background(), func(check string, err error) { got = append(got, check) })
+	var pe *ProbeError
+	if !errors.As(err, &pe) || !strings.Contains(pe.Detail, "8 of 8 concurrent replaces of one object succeeded, want 1") {
+		t.Fatalf("error = %v, want a ProbeError that says that all eight replaces won", err)
+	}
+	if len(got) != 1 || got[0] != StrictChecks[0] {
+		t.Errorf("reports %q, want the first check only", got)
+	}
+	for k := range f.Objects {
+		t.Errorf("the probe left %q behind", k)
+	}
+}
+
+func TestProbeStrictRefusesAListingThatLags(t *testing.T) {
+	f := fakes3.New()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Query().Get("list-type") == "2" {
+			w.Header().Set("Content-Type", "application/xml")
+			_, _ = w.Write([]byte(`<ListBucketResult><Name>state</Name><IsTruncated>false</IsTruncated></ListBucketResult>`))
+			return
+		}
+		f.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	b, err := NewS3Backend(context.Background(), S3Config{
+		Bucket: "state", Prefix: "team/app", Region: "us-east-1", Endpoint: srv.URL, PathStyle: true, AccessKey: "test", SecretKey: "test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	err = b.ProbeStrict(context.Background(), func(check string, err error) { got = append(got, check) })
+	var pe *ProbeError
+	if !errors.As(err, &pe) || !strings.Contains(pe.Detail, "did not show the new key") {
+		t.Fatalf("error = %v, want a ProbeError about the listing", err)
+	}
+	if len(got) != 2 || got[1] != StrictChecks[1] {
+		t.Errorf("reports %q, want both checks, the second failed", got)
+	}
+	for k := range f.Objects {
+		t.Errorf("the probe left %q behind", k)
+	}
+}
+
+func TestProbeStrictReportsAFaultOfTheStoreAsAnotherError(t *testing.T) {
+	_, b := probeStore(t, func(r *http.Request) (bool, int) { return false, http.StatusForbidden })
+	err := b.ProbeStrict(context.Background(), nil)
+	var pe *ProbeError
+	if err == nil || errors.As(err, &pe) {
+		t.Fatalf("a store that denies the write gave %v; want an error that is not a ProbeError", err)
+	}
+}

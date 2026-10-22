@@ -250,7 +250,7 @@ A link reproduces the view on a viewer that shows the same estate. The fragment 
 
 The theme button in the bar, or `t`, switches between the light and the dark theme. Without a `theme` parameter the viewer follows the system and the last choice that you made in the page.
 
-The Table button switches from the graph to a table, and `g` switches back. The table has a row for each resource and each output, and the columns Address, Type, Provider, Mode, Status, Plan, Rev and Refreshed. The Mode of an output is `output`. The Plan column shows what the loaded plan does to the resource, and it is left out when no plan is loaded. The address starts with the module, so there is no column for it. Provider is the provider instance that the resource uses, such as `aws` or `aws.west`. The graph and the table colour each instance, in the tile of a card and in the dot in front of the name: the instances of one estate get different colours, up to twelve of them, and the same instance has the same colour in both. A narrow table leaves out Mode and Rev. Click a heading to sort by it, and click it again to reverse the order. The up and down arrows move the selection. The filters apply to the table as they do to the graph, and the filter box also matches the action and the mode.
+The Table button switches from the graph to a table, and `g` goes to the next view. The table has a row for each resource and each output, and the columns Address, Type, Provider, Mode, Status, Plan, Rev and Refreshed. The Mode of an output is `output`. The Plan column shows what the loaded plan does to the resource, and it is left out when no plan is loaded. The address starts with the module, so there is no column for it. Provider is the provider instance that the resource uses, such as `aws` or `aws.west`. The graph and the table colour each instance, in the tile of a card and in the dot in front of the name: the instances of one estate get different colours, up to twelve of them, and the same instance has the same colour in both. A narrow table leaves out Mode and Rev. Click a heading to sort by it, and click it again to reverse the order. The up and down arrows move the selection. The filters apply to the table as they do to the graph, and the filter box also matches the action and the mode.
 
 :::figure The Table view of the same estate: one row for each resource. The statuses show `gone` for `api.cache.config` and `orphan` for `edge.balancer.reload`.
 <a class="shot" href="../img/serve/table-dark.png"><img src="../img/serve/table-dark.png" width="1440" height="900" alt="The viewer in the Table view. A table lists the resources with the columns Address, Type, Provider, Status and Refreshed. The Provider column names the provider instance of each resource, here local, null and random. The Status column shows the number of sensitive values, the mark gone and the mark orphan. The inspector shows the selected resource." loading="lazy"></a>
@@ -279,6 +279,29 @@ Copy the address with the token from the output of the viewer, and open it in th
 
 In a container, the viewer listens on the loopback interface of the container. A port that the container runtime publishes is reached through another interface, so publishing it does not reach the viewer. Run the viewer in a network namespace that the browser can reach, or forward over SSH from the host that runs the container.
 
+## 12. See who can read the state
+
+The Access button, or `g` pressed twice from the graph, opens the Access view. It is for a state that is sealed to a list of readers ([Seal the state](seal-the-state.md) shows how), and it explains a state that is not: the banner says whether the state is sealed, and the first suggestion is the one that seals it.
+
+For a sealed state, start the viewer with your identity:
+
+```text
+pravo serve --identity ada
+```
+
+Without `--identity` the viewer finds an identity as the other commands do. If it has a passphrase, the command asks for it on the terminal before it listens. If you hold no identity, or the identity is not a reader of the state, the viewer starts anyway: it lists every resource and shows no value, and the Access view says why. `--identity none` shows what a person with no key sees.
+
+The view has these parts, from the top:
+
+- The banner, with a sentence for the state, the format, the backend and the location.
+- You: who the viewer is reading as, and whether that identity is a reader.
+- Readers: the readers of the store and of the readers file, side by side. A mark says whether each is in the file and in the store. The button next to a key or a fingerprint copies it.
+- Readers file: whether the file matches the store. When it differs, the view names the readers that are in the file and not in the store, and the ones that are in the store and not in the file.
+- Records: how many are sealed, how many cannot be opened with your identity, and the groups of data keys.
+- Suggested changes: cards, the next step open. Copy a command with its button and run it in a terminal; the viewer does not. A step that edits the readers file shows the line to add or remove, and the button copies the line only. Words in angle brackets are for you to fill in.
+
+The view updates when the readers file or the state changes. Edit the file in your checkout and the verdict changes within a second or two.
+
 ## Recap
 
 - `pravo serve` shows the specification, the state and an optional saved plan as modules and resources. It reads and writes nothing.
@@ -286,6 +309,7 @@ In a container, the viewer listens on the loopback interface of the container. A
 - The Source tab shows the definition and the instance that write a resource. The Change tab shows what a saved plan changes.
 - The Plans section lists the plans that your team stored in the state. A disc on a resource names who plans to change it, and a ring marks two plans on one resource. The viewer copies the command that applies a plan and applies nothing.
 - A value that is sensitive, or has a secret's name, or contains a secret, never reaches the page.
+- The Access view shows who can read a sealed state and whether the readers file matches the store. It suggests commands, and the viewer runs none.
 - The fragment of the address holds the view, so a link reproduces it. Press `?` in the viewer for the shortcuts.
 
 Next: [`pravo serve`](../reference/serve.md) lists the flags, the keys and the endpoints. [The viewer](../concepts/the-viewer.md) explains what each mark means.

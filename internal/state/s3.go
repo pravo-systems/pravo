@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -36,9 +38,16 @@ type S3Config struct {
 	AccessKey, SecretKey, SessionToken string
 }
 
+// idleConns is the number of idle connections the transport keeps per host
+// and in all. The upgrade runs up to 32 workers; with the default of ten per
+// host every worker beyond the tenth opens, and then closes, a connection per
+// request, which leaves a socket in TIME_WAIT for each of them.
+const idleConns = 64
+
 // S3Backend stores objects in a bucket.
 type S3Backend struct {
 	client *s3.Client
+	http   *awshttp.BuildableClient
 	bucket string
 	prefix string
 	name   string
@@ -49,6 +58,14 @@ func NewS3Backend(ctx context.Context, cfg S3Config) (*S3Backend, error) {
 	if cfg.Bucket == "" {
 		return nil, errors.New("$settings.state.bucket is required for the s3 backend")
 	}
+	httpClient := awshttp.NewBuildableClient().WithTransportOptions(func(t *http.Transport) {
+		if t.MaxIdleConns < idleConns {
+			t.MaxIdleConns = idleConns
+		}
+		if t.MaxIdleConnsPerHost < idleConns {
+			t.MaxIdleConnsPerHost = idleConns
+		}
+	})
 	var opts []func(*awsconfig.LoadOptions) error
 	// Compatible stores often reject the newer checksum headers and return
 	// none; only use checksums where the API requires them, and keep the
@@ -57,6 +74,7 @@ func NewS3Backend(ctx context.Context, cfg S3Config) (*S3Backend, error) {
 		awsconfig.WithRequestChecksumCalculation(aws.RequestChecksumCalculationWhenRequired),
 		awsconfig.WithResponseChecksumValidation(aws.ResponseChecksumValidationWhenRequired),
 		awsconfig.WithLogger(logging.Nop{}),
+		awsconfig.WithHTTPClient(httpClient),
 	)
 	if cfg.Region != "" {
 		opts = append(opts, awsconfig.WithRegion(cfg.Region))
@@ -85,7 +103,7 @@ func NewS3Backend(ctx context.Context, cfg S3Config) (*S3Backend, error) {
 	if prefix != "" {
 		name += "/" + prefix
 	}
-	return &S3Backend{client: client, bucket: cfg.Bucket, prefix: prefix, name: name}, nil
+	return &S3Backend{client: client, http: httpClient, bucket: cfg.Bucket, prefix: prefix, name: name}, nil
 }
 
 func (b *S3Backend) Name() string { return b.name }

@@ -205,6 +205,7 @@ func TestReadOnlyCommandsCreateNoState(t *testing.T) {
 	for _, args := range [][]string{
 		{"eval"}, {"output"}, {"providers"}, {"validate"},
 		{"state", "list"}, {"state", "log"}, {"state", "locks"}, {"state", "graph"}, {"state", "query", "len(resources)"},
+		{"protect", "status"},
 	} {
 		if text, code := runPravo(t, dir, args...); code != 0 {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)

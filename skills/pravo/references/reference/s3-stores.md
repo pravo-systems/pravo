@@ -52,4 +52,6 @@ $settings: pravo.#Settings & {
 
 The probe shows that the store checks the conditions one request at a time and that concurrent creates have one winner. It does not show that the store keeps that guarantee under every load. Amazon S3 honours the conditions on a versioned bucket. On other stores a versioned bucket is where conditional requests tend to be weakest, so probe the bucket as it will be used, with versioning set the way you will set it.
 
+A sealed state needs more of the store. Its records are objects that are never overwritten, and a pointer to each is replaced by compare-and-swap. `pravo protect check` runs the checks above and two more: eight writers replace one object at once with the entity tag they all read and exactly one must win, and a key that has just been written must be in the listing of its prefix. See [pravo id and pravo protect](protect.md#protect-check).
+
 [Remote state](../how-to/remote-state.md) sets up the bucket, and [State format](state-format.md#remote-layout) describes the objects.

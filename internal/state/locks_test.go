@@ -366,7 +366,12 @@ func TestRefreshWritesNothingFromAnOlderView(t *testing.T) {
 				t.Fatalf("after a refresh: %+v", got)
 			}
 
-			// Another command applies the record.
+			// Another command applies the record. In format 2 the refresh replaced the
+			// pointer, and a command that read the record before it does not write over
+			// it: the command is run again, which is a new view.
+			if NewStoreFormat != Format {
+				other = openMany(t, b, 1)[0]
+			}
 			if err := other.Set(other.Get("t.r"), "t3"); err != nil {
 				t.Fatal(err)
 			}

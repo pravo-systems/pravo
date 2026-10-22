@@ -61,7 +61,7 @@ func openPlanStore(ctx context.Context, write bool) (*state.Store, *engine.PlanS
 	if err != nil {
 		return nil, nil, err
 	}
-	return st, engine.NewPlanStore(st.Backend()), nil
+	return st, engine.NewPlanStoreFor(st), nil
 }
 
 // storedPlanJSON is how --json describes a stored plan.
@@ -171,6 +171,7 @@ plan is applied.`,
 			if err != nil {
 				return err
 			}
+			unsealed := unsealedPlans(entries)
 			if touching != "" {
 				entries = engine.Touching(entries, touching)
 			}
@@ -189,9 +190,13 @@ plan is applied.`,
 				if len(skipped) > 0 {
 					doc["unreadable"] = unreadablePlans(skipped)
 				}
+				if len(unsealed) > 0 {
+					doc["unsealed"] = unsealed
+				}
 				return emitJSON(doc)
 			}
 			defer warnUnreadable(skipped)
+			defer warnUnsealed(unsealed)
 			if len(shown) == 0 {
 				switch {
 				case touching != "":
@@ -248,6 +253,27 @@ func unreadablePlans(skipped []engine.SkippedPlan) []unreadablePlanJSON {
 		out = append(out, unreadablePlanJSON{ID: sk.ID, Error: sk.Err.Error()})
 	}
 	return out
+}
+
+// unsealedPlans returns the ids of the plans of a sealed state that were stored
+// before it was sealed and are not sealed yet.
+func unsealedPlans(entries []*engine.PlanEntry) []string {
+	var ids []string
+	for _, e := range entries {
+		if e.Meta != nil && e.Meta.Unsealed {
+			ids = append(ids, e.Meta.ID)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// warnUnsealed says which stored plans are not sealed in a sealed state.
+func warnUnsealed(ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	out.Warning(fmt.Sprintf("stored before the state was sealed and not sealed: %s. Anyone who can read the bucket can read their values; \"pravo protect rewrap --all\" seals the plans that nothing uses", strings.Join(ids, ", ")))
 }
 
 // warnUnreadable says which stored plans a listing could not read, and why.
@@ -499,7 +525,7 @@ func storePlan(ctx context.Context, s *session, eng *engine.Engine, plan *engine
 		return nil, err
 	}
 	sp := &storedPlan{Meta: meta}
-	ps := engine.NewPlanStore(s.state.Backend())
+	ps := engine.NewPlanStoreFor(s.state)
 	check := engine.PlanCheckFor(s.state)
 	if entries, err := ps.Entries(ctx, check); err == nil {
 		sp.Overlaps = engine.OverlapsOf(entries, meta)
@@ -554,7 +580,7 @@ func printStored(sp *storedPlan) {
 // plan changes, for a plan that is not stored. It looks quietly: a state that
 // cannot be listed has none.
 func storedOverlapsOf(ctx context.Context, s *session, eng *engine.Engine, plan *engine.Plan) []engine.Overlap {
-	entries, err := engine.NewPlanStore(s.state.Backend()).Entries(ctx, engine.PlanCheckFor(s.state))
+	entries, err := engine.NewPlanStoreFor(s.state).Entries(ctx, engine.PlanCheckFor(s.state))
 	if err != nil || len(entries) == 0 {
 		return nil
 	}
@@ -587,7 +613,7 @@ func planTagsMatch(m *engine.PlanMeta, verb string) error {
 // has the tags the plan was made with, and reads the plan with what was applied
 // from it. The state must be open: s.
 func readStored(ctx context.Context, s *session, ref, verb string) (*engine.PlanStore, *engine.PlanFile, *engine.PlanEntry, error) {
-	ps := engine.NewPlanStore(s.state.Backend())
+	ps := engine.NewPlanStoreFor(s.state)
 	id, err := ps.Resolve(ctx, ref)
 	if err != nil {
 		return nil, nil, nil, err
@@ -725,7 +751,7 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 		return err
 	}
 	defer s.close()
-	ps := engine.NewPlanStore(s.state.Backend())
+	ps := engine.NewPlanStoreFor(s.state)
 	id, err := ps.Resolve(ctx, ref)
 	if err != nil {
 		return err

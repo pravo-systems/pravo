@@ -89,7 +89,7 @@ const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
 for (const f of files) {
   const v = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
   const kind = f.split('.')[0];
-  const type = { graph: 'Graph', detail: 'Detail', source: 'Source', plans: 'PlanList', plan: 'PlanOverlay' }[kind];
+  const type = { graph: 'Graph', detail: 'Detail', source: 'Source', plans: 'PlanList', plan: 'PlanOverlay', access: 'Access' }[kind];
   if (!type) { fail(f, 'unknown fixture kind'); continue; }
   const before = errors;
   check(v, type, f);
@@ -122,6 +122,54 @@ for (const f of files) {
     if (v.plan && v.plan.total !== v.nodes.filter((n) => n.mode !== 'output').length) fail(f, 'plan.total counts the outputs');
   }
   console.log(`${errors === before ? 'ok  ' : 'FAIL'} ${f}`);
+}
+
+// The access documents: the state and the verdict are among the values the page knows, the readers are matched
+// by key, a suggestion has steps of the four kinds, a command is one line of pravo or git, and the document of a
+// name that a graph has goes with that graph.
+{
+  const read = (f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+  const STATES = new Set(['off', 'immutable', 'sealed', 'migrating']);
+  const VERDICTS = new Set(['match', 'differs', 'missing', 'invalid', 'none']);
+  const YOU = new Set(['reader', 'not-reader', 'no-identity', 'locked']);
+  const KINDS = new Set(['command', 'add-line', 'remove-line', 'note']);
+  for (const f of files.filter((x) => x.startsWith('access.'))) {
+    const name = f.split('.')[1];
+    const a = read(f);
+    const before = errors;
+    if (!STATES.has(a.state)) fail(f, `state ${a.state}`);
+    if (!VERDICTS.has(a.file.verdict)) fail(f, `verdict ${a.file.verdict}`);
+    if (a.you && !YOU.has(a.you.state)) fail(f, `you ${a.you.state}`);
+    if (!!a.you !== (a.state === 'sealed' || a.state === 'migrating')) fail(f, 'you is for a sealed state only');
+    if (!!a.migration !== (a.state === 'migrating')) fail(f, 'migration is for a state that is migrating only');
+    const graphFile = `graph.${name}.json`;
+    if (files.includes(graphFile) && a.revision !== read(graphFile).revision) fail(f, `revision ${a.revision} is not the graph's`);
+    const keys = new Set();
+    for (const r of a.readers) {
+      if (r.key && keys.has(r.key)) fail(f, `reader ${r.name} twice`);
+      keys.add(r.key);
+      if (!r.in_file && !r.in_store) fail(f, `reader ${r.name} is in neither`);
+      if (r.key && !/^x25519:[A-Za-z0-9_-]{43}$/.test(r.key)) fail(f, `reader key of ${r.name}`);
+    }
+    const names = (list) => a.readers.filter(list).map((r) => r.name).sort().join();
+    if (a.file.verdict === 'differs') {
+      if (names((r) => r.in_file && !r.in_store) !== [...(a.file.added || [])].sort().join()) fail(f, 'added does not agree with the readers');
+      if (names((r) => r.in_store && !r.in_file) !== [...(a.file.removed || [])].sort().join()) fail(f, 'removed does not agree with the readers');
+    }
+    if (a.file.verdict === 'invalid' && !(a.file.errors || []).length) fail(f, 'invalid without an error');
+    if (a.suggestions.filter((s) => s.primary).length > 1) fail(f, 'two primary suggestions');
+    for (const s of a.suggestions) {
+      for (const st of s.steps) {
+        if (!KINDS.has(st.kind)) fail(f, `step kind ${st.kind}`);
+        if (/[\n\r]/.test(st.text)) fail(f, `a step with a line break in ${s.id}`);
+        if (st.kind === 'command' && !/^(pravo|git) /.test(st.text)) fail(f, `command ${st.text}`);
+        if ((st.kind === 'add-line' || st.kind === 'remove-line') && !st.file) fail(f, `${st.kind} without a file in ${s.id}`);
+        if (st.placeholder && !/<[a-z -]+>/.test(st.text)) fail(f, `placeholder without a placeholder in ${s.id}`);
+        if (!st.placeholder && st.kind !== 'note' && /<[a-z -]+>/.test(st.text)) fail(f, `an unmarked placeholder in ${s.id}: ${st.text}`);
+      }
+    }
+    if (errors === before) console.log(`ok   ${f} (suggestions)`);
+  }
 }
 
 // The stored plans, the graph and the overlays say the same things: every address is a node, every id on a node

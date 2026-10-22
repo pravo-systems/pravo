@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/csv"
@@ -15,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -29,6 +29,10 @@ import (
 // The id is "plan-" and the first characters of the digest of the plan, so the
 // same bytes are always the same plan. The plan is written before its summary: a
 // plan with no summary is a write that did not finish.
+//
+// In a sealed state the plan and the values in the summary are sealed to the
+// readers of the state; see planseal.go. The objects are still written once, and
+// replaced only when a plan is sealed or sealed again in place.
 const (
 	// PlanDir is the prefix of the stored plans in the state.
 	PlanDir = "plans"
@@ -134,6 +138,13 @@ func (c *PlanMetaCache) put(id string, r metaResult) {
 	c.mu.Unlock()
 }
 
+// forget drops the summary of one plan, for a plan whose summary was rewritten.
+func (c *PlanMetaCache) forget(id string) {
+	c.mu.Lock()
+	delete(c.m, id)
+	c.mu.Unlock()
+}
+
 // retain forgets the ids that the listing did not show a summary for.
 func (c *PlanMetaCache) retain(all map[string]map[string]bool) {
 	c.mu.Lock()
@@ -208,13 +219,36 @@ type PlanMeta struct {
 	Reservation *ReservationView    `json:"reservation,omitempty"`
 	// Size is the size of the plan object in bytes.
 	Size int `json:"size"`
+
+	// Sealed holds, in the summary of a sealed state, the command line and the tags
+	// as they were typed. Command and Tags then hold the form that the history of
+	// the state shows (see state.RedactArgs). A PlanStore that can open the box puts
+	// the originals back and clears Sealed.
+	Sealed *protect.Sealed `json:"sealed,omitempty"`
+	// Redacted is set on a summary that was read from a sealed state without a key
+	// that opens its box: Command and Tags are the form that the history shows.
+	Redacted bool `json:"-"`
+	// Unsealed is set on a summary that was read from a sealed state and was
+	// written before the state was sealed: it is readable by anyone who can read
+	// the store, and stays so until pravo protect rewrap --all.
+	Unsealed bool `json:"-"`
+	// shownCommand is the form of the command line that a sealed state shows, as
+	// the code that made the summary worked it out from the arguments.
+	shownCommand string
 }
 
-// ApplyCommand is the command that applies the plan, as it is typed.
+// ApplyCommand is the command that applies the plan, as it is typed. For a summary
+// that is Redacted the values of the tags are placeholders.
 func (m *PlanMeta) ApplyCommand() string {
 	var b strings.Builder
 	b.WriteString("pravo apply " + m.ID)
 	for _, t := range m.Tags {
+		if k, _, ok := strings.Cut(t, "="); ok && m.Redacted {
+			// The value is sealed and this store cannot open it: a placeholder that
+			// a shell does not take for a value, so that pasting the line fails.
+			b.WriteString(" -t " + shellWord(k) + "=<value>")
+			continue
+		}
 		b.WriteString(" -t " + shellWord(t))
 	}
 	if m.SysTags {
@@ -470,10 +504,26 @@ type PlanStore struct {
 	// Cache, when set, keeps the summaries that a listing reads (see
 	// PlanMetaCache). The summaries it returns are shared: they are not to be changed.
 	Cache *PlanMetaCache
+	// Seal seals and opens the plans, their command lines and their tags. If it is
+	// nil, the store uses the sealer of the state that it was made for, which is nil
+	// for a state that is not sealed: nothing is then sealed, and every object is
+	// written and read as it always was.
+	Seal state.Sealer
+
+	st *state.Store
 }
 
-// NewPlanStore returns the plan store of a state backend.
+// NewPlanStore returns the plan store of a state backend. It seals nothing: use
+// NewPlanStoreFor for a state that may be sealed.
 func NewPlanStore(b state.Backend) *PlanStore { return &PlanStore{B: b, Now: time.Now} }
+
+// NewPlanStoreFor returns the plan store of a state. If the state is sealed, the
+// plans that the store writes are sealed to the readers of the state, and a store
+// whose key does not open them lists them from their summaries and fails with
+// state.ErrNotReader when asked for what a plan holds.
+func NewPlanStoreFor(st *state.Store) *PlanStore {
+	return &PlanStore{B: st.Backend(), Now: time.Now, st: st}
+}
 
 func (ps *PlanStore) now() time.Time {
 	if ps.Now != nil {
@@ -636,10 +686,30 @@ func requirements(changes []*Change) map[string][]string {
 // Put stores a plan. data is the plan file, as SavePlan writes it, and meta its
 // summary; Put sets meta.ID and meta.Size. A plan that is stored again keeps its id.
 func (ps *PlanStore) Put(ctx context.Context, data []byte, meta *PlanMeta) error {
+	// A plan is written to the backend and not through the store, so the refusal
+	// that the store gives every other writer while a seal is in progress is made
+	// here: a plan written now could be missed by the seal.
+	if ps.st != nil && ps.st.Protection().State == "migrating" {
+		return state.ErrSealing
+	}
+	// A command that opened the store before it was sealed does not seal the plan.
+	if ps.st != nil {
+		if err := ps.st.CheckCurrent(); err != nil {
+			return err
+		}
+	}
+	sl := ps.sealer()
 	var id string
 	for n := planIDHex; n <= 24; n += 4 {
 		id = digestID(data, n)
-		ok, err := ps.B.PutIfAbsent(ctx, planKey(id), data)
+		stored := data
+		if sl != nil {
+			var err error
+			if stored, err = sealPlan(sl, id, data); err != nil {
+				return fmt.Errorf("storing the plan: %w", err)
+			}
+		}
+		ok, err := ps.B.PutIfAbsent(ctx, planKey(id), stored)
 		if err != nil {
 			return fmt.Errorf("storing the plan: %w", err)
 		}
@@ -650,7 +720,7 @@ func (ps *PlanStore) Put(ctx context.Context, data []byte, meta *PlanMeta) error
 		if err != nil {
 			return fmt.Errorf("storing the plan: %w", err)
 		}
-		if bytes.Equal(old, data) {
+		if ps.samePlan(id, old, data) {
 			break
 		}
 		id = ""
@@ -659,7 +729,14 @@ func (ps *PlanStore) Put(ctx context.Context, data []byte, meta *PlanMeta) error
 		return errors.New("storing the plan: no free id")
 	}
 	meta.ID, meta.Size = id, len(data)
-	enc, err := indentJSON(meta)
+	toStore := meta
+	if sl != nil {
+		var err error
+		if toStore, err = redactMeta(sl, meta); err != nil {
+			return fmt.Errorf("storing the plan: %w", err)
+		}
+	}
+	enc, err := indentJSON(toStore)
 	if err != nil {
 		return err
 	}
@@ -729,10 +806,18 @@ func (ps *PlanStore) Meta(ctx context.Context, id string) (*PlanMeta, error) {
 	if err != nil {
 		return nil, err
 	}
-	return decodeMeta(id, data)
+	m, err := decodeMeta(id, data)
+	if err != nil {
+		return nil, err
+	}
+	if err := ps.openMeta(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
-// decodeMeta decodes and checks the summary of a plan.
+// decodeMeta decodes and checks the summary of a plan. A summary of a sealed state
+// is returned as it is stored, with its box: see PlanStore.openMeta.
 func decodeMeta(id string, data []byte) (*PlanMeta, error) {
 	if len(data) > MaxPlanMetaBytes {
 		return nil, tooLarge("summary", id, len(data), MaxPlanMetaBytes)
@@ -786,10 +871,28 @@ func (ps *PlanStore) ReadFile(ctx context.Context, id string) (*PlanFile, *PlanP
 	if len(data) > MaxPlanFileBytes {
 		return nil, nil, tooLarge("plan", id, len(data), MaxPlanFileBytes)
 	}
-	pf, err := parsePlanFile(id, data)
+	plain, err := ps.openPlan(id, data)
 	if err != nil {
 		return nil, nil, err
 	}
+	_, wasSealed := asSealedPlan(data)
+	if ps.sealer() != nil && digestID(plain, len(id)-len("plan-")) != id {
+		// The id of a plan is the digest of its plan file. In a sealed state only a
+		// reader can seal a plan, so a plan that is not what its name says it is was
+		// put there by someone else: a plan file in the clear in place of the sealed one.
+		if wasSealed {
+			clear(plain)
+		}
+		return nil, nil, fmt.Errorf("the plan %s is not the plan that its name says: %w", id, state.ErrUntrusted)
+	}
+	pf, err := parsePlanFile(id, plain)
+	if wasSealed {
+		clear(plain)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	pf.Unsealed = !wasSealed && ps.sealer() != nil
 	pr, err := ps.Progress(ctx, id)
 	if err != nil {
 		return nil, nil, err
@@ -1024,6 +1127,12 @@ func (ps *PlanStore) cachedMeta(ctx context.Context, id string) (*PlanMeta, erro
 		return nil, err // not kept: the next listing asks again
 	}
 	m, err := decodeMeta(id, data)
+	if err == nil {
+		err = ps.openMeta(m)
+	}
+	if err != nil {
+		m = nil
+	}
 	ps.Cache.put(id, metaResult{m, err})
 	return m, err
 }
@@ -1107,6 +1216,10 @@ type PlanListing struct {
 	Skipped []SkippedPlan
 	// Hidden are the plans that a collector is removing.
 	Hidden []HiddenPlan
+	// Unsealed are the plans of a sealed state that were stored before it was
+	// sealed, and are as readable as the state was then: pravo protect rewrap --all
+	// seals them once nothing uses them.
+	Unsealed []string
 	// At is the time that the listing was judged at.
 	At time.Time
 }
@@ -1185,6 +1298,9 @@ func (ps *PlanStore) List(ctx context.Context, check *PlanCheck) (*PlanListing, 
 			continue
 		}
 		l.Entries = append(l.Entries, newPlanEntry(r.meta, r.progress, check, now))
+		if r.meta.Unsealed {
+			l.Unsealed = append(l.Unsealed, id)
+		}
 	}
 	out := l.Entries
 	sort.Slice(out, func(i, j int) bool {
@@ -1619,8 +1735,26 @@ func (e *Engine) StorePlan(ctx context.Context, plan *Plan, tags []string, sysTa
 		return nil, err
 	}
 	meta := newPlanMeta(pf, e.State.Owner(), ttl, len(data))
-	if err := NewPlanStore(e.State.Backend()).Put(ctx, data, meta); err != nil {
+	if len(e.Opts.Args) > 0 {
+		meta.shownCommand = e.Opts.Command
+	}
+	if err := NewPlanStoreFor(e.State).Put(ctx, data, meta); err != nil {
 		return nil, err
 	}
 	return meta, nil
+}
+
+// SummaryFile builds a plan file from the summary of a stored plan: the address,
+// the type and the action of each change, and which of them were applied. It
+// holds no value. A reader that cannot open the plan lays this over a graph.
+func (e *PlanEntry) SummaryFile() *PlanFile {
+	pf := &PlanFile{Created: e.Meta.Created, Actor: e.Meta.Author, Destroy: e.Meta.Destroy}
+	for _, t := range e.Meta.Changes {
+		done := false
+		if e.Progress != nil {
+			_, done = e.Progress.Applied[t.Addr]
+		}
+		pf.Changes = append(pf.Changes, savedChange{Addr: t.Addr, MovedFrom: t.From, Mode: t.Mode, Type: t.Type, Action: t.Action, Applied: done})
+	}
+	return pf
 }

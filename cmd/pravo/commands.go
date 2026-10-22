@@ -765,7 +765,7 @@ func outputCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			st, err := openStateReadOnly(cmd.Context(), root)
+			st, err := openStateValues(cmd.Context(), root)
 			if err != nil {
 				return err
 			}

@@ -200,3 +200,108 @@ func (b *S3Backend) ProbeSteps(ctx context.Context, report func(check string, er
 	}
 	return nil
 }
+
+// StrictChecks are the checks of ProbeStrict, in the order it runs them.
+var StrictChecks = []string{"concurrent replaces", "listing after a put"}
+
+// ProbeStrict checks what the immutable records of a sealed state need beyond
+// Probe. Eight writers replace one object at once, each with the entity tag
+// they all read, and exactly one must win: a pointer to a record is replaced
+// only by compare-and-swap. A key that has just been written must be in the
+// listing of its prefix at once. It returns a *ProbeError for a store that
+// fails a check, and another error when the store cannot be reached or written.
+// It calls report, if it is not nil, with the name of each check from
+// StrictChecks and its outcome, and stops at the first that fails. The scratch
+// objects are deleted at the end.
+func (b *S3Backend) ProbeStrict(ctx context.Context, report func(check string, err error)) error {
+	id := newID(8)
+	swap, listed := "probe/"+id+"-swap", "probe/"+id+"-list"
+	defer func() {
+		for _, k := range []string{swap, listed} {
+			_, _ = b.client.DeleteObject(context.WithoutCancel(ctx), &s3.DeleteObjectInput{Bucket: aws.String(b.bucket), Key: aws.String(b.key(k))})
+		}
+	}()
+	fail := func(format string, a ...any) error {
+		return &ProbeError{Store: b.name, Detail: fmt.Sprintf(format, a...)}
+	}
+	put := func(key, body, ifNone, ifMatch string) error {
+		in := &s3.PutObjectInput{Bucket: aws.String(b.bucket), Key: aws.String(b.key(key)), Body: bytes.NewReader([]byte(body))}
+		if ifNone != "" {
+			in.IfNoneMatch = aws.String(ifNone)
+		}
+		if ifMatch != "" {
+			in.IfMatch = aws.String(ifMatch)
+		}
+		_, err := b.client.PutObject(ctx, in)
+		return err
+	}
+	replaces := func() error {
+		if err := put(swap, "start", "*", ""); err != nil {
+			return fmt.Errorf("checking concurrent replaces on %s: %w", b.name, err)
+		}
+		_, tag, err := b.getTagged(ctx, swap)
+		if err != nil || tag == nil {
+			return fmt.Errorf("reading the scratch object on %s: %v", b.name, err)
+		}
+		var (
+			wg   sync.WaitGroup
+			mu   sync.Mutex
+			won  = -1
+			wins int
+			oops error
+		)
+		for i := 0; i < probeRacers; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				err := put(swap, fmt.Sprint(i), "", aws.ToString(tag))
+				mu.Lock()
+				defer mu.Unlock()
+				switch {
+				case err == nil:
+					wins++
+					won = i
+				case preconditionFailed(err):
+				case oops == nil:
+					oops = err
+				}
+			}(i)
+		}
+		wg.Wait()
+		if oops != nil {
+			return fmt.Errorf("checking concurrent replaces on %s: %w", b.name, oops)
+		}
+		if wins != 1 {
+			return fail("%d of %d concurrent replaces of one object succeeded, want 1", wins, probeRacers)
+		}
+		if data, _, err := b.getTagged(ctx, swap); err != nil || string(data) != fmt.Sprint(won) {
+			return fail("the object does not hold what the one successful replace wrote")
+		}
+		return nil
+	}
+	listing := func() error {
+		if err := put(listed, "listed", "", ""); err != nil {
+			return fmt.Errorf("checking the listing on %s: %w", b.name, err)
+		}
+		keys, err := b.List(ctx, "probe")
+		if err != nil {
+			return fmt.Errorf("checking the listing on %s: %w", b.name, err)
+		}
+		for _, k := range keys {
+			if k == listed {
+				return nil
+			}
+		}
+		return fail("a listing right after a put did not show the new key")
+	}
+	for i, run := range []func() error{replaces, listing} {
+		err := run()
+		if report != nil {
+			report(StrictChecks[i], err)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

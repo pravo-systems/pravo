@@ -1,0 +1,325 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/pravo-systems/pravo/internal/protect"
+)
+
+func idCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "id",
+		Short: "Make and show the identity that reads a sealed state",
+		Long: `An identity is a name, a signing key and a reader key. The reader key is what
+opens a sealed state. The identity is a file in the identity directory, by
+default ~/.config/pravo/id, with the reader key sealed under a passphrase. It
+is kept apart from the provider cache in ~/.pravo.
+
+An identity touches no state. Its public line goes into
+.pravo/access/readers.txt of the repository, which lists who may read.`,
+		Args: noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
+	}
+	cmd.AddCommand(idNewCmd(), idShowCmd())
+	return cmd
+}
+
+func idNewCmd() *cobra.Command {
+	var name, sshFile, outFile string
+	var ci bool
+	cmd := &cobra.Command{
+		Use:   "new",
+		Short: "Make an identity and print the line for the readers file",
+		Long: `Makes a reader key and a signing key, writes them to the identity file NAME in
+the identity directory, and prints the public line for .pravo/access/readers.txt.
+The reader key is sealed under a passphrase, which is asked for twice on the
+terminal, or read from $PRAVO_PASSPHRASE when stdin is not a terminal.
+An identity that exists is never overwritten.
+
+--ssh FILE uses the ssh-ed25519 public key FILE (or FILE.pub) as the signing
+key. Without it a signing key is made and kept in the identity file. Signing is
+not used while the state is sealed and has no roles.
+
+--ci makes an identity for a job, which has no person to type a passphrase. The
+file holds both private keys in the clear, with mode 0600, in the file given by
+--out. Store its contents as the CI secret PRAVO_IDENTITY and delete the file.
+Nothing is written to the identity directory.`,
+		Args: noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runIDNew(name, sshFile, outFile, ci)
+		},
+	}
+	f := cmd.Flags()
+	f.StringVar(&name, "name", "", "name of the identity (default: the user name)")
+	f.StringVar(&sshFile, "ssh", "", "use this ssh-ed25519 public key (FILE or FILE.pub) as the signing key")
+	f.BoolVar(&ci, "ci", false, "make an identity for a CI job: no passphrase, written to --out")
+	f.StringVar(&outFile, "out", "", "with --ci: the file to write the identity to")
+	return cmd
+}
+
+func idShowCmd() *cobra.Command {
+	var name string
+	cmd := &cobra.Command{
+		Use:   "show",
+		Short: "Print an identity's keys and the line for the readers file",
+		Long: `Prints the signing key, the reader key and the public line of the identity. It
+reads only the public parts of the file and never asks for the passphrase.
+The identity is found as for every command: --name, $PRAVO_IDENTITY, then the
+identity directory ($PRAVO_IDENTITY_DIR, default ~/.config/pravo/id).`,
+		Args: noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error { return runIDShow(name) },
+	}
+	cmd.Flags().StringVar(&name, "name", "", "name of the identity")
+	return cmd
+}
+
+func runIDNew(name, sshFile, outFile string, ci bool) error {
+	if ci && outFile == "" {
+		return errors.New("--ci needs --out FILE: the identity of a job is written to a file you store as a CI secret")
+	}
+	if !ci && outFile != "" {
+		return errors.New("--out is for --ci; an identity without it is written to the identity directory")
+	}
+	if name == "" {
+		name = osUser()
+		if name == "" {
+			return errors.New("no name for the identity: pass --name NAME")
+		}
+	}
+	var sshLine, sshFrom string
+	if sshFile != "" {
+		var err error
+		if sshLine, sshFrom, err = readSSHPublicKey(sshFile); err != nil {
+			return err
+		}
+	}
+	// An identity that exists is found before anything is asked for.
+	var path string
+	if ci {
+		path = outFile
+		if _, err := os.Lstat(path); err == nil {
+			return fmt.Errorf("%s already exists", path)
+		}
+	} else {
+		dir, err := identityDir()
+		if err != nil {
+			return err
+		}
+		if _, err := protect.IdentityPath(name); err != nil {
+			return err
+		}
+		path = filepath.Join(dir, name)
+		if _, err := os.Lstat(path); err == nil {
+			return fmt.Errorf("identity %s already exists at %s", name, tilde(path))
+		}
+	}
+	id, err := protect.NewIdentity(name, sshLine)
+	if err != nil {
+		return err
+	}
+	defer id.Close()
+	var data []byte
+	if ci {
+		data, err = id.MarshalUnsealed()
+	} else {
+		var pass []byte
+		if pass, err = newPassphrase(name); err != nil {
+			return err
+		}
+		data, err = id.MarshalSealed(pass)
+		clear(pass)
+	}
+	if err != nil {
+		return err
+	}
+	defer clear(data)
+	if ci {
+		err = protect.WritePrivateFile(path, data, false)
+	} else {
+		path, err = protect.SaveIdentity(name, data, false)
+		if err != nil && strings.Contains(err.Error(), "already exists") {
+			return fmt.Errorf("identity %s already exists at %s", name, tilde(path))
+		}
+	}
+	if err != nil {
+		return err
+	}
+	sum := identitySummary(id.Name, id.SignPub, id.SignVia, id.Reader.Public())
+	if sshFrom != "" {
+		sum.Source = "from " + sshFrom
+	}
+	if flagJSON {
+		return emitJSON(map[string]any{"name": id.Name, "path": path, "ci": ci,
+			"signing": map[string]string{"alg": "ssh-ed25519", "fingerprint": sum.Fingerprint, "source": sum.Source},
+			"reader":  sum.Reader, "line": sum.Line})
+	}
+	if ci {
+		out.Printf("Identity %s created for a job. It has no passphrase: protect the file.\n", id.Name)
+		out.Printf("  private  %s   (store it as the CI secret PRAVO_IDENTITY, then delete this file)\n", path)
+		out.Printf("  public   %s\n", sum.Line)
+		if runtime.GOOS == "windows" {
+			out.Println("  Check who can read the file with: icacls " + path)
+		}
+		return nil
+	}
+	out.Printf("Identity %s created\n", id.Name)
+	out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
+	out.Printf("  reader   %s  sealed with a passphrase in %s\n", sum.Reader, tilde(path))
+	out.Println()
+	out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else:")
+	out.Println()
+	fmt.Println("  " + sum.Line)
+	return nil
+}
+
+// newPassphrase asks for the passphrase that seals a new identity: twice on the
+// terminal, or from $PRAVO_PASSPHRASE when stdin is not a terminal.
+func newPassphrase(name string) ([]byte, error) {
+	if stdinIsTerminal() {
+		return askNewPassphrase("Passphrase for " + name + ": ")
+	}
+	for _, v := range []string{"PRAVO_PASSPHRASE", "PRAVO_IDENTITY_PASSPHRASE"} {
+		if s := os.Getenv(v); s != "" {
+			return []byte(s), nil
+		}
+	}
+	return nil, fmt.Errorf("refusing to ask for the passphrase of %s: stdin is not a terminal; set PRAVO_PASSPHRASE, or use --ci for an identity without a passphrase", name)
+}
+
+var askNewPassphrase = func(prompt string) ([]byte, error) { return protect.PassphraseFromTerminal(prompt, true) }
+
+// readSSHPublicKey reads the public key named by --ssh: FILE.pub, or FILE if it
+// is itself a public key. A private key is never read.
+func readSSHPublicKey(file string) (line, from string, err error) {
+	candidates := []string{file + ".pub", file}
+	if strings.HasSuffix(file, ".pub") {
+		candidates = []string{file}
+	}
+	var last error
+	for _, c := range candidates {
+		data, err := readSmallFile(c, 16<<10)
+		if err != nil {
+			last = err
+			continue
+		}
+		text := strings.TrimSpace(string(data))
+		if !strings.HasPrefix(text, "ssh-") && !strings.HasPrefix(text, "sk-") && !strings.HasPrefix(text, "ecdsa-") {
+			last = fmt.Errorf("%s is not an ssh public key; pass the .pub file", c)
+			continue
+		}
+		first, _, _ := strings.Cut(text, "\n")
+		if _, err := protect.ParseSSHPublicLine(first); err != nil {
+			return "", "", fmt.Errorf("%s: %w", c, err)
+		}
+		return first, tilde(c), nil
+	}
+	if last == nil {
+		last = errors.New("no public key found")
+	}
+	return "", "", fmt.Errorf("--ssh %s: %w", file, last)
+}
+
+// readSmallFile reads at most limit bytes of a file and fails on a longer one.
+func readSmallFile(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("%s is larger than %d bytes", path, limit)
+	}
+	return data, nil
+}
+
+type idSummary struct {
+	Name, Fingerprint, Source, Reader, Line string
+}
+
+func identitySummary(name string, sign []byte, via string, reader protect.ReaderPublic) idSummary {
+	r := protect.Reader{Name: name, Sign: sign, Key: reader}
+	s := idSummary{Name: name, Fingerprint: protect.SSHFingerprint(sign), Reader: reader.String(), Line: r.String()}
+	if via == "ssh-agent" {
+		s.Source = "through ssh-agent"
+	} else {
+		s.Source = "new key, kept in the identity file"
+	}
+	return s
+}
+
+// publicIdentity is what an identity file shows without a passphrase.
+type publicIdentity struct {
+	Name    string `json:"name"`
+	Signing struct {
+		Alg string `json:"alg"`
+		Pub string `json:"pub"`
+		Via string `json:"via"`
+	} `json:"signing"`
+	Reader struct {
+		Pub string `json:"pub"`
+	} `json:"reader"`
+	Seal json.RawMessage `json:"seal"`
+}
+
+func runIDShow(name string) error {
+	taken.mu.Lock()
+	src, err := findIdentity(name)
+	taken.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	data, where := src.data, "PRAVO_IDENTITY"
+	if data == nil {
+		where = tilde(src.path)
+		if data, err = readSmallFile(src.path, 64<<10); err != nil {
+			if src.fromEnv {
+				return errors.New("PRAVO_IDENTITY is neither the contents of an identity file nor the path of one that can be read")
+			}
+			return err
+		}
+	}
+	var p publicIdentity
+	if err := json.Unmarshal(data, &p); err != nil || p.Name == "" {
+		return fmt.Errorf("%s is not an identity file", where)
+	}
+	sign, err := protect.ParseSSHBlob(p.Signing.Pub)
+	if err != nil {
+		return fmt.Errorf("%s: signing key: %w", where, err)
+	}
+	reader, err := protect.ParsePublic(p.Reader.Pub)
+	if err != nil {
+		return fmt.Errorf("%s: %w", where, err)
+	}
+	sum := identitySummary(p.Name, sign, p.Signing.Via, reader)
+	sealed := len(p.Seal) > 0 && string(p.Seal) != "null"
+	if flagJSON {
+		return emitJSON(map[string]any{"name": p.Name, "path": where, "sealed": sealed,
+			"signing": map[string]string{"alg": "ssh-ed25519", "fingerprint": sum.Fingerprint, "source": sum.Source},
+			"reader":  sum.Reader, "line": sum.Line})
+	}
+	keeping := "no passphrase"
+	if sealed {
+		keeping = "sealed with a passphrase"
+	}
+	out.Printf("Identity %s (%s)\n", p.Name, where)
+	out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
+	out.Printf("  reader   %s  %s\n", sum.Reader, keeping)
+	out.Println()
+	out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else:")
+	out.Println()
+	fmt.Println("  " + sum.Line)
+	return nil
+}

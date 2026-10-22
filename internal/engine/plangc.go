@@ -304,17 +304,27 @@ func (ps *PlanStore) GC(ctx context.Context, o GCOptions) (*GCResult, error) {
 // plan object that is not what its name says it is has none: it is not touched.
 func (ps *PlanStore) orphanAge(ctx context.Context, id string, kinds map[string]bool) (time.Time, bool) {
 	if kinds["meta"] {
-		if m, err := ps.Meta(ctx, id); err == nil {
-			return m.Created, true
+		// The time is in the clear in a sealed summary: nothing is opened.
+		if data, err := ps.B.Get(ctx, metaKey2(id)); err == nil {
+			if m, err := decodeMeta(id, data); err == nil {
+				return m.Created, true
+			}
 		}
 	}
 	if kinds["plan"] {
 		if data, err := ps.B.Get(ctx, planKey(id)); err == nil {
-			if digestID(data, len(id)-len("plan-")) != id {
+			if !planDigestMatches(data, id) {
 				return time.Time{}, false
 			}
-			if pf, err := parsePlanFile(id, data); err == nil {
-				return pf.Created, true
+			// A sealed plan is opened to read the time, and has none for a store that cannot.
+			if plain, err := ps.openPlan(id, data); err == nil {
+				pf, err := parsePlanFile(id, plain)
+				if _, sealed := asSealedPlan(data); sealed {
+					clear(plain)
+				}
+				if err == nil {
+					return pf.Created, true
+				}
 			}
 		}
 	}
@@ -441,7 +451,7 @@ func (ps *PlanStore) deleteObject(ctx context.Context, id, kind, owner string) b
 	match := func(current []byte) bool {
 		switch kind {
 		case "plan":
-			return digestID(current, len(id)-len("plan-")) == id
+			return planDigestMatches(current, id)
 		case "meta":
 			var h struct {
 				ID string `json:"id"`

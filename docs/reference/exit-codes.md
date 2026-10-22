@@ -21,8 +21,9 @@ normalize:
 | 2 | changes | `plan --detailed-exitcode` found changes. `drift` found drift. This is a report and not a failure. |
 | 3 | stale | A saved plan cannot be applied: the configuration, a provider or a node changed after it was made. An apply that finds a resource different from the plan, saved or printed by the same command, stops with this code too. A plan stored in the state is refused with this code when it was not applied and its time to live ended, when a collection is removing it, or when it is [partly stale](apply.md#a-partly-stale-plan) and the apply includes a change that conflicts, as the whole plan does. No other failure to claim a stored plan has this code. |
 | 4 | rejected | A node is locked by a running command, or reserved by another actor: before the apply changes anything, or, with `lock lost`, in the middle of an apply that another command took a lock from. The lock on the recorded outputs is held by a command that did not release it in time. |
-| 5 | refused | A plan policy refused the run, a policy file cannot be used, or a module does not match its lock. |
-| 6 | invalid | A command that loads the specification found that it does not load or evaluate: a syntax error, a conflict, a file outside the package, a setting that is not allowed, resources that depend on each other in a circle. `pravo validate` also exits 6 when a provider cannot be installed. `pravo schema` was asked for a type of a provider that is not declared. |
+| 5 | refused | A plan policy refused the run, a policy file cannot be used, or a module does not match its lock. In a sealed state: you are not a reader, or the readers file is missing for a command that writes the state ([`pravo protect`](protect.md#exit-codes) uses 6 for a missing file). |
+| 6 | invalid | A command that loads the specification found that it does not load or evaluate: a syntax error, a conflict, a file outside the package, a setting that is not allowed, resources that depend on each other in a circle. `pravo validate` also exits 6 when a provider cannot be installed. `pravo schema` was asked for a type of a provider that is not declared. In a sealed state, a readers file that is invalid, and for `pravo protect` one that is missing. |
+| 7 | untrusted | The state failed verification: an immutable record does not match its name, a pointer does not match its record, or a sealed value does not open where it is. `pravo protect status` reports it and exits 7. A command that reads a record that fails the same check stops with this code. See [7: untrusted](#7-untrusted). |
 
 In `--json` mode an error also prints `{"code":N,"kind":"error","message":"..."}` on standard output. The mismatch report of `pravo mod verify --json` is the exception: it prints `{"ok":false,"problems":[...]}` alone.
 
@@ -273,6 +274,14 @@ pravo -C plain schema random_pet; echo "exit=$?"
 Error: no provider "random" for type random_pet; declare a provider struct for it, or name its address: NAMESPACE/TYPE/random_pet
 exit=6
 ```
+
+## 7: untrusted
+
+A state in the immutable layout (format 2 and 3, made by [`pravo protect init`](protect.md#protect-init)) stores each record as an object named by the SHA-256 of its bytes, and a small pointer to it. A command that reads a record checks the name and the pointer. An object whose bytes do not hash to its name, a pointer whose address or revision differs from the record it points to, and a sealed value that does not open at the address it was sealed for, are not trusted. The command stops with exit code 7, names the object, and does not use it.
+
+`pravo protect status` checks every record and exits 7 with a line `Untrusted:` for each object that fails. A state in the original layout (format 1) has nothing to check, and the command does not exit 7 for it.
+
+Code 7 means that the bytes in the store are not the bytes that pravo wrote. The causes are a write to the bucket by something other than pravo, a damaged copy, and a restore of part of a backup. Do not apply while it lasts. Restore the object from a version of the bucket or a backup that verifies, then run `pravo protect status` again.
 
 ## In an agent session
 

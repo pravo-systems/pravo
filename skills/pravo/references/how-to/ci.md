@@ -388,8 +388,13 @@ The plan is printed first and judged afterwards. Exit code 5 means that a policy
 | 4 | Rejected: a node is locked or reserved by another actor. A job retries later. | [Let an agent plan and apply](agents-and-mcp.md). |
 | 5 | Refused by a policy, or by a module that does not match its lock. | Steps 4 and 7. |
 | 6 | A command that loads the specification found that it does not load or evaluate. | Step 1. |
+| 7 | The state failed verification: a record does not match its name. A job stops and reports it. | [Seal the state](seal-the-state.md). |
 
 With `--json`, an error also prints `{"code":N,"kind":"error","message":"..."}` on standard output. The lookup page is [Exit codes](../reference/exit-codes.md).
+
+## A job that reads a sealed state
+
+When the state is [sealed](seal-the-state.md), a job that plans or applies opens it with an identity of its own. Make one with `pravo id new --ci --name deploy-bot --out deploy-bot.identity`, add its public line to `.pravo/access/readers.txt`, run `pravo protect rewrap`, and store the contents of the file as the secret `PRAVO_IDENTITY` of the job. pravo reads the variable once, removes it from its environment, and starts providers without it. A job that has no identity can run `pravo state list` and gets exit code 5 from any command that needs a value. The job checks out the repository, because a command that writes a sealed state reads the readers file from it.
 
 ## One pipeline
 

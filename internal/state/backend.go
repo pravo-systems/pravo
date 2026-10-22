@@ -2,14 +2,17 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/pravo-systems/pravo/internal/filelock"
+	"github.com/pravo-systems/pravo/internal/protect"
 )
 
 // ErrNotFound is returned by Backend.Get for a missing key.
@@ -232,43 +235,154 @@ func (b *LocalBackend) List(ctx context.Context, prefix string) ([]string, error
 	return out, nil
 }
 
+// ErrCopyRefused is returned by Copy for a copy that would replace the meta.json
+// of a state that holds data with one that does not belong to it.
+var ErrCopyRefused = errors.New("the copy would replace the state with another")
+
 // Copy copies every object from src to dst and returns the number copied. The
-// stored plans are copied with the records, claims on them included.
+// stored plans are copied with the records, claims on them included, and so are
+// the immutable records of a state of format 2 or 3.
+//
+// A sealed state is bound to its lineage: its records open only under the
+// lineage they were sealed with. Copy refuses to replace the meta.json of a
+// destination that holds records with one of another lineage when either is
+// sealed, and to replace a sealed meta.json with an unsealed one or the reverse.
+// A destination that holds no records takes any state.
 func Copy(ctx context.Context, src, dst Backend) (int, error) {
+	srcMeta, err := readMeta(ctx, src)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return 0, err
+	}
+	if err := checkCopy(ctx, srcMeta, dst); err != nil {
+		return 0, err
+	}
 	n := 0
-	for _, prefix := range []string{"resources", "txn", "plans"} {
+	copyKey := func(k string, optional bool) error {
+		data, err := src.Get(ctx, k)
+		if errors.Is(err, ErrNotFound) && optional {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("%s: %w", k, err)
+		}
+		if err := dst.Put(ctx, k, data); err != nil {
+			return fmt.Errorf("%s: %w", k, err)
+		}
+		n++
+		return nil
+	}
+	// A state of format 2 or 3 changes the format first, so that a pravo that does
+	// not know the layout refuses the destination before any pointer is in it. Its
+	// records come before the pointers that name them.
+	if srcMeta != nil && srcMeta.Format > Format {
+		if err := copyKey("meta.json", false); err != nil {
+			return n, err
+		}
+	}
+	for _, prefix := range []string{"rec", "resources", "txn", "plans"} {
 		keys, err := src.List(ctx, prefix)
 		if err != nil {
 			return n, err
 		}
 		for _, k := range keys {
-			data, err := src.Get(ctx, k)
-			if errors.Is(err, ErrNotFound) && prefix == "plans" {
-				// A stored plan is removed on its own schedule by a collection: one
-				// that went since the listing is not part of the copy.
-				continue
+			// A stored plan is removed on its own schedule by a collection: one
+			// that went since the listing is not part of the copy. The same goes for
+			// a record that was superseded.
+			if err := copyKey(k, prefix == "plans" || prefix == "rec"); err != nil {
+				return n, err
 			}
-			if err != nil {
-				return n, fmt.Errorf("%s: %w", k, err)
-			}
-			if err := dst.Put(ctx, k, data); err != nil {
-				return n, fmt.Errorf("%s: %w", k, err)
-			}
-			n++
 		}
 	}
 	for _, k := range []string{"meta.json", "outputs.json"} {
-		data, err := src.Get(ctx, k)
-		if errors.Is(err, ErrNotFound) {
+		if k == "meta.json" && srcMeta != nil && srcMeta.Format > Format {
 			continue
 		}
-		if err != nil {
-			return n, fmt.Errorf("%s: %w", k, err)
+		if err := copyKey(k, true); err != nil {
+			return n, err
 		}
-		if err := dst.Put(ctx, k, data); err != nil {
-			return n, fmt.Errorf("%s: %w", k, err)
-		}
-		n++
 	}
 	return n, nil
+}
+
+// readMeta reads meta.json of the state kept in b.
+func readMeta(ctx context.Context, b Backend) (*meta, error) {
+	data, err := b.Get(ctx, "meta.json")
+	if err != nil {
+		return nil, err
+	}
+	var m meta
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("reading %s/meta.json: %w", b.Name(), err)
+	}
+	return &m, nil
+}
+
+// checkCopy applies the rule of Copy to the destination.
+func checkCopy(ctx context.Context, src *meta, dst Backend) error {
+	cur, err := readMeta(ctx, dst)
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if src == nil {
+		src = &meta{}
+	}
+	// A copy of format 1 would put whole records over some of the pointers of a
+	// state of format 2 and leave the rest, under a meta.json that says format 1,
+	// which a pravo that does not know the pointers reads as records.
+	if src.Format < FormatImmutable && cur.Format >= FormatImmutable {
+		if empty, err := holdsNothing(ctx, dst); err != nil || empty {
+			return err
+		}
+		return fmt.Errorf("%w: %s is a state of format %d and the source is format 1; upgrade the source first", ErrCopyRefused, dst.Name(), cur.Format)
+	}
+	srcSealed, dstSealed := src.Sealed != nil, cur.Sealed != nil
+	if !srcSealed && !dstSealed {
+		return nil
+	}
+	if srcSealed == dstSealed && src.Lineage == cur.Lineage {
+		// A copy that lacks a group of the destination is older than a removal of a
+		// reader: it would give the reader her lock back, and leave the records
+		// sealed in the group without the lock that opens them.
+		if srcSealed {
+			for _, g := range cur.Sealed.Groups {
+				if !slices.ContainsFunc(src.Sealed.Groups, func(h protect.Group) bool { return h.ID == g.ID }) {
+					return fmt.Errorf("%w: %s has been rewrapped since the source was copied (it has the group %s, which the source lacks); copy it again", ErrCopyRefused, dst.Name(), g.ID)
+				}
+			}
+		}
+		return nil
+	}
+	if empty, err := holdsNothing(ctx, dst); err != nil || empty {
+		return err
+	}
+	switch {
+	case srcSealed && !dstSealed:
+		return fmt.Errorf("%w: %s holds an unsealed state and %s is sealed", ErrCopyRefused, dst.Name(), "the source")
+	case !srcSealed && dstSealed:
+		return fmt.Errorf("%w: %s is sealed and the source is not", ErrCopyRefused, dst.Name())
+	}
+	return fmt.Errorf("%w: %s is a state of another lineage, and sealed records open only in their own", ErrCopyRefused, dst.Name())
+}
+
+// holdsNothing reports whether b holds no record, output or stored plan, which is
+// what a store that was opened and never written holds.
+func holdsNothing(ctx context.Context, b Backend) (bool, error) {
+	for _, prefix := range []string{"resources", "rec", "plans"} {
+		keys, err := b.List(ctx, prefix)
+		if err != nil {
+			return false, err
+		}
+		if len(keys) > 0 {
+			return false, nil
+		}
+	}
+	if _, err := b.Get(ctx, "outputs.json"); err == nil {
+		return false, nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return false, err
+	}
+	return true, nil
 }

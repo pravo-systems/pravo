@@ -20,6 +20,8 @@ normalize:
     replace: '"$1": "<nonce>"'
   - pattern: '"(pid)": [0-9]+'
     replace: '"$1": 1234'
+  - pattern: '"version": "[^"]+"'
+    replace: '"version": "<version>"'
   - pattern: '"(host|user)": "[^"]+"'
     replace: '"$1": "<$1>"'
   - pattern: '"id": "[a-z]+-[a-z]+"'
@@ -44,9 +46,10 @@ pravo records what it manages in a state graph, not a state file. Every resource
 
 | Path | Contents |
 |---|---|
-| `meta.json` | The format number and the lineage of the store. |
-| `resources/<addr>.json` | One node for each resource or data source, named by its address. |
-| `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. |
+| `meta.json` | The format number and the lineage of the store, and in format 3 the locks of the readers, the history of the seal and a seal in progress. |
+| `resources/<addr>.json` | One node for each resource or data source, named by its address. In format 1 it holds the whole record. In formats 2 and 3 it is a pointer to a record. |
+| `rec/<sha256>` | In formats 2 and 3, one record, named by the SHA-256 of its bytes. It is written once and never changed. |
+| `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. In format 3 the whole object is sealed. |
 | `txn/<id>.json` | One recorded transaction. |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |
 | `plans/<id>.plan.json`, `plans/<id>.meta.json`, `plans/<id>.progress.json` | A stored plan: the plan, its summary and what was applied from it. See [Plans](#plans). |
@@ -124,7 +127,7 @@ jq . pravo.state/meta.json
 
 | Field | Meaning |
 |---|---|
-| `format` | The version of the store layout. It is `1`. |
+| `format` | The version of the store layout: `1`, `2` or `3`. A new store is `1`. |
 | `lineage` | An identifier chosen when the store was created. A saved plan records it. |
 | `created` | When the store was created. |
 
@@ -145,6 +148,152 @@ cp meta.json.bak pravo.state/meta.json
 ```
 
 A command that writes the state, such as `plan` or `apply`, creates the directory and `meta.json` when they do not exist. A command that only reads it, such as `eval`, `output` or `pravo state list`, reads an empty state and creates nothing.
+
+## Formats
+
+`meta.json` says in which of three formats a store is kept.
+
+| Format | Layout |
+|---|---|
+| 1 | `resources/<addr>.json` holds the whole record. A new store is in format 1, and a store in format 1 is written as the sections above describe. |
+| 2 | Immutable records. Each record is an object `rec/<sha256>` that is never overwritten, and `resources/<addr>.json` is a pointer to the current one. |
+| 3 | Sealed state. Format 2, with the values of each record, the outputs and the stored plans encrypted to a list of readers. |
+
+A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all three. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
+
+## Format 2: immutable records
+
+A node is stored as two objects. The record has the fields of [a node](#a-node), as JSON, and is named `rec/` and the SHA-256 of its bytes in hexadecimal. The pointer is `resources/<addr>.json`:
+
+```json
+{
+  "v": 1,
+  "address": "hello",
+  "revision": 3,
+  "generation": "20260101T000000Z-1a2b3c",
+  "record": "rec/6f1d0c7a52e1b0d94a8c3e5f7b2a9d4c1e8f0a6b3d5c7e9f1a2b4c6d8e0f1a3b"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `v` | The version of the pointer: `1`. |
+| `address` | The address of the node. It is the address that the file name encodes. |
+| `revision`, `generation` | The revision and generation of the record that the pointer names. A command reads only these two to check a record against what a plan was made against, without fetching the record. |
+| `record` | The key of the current record. |
+
+A write of a node makes the record with a conditional create, and then creates the pointer with a conditional create, or replaces it with a compare-and-swap. The replacement succeeds only if the pointer still names the revision and generation that the writer read. Otherwise the write fails with the error that `Refresh` returns for a record that changed, "the record changed in the state since it was read", and changes nothing. In format 1 the last writer wins. On a local directory the compare-and-swap is an exclusive lock held by the operating system for one user, and two users on one directory are not excluded from each other; a bucket excludes them with the conditional write of its protocol.
+
+A write that leaves the revision as it was, which is a refresh that read the same attributes, replaces the record and deletes the one it replaced. A write that moves the revision keeps the record it replaced. Removing a node deletes the pointer, and only if it still names the revision and generation that the store holds, and leaves its records. A write that fails after it made the record, or that loses a race, also leaves a record. No pointer names such a record and nothing reads it. A seal, and a rewrap that seals everything again, delete the ones that hold values in plain text or are sealed in an earlier group.
+
+A reader accepts an object under `resources/` whether it is a pointer or a whole record, whatever the format of the store says, so that a store that an upgrade left half converted lists every node. A reader checks each record it fetches: the bytes against the name, the address, revision and generation of the record against the pointer, and the key of the pointer against its address. A mismatch is the error "the state failed verification", which exits with code 7, and names the object. A record that is missing when a pointer names it is looked for again after reading the pointer again, twice; one that stays missing fails the same way. The check needs no key.
+
+A store in format 2 or 3 reads two objects for each node when it opens, the pointer and the record, where format 1 reads one. A write makes three requests to a bucket where format 1 makes one: the record, and the read and the replacement of the pointer.
+
+`pravo state pull` and `pravo state push` copy `rec/` before `resources/`, so that a pointer in the copy always has its record. When the state they copy is in format 2 or 3 they copy `meta.json` first.
+
+## Format 3: sealed state
+
+A record in format 3 keeps its address, type, name, provider, dependencies, revision, generation and times in the clear. Its `attributes`, `private`, `config_hash` and `provider_config` are one AES-256-GCM message under the data key of a reader group, in the field `sealed`:
+
+```json
+{
+  "mode": "managed",
+  "type": "aws_db_instance",
+  "name": "main",
+  "provider": "registry.opentofu.org/hashicorp/aws",
+  "provider_key": "aws",
+  "schema_version": 1,
+  "dependencies": ["subnet"],
+  "revision": 3,
+  "generation": "20260101T000000Z-1a2b3c",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "v": 1,
+  "sealed": {
+    "alg": "hpke-x25519-aes256gcm",
+    "group": "g1",
+    "ct": "Zm9vYmFy..."
+  }
+}
+```
+
+`ct` is a random 96-bit nonce, the ciphertext and a 16-byte tag, in base64. The associated data binds the message to the lineage of the state, the group, the kind (`record`), the address, the generation and the revision, so a sealed part that is moved to another address, another revision, another generation or another state does not open. `config_hash` and `provider_config` are sealed because a guess at a secret value is confirmed by a digest of the configuration, and nothing that reads without a key uses either.
+
+`outputs.json` is `{"v": 1, "sealed": {...}}`, with the whole object of outputs sealed under the kind `outputs`. An `outputs.json` in the clear is refused in a sealed state, as a record in the clear is: the command stops with exit code 7. While a seal is in progress, a plain object is read. Stored plans and the values in command lines are sealed with the same data keys, each bound to its own id.
+
+### meta.json
+
+```json
+{
+  "format": 3,
+  "lineage": "2f9c1a4e7b6d5c3a9e8f1b0a4d7c2e6f",
+  "created": "2026-01-01T00:00:00Z",
+  "sealed": {
+    "alg": "hpke-x25519-aes256gcm",
+    "current": "g2",
+    "groups": [
+      {
+        "id": "g1",
+        "alg": "hpke-x25519-aes256gcm",
+        "locks": [
+          {"name": "ada", "key": "x25519:7Hc3Kp...", "box": "..."}
+        ]
+      }
+    ],
+    "readers": "..."
+  },
+  "migration": {"to": 3, "started": "2026-01-01T00:00:00Z", "by": "ada", "done": 1204, "total": 2001},
+  "history": [
+    {"at": "2026-01-01T00:00:00Z", "by": "ada", "what": "sealed", "added": ["ada", "dan"]}
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `sealed.current` | The group that new writes are sealed in. |
+| `sealed.groups` | The reader groups, oldest first. A group is one random 256-bit data key, and a lock for each reader: the data key encrypted to the reader key (HPKE: DHKEM X25519, HKDF-SHA256, AES-256-GCM), 80 bytes in base64. The lock is bound to the lineage and the group. |
+| `sealed.readers` | A digest of the reader list that the locks were made from. |
+| `migration` | Present while a seal has begun and has not finished: the number of records sealed so far, which is a note and not a count that anything relies on. |
+| `history` | The last 50 changes of the seal: `sealed`, `rewrap` and `rewrap --all`, with the names added and removed. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
+
+`meta.json` is not signed. A writer of the bucket who edits it to a lower format turns sealing off for the writers that follow; `pravo protect status` prints the format, and [what sealing protects](../concepts/sealed-state.md) says how to notice it.
+
+A reader is a line of `.pravo/access/readers.txt`. Whoever writes the state takes the list from the repository, and a lock is added for a reader who is on the list and not in `meta.json`, or removed for one who is in `meta.json` and not on the list, by a rewrap.
+
+### Sealing a state
+
+The upgrade to format 3 runs in this order, and a command that finds it half done finishes it.
+
+1. It replaces `meta.json` with format 3, the group `g1` with a lock for each reader, and `migration`. From here a pravo that does not know format 3 refuses the store, and this pravo reads it and refuses to write it: the error is "a seal is in progress; run pravo protect init --encrypt to finish".
+2. It seals each record in place. A record that is a whole record, or a pointer to a record that is not sealed, is replaced by a pointer to a sealed record with the same revision, generation and times, by a compare-and-swap on the bytes it read. A record that someone wrote in the meantime is not touched and is named in the error. The records that held the values in plain text are deleted.
+3. It seals `outputs.json`, and the stored plans, in place.
+4. It deletes every record that no pointer names and that is not sealed, which removes the earlier revisions of format 2 that held values in plain text.
+5. It replaces `meta.json` again without `migration`, and adds an entry to `history`.
+
+The state must be at rest: the upgrade refuses while a lock is held, and a transaction that is recorded as running and holds none is one that a killed command left.
+
+### Reading a sealed state
+
+A command that has an identity that is a reader opens the data keys once, when it opens the store. A command with no identity, or with one that is not a reader, opens the store locked: the store lists the nodes with their addresses, types, names, dependencies and revisions, `attributes` and `private` are empty, the outputs are empty, and every write fails with "you are not a reader of this state", which exits with code 5.
+
+### Changing the readers
+
+A reader who is added gets a lock in every group, so that the records that are still in an old group open for them. A reader who is removed loses the lock in every group, and a new group with a new data key becomes current, so that what is written from then on is not sealed to them. The records stay in their group until they are written again. A rewrap that also seals every record, the outputs and the stored plans again under the current group deletes the records of earlier revisions that are sealed in another group. It keeps the records that no pointer names and that are sealed in the current group, which include the last record of a resource that was removed, and it leaves the old groups in `meta.json`. Nothing else prunes them.
+
+A command that began before a reader was removed looks at `meta.json` again when it has not for 30 seconds, and seals what it writes after in the current group.
+
+### What a sealed state does not protect
+
+- The names of the readers and their keys are in `meta.json` and are readable by whoever can read the bucket.
+- The address, type, name, provider, dependencies, revision, generation and times of a node, the names of its transactions, and the size of each object are readable. A reader who is removed keeps the data keys that they read, and any copy of the bucket that they made, which opens with their key.
+- A lock is made in HPKE base mode, which does not authenticate who made it. Someone who can write to the bucket can replace `meta.json` with a group of their own and locks for the readers, and what is sealed afterwards is sealed to a key that they hold. The comparison of the readers file with `meta.json` does not see a group that is replaced. Signatures, which come with roles, close this.
+- A long command that began before a reader was removed seals under the group it opened with for up to 30 seconds after `meta.json` changed, and for as long as it cannot read `meta.json`. The removed reader can open those records.
+- A valid old record is not told from the current one. An object that is replaced by an older one, with its pointer, opens.
+- The upgrade replaces the value of each `-t` in the command lines of the transactions written before the seal, and of the lock files that a command left behind, by a tag, and a word after a flag by a tag when it is not a flag or the id of a plan. The summary of a transaction that failed keeps the text of its error. A bucket that keeps old versions of objects keeps the plain objects of the state before the seal.
+- A sealed state records no text for the error of a run that fails or is rejected, because it can hold a value that a provider returned. The notes about the changes whose result is unknown are kept.
+- The configuration fingerprint in the summary of a stored plan is a digest of every file of the configuration, and is readable.
+- `by` in `history` is the name of an identity file on a machine, not a signature.
 
 ## A node
 
@@ -220,7 +369,7 @@ jq . pravo.state/outputs.json
 }
 ```
 
-A sensitive output is recorded as `{"$sensitive": value}`. `pravo state import-tfstate` records an output that the OpenTofu state marks sensitive in the same form. `pravo.#RemoteOutputs` reads only this object, and leaves the sensitive ones out.
+A sensitive output is recorded as `{"$sensitive": value}`. `pravo state import-tfstate` records an output that the OpenTofu state marks sensitive in the same form. `pravo.#RemoteOutputs` reads only this object, and leaves the sensitive ones out. It reads the object without a key, and refuses a sealed one with an error that says the outputs are sealed.
 
 ## Transactions
 
@@ -264,7 +413,8 @@ jq . pravo.state/txn/*.json
     }
   ],
   "actor": "ci",
-  "reason": "example"
+  "reason": "example",
+  "version": "<version>"
 }
 ```
 
@@ -279,6 +429,7 @@ jq . pravo.state/txn/*.json
 | `summary` | The counts, in words. |
 | `changes` | Each node the transaction touched: `addr`, `action`, and the revisions before and after. The action `unsettled` marks a node that an apply stopped on while a provider was changing it. |
 | `actor`, `reason`, `git_revision`, `trace_id` | The labels of the run, when set. |
+| `version` | The version of the pravo that began the transaction. A transaction written by a pravo that did not record it has none. |
 
 The command line is evidence of what was run. It is written by the process that ran, in a log that is as writable as the state itself, and it prevents nothing. An apply that left out `--policy` is an entry without it, not a refusal. A plan that touches no record is not recorded. An apply, a rejection and a failure are. The `txn/` directory can be pruned at any time.
 
@@ -528,9 +679,17 @@ jq '.applying' slow/pravo.state/plans/$id.progress.json
 null
 ```
 
+### Stored plans in a sealed state
+
+In a sealed state the plan object is `{"v": 1, "id": "plan-<id>", "sealed": {...}}`. The sealed part is the plan, in the form above, sealed under the kind `plan` and bound to the id. The id is the digest of the plan, not of the object, so the same plan stored twice has one id although its sealed parts differ. Only a reader can check an id against its plan; a collection that is not a reader tests the id in the object against the name of the key.
+
+The summary stays readable: the author, the actor, the reason, the times, the counts, the list of changes with their addresses, types and actions, the revisions that the plan expects, and what each change needs. Its `command` and `tags` hold the form that the history of the state shows, with the value of each `-t` replaced by a tag, `<sealed:a1b2c3d4>`, and the original of both is sealed under the kind `plan-cmd` in `sealed`. The tag is the first four bytes of a keyed digest of the value, so the same value has the same tag in one state and nothing else can be told from it. A reader gets the originals back, and the command that applies the plan keeps its tags. Only the values of `-t`, `--tag`, `--webhook` and `-e` are replaced, and the value of another flag written `--flag=value` unless it is a flag with a public value such as `--limit`: a positional argument and the value after `--flag value` with a space stay as they were typed. The progress object is not sealed.
+
+A command without a key lists the stored plans from their summaries and fails with "you are not a reader of this state" when it is asked for what a plan holds. A plan that was stored before the seal is sealed in place when the state is sealed, unless an apply holds a claim on it; `pravo protect rewrap --all` seals the ones that were left.
+
 ## Remote layout
 
-On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes, the transactions and the stored plans, with the claims on them. They do not copy locks.
+On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 and 3, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
 
 ## See also
 

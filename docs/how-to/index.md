@@ -12,6 +12,7 @@ How-to pages are for when you know the basics and need to do one thing: share st
 | Install pravo and run a first plan, a change, a conflict and a destroy | [Quick start](quick-start.md) | [Learn](../learn/index.md) |
 | Run one specification for dev, staging and prod | [Environments](environments.md) | [B4, Inputs, tags, environments](../learn/b04-inputs-tags-environments.md) |
 | Keep the state in a bucket that a team shares | [Remote state](remote-state.md) | [State](../concepts/state.md) |
+| Encrypt the values in the state to a list of readers | [Seal the state](seal-the-state.md) | [What sealing protects](../concepts/sealed-state.md) |
 | Share CUE between roots in one repository | [Modules in a repository](modules-in-a-repository.md) | [B6, Modules, providers, credentials](../learn/b06-modules-providers-credentials.md) |
 | Publish a module, or use one that someone else published | [Publishing a module](publishing-a-module.md), [Using a module](using-a-module.md) | [B6, Modules, providers, credentials](../learn/b06-modules-providers-credentials.md) |
 | Use a provider from a registry other than the default | [Providers from a registry](providers-from-a-registry.md) | [Providers](../concepts/providers.md) |

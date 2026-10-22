@@ -236,6 +236,7 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
 .shown { font: 400 .7rem/1 var(--font-mono); color: var(--text-3); white-space: nowrap; }
 .toolbar .seg button { height: 2rem; }
 [data-view="table"] .graph-only { display: none; }
+[data-view="access"] .toolbar { display: none; }
 
 /* ---- the table ---- */
 .table-pane { padding: 0 1rem 1rem; }
@@ -439,6 +440,11 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
   .fatal h1 { font-size: 1.5rem; }
   .pal-wrap { padding-top: 1rem; }
   .sheet-body dl { grid-template-columns: 6.5rem 1fr; }
+}
+/* Three views (Graph, Table, Access) do not fit the bar of a phone with the word beside the mark: the link keeps its aria-label. */
+@media (max-width: 30em) {
+  .brand .word { display: none; }
+  .top .viewsw button { padding-inline: .5rem; }
 }
 
 /* ---- a page that nobody sees does not animate: the script sets data-hidden from the Page Visibility API ---- */

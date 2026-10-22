@@ -36,6 +36,32 @@ func (g *gateBackend) Put(ctx context.Context, key string, data []byte) error {
 	return g.Backend.Put(ctx, key, data)
 }
 
+// PutIfAbsent and ReplaceIf write like Put: a store of format 2 writes a record with
+// the first and a pointer with either.
+func (g *gateBackend) PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error) {
+	g.mu.Lock()
+	gate := g.putGate
+	g.mu.Unlock()
+	if gate != nil {
+		if err := gate(key); err != nil {
+			return false, err
+		}
+	}
+	return g.Backend.PutIfAbsent(ctx, key, data)
+}
+
+func (g *gateBackend) ReplaceIf(ctx context.Context, key string, update func([]byte) ([]byte, bool)) (bool, error) {
+	g.mu.Lock()
+	gate := g.putGate
+	g.mu.Unlock()
+	if gate != nil {
+		if err := gate(key); err != nil {
+			return false, err
+		}
+	}
+	return g.Backend.ReplaceIf(ctx, key, update)
+}
+
 func (g *gateBackend) Delete(ctx context.Context, key string) error {
 	g.mu.Lock()
 	gate := g.deleteGate
@@ -46,6 +72,19 @@ func (g *gateBackend) Delete(ctx context.Context, key string) error {
 		}
 	}
 	return g.Backend.Delete(ctx, key)
+}
+
+// DeleteIf deletes like Delete: a store of format 2 removes a pointer with it.
+func (g *gateBackend) DeleteIf(ctx context.Context, key string, match func([]byte) bool) (bool, error) {
+	g.mu.Lock()
+	gate := g.deleteGate
+	g.mu.Unlock()
+	if gate != nil {
+		if err := gate(key); err != nil {
+			return false, err
+		}
+	}
+	return g.Backend.DeleteIf(ctx, key, match)
 }
 
 func (g *gateBackend) Get(ctx context.Context, key string) ([]byte, error) {

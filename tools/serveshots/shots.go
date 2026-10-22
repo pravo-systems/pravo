@@ -56,7 +56,7 @@ var (
 	fragmentTabs    = []string{"state", "source", "schema", "history", "change"}
 	fragmentThemes  = []string{"light", "dark"}
 	fragmentFilters = []string{"plan", "drifted", "sensitive", "orphans", "declared"}
-	fragmentViews   = []string{"graph", "table"}
+	fragmentViews   = []string{"graph", "table", "access"}
 )
 
 // String is the fragment without the leading #, in the order of the deep-link

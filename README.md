@@ -106,6 +106,10 @@ pravo serve --plan change.plan       # overlay a saved plan
 
 `docs/how-to/explore-your-estate.md` walks through it, and `docs/reference/serve.md` is the reference. The pictures are made by `go run ./tools/serveshots -bin bin/pravo -out docs/img/serve`.
 
+## Sealed state
+
+`pravo protect init --encrypt` encrypts the attributes, outputs and stored plans of a state to a list of readers that the repository keeps in `.pravo/access/readers.txt`. `pravo id new` makes an identity and prints the line for that file. Addresses, types, names and dependencies stay readable, so the graph and the plans keep working. Protection is off by default, and a state that has it off is unchanged. `docs/how-to/seal-the-state.md` walks through it, and `docs/concepts/sealed-state.md` says what it protects and what it leaves open.
+
 ## The skill for agents
 
 `pravo skill install` writes a skill for AI agents to `~/.claude/skills/pravo`: a short guide and the documentation as Markdown, built from `docs/` by `go run ./tools/skillgen` and embedded in the binary, so that it matches the version that installs it. `docs/reference/skill.md` describes it. Each release carries it as `pravo-skill.zip`.

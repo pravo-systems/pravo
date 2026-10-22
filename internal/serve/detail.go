@@ -41,7 +41,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		}
 	}
 	d.Provider = m.providerRef(mn)
-	d.SchemaKnown = mn.sch != nil || mn.rec == nil || transient(mn.Mode)
+	d.SchemaKnown = mn.sch != nil || mn.rec == nil || transient(mn.Mode) || mn.Sealed
 	rec := mn.rec
 	if rec != nil {
 		d.Times = Times{AppliedAt: rec.AppliedAt, RefreshedAt: rec.RefreshedAt, UpdatedAt: &rec.UpdatedAt, DriftedAt: rec.DriftedAt}
@@ -50,6 +50,8 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		}
 		attrs, err := decodeAttrs(rec.Attributes)
 		switch {
+		case mn.Sealed:
+			d.Notes = append(d.Notes, "The attributes of this record are sealed, and "+m.sealedReason()+" Resources are listed and no value is shown.")
 		case err != nil:
 			d.Notes = append(d.Notes, "The attributes of the record cannot be read: "+err.Error()+".")
 		case mn.sch != nil:

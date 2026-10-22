@@ -82,7 +82,7 @@ Error: unknown flag: --raw
 |---|---|---|
 | `terraform` block, `required_version`, `required_providers` | Absent. | An import of the generated package of each provider, and `$version` on the provider struct. `pravo version` prints the version. |
 | `backend` block, `cloud` block | Absent. | `$settings: state` with a local directory or an S3 bucket. See [Settings](spec-settings.md#state). |
-| Encryption of the state | Absent. | Encrypt the bucket or the disk that holds the state directory. |
+| Encryption of the state | `pravo protect init --encrypt`, off by default. | Encrypts the attributes, outputs and stored plans of a state to a list of readers. See [pravo id and pravo protect](protect.md). It has no key service and no recovery recipient. Encrypt the bucket or the disk as well. |
 | `.terraform.lock.hcl` | Absent. | `pravo.lock.cue`. |
 | `.terraform` directory | Absent. | Providers and schemas are cached in `PRAVO_HOME`, `~/.pravo` by default. The root holds `cue.mod`, `pravo.lock.cue` and the state directory. |
 | `.terraformrc`, `provider_installation`, `plugin_cache_dir` | Absent. | `PRAVO_HOME` selects the cache. A provider can be copied to a container registry with `pravo providers copy`. |

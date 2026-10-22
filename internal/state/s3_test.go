@@ -144,8 +144,13 @@ func TestCopyBetweenBackends(t *testing.T) {
 	_ = s.Set(&Resource{Mode: "managed", Type: "t", Name: "n", Attributes: json.RawMessage(`{}`)}, "")
 	_ = s.SetOutputs(map[string]json.RawMessage{"o": json.RawMessage(`true`)})
 	n, err := Copy(ctx, local, remote)
-	if err != nil || n != 3 {
-		t.Fatalf("copy: %d %v", n, err)
+	// The record, the outputs and meta.json; a record of format 2 is one more.
+	want := 3
+	if s.Format() >= FormatImmutable {
+		want++
+	}
+	if err != nil || n != want {
+		t.Fatalf("copy: %d %v, want %d objects", n, err, want)
 	}
 	rs, err := OpenBackend(ctx, remote)
 	if err != nil {
@@ -223,6 +228,7 @@ func (v *vanishing) Get(ctx context.Context, key string) ([]byte, error) {
 // A stored plan that a collection removes while the state is copied is left out of
 // the copy; the records and the metadata are still copied.
 func TestCopyLeavesOutAPlanThatVanishes(t *testing.T) {
+	skipWhenSealed(t)
 	ctx := context.Background()
 	local, err := NewLocalBackend(t.TempDir())
 	if err != nil {
@@ -380,5 +386,18 @@ func TestStoreCallsOutliveTheCancelledOpeningContext(t *testing.T) {
 	stop()
 	if _, err := OpenBackend(done, b); err == nil {
 		t.Error("a store was opened with a context that is done")
+	}
+}
+
+func TestS3TransportKeepsConnectionsForTheWorkersOfTheUpgrade(t *testing.T) {
+	_, b := newFakeS3(t)
+	tr := b.http.GetTransport()
+	const workers = 32
+	if tr.MaxIdleConnsPerHost < workers || tr.MaxIdleConns < workers {
+		t.Errorf("idle connections per host %d, in all %d; want at least %d of each, so that the workers of the upgrade reuse connections",
+			tr.MaxIdleConnsPerHost, tr.MaxIdleConns, workers)
+	}
+	if tr.IdleConnTimeout <= 0 || tr.TLSHandshakeTimeout <= 0 {
+		t.Errorf("the other settings of the transport were dropped: idle timeout %v, TLS handshake timeout %v", tr.IdleConnTimeout, tr.TLSHandshakeTimeout)
 	}
 }

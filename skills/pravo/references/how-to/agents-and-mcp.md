@@ -272,7 +272,7 @@ For a boundary, use controls outside pravo:
 
 - **Credentials.** Give the agent credentials that can only read and plan. Keep the ones that change infrastructure in a separate job that applies reviewed plan files and names the policy.
 - **The repository.** Require review for the policy source and for every job or tool configuration that names it. Apply only from the main branch.
-- **The state store.** Limit who can write to the bucket or directory that holds the state.
+- **The state store.** Limit who can write to the bucket or directory that holds the state. To keep the values in it from an agent that has no need of them, [seal the state](seal-the-state.md) and give the agent no identity: it can list addresses and cannot read an attribute.
 - **Exceptions.** No flag turns a policy off. A privileged job names a narrower policy that the platform team owns, or none, and the recorded command line says which.
 
 [Policies](../concepts/policies.md) explains the model, [pravo mcp](../reference/mcp.md) lists every tool and [pravo skill](../reference/skill.md) describes the skill.

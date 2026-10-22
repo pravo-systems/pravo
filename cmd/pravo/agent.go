@@ -16,8 +16,10 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
@@ -122,6 +124,18 @@ func exitCodeOf(err error) int {
 	var stale *engine.ErrStalePlan
 	if errors.As(err, &stale) {
 		return int(engine.ExitStale)
+	}
+	switch {
+	case errors.Is(err, state.ErrUntrusted):
+		return int(engine.ExitUntrusted)
+	case errors.Is(err, state.ErrNotReader), errors.Is(err, protect.ErrNotReader):
+		return int(engine.ExitRefused)
+	case errors.Is(err, state.ErrSealing):
+		return int(engine.ExitLocked)
+	}
+	var held *state.ErrLocked
+	if errors.As(err, &held) {
+		return int(engine.ExitLocked)
 	}
 	if strings.Contains(err.Error(), "is locked by") || strings.Contains(err.Error(), "reserved by") {
 		return int(engine.ExitLocked)

@@ -37,6 +37,9 @@ type stored struct {
 	// summary has none is judged as a whole when the state moves on; one that has
 	// them, even an empty map, is judged change by change.
 	Needs map[string][]string
+	// Sealed puts the plan in the state sealed by a key that the viewer does not
+	// hold: its summary stays readable and its values do not.
+	Sealed bool
 }
 
 // storePlan stores a plan in the state the way "pravo plan --store" does: the
@@ -119,6 +122,9 @@ func storePlan(t *testing.T, p *project, o stored) string {
 	}
 	sort.Slice(meta.Changes, func(i, j int) bool { return meta.Changes[i].Addr < meta.Changes[j].Addr })
 	ps := engine.NewPlanStore(p.store.Backend())
+	if o.Sealed {
+		ps.Seal = otherKey{}
+	}
 	if err := ps.Put(context.Background(), data, meta); err != nil {
 		t.Fatal(err)
 	}

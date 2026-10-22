@@ -8,11 +8,11 @@ The versions and formats that pravo reads and writes, the provider protocol it s
 |---|---|---|
 | Provider plugin protocol | 5 and 6 | pravo starts and talks to providers that speak either. |
 | Provider registry | `registry.opentofu.org` by default | pravo downloads provider archives from any registry that implements the provider registry protocol, and from OCI registries. |
-| State store | `format: 1` in `meta.json` | A store with a higher number than the running pravo writes is refused. |
+| State store | `format: 1`, `2` or `3` in `meta.json` | A new store is `1`. A store with a higher number than the running pravo reads is refused. See [State format](state-format.md#formats). |
 | Saved plan file | `format: 1` | A file with a higher number is refused. |
 | Plan document | `format: 1` | The layout of [the plan document](plan-document.md). |
 | JSON output | `--json` | One document on standard output, or one event per line for `apply` and `destroy`. |
-| Exit codes | 0 to 6 | The table in [Exit codes](exit-codes.md). |
+| Exit codes | 0 to 7 | The table in [Exit codes](exit-codes.md). |
 | OpenTofu state file | format version 4 | `pravo state import-tfstate` converts it. |
 | CUE | the version `pravo version` prints | pravo evaluates specifications and policies with that version. |
 
@@ -63,7 +63,7 @@ The versions of the providers a root uses are in `pravo.lock.cue`, with the hash
 
 ## State and plan files
 
-A store or a plan file with a format number above the one the running pravo writes is refused with a message. Nothing is read from it or changed in it.
+A store with a format number above the highest the running pravo reads, which is 3, and a plan file with a number above the one it writes, are refused with a message. Nothing is read from it or changed in it.
 
 File `main.cue`:
 
@@ -172,7 +172,7 @@ An error under `--json` is also an object on standard output, `{"code":N,"kind":
 
 ## Exit codes
 
-The exit codes 0 to 6 are listed with their causes in [Exit codes](exit-codes.md). Code 2 is a report, code 3 is a stale plan and code 4 is a rejection by a lock or a reservation. Code 5 is a refusal by a policy or a lock file, and code 6 is an invalid specification.
+The exit codes 0 to 7 are listed with their causes in [Exit codes](exit-codes.md). Code 2 is a report, code 3 is a stale plan and code 4 is a rejection by a lock or a reservation. Code 5 is a refusal by a policy or a lock file, code 6 is an invalid specification and code 7 is a state that failed verification.
 
 ## Platforms
 
