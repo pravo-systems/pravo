@@ -1,0 +1,432 @@
+{
+ "version": 1,
+ "node": {
+  "addr": "api.db",
+  "mode": "managed",
+  "type": "aws_db_instance",
+  "name": "db",
+  "module": "api",
+  "provider": "aws",
+  "presence": "both",
+  "action": "update",
+  "sensitive": 2,
+  "revision": 14,
+  "refreshed_at": "2026-10-21T12:02:11Z",
+  "source": {
+   "file": "modules/api/main.cue",
+   "line": 19,
+   "col": 2,
+   "end_line": 33
+  }
+ },
+ "provider": {
+  "key": "aws",
+  "source": "registry.opentofu.org/hashicorp/aws",
+  "version": "5.61.0",
+  "protocol": "6"
+ },
+ "attrs": [
+  {
+   "name": "address",
+   "type": "string",
+   "kind": "computed",
+   "value": "estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com"
+  },
+  {
+   "name": "allocated_storage",
+   "type": "number",
+   "kind": "optional,computed",
+   "value": 100
+  },
+  {
+   "name": "apply_immediately",
+   "type": "bool",
+   "kind": "optional",
+   "value": false
+  },
+  {
+   "name": "arn",
+   "type": "string",
+   "kind": "computed",
+   "value": "arn:aws:rds:eu-west-1:412058817224:db:estate-db"
+  },
+  {
+   "name": "auto_minor_version_upgrade",
+   "type": "bool",
+   "kind": "optional",
+   "value": true
+  },
+  {
+   "name": "availability_zone",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "eu-west-1a"
+  },
+  {
+   "name": "backup_retention_period",
+   "type": "number",
+   "kind": "optional,computed",
+   "value": 7
+  },
+  {
+   "name": "ca_cert_identifier",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "rds-ca-rsa2048-g1"
+  },
+  {
+   "name": "db_name",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "estate"
+  },
+  {
+   "name": "db_subnet_group_name",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "estate-db-subnets"
+  },
+  {
+   "name": "deletion_protection",
+   "type": "bool",
+   "kind": "optional",
+   "value": true
+  },
+  {
+   "name": "enabled_cloudwatch_logs_exports",
+   "type": "set(string)",
+   "kind": "optional",
+   "children": [
+    {
+     "name": "0",
+     "type": "string",
+     "value": "postgresql"
+    },
+    {
+     "name": "1",
+     "type": "string",
+     "value": "upgrade"
+    }
+   ]
+  },
+  {
+   "name": "endpoint",
+   "type": "string",
+   "kind": "computed",
+   "value": "estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432"
+  },
+  {
+   "name": "engine",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "postgres"
+  },
+  {
+   "name": "engine_version",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "16.3"
+  },
+  {
+   "name": "identifier",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "estate-db"
+  },
+  {
+   "name": "instance_class",
+   "type": "string",
+   "kind": "required",
+   "value": "db.t3.medium"
+  },
+  {
+   "name": "iops",
+   "type": "number",
+   "kind": "optional,computed",
+   "value": 3000
+  },
+  {
+   "name": "kms_key_id",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "arn:aws:kms:eu-west-1:412058817224:key/6f1c0b7e-2d3a-4b9f-8c11-7a52e0d9a4c3"
+  },
+  {
+   "name": "maintenance_window",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "sun:03:00-sun:04:00"
+  },
+  {
+   "name": "master_user_secret",
+   "type": "list(object)",
+   "kind": "computed",
+   "children": [
+    {
+     "name": "0",
+     "type": "object",
+     "children": [
+      {
+       "name": "kms_key_id",
+       "type": "string",
+       "kind": "optional,computed",
+       "value": "alias/aws/secretsmanager"
+      },
+      {
+       "name": "secret_arn",
+       "type": "string",
+       "kind": "optional,computed",
+       "value": "arn:aws:secretsmanager:eu-west-1:412058817224:secret:rds!db-6f1c-AbCdEf"
+      },
+      {
+       "name": "secret_status",
+       "type": "string",
+       "kind": "optional,computed",
+       "value": "active"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "multi_az",
+   "type": "bool",
+   "kind": "optional,computed",
+   "value": false
+  },
+  {
+   "name": "password",
+   "type": "string",
+   "kind": "optional",
+   "sensitive": true,
+   "redacted": "sensitive"
+  },
+  {
+   "name": "password_wo",
+   "type": "string",
+   "kind": "optional",
+   "sensitive": true,
+   "redacted": "sensitive"
+  },
+  {
+   "name": "performance_insights_enabled",
+   "type": "bool",
+   "kind": "optional",
+   "value": false
+  },
+  {
+   "name": "port",
+   "type": "number",
+   "kind": "optional,computed",
+   "value": 5432
+  },
+  {
+   "name": "publicly_accessible",
+   "type": "bool",
+   "kind": "optional,computed",
+   "value": false
+  },
+  {
+   "name": "restore_to_point_in_time",
+   "type": "list(object)",
+   "kind": "optional",
+   "null": true
+  },
+  {
+   "name": "skip_final_snapshot",
+   "type": "bool",
+   "kind": "optional",
+   "value": false
+  },
+  {
+   "name": "storage_encrypted",
+   "type": "bool",
+   "kind": "optional,computed",
+   "value": true
+  },
+  {
+   "name": "storage_type",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "gp3"
+  },
+  {
+   "name": "tags",
+   "type": "map(string)",
+   "kind": "optional",
+   "children": [
+    {
+     "name": "Environment",
+     "type": "string",
+     "value": "production"
+    },
+    {
+     "name": "ManagedBy",
+     "type": "string",
+     "value": "pravo"
+    },
+    {
+     "name": "Team",
+     "type": "string",
+     "value": "platform"
+    },
+    {
+     "name": "Version",
+     "type": "string",
+     "value": "41"
+    }
+   ]
+  },
+  {
+   "name": "timeouts",
+   "type": "object",
+   "kind": "optional",
+   "null": true
+  },
+  {
+   "name": "username",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "estate_admin"
+  },
+  {
+   "name": "vpc_security_group_ids",
+   "type": "set(string)",
+   "kind": "optional,computed",
+   "children": [
+    {
+     "name": "0",
+     "type": "string",
+     "value": "sg-0a1b2c3d4e5f60718"
+    },
+    {
+     "name": "1",
+     "type": "string",
+     "value": "sg-0f1e2d3c4b5a69788"
+    }
+   ],
+   "truncated": 6
+  }
+ ],
+ "schema_known": true,
+ "depends_on": [
+  "api.db_pass",
+  "api.db_subnets",
+  "network.sg_db"
+ ],
+ "used_by": [
+  "api.secret_version",
+  "api.task"
+ ],
+ "reach": [
+  "api.scaling",
+  "api.secret_version",
+  "api.service",
+  "api.task",
+  "release_marker"
+ ],
+ "change": {
+  "action": "update",
+  "reasons": [
+   "instance_class changed in main.cue:40: size \"t3.medium\" is now \"m6g.large\"",
+   "allocated_storage changed in modules/api/db.cue:20"
+  ],
+  "attrs": [
+   {
+    "path": "allocated_storage",
+    "before": 100,
+    "after": 150
+   },
+   {
+    "path": "enabled_cloudwatch_logs_exports.2",
+    "after": "iam-db-auth-error"
+   },
+   {
+    "path": "instance_class",
+    "before": "db.t3.medium",
+    "after": "db.m6g.large"
+   },
+   {
+    "path": "maintenance_window",
+    "before": "sun:03:00-sun:04:00",
+    "after_unknown": true
+   },
+   {
+    "path": "password",
+    "before_redacted": true,
+    "after_redacted": true
+   },
+   {
+    "path": "tags.Version",
+    "before": "41",
+    "after": "42"
+   }
+  ]
+ },
+ "history": [
+  {
+   "id": "20261021T093211Z-3fa09c",
+   "kind": "plan",
+   "status": "planned",
+   "time": "2026-10-21T13:48:11Z",
+   "actor": "ci@acme",
+   "command": "pravo plan -out release-42.plan",
+   "action": "update",
+   "rev_before": 14,
+   "rev_after": 14
+  },
+  {
+   "id": "20261019T151044Z-b81c2e",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-10-19T13:02:11Z",
+   "user": "ada",
+   "command": "pravo apply",
+   "reason": "raise the backup window",
+   "action": "update",
+   "rev_before": 13,
+   "rev_after": 14
+  },
+  {
+   "id": "20261012T080319Z-0d4e77",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-10-12T14:02:11Z",
+   "user": "ada",
+   "command": "pravo apply",
+   "action": "update",
+   "rev_before": 12,
+   "rev_after": 13
+  },
+  {
+   "id": "20261002T170455Z-91ac3b",
+   "kind": "apply",
+   "status": "failed",
+   "time": "2026-10-02T14:02:11Z",
+   "actor": "ci@acme",
+   "command": "pravo apply release-39.plan",
+   "reason": "timeout waiting for the instance to become available",
+   "action": "update",
+   "rev_before": 11,
+   "rev_after": 11
+  },
+  {
+   "id": "20260921T101502Z-47be05",
+   "kind": "import",
+   "status": "applied",
+   "time": "2026-09-21T14:02:11Z",
+   "user": "grace",
+   "command": "pravo import api.db estate-db",
+   "action": "import",
+   "rev_after": 1
+  }
+ ],
+ "times": {
+  "applied_at": "2026-10-19T13:02:11Z",
+  "refreshed_at": "2026-10-21T12:02:11Z",
+  "updated_at": "2026-10-19T13:02:11Z"
+ },
+ "notes": [
+  "The plan changes this record in place; a change of instance_class restarts the instance."
+ ]
+}

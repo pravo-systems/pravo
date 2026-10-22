@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>pravo serve</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 58.4L12.2 41.9M32 58.4V41.9M32 58.4l19.8-16.5M12.2 41.9V22.1M12.2 41.9L32 22.1M32 41.9L12.2 22.1M32 41.9l19.8-19.8M51.8 41.9L32 22.1M51.8 41.9V22.1M12.2 22.1L32 5.6M32 22.1V5.6M51.8 22.1L32 5.6' fill='none' stroke='%230a735a' stroke-opacity='.72' stroke-width='2.6'/%3E%3Cpath d='M28.5 54.9h7v7h-7zM8.7 38.4h7v7h-7zM28.5 38.4h7v7h-7zM48.3 38.4h7v7h-7zM8.7 18.6h7v7h-7zM28.5 18.6h7v7h-7zM48.3 18.6h7v7h-7zM27.5 1.1h9v9h-9z' fill='%230a735a'/%3E%3C/svg%3E">
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/inspector.css">
+<link rel="stylesheet" href="assets/graph.css">
+<script type="module" src="assets/app.js"></script>
+</head>
+<body>
+<a class="skiplink" href="#canvas">Skip to the graph</a>
+
+<header class="top" role="banner">
+  <button class="iconbtn only-narrow" id="menu-btn" type="button" aria-label="Show the filters and modules" aria-controls="rail" aria-expanded="false"><span class="i i-menu" aria-hidden="true"></span></button>
+  <a class="brand" href="#/" aria-label="pravo serve">
+    <svg class="mark" viewBox="0 0 64 64" width="26" height="26" aria-hidden="true" focusable="false"><path class="e" d="M32.00 58.40L12.20 41.90M32.00 58.40L32.00 41.90M32.00 58.40L51.80 41.90M12.20 41.90L12.20 22.10M12.20 41.90L32.00 22.10M32.00 41.90L12.20 22.10M32.00 41.90L51.80 22.10M51.80 41.90L32.00 22.10M51.80 41.90L51.80 22.10M12.20 22.10L32.00 5.60M32.00 22.10L32.00 5.60M51.80 22.10L32.00 5.60" fill="none" stroke-opacity="0.72" stroke-width="2.6" stroke-linecap="square"/><path class="n" d="M28.50 54.90h7v7h-7zM8.70 38.40h7v7h-7zM28.50 38.40h7v7h-7zM48.30 38.40h7v7h-7zM8.70 18.60h7v7h-7zM28.50 18.60h7v7h-7zM48.30 18.60h7v7h-7zM27.50 1.10h9v9h-9z"/></svg>
+    <span class="word">pravo</span><small>serve</small>
+  </a>
+  <div class="crumbs" id="crumbs" aria-label="Project" hidden>
+    <button class="crumb crumb-dir" id="crumb-dir" type="button"><span class="i i-folder" aria-hidden="true"></span><span class="cp-head"></span><span class="cp-tail"></span></button>
+    <span class="sep" aria-hidden="true"></span>
+    <button class="crumb crumb-state" id="crumb-state" type="button"><span class="i i-stack" aria-hidden="true"></span><span class="cp-head"></span><span class="cp-tail"></span><em class="cp-be"></em></button>
+  </div>
+  <span class="grow"></span>
+  <div class="seg viewsw" role="group" aria-label="View">
+    <button type="button" id="view-graph" aria-pressed="true">Graph</button>
+    <button type="button" id="view-tree" aria-pressed="false">Tree</button>
+  </div>
+  <button class="search" id="search-btn" type="button" aria-label="Search" aria-keyshortcuts="/ Control+K Meta+K"><span class="i i-search" aria-hidden="true"></span><span class="lbl">Find a resource</span><kbd>/</kbd></button>
+  <span class="pillset" data-tip="This page cannot change anything: it only reads.\nIt is served on the loopback interface only." tabindex="0" role="note" aria-label="Read-only: this page cannot change anything. Served on the loopback interface only."><span class="pill ok"><span class="dot" aria-hidden="true"></span>read-only</span><span class="pill addr" id="pill-addr">127.0.0.1</span></span>
+  <button class="iconbtn" id="theme-btn" type="button" aria-label="Switch the theme" data-tip="Switch the theme" data-key="t"><span class="i i-moon" aria-hidden="true"></span></button>
+</header>
+
+<div id="banners" class="banners"></div>
+
+<div class="app" id="app">
+  <nav class="rail" id="rail" aria-label="Filters and modules">
+    <div class="rail-head">
+      <h2 class="h">Show</h2>
+      <div class="chips" role="group" aria-label="Filters"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
+      <div class="rail-title"><h2 class="h">Modules</h2><button class="rail-project" id="rail-root" type="button" aria-label="Show the project"><span></span><em></em></button></div>
+    </div>
+    <div class="tree" role="tree" aria-label="Modules and resources"><div class="rail-sk" aria-hidden="true"><i style="--w:55%"></i><i style="--w:70%"></i><i style="--w:48%"></i><i style="--w:62%"></i><i style="--w:40%"></i><i style="--w:66%"></i><i style="--w:52%"></i></div></div>
+  </nav>
+
+  <main class="stage" id="main">
+    <h1 class="sr-only">pravo serve: the specification, the state and the plan as a graph</h1>
+    <div class="toolbar" id="toolbar">
+      <div class="seg graph-only" role="group" aria-label="Modules">
+        <button type="button" id="btn-collapse" title="Collapse every module ( [ )">Collapse all</button>
+        <button type="button" id="btn-expand" title="Expand every module ( ] )">Expand all</button>
+        <button type="button" id="btn-reset" title="Back to the first view ( 0 )">Reset view</button>
+      </div>
+      <div class="filterbox">
+        <span class="i i-search" aria-hidden="true"></span>
+        <input id="filter-q" type="search" placeholder="Filter by address or type" aria-label="Filter by address or type" autocomplete="off" spellcheck="false">
+        <span class="count" id="match-count" aria-hidden="true"></span>
+      </div>
+      <span class="grow"></span>
+      <span class="shown graph-only" id="shown-count"></span>
+      <div class="seg zoom graph-only" role="group" aria-label="Zoom">
+        <button type="button" id="btn-zout" aria-label="Zoom out" title="Zoom out ( - )"><span class="i i-minus" aria-hidden="true"></span></button>
+        <button type="button" id="btn-fit" title="Fit the graph ( f )">Fit</button>
+        <button type="button" id="btn-zin" aria-label="Zoom in" title="Zoom in ( + )"><span class="i i-plus" aria-hidden="true"></span></button>
+      </div>
+      <button class="iconbtn only-medium" id="insp-btn" type="button" aria-label="Show the inspector" aria-controls="insp" aria-expanded="false"><span class="i i-panel" aria-hidden="true"></span></button>
+    </div>
+
+    <div class="pane graph-pane" id="graph-pane">
+      <div class="canvas" id="canvas" tabindex="0" role="application" aria-roledescription="dependency graph" aria-label="Dependency graph. Arrow keys follow dependencies. Enter opens or closes the selected module. Press ? for all shortcuts.">
+        <div class="overlay reachbar" id="reachbar" hidden></div>
+        <div class="overlay legend" id="legend"></div>
+        <div class="gskel" id="skeleton" aria-hidden="true">
+          <svg viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet"><g class="gs-e"><path d="M150 100C210 100 210 150 270 150M150 100C210 100 210 220 270 220M150 200C210 200 210 150 270 150M150 200C210 200 210 220 270 220M330 150C390 150 390 110 450 110M330 150C390 150 390 220 450 220M330 220C390 220 390 250 450 250"/></g><g class="gs-n"><rect x="60" y="80" width="90" height="40"/><rect x="60" y="180" width="90" height="40"/><rect x="270" y="130" width="60" height="40"/><rect x="270" y="200" width="60" height="40"/><rect x="450" y="90" width="90" height="40"/><rect x="450" y="200" width="90" height="40"/><rect x="450" y="230" width="90" height="40"/></g></svg>
+          <p class="gs-t">Reading the project</p>
+        </div>
+        <div class="stage-empty" id="empty" hidden>
+          <svg class="mark big" viewBox="0 0 64 64" width="84" height="84" aria-hidden="true" focusable="false"><path class="e" d="M32.00 58.40L12.20 41.90M32.00 58.40L32.00 41.90M32.00 58.40L51.80 41.90M12.20 41.90L12.20 22.10M12.20 41.90L32.00 22.10M32.00 41.90L12.20 22.10M32.00 41.90L51.80 22.10M51.80 41.90L32.00 22.10M51.80 41.90L51.80 22.10M12.20 22.10L32.00 5.60M32.00 22.10L32.00 5.60M51.80 22.10L32.00 5.60" fill="none" stroke-opacity="0.72" stroke-width="2.6" stroke-linecap="square" pathLength="100"/><path class="n" d="M28.50 54.90h7v7h-7zM8.70 38.40h7v7h-7zM28.50 38.40h7v7h-7zM48.30 38.40h7v7h-7zM8.70 18.60h7v7h-7zM28.50 18.60h7v7h-7zM48.30 18.60h7v7h-7zM27.50 1.10h9v9h-9z"/></svg>
+          <h2 class="lead">Nothing is recorded yet.</h2>
+          <p class="sub">The state holds no resources and the specification declares none. Apply the specification and they appear here, as a graph.</p>
+          <div class="cmdline"><span class="ps">$</span><code>pravo apply</code><button class="cpbtn" type="button" data-copy="pravo apply" aria-label="Copy the command"><span class="i i-copy" aria-hidden="true"></span></button></div>
+        </div>
+      </div>
+    </div>
+    <div class="pane tree-pane" id="tree-pane" hidden></div>
+  </main>
+
+  <aside class="insp" id="insp" aria-label="Inspector">
+    <div class="insp-bar">
+      <button class="iconbtn insp-size" id="insp-size" type="button" aria-label="Make the inspector taller" aria-pressed="false"><span class="i i-expand" aria-hidden="true"></span></button>
+      <button class="iconbtn insp-close" id="insp-close" type="button" aria-label="Close the inspector"><span class="i i-x" aria-hidden="true"></span></button>
+    </div>
+    <div class="ih" id="ih"></div>
+    <div class="istrip" id="istrip" hidden></div>
+    <div class="itabs" role="tablist" aria-label="Sections" hidden></div>
+    <div class="ibody" id="ibody" role="tabpanel" tabindex="-1"><div class="isk" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></div>
+  </aside>
+  <div class="drawer-scrim" id="scrim" hidden></div>
+</div>
+
+<footer class="status" id="status" role="contentinfo">
+  <span class="st" id="st-plan"></span>
+  <span class="st" id="st-notread"></span>
+  <span class="st" id="st-rev"></span>
+  <span class="st" id="st-time"></span>
+  <span class="grow"></span>
+  <span class="st conn" id="st-live"><i class="led" aria-hidden="true"></i><span>connecting</span></span>
+  <span class="st quiet" id="st-note">localhost only</span>
+</footer>
+
+<div id="toasts" class="toasts" aria-hidden="true"></div>
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<div id="live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<div class="pal-wrap" id="palette" hidden>
+  <div class="pal-scrim"></div>
+  <div class="pal" role="dialog" aria-modal="true" aria-label="Search the project">
+    <div class="pal-in">
+      <span class="i i-search" aria-hidden="true"></span>
+      <input type="text" role="combobox" aria-expanded="false" aria-controls="pal-list" aria-autocomplete="list" aria-label="Search" placeholder="Find a resource, a type or a module" autocomplete="off" spellcheck="false">
+      <kbd>esc</kbd>
+    </div>
+    <div class="pal-list" id="pal-list" role="listbox" aria-label="Results"></div>
+    <div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> go to it</span><span><kbd>esc</kbd> close</span><span class="pal-count"></span></div>
+  </div>
+</div>
+
+<div class="pal-wrap" id="sheet" hidden>
+  <div class="pal-scrim"></div>
+  <div class="pal sheet" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+    <div class="sheet-head"><h2>Shortcuts</h2><button class="iconbtn close" type="button" aria-label="Close"><span class="i i-x" aria-hidden="true"></span></button></div>
+    <div class="sheet-body"></div>
+  </div>
+</div>
+
+<div class="fatal" id="gate" role="alert" hidden>
+  <div class="card">
+    <svg class="mark big" viewBox="0 0 64 64" width="56" height="56" aria-hidden="true" focusable="false"><path class="e" d="M32.00 58.40L12.20 41.90M32.00 58.40L32.00 41.90M32.00 58.40L51.80 41.90M12.20 41.90L12.20 22.10M12.20 41.90L32.00 22.10M32.00 41.90L12.20 22.10M32.00 41.90L51.80 22.10M51.80 41.90L32.00 22.10M51.80 41.90L51.80 22.10M12.20 22.10L32.00 5.60M32.00 22.10L32.00 5.60M51.80 22.10L32.00 5.60" fill="none" stroke-opacity="0.72" stroke-width="2.6" stroke-linecap="square" pathLength="100"/><path class="n" d="M28.50 54.90h7v7h-7zM8.70 38.40h7v7h-7zM28.50 38.40h7v7h-7zM48.30 38.40h7v7h-7zM8.70 18.60h7v7h-7zM28.50 18.60h7v7h-7zM48.30 18.60h7v7h-7zM27.50 1.10h9v9h-9z"/></svg>
+    <p class="kick">pravo serve · read-only</p>
+    <h1>Open the address that <i>pravo serve</i> printed.</h1>
+    <p class="lead">It carries a one-time token. Without it this page may not read the project, and nothing on it can be loaded.</p>
+    <div class="term" aria-hidden="true">
+      <div class="term-bar"><i></i><i></i><i></i><span>terminal</span></div>
+      <pre><span class="dim">$</span> pravo serve
+<span class="dim">pravo serve · read-only · loopback only</span>
+  <span class="hl">http://127.0.0.1:8700/?token=<b>••••••••••••••••••••••••••••••••</b></span></pre>
+    </div>
+    <p class="fine">The token keeps other pages of your browser from reading the project. The server prints a new one at every start.</p>
+    <button class="btn" id="gate-retry" type="button">I opened it, try again</button>
+  </div>
+</div>
+
+<div class="fatal" id="fatal" role="alert" hidden>
+  <div class="card">
+    <span class="fat-ico"><span class="i i-bang" aria-hidden="true"></span></span>
+    <p class="kick">pravo serve</p>
+    <h1>The project could not be read.</h1>
+    <pre class="fat-msg" id="fatal-msg"></pre>
+    <p class="fine" id="fatal-fine">The server is still running. Fix what the message says and try again: the page reads the project afresh.</p>
+    <button class="btn" id="fatal-retry" type="button">Try again</button>
+  </div>
+</div>
+</body>
+</html>

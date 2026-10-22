@@ -1,0 +1,1294 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "project": {
+  "dir": "/srv/infra/estate",
+  "package": "estate",
+  "version": "0.9.0-dev",
+  "state": {
+   "location": "s3://acme-state/estate",
+   "backend": "s3",
+   "lineage": "5c8d7e2a-61b4-4f0e-9a3b-0f6f5d1c2e77",
+   "format": 3,
+   "records": 46,
+   "locks": 1
+  },
+  "providers": [
+   {
+    "local": "aws",
+    "source": "registry.opentofu.org/hashicorp/aws",
+    "version": "5.61.0"
+   },
+   {
+    "local": "random",
+    "source": "registry.opentofu.org/hashicorp/random",
+    "version": "3.6.2"
+   },
+   {
+    "local": "local",
+    "source": "registry.opentofu.org/hashicorp/local",
+    "version": "2.5.1"
+   }
+  ],
+  "policies": [
+   "policy/no-public-db.cue"
+  ],
+  "loaded_at": "2026-10-21T14:02:11Z"
+ },
+ "nodes": [
+  {
+   "addr": "account",
+   "mode": "data",
+   "type": "aws_caller_identity",
+   "name": "account",
+   "module": "",
+   "provider": "aws",
+   "presence": "both",
+   "action": "read",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "source": {
+    "file": "main.cue",
+    "line": 11,
+    "col": 2,
+    "end_line": 11
+   }
+  },
+  {
+   "addr": "api.cache",
+   "mode": "managed",
+   "type": "aws_elasticache_cluster",
+   "name": "cache",
+   "module": "api",
+   "provider": "aws",
+   "presence": "spec",
+   "action": "create",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 128,
+    "col": 2,
+    "end_line": 134
+   }
+  },
+  {
+   "addr": "api.cluster",
+   "mode": "managed",
+   "type": "aws_ecs_cluster",
+   "name": "cluster",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:56:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 56,
+    "col": 2,
+    "end_line": 58
+   }
+  },
+  {
+   "addr": "api.db",
+   "mode": "managed",
+   "type": "aws_db_instance",
+   "name": "db",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "sensitive": 2,
+   "revision": 14,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 19,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "api.db_pass",
+   "mode": "managed",
+   "type": "random_password",
+   "name": "db_pass",
+   "module": "api",
+   "provider": "random",
+   "presence": "both",
+   "sensitive": 2,
+   "revision": 6,
+   "refreshed_at": "2026-10-18T14:02:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 8,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "api.db_password",
+   "mode": "managed",
+   "type": "aws_ssm_parameter",
+   "name": "db_password",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "sensitive": 4,
+   "revision": 3,
+   "refreshed_at": "2026-10-21T09:02:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 35,
+    "col": 2,
+    "end_line": 43
+   }
+  },
+  {
+   "addr": "api.db_subnets",
+   "mode": "managed",
+   "type": "aws_db_subnet_group",
+   "name": "db_subnets",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:31:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 14,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "api.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:23:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 76,
+    "col": 2,
+    "end_line": 79
+   }
+  },
+  {
+   "addr": "api.policy",
+   "mode": "managed",
+   "type": "aws_iam_role_policy",
+   "name": "policy",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:34:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 68,
+    "col": 2,
+    "end_line": 74
+   }
+  },
+  {
+   "addr": "api.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:45:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 60,
+    "col": 2,
+    "end_line": 66
+   }
+  },
+  {
+   "addr": "api.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:30:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 114,
+    "col": 2,
+    "end_line": 118
+   }
+  },
+  {
+   "addr": "api.secret",
+   "mode": "managed",
+   "type": "aws_secretsmanager_secret",
+   "name": "secret",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "action": "no-op",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T13:55:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 45,
+    "col": 2,
+    "end_line": 48
+   }
+  },
+  {
+   "addr": "api.secret_version",
+   "mode": "managed",
+   "type": "aws_secretsmanager_secret_version",
+   "name": "secret_version",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "sensitive": 1,
+   "revision": 9,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 54
+   }
+  },
+  {
+   "addr": "api.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "revision": 17,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 100,
+    "col": 2,
+    "end_line": 112
+   }
+  },
+  {
+   "addr": "api.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "api",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "sensitive": 1,
+   "revision": 21,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 81,
+    "col": 2,
+    "end_line": 98
+   }
+  },
+  {
+   "addr": "api.worker.dlq",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "dlq",
+   "module": "api.worker",
+   "provider": "aws",
+   "presence": "both",
+   "action": "create",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 150,
+    "col": 2,
+    "end_line": 153
+   }
+  },
+  {
+   "addr": "api.worker.queue",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "queue",
+   "module": "api.worker",
+   "provider": "aws",
+   "presence": "both",
+   "action": "no-op",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T13:53:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 144,
+    "col": 2,
+    "end_line": 148
+   }
+  },
+  {
+   "addr": "api.worker.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "api.worker",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 172,
+    "col": 2,
+    "end_line": 186
+   }
+  },
+  {
+   "addr": "api.worker.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "api.worker",
+   "provider": "aws",
+   "presence": "both",
+   "action": "replace",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 155,
+    "col": 2,
+    "end_line": 170
+   }
+  },
+  {
+   "addr": "build_id",
+   "mode": "managed",
+   "type": "random_id",
+   "name": "build_id",
+   "module": "",
+   "provider": "random",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T05:02:11Z",
+   "source": {
+    "file": "main.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 9
+   }
+  },
+  {
+   "addr": "edge.assoc",
+   "mode": "managed",
+   "type": "aws_wafv2_web_acl_association",
+   "name": "assoc",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:58:11Z",
+   "source": {
+    "file": "modules/edge/main.cue",
+    "line": 64,
+    "col": 2,
+    "end_line": 67
+   }
+  },
+  {
+   "addr": "edge.cert",
+   "mode": "managed",
+   "type": "aws_acm_certificate",
+   "name": "cert",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "both",
+   "action": "create",
+   "drifted": true,
+   "gone": true,
+   "revision": 3,
+   "refreshed_at": "2026-10-21T13:22:11Z",
+   "source": {
+    "file": "modules/edge/main.cue",
+    "line": 8,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "edge.dns",
+   "mode": "managed",
+   "type": "aws_route53_record",
+   "name": "dns",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "both",
+   "action": "create",
+   "source": {
+    "file": "modules/edge/main.cue",
+    "line": 69,
+    "col": 2,
+    "end_line": 76
+   }
+  },
+  {
+   "addr": "edge.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "drifted": true,
+   "revision": 6,
+   "refreshed_at": "2026-10-21T13:22:11Z",
+   "source": {
+    "file": "modules/edge/main.cue",
+    "line": 16,
+    "col": 2,
+    "end_line": 26
+   }
+  },
+  {
+   "addr": "edge.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:29:11Z",
+   "source": {
+    "file": "modules/edge/main.cue",
+    "line": 56,
+    "col": 2,
+    "end_line": 62
+   }
+  },
+  {
+   "addr": "edge.old_lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "old_lb",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "state",
+   "action": "delete",
+   "revision": 2,
+   "refreshed_at": "2026-10-15T14:02:11Z"
+  },
+  {
+   "addr": "edge.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "both",
+   "action": "no-op",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T13:54:11Z",
+   "source": {
+    "file": "modules/edge/main.cue",
+    "line": 48,
+    "col": 2,
+    "end_line": 54
+   }
+  },
+  {
+   "addr": "edge.waf",
+   "mode": "managed",
+   "type": "aws_wafv2_web_acl",
+   "name": "waf",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "both",
+   "locked": true,
+   "revision": 12,
+   "refreshed_at": "2026-10-20T14:02:11Z",
+   "source": {
+    "file": "modules/edge/main.cue",
+    "line": 28,
+    "col": 2,
+    "end_line": 46
+   }
+  },
+  {
+   "addr": "edge.zone",
+   "mode": "data",
+   "type": "aws_route53_zone",
+   "name": "zone",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "both",
+   "action": "read",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T13:59:11Z",
+   "source": {
+    "file": "modules/edge/main.cue",
+    "line": 4,
+    "col": 2,
+    "end_line": 6
+   }
+  },
+  {
+   "addr": "network.igw",
+   "mode": "managed",
+   "type": "aws_internet_gateway",
+   "name": "igw",
+   "module": "network",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:58:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 12,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "network.private.nat",
+   "mode": "managed",
+   "type": "aws_nat_gateway",
+   "name": "nat",
+   "module": "network.private",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:53:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 97,
+    "col": 2,
+    "end_line": 101
+   }
+  },
+  {
+   "addr": "network.private.nat_eip",
+   "mode": "managed",
+   "type": "aws_eip",
+   "name": "nat_eip",
+   "module": "network.private",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:24:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 94,
+    "col": 2,
+    "end_line": 96
+   }
+  },
+  {
+   "addr": "network.private.rt",
+   "mode": "managed",
+   "type": "aws_route_table",
+   "name": "rt",
+   "module": "network.private",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:57:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 86,
+    "col": 2,
+    "end_line": 88
+   }
+  },
+  {
+   "addr": "network.private.rta_a",
+   "mode": "managed",
+   "type": "aws_route_table_association",
+   "name": "rta_a",
+   "module": "network.private",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:46:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 89,
+    "col": 2,
+    "end_line": 91
+   }
+  },
+  {
+   "addr": "network.private.rta_b",
+   "mode": "managed",
+   "type": "aws_route_table_association",
+   "name": "rta_b",
+   "module": "network.private",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:35:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 92,
+    "col": 2,
+    "end_line": 94
+   }
+  },
+  {
+   "addr": "network.private.subnet_a",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_a",
+   "module": "network.private",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:39:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 76,
+    "col": 2,
+    "end_line": 80
+   }
+  },
+  {
+   "addr": "network.private.subnet_b",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_b",
+   "module": "network.private",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:28:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 81,
+    "col": 2,
+    "end_line": 85
+   }
+  },
+  {
+   "addr": "network.public.rt",
+   "mode": "managed",
+   "type": "aws_route_table",
+   "name": "rt",
+   "module": "network.public",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:32:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 76
+   }
+  },
+  {
+   "addr": "network.public.rta_a",
+   "mode": "managed",
+   "type": "aws_route_table_association",
+   "name": "rta_a",
+   "module": "network.public",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T12:01:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 77,
+    "col": 2,
+    "end_line": 79
+   }
+  },
+  {
+   "addr": "network.public.rta_b",
+   "mode": "managed",
+   "type": "aws_route_table_association",
+   "name": "rta_b",
+   "module": "network.public",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:50:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 80,
+    "col": 2,
+    "end_line": 82
+   }
+  },
+  {
+   "addr": "network.public.subnet_a",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_a",
+   "module": "network.public",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:54:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 64,
+    "col": 2,
+    "end_line": 68
+   }
+  },
+  {
+   "addr": "network.public.subnet_b",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_b",
+   "module": "network.public",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:43:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 69,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "network.sg_app",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg_app",
+   "module": "network",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:36:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 20,
+    "col": 2,
+    "end_line": 23
+   }
+  },
+  {
+   "addr": "network.sg_db",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg_db",
+   "module": "network",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:25:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 24,
+    "col": 2,
+    "end_line": 27
+   }
+  },
+  {
+   "addr": "network.sg_lb",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg_lb",
+   "module": "network",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:47:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 16,
+    "col": 2,
+    "end_line": 19
+   }
+  },
+  {
+   "addr": "network.vpc",
+   "mode": "managed",
+   "type": "aws_vpc",
+   "name": "vpc",
+   "module": "network",
+   "provider": "aws",
+   "presence": "both",
+   "action": "no-op",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T13:56:11Z",
+   "source": {
+    "file": "modules/network/main.cue",
+    "line": 4,
+    "col": 2,
+    "end_line": 10
+   }
+  },
+  {
+   "addr": "release_marker",
+   "mode": "managed",
+   "type": "local_file",
+   "name": "release_marker",
+   "module": "",
+   "provider": "local",
+   "presence": "both",
+   "action": "create",
+   "refreshed_at": "2026-10-21T11:40:11Z",
+   "source": {
+    "file": "main.cue",
+    "line": 13,
+    "col": 2,
+    "end_line": 17
+   }
+  }
+ ],
+ "edges": [
+  {
+   "dependency": "api.cluster",
+   "dependent": "api.scaling"
+  },
+  {
+   "dependency": "api.cluster",
+   "dependent": "api.service"
+  },
+  {
+   "dependency": "api.cluster",
+   "dependent": "api.worker.service"
+  },
+  {
+   "dependency": "api.db_pass",
+   "dependent": "api.db"
+  },
+  {
+   "dependency": "api.db_pass",
+   "dependent": "api.db_password"
+  },
+  {
+   "dependency": "api.db_subnets",
+   "dependent": "api.db"
+  },
+  {
+   "dependency": "api.db",
+   "dependent": "api.secret_version"
+  },
+  {
+   "dependency": "api.db",
+   "dependent": "api.task"
+  },
+  {
+   "dependency": "api.logs",
+   "dependent": "api.task"
+  },
+  {
+   "dependency": "api.logs",
+   "dependent": "api.worker.dlq"
+  },
+  {
+   "dependency": "api.role",
+   "dependent": "api.policy"
+  },
+  {
+   "dependency": "api.role",
+   "dependent": "api.task"
+  },
+  {
+   "dependency": "api.role",
+   "dependent": "api.worker.task"
+  },
+  {
+   "dependency": "api.secret_version",
+   "dependent": "api.task"
+  },
+  {
+   "dependency": "api.secret",
+   "dependent": "api.policy"
+  },
+  {
+   "dependency": "api.secret",
+   "dependent": "api.secret_version"
+  },
+  {
+   "dependency": "api.service",
+   "dependent": "api.scaling"
+  },
+  {
+   "dependency": "api.service",
+   "dependent": "release_marker"
+  },
+  {
+   "dependency": "api.task",
+   "dependent": "api.service"
+  },
+  {
+   "dependency": "api.worker.dlq",
+   "dependent": "api.worker.task"
+  },
+  {
+   "dependency": "api.worker.queue",
+   "dependent": "api.worker.task"
+  },
+  {
+   "dependency": "api.worker.task",
+   "dependent": "api.worker.service"
+  },
+  {
+   "dependency": "build_id",
+   "dependent": "release_marker"
+  },
+  {
+   "dependency": "edge.cert",
+   "dependent": "edge.listener"
+  },
+  {
+   "dependency": "edge.lb",
+   "dependent": "edge.assoc"
+  },
+  {
+   "dependency": "edge.lb",
+   "dependent": "edge.dns"
+  },
+  {
+   "dependency": "edge.lb",
+   "dependent": "edge.listener"
+  },
+  {
+   "dependency": "edge.tg",
+   "dependent": "api.service"
+  },
+  {
+   "dependency": "edge.tg",
+   "dependent": "edge.listener"
+  },
+  {
+   "dependency": "edge.waf",
+   "dependent": "edge.assoc"
+  },
+  {
+   "dependency": "edge.zone",
+   "dependent": "edge.cert"
+  },
+  {
+   "dependency": "edge.zone",
+   "dependent": "edge.dns"
+  },
+  {
+   "dependency": "network.igw",
+   "dependent": "network.public.rt"
+  },
+  {
+   "dependency": "network.private.nat_eip",
+   "dependent": "network.private.nat"
+  },
+  {
+   "dependency": "network.private.nat",
+   "dependent": "network.private.rt"
+  },
+  {
+   "dependency": "network.private.rt",
+   "dependent": "network.private.rta_a"
+  },
+  {
+   "dependency": "network.private.rt",
+   "dependent": "network.private.rta_b"
+  },
+  {
+   "dependency": "network.private.subnet_a",
+   "dependent": "api.cache"
+  },
+  {
+   "dependency": "network.private.subnet_a",
+   "dependent": "api.db_subnets"
+  },
+  {
+   "dependency": "network.private.subnet_a",
+   "dependent": "api.service"
+  },
+  {
+   "dependency": "network.private.subnet_a",
+   "dependent": "api.worker.service"
+  },
+  {
+   "dependency": "network.private.subnet_a",
+   "dependent": "network.private.rta_a"
+  },
+  {
+   "dependency": "network.private.subnet_b",
+   "dependent": "api.cache"
+  },
+  {
+   "dependency": "network.private.subnet_b",
+   "dependent": "api.db_subnets"
+  },
+  {
+   "dependency": "network.private.subnet_b",
+   "dependent": "api.service"
+  },
+  {
+   "dependency": "network.private.subnet_b",
+   "dependent": "network.private.rta_b"
+  },
+  {
+   "dependency": "network.public.rt",
+   "dependent": "network.public.rta_a"
+  },
+  {
+   "dependency": "network.public.rt",
+   "dependent": "network.public.rta_b"
+  },
+  {
+   "dependency": "network.public.subnet_a",
+   "dependent": "edge.lb"
+  },
+  {
+   "dependency": "network.public.subnet_a",
+   "dependent": "network.private.nat"
+  },
+  {
+   "dependency": "network.public.subnet_a",
+   "dependent": "network.public.rta_a"
+  },
+  {
+   "dependency": "network.public.subnet_b",
+   "dependent": "edge.lb"
+  },
+  {
+   "dependency": "network.public.subnet_b",
+   "dependent": "network.public.rta_b"
+  },
+  {
+   "dependency": "network.sg_app",
+   "dependent": "api.cache"
+  },
+  {
+   "dependency": "network.sg_app",
+   "dependent": "api.service"
+  },
+  {
+   "dependency": "network.sg_app",
+   "dependent": "network.sg_db"
+  },
+  {
+   "dependency": "network.sg_db",
+   "dependent": "api.db"
+  },
+  {
+   "dependency": "network.sg_lb",
+   "dependent": "edge.lb"
+  },
+  {
+   "dependency": "network.sg_lb",
+   "dependent": "edge.old_lb"
+  },
+  {
+   "dependency": "network.sg_lb",
+   "dependent": "network.sg_app"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "edge.tg"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.igw"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.private.rt"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.private.subnet_a"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.private.subnet_b"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.public.rt"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.public.subnet_a"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.public.subnet_b"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.sg_app"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.sg_db"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.sg_lb"
+  }
+ ],
+ "modules": [
+  {
+   "path": "api",
+   "parent": "",
+   "name": "api",
+   "resources": 18,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 38,
+    "col": 2,
+    "end_line": 41
+   },
+   "definition": {
+    "file": "modules/api/main.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "api.worker",
+   "parent": "api",
+   "name": "worker",
+   "resources": 4,
+   "depth": 1,
+   "declared": {
+    "file": "modules/api/main.cue",
+    "line": 120,
+    "col": 2,
+    "end_line": 126
+   },
+   "definition": {
+    "file": "modules/api/main.cue",
+    "line": 142,
+    "col": 2,
+    "end_line": 190
+   }
+  },
+  {
+   "path": "edge",
+   "parent": "",
+   "name": "edge",
+   "resources": 9,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 28,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/edge/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 80
+   }
+  },
+  {
+   "path": "network",
+   "parent": "",
+   "name": "network",
+   "resources": 17,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 20,
+    "col": 2,
+    "end_line": 24
+   },
+   "definition": {
+    "file": "modules/network/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "network.private",
+   "parent": "network",
+   "name": "private",
+   "resources": 7,
+   "depth": 1,
+   "declared": {
+    "file": "modules/network/main.cue",
+    "line": 38,
+    "col": 2,
+    "end_line": 44
+   },
+   "definition": {
+    "file": "modules/network/main.cue",
+    "line": 62,
+    "col": 2,
+    "end_line": 90
+   }
+  },
+  {
+   "path": "network.public",
+   "parent": "network",
+   "name": "public",
+   "resources": 5,
+   "depth": 1,
+   "declared": {
+    "file": "modules/network/main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 36
+   },
+   "definition": {
+    "file": "modules/network/main.cue",
+    "line": 62,
+    "col": 2,
+    "end_line": 90
+   }
+  }
+ ],
+ "outputs": [
+  {
+   "name": "url",
+   "value": "https://api.estate.example.com"
+  },
+  {
+   "name": "db_endpoint",
+   "value": "estate-db.c8x2kq1.eu-west-1.rds.amazonaws.com:5432"
+  },
+  {
+   "name": "db_password",
+   "sensitive": true
+  },
+  {
+   "name": "cache_endpoint",
+   "unknown": true
+  }
+ ],
+ "plan": {
+  "file": ".pravo/plans/release-42.plan",
+  "created": "2026-10-21T13:48:11Z",
+  "actor": "ci@acme",
+  "summary": {
+   "add": 6,
+   "change": 5,
+   "destroy": 2,
+   "read": 2,
+   "blast_radius": 10
+  },
+  "planned": 18,
+  "total": 47,
+  "hints": [
+   "edge.old_lb is no longer declared and would be destroyed.",
+   "api.worker.task is replaced: container_definitions cannot be updated in place."
+  ]
+ },
+ "warnings": [
+  "The schema of aws_wafv2_web_acl is not cached: its values are withheld. Run pravo providers schema to cache it."
+ ]
+}

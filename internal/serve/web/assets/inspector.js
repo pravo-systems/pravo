@@ -1,0 +1,576 @@
+// The inspector on the right: the project when nothing is selected, a module, or a node with the tabs
+// State, Source, Schema, History and Change. Values arrive redacted from the server; this file never asks
+// for more and has no control that reveals a withheld value.
+
+import { h, clear, icon, relTime, stamp, copyButton, actionOf, plural, motionOn, splitPath, pathEl, baseName } from './util.js';
+import * as api from './api.js';
+import { isChange, chain } from './model.js';
+import { codeWindow, kindLabel } from './ui.js';
+import { StateView, withheld, unknownEl, timeRow } from './values.js';
+import { projectPanel, modulePanel } from './panels.js';
+
+const TABS = [
+  { key: 'state', label: 'State' },
+  { key: 'source', label: 'Source' },
+  { key: 'schema', label: 'Schema' },
+  { key: 'history', label: 'History' },
+  { key: 'change', label: 'Change' },
+];
+
+export class Inspector {
+  constructor(root, cb) {
+    this.root = root;
+    this.cb = cb;
+    this.head = root.querySelector('.ih');
+    this.strip = root.querySelector('.istrip');
+    this.tabs = root.querySelector('.itabs');
+    this.body = root.querySelector('.ibody');
+    this.cache = new Map();
+    this.token = 0;
+    this.open = new Map();
+    this.mode = null;
+    this.addr = null;
+    this.tab = 'state';
+    this.ink = h('i', { class: 'itab-ink', 'aria-hidden': 'true' });
+    this.state = new StateView({ open: this.open, announce: (t) => cb.announce(t) });
+    this.values = this.state;
+    this.tabs.addEventListener('keydown', (ev) => this.onTabKey(ev));
+    this.body.addEventListener('scroll', () => { this.root.classList.toggle('scrolled', this.body.scrollTop > 4); }, { passive: true });
+    this.body.addEventListener('click', (ev) => {
+      const ref = ev.target.closest('[data-goto]');
+      if (ref) { ev.preventDefault(); cb.onSelectNode(ref.dataset.goto); return; }
+      const mod = ev.target.closest('[data-gomod]');
+      if (mod) { ev.preventDefault(); cb.onSelectModule(mod.dataset.gomod); return; }
+      const tb = ev.target.closest('[data-tab]');
+      if (tb) { cb.onTab(tb.dataset.tab); return; }
+      const rc = ev.target.closest('[data-reach]');
+      if (rc) { cb.onReach(rc.dataset.reach); return; }
+      const rt = ev.target.closest('[data-retry]');
+      if (rt) { this.cache.clear(); this.render(); return; }
+    });
+    this.head.addEventListener('click', (ev) => {
+      const mod = ev.target.closest('[data-gomod]');
+      if (mod) { ev.preventDefault(); cb.onSelectModule(mod.dataset.gomod); }
+    });
+    window.addEventListener('resize', () => this.placeInk(false));
+  }
+
+  invalidate() { this.cache.clear(); }
+
+  // paint puts a new body in and lets it come in.
+  paint(...kids) {
+    clear(this.body);
+    this.body.classList.remove('loading');
+    this.body.append(...kids.flat().filter(Boolean));
+    this.body.classList.remove('in');
+    if (motionOn()) { void this.body.offsetWidth; this.body.classList.add('in'); }
+  }
+
+  fetch(key, fn) {
+    let p = this.cache.get(key);
+    if (!p) {
+      p = fn();
+      this.cache.set(key, p);
+      p.catch(() => this.cache.delete(key));
+    }
+    return p;
+  }
+
+  // ---- the header: a title, the place of the thing in its modules, tags ----
+
+  header({ kick, title, path, tags, copy, long }) {
+    clear(this.head);
+    // append() writes the word "null" for a null: only what exists goes in
+    this.head.append(...[
+      h('div', { class: 'ih-top' }, h('span', { class: 'kick' }, kick), copy ? this.copyBtn(copy) : null),
+      h('h2', { class: 'ih-title' + (long ? ' long' : '') }, title),
+      path,
+      tags && tags.length ? h('div', { class: 'ih-tags' }, tags) : null].filter(Boolean));
+  }
+
+  copyBtn(text) {
+    return copyButton(text, { label: 'Copy the address', tip: 'Copy the address', cls: 'ih-cp', announce: (t) => this.cb.announce(t), done: 'Copied the address' });
+  }
+
+  // crumbs: the modules a thing sits in, each a link to that module
+  crumbs(mod, model, last) {
+    const mods = mod ? chain(mod) : [];
+    if (!mods.length && !last) return null;
+    const out = h('div', { class: 'ih-path', 'aria-label': 'Where it sits' });
+    mods.forEach((m, i) => {
+      if (i) out.append(h('span', { class: 'sep', 'aria-hidden': 'true' }, '.'));
+      out.append(h('a', { class: 'mseg', href: '#', data: { gomod: m.path }, title: `Module ${m.path}` }, m.name));
+    });
+    if (last) { if (mods.length) out.append(h('span', { class: 'sep', 'aria-hidden': 'true' }, '.')); out.append(h('span', { class: 'cur' }, last)); }
+    return out;
+  }
+
+  noTabs() {
+    this.body.removeAttribute('aria-labelledby');
+    this.body.setAttribute('role', 'region');
+    this.body.setAttribute('aria-label', 'Details');
+    this.tabs.hidden = true;
+    clear(this.tabs);
+    this.strip.hidden = true;
+    clear(this.strip);
+    this.ink.style.opacity = '0';
+  }
+
+  // ---- entry points ----
+
+  showProject(model) {
+    this.mode = 'project';
+    this.token++;
+    this.noTabs();
+    const g = model.graph, p = g.project;
+    this.header({
+      kick: 'Project',
+      title: p.package || baseName(p.dir),
+      path: h('div', { class: 'ih-dir', 'data-tip': p.dir }, pathEl(p.dir)),
+      copy: p.dir,
+      tags: [h('span', { class: 'b' }, p.state && p.state.backend || 'state'), h('span', { class: 'b' }, 'pravo ' + p.version)],
+    });
+    this.paint(projectPanel(this, model));
+    this.root.dataset.mode = 'project';
+    this.root.classList.remove('scrolled');
+  }
+
+  showModule(mod, model, collapsed) {
+    this.mode = 'module';
+    this.modAddr = mod.path;
+    this.token++;
+    this.noTabs();
+    const a = mod.agg;
+    this.header({
+      kick: 'Module',
+      title: mod.name,
+      long: mod.name.length > 22,
+      path: this.crumbs(mod.up && !mod.up.isRoot ? mod.up : null, model, null),
+      copy: mod.path,
+      tags: [h('span', { class: 'b' }, plural(a.n, 'resource')), mod.kids.length ? h('span', { class: 'b' }, plural(mod.kids.length, 'sub-module')) : null],
+    });
+    this.paint(modulePanel(this, mod, model, collapsed));
+    this.root.dataset.mode = 'module';
+    this.root.classList.remove('scrolled');
+  }
+
+  // showNode shows a node; tab is the tab to show.
+  showNode(node, model, tab, graph) {
+    const same = this.mode === 'node' && this.addr === node.addr;
+    this.prevDetail = same ? this.detail : null; // a refresh of the node on show: what changed flashes
+    this.mode = 'node';
+    this.model = model;
+    this.graph = graph;
+    this.node = node;
+    this.addr = node.addr;
+    this.tab = tab;
+    if (!same) { this.state.q = ''; this.root.classList.remove('scrolled'); }
+    this.root.dataset.mode = 'node';
+    this.render(same);
+  }
+
+  setTab(tab) {
+    this.tab = tab;
+    if (this.mode === 'node') this.render(true);
+  }
+
+  tabList() { return TABS.filter((t) => t.key !== 'change' || this.model.hasPlan); }
+
+  // ---- header, strip, tabs of a node ----
+
+  nodeHead(node, detail) {
+    const n = detail ? detail.node : node;
+    const prov = detail ? detail.provider : null;
+    const tags = [];
+    tags.push(h('span', { class: 'b ty', title: n.type }, n.type));
+    const pv = prov ? [prov.key, prov.version].filter(Boolean).join(' ') : node.provider;
+    if (pv) tags.push(h('span', { class: 'b' }, pv));
+    if (n.mode !== 'managed') tags.push(h('span', { class: 'b' }, n.mode));
+    if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), `${n.sensitive} sensitive`));
+    if (n.no_schema) tags.push(h('span', { class: 'b chg' }, 'no schema'));
+    this.header({
+      kick: n.mode === 'managed' ? 'Resource' : n.mode === 'data' ? 'Data source' : n.mode,
+      title: n.name,
+      long: n.name.length > 22,
+      path: this.crumbs(this.model.nodes.get(n.addr) ? this.model.nodes.get(n.addr).mod : null, this.model, null),
+      copy: n.addr,
+      tags,
+    });
+    this.nodeStrip(n, detail);
+  }
+
+  nodeStrip(n, detail) {
+    const cell = (label, value, cls, tip) => h('div', { class: 'cell' + (cls ? ' ' + cls : ''), 'data-tip': tip || null }, h('span', { class: 'cl' }, label), h('span', { class: 'cv' }, value));
+    const model = this.model;
+    const cells = [];
+    const a = actionOf(n.action);
+    if (model.hasPlan) {
+      if (a && n.action !== 'no-op') cells.push(cell('Action', [h('i', { class: 'sq ' + a.cls }), a.label], 'act-' + n.action, 'What the loaded plan does to this resource'));
+      else if (n.action === 'no-op') cells.push(cell('Action', 'no change', '', 'The plan ran this resource and found nothing to change'));
+      else cells.push(cell('Action', 'not read', 'dimv', 'The loaded plan did not run this resource'));
+    } else cells.push(cell('Action', 'no plan', 'dimv', 'No plan is loaded'));
+    let sync, scls, stip;
+    if (n.gone) { sync = [icon('gone'), 'gone']; scls = 'bad'; stip = 'A read found that the real object is absent'; } else if (n.drifted) { sync = [icon('drift'), 'drifted']; scls = 'chg'; stip = 'A read found that the real object differs from the record'; } else if (n.presence === 'spec') { sync = 'declared only'; scls = 'dimv'; stip = 'Declared in the specification, not created yet'; } else if (n.presence === 'state') { sync = 'orphan'; scls = 'bad'; stip = 'Recorded in the state, no longer declared: the next apply would destroy it'; } else { sync = [icon('check'), 'in sync']; scls = 'ok'; stip = 'Declared and recorded, with no drift found'; }
+    cells.push(cell('Record', sync, scls, stip));
+    if (n.locked) cells.push(cell('Lock', [icon('hold'), 'held'], 'lock', 'A lock or reservation holds this resource'));
+    cells.push(cell('Revision', n.revision ? String(n.revision) : '—', n.revision ? '' : 'dimv', 'The revision of the record'));
+    const when = n.refreshed_at || (detail && detail.times && detail.times.refreshed_at);
+    cells.push(cell('Refreshed', when ? relTime(when) : '—', when ? '' : 'dimv', when ? 'Last read from the provider: ' + stamp(when) : 'Never read'));
+    clear(this.strip);
+    this.strip.append(...cells);
+    this.strip.hidden = false;
+  }
+
+  ensureTabs() {
+    const list = this.tabList();
+    const keys = list.map((t) => t.key).join(',');
+    this.tabs.hidden = false;
+    this.body.setAttribute('role', 'tabpanel');
+    this.body.removeAttribute('aria-label');
+    if (this.tabKeys !== keys || !this.tabs.contains(this.ink)) {
+      clear(this.tabs);
+      this.tabs.append(this.ink);
+      for (const t of list) {
+        this.tabs.append(h('button', { class: 'itab', role: 'tab', type: 'button', id: 'tab-' + t.key, 'aria-controls': 'ibody', data: { tab: t.key }, on: { click: () => this.cb.onTab(t.key) } }, h('span', { class: 'tn' }, t.label), h('span', { class: 'tc' })));
+      }
+      this.tabKeys = keys;
+      this.inkFresh = true;
+    }
+    for (const b of this.tabs.querySelectorAll('.itab')) {
+      const on = b.dataset.tab === this.tab;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+      const dot = b.dataset.tab === 'change' && this.node && isChange(this.node.action);
+      b.classList.toggle('flag', !!dot);
+    }
+    this.body.setAttribute('aria-labelledby', 'tab-' + this.tab);
+    this.placeInk(!this.inkFresh);
+    this.inkFresh = false;
+  }
+
+  placeInk(animate) {
+    const on = this.tabs.querySelector('.itab.on');
+    if (!on || this.tabs.hidden) return;
+    const ink = this.ink;
+    if (!animate) ink.style.transition = 'none';
+    ink.style.opacity = '1';
+    ink.style.width = on.offsetWidth - 2 + 'px';
+    ink.style.transform = `translateX(${on.offsetLeft + 1}px)`;
+    if (!animate) { void ink.offsetWidth; ink.style.transition = ''; }
+  }
+
+  counts(detail) {
+    const set = (key, n) => { const el = this.tabs.querySelector(`#tab-${key} .tc`); if (el) { el.textContent = n ? String(n) : ''; el.parentNode.classList.toggle('counted', !!n); } };
+    const c = detail.change;
+    set('history', (detail.history || []).length);
+    set('change', c ? (c.attrs || []).length : 0);
+    this.placeInk(false);
+  }
+
+  render(keepScroll) {
+    const node = this.node, model = this.model;
+    const my = ++this.token;
+    const key = (k) => `${k}:${node.addr}:${model.graph.revision}`;
+    this.nodeHead(node, null);
+    this.ensureTabs();
+    if (!keepScroll) this.body.scrollTop = 0;
+    this.body.classList.add('loading');
+    const timer = setTimeout(() => { if (my === this.token && this.body.classList.contains('loading')) { clear(this.body); this.body.append(this.skeleton()); } }, 150);
+    const need = [this.fetch(key('detail'), () => api.detail(node.addr))];
+    if (this.tab === 'source') need.push(this.fetch(key('source'), () => api.source(node.addr)));
+    Promise.all(need).then(([detail, source]) => {
+      clearTimeout(timer);
+      if (my !== this.token) return;
+      if (model.specError && detail && detail.node) detail.node = Object.assign({}, detail.node, { presence: 'both' });
+      this.detail = detail;
+      this.nodeHead(node, detail);
+      this.ensureTabs();
+      this.counts(detail);
+      this.state.prev = this.prevDetail && motionOn() ? attrIndex(this.prevDetail) : null;
+      this.prevDetail = null;
+      const scroll = keepScroll ? this.body.scrollTop : 0;
+      switch (this.tab) {
+        case 'source': this.paint(this.sourcePane(source, detail)); break;
+        case 'schema': this.paint(this.schemaPane(detail)); break;
+        case 'history': this.paint(this.historyPane(detail)); break;
+        case 'change': this.paint(this.changePane(detail, node)); break;
+        default: this.paint(this.statePane(detail, node));
+      }
+      if (keepScroll && this.tab === 'state') this.body.scrollTop = scroll;
+    }).catch((err) => {
+      clearTimeout(timer);
+      if (my !== this.token) return;
+      if (err instanceof api.Unauthorized) return; // the page shows the gate
+      this.paint(h('div', { class: 'errbox', role: 'alert' }, h('p', null, 'Could not load this resource.'), h('p', { class: 'dim' }, String(err.message || err)), h('button', { class: 'btn', type: 'button', data: { retry: '1' } }, 'Try again')));
+      this.cb.onError(`Could not load ${node.addr}: ${err.message || err}`);
+    });
+  }
+
+  skeleton() {
+    return h('div', { class: 'skel', 'aria-hidden': 'true' }, [1, 2, 3, 4, 5, 6].map((i) => h('div', { class: 'skel-row', style: `--i:${i}` }, h('i'), h('i'))));
+  }
+
+  onTabKey(ev) {
+    const tabs = [...this.tabs.querySelectorAll('[role=tab]')];
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    let n = -1;
+    if (ev.key === 'ArrowRight') n = (i + 1) % tabs.length;
+    else if (ev.key === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length;
+    else if (ev.key === 'Home') n = 0;
+    else if (ev.key === 'End') n = tabs.length - 1;
+    if (n < 0) return;
+    ev.preventDefault();
+    tabs[n].focus();
+    this.cb.onTab(tabs[n].dataset.tab);
+    setTimeout(() => { const t = this.tabs.querySelector('[aria-selected=true]'); if (t) t.focus(); }, 0);
+  }
+
+  // ---- State ----
+
+  statePane(d, node) {
+    const wrap = h('div', { class: 'pane state-pane' });
+    const changed = new Set((d.change && d.change.attrs || []).map((a) => a.path));
+    wrap.append(this.state.render(d, changed));
+
+    const model = this.model;
+    const refs = (title, addrs) => h('section', { class: 'sec' }, h('h3', { class: 'h' }, title, h('span', { class: 'cnt' }, String(addrs.length))),
+      addrs.length ? this.nodeList(addrs.map((a) => model.nodes.get(a) || { addr: a, name: a, type: '' }), model, node) : h('p', { class: 'dim none' }, 'none'));
+    wrap.append(h('div', { class: 'cols2' }, refs('Depends on', d.depends_on || []), refs('Used by', d.used_by || [])));
+    const reach = d.reach && d.reach.length ? d.reach : null;
+    wrap.append(h('section', { class: 'sec' }, h('h3', { class: 'h' }, 'Reach'),
+      reach
+        ? h('div', { class: 'reach' }, h('span', { class: 'big' }, String(reach.length)), h('span', { class: 'rt' }, `${reach.length === 1 ? 'resource is' : 'resources are'} reached by a change to this one.`), h('button', { class: 'btn', type: 'button', data: { reach: node.addr } }, 'Show in graph'))
+        : h('p', { class: 'dim none' }, 'No resource depends on this one.')));
+
+    const t = d.times || {};
+    const rows = [];
+    const add = (k, v) => { if (v) rows.push([k, v]); };
+    add('revision', d.node.revision ? String(d.node.revision) : null);
+    add('last read', timeRow(t.refreshed_at));
+    add('applied', timeRow(t.applied_at));
+    add('updated', timeRow(t.updated_at));
+    if (t.drifted_at) add('drifted', timeRow(t.drifted_at));
+    add('provider', [d.provider.key, d.provider.source, d.provider.version && 'v' + d.provider.version, d.provider.protocol && 'protocol ' + d.provider.protocol].filter(Boolean).join(' · '));
+    if (d.node.source) add('declared at', h('span', { class: 'ref-file' }, `${d.node.source.file}:${d.node.source.line}`));
+    wrap.append(h('section', { class: 'sec' }, h('h3', { class: 'h' }, 'The record'), h('dl', { class: 'meta' }, rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)]))));
+    if (d.lock) wrap.append(this.lockSection(d.lock));
+    for (const note of d.notes || []) wrap.append(h('p', { class: 'note' }, icon('info'), h('span', null, note)));
+    wrap.append(h('p', { class: 'note quiet' }, icon('lock'), h('span', null, 'A value marked sensitive is withheld by the server. This page receives its name and its type, never its content.')));
+    return wrap;
+  }
+
+  lockSection(l) {
+    return h('section', { class: 'sec' }, h('h3', { class: 'h' }, l.kind === 'reservation' ? 'Reserved' : 'Locked'),
+      h('dl', { class: 'meta' },
+        h('dt', null, 'held by'), h('dd', null, [l.user, l.host && '@' + l.host].filter(Boolean).join('') || l.actor || 'unknown'),
+        l.command ? [h('dt', null, 'command'), h('dd', { class: 'mono-s' }, l.command)] : null,
+        l.actor ? [h('dt', null, 'actor'), h('dd', null, l.actor)] : null,
+        h('dt', null, 'since'), h('dd', null, relTime(l.since) + ' · ' + stamp(l.since)),
+        l.expires ? [h('dt', null, 'expires'), h('dd', null, stamp(l.expires))] : null));
+  }
+
+  // a list of resources: the status square, the name, the module they sit in
+  nodeList(nodes, model, from) {
+    const LIMIT = 8;
+    const ul = h('ul', { class: 'nav' });
+    const draw = (all) => {
+      ul.textContent = '';
+      const shown = all ? nodes : nodes.slice(0, LIMIT);
+      for (const n of shown) {
+        const full = model.nodes.get(n.addr);
+        const act = actionOf(n.action);
+        const cls = 'sq' + (act ? ' ' + act.cls : '') + (model.hasPlan && full && !full.action ? ' skip' : '');
+        const where = full && full.module ? full.module : '';
+        ul.append(h('li', null, h('a', { class: 'navrow', href: '#', data: { goto: n.addr }, title: n.addr }, h('i', { class: cls }), h('span', { class: 'nn' }, full ? full.name : n.addr), where ? h('span', { class: 'nt' }, where) : null)));
+      }
+      if (!all && nodes.length > LIMIT) ul.append(h('li', null, h('button', { class: 'more-btn', type: 'button', on: { click: () => draw(true) } }, `Show all ${nodes.length}`)));
+    };
+    draw(false);
+    return ul;
+  }
+
+  // ---- Schema ----
+
+  schemaPane(d) {
+    const rows = [];
+    const walk = (attrs, depth, prefix) => {
+      for (const a of attrs) {
+        rows.push({ a, depth, name: prefix + a.name });
+        const kids = a.children || [];
+        const t = a.type || '';
+        if (kids.length && /^object/.test(t)) walk(kids, depth + 1, '');
+        else if (kids.length && /^(list|set)\(object/.test(t) && kids[0].children) walk(kids[0].children, depth + 1, '');
+        else if (kids.length && /^(list|set)\(/.test(t) && kids[0].children && kids[0].children.length && /^object/.test(kids[0].type || '')) walk(kids[0].children, depth + 1, '');
+      }
+    };
+    walk(d.attrs || [], 0, '');
+    const input = h('input', { class: 'sfilter', type: 'search', placeholder: 'Filter attributes, types, descriptions', 'aria-label': 'Filter the attributes', autocomplete: 'off', spellcheck: 'false' });
+    const count = h('span', { class: 'sf-count', 'aria-hidden': 'true' });
+    const body = h('div', { class: 'schema', role: 'table', 'aria-label': 'Attributes' });
+    const draw = () => {
+      clear(body);
+      const q = input.value.trim().toLowerCase();
+      let n = 0;
+      body.append(h('div', { class: 'srow head', role: 'row' }, h('div', { role: 'columnheader' }, 'Attribute'), h('div', { role: 'columnheader' }, 'Type'), h('div', { role: 'columnheader' }, 'Kind')));
+      for (const r of rows) {
+        const a = r.a;
+        if (q && !(r.name.toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q) || (a.type || '').includes(q))) continue;
+        n++;
+        const flags = [];
+        for (const k of (a.kind || '').split(',').filter(Boolean)) flags.push(h('span', { class: 'kd ' + k }, k));
+        if (a.sensitive || a.redacted === 'sensitive') flags.push(h('span', { class: 'kd lock' }, icon('lock'), 'sensitive'));
+        if (a.redacted === 'write-only') flags.push(h('span', { class: 'kd lock' }, icon('lock'), 'write-only'));
+        if (a.deprecated) flags.push(h('span', { class: 'kd dep' }, 'deprecated'));
+        body.append(h('div', { class: 'srow' + (a.deprecated ? ' deprecated' : ''), role: 'row', style: `--d:${r.depth}` },
+          h('div', { class: 'sn', role: 'cell' }, h('code', null, r.name)),
+          h('div', { class: 'st', role: 'cell' }, h('code', null, a.type || '')),
+          h('div', { class: 'sk', role: 'cell' }, flags),
+          a.description ? h('div', { class: 'sd', role: 'cell' }, a.description) : null));
+      }
+      count.textContent = q ? `${n} of ${rows.length}` : '';
+      if (!n) body.append(h('div', { class: 'blank' }, icon('search'), h('p', null, 'No attribute matches.')));
+    };
+    input.addEventListener('input', draw);
+    draw();
+    return h('div', { class: 'pane' },
+      h('div', { class: 'stbar' }, h('label', { class: 'sfbox' }, icon('search'), input, count)),
+      h('section', { class: 'sec flush' }, body),
+      h('p', { class: 'note quiet' }, icon('info'), h('span', null, 'Types, kinds and descriptions come from the provider schema. Descriptions are shown when the server has them.')));
+  }
+
+  // ---- History ----
+
+  historyPane(d) {
+    const list = d.history || [];
+    if (!list.length) return h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('stack'), h('p', null, 'No transaction wrote this resource.')));
+    const ol = h('ol', { class: 'timeline' });
+    for (const e of list) {
+      const a = actionOf(e.action);
+      ol.append(h('li', { class: 'tl st-' + e.status },
+        h('span', { class: 'tl-mark', 'aria-hidden': 'true' }),
+        h('div', { class: 'tl-body' },
+          h('div', { class: 'tl-top' },
+            h('span', { class: 'b ' + statusClass(e.status) }, e.status),
+            h('span', { class: 'kind' }, e.kind),
+            a ? h('span', { class: 'act' }, h('span', { class: 'sq ' + a.cls }), a.label) : (e.action ? h('span', { class: 'dim' }, e.action) : null),
+            h('time', { datetime: e.time, title: stamp(e.time) }, relTime(e.time))),
+          e.command ? h('code', { class: 'cmd' }, e.command) : null,
+          e.reason ? h('p', { class: 'reason' }, e.reason) : null,
+          h('div', { class: 'tl-meta' },
+            h('span', { title: e.id }, e.id),
+            e.user || e.actor ? h('span', null, [e.user, e.actor].filter(Boolean).join(' · ')) : null,
+            e.rev_before || e.rev_after ? h('span', null, `rev ${e.rev_before || 0} → ${e.rev_after || 0}`) : null))));
+    }
+    return h('div', { class: 'pane' }, h('section', { class: 'sec' }, ol));
+  }
+
+  // ---- Change ----
+
+  changePane(d, node) {
+    const c = d.change;
+    if (!c) {
+      return h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('info'), h('p', null, node.action === 'no-op' ? 'The plan ran this resource and found nothing to change.' : node.action ? 'The plan has no attribute changes for this resource.' : 'The loaded plan did not run this resource. It was not read.')));
+    }
+    const a = actionOf(c.action);
+    const wrap = h('div', { class: 'pane' });
+    wrap.append(h('section', { class: 'sec' },
+      h('div', { class: 'chg-head' }, h('span', { class: 'b ' + actClass(c.action) }, h('span', { class: 'sq ' + (a ? a.cls : '') }), a ? a.label : c.action),
+        c.action === 'replace' ? h('span', { class: 'dim' }, 'destroyed and created again') : null,
+        c.applied ? h('span', { class: 'b ok' }, icon('check'), 'applied') : null),
+      (c.reasons || []).length ? h('ul', { class: 'reasons' }, c.reasons.map((r) => h('li', null, r))) : null,
+      (c.requires_replace || []).length ? h('p', { class: 'forces' }, 'Forces replacement: ', c.requires_replace.map((p) => h('code', null, p))) : null));
+    const rr = new Set(c.requires_replace || []);
+    const diffs = h('section', { class: 'sec flush' });
+    for (const ch of c.attrs || []) diffs.append(this.diffRow(ch, rr));
+    if (!(c.attrs || []).length) diffs.append(h('div', { class: 'blank' }, icon('info'), h('p', null, 'No attribute is listed for this change.')));
+    wrap.append(diffs);
+    return wrap;
+  }
+
+  diffRow(ch, rr) {
+    const val = (v, redacted, unknown) => redacted ? withheld('sensitive') : unknown ? unknownEl() : this.diffValue(v);
+    const hasBefore = ch.before !== undefined || ch.before_redacted;
+    const hasAfter = ch.after !== undefined || ch.after_redacted || ch.after_unknown;
+    const lines = [];
+    if (hasBefore) lines.push(h('div', { class: 'dl del' }, h('b', { 'aria-label': 'before' }, '−'), val(ch.before, ch.before_redacted, false)));
+    if (hasAfter) lines.push(h('div', { class: 'dl add' }, h('b', { 'aria-label': 'after' }, '+'), val(ch.after, ch.after_redacted, ch.after_unknown)));
+    const kind = hasBefore && hasAfter ? 'changed' : hasAfter ? 'added' : 'removed';
+    return h('div', { class: 'diff ' + kind },
+      h('div', { class: 'dp' }, h('code', null, ch.path), h('span', { class: 'dk' }, kind), rr.has(ch.path) ? h('span', { class: 'b bad' }, 'forces replacement') : null),
+      lines);
+  }
+
+  diffValue(v) {
+    if (v === undefined || v === null) return h('span', { class: 'v-nul' }, 'null');
+    if (typeof v === 'string') return h('span', { class: 'str' }, JSON.stringify(v.length > 300 ? v.slice(0, 300) + '…' : v));
+    let t = '';
+    try { t = JSON.stringify(v); } catch { t = String(v); }
+    return h('span', { class: 'str' }, t.length > 300 ? t.slice(0, 300) + '…' : t);
+  }
+
+  // ---- Source ----
+
+  sourcePane(src, detail) {
+    const wrap = h('div', { class: 'pane source' });
+    const stateTime = detail && detail.times ? (detail.times.updated_at || detail.times.applied_at) : null;
+    const blocks = src.blocks || [];
+    if (!blocks.length) wrap.append(h('div', { class: 'blank' }, icon('file'), h('p', null, 'This node has no source in the specification.'), h('small', null, 'It is only in the state.')));
+    if (src.generated > 1) wrap.append(h('div', { class: 'srcnote-top' }, icon('info'), h('span', null, `The same lines write ${src.generated} nodes: this one and ${src.generated - 1} more.`)));
+    const marks = new Set();
+    const sec = h('section', { class: 'sec srcsec' });
+    blocks.forEach((b, i) => {
+      for (const l of b.lines || []) if (l.mark) marks.add(l.mark);
+      const newer = b.modified && stateTime && Date.parse(b.modified) > Date.parse(stateTime)
+        ? `This file changed ${relTime(b.modified)}, after the state was written. The lines may differ from what created the resource.` : null;
+      sec.append(h('h3', { class: 'h src-h' }, h('span', { class: 'step' }, String(i + 1)), b.role === 'definition' ? 'Where it is declared' : 'Where it is instantiated'));
+      sec.append(codeWindow(b, { newer, announce: (t) => this.cb.announce(t) }));
+    });
+    if (blocks.length) sec.append(this.legend(marks));
+    if (blocks.length) wrap.append(sec);
+    const contrib = src.contributions || [];
+    if (contrib.length) {
+      wrap.append(h('section', { class: 'sec' }, h('h3', { class: 'h' }, 'What shapes it', h('span', { class: 'cnt' }, String(contrib.length))),
+        h('ul', { class: 'contrib' }, contrib.map((c) => {
+          const { head, tail } = c.kind === 'tag' || c.kind === 'policy' ? { head: '', tail: c.where } : splitPath(c.where, 1);
+          return h('li', null,
+            h('em', { class: 'kindpill k-' + c.kind }, kindLabel(c.kind)),
+            h('code', { class: 'cwhere', title: c.where }, head ? h('span', { class: 'dir' }, head) : null, tail),
+            c.note ? h('span', { class: 'cnote' }, c.note) : null);
+        }))));
+    }
+    for (const note of src.notes || []) wrap.append(h('p', { class: 'note' }, icon('info'), h('span', null, note)));
+    wrap.append(h('p', { class: 'note quiet' }, icon('lock'), h('span', null, 'Source comes only from files this evaluation loaded, including cached modules. A literal assigned to a sensitive attribute is masked before the line is sent.')));
+    return wrap;
+  }
+
+  legend(marks) {
+    const items = [];
+    if (marks.has('focus')) items.push(h('span', { class: 'lg foc' }, 'the node itself'));
+    if (marks.has('changed')) items.push(h('span', { class: 'lg chg' }, 'changed by the plan'));
+    if (marks.has('sensitive')) items.push(h('span', { class: 'lg sens' }, 'sensitive, masked'));
+    return items.length ? h('p', { class: 'cw-legend' }, items) : null;
+  }
+}
+
+function actClass(a) {
+  return a === 'create' ? 'ok' : a === 'delete' ? 'bad' : a === 'read' || a === 'move' || a === 'import' ? 'lock' : 'chg';
+}
+function statusClass(s) {
+  return s === 'applied' ? 'ok' : s === 'failed' ? 'bad' : s === 'rejected' ? 'chg' : s === 'running' ? 'lock' : '';
+}
+
+// attrIndex maps the path of every attribute to what it shows, to tell afterwards which ones changed.
+function attrIndex(d) {
+  const m = new Map();
+  const walk = (list, prefix) => {
+    for (const a of list || []) {
+      const path = prefix ? prefix + '.' + a.name : a.name;
+      m.set(path, JSON.stringify([a.redacted || '', !!a.sensitive, !!a.unknown, !!a.null, a.value === undefined ? null : a.value]));
+      walk(a.children, path);
+    }
+  };
+  walk(d.attrs, '');
+  return m;
+}

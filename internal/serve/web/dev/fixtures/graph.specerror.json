@@ -1,0 +1,253 @@
+{
+ "version": 1,
+ "revision": "r-specerror-5e11",
+ "project": {
+  "dir": "/srv/infra/estate",
+  "package": "estate",
+  "version": "0.9.0-dev",
+  "state": {
+   "location": "s3://acme-state/estate",
+   "backend": "s3",
+   "lineage": "5c8d7e2a-61b4-4f0e-9a3b-0f6f5d1c2e77",
+   "format": 3,
+   "records": 12,
+   "locks": 0
+  },
+  "providers": [
+   {
+    "local": "aws",
+    "source": "registry.opentofu.org/hashicorp/aws",
+    "version": "5.61.0"
+   },
+   {
+    "local": "random",
+    "source": "registry.opentofu.org/hashicorp/random",
+    "version": "3.6.2"
+   }
+  ],
+  "spec_error": "modules/api/main.cue:26:21: reference \"db_pass.reslt\" not found\n    (did you mean \"db_pass.result\"?)",
+  "loaded_at": "2026-10-21T14:02:11Z"
+ },
+ "nodes": [
+  {
+   "addr": "api.db",
+   "mode": "managed",
+   "type": "aws_db_instance",
+   "name": "db",
+   "module": "api",
+   "provider": "aws",
+   "presence": "state",
+   "sensitive": 2,
+   "revision": 14,
+   "refreshed_at": "2026-10-21T11:47:11Z"
+  },
+  {
+   "addr": "api.db_pass",
+   "mode": "managed",
+   "type": "random_password",
+   "name": "db_pass",
+   "module": "api",
+   "provider": "random",
+   "presence": "state",
+   "sensitive": 2,
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:58:11Z"
+  },
+  {
+   "addr": "api.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "api",
+   "provider": "aws",
+   "presence": "state",
+   "drifted": true,
+   "revision": 16,
+   "refreshed_at": "2026-10-21T11:25:11Z"
+  },
+  {
+   "addr": "api.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "api",
+   "provider": "aws",
+   "presence": "state",
+   "revision": 20,
+   "refreshed_at": "2026-10-21T11:36:11Z"
+  },
+  {
+   "addr": "build_id",
+   "mode": "managed",
+   "type": "random_id",
+   "name": "build_id",
+   "module": "",
+   "provider": "random",
+   "presence": "state",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T12:01:11Z"
+  },
+  {
+   "addr": "edge.dns",
+   "mode": "managed",
+   "type": "aws_route53_record",
+   "name": "dns",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "state",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:32:11Z"
+  },
+  {
+   "addr": "edge.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "state",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:54:11Z"
+  },
+  {
+   "addr": "edge.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "edge",
+   "provider": "aws",
+   "presence": "state",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:43:11Z"
+  },
+  {
+   "addr": "network.sg_db",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg_db",
+   "module": "network",
+   "provider": "aws",
+   "presence": "state",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:29:11Z"
+  },
+  {
+   "addr": "network.subnet_a",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_a",
+   "module": "network",
+   "provider": "aws",
+   "presence": "state",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:51:11Z"
+  },
+  {
+   "addr": "network.subnet_b",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_b",
+   "module": "network",
+   "provider": "aws",
+   "presence": "state",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:40:11Z"
+  },
+  {
+   "addr": "network.vpc",
+   "mode": "managed",
+   "type": "aws_vpc",
+   "name": "vpc",
+   "module": "network",
+   "provider": "aws",
+   "presence": "state",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T12:02:11Z"
+  }
+ ],
+ "edges": [
+  {
+   "dependency": "api.db_pass",
+   "dependent": "api.db"
+  },
+  {
+   "dependency": "api.db",
+   "dependent": "api.task"
+  },
+  {
+   "dependency": "api.task",
+   "dependent": "api.service"
+  },
+  {
+   "dependency": "edge.lb",
+   "dependent": "edge.dns"
+  },
+  {
+   "dependency": "edge.tg",
+   "dependent": "api.service"
+  },
+  {
+   "dependency": "network.sg_db",
+   "dependent": "api.db"
+  },
+  {
+   "dependency": "network.subnet_a",
+   "dependent": "api.db"
+  },
+  {
+   "dependency": "network.subnet_a",
+   "dependent": "edge.lb"
+  },
+  {
+   "dependency": "network.subnet_b",
+   "dependent": "api.db"
+  },
+  {
+   "dependency": "network.subnet_b",
+   "dependent": "edge.lb"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "edge.tg"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.sg_db"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.subnet_a"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.subnet_b"
+  }
+ ],
+ "modules": [
+  {
+   "path": "api",
+   "parent": "",
+   "name": "api",
+   "resources": 4,
+   "depth": 0
+  },
+  {
+   "path": "edge",
+   "parent": "",
+   "name": "edge",
+   "resources": 3,
+   "depth": 0
+  },
+  {
+   "path": "network",
+   "parent": "",
+   "name": "network",
+   "resources": 4,
+   "depth": 0
+  }
+ ],
+ "outputs": [],
+ "warnings": [
+  "The specification does not load: showing the state alone. Fix main.cue and the page updates."
+ ]
+}

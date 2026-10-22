@@ -1,0 +1,184 @@
+{
+ "version": 1,
+ "addr": "api.db",
+ "blocks": [
+  {
+   "role": "definition",
+   "label": "#Service.db",
+   "file": "modules/api/main.cue",
+   "kind": "file",
+   "start_line": 17,
+   "end_line": 32,
+   "modified": "2026-10-19T12:02:11Z",
+   "lines": [
+    {
+     "no": 17,
+     "text": "\t// db is the primary store of the service. Its size follows the size field.",
+     "dim": true
+    },
+    {
+     "no": 18,
+     "text": "\tsize: string | *\"t3.medium\"",
+     "dim": true
+    },
+    {
+     "no": 19,
+     "text": "\tdb: $aws.#Resource.aws_db_instance & {",
+     "mark": "focus"
+    },
+    {
+     "no": 20,
+     "text": "\t\tidentifier:        \"\\(name)-db\"",
+     "mark": "focus"
+    },
+    {
+     "no": 21,
+     "text": "\t\tengine:            \"postgres\"",
+     "mark": "focus"
+    },
+    {
+     "no": 22,
+     "text": "\t\tengine_version:    \"16.3\"",
+     "mark": "focus"
+    },
+    {
+     "no": 23,
+     "text": "\t\tinstance_class:    \"db.\\(size)\"",
+     "mark": "changed"
+    },
+    {
+     "no": 24,
+     "text": "\t\tallocated_storage: 150",
+     "mark": "changed"
+    },
+    {
+     "no": 25,
+     "text": "\t\tavailability_zone: \"\\(region)a\"",
+     "mark": "focus"
+    },
+    {
+     "no": 26,
+     "text": "\t\tpassword:          db_pass.result",
+     "mark": "focus"
+    },
+    {
+     "no": 27,
+     "text": "\t\tdb_subnet_group_name: db_subnets.name",
+     "mark": "focus"
+    },
+    {
+     "no": 28,
+     "text": "\t\tvpc_security_group_ids: [net.sg_db.id]",
+     "mark": "focus"
+    },
+    {
+     "no": 29,
+     "text": "\t\ttags: {Environment: env, Team: \"platform\", ManagedBy: \"pravo\", Version: \"\\(version)\"}",
+     "mark": "focus"
+    },
+    {
+     "no": 30,
+     "text": "\t}",
+     "mark": "focus"
+    },
+    {
+     "no": 31,
+     "text": "",
+     "dim": true
+    },
+    {
+     "no": 32,
+     "text": "\t// the credentials of the database go to the secret below",
+     "dim": true
+    }
+   ]
+  },
+  {
+   "role": "instance",
+   "label": "api",
+   "file": "main.cue",
+   "kind": "file",
+   "start_line": 36,
+   "end_line": 43,
+   "modified": "2026-10-21T13:22:11Z",
+   "lines": [
+    {
+     "no": 36,
+     "text": "// the api service: one database, one task, one service",
+     "dim": true
+    },
+    {
+     "no": 37,
+     "text": "",
+     "dim": true
+    },
+    {
+     "no": 38,
+     "text": "api: svc.#Service & {",
+     "mark": "focus"
+    },
+    {
+     "no": 39,
+     "text": "\tname:   \"estate\"",
+     "mark": "focus"
+    },
+    {
+     "no": 40,
+     "text": "\tsize:   \"m6g.large\" // was \"t3.medium\"",
+     "mark": "changed"
+    },
+    {
+     "no": 41,
+     "text": "}",
+     "mark": "focus"
+    },
+    {
+     "no": 42,
+     "text": "",
+     "dim": true
+    },
+    {
+     "no": 43,
+     "text": "edge: edge.#Edge & { api: api.service }",
+     "dim": true
+    }
+   ]
+  }
+ ],
+ "contributions": [
+  {
+   "kind": "file",
+   "where": "modules/api/main.cue:19",
+   "note": "defines the resource"
+  },
+  {
+   "kind": "file",
+   "where": "main.cue:40",
+   "note": "sets size, the change in this plan"
+  },
+  {
+   "kind": "tag",
+   "where": "-t region=eu-west-1",
+   "note": "sets region, used on line 25"
+  },
+  {
+   "kind": "generated",
+   "where": "cue.mod/gen/pravo.dev/providers/hashicorp/aws",
+   "note": "schema, defaults and types of aws_db_instance"
+  },
+  {
+   "kind": "builtin",
+   "where": "pravo.dev/pravo",
+   "note": "#Resource and $provider"
+  },
+  {
+   "kind": "policy",
+   "where": "policy/no-public-db.cue",
+   "note": "checks publicly_accessible of every aws_db_instance"
+  }
+ ],
+ "generated": 1,
+ "notes": [
+  "main.cue changed 40 minutes ago, after the state was written."
+ ]
+}

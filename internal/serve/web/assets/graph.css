@@ -1,0 +1,265 @@
+/* ==========================================================================
+   graph canvas: lanes, edges, items, collapsed modules, selection, zoom, motion, overlays
+   (split from app.css so the graph and the panels can be worked on apart)
+
+   Colour here is semantic where the rest of the interface is: green is what a plan creates, amber what it
+   changes (and what drifted), red what it destroys, blue-violet is structure (what a resource depends on,
+   what is sensitive). The tints of lanes and of provider tiles stay on the blue to pink side of the wheel,
+   clear of those three, so that a tint never reads as a state.
+   ========================================================================== */
+
+/* ---- the palette of the canvas ---- */
+:root {
+  --th0: 232; --th1: 192; --th2: 272; --th3: 312; --th4: 212; /* the tints of the top-level modules */
+  --pvh0: 196; --pvh1: 212; --pvh2: 236; --pvh3: 262; --pvh4: 292; --pvh5: 322; /* the tints of providers */
+  --tn-s: 62%; --tn-l: 46%; --tn-a: .09; --tn-text: 32%; /* lane: saturation, lightness, wash, title */
+  --pv-s: 58%; --pv-l: 38%; --pv-a: .13;
+  --g-card: var(--surface); --g-edge: rgba(20, 22, 27, .24); --g-edge-hi: rgba(20, 22, 27, .5);
+  --g-dot: rgba(20, 22, 27, .16); --g-lane-ink: .8;
+  --g-card-hi: color-mix(in srgb, var(--g-card) 55%, #fff); --g-card-lo: var(--g-card);
+  --edge: rgba(52, 58, 72, .62);
+  --mm-lane: 52% 42%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --tn-s: 70%; --tn-l: 66%; --tn-a: .075; --tn-text: 76%;
+    --pv-s: 70%; --pv-l: 74%; --pv-a: .16;
+    --g-card: var(--surface-2); --g-edge: rgba(255, 255, 255, .17); --g-edge-hi: rgba(255, 255, 255, .42);
+    --g-dot: rgba(255, 255, 255, .13);
+    --g-card-hi: color-mix(in srgb, var(--g-card) 93%, #fff); --g-card-lo: color-mix(in srgb, var(--g-card) 90%, #000);
+    --edge: rgba(170, 182, 205, .5);
+    --mm-lane: 70% 66%;
+  }
+}
+:root[data-theme="dark"] {
+  --tn-s: 70%; --tn-l: 66%; --tn-a: .075; --tn-text: 76%;
+  --pv-s: 70%; --pv-l: 74%; --pv-a: .16;
+  --g-card: var(--surface-2); --g-edge: rgba(255, 255, 255, .17); --g-edge-hi: rgba(255, 255, 255, .42);
+  --g-dot: rgba(255, 255, 255, .13);
+  --g-card-hi: color-mix(in srgb, var(--g-card) 93%, #fff); --g-card-lo: color-mix(in srgb, var(--g-card) 90%, #000);
+  --edge: rgba(170, 182, 205, .5);
+  --mm-lane: 70% 66%;
+}
+
+/* ---- the canvas ---- */
+.canvas { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; background: var(--bg); cursor: grab; touch-action: none; }
+.canvas.panning { cursor: grabbing; }
+.canvas:focus-visible { outline-offset: -3px; }
+.canvas::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(70% 60% at 50% 42%, var(--accent-wash), transparent 74%); opacity: .5; }
+:root[data-theme="dark"] .canvas::before { opacity: .8; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .canvas::before { opacity: .8; } }
+.grid { position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, var(--g-dot) 1px, transparent 1.5px);
+  background-size: var(--gs, 24px) var(--gs, 24px); background-position: var(--gx, 0) var(--gy, 0);
+  -webkit-mask: radial-gradient(ellipse at 50% 46%, #000 30%, transparent 88%); mask: radial-gradient(ellipse at 50% 46%, #000 30%, transparent 88%); }
+.graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; overflow: hidden; text-rendering: geometricPrecision; --lab: 1; --sub: 1; }
+.vp { transform-origin: 0 0; }
+
+/* ---- lanes: an open module is a quiet panel in the tint of its top-level module ---- */
+.lane, .lane-head { --th: var(--th0); }
+.lane[data-tint="1"], .lane-head[data-tint="1"] { --th: var(--th1); } .lane[data-tint="2"], .lane-head[data-tint="2"] { --th: var(--th2); }
+.lane[data-tint="3"], .lane-head[data-tint="3"] { --th: var(--th3); } .lane[data-tint="4"], .lane-head[data-tint="4"] { --th: var(--th4); }
+.lane .band { fill: hsl(var(--th) var(--tn-s) var(--tn-l) / var(--tn-a)); stroke: hsl(var(--th) var(--tn-s) var(--tn-l) / .3); stroke-width: 1; vector-effect: non-scaling-stroke; transition: stroke var(--t-fast), fill var(--t-fast); }
+.lane-head .hit { fill: transparent; cursor: pointer; }
+.lane-head .hs { transform: scale(min(var(--ls, 1), var(--cap, 1))); transform-origin: 0 0; }
+.bandl { font: 600 13px var(--font-mono); letter-spacing: .01em; fill: hsl(var(--th) var(--tn-s) var(--tn-text)); transition: fill var(--t-fast); }
+.bandc { font: 500 11.5px var(--font-mono); fill: var(--text-3); }
+.bandl, .bandc { paint-order: stroke; stroke: color-mix(in srgb, hsl(var(--th) var(--tn-s) var(--tn-l)) 11%, var(--bg)); stroke-width: 3px; stroke-linejoin: round; }
+.lane-head .gl { color: hsl(var(--th) var(--tn-s) var(--tn-text)); }
+.lane-head .gs { stroke-width: 2; }
+.lane:hover .band, .lane.hov .band { stroke: hsl(var(--th) var(--tn-s) var(--tn-l) / .55); fill: hsl(var(--th) var(--tn-s) var(--tn-l) / calc(var(--tn-a) * 1.5)); }
+.lane.sel .band { stroke: var(--key); stroke-width: 1.5; fill: hsl(var(--th) var(--tn-s) var(--tn-l) / calc(var(--tn-a) * 1.8)); }
+.lane-head .pbi .sq { stroke: none; }
+.pb .pbi.a-create .sq { fill: var(--accent); } .pb .pbi.a-update .sq { fill: var(--change); } .pb .pbi.a-delete .sq { fill: var(--conflict); }
+.pbn { font: 600 11px var(--font-mono); fill: var(--text-2); }
+.lane-head .head { transition: opacity .25s; }
+.lod-far .lane-head.deep .head { opacity: 0; }
+
+/* ---- edges: quiet at rest, loud when they matter ---- */
+.ge { fill: none; stroke: var(--edge); stroke-opacity: calc(.62 * var(--el, 1) * var(--ed, 1)); stroke-width: 1.25; vector-effect: non-scaling-stroke; marker-end: url(#ah); pointer-events: none; transition: stroke-opacity .25s, stroke var(--t-fast), stroke-width var(--t-fast); }
+.hovering .ge:not(.hl):not(.up):not(.down) { stroke-opacity: calc(.3 * var(--el, 1)); }
+.ge.hl { stroke: var(--text); stroke-opacity: .9; stroke-width: 1.9; marker-end: url(#ah-up); stroke-dasharray: 7 6; animation: flow .8s linear infinite; }
+.ge.up { stroke: var(--key); stroke-opacity: 1; stroke-width: 2.1; marker-end: url(#ah-up); }
+.ge.down { stroke: var(--change); stroke-opacity: 1; stroke-width: 2.1; marker-end: url(#ah-down); }
+.ge.up, .ge.down { stroke-dasharray: 7 6; animation: flow .8s linear infinite; }
+.flow-calm .ge.up, .flow-calm .ge.down { animation: none; stroke-dasharray: none; }
+/* the flow of a selection runs for a while after it is made and then stands still: dashes that move for ever keep the page painting while nobody does anything. The edges of what the pointer is on keep moving. */
+.graph:not(.flowing) .ge.up, .graph:not(.flowing) .ge.down { animation-play-state: paused; }
+.graph:not(.flowing) .ge.hl { animation-play-state: running; }
+.has-sel .ge:not(.up):not(.down):not(.hl) { stroke-opacity: .1; marker-end: url(#ah-dim); }
+.has-sel .ge.hl:not(.up):not(.down) { stroke-opacity: .7; }
+.reach-mode .ge:not(.down) { stroke-opacity: .05; }
+.ah { fill: var(--edge); } .ah-up { fill: var(--key); } .ah-down { fill: var(--change); } .ah-dim { fill: var(--edge); fill-opacity: .2; }
+.ge.hl:not(.up):not(.down) { marker-end: url(#ah); }
+.ec { transition: opacity .25s; pointer-events: none; }
+.ec rect { fill: var(--bg); stroke: var(--g-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ec text { font: 600 10.5px var(--font-mono); fill: var(--text-2); }
+.ec.up rect { stroke: var(--key); } .ec.down rect { stroke: var(--change); }
+.has-sel .ec:not(.up):not(.down) { opacity: .2; }
+.lod-low .ec { opacity: 0; }
+.lod-far .ge { marker-end: none; }
+/* far out the text is gone (opacity 0 already): taking it out of the tree makes a heavy picture cheap to zoom */
+.lod-far .node :is(.nm, .ty, .tile, .mk, .act), .lod-far .mod-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .cluster-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .ec { display: none; }
+.lod-far .node .ring { animation: none; }
+
+/* ---- items ---- */
+.node, .mod-item, .cluster-item, .ctl-item { cursor: pointer; transition: opacity .25s; outline: none; }
+.cf0 { stop-color: var(--g-card-hi); } .cf1 { stop-color: var(--g-card-lo); }
+.node .box, .mod-item .box, .cluster-item .box { fill: url(#card-fill); }
+.ctl-item .box { fill: transparent; }
+.node .box, .mod-item .box, .cluster-item .box, .ctl-item .box { stroke: var(--g-edge); stroke-width: 1; vector-effect: non-scaling-stroke; transition: stroke var(--t-fast), fill var(--t-fast); }
+.node .nm { font: 500 14px var(--font-mono); fill: var(--text); opacity: var(--lab); transition: opacity .2s; }
+.node .ty { font: 400 11px var(--font-mono); fill: var(--text-3); opacity: var(--sub); transition: opacity .2s; }
+.node .halo, .mod-item .halo, .cluster-item .halo { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; opacity: 0; transition: opacity .25s; }
+.node .ring { fill: none; stroke: var(--change); stroke-width: 1.5; vector-effect: non-scaling-stroke; opacity: 0; transform-box: fill-box; transform-origin: center; animation: ring 2.8s ease-out infinite; animation-delay: calc(var(--i, 0) * -230ms); }
+.node.a-create .ring { stroke: var(--accent); } .node.a-delete .ring, .node.gone .ring { stroke: var(--conflict); }
+.calm .ring { animation: none; opacity: .45; }
+/* the rings of a plan or of drift pulse for a few seconds when the picture is made or changes, and then stand as dotted outlines */
+.graph:not(.pulsing) .node .ring { animation: none; opacity: .55; stroke-dasharray: 2 3; }
+.gl { color: var(--text-2); }
+.gl .gf { fill: currentColor; stroke: none; }
+.gl .gs { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* the status bar at the left edge, and the tile with the monogram of the provider */
+.node { --pvh: var(--pvh0); }
+.node.pv1 { --pvh: var(--pvh1); } .node.pv2 { --pvh: var(--pvh2); } .node.pv3 { --pvh: var(--pvh3); } .node.pv4 { --pvh: var(--pvh4); } .node.pv5 { --pvh: var(--pvh5); }
+.node .bar, .mod-item .bar, .cluster-item .bar { fill: hsl(var(--pvh, var(--th)) var(--pv-s) var(--pv-l) / .75); }
+.node .tb { fill: hsl(var(--pvh) var(--pv-s) var(--pv-l) / var(--pv-a)); stroke: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .28); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.node .tm { font: 600 10px var(--font-mono); text-anchor: middle; fill: hsl(var(--pvh) var(--pv-s) var(--pv-l)); letter-spacing: .02em; opacity: var(--sub); }
+.node.m-data .tb { stroke-dasharray: 2 2; }
+.node .tile, .node .act, .mod-item .pb, .cluster-item .pb, .mod-item .cico, .cluster-item .cico { opacity: var(--lab); transition: opacity .2s; }
+.node.m-data .box { fill: color-mix(in srgb, var(--g-card) 70%, var(--bg)); }
+.node.drifted .bar { fill: var(--change); } .node.gone .bar, .node.orphan .bar { fill: var(--conflict); }
+.node.a-create .bar { fill: var(--accent); } .node.a-update .bar, .node.a-replace .bar { fill: var(--change); } .node.a-delete .bar { fill: var(--conflict); }
+.node.a-read .bar, .node.a-move .bar, .node.a-import .bar { fill: var(--key); }
+.node.a-create .box { stroke: color-mix(in srgb, var(--accent) 60%, transparent); }
+.node.a-update .box, .node.a-replace .box { stroke: color-mix(in srgb, var(--change) 60%, transparent); }
+.node.a-delete .box { stroke: color-mix(in srgb, var(--conflict) 62%, transparent); }
+.node.a-replace .box { stroke-width: 1.8; }
+.node.a-delete .nm { text-decoration: line-through; text-decoration-thickness: 1px; }
+.node .act .ab { fill: var(--text-3); }
+.node.a-create .act .ab { fill: var(--accent); } .node.a-update .act .ab, .node.a-replace .act .ab { fill: var(--change); } .node.a-delete .act .ab { fill: var(--conflict); }
+.node.a-read .act .ab, .node.a-move .act .ab, .node.a-import .act .ab { fill: var(--key); }
+.node .act .ag { fill: none; stroke: var(--on-accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.node.notread { opacity: .5; }
+.node.notread .bar { opacity: .35; }
+.node.spec .box { stroke-dasharray: 5 3; }
+.node.orphan .box { stroke: var(--conflict); stroke-dasharray: 2 3; }
+.node.gone .box { stroke: var(--conflict); stroke-dasharray: 6 3; }
+.mk { opacity: var(--sub); transition: opacity .2s; }
+.mk-lock, .mk-hold { color: var(--key); } .mk-drift { color: var(--change); } .mk-gone, .mk-orphan { color: var(--conflict); } .mk-hold { color: var(--change); }
+.node:hover .box, .node.hov .box { stroke: var(--g-edge-hi); }
+.node.up .box { stroke: var(--key); stroke-width: 1.6; }
+.node.down .box { stroke: var(--change); stroke-width: 1.6; }
+.node.reach .box { stroke: var(--change); stroke-width: 2.2; }
+.node.sel .box, .mod-item.sel .box, .cluster-item.sel .box { stroke: var(--text); stroke-width: 1.8; }
+.node.sel .halo, .mod-item.sel .halo, .cluster-item.sel .halo { opacity: 1; stroke: var(--accent); filter: drop-shadow(0 0 7px var(--glow)) drop-shadow(0 0 16px var(--glow)); }
+.node.kf .halo, .mod-item.kf .halo, .cluster-item.kf .halo { opacity: 1; stroke: var(--key); stroke-dasharray: 3 3; filter: none; }
+.node.flash .halo { stroke: var(--accent); stroke-width: 2; animation: flash 1.5s ease-out both; }
+
+/* collapsed modules and groups: cards on a stack, with a cell for every resource */
+.mod-item, .cluster-item { --th: var(--th0); }
+.mod-item.tn1, .cluster-item.tn1 { --th: var(--th1); } .mod-item.tn2, .cluster-item.tn2 { --th: var(--th2); }
+.mod-item.tn3, .cluster-item.tn3 { --th: var(--th3); } .mod-item.tn4, .cluster-item.tn4 { --th: var(--th4); }
+.mod-item .bar { fill: hsl(var(--th) var(--pv-s) var(--pv-l) / .9); }
+.cluster-item .bar { fill: var(--text-3); opacity: .7; }
+.mod-item .box { stroke: hsl(var(--th) var(--tn-s) var(--tn-l) / .45); }
+.stack { fill: var(--g-card); stroke: var(--g-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.stack.s1 { transform: translateY(-1px); } .stack.s2 { transform: translateY(-2px); opacity: .7; }
+.mod-item .stack { stroke: hsl(var(--th) var(--tn-s) var(--tn-l) / .3); }
+.mod-item .nm, .cluster-item .nm { font: 600 16px var(--font-mono); fill: var(--text); opacity: var(--lab); transition: opacity .2s; }
+.mod-item .ty, .cluster-item .ty { font: 400 12px var(--font-mono); fill: var(--text-3); opacity: var(--sub); transition: opacity .2s; }
+.mod-item .cico { color: hsl(var(--th) var(--tn-s) var(--tn-text)); } .cluster-item .cico { color: var(--text-2); }
+.mod-item .cico .gs { stroke-width: 2; }
+.mod-item:hover .box, .cluster-item:hover .box, .mod-item.hov .box, .cluster-item.hov .box { stroke: var(--g-edge-hi); }
+.mod-item:hover .cico, .mod-item.hov .cico { transform: translateX(2px); }
+.cico { transition: transform .2s var(--ease); }
+.cells .c { fill: var(--text-3); opacity: .34; }
+.cells .c-sens { fill: var(--key); opacity: .75; }
+.cells .c-create { fill: var(--accent); opacity: 1; } .cells .c-update, .cells .c-replace { fill: var(--change); opacity: 1; } .cells .c-delete { fill: var(--conflict); opacity: 1; }
+.cells .c-drift { fill: var(--change); opacity: .65; } .cells .c-gone { fill: var(--conflict); opacity: .85; } .cells .c-read { fill: var(--key); opacity: 1; }
+.cells { opacity: var(--sub); transition: opacity .2s; }
+.mkn { font: 600 11px var(--font-mono); fill: var(--text-2); opacity: var(--sub); }
+.mkc.mk-drift .mkn { fill: var(--change); } .mkc.mk-lock .mkn { fill: var(--key); }
+.ctl-item .box { stroke-dasharray: 4 3; stroke: var(--g-edge); fill: transparent; }
+.ctl-item .btn .hit { fill: transparent; }
+.ctl-item .btn text { font: 500 11.5px var(--font-mono); fill: var(--text-2); }
+.ctl-item .btn:hover text { fill: var(--text); }
+.ctl-item .btn:hover .hit { fill: var(--surface-2); }
+.ctl-item .sep { stroke: var(--g-edge); vector-effect: non-scaling-stroke; }
+
+/* selection and filters dim what is not involved */
+.has-sel .node:not(.rel), .has-sel .mod-item:not(.rel), .has-sel .cluster-item:not(.rel), .has-sel .ctl-item { opacity: .34; }
+.has-sel .lane, .has-sel .lane-head { opacity: .65; } .has-sel .lane.sel, .has-sel .lane-head.sel { opacity: 1; }
+.reach-mode .node:not(.reach), .reach-mode .mod-item:not(.reach), .reach-mode .cluster-item:not(.reach) { opacity: .1; }
+.has-match .nomatch { opacity: .2; }
+.has-sel.has-match .node:not(.nomatch):not(.rel), .has-sel.has-match .mod-item:not(.nomatch):not(.rel), .has-sel.has-match .cluster-item:not(.nomatch):not(.rel) { opacity: .7; } /* what a filter found stays in sight behind a selection */
+.has-match .node:not(.nomatch) .box, .has-match .mod-item:not(.nomatch) .box, .has-match .cluster-item:not(.nomatch) .box { stroke: var(--g-edge-hi); }
+
+/* motion */
+@keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes draw { from { opacity: 0; stroke-dasharray: var(--dl, 400) var(--dl, 400); stroke-dashoffset: var(--dl, 400); } to { opacity: 1; stroke-dasharray: var(--dl, 400) var(--dl, 400); stroke-dashoffset: 0; } }
+@keyframes laneIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ring { 0% { opacity: .8; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.09, 1.3); } }
+@keyframes flash { 0% { opacity: 1; stroke-width: 3; } 100% { opacity: 0; stroke-width: 1; } }
+@keyframes flow { to { stroke-dashoffset: -13; } }
+@keyframes travel { from { stroke-dashoffset: 0; opacity: 1; } to { stroke-dashoffset: -1.14; opacity: .2; } }
+@keyframes travelRev { from { stroke-dashoffset: -1.14; opacity: .2; } to { stroke-dashoffset: 0; opacity: 1; } }
+@keyframes halo { from { opacity: .95; transform: scale(1); } to { opacity: 0; transform: scale(1.14, 1.4); } }
+.intro .lane, .intro .lane-head { animation: laneIn .8s var(--ease) calc(var(--i, 0) * 90ms) backwards; }
+.intro .node .in, .intro .mod-item .in, .intro .cluster-item .in, .intro .ctl-item .in { animation: rise .75s var(--ease) calc(160ms + var(--i, 0) * 16ms) backwards; }
+.intro .ge { animation: draw 1.1s var(--ease) calc(420ms + var(--r, 0) * 70ms) backwards; }
+.intro .ec { animation: fadein .6s ease calc(900ms + var(--r, 0) * 70ms) backwards; }
+.node .in, .mod-item .in, .cluster-item .in, .ctl-item .in { transform-box: fill-box; transform-origin: center; }
+.node .in, .mod-item .in, .cluster-item .in { transition: transform .18s var(--ease); }
+.node.hov .in, .mod-item.hov .in, .cluster-item.hov .in { transform: translateY(-1.5px); }
+.node.enter .in, .mod-item.enter .in, .cluster-item.enter .in, .ctl-item.enter .in { animation: pop .45s var(--ease) backwards; }
+.lane.enter, .lane-head.enter { animation: fadein .4s ease backwards; }
+.ge.enter { animation: fadein .5s ease .2s backwards; }
+.node.leave, .mod-item.leave, .cluster-item.leave, .ctl-item.leave, .lane.leave, .lane-head.leave, .ge.leave, .ec.leave { opacity: 0 !important; transition: opacity .28s ease; pointer-events: none; }
+.pulse { fill: none; stroke-width: 3.2; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: .14 1; pointer-events: none; animation: travel .95s var(--ease) both; }
+.pulse.up { stroke: var(--key); animation-name: travelRev; }
+.pulse.down { stroke: var(--change); }
+.halo-ripple { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; transform-box: fill-box; transform-origin: center; animation: halo 1.1s var(--ease) both; }
+:root[data-motion="off"] .ge.up, :root[data-motion="off"] .ge.down, :root[data-motion="off"] .ge.hl { stroke-dasharray: none; }
+@media (prefers-reduced-motion: reduce) { .ge.up, .ge.down, .ge.hl { stroke-dasharray: none; } }
+
+/* the card that a hover opens */
+.gtip { left: 0; top: 0; min-width: 12rem; max-width: 19rem; padding: .6rem .75rem .65rem; background: var(--surface); border: 1px solid var(--g-edge-hi); border-radius: 8px; box-shadow: 0 12px 34px rgba(0, 0, 0, .3), 0 2px 6px rgba(0, 0, 0, .18); pointer-events: none; opacity: 0; transition: opacity .16s ease; z-index: 6; }
+.gtip.in { opacity: 1; }
+.gtip-addr { font: 600 .78rem/1.3 var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
+.gtip-type { margin-top: .12rem; font: 400 .72rem/1.3 var(--font-mono); color: var(--text-3); }
+.gtip-row { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; }
+.gtip .gchip { font: 600 .66rem/1 var(--font-mono); padding: .22rem .42rem; border-radius: 4px; border: 1px solid var(--line-strong); color: var(--text-2); background: var(--surface-2); }
+.gtip .gchip.a-create { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-wash); }
+.gtip .gchip.a-update, .gtip .gchip.a-replace, .gtip .gchip.drift, .gtip .gchip.hold { color: var(--change); border-color: color-mix(in srgb, var(--change) 45%, transparent); background: var(--change-wash); }
+.gtip .gchip.a-delete, .gtip .gchip.gone { color: var(--conflict); border-color: color-mix(in srgb, var(--conflict) 45%, transparent); background: var(--conflict-wash); }
+.gtip .gchip.sens { color: var(--key); border-color: color-mix(in srgb, var(--key) 45%, transparent); background: var(--key-wash); }
+.gtip .gchip.skip { color: var(--text-3); }
+.gtip-meta { margin-top: .5rem; font: 400 .68rem/1.3 var(--font-mono); color: var(--text-3); }
+
+/* overlays on the canvas */
+.overlay { position: absolute; z-index: 4; }
+.legend { right: 1rem; bottom: .8rem; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem .9rem; padding: .45rem .75rem; font: 400 .66rem/1 var(--font-mono); color: var(--text-2); pointer-events: none; border-radius: 999px; background: color-mix(in srgb, var(--bg) 72%, transparent); border: 1px solid var(--line); backdrop-filter: blur(6px); }
+/* a small screen has no room for the key (graph.css comes after app.css, so its own rule has to say so) */
+@media (max-width: 47.5em) { .legend { display: none; } }
+/* where the minimap stands at the other corner, the key leaves it room and wraps */
+.canvas:has(.minimap:not(.off)) .legend { max-width: calc(100% - 15rem); }
+.legend .lg { display: inline-flex; align-items: center; gap: .4rem; }
+.legend .lg-sel { display: none; }
+.canvas.has-sel .legend .lg-sel { display: inline-flex; }
+.legend .ln { display: inline-block; width: 1.4rem; height: 0; border-top: 2px solid var(--key); } .legend .ln.down { border-color: var(--change); }
+.legend .i { width: .8rem; height: .8rem; }
+.minimap { left: 1rem; bottom: .8rem; width: 184px; height: 120px; border: 1px solid var(--g-edge); border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .22); z-index: 5; transition: opacity .3s ease, transform .3s var(--ease); }
+.minimap.off { opacity: 0; transform: translateY(8px); pointer-events: none; }
+.minimap canvas { display: block; cursor: crosshair; }
+.backbtn { top: .8rem; left: 1rem; display: inline-flex; align-items: center; gap: .5rem; height: 2rem; padding: 0 .55rem 0 .65rem; border: 1px solid var(--g-edge-hi); border-radius: 999px; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); color: var(--text); font: 500 .74rem/1 var(--font-mono); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .2); animation: fadein .3s ease; }
+.backbtn:hover { border-color: var(--accent); }
+.backbtn svg { width: .95rem; height: .95rem; color: var(--accent); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.backbtn kbd { font: 500 .62rem/1 var(--font-mono); padding: .2rem .32rem; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--text-3); }
+.backbtn[hidden] { display: none; }
+.reachbar { top: .5rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .8rem; padding: .4rem .5rem .4rem .8rem; border: 1px solid var(--change); border-radius: 999px; background: var(--surface); font: 400 .76rem/1 var(--font-mono); color: var(--text); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.reachbar b { font-weight: 500; }
+.reachbar button { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-2); }

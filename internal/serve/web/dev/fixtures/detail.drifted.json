@@ -1,0 +1,212 @@
+{
+ "version": 1,
+ "node": {
+  "addr": "edge.lb",
+  "mode": "managed",
+  "type": "aws_lb",
+  "name": "lb",
+  "module": "edge",
+  "provider": "aws",
+  "presence": "both",
+  "action": "update",
+  "drifted": true,
+  "revision": 6,
+  "refreshed_at": "2026-10-21T13:22:11Z",
+  "source": {
+   "file": "modules/edge/main.cue",
+   "line": 16,
+   "col": 2,
+   "end_line": 26
+  }
+ },
+ "provider": {
+  "key": "aws",
+  "source": "registry.opentofu.org/hashicorp/aws",
+  "version": "5.61.0",
+  "protocol": "6"
+ },
+ "attrs": [
+  {
+   "name": "arn",
+   "type": "string",
+   "kind": "computed",
+   "value": "arn:aws:elasticloadbalancing:eu-west-1:412058817224:loadbalancer/app/estate-edge/50dc6c495c0c9188"
+  },
+  {
+   "name": "dns_name",
+   "type": "string",
+   "kind": "computed",
+   "value": "estate-edge-1829304441.eu-west-1.elb.amazonaws.com"
+  },
+  {
+   "name": "drop_invalid_header_fields",
+   "type": "bool",
+   "kind": "optional,computed",
+   "value": false
+  },
+  {
+   "name": "enable_deletion_protection",
+   "type": "bool",
+   "kind": "optional",
+   "value": true
+  },
+  {
+   "name": "enable_http2",
+   "type": "bool",
+   "kind": "optional",
+   "value": true
+  },
+  {
+   "name": "idle_timeout",
+   "type": "number",
+   "kind": "optional",
+   "value": 120
+  },
+  {
+   "name": "internal",
+   "type": "bool",
+   "kind": "optional,computed",
+   "value": false
+  },
+  {
+   "name": "ip_address_type",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "ipv4"
+  },
+  {
+   "name": "load_balancer_type",
+   "type": "string",
+   "kind": "optional",
+   "value": "application"
+  },
+  {
+   "name": "name",
+   "type": "string",
+   "kind": "optional,computed",
+   "value": "estate-edge"
+  },
+  {
+   "name": "security_groups",
+   "type": "set(string)",
+   "kind": "optional,computed",
+   "children": [
+    {
+     "name": "0",
+     "type": "string",
+     "value": "sg-0b7f3a91c2d4e5f60"
+    }
+   ]
+  },
+  {
+   "name": "subnets",
+   "type": "set(string)",
+   "kind": "optional,computed",
+   "children": [
+    {
+     "name": "0",
+     "type": "string",
+     "value": "subnet-0a11b22c33d44e55f"
+    },
+    {
+     "name": "1",
+     "type": "string",
+     "value": "subnet-0c66d77e88f99a0b1"
+    }
+   ]
+  },
+  {
+   "name": "tags",
+   "type": "map(string)",
+   "kind": "optional",
+   "children": [
+    {
+     "name": "Environment",
+     "type": "string",
+     "value": "production"
+    },
+    {
+     "name": "ManagedBy",
+     "type": "string",
+     "value": "pravo"
+    }
+   ]
+  },
+  {
+   "name": "vpc_id",
+   "type": "string",
+   "kind": "computed",
+   "value": "vpc-0e5f6a7b8c9d0e1f2"
+  },
+  {
+   "name": "zone_id_count",
+   "type": "number",
+   "kind": "computed",
+   "value": 2,
+   "deprecated": true
+  }
+ ],
+ "schema_known": true,
+ "depends_on": [
+  "network.public.subnet_a",
+  "network.public.subnet_b",
+  "network.sg_lb"
+ ],
+ "used_by": [
+  "edge.assoc",
+  "edge.dns",
+  "edge.listener"
+ ],
+ "reach": [
+  "edge.assoc",
+  "edge.dns",
+  "edge.listener"
+ ],
+ "change": {
+  "action": "update",
+  "reasons": [
+   "the provider reports idle_timeout 60; the state and the specification say 120"
+  ],
+  "attrs": [
+   {
+    "path": "idle_timeout",
+    "before": 60,
+    "after": 120
+   }
+  ]
+ },
+ "history": [
+  {
+   "id": "20261021T093003Z-77d0a1",
+   "kind": "edit",
+   "status": "applied",
+   "time": "2026-10-21T13:20:11Z",
+   "actor": "pravo drift",
+   "command": "pravo drift --due",
+   "reason": "found a change at the provider",
+   "action": "refresh",
+   "rev_before": 5,
+   "rev_after": 6
+  },
+  {
+   "id": "20261014T141200Z-1c9ee2",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-10-14T14:02:11Z",
+   "user": "grace",
+   "command": "pravo apply",
+   "action": "update",
+   "rev_before": 4,
+   "rev_after": 5
+  }
+ ],
+ "times": {
+  "applied_at": "2026-10-14T14:02:11Z",
+  "refreshed_at": "2026-10-21T13:22:11Z",
+  "updated_at": "2026-10-21T13:22:11Z",
+  "drifted_at": "2026-10-21T13:20:11Z"
+ },
+ "notes": [
+  "The object at the provider differs from the record: idle_timeout is 60 there. The saved plan sets it back to 120."
+ ]
+}

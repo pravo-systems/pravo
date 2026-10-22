@@ -1,0 +1,4406 @@
+{
+ "version": 1,
+ "revision": "r-fleet-0a9d33f1",
+ "project": {
+  "dir": "/srv/infra/fleet",
+  "package": "fleet",
+  "version": "0.9.0-dev",
+  "state": {
+   "location": "/srv/infra/fleet/.pravo/state",
+   "backend": "local",
+   "lineage": "0e1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b",
+   "format": 3,
+   "records": 165,
+   "locks": 1
+  },
+  "providers": [
+   {
+    "local": "aws",
+    "source": "registry.opentofu.org/hashicorp/aws",
+    "version": "5.61.0"
+   },
+   {
+    "local": "random",
+    "source": "registry.opentofu.org/hashicorp/random",
+    "version": "3.6.2"
+   }
+  ],
+  "loaded_at": "2026-10-21T14:02:11Z"
+ },
+ "nodes": [
+  {
+   "addr": "build_id",
+   "mode": "managed",
+   "type": "random_id",
+   "name": "build_id",
+   "module": "",
+   "provider": "random",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-18T14:02:11Z",
+   "source": {
+    "file": "main.cue",
+    "line": 4,
+    "col": 2,
+    "end_line": 6
+   }
+  },
+  {
+   "addr": "global.admins",
+   "mode": "managed",
+   "type": "aws_iam_group",
+   "name": "admins",
+   "module": "global",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:29:11Z",
+   "source": {
+    "file": "modules/global/main.cue",
+    "line": 44,
+    "col": 2,
+    "end_line": 46
+   }
+  },
+  {
+   "addr": "global.cdn",
+   "mode": "managed",
+   "type": "aws_cloudfront_distribution",
+   "name": "cdn",
+   "module": "global",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/global/main.cue",
+    "line": 8,
+    "col": 2,
+    "end_line": 30
+   }
+  },
+  {
+   "addr": "global.cert",
+   "mode": "managed",
+   "type": "aws_acm_certificate",
+   "name": "cert",
+   "module": "global",
+   "provider": "aws.us",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:40:11Z",
+   "source": {
+    "file": "modules/global/main.cue",
+    "line": 36,
+    "col": 2,
+    "end_line": 42
+   }
+  },
+  {
+   "addr": "global.dns_ap_south",
+   "mode": "managed",
+   "type": "aws_route53_record",
+   "name": "dns_ap_south",
+   "module": "global",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:36:11Z",
+   "source": {
+    "file": "modules/global/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 56
+   }
+  },
+  {
+   "addr": "global.dns_eu_west",
+   "mode": "managed",
+   "type": "aws_route53_record",
+   "name": "dns_eu_west",
+   "module": "global",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:58:11Z",
+   "source": {
+    "file": "modules/global/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 56
+   }
+  },
+  {
+   "addr": "global.dns_us_east",
+   "mode": "managed",
+   "type": "aws_route53_record",
+   "name": "dns_us_east",
+   "module": "global",
+   "provider": "aws",
+   "presence": "both",
+   "action": "create",
+   "source": {
+    "file": "modules/global/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 56
+   }
+  },
+  {
+   "addr": "global.oai",
+   "mode": "managed",
+   "type": "aws_cloudfront_origin_access_identity",
+   "name": "oai",
+   "module": "global",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:51:11Z",
+   "source": {
+    "file": "modules/global/main.cue",
+    "line": 32,
+    "col": 2,
+    "end_line": 34
+   }
+  },
+  {
+   "addr": "global.zone",
+   "mode": "data",
+   "type": "aws_route53_zone",
+   "name": "zone",
+   "module": "global",
+   "provider": "aws",
+   "presence": "both",
+   "action": "read",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T13:57:11Z",
+   "source": {
+    "file": "modules/global/main.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 5
+   }
+  },
+  {
+   "addr": "regions.ap_south.api.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.ap_south.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:36:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.ap_south.api.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.ap_south.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:54:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.ap_south.api.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.ap_south.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:32:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.ap_south.api.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.ap_south.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:43:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.ap_south.api.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.ap_south.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:39:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.ap_south.api.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.ap_south.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:50:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.ap_south.api.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.ap_south.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:47:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.ap_south.api.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.ap_south.api",
+   "provider": "aws",
+   "presence": "both",
+   "sensitive": 1,
+   "revision": 1,
+   "refreshed_at": "2026-10-21T12:01:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.ap_south.api.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.ap_south.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:25:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.ap_south.data.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.ap_south.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:59:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.ap_south.data.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.ap_south.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:37:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.ap_south.data.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.ap_south.data",
+   "provider": "aws",
+   "presence": "state",
+   "action": "delete",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:55:11Z"
+  },
+  {
+   "addr": "regions.ap_south.data.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.ap_south.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:26:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.ap_south.data.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.ap_south.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.ap_south.data.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.ap_south.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:33:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.ap_south.data.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.ap_south.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:30:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.ap_south.data.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.ap_south.data",
+   "provider": "aws",
+   "presence": "both",
+   "sensitive": 1,
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:44:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.ap_south.data.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.ap_south.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:48:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.ap_south.jobs.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.ap_south.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:38:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.ap_south.jobs.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.ap_south.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:56:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.ap_south.jobs.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.ap_south.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:34:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.ap_south.jobs.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.ap_south.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:45:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.ap_south.jobs.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.ap_south.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:41:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.ap_south.jobs.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.ap_south.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:52:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.ap_south.jobs.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.ap_south.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:49:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.ap_south.jobs.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.ap_south.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:23:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.ap_south.jobs.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.ap_south.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:27:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.ap_south.net.igw",
+   "mode": "managed",
+   "type": "aws_internet_gateway",
+   "name": "igw",
+   "module": "regions.ap_south.net",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:40:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 9,
+    "col": 2,
+    "end_line": 11
+   }
+  },
+  {
+   "addr": "regions.ap_south.net.subnet_a",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_a",
+   "module": "regions.ap_south.net",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:29:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 13,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.ap_south.net.subnet_b",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_b",
+   "module": "regions.ap_south.net",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:58:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 20,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.ap_south.net.vpc",
+   "mode": "managed",
+   "type": "aws_vpc",
+   "name": "vpc",
+   "module": "regions.ap_south.net",
+   "provider": "aws",
+   "presence": "both",
+   "action": "no-op",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:51:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 7
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_00",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_00",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:45:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_01",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_01",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:34:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_02",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_02",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:23:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_03",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_03",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:52:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_04",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_04",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:41:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_05",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_05",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "action": "create",
+   "drifted": true,
+   "gone": true,
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:30:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_06",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_06",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:59:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_07",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_07",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:48:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_08",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_08",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:37:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_09",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_09",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:26:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_10",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_10",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:55:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.edge_11",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "edge_11",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:44:11Z",
+   "source": {
+    "file": "modules/web/edge.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 14
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:57:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:35:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:53:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:24:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T12:00:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:31:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:28:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:42:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.ap_south.web.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.ap_south.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:46:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.eu_west.api.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.eu_west.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:36:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.eu_west.api.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.eu_west.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:54:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.eu_west.api.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.eu_west.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:32:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.eu_west.api.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.eu_west.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:43:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.eu_west.api.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.eu_west.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:39:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.eu_west.api.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.eu_west.api",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:50:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.eu_west.api.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.eu_west.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:47:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.eu_west.api.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.eu_west.api",
+   "provider": "aws",
+   "presence": "both",
+   "action": "replace",
+   "sensitive": 1,
+   "revision": 13,
+   "refreshed_at": "2026-10-21T12:01:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.eu_west.api.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.eu_west.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:25:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.eu_west.data.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.eu_west.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:59:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.eu_west.data.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.eu_west.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:37:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.eu_west.data.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.eu_west.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:55:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.eu_west.data.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.eu_west.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:26:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.eu_west.data.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.eu_west.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.eu_west.data.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.eu_west.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:33:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.eu_west.data.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.eu_west.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:30:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.eu_west.data.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.eu_west.data",
+   "provider": "aws",
+   "presence": "both",
+   "sensitive": 1,
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:44:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.eu_west.data.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.eu_west.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:48:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.eu_west.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:38:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.eu_west.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:56:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.eu_west.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:34:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q00",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q00",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:51:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q01",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q01",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:40:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q02",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q02",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:29:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q03",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q03",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:58:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q04",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q04",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:47:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q05",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q05",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:36:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q06",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q06",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:25:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q07",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q07",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:54:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q08",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q08",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:43:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q09",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q09",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:32:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q10",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q10",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T12:01:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.queues.q11",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "q11",
+   "module": "regions.eu_west.jobs.queues",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:50:11Z",
+   "source": {
+    "file": "modules/jobs/queues.cue",
+    "line": 6,
+    "col": 2,
+    "end_line": 12
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.eu_west.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:45:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.eu_west.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:41:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.eu_west.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:52:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.eu_west.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:49:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.eu_west.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:23:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.eu_west.jobs.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.eu_west.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:27:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.eu_west.net.igw",
+   "mode": "managed",
+   "type": "aws_internet_gateway",
+   "name": "igw",
+   "module": "regions.eu_west.net",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:40:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 9,
+    "col": 2,
+    "end_line": 11
+   }
+  },
+  {
+   "addr": "regions.eu_west.net.subnet_a",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_a",
+   "module": "regions.eu_west.net",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:29:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 13,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.eu_west.net.subnet_b",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_b",
+   "module": "regions.eu_west.net",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:58:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 20,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.eu_west.net.vpc",
+   "mode": "managed",
+   "type": "aws_vpc",
+   "name": "vpc",
+   "module": "regions.eu_west.net",
+   "provider": "aws",
+   "presence": "both",
+   "action": "no-op",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:51:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 7
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.eu_west.web",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "drifted": true,
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:57:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.eu_west.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:35:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.eu_west.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:53:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.eu_west.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:24:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.eu_west.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T12:00:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.eu_west.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:31:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.eu_west.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:28:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.eu_west.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:42:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.eu_west.web.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.eu_west.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:46:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.us_east.api.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.us_east.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:36:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.us_east.api.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.us_east.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:54:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.us_east.api.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.us_east.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:32:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.us_east.api.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.us_east.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:43:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.us_east.api.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.us_east.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:39:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.us_east.api.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.us_east.api",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "locked": true,
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:50:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.us_east.api.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.us_east.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:47:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.us_east.api.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.us_east.api",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "sensitive": 1,
+   "revision": 7,
+   "refreshed_at": "2026-10-21T12:01:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.us_east.api.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.us_east.api",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:25:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.us_east.data.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.us_east.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:59:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.us_east.data.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.us_east.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:37:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.us_east.data.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.us_east.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:55:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n00",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n00",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:39:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n01",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n01",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:28:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n02",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n02",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:57:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n03",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n03",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "drifted": true,
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:46:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n04",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n04",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:35:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n05",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n05",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:24:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n06",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n06",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:53:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n07",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n07",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T11:42:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n08",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n08",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:31:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n09",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n09",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T12:00:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n10",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n10",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:49:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n11",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n11",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:38:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n12",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n12",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:27:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.nodes.n13",
+   "mode": "managed",
+   "type": "aws_instance",
+   "name": "n13",
+   "module": "regions.us_east.data.nodes",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:56:11Z",
+   "source": {
+    "file": "modules/data/nodes.cue",
+    "line": 5,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.data.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.us_east.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:26:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.us_east.data.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.us_east.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T12:02:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.us_east.data.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.us_east.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:33:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.us_east.data.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.us_east.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:30:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.us_east.data.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.us_east.data",
+   "provider": "aws",
+   "presence": "both",
+   "sensitive": 1,
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:44:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.us_east.data.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.us_east.data",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:48:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.us_east.jobs.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.us_east.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 7,
+   "refreshed_at": "2026-10-21T11:38:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.us_east.jobs.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.us_east.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 8,
+   "refreshed_at": "2026-10-21T11:56:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.us_east.jobs.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.us_east.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:34:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.us_east.jobs.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.us_east.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:45:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.us_east.jobs.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.us_east.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:41:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.us_east.jobs.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.us_east.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:52:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.us_east.jobs.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.us_east.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 13,
+   "refreshed_at": "2026-10-21T11:49:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.us_east.jobs.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.us_east.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:23:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.us_east.jobs.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.us_east.jobs",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 1,
+   "refreshed_at": "2026-10-21T11:27:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  },
+  {
+   "addr": "regions.us_east.net.igw",
+   "mode": "managed",
+   "type": "aws_internet_gateway",
+   "name": "igw",
+   "module": "regions.us_east.net",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:40:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 9,
+    "col": 2,
+    "end_line": 11
+   }
+  },
+  {
+   "addr": "regions.us_east.net.subnet_a",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_a",
+   "module": "regions.us_east.net",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:29:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 13,
+    "col": 2,
+    "end_line": 18
+   }
+  },
+  {
+   "addr": "regions.us_east.net.subnet_b",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_b",
+   "module": "regions.us_east.net",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:58:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 20,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.us_east.net.vpc",
+   "mode": "managed",
+   "type": "aws_vpc",
+   "name": "vpc",
+   "module": "regions.us_east.net",
+   "provider": "aws",
+   "presence": "both",
+   "action": "no-op",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:51:11Z",
+   "source": {
+    "file": "modules/net/main.cue",
+    "line": 3,
+    "col": 2,
+    "end_line": 7
+   }
+  },
+  {
+   "addr": "regions.us_east.web.lb",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb",
+   "module": "regions.us_east.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 9,
+   "refreshed_at": "2026-10-21T11:57:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 25
+   }
+  },
+  {
+   "addr": "regions.us_east.web.listener",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "listener",
+   "module": "regions.us_east.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 10,
+   "refreshed_at": "2026-10-21T11:35:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 41
+   }
+  },
+  {
+   "addr": "regions.us_east.web.logs",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "logs",
+   "module": "regions.us_east.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 11,
+   "refreshed_at": "2026-10-21T11:53:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 57
+   }
+  },
+  {
+   "addr": "regions.us_east.web.role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "role",
+   "module": "regions.us_east.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 4,
+   "refreshed_at": "2026-10-21T11:24:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 49
+   }
+  },
+  {
+   "addr": "regions.us_east.web.scaling",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "scaling",
+   "module": "regions.us_east.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 6,
+   "refreshed_at": "2026-10-21T12:00:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 81
+   }
+  },
+  {
+   "addr": "regions.us_east.web.service",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "service",
+   "module": "regions.us_east.web",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "revision": 12,
+   "refreshed_at": "2026-10-21T11:31:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "regions.us_east.web.sg",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "sg",
+   "module": "regions.us_east.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 2,
+   "refreshed_at": "2026-10-21T11:28:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 17
+   }
+  },
+  {
+   "addr": "regions.us_east.web.task",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "task",
+   "module": "regions.us_east.web",
+   "provider": "aws",
+   "presence": "both",
+   "action": "update",
+   "revision": 5,
+   "refreshed_at": "2026-10-21T11:42:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 65
+   }
+  },
+  {
+   "addr": "regions.us_east.web.tg",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "tg",
+   "module": "regions.us_east.web",
+   "provider": "aws",
+   "presence": "both",
+   "revision": 3,
+   "refreshed_at": "2026-10-21T11:46:11Z",
+   "source": {
+    "file": "modules/service/main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 33
+   }
+  }
+ ],
+ "edges": [
+  {
+   "dependency": "global.cert",
+   "dependent": "global.cdn"
+  },
+  {
+   "dependency": "global.oai",
+   "dependent": "global.cdn"
+  },
+  {
+   "dependency": "global.zone",
+   "dependent": "global.cert"
+  },
+  {
+   "dependency": "global.zone",
+   "dependent": "global.dns_ap_south"
+  },
+  {
+   "dependency": "global.zone",
+   "dependent": "global.dns_eu_west"
+  },
+  {
+   "dependency": "global.zone",
+   "dependent": "global.dns_us_east"
+  },
+  {
+   "dependency": "regions.ap_south.api.lb",
+   "dependent": "regions.ap_south.api.listener"
+  },
+  {
+   "dependency": "regions.ap_south.api.lb",
+   "dependent": "regions.ap_south.web.service"
+  },
+  {
+   "dependency": "regions.ap_south.api.listener",
+   "dependent": "regions.ap_south.api.service"
+  },
+  {
+   "dependency": "regions.ap_south.api.logs",
+   "dependent": "regions.ap_south.api.task"
+  },
+  {
+   "dependency": "regions.ap_south.api.role",
+   "dependent": "regions.ap_south.api.task"
+  },
+  {
+   "dependency": "regions.ap_south.api.service",
+   "dependent": "regions.ap_south.api.scaling"
+  },
+  {
+   "dependency": "regions.ap_south.api.sg",
+   "dependent": "regions.ap_south.api.lb"
+  },
+  {
+   "dependency": "regions.ap_south.api.sg",
+   "dependent": "regions.ap_south.api.service"
+  },
+  {
+   "dependency": "regions.ap_south.api.task",
+   "dependent": "regions.ap_south.api.service"
+  },
+  {
+   "dependency": "regions.ap_south.api.tg",
+   "dependent": "regions.ap_south.api.listener"
+  },
+  {
+   "dependency": "regions.ap_south.api.tg",
+   "dependent": "regions.ap_south.api.service"
+  },
+  {
+   "dependency": "regions.ap_south.data.lb",
+   "dependent": "regions.ap_south.data.listener"
+  },
+  {
+   "dependency": "regions.ap_south.data.listener",
+   "dependent": "regions.ap_south.data.service"
+  },
+  {
+   "dependency": "regions.ap_south.data.logs",
+   "dependent": "regions.ap_south.data.task"
+  },
+  {
+   "dependency": "regions.ap_south.data.role",
+   "dependent": "regions.ap_south.data.task"
+  },
+  {
+   "dependency": "regions.ap_south.data.service",
+   "dependent": "regions.ap_south.data.scaling"
+  },
+  {
+   "dependency": "regions.ap_south.data.sg",
+   "dependent": "regions.ap_south.data.lb"
+  },
+  {
+   "dependency": "regions.ap_south.data.sg",
+   "dependent": "regions.ap_south.data.service"
+  },
+  {
+   "dependency": "regions.ap_south.data.task",
+   "dependent": "regions.ap_south.data.service"
+  },
+  {
+   "dependency": "regions.ap_south.data.tg",
+   "dependent": "regions.ap_south.data.listener"
+  },
+  {
+   "dependency": "regions.ap_south.data.tg",
+   "dependent": "regions.ap_south.data.service"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.lb",
+   "dependent": "regions.ap_south.jobs.listener"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.listener",
+   "dependent": "regions.ap_south.jobs.service"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.logs",
+   "dependent": "regions.ap_south.jobs.task"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.role",
+   "dependent": "regions.ap_south.jobs.task"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.service",
+   "dependent": "regions.ap_south.jobs.scaling"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.sg",
+   "dependent": "regions.ap_south.jobs.lb"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.sg",
+   "dependent": "regions.ap_south.jobs.service"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.task",
+   "dependent": "regions.ap_south.jobs.service"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.tg",
+   "dependent": "regions.ap_south.jobs.listener"
+  },
+  {
+   "dependency": "regions.ap_south.jobs.tg",
+   "dependent": "regions.ap_south.jobs.service"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_a",
+   "dependent": "regions.ap_south.api.lb"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_a",
+   "dependent": "regions.ap_south.api.service"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_a",
+   "dependent": "regions.ap_south.data.lb"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_a",
+   "dependent": "regions.ap_south.data.service"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_a",
+   "dependent": "regions.ap_south.jobs.lb"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_a",
+   "dependent": "regions.ap_south.jobs.service"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_a",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_a",
+   "dependent": "regions.ap_south.web.service"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.api.lb"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.data.lb"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.jobs.lb"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_00"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_01"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_02"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_03"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_04"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_05"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_06"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_07"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_08"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_09"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_10"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.edge_11"
+  },
+  {
+   "dependency": "regions.ap_south.net.subnet_b",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.api.sg"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.api.tg"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.data.sg"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.data.tg"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.jobs.sg"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.jobs.tg"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.net.igw"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.net.subnet_a"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.net.subnet_b"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.web.sg"
+  },
+  {
+   "dependency": "regions.ap_south.net.vpc",
+   "dependent": "regions.ap_south.web.tg"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_00",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_01",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_02",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_03",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_04",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_05",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_06",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_07",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_08",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_09",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_10",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.edge_11",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.lb",
+   "dependent": "global.dns_ap_south"
+  },
+  {
+   "dependency": "regions.ap_south.web.lb",
+   "dependent": "regions.ap_south.web.listener"
+  },
+  {
+   "dependency": "regions.ap_south.web.listener",
+   "dependent": "regions.ap_south.web.service"
+  },
+  {
+   "dependency": "regions.ap_south.web.logs",
+   "dependent": "regions.ap_south.web.task"
+  },
+  {
+   "dependency": "regions.ap_south.web.role",
+   "dependent": "regions.ap_south.web.task"
+  },
+  {
+   "dependency": "regions.ap_south.web.service",
+   "dependent": "regions.ap_south.web.scaling"
+  },
+  {
+   "dependency": "regions.ap_south.web.sg",
+   "dependent": "regions.ap_south.web.lb"
+  },
+  {
+   "dependency": "regions.ap_south.web.sg",
+   "dependent": "regions.ap_south.web.service"
+  },
+  {
+   "dependency": "regions.ap_south.web.task",
+   "dependent": "regions.ap_south.web.service"
+  },
+  {
+   "dependency": "regions.ap_south.web.tg",
+   "dependent": "regions.ap_south.web.listener"
+  },
+  {
+   "dependency": "regions.ap_south.web.tg",
+   "dependent": "regions.ap_south.web.service"
+  },
+  {
+   "dependency": "regions.eu_west.api.lb",
+   "dependent": "regions.eu_west.api.listener"
+  },
+  {
+   "dependency": "regions.eu_west.api.lb",
+   "dependent": "regions.eu_west.web.service"
+  },
+  {
+   "dependency": "regions.eu_west.api.listener",
+   "dependent": "regions.eu_west.api.service"
+  },
+  {
+   "dependency": "regions.eu_west.api.logs",
+   "dependent": "regions.eu_west.api.task"
+  },
+  {
+   "dependency": "regions.eu_west.api.role",
+   "dependent": "regions.eu_west.api.task"
+  },
+  {
+   "dependency": "regions.eu_west.api.service",
+   "dependent": "regions.eu_west.api.scaling"
+  },
+  {
+   "dependency": "regions.eu_west.api.sg",
+   "dependent": "regions.eu_west.api.lb"
+  },
+  {
+   "dependency": "regions.eu_west.api.sg",
+   "dependent": "regions.eu_west.api.service"
+  },
+  {
+   "dependency": "regions.eu_west.api.task",
+   "dependent": "regions.eu_west.api.service"
+  },
+  {
+   "dependency": "regions.eu_west.api.tg",
+   "dependent": "regions.eu_west.api.listener"
+  },
+  {
+   "dependency": "regions.eu_west.api.tg",
+   "dependent": "regions.eu_west.api.service"
+  },
+  {
+   "dependency": "regions.eu_west.data.lb",
+   "dependent": "regions.eu_west.data.listener"
+  },
+  {
+   "dependency": "regions.eu_west.data.listener",
+   "dependent": "regions.eu_west.data.service"
+  },
+  {
+   "dependency": "regions.eu_west.data.logs",
+   "dependent": "regions.eu_west.data.task"
+  },
+  {
+   "dependency": "regions.eu_west.data.role",
+   "dependent": "regions.eu_west.data.task"
+  },
+  {
+   "dependency": "regions.eu_west.data.service",
+   "dependent": "regions.eu_west.data.scaling"
+  },
+  {
+   "dependency": "regions.eu_west.data.sg",
+   "dependent": "regions.eu_west.data.lb"
+  },
+  {
+   "dependency": "regions.eu_west.data.sg",
+   "dependent": "regions.eu_west.data.service"
+  },
+  {
+   "dependency": "regions.eu_west.data.task",
+   "dependent": "regions.eu_west.data.service"
+  },
+  {
+   "dependency": "regions.eu_west.data.tg",
+   "dependent": "regions.eu_west.data.listener"
+  },
+  {
+   "dependency": "regions.eu_west.data.tg",
+   "dependent": "regions.eu_west.data.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.lb",
+   "dependent": "regions.eu_west.jobs.listener"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.listener",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.logs",
+   "dependent": "regions.eu_west.jobs.task"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q00",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q01",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q02",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q03",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q04",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q05",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q06",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q07",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q08",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q09",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q10",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.queues.q11",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.role",
+   "dependent": "regions.eu_west.jobs.task"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.service",
+   "dependent": "regions.eu_west.jobs.scaling"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.sg",
+   "dependent": "regions.eu_west.jobs.lb"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.sg",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.task",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.tg",
+   "dependent": "regions.eu_west.jobs.listener"
+  },
+  {
+   "dependency": "regions.eu_west.jobs.tg",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_a",
+   "dependent": "regions.eu_west.api.lb"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_a",
+   "dependent": "regions.eu_west.api.service"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_a",
+   "dependent": "regions.eu_west.data.lb"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_a",
+   "dependent": "regions.eu_west.data.service"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_a",
+   "dependent": "regions.eu_west.jobs.lb"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_a",
+   "dependent": "regions.eu_west.jobs.service"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_a",
+   "dependent": "regions.eu_west.web.lb"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_a",
+   "dependent": "regions.eu_west.web.service"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_b",
+   "dependent": "regions.eu_west.api.lb"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_b",
+   "dependent": "regions.eu_west.data.lb"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_b",
+   "dependent": "regions.eu_west.jobs.lb"
+  },
+  {
+   "dependency": "regions.eu_west.net.subnet_b",
+   "dependent": "regions.eu_west.web.lb"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.api.sg"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.api.tg"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.data.sg"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.data.tg"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.jobs.sg"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.jobs.tg"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.net.igw"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.net.subnet_a"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.net.subnet_b"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.web.sg"
+  },
+  {
+   "dependency": "regions.eu_west.net.vpc",
+   "dependent": "regions.eu_west.web.tg"
+  },
+  {
+   "dependency": "regions.eu_west.web.lb",
+   "dependent": "global.cdn"
+  },
+  {
+   "dependency": "regions.eu_west.web.lb",
+   "dependent": "global.dns_eu_west"
+  },
+  {
+   "dependency": "regions.eu_west.web.lb",
+   "dependent": "regions.eu_west.web.listener"
+  },
+  {
+   "dependency": "regions.eu_west.web.listener",
+   "dependent": "regions.eu_west.web.service"
+  },
+  {
+   "dependency": "regions.eu_west.web.logs",
+   "dependent": "regions.eu_west.web.task"
+  },
+  {
+   "dependency": "regions.eu_west.web.role",
+   "dependent": "regions.eu_west.web.task"
+  },
+  {
+   "dependency": "regions.eu_west.web.service",
+   "dependent": "regions.eu_west.web.scaling"
+  },
+  {
+   "dependency": "regions.eu_west.web.sg",
+   "dependent": "regions.eu_west.web.lb"
+  },
+  {
+   "dependency": "regions.eu_west.web.sg",
+   "dependent": "regions.eu_west.web.service"
+  },
+  {
+   "dependency": "regions.eu_west.web.task",
+   "dependent": "regions.eu_west.web.service"
+  },
+  {
+   "dependency": "regions.eu_west.web.tg",
+   "dependent": "regions.eu_west.web.listener"
+  },
+  {
+   "dependency": "regions.eu_west.web.tg",
+   "dependent": "regions.eu_west.web.service"
+  },
+  {
+   "dependency": "regions.us_east.api.lb",
+   "dependent": "regions.us_east.api.listener"
+  },
+  {
+   "dependency": "regions.us_east.api.lb",
+   "dependent": "regions.us_east.web.service"
+  },
+  {
+   "dependency": "regions.us_east.api.listener",
+   "dependent": "regions.us_east.api.service"
+  },
+  {
+   "dependency": "regions.us_east.api.logs",
+   "dependent": "regions.us_east.api.task"
+  },
+  {
+   "dependency": "regions.us_east.api.role",
+   "dependent": "regions.us_east.api.task"
+  },
+  {
+   "dependency": "regions.us_east.api.service",
+   "dependent": "regions.us_east.api.scaling"
+  },
+  {
+   "dependency": "regions.us_east.api.sg",
+   "dependent": "regions.us_east.api.lb"
+  },
+  {
+   "dependency": "regions.us_east.api.sg",
+   "dependent": "regions.us_east.api.service"
+  },
+  {
+   "dependency": "regions.us_east.api.task",
+   "dependent": "regions.us_east.api.service"
+  },
+  {
+   "dependency": "regions.us_east.api.tg",
+   "dependent": "regions.us_east.api.listener"
+  },
+  {
+   "dependency": "regions.us_east.api.tg",
+   "dependent": "regions.us_east.api.service"
+  },
+  {
+   "dependency": "regions.us_east.data.lb",
+   "dependent": "regions.us_east.data.listener"
+  },
+  {
+   "dependency": "regions.us_east.data.listener",
+   "dependent": "regions.us_east.data.service"
+  },
+  {
+   "dependency": "regions.us_east.data.logs",
+   "dependent": "regions.us_east.data.task"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n00",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n01",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n02",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n03",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n04",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n05",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n06",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n07",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n08",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n09",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n10",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n11",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n12",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.nodes.n13",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.data.role",
+   "dependent": "regions.us_east.data.task"
+  },
+  {
+   "dependency": "regions.us_east.data.service",
+   "dependent": "regions.us_east.data.scaling"
+  },
+  {
+   "dependency": "regions.us_east.data.sg",
+   "dependent": "regions.us_east.data.lb"
+  },
+  {
+   "dependency": "regions.us_east.data.sg",
+   "dependent": "regions.us_east.data.service"
+  },
+  {
+   "dependency": "regions.us_east.data.task",
+   "dependent": "regions.us_east.data.service"
+  },
+  {
+   "dependency": "regions.us_east.data.tg",
+   "dependent": "regions.us_east.data.listener"
+  },
+  {
+   "dependency": "regions.us_east.data.tg",
+   "dependent": "regions.us_east.data.service"
+  },
+  {
+   "dependency": "regions.us_east.jobs.lb",
+   "dependent": "regions.us_east.jobs.listener"
+  },
+  {
+   "dependency": "regions.us_east.jobs.listener",
+   "dependent": "regions.us_east.jobs.service"
+  },
+  {
+   "dependency": "regions.us_east.jobs.logs",
+   "dependent": "regions.us_east.jobs.task"
+  },
+  {
+   "dependency": "regions.us_east.jobs.role",
+   "dependent": "regions.us_east.jobs.task"
+  },
+  {
+   "dependency": "regions.us_east.jobs.service",
+   "dependent": "regions.us_east.jobs.scaling"
+  },
+  {
+   "dependency": "regions.us_east.jobs.sg",
+   "dependent": "regions.us_east.jobs.lb"
+  },
+  {
+   "dependency": "regions.us_east.jobs.sg",
+   "dependent": "regions.us_east.jobs.service"
+  },
+  {
+   "dependency": "regions.us_east.jobs.task",
+   "dependent": "regions.us_east.jobs.service"
+  },
+  {
+   "dependency": "regions.us_east.jobs.tg",
+   "dependent": "regions.us_east.jobs.listener"
+  },
+  {
+   "dependency": "regions.us_east.jobs.tg",
+   "dependent": "regions.us_east.jobs.service"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.api.lb"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.api.service"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.lb"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n00"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n01"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n02"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n03"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n04"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n05"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n06"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n07"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n08"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n09"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n10"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n11"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n12"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.nodes.n13"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.data.service"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.jobs.lb"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.jobs.service"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.web.lb"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_a",
+   "dependent": "regions.us_east.web.service"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_b",
+   "dependent": "regions.us_east.api.lb"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_b",
+   "dependent": "regions.us_east.data.lb"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_b",
+   "dependent": "regions.us_east.jobs.lb"
+  },
+  {
+   "dependency": "regions.us_east.net.subnet_b",
+   "dependent": "regions.us_east.web.lb"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.api.sg"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.api.tg"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.data.sg"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.data.tg"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.jobs.sg"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.jobs.tg"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.net.igw"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.net.subnet_a"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.net.subnet_b"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.web.sg"
+  },
+  {
+   "dependency": "regions.us_east.net.vpc",
+   "dependent": "regions.us_east.web.tg"
+  },
+  {
+   "dependency": "regions.us_east.web.lb",
+   "dependent": "global.dns_us_east"
+  },
+  {
+   "dependency": "regions.us_east.web.lb",
+   "dependent": "regions.us_east.web.listener"
+  },
+  {
+   "dependency": "regions.us_east.web.listener",
+   "dependent": "regions.us_east.web.service"
+  },
+  {
+   "dependency": "regions.us_east.web.logs",
+   "dependent": "regions.us_east.web.task"
+  },
+  {
+   "dependency": "regions.us_east.web.role",
+   "dependent": "regions.us_east.web.task"
+  },
+  {
+   "dependency": "regions.us_east.web.service",
+   "dependent": "regions.us_east.web.scaling"
+  },
+  {
+   "dependency": "regions.us_east.web.sg",
+   "dependent": "regions.us_east.web.lb"
+  },
+  {
+   "dependency": "regions.us_east.web.sg",
+   "dependent": "regions.us_east.web.service"
+  },
+  {
+   "dependency": "regions.us_east.web.task",
+   "dependent": "regions.us_east.web.service"
+  },
+  {
+   "dependency": "regions.us_east.web.tg",
+   "dependent": "regions.us_east.web.listener"
+  },
+  {
+   "dependency": "regions.us_east.web.tg",
+   "dependent": "regions.us_east.web.service"
+  }
+ ],
+ "modules": [
+  {
+   "path": "global",
+   "parent": "",
+   "name": "global",
+   "resources": 8,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 40,
+    "col": 2,
+    "end_line": 60
+   },
+   "definition": {
+    "file": "modules/global/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "regions",
+   "parent": "",
+   "name": "regions",
+   "resources": 158,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 30
+   },
+   "definition": {
+    "file": "modules/region/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 120
+   }
+  },
+  {
+   "path": "regions.ap_south",
+   "parent": "regions",
+   "name": "ap_south",
+   "resources": 52,
+   "depth": 1,
+   "declared": {
+    "file": "main.cue",
+    "line": 12,
+    "col": 2,
+    "end_line": 20
+   },
+   "definition": {
+    "file": "modules/region/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 120
+   }
+  },
+  {
+   "path": "regions.ap_south.api",
+   "parent": "regions.ap_south",
+   "name": "api",
+   "resources": 9,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 35
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.ap_south.data",
+   "parent": "regions.ap_south",
+   "name": "data",
+   "resources": 9,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 48,
+    "col": 2,
+    "end_line": 53
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.ap_south.jobs",
+   "parent": "regions.ap_south",
+   "name": "jobs",
+   "resources": 9,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 47
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.ap_south.net",
+   "parent": "regions.ap_south",
+   "name": "net",
+   "resources": 4,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 4,
+    "col": 2,
+    "end_line": 24
+   },
+   "definition": {
+    "file": "modules/net/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "regions.ap_south.web",
+   "parent": "regions.ap_south",
+   "name": "web",
+   "resources": 21,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 36,
+    "col": 2,
+    "end_line": 41
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.eu_west",
+   "parent": "regions",
+   "name": "eu_west",
+   "resources": 52,
+   "depth": 1,
+   "declared": {
+    "file": "main.cue",
+    "line": 12,
+    "col": 2,
+    "end_line": 20
+   },
+   "definition": {
+    "file": "modules/region/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 120
+   }
+  },
+  {
+   "path": "regions.eu_west.api",
+   "parent": "regions.eu_west",
+   "name": "api",
+   "resources": 9,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 35
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.eu_west.data",
+   "parent": "regions.eu_west",
+   "name": "data",
+   "resources": 9,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 48,
+    "col": 2,
+    "end_line": 53
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.eu_west.jobs",
+   "parent": "regions.eu_west",
+   "name": "jobs",
+   "resources": 21,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 47
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.eu_west.jobs.queues",
+   "parent": "regions.eu_west.jobs",
+   "name": "queues",
+   "resources": 12,
+   "depth": 3,
+   "declared": {
+    "file": "modules/service/main.cue",
+    "line": 150,
+    "col": 2,
+    "end_line": 154
+   },
+   "definition": {
+    "file": "modules/jobs/queues.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 20
+   }
+  },
+  {
+   "path": "regions.eu_west.net",
+   "parent": "regions.eu_west",
+   "name": "net",
+   "resources": 4,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 4,
+    "col": 2,
+    "end_line": 24
+   },
+   "definition": {
+    "file": "modules/net/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "regions.eu_west.web",
+   "parent": "regions.eu_west",
+   "name": "web",
+   "resources": 9,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 36,
+    "col": 2,
+    "end_line": 41
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.us_east",
+   "parent": "regions",
+   "name": "us_east",
+   "resources": 54,
+   "depth": 1,
+   "declared": {
+    "file": "main.cue",
+    "line": 12,
+    "col": 2,
+    "end_line": 20
+   },
+   "definition": {
+    "file": "modules/region/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 120
+   }
+  },
+  {
+   "path": "regions.us_east.api",
+   "parent": "regions.us_east",
+   "name": "api",
+   "resources": 9,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 35
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.us_east.data",
+   "parent": "regions.us_east",
+   "name": "data",
+   "resources": 23,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 48,
+    "col": 2,
+    "end_line": 53
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.us_east.data.nodes",
+   "parent": "regions.us_east.data",
+   "name": "nodes",
+   "resources": 14,
+   "depth": 3,
+   "declared": {
+    "file": "modules/service/main.cue",
+    "line": 160,
+    "col": 2,
+    "end_line": 164
+   },
+   "definition": {
+    "file": "modules/data/nodes.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 24
+   }
+  },
+  {
+   "path": "regions.us_east.jobs",
+   "parent": "regions.us_east",
+   "name": "jobs",
+   "resources": 9,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 47
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  },
+  {
+   "path": "regions.us_east.net",
+   "parent": "regions.us_east",
+   "name": "net",
+   "resources": 4,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 4,
+    "col": 2,
+    "end_line": 24
+   },
+   "definition": {
+    "file": "modules/net/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "regions.us_east.web",
+   "parent": "regions.us_east",
+   "name": "web",
+   "resources": 9,
+   "depth": 2,
+   "declared": {
+    "file": "modules/region/main.cue",
+    "line": 36,
+    "col": 2,
+    "end_line": 41
+   },
+   "definition": {
+    "file": "modules/service/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 140
+   }
+  }
+ ],
+ "outputs": [
+  {
+   "name": "cdn_domain",
+   "value": "d2f8x1q0.cloudfront.net"
+  },
+  {
+   "name": "regions",
+   "value": [
+    "eu-west-1",
+    "us-east-1",
+    "ap-south-1"
+   ]
+  }
+ ],
+ "plan": {
+  "file": ".pravo/plans/release-2026-10-21.plan",
+  "created": "2026-10-21T13:31:11Z",
+  "actor": "release-bot",
+  "summary": {
+   "add": 3,
+   "change": 7,
+   "destroy": 2,
+   "read": 1,
+   "blast_radius": 20
+  },
+  "planned": 15,
+  "total": 167,
+  "hints": [
+   "regions.eu_west.api.task is replaced: its family changed."
+  ]
+ }
+}
