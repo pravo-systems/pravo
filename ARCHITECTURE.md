@@ -27,6 +27,7 @@ pravo is one Go binary, built from the module `github.com/pravo-systems/pravo`. 
 | `internal/schema/` | The provider schema model, its JSON cache form and the CUE generator. |
 | `internal/tfstate/` | Converts an OpenTofu or Terraform state file (format version 4) to state records. |
 | `internal/ui/` | Plan rendering for the terminal. |
+| `internal/serve/` | The read-only viewer behind `pravo serve`: the HTTP server, the model of the specification, the state and a saved plan, redaction, source lines, and the browser interface in `web/`. |
 | `internal/plog/` | The debug log behind `-v`, `-vv` and `PRAVO_LOG`. |
 | `internal/telemetry/` | OpenTelemetry setup, spans and metrics. |
 | `internal/fakes3/` | An in-memory S3-compatible server, used by tests and by `tools/fakes3`. |
@@ -46,8 +47,27 @@ Files in `cmd/pravo/`:
 | `statecmd.go` | `state list`, `show`, `rm`, `mv`, `log`, `locks`, `unlock`, `pull`, `push`, `graph`, `dependents`, `query`, `import-tfstate`. |
 | `agent.go` | `schema`, `why`, `drift`; JSON helpers; `exitCodeOf`. |
 | `mcp.go` | `mcp`: a stdio server whose tools run the binary itself with `--json`. |
+| `serve.go` | `serve`: starts `internal/serve` on a loopback port, prints the address with its token, opens the browser. |
 | `mod.go` | `mod`: embeds the CUE module commands, adds `publish`, `list` and `verify`. |
 | `helpers.go`, `webhook.go` | Small shared helpers (`noArgs`, `refreshValueHint`, `typesOf`); the drift webhook POST. |
+
+Files in `internal/serve/`:
+
+| File | Contents |
+|---|---|
+| `api.go` | The JSON types of every response: the contract with the page. |
+| `README.md` | The rules of the viewer and its endpoints. |
+| `server.go` | `Options`, `Server`, `Listen`, `Serve`; the handlers, the token and cookie, the Host and `Sec-Fetch-Site` checks, the headers, `/api/events`; `current`, which builds a model when the revision moved. |
+| `model.go` | `model`, built once per revision: nodes, edges, modules, outputs, the graph as JSON. |
+| `spec.go` | `loadSpec`: `config.Load` kept while the files stay the same, the edges from `convert.Dependencies`, positions of resources and modules from CUE, display paths. |
+| `schemas.go` | Provider schemas read from the cache under `$PRAVO_HOME`, split by type and decoded when a type is first needed. |
+| `redact.go` | `walk`: a record against its schema, with nested attributes and blocks, write-only and name-based withholding; `secretSet`, the sensitive strings of the state. |
+| `detail.go` | `/api/detail` and `/api/search`. |
+| `source.go` | `/api/source`: lines of loaded files selected by node address, literals of sensitive attributes masked, contributions. |
+| `plan.go` | The saved plan on the model: actions, staleness, the attribute changes of a node (`differ`). |
+| `watch.go` | `watcher`: polls file attributes and directories, derives the revision, publishes events. |
+| `readonly.go` | `OpenReadOnly`, `ReadOnly`: a local state opened so that every write is refused. |
+| `web/` | The interface: HTML, CSS, JavaScript and fonts, embedded with `go:embed web/index.html web/assets`. `web/dev/` (a mock of the API, fixtures and checks for developing the interface) is not embedded. |
 
 ## 2. The life of a run
 
@@ -209,6 +229,16 @@ A shared module is a CUE module. `FindModuleRoot` walks up to the nearest `cue.m
 
 `internal/telemetry` is off unless `OTEL_*` variables select an exporter (`otlp`, `console`). A command is a span; `engine plan`, `engine apply`, `resource <addr>` and `provider <RPC>` nest under it. Spans and metrics carry addresses, types, actions, counts and outcomes, never values. `TRACEPARENT` continues a caller's trace. `plog` writes the same events to standard error at `-v` (debug) and `-vv` (trace), and attaches them to the active span.
 
+### 7.1 The viewer
+
+`pravo serve` is a web server on the loopback interface and the page it embeds. `serve.New` builds the first model, so that a state that cannot be opened is an error before anything listens; `serve.Listen` binds `127.0.0.1` and nothing else; `Serve` returns when the context of the command ends, which `watchSignals` cancels on `SIGINT` and `SIGTERM`, and closes the event streams first. Closing standard input is not a signal.
+
+What it reads: the specification through `config.Load` (a specification that does not load becomes `SpecError`, and the page shows the state alone, with the state location from `config.LoadSettingsWith`), the lock file through `engine.ReadLock`, the state through `Options.OpenState` (`openStateReadOnly`, so a missing state directory is read as an empty one and a write is refused), the provider schemas that are cached under `$PRAVO_HOME/schemas`, and the plan file given with `--plan`, decoded by an engine that has the cached schemas and no provider (`LoadPlanFor`, so staleness is judged as `apply` judges it). What it never does: write a record, a transaction, a lock, `pravo.lock.cue` or a generated package; start a provider; download a provider, a schema or a CUE module (`uncachedModule` looks in the CUE cache before the load); take the lock of a record.
+
+The model is built once for each revision. The watcher samples, every second, the attributes of the specification's files and of the `*.cue` files of the directory, of the plan file, and of the state (the directories `resources`, `txn` and `locks`, which the local backend changes with every write; for a bucket, a listing every five polls). The revision is a digest of the four signatures `state`, `spec`, `plan` and `locks`. A request that finds the model older than the revision builds a new one, keeping the loaded specification if its files did not change, and `/api/events` sends `change` with the new revision and the components that moved. A value that the schema does not mark but that contains a sensitive string of the state is withheld as well, since a file built from a password has no flag of its own.
+
+Security model. The listener is on `127.0.0.1` or `::1`, and `Serve` refuses a listener on any other address. Each run makes a 128-bit token, printed in the address; `GET /?token=` sets a `HttpOnly`, `SameSite=Strict` cookie named for the port and redirects to `/`, and the API accepts that cookie or `Authorization: Bearer`, compared in constant time, and nothing in a query. A request whose `Host` is not a loopback name with the listening port is answered with 421, a `Sec-Fetch-Site` of `cross-site` with 403 (`same-site` too, for the API), and no CORS header is sent, so a page of another origin neither reaches nor reads the API. Values are redacted on the server by the schema, by the name of the attribute, for a type without a schema and for derived text, and the private blob, the configuration digest and the provider configuration of a record are never sent. Source lines come from the files `Root.Sources` lists, selected by the address of a node and never by a path, with literals assigned to sensitive attributes masked, and the page is served with a content security policy that allows its own scripts and styles only.
+
 ## 8. tools/
 
 | Directory | Purpose |
@@ -237,6 +267,7 @@ go vet ./...
 |---|---|
 | `internal/engine` | `harness_test.go` defines `fakeProvider`, an in-process provider of one resource type, so that plan, apply, saved plans, policies, reservations, replacement and write-only attributes run without a plugin process. |
 | `cmd/pravo` | `cli_test.go` defines `runPravo`, which runs the root command in the test process against a temporary directory made by `specDir`. `mcp_test.go` tests the arguments of the MCP tools. |
+| `internal/serve` | Tests over a project in a temporary directory with a hand-written provider and schema: the token and cookie, the Host and `Sec-Fetch-Site` checks, redaction, source masking, the plan overlay, the watcher and the events, a hash of the directories before and after a session, and `TestInterfaceFixturesMatchTheContract`, which decodes the fixtures of `web/dev/fixtures` into the types of `api.go`. `cmd/pravo/serve_test.go` serves the example with modules after a real `init`, `apply` and `plan`. |
 | `internal/state` | Local backend tests, and `s3_test.go` against `internal/fakes3`. `internal/state/statetest` wraps a backend for the tests of other packages: `Counting` counts calls, `Latency` delays them and `Honouring` refuses a call made with a context that is done, as the S3 client does. |
 | `internal/config`, `internal/convert`, `internal/schema`, `internal/registry`, `internal/plugin`, `internal/tfstate`, `internal/ui`, `internal/plog`, `internal/telemetry` | Unit tests of each package. |
 | `tools/capture` | Unit tests; end-to-end tests with a stand-in `pravo` script in `testdata/fakepravo`; one test that builds the real binary; `TestAgreesWithSitegen`, which checks that `capture` and `sitegen` read the Markdown grammar the same way. |

@@ -275,7 +275,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(
 		initCmd(), planCmd(), applyCmd(), destroyCmd(), showCmd(), outputCmd(), stateCmd(), importCmd(),
 		providersCmd(), genCmd(), validateCmd(), evalCmd(), fmtCmd(), versionCmd(),
-		schemaCmd(), whyCmd(), driftCmd(), mcpCmd(), modCmd(),
+		schemaCmd(), whyCmd(), driftCmd(), mcpCmd(), modCmd(), serveCmd(),
 	)
 	return cmd
 }
