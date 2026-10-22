@@ -138,10 +138,6 @@
 .rows.provs li.inst { border-top: 0; padding: .1rem 0 .1rem 1.1rem; color: var(--text-2); justify-content: space-between; }
 .rows.provs li.inst .ic { color: var(--text-3); }
 .rows.provs li:has(+ li.inst) { padding-bottom: .3rem; }
-.rows.outs .ov { margin-left: auto; min-width: 0; text-align: right; overflow-wrap: anywhere; }
-.rows.outs .ol { display: inline-flex; align-items: center; gap: .4rem; min-width: 0; text-decoration: none; color: inherit; }
-.rows.outs .ol .i { color: var(--key); width: .8rem; height: .8rem; }
-.rows.outs .ol:hover b, .rows.outs .ol:focus-visible b { text-decoration: underline; text-underline-offset: .18em; }
 
 /* navigable lists */
 .nav { list-style: none; margin: 0; padding: 0; }

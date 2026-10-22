@@ -6,7 +6,6 @@ import { eachNode, isOut } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { codeWindow } from './ui.js';
 import { statusChip, facts, planActions, conflictsBox } from './plans.js';
-import { withheld, unknownEl } from './values.js';
 import * as api from './api.js';
 
 const num = (n, cls = '') => {
@@ -52,14 +51,6 @@ export function projectPanel(ins, model) {
     }))));
   }
   if ((p.policies || []).length) body.push(sec(`Policies · ${p.policies.length}`, h('ul', { class: 'rows' }, p.policies.map((v) => h('li', null, h('b', { class: 'mono-s' }, v))))));
-  if ((g.outputs || []).length) {
-    // each output is a node of the graph: the name leads to it
-    body.push(sec(`Outputs · ${g.outputs.length}`, h('ul', { class: 'rows outs' }, g.outputs.map((o) => h('li', null,
-      model.nodes.has(o.name) && isOut(model.nodes.get(o.name))
-        ? h('a', { class: 'ol', href: '#', data: { goto: o.name }, title: `Show ${o.name} in the graph` }, icon('output'), h('b', null, o.name))
-        : h('b', null, o.name),
-      h('span', { class: 'ov' }, o.sensitive ? withheld(o.redacted || 'sensitive') : o.unknown ? unknownEl() : ins.values.scalar(o.value, o.name, 'out:' + o.name).el))))));
-  }
   if ((g.warnings || []).length) body.push(sec(`Warnings · ${g.warnings.length}`, g.warnings.map((w) => h('p', { class: 'note warn' }, icon('bang'), h('span', null, w)))));
   body.push(h('section', { class: 'sec hintsec' }, h('p', { class: 'hint' }, 'Select a resource or a module to see its values, its source and its history. Press ', h('kbd', null, '?'), ' for the shortcuts.')));
   return body;
