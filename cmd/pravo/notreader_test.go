@@ -18,6 +18,13 @@ func TestNotReaderErrorSaysWhyNoIdentityWasChosen(t *testing.T) {
 	if !strings.Contains(several.Error(), "holds several identities (ada dan)") {
 		t.Errorf("the reason is lost: %v", several)
 	}
+	if strings.Contains(several.Error(), "Ask one of them") {
+		t.Errorf("several identity files are no reason to ask to be added: %v", several)
+	}
+	missing := notReaderError(rf, nil, fmt.Errorf("%w: no identity named nosuch in ~/.config/pravo/id", errNoIdentity))
+	if strings.Contains(missing.Error(), "Ask one of them") {
+		t.Errorf("a mistyped --identity is no reason to ask to be added: %v", missing)
+	}
 }
 
 // An identity that cannot be opened is not a reason to ask to be added.

@@ -129,6 +129,10 @@ func hexSuffix() string {
 // unsealed one that others can read (as ssh does for private keys). A sealed one
 // only draws a warning, returned to the caller to print.
 func ReadIdentityFile(path string) (data []byte, warning string, err error) {
+	// Reading a named pipe waits for a writer: look before opening.
+	if st, serr := os.Stat(path); serr == nil && !st.Mode().IsRegular() {
+		return nil, "", fmt.Errorf("%s is not a regular file", path)
+	}
 	data, err = os.ReadFile(path)
 	if err != nil {
 		return nil, "", err

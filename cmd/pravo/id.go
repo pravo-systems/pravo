@@ -239,6 +239,10 @@ func readSSHPublicKey(file string) (line, from string, err error) {
 
 // readSmallFile reads at most limit bytes of a file and fails on a longer one.
 func readSmallFile(path string, limit int64) ([]byte, error) {
+	// Opening a named pipe waits for a writer: look before opening.
+	if st, err := os.Stat(path); err == nil && !st.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

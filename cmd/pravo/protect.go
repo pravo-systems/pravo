@@ -217,8 +217,9 @@ func notReaderError(rf readersFile, id *protect.Identity, idErr error) error {
 		return fmt.Errorf("%w (%s)", state.ErrNotReader, strings.TrimSuffix(idErr.Error(), "."))
 	case idErr != nil && strings.HasPrefix(idErr.Error(), "no identity found: "):
 		// Several identity files and none named like the user, or a name that
-		// does not exist: say so, so that the advice is not to ask to be added.
-		why = strings.TrimSuffix(idErr.Error(), ".")
+		// does not exist: the reader may well be on the list, so the advice is not
+		// to ask to be added.
+		return fmt.Errorf("%w (%s)", state.ErrNotReader, strings.TrimSuffix(idErr.Error(), "."))
 	}
 	return fmt.Errorf("%w (%s).\n  Readers are listed in %s. Ask one of them to add yours.", state.ErrNotReader, why, rf.shown())
 }
