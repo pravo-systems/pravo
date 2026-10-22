@@ -677,6 +677,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			s.Steps = append(s.Steps, note("Start the viewer again from a terminal:"), command("pravo serve"))
 		default:
 			if a.You.State == "no-identity" {
+				s.Why = "No identity was given, so there is no key to open the state with. Make one, send its line to a reader, who adds it as described under Add a reader."
 				s.Steps = append(s.Steps, fill("pravo id new --name <name>"))
 			}
 			s.Steps = append(s.Steps, command("pravo id show"), note("When a reader has added your line and rewrapped, start the viewer again:"), fill("pravo serve --identity <name>"))

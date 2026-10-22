@@ -869,6 +869,13 @@ func TestAccessWordsFitTheIdentity(t *testing.T) {
 			t.Errorf("a locked identity is told to make or print one: %q", st.Text)
 		}
 	}
+	facts.You = &YouFacts{State: "no-identity"}
+	a = buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, facts: facts, path: "/p/.pravo/access/readers.txt", dir: "/p", locked: true})
+	for _, sg := range a.Suggestions {
+		if sg.ID == "identity" && strings.Contains(sg.Why, "This key is not a reader") {
+			t.Errorf("a viewer that was given no identity is told its key is not a reader: %q", sg.Why)
+		}
+	}
 	facts.You = &YouFacts{State: "not-reader", Name: "gus", Key: key('g')}
 	a = buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, facts: facts, path: "/p/.pravo/access/readers.txt", dir: "/p", locked: true})
 	if strings.Contains(a.Records.Text, "no key was given") || !strings.Contains(a.Records.Text, "this key cannot open") {

@@ -80,7 +80,7 @@
   {
    "id": "identity",
    "title": "Read the state with your own key",
-   "why": "This key is not a reader. Print your line and send it to a reader, who adds it as described under Add a reader.",
+   "why": "No identity was given, so there is no key to open the state with. Make one, send its line to a reader, who adds it as described under Add a reader.",
    "who": "you",
    "primary": true,
    "steps": [
