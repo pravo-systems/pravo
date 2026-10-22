@@ -343,7 +343,7 @@
 .srow.head > :nth-child(3) { display: none; }
 .srow .sn code { font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
 .srow .st code { color: var(--text-3); overflow-wrap: anywhere; font-size: .7rem; }
-.srow .sk { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .3rem; }
+.srow .sflags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .3rem; }
 .srow .sd { grid-column: 1 / -1; color: var(--text-2); font-size: .74rem; line-height: 1.5; text-wrap: pretty; }
 .srow.deprecated .sn code { text-decoration: line-through; color: var(--text-3); }
 .kd { display: inline-flex; align-items: center; gap: .25rem; font: 500 .56rem/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; padding: .2rem .34rem; border: 1px solid var(--line-strong); color: var(--text-3); }

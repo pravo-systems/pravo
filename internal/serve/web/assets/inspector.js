@@ -457,7 +457,7 @@ export class Inspector {
         body.append(h('div', { class: 'srow' + (a.deprecated ? ' deprecated' : ''), role: 'row', style: `--d:${r.depth}` },
           h('div', { class: 'sn', role: 'cell' }, h('code', null, r.name)),
           h('div', { class: 'st', role: 'cell' }, h('code', null, a.type || '')),
-          h('div', { class: 'sk', role: 'cell' }, flags),
+          h('div', { class: 'sflags', role: 'cell' }, flags),
           a.description ? h('div', { class: 'sd', role: 'cell' }, a.description) : null));
       }
       count.textContent = q ? `${n} of ${rows.length}` : '';

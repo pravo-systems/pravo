@@ -493,6 +493,8 @@ function renderReach() {
 
 function setReach(on, fitIt) {
   S.reach = on;
+  // the reach is drawn in the graph: from the table, go there first
+  if (on && S.view !== 'graph') setView('graph');
   applySelection(on);
   if (on && fitIt && S.sel) {
     const ids = [S.vis.rep.get(S.sel), ...[...dist(S.model, S.sel, 'down').keys()].map((a) => S.vis.rep.get(a))].filter(Boolean);
