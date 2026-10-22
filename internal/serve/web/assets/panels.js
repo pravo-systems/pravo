@@ -24,7 +24,6 @@ export function projectPanel(ins, model) {
   const body = [];
   const plan = g.plan;
   if (plan) body.push(planSection(ins, plan, model));
-  else body.push(overview(model));
 
   body.push(sec('State',
     kv([
@@ -59,22 +58,6 @@ export function projectPanel(ins, model) {
 function pathValue(p, ins) {
   if (!p) return null;
   return h('span', { class: 'pv', 'data-tip': p }, pathEl(p), copyButton(p, { label: 'Copy the path', tip: 'Copy the path', announce: ins.cb.announce, done: 'Copied the path' }));
-}
-
-// without a plan: the size of the estate
-function overview(model) {
-  const c = model.counts;
-  const tile = (n, label, cls, filter) => h('div', { class: 'tile ' + (cls || '') + (n ? '' : ' zero') }, num(n), h('span', { class: 'tlb' }, label));
-  return h('section', { class: 'sec' },
-    h('h3', { class: 'h' }, 'The estate'),
-    h('div', { class: 'tiles' },
-      tile(c.all, plural(c.all, 'resource').replace(/^\d+ /, ''), 'big'),
-      tile(Math.max(0, model.modules.size - 1), model.modules.size - 1 === 1 ? 'module' : 'modules', ''),
-      tile(c.drifted, 'drifted', c.drifted ? 'chg' : ''),
-      tile(c.sensitive, 'secrets', c.sensitive ? 'lock' : '')),
-    model.plans.length
-      ? h('p', { class: 'hint' }, 'No plan is laid over the graph. Pick one of the stored plans in the list to see what it changes.')
-      : h('p', { class: 'hint' }, 'No plan is loaded. Start the viewer with ', h('code', null, '--plan FILE'), ' to see what a plan changes.'));
 }
 
 function planSection(ins, plan, model) {
