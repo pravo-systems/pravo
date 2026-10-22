@@ -608,7 +608,7 @@ function fleet() {
       package: 'fleet',
       version: '0.9.0-dev',
       state: { location: '/srv/infra/fleet/.pravo/state', backend: 'local', lineage: '0e1f2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b', format: 3, records: b.nodes.length - 2, locks: 1 },
-      providers: [AWS, RANDOM],
+      providers: [{ ...AWS, instances: ['aws', 'aws.us'].map((key) => ({ key, count: b.nodes.filter((n) => (n.provider || n.type.split('_')[0]) === key).length })) }, RANDOM],
       loaded_at: iso(0),
     },
     outputs: [{ name: 'cdn_domain', value: 'd2f8x1q0.cloudfront.net' }, { name: 'regions', value: ['eu-west-1', 'us-east-1', 'ap-south-1'] }],

@@ -3,6 +3,7 @@
 
 import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, baseName, fmt } from './util.js';
 import { eachNode } from './model.js';
+import { providerOf, pvClass } from './provider.js';
 import { codeWindow } from './ui.js';
 import { statusChip, facts, planActions, conflictsBox } from './plans.js';
 import { withheld, unknownEl } from './values.js';
@@ -39,8 +40,16 @@ export function projectPanel(ins, model) {
     ])));
 
   if ((p.providers || []).length) {
-    body.push(sec(`Providers · ${p.providers.length}`, h('ul', { class: 'rows' }, p.providers.map((v) =>
-      h('li', null, h('b', null, v.local), h('span', { class: 'rs' }, v.source || ''), v.version ? h('em', { class: 'ver' }, v.version) : null)))));
+    // an instance is named by its key and drawn in its colour; a provider with one instance that is named like it needs no list
+    const dot = (key) => h('span', { class: 'pvdot ' + pvClass(providerOf('', key)), 'aria-hidden': 'true' });
+    body.push(sec(`Providers · ${p.providers.length}`, h('ul', { class: 'rows provs' }, p.providers.flatMap((v) => {
+      const inst = v.instances || [];
+      const lone = inst.length === 1 && inst[0].key === v.local;
+      return [
+        h('li', null, h('b', null, lone || !inst.length ? [dot(v.local), v.local] : v.local), h('span', { class: 'rs' }, v.source || ''), v.version ? h('em', { class: 'ver' }, v.version) : null),
+        ...(lone ? [] : inst.map((i) => h('li', { class: 'inst' }, h('span', { class: 'ik' }, dot(i.key), i.key), h('span', { class: 'ic', 'data-tip': 'Resources that use this instance' }, plural(i.count, 'resource'))))),
+      ];
+    }))));
   }
   if ((p.policies || []).length) body.push(sec(`Policies · ${p.policies.length}`, h('ul', { class: 'rows' }, p.policies.map((v) => h('li', null, h('b', { class: 'mono-s' }, v))))));
   if ((g.outputs || []).length) {

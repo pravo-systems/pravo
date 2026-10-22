@@ -17,7 +17,17 @@
    {
     "local": "aws",
     "source": "registry.opentofu.org/hashicorp/aws",
-    "version": "5.61.0"
+    "version": "5.61.0",
+    "instances": [
+     {
+      "key": "aws",
+      "count": 165
+     },
+     {
+      "key": "aws.us",
+      "count": 1
+     }
+    ]
    },
    {
     "local": "random",

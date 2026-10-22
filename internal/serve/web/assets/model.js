@@ -2,6 +2,7 @@
 // given set of collapsed modules and open clusters, and the diff of two graphs. No DOM.
 
 import { G, FIT, fitScale, layout } from './layout.js';
+import { setProviders } from './provider.js';
 
 export const CLUSTER_MIN = 8;
 export const CLUSTER_CAP = 200;
@@ -31,6 +32,7 @@ export function buildModel(graph, plans) {
   const list = [];
   // when the specification does not load every node is "state only": that says nothing about any one node
   const specError = !!(g.project && g.project.spec_error);
+  setProviders(g.nodes, g.project);
   for (const raw of g.nodes || []) {
     const n = Object.assign({}, raw, { deps: [], used: [], sensitive: raw.sensitive || 0 });
     if (specError) n.presence = 'both';

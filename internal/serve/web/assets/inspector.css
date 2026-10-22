@@ -134,6 +134,10 @@
 .rows b { font-weight: 500; flex: none; }
 .rows .rs { color: var(--text-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rows .ver { margin-left: auto; font-style: normal; color: var(--text-2); padding: .1rem .35rem; border: 1px solid var(--line-strong); flex: none; }
+.rows .pvdot { margin-right: .5em; }
+.rows.provs li.inst { border-top: 0; padding: .1rem 0 .1rem 1.1rem; color: var(--text-2); justify-content: space-between; }
+.rows.provs li.inst .ic { color: var(--text-3); }
+.rows.provs li:has(+ li.inst) { padding-bottom: .3rem; }
 .rows.outs .ov { margin-left: auto; min-width: 0; text-align: right; overflow-wrap: anywhere; }
 
 /* navigable lists */

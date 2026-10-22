@@ -111,7 +111,8 @@ function readFragment() {
     // a stored plan by id, 'none' for no plan at all, '' for the plan the server laid over the graph (if any)
     plan: p.plan === 'none' || /^plan-[0-9a-f]{6,64}$/.test(p.plan || '') ? p.plan : '',
     q: p.q || '',
-    view: p.view === 'tree' ? 'tree' : 'graph',
+    // an address from before the view was renamed says tree
+    view: p.view === 'table' || p.view === 'tree' ? 'table' : 'graph',
     theme: p.theme === 'light' || p.theme === 'dark' ? p.theme : null,
     motion: p.motion !== 'off',
     collapse: listOf(p, 'collapse'),
@@ -376,7 +377,7 @@ function applyPlan() {
   renderLegend();
   renderPlans();
   renderStatus();
-  if (S.view === 'tree') renderTable();
+  if (S.view === 'table') renderTable();
   showInspector();
   if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'm:' + S.sel, false);
   gv.fit(true);
@@ -414,7 +415,7 @@ function relayout(o = {}) {
   S.vis = vis;
   S.lay = lay;
   S.layoutMs = performance.now() - t0;
-  S.shaped = sh.fit.w > 0; // false while the canvas is hidden (the tree view): the layout is made again when it shows
+  S.shaped = sh.fit.w > 0; // false while the canvas is hidden (the table view): the layout is made again when it shows
   gv.setScene(vis, lay, { animate: o.animate !== false, intro: !!o.intro, hasPlan: S.model.hasPlan, authors: S.model.authors });
   applyMatch();
   applySelection(false);
@@ -750,7 +751,7 @@ function setFilter(f) {
   S.filter = f || null;
   renderRail();
   applyMatch();
-  if (S.view === 'tree') renderTable();
+  if (S.view === 'table') renderTable();
   syncFragment();
   announce(f ? `Filter: ${f}` : 'No filter');
 }
@@ -759,23 +760,23 @@ function setQuery(q) {
   S.q = q;
   renderRail();
   applyMatch();
-  if (S.view === 'tree') renderTable();
+  if (S.view === 'table') renderTable();
   syncFragment();
 }
 
 function setView(v) {
   S.view = v;
   $('graph-pane').hidden = v !== 'graph';
-  $('tree-pane').hidden = v !== 'tree';
+  $('table-pane').hidden = v !== 'table';
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
-  $('view-tree').setAttribute('aria-pressed', v === 'tree' ? 'true' : 'false');
+  $('view-table').setAttribute('aria-pressed', v === 'table' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
   if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : 'Skip to the table';
-  if (v === 'tree') renderTable();
+  if (v === 'table') renderTable();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   syncFragment();
-  announce(v === 'tree' ? 'Tree view' : 'Graph view');
+  announce(v === 'table' ? 'Table view' : 'Graph view');
 }
 
 function renderTable() {
@@ -1022,7 +1023,7 @@ async function refresh() {
   renderHeader();
   renderLegend();
   renderPlans();
-  if (S.view === 'tree') renderTable();
+  if (S.view === 'table') renderTable();
   const flash = [...d.changed, ...d.added].map((a) => S.vis.rep.get(a)).filter(Boolean);
   gv.flash(new Set(flash));
   showInspector();
@@ -1170,7 +1171,7 @@ function onKey(ev) {
   if (k === '/') { ev.preventDefault(); palette.open(); return; }
   if (k === '?') { ev.preventDefault(); sheet.open(); return; }
   if (k === 't') { toggleTheme(); return; }
-  if (k === 'g') { setView(S.view === 'graph' ? 'tree' : 'graph'); return; }
+  if (k === 'g') { setView(S.view === 'graph' ? 'table' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
   if (k === 'f') { gv.fit(true); return; }
@@ -1220,7 +1221,7 @@ function wire() {
     onRoot: () => { if (S.sel) clearSelection(); else if (narrow()) openDrawer(); },
   });
   plansList = new Plans($('rail-plans'), { onSelect: (id) => selectPlan(id) });
-  table = new TableView($('tree-pane'), { onSelectNode: (a) => selectNode(a) });
+  table = new TableView($('table-pane'), { onSelectNode: (a) => selectNode(a) });
   insp = new Inspector($('insp'), {
     onPlan: (id) => selectPlan(id),
     onSelectNode: (a) => selectNode(a, { center: true }),
@@ -1249,7 +1250,7 @@ function wire() {
   sheet = new Sheet($('sheet'), { onOpen: () => {} });
 
   $('view-graph').addEventListener('click', () => setView('graph'));
-  $('view-tree').addEventListener('click', () => setView('tree'));
+  $('view-table').addEventListener('click', () => setView('table'));
   $('search-btn').addEventListener('click', () => palette.open());
   $('theme-btn').addEventListener('click', toggleTheme);
   $('btn-fit').addEventListener('click', () => gv.fit(true));
@@ -1268,7 +1269,7 @@ function wire() {
     if (c) copyText(c.dataset.copy).then((ok) => { c.classList.toggle('done', ok); c.classList.toggle('failed', !ok); const i = c.querySelector('.i'); if (i) i.className = 'i ' + (ok ? 'i-check' : 'i-x'); setTimeout(() => { c.classList.remove('done', 'failed'); if (i) i.className = 'i i-copy'; }, 1400); announce(ok ? 'Copied' : 'Could not copy'); });
   });
   initTips();
-  // the skip link goes to the graph, or to the table in the tree view; it must not write #canvas into the address, which is the view
+  // the skip link goes to the graph, or to the table in the table view; it must not write #canvas into the address, which is the view
   const skip = document.querySelector('.skiplink');
   if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else table.scroller.focus(); });
   // the mark at the top left goes back to the start: nothing selected, no filter, the first view (not the address "#/", which would drop the theme and the motion setting too)
@@ -1339,7 +1340,7 @@ function applyView(f) {
   showInspector();
   rail.setSelected(sel ? (S.model.nodes.has(sel) ? 'n:' + sel : 'm:' + sel) : null, false);
   table.setSelected(S.model.nodes.has(sel) ? sel : null);
-  if (S.view === 'tree') renderTable();
+  if (S.view === 'table') renderTable();
   // the camera follows the link: a resource is brought into view at a scale that can be read, a link that
   // changes which modules are open shows the whole picture, and zoom= is a scale
   if (S.view === 'graph') {

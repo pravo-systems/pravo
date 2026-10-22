@@ -13,7 +13,7 @@
   --th0: 232; --th1: 192; --th2: 272; --th3: 312; --th4: 212; /* the tints of the top-level modules */
   --pvh0: 196; --pvh1: 212; --pvh2: 236; --pvh3: 262; --pvh4: 292; --pvh5: 322; /* the tints of providers */
   --tn-s: 62%; --tn-l: 46%; --tn-a: .09; --tn-text: 32%; /* lane: saturation, lightness, wash, title */
-  --pv-s: 58%; --pv-l: 38%; --pv-a: .13;
+  --pv-s: 58%; --pv-l: 38%; --pv-lx: 26%; --pv-a: .13; /* saturation, lightness, the lightness of the second look, wash */
   --g-card: var(--surface); --g-edge: rgba(20, 22, 27, .24); --g-edge-hi: rgba(20, 22, 27, .5);
   --g-dot: rgba(20, 22, 27, .16); --g-lane-ink: .8;
   --g-card-hi: color-mix(in srgb, var(--g-card) 55%, #fff); --g-card-lo: var(--g-card);
@@ -23,7 +23,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --tn-s: 70%; --tn-l: 66%; --tn-a: .075; --tn-text: 76%;
-    --pv-s: 70%; --pv-l: 74%; --pv-a: .16;
+    --pv-s: 70%; --pv-l: 74%; --pv-lx: 58%; --pv-a: .16;
     --g-card: var(--surface-2); --g-edge: rgba(255, 255, 255, .17); --g-edge-hi: rgba(255, 255, 255, .42);
     --g-dot: rgba(255, 255, 255, .13);
     --g-card-hi: color-mix(in srgb, var(--g-card) 93%, #fff); --g-card-lo: color-mix(in srgb, var(--g-card) 90%, #000);
@@ -33,7 +33,7 @@
 }
 :root[data-theme="dark"] {
   --tn-s: 70%; --tn-l: 66%; --tn-a: .075; --tn-text: 76%;
-  --pv-s: 70%; --pv-l: 74%; --pv-a: .16;
+  --pv-s: 70%; --pv-l: 74%; --pv-lx: 58%; --pv-a: .16;
   --g-card: var(--surface-2); --g-edge: rgba(255, 255, 255, .17); --g-edge-hi: rgba(255, 255, 255, .42);
   --g-dot: rgba(255, 255, 255, .13);
   --g-card-hi: color-mix(in srgb, var(--g-card) 93%, #fff); --g-card-lo: color-mix(in srgb, var(--g-card) 90%, #000);
@@ -121,8 +121,12 @@
 .gl .gs { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* the status bar at the left edge, and the tile with the monogram of the provider */
-.node { --pvh: var(--pvh0); }
-.node.pv1 { --pvh: var(--pvh1); } .node.pv2 { --pvh: var(--pvh2); } .node.pv3 { --pvh: var(--pvh3); } .node.pv4 { --pvh: var(--pvh4); } .node.pv5 { --pvh: var(--pvh5); }
+.node, .pvdot { --pvb: var(--pvh0); }
+:is(.node, .pvdot).pv1 { --pvb: var(--pvh1); } :is(.node, .pvdot).pv2 { --pvb: var(--pvh2); } :is(.node, .pvdot).pv3 { --pvb: var(--pvh3); } :is(.node, .pvdot).pv4 { --pvb: var(--pvh4); } :is(.node, .pvdot).pv5 { --pvb: var(--pvh5); }
+.node, .pvdot { --pvh: var(--pvb); }
+/* a second look for a provider instance: the hue moves on and the lightness steps away from the base, deeper on both themes */
+:is(.node, .pvdot).pvx { --pvh: calc(var(--pvb) + 16); --pv-l: var(--pv-lx); }
+.pvdot { display: inline-block; width: .6em; height: .6em; border-radius: 50%; margin-right: .5em; vertical-align: baseline; background: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .85); }
 .node .bar, .mod-item .bar, .cluster-item .bar { fill: hsl(var(--pvh, var(--th)) var(--pv-s) var(--pv-l) / .75); }
 .node .tb { fill: hsl(var(--pvh) var(--pv-s) var(--pv-l) / var(--pv-a)); stroke: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .28); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .node .tm { font: 600 10px var(--font-mono); text-anchor: middle; fill: hsl(var(--pvh) var(--pv-s) var(--pv-l)); letter-spacing: .02em; opacity: var(--sub); }

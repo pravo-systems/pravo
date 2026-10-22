@@ -11,6 +11,7 @@ import { s, h, clamp, ease, schedule, actionOf } from './util.js';
 import { G, FIT, fitScale, pathOf, midOf, lengthOf } from './layout.js';
 import { eachNode, cellsOf } from './model.js';
 import { initials, hueOf } from './plans.js';
+import { providerOf, pvClass } from './provider.js';
 
 // glyphs on a 16 by 16 grid
 const GLYPH = {
@@ -32,23 +33,9 @@ function glyph(name, x, y, size, cls) {
   return g;
 }
 
-// the number of providers' tints; a type prefix ("aws" of aws_s3_bucket) picks one
-const PROVIDER_TINTS = 6;
-const PROVIDERS = {};
-function providerOf(type) {
-  const k = (type || '').split('_')[0] || '?';
-  let p = PROVIDERS[k];
-  if (!p) {
-    let hash = 0;
-    for (let i = 0; i < k.length; i++) hash = (hash * 31 + k.charCodeAt(i)) >>> 0;
-    p = PROVIDERS[k] = { tint: hash % PROVIDER_TINTS, mono: (k.length <= 3 ? k : k.slice(0, 2)).toUpperCase() };
-  }
-  return p;
-}
-
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
-  if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, ctx.hasPlan, x.tint, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
+  if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.tint, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   return [x.kind, a.n, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.tint, x.h, x.kind === 'module' ? x.mod.kids.length : ''].join('|');
@@ -495,8 +482,8 @@ export class GraphView {
     if (n.presence === 'state') marks.push('orphan');
     const act = actionOf(n.action);
     const badge = !!(act && act.glyph);
-    const pv = providerOf(n.type);
-    const g = s('g', { class: nodeClasses(n, this.ctx) + ' pv' + pv.tint, role: 'button', 'aria-label': describeNode(n, this.ctx) });
+    const pv = providerOf(n.type, n.provider);
+    const g = s('g', { class: nodeClasses(n, this.ctx) + ' ' + pvClass(pv), role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
     inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
     if (n.drifted || n.gone || (this.ctx.hasPlan && n.action && n.action !== 'no-op')) inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 9 }));

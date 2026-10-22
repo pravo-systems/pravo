@@ -215,10 +215,10 @@ export class Inspector {
     const cells = [];
     const a = actionOf(n.action);
     if (model.hasPlan) {
-      if (a && n.action !== 'no-op') cells.push(cell('Action', [h('i', { class: 'sq ' + a.cls }), a.label], 'act-' + n.action, 'What the loaded plan does to this resource'));
-      else if (n.action === 'no-op') cells.push(cell('Action', 'no change', '', 'The plan ran this resource and found nothing to change'));
-      else cells.push(cell('Action', 'not read', 'dimv', 'The loaded plan did not run this resource'));
-    } else cells.push(cell('Action', 'no plan', 'dimv', 'No plan is loaded'));
+      if (a && n.action !== 'no-op') cells.push(cell('Plan', [h('i', { class: 'sq ' + a.cls }), a.label], 'act-' + n.action, 'What the loaded plan does to this resource'));
+      else if (n.action === 'no-op') cells.push(cell('Plan', 'no change', '', 'The plan ran this resource and found nothing to change'));
+      else cells.push(cell('Plan', 'not read', 'dimv', 'The loaded plan did not run this resource'));
+    }
     let sync, scls, stip;
     if (n.gone) { sync = [icon('gone'), 'gone']; scls = 'bad'; stip = 'A read found that the real object is absent'; } else if (n.drifted) { sync = [icon('drift'), 'drifted']; scls = 'chg'; stip = 'A read found that the real object differs from the record'; } else if (n.presence === 'spec') { sync = 'declared only'; scls = 'dimv'; stip = 'Declared in the specification, not created yet'; } else if (n.presence === 'state') { sync = 'orphan'; scls = 'bad'; stip = 'Recorded in the state, no longer declared: the next apply would destroy it'; } else { sync = [icon('check'), 'in sync']; scls = 'ok'; stip = 'Declared and recorded, with no drift found'; }
     cells.push(cell('Record', sync, scls, stip));

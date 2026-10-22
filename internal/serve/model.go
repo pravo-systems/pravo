@@ -620,7 +620,27 @@ func (m *model) project() Project {
 		}
 		seen[local] = ProviderInfo{Local: local, Source: src, Version: mn.rec.ProviderVersion}
 	}
+	// the instances: those that the specification configures and those that a record names
+	counts := map[string]int{}
+	if m.spec.root != nil {
+		for _, d := range m.spec.root.ProviderDecls {
+			counts[d.Key] = 0
+		}
+	}
+	for _, addr := range m.order {
+		if key := m.nodes[addr].Provider; key != "" {
+			counts[key]++
+		}
+	}
+	for key, n := range counts {
+		local := config.LocalName(key)
+		if pi, ok := seen[local]; ok {
+			pi.Instances = append(pi.Instances, ProviderInstance{Key: key, Count: n})
+			seen[local] = pi
+		}
+	}
 	for _, pi := range seen {
+		sort.Slice(pi.Instances, func(i, j int) bool { return pi.Instances[i].Key < pi.Instances[j].Key })
 		p.Providers = append(p.Providers, pi)
 	}
 	sort.Slice(p.Providers, func(i, j int) bool { return p.Providers[i].Local < p.Providers[j].Local })

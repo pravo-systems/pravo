@@ -61,6 +61,15 @@ type ProviderInfo struct {
 	Local   string `json:"local"`
 	Source  string `json:"source,omitempty"`
 	Version string `json:"version,omitempty"`
+	// Instances are the configured instances of the provider, sorted by key: "aws", or "aws.$west" and "aws.$east"
+	// when a root configures the provider twice. Count is the number of nodes that use an instance.
+	Instances []ProviderInstance `json:"instances,omitempty"`
+}
+
+// ProviderInstance is one configured instance of a provider.
+type ProviderInstance struct {
+	Key   string `json:"key"`
+	Count int    `json:"count"`
 }
 
 // Node is one resource, data source, ephemeral resource or function call.

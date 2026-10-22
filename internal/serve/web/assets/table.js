@@ -1,17 +1,18 @@
-// The tree view: a dense, searchable, sortable table of every node, with the same filters as the rail.
+// The table view: a dense, searchable, sortable table of every node, with the same filters as the rail.
 // Only the rows in view are in the document, so an estate of thousands of resources scrolls freely.
 
 import { h, clear, relTime, stamp, actionOf, store } from './util.js';
 import { FILTERS, natural } from './model.js';
+import { providerOf, pvClass } from './provider.js';
 
 const ROW = 30;
 const COLS = [
   { key: 'addr', label: 'Address', cls: 'c-addr' },
   { key: 'type', label: 'Type', cls: 'c-type' },
+  { key: 'provider', label: 'Provider', cls: 'c-prov' },
   { key: 'mode', label: 'Mode', cls: 'c-mode' },
-  { key: 'module', label: 'Module', cls: 'c-mod' },
   { key: 'status', label: 'Status', cls: 'c-status' },
-  { key: 'action', label: 'Action', cls: 'c-action' },
+  { key: 'action', label: 'Plan', cls: 'c-action' },
   { key: 'revision', label: 'Rev', cls: 'c-rev num' },
   { key: 'refreshed', label: 'Refreshed', cls: 'c-ref' },
 ];
@@ -21,8 +22,8 @@ const statusRank = (n) => (n.gone ? 0 : n.drifted ? 1 : n.presence === 'state' ?
 const SORTERS = {
   addr: (a, b) => natural(a.addr, b.addr),
   type: (a, b) => natural(a.type, b.type) || natural(a.addr, b.addr),
+  provider: (a, b) => natural(a.provider || '', b.provider || '') || natural(a.addr, b.addr),
   mode: (a, b) => natural(a.mode, b.mode) || natural(a.addr, b.addr),
-  module: (a, b) => natural(a.module, b.module) || natural(a.addr, b.addr),
   status: (a, b) => statusRank(a) - statusRank(b) || natural(a.addr, b.addr),
   action: (a, b) => (ACTION_ORDER[a.action || ''] ?? 9) - (ACTION_ORDER[b.action || ''] ?? 9) || natural(a.addr, b.addr),
   revision: (a, b) => (a.revision || 0) - (b.revision || 0) || natural(a.addr, b.addr),
@@ -71,6 +72,8 @@ export class TableView {
   render(s) {
     this.s = s;
     this.sel = s.sel;
+    // the Plan column says what the loaded plan does: with no plan it would be empty, so it is left out
+    this.grid.classList.toggle('no-plan', !s.model.hasPlan);
     this.compute();
     this.paint(true);
     return this.rows.length;
@@ -124,8 +127,8 @@ export class TableView {
     return h('div', { class: 'tv-row' + (on ? ' sel' : ''), role: 'row', 'aria-rowindex': String(i + 2), 'aria-selected': on ? 'true' : 'false', data: { addr: n.addr } },
       h('div', { class: 'c-addr', role: 'gridcell', title: n.addr }, n.addr.length > n.name.length && n.addr.endsWith(n.name) ? [h('span', { class: 'pre' }, n.addr.slice(0, n.addr.length - n.name.length)), h('b', null, n.name)] : n.addr),
       h('div', { class: 'c-type', role: 'gridcell', title: n.type }, n.type),
+      h('div', { class: 'c-prov', role: 'gridcell', title: n.provider ? 'The provider instance: ' + n.provider : '' }, n.provider ? [h('span', { class: 'pvdot ' + pvClass(providerOf(n.type, n.provider)), 'aria-hidden': 'true' }), n.provider] : h('span', { class: 'dim' }, '—')),
       h('div', { class: 'c-mode', role: 'gridcell' }, n.mode),
-      h('div', { class: 'c-mod', role: 'gridcell', title: n.module }, n.module || h('span', { class: 'dim' }, '—')),
       h('div', { class: 'c-status', role: 'gridcell' }, stat),
       h('div', { class: 'c-action', role: 'gridcell' }, act),
       h('div', { class: 'c-rev num', role: 'gridcell' }, n.revision ? String(n.revision) : '—'),

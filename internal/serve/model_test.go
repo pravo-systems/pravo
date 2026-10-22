@@ -43,6 +43,8 @@ func TestGraph(t *testing.T) {
 	}
 	if len(g.Project.Providers) != 1 || g.Project.Providers[0].Local != "fake" || g.Project.Providers[0].Version != "1.0.0" {
 		t.Errorf("providers %+v", g.Project.Providers)
+	} else if in := g.Project.Providers[0].Instances; len(in) != 1 || in[0].Key != "fake" || in[0].Count == 0 {
+		t.Errorf("instances %+v, want one, fake, used", in)
 	}
 
 	// Presence: both, spec and state.

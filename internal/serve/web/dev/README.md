@@ -33,7 +33,7 @@ In a mock session `window.__mock` has `mutate()` (changes three nodes and sends 
 
 ## The fragment
 
-The view is in the fragment: `#/?sel=ADDR&tab=state|source|schema|history|change&collapse=A,B&expand=C,D&theme=light|dark&q=TEXT&filter=plan|drifted|sensitive|orphans|declared&plan=plan-2f9c1a4e&view=graph|tree&motion=off&zoom=fit`. Values are URL-encoded; lists are comma separated, each item encoded. Besides those:
+The view is in the fragment: `#/?sel=ADDR&tab=state|source|schema|history|change&collapse=A,B&expand=C,D&theme=light|dark&q=TEXT&filter=plan|drifted|sensitive|orphans|declared&plan=plan-2f9c1a4e&view=graph|table&motion=off&zoom=fit`. Values are URL-encoded; lists are comma separated, each item encoded. Besides those:
 
 | Parameter | Meaning |
 |---|---|

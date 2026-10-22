@@ -56,7 +56,7 @@ var (
 	fragmentTabs    = []string{"state", "source", "schema", "history", "change"}
 	fragmentThemes  = []string{"light", "dark"}
 	fragmentFilters = []string{"plan", "drifted", "sensitive", "orphans", "declared"}
-	fragmentViews   = []string{"graph", "tree"}
+	fragmentViews   = []string{"graph", "table"}
 )
 
 // String is the fragment without the leading #, in the order of the deep-link
@@ -274,7 +274,7 @@ func allShots() []Shot {
 		shot("drift-dark", "platform", situationChanged, Fragment{Sel: dnsRecords, Tab: "state", Filter: "drifted"}),
 		shot("sensitive-dark", "platform", situationClean, Fragment{Sel: dbDSN, Tab: "state", Collapse: []string{"network", "edge"}}),
 		shot("palette-dark", "platform", situationClean, Fragment{Palette: true, PQ: "billing"}),
-		shot("tree-dark", "platform", situationChanged, Fragment{Sel: billingConfig, Tab: "state", View: "tree"}),
+		shot("table-dark", "platform", situationChanged, Fragment{Sel: billingConfig, Tab: "state", View: "table"}),
 		shot("narrow-dark", "platform", situationClean, Fragment{Sel: billingConfig, Tab: "state", Collapse: []string{"network", "edge"}}).size(900, 1100),
 	)
 	return s
