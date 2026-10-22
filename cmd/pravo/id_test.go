@@ -243,7 +243,15 @@ func TestIDNewForAJob(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
-	reader := publicLine(t, strings.Replace(text, "  public   ", "  ", 1))
+	// The line of the public key is not always the last: Windows prints a note about
+	// who can read the file after it.
+	var public string
+	for _, l := range strings.Split(text, "\n") {
+		if strings.HasPrefix(l, "  public   ") {
+			public = l
+		}
+	}
+	reader := publicLine(t, strings.Replace(public, "  public   ", "  ", 1))
 	for _, want := range []string{
 		"Identity deploy-bot created for a job. It has no passphrase: protect the file.\n",
 		"  private  " + out + "   (store it as the CI secret PRAVO_IDENTITY, then delete this file)\n",

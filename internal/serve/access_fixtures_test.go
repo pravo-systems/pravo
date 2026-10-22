@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -100,7 +101,8 @@ func TestAccessFixtures(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v (PRAVO_UPDATE_FIXTURES=1 writes it)", path, err)
 		}
-		if string(have) != string(doc) {
+		// A checkout on Windows may turn the line ends of the file into CR LF.
+		if strings.ReplaceAll(string(have), "\r\n", "\n") != string(doc) {
 			t.Errorf("%s is not what the server sends; PRAVO_UPDATE_FIXTURES=1 go test ./internal/serve -run AccessFixtures writes it again", path)
 		}
 	}
