@@ -90,6 +90,11 @@ func AnalyseWith(v cue.Value, resolve Resolver, self *cue.Path) RefInfo {
 		}
 	}
 	scanned := map[ast.Node]bool{}
+	// letSeen holds the lets whose expression has been read: a let that names a
+	// task, or a value built from tasks, is a dependency on them wherever it is
+	// used, and one that is used twice is read once.
+	letSeen := map[*ast.LetClause]bool{}
+	var scanLet func(lc *ast.LetClause)
 	// walk visits v. A value that is a reference has operands, the container
 	// and the key of ports[z], that CUE used to reach what it refers to; they
 	// are the way to the value, and the value alone is read. nav is set for
@@ -112,8 +117,29 @@ func AnalyseWith(v cue.Value, resolve Resolver, self *cue.Path) RefInfo {
 		}
 		return true
 	}
+	scanLet = func(lc *ast.LetClause) {
+		if letSeen[lc] || lc.Expr == nil {
+			return
+		}
+		letSeen[lc] = true
+		var anc []cue.Selector
+		if self != nil {
+			anc = self.Selectors()
+		}
+		sc := &refScan{resolve: resolve, anc: anc, add: addTask, follow: func(p cue.Path) bool { return follow(p, 0) }, local: map[string]bool{}, let: scanLet}
+		ast.Walk(lc.Expr, sc.visit, nil)
+	}
 	walk = func(v cue.Value, depth int, nav bool) {
 		if depth > 64 {
+			return
+		}
+		// A name bound by a let is not a path in the specification: the value
+		// behind it is what the let was set to, and reaching it through the
+		// expression tree reads that value's own body, which would make the task
+		// depend on what its dependency depends on. The expression of the let
+		// is read instead.
+		if lc := letReference(v.Source()); lc != nil {
+			scanLet(lc)
 			return
 		}
 		root, p := v.ReferencePath()
@@ -164,7 +190,7 @@ func AnalyseWith(v cue.Value, resolve Resolver, self *cue.Path) RefInfo {
 		if op == cue.NoOp {
 			// The expression tree stops at a comprehension: what its clauses
 			// and its body refer to is found in the syntax.
-			scanComprehensions(v.Source(), resolve, self, scanned, addTask, func(p cue.Path) bool { return follow(p, depth) })
+			scanComprehensions(v.Source(), resolve, self, scanned, addTask, func(p cue.Path) bool { return follow(p, depth) }, scanLet)
 			switch {
 			case v.IncompleteKind() == cue.ListKind:
 				if it, err := v.List(); err == nil {
@@ -283,10 +309,11 @@ func isPrefixPath(p, self cue.Path) bool {
 // comprehension is not part of the expression tree that cue.Value.Expr
 // returns, so a value such as [for k, v in net.outputs.subnets {v}] shows no
 // reference to net in it.
-func scanComprehensions(src ast.Node, resolve Resolver, self *cue.Path, scanned map[ast.Node]bool, add func(task, alias cue.Path), follow func(p cue.Path) bool) {
-	if src == nil || resolve == nil {
+func scanComprehensions(src ast.Node, resolve Resolver, self *cue.Path, scanned map[ast.Node]bool, add func(task, alias cue.Path), follow func(p cue.Path) bool, let func(*ast.LetClause)) {
+	if src == nil || resolve == nil || scanned[src] {
 		return
 	}
+	scanned[src] = true
 	var anc []cue.Selector
 	if self != nil {
 		anc = self.Selectors()
@@ -294,11 +321,17 @@ func scanComprehensions(src ast.Node, resolve Resolver, self *cue.Path, scanned 
 	ast.Walk(src, func(n ast.Node) bool {
 		c, ok := n.(*ast.Comprehension)
 		if !ok {
+			// A name that a let binds, outside any comprehension: what the let
+			// was set to is what the name refers to.
+			if lc := letReference(n); lc != nil {
+				let(lc)
+				return false
+			}
 			return true
 		}
 		if !scanned[c] {
 			scanned[c] = true
-			s := &refScan{resolve: resolve, anc: anc, add: add, follow: follow, local: map[string]bool{}}
+			s := &refScan{resolve: resolve, anc: anc, add: add, follow: follow, local: map[string]bool{}, let: let}
 			ast.Walk(c, s.visit, nil)
 		}
 		return false
@@ -317,6 +350,9 @@ type refScan struct {
 	// local holds the names the comprehension declares: loop variables, let
 	// names and the fields of structs inside it.
 	local map[string]bool
+	// let reads the expression of a let that was declared outside the syntax
+	// being scanned, when the syntax uses its name.
+	let func(*ast.LetClause)
 }
 
 func (s *refScan) visit(n ast.Node) bool {
@@ -381,8 +417,14 @@ func (s *refScan) reference(head *ast.Ident, sels []cue.Selector) {
 		return
 	}
 	first, last := max(len(s.anc)-1, 0), 0
+	if lc := letOf(head); lc != nil {
+		if s.let != nil {
+			s.let(lc)
+		}
+		return
+	}
 	switch head.Scope.(type) {
-	case *ast.ImportSpec, *ast.ForClause, *ast.LetClause:
+	case *ast.ImportSpec, *ast.ForClause:
 		return
 	case *ast.File:
 		first = 0
@@ -491,4 +533,50 @@ func refChain(e ast.Expr) (head *ast.Ident, sels []cue.Selector, dyn []ast.Expr)
 		return nil, nil, nil
 	}
 	return head, sels, dyn
+}
+
+// letOf returns the let that binds a name, or nil when the name is not bound by
+// one. The parser records the binding of every name it has resolved.
+func letOf(id *ast.Ident) *ast.LetClause {
+	if id == nil {
+		return nil
+	}
+	if lc, ok := id.Node.(*ast.LetClause); ok {
+		return lc
+	}
+	if lc, ok := id.Scope.(*ast.LetClause); ok {
+		return lc
+	}
+	return nil
+}
+
+// letReference returns the let that an expression names at its head: _x, _x.id
+// or _x["id"] where _x is bound by a let. It is nil for any other node. It is
+// called for every node of the syntax that is scanned, so it allocates nothing.
+func letReference(n ast.Node) *ast.LetClause {
+	var e ast.Expr
+	switch x := n.(type) {
+	case *ast.Ident:
+		return letOf(x)
+	case *ast.SelectorExpr:
+		e = x.X
+	case *ast.IndexExpr:
+		e = x.X
+	default:
+		return nil
+	}
+	for {
+		switch y := e.(type) {
+		case *ast.Ident:
+			return letOf(y)
+		case *ast.SelectorExpr:
+			e = y.X
+		case *ast.IndexExpr:
+			e = y.X
+		case *ast.ParenExpr:
+			e = y.X
+		default:
+			return nil
+		}
+	}
 }
