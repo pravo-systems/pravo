@@ -2,8 +2,10 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -386,5 +388,91 @@ func TestS3OutputsLockThatIsRefusedAndNotThereIsReported(t *testing.T) {
 	}
 	if requests.Load() > 200 {
 		t.Errorf("%d requests for a wait of %s: the loop does not pause", requests.Load(), outputsLockWait)
+	}
+}
+
+// Four commands increment a counter under a lock while the store loses the answer
+// to a tenth of the conditional writes (after it has applied them), answers 503
+// to some requests and 409 to some writes. Every increment that was reported as
+// made is in the counter, and the counter holds nothing else: the client neither
+// reports a write that did not happen nor denies one that did.
+func TestS3CounterUnderLostAnswersAndConflicts(t *testing.T) {
+	quickRetries(t)
+	f, b := newFakeS3(t)
+	rng := rand.New(rand.NewSource(7))
+	f.Lost = func(r *http.Request) (int, string) {
+		if fakes3.Conditional(r) && rng.Intn(100) < 10 {
+			return http.StatusInternalServerError, "InternalError"
+		}
+		return 0, ""
+	}
+	f.Fault = func(r *http.Request) (int, string) {
+		switch n := rng.Intn(100); {
+		case n < 3:
+			return http.StatusServiceUnavailable, "SlowDown"
+		case n < 5 && fakes3.Conditional(r):
+			return http.StatusConflict, "ConditionalRequestConflict"
+		}
+		return 0, ""
+	}
+	ctx := context.Background()
+	// Format 2, where the node is a pointer that a conditional write replaces.
+	if _, err := OpenBackendWith(ctx, b, Options{NewFormat: FormatImmutable}); err != nil {
+		t.Fatal(err)
+	}
+	const workers, each = 4, 15
+	var reported atomic.Int64
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < each; i++ {
+				for try := 0; try < 100; try++ {
+					lock, err := OpenBackend(ctx, b)
+					if err != nil || lock.Lock("t.c", "increment", "tx") != nil {
+						time.Sleep(time.Millisecond)
+						continue
+					}
+					// What the lock guards is read after the lock is taken.
+					s, err := OpenBackend(ctx, b)
+					if err != nil {
+						_ = lock.Unlock("t.c")
+						continue
+					}
+					r, n := s.Get("t.c"), 0
+					if r == nil {
+						r = &Resource{Mode: "managed", Type: "t", Name: "c"}
+					} else {
+						var a struct{ N int }
+						_ = json.Unmarshal(r.Attributes, &a)
+						n = a.N
+					}
+					r.Attributes = json.RawMessage(fmt.Sprintf(`{"n":%d}`, n+1))
+					err = s.Set(r, "tx")
+					_ = lock.Unlock("t.c")
+					if err == nil {
+						reported.Add(1)
+						break
+					}
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	f.Lost, f.Fault = nil, nil
+	s, err := OpenBackend(ctx, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var a struct{ N int }
+	if r := s.Get("t.c"); r != nil {
+		_ = json.Unmarshal(r.Attributes, &a)
+	}
+	if int64(a.N) != reported.Load() {
+		t.Errorf("the counter is %d and %d increments were reported as made", a.N, reported.Load())
+	}
+	if reported.Load() < workers*each/2 {
+		t.Errorf("only %d of %d increments were made", reported.Load(), workers*each)
 	}
 }
