@@ -923,11 +923,17 @@ func TestAccessSuggestsPruningOldGroups(t *testing.T) {
 	if got, want := stepTexts(s, "command"), []string{"pravo protect rewrap --all", "pravo protect gc --dry-run", "pravo protect gc"}; !equalStrings(got, want) {
 		t.Errorf("commands %q, want %q", got, want)
 	}
+	if suggestion(a, "reseal") == nil {
+		t.Error("reseal is not suggested although records are under an old group")
+	}
 	// Everything is under the current group already: there is nothing to seal again.
 	facts.Store.Groups = []GroupFacts{{ID: "g1", Locks: 3}, {ID: "g2", Current: true, Locks: 2, Records: 5}}
 	p = accessProject(t, &fakeProtection{facts: facts})
 	if got, want := stepTexts(suggestion(p.access(), "prune"), "command"), []string{"pravo protect gc --dry-run", "pravo protect gc"}; !equalStrings(got, want) {
 		t.Errorf("commands %q, want %q", got, want)
+	}
+	if suggestion(p.access(), "reseal") != nil {
+		t.Error("reseal is suggested when no record is under an old group")
 	}
 	// One group, and a state that is not sealed: no suggestion.
 	if suggestion(accessProject(t, &fakeProtection{facts: sealedFacts()}).access(), "prune") != nil {

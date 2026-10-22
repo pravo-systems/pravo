@@ -719,7 +719,11 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 		}
 		// Records out of reach of a reader are under a group that an old reader list made; with no key every
 		// record is out of reach, which says nothing about the groups.
-		if len(a.Groups) > 1 || (a.Records.Unreadable > 0 && a.You != nil && a.You.State == "reader") {
+		underOld := false
+		for _, g := range a.Groups {
+			underOld = underOld || (!g.Current && g.Records > 0)
+		}
+		if underOld || (a.Records.Unreadable > 0 && a.You != nil && a.You.State == "reader") {
 			add(Suggestion{ID: "reseal", Title: "Seal every record again",
 				Why: "Records stay under an old group until they are written again.", Who: "a current reader",
 				Steps: []SuggestionStep{protectCmd("rewrap --all")}})
