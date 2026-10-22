@@ -393,7 +393,10 @@ func fileVerdict(stateName string, f FileFacts, path, dir string, added, removed
 		af.Verdict = "none"
 		switch f.State {
 		case "ok":
-			af.Text = fmt.Sprintf("The readers file lists %d %s. It is compared with the store once the state is sealed.", af.Count, plural(af.Count, "reader", "readers"))
+			// The repository says who may read, so a state that is not sealed was sealed
+			// once, or was meant to be: its meta.json may have been changed.
+			af.Verdict = "expected-sealed"
+			af.Text = "The repository lists readers in " + shortPath(dir, af.Path) + ", but the state is not sealed. Its meta.json may have been changed."
 		case "invalid":
 			af.Text = "The readers file does not load" + firstError(af.Errors) + "."
 		default:
@@ -619,6 +622,8 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 		primary = "rewrap"
 	case protected && notReader:
 		primary = "identity"
+	case a.File.Verdict == "expected-sealed":
+		primary = "check-downgrade"
 	case !protected:
 		primary = "seal"
 	}
@@ -630,6 +635,14 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	if a.State == "migrating" {
 		add(Suggestion{ID: "finish", Title: "Finish sealing the state", Why: "Sealing started and stopped before it finished. Running it again finishes the records that are left.",
 			Who: "a reader", Steps: []SuggestionStep{protectCmd(initCmd)}})
+	}
+	if a.File.Verdict == "expected-sealed" {
+		add(Suggestion{ID: "check-downgrade", Title: "Check why the state is not sealed",
+			Why: "The readers file lists readers, so the state was expected to be sealed, and its meta.json says it is not. Someone who can write to the store may have changed it.",
+			Who: "a reader",
+			Steps: []SuggestionStep{protectCmd("status"),
+				note("If you did not mean to seal this state, remove the readers file. To seal it: pravo protect " + initCmd),
+				protectCmd(initCmd)}})
 	}
 	if !protected {
 		s := Suggestion{ID: "seal", Title: "Seal the state",

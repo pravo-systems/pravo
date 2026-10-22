@@ -9,14 +9,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 
 	"github.com/mattn/go-isatty"
-	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // errNoIdentity is returned, wrapped, when no identity file can be found. A
@@ -34,15 +35,40 @@ type identityOptions struct {
 	// terminal. A caller with no terminal of its own (pravo mcp) leaves it off,
 	// and the passphrase then comes from the environment only.
 	Prompt bool
+	// Readers are the reader keys that have a lock in the current group of the
+	// state being opened, when it is known. Several identity files and none named
+	// like the user: the one whose reader key is among them is the identity.
+	Readers []protect.ReaderPublic
 }
 
-// flagIdentity is the --identity flag of the commands that open a sealed state:
-// the name of a file in the identity directory.
+// currentReaders lists the reader keys with a lock in the current group of a
+// sealed state, which is public: meta.json holds it. It is nil for a state that
+// is not sealed.
+func currentReaders(p state.Protection) []protect.ReaderPublic {
+	if p.Sealed == nil {
+		return nil
+	}
+	var keys []protect.ReaderPublic
+	for _, g := range p.Sealed.Groups {
+		if g.ID != p.Sealed.Current {
+			continue
+		}
+		for _, l := range g.Locks {
+			if !l.Key.IsZero() {
+				keys = append(keys, l.Key)
+			}
+		}
+	}
+	return keys
+}
+
+// flagIdentity is the global --identity flag: the name of a file in the
+// identity directory, for every command that opens a sealed state. It takes
+// precedence over $PRAVO_IDENTITY.
 var flagIdentity string
 
-func addIdentityFlag(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&flagIdentity, "identity", "", "name of the identity to read the state with; $PRAVO_IDENTITY, $PRAVO_IDENTITY_DIR")
-}
+// identityUsage is the help text of --identity.
+const identityUsage = "name of the identity to read a sealed state with; overrides $PRAVO_IDENTITY"
 
 // Seams for tests.
 var (
@@ -74,7 +100,7 @@ var taken struct {
 //     with '{', otherwise the path of one;
 //  3. the files of $PRAVO_IDENTITY_DIR, or of the id directory below the
 //     configuration directory (protect.ConfigDir). When there are several, the
-//     one named like $USER.
+//     one named like $USER, else the only one whose reader key is in o.Readers.
 //
 // No identity file at all is errNoIdentity. A sealed identity is opened with a
 // passphrase from the terminal (no echo) if o.Prompt is set and stdin is a
@@ -84,7 +110,7 @@ var taken struct {
 func resolveIdentity(o identityOptions) (*protect.Identity, error) {
 	taken.mu.Lock()
 	defer taken.mu.Unlock()
-	src, err := findIdentity(o.Name)
+	src, err := findIdentity(o)
 	if err != nil {
 		return nil, err
 	}
@@ -153,8 +179,8 @@ type identitySource struct {
 }
 
 // findIdentity must be called with taken.mu held.
-func findIdentity(name string) (identitySource, error) {
-	if name != "" {
+func findIdentity(o identityOptions) (identitySource, error) {
+	if name := o.Name; name != "" {
 		dir, err := identityDir()
 		if err != nil {
 			return identitySource{}, err
@@ -196,8 +222,37 @@ func findIdentity(name string) (identitySource, error) {
 			return fileSource(filepath.Join(dir, n)), nil
 		}
 	}
-	return identitySource{}, fmt.Errorf("%w: %s holds several identities (%s) and none is named like you; choose one with --identity NAME (--name NAME for pravo id show), or set PRAVO_IDENTITY to the path of one",
-		errNoIdentity, tilde(dir), strings.Join(names, " "))
+	// The public part of an identity file is readable without its passphrase, and
+	// meta.json says which reader keys the state is locked to.
+	var readers []string
+	for _, n := range names {
+		if key, ok := publicReaderKey(filepath.Join(dir, n)); ok && slices.ContainsFunc(o.Readers, key.Equal) {
+			readers = append(readers, n)
+		}
+	}
+	if len(readers) == 1 {
+		return fileSource(filepath.Join(dir, readers[0])), nil
+	}
+	var which string
+	if len(readers) > 1 {
+		which = fmt.Sprintf(" (%s all read this state)", strings.Join(readers, " "))
+	}
+	return identitySource{}, fmt.Errorf("%w: %s holds several identities (%s) and none is named like you%s; choose one with --identity NAME (--name NAME for pravo id show), or set PRAVO_IDENTITY to the path of one",
+		errNoIdentity, tilde(dir), strings.Join(names, " "), which)
+}
+
+// publicReaderKey reads the reader key of an identity file without opening it.
+func publicReaderKey(path string) (protect.ReaderPublic, bool) {
+	data, err := readSmallFile(path, 64<<10)
+	if err != nil {
+		return protect.ReaderPublic{}, false
+	}
+	var p publicIdentity
+	if json.Unmarshal(data, &p) != nil {
+		return protect.ReaderPublic{}, false
+	}
+	key, err := protect.ParsePublic(p.Reader.Pub)
+	return key, err == nil
 }
 
 // envSource is an identity given by $PRAVO_IDENTITY: its contents, or a path.

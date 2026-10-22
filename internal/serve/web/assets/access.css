@@ -58,7 +58,7 @@
 .ac-verdict { display: flex; align-items: baseline; flex-wrap: wrap; gap: .4rem .8rem; }
 .ac-verdict p { margin: 0; font-size: .82rem; line-height: 1.5; flex: 1 1 22rem; text-wrap: pretty; }
 .ac-file.v-differs .ac-verdict, .ac-file.v-missing .ac-verdict { padding: .6rem .8rem; border: 1px solid color-mix(in srgb, var(--change) 42%, transparent); background: var(--change-wash); }
-.ac-file.v-invalid .ac-verdict { padding: .6rem .8rem; border: 1px solid color-mix(in srgb, var(--conflict) 42%, transparent); background: var(--conflict-wash); }
+.ac-file.v-invalid .ac-verdict, .ac-file.v-expected-sealed .ac-verdict { padding: .6rem .8rem; border: 1px solid color-mix(in srgb, var(--conflict) 42%, transparent); background: var(--conflict-wash); }
 .ac-path { display: flex; align-items: center; gap: .3rem; margin: .5rem 0 0; color: var(--text-2); min-width: 0; }
 .ac-diffs, .ac-errors { margin: .6rem 0 0; padding: 0; list-style: none; display: grid; gap: .25rem; font-size: .76rem; }
 .ac-diffs li { display: flex; gap: .5rem; align-items: baseline; }
@@ -94,7 +94,8 @@
 .ac-cmd { display: flex; gap: .6rem; width: 100%; padding: .4rem .3rem .4rem .7rem; font-size: .72rem; box-shadow: none; }
 .ac-cmd code { flex: 1; min-width: 0; color: var(--tok-str); overflow-wrap: anywhere; }
 .ac .ph { padding: 0 .15rem; color: var(--code-chg); background: color-mix(in srgb, var(--code-chg) 14%, transparent); }
-.ac-note .ph, .ac-diff .ph { color: var(--change); background: var(--change-wash); }
+/* on the page, not on a dark code block (a command and a diff are dark in both themes, and keep the code colours) */
+.ac-note .ph, .ac-stepnote .ph { color: var(--change); background: var(--change-wash); }
 .ac-edit { width: 100%; }
 .ac-editfile { margin: .35rem 0 .3rem; font-size: .72rem; color: var(--text-2); }
 .ac-diff { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .35rem .3rem .35rem .6rem; border: 1px solid var(--code-edge); background: var(--code-bg); color: var(--code-text); }
@@ -108,17 +109,22 @@
 .ac-diff .cpbtn:hover { color: var(--code-text); border-color: var(--code-edge); }
 .ac-foot { margin: 0; padding-top: .8rem; border-top: 1px solid var(--line); font: 400 .72rem/1.4 var(--font-mono); color: var(--text-3); }
 
-/* ---- narrow: a row of the table is a small card ---- */
-@media (max-width: 47.5em) {
-  .access-pane { padding: .75rem .75rem 2rem; }
-  .ac-title { font-size: 1.25rem; }
+/* ---- narrow: a row of the table is a small card ----
+   The table needs 41rem with short names and 46.5rem with the chips of a name that cannot be used. What counts is
+   the room the table has, not the viewport, so the wrapper is a container, as the grid of the table view is. */
+.ac-tablewrap { container-type: inline-size; }
+@container (max-width: 48rem) {
   .ac-table:not(.small) thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .ac-table:not(.small), .ac-table:not(.small) tbody, .ac-table:not(.small) tr, .ac-table:not(.small) th, .ac-table:not(.small) td { display: block; }
   .ac-table:not(.small) tr { padding: .5rem .2rem; border-bottom: 1px solid var(--line); }
   .ac-table:not(.small) tbody tr:last-child { border-bottom: 0; }
   .ac-table:not(.small) th, .ac-table:not(.small) td { border: 0; padding: .2rem .7rem; text-align: left; }
   .ac-table:not(.small) td[data-label]::before { content: attr(data-label); display: inline-block; min-width: 6.5rem; font: 500 .58rem/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
-  .ac-table .c { text-align: left; }
+  .ac-table:not(.small) .c { text-align: left; }
+}
+@media (max-width: 47.5em) {
+  .access-pane { padding: .75rem .75rem 2rem; }
+  .ac-title { font-size: 1.25rem; }
   .ac-card .who { margin-left: 0; flex-basis: 100%; }
   .ac-cbody { padding-left: .9rem; }
 }

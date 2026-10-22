@@ -275,7 +275,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 		return st, nil, checkReadersFile(root, st, write)
 	}
 	// The state is sealed.
-	id, idErr := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt})
+	id, idErr := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: currentReaders(st.Protection())})
 	if idErr == nil {
 		keyed, err := open(id)
 		if err != nil && !errors.Is(err, state.ErrNotReader) {

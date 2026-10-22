@@ -71,18 +71,21 @@ func TestAccessFixtures(t *testing.T) {
 	missing.File = FileFacts{State: "missing"}
 	notReader := fixSealed([]string{"ada", "dan", "eve"}, []string{"ada", "dan", "eve"}, &YouFacts{State: "not-reader", Name: "gus", Key: fixKey("gus")})
 	notReader.Store.Locked = true
-	off := Facts{Store: StoreFacts{State: "off", Format: 1, Records: 46}, File: FileFacts{State: "ok", Readers: []ReaderFacts{fixFile(1, "ada"), fixFile(2, "dan")}}}
+	off := Facts{Store: StoreFacts{State: "off", Format: 1, Records: 46}, File: FileFacts{State: "missing"}}
+	// The repository lists readers and the state is not sealed: it was sealed and meta.json was changed.
+	downgraded := Facts{Store: StoreFacts{State: "off", Format: 1, Records: 46}, File: FileFacts{State: "ok", Readers: []ReaderFacts{fixFile(1, "ada"), fixFile(2, "dan"), fixFile(3, "eve")}}}
 	immutable := Facts{Store: StoreFacts{State: "immutable", Format: 2, Records: 46}, File: FileFacts{State: "missing"}}
 	cases := map[string]accessInput{
-		"platform":  in(fixSealed([]string{"ada", "dan", "eve"}, []string{"ada", "dan", "eve"}, ada), 3, "s3"),
-		"off":       in(off, 1, "s3"),
-		"immutable": in(immutable, 2, "s3"),
-		"drift":     in(drift, 3, "s3"),
-		"locked":    in(locked, 3, "s3"),
-		"migrating": in(migrating, 3, "s3"),
-		"invalid":   in(invalid, 3, "s3"),
-		"missing":   in(missing, 3, "s3"),
-		"notreader": in(notReader, 3, "s3"),
+		"platform":   in(fixSealed([]string{"ada", "dan", "eve"}, []string{"ada", "dan", "eve"}, ada), 3, "s3"),
+		"off":        in(off, 1, "s3"),
+		"downgraded": in(downgraded, 1, "s3"),
+		"immutable":  in(immutable, 2, "s3"),
+		"drift":      in(drift, 3, "s3"),
+		"locked":     in(locked, 3, "s3"),
+		"migrating":  in(migrating, 3, "s3"),
+		"invalid":    in(invalid, 3, "s3"),
+		"missing":    in(missing, 3, "s3"),
+		"notreader":  in(notReader, 3, "s3"),
 	}
 	for name, input := range cases {
 		doc, err := json.MarshalIndent(buildAccess(input), "", " ")

@@ -630,3 +630,26 @@ func TestPlansInUseLineAgreesWithTheNumber(t *testing.T) {
 		}
 	}
 }
+
+func TestDisplayPathKeepsAPathThatClimbsFar(t *testing.T) {
+	top := t.TempDir()
+	if r, err := filepath.EvalSymlinks(top); err == nil {
+		top = r
+	}
+	deep := filepath.Join(top, "a", "b", "c")
+	if err := os.MkdirAll(deep, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(deep)
+	for _, c := range []struct{ path, want string }{
+		{filepath.Join(deep, ".pravo", "access"), ".pravo/access"},
+		{filepath.Join(top, "a", "b", "x"), "../x"},
+		{filepath.Join(top, "a", "x"), "../../x"},
+		{filepath.Join(top, "x"), filepath.Join(top, "x")}, // three levels up
+		{filepath.Join(filepath.Dir(top), "x"), filepath.Join(filepath.Dir(top), "x")},
+	} {
+		if got := displayPath(c.path); got != c.want {
+			t.Errorf("displayPath(%s) = %s, want %s", c.path, got, c.want)
+		}
+	}
+}

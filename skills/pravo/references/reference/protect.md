@@ -43,16 +43,16 @@ A state has three formats.
 
 | Flag | Command | Meaning |
 |---|---|---|
-| `--name NAME` | `id new`, `id show` | The name of the identity. For `new`, the default is the name of the operating system user (`$USER`, or `$USERNAME` on Windows), also with `--ci`, so an identity for a job made without `--name` is named like the person who ran the command. With neither variable set, `new` stops and asks for `--name`. For `show`, the default is the only identity, or the one named like the user. |
+| `--name NAME` | `id new`, `id show` | The name of the identity. For `new`, the default is the name of the operating system user (`$USER`, or `$USERNAME` on Windows), except with `--ci`, which requires `--name`. With neither variable set, `new` stops and asks for `--name`. For `show`, the default is the only identity, or the one named like the user. |
 | `--ssh FILE` | `id new` | Use the `ssh-ed25519` public key `FILE.pub`, or `FILE` if that is a public key, as the signing key. The private key is never read. |
-| `--ci` | `id new` | Make an identity for a job. It has no passphrase and is written to `--out`. |
+| `--ci` | `id new` | Make an identity for a job. It has no passphrase and is written to `--out`. It requires `--name`. |
 | `--out FILE` | `id new` | With `--ci`: the file to write the identity to. |
 | `--access-dir DIR` | `protect` | The directory of the readers file, in place of `.pravo/access`. `$PRAVO_ACCESS_DIR` sets the same. A relative directory is relative to the root. |
-| `--identity NAME` | `protect` | The identity to open the state with, a file of the identity directory. |
+| `--identity NAME` | every command that opens a state, and `id show` | The identity to open the state with, a file of the identity directory. A global flag, also written before the command. For `id show` it is another way to write `--name`. |
 | `--allow-local` | `protect check`, `protect init` | Accept a state in a local directory. |
 | `--encrypt` | `protect init` | Required. Seal the attributes, outputs and stored plans to the readers. |
 | `--yes` | `protect init` | Do not ask for confirmation. |
-| `--all` | `protect rewrap` | Seal every record, the outputs and the stored plans again under the current key. |
+| `--all` | `protect rewrap` | Seal every record, the outputs, the stored plans and the sealed text of errors again under the current key. |
 | `--older-than DURATION` | `protect gc` | How old a record that no pointer names must be to be deleted: `36h`, `7d`. The default is `24h`. A value below 65 seconds is raised to 65 seconds. |
 | `--dry-run` | `protect gc` | Say what would be deleted and dropped, and change nothing. |
 
@@ -90,6 +90,8 @@ pravo looks for the file in `--access-dir`, then in `$PRAVO_ACCESS_DIR`, then in
 
 A command that writes a sealed state compares the file with the readers recorded in the state. If they differ, it stops with exit code 5 and `.pravo/access/readers.txt and the state differ (dan added, fay removed). Run pravo protect rewrap.` A command that only reads prints the same text as a warning on standard error. A missing file stops a command that writes the state with exit code 5, and an invalid one with exit code 6. The `protect` commands exit with 6 for both: `protect check`, `init` and `rewrap` have no verdict without a valid file. `protect status` prints `file not found` or `file is invalid:` and exits 0.
 
+A state that is not sealed in a repository that has a readers file is refused in the same way. A command that writes stops with exit code 5 and `the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: its meta.json may have been changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file.` A command that only reads prints the text as a warning. A file that is found counts whether or not it can be read. `protect check`, `protect init`, `protect status` and the `id` commands are not stopped. A root in a repository whose readers file is meant for other roots names another access directory with `--access-dir` or `$PRAVO_ACCESS_DIR`, and is then not expected to be sealed.
+
 ## The identity
 
 An identity is a name, a signing key and a reader key. The reader key opens the sealed state. The signing key is part of the line in the readers file and is not used while the state has no roles.
@@ -102,7 +104,7 @@ An identity is a name, a signing key and a reader key. The reader key opens the 
 
 The identity directory is not `~/.pravo`, which is the provider cache and may be deleted.
 
-pravo finds the identity in this order: `--identity NAME`, `$PRAVO_IDENTITY`, then the files of the identity directory. When there are several, it uses the one named like the user. It looks only when the state is sealed, so a state with protection off never asks for a passphrase.
+pravo finds the identity in this order: `--identity NAME`, `$PRAVO_IDENTITY`, then the files of the identity directory. When there are several files, it uses the one named like the user. If none is, it uses the one file whose reader key has a lock in the current group of the state, which `meta.json` lists. For `protect init`, which has no locks yet, the reader key is one of the readers file. The reader key of an identity file is public: choosing reads no passphrase, and only the chosen identity is asked for its passphrase. If no file or more than one matches, the command stops with `no identity found: ... holds several identities (ada dan) and none is named like you`, and names the files that match when there are several. Name one with `--identity`. pravo looks only when the state is sealed, so a state with protection off never asks for a passphrase.
 
 A passphrase is asked for on the terminal without echo. Without a terminal it is read from `$PRAVO_PASSPHRASE` or `$PRAVO_IDENTITY_PASSPHRASE`, and a command with neither stops with `the identity ada is sealed with a passphrase and stdin is not a terminal; set PRAVO_PASSPHRASE.` pravo removes `PRAVO_IDENTITY`, `PRAVO_PASSPHRASE` and `PRAVO_IDENTITY_PASSPHRASE` from its environment once it has read them, and provider processes are started without them. [`pravo mcp`](mcp.md) never asks on a terminal: the identity of a server comes from the environment it was started in.
 
@@ -149,7 +151,7 @@ Identity deploy-bot created for a job. It has no passphrase: protect the file.
   public   deploy-bot ssh-ed25519 <ssh-key> x25519:<key>
 ```
 
-Without `--name`, `--ci` names the identity after the operating system user, which is the name of a person. A name is used once in the readers file, so give a job its own name.
+`--ci` requires `--name`, and `id new --ci` without it stops with exit code 1. A default taken from the operating system user would be the name of a person, and a name is used once in the readers file, so give each job a name of its own.
 
 Store the contents of the file as the secret `PRAVO_IDENTITY` of the job, then delete the file. Use one identity for each job, and never a person's identity in a job. Add the public line to the readers file and run `pravo protect rewrap`. The identity is the authority of the job in pravo and is not its cloud credential.
 
@@ -229,10 +231,10 @@ It shows what it will do and asks `Proceed? [y/N]`. `--yes` answers it. Without 
 
 1. Every record is written once as the object `rec/SHA256`, and `resources/ADDRESS.json` becomes a pointer to it. A record is never overwritten again.
 2. The attributes and the private data of each record are encrypted with one data key, which is locked for each reader.
-3. `outputs.json`, the values of the stored plans and the values in the command lines of transactions are sealed the same way. The words of a command and the names of its flags stay readable, and so does a positional argument and a value written after its flag with a space, `--flag value`, unless the flag is `-t`, `--tag`, `--webhook` or `-e`. A secret belongs in `-t`.
+3. `outputs.json`, the values of the stored plans, the values in the command lines of transactions and the text of the errors of transactions that failed are sealed the same way. The words of a command and the names of its flags stay readable, and so does a positional argument. The value of a flag that takes one is sealed, written `--flag value` or `--flag=value`, unless it is a flag with a public value such as `--limit`, `--ttl`, `--only`, `--out`, `--policy` or `--chdir`. A word after a flag that takes no value is a positional argument. A secret belongs in `-t`.
 4. The state is set to format 3, and `meta.json` holds the locks.
 
-A run that is interrupted leaves the state in the middle of sealing, and an earlier pravo cannot open it. Run the command again to finish: it skips the records it has done. `pravo protect status` says `migrating` until then, and commands that write the state refuse with `a seal is in progress; run pravo protect init --encrypt to finish`. Commit the readers file when the command ends.
+A run that is interrupted leaves the state in the middle of sealing, and an earlier pravo cannot open it. A kill leaves it where it was. An interrupt (`Ctrl-C`) finishes the records that are being sealed, starts no other and ends with `interrupted after N records were sealed in this run`. Run the command again to finish: it skips the records it has done. `pravo protect status` says `migrating` until then, and commands that write the state refuse with `a seal is in progress; run pravo protect init --encrypt to finish`. Commit the readers file when the command ends.
 
 ```sh
 mkdir -p .pravo/access
@@ -295,7 +297,7 @@ Unsettled    none
 
 | Line | Values |
 |---|---|
-| `Sealed` | `on`, `off`, `off · format 2 · immutable records`, or `migrating` with the number of records done. |
+| `Sealed` | `on`, `off`, `off · format 2 · immutable records`, or `migrating` with the number of records done. A state that is off in a repository that has a readers file ends in `· the repository expects a sealed state`: its `meta.json` may have been changed. |
 | `Readers` | `matches the store`; `differs:` and who is in the file and not in the store, or the other way round; `file not found (looked in DIR)`; `file is invalid:` and the line and reason. |
 | `You` | The identity and its reader key. `identity NAME is not a reader`. `not a reader of this state (no identity found)`. |
 | `Unsettled` | `none`, or the number of interrupted transactions; `pravo state log` lists them. |
@@ -308,7 +310,7 @@ A record that does not match its name, a pointer that disagrees with its record,
 
 **Adding a reader.** The new reader makes an identity and sends the line it prints. A reader adds the line to the file, commits it and runs `rewrap`. The data keys are locked for the new reader in every group, so that the new reader can open what is already there. No record is rewritten.
 
-**Removing a reader.** A reader who is removed loses their lock in every group, and the state gets a new data key. Records are sealed under it as they are next written. Until then they stay under the old key. `--all` seals every record, the outputs and the stored plans again under the new key at once. A copy of the state that was made before the removal still opens with the removed reader's key, and the reader has read what they read. Replace the secrets they could read where they live.
+**Removing a reader.** A reader who is removed loses their lock in every group, and the state gets a new data key. Records are sealed under it as they are next written. Until then they stay under the old key. `--all` seals every record, the outputs, the stored plans and the sealed text of the errors of transactions again under the new key at once. A copy of the state that was made before the removal still opens with the removed reader's key, and the reader has read what they read. Replace the secrets they could read where they live.
 
 `--all` needs the state at rest: run it while nobody plans or applies. It seals again and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [`pravo protect gc`](#protect-gc) removes both. [What sealing protects](../concepts/sealed-state.md) lists what stays in the bucket.
 
@@ -347,6 +349,8 @@ No group needs to be dropped: the state has only its current group.
 ```
 
 With `--json`, `gc` prints one document: `format`, `dry_run`, `older_than_seconds`, `records` (`listed`, `named`, `unnamed`, `young`, `unknown_age`, `deleted`, `bytes` and `foreign`) and, for a sealed state, `groups` (`examined`, `dropped`, `kept` with `id`, `records`, `unnamed_records`, `outputs` and `plans`, and `skipped` with the reason when the groups were not looked at).
+
+A stored plan that an apply holds a claim on is left as it is. `--all` counts these plans and prints `2 stored plans in use were not sealed again; run pravo protect rewrap --all when they are done.` With `--json` the count is `plans_skipped`.
 
 ## See also
 

@@ -416,6 +416,9 @@ func runSelf(ctx context.Context, args []string) (string, int) {
 	if flagReason != "" {
 		full = append(full, "--reason", flagReason)
 	}
+	if flagIdentity != "" {
+		full = append(full, "--identity", flagIdentity)
+	}
 	// The server's policies bind the runs that can change something, and only
 	// those: the other commands do not take the flag.
 	full = append(full, serverPolicyArgs(args)...)

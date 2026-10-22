@@ -17,6 +17,7 @@ const VERDICT = {
   differs: { cls: 'chg', label: 'differs from the store' },
   missing: { cls: 'chg', label: 'no file' },
   invalid: { cls: 'bad', label: 'does not load' },
+  'expected-sealed': { cls: 'bad', label: 'state not sealed' },
   none: { cls: '', label: 'not compared' },
 };
 
@@ -138,7 +139,8 @@ export class AccessView {
   file(a) {
     const f = a.file;
     const v = VERDICT[f.verdict] || VERDICT.none;
-    const sealed = a.state === 'sealed' || a.state === 'migrating';
+    // The verdict is about the store, which a state that is not sealed has no locks for, except when the repository lists readers.
+    const sealed = a.state === 'sealed' || a.state === 'migrating' || f.verdict === 'expected-sealed';
     return h('section', { class: `ac-sec ac-file v-${f.verdict}`, 'aria-labelledby': 'ac-h-file' },
       h('h3', { id: 'ac-h-file', class: 'h' }, 'Readers file'),
       h('div', { class: 'ac-verdict' },

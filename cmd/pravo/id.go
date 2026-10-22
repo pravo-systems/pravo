@@ -49,7 +49,8 @@ An identity that exists is never overwritten.
 key. Without it a signing key is made and kept in the identity file. Signing is
 not used while the state is sealed and has no roles.
 
---ci makes an identity for a job, which has no person to type a passphrase. The
+--ci makes an identity for a job, which has no person to type a passphrase. It
+needs --name, the name of the job, and never takes the name of the user. The
 file holds both private keys in the clear, with mode 0600, in the file given by
 --out. Store its contents as the CI secret PRAVO_IDENTITY and delete the file.
 Nothing is written to the identity directory.`,
@@ -59,7 +60,7 @@ Nothing is written to the identity directory.`,
 		},
 	}
 	f := cmd.Flags()
-	f.StringVar(&name, "name", "", "name of the identity (default: the user name)")
+	f.StringVar(&name, "name", "", "name of the identity (default: the user name; required with --ci)")
 	f.StringVar(&sshFile, "ssh", "", "use this ssh-ed25519 public key (FILE or FILE.pub) as the signing key")
 	f.BoolVar(&ci, "ci", false, "make an identity for a CI job: no passphrase, written to --out")
 	f.StringVar(&outFile, "out", "", "with --ci: the file to write the identity to")
@@ -73,16 +74,24 @@ func idShowCmd() *cobra.Command {
 		Short: "Print an identity's keys and the line for the readers file",
 		Long: `Prints the signing key, the reader key and the public line of the identity. It
 reads only the public parts of the file and never asks for the passphrase.
-The identity is found as for every command: --name, $PRAVO_IDENTITY, then the
-identity directory ($PRAVO_IDENTITY_DIR, default ~/.config/pravo/id).`,
+The identity is found as for every command: --name (or --identity),
+$PRAVO_IDENTITY, then the identity directory ($PRAVO_IDENTITY_DIR, default ~/.config/pravo/id).`,
 		Args: noArgs,
-		RunE: func(cmd *cobra.Command, args []string) error { return runIDShow(name) },
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if name == "" {
+				name = flagIdentity // the global flag means the same
+			}
+			return runIDShow(name)
+		},
 	}
-	cmd.Flags().StringVar(&name, "name", "", "name of the identity")
+	cmd.Flags().StringVar(&name, "name", "", "name of the identity (same as --identity)")
 	return cmd
 }
 
 func runIDNew(name, sshFile, outFile string, ci bool) error {
+	if ci && name == "" {
+		return errors.New("--ci needs --name NAME: name the identity after the job, such as deploy-bot. A name taken from the user would be the name of a person in the readers file")
+	}
 	if ci && outFile == "" {
 		return errors.New("--ci needs --out FILE: the identity of a job is written to a file you store as a CI secret")
 	}
@@ -276,7 +285,7 @@ type publicIdentity struct {
 
 func runIDShow(name string) error {
 	taken.mu.Lock()
-	src, err := findIdentity(name)
+	src, err := findIdentity(identityOptions{Name: name})
 	taken.mu.Unlock()
 	if err != nil {
 		return err

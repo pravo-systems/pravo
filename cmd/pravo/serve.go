@@ -100,7 +100,6 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 	cmd.Flags().BoolVar(&noOpen, "no-open", false, "do not open a browser")
 	cmd.Flags().StringVar(&planFile, "plan", "", "a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-2f9c1a4e)")
 	addTagFlags(cmd)
-	addIdentityFlag(cmd)
 	addAccessDirFlag(cmd)
 	return cmd
 }
@@ -211,11 +210,12 @@ func (v *viewerState) started() {
 	v.mu.Unlock()
 }
 
-// resolve finds the identity, once. A person who names an identity that cannot
-// be used gets an error before the server listens; one who names none, and has
-// none, gets a viewer that lists the resources and shows no value, and so does
-// anyone once the server listens.
-func (v *viewerState) resolve() error {
+// resolve finds the identity, once. The readers are the reader keys of the
+// sealed state, which choose among several identity files. A person who names
+// an identity that cannot be used gets an error before the server listens; one
+// who names none, and has none, gets a viewer that lists the resources and
+// shows no value, and so does anyone once the server listens.
+func (v *viewerState) resolve(readers ...protect.ReaderPublic) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.resolved {
@@ -226,7 +226,7 @@ func (v *viewerState) resolve() error {
 		out.Printf("pravo serve: the state is sealed; reading it with no identity\n")
 		return nil
 	}
-	id, err := resolveIdentity(identityOptions{Name: v.name, Prompt: !v.listening})
+	id, err := resolveIdentity(identityOptions{Name: v.name, Prompt: !v.listening, Readers: readers})
 	switch {
 	case err == nil:
 		v.ident = id
@@ -270,7 +270,7 @@ func (v *viewerState) open(ctx context.Context, root *config.Root) (*state.Store
 		return nil, err
 	}
 	if !resolved && isProtected(st.Protection()) {
-		if err := v.resolve(); err != nil {
+		if err := v.resolve(currentReaders(st.Protection())...); err != nil {
 			return nil, err
 		}
 		if id, _, _ = v.identity(); id != nil {

@@ -7,7 +7,8 @@
 //   &stale=1                              the saved plan is stale, with reasons
 //   &plan=plan-2f9c1a4e                   the server lays that stored plan itself (pravo serve --plan plan-2f9c1a4e)
 //   &access=NAME                          the Access view answers access.NAME.json: platform (sealed, a reader), off, immutable,
-//                                         drift, locked (no identity: every record is sealed), notreader, missing (no readers file), migrating, invalid
+//                                         drift, locked (no identity: every record is sealed), notreader, missing (no readers file), migrating, invalid,
+//                                         downgraded (the repository lists readers and the state is not sealed)
 // The plans stored in the state are plans.NAME.json (the platform has seven) and plan.ID.json, one for each.
 // window.__mock.mutate() changes the graph and sends a "change" event; storePlan() stores another plan and
 // collectPlan(id) removes one, each with its event; setAccess(name) swaps the Access document, with the event for the readers file; window.__errors collects the errors and warnings of the

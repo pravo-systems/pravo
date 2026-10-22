@@ -22,10 +22,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
-const (
-	accessDirUsage = "directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR"
-	identityUsage  = "name of the identity to read the state with; $PRAVO_IDENTITY, $PRAVO_IDENTITY_DIR"
-)
+const accessDirUsage = "directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR"
 
 // identityPrompt says whether a command may ask for a passphrase on the
 // terminal. pravo mcp turns it off: it has no terminal, and the identity of a
@@ -57,7 +54,6 @@ that nothing is sealed in any more.`,
 	}
 	pf := cmd.PersistentFlags()
 	pf.StringVar(&flagAccessDir, "access-dir", "", accessDirUsage)
-	pf.StringVar(&flagIdentity, "identity", "", identityUsage)
 	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectGCCmd())
 	return cmd
 }
@@ -151,7 +147,7 @@ func (p *protectRun) open(b state.Backend, write, needKey bool) (st *state.Store
 	if st, err = mk(nil); err != nil || !st.Locked() || !needKey {
 		return st, nil, nil, err
 	}
-	id, idErr = resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt})
+	id, idErr = resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: currentReaders(st.Protection())})
 	if idErr != nil {
 		return st, nil, idErr, nil
 	}
@@ -166,7 +162,9 @@ func (p *protectRun) open(b state.Backend, write, needKey bool) (st *state.Store
 }
 
 // displayPath writes a path relative to the working directory, with forward
-// slashes. A path that cannot be made relative stays as it is.
+// slashes. A path that cannot be made relative stays as it is, and so does one
+// whose relative form climbs more than two levels: ../../../../x says less than
+// the path.
 func displayPath(p string) string {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -176,7 +174,15 @@ func displayPath(p string) string {
 	if err != nil {
 		return p
 	}
-	return filepath.ToSlash(rel)
+	rel = filepath.ToSlash(rel)
+	climbs := 0
+	for rest := rel; strings.HasPrefix(rest, "../"); rest = rest[3:] {
+		climbs++
+	}
+	if climbs > 2 {
+		return p
+	}
+	return rel
 }
 
 // shown is the readers file as the messages name it.
@@ -723,7 +729,12 @@ func (p *protectRun) init(yes, allowLocal bool) error {
 	if err := p.rf.require(); err != nil {
 		return err
 	}
-	id, err := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt})
+	// Several identity files and none named like the user: the one on the list.
+	var listed []protect.ReaderPublic
+	for _, r := range p.rf.Readers {
+		listed = append(listed, r.Key)
+	}
+	id, err := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: listed})
 	if err != nil {
 		if errors.Is(err, errNoIdentity) {
 			return engine.WithCode(engine.ExitRefused, fmt.Errorf("%w; sealing to a list you are not on would lock you out", err))

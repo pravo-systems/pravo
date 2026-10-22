@@ -1,0 +1,122 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "state": "off",
+ "format": 1,
+ "location": "s3://acme-state/estate",
+ "backend": "s3",
+ "summary": "The state is not sealed. Attributes, outputs and stored plans are stored as plain text, and anyone who can read s3://acme-state/estate can read every value.",
+ "readers": [
+  {
+   "name": "ada",
+   "name_ok": true,
+   "key": "x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
+   "key_short": "x25519:zILxDZ…",
+   "fingerprint": "SHA256:m8YMmlDg9T6mFey9zpNAmej98q7pMpDsi0aia27rJlo",
+   "in_store": false,
+   "in_file": true,
+   "line": 1
+  },
+  {
+   "name": "dan",
+   "name_ok": true,
+   "key": "x25519:Hli_Xj5WuXVFv4DwxC4drR13YSgBV_Idby_OkIthUm0",
+   "key_short": "x25519:Hli_Xj…",
+   "fingerprint": "SHA256:OXONlpNIN4+YAxgAA72tFS273MSP9v31RNyZ2aJwA7g",
+   "in_store": false,
+   "in_file": true,
+   "line": 2
+  },
+  {
+   "name": "eve",
+   "name_ok": true,
+   "key": "x25519:1SF2s5-AKKnLO9umTOT0kedPWRnElvdGZ7B5sBXfXgU",
+   "key_short": "x25519:1SF2s5…",
+   "fingerprint": "SHA256:UcAPC/FaE/Zgq+rhXHTUBQDP09GW9+NCURIOldYtkf0",
+   "in_store": false,
+   "in_file": true,
+   "line": 3
+  }
+ ],
+ "file": {
+  "verdict": "expected-sealed",
+  "path": "/srv/infra/estate/.pravo/access/readers.txt",
+  "text": "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed. Its meta.json may have been changed.",
+  "count": 3
+ },
+ "records": {
+  "total": 46,
+  "sealed": 0,
+  "plain": 0,
+  "unreadable": 0
+ },
+ "groups": [],
+ "recovery": {
+  "state": "none",
+  "text": "No recovery recipient. If every reader loses their key, the state cannot be read."
+ },
+ "suggestions": [
+  {
+   "id": "check-downgrade",
+   "title": "Check why the state is not sealed",
+   "why": "The readers file lists readers, so the state was expected to be sealed, and its meta.json says it is not. Someone who can write to the store may have changed it.",
+   "who": "a reader",
+   "primary": true,
+   "steps": [
+    {
+     "kind": "command",
+     "text": "pravo protect status"
+    },
+    {
+     "kind": "note",
+     "text": "If you did not mean to seal this state, remove the readers file. To seal it: pravo protect init --encrypt"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect init --encrypt"
+    }
+   ]
+  },
+  {
+   "id": "seal",
+   "title": "Seal the state",
+   "why": "Sealing encrypts attributes, outputs and stored plans to the readers in the file. It needs the store at rest, so announce a short freeze.",
+   "who": "each reader, then one of them",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "On the machine of each reader:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo id new --name \u003cname\u003e",
+     "placeholder": true
+    },
+    {
+     "kind": "note",
+     "text": "The readers file lists 3 readers. A reader who is not listed sends their line, and it is added to .pravo/access/readers.txt."
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect check"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect init --encrypt"
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Seal the state'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    }
+   ]
+  }
+ ]
+}

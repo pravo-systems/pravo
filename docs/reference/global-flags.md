@@ -31,6 +31,7 @@ These flags belong to the command `pravo` and every subcommand accepts them.
 | `--json` | off | Machine-readable output on stdout, progress on stderr. See [JSON](#json). |
 | `--actor LABEL` | `$PRAVO_ACTOR` | A label for who is acting. Recorded on transactions, locks, reservations and plans, and it is the author that `pravo plan list` shows for a stored plan. It is not verified. |
 | `--reason TEXT` | `$PRAVO_REASON` | Why. Recorded with the actor. On a plan, it is the note that the viewer and `pravo plan show` give. An apply of a saved or stored plan records the reason of the plan, unless it is given its own. |
+| `--identity NAME` | `$PRAVO_IDENTITY` | The identity file to read a sealed state with, from the identity directory. It wins over `$PRAVO_IDENTITY`, and it matters only for a state that is sealed. See [`pravo id and pravo protect`](protect.md#the-identity). |
 | `-h`, `--help` | | Print the help of the command. |
 
 `pravo help COMMAND` prints the same help. `pravo completion bash`, `zsh`, `fish` or `powershell` prints a completion script for that shell.
@@ -51,7 +52,6 @@ A command that takes no argument refuses a word, so a misplaced value is an erro
 | `--full` | `plan`, `apply` | Plan every resource with its provider. |
 | `--policy FILE` | `plan`, `apply`, `destroy`, `mcp` | A CUE file the plan must satisfy. Repeatable. |
 | `--access-dir DIR` | `protect`, `serve` | The directory of the readers file of a sealed state, in place of `.pravo/access`. `PRAVO_ACCESS_DIR` sets the same, and the flag wins. A relative directory is relative to the root. See [`pravo id and pravo protect`](protect.md#the-readers-file). |
-| `--identity NAME` | `protect`, `serve` | The identity file to open a sealed state with, from the identity directory. See [`pravo id and pravo protect`](protect.md#the-identity). |
 
 `pravo show`, `pravo fmt`, `pravo version` and `pravo mod` take no tags. Use the same tags for `plan` and `apply`. Otherwise they evaluate different specifications. A saved plan carries its own.
 

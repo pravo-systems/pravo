@@ -69,12 +69,12 @@ A state has three formats.
 
 | Flag | Command | Meaning |
 |---|---|---|
-| `--name NAME` | `id new`, `id show` | The name of the identity. For `new`, the default is the name of the operating system user (`$USER`, or `$USERNAME` on Windows), also with `--ci`, so an identity for a job made without `--name` is named like the person who ran the command. With neither variable set, `new` stops and asks for `--name`. For `show`, the default is the only identity, or the one named like the user. |
+| `--name NAME` | `id new`, `id show` | The name of the identity. For `new`, the default is the name of the operating system user (`$USER`, or `$USERNAME` on Windows), except with `--ci`, which requires `--name`. With neither variable set, `new` stops and asks for `--name`. For `show`, the default is the only identity, or the one named like the user. |
 | `--ssh FILE` | `id new` | Use the `ssh-ed25519` public key `FILE.pub`, or `FILE` if that is a public key, as the signing key. The private key is never read. |
-| `--ci` | `id new` | Make an identity for a job. It has no passphrase and is written to `--out`. |
+| `--ci` | `id new` | Make an identity for a job. It has no passphrase and is written to `--out`. It requires `--name`. |
 | `--out FILE` | `id new` | With `--ci`: the file to write the identity to. |
 | `--access-dir DIR` | `protect` | The directory of the readers file, in place of `.pravo/access`. `$PRAVO_ACCESS_DIR` sets the same. A relative directory is relative to the root. |
-| `--identity NAME` | `protect` | The identity to open the state with, a file of the identity directory. |
+| `--identity NAME` | every command that opens a state, and `id show` | The identity to open the state with, a file of the identity directory. A global flag, also written before the command. For `id show` it is another way to write `--name`. |
 | `--allow-local` | `protect check`, `protect init` | Accept a state in a local directory. |
 | `--encrypt` | `protect init` | Required. Seal the attributes, outputs and stored plans to the readers. |
 | `--yes` | `protect init` | Do not ask for confirmation. |
@@ -130,7 +130,7 @@ An identity is a name, a signing key and a reader key. The reader key opens the 
 
 The identity directory is not `~/.pravo`, which is the provider cache and may be deleted.
 
-pravo finds the identity in this order: `--identity NAME`, `$PRAVO_IDENTITY`, then the files of the identity directory. When there are several, it uses the one named like the user. It looks only when the state is sealed, so a state with protection off never asks for a passphrase.
+pravo finds the identity in this order: `--identity NAME`, `$PRAVO_IDENTITY`, then the files of the identity directory. When there are several files, it uses the one named like the user. If none is, it uses the one file whose reader key has a lock in the current group of the state, which `meta.json` lists. For `protect init`, which has no locks yet, the reader key is one of the readers file. The reader key of an identity file is public: choosing reads no passphrase, and only the chosen identity is asked for its passphrase. If no file or more than one matches, the command stops with `no identity found: ... holds several identities (ada dan) and none is named like you`, and names the files that match when there are several. Name one with `--identity`. pravo looks only when the state is sealed, so a state with protection off never asks for a passphrase.
 
 A passphrase is asked for on the terminal without echo. Without a terminal it is read from `$PRAVO_PASSPHRASE` or `$PRAVO_IDENTITY_PASSPHRASE`, and a command with neither stops with `the identity ada is sealed with a passphrase and stdin is not a terminal; set PRAVO_PASSPHRASE.` pravo removes `PRAVO_IDENTITY`, `PRAVO_PASSPHRASE` and `PRAVO_IDENTITY_PASSPHRASE` from its environment once it has read them, and provider processes are started without them. [`pravo mcp`](mcp.md) never asks on a terminal: the identity of a server comes from the environment it was started in.
 
@@ -173,7 +173,7 @@ Identity deploy-bot created for a job. It has no passphrase: protect the file.
   public   deploy-bot ssh-ed25519 <ssh-key> x25519:<key>
 ```
 
-Without `--name`, `--ci` names the identity after the operating system user, which is the name of a person. A name is used once in the readers file, so give a job its own name.
+`--ci` requires `--name`, and `id new --ci` without it stops with exit code 1. A default taken from the operating system user would be the name of a person, and a name is used once in the readers file, so give each job a name of its own.
 
 Store the contents of the file as the secret `PRAVO_IDENTITY` of the job, then delete the file. Use one identity for each job, and never a person's identity in a job. Add the public line to the readers file and run `pravo protect rewrap`. The identity is the authority of the job in pravo and is not its cloud credential.
 

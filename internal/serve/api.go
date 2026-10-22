@@ -605,8 +605,10 @@ type AccessReader struct {
 // AccessFile is what the readers file says in relation to the store.
 type AccessFile struct {
 	// Verdict is "match" (file and store list the same readers), "differs",
-	// "missing" (no file), "invalid" (the file does not load) or "none" (the state
-	// is not sealed, so nothing is compared).
+	// "missing" (no file), "invalid" (the file does not load),
+	// "expected-sealed" (the file loads and the state is not sealed: its meta.json
+	// may have been changed) or "none" (the state is not sealed and the file adds
+	// nothing, so nothing is compared).
 	Verdict string `json:"verdict"`
 	// Path is where the file is looked for.
 	Path string `json:"path"`

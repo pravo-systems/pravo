@@ -296,7 +296,7 @@ The view has these parts, from the top:
 - The banner, with a sentence for the state, the format, the backend and the location.
 - You: who the viewer is reading as, and whether that identity is a reader.
 - Readers: the readers of the store and of the readers file, side by side. A mark says whether each is in the file and in the store. The button next to a key or a fingerprint copies it.
-- Readers file: whether the file matches the store. When it differs, the view names the readers that are in the file and not in the store, and the ones that are in the store and not in the file.
+- Readers file: whether the file matches the store. When it differs, the view names the readers that are in the file and not in the store, and the ones that are in the store and not in the file. When the file lists readers and the state is not sealed, the verdict is `state not sealed`: the repository expects a seal that the state does not have, and its `meta.json` may have been changed. The first suggestion then checks the state with `pravo protect status`.
 - Records: how many are sealed, how many cannot be opened with your identity, and the groups of data keys.
 - Suggested changes: cards, the next step open. Copy a command with its button and run it in a terminal; the viewer does not. A step that edits the readers file shows the line to add or remove, and the button copies the line only. Words in angle brackets are for you to fill in.
 

@@ -133,6 +133,29 @@ func TestIDNewNameDefaultsToTheUser(t *testing.T) {
 	}
 }
 
+func TestIDNewCINeedsAName(t *testing.T) {
+	ids := isolateIdentities(t)
+	t.Setenv("USER", "grace")
+	work := t.TempDir()
+	out := filepath.Join(work, "bot.identity")
+	text, code := runPravo(t, work, "id", "new", "--ci", "--out", out)
+	if code != 1 || !strings.Contains(text, "--ci needs --name NAME") {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Error("a file was written")
+	}
+	if _, err := os.Stat(filepath.Join(ids, "grace")); err == nil {
+		t.Error("an identity named like the user was made")
+	}
+	if text, code := runPravo(t, work, "id", "new", "--ci"); code != 1 || !strings.Contains(text, "--ci needs --name NAME") {
+		t.Errorf("exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, work, "id", "new", "--ci", "--name", "deploy-bot", "--out", out); code != 0 {
+		t.Errorf("exit %d\n%s", code, text)
+	}
+}
+
 func TestIDNewPassphrase(t *testing.T) {
 	ids := isolateIdentities(t)
 	dir := t.TempDir()

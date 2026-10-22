@@ -150,6 +150,8 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 		{name: "not sealed, a bucket", s3: true, prot: state.Protection{State: "off", Format: 1}},
 		{name: "not sealed, a bucket, readers listed", s3: true, file: readers, prot: state.Protection{State: "off", Format: 1}},
 		{name: "immutable", s3: true, prot: state.Protection{State: "immutable", Format: 2}},
+		{name: "immutable, readers listed", s3: true, file: readers, prot: state.Protection{State: "immutable", Format: 2}},
+		{name: "not sealed, a local directory, readers listed", file: readers, prot: state.Protection{State: "off", Format: 1}},
 		{name: "sealed, a reader, in step", s3: true, file: readers, prot: sealedProtection(m, reader)},
 		{name: "sealed, the file differs", s3: true, file: readers[:2], prot: sealedProtection(m, reader)},
 		{name: "sealed, no file", s3: true, prot: sealedProtection(m, reader)},
@@ -210,7 +212,7 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 	if checked < 20 && findSub(newRootCmd(), "protect") != nil {
 		t.Errorf("only %d pravo commands were checked", checked)
 	}
-	for _, id := range []string{"seal", "finish", "identity", "rewrap", "add-reader", "remove-reader", "reseal", "prune", "status"} {
+	for _, id := range []string{"seal", "check-downgrade", "finish", "identity", "rewrap", "add-reader", "remove-reader", "reseal", "prune", "status"} {
 		if !seen[id] {
 			t.Errorf("no scene offered the suggestion %s", id)
 		}
@@ -511,4 +513,46 @@ func TestViewerOpensLockedForAnIdentityThatIsNotAReader(t *testing.T) {
 	if _, err := v.openWith(context.Background(), &state.LocalBackend{Dir: dir}, gus); err != nil || v.who().refused {
 		t.Errorf("a reader: %v %+v", err, v.who())
 	}
+}
+
+// A repository that lists readers and a state that is not sealed: the page says
+// that the state was expected to be sealed, from the same readers file that the
+// commands read.
+func TestViewerSaysThatAStateIsNotSealedWhereTheRepositoryExpectsOne(t *testing.T) {
+	_, readers := protectedMeta(t, "ada", "dan")
+	for _, st := range []state.Protection{{State: "off", Format: 1}, {State: "immutable", Format: 2}} {
+		t.Run(st.State, func(t *testing.T) {
+			dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n" + s3Settings})
+			viewerReadersFile(t, dir, readers)
+			get := viewer(t, dir, protectionOf(st, false, viewerIdentity{}))
+			var a serve.Access
+			if err := json.Unmarshal(get("/api/access"), &a); err != nil {
+				t.Fatal(err)
+			}
+			if a.File.Verdict != "expected-sealed" || a.File.Count != 2 || len(a.Suggestions) == 0 || a.Suggestions[0].ID != "check-downgrade" || !a.Suggestions[0].Primary {
+				t.Fatalf("file %+v, suggestions %+v", a.File, a.Suggestions)
+			}
+			if !strings.Contains(a.File.Text, "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed.") {
+				t.Errorf("text %q", a.File.Text)
+			}
+		})
+	}
+	t.Run("a readers file that does not load says so", func(t *testing.T) {
+		dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n" + s3Settings})
+		acc := filepath.Join(dir, ".pravo", "access")
+		if err := os.MkdirAll(acc, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(acc, "readers.txt"), []byte("ada one two\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		get := viewer(t, dir, protectionOf(state.Protection{State: "off", Format: 1}, false, viewerIdentity{}))
+		var a serve.Access
+		if err := json.Unmarshal(get("/api/access"), &a); err != nil {
+			t.Fatal(err)
+		}
+		if a.File.Verdict != "none" || !strings.Contains(a.File.Text, "does not load") {
+			t.Errorf("file %+v", a.File)
+		}
+	})
 }

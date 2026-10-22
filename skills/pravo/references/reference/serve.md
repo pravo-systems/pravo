@@ -139,11 +139,11 @@ The Access view shows how the state is protected and who can read it. It is the 
 | The banner | The state, as a chip and a sentence, with the format, the backend, the location and the recovery recipient. `not sealed`: attributes, outputs and stored plans are plain text, and anyone who can read the location can read every value. `immutable records` (format 2): each record is stored once and never overwritten, and none is encrypted. `sealed` (format 3): attributes, outputs and stored plans are encrypted, and addresses, types, names, dependencies and revisions stay readable. `sealing in progress`: a seal started and has not finished, with how many records it has reached. |
 | You | The identity that the viewer was started with: `reader`, `not a reader`, `no identity`, or `identity locked` when its passphrase was not available. For the last three, the viewer lists the resources and shows no value. |
 | Readers | The readers of the store and of the readers file, matched by reader key. Each row has the name, the reader key and the fingerprint of the signing key, each with a button that copies it, and marks that say whether the reader is in the file and in the store, and the line of the file. A name that does not match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` is listed with the mark `name not usable` and is used in no suggestion. |
-| Readers file | The path that was read and a verdict: `matches the store`; `differs from the store`, with the readers that are in the file and not in the store, and the ones that are in the store and not in the file, which `pravo protect rewrap` brings together; `no file`; or `does not load`, with the line and the reason, never the text of the line. Writers refuse to write a sealed state until the file and the store agree. |
+| Readers file | The path that was read and a verdict: `matches the store`; `differs from the store`, with the readers that are in the file and not in the store, and the ones that are in the store and not in the file, which `pravo protect rewrap` brings together; `no file`; or `does not load`, with the line and the reason, never the text of the line. Writers refuse to write a sealed state until the file and the store agree. When the file loads and the state is `not sealed` or `immutable records`, the verdict is `state not sealed`: the repository lists readers but the state is not sealed, and its `meta.json` may have been changed. |
 | Records | How many records are sealed, how many are not sealed yet, and how many cannot be opened with this identity. The groups of data keys, with the number of locks and of records of each. The recovery note, and the last change of the seal with the name that the machine of the change gave itself. The name is a label, not a proof. |
 | Suggested changes | Cards that each have a title, who does it, why, and steps. A step is a command with a button that copies it, a line to add to or remove from the readers file, shown as a small diff whose button copies the line only, or a note. The card for the next step is open. |
 
-The suggestions are: `seal` (for a state that is not sealed), `finish` (a seal that did not finish), `identity` (the viewer is not reading as a reader), `rewrap` (the file and the store differ), `add a reader`, `remove` for each reader of the file, `seal every record again` (records are under an old group), `drop the groups nothing is sealed in` (the state has more than one group), and `check the state`. A part that you fill in is written in angle brackets and is never quoted, so a command that was pasted without being filled in fails and does nothing. A reader that is removed from the file is removed by editing the file; the page offers no command that edits it. A state that is a local directory gets a note and then the seal command with `--allow-local` (the `finish` step carries the flag too), since `pravo protect` refuses a directory that two people could share unless that flag is given.
+The suggestions are: `seal` (for a state that is not sealed), `check why the state is not sealed` (the verdict `state not sealed`: `pravo protect status`, then `pravo protect init --encrypt` or removing the readers file, whichever was meant), `finish` (a seal that did not finish), `identity` (the viewer is not reading as a reader), `rewrap` (the file and the store differ), `add a reader`, `remove` for each reader of the file, `seal every record again` (records are under an old group), `drop the groups nothing is sealed in` (the state has more than one group), and `check the state`. A part that you fill in is written in angle brackets and is never quoted, so a command that was pasted without being filled in fails and does nothing. A reader that is removed from the file is removed by editing the file; the page offers no command that edits it. A state that is a local directory gets a note and then the seal command with `--allow-local` (the `finish` step carries the flag too), since `pravo protect` refuses a directory that two people could share unless that flag is given.
 
 The Table and the inspector mark a record that cannot be opened with the chip `sealed`. The inspector shows its address, type, dependencies and revision, and a note, and no attribute. The outputs of a state that cannot be opened show `sealed` and no value. A count that depends on what a record says, the drifted and the sensitive resources of the filter chips and of the project card, shows a dash with the title `sealed` where it would be zero, since a record that cannot be opened is not counted. A stored plan that cannot be opened is laid over the graph from its summary, which gives the address, the type and the action of each change, with the warning "The values of this plan are sealed." and no attribute change.
 
@@ -567,7 +567,6 @@ Usage:
 Flags:
       --access-dir string   directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR
   -h, --help                help for serve
-      --identity string     name of the identity to read the state with; $PRAVO_IDENTITY, $PRAVO_IDENTITY_DIR
   -T, --inject-vars         inject system tag variables (os, arch, cwd, ...)
       --no-open             do not open a browser
       --plan string         a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-<id>)
@@ -575,10 +574,11 @@ Flags:
   -t, --tag stringArray     inject a value for an @tag() field: -t key=value
 
 Global Flags:
-      --actor string    a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)
-  -C, --chdir string    run as if started in this directory
-      --json            machine-readable output on stdout (progress goes to stderr)
-      --no-color        disable coloured output
-      --reason string   why; recorded on transactions and plans ($PRAVO_REASON)
-  -v, --verbose count   log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)
+      --actor string      a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)
+  -C, --chdir string      run as if started in this directory
+      --identity string   name of the identity to read a sealed state with; overrides $PRAVO_IDENTITY
+      --json              machine-readable output on stdout (progress goes to stderr)
+      --no-color          disable coloured output
+      --reason string     why; recorded on transactions and plans ($PRAVO_REASON)
+  -v, --verbose count     log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)
 ```

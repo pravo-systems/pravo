@@ -937,3 +937,49 @@ func TestAccessSuggestsPruningOldGroups(t *testing.T) {
 		t.Error("prune is suggested for a state that is not sealed")
 	}
 }
+
+// A readers file that loads, and a state that is not sealed: the repository
+// expects a seal that the state does not have.
+func TestAccessExpectedSealed(t *testing.T) {
+	for _, state := range []string{"off", "immutable"} {
+		t.Run(state, func(t *testing.T) {
+			format := map[string]int{"off": 1, "immutable": 2}[state]
+			f := &fakeProtection{facts: Facts{Store: StoreFacts{State: state, Format: format, Records: 5},
+				File: FileFacts{State: "ok", Readers: []ReaderFacts{rf("ada", 'a', 1)}}}}
+			p := accessProject(t, f)
+			a := p.access()
+			if a.File.Verdict != "expected-sealed" || a.File.Count != 1 {
+				t.Fatalf("file %+v", a.File)
+			}
+			if want := "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed. Its meta.json may have been changed."; a.File.Text != want {
+				t.Errorf("text %q", a.File.Text)
+			}
+			if a.State != state || a.You != nil || len(a.File.Added)+len(a.File.Removed) != 0 {
+				t.Errorf("state %q you %+v file %+v", a.State, a.You, a.File)
+			}
+			s := suggestion(a, "check-downgrade")
+			if s == nil || !s.Primary || a.Suggestions[0].ID != "check-downgrade" {
+				t.Fatalf("suggestions %+v", a.Suggestions)
+			}
+			// The project is a local directory, so sealing it needs --allow-local.
+			if got, want := stepTexts(s, "command"), []string{"pravo protect status", "pravo protect init --encrypt --allow-local"}; !equalStrings(got, want) {
+				t.Errorf("commands %q, want %q", got, want)
+			}
+			if got := stepTexts(s, "note"); len(got) != 1 || !strings.HasPrefix(got[0], "If you did not mean to seal this state, remove the readers file. To seal it: pravo protect init --encrypt") {
+				t.Errorf("notes %q", got)
+			}
+			if suggestion(a, "seal") == nil {
+				t.Error("the seal card is gone")
+			}
+		})
+	}
+	t.Run("a file that does not load, or is missing, says what it did", func(t *testing.T) {
+		for _, c := range []struct{ file, verdict string }{{"missing", "none"}, {"invalid", "none"}} {
+			f := &fakeProtection{facts: Facts{Store: StoreFacts{State: "off", Format: 1}, File: FileFacts{State: c.file, Errors: []LineError{{Line: 1, Reason: "x"}}}}}
+			a := accessProject(t, f).access()
+			if a.File.Verdict != c.verdict || suggestion(a, "check-downgrade") != nil {
+				t.Errorf("%s: %+v", c.file, a.File)
+			}
+		}
+	})
+}

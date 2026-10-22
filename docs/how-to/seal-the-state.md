@@ -246,7 +246,7 @@ Addresses, types, names, dependencies and revisions stay readable. That is what 
 
 ## 9. Let a CI job read
 
-A job that plans and applies must open the state, so it is a reader with a key of its own. A job cannot type a passphrase, so its identity file is not sealed: `--ci` writes both private keys to a file, which you store as the CI secret `PRAVO_IDENTITY` and then delete. Use one identity for each job, and never a person's identity.
+A job that plans and applies must open the state, so it is a reader with a key of its own. A job cannot type a passphrase, so its identity file is not sealed: `--ci` writes both private keys to a file, which you store as the CI secret `PRAVO_IDENTITY` and then delete. Use one identity for each job, and never a person's identity. `--ci` requires `--name`, and the name is the name of the job.
 
 ```sh run
 pravo id new --ci --name deploy-bot --out deploy-bot.identity

@@ -130,7 +130,7 @@ for (const f of files) {
 {
   const read = (f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
   const STATES = new Set(['off', 'immutable', 'sealed', 'migrating']);
-  const VERDICTS = new Set(['match', 'differs', 'missing', 'invalid', 'none']);
+  const VERDICTS = new Set(['match', 'differs', 'missing', 'invalid', 'expected-sealed', 'none']);
   const YOU = new Set(['reader', 'not-reader', 'no-identity', 'locked']);
   const KINDS = new Set(['command', 'add-line', 'remove-line', 'note']);
   for (const f of files.filter((x) => x.startsWith('access.'))) {
@@ -157,6 +157,8 @@ for (const f of files) {
       if (names((r) => r.in_store && !r.in_file) !== [...(a.file.removed || [])].sort().join()) fail(f, 'removed does not agree with the readers');
     }
     if (a.file.verdict === 'invalid' && !(a.file.errors || []).length) fail(f, 'invalid without an error');
+    // a repository that lists readers and a state that is not sealed: the verdict goes with the first suggestion
+    if (a.file.verdict === 'expected-sealed' && (a.state === 'sealed' || a.state === 'migrating' || !a.file.count || (a.suggestions[0] || {}).id !== 'check-downgrade')) fail(f, 'expected-sealed is for a state that is not sealed, a file that loads and the first suggestion check-downgrade');
     if (a.suggestions.filter((s) => s.primary).length > 1) fail(f, 'two primary suggestions');
     for (const s of a.suggestions) {
       for (const st of s.steps) {

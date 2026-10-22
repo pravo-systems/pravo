@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/ui"
 )
 
 // The tests share one process, so the environment is not really emptied by
@@ -359,5 +361,216 @@ func TestResolveIdentityWarnsOfAnIdentityFileOthersCanRead(t *testing.T) {
 	_, err := resolveIdentity(identityOptions{})
 	if err == nil || !strings.Contains(err.Error(), "refusing to use an identity with no passphrase") {
 		t.Fatalf("error = %v, want a refusal of a key with no passphrase that others can read", err)
+	}
+}
+
+// --identity is global: every command that opens a state takes it, and it wins
+// over $PRAVO_IDENTITY.
+func TestGlobalIdentityFlag(t *testing.T) {
+	s := sealedBucket(t)
+	_, eve := newIdentityFile(t, "eve", true)
+	evePath := putIdentity(t, t.TempDir(), "eve", eve)
+	t.Setenv("PRAVO_IDENTITY", evePath)
+	resetIdentityState(t)
+
+	text, code := runPravo(t, s.dir, "state", "show", "net.vpc")
+	if code != 5 || !strings.Contains(text, "identity eve is not a reader") {
+		t.Fatalf("the environment identity should not read: exit %d\n%s", code, text)
+	}
+	for _, args := range [][]string{
+		{"state", "show", "net.vpc"},
+		{"state", "query", "len(resources)"},
+		{"output"},
+		{"protect", "status"},
+	} {
+		resetIdentityState(t)
+		t.Setenv("PRAVO_IDENTITY", evePath)
+		for _, form := range [][]string{append(args[:len(args):len(args)], "--identity", "dan"), append([]string{"--identity", "dan"}, args...)} {
+			text, code := runPravo(t, s.dir, form...)
+			if code != 0 {
+				t.Errorf("%v: exit %d\n%s", form, code, text)
+			}
+			if strings.Contains(text, "not a reader") {
+				t.Errorf("%v: the flag was not used\n%s", form, text)
+			}
+		}
+	}
+	t.Run("id show reads the named identity", func(t *testing.T) {
+		resetIdentityState(t)
+		text, code := runPravo(t, s.dir, "id", "show", "--identity", "dan")
+		if code != 0 || !strings.Contains(text, "Identity dan ") {
+			t.Fatalf("exit %d\n%s", code, text)
+		}
+	})
+	t.Run("a name that does not exist", func(t *testing.T) {
+		resetIdentityState(t)
+		text, code := runPravo(t, s.dir, "state", "show", "net.vpc", "--identity", "zed")
+		if code != 5 || !strings.Contains(text, "no identity named zed") {
+			t.Fatalf("exit %d\n%s", code, text)
+		}
+	})
+	t.Run("the help lists it once", func(t *testing.T) {
+		for _, args := range [][]string{{"state", "show"}, {"protect", "status"}, {"serve"}, {"plan"}} {
+			text, _ := runPravo(t, s.dir, append(args, "--help")...)
+			if n := strings.Count(text, "--identity string"); n != 1 {
+				t.Errorf("%v: --identity is listed %d times\n%s", args, n, text)
+			}
+		}
+	})
+}
+
+// With several identity files and none named like the user, the identity is the
+// one whose reader key has a lock in the state.
+func TestIdentityIsChosenByTheLocksOfTheState(t *testing.T) {
+	s := sealedBucket(t)
+	t.Setenv("USER", "bob")
+	put := func(t *testing.T, names ...string) string {
+		t.Helper()
+		dir := t.TempDir()
+		for _, n := range names {
+			// ada and dan are the readers of the state; the others are strangers.
+			if n == "ada" || n == "dan" {
+				putIdentity(t, dir, n, s.identityFile(t, n))
+				continue
+			}
+			_, data := newIdentityFile(t, n, true)
+			putIdentity(t, dir, n, data)
+		}
+		t.Setenv("PRAVO_IDENTITY_DIR", dir)
+		resetIdentityState(t)
+		return dir
+	}
+
+	t.Run("the only identity that reads the state", func(t *testing.T) {
+		put(t, "ada", "eve", "fay")
+		for _, args := range [][]string{{"state", "show", "net.vpc"}, {"output"}, {"protect", "status"}} {
+			resetIdentityState(t)
+			text, code := runPravo(t, s.dir, args...)
+			if code != 0 || strings.Contains(text, "several identities") {
+				t.Errorf("%v: exit %d\n%s", args, code, text)
+			}
+		}
+		text, _ := runPravo(t, s.dir, "protect", "status")
+		if !strings.Contains(text, "You          ada · reader key") {
+			t.Errorf("status does not name ada:\n%s", text)
+		}
+	})
+	t.Run("a name that matches the user wins", func(t *testing.T) {
+		put(t, "ada", "dan", "eve")
+		t.Setenv("USER", "dan")
+		text, code := runPravo(t, s.dir, "protect", "status")
+		if code != 0 || !strings.Contains(text, "You          dan · reader key") {
+			t.Fatalf("exit %d\n%s", code, text)
+		}
+	})
+	t.Run("several identities that read it", func(t *testing.T) {
+		put(t, "ada", "dan", "eve")
+		text, code := runPravo(t, s.dir, "state", "show", "net.vpc")
+		if code != 5 || !strings.Contains(text, "holds several identities (ada dan eve) and none is named like you (ada dan all read this state); choose one with --identity NAME") {
+			t.Fatalf("exit %d\n%s", code, text)
+		}
+		if strings.Contains(text, secretA) {
+			t.Error("the output has a secret")
+		}
+		resetIdentityState(t)
+		if text, code := runPravo(t, s.dir, "state", "show", "net.vpc", "--identity", "dan"); code != 0 || !strings.Contains(text, secretA) {
+			t.Errorf("--identity dan: exit %d\n%s", code, text)
+		}
+	})
+	t.Run("none that reads it", func(t *testing.T) {
+		put(t, "eve", "fay")
+		text, code := runPravo(t, s.dir, "state", "show", "net.vpc")
+		if code != 5 || !strings.Contains(text, "holds several identities (eve fay) and none is named like you; choose one") || strings.Contains(text, "all read this state") {
+			t.Fatalf("exit %d\n%s", code, text)
+		}
+	})
+	t.Run("a file that is no identity is no candidate", func(t *testing.T) {
+		dir := put(t, "ada", "eve")
+		if err := os.WriteFile(filepath.Join(dir, "notes"), []byte("not json"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		resetIdentityState(t)
+		if text, code := runPravo(t, s.dir, "protect", "status"); code != 0 || !strings.Contains(text, "You          ada · reader key") {
+			t.Fatalf("exit %d\n%s", code, text)
+		}
+	})
+	t.Run("the passphrase of the chosen identity only", func(t *testing.T) {
+		dir := t.TempDir()
+		// ada's file is sealed with the passphrase; eve's is a stranger's, sealed too.
+		adaData, err := s.ada.MarshalSealed([]byte(testPass))
+		if err != nil {
+			t.Fatal(err)
+		}
+		putIdentity(t, dir, "ada", adaData)
+		eve, err := protect.NewIdentity("eve", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		eveData, err := eve.MarshalSealed([]byte("another passphrase"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		putIdentity(t, dir, "eve", eveData)
+		t.Setenv("PRAVO_IDENTITY_DIR", dir)
+		resetIdentityState(t)
+		var prompts []string
+		stdinIsTerminal = func() bool { return true }
+		askPassphrase = func(prompt string) ([]byte, error) {
+			prompts = append(prompts, prompt)
+			return []byte(testPass), nil
+		}
+		text, code := runPravo(t, s.dir, "state", "show", "net.vpc")
+		if code != 0 || !strings.Contains(text, secretA) {
+			t.Fatalf("exit %d\n%s", code, text)
+		}
+		if len(prompts) != 1 || prompts[0] != "Passphrase for ada: " {
+			t.Errorf("prompts: %q", prompts)
+		}
+	})
+	t.Run("a state that is not sealed asks for nothing", func(t *testing.T) {
+		put(t, "eve", "fay")
+		e := newS3Env(t, false)
+		e.record(t, e.store(t), "a", "x")
+		if text, code := runPravo(t, e.dir, "state", "list"); code != 0 || text != "a\n" {
+			t.Fatalf("exit %d\n%s", code, text)
+		}
+	})
+}
+
+// protect init, which has no state to look in yet, chooses by the readers file.
+func TestProtectInitChoosesTheIdentityOnTheReadersList(t *testing.T) {
+	requireSealing(t)
+	ids := isolateIdentities(t)
+	t.Setenv("USER", "bob")
+	e := newS3Env(t, false)
+	e.record(t, e.store(t), "a", "TOPSECRET")
+	_, adaLine := person(t, ids, "ada")
+	person(t, ids, "eve")
+	e.readers(t, adaLine)
+	text, code := runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, e.dir, "protect", "status"); code != 0 || !strings.Contains(text, "You          ada · reader key") {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+}
+
+// The viewer chooses among several identity files by the locks of the state, too.
+func TestViewerChoosesTheIdentityByTheLocks(t *testing.T) {
+	ids := isolateIdentities(t)
+	t.Setenv("USER", "bob")
+	ada, _ := person(t, ids, "ada")
+	person(t, ids, "eve")
+	saved := out
+	out = ui.NewPrinter(io.Discard, true)
+	t.Cleanup(func() { out = saved })
+	v := &viewerState{}
+	defer v.close()
+	if err := v.resolve(ada.Reader.Public()); err != nil {
+		t.Fatal(err)
+	}
+	if id, _, _ := v.identity(); id == nil || id.Name != "ada" {
+		t.Errorf("the identity is %v", id)
 	}
 }

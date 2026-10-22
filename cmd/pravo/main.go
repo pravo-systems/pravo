@@ -273,6 +273,7 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVar(&flagJSON, "json", false, "machine-readable output on stdout (progress goes to stderr)")
 	pf.StringVar(&flagActor, "actor", "", "a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)")
 	pf.StringVar(&flagReason, "reason", "", "why; recorded on transactions and plans ($PRAVO_REASON)")
+	pf.StringVar(&flagIdentity, "identity", "", identityUsage)
 	cmd.AddCommand(
 		initCmd(), planCmd(), applyCmd(), destroyCmd(), showCmd(), outputCmd(), stateCmd(), importCmd(),
 		providersCmd(), genCmd(), validateCmd(), evalCmd(), fmtCmd(), versionCmd(),

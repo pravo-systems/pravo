@@ -6,33 +6,12 @@
  "location": "s3://acme-state/estate",
  "backend": "s3",
  "summary": "The state is not sealed. Attributes, outputs and stored plans are stored as plain text, and anyone who can read s3://acme-state/estate can read every value.",
- "readers": [
-  {
-   "name": "ada",
-   "name_ok": true,
-   "key": "x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
-   "key_short": "x25519:zILxDZ…",
-   "fingerprint": "SHA256:m8YMmlDg9T6mFey9zpNAmej98q7pMpDsi0aia27rJlo",
-   "in_store": false,
-   "in_file": true,
-   "line": 1
-  },
-  {
-   "name": "dan",
-   "name_ok": true,
-   "key": "x25519:Hli_Xj5WuXVFv4DwxC4drR13YSgBV_Idby_OkIthUm0",
-   "key_short": "x25519:Hli_Xj…",
-   "fingerprint": "SHA256:OXONlpNIN4+YAxgAA72tFS273MSP9v31RNyZ2aJwA7g",
-   "in_store": false,
-   "in_file": true,
-   "line": 2
-  }
- ],
+ "readers": [],
  "file": {
   "verdict": "none",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The readers file lists 2 readers. It is compared with the store once the state is sealed.",
-  "count": 2
+  "text": "The state is not sealed, so there is no list of readers to compare.",
+  "count": 0
  },
  "records": {
   "total": 46,
@@ -64,7 +43,13 @@
     },
     {
      "kind": "note",
-     "text": "The readers file lists 2 readers. A reader who is not listed sends their line, and it is added to .pravo/access/readers.txt."
+     "text": "On the machine of the reader who seals, add the line each reader sent, one for each, to the readers file:"
+    },
+    {
+     "kind": "add-line",
+     "text": "\u003cthe line pravo id new printed\u003e",
+     "file": ".pravo/access/readers.txt",
+     "placeholder": true
     },
     {
      "kind": "command",

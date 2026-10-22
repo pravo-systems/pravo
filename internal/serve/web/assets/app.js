@@ -35,6 +35,12 @@ let booted = false;
 // ---------------------------------------------------------------------------------------------------------
 // announcements and toasts
 
+// copiedWhat names what a copy button copied, from its label ("Copy the reader key of ada" gives "Copied the reader key of ada").
+function copiedWhat(btn) {
+  const label = btn.getAttribute('aria-label') || '';
+  return label.startsWith('Copy ') ? 'Copied ' + label.slice(5) : 'Copied';
+}
+
 function announce(text) {
   const el = $('live');
   el.textContent = '';
@@ -1292,7 +1298,7 @@ function wire() {
   document.addEventListener('click', (ev) => {
     const c = ev.target instanceof Element && ev.target.closest('[data-copy]');
     // the check mark is for a copy that worked; a copy that did not shows the cross, as the other copy buttons do
-    if (c) copyText(c.dataset.copy).then((ok) => { c.classList.toggle('done', ok); c.classList.toggle('failed', !ok); const i = c.querySelector('.i'); if (i) i.className = 'i ' + (ok ? 'i-check' : 'i-x'); setTimeout(() => { c.classList.remove('done', 'failed'); if (i) i.className = 'i i-copy'; }, 1400); announce(ok ? 'Copied' : 'Could not copy'); });
+    if (c) copyText(c.dataset.copy).then((ok) => { c.classList.toggle('done', ok); c.classList.toggle('failed', !ok); const i = c.querySelector('.i'); if (i) i.className = 'i ' + (ok ? 'i-check' : 'i-x'); setTimeout(() => { c.classList.remove('done', 'failed'); if (i) i.className = 'i i-copy'; }, 1400); announce(ok ? copiedWhat(c) : 'Could not copy'); });
   });
   initTips();
   // the skip link goes to the graph, or to the table in the table view; it must not write #canvas into the address, which is the view
