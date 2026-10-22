@@ -95,7 +95,7 @@ Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`),
 - Treat the plan as the thing to review: look for `destroy`, `replace` and `-/+` actions on resources that hold data.
 - A stored plan, like a plan file, holds sensitive values: do not print one in full. Whoever can read the state can read its plans.
 - Do not print values of sensitive attributes or outputs, and do not put secrets in a specification. `pravo.#SecretEnv` reads one from the environment without recording it.
-- An agent that calls pravo through tools should use `pravo mcp --policy FILE`. The server applies only from saved plan files, not from the ids of stored plans (`pravo plan pull plan-ID FILE` writes one), and refuses arguments that start with `-`. `references/how-to/agents-and-mcp.md` states what that does and does not protect.
+- An agent that calls pravo through tools should use `pravo mcp --policy FILE`. The server applies only from saved plans, a plan file or the id of a stored plan with its `tags` (`pravo_plan` with `store` stores one, `pravo_plan_list` lists them), and refuses arguments that start with `-`. `references/how-to/agents-and-mcp.md` states what that does and does not protect.
 - `--actor` is a label that the caller types. It is not an identity.
 
 ## Where to look

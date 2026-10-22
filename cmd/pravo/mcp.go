@@ -92,13 +92,15 @@ func mcpTools() []mcpTool {
 		{Name: "pravo_validate", Description: "Evaluate the specification and check it against provider schemas. Returns counts, or the evaluation errors.",
 			InputSchema: obj(map[string]any{"tags": tagsProp}),
 			args:        func(in map[string]any) ([]string, error) { return append([]string{"validate"}, tagArgs(in)...), nil }},
-		{Name: "pravo_plan", Description: "Compute the plan: every change the plan ran, with before/after values, reasons, blast radius and statistics. The nodes it left alone are not listed unless include_skipped is true. Optionally save it to a plan file for review and later apply, and reserve the nodes for a duration.",
+		{Name: "pravo_plan", Description: "Compute the plan: every change the plan ran, with before/after values, reasons, blast radius and statistics. The nodes it left alone are not listed unless include_skipped is true. Optionally save it to a plan file, or store it in the state, for review and later apply, and reserve the nodes for a duration.",
 			InputSchema: obj(map[string]any{"tags": tagsProp, "out": map[string]any{"type": "string", "description": "save the plan to this file"},
 				"refresh":         map[string]any{"type": "string", "enum": []string{"age", "expired", "false", "all"}, "description": "when to read records from their providers: age (the records the plan looks at, once past their refresh age), expired (every record past its refresh age), false (none) or all"},
 				"full":            map[string]any{"type": "boolean"},
 				"include_skipped": map[string]any{"type": "boolean", "description": "also list the nodes the plan left alone, each with its address, mode, type and name"},
 				"reserve":         map[string]any{"type": "string", "description": "reservation duration such as 15m"}, "destroy": map[string]any{"type": "boolean"},
-				"replace": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "resource addresses to destroy and create again"}}),
+				"replace": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "resource addresses to destroy and create again"},
+				"store":   map[string]any{"type": "boolean", "description": "store the plan in the state, where others can list it with pravo_plan_list and apply it by its id; the result says the id"},
+				"ttl":     map[string]any{"type": "string", "description": "with store: keep the plan this long if it is not applied, such as 90m, 36h or 7d (the default is 7d)"}}),
 			args: func(in map[string]any) ([]string, error) {
 				a := append([]string{"plan"}, tagArgs(in)...)
 				if v := strArg(in, "out"); v != "" {
@@ -119,6 +121,12 @@ func mcpTools() []mcpTool {
 				if boolArg(in, "destroy") {
 					a = append(a, "-destroy")
 				}
+				if boolArg(in, "store") {
+					a = append(a, "-store")
+				}
+				if v := strArg(in, "ttl"); v != "" {
+					a = append(a, "-ttl="+v)
+				}
 				if rs, ok := in["replace"].([]any); ok {
 					for _, r := range rs {
 						if v, ok := r.(string); ok && v != "" {
@@ -128,21 +136,40 @@ func mcpTools() []mcpTool {
 				}
 				return a, nil
 			}},
-		{Name: "pravo_show_plan", Description: "Show a saved plan file as data, and whether it is still applicable.",
-			InputSchema: obj(map[string]any{"planfile": map[string]any{"type": "string"}}, "planfile"),
+		{Name: "pravo_plan_list", Description: "List the plans stored in the state with pravo_plan (store=true): who made each, how long ago, where it stands (pending, partial, stale, applied or expired) and what it changes. By default the plans that can still be applied; all=true lists the others that are not collected yet. A plan is judged by the state alone.",
+			InputSchema: obj(map[string]any{"tags": tagsProp, "all": map[string]any{"type": "boolean", "description": "also list the stale, applied and expired plans"},
+				"touching": map[string]any{"type": "string", "description": "only the plans that change this resource address"}}),
 			args: func(in map[string]any) ([]string, error) {
-				if err := planFileArg(strArg(in, "planfile")); err != nil {
-					return nil, err
+				a := append([]string{"plan", "list"}, tagArgs(in)...)
+				if boolArg(in, "all") {
+					a = append(a, "-all")
 				}
-				return []string{"show", strArg(in, "planfile")}, nil
+				if v := strArg(in, "touching"); v != "" {
+					if err := positional("touching", v); err != nil {
+						return nil, err
+					}
+					a = append(a, "-touching="+v)
+				}
+				return a, nil
 			}},
-		{Name: "pravo_apply_plan", Description: "Apply a saved plan file exactly as reviewed, optionally only a dependency-closed subset of its changes. Refused when the plan is stale, when a node is locked or reserved by another actor, or when a policy named by the server forbids it. Streams progress events and ends with a summary.",
-			InputSchema: obj(map[string]any{"planfile": map[string]any{"type": "string"}, "only": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "addresses to apply now"}}, "planfile"),
+		{Name: "pravo_show_plan", Description: "Show a saved plan as data, and whether it is still applicable: a plan file, or the id of a plan stored in the state (with the tags it was made with).",
+			InputSchema: obj(map[string]any{"planfile": map[string]any{"type": "string", "description": "a plan file, or the id of a stored plan such as plan-2f9c1a4e"}, "tags": tagsProp}, "planfile"),
 			args: func(in map[string]any) ([]string, error) {
-				if err := planFileArg(strArg(in, "planfile")); err != nil {
+				ref, err := planRefArg(in)
+				if err != nil {
 					return nil, err
 				}
-				a := []string{"apply", strArg(in, "planfile")}
+				return append([]string{"show", ref}, tagArgs(in)...), nil
+			}},
+		{Name: "pravo_apply_plan", Description: "Apply a saved plan exactly as reviewed, optionally only a dependency-closed subset of its changes: a plan file, or the id of a plan stored in the state (with the tags it was made with). Refused when the plan is stale or expired, when a node is locked or reserved by another actor, or when a policy named by the server forbids it. Streams progress events and ends with a summary.",
+			InputSchema: obj(map[string]any{"planfile": map[string]any{"type": "string", "description": "a plan file, or the id of a stored plan such as plan-2f9c1a4e"}, "tags": tagsProp,
+				"only": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "addresses to apply now"}}, "planfile"),
+			args: func(in map[string]any) ([]string, error) {
+				ref, err := planRefArg(in)
+				if err != nil {
+					return nil, err
+				}
+				a := append([]string{"apply", ref}, tagArgs(in)...)
 				if only := listArg(in, "only"); len(only) > 0 {
 					a = append(a, "-only", strings.Join(only, ","))
 				}
@@ -322,7 +349,7 @@ func serveMCP(ctx context.Context, in io.Reader, outW io.Writer) error {
 				"protocolVersion": "2024-11-05",
 				"capabilities":    map[string]any{"tools": map[string]any{}},
 				"serverInfo":      map[string]any{"name": "pravo", "version": Version},
-				"instructions":    "pravo plans and applies infrastructure specified in CUE. Work in this order: pravo_schema to learn a type, edit the .cue files, pravo_validate until it passes, pravo_plan with out=<file> to produce a reviewable plan, then pravo_apply_plan on that file. Never try to bypass a refusal: a policy or a reservation is a decision by the operators.",
+				"instructions":    "pravo plans and applies infrastructure specified in CUE. Work in this order: pravo_schema to learn a type, edit the .cue files, pravo_validate until it passes, pravo_plan with out=<file> to produce a reviewable plan, then pravo_apply_plan on that file. A plan can also be stored in the state (pravo_plan with store=true), listed with pravo_plan_list and applied by its id. Never try to bypass a refusal: a policy or a reservation is a decision by the operators.",
 			}, nil)
 		case "notifications/initialized", "initialized":
 			// no reply
@@ -415,6 +442,12 @@ func serverPolicyArgs(args []string) []string {
 	if len(args) == 0 || (args[0] != "plan" && args[0] != "apply") {
 		return nil
 	}
+	if args[0] == "plan" && len(args) > 1 {
+		switch args[1] {
+		case "list", "show", "pull", "gc":
+			return nil // they list and read stored plans, and take no policy
+		}
+	}
 	var out []string
 	for _, p := range flagPolicy {
 		out = append(out, "--policy", p)
@@ -425,17 +458,18 @@ func serverPolicyArgs(args []string) []string {
 // positional refuses a tool argument that the command line would read as a
 // flag, such as a plan file named -auto-approve or an address -C=/other, and
 // an empty one. The tools pass these values as positional arguments.
-// planFileArg checks the plan file of a tool call. The tools take plan files. The
-// commands they run also take the id of a plan stored in the state, which the
-// tools do not offer: an id that no file has is refused.
-func planFileArg(v string) error {
-	if err := positional("planfile", v); err != nil {
-		return err
+// planRefArg checks the plan of a tool call: a plan file, or the id of a plan
+// stored in the state. The tags are the -t of the command that made a stored plan,
+// which it needs; a plan file carries its own, so tags with one are refused.
+func planRefArg(in map[string]any) (string, error) {
+	ref := strArg(in, "planfile")
+	if err := positional("planfile", ref); err != nil {
+		return "", err
 	}
-	if isStoredRef(v) {
-		return fmt.Errorf("planfile %q is the id of a stored plan, and the tools take plan files: write the plan to a file with \"pravo plan pull %s FILE\"", v, v)
+	if len(listArg(in, "tags")) > 0 && !isStoredRef(ref) {
+		return "", fmt.Errorf("tags go with the id of a stored plan; a plan file carries its own")
 	}
-	return nil
+	return ref, nil
 }
 
 func positional(name string, values ...string) error {

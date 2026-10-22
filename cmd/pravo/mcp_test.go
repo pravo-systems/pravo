@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -60,29 +58,63 @@ func TestToolsRefuseArgumentsThatLookLikeFlags(t *testing.T) {
 	}
 }
 
-// The commands that the tools run take the id of a stored plan; the tools do not,
-// unless a file has that name.
-func TestToolsTakePlanFilesAndNotStoredPlanIDs(t *testing.T) {
+// The tools take a plan file or the id of a stored plan, with the tags that the
+// stored plan was made with; a plan file carries its own tags.
+func TestToolsTakePlanFilesAndStoredPlanIDs(t *testing.T) {
 	byName := map[string]mcpTool{}
 	for _, tool := range mcpTools() {
 		byName[tool.Name] = tool
 	}
-	dir := t.TempDir()
-	wd, _ := os.Getwd()
-	defer os.Chdir(wd)
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
+	in := map[string]any{"planfile": "plan-2f9c1a4e", "tags": []any{"env=prod"}}
+	for name, want := range map[string][]string{
+		"pravo_show_plan":  {"show", "plan-2f9c1a4e", "-t", "env=prod"},
+		"pravo_apply_plan": {"apply", "plan-2f9c1a4e", "-t", "env=prod"},
+	} {
+		got, err := byName[name].args(in)
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: %v %v, want %v", name, got, err, want)
+		}
 	}
+	if got, err := byName["pravo_apply_plan"].args(map[string]any{"planfile": "plan-2f9c1a4e", "only": []any{"a", "b"}}); err != nil || !reflect.DeepEqual(got, []string{"apply", "plan-2f9c1a4e", "-only", "a,b"}) {
+		t.Errorf("apply --only: %v %v", got, err)
+	}
+	// Tags with a plan file are refused: the file carries its own.
 	for _, name := range []string{"pravo_apply_plan", "pravo_show_plan"} {
-		in := map[string]any{"planfile": "plan-2f9c1a4e"}
-		if _, err := byName[name].args(in); err == nil || !strings.Contains(err.Error(), "stored plan") {
-			t.Errorf("%s took the id of a stored plan: %v", name, err)
+		if _, err := byName[name].args(map[string]any{"planfile": "change.plan", "tags": []any{"env=prod"}}); err == nil || !strings.Contains(err.Error(), "stored plan") {
+			t.Errorf("%s took tags with a plan file: %v", name, err)
 		}
-		os.WriteFile(filepath.Join(dir, "plan-2f9c1a4e"), []byte("{}"), 0o644)
-		if _, err := byName[name].args(in); err != nil {
-			t.Errorf("%s refused a file that is called like an id: %v", name, err)
+	}
+}
+
+// The tools that store and list plans offer what the commands do, and the server adds
+// its policies to the plan and the apply and not to the commands that only list.
+func TestToolsStoreAndListPlans(t *testing.T) {
+	byName := map[string]mcpTool{}
+	for _, tool := range mcpTools() {
+		byName[tool.Name] = tool
+	}
+	got, err := byName["pravo_plan"].args(map[string]any{"store": true, "ttl": "36h", "out": "x.plan"})
+	if err != nil || !reflect.DeepEqual(got, []string{"plan", "-out", "x.plan", "-store", "-ttl=36h"}) {
+		t.Errorf("pravo_plan: %v %v", got, err)
+	}
+	got, err = byName["pravo_plan_list"].args(map[string]any{"all": true, "touching": "api.db", "tags": []any{"env=prod"}})
+	if err != nil || !reflect.DeepEqual(got, []string{"plan", "list", "-t", "env=prod", "-all", "-touching=api.db"}) {
+		t.Errorf("pravo_plan_list: %v %v", got, err)
+	}
+	if _, err := byName["pravo_plan_list"].args(map[string]any{"touching": "--json"}); err == nil {
+		t.Error("an address that looks like a flag was accepted")
+	}
+	flagPolicy = []string{"/etc/pravo/prod.cue"}
+	defer func() { flagPolicy = nil }()
+	for _, args := range [][]string{{"plan", "list"}, {"plan", "list", "-all"}, {"plan", "show", "plan-2f9c1a4e"}, {"plan", "gc"}} {
+		if p := serverPolicyArgs(args); p != nil {
+			t.Errorf("%v takes no policy, got %v", args, p)
 		}
-		os.Remove(filepath.Join(dir, "plan-2f9c1a4e"))
+	}
+	for _, args := range [][]string{{"plan", "-store"}, {"plan", "-t", "a=b"}, {"apply", "plan-2f9c1a4e"}} {
+		if p := serverPolicyArgs(args); len(p) != 2 {
+			t.Errorf("%v takes the policy, got %v", args, p)
+		}
 	}
 }
 

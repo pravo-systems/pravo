@@ -193,7 +193,7 @@ jq -c 'select(.id == 3 or .id == 4) | {id, isError: .result.isError, exit_code: 
 Output:
 
 ```text
-["pravo_validate","pravo_plan","pravo_show_plan","pravo_apply_plan","pravo_schema","pravo_why","pravo_state_query","pravo_state_show","pravo_dependents","pravo_state_log","pravo_locks","pravo_drift","pravo_providers"]
+["pravo_validate","pravo_plan","pravo_plan_list","pravo_show_plan","pravo_apply_plan","pravo_schema","pravo_why","pravo_state_query","pravo_state_show","pravo_dependents","pravo_state_log","pravo_locks","pravo_drift","pravo_providers"]
 {"id":3,"isError":true,"exit_code":5}
 {"id":4,"isError":true,"exit_code":null}
 ```

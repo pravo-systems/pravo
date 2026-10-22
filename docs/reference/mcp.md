@@ -1,6 +1,6 @@
 ---
 title: pravo mcp
-description: Serve pravo to an agent over the Model Context Protocol on stdio. Thirteen tools, applies only from saved plans, and plan policies the agent cannot remove.
+description: Serve pravo to an agent over the Model Context Protocol on stdio. Fourteen tools, applies only from saved plans, and plan policies the agent cannot remove.
 order: 14
 group: Commands
 normalize:
@@ -42,9 +42,10 @@ A tool call that fails does not end the server. Its exit code is returned in the
 | Tool | Arguments | Runs | `--policy` added |
 |---|---|---|---|
 | `pravo_validate` | `tags` | `validate` | no |
-| `pravo_plan` | `tags`, `out`, `refresh` (`age`, `expired`, `false`, `all`), `full`, `include_skipped`, `reserve`, `destroy`, `replace` | `plan` | yes |
-| `pravo_show_plan` | `planfile` (required) | `show PLANFILE` | no |
-| `pravo_apply_plan` | `planfile` (required), `only` | `apply PLANFILE --only A,B` | yes |
+| `pravo_plan` | `tags`, `out`, `refresh` (`age`, `expired`, `false`, `all`), `full`, `include_skipped`, `reserve`, `destroy`, `replace`, `store`, `ttl` | `plan` | yes |
+| `pravo_plan_list` | `tags`, `all`, `touching` | `plan list` | no |
+| `pravo_show_plan` | `planfile` (required), `tags` | `show PLAN` | no |
+| `pravo_apply_plan` | `planfile` (required), `tags`, `only` | `apply PLAN --only A,B` | yes |
 | `pravo_schema` | `types` (required), `required` | `schema TYPE... --required` | no |
 | `pravo_why` | `addrs` (required), `tags` | `why ADDR...` | no |
 | `pravo_state_query` | `expression` (required), `tags` | `state query EXPRESSION` | no |
@@ -65,15 +66,15 @@ Five arguments reach the command line as a word of their own: `planfile`, `addr`
 
 It is a tool result with `isError` true. It is made before any `pravo` process runs, so it carries no `structuredContent`. `planfile` set to `-auto-approve` therefore does not make a plain apply, and `addr` set to `-C=/other` does not change the root. A value that passes the check is given to the command as it is. The server does not check that a plan file was reviewed.
 
-`pravo_show_plan` and `pravo_apply_plan` take plan files only. A `planfile` that has the form of the id of a plan stored in the state, such as `plan-2f9c1a4e`, and that names no file, is refused in the same way, before any process runs. The message says to write the plan to a file with `pravo plan pull ID FILE`.
+`planfile` is a plan file or the id of a plan stored in the state, such as `plan-2f9c1a4e`. A name that has the form of an id and is also a file is the file. `tags` are the `-t` values that a stored plan was made with, which the commands that show and apply it need; a plan file carries its own, so `tags` with a file is refused before any process runs. `pravo_plan` with `store` true stores the plan, and its result says the id. `pravo_plan_list` lists the stored plans. The tools do not collect plans.
 
 ### Policies on the server
 
 Each `--policy` is read and compiled when the server starts, so a bad path fails the start and not every later call. The server adds `--policy` to its `pravo_plan` and `pravo_apply_plan` runs, and to no other tool, since no other command takes the flag. A tool argument cannot remove a policy that the server names.
 
-`pravo_apply_plan` always has a plan file, so the server never runs a plain apply. The saved plan is judged whole before anything is applied, as on the command line. A refusal reaches the agent as a result with `isError` true and `structuredContent.exit_code` 5. A plan that a policy refuses returns the plan document and then the error object, so the agent sees what was judged.
+`pravo_apply_plan` always has a plan, a file or a stored one, so the server never runs a plain apply. The saved plan is judged whole before anything is applied, as on the command line. A refusal reaches the agent as a result with `isError` true and `structuredContent.exit_code` 5. A plan that a policy refuses returns the plan document and then the error object, so the agent sees what was judged.
 
-Without `--policy`, nothing judges the plan: `pravo_apply_plan` applies the file it is given when the file is not stale. A policy binds the tool and not the process around it. An agent with a shell or with credentials of its own does not need the tool. See [Policies](policies-overview.md) and [Agents and MCP](../how-to/agents-and-mcp.md).
+Without `--policy`, nothing judges the plan: `pravo_apply_plan` applies the plan it is given when the plan is not stale, and a stored plan when it has not expired. A policy binds the tool and not the process around it. An agent with a shell or with credentials of its own does not need the tool. See [Policies](policies-overview.md) and [Agents and MCP](../how-to/agents-and-mcp.md).
 
 ### Results
 
@@ -112,7 +113,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 ```
 
 ```text out
-{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"tools":{}},"instructions":"pravo plans and applies infrastructure specified in CUE. Work in this order: pravo_schema to learn a type, edit the .cue files, pravo_validate until it passes, pravo_plan with out=<file> to produce a reviewable plan, then pravo_apply_plan on that file. Never try to bypass a refusal: a policy or a reservation is a decision by the operators.","protocolVersion":"2024-11-05","serverInfo":{"name":"pravo","version":"0.1.0-dev"}}}
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"tools":{}},"instructions":"pravo plans and applies infrastructure specified in CUE. Work in this order: pravo_schema to learn a type, edit the .cue files, pravo_validate until it passes, pravo_plan with out=<file> to produce a reviewable plan, then pravo_apply_plan on that file. A plan can also be stored in the state (pravo_plan with store=true), listed with pravo_plan_list and applied by its id. Never try to bypass a refusal: a policy or a reservation is a decision by the operators.","protocolVersion":"2024-11-05","serverInfo":{"name":"pravo","version":"0.1.0-dev"}}}
 ```
 
 The instructions contain `out=<file>`. The server writes `<`, `>` and `&` as they are and does not escape them.
@@ -126,6 +127,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | pravo mcp | gre
 ```text out
 "name":"pravo_validate"
 "name":"pravo_plan"
+"name":"pravo_plan_list"
 "name":"pravo_show_plan"
 "name":"pravo_apply_plan"
 "name":"pravo_schema"
