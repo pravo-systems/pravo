@@ -134,7 +134,21 @@ func TestScreenshot(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 	dir := t.TempDir()
-	profile := filepath.Join(dir, "profile")
+	// The helper processes of Chrome can still be writing to the profile when
+	// the test ends, so it is not in the directory that the test removes: it is
+	// removed again until Chrome has let go of it.
+	profile, err := os.MkdirTemp("", "serveshots-profile-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		for i := 0; i < 20; i++ {
+			if os.RemoveAll(profile) == nil {
+				return
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+	})
 	opts := shotOptions{Min: 500 * time.Millisecond, Max: 15 * time.Second}
 	shoot := func(path string) ([]string, error) {
 		return screenshot(context.Background(), chrome, profile, filepath.Join(dir, strings.Trim(path, "/")+".png"), srv.URL+path, 320, 200, opts)

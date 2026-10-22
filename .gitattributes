@@ -1,0 +1,3 @@
+# The skill is embedded in the binary and compared byte for byte with what
+# tools/skillgen builds, so it is checked out with LF on every platform.
+skills/** text eol=lf

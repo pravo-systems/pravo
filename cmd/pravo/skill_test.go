@@ -105,7 +105,8 @@ func TestSkillInstallDefaultsToTheSkillsDirectoryOfClaude(t *testing.T) {
 
 func TestSkillPrint(t *testing.T) {
 	out, code := runPravo(t, t.TempDir(), "skill", "print")
-	if code != 0 || !strings.HasPrefix(out, "---\nname: pravo\n") {
+	// A checkout with other line endings is still the skill.
+	if code != 0 || !strings.HasPrefix(strings.ReplaceAll(out, "\r\n", "\n"), "---\nname: pravo\n") {
 		t.Fatalf("print: %d %.60q", code, out)
 	}
 	out, code = runPravo(t, t.TempDir(), "skill", "print", "references/reference/plan.md")

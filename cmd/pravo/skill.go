@@ -198,5 +198,5 @@ func isSkillDir(dir string) bool {
 	if err != nil {
 		return false
 	}
-	return strings.HasPrefix(string(data), "---\nname: pravo\n")
+	return strings.HasPrefix(strings.ReplaceAll(string(data), "\r\n", "\n"), "---\nname: pravo\n")
 }
