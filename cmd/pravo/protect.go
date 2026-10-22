@@ -49,14 +49,16 @@ decides who may read.
 init --encrypt" stores every record as an immutable object and encrypts the
 attributes, the outputs, the stored plans and the values in command lines to
 the readers. "protect status" says where things stand. "protect rewrap" brings
-the keys in line with the readers file after a reader is added or removed.`,
+the keys in line with the readers file after a reader is added or removed.
+"protect gc" deletes the records that no pointer names, and the reader groups
+that nothing is sealed in any more.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 	pf := cmd.PersistentFlags()
 	pf.StringVar(&flagAccessDir, "access-dir", "", accessDirUsage)
 	pf.StringVar(&flagIdentity, "identity", "", identityUsage)
-	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd())
+	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectGCCmd())
 	return cmd
 }
 

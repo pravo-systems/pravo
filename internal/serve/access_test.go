@@ -907,3 +907,33 @@ func TestAccessCommandsNameAnOddReadersFile(t *testing.T) {
 		}
 	}
 }
+
+// A sealed state with more than one group suggests dropping the groups that nothing
+// is sealed in, and says to seal the records again first when some are under an old
+// group. The commands only suggest: the viewer runs none of them.
+func TestAccessSuggestsPruningOldGroups(t *testing.T) {
+	facts := sealedFacts()
+	facts.Store.Groups = []GroupFacts{{ID: "g1", Locks: 3, Records: 2}, {ID: "g2", Current: true, Locks: 2, Records: 3}}
+	p := accessProject(t, &fakeProtection{facts: facts})
+	a := p.access()
+	s := suggestion(a, "prune")
+	if s == nil || s.Primary {
+		t.Fatalf("prune: %+v", s)
+	}
+	if got, want := stepTexts(s, "command"), []string{"pravo protect rewrap --all", "pravo protect gc --dry-run", "pravo protect gc"}; !equalStrings(got, want) {
+		t.Errorf("commands %q, want %q", got, want)
+	}
+	// Everything is under the current group already: there is nothing to seal again.
+	facts.Store.Groups = []GroupFacts{{ID: "g1", Locks: 3}, {ID: "g2", Current: true, Locks: 2, Records: 5}}
+	p = accessProject(t, &fakeProtection{facts: facts})
+	if got, want := stepTexts(suggestion(p.access(), "prune"), "command"), []string{"pravo protect gc --dry-run", "pravo protect gc"}; !equalStrings(got, want) {
+		t.Errorf("commands %q, want %q", got, want)
+	}
+	// One group, and a state that is not sealed: no suggestion.
+	if suggestion(accessProject(t, &fakeProtection{facts: sealedFacts()}).access(), "prune") != nil {
+		t.Error("prune is suggested for a state with one group")
+	}
+	if suggestion(accessProject(t, nil).access(), "prune") != nil {
+		t.Error("prune is suggested for a state that is not sealed")
+	}
+}

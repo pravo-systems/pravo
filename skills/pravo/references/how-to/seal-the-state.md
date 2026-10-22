@@ -277,10 +277,11 @@ Readers in .pravo/access/readers.txt: ada dan deploy-bot  (eve removed)
 New data keys for 1 reader group. Records are sealed again as they are next written.
 ```
 
-Removal has three parts, and the last is yours.
+Removal has four parts, and the last is yours.
 
 - The line stops **future** records from being sealed to Eve. It cannot make Eve forget what Eve read, and a copy of the bucket that was made before is still readable with Eve's key.
-- `pravo protect rewrap --all` seals every record, the outputs and the stored plans again under the new key now, instead of when each is next written. It refuses, with exit code 4, while a command is running or a lock is held, as `pravo protect init` does. It does not remove the old group from `meta.json`, and the last record of a resource that was destroyed stays in the bucket, readable by the readers of its group.
+- `pravo protect rewrap --all` seals every record, the outputs and the stored plans again under the new key now, instead of when each is next written. It refuses, with exit code 4, while a command is running or a lock is held, as `pravo protect init` does. It leaves the old group in `meta.json`.
+- `pravo protect gc` drops the old group from `meta.json` once nothing is sealed in it, and deletes the records that no pointer names, among them the last record of a resource that was destroyed. Eve's key then opens nothing that is left in the bucket.
 - Replace the secrets Eve could read where they live: in the cloud, in the application, in a secret manager.
 
 ```sh
@@ -293,6 +294,21 @@ Output:
 Readers in .pravo/access/readers.txt: ada dan deploy-bot
 Sealed 2 records again in <time> s.
 ```
+
+Now nothing is sealed in the first group, and `gc` drops it. `pravo protect gc --dry-run` says what it would do and changes nothing.
+
+```sh
+pravo protect gc
+```
+
+Output:
+
+```text
+No record is garbage: a pointer names every record.
+Dropped group g1: nothing refers to it.
+```
+
+`gc` needs the state at rest, as `rewrap --all` does, and the readers file as any command that writes the state. A record that no pointer names is deleted once it is 24 hours old, so the records of earlier revisions and of resources that were destroyed go the day after they were replaced. Run `gc` again then. A group that still has something sealed in it is kept, and the command says what.
 
 ## What next
 

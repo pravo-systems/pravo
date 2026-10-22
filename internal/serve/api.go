@@ -686,7 +686,7 @@ type AccessChange struct {
 // none of it. Steps are in the order they are done.
 type Suggestion struct {
 	// ID is "seal", "finish", "identity", "rewrap", "add-reader", "remove-reader:NAME",
-	// "reseal" or "status".
+	// "reseal", "prune" or "status".
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Why   string `json:"why"`

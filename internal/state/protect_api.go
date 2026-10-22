@@ -178,9 +178,10 @@ type Migration struct {
 	Done, Total int
 }
 
-// HistoryEntry is one change of the seal: "sealed", "rewrap" or "rewrap --all".
-// By is the name of the identity, taken from the machine that made the change.
-// It is a label and not a proof; signatures arrive with roles.
+// HistoryEntry is one change of the seal: "sealed", "rewrap", "rewrap --all" or
+// "gc", which dropped groups that nothing was sealed in. By is the name of the
+// identity, taken from the machine that made the change. It is a label and not a
+// proof; signatures arrive with roles.
 type HistoryEntry struct {
 	At             time.Time
 	By             string

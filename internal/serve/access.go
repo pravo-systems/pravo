@@ -711,6 +711,22 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 				Why: "Records stay under an old group until they are written again.", Who: "a current reader",
 				Steps: []SuggestionStep{protectCmd("rewrap --all")}})
 		}
+		// A group other than the current one is a data key that a reader who was removed may still hold.
+		// It is dropped when nothing is sealed in it; the garbage collection deletes the records that no
+		// pointer names as well.
+		if len(a.Groups) > 1 {
+			var steps []SuggestionStep
+			for _, g := range a.Groups {
+				if !g.Current && g.Records > 0 {
+					steps = append(steps, note("Records are still under an old group. Seal them again first:"), protectCmd("rewrap --all"))
+					break
+				}
+			}
+			steps = append(steps, note("Say what would be deleted and dropped, and then do it:"), protectCmd("gc --dry-run"), protectCmd("gc"))
+			add(Suggestion{ID: "prune", Title: "Drop the groups nothing is sealed in",
+				Why: "A reader who was removed keeps the data key of the groups they were in. A group that no record, output or stored plan is sealed in is dropped from meta.json, and the key opens nothing that is left. The same command deletes the records that no pointer names once they are a day old.",
+				Who: "a current reader", Steps: steps})
+		}
 		add(Suggestion{ID: "status", Title: "Check the state", Why: "The check hashes every record against its name and prints who can read the state.",
 			Steps: []SuggestionStep{protectCmd("status")}})
 	}

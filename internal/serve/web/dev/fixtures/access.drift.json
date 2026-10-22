@@ -294,6 +294,34 @@
    ]
   },
   {
+   "id": "prune",
+   "title": "Drop the groups nothing is sealed in",
+   "why": "A reader who was removed keeps the data key of the groups they were in. A group that no record, output or stored plan is sealed in is dropped from meta.json, and the key opens nothing that is left. The same command deletes the records that no pointer names once they are a day old.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "Records are still under an old group. Seal them again first:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --all"
+    },
+    {
+     "kind": "note",
+     "text": "Say what would be deleted and dropped, and then do it:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect gc --dry-run"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect gc"
+    }
+   ]
+  },
+  {
    "id": "status",
    "title": "Check the state",
    "why": "The check hashes every record against its name and prints who can read the state.",

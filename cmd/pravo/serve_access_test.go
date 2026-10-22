@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -139,6 +140,11 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 	partial := sealedProtection(m, reader)
 	partial.Unreadable = 2
 	partial.ByGroup = map[string]int{"g1": 2, "g0": 2}
+	two := *m
+	two.Groups = append(slices.Clone(m.Groups), protect.Group{ID: "g2", Locks: m.Groups[0].Locks})
+	two.Current = "g2"
+	older := sealedProtection(&two, reader)
+	older.ByGroup = map[string]int{"g1": 2, "g2": 2}
 	scenes := []scene{
 		{name: "not sealed, a local directory", prot: state.Protection{State: "off", Format: 1}},
 		{name: "not sealed, a bucket", s3: true, prot: state.Protection{State: "off", Format: 1}},
@@ -148,6 +154,7 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 		{name: "sealed, the file differs", s3: true, file: readers[:2], prot: sealedProtection(m, reader)},
 		{name: "sealed, no file", s3: true, prot: sealedProtection(m, reader)},
 		{name: "sealed, records of an old group", s3: true, file: readers, prot: partial},
+		{name: "sealed, two groups", s3: true, file: readers, prot: older},
 		{name: "sealed, no identity", s3: true, file: readers, prot: sealedProtection(m, state.You{State: "no-identity"}), locked: true},
 		{name: "sealed, identity locked", s3: true, file: readers, prot: sealedProtection(m, state.You{State: "no-identity"}), locked: true, id: viewerIdentity{locked: true}},
 		{name: "sealed, not a reader", s3: true, file: readers, prot: sealedProtection(m, state.You{State: "no-identity"}), locked: true, id: viewerIdentity{refused: true, name: "gus", key: readers[0].Key.String()}},
@@ -203,7 +210,7 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 	if checked < 20 && findSub(newRootCmd(), "protect") != nil {
 		t.Errorf("only %d pravo commands were checked", checked)
 	}
-	for _, id := range []string{"seal", "finish", "identity", "rewrap", "add-reader", "remove-reader", "reseal", "status"} {
+	for _, id := range []string{"seal", "finish", "identity", "rewrap", "add-reader", "remove-reader", "reseal", "prune", "status"} {
 		if !seen[id] {
 			t.Errorf("no scene offered the suggestion %s", id)
 		}

@@ -1,6 +1,6 @@
 ---
 title: pravo id and pravo protect
-description: Make an identity, seal the state to a list of readers, check that it holds and change the readers. The commands, the readers file, the identity files and the exit codes.
+description: Make an identity, seal the state to a list of readers, check that it holds, change the readers and collect old records. Commands, flags and exit codes.
 order: 19
 group: Commands
 services:
@@ -34,11 +34,11 @@ keywords: "encrypt seal secrets readers identity access passphrase rewrap state 
 
 | | |
 |---|---|
-| Synopsis | `pravo id new`, `pravo id show`, `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap` |
+| Synopsis | `pravo id new`, `pravo id show`, `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap`, `pravo protect gc` |
 | Changes infrastructure | No. |
 | Reads | The state, and `.pravo/access/readers.txt` in the repository. `id` reads and writes only identity files. |
-| Writes | `id new` writes an identity file. `protect init` and `protect rewrap` write the state. `check` and `status` write nothing. |
-| Prints | One line for each check, then a verdict. The line to add to the readers file. |
+| Writes | `id new` writes an identity file. `protect init`, `protect rewrap` and `protect gc` write the state. `check` and `status` write nothing, and so does `gc --dry-run`. |
+| Prints | One line for each check, then a verdict. The line to add to the readers file. For `gc`, what it deleted and dropped. |
 | Taught in | [Seal the state to a list of readers](../how-to/seal-the-state.md). |
 
 Protection is off by default. A state with protection off is unchanged: format 1, with the layout that every version of pravo reads. These commands turn protection on for one state, show where it stands and keep it in line with the list of readers. [What sealing protects](../concepts/sealed-state.md) says what the seal covers and what it leaves open.
@@ -63,6 +63,7 @@ A state has three formats.
 | `protect init --encrypt` | Seals the state to the readers file. | yes | yes | no |
 | `protect status` | Says whether the state is sealed, to whom, and whether it verifies. | yes | No. | yes |
 | `protect rewrap` | Brings the keys of the state in line with the readers file. | yes | yes | yes |
+| `protect gc` | Deletes the records that no pointer names, and the reader groups that nothing is sealed in. | yes | yes | yes |
 
 ### Flags
 
@@ -78,6 +79,8 @@ A state has three formats.
 | `--encrypt` | `protect init` | Required. Seal the attributes, outputs and stored plans to the readers. |
 | `--yes` | `protect init` | Do not ask for confirmation. |
 | `--all` | `protect rewrap` | Seal every record, the outputs, the stored plans and the sealed text of errors again under the current key. |
+| `--older-than DURATION` | `protect gc` | How old a record that no pointer names must be to be deleted: `36h`, `7d`. The default is `24h`. A value below 65 seconds is raised to 65 seconds. |
+| `--dry-run` | `protect gc` | Say what would be deleted and dropped, and change nothing. |
 
 ### Exit codes
 
@@ -85,7 +88,7 @@ A state has three formats.
 |---|---|
 | 0 | The command did what it was asked. `check` found the store ready. |
 | 1 | Any other failure: a store that cannot be sealed, a local directory without `--allow-local`, an identity that exists, no terminal to ask on and no `--yes`, a state that is not sealed for `rewrap`. |
-| 4 | A command is running or a lock is held. `protect init` and `protect check` do not run then. |
+| 4 | A command is running or a lock is held. `protect init` and `protect check` do not run then, and neither does `rewrap --all`. `protect gc` collects the records and then exits with 4 without looking at the groups. |
 | 5 | You are not a reader of the state, your identity is not on the readers file, or the readers file and the state differ for a command that writes. For any other command that writes a sealed state, such as `state rm` or `apply`: the readers file is missing. |
 | 6 | The readers file is invalid, for `protect check`, `init` and `rewrap` and for a command that writes a sealed state. For `protect check`, `init` and `rewrap`: the readers file is missing. |
 | 7 | A record does not match its name. [Exit codes](exit-codes.md#7-untrusted) says what to do. |
@@ -343,7 +346,41 @@ A record that does not match its name, a pointer that disagrees with its record,
 
 **Removing a reader.** A reader who is removed loses their lock in every group, and the state gets a new data key. Records are sealed under it as they are next written. Until then they stay under the old key. `--all` seals every record, the outputs, the stored plans and the sealed text of the errors of transactions again under the new key at once. A copy of the state that was made before the removal still opens with the removed reader's key, and the reader has read what they read. Replace the secrets they could read where they live.
 
-`--all` needs the state at rest: run it while nobody plans or applies. It seals again and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [What sealing protects](../concepts/sealed-state.md) lists what stays in the bucket.
+`--all` needs the state at rest: run it while nobody plans or applies. It seals again and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [`pravo protect gc`](#protect-gc) removes both. [What sealing protects](../concepts/sealed-state.md) lists what stays in the bucket.
+
+## protect gc
+
+`pravo protect gc` deletes what a state of format 2 or 3 keeps and nothing reads. A state of format 1 keeps one object for each resource, and the command says that it has nothing to collect. It works in two parts, and a state that is not sealed has the first only.
+
+**Records.** A write never overwrites a record. The bucket therefore keeps every revision of every record, the record of a resource that was destroyed or removed with `pravo state rm`, and the record that a write left when it failed. In format 2 these hold their attributes in the clear. A record that no pointer names is garbage once it is older than the grace, 24 hours or `--older-than`. The age is the newest of the times `updated_at`, `refreshed_at` and `applied_at` in the record, which are readable without a key. A record that shows none of them is kept, and so is an object in `rec/` that does not match its name: the command lists it and does not touch it. A record that a pointer names is never deleted.
+
+The grace is the protection of a writer that has made its record and has not yet replaced the pointer: until it does, nothing names the record. The two writes follow each other at once, and the grace covers a process that is stopped between them. It is never shorter than 65 seconds: twice the 30 seconds that a command goes on sealing in the group it opened with after a rewrap, and five more. The command lists the pointers again right before it deletes, and deletes a record only if it still holds the bytes it judged, so a record that was named or replaced meanwhile stays.
+
+This part needs no key, and it does not need the state at rest. It can run while commands run.
+
+**Groups.** `rewrap` leaves the old groups in `meta.json`, with a lock for each reader that is left, and a command opens one lock for each group. The data key of a reader who was removed still opens whatever is sealed in the group they were in. `gc` drops a group, other than the current one, when nothing is sealed in it: no record that a pointer names, no record that the first part spared, not `outputs.json`, and no object of a stored plan. Run `pravo protect rewrap --all` first, so that everything is under the current group. A stored plan that an apply uses is left by `rewrap --all`, and keeps its group until the apply is done and `rewrap --all` runs again. A group with something in it is kept, and the command says what. A dropped group is gone from `meta.json` and the history gets the entry `gc`. A removed reader then holds a key that opens nothing that is left. A copy of the bucket made before still opens with it, and so does a version of `meta.json` that a bucket which keeps old versions of its objects holds: the deleted records stay there too until the lifecycle rules of the bucket remove them.
+
+This part needs an identity that is a reader, the readers file (a command that writes a sealed state compares it with the state, as above) and the state at rest: no transaction is running and no lock is held. With no identity, or one that is not a reader, `gc` collects the records, says `Groups were not looked at` and exits with 0. With a command running it collects the records and exits with 4. With a readers file that is missing, invalid or different from the state it collects the records and exits with 5 or 6, as any command that writes a sealed state does.
+
+| Line | Meaning |
+|---|---|
+| `Deleted 412 records older than 24h (38 MB)` | The records that were deleted. With `--dry-run`, `Would delete`. |
+| `Kept 3 records that no pointer names: ...` | Records that no pointer names and that stay, because they are younger than the grace or show no time. |
+| `Left alone 1 object in rec/ that does not match its name` | An object that pravo did not write. `pravo protect status` is the command that checks the records against their names. |
+| `Dropped group g1: nothing refers to it.` | A group removed from `meta.json`. With `--dry-run`, `Would drop`. |
+| `Kept group g1: 2 records and the outputs are sealed in it.` | A group that something is sealed in. The next line says what to run. |
+| `Groups were not looked at: ...` | Why the second part did not run. |
+
+```sh run
+pravo protect gc
+```
+
+```text out
+No record is garbage: a pointer names every record.
+No group needs to be dropped: the state has only its current group.
+```
+
+With `--json`, `gc` prints one document: `format`, `dry_run`, `older_than_seconds`, `records` (`listed`, `named`, `unnamed`, `young`, `unknown_age`, `deleted`, `bytes` and `foreign`) and, for a sealed state, `groups` (`examined`, `dropped`, `kept` with `id`, `records`, `unnamed_records`, `outputs` and `plans`, and `skipped` with the reason when the groups were not looked at).
 
 A stored plan that an apply holds a claim on is left as it is. `--all` counts these plans and prints `2 stored plans in use were not sealed again; run pravo protect rewrap --all when they are done.` With `--json` the count is `plans_skipped`.
 
