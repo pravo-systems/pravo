@@ -94,6 +94,15 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 	case prot.State == "migrating":
 		return state.ErrSealing
 	}
+	// A state that is not sealed in a repository that lists readers may have been
+	// downgraded in the bucket: a collection that deletes is a writer, as any other.
+	if rf := loadReadersFile(p.root.Dir, flagAccessDir); expectsSealed(prot, rf) {
+		problem := downgradeProblem(rf)
+		if !dryRun {
+			return engine.WithCode(engine.ExitRefused, errors.New(problem))
+		}
+		fmt.Fprintln(os.Stderr, "Warning: "+problem)
+	}
 
 	// The groups are looked at only by a reader, with the readers file in hand, and
 	// only while nothing runs. The records are collected whatever the key.

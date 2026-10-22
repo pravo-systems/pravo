@@ -35,7 +35,7 @@ func TestDowngradedStateIsRefusedToWriters(t *testing.T) {
 	puts := s.puts()
 
 	t.Run("a writer refuses with exit 5 and says what to do", func(t *testing.T) {
-		for _, args := range [][]string{{"state", "rm", "net.vpc"}, {"state", "unlock", "--stale"}, {"state", "mv", "net.vpc", "net.vpc2"}} {
+		for _, args := range [][]string{{"state", "rm", "net.vpc"}, {"state", "unlock", "--stale"}, {"state", "mv", "net.vpc", "net.vpc2"}, {"protect", "gc"}} {
 			text, code := runPravo(t, s.dir, args...)
 			if code != 5 || !strings.Contains(text, "Error: "+downgradeWant) {
 				t.Errorf("%v: exit %d\n%s", args, code, text)
@@ -67,6 +67,14 @@ func TestDowngradedStateIsRefusedToWriters(t *testing.T) {
 		text, code = runPravo(t, s.dir, "protect", "status", "--json")
 		if code != 0 || !strings.Contains(text, `"expects_sealed": true`) {
 			t.Fatalf("json: exit %d\n%s", code, text)
+		}
+	})
+	t.Run("a dry run of gc warns and changes nothing", func(t *testing.T) {
+		var text string
+		var code int
+		stderr := withStderr(t, func() { text, code = runPravo(t, s.dir, "protect", "gc", "--dry-run") })
+		if code != 0 || !strings.Contains(stderr, "Warning: "+downgradeWant) || s.puts() != puts {
+			t.Errorf("exit %d\n%s\n%s", code, text, stderr)
 		}
 	})
 	t.Run("check is exempt", func(t *testing.T) {
