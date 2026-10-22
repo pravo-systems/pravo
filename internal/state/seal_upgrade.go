@@ -96,7 +96,13 @@ func (s *Store) upgradeSealed(ctx context.Context, o UpgradeOptions) (UpgradeRes
 	}, progress)
 	res.Records = n
 	if err != nil {
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			err = fmt.Errorf("interrupted after %d records were sealed in this run; the rest are left as they were, and the state is left migrating. Run the command again to finish: %w", n, err)
+		}
 		return res, err
+	}
+	if err := ctx.Err(); err != nil {
+		return res, fmt.Errorf("interrupted before the outputs and the stored plans were sealed; run the command again to finish: %w", err)
 	}
 	if err := s.sealOutputs(); err != nil {
 		return res, err
@@ -154,7 +160,8 @@ func (s *Store) beginSeal(o UpgradeOptions) error {
 		return err
 	}
 	s.mu.Lock()
-	s.id, s.keys, s.locked, s.metaRead = o.Identity, keys, false, time.Now()
+	s.ring.set(keys)
+	s.id, s.locked, s.metaRead = o.Identity, false, time.Now()
 	s.openable = openableGroups(sealedMeta, o.Identity)
 	s.you = You{State: "reader", Name: o.Identity.Name, Key: me.String()}
 	s.mu.Unlock()
@@ -365,6 +372,11 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 		keys   *protect.Keys
 	)
 	err := s.updateMeta(func(m *meta) error {
+		if keys != nil {
+			// An earlier attempt of this update, which found meta.json changed.
+			keys.Close()
+			keys = nil
+		}
 		k, err := m.Sealed.Unlock(m.Lineage, id.Reader)
 		if err != nil {
 			return fmt.Errorf("rewrapping the state: %w", err)
@@ -373,14 +385,17 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 		sealed.Groups = cloneGroups(sealed.Groups)
 		ch, err := sealed.Rewrap(k, o.Readers)
 		if err != nil {
+			k.Close()
 			return err
 		}
 		before, _ := json.Marshal(m.Sealed)
 		after, _ := json.Marshal(&sealed)
-		change, keys = ch, k
+		change = ch
 		if bytes.Equal(before, after) {
+			k.Close()
 			return errNoRewrap
 		}
+		keys = k
 		m.Sealed = &sealed
 		m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: "rewrap", Added: ch.Added, Removed: ch.Removed})
 		return nil
@@ -388,10 +403,13 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 	switch {
 	case errors.Is(err, errNoRewrap):
 	case err != nil:
+		if keys != nil {
+			keys.Close()
+		}
 		return res, err
 	default:
 		s.mu.Lock()
-		s.keys = keys
+		s.ring.set(keys)
 		s.openable = openableGroups(s.meta.Sealed, id)
 		s.metaRead = time.Now()
 		s.mu.Unlock()
@@ -432,7 +450,7 @@ func cloneGroups(gs []protect.Group) []protect.Group {
 // current group.
 func (s *Store) reseal(ctx context.Context, o RewrapOptions) (int, error) {
 	s.mu.Lock()
-	current := s.keys.Current()
+	current := s.ring.current()
 	s.mu.Unlock()
 	n, err := s.convertNodes(ctx, rewrite{
 		needs:   func(group string, isPtr bool) bool { return !isPtr || group != current },

@@ -231,13 +231,7 @@ func joinArgs(args []string) string { return strings.Join(args, " ") }
 // until the group changes. A locked store has no key and no tag.
 func (z storeSealer) Tag(value string) string {
 	z.s.recheckSeal()
-	z.s.mu.Lock()
-	keys := z.s.keys
-	z.s.mu.Unlock()
-	if keys == nil {
-		return ""
-	}
-	return keys.Tag(value)
+	return z.s.ring.tag(value)
 }
 
 var _ Tagger = storeSealer{}

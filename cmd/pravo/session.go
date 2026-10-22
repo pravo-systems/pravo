@@ -179,8 +179,14 @@ func lockString(l *engine.Lock) string {
 }
 
 func (s *session) close() {
-	if s != nil && s.providers != nil {
+	if s == nil {
+		return
+	}
+	if s.providers != nil {
 		s.providers.Close()
+	}
+	if s.state != nil {
+		s.state.Close()
 	}
 }
 

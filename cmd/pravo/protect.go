@@ -324,18 +324,45 @@ func differsText(added, removed []string) string {
 	return "differs: " + strings.Join(parts, "; ")
 }
 
+// isSealed reports whether the state is sealed, or being sealed.
+func isSealed(prot state.Protection) bool {
+	return (prot.State == "sealed" || prot.State == "migrating") && prot.Sealed != nil
+}
+
+// downgradeProblem is what a command says about a state that is not sealed in a
+// repository that lists readers. The repository is the anchor that a bucket
+// writer cannot move: whoever can write to the bucket can lower the format in
+// meta.json, and the writers that follow would write in the clear.
+func downgradeProblem(rf readersFile) string {
+	return fmt.Sprintf("the repository lists readers in %s, but the state is not sealed: its meta.json may have been changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file", rf.shown())
+}
+
+// expectsSealed reports whether the repository expects the state to be sealed:
+// it has a readers file, whether or not the file can be read, and the state is
+// not sealed.
+func expectsSealed(prot state.Protection, rf readersFile) bool {
+	return rf.Found && !isSealed(prot)
+}
+
 // checkReadersFile compares the readers file with the sealed state st. A writer
 // refuses to go on when they differ or the file cannot be used; a reader only
-// warns.
+// warns. A state that is not sealed in a repository that has a readers file
+// is refused to a writer with exit code 5 and warned of to a reader: it may have
+// been downgraded in the bucket.
 func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
-	if st.Format() < state.FormatSealed {
-		return nil
-	}
 	prot := st.Protection()
-	if prot.State != "sealed" && prot.State != "migrating" {
+	rf := loadReadersFile(root.Dir, flagAccessDir)
+	if !isSealed(prot) {
+		if !expectsSealed(prot, rf) {
+			return nil
+		}
+		problem := downgradeProblem(rf)
+		if write {
+			return engine.WithCode(engine.ExitRefused, errors.New(problem))
+		}
+		fmt.Fprintln(os.Stderr, "Warning: "+problem)
 		return nil
 	}
-	rf := loadReadersFile(root.Dir, flagAccessDir)
 	problem, code := "", engine.ExitRefused
 	switch {
 	case !rf.Found:
@@ -868,8 +895,12 @@ func (p *protectRun) status() error {
 	default:
 		add("Sealed", fmt.Sprintf("off · format %d", prot.Format))
 	}
-	add("Store", p.location())
 	rf := p.rf
+	expects := expectsSealed(prot, rf)
+	if expects {
+		rows[len(rows)-1][1] += " · the repository expects a sealed state"
+	}
+	add("Store", p.location())
 	switch {
 	case !rf.Found:
 		add("Readers", fmt.Sprintf("file not found (looked in %s)", rf.shownDir()))
@@ -918,6 +949,9 @@ func (p *protectRun) status() error {
 	if flagJSON {
 		doc := map[string]any{"state": prot.State, "format": prot.Format, "store": p.location(), "records": prot.Records,
 			"readers": protectedNames(prot), "checked": ver.Checked, "untrusted": ver.Bad, "unsettled": len(interrupted)}
+		if expects {
+			doc["expects_sealed"] = true
+		}
 		if sealed {
 			doc["you"] = prot.You.State
 			added, removed := readersDiff(prot, rf)

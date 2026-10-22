@@ -257,7 +257,7 @@ A record in format 3 keeps its address, type, name, provider, dependencies, revi
 | `migration` | Present while a seal has begun and has not finished: the number of records sealed so far, which is a note and not a count that anything relies on. |
 | `history` | The last 50 changes of the seal: `sealed`, `rewrap` and `rewrap --all`, with the names added and removed. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
 
-`meta.json` is not signed. A writer of the bucket who edits it to a lower format turns sealing off for the writers that follow; `pravo protect status` prints the format, and [what sealing protects](../concepts/sealed-state.md) says how to notice it.
+`meta.json` is not signed. A writer of the bucket who edits it to a lower format is noticed by the writers that have the repository: when `.pravo/access/readers.txt` exists and the state is not sealed, a command that writes refuses with exit code 5 and a command that reads warns. A writer without the repository does not notice. [What sealing protects](../concepts/sealed-state.md) says more.
 
 A reader is a line of `.pravo/access/readers.txt`. Whoever writes the state takes the list from the repository, and a lock is added for a reader who is on the list and not in `meta.json`, or removed for one who is in `meta.json` and not on the list, by a rewrap.
 
@@ -281,7 +281,7 @@ A command that has an identity that is a reader opens the data keys once, when i
 
 A reader who is added gets a lock in every group, so that the records that are still in an old group open for them. A reader who is removed loses the lock in every group, and a new group with a new data key becomes current, so that what is written from then on is not sealed to them. The records stay in their group until they are written again. A rewrap that also seals every record, the outputs and the stored plans again under the current group deletes the records of earlier revisions that are sealed in another group. It keeps the records that no pointer names and that are sealed in the current group, which include the last record of a resource that was removed, and it leaves the old groups in `meta.json`. Nothing else prunes them.
 
-A command that began before a reader was removed looks at `meta.json` again when it has not for 30 seconds, and seals what it writes after in the current group.
+A command that began before a reader was removed looks at `meta.json` again when it has not for 30 seconds, and seals what it writes after in the current group. A command that meets a value sealed in a group that its copy of `meta.json` does not list reads `meta.json` again, once, before it calls the group unknown, so that a rewrap that ran in another process while the command was reading is not taken for tampering. A group that `meta.json` still does not list is untrusted: exit code 7.
 
 ### What a sealed state does not protect
 

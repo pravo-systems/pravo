@@ -205,6 +205,17 @@ func (s *Store) convertNodes(ctx context.Context, rw rewrite, progress func(done
 				if i >= len(keys) {
 					return
 				}
+				// A record that is begun is finished, and no other is begun once the
+				// context is done: what is left is converted when the upgrade is run
+				// again.
+				if err := ctx.Err(); err != nil {
+					mu.Lock()
+					if firstErr == nil {
+						firstErr = err
+					}
+					mu.Unlock()
+					return
+				}
 				did, err := s.convertNode(ctx, keys[i], rw)
 				switch {
 				case errors.Is(err, errConvertChanged):

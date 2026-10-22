@@ -134,7 +134,8 @@ func (s *Store) openSealed(id *protect.Identity) error {
 	if err := s.meta.Sealed.Check(); err != nil {
 		return fmt.Errorf("%s: %v: %w", s.b.Name(), err, ErrUntrusted)
 	}
-	s.id, s.keys, s.locked, s.openable = id, nil, true, nil
+	s.id, s.locked, s.openable = id, true, nil
+	s.ring.set(nil)
 	s.metaRead = time.Now()
 	if id == nil || id.Reader == nil {
 		s.you = You{State: "no-identity"}
@@ -145,7 +146,8 @@ func (s *Store) openSealed(id *protect.Identity) error {
 	keys, err := s.meta.Sealed.Unlock(s.meta.Lineage, id.Reader)
 	switch {
 	case err == nil:
-		s.keys, s.locked, s.you.State = keys, false, "reader"
+		s.ring.set(keys)
+		s.locked, s.you.State = false, "reader"
 		s.openable = map[string]bool{}
 		for _, g := range s.meta.Sealed.Groups {
 			for _, l := range g.Locks {
@@ -175,6 +177,86 @@ func (s *Store) groupListed(group string) bool {
 		}
 	}
 	return false
+}
+
+// groupReloadGap is the least time between two readings of meta.json that a store
+// makes because a value is sealed in a group it does not know.
+const groupReloadGap = time.Second
+
+// sealedGroup says what the store holds of the group a value is sealed in:
+// whether it holds any key, whether it holds the key of the group, and whether
+// meta.json lists the group at all. A group that is not
+// listed may have been made after this store read meta.json, by a rewrap in
+// another process, which writes meta.json before it seals anything in the new
+// group. So meta.json is read again before a group is called unknown.
+func (s *Store) sealedGroup(group string) (keyed, openable, listed bool) {
+	s.mu.Lock()
+	listed = s.groupListed(group)
+	s.mu.Unlock()
+	if !listed {
+		listed = s.listedAfterReload(group)
+	}
+	s.mu.Lock()
+	openable = s.openable[group]
+	s.mu.Unlock()
+	return s.ring.has(), openable, listed
+}
+
+// listedAfterReload reads meta.json again, unless it did a moment ago, and
+// reports whether it lists the group. One goroutine reads for all that wait.
+func (s *Store) listedAfterReload(group string) bool {
+	s.reloadMu.Lock()
+	defer s.reloadMu.Unlock()
+	s.mu.Lock()
+	listed, recent := s.groupListed(group), time.Since(s.groupReload) < groupReloadGap
+	s.mu.Unlock()
+	if listed || recent {
+		return listed
+	}
+	s.reloadSealed()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.groupReload = time.Now()
+	return s.groupListed(group)
+}
+
+// reloadSealed reads meta.json and, if it is the meta.json of this state and has
+// a sealed part that holds together, takes the groups and the history from it, and
+// the data keys the identity of the store holds in it. A store whose identity has
+// no lock in it any more keeps the keys it has: it can read what it could. A
+// meta.json that cannot be used changes nothing.
+func (s *Store) reloadSealed() {
+	s.mu.Lock()
+	id, lineage := s.id, s.meta.Lineage
+	s.mu.Unlock()
+	data, err := s.b.Get(s.ctx, "meta.json")
+	if err != nil {
+		return
+	}
+	var m meta
+	if json.Unmarshal(data, &m) != nil || m.Lineage != lineage || m.Format < FormatSealed || m.Sealed == nil || m.Sealed.Check() != nil {
+		return
+	}
+	var (
+		keys     *protect.Keys
+		openable map[string]bool
+	)
+	if id != nil && id.Reader != nil {
+		k, err := m.Sealed.Unlock(lineage, id.Reader)
+		switch {
+		case err == nil:
+			keys, openable = k, openableGroups(m.Sealed, id)
+		case !errors.Is(err, protect.ErrNotReader):
+			return
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.meta.Sealed, s.meta.History = m.Sealed, m.History
+	if keys != nil {
+		s.ring.set(keys)
+		s.openable = openable
+	}
 }
 
 // recordCtx says where the sealed part of a record belongs.
@@ -212,17 +294,14 @@ func (s *Store) decodeRecord(data []byte) (*Resource, string, error) {
 		return nil, "", fmt.Errorf("%s is a sealed record of version %d; this pravo reads version %d", r.Address(), sr.V, recordVersion)
 	}
 	group := sr.Sealed.Group
-	s.mu.Lock()
-	keys, openable := s.keys, s.openable
-	known := s.groupListed(group)
-	s.mu.Unlock()
+	keyed, openable, known := s.sealedGroup(group)
 	if !known {
 		return nil, "", fmt.Errorf("%s is sealed in group %q, which meta.json does not list: %w", r.Address(), group, ErrUntrusted)
 	}
-	if keys == nil {
+	if !keyed {
 		return &r, group, nil
 	}
-	if !openable[group] {
+	if !openable {
 		return nil, "", fmt.Errorf("%s is sealed in group %s, which your key cannot open: %w", r.Address(), group, ErrNotReader)
 	}
 	c, err := s.recordCtx(&r)
@@ -230,7 +309,7 @@ func (s *Store) decodeRecord(data []byte) (*Resource, string, error) {
 		return nil, "", err
 	}
 	var body sealedBody
-	if err := keys.OpenJSON(c, *sr.Sealed, &body); err != nil {
+	if err := s.ring.openJSON(c, *sr.Sealed, &body); err != nil {
 		return nil, "", fmt.Errorf("the sealed part of %s does not open where it is: %w", r.Address(), ErrUntrusted)
 	}
 	r.Attributes, r.Private, r.ConfigHash, r.ProviderConfig = body.Attributes, body.Private, body.ConfigHash, body.ProviderConfig
@@ -244,10 +323,7 @@ func (s *Store) encodeRecord(r *Resource) ([]byte, string, error) {
 		data, err := indentJSON(r)
 		return data, "", err
 	}
-	s.mu.Lock()
-	keys := s.keys
-	s.mu.Unlock()
-	if keys == nil {
+	if !s.ring.has() {
 		return nil, "", ErrNotReader
 	}
 	c, err := s.recordCtx(r)
@@ -259,7 +335,10 @@ func (s *Store) encodeRecord(r *Resource) ([]byte, string, error) {
 		return nil, "", err
 	}
 	defer clear(plain)
-	sealed := keys.Seal(c, plain)
+	sealed, ok := s.ring.seal(c, plain)
+	if !ok {
+		return nil, "", ErrNotReader
+	}
 	open := *r
 	open.Attributes, open.Private, open.ConfigHash, open.ProviderConfig = nil, nil, "", ""
 	data, err := indentJSON(sealedRecord{Resource: open, V: recordVersion, Sealed: &sealed})
@@ -272,12 +351,12 @@ func (s *Store) encodeRecord(r *Resource) ([]byte, string, error) {
 // goes on sealing in the group it has.
 func (s *Store) recheckSeal() {
 	s.mu.Lock()
-	if s.keys == nil || time.Since(s.metaRead) < sealRecheck {
+	if !s.ring.has() || time.Since(s.metaRead) < sealRecheck {
 		s.mu.Unlock()
 		return
 	}
 	s.metaRead = time.Now()
-	id, lineage, current := s.id, s.meta.Lineage, s.keys.Current()
+	id, lineage, current := s.id, s.meta.Lineage, s.ring.current()
 	s.mu.Unlock()
 	data, err := s.b.Get(s.ctx, "meta.json")
 	if err != nil {
@@ -292,7 +371,8 @@ func (s *Store) recheckSeal() {
 		return
 	}
 	s.mu.Lock()
-	s.keys, s.meta.Sealed, s.meta.History = keys, m.Sealed, m.History
+	s.ring.set(keys)
+	s.meta.Sealed, s.meta.History = m.Sealed, m.History
 	s.openable = openableGroups(m.Sealed, id)
 	s.mu.Unlock()
 }
@@ -342,21 +422,18 @@ func asSealedOutputs(data []byte) (sealedOutputs, bool) {
 func (s *Store) decodeOutputs(data []byte) (map[string]json.RawMessage, error) {
 	if s.sealedState() {
 		if env, ok := asSealedOutputs(data); ok {
-			s.mu.Lock()
-			keys, openable := s.keys, s.openable
-			known := s.groupListed(env.Sealed.Group)
-			s.mu.Unlock()
+			keyed, openable, known := s.sealedGroup(env.Sealed.Group)
 			if !known {
 				return nil, fmt.Errorf("the outputs are sealed in group %q, which meta.json does not list: %w", env.Sealed.Group, ErrUntrusted)
 			}
-			if keys == nil {
+			if !keyed {
 				return nil, fmt.Errorf("the outputs: %w", ErrNotReader)
 			}
-			if !openable[env.Sealed.Group] {
+			if !openable {
 				return nil, fmt.Errorf("the outputs are sealed in group %s, which your key cannot open: %w", env.Sealed.Group, ErrNotReader)
 			}
 			var out map[string]json.RawMessage
-			if err := keys.OpenJSON(s.outputsCtx(), env.Sealed, &out); err != nil {
+			if err := s.ring.openJSON(s.outputsCtx(), env.Sealed, &out); err != nil {
 				return nil, fmt.Errorf("the sealed outputs do not open where they are: %w", ErrUntrusted)
 			}
 			return out, nil
@@ -379,10 +456,7 @@ func (s *Store) encodeOutputs(outputs map[string]json.RawMessage) ([]byte, error
 		return indentJSON(outputs)
 	}
 	s.recheckSeal()
-	s.mu.Lock()
-	keys := s.keys
-	s.mu.Unlock()
-	if keys == nil {
+	if !s.ring.has() {
 		return nil, ErrNotReader
 	}
 	plain, err := marshalBody(outputs)
@@ -390,7 +464,11 @@ func (s *Store) encodeOutputs(outputs map[string]json.RawMessage) ([]byte, error
 		return nil, err
 	}
 	defer clear(plain)
-	return indentJSON(sealedOutputs{V: outputsVersion, Sealed: keys.Seal(s.outputsCtx(), plain)})
+	sealed, ok := s.ring.seal(s.outputsCtx(), plain)
+	if !ok {
+		return nil, ErrNotReader
+	}
+	return indentJSON(sealedOutputs{V: outputsVersion, Sealed: sealed})
 }
 
 // storeSealer is the Sealer of a store.
@@ -407,26 +485,22 @@ func (s *Store) Sealer() Sealer {
 
 func (z storeSealer) Seal(kind, name string, plain []byte) (protect.Sealed, error) {
 	z.s.recheckSeal()
-	z.s.mu.Lock()
-	keys := z.s.keys
-	z.s.mu.Unlock()
-	if keys == nil {
+	sealed, ok := z.s.ring.seal(protect.Ctx{Lineage: z.s.Lineage(), Kind: kind, Name: name}, plain)
+	if !ok {
 		return protect.Sealed{}, ErrNotReader
 	}
-	return keys.Seal(protect.Ctx{Lineage: z.s.Lineage(), Kind: kind, Name: name}, plain), nil
+	return sealed, nil
 }
 
 func (z storeSealer) Open(kind, name string, sealed protect.Sealed) ([]byte, error) {
-	z.s.mu.Lock()
-	keys, openable := z.s.keys, z.s.openable
-	z.s.mu.Unlock()
-	if keys == nil {
+	keyed, openable, _ := z.s.sealedGroup(sealed.Group)
+	if !keyed {
 		return nil, ErrNotReader
 	}
-	if !openable[sealed.Group] {
+	if !openable {
 		return nil, fmt.Errorf("sealed in group %s, which your key cannot open: %w", sealed.Group, ErrNotReader)
 	}
-	plain, err := keys.Open(protect.Ctx{Lineage: z.s.Lineage(), Kind: kind, Name: name}, sealed)
+	plain, err := z.s.ring.open(protect.Ctx{Lineage: z.s.Lineage(), Kind: kind, Name: name}, sealed)
 	if err != nil {
 		return nil, fmt.Errorf("a sealed %s does not open where it is: %w", kind, ErrUntrusted)
 	}

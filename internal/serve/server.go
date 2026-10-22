@@ -597,10 +597,19 @@ func (s *Server) current() (*model, error) {
 	}
 	s.failedSince = time.Time{}
 	s.mu.Lock()
+	old := s.cur
 	s.cur = nm
 	s.mu.Unlock()
+	if old != nil && old.store != nil && old.store != nm.store {
+		// The keys of the store that was replaced are wiped once the requests that
+		// hold its model are done.
+		time.AfterFunc(oldModelGrace, old.store.Close)
+	}
 	return nm, nil
 }
+
+// oldModelGrace is how long the store of a model that was replaced keeps its keys.
+var oldModelGrace = time.Minute
 
 // build reads the project and makes a model of it. The caller holds buildMu.
 func (s *Server) build() (*model, error) {

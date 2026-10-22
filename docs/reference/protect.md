@@ -113,6 +113,8 @@ pravo looks for the file in `--access-dir`, then in `$PRAVO_ACCESS_DIR`, then in
 
 A command that writes a sealed state compares the file with the readers recorded in the state. If they differ, it stops with exit code 5 and `.pravo/access/readers.txt and the state differ (dan added, fay removed). Run pravo protect rewrap.` A command that only reads prints the same text as a warning on standard error. A missing file stops a command that writes the state with exit code 5, and an invalid one with exit code 6. The `protect` commands exit with 6 for both: `protect check`, `init` and `rewrap` have no verdict without a valid file. `protect status` prints `file not found` or `file is invalid:` and exits 0.
 
+A state that is not sealed in a repository that has a readers file is refused in the same way. A command that writes stops with exit code 5 and `the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: its meta.json may have been changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file.` A command that only reads prints the text as a warning. A file that is found counts whether or not it can be read. `protect check`, `protect init`, `protect status` and the `id` commands are not stopped. A root in a repository whose readers file is meant for other roots names another access directory with `--access-dir` or `$PRAVO_ACCESS_DIR`, and is then not expected to be sealed.
+
 ## The identity
 
 An identity is a name, a signing key and a reader key. The reader key opens the sealed state. The signing key is part of the line in the readers file and is not used while the state has no roles.
@@ -245,19 +247,7 @@ It shows what it will do and asks `Proceed? [y/N]`. `--yes` answers it. Without 
 3. `outputs.json`, the values of the stored plans and the values in the command lines of transactions are sealed the same way. The words of a command and the names of its flags stay readable, and so does a positional argument and a value written after its flag with a space, `--flag value`, unless the flag is `-t`, `--tag`, `--webhook` or `-e`. A secret belongs in `-t`.
 4. The state is set to format 3, and `meta.json` holds the locks.
 
-A run that is interrupted leaves the state in the middle of sealing, and an earlier pravo cannot open it. Run the command again to finish: it skips the records it has done. `pravo protect status` says `migrating` until then, and commands that write the state refuse with `a seal is in progress; run pravo protect init --encrypt to finish`. Commit the readers file when the command ends.
-
-```sh run
-mkdir -p .pravo/access
-pravo id show | tail -n 1 | sed 's/^ *//' > .pravo/access/readers.txt
-PRAVO_CONFIG_DIR=people/dan pravo id new --name dan | tail -n 1 | sed 's/^ *//' >> .pravo/access/readers.txt
-cat .pravo/access/readers.txt
-```
-
-```text out
-ada ssh-ed25519 <ssh-key> x25519:<key>
-dan ssh-ed25519 <ssh-key> x25519:<key>
-```
+A run that is interrupted leaves the state in the middle of sealing, and an earlier pravo cannot open it. A kill leaves it where it was. An interrupt (`Ctrl-C`) finishes the records that are being sealed, starts no other and ends with `interrupted after N records were sealed in this run`. Run the command again to finish: it skips the records it has done. `pravo protect status` says `migrating` until then, and commands that write the state refuse with `a seal is in progress; run pravo protect init --encrypt to finish`. Commit the readers file when the command ends.
 
 ```json file=terraform.tfstate hidden
 {
@@ -281,6 +271,18 @@ pravo state import-tfstate terraform.tfstate
 
 ```text out
 Imported 2 resources and 1 outputs from terraform.tfstate into s3://northwind-state/prod
+```
+
+```sh run
+mkdir -p .pravo/access
+pravo id show | tail -n 1 | sed 's/^ *//' > .pravo/access/readers.txt
+PRAVO_CONFIG_DIR=people/dan pravo id new --name dan | tail -n 1 | sed 's/^ *//' >> .pravo/access/readers.txt
+cat .pravo/access/readers.txt
+```
+
+```text out
+ada ssh-ed25519 <ssh-key> x25519:<key>
+dan ssh-ed25519 <ssh-key> x25519:<key>
 ```
 
 ```sh run
@@ -326,7 +328,7 @@ Unsettled    none
 
 | Line | Values |
 |---|---|
-| `Sealed` | `on`, `off`, `off · format 2 · immutable records`, or `migrating` with the number of records done. |
+| `Sealed` | `on`, `off`, `off · format 2 · immutable records`, or `migrating` with the number of records done. A state that is off in a repository that has a readers file ends in `· the repository expects a sealed state`: its `meta.json` may have been changed. |
 | `Readers` | `matches the store`; `differs:` and who is in the file and not in the store, or the other way round; `file not found (looked in DIR)`; `file is invalid:` and the line and reason. |
 | `You` | The identity and its reader key. `identity NAME is not a reader`. `not a reader of this state (no identity found)`. |
 | `Unsettled` | `none`, or the number of interrupted transactions; `pravo state log` lists them. |

@@ -30,7 +30,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/mod.md](reference/mod.md) | Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file. | 6 KB |
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
 | [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 14 KB |
-| [reference/protect.md](reference/protect.md) | Make an identity, seal the state to a list of readers, check that it holds and change the readers. The commands, the readers file, the identity files and the exit codes. | 21 KB |
+| [reference/protect.md](reference/protect.md) | Make an identity, seal the state to a list of readers, check that it holds and change the readers. The commands, the readers file, the identity files and the exit codes. | 22 KB |
 
 ### Language
 
@@ -61,7 +61,7 @@ One page for each command and each part of the specification, tables first.
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/state-format.md](reference/state-format.md) | The files of the state graph: nodes, outputs, transactions, locks, stored plans and the metadata that identifies a store. | 39 KB |
+| [reference/state-format.md](reference/state-format.md) | The files of the state graph: nodes, outputs, transactions, locks, stored plans and the metadata that identifies a store. | 40 KB |
 | [reference/plan-document.md](reference/plan-document.md) | The JSON document that pravo plan --json prints, the form of a saved plan file, and the events that apply and destroy stream. | 20 KB |
 | [reference/exit-codes.md](reference/exit-codes.md) | The exit status of every pravo command, what each code means, and how --json reports an error. | 12 KB |
 | [reference/telemetry.md](reference/telemetry.md) | OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables. | 11 KB |
@@ -93,7 +93,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/policies.md](concepts/policies.md) | One idea at two moments: a constraint on a provider is checked at evaluation, a policy file against a plan. What each binds and what neither guarantees. | 21 KB |
 | [concepts/secrets-and-ephemeral-values.md](concepts/secrets-and-ephemeral-values.md) | Which values pravo records in state, saved plans and outputs, what an ephemeral value is, where it may go, and what hiding a value does and does not do. | 12 KB |
 | [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a module is, what presence means, which values are withheld and why the viewer changes nothing. | 25 KB |
-| [concepts/sealed-state.md](concepts/sealed-state.md) | What a sealed state encrypts, who can read it, and what it does not do. It gives confidentiality of values against a copy of the bucket, and nothing else. | 12 KB |
+| [concepts/sealed-state.md](concepts/sealed-state.md) | What a sealed state encrypts, who can read it, and what it does not do. It gives confidentiality of values against a copy of the bucket, and nothing else. | 13 KB |
 
 ## How-to
 

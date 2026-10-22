@@ -380,11 +380,13 @@ func TestProtectInitSealsTheStoredPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, ada := person(t, ids, "ada")
-	e.readers(t, ada)
+	// The readers file comes after the plan: a repository that lists readers
+	// does not write plans into a state that is not sealed.
 	text, code := runPravo(t, e.dir, "plan", "--store", "--actor", "ci")
 	if code != 0 || !strings.Contains(text, "plan-") {
 		t.Fatalf("plan --store exited %d:\n%s", code, text)
 	}
+	e.readers(t, ada)
 	plain := e.bucketText()
 	if !strings.Contains(plain, "plans/plan-") {
 		t.Fatal("no stored plan in the bucket")
@@ -442,7 +444,6 @@ func TestProtectInitOfAnEmptyStateAndOfAnImmutableOne(t *testing.T) {
 	t.Run("a state in the immutable layout", func(t *testing.T) {
 		e := newS3Env(t, false)
 		e.record(t, e.store(t), "net.vpc", secretA)
-		e.readers(t, ada)
 		text, code := runPravo(t, e.dir, "state", "upgrade")
 		if code != 0 || !strings.Contains(text, "The state is in format 2: 1 record as immutable objects") {
 			t.Fatalf("state upgrade: exit %d\n%s", code, text)
@@ -454,6 +455,7 @@ func TestProtectInitOfAnEmptyStateAndOfAnImmutableOne(t *testing.T) {
 		if !strings.Contains(e.bucketText(), secretA) {
 			t.Error("format 2 encrypts nothing, and the value is gone")
 		}
+		e.readers(t, ada)
 		text, code = runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes")
 		if code != 0 || !strings.Contains(text, "1 record sealed in ") {
 			t.Fatalf("init: exit %d\n%s", code, text)
@@ -672,11 +674,13 @@ func TestPlanListWarnsOfPlansThatAreNotSealed(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, ada := person(t, ids, "ada")
-	e.readers(t, ada)
+	// The readers file comes after the plan: a repository that lists readers
+	// does not write plans into a state that is not sealed.
 	text, code := runPravo(t, e.dir, "plan", "--store", "--actor", "ci")
 	if code != 0 || !strings.Contains(text, "plan-") {
 		t.Fatalf("plan --store exited %d:\n%s", code, text)
 	}
+	e.readers(t, ada)
 	id := storedID.FindString(text[strings.Index(text, "Stored the plan as"):])
 	if text, code := runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)

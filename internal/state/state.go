@@ -212,15 +212,19 @@ type Store struct {
 	// nonce identifies this process's locks across hosts.
 	nonce string
 	// The state is sealed (see seal.go): id is the identity the store was opened
-	// with, keys are the data keys it unlocked, openable lists the groups it holds
+	// with, ring holds the data keys it unlocked, openable lists the groups it holds
 	// a lock in, and locked is set when it holds no key for the state. metaRead is
 	// when meta.json was last read, for the check for a new group.
 	id       *protect.Identity
-	keys     *protect.Keys
+	ring     keyring
 	openable map[string]bool
 	locked   bool
 	you      You
 	metaRead time.Time
+	// groupReload is when meta.json was last read again because a value is sealed in
+	// a group the store does not know; reloadMu lets one goroutine do it for all.
+	groupReload time.Time
+	reloadMu    sync.Mutex
 	// metaChecked is when writable last compared meta.json with the format the store
 	// holds; zero until the first write, which always looks.
 	metaChecked time.Time
@@ -281,7 +285,13 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 		return nil, fmt.Errorf("opening state at %s: %w", b.Name(), err)
 	}
 	if s.meta.Format >= FormatSealed {
-		if err := s.openSealed(o.Identity); err != nil {
+		err := s.openSealed(o.Identity)
+		if errors.Is(err, ErrUntrusted) && s.rereadMeta(ctx, data) {
+			// meta.json was replaced since it was read, and what was read of it may
+			// have been a part of a change.
+			err = s.openSealed(o.Identity)
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -296,6 +306,22 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 		}
 	}
 	return s, nil
+}
+
+// rereadMeta reads meta.json again and, if it differs from first, the bytes read
+// when the store was opened, takes it as the meta of the store. It reports whether
+// it did.
+func (s *Store) rereadMeta(ctx context.Context, first []byte) bool {
+	data, err := s.b.Get(ctx, "meta.json")
+	if err != nil || bytes.Equal(data, first) {
+		return false
+	}
+	var m meta
+	if json.Unmarshal(data, &m) != nil || m.Format > MaxFormat || m.Lineage != s.meta.Lineage {
+		return false
+	}
+	s.meta = m
+	return true
 }
 
 func (s *Store) load() error {

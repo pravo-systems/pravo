@@ -60,28 +60,7 @@ Give whoever keeps .pravo/access/readers.txt this line, and nothing else:
 
 The identity is a file in `~/.config/pravo/id`, apart from `~/.pravo`, which is the provider cache and may be deleted. The line at the end is public. To reuse an SSH key as the signing key, add `--ssh ~/.ssh/id_ed25519`.
 
-## 2. Write the readers file
-
-Dan and Eve run the same command on their machines and send their lines. The repository keeps the lines in `.pravo/access/readers.txt`, one for each reader. This file, reviewed like any other change, is the whole access policy: whoever can merge a change to it decides who may read.
-
-```sh run
-mkdir -p .pravo/access
-pravo id show | tail -n 1 | sed 's/^ *//' > .pravo/access/readers.txt
-for p in dan eve; do
-  PRAVO_CONFIG_DIR=people/$p pravo id new --name $p | tail -n 1 | sed 's/^ *//' >> .pravo/access/readers.txt
-done
-cat .pravo/access/readers.txt
-```
-
-```text out
-ada ssh-ed25519 <ssh-key> x25519:<key>
-dan ssh-ed25519 <ssh-key> x25519:<key>
-eve ssh-ed25519 <ssh-key> x25519:<key>
-```
-
-Writers take the list from the checked-out repository and never from the bucket, so someone who can only write to the bucket cannot add themselves. The reference page describes [the format of the file](../reference/protect.md#the-readers-file).
-
-## 3. Have a state to seal
+## 2. Have a state to seal
 
 Point the root at the bucket and give it some records. The `terraform.tfstate` below stands for a state that an earlier tool wrote, with a password in it.
 
@@ -131,6 +110,29 @@ curl -s "$FAKES3_URL/northwind-state/prod/resources/aws_db_instance.main.json" |
 ```text out
     "master_password": "example-password",
 ```
+
+## 3. Write the readers file
+
+Dan and Eve run the same command on their machines and send their lines. The repository keeps the lines in `.pravo/access/readers.txt`, one for each reader. This file, reviewed like any other change, is the whole access policy: whoever can merge a change to it decides who may read.
+
+```sh run
+mkdir -p .pravo/access
+pravo id show | tail -n 1 | sed 's/^ *//' > .pravo/access/readers.txt
+for p in dan eve; do
+  PRAVO_CONFIG_DIR=people/$p pravo id new --name $p | tail -n 1 | sed 's/^ *//' >> .pravo/access/readers.txt
+done
+cat .pravo/access/readers.txt
+```
+
+```text out
+ada ssh-ed25519 <ssh-key> x25519:<key>
+dan ssh-ed25519 <ssh-key> x25519:<key>
+eve ssh-ed25519 <ssh-key> x25519:<key>
+```
+
+Writers take the list from the checked-out repository and never from the bucket, so someone who can only write to the bucket cannot add themselves. The reference page describes [the format of the file](../reference/protect.md#the-readers-file).
+
+From here on the repository expects the state to be sealed. A command that writes a state that is not sealed stops with exit code 5 until step 5 has run, and the `Sealed` line of `pravo protect status` ends with `the repository expects a sealed state`. The same check notices a state that someone lowered to an earlier format in the bucket.
 
 ## 4. Check that the store is ready
 
