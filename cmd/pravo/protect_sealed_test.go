@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -514,11 +515,19 @@ func TestSealedStateInALocalDirectory(t *testing.T) {
 // in the middle of a seal would stop.
 type crashing struct {
 	state.Backend
-	left int
+	// left is the number of replaces that still succeed. The upgrade replaces from
+	// several goroutines.
+	left atomic.Int64
+}
+
+func newCrashing(b state.Backend, n int64) *crashing {
+	c := &crashing{Backend: b}
+	c.left.Store(n)
+	return c
 }
 
 func (c *crashing) ReplaceIf(ctx context.Context, key string, update func(cur []byte) ([]byte, bool)) (bool, error) {
-	if c.left--; c.left < 0 {
+	if c.left.Add(-1) < 0 {
 		return false, errors.New("injected failure")
 	}
 	return c.Backend.ReplaceIf(ctx, key, update)
@@ -536,7 +545,7 @@ func TestProtectInitFinishesASealThatWasInterrupted(t *testing.T) {
 	e.readers(t, adaLine)
 
 	// The seal starts, and the process dies after the first records.
-	st, err := state.OpenBackend(context.Background(), &crashing{Backend: e.backend(t), left: 3})
+	st, err := state.OpenBackend(context.Background(), newCrashing(e.backend(t), 3))
 	if err != nil {
 		t.Fatal(err)
 	}
