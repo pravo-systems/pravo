@@ -1006,3 +1006,37 @@ func TestAccessSaysWhatSealsTheRecordsThatAreNot(t *testing.T) {
 		}
 	}
 }
+
+// A reader who removes themselves cannot run rewrap --all after the rewrap that
+// removes them: the page says that a reader who is left runs it.
+func TestAccessRemovingYourselfLeavesRewrapAllToAnother(t *testing.T) {
+	facts := sealedFacts()
+	p := accessProject(t, &fakeProtection{facts: facts})
+	a := p.access()
+	var mine, other *Suggestion
+	for i := range a.Suggestions {
+		sg := &a.Suggestions[i]
+		if !strings.HasPrefix(sg.ID, "remove-reader:") {
+			continue
+		}
+		for _, r := range a.Readers {
+			if "remove-reader:"+r.Name == sg.ID {
+				if r.You {
+					mine = sg
+				} else if other == nil {
+					other = sg
+				}
+			}
+		}
+	}
+	if mine == nil || other == nil {
+		t.Fatalf("no suggestions to compare: %+v %+v", mine, other)
+	}
+	notes := func(sg *Suggestion) string { return strings.Join(stepTexts(sg, "note"), "\n") }
+	if !strings.Contains(notes(mine), "You are not a reader once this has run") {
+		t.Errorf("removing yourself: %q", notes(mine))
+	}
+	if strings.Contains(notes(other), "You are not a reader") {
+		t.Errorf("removing another reader: %q", notes(other))
+	}
+}

@@ -713,9 +713,14 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			removals++
 			steps := []SuggestionStep{{Kind: "remove-line", File: file, Text: line}}
 			steps = append(steps, gitSteps(file, r.Name+" leaves")...)
-			steps = append(steps, protectCmd("rewrap"),
-				note("rewrap --all seals every existing record again under the new key."),
-				protectCmd("rewrap --all"))
+			steps = append(steps, protectCmd("rewrap"))
+			if r.You {
+				// The first rewrap takes away the key of the person who runs it: rewrap --all needs a reader.
+				steps = append(steps, note("You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"))
+			} else {
+				steps = append(steps, note("rewrap --all seals every existing record again under the new key."))
+			}
+			steps = append(steps, protectCmd("rewrap --all"))
 			add(Suggestion{ID: "remove-reader:" + r.Name, Title: "Remove " + r.Name,
 				Why: "Removing the line stops new records being sealed to " + r.Name + ". " + r.Name + " keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets " + r.Name + " could read where they live.",
 				Who: "a current reader", Steps: steps})

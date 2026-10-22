@@ -199,7 +199,7 @@
     },
     {
      "kind": "note",
-     "text": "rewrap --all seals every existing record again under the new key."
+     "text": "You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"
     },
     {
      "kind": "command",
