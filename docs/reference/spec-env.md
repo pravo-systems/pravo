@@ -21,7 +21,7 @@ pravo reads three values for itself. Each is a struct built from a definition of
 
 | Definition | Reads | Where the value may go |
 |---|---|---|
-| `pravo.#Env` | An environment variable. | Anywhere. It is an ordinary value. |
+| `pravo.#Env` | An environment variable. | Anywhere, the [`$settings`](spec-settings.md) block included. It is an ordinary value. |
 | `pravo.#SecretEnv` | An environment variable that is a secret. | Provider configuration, write-only attributes and other ephemeral resources. Never an output or an ordinary attribute. |
 | `pravo.#RemoteOutputs` | The outputs another root has recorded. | Anywhere. It is an ordinary value. |
 
@@ -89,6 +89,8 @@ Error: region: the environment variable DEMO_REGION is not set, and there is no 
 ```
 
 `pravo eval` does not read the environment. It prints `value` as the type `string`.
+
+The `$settings` block is read before the run starts, so pravo fills in the `#Env` values for it first: the state can live in a bucket that a variable names. [Settings](spec-settings.md) has an example.
 
 Name the struct differently from any attribute that uses it. Inside `pet: ... & {prefix: prefix.value}` the name `prefix` is the attribute being defined, not the variable.
 

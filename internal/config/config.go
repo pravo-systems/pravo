@@ -232,7 +232,9 @@ func (r *Root) extract() error {
 	settings := v.LookupPath(cue.MakePath(cue.Str("$settings")))
 	if settings.Exists() {
 		if err := r.extractSettings(settings); err != nil {
-			return err
+			if err = r.settingsWithEnv(err); err != nil {
+				return err
+			}
 		}
 	}
 	if err := r.discover(); err != nil {
@@ -675,7 +677,8 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		return s, nil
 	}
 	if bv := sb.LookupPath(cue.ParsePath("bucket")); bv.Exists() && !bv.IsConcrete() {
-		return st, "", fmt.Errorf("%s.bucket is required when backend is s3 and must be a concrete string", label)
+		_, err := bv.String()
+		return st, "", fmt.Errorf("%s.bucket is not concrete: %w\n(if it depends on a tagged field such as env, pass -t env=...; if it is written as bucket: bucket, the name refers to the field itself)", label, err)
 	}
 	var err error
 	fields := map[string]*string{

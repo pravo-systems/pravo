@@ -75,6 +75,35 @@ Error: $settings.state.path is not concrete: $settings.state.path: non-concrete 
 (if it depends on a tagged field such as env, pass -t env=...)
 ```
 
+The block can read an environment variable too. A [`pravo.#Env`](spec-env.md#env) is filled in before the block is read, with the variable when it is set and with its `default` when it is not, so one specification can keep its state where a variable says. A `pravo.#SecretEnv` is not read into the block. A variable that is not set and has no default leaves the setting not concrete, and the error names the variable.
+
+File `main.cue`:
+
+```cue
+package demo
+
+import "pravo.dev/pravo"
+
+stateDir: pravo.#Env & {name: "DEMO_STATE_DIR", default: "state/dev"}
+
+$settings: pravo.#Settings & {state: path: stateDir.value}
+
+where: pravo.#Output & {value: stateDir.value}
+```
+
+```sh
+pravo apply > /dev/null
+DEMO_STATE_DIR=state/prod pravo apply > /dev/null
+ls state
+```
+
+Output:
+
+```text
+dev
+prod
+```
+
 ## state
 
 `state.path` is the directory of the state. A command that writes the state creates the directory when it does not exist. A command that only reads it, such as `eval`, `output` or `pravo state list`, reads an empty state and creates nothing. A path that names a file is an error, and pravo changes nothing. The layout is in [State format](state-format.md).

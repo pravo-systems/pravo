@@ -36,7 +36,7 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/spec-overview.md](reference/spec-overview.md) | What a root is, which constructs pravo reads from it, and the page that describes each one. | 7 KB |
-| [reference/spec-settings.md](reference/spec-settings.md) | The $settings block. It sets where the state lives and the default refresh age, and nothing else. | 9 KB |
+| [reference/spec-settings.md](reference/spec-settings.md) | The $settings block. It sets where the state lives and the default refresh age, and nothing else. | 10 KB |
 | [reference/spec-resources.md](reference/spec-resources.md) | How to declare managed resources, data sources, ephemeral resources and function calls, how pravo finds them, and how they are addressed. | 15 KB |
 | [reference/spec-providers.md](reference/spec-providers.md) | How to declare a provider, the $-fields that tell pravo how to obtain it, instance keys, and rules that bind every resource built through a provider. | 14 KB |
 | [reference/spec-moves-and-imports.md](reference/spec-moves-and-imports.md) | $from renames or moves a record to a new address. $import adopts an existing object. Both are fields of the resource they describe. | 10 KB |

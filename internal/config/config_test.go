@@ -327,6 +327,57 @@ func TestStateBackendFields(t *testing.T) {
 	}
 }
 
+func TestSettingsReadAnEnvironmentVariable(t *testing.T) {
+	const spec = `
+dir:         #Env & {name: "PRAVO_TEST_SETTINGS_DIR", default: "state/dev"}
+stateBucket: #Env & {name: "PRAVO_TEST_SETTINGS_BUCKET"}
+`
+	t.Run("the default", func(t *testing.T) {
+		r, err := loadSpec(t, spec+`$settings: state: path: dir.value`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.StatePath != "state/dev" {
+			t.Errorf("path = %q", r.StatePath)
+		}
+	})
+	t.Run("the variable", func(t *testing.T) {
+		t.Setenv("PRAVO_TEST_SETTINGS_DIR", "state/prod")
+		r, err := loadSpec(t, spec+`$settings: state: path: dir.value`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.StatePath != "state/prod" {
+			t.Errorf("path = %q", r.StatePath)
+		}
+	})
+	t.Run("a bucket", func(t *testing.T) {
+		t.Setenv("PRAVO_TEST_SETTINGS_BUCKET", "estate")
+		r, err := loadSpec(t, spec+`$settings: state: {bucket: stateBucket.value, prefix: "demo/\(dir.value)"}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.State.Backend != "s3" || r.State.Bucket != "estate" || r.State.Prefix != "demo/state/dev" {
+			t.Errorf("state = %+v", r.State)
+		}
+	})
+	t.Run("a variable that is not set", func(t *testing.T) {
+		_, err := loadSpec(t, spec+`$settings: state: bucket: stateBucket.value`)
+		if err == nil || !strings.Contains(err.Error(), "$settings.state.bucket is not concrete") || !strings.Contains(err.Error(), "PRAVO_TEST_SETTINGS_BUCKET, which is not set and has no default") {
+			t.Errorf("error = %v", err)
+		}
+	})
+	t.Run("a secret", func(t *testing.T) {
+		t.Setenv("PRAVO_TEST_SETTINGS_SECRET", "x")
+		_, err := loadSpec(t, `
+key: #SecretEnv & {name: "PRAVO_TEST_SETTINGS_SECRET"}
+$settings: state: path: key.value`)
+		if err == nil || !strings.Contains(err.Error(), "is not concrete") {
+			t.Errorf("a secret must not be read into a setting: %v", err)
+		}
+	})
+}
+
 func TestOutputsAreFoundByMarker(t *testing.T) {
 	r, err := loadSpec(t, `
 #Service: {
