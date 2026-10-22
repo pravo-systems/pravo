@@ -886,6 +886,7 @@ func (s *Store) lockOutputs() (func(), error) {
 	deadline := time.Now().Add(outputsLockWait)
 	delay := 2 * time.Millisecond
 	unreadable := false
+	misses := 0
 	for {
 		created, err := s.b.PutIfAbsent(s.ctx, outputsLockKey, data)
 		if err != nil {
@@ -896,8 +897,20 @@ func (s *Store) lockOutputs() (func(), error) {
 		}
 		raw, holder, rerr := s.readOutputsLock()
 		if errors.Is(rerr, ErrNotFound) {
-			continue // released between the two calls
+			// Released between the two calls: ask again. A store that refuses the
+			// create and has no object under the key is not waited for for ever.
+			if misses++; misses > 3 {
+				if time.Now().After(deadline) {
+					return nil, fmt.Errorf("outputs.json stayed locked for %s: the store refuses to create the lock and has none to read", outputsLockWait)
+				}
+				time.Sleep(delay + mrand.N(delay))
+				if delay < 100*time.Millisecond {
+					delay *= 2
+				}
+			}
+			continue
 		}
+		misses = 0
 		// An object that cannot be read may be half written; it is the holder's no
 		// longer when it is still unreadable the next time.
 		gone := rerr == nil && s.outputsLockStale(holder) || rerr != nil && unreadable

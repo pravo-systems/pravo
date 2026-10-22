@@ -343,3 +343,48 @@ func (w *noTags) Write(p []byte) (int, error) {
 	w.Header().Del("ETag")
 	return w.ResponseWriter.Write(p)
 }
+
+// A store that refuses to create the lock of outputs.json (412) and then says that
+// there is no such object (404) is waited for as long as a lock that is held, and
+// then reported. Without a deadline in that branch the update asks the store
+// again, with no pause, for as long as the command runs.
+func TestS3OutputsLockThatIsRefusedAndNotThereIsReported(t *testing.T) {
+	quickRetries(t)
+	f, b := newFakeS3(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s, err := OpenBackend(ctx, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wait := outputsLockWait
+	outputsLockWait = 200 * time.Millisecond
+	t.Cleanup(func() { outputsLockWait = wait })
+	var requests atomic.Int64
+	f.Fault = func(r *http.Request) (int, string) {
+		if strings.HasSuffix(r.URL.Path, outputsLockKey) {
+			requests.Add(1)
+			if fakes3.Conditional(r) {
+				return http.StatusPreconditionFailed, "PreconditionFailed"
+			}
+		}
+		return 0, ""
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.lockOutputs()
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "outputs.json stayed locked") {
+			t.Fatalf("lockOutputs = %v, want the error that the lock was not taken", err)
+		}
+	case <-time.After(5 * time.Second):
+		cancel()
+		t.Fatalf("lockOutputs still asking after 5 s and %d requests, with a wait of %s", requests.Load(), outputsLockWait)
+	}
+	if requests.Load() > 200 {
+		t.Errorf("%d requests for a wait of %s: the loop does not pause", requests.Load(), outputsLockWait)
+	}
+}
