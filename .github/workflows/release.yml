@@ -102,6 +102,11 @@ jobs:
           pattern: pravo_*
           path: dist
           merge-multiple: true
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Pack the skill
+        run: go run ./tools/skillgen -zip dist/pravo-skill.zip -version "${{ needs.version.outputs.version }}"
       - name: Checksums
         run: sh tools/release/checksums.sh dist
       - uses: actions/attest-build-provenance@v4

@@ -35,6 +35,7 @@ pravo is one Go binary, built from the module `github.com/pravo-systems/pravo`. 
 | `docs/` | Markdown sources of the documentation site. `docs/AUTHORING.md` fixes the format. |
 | `site/` | `site.json`, landing page partials, style sheet parts, scripts, fonts, recorded landing data and the programs that produce it. `site/README.md` describes it. |
 | `examples/` | Four runnable roots: `getting-started`, `modules-and-data`, `ephemeral`, `functions`. |
+| `skills/` | The pravo skill for AI agents: `SKILL.md` by hand, `references/` generated from `docs/` by `tools/skillgen`, embedded by `embed.go`. |
 | `templates/module/` | A template repository for a shared module, with a publish workflow. |
 
 Files in `cmd/pravo/`:
@@ -48,6 +49,7 @@ Files in `cmd/pravo/`:
 | `agent.go` | `schema`, `why`, `drift`; JSON helpers; `exitCodeOf`. |
 | `mcp.go` | `mcp`: a stdio server whose tools run the binary itself with `--json`. |
 | `serve.go` | `serve`: starts `internal/serve` on a loopback port, prints the address with its token, opens the browser. |
+| `skill.go` | `skill`: writes (`install`), prints (`print`) and lists the files of the embedded `skills/pravo`. |
 | `mod.go` | `mod`: embeds the CUE module commands, adds `publish`, `list` and `verify`. |
 | `helpers.go`, `webhook.go` | Small shared helpers (`noArgs`, `refreshValueHint`, `typesOf`); the drift webhook POST. |
 
@@ -245,6 +247,7 @@ Security model. The listener is on `127.0.0.1` or `::1`, and `Serve` refuses a l
 |---|---|
 | `tools/sitegen/` | Builds the site from `docs/` and `site/`. Flags and files are in `tools/sitegen/README.md`; the HTML it writes is specified in `tools/sitegen/HTML.md`. |
 | `tools/sitegen/contrast/` | Reads the colour tokens of `site/assets/style.css` and checks every text and interface colour pair in both themes. |
+| `tools/skillgen/` | Builds `skills/pravo/references` from `docs/`, checks that the repository holds what it would build, and packs the skill as `pravo-skill.zip` for a release. See `tools/skillgen/README.md`. |
 | `tools/capture/` | Runs the examples in the documentation and compares their output with the pages. A page can start `fakes3` or `fakeoci` through `services` and set variables through `env`. See `tools/capture/README.md`. |
 | `tools/hclcheck/` | Runs every `hcl` listing of `docs/` and `site/demos/` through `tofu fmt`, `init` and `validate`; `claims.sh` checks the statements about OpenTofu behaviour. See `tools/hclcheck/README.md`. |
 | `tools/fakes3/` | `go run ./tools/fakes3 -addr 127.0.0.1:9000` serves an in-memory bucket for the `s3` state backend. |
@@ -273,6 +276,7 @@ go vet ./...
 | `tools/capture` | Unit tests; end-to-end tests with a stand-in `pravo` script in `testdata/fakepravo`; one test that builds the real binary; `TestAgreesWithSitegen`, which checks that `capture` and `sitegen` read the Markdown grammar the same way. |
 | `tools/sitegen` | Tests of fences, containers, highlighting, the lint, the link check and a build of the kitchen-sink pages in `testdata/`. |
 | `tools/sitegen/contrast` | The colour check as a test. |
+| `tools/skillgen` | Tests of the conversion and a test that the skill in the repository is the one that `docs/` gives. `cmd/pravo/skill_test.go` tests the command and that `SKILL.md` names real commands and flags. |
 
 Tests that need a built binary or `go run` skip under `-short`; `TestDetectVersions` in `tools/sitegen` skips when no `pravo` binary exists at the module root.
 
