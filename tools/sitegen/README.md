@@ -88,6 +88,8 @@ Markdown extensions are those of `docs/AUTHORING.md` section 4. Where this tool 
 - Code attributes are `file title hl ln status run out exit hidden check`; others are an error.
 - A link to `x.md#id` must name an existing page. The anchor is checked after rendering.
 
+Images: `svg png jpg jpeg gif webp avif` files below `docs/<section>/` are copied next to their pages. The same kinds of file below `docs/img/` are copied to `img/` at the root of the output, so that pages of several sections link one picture as `../img/serve/overview-dark.png`. `docs/img` is not a section and raises no warning. An `<img>` in a page is plain HTML: give it `width` and `height` so that the page does not shift while the picture loads.
+
 ## Landing page
 
 `site/landing/NN-name.html` are concatenated in file name order between the shared header and footer. Each is `<section class="band" id="name" data-band="name"><div class="wrap">...</div></section>`; the generator warns when the file name, the id, `data-band` or the single `.wrap` do not agree with this. Files that start with `_` or `.` are skipped.

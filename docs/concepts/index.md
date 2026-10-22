@@ -20,6 +20,7 @@ Read them in this order. Later pages use terms that earlier pages define.
 7. [Providers](providers.md). How pravo finds, starts and talks to a provider.
 8. [Policies](policies.md). Two moments for one idea: a rule on a provider and a policy on a plan, and what each of them binds.
 9. [Secrets and ephemeral values](secrets-and-ephemeral-values.md). How sensitive and short-lived values travel through plans, state and outputs.
+10. [The viewer](the-viewer.md). How `pravo serve` joins the specification, the state and a saved plan into one graph, what a module is to it, and which values it withholds.
 
 ## Where each idea is taught
 
@@ -32,5 +33,6 @@ Read them in this order. Later pages use terms that earlier pages define.
 | Providers | [B1, Providers and resources](../learn/b01-providers-and-resources.md) and [B6, Modules, providers, credentials](../learn/b06-modules-providers-credentials.md) |
 | Policies | [B10, Policy on providers and on plans](../learn/b10-policy.md) |
 | Secrets and ephemeral values | [B6, Modules, providers, credentials](../learn/b06-modules-providers-credentials.md) |
+| The viewer | None. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows it. |
 
 The lessons run the commands. The concept pages explain what the commands did.

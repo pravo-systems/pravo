@@ -90,6 +90,22 @@ pravo plan
 pravo apply
 ```
 
+## The viewer
+
+`pravo serve` shows the specification, the state and a saved plan of a root as an animated graph of modules and resources, in a browser. It listens on the loopback interface, needs the token that it prints, withholds sensitive values on the server and writes nothing.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/serve/overview-dark.png">
+  <img src="docs/img/serve/overview-light.png" alt="The pravo viewer as it opens. The sidebar lists the filters and the modules network, api and edge. The graph draws the modules that fit as lanes and the others as cards, joined by arrows, and the inspector shows the project: its resources, modules, state, providers and outputs." width="1440" height="900">
+</picture>
+
+```sh
+pravo serve                          # in a root that has been applied
+pravo serve --plan change.plan       # overlay a saved plan
+```
+
+`docs/how-to/explore-your-estate.md` walks through it, and `docs/reference/serve.md` is the reference. The pictures are made by `go run ./tools/serveshots -bin bin/pravo -out docs/img/serve`.
+
 ## Documentation
 
 - `docs/` holds the Markdown sources: Learn (CUE from zero, then pravo), Migrate (from OpenTofu or Terraform), How-to, Concepts and Reference. Begin with `docs/how-to/quick-start.md`.
@@ -111,10 +127,12 @@ pravo apply
 | `internal/schema/` | Provider schema model and the CUE generator. |
 | `internal/tfstate/` | Converts an OpenTofu state file to state records. |
 | `internal/ui/`, `internal/plog/`, `internal/telemetry/` | Plan rendering, the debug log, OpenTelemetry. |
+| `internal/serve/` | The read-only web viewer behind `pravo serve`: the server, the JSON contract in `api.go` and the interface in `web/`. |
 | `internal/fakes3/` | In-memory S3-compatible server for tests. |
 | `tools/sitegen/` | Documentation site generator, its HTML contract and the contrast check. |
 | `tools/capture/` | Runs the examples in the documentation and compares their output. |
 | `tools/hclcheck/` | Runs the OpenTofu listings of the documentation through `tofu fmt`, `init` and `validate`. |
+| `tools/serveshots/` | Applies the estates in `scenarios/`, starts `pravo serve` and makes the screenshots of the documentation with headless Chrome. |
 | `tools/protogen/`, `tools/fakes3/`, `tools/fakeoci/` | Protocol message generator; an in-memory S3 bucket and an in-memory container registry for trying state and modules. |
 | `docs/` | Documentation sources. `docs/AUTHORING.md` fixes the format. |
 | `site/` | Site configuration, landing page, style sheet, scripts, recorded landing data. |

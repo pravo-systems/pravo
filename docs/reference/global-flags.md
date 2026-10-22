@@ -1,7 +1,7 @@
 ---
 title: Global flags, environment and exit codes
 description: The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed.
-order: 16
+order: 17
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'
@@ -45,7 +45,7 @@ A command that takes no argument refuses a word, so a misplaced value is an erro
 
 | Flag | Commands | Meaning |
 |---|---|---|
-| `-t`, `--tag key=value` | `init`, `plan`, `apply`, `destroy`, `output`, `import`, `providers`, `gen`, `validate`, `eval`, `schema`, `why`, `drift`, `state` and each of its subcommands | Inject a value into the field tagged `@tag(key)`. Repeatable. |
+| `-t`, `--tag key=value` | `init`, `plan`, `apply`, `destroy`, `output`, `import`, `providers`, `gen`, `validate`, `eval`, `schema`, `why`, `drift`, `serve`, `state` and each of its subcommands | Inject a value into the field tagged `@tag(key)`. Repeatable. |
 | `-T`, `--inject-vars` | the same | Inject the system variables of CUE into tags written `@tag(name,var=os)`. Examples are `os`, `arch` and `username`. |
 | `--refresh=age\|expired\|false\|all` | `plan`, `apply`, `destroy`, `why` | When to read real state from the providers. See [`pravo plan`](plan.md#refresh). |
 | `--full` | `plan`, `apply` | Plan every resource with its provider. |
@@ -133,6 +133,7 @@ With `--json`, stdout holds JSON and nothing else. Human progress lines go to st
 | `state query` | The value as JSON. |
 | `apply`, `destroy` | Newline-delimited events, and a summary line last. |
 | `mcp` | Not affected. The server speaks JSON-RPC. |
+| `serve` | One line: the address of the viewer, its token and its port. See [`pravo serve`](serve.md). |
 
 An error prints `{"code":N,"kind":"error","message":"..."}` on stdout, where `N` is the exit code, and the text of the error on stderr.
 

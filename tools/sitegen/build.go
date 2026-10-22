@@ -453,7 +453,20 @@ func copyTreeWith(src, dst string, keep func(rel string) bool, transform func(re
 
 var imageExts = map[string]bool{".svg": true, ".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true, ".avif": true}
 
-// copyStatic copies assets, root files and images next to the pages.
+// sharedImages is the directory below docs/ that holds images used by pages of
+// several sections. It is not a section: its images are published at /img.
+const sharedImages = "img"
+
+// isPublishedImage reports whether the file below a docs directory is an image
+// that is copied to the output: it has an image extension and its name does not
+// start with a dot or an underscore.
+func isPublishedImage(rel string) bool {
+	base := path.Base(rel)
+	return imageExts[strings.ToLower(path.Ext(rel))] && !strings.HasPrefix(base, ".") && !strings.HasPrefix(base, "_")
+}
+
+// copyStatic copies assets, root files, the images next to the pages and the
+// shared images of docs/img.
 func (s *site) copyStatic(of *outFiles) error {
 	assets := filepath.Join(s.siteDir, "assets")
 	if st, err := os.Stat(assets); err == nil && st.IsDir() {
@@ -478,11 +491,13 @@ func (s *site) copyStatic(of *outFiles) error {
 			continue
 		}
 		dir := filepath.Join(s.docsDir, sec.ID)
-		err := copyTree(dir, filepath.Join(of.dir, sec.ID), func(rel string) bool {
-			base := path.Base(rel)
-			return imageExts[strings.ToLower(path.Ext(rel))] && !strings.HasPrefix(base, ".") && !strings.HasPrefix(base, "_")
-		})
-		if err != nil {
+		if err := copyTree(dir, filepath.Join(of.dir, sec.ID), isPublishedImage); err != nil {
+			return err
+		}
+	}
+	shared := filepath.Join(s.docsDir, sharedImages)
+	if st, err := os.Stat(shared); err == nil && st.IsDir() {
+		if err := copyTree(shared, filepath.Join(of.dir, sharedImages), isPublishedImage); err != nil {
 			return err
 		}
 	}

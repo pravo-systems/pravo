@@ -358,6 +358,7 @@ A page with `redirect: new.md` becomes a stub: `<link rel="canonical">`, `<meta 
 | `llms.txt`, `llms-full.txt` | Index of the Markdown twins by section, and every page in one file. |
 | `assets/`, `robots.txt`, `CNAME`, `.nojekyll`, `favicon.ico` | Copied from the site directory when present. |
 | images next to pages | `svg png jpg jpeg gif webp avif` files below `docs/<section>/` are copied to the same place below the output. |
+| shared images | The same kinds of file below `docs/img/` are copied to `img/` at the root of the output, so a page links to `../img/serve/overview-dark.png`. `docs/img` is not a section and raises no warning. |
 
 ## Link check
 

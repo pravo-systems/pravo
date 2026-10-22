@@ -174,3 +174,19 @@ a.rb-in:hover .rb-t { text-decoration: underline; text-decoration-color: var(--a
 .cf-fix { color: var(--accent); }
 .cause-fix:has(.cf-fix) { border-left-color: var(--accent); }
 @media (max-width: 40rem) { .cause-fix p { padding-left: 0; } .cf-l { position: static; display: block; margin-bottom: .1rem; } }
+
+/* ---------- screenshots in two themes: the figure shows the one that matches the page ---------- */
+/* Markup: <a class="shot shot-dark"><img></a><a class="shot shot-light"><img></a> in one figure.
+   The light picture is the default. The dark one shows when the page is dark, whether by the system
+   or by the choice made with the theme button, the way the tokens in 00-tokens.css decide it. */
+.fig-body .shot { display: block; }
+.fig-body .shot img { display: block; margin-inline: auto; outline: 1px solid var(--line-strong); outline-offset: -1px; }
+.fig-body .shot-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .fig-body .shot-light { display: none; }
+  :root:not([data-theme="light"]) .fig-body .shot-dark { display: block; }
+}
+:root[data-theme="dark"] .fig-body .shot-light { display: none; }
+:root[data-theme="dark"] .fig-body .shot-dark { display: block; }
+/* paper values whatever the theme, as 90-print.css sets them */
+@media print { .fig-body .shot-dark { display: none !important; } .fig-body .shot-light { display: block !important; } }

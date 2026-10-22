@@ -151,7 +151,7 @@ func (s *site) discover() {
 	// Directories under docs/ that are not sections.
 	entries, _ := os.ReadDir(s.docsDir)
 	for _, e := range entries {
-		if e.IsDir() && !known[e.Name()] && !strings.HasPrefix(e.Name(), ".") && !strings.HasPrefix(e.Name(), "_") {
+		if e.IsDir() && !known[e.Name()] && e.Name() != sharedImages && !strings.HasPrefix(e.Name(), ".") && !strings.HasPrefix(e.Name(), "_") {
 			s.msgs.warnf("docs/%s is not a section in site.json; its pages are not published", e.Name())
 		}
 	}

@@ -449,6 +449,12 @@ A value that is not known until the apply, such as the `id` of a resource that d
 
 Taught in [B2](../learn/b02-reading-a-plan.md). See [The plan document](policies-plan-document.md#absent-null-and-unknown).
 
+### viewer
+
+The read-only web page that `pravo serve` runs on the loopback interface. It shows the specification, the state and a saved plan as a graph of modules and resources. In the viewer a module is any struct that holds resources, and a node's presence says whether it is declared, recorded or both.
+
+See [The viewer](../concepts/the-viewer.md) and [`pravo serve`](serve.md).
+
 ### write-only attribute
 
 An attribute that a provider accepts and never stores, marked `@pravo(write_only)` in the generated definitions. It is the one kind of attribute that may take an ephemeral value.

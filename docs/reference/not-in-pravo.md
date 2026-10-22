@@ -20,7 +20,7 @@ pravo has no workspaces. Select the environment with `-t env=prod`. Each row bel
 | `taint`, `untaint` | Absent. | `pravo plan --replace ADDR` replaces a resource although the specification did not change. |
 | `refresh`, `plan -refresh-only` | Absent. | `pravo drift` reads every resource and reports the ones that changed. `-refresh=all` reads every record in a plan. |
 | `console` | Absent. | `pravo eval -e EXPRESSION` evaluates an expression in the scope of the specification. |
-| `graph` | Absent. | `pravo state graph` prints the edges of the state. `-dot` prints Graphviz. |
+| `graph` | Absent. | `pravo state graph` prints the edges of the state. `-dot` prints Graphviz. `pravo serve` shows the graph of modules and resources in a browser. |
 | `force-unlock` | Absent. | `pravo state unlock ADDR` removes the lock or the reservation of one node. |
 | `test` | Absent. | `pravo validate` checks the constraints before a provider starts. `pravo plan --policy FILE` judges a plan. |
 | `login`, `logout` | Absent. | Credentials come from the environment and from the files that each provider documents. |

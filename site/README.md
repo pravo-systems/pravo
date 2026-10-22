@@ -107,7 +107,7 @@ Every element of `tools/sitegen/HTML.md` is styled. Notes beyond the contract:
 - **Tabs** `div.tabs`. Without JavaScript the panels stack, each headed by its `data-title`; with it `site.js` adds `is-ready`, hides the other panels and handles arrow, Home and End keys. A link to an id inside a hidden panel selects its tab; a link into a closed `<details>` opens it.
 - **Title block** `.lesson-meta`: ruled cells; `.meta-done` (the "Done when" cell) takes the accent label.
 - **Predict, exercise, check, deep dive, callout, fig** as in the contract. Hints carry their tier in `data-tier` (`1` is the nudge, `2` the reference); the solution is marked amber.
-- **Glossary** `a.term-link`. Hover and focus show a popover with `data-def`, or the text fetched from the glossary page (not available from `file://`, where the link still works).
+- **Screenshots in two themes** `a.shot` inside `.fig-body`. A figure that has a dark and a light picture holds two links, `a.shot.shot-dark` and `a.shot.shot-light`, each with an `img` of the same size and the same `alt`. The light one shows by default, and the dark one shows when the page is dark, by the system or by the theme button, decided the way the tokens are: `:root[data-theme="dark"]`, and `:root:not([data-theme="light"])` inside `prefers-color-scheme: dark`. Print shows the light one. A picture that has one variant is an `a.shot` alone, and shows in both themes. `img` carries `loading="lazy"`, so the hidden one is not fetched. Hover and focus show a popover with `data-def`, or the text fetched from the glossary page (not available from `file://`, where the link still works).
 - **Progress.** `button.mark-done[data-page]` stores the page in `localStorage` (`pravo-progress`, guarded by try/catch). Sidebar links with `data-page` gain `is-done`; the sidebar of `learn` and `migrate` pages shows a rail with a node per page, a summary box (`n of N done`), and filled nodes for done pages.
 - **Header.** Sticky; the hairline appears after 24 px of scroll (scroll-driven animation where supported, the class `is-scrolled` otherwise). A 2 px reading-progress line (`.read-progress`) tracks the page on documentation pages.
 - **Search** opens with `/` or Ctrl or Cmd K. See below.
@@ -119,7 +119,7 @@ Content is written elsewhere; these classes are the vocabulary. The front page i
 
 A demo is a block of HTML that a page embeds with `:::demo NAME` (`tools/sitegen/README.md`). It is `site/demos/NAME/embed.html`, it uses the same tokens, and the generator prefixes the path to the site root onto each relative `href` and `src`. A demo is a `div` with an id, not a band: `#idea`, `#replaces`, `#blast` and `#migrate`. A page that embeds one gives itself `toc: false` when the demo needs the width.
 
-The styles sit in five parts of the style sheet: `91-landing-hero.css` (the front page: hero, where to start) and `95-landing-study.css` (kept and revisited, plans and applies, about), `92-landing-ideas.css` (the demos idea and replaces), `93-landing-blast.css` (blast radius), `94-landing-journey.css` (the migration demo) and `95-demos.css` (a demo in the reading column). `96-components.css` holds the components of the documentation pages: mapping tables, cards, the runbook path and the cause and fix lines. The behaviour of a demo is in `assets/demos/x.js`. Every demo is complete without its script; the script adds the classes that set up its motion, such as `.is-scripted`. The front page has no script of its own.
+The styles sit in five parts of the style sheet: `91-landing-hero.css` (the front page: hero, where to start) and `95-landing-study.css` (kept and revisited, plans and applies, about), `92-landing-ideas.css` (the demos idea and replaces), `93-landing-blast.css` (blast radius), `94-landing-journey.css` (the migration demo) and `95-demos.css` (a demo in the reading column). `96-components.css` holds the components of the documentation pages: mapping tables, cards, the runbook path, the cause and fix lines and screenshots in two themes. The behaviour of a demo is in `assets/demos/x.js`. Every demo is complete without its script; the script adds the classes that set up its motion, such as `.is-scripted`. The front page has no script of its own.
 
 | Primitive | Markup and behaviour |
 |---|---|
@@ -222,18 +222,19 @@ Focus rings are 2 px `--key` with a 2 px offset; the chamfered button keeps its 
 
 ## Sizes
 
-The landing page loads `index.html`, the style sheet, one script and three images. Fonts are separate. `search.js` loads when the reader opens the palette and is not counted. Sizes are in bytes. Gzipped is each file on its own at the highest level, as `compress/gzip` writes it; the `gzip -9` command gives figures within 1 percent of these. An image counts as the smaller of the file and its gzip.
+The landing page loads `index.html`, the style sheet, two scripts and three images. Fonts are separate. `search.js` loads when the reader opens the palette and is not counted. Sizes are in bytes. Gzipped is each file on its own at the highest level, as `compress/gzip` writes it; the `gzip -9` command gives figures within 1 percent of these. An image counts as the smaller of the file and its gzip.
 
 | Asset | Published | Gzipped | Source gzipped |
 |---|---|---|---|
-| `index.html` | 15,125 | 4,122 | 4,122 |
-| `assets/style.css` | 125,580 | 24,938 | 32,874 |
-| `assets/site.js` | 16,590 | 5,688 | 8,188 |
-| `assets/logo.svg` | 639 | 361 | 361 |
-| `assets/apple-touch-icon.png` | 3,950 | 3,578 | 3,578 |
-| `favicon.ico` | 4,509 | 3,224 | 3,224 |
-| JavaScript, 1 file | 16,590 | 5,688 | 8,188 |
-| Everything but fonts, 6 files | 166,393 | 41,911 | 52,347 |
+| `index.html` | 17,826 | 5,176 | 5,176 |
+| `assets/style.css` | 130,578 | 25,809 | 34,452 |
+| `assets/site.js` | 17,263 | 5,888 | 8,541 |
+| `assets/download.js` | 1,794 | 907 | 1,196 |
+| `assets/logo.svg` | 805 | 390 | 390 |
+| `assets/apple-touch-icon.png` | 3,497 | 3,433 | 3,433 |
+| `favicon.ico` | 3,588 | 3,565 | 3,565 |
+| JavaScript, 2 files | 19,057 | 6,795 | 9,737 |
+| Everything but fonts, 7 files | 175,351 | 45,168 | 56,753 |
 | Budget, JavaScript | | 8,000 | 8,000 |
 | Budget, everything but fonts | | 50,000 | 50,000 |
 

@@ -91,3 +91,67 @@ func TestDirectoryLinks(t *testing.T) {
 	html := string(s.mustPage(t, "learn/a01-lesson.md").Content)
 	mustContain(t, html, `<a href="index.html">up</a>`, `<a href="../reference/index.html">ref</a>`, `<a href="pic.svg">file</a>`)
 }
+
+// Images that several pages use sit in docs/img and are published at /img. The
+// directory is not a section, so it raises no warning, and a page links to its
+// files like to any other.
+func TestSharedImagesArePublished(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"site/site.json":               testSiteJSON,
+		"site/assets/logo.svg":         "<svg/>",
+		"site/assets/style.css":        "",
+		"site/assets/site.js":          "",
+		"docs/learn/index.md":          indexMD,
+		"docs/reference/index.md":      strings.Replace(indexMD, "Learn", "Reference", 1),
+		"docs/learn/page.md":           "---\ntitle: Page\ndescription: A page.\norder: 1\n---\n\n![A shot.](../img/serve/shot-dark.png)\n",
+		"docs/img/serve/shot-dark.png": "png",
+		"docs/img/serve/_draft.png":    "png",
+		"docs/img/serve/notes.txt":     "notes",
+		"docs/img/diagram.SVG":         "<svg/>",
+	})
+	out := filepath.Join(dir, "out")
+	o := options{docs: filepath.Join(dir, "docs"), site: filepath.Join(dir, "site"), out: out, readme: filepath.Join(dir, "none"), lint: true, check: true}
+	if err := run(o); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"img/serve/shot-dark.png", "img/diagram.SVG"} {
+		if _, err := os.Stat(filepath.Join(out, filepath.FromSlash(f))); err != nil {
+			t.Errorf("%s is published: %v", f, err)
+		}
+	}
+	for _, f := range []string{"img/serve/_draft.png", "img/serve/notes.txt"} {
+		if _, err := os.Stat(filepath.Join(out, filepath.FromSlash(f))); err == nil {
+			t.Errorf("%s is not an image to publish", f)
+		}
+	}
+	mustContain(t, readOut(t, out, "learn/page.html"), `src="../img/serve/shot-dark.png"`)
+}
+
+func TestSharedImagesAreNotASection(t *testing.T) {
+	s := newTestSite(t, map[string]string{"img/a.png": "png"})
+	for _, w := range s.msgs.warns {
+		if strings.Contains(w, "docs/img") {
+			t.Errorf("unexpected warning: %s", w)
+		}
+	}
+}
+
+// A page that links to an image that does not exist fails the link check.
+func TestMissingSharedImageFailsTheLinkCheck(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"site/site.json":          testSiteJSON,
+		"site/assets/logo.svg":    "<svg/>",
+		"site/assets/style.css":   "",
+		"site/assets/site.js":     "",
+		"docs/learn/index.md":     indexMD,
+		"docs/reference/index.md": strings.Replace(indexMD, "Learn", "Reference", 1),
+		"docs/learn/page.md":      "---\ntitle: Page\ndescription: A page.\norder: 1\n---\n\n![A shot.](../img/serve/missing.png)\n",
+	})
+	o := options{docs: filepath.Join(dir, "docs"), site: filepath.Join(dir, "site"), out: filepath.Join(dir, "out"), readme: filepath.Join(dir, "none"), lint: true, check: true}
+	err := run(o)
+	if err == nil || !strings.Contains(err.Error(), "broken links") {
+		t.Errorf("error = %v", err)
+	}
+}

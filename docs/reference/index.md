@@ -36,6 +36,7 @@ Every page opens with the synopsis, the flags with their defaults, and the exit 
 | `pravo validate`, `eval`, `fmt`, `gen` | Checks the specification, prints its value, formats the files, regenerates the packages. | [validate, eval, fmt and gen](validate-eval-fmt-gen.md) |
 | `pravo schema` | Prints the definition of one resource type. | [schema](schema.md) |
 | `pravo why`, `drift` | Explains a change. Reports what changed outside pravo. | [why and drift](why-and-drift.md) |
+| `pravo serve` | Shows the specification, the state and a saved plan as a graph in a browser. Reads and writes nothing. | [serve](serve.md) |
 | `pravo mcp` | Serves pravo to an agent over the Model Context Protocol. | [mcp](mcp.md) |
 | `pravo mod` | Creates, fetches, publishes and verifies CUE modules. | [mod](mod.md) |
 | `pravo version` | Prints the version of pravo and of CUE. | [version](version.md) |
