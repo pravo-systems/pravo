@@ -552,7 +552,10 @@ export class GraphView {
     inn.append(s('rect', { class: 'stack s1', x: 5, y: 5, width: W - 10, height: H, rx: 7 }));
     inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
-    inn.append(glyph(isMod ? 'chevR' : 'grid', 14, 12, 18, 'cico'));
+    // The wrapper carries the CSS transform of the hover (a nudge to the right):
+    // a CSS transform replaces the transform attribute, so it must not sit on the
+    // element that is placed and scaled by that attribute.
+    inn.append(s('g', { class: 'cico' }, glyph(isMod ? 'chevR' : 'grid', 14, 12, 18)));
     const title = isMod ? it.mod.name : it.type;
     const marks = stateMarks(agg);
     const counts = [agg.create, agg.update + agg.replace, agg.delete].filter(Boolean);
