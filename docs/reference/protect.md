@@ -336,6 +336,8 @@ Unsettled    none
 | `You` | The identity and its reader key. `identity NAME is not a reader`. `not a reader of this state (no identity found)`. |
 | `Unsettled` | `none`, or the number of interrupted transactions; `pravo state log` lists them. |
 
+With `--json`, `status` prints one document: `state` (`off`, `immutable`, `migrating` or `sealed`), `format`, `store`, `records`, `checked`, `unsettled`, `untrusted`, `readers` (the names the state is sealed to), `readers_file` (`found`, `valid`, `matches`, `path`, `added`, `removed`) and `you` for a sealed state, and `expects_sealed: true` when the repository lists readers and the state is not sealed. A job that wants a verdict before it plans runs `pravo protect status --json | jq -e '.format == 3'`.
+
 A record that does not match its name, a pointer that disagrees with its record, or a sealed value that does not open where it is, prints `Untrusted:` and the object, and the command exits 7.
 
 ## protect rewrap
