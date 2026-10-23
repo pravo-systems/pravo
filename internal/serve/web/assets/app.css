@@ -106,7 +106,16 @@ a { color: inherit; }
 .top .search:hover { border-color: var(--text-3); color: var(--text-2); box-shadow: 0 0 0 3px var(--key-wash); }
 .top .search kbd { margin-left: auto; }
 .viewsw { flex: none; }
-.viewsw button { padding: .46rem .85rem; font-size: .76rem; }
+/* The sections of the page: the resources of the state, and who can read it. They are two things, not two views of one,
+   so they are tabs of the header and not a switch of the toolbar. */
+.sections { flex: none; display: inline-flex; align-self: stretch; margin-right: .2rem; }
+.sec-tab { position: relative; display: inline-flex; align-items: center; gap: .45rem; padding: 0 1rem; font: 500 .8rem/1 var(--font-mono); color: var(--text-2); border: 0; background: none; transition: color var(--t-fast), background var(--t-fast); }
+.sec-tab + .sec-tab { border-left: 1px solid var(--line); }
+.sec-tab:hover { color: var(--text); background: var(--surface-2); }
+.sec-tab[aria-pressed="true"] { color: var(--text); background: var(--surface-2); }
+.sec-tab[aria-pressed="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); }
+.sec-tab .i { width: .95rem; height: .95rem; color: var(--text-3); }
+.sec-tab[aria-pressed="true"] .i { color: var(--accent); }
 .pillset { flex: none; display: inline-flex; align-items: stretch; border: 1px solid var(--line-strong); background: var(--surface); }
 .pillset .pill { border: 0; padding: .4rem .6rem; }
 .pillset .pill + .pill { border-left: 1px solid var(--line); }
@@ -238,6 +247,12 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
 .toolbar .seg button { height: 2rem; }
 [data-view="table"] .graph-only { display: none; }
 [data-view="access"] .toolbar { display: none; }
+/* Access is about who can read the state, not about its resources: no filters, plans or modules, and no inspector. */
+[data-view="access"] .rail, [data-view="access"] .insp { display: none; }
+body:has(.app[data-view="access"]) #menu-btn { display: none; }
+.app[data-view="access"] { grid-template-columns: minmax(0, 1fr); }
+/* The plan numbers of the status bar are about the resources. */
+body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) #st-notread { display: none; }
 
 /* ---- the table ---- */
 .table-pane { padding: 0 1rem 1rem; }
@@ -443,10 +458,10 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
   .pal-wrap { padding-top: 1rem; }
   .sheet-body dl { grid-template-columns: 6.5rem 1fr; }
 }
-/* Three views (Graph, Table, Access) do not fit the bar of a phone with the word beside the mark: the link keeps its aria-label. */
+/* The two section tabs with their icons do not fit the bar of a phone with the word beside the mark: the link keeps its aria-label. */
 @media (max-width: 30em) {
   .brand .word { display: none; }
-  .top .viewsw button { padding-inline: .5rem; }
+  .sec-tab { padding-inline: .6rem; } .sec-tab .i { display: none; }
 }
 
 /* ---- a page that nobody sees does not animate: the script sets data-hidden from the Page Visibility API ---- */

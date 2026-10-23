@@ -796,9 +796,11 @@ function setView(v) {
   $('graph-pane').hidden = v !== 'graph';
   $('table-pane').hidden = v !== 'table';
   $('access-pane').hidden = v !== 'access';
+  if (v !== 'access') S.lastResources = v;
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
   $('view-table').setAttribute('aria-pressed', v === 'table' ? 'true' : 'false');
-  $('view-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
+  $('sec-resources').setAttribute('aria-pressed', v !== 'access' ? 'true' : 'false');
+  $('sec-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
   if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'table' ? 'Skip to the table' : 'Skip to the access view';
@@ -806,7 +808,7 @@ function setView(v) {
   else if (v === 'access') renderAccess();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   syncFragment();
-  announce(v === 'table' ? 'Table view' : v === 'access' ? 'Access view' : 'Graph view');
+  announce(v === 'table' ? 'Resources, table view' : v === 'access' ? 'Access' : 'Resources, graph view');
 }
 
 function renderAccess() {
@@ -1208,7 +1210,9 @@ function onKey(ev) {
   if (k === '/') { ev.preventDefault(); palette.open(); return; }
   if (k === '?') { ev.preventDefault(); sheet.open(); return; }
   if (k === 't') { toggleTheme(); return; }
-  if (k === 'g') { setView(S.view === 'graph' ? 'table' : S.view === 'table' ? 'access' : 'graph'); return; }
+  if (k === 'a') { setView(S.view === 'access' ? (S.lastResources || 'graph') : 'access'); return; }
+  if (S.view === 'access') return; // the keys below are for the resources
+  if (k === 'g') { setView(S.view === 'graph' ? 'table' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
   if (k === 'f') { gv.fit(true); return; }
@@ -1275,6 +1279,7 @@ function wire() {
   palette = new Palette($('palette'), {
     announce,
     onPick: (kind, key) => {
+      if (S.view === 'access') setView(S.lastResources || 'graph'); // a resource is found among the resources
       if (S.view !== 'graph' && kind === 'module') setView('graph');
       if (kind === 'module') {
         const mod = S.model.modules.get(key);
@@ -1290,7 +1295,8 @@ function wire() {
 
   $('view-graph').addEventListener('click', () => setView('graph'));
   $('view-table').addEventListener('click', () => setView('table'));
-  $('view-access').addEventListener('click', () => setView('access'));
+  $('sec-resources').addEventListener('click', () => { if (S.view === 'access') setView(S.lastResources || 'graph'); });
+  $('sec-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
   $('theme-btn').addEventListener('click', toggleTheme);
   $('btn-fit').addEventListener('click', () => gv.fit(true));
