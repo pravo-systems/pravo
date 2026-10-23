@@ -208,6 +208,9 @@ type Store struct {
 	// something other than an unseal. Such a record reads without its values, and a
 	// write over it would lose them.
 	strays []string
+	// warn receives what a command should tell its user and no more than that: the end of a
+	// transaction that could not be signed. Without it the error is returned.
+	warn func(string)
 	// index is derived from nodes: the addresses in order and the reverse edges.
 	// It is built by the first query that needs it and dropped by every change of
 	// the nodes. A built index is never changed, so a query reads it without the
@@ -1811,6 +1814,15 @@ type Transaction struct {
 	// Version is the pravo that wrote the transaction. Transactions written
 	// before it was recorded have none.
 	Version string `json:"version,omitempty"`
+	// PlanID and PlanDigest name the plan an apply ran from: the id of a stored plan,
+	// and the SHA-256 of the plan file in hex. They are signed with the rest.
+	PlanID     string `json:"plan,omitempty"`
+	PlanDigest string `json:"plan_digest,omitempty"`
+	// StartSig and FinishSig are the signatures of the identity that ran the command,
+	// in a sealed state (see sign.go). The first covers what the run set out to do, and
+	// the second what it did; a run that is killed leaves the first.
+	StartSig  *protect.Signature `json:"start_sig,omitempty"`
+	FinishSig *protect.Signature `json:"finish_sig,omitempty"`
 }
 
 // Txn is an in-progress transaction.
@@ -1846,6 +1858,11 @@ func (t *Txn) Start() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if err := t.store.writable(); err != nil {
+		return err
+	}
+	// A sealed state records no run that its owner cannot be named for: nothing has
+	// been changed yet, so a run that cannot sign is refused here.
+	if err := t.signStart(); err != nil {
 		return err
 	}
 	return t.store.putJSON("txn/"+t.t.ID+".json", t.t)
@@ -1897,7 +1914,22 @@ func (t *Txn) FinishError(status, summary, full string, record bool) error {
 	if err := t.store.writable(); err != nil {
 		return err
 	}
-	return t.store.putJSON("txn/"+t.t.ID+".json", t.t)
+	// The cloud has been changed by now. A signature that cannot be made does not
+	// lose the record of what happened: it is written without the signature, and the
+	// error says so.
+	signErr := t.signFinish()
+	if err := t.store.putJSON("txn/"+t.t.ID+".json", t.t); err != nil {
+		return err
+	}
+	if signErr != nil {
+		// The command has done its work. It reports the signature that is missing and does not
+		// fail for it, since a failure would have its caller treat the apply as not done.
+		if warn := t.store.warnFunc(); warn != nil {
+			warn(signErr.Error())
+			return nil
+		}
+	}
+	return signErr
 }
 
 // SealedErrorText is what the summary of a transaction that failed or was rejected
@@ -1982,7 +2014,9 @@ func (s *Store) Transactions() ([]Transaction, error) {
 			continue
 		}
 		var t Transaction
-		if json.Unmarshal(data, &t) == nil {
+		// A transaction is in the object that has its id: a copy under another name is
+		// not another transaction.
+		if json.Unmarshal(data, &t) == nil && k == "txn/"+t.ID+".json" {
 			if t.Changes == nil {
 				t.Changes = []Change{}
 			}

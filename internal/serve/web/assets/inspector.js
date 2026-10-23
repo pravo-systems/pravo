@@ -530,6 +530,7 @@ export class Inspector {
           h('div', { class: 'tl-meta' },
             h('span', { title: e.id }, e.id),
             e.user || e.actor ? h('span', null, [e.user, e.actor].filter(Boolean).join(' · ')) : null,
+            e.signature ? h('span', { class: 'sigmark sig-' + e.signature, title: SIGNATURE[e.signature] ? SIGNATURE[e.signature].tip : '' }, signatureText(e)) : null,
             e.rev_before || e.rev_after ? h('span', null, `rev ${e.rev_before || 0} → ${e.rev_after || 0}`) : null))));
     }
     return h('div', { class: 'pane' }, h('section', { class: 'sec' }, ol));
@@ -652,6 +653,23 @@ export class Inspector {
 function actClass(a) {
   return a === 'create' ? 'ok' : a === 'delete' ? 'bad' : a === 'read' || a === 'move' || a === 'import' ? 'lock' : 'chg';
 }
+// SIGNATURE says what the signatures of a transaction of a sealed state come to, as the readers file judges them.
+const SIGNATURE = {
+  verified: { tip: 'The signature of this transaction verifies against a key in the readers file.' },
+  key_not_in_file: { tip: 'Signed with a key that the readers file does not list: a member who has left, or a key that never was.' },
+  invalid: { tip: 'The signature does not verify: the transaction was changed, or the signature was made up.' },
+  unsigned: { tip: 'This transaction was recorded without a signature.' },
+};
+
+function signatureText(e) {
+  switch (e.signature) {
+    case 'verified': return 'signed by ' + (e.signer || 'a reader');
+    case 'key_not_in_file': return 'signer not in the readers file';
+    case 'invalid': return 'signature does not verify';
+    default: return 'unsigned';
+  }
+}
+
 function statusClass(s) {
   return s === 'applied' ? 'ok' : s === 'failed' ? 'bad' : s === 'rejected' ? 'chg' : s === 'running' ? 'lock' : '';
 }

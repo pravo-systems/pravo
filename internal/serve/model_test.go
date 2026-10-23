@@ -366,3 +366,27 @@ func TestStateThatCannotBeOpenedIsAnErrorAtStart(t *testing.T) {
 		t.Errorf("New over a state that is a file")
 	}
 }
+
+// The history of a node says what the signatures of each transaction come to, as the command
+// that started the viewer judged them.
+func TestHistoryShowsTheSignatureOfATransaction(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	p := start(t, dir, st, Options{VerifyTxn: func(_ *state.Store, tx *state.Transaction) (string, string) {
+		return "verified", "ada <script>"
+	}})
+	h := p.detail("services.a.db").History
+	if len(h) != 1 || h[0].Signature != "verified" || h[0].Signer == "" {
+		t.Fatalf("history %+v", h)
+	}
+	// With nothing to check against the entry says nothing.
+	q := newProject(t)
+	if h := q.detail("services.a.db").History; len(h) != 1 || h[0].Signature != "" || h[0].Signer != "" {
+		t.Errorf("history %+v", h)
+	}
+}

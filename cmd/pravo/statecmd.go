@@ -14,6 +14,7 @@ import (
 	cuejson "cuelang.org/go/encoding/json"
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/tfstate"
 	"github.com/pravo-systems/pravo/internal/ui"
@@ -145,6 +146,9 @@ func stateCmd() *cobra.Command {
 				return fmt.Errorf("%s is not in state", args[0])
 			}
 			txn := st.Begin("edit", "pravo state rm "+args[0])
+			if err := txn.Start(); err != nil {
+				return err
+			}
 			if _, err := st.Remove(args[0]); err != nil {
 				return err
 			}
@@ -188,6 +192,9 @@ func stateCmd() *cobra.Command {
 				}
 			}
 			txn := st.Begin("edit", "pravo state mv "+args[0]+" "+args[1])
+			if err := txn.Start(); err != nil {
+				return err
+			}
 			before := r.Revision
 			if _, err := st.Remove(args[0]); err != nil {
 				return err
@@ -232,6 +239,23 @@ func stateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Under a sealed state the signatures are checked against the readers file, on the
+			// transactions as they are stored: the status below is a reading of them.
+			readers, checked := []protect.Reader(nil), false
+			if prot := st.Protection(); prot.Sealed != nil {
+				if root, err := loadRoot(); err == nil {
+					readers, checked = attributionReaders(loadReadersFile(root.Dir, flagAccessDir))
+				}
+			}
+			verdicts := make([]state.TxnVerdict, len(txns))
+			invalid := 0
+			if checked {
+				for i := range txns {
+					if verdicts[i] = state.VerifyTransaction(st.Lineage(), &txns[i], readers); verdicts[i].Overall() == protect.SigInvalid {
+						invalid++
+					}
+				}
+			}
 			// A transaction that is recorded as running and whose command is gone was
 			// left by a command that was killed.
 			interrupted, err := st.Interrupted(txns)
@@ -249,10 +273,27 @@ func stateCmd() *cobra.Command {
 					txns[i].SummarySealed = nil
 				}
 			}
-			if flagJSON {
-				return emitJSON(txns)
+			if !checked && !flagJSON && st.Protection().Sealed != nil {
+				out.Println(out.C(ui.Dim, "Signatures are not checked: the readers file is missing or invalid."))
 			}
-			for _, t := range txns {
+			if flagJSON {
+				type view struct {
+					state.Transaction
+					Signature *sigStatusJSON `json:"signature,omitempty"`
+				}
+				views := make([]view, len(txns))
+				for i, t := range txns {
+					views[i] = view{Transaction: t}
+					if checked {
+						views[i].Signature = sigJSON(verdicts[i])
+					}
+				}
+				if err := emitJSON(views); err != nil {
+					return err
+				}
+				return invalidTxns(invalid)
+			}
+			for i, t := range txns {
 				dur := ""
 				if t.Finished != nil {
 					dur = " " + t.Finished.Sub(t.Started).Round(time.Millisecond).String()
@@ -261,6 +302,15 @@ func stateCmd() *cobra.Command {
 				out.Printf("    %s\n", out.C(ui.Dim, t.Command))
 				if t.Actor != "" || t.Reason != "" || t.GitRevision != "" {
 					out.Printf("    %s\n", out.C(ui.Dim, strings.TrimSpace(fmt.Sprintf("actor %s  %s  %s", orNone(t.Actor), t.Reason, t.GitRevision))))
+				}
+				if checked {
+					line := txnSigText(verdicts[i])
+					if verdicts[i].Overall() == protect.SigInvalid {
+						line = out.C(ui.Red, line)
+					} else {
+						line = out.C(ui.Dim, line)
+					}
+					out.Printf("    %s\n", line)
 				}
 				if t.Summary != "" {
 					out.Printf("    %s\n", t.Summary)
@@ -273,7 +323,7 @@ func stateCmd() *cobra.Command {
 					out.Println()
 				}
 			}
-			return nil
+			return invalidTxns(invalid)
 		},
 	}, &cobra.Command{
 		Use: "probe", Short: "Check that the S3 store honours the conditional requests that locks need", Args: noArgs,
@@ -548,6 +598,9 @@ once.`,
 				return fmt.Errorf("%s already holds %d resources and %d outputs; use -force to replace them", st.Dir(), st.Len(), len(st.Outputs()))
 			}
 			txn := st.Begin("import", "pravo state import-tfstate "+args[0])
+			if err := txn.Start(); err != nil {
+				return err
+			}
 			if err := st.Clear(); err != nil {
 				return err
 			}

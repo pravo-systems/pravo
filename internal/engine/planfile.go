@@ -32,6 +32,9 @@ type PlanFile struct {
 	// Unsealed is set by a PlanStore on a plan that was read from a sealed state and
 	// was stored before the state was sealed.
 	Unsealed bool `json:"-"`
+	// Digest is the SHA-256 in hex of the bytes that this plan was parsed from, set by
+	// ReadPlanFile and by a PlanStore. An apply records it, so it is the plan that was run.
+	Digest string `json:"-"`
 	// Lineage of the state graph the plan was made against.
 	Lineage string `json:"lineage"`
 	// ConfigFingerprint digests every CUE file of the root.
@@ -274,7 +277,12 @@ func ReadPlanFile(path string) (*PlanFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parsePlanFile(path, data)
+	pf, err := parsePlanFile(path, data)
+	if err != nil {
+		return nil, err
+	}
+	pf.Digest = PlanDigest(data)
+	return pf, nil
 }
 
 // parsePlanFile parses the bytes of a plan file. name is what the plan is called

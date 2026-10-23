@@ -48,7 +48,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			}
 			v := &viewerState{name: flagIdentity, dir: dir, accessDir: loadReadersFile(dir, flagAccessDir).Dir}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir}
+			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, VerifyTxn: v.verifyTxn}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.
@@ -397,4 +397,19 @@ func openBrowser(url string) error {
 	}
 	go func() { _ = c.Wait() }()
 	return nil
+}
+
+// verifyTxn checks the signatures of a transaction against the readers file, for the
+// history of a node. A state that is not sealed, or a repository with no readers file, has
+// nothing to check against and returns no status.
+func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, string) {
+	if st.Protection().Sealed == nil {
+		return "", ""
+	}
+	readers, ok := attributionReaders(loadReadersFile(v.dir, v.accessDir))
+	if !ok {
+		return "", ""
+	}
+	verdict := state.VerifyTransaction(st.Lineage(), t, readers)
+	return verdict.Overall().Key(), verdict.Signer
 }

@@ -250,7 +250,16 @@ func openStateStore(ctx context.Context, root *config.Root) (*state.Store, error
 // allowLocked is set. A command that writes also needs a readers
 // file that matches the state; one that reads only warns.
 func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool) (st *state.Store, why *noKey, err error) {
+	var openStore func(id *protect.Identity) (*state.Store, error)
 	open := func(id *protect.Identity) (*state.Store, error) {
+		st, err := openStore(id)
+		if st != nil {
+			// The end of a transaction that could not be signed is shown, not failed on.
+			st.SetWarn(func(msg string) { out.Warning(msg) })
+		}
+		return st, err
+	}
+	openStore = func(id *protect.Identity) (*state.Store, error) {
 		o := state.Options{Identity: id}
 		switch {
 		case root.State.Backend == "s3":

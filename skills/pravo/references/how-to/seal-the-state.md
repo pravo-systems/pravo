@@ -7,7 +7,7 @@ Encrypt the attributes, outputs and stored plans of a state in a bucket to a lis
 A state holds the attributes of every resource: passwords, keys and tokens that a provider returned. Anyone who can read the bucket can read them. This page seals the state, so that the bucket, a backup or an old version of an object shows addresses and types and no value. A list of readers, kept in the repository, decides who can open it.
 
 > [!NOTE]
-> Every command below runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000, and the three people are three directories on one machine. The state is created with `pravo state import-tfstate` so that the page needs no provider. Sealing stops at format 3: there are no roles and no signatures, and [what sealing protects](../concepts/sealed-state.md) says what that leaves open.
+> Every command below runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000, and the three people are three directories on one machine. The state is created with `pravo state import-tfstate` so that the page needs no provider. Sealing stops at format 3: there are no roles, and [what sealing protects](../concepts/sealed-state.md) says what that leaves open.
 
 ## 1. Make an identity
 
@@ -154,7 +154,7 @@ Add one with: pravo protect rewrap --recovery 3/5
 
 The command refuses to run if your identity is not on the list, because sealing to a list you are not on would lock you out. A run that is interrupted leaves the state sealing; run the same command again to finish.
 
-The last two lines are a fact and not a step: this state has no recovery recipient, and if every reader loses their key, nothing can read it. [Section 11](#11-add-a-recovery-recipient) adds one. `pravo protect init --encrypt --recovery 3/5` sets one in the step that seals.
+The last two lines are a fact and not a step: this state has no recovery recipient, and if every reader loses their key, nothing can read it. [Section 12](#12-add-a-recovery-recipient) adds one. `pravo protect init --encrypt --recovery 3/5` sets one in the step that seals.
 
 ## 6. Commit the readers file
 
@@ -184,6 +184,7 @@ Store        s3://northwind-state/prod
 Readers      .pravo/access/readers.txt matches the store
 You          ada · reader key x25519:<key>
 Roles        off
+Signatures   0 of 1 transaction verified · 1 unsigned
 Unsettled    none
 ```
 
@@ -314,7 +315,32 @@ Dropped group g1: nothing refers to it.
 
 `gc` needs the state at rest, as `rewrap --all` does, and the readers file as any command that writes the state. A record that no pointer names is marked by the first `gc` that finds it 24 hours old, and deleted by one that runs at least 15 minutes after that, so the records of earlier revisions and of resources that were destroyed go the day after they were replaced, on the second run. Run `gc` again then. A group that still has something sealed in it is kept, and the command says what.
 
-## 11. Add a recovery recipient
+## 11. See who did what
+
+Every command that changes a sealed state is recorded as a transaction, and the transaction is signed by the identity that ran it: once when it starts, and once when it ends. The signing key is the second field of the identity's line in the readers file, so the file that says who may read also says whose signatures to trust. Ada moves a resource, and the CI job moves it back.
+
+```sh
+pravo state mv aws_vpc.main aws_vpc.moved
+PRAVO_CONFIG_DIR=nobody PRAVO_IDENTITY="$(cat deploy-bot.identity)" pravo state mv aws_vpc.moved aws_vpc.main
+pravo state log | grep 'signed by'
+pravo protect status | grep '^Signatures'
+```
+
+Output:
+
+```text
+Moved aws_vpc.main to aws_vpc.moved
+Moved aws_vpc.moved to aws_vpc.main
+    signed by deploy-bot (verified)
+    signed by ada (verified)
+Signatures   2 of 3 transactions verified · 1 unsigned
+```
+
+The transaction from before the seal is unsigned, which is not an error. A signature from a key that the readers file does not list, such as a reader who has left, shows as `signed by NAME, whose key is not in the readers file`, and is not an error either. A transaction that was changed in the bucket after it was signed shows `the signature does not verify`, and `state log` and `protect status` exit with 7.
+
+What the signature covers is the event: which key ran which command, and which addresses and revisions it changed. It does not cover the values of the records, and it cannot tell that a transaction was deleted or that an older copy of the state was put back. [Signatures](../reference/protect.md#signatures) lists what it covers and what it leaves.
+
+## 12. Add a recovery recipient
 
 Until now, the state can be read by its readers and by no one else. If all three lose their keys, or forget their passphrases, nobody can read it again. A **recovery recipient** is one more reader whose key nobody holds whole: it is made when you set it, split into N shares and forgotten. Any K of the shares rebuild it. `pravo protect init --encrypt --recovery 2/3` sets it in the step that seals; for a state that is sealed already, `rewrap` does.
 
@@ -357,7 +383,7 @@ Recovery     2 of 3 shares · key x25519:<key>… · .pravo/access/recovery.txt 
 
 Two shares are enough to read the state. That is a decision about whom to trust together and not a delay: pravo has no signature and no waiting time for it, so two holders who meet can read every value at once. Choose K higher than the number of holders who could act together, and N high enough that losing a share does not lose the key.
 
-## 12. Recover a state
+## 13. Recover a state
 
 Say Ada, Dan and the job have all lost their keys. Someone makes a new identity, and the list of readers names it in place of the lost ones.
 
@@ -416,7 +442,7 @@ Commit the recovery recipient with the readers file:
 The old shares open nothing that is written from now on. Collect them and destroy them.
 ```
 
-## 13. Take the seal off
+## 14. Take the seal off
 
 Sealing is not a one-way door. `pravo protect unseal` opens every record, the outputs and the stored plans with your key, writes them in the open and removes the sealed part of `meta.json`. The state keeps its format and its lineage: it is the same state, without the encryption. After it, anyone who can read the bucket can read every value.
 

@@ -342,6 +342,9 @@ type Engine struct {
 	Value     cue.Value
 	Opts      Options
 
+	// planID and planDigest name the plan an apply runs from (see SetPlan).
+	planID, planDigest string
+
 	// policies are the plan policies named by the invoker.
 	policies []*Policy
 
@@ -2203,6 +2206,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		}
 	}
 	e.txn = e.State.Begin(kind, e.Opts.Command)
+	e.txn.SetPlan(e.planID, e.planDigest)
 	e.mu.Lock()
 	e.completed = nil
 	e.mu.Unlock()
@@ -2580,3 +2584,8 @@ func mergeOutputs(recorded, baseline, computed map[string]json.RawMessage, decla
 	}
 	return out
 }
+
+// SetPlan records the plan that the next apply runs from: the id of a stored plan, empty
+// for a plan file, and the digest of the plan file (see PlanDigest). The transaction of the
+// apply carries both under its signature.
+func (e *Engine) SetPlan(id, digest string) { e.planID, e.planDigest = id, digest }

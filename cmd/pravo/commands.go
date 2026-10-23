@@ -504,6 +504,7 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	if err := eng.SetPolicies(policies); err != nil {
 		return err
 	}
+	eng.SetPlan("", pf.Digest)
 	mark := func(applied []string, txn string, pending []string, finished bool) error {
 		mark := engine.MarkApplied
 		if !finished {
@@ -847,6 +848,9 @@ func importCmd() *cobra.Command {
 			}
 			rp := s.providers.Resolved[res.LocalProvider()]
 			txn := s.state.Begin("import", "pravo import "+args[0]+" "+args[1])
+			if err := txn.Start(); err != nil {
+				return err
+			}
 			protocol := ""
 			if rp.Protocol != config.ProtocolTfplugin {
 				protocol = rp.Protocol

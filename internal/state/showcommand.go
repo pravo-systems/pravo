@@ -324,7 +324,8 @@ func (s *Store) redactHistory(ctx context.Context) error {
 				return nil, nil
 			}
 			changed := false
-			if redactable(t.Command) {
+			// The command of a signed transaction is what was signed.
+			if t.StartSig == nil && redactable(t.Command) {
 				t.Command = RedactLine(t.Command, tag)
 				changed = true
 			}

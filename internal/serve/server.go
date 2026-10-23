@@ -74,6 +74,11 @@ type Options struct {
 	// and the readers file. The command fills it from the state package. Nil means
 	// that the state is protected as its format says and no identity was given.
 	Protection Protection
+	// VerifyTxn checks the signatures of a transaction of a sealed state against the
+	// readers file, and returns "verified", "key_not_in_file", "invalid" or "unsigned" with the
+	// name the readers file gives the signer. Nil, or an empty status, means that the
+	// signatures are not checked.
+	VerifyTxn func(st *state.Store, t *state.Transaction) (status, signer string)
 	// AccessDir is the directory that holds readers.txt. When it is empty the
 	// viewer looks for .pravo/access in the project directory and its parents up
 	// to the repository.

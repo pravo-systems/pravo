@@ -138,6 +138,7 @@ pravo will perform the following actions:
 | `reason:` | The `--reason`, when there is one. |
 | `command:` | The command line that made the plan. |
 | `git:` | The revision of the repository, when the plan was made in a git repository. |
+| `signed:` | `pravo plan show` of a stored plan in a sealed state: who stored it, as the readers file judges the signatures, or `unsigned`. With `--json` the document has a `signatures` object. See [Signatures](protect.md#signatures). |
 | `expires in ...` | When the plan is collected, in up to two units, such as `1 day 12 hours`. Shown for a plan that can be applied and for a stale one. |
 | `N of M changes applied` | Shown after a part of the plan was applied. M is the number of changes that the plan lists, and N counts only those. |
 | `Warning: a collection is removing this plan` | Shown while a collection holds the plan. No `apply:` line is given then, since an apply is refused until the claim lapses (ten minutes), and `--json` says `being_collected`. |

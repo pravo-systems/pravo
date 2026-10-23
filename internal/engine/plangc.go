@@ -302,6 +302,9 @@ func (ps *PlanStore) GC(ctx context.Context, o GCOptions) (*GCResult, error) {
 			}
 		}
 	}
+	if !o.DryRun {
+		ps.collectOrphanSignatures(ctx)
+	}
 	return res, nil
 }
 
@@ -468,6 +471,9 @@ func (ps *PlanStore) remove(ctx context.Context, id string, o *GCOptions, m *Pla
 		ps.deleteObject(ctx, id, "progress", o.Owner, false)
 		return false
 	}
+	// The signatures go first: a store of the same plan that comes while the plan is being
+	// removed then finds none, and writes its own.
+	ps.deleteSignatures(ctx, id)
 	removed := false
 	for _, kind := range []string{"plan", "meta"} {
 		if deleted := ps.deleteObject(ctx, id, kind, o.Owner, foreign); deleted {
