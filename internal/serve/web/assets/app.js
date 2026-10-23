@@ -1279,7 +1279,6 @@ function wire() {
   accessView = new AccessView($('access-pane'));
   insp = new Inspector($('insp'), {
     onPlan: (id) => selectPlan(id),
-    onAccess: () => setView('access'), // the State section
     onSelectNode: (a) => selectNode(a, { center: true }),
     onSelectModule: (p) => selectModule(p, { center: true }),
     onTab: setTab,

@@ -20,19 +20,10 @@ const kv = (rows) => h('dl', { class: 'meta' }, rows.filter(Boolean).map(([k, v]
 // the project
 
 export function projectPanel(ins, model) {
-  const g = model.graph, p = g.project, st = p.state || {};
+  const g = model.graph, p = g.project;
   const body = [];
   const plan = g.plan;
   if (plan) body.push(planSection(ins, plan, model));
-
-  // The rest of what is known of the state, the backend, the lineage, the format, the pravo that read it, is on the State page.
-  body.push(sec('State',
-    kv([
-      ['location', pathValue(st.location, ins)],
-      ['protection', h('button', { class: 'b linkchip' + (st.sealed ? ' lock' : ''), type: 'button', 'data-fk': 'protection', 'aria-label': (st.sealed ? 'sealed' : 'not sealed') + ', open the State page', 'data-tip': 'Where the state is kept, and who can read it', on: { click: () => ins.cb.onAccess && ins.cb.onAccess() } }, st.sealed ? icon('lock') : null, st.sealed ? 'sealed' : 'not sealed')],
-      ['records', fmt(st.records ?? model.list.length)],
-      st.locks ? ['locks', h('span', { class: 'b lock' }, icon('hold'), String(st.locks))] : null,
-    ])));
 
   if ((p.providers || []).length) {
     // an instance is named by its key and drawn in its colour; a provider with one instance that is named like it needs no list

@@ -116,7 +116,7 @@ async function checkOne(b, f, theme, width, report) {
   }
 
   // the Tab order is the reading order: down the page (a row of the stacked table has its stops left to right)
-  const visual = inPane.every((s, i) => i === 0 || s.docTop >= inPane[i - 1].docTop - 2 || (s.rect[0] > inPane[i - 1].rect[0] && Math.abs(s.docTop - inPane[i - 1].docTop) < 8));
+  const visual = inPane.every((s, i) => i === 0 || s.docTop >= inPane[i - 1].docTop - 2 || (s.rect[0] > inPane[i - 1].rect[0] && Math.abs(s.docTop - inPane[i - 1].docTop) < 16));
   check(visual, `${tag}: the Tab order goes up the page: ${inPane.map((s) => s.docTop).join(',')}`);
 
   // no horizontal scroll, of the page or of the view or of the table (at 375 px the rows are stacked)

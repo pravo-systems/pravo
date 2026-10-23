@@ -133,7 +133,7 @@ The viewer never applies, approves or removes a plan. It shows the command that 
 
 ## The State section
 
-The State section says where the state is kept, how it is protected and who can read it. It is the second section of the page, next to Resources, which holds the graph and the table, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state that the project panel of the Resources section leaves out: the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. It has no sidebar, toolbar or inspector. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
+The State section says where the state is kept, how it is protected and who can read it. It is the second section of the page, next to Resources, which holds the graph and the table, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no sidebar or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
 
 | Part | Holds |
 |---|---|

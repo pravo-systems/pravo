@@ -249,10 +249,10 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
 .toolbar .seg button { height: 2rem; }
 [data-view="table"] .graph-only { display: none; }
 [data-view="access"] .toolbar { display: none; }
-/* Access is about who can read the state, not about its resources: no filters, plans or modules, and no inspector. */
-[data-view="access"] .rail, [data-view="access"] .insp { display: none; }
+/* The State page is about who can read the state, not about its resources: no filters, plans or modules. The inspector stays, for the project. */
+[data-view="access"] .rail { display: none; }
 body:has(.app[data-view="access"]) #menu-btn { display: none; }
-.app[data-view="access"] { grid-template-columns: minmax(0, 1fr); }
+.app[data-view="access"] { grid-template-columns: minmax(0, 1fr) 24.5rem; }
 /* The plan numbers of the status bar are about the resources. */
 body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) #st-notread { display: none; }
 
@@ -429,7 +429,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .top .search { width: auto; padding: .5rem .6rem; }
   .top .search .lbl { display: none; }
   .only-narrow, .only-medium { display: inline-grid; }
-  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .app, .app[data-view="access"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .stage { grid-row: 1; grid-column: 1; }
   .rail { position: fixed; z-index: 60; left: 0; top: 52px; bottom: 30px; width: min(19rem, 88vw); transform: translateX(-102%); visibility: hidden; transition: transform .35s var(--ease), visibility 0s .35s, box-shadow .35s; }
   .app.rail-open .rail { transform: none; visibility: visible; box-shadow: 18px 0 50px color-mix(in srgb, #000 30%, transparent); transition: transform .35s var(--ease), visibility 0s, box-shadow .35s; }
