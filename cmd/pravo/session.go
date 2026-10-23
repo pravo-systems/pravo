@@ -388,7 +388,7 @@ func (s *session) writeGenerated(verbose bool) error {
 			if !changed {
 				verb = "Up to date"
 			}
-			out.Printf("%s %s (%d resource types, %d data sources, %d ephemeral, %d functions)\n", verb, filepath.Join("cue.mod", "gen", filepath.FromSlash(importPath)), len(ps.Resources), len(ps.DataSources), len(ps.Ephemerals), len(ps.Functions))
+			out.Printf("%s %s (%d resource types, %d data sources, %d ephemeral, %d functions)\n", verb, filepath.Join("cue.mod", "gen", filepath.FromSlash(importPath)), len(ps.SortedResourceNames()), len(ps.SortedDataSourceNames()), len(ps.SortedEphemeralNames()), len(ps.SortedFunctionNames()))
 		}
 	}
 	pdir := filepath.Join(modDir, "gen", "pravo.dev", "pravo")

@@ -120,7 +120,7 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	}
 	b.WriteString("\n// Managed resource types.\n_#Resource: {\n")
 	for _, name := range res {
-		s := p.Resources[name]
+		s := p.Resource(name)
 		if s == nil {
 			continue
 		}
@@ -141,7 +141,7 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	}
 	b.WriteString("\n// Data source types.\n_#Data: {\n")
 	for _, name := range ds {
-		s := p.DataSources[name]
+		s := p.DataSource(name)
 		if s == nil {
 			continue
 		}
@@ -161,7 +161,7 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	}
 	b.WriteString("\n// Ephemeral resource types: opened for the duration of a run, never recorded in state.\n_#Ephemeral: {\n")
 	for _, name := range eph {
-		s := p.Ephemerals[name]
+		s := p.Ephemeral(name)
 		if s == nil {
 			continue
 		}
@@ -180,7 +180,7 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	}
 	b.WriteString("\n// Provider-defined functions: a struct with args; the result is filled in at run time.\n_#Function: {\n")
 	for _, name := range fns {
-		f := p.Functions[name]
+		f := p.Function(name)
 		if f == nil {
 			continue
 		}
@@ -404,6 +404,9 @@ var builtinPrefix string
 var builtinTypeNames = map[string]bool{"string": true, "number": true, "bool": true, "int": true, "float": true, "bytes": true, "len": true}
 
 func shadowsBuiltins(p *ProviderSchema) bool {
+	if p.lazy != nil {
+		return p.lazy.index.ShadowsBuiltins
+	}
 	found := false
 	var visitBlock func(b *Block)
 	var visitAttrs func(attrs []*Attribute)

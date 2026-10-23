@@ -167,7 +167,7 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 	addr := r.Address()
 	ps := e.Schemas[r.LocalProvider()]
 	types := map[string]tftypes.Type{}
-	for name, rs := range ps.Resources {
+	for name, rs := range ps.AllResources() {
 		types[name] = rs.Block.Type()
 	}
 	e.Opts.Progress("%s: Importing from id %q...", addr, imp.ID)

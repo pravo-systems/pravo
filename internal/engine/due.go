@@ -159,7 +159,7 @@ func (e *Engine) recordSchema(sr *state.Resource) (*schema.Schema, error) {
 	if !ok {
 		return nil, fmt.Errorf("%s: provider %s is needed to read it but is not available", sr.Address(), local)
 	}
-	s := ps.Resources[sr.Type]
+	s := ps.Resource(sr.Type)
 	if s == nil {
 		return nil, fmt.Errorf("%s: provider %s no longer has resource type %q", sr.Address(), local, sr.Type)
 	}

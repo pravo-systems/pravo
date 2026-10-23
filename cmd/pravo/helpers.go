@@ -14,7 +14,7 @@ import (
 
 func typesOf(ps *schema.ProviderSchema) map[string]tftypes.Type {
 	out := map[string]tftypes.Type{}
-	for name, s := range ps.Resources {
+	for name, s := range ps.AllResources() {
 		out[name] = s.Block.Type()
 	}
 	return out

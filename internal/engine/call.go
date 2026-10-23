@@ -20,7 +20,7 @@ func (e *Engine) functionSchema(r *config.Resource) (*schema.Function, error) {
 	if !ok {
 		return nil, fmt.Errorf("%s: no schema for provider %s", r.Address(), r.LocalProvider())
 	}
-	f := ps.Functions[r.Type]
+	f := ps.Function(r.Type)
 	if f == nil {
 		return nil, fmt.Errorf("%s: provider %s has no function %q", r.Address(), r.LocalProvider(), r.Type)
 	}
