@@ -13,7 +13,7 @@ Make an identity, seal the state to a list of readers, check that it holds, chan
 | Reads | The state, and `.pravo/access/readers.txt` in the repository. `id` reads and writes only identity files. |
 | Writes | `id new` writes an identity file. `protect init`, `protect rewrap` and `protect gc` write the state; `gc` writes the object `gc/marks.json` as well. `check` and `status` write nothing, and so does `gc --dry-run`. |
 | Prints | One line for each check, then a verdict. The line to add to the readers file. For `gc`, what it deleted and dropped. |
-| Taught in | [Seal the state to a list of readers](../how-to/seal-the-state.md). |
+| Taught in | [Seal the state to a list of readers](../how-to/seal-the-state.md) and [Lab 3](https://pravo.systems/learn/lab3-the-leaked-bucket.html). |
 
 Protection is off by default. A state with protection off is unchanged: format 1, with the layout that every version of pravo reads. These commands turn protection on for one state, show where it stands and keep it in line with the list of readers. [What sealing protects](../concepts/sealed-state.md) says what the seal covers and what it leaves open.
 

@@ -14,7 +14,7 @@ Protection is off by default, and a state with protection off is unchanged. `pra
 
 | Object | Sealed | Readable by anyone with the bucket |
 |---|---|---|
-| A record, `rec/SHA256` | The attributes and the private data of the provider. | The address, type, name, provider, dependencies, revision, generation, the times, the transaction that wrote it and the hash of its configuration. |
+| A record, `rec/SHA256` | The attributes and the private data of the provider, the hash of the configuration that made it and the configuration of its provider. | The address, type, name, provider, dependencies, revision, generation, the times and the transaction that wrote it. |
 | `outputs.json` | All of it. | Nothing. |
 | A stored plan | The plan, and the command and tags that made it. | The id, the author, the actor, the reason, the times, the counts, the addresses and actions of the changes and the plans it overlaps. |
 | A transaction and a lock | The values of `-t`, `--tag`, `--webhook` and `-e` in the command line, which a lock and a transaction show as a tag. The original line is not kept. The text of the error of a run that failed or was rejected, which a transaction keeps for the readers. | Everything else: the kind, the user, the host, the times, the status, the addresses and revisions it changed. The command shows each sealed value as `<sealed:a1b2c3d4>`. The summary of a failed run says that its text is sealed. |
@@ -58,8 +58,6 @@ These are limits of the version that exists. Each is a fact to plan around.
 **Seal and reseal while nobody applies.** `pravo protect init --encrypt` and `pravo protect rewrap --all` need the state at rest: run them while no one plans, applies or holds a lock. `init` refuses with exit code 4 while a transaction is running or a lock is held. The part of `pravo protect gc` that drops groups needs it too, and the part that deletes records does not. A command that is already writing when `rewrap --all` runs can leave a pointer without its record, and every command then stops with exit code 7 until the object is repaired.
 
 **Reader names are readable.** `meta.json` holds the name and the key of each reader, so a person with the bucket learns who the readers are.
-
-**The hash of a configuration is readable.** Each record keeps a short hash of the configuration that made it. It is not keyed. A person who can guess an entire resource configuration can test the guess.
 
 **There is no recovery recipient.** If every reader loses their key, or forgets the passphrase of the only identity, the state cannot be read. Keep more than one reader, and keep the identity of a job as a CI secret.
 

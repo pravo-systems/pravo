@@ -312,7 +312,7 @@ test -z "$(find estate/out -type f)"
 
 - Outcomes are properties. Several designs meet them, and the script accepts all of them.
 - A check script is an exercise whose verdict is a program. It runs your commands and reports what it observed.
-- Faults and their exit codes are in [Lab 1](lab1-break-it-on-purpose.md). Concurrent applies are in [Lab 2](lab2-two-applies-at-once.md).
+- Faults and their exit codes are in [Lab 1](lab1-break-it-on-purpose.md). Concurrent applies are in [Lab 2](lab2-two-applies-at-once.md). What a copy of the state bucket shows, and what sealing changes, is in [Lab 3](lab3-the-leaked-bucket.md).
 
 :::check
 Which outcome do you confirm by reading a plan, and not by running the script?

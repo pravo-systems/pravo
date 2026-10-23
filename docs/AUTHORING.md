@@ -6,7 +6,7 @@ This file is for people who write documentation. It is not published. It fixes t
 
 | Section | Directory | Purpose |
 |---|---|---|
-| Learn | `docs/learn/` | Track A, CUE from zero (A1 to A14), with companions C1 to C4 and a cheat sheet. Track B, pravo (B1 to B10). Two labs and the project B11. |
+| Learn | `docs/learn/` | Track A, CUE from zero (A1 to A14), with companions C1 to C4 and a cheat sheet. Track B, pravo (B1 to B10). Three labs and the project B11. |
 | Migrate | `docs/migrate/` | From OpenTofu or Terraform: an index with the gate demo, a runbook (M1 to M11) and three annexes. |
 | How-to | `docs/how-to/` | Task-shaped pages for a reader who knows the basics: how to do one thing. The group Get started holds the quick start: install, a first plan, a change, a conflict and a destroy, with no cloud account. |
 | Concepts | `docs/concepts/` | Explanation of how pravo behaves, with diagrams. Behaviour only. |
@@ -14,7 +14,7 @@ This file is for people who write documentation. It is not published. It fixes t
 
 The sections, their order and their blurbs are listed in `site/site.json`. Each section has an `index.md` that routes the reader.
 
-The sidebar groups of a section come from the `group` front matter field. The groups in use are `Track A · CUE from zero`, `Track A · Companions`, `Track B · pravo` and `Labs` in Learn; `Runbook` and `Annexes` in Migrate; `Commands`, `Language`, `Policies`, `Data and formats` and `Lookup` in Reference.
+The sidebar groups of a section come from the `group` front matter field. The groups in use are `Track A · CUE from zero`, `Track A · Companions`, `Track B · pravo` and `Track B · Labs and project` in Learn; `Runbook` and `Annexes` in Migrate; `Commands`, `Language`, `Policies`, `Data and formats` and `Lookup` in Reference.
 
 A file named `a03-name.md` is lesson A3: a letter, one to three digits and a hyphen make the lesson id, which the sidebar, the pager and links from `needs` show.
 
