@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -142,7 +143,7 @@ func TestAStoredPlanShowsWhoSignedItAndAnApplyNamesIt(t *testing.T) {
 	if text, code := runPravo(t, dir, "apply", "-auto-approve"); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
-	_, ada := person(t, ids, "ada")
+	adaID, ada := person(t, ids, "ada")
 	writeReaders(t, filepath.Join(dir, ".pravo", "access"), ada)
 	if text, code := runPravo(t, dir, "protect", "init", "--encrypt", "--yes", "--allow-local"); code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
@@ -188,6 +189,22 @@ func TestAStoredPlanShowsWhoSignedItAndAnApplyNamesIt(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("no transaction names %s:\n%s", id, text)
+	}
+	// The viewer's plan view gets the same verdicts.
+	st, err := state.OpenWith(filepath.Join(dir, "pravo.state"), state.Options{Identity: adaID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, err := engine.NewPlanStoreFor(st).PlanDigest(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := &viewerState{dir: dir}
+	if sg, ok := v.verifyPlan(context.Background(), st, id, digest); !ok || len(sg.Items) != 1 || sg.Items[0].Status != "verified" || sg.Items[0].Signer != "ada" {
+		t.Errorf("the plan view: %+v %v", sg, ok)
+	}
+	if sg, _ := v.verifyPlan(context.Background(), st, id, "00"); len(sg.Items) != 1 || sg.Items[0].Status != "invalid" {
+		t.Errorf("another digest: %+v", sg)
 	}
 	// The readers file no longer lists the signer.
 	_, dan := person(t, ids, "dan")

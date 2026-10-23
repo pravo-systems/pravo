@@ -221,6 +221,16 @@ func (ps *PlanStore) Signatures(ctx context.Context, id string, readers []protec
 	if err != nil {
 		return nil, err
 	}
+	return ps.SignaturesOf(ctx, id, digest, readers)
+}
+
+// SignaturesOf checks the signatures of a stored plan against the readers, for a caller that
+// has the digest of the plan already (PlanFile.Digest).
+func (ps *PlanStore) SignaturesOf(ctx context.Context, id, digest string, readers []protect.Reader) ([]PlanVerdict, error) {
+	keys, err := ps.sigObjects(ctx, id)
+	if err != nil || len(keys) == 0 {
+		return nil, err
+	}
 	var out []PlanVerdict
 	for _, k := range keys {
 		data, err := ps.B.Get(ctx, k)

@@ -129,7 +129,7 @@ In a sealed state every transaction is signed by the identity that ran the comma
 
 A run that is killed leaves the first signature, which attributes what it set out to do. The text of the error of a run that failed is not covered, because sealing, a rewrap and an unseal rewrite it. A stored plan has a signature of its own, in the object `plans/<id>.sig-<key>.json`, over the SHA-256 of the plan file and the time. The object is created and never replaced, so a second person who stores the same plan adds a signature. It holds no digest: a reader recomputes it from the plan, and the object holds nothing that a guess of the plan could be checked against. It does not cover the summary.
 
-**What a verifier says.** `pravo state log`, `pravo plan show`, `pravo protect status` and the history of a node in `pravo serve` check the signatures against the readers file:
+**What a verifier says.** `pravo state log`, `pravo plan show`, `pravo protect status`, and in `pravo serve` the history of a node and the plan view of a stored plan, check the signatures against the readers file:
 
 | Status | Means | Effect |
 |---|---|---|

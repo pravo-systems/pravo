@@ -15,7 +15,19 @@
    "blast_radius": 9
   },
   "planned": 4,
-  "total": 47
+  "total": 47,
+  "signatures": {
+   "items": [
+    {
+     "status": "verified",
+     "signer": "ana"
+    },
+    {
+     "status": "key_not_in_file",
+     "claimed": "dee"
+    }
+   ]
+  }
  },
  "nodes": [
   {

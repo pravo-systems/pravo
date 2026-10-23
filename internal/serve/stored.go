@@ -413,7 +413,7 @@ func (m *model) overlayOf(ctx context.Context, id string) (*planOverlay, error) 
 	// specification, which the load of a model and a request for a source hold.
 	m.spec.cueMu.Lock()
 	defer m.spec.cueMu.Unlock()
-	po := m.srv.overlay(m, pf, id, e, m.secrets.clone(), sealed)
+	po := m.srv.overlay(ctx, m, pf, id, e, m.secrets.clone(), sealed)
 	po.collectSecrets()
 	sp.overlays[id] = po
 	return po, nil
@@ -425,6 +425,15 @@ func (m *model) cleanInfo(po *planOverlay) PlanInfo {
 	info := po.info
 	sec := m.secretsFor(po)
 	info.Actor = maskText(sec, info.Actor, maxText)
+	if sg := info.Signatures; sg != nil {
+		// The names come from the bucket for a signature that did not verify: bounded and masked.
+		items := make([]PlanSignature, len(sg.Items))
+		for i, it := range sg.Items {
+			it.Signer, it.Claimed = maskText(sec, it.Signer, maxText), maskText(sec, it.Claimed, maxText)
+			items[i] = it
+		}
+		info.Signatures = &PlanSignatures{Items: items, Note: sg.Note}
+	}
 	if len(info.Reasons) > 0 {
 		var omitted int
 		info.Reasons, omitted = m.capReasons(sec, info.Reasons)

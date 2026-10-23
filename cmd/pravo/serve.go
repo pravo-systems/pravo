@@ -48,7 +48,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			}
 			v := &viewerState{name: flagIdentity, dir: dir, accessDir: loadReadersFile(dir, flagAccessDir).Dir}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, VerifyTxn: v.verifyTxn}
+			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, VerifyTxn: v.verifyTxn, VerifyPlan: v.verifyPlan}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.
@@ -412,4 +412,33 @@ func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, 
 	}
 	verdict := state.VerifyTransaction(st.Lineage(), t, readers)
 	return verdict.Overall().Key(), verdict.Signer
+}
+
+// verifyPlan checks the signatures of a stored plan against the readers file, for the plan
+// view. It has nothing to check in a state that is not sealed; without a readers file it
+// says so.
+func (v *viewerState) verifyPlan(ctx context.Context, st *state.Store, id, digest string) (*serve.PlanSignatures, bool) {
+	if st.Protection().Sealed == nil {
+		return nil, false
+	}
+	rf := loadReadersFile(v.dir, v.accessDir)
+	readers, ok := attributionReaders(rf)
+	if !ok {
+		return &serve.PlanSignatures{Items: []serve.PlanSignature{}, Note: notChecked(rf)}, true
+	}
+	verdicts, err := engine.NewPlanStoreFor(st).SignaturesOf(ctx, id, digest, readers)
+	if err != nil {
+		return &serve.PlanSignatures{Items: []serve.PlanSignature{}, Note: "not checked: the signatures could not be read"}, true
+	}
+	out := &serve.PlanSignatures{Items: []serve.PlanSignature{}}
+	for _, d := range verdicts {
+		it := serve.PlanSignature{Status: d.Status.Key(), At: d.At}
+		if d.Status == protect.SigVerified {
+			it.Signer = d.Signer
+		} else {
+			it.Claimed = d.Claimed
+		}
+		out.Items = append(out.Items, it)
+	}
+	return out, true
 }

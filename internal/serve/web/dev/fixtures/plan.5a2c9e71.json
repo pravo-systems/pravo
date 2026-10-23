@@ -16,7 +16,14 @@
   },
   "planned": 2,
   "total": 47,
-  "applied": 1
+  "applied": 1,
+  "signatures": {
+   "items": [
+    {
+     "status": "invalid"
+    }
+   ]
+  }
  },
  "nodes": [
   {

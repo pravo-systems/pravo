@@ -85,7 +85,7 @@ func (s *Server) loadPlan(ctx context.Context, m *model) *planOverlay {
 			po.warnings = append(po.warnings, "The plan file could not be read: "+err.Error())
 			return po
 		}
-		return s.overlay(m, pf, s.planDisplay(), nil, m.secrets, false)
+		return s.overlay(ctx, m, pf, s.planDisplay(), nil, m.secrets, false)
 	case s.opts.PlanID != "":
 		po := &planOverlay{entries: map[string]*planEntry{}, secrets: m.secrets}
 		e, err := m.stored.resolve(s.opts.PlanID)
@@ -93,7 +93,7 @@ func (s *Server) loadPlan(ctx context.Context, m *model) *planOverlay {
 			var pf *engine.PlanFile
 			var sealed bool
 			if pf, sealed, err = m.stored.planFile(ctx, e); err == nil {
-				return s.overlay(m, pf, e.Meta.ID, e, m.secrets, sealed)
+				return s.overlay(ctx, m, pf, e.Meta.ID, e, m.secrets, sealed)
 			}
 		}
 		po.failed, po.err = true, err
@@ -110,7 +110,7 @@ func (s *Server) loadPlan(ctx context.Context, m *model) *planOverlay {
 // the plan of a file the configuration counts too. sealed is set when pf is the
 // summary of a stored plan that this process cannot open: it holds no value, and
 // the overlay says so.
-func (s *Server) overlay(m *model, pf *engine.PlanFile, display string, stored *engine.PlanEntry, secrets *secretSet, sealed bool) *planOverlay {
+func (s *Server) overlay(ctx context.Context, m *model, pf *engine.PlanFile, display string, stored *engine.PlanEntry, secrets *secretSet, sealed bool) *planOverlay {
 	po := &planOverlay{entries: map[string]*planEntry{}, secrets: secrets}
 	po.info.File = display
 	po.info.Created = pf.Created
@@ -120,6 +120,14 @@ func (s *Server) overlay(m *model, pf *engine.PlanFile, display string, stored *
 		po.info.Actor = stored.Meta.Author
 		po.info.Status = string(stored.Status)
 		po.reason, po.command, po.git = stored.Meta.Reason, stored.Meta.Command, stored.Meta.GitRevision
+		if verify := s.opts.VerifyPlan; verify != nil {
+			if sealed {
+				// A plan this process cannot open cannot be checked against its signatures.
+				po.info.Signatures = &PlanSignatures{Items: []PlanSignature{}, Note: "not checked: this identity cannot open the plan"}
+			} else if sigs, ok := verify(ctx, m.store, stored.Meta.ID, pf.Digest); ok {
+				po.info.Signatures = sigs
+			}
+		}
 	}
 	for _, sc := range pf.Changes {
 		a := engine.Action(sc.Action)

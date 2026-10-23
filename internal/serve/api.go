@@ -219,6 +219,26 @@ type PlanInfo struct {
 	// Hints are the hints of the plan, such as a create and a delete that look
 	// like one resource under a new address, worked out as the engine does.
 	Hints []string `json:"hints,omitempty"`
+	// Signatures says who stored a stored plan of a sealed state, as the readers file
+	// judges the signatures. Nil for a plan file, and for a state that is not sealed.
+	Signatures *PlanSignatures `json:"signatures,omitempty"`
+}
+
+// PlanSignatures are the signatures of a stored plan. No Items and no Note is a plan with
+// none. Note is set when they could not be checked, and says why.
+type PlanSignatures struct {
+	Items []PlanSignature `json:"items"`
+	Note  string          `json:"note,omitempty"`
+}
+
+// PlanSignature is one signature of a stored plan. Status is "verified", "key_not_in_file"
+// or "invalid". Signer is the name the readers file gives the key of a signature that
+// verified, and Claimed the name an object gives itself.
+type PlanSignature struct {
+	Status  string    `json:"status"`
+	Signer  string    `json:"signer,omitempty"`
+	Claimed string    `json:"claimed,omitempty"`
+	At      time.Time `json:"at,omitempty"`
 }
 
 // Detail is GET /api/detail?addr=...: one node with its attributes. Values

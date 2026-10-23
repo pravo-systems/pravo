@@ -15,7 +15,10 @@
    "blast_radius": 13
   },
   "planned": 4,
-  "total": 47
+  "total": 47,
+  "signatures": {
+   "items": []
+  }
  },
  "nodes": [
   {

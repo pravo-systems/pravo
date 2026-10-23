@@ -257,3 +257,22 @@ export function pathEl(path, { shorten = true, keep = 2, cls = '' } = {}) {
   if (typeof MutationObserver !== 'undefined') new MutationObserver(draw).observe(src, { characterData: true, childList: true, subtree: true });
   return h('span', { class: 'pe' + (cls ? ' ' + cls : '') }, src, vis);
 }
+
+// SIGNATURE says what the signatures of a transaction or a stored plan of a sealed state come to, as the readers
+// file judges them.
+const SIGNATURE = {
+  verified: { tip: 'The signature verifies against a key in the readers file.' },
+  key_not_in_file: { tip: 'Signed with a key that the readers file does not list: a member who has left, or a key that never was.' },
+  invalid: { tip: 'The signature does not verify: it was changed, or made up.' },
+  unsigned: { tip: 'There is no signature.' },
+};
+
+// signatureMark is the small mark that says who signed, or that nobody did, or that the signature is wrong.
+export function signatureMark(status, signer, claimed) {
+  const text = {
+    verified: 'signed by ' + (signer || 'a reader'),
+    key_not_in_file: claimed ? 'signed by ' + claimed + ', whose key is not in the readers file' : 'signer not in the readers file',
+    invalid: 'signature does not verify',
+  }[status] || 'unsigned';
+  return h('span', { class: 'sigmark sig-' + status, title: (SIGNATURE[status] || SIGNATURE.unsigned).tip }, text);
+}

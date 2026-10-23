@@ -79,6 +79,10 @@ type Options struct {
 	// name the readers file gives the signer. Nil, or an empty status, means that the
 	// signatures are not checked.
 	VerifyTxn func(st *state.Store, t *state.Transaction) (status, signer string)
+	// VerifyPlan checks the signatures of a stored plan against the readers file, given the
+	// digest of the plan file as it was read. The second result is false when there is
+	// nothing to check: the state is not sealed. Nil means the same.
+	VerifyPlan func(ctx context.Context, st *state.Store, id, digest string) (*PlanSignatures, bool)
 	// AccessDir is the directory that holds readers.txt. When it is empty the
 	// viewer looks for .pravo/access in the project directory and its parents up
 	// to the repository.
