@@ -162,6 +162,7 @@ export const actionOf = (a) => ACTIONS[a] || null;
 // glyph of a value that leaves the root. An output has no action, and a plan never "does not read" it.
 export function nodeMark(n, hasPlan) {
   if (n.mode === 'output') return h('span', { class: 'i i-output omark', 'aria-hidden': 'true' });
+  if (n.type === 'env' || n.type === 'secret_env') return h('span', { class: 'i i-env omark', 'aria-hidden': 'true' });
   const act = actionOf(n.action);
   return h('i', { class: 'sq' + (act ? ' ' + act.cls : '') + (hasPlan && !n.action ? ' skip' : '') });
 }

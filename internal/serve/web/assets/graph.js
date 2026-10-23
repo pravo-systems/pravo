@@ -9,7 +9,7 @@
 
 import { s, h, clamp, ease, schedule, actionOf } from './util.js';
 import { G, FIT, fitScale, pathOf, midOf, lengthOf } from './layout.js';
-import { eachNode, cellsOf, isOut } from './model.js';
+import { eachNode, cellsOf, isOut, isEnv } from './model.js';
 import { initials, hueOf } from './plans.js';
 import { providerOf, pvClass } from './provider.js';
 
@@ -27,6 +27,8 @@ const GLYPH = {
   plus: [['line', 'M8 3.5v9M3.5 8h9']],
   // an output: a value leaves the root through a door
   out: [['line', 'M7 3.5H3.6v9H7M7.6 8h5.8M11 5.4L13.6 8 11 10.6']],
+  // an environment variable: a dollar sign
+  env: [['line', 'M10.6 5.3C10.1 4.3 9.1 3.8 8 3.8c-1.4 0-2.4.7-2.4 1.8 0 2.4 4.9 1.2 4.9 3.8 0 1.1-1 1.9-2.5 1.9-1.1 0-2.1-.5-2.6-1.4M8 2.4v1.4M8 12.2v1.4']],
 };
 
 function glyph(name, x, y, size, cls) {
@@ -527,7 +529,7 @@ export class GraphView {
     inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
-    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 6 }), s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
+    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 6 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
     inn.append(tile);
     const nameRoom = W - 52 - (badge ? 34 : 14);
     inn.append(s('text', { class: 'nm', x: 53, y: 22.5 }, trunc(n.name, chars(nameRoom, 14))));

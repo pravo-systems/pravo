@@ -10,6 +10,8 @@ export const CLUSTER_CAP = 200;
 // isOut says that a node is an output of the root. An output is not a resource: it has no record, and the counts
 // of resources, of the chips and of the modules leave it out.
 export const isOut = (n) => n.mode === 'output';
+// isEnv says that a node is an environment variable that the project reads. It is built in, like an output, and has no provider.
+export const isEnv = (n) => n.type === 'env' || n.type === 'secret_env';
 
 const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 export const natural = (a, b) => collator.compare(a, b);
@@ -28,7 +30,7 @@ export const FILTERS = {
   orphans: (n) => !isOut(n) && n.presence === 'state',
   declared: (n) => !isOut(n) && n.presence === 'spec',
   outputs: (n) => isOut(n),
-  env: (n) => !isOut(n) && (n.type === 'env' || n.type === 'secret_env'),
+  env: (n) => !isOut(n) && isEnv(n),
 };
 
 // The counts that a sealed record leaves out: its attributes and its marks are not read, so a zero beside sealed

@@ -2,7 +2,7 @@
 // graph, the rail, the table, the inspector and the palette. It only reads: every request is a GET.
 
 import * as api from './api.js';
-import { buildModel, buildItems, firstView, touchedModules, reveal, diffModels, FILTERS, CLUSTER_CAP, isChange, chain, isOut } from './model.js';
+import { buildModel, buildItems, firstView, touchedModules, reveal, diffModels, FILTERS, CLUSTER_CAP, isChange, chain, isOut, isEnv } from './model.js';
 import { layout } from './layout.js';
 import { GraphView, Minimap } from './graph.js';
 import { Rail } from './rail.js';
@@ -969,6 +969,7 @@ function renderLegend() {
   el.append(
     sel(h('i', { class: 'ln up' }), 'depends on'), sel(h('i', { class: 'ln down' }), 'used by'),
     ...(m.nout ? [item(h('span', { class: 'i i-output key' }), 'output')] : []),
+    ...(m.list.some(isEnv) ? [item(h('span', { class: 'i i-env key' }), 'environment variable')] : []),
     item(h('span', { class: 'i i-lock key' }), 'sensitive'),
     item(h('span', { class: 'i i-drift warn' }), 'drifted'));
   // the badges of the authors of open plans, and the ring of a resource that two of them change
