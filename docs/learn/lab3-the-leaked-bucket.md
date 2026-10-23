@@ -199,7 +199,7 @@ The copy shows the address, the type, the provider and every attribute, with its
 
 ## Seal the state
 
-Sealing encrypts the attributes of every record to a list of readers. An identity has two keys. The reader key opens the state. The signing key is not used while the state has no roles. `pravo id new` makes the identity and prints one public line for the list. The lab has two readers: Ada, who runs the commands, and Dan.
+Sealing encrypts the attributes of every record to a list of readers. An identity has two keys. The reader key opens the state. The signing key signs what the identity does to the state. `pravo id new` makes the identity and prints one public line for the list. The lab has two readers: Ada, who runs the commands, and Dan.
 
 ```sh run
 mkdir -p people
@@ -288,6 +288,7 @@ Store        s3://northwind-state/prod
 Readers      .pravo/access/readers.txt matches the store
 You          ada · reader key x25519:<key>
 Roles        off
+Signatures   0 of 1 transaction verified · 1 unsigned
 Unsettled    none
 ```
 
@@ -418,7 +419,7 @@ A reader sees the value. Sealing does not hide a value from the people on the li
 - **A reader sees every value.** The list of readers is for the whole state. There is no reader for one resource.
 - **A removed reader keeps what they read.** A copy of the bucket made before the removal opens with their key. Replace the secrets they could read where they live.
 - **Nothing recovers a state if every reader loses their key,** unless it has a recovery recipient. The lab did not set one. [Seal the state](../how-to/seal-the-state.md) shows how, and keeping more than one reader comes first.
-- **Roles and signatures are not part of it.** Sealing hides values. It does not say who may change the state. A person who can write to the bucket can delete or replace its objects.
+- **Roles are not part of it.** Sealing hides values, and the signatures on transactions say who ran what. Neither says who may change the state. A person who can write to the bucket can delete or replace its objects.
 
 [What sealing protects](../concepts/sealed-state.md) lists the rest.
 

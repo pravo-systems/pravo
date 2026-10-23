@@ -106,10 +106,14 @@ func (id *Identity) AsReader() Reader {
 	return Reader{Name: id.Name, Sign: id.SignPub, Key: id.Reader.Public()}
 }
 
-// Sign signs with the Ed25519 key. Only identities that hold the seed can.
+// Sign signs with the Ed25519 key: the seed in the identity file, or the ssh-agent for
+// an identity made with --ssh.
 func (id *Identity) Sign(msg []byte) ([]byte, error) {
 	if id.seed == nil {
-		return nil, errors.New("protect: this identity signs through ssh-agent, which is not supported yet")
+		if id.SignVia == "ssh-agent" {
+			return id.signViaAgent(msg)
+		}
+		return nil, errors.New("protect: this identity holds no signing key")
 	}
 	return ed25519.Sign(ed25519.NewKeyFromSeed(id.seed), msg), nil
 }

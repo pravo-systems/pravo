@@ -6,7 +6,7 @@ What a sealed state encrypts, who can read it, and what it does not do. It gives
 
 A state records the attributes of every resource, and some of them are secrets. Sealing encrypts those values to a list of readers, so that a copy of the bucket, a backup or an old version of an object shows no value. This page says what is sealed, how a reader opens it, and what a sealed state still leaves open. The commands are in [pravo id and pravo protect](../reference/protect.md).
 
-Sealing answers one question: who can read the values? It does not say who may change the state, and it does not make a change visible after the fact. Those need roles and signatures, which pravo does not have yet.
+Sealing answers one question: who can read the values? It does not say who may change the state, and it does not make a change visible after the fact. A signature says who made a change; roles, which say who may, pravo does not have yet.
 
 ## What is sealed
 
@@ -41,7 +41,7 @@ The list of readers comes from the repository and never from the bucket. A comma
 
 These are limits of the version that exists. Each is a fact to plan around.
 
-**There are no roles and no signatures.** Sealing says who can read. Anyone who can write the bucket can delete, replace or corrupt its objects. A record that does not match its name, a pointer that disagrees with its record, and a sealed value that does not open where it is are found and refused with exit code 7. A valid record from an earlier time is valid: replacing a record with an older one is not detected, and a pointer that is deleted reads as a resource that was removed.
+**There are no roles, and the signatures cover events and not records.** Every transaction of a sealed state is signed by the identity that ran it, against the readers file, and a stored plan by the identity that stored it: [Signatures](../reference/protect.md#signatures). A signature says which key ran which transaction and changed which revisions. It does not bind the bodies of records, and it does not say that a transaction was not deleted or that the state was not replaced by an older copy. Every reader may sign. Anyone who can write the bucket can delete, replace or corrupt its objects. A record that does not match its name, a pointer that disagrees with its record, and a sealed value that does not open where it is are found and refused with exit code 7. A valid record from an earlier time is valid: replacing a record with an older one is not detected, and a pointer that is deleted reads as a resource that was removed.
 
 **A record in the clear is refused.** In a sealed state a record whose values are not sealed, and a whole record where a pointer should be, are untrusted. Every command that opens the state stops with exit code 7 and names the object: `pravo state list`, `pravo state show`, `pravo state log`, `pravo plan`, `pravo drift` and `pravo protect status` among them. An object that someone forged without a key therefore cannot set a value. An `outputs.json` in the clear is refused the same way, so a writer of the bucket cannot set the outputs that `pravo output` prints and that another root takes from this one with `pravo.#RemoteOutputs`.
 

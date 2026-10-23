@@ -652,11 +652,16 @@ func showStored(cmd *cobra.Command, ref string) error {
 	} else if err != nil {
 		return err
 	}
+	sigs, sigNote := storedPlanSignatures(ctx, s, entry.Meta.ID)
 	if flagJSON {
 		v := eng.NewView(plan, engine.ViewOptions{})
 		v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
 		v.Reservation = pf.Reservation
-		return emitJSON(map[string]any{"plan_id": entry.Meta.ID, "stored": storedPlanView(entry), "stale": stale, "plan": v})
+		doc := map[string]any{"plan_id": entry.Meta.ID, "stored": storedPlanView(entry), "stale": stale, "plan": v}
+		if sigs != nil || sigNote != "" {
+			doc["signatures"] = planSigsJSON(sigs, sigNote)
+		}
+		return emitJSON(doc)
 	}
 	m := entry.Meta
 	out.Printf("%s %s by %s, %s (%s)", out.C(ui.Bold, "Stored plan"), m.ID, m.Author, since(m.Created), statusText(entry.Status))
@@ -667,6 +672,11 @@ func showStored(cmd *cobra.Command, ref string) error {
 	out.Printf("  command: %s\n", m.CommandText())
 	if m.GitRevision != "" {
 		out.Printf("  git:     %s\n", m.GitRevision)
+	}
+	if sigNote != "" {
+		out.Printf("  signed:  %s\n", out.C(ui.Dim, sigNote))
+	} else if sigs != nil {
+		out.Printf("  signed:  %s\n", planSigsText(sigs))
 	}
 	if entry.Status.Open() || entry.Status == engine.PlanStale {
 		out.Printf("  %s\n", expiry(m))
@@ -797,6 +807,9 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	eng := s.engine(engine.Options{Refresh: engine.RefreshNone})
 	if err := eng.SetPolicies(policies); err != nil {
 		return err
+	}
+	if digest, err := ps.PlanDigest(ctx, id); err == nil {
+		eng.SetPlan(id, digest)
 	}
 	mark := func(applied []string, txn string, pending []string, finished bool) error {
 		var err error

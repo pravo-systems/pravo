@@ -289,7 +289,7 @@ See [Generated packages](spec-generated-packages.md).
 
 ### identity
 
-A name, a signing key and a reader key, kept in a file that `pravo id new` writes. The reader key opens a [sealed state](#sealed-state). An identity for a CI job has no passphrase and is read from `PRAVO_IDENTITY`.
+A name, a signing key and a reader key, kept in a file that `pravo id new` writes. The reader key opens a [sealed state](#sealed-state), and the signing key signs the [transactions](protect.md#signatures) the identity runs. An identity for a CI job has no passphrase and is read from `PRAVO_IDENTITY`.
 
 See [pravo id and pravo protect](protect.md#the-identity).
 

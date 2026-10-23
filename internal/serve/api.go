@@ -320,6 +320,11 @@ type HistoryEntry struct {
 	Action    string    `json:"action,omitempty"`
 	RevBefore int       `json:"rev_before,omitempty"`
 	RevAfter  int       `json:"rev_after,omitempty"`
+	// Signature is what the signatures of the transaction come to: "verified",
+	// "key_not_in_file", "invalid" or "unsigned", absent when they are not checked.
+	// Signer is the name the readers file gives the key of a signature that verified.
+	Signature string `json:"signature,omitempty"`
+	Signer    string `json:"signer,omitempty"`
 }
 
 // LockInfo is the lock or reservation that holds a node.

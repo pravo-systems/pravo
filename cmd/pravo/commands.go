@@ -504,6 +504,9 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	if err := eng.SetPolicies(policies); err != nil {
 		return err
 	}
+	if data, err := os.ReadFile(path); err == nil {
+		eng.SetPlan("", engine.PlanDigest(data))
+	}
 	mark := func(applied []string, txn string, pending []string, finished bool) error {
 		mark := engine.MarkApplied
 		if !finished {

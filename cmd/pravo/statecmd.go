@@ -14,6 +14,7 @@ import (
 	cuejson "cuelang.org/go/encoding/json"
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/tfstate"
 	"github.com/pravo-systems/pravo/internal/ui"
@@ -249,10 +250,40 @@ func stateCmd() *cobra.Command {
 					txns[i].SummarySealed = nil
 				}
 			}
-			if flagJSON {
-				return emitJSON(txns)
+			// Under a sealed state the signatures are checked against the readers file.
+			readers, checked := []protect.Reader(nil), false
+			if prot := st.Protection(); prot.Sealed != nil {
+				if root, err := loadRoot(); err == nil {
+					readers, checked = attributionReaders(loadReadersFile(root.Dir, flagAccessDir))
+				}
 			}
-			for _, t := range txns {
+			verdicts := make([]state.TxnVerdict, len(txns))
+			invalid := 0
+			if checked {
+				for i := range txns {
+					if verdicts[i] = state.VerifyTransaction(st.Lineage(), &txns[i], readers); verdicts[i].Overall() == protect.SigInvalid {
+						invalid++
+					}
+				}
+			}
+			if flagJSON {
+				type view struct {
+					state.Transaction
+					Signature *sigStatusJSON `json:"signature,omitempty"`
+				}
+				views := make([]view, len(txns))
+				for i, t := range txns {
+					views[i] = view{Transaction: t}
+					if checked {
+						views[i].Signature = sigJSON(verdicts[i])
+					}
+				}
+				if err := emitJSON(views); err != nil {
+					return err
+				}
+				return invalidTxns(invalid)
+			}
+			for i, t := range txns {
 				dur := ""
 				if t.Finished != nil {
 					dur = " " + t.Finished.Sub(t.Started).Round(time.Millisecond).String()
@@ -261,6 +292,15 @@ func stateCmd() *cobra.Command {
 				out.Printf("    %s\n", out.C(ui.Dim, t.Command))
 				if t.Actor != "" || t.Reason != "" || t.GitRevision != "" {
 					out.Printf("    %s\n", out.C(ui.Dim, strings.TrimSpace(fmt.Sprintf("actor %s  %s  %s", orNone(t.Actor), t.Reason, t.GitRevision))))
+				}
+				if checked {
+					line := txnSigText(verdicts[i])
+					if verdicts[i].Overall() == protect.SigInvalid {
+						line = out.C(ui.Red, line)
+					} else {
+						line = out.C(ui.Dim, line)
+					}
+					out.Printf("    %s\n", line)
 				}
 				if t.Summary != "" {
 					out.Printf("    %s\n", t.Summary)
@@ -273,7 +313,7 @@ func stateCmd() *cobra.Command {
 					out.Println()
 				}
 			}
-			return nil
+			return invalidTxns(invalid)
 		},
 	}, &cobra.Command{
 		Use: "probe", Short: "Check that the S3 store honours the conditional requests that locks need", Args: noArgs,

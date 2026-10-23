@@ -570,6 +570,9 @@ func planObject(key string) (id, kind string, ok bool) {
 	if !found || strings.Contains(name, "/") {
 		return "", "", false
 	}
+	if m := sigObjectRe.FindStringSubmatch(name); m != nil {
+		return m[1], "sig", true
+	}
 	for ext, k := range map[string]string{planExt: "plan", metaExt: "meta", progressExt: "progress"} {
 		if base, has := strings.CutSuffix(name, ext); has && planIDRe.MatchString(base) {
 			return base, k, true
@@ -731,6 +734,11 @@ func (ps *PlanStore) Put(ctx context.Context, data []byte, meta *PlanMeta) error
 		}
 	}
 	sl := ps.sealer()
+	// Signed first: a plan that cannot be signed is not written.
+	sig, err := ps.signPlan(data)
+	if err != nil {
+		return err
+	}
 	var id string
 	for n := planIDHex; n <= 24; n += 4 {
 		id = digestID(data, n)
@@ -786,7 +794,7 @@ func (ps *PlanStore) Put(ctx context.Context, data []byte, meta *PlanMeta) error
 	if _, err := ps.B.Get(ctx, planKey(id)); errors.Is(err, state.ErrNotFound) {
 		return fmt.Errorf("storing the plan: %s was removed by a collection while it was being stored; check the clocks of the machines that share the state", id)
 	}
-	return nil
+	return ps.putSignature(ctx, id, sig)
 }
 
 // ids lists the ids of the plans that have any object, with the kinds each has.

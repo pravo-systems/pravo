@@ -477,6 +477,7 @@ func (ps *PlanStore) remove(ctx context.Context, id string, o *GCOptions, m *Pla
 	if deleted := ps.deleteObject(ctx, id, "progress", o.Owner, false); deleted && existed && m == nil {
 		removed = true
 	}
+	ps.deleteSignatures(ctx, id)
 	return removed
 }
 

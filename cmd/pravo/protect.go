@@ -1062,6 +1062,16 @@ func (p *protectRun) status() error {
 	if err != nil {
 		return err
 	}
+	var sigs *sigCounts
+	if prot.Sealed != nil {
+		if readers, ok := attributionReaders(rf); ok {
+			c := countSignatures(st.Lineage(), txns, readers)
+			sigs = &c
+			add("Signatures", c.text(len(txns)))
+		} else {
+			add("Signatures", "not checked: the readers file is needed to check them")
+		}
+	}
 	interrupted, err := st.Interrupted(txns)
 	if err != nil {
 		return err
@@ -1085,6 +1095,9 @@ func (p *protectRun) status() error {
 		if expects {
 			doc["expects_sealed"] = true
 		}
+		if sigs != nil {
+			doc["signatures"] = sigs
+		}
 		if sealed {
 			doc["you"] = prot.You.State
 			added, removed := readersDiff(prot, rf)
@@ -1104,9 +1117,17 @@ func (p *protectRun) status() error {
 		for _, bad := range ver.Bad {
 			out.Println(out.C(ui.Red, "Untrusted: "+printable(bad)+" does not match its name"))
 		}
+		if sigs != nil {
+			for _, id := range sigs.Bad {
+				out.Println(out.C(ui.Red, "Untrusted: txn/"+printable(id)+".json has a signature that does not verify"))
+			}
+		}
 	}
 	if len(ver.Bad) > 0 {
 		return fmt.Errorf("%w: %s", state.ErrUntrusted, plural(len(ver.Bad), "object does", "objects do")+" not match")
+	}
+	if sigs != nil && sigs.Invalid > 0 {
+		return invalidTxns(sigs.Invalid)
 	}
 	return nil
 }

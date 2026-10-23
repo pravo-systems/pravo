@@ -318,11 +318,15 @@ A reader who is added gets a lock in every group, so that the records that are s
 
 A command that began before a reader was removed looks at `meta.json` again when it has not for 30 seconds, and seals what it writes after in the current group. A command that meets a value sealed in a group that its copy of `meta.json` does not list reads `meta.json` again, once, before it calls the group unknown, so that a rewrap that ran in another process while the command was reading is not taken for tampering. A group that `meta.json` still does not list is untrusted: exit code 7.
 
+### What a signature covers
+
+A signature is Ed25519 over a message that is the domain tag, the lineage and the fields, each framed by its length as a little-endian 64-bit number, after the count of parts. The domains are `pravo/v1/txn-start`, `pravo/v1/txn-finish` and `pravo/v1/plan`, so that a signature made for one kind of event, or in one state, is valid nowhere else. The fields of a transaction are in the order of the table above, with the revisions as decimal numbers and times as UTC RFC 3339 with nanoseconds. A plan's signature has two fields: the SHA-256 of the plan file in hex, and the time.
+
 ### What a sealed state does not protect
 
 - The names of the readers and their keys are in `meta.json` and are readable by whoever can read the bucket.
 - The address, type, name, provider, dependencies, revision, generation and times of a node, the names of its transactions, and the size of each object are readable. A reader who is removed keeps the data keys that they read, and any copy of the bucket that they made, which opens with their key.
-- A lock is made in HPKE base mode, which does not authenticate who made it. Someone who can write to the bucket can replace `meta.json` with a group of their own and locks for the readers, and what is sealed afterwards is sealed to a key that they hold. The comparison of the readers file with `meta.json` does not see a group that is replaced. Signatures, which come with roles, close this.
+- A lock is made in HPKE base mode, which does not authenticate who made it. Someone who can write to the bucket can replace `meta.json` with a group of their own and locks for the readers, and what is sealed afterwards is sealed to a key that they hold. The comparison of the readers file with `meta.json` does not see a group that is replaced. A signature of the transaction log does not close this: it says who ran a command, and it does not authenticate `meta.json`. Roles and a ledger do.
 - A long command that began before a reader was removed seals under the group it opened with for up to 30 seconds after `meta.json` changed, and for as long as it cannot read `meta.json`. The removed reader can open those records.
 - A valid old record is not told from the current one. An object that is replaced by an older one, with its pointer, opens.
 - The upgrade replaces the value of each `-t` in the command lines of the transactions written before the seal, and of the lock files that a command left behind, by a tag, and a word after a flag by a tag when it is not a flag or the id of a plan. The text of the error of a transaction that failed or was rejected before the seal moves into `summary_sealed` in the same write. A bucket that keeps old versions of objects keeps the plain objects of the state before the seal.
@@ -466,6 +470,8 @@ jq . pravo.state/txn/*.json
 | `changes` | Each node the transaction touched: `addr`, `action`, and the revisions before and after. The action `unsettled` marks a node that an apply stopped on while a provider was changing it. |
 | `actor`, `reason`, `git_revision`, `trace_id` | The labels of the run, when set. |
 | `version` | The version of the pravo that began the transaction. A transaction written by a pravo that did not record it has none. |
+| `plan`, `plan_digest` | For an apply from a plan: the id of the stored plan, empty for a plan file, and the SHA-256 of the plan file in hex. |
+| `start_sig`, `finish_sig` | In a sealed state: `{"signer", "key", "sig"}`, the signatures of the identity that ran the command: `key` is the SSH fingerprint of its signing key, and `sig` the 64 bytes of Ed25519 in base64. The first covers what the run set out to do, the second what it did. See [Signatures](protect.md#signatures). |
 
 The command line is evidence of what was run. It is written by the process that ran, in a log that is as writable as the state itself, and it prevents nothing. An apply that left out `--policy` is an entry without it, not a refusal. A plan that touches no record is not recorded. An apply, a rejection and a failure are. The `txn/` directory can be pruned at any time.
 
@@ -521,6 +527,7 @@ A stored plan is three objects. `pravo plan --store` writes the first two, and t
 | `plans/<id>.plan.json` | Once, with a conditional create. Never changed. | The plan, in the form of a [saved plan file](plan-document.md#the-saved-plan-file). |
 | `plans/<id>.meta.json` | Once, after the plan. Never changed. | The summary that a listing reads. |
 | `plans/<id>.progress.json` | At the first change to it, then replaced by a conditional replace. | What was applied from the plan, and who applies or removes it. |
+| `plans/<id>.sig-<key>.json` | In a sealed state, by each identity that stores the plan, with a conditional create. Never changed. | `{"v": 1, "id", "at", "signature": {"signer", "key", "sig"}}`: a signature over the SHA-256 of the plan file and the time. `<key>` is the first 16 hexadecimal digits of the SHA-256 of the SSH fingerprint of the signing key. A collection removes the signatures with the plan. |
 
 A plan without a summary is a write that did not finish. A listing does not show it, and a collection removes its objects after an hour. A plan file whose digest is not its id is not a write that did not finish: no write makes one. A listing warns of it, the first collection marks it with a progress object, and a collection that runs an hour later removes it. A summary that exists and cannot be read, because a newer pravo wrote it or the object is damaged, is not that: the listing leaves the plan out, and a collection leaves it alone. A plan that nothing was done with has no progress object.
 

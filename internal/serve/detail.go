@@ -99,8 +99,15 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 			if c.Addr != addr {
 				continue
 			}
-			d.History = append(d.History, HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: maskWith(sec, t.User), Actor: maskWith(sec, t.Actor),
-				Command: scrubCommand(t.Command, sec), Reason: maskWith(sec, t.Reason), Action: c.Action, RevBefore: c.Before, RevAfter: c.After})
+			entry := HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: maskWith(sec, t.User), Actor: maskWith(sec, t.Actor),
+				Command: scrubCommand(t.Command, sec), Reason: maskWith(sec, t.Reason), Action: c.Action, RevBefore: c.Before, RevAfter: c.After}
+			if verify := m.srv.opts.VerifyTxn; verify != nil {
+				t := t
+				if status, signer := verify(m.store, &t); status != "" {
+					entry.Signature, entry.Signer = status, maskWith(sec, signer)
+				}
+			}
+			d.History = append(d.History, entry)
 			break
 		}
 		if len(d.History) >= maxHistory {

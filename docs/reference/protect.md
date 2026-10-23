@@ -99,7 +99,7 @@ The format is the layout, and it only goes up. Whether the state is sealed is a 
 | 4 | A command is running or a lock is held. `protect init`, `protect check` and `protect unseal` do not run then, and neither does `rewrap --all`. A stored plan that is sealed and in use by an apply stops `protect unseal` with 4 as well. `protect gc` collects the records and then exits with 4 without looking at the groups. |
 | 5 | You are not a reader of the state, your identity is not on the readers file, or the readers file and the state differ for a command that writes. The shares do not rebuild the recovery key of the state (`protect recover`). The recovery file and the state name different recovery keys, or the state has a recovery and the repository has no recovery file, for a command that writes. For any other command that writes a sealed state, such as `state rm` or `apply`: the readers file is missing. |
 | 6 | The recovery file is invalid, for a command that writes a sealed state. The readers file is invalid, for `protect check`, `init` and `rewrap` and for a command that writes a sealed state. For `protect check`, `init` and `rewrap`: the readers file is missing. |
-| 7 | A command that writes finds records that are sealed in a state whose `meta.json` says it is not sealed. A record does not match its name. `protect init` also stops with 7, before it writes anything, when the state says it is not sealed and a record in it is: `meta.json` was lowered or replaced by an older one. Put it back from a version of the bucket. [Exit codes](exit-codes.md#7-untrusted) says what to do. |
+| 7 | A signature of a transaction does not verify, for `protect status` and `state log`. A command that writes finds records that are sealed in a state whose `meta.json` says it is not sealed. A record does not match its name. `protect init` also stops with 7, before it writes anything, when the state says it is not sealed and a record in it is: `meta.json` was lowered or replaced by an older one. Put it back from a version of the bucket. [Exit codes](exit-codes.md#7-untrusted) says what to do. |
 
 ## The readers file
 
@@ -128,7 +128,7 @@ A state that is not sealed in a repository that has a readers file is refused in
 
 ## The identity
 
-An identity is a name, a signing key and a reader key. The reader key opens the sealed state. The signing key is part of the line in the readers file and is not used while the state has no roles.
+An identity is a name, a signing key and a reader key. The reader key opens the sealed state. The signing key is part of the line in the readers file, and signs the transactions and the stored plans that the identity writes: see [Signatures](#signatures).
 
 | Where | What |
 |---|---|
@@ -141,6 +141,38 @@ The identity directory is not `~/.pravo`, which is the provider cache and may be
 pravo finds the identity in this order: `--identity NAME`, `$PRAVO_IDENTITY`, then the files of the identity directory. When there are several files, it uses the one named like the user. If none is, it uses the one file whose reader key has a lock in the current group of the state, which `meta.json` lists. For `protect init`, which has no locks yet, the reader key is one of the readers file. The reader key of an identity file is public: choosing reads no passphrase, and only the chosen identity is asked for its passphrase. If no file or more than one matches, the command stops with `no identity found: ... holds several identities (ada dan) and none is named like you`, and names the files that match when there are several. Name one with `--identity`. The same choice is made for the state of another root that `pravo.#RemoteOutputs` reads, by the locks in that state's `meta.json`. pravo looks only when the state is sealed, so a state with protection off never asks for a passphrase.
 
 A passphrase is asked for on the terminal without echo. Without a terminal it is read from `$PRAVO_PASSPHRASE` or `$PRAVO_IDENTITY_PASSPHRASE`, and a command with neither stops with `the identity ada is sealed with a passphrase and stdin is not a terminal; set PRAVO_PASSPHRASE.` pravo removes `PRAVO_IDENTITY`, `PRAVO_PASSPHRASE` and `PRAVO_IDENTITY_PASSPHRASE` from its environment once it has read them, and provider processes are started without them. [`pravo mcp`](mcp.md) never asks on a terminal: the identity of a server comes from the environment it was started in.
+
+## Signatures
+
+In a sealed state every transaction is signed by the identity that ran the command, and every stored plan is signed by the identity that stored it. The signing key is the second field of the identity's line in the readers file. A signature is trusted when its key is in the readers file of the repository, which a writer of the bucket cannot change, so the readers file is the whole key set: there is no other file. A state that is not sealed has no signatures.
+
+**What is signed.** A transaction is signed twice, under the domain tags `pravo/v1/txn-start` and `pravo/v1/txn-finish`, together with the lineage of the state:
+
+| Signature | Covers |
+|---|---|
+| Start | The id, kind, command, user, host, start time, actor, reason, git revision, version and, for an apply, the id and the SHA-256 of the plan file. |
+| Finish | The same, and the end time, the status and each change: address, action and the two revisions. |
+
+A run that is killed leaves the first signature, which attributes what it set out to do. The text of the error of a run that failed is not covered, because sealing, a rewrap and an unseal rewrite it. A stored plan has a signature of its own, in the object `plans/<id>.sig-<key>.json`, over the SHA-256 of the plan file and the time. The object is created and never replaced, so a second person who stores the same plan adds a signature. It holds no digest: a reader recomputes it from the plan, and the object holds nothing that a guess of the plan could be checked against. It does not cover the summary.
+
+**What a verifier says.** `pravo state log`, `pravo plan show`, `pravo protect status` and the history of a node in `pravo serve` check the signatures against the readers file:
+
+| Status | Means | Effect |
+|---|---|---|
+| `verified` | A key in the readers file made the signature of this content. | |
+| `key not in the file` | The key is not listed: a member who has left, or a key that never was. The transaction shows the name that the signature gives itself. | Reported. Not an error, since every departure would otherwise turn the history red. |
+| `unsigned` | No signature: written before signatures, or by a run that could not sign its end. A finished transaction with no signature on its end is unsigned even if its start is signed. | Reported. |
+| `invalid` | The key is listed and the signature is not its signature of this content: the transaction was changed. | `state log` and `protect status` exit with 7 and say which transaction. |
+
+Without a readers file nothing is checked, and the listings say so. A signature that is not verified is a label: a member who has left leaves signatures that are verified only against a copy of the readers file from the time, which git has.
+
+**When signing fails.** A run that cannot sign its start, because its identity signs through an ssh-agent that is not reachable or does not hold the key, is refused before it changes anything. A run that cannot sign its end has already changed the infrastructure: the transaction is recorded without the second signature, and the command says so. A plan that cannot be signed is not stored. An invalid signature on a stored plan is shown and does not stop an apply, since anyone who can write to the bucket can add objects to it.
+
+**What it does not cover.**
+
+- *The bodies of records.* A signature says which key ran a transaction, which addresses and revisions it changed, and, for an apply, which plan. It does not bind the values. In a sealed state a writer without a reader key cannot make a record at all; a reader can seal any record, and a signature does not say that a value is the one a run wrote.
+- *Deletion, replacement by an older copy and order.* An old signed transaction is as valid as a new one. Finding a deleted transaction or a state that was rolled back takes a ledger.
+- *Who may write.* Every reader may sign. Roles come after.
 
 ## The recovery recipient
 
@@ -196,7 +228,7 @@ The line is public and safe to paste into a chat or a pull request. Give it to w
 
 An identity is never overwritten. `pravo id new --name ada` for a name that exists stops with `identity ada already exists at PATH` and exit code 1, before it asks for a passphrase.
 
-`--ssh FILE` uses an `ssh-ed25519` public key as the signing key, so that there is no new signing key to manage. pravo reads `FILE.pub`, or `FILE` if that is itself a public key, and never reads a private key. Keys of other types are refused.
+`--ssh FILE` uses an `ssh-ed25519` public key as the signing key, so that there is no new signing key to manage. pravo reads `FILE.pub`, or `FILE` if that is itself a public key, and never reads a private key. Keys of other types are refused. Such an identity signs through the ssh-agent that `SSH_AUTH_SOCK` names (on Windows the OpenSSH pipe), and the key has to be loaded in it; an agent that asks for a touch asks for it at each signature, which is two for a run.
 
 ### For a CI job
 
@@ -368,6 +400,7 @@ Store        s3://northwind-state/prod
 Readers      .pravo/access/readers.txt matches the store
 You          ada · reader key x25519:<key>
 Roles        off
+Signatures   0 of 1 transaction verified · 1 unsigned
 Unsettled    none
 ```
 
@@ -377,9 +410,10 @@ Unsettled    none
 | `Readers` | `matches the store`; `differs:` and who is in the file and not in the store, or the other way round; `file not found (looked in DIR)`; `file is invalid:` and the line and reason. |
 | `Recovery` | Shown when the state has a recovery recipient or the repository has a recovery file: `2 of 3 shares · key x25519:…` and whether the recovery file matches the state, differs from it or is missing, and a group whose lock is missing. |
 | `You` | The identity and its reader key. `identity NAME is not a reader`. `not a reader of this state (no identity found)`. |
+| `Signatures` | For a sealed state: `41 of 43 transactions verified`, then the count of those signed with a key that is not in the readers file, of the unsigned ones, and of those whose signature does not verify. `not checked` without a readers file. |
 | `Unsettled` | `none`, or the number of interrupted transactions; `pravo state log` lists them. |
 
-With `--json`, `status` prints one document: `state` (`none` for a state that does not exist yet, `off`, `immutable`, `migrating`, `unsealing` or `sealed`), `format` (absent when there is no state), `store`, `records`, `checked`, `unsettled`, `untrusted`, `readers` (the names the state is sealed to), `readers_file` (`found`, `valid`, `matches`, `path`, `added`, `removed`), `recovery` (`k`, `n`, `key`, `locked`, and `file`: `match`, `differs`, `missing` or `invalid`, present only when the state has a recovery) and `you` for a sealed state, and `expects_sealed: true` when the repository lists readers and the state is not sealed, which includes a state that does not exist yet. A job that wants a verdict before it plans runs `pravo protect status --json | jq -e '.state == "sealed"'`.
+With `--json`, `status` prints one document: `state` (`none` for a state that does not exist yet, `off`, `immutable`, `migrating`, `unsealing` or `sealed`), `format` (absent when there is no state), `store`, `records`, `checked`, `unsettled`, `untrusted`, `readers` (the names the state is sealed to), `readers_file` (`found`, `valid`, `matches`, `path`, `added`, `removed`), `signatures` (`verified`, `key_not_in_file`, `unsigned`, `invalid` and the ids in `invalid_transactions`, for a sealed state with a readers file), `recovery` (`k`, `n`, `key`, `locked`, and `file`: `match`, `differs`, `missing` or `invalid`, present only when the state has a recovery) and `you` for a sealed state, and `expects_sealed: true` when the repository lists readers and the state is not sealed, which includes a state that does not exist yet. A job that wants a verdict before it plans runs `pravo protect status --json | jq -e '.state == "sealed"'`.
 
 A record that does not match its name, a pointer that disagrees with its record, or a sealed value that does not open where it is, prints `Untrusted:` and the object, and the command exits 7.
 
