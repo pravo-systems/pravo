@@ -928,10 +928,10 @@ function renderHeader() {
 // renderWho names the identity that the page is read as. An unsealed state has none to name.
 const WHO = { reader: 'reader', 'not-reader': 'not a reader', 'no-identity': 'no identity', locked: 'identity locked' };
 function renderWho() {
-  const el = $('who'), y = S.access && S.access.you;
+  const el = $('me'), y = S.access && S.access.you;
   el.hidden = !y;
   if (!y) return;
-  el.className = 'who w-' + y.state;
+  el.className = 'me w-' + y.state;
   const role = WHO[y.state] || WHO['no-identity'];
   el.replaceChildren(...[icon(y.state === 'reader' ? 'check' : 'lock'), y.name ? h('b', null, y.name) : null, y.state === 'reader' ? null : h('span', { class: 'role' }, role)].filter(Boolean));
   el.setAttribute('aria-label', (y.name ? y.name + ': ' : '') + role);

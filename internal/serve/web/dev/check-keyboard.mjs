@@ -130,7 +130,7 @@ async function checkOne(b, f, theme, width, report) {
   check(pane && out.some((n) => n.role === 'heading' && n.name === 'State'), `${tag}: no heading State in the view`);
   if (doc.you && doc.you.state === 'reader') {
     // a reader is named in the bar, not in the view
-    const who = await b.eval(`(() => { const w = document.getElementById('who'); return w && !w.hidden ? w.getAttribute('aria-label') : null; })()`);
+    const who = await b.eval(`(() => { const w = document.getElementById('me'); return w && !w.hidden ? w.getAttribute('aria-label') : null; })()`);
     check(who && who.includes(YOU.reader), `${tag}: the bar does not name the reader (${who})`);
   } else if (doc.you) check(has(doc.you.text.slice(0, 20)) && has(YOU[doc.you.state]), `${tag}: the state of You (${YOU[doc.you.state]}) is not in the accessibility tree`);
   const sealed = doc.state === 'sealed' || doc.state === 'migrating' || doc.file.verdict === 'expected-sealed';
