@@ -122,6 +122,9 @@ func (s *Store) writable() error {
 		return ErrSealing
 	}
 	s.mu.Unlock()
+	if err := s.strayError(); err != nil {
+		return err
+	}
 	return s.CheckCurrent()
 }
 
@@ -172,6 +175,9 @@ type Protection struct {
 	// RecoveryUnverified lists the groups whose recovery lock does not hold its check.
 	// Only a process that holds the data keys can tell; it is empty otherwise.
 	RecoveryUnverified []string
+	// StraySealed lists the addresses of records that are sealed in a state that is not:
+	// its meta.json was changed. It is empty for a state that holds none.
+	StraySealed []string
 	// Records is the number of resources. Plain counts records that are not
 	// sealed in a sealed state (written before the seal and not yet reached);
 	// Unreadable counts records sealed in a group that this process holds no key

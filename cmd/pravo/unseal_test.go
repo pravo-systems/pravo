@@ -179,3 +179,42 @@ func TestProtectUnsealMessagesForAnUnsealingState(t *testing.T) {
 		t.Errorf("finish: exit %d\n%s", code, text)
 	}
 }
+
+// With every reader lost, the shares of the recovery key unseal the state, and also
+// finish an unseal that was begun.
+func TestProtectUnsealWithShares(t *testing.T) {
+	r := recoveredBucket(t)
+	stranger := t.TempDir()
+	_, data := newIdentityFile(t, "eve", true)
+	putIdentity(t, stranger, "eve", data)
+	t.Setenv("PRAVO_IDENTITY_DIR", stranger)
+
+	// Not enough shares, and the wrong ones: nothing is written.
+	before := r.bucketText()
+	text, code := runPravo(t, r.dir, "protect", "unseal", "--yes", "--share", r.shares[0])
+	if code != 5 || r.bucketText() != before {
+		t.Fatalf("one share: exit %d\n%s", code, text)
+	}
+	// Begin an unseal by hand, as an interrupted one leaves it.
+	var m map[string]any
+	if err := json.Unmarshal(r.f.Objects["prod/meta.json"], &m); err != nil {
+		t.Fatal(err)
+	}
+	m["migration"] = map[string]any{"to": 3, "started": "2026-10-22T09:30:00Z", "by": "ada", "done": 0, "total": 2, "unseal": true}
+	b, _ := json.Marshal(m)
+	r.f.Objects["prod/meta.json"] = b
+	text, code = runPravo(t, r.dir, "protect", "rewrap", "--recovery", "2/3", "--yes")
+	if code == 0 {
+		t.Fatalf("rewrap over an unseal: %s", text)
+	}
+	text, code = runPravo(t, r.dir, "protect", "unseal", "--yes", "--share", r.shares[0], "--share", r.shares[2])
+	if code != 0 || !strings.Contains(text, "Finished an unseal that was begun earlier.") || !strings.Contains(text, "(recovery)") {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	if !strings.Contains(r.bucketText(), secretA) {
+		t.Error("the secret is not in the bucket in the open")
+	}
+	if strings.Contains(string(r.f.Objects["prod/meta.json"]), `"sealed": {`) {
+		t.Error("the sealed part is still there")
+	}
+}

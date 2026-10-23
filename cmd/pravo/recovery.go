@@ -395,7 +395,7 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 	prot := locked.Protection()
 	switch {
 	case prot.State == "unsealing":
-		return errors.New("an unseal is in progress; finish it with pravo protect unseal before the recovery is used")
+		return errors.New("an unseal is in progress; finish it with pravo protect unseal --share FILE, which opens the state with the shares")
 	case prot.State != "sealed" || prot.Sealed == nil:
 		return errors.New("the state is not sealed; there is nothing to recover")
 	case prot.Sealed.Recovery == nil:

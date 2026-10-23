@@ -11,12 +11,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
 func protectUnsealCmd() *cobra.Command {
 	var yes, removeFiles bool
+	var shareFiles []string
 	cmd := &cobra.Command{
 		Use:   "unseal",
 		Short: "Take the seal off the state",
@@ -41,24 +43,31 @@ tells a writer to expect a sealed state. Until they are removed a writer refuses
 the unsealed state, with exit code 5. --remove-files deletes them; commit the
 deletion. The recovery shares are not touched: destroy them.
 
+--share FILE opens the state with the shares of its recovery key in place of an
+identity, once for each share, when no reader can: the recovery key is a reader of
+every group. The state is then unsealed and the shares open nothing, so it is also
+the way to finish an unseal that was begun, when every reader has lost their key.
+
 Exit codes: 4 when a command is running or a lock is held, or a stored plan is in
-use, 5 when your identity is not a reader of the state.`,
+use, 5 when your identity is not a reader of the state, or the shares do not
+rebuild its recovery key.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := newProtectRun(cmd)
 			if err != nil {
 				return err
 			}
-			return p.unseal(yes, removeFiles)
+			return p.unseal(yes, removeFiles, shareFiles)
 		},
 	}
 	f := cmd.Flags()
 	f.BoolVar(&yes, "yes", false, "do not ask for confirmation")
+	f.StringArrayVar(&shareFiles, "share", nil, "a share file of the recovery key, to open the state with in place of an identity; give it once for each share")
 	f.BoolVar(&removeFiles, "remove-files", false, "also delete the readers file and the recovery file of the repository")
 	return cmd
 }
 
-func (p *protectRun) unseal(yes, removeFiles bool) error {
+func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 	// Everything before the yes only reads, and a state that does not exist is not made.
 	rb, err := p.backend(false)
 	if err != nil {
@@ -71,7 +80,18 @@ func (p *protectRun) unseal(yes, removeFiles bool) error {
 	if err != nil {
 		return err
 	}
-	st, id, idErr, err := p.open(b, true, true)
+	var (
+		st    *state.Store
+		id    *protect.Identity
+		idErr error
+	)
+	if len(shareFiles) > 0 {
+		if st, id, err = p.openWithShares(b, shareFiles); err == nil && id != nil {
+			defer id.Close()
+		}
+	} else {
+		st, id, idErr, err = p.open(b, true, true)
+	}
 	if errors.Is(err, state.ErrUntrusted) {
 		return reportUntrusted(err)
 	}
@@ -276,4 +296,39 @@ func (p *protectRun) finishFiles(remove, unsealed bool) error {
 		out.Println("Destroy the recovery shares, if there were any: they open nothing now.")
 	}
 	return nil
+}
+
+// openWithShares opens the state with the recovery key, rebuilt from the share files.
+// The error of shares that do not rebuild it is a refusal, exit code 5.
+func (p *protectRun) openWithShares(b state.Backend, files []string) (*state.Store, *protect.Identity, error) {
+	locked, err := state.OpenBackendWith(p.ctx, b, state.Options{})
+	if err != nil {
+		return nil, nil, err
+	}
+	prot := locked.Protection()
+	if prot.Sealed == nil {
+		return locked, nil, nil // not sealed: the caller says so
+	}
+	if prot.Sealed.Recovery == nil {
+		return nil, nil, errors.New("the state has no recovery recipient; it was sealed without one, and only a reader can open it")
+	}
+	shares := make([]protect.Share, 0, len(files))
+	for _, f := range files {
+		s, err := readShare(f)
+		if err != nil {
+			return nil, nil, engine.WithCode(engine.ExitRefused, err)
+		}
+		shares = append(shares, s)
+	}
+	rk, err := prot.Sealed.Recovery.Open(shares)
+	if err != nil {
+		return nil, nil, engine.WithCode(engine.ExitRefused, err)
+	}
+	id := protect.RecoveryIdentity(rk)
+	st, err := state.OpenBackendWith(p.ctx, b, state.Options{Identity: id})
+	if err != nil {
+		id.Close()
+		return nil, nil, err
+	}
+	return st, id, nil
 }
