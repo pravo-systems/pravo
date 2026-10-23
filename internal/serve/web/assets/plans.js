@@ -138,9 +138,8 @@ export function detail(p, { onPlan, byId, text } = {}) {
           other ? ' ' + other.author : '', h('span', { class: 'dim' }, ' · ' + plural(o.count, 'resource')));
       }))));
   }
-  // the rest of what is known of the plan, closed until it is wanted: the project panel of the inspector has it too
-  body.push(h('details', { class: 'rp-more' }, h('summary', { 'data-fk': 'more' }, 'Expires, command, revision'),
-    h('dl', { class: 'meta' }, facts(p, text).filter(([k]) => k !== 'reason').map(([k, v]) => [h('dt', null, k), h('dd', null, v)]))));
+  // what else is known of the plan: the author and the age are in its row, and the reason is above
+  body.push(h('dl', { class: 'meta rp-more' }, facts(p, text).filter(([k]) => k !== 'reason' && k !== 'made by').map(([k, v]) => [h('dt', null, k), h('dd', null, v)])));
   if (p.open) body.push(...planActions(p));
   else body.push(h('p', { class: 'rp-note dim' }, p.status === 'applied' ? 'Every change of this plan was applied.' : p.status === 'expired' ? 'This plan expired and will be collected.' : 'Make the plan again with pravo plan --store.'));
   return body;
@@ -200,9 +199,6 @@ export class Plans {
     root.append(
       h('div', { class: 'rp-head' }, h('h2', { class: 'h' }, 'Plans'), h('div', { class: 'seg rp-seg', role: 'group', 'aria-label': 'Which plans to list' }, seg('pending', 'Pending', open), seg('all', 'All', plans.length))),
       list);
-    // the closed part of the detail stays as the person left it when the list is drawn again
-    const more = root.querySelector('.rp-more');
-    if (more) { more.open = !!this.moreOpen; more.addEventListener('toggle', () => { this.moreOpen = more.open; }); }
     // the section scrolls to the plan that is laid over the graph when that changes, and not each time it is drawn
     if (picked && this.shownSel !== sel) { const el = root.querySelector('.rp[aria-pressed="true"]'); if (el) el.scrollIntoView({ block: 'nearest' }); }
     this.shownSel = sel;
