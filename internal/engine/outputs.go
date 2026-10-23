@@ -175,7 +175,10 @@ func (e *Engine) openRemoteOutputs(ctx context.Context, b state.Backend) (map[st
 	var id *protect.Identity
 	var idErr error
 	if e.Opts.Identity != nil {
-		if id, idErr = e.Opts.Identity(); idErr != nil {
+		// A meta.json that cannot be read leaves the choice without the readers; the
+		// open that follows says why it failed.
+		readers, _ := state.OutputsReaders(ctx, b)
+		if id, idErr = e.Opts.Identity(readers); idErr != nil {
 			id = nil
 		}
 	}

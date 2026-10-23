@@ -68,11 +68,18 @@ func (b *S3Backend) ProbeSteps(ctx context.Context, report func(check string, er
 		}
 		tries, opt := b.counting()
 		_, err := b.client.PutObject(ctx, in, opt)
-		if err != nil && preconditionFailed(err) && b.landed(ctx, tries, key, []byte(body)) {
-			// The store applied the request and its answer was lost; the request that
-			// was sent again was refused because the object is the one that was
-			// written. It would be counted as a store that refuses every create.
-			return nil
+		if err != nil && preconditionFailed(err) {
+			// The store may have applied the request and lost its answer; the request
+			// that was sent again was refused because the object is the one that was
+			// written. It would be counted as a store that refuses every create. A
+			// check that cannot tell is an error, not a verdict on the store.
+			landed, lerr := b.landed(ctx, tries, "put", key, []byte(body))
+			switch {
+			case lerr != nil:
+				return lerr
+			case landed:
+				return nil
+			}
 		}
 		return err
 	}
@@ -236,8 +243,15 @@ func (b *S3Backend) ProbeStrict(ctx context.Context, report func(check string, e
 		}
 		tries, opt := b.counting()
 		_, err := b.client.PutObject(ctx, in, opt)
-		if err != nil && preconditionFailed(err) && b.landed(ctx, tries, key, []byte(body)) {
-			return nil // see Probe: the answer to a write that was applied was lost
+		if err != nil && preconditionFailed(err) {
+			// See Probe: the answer to a write that was applied may have been lost.
+			landed, lerr := b.landed(ctx, tries, "put", key, []byte(body))
+			switch {
+			case lerr != nil:
+				return lerr
+			case landed:
+				return nil
+			}
 		}
 		return err
 	}

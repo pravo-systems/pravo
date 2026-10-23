@@ -226,6 +226,17 @@ func (s *Store) readRecord(ctx context.Context, key string, p pointer) (r *Resou
 	return r, group, nil
 }
 
+// Advise adds to an error of ErrUnknownOutcome what the user is to do about it.
+// Whether the write was made is not known, so the command is run again and reads
+// the state as it is; the write is not reported as refused, which would say that
+// another command changed the object. Any other error is returned as it is.
+func Advise(err error) error {
+	if errors.Is(err, ErrUnknownOutcome) {
+		return fmt.Errorf("%w; run the command again", err)
+	}
+	return err
+}
+
 // replaceAttempts is how often a conditional write is tried again when a bucket
 // answers that the object changed between the read and the write, while the
 // object still holds what the caller judged.
@@ -249,7 +260,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 	}
 	rkey := recKey(data)
 	if _, err := s.b.PutIfAbsent(s.ctx, rkey, data); err != nil {
-		return nodeRef{}, fmt.Errorf("writing %s: %w", rkey, err)
+		return nodeRef{}, fmt.Errorf("writing %s: %w", rkey, Advise(err))
 	}
 	ptr, err := indentJSON(pointer{V: pointerVersion, Address: addr, Revision: r.Revision, Generation: r.Generation, Record: rkey})
 	if err != nil {
@@ -262,7 +273,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 	if !had {
 		created, err := s.b.PutIfAbsent(s.ctx, nodeKey(addr), ptr)
 		if err != nil {
-			return nodeRef{}, fmt.Errorf("writing %s: %w", nodeKey(addr), err)
+			return nodeRef{}, fmt.Errorf("writing %s: %w", nodeKey(addr), Advise(err))
 		}
 		if !created {
 			return nodeRef{}, fmt.Errorf("%s: %w", addr, ErrChanged)
@@ -293,7 +304,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 		case errors.Is(err, ErrNotFound):
 			return nodeRef{}, fmt.Errorf("%s: %w", addr, ErrChanged)
 		case err != nil:
-			return nodeRef{}, fmt.Errorf("writing %s: %w", nodeKey(addr), err)
+			return nodeRef{}, fmt.Errorf("writing %s: %w", nodeKey(addr), Advise(err))
 		case ok:
 			// A write that only moved the time of the record leaves a record that
 			// nothing refers to: no stored plan or transaction names a record, only

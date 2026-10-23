@@ -315,8 +315,11 @@ type Options struct {
 	// Identity, if set, returns the key of this process to the states that are
 	// sealed. It is called only when remote_outputs finds that the state of another
 	// root is sealed, so that a command that never needs a key never asks for a
-	// passphrase.
-	Identity func() (*protect.Identity, error)
+	// passphrase. readers are the reader keys with a lock in the current group of
+	// that state, as its meta.json lists them, for a caller that has several
+	// identities and chooses the one that can read it; they are nil when meta.json
+	// could not be read.
+	Identity func(readers []protect.ReaderPublic) (*protect.Identity, error)
 	Progress func(format string, args ...any)
 	// Event receives structured progress; nil disables it.
 	Event func(Event)

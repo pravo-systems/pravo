@@ -18,6 +18,16 @@ import (
 // ErrNotFound is returned by Backend.Get for a missing key.
 var ErrNotFound = errors.New("not found")
 
+// ErrUnknownOutcome is returned by PutIfAbsent and ReplaceIf for a write that the
+// client sent more than once, that the store refused, and that the client could
+// not check: the refusal may be the answer to a resend of a write that the first
+// attempt had made, and the read that would tell failed. The object may hold the
+// bytes that were sent or the bytes of another writer. A caller that takes a lock
+// reads it again, as after a refusal; any other returns an error that tells the
+// user to run the command again, and never reports the write as refused, which is
+// ErrChanged and says that another command wrote the object.
+var ErrUnknownOutcome = errors.New("the store did not say whether the write was made")
+
 // Backend is the storage a Store keeps its objects in. Keys are slash
 // separated relative paths such as "resources/random_pet.a.json".
 type Backend interface {
@@ -28,7 +38,9 @@ type Backend interface {
 	Put(ctx context.Context, key string, data []byte) error
 	// PutIfAbsent creates the object only if no object exists at key and
 	// reports whether it did. It must be atomic: two concurrent callers
-	// cannot both succeed.
+	// cannot both succeed. A backend that can lose the answer to a write returns
+	// ErrUnknownOutcome, with the cause, when it cannot tell whether the write it
+	// refused is its own (see ErrUnknownOutcome); ReplaceIf does the same.
 	PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error)
 	// DeleteIf deletes the object at key when match reports true for its
 	// current contents, and reports whether it did. A missing object is

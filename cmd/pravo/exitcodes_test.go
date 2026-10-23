@@ -386,6 +386,9 @@ func TestExitCodeOfTheErrorsOfASealedState(t *testing.T) {
 		{state.ErrSealing, engine.ExitLocked},
 		{&state.ErrLocked{Lock: state.Lock{Addr: "a"}}, engine.ExitLocked},
 		{errors.New("something else"), engine.ExitError},
+		// A write whose outcome the store did not say is a failure like the others
+		// of the store: the command is run again.
+		{state.Advise(fmt.Errorf("writing resources/a.json: %w", state.ErrUnknownOutcome)), engine.ExitError},
 	} {
 		if got := exitCodeOf(c.err); got != int(c.code) {
 			t.Errorf("exitCodeOf(%v) = %d, want %d", c.err, got, c.code)

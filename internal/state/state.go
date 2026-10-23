@@ -889,13 +889,17 @@ func (s *Store) lockOutputs() (func(), error) {
 	misses := 0
 	for {
 		created, err := s.b.PutIfAbsent(s.ctx, outputsLockKey, data)
-		if err != nil {
+		unknown := errors.Is(err, ErrUnknownOutcome)
+		if err != nil && !unknown {
 			return nil, err
 		}
 		if created {
 			return s.unlockOutputs, nil
 		}
 		raw, holder, rerr := s.readOutputsLock()
+		if unknown && rerr == nil && bytes.Equal(raw, data) {
+			return s.unlockOutputs, nil // a write of unknown outcome that was made
+		}
 		if errors.Is(rerr, ErrNotFound) {
 			// Released between the two calls: ask again. A store that refuses the
 			// create and has no object under the key is not waited for for ever.
@@ -1258,7 +1262,10 @@ func (s *Store) lock(addr, command, txn string, keep bool) (bool, error) {
 	data, _ := indentJSON(l)
 	for attempt := 0; attempt < 3; attempt++ {
 		created, err := s.b.PutIfAbsent(s.ctx, lockKey(addr), data)
-		if err != nil {
+		// A write of unknown outcome is not acquired, as a refusal is not, and the
+		// lock is read: if the store holds the bytes written, this call took it.
+		unknown := errors.Is(err, ErrUnknownOutcome)
+		if err != nil && !unknown {
 			return false, err
 		}
 		if created {
@@ -1274,7 +1281,9 @@ func (s *Store) lock(addr, command, txn string, keep bool) (bool, error) {
 			continue
 		}
 		if holder.Nonce == s.nonce {
-			return false, nil
+			// The nonce is this store's, and so is a lock that holds the bytes of
+			// this write: it was created by this call, which must release it.
+			return unknown && bytes.Equal(raw, data), nil
 		}
 		stale := s.stale(holder)
 		if keep && !stale && s.OwnsReservation(holder) {
@@ -1387,13 +1396,22 @@ func (s *Store) ReserveAll(addrs []string, command string, until time.Time) (map
 // reserve reserves one address. It returns the end of the reservation and the
 // reservation of the owner that it replaced, if any.
 func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock, error) {
+	// maybe is a replacement of this store's reservation that the store may or may
+	// not have made: the bytes written, the end of the reservation, and the
+	// reservation it would have replaced.
+	var maybe struct {
+		data []byte
+		end  time.Time
+		prev *Lock
+	}
 	for attempt := 0; attempt < 4; attempt++ {
 		l := s.newLock(addr, command, "")
 		l.Kind = "reservation"
 		l.Expires = &until
 		data, _ := indentJSON(l)
 		created, err := s.b.PutIfAbsent(s.ctx, lockKey(addr), data)
-		if err != nil {
+		unknown := errors.Is(err, ErrUnknownOutcome)
+		if err != nil && !unknown {
 			return time.Time{}, nil, err
 		}
 		if created {
@@ -1406,6 +1424,12 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 			}
 			s.deleteLock(addr, raw)
 			continue
+		}
+		if unknown && bytes.Equal(raw, data) {
+			return until, nil, nil // the create was made
+		}
+		if maybe.data != nil && bytes.Equal(raw, maybe.data) {
+			return maybe.end, maybe.prev, nil // the replacement was made
 		}
 		stale := s.stale(holder)
 		if !stale && s.OwnsReservation(holder) {
@@ -1422,6 +1446,11 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 			ok, err := s.b.ReplaceIf(s.ctx, lockKey(addr), func(current []byte) ([]byte, bool) { return data, bytes.Equal(current, raw) })
 			switch {
 			case errors.Is(err, ErrNotFound):
+				continue
+			case errors.Is(err, ErrUnknownOutcome):
+				// Read again, as after a refusal; the lock is this call's if it holds
+				// these bytes, and then the reservation that it replaced is this one.
+				maybe.data, maybe.end, maybe.prev = data, end, &holder
 				continue
 			case err != nil:
 				return time.Time{}, nil, err
@@ -1911,7 +1940,7 @@ func (s *Store) resealSummaries(ctx context.Context, current string) error {
 			return err
 		}
 		if _, err := s.b.ReplaceIf(ctx, k, func(cur []byte) ([]byte, bool) { return next, bytes.Equal(cur, data) }); err != nil && !errors.Is(err, ErrNotFound) {
-			return err
+			return Advise(err)
 		}
 	}
 	return nil

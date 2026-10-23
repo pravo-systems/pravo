@@ -314,7 +314,7 @@ func (s *Store) rewriteOutputs(want func(raw []byte) (bool, error)) error {
 	ok, err := s.b.ReplaceIf(s.ctx, "outputs.json", func(cur []byte) ([]byte, bool) { return data, bytes.Equal(cur, raw) })
 	switch {
 	case err != nil:
-		return err
+		return Advise(err)
 	case !ok:
 		return errors.New("outputs.json changed while it was sealed; run the command again")
 	}

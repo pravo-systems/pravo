@@ -490,7 +490,7 @@ func (s *Store) writeMarks(ctx context.Context, seen map[string]bool, added map[
 		case err == nil:
 			return nil
 		case !errors.Is(err, ErrNotFound):
-			return fmt.Errorf("writing %s: %w", gcMarksKey, err)
+			return fmt.Errorf("writing %s: %w", gcMarksKey, Advise(err))
 		case len(added) == 0:
 			return nil
 		}
@@ -498,7 +498,7 @@ func (s *Store) writeMarks(ctx context.Context, seen map[string]bool, added map[
 		// at the same time has just created.
 		created, err := s.b.PutIfAbsent(ctx, gcMarksKey, encodeMarks(added))
 		if err != nil {
-			return fmt.Errorf("writing %s: %w", gcMarksKey, err)
+			return fmt.Errorf("writing %s: %w", gcMarksKey, Advise(err))
 		}
 		if created {
 			return nil

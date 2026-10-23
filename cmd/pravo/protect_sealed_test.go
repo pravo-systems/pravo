@@ -671,6 +671,77 @@ copy: pravo.#Output & {value: net.outputs.url}
 	})
 }
 
+// A root that reads the outputs of two sealed roots, each sealed to another of
+// the identities in the identity directory, none of them named like the user, gets
+// the identity that can read each: the engine gives the session the reader keys of
+// the state it is opening, as the open of the root's own state does.
+func TestRemoteOutputsOfSeveralSealedRootsChooseTheIdentityByTheirLocks(t *testing.T) {
+	requireSealing(t)
+	ids := isolateIdentities(t)
+	t.Setenv("USER", "nobody-in-the-directory")
+	carol, _ := person(t, ids, "carol")
+	dan, _ := person(t, ids, "dan")
+	eve, err := protect.NewIdentity("eve", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seal := func(who *protect.Identity, url string) *s3Env {
+		t.Helper()
+		e := newS3Env(t, false)
+		st := e.store(t)
+		e.record(t, st, "net.vpc", secretA)
+		if err := st.SetOutputs(map[string]json.RawMessage{"url": json.RawMessage(`"` + url + `"`)}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.Upgrade(context.Background(), state.UpgradeOptions{To: state.FormatSealed, Readers: []protect.Reader{who.AsReader()}, Identity: who, By: who.Name}); err != nil {
+			t.Fatal(err)
+		}
+		return e
+	}
+	forCarol, forDan, forEve := seal(carol, "http://carol.internal"), seal(dan, "http://dan.internal"), seal(eve, "http://eve.internal")
+	remote := func(name string, e *s3Env) string {
+		return name + `: pravo.#RemoteOutputs & {
+	state: {backend: "s3", bucket: "northwind-state", prefix: "prod", region: "eu-west-1", endpoint: "` + e.url + `", path_style: true, access_key: "test", secret_key: "test"}
+}
+`
+	}
+	consumer := func(files ...string) string {
+		spec := "package app\n\nimport \"pravo.dev/pravo\"\n\n"
+		for _, f := range files {
+			spec += f + "\n"
+		}
+		dir := specDir(t, map[string]string{"main.cue": spec})
+		if text, code := runPravo(t, dir, "init"); code != 0 {
+			t.Fatalf("init exited %d:\n%s", code, text)
+		}
+		return dir
+	}
+
+	both := consumer(remote("one", forCarol), remote("two", forDan),
+		"copy_one: pravo.#Output & {value: one.outputs.url}", "copy_two: pravo.#Output & {value: two.outputs.url}")
+	text, code := runPravo(t, both, "plan")
+	if code != 0 || !strings.Contains(text, `copy_one: "http://carol.internal"`) || !strings.Contains(text, `copy_two: "http://dan.internal"`) {
+		t.Fatalf("a reader of each plans the consumer: exit %d\n%s", code, text)
+	}
+
+	t.Run("a root sealed to nobody in the directory", func(t *testing.T) {
+		dir := consumer(remote("one", forCarol), remote("three", forEve),
+			"copy_one: pravo.#Output & {value: one.outputs.url}", "copy_three: pravo.#Output & {value: three.outputs.url}")
+		text, code := runPravo(t, dir, "plan")
+		if code != 5 || strings.Contains(text, "eve.internal") {
+			t.Fatalf("exit %d, want 5 and no value:\n%s", code, text)
+		}
+	})
+	t.Run("--identity still decides", func(t *testing.T) {
+		defer func() { flagIdentity = "" }()
+		dir := consumer(remote("one", forCarol), "copy_one: pravo.#Output & {value: one.outputs.url}")
+		text, code := runPravo(t, dir, "--identity", "dan", "plan")
+		if code != 5 || strings.Contains(text, "carol.internal") {
+			t.Fatalf("an identity that is named but cannot read: exit %d, want 5 and no value:\n%s", code, text)
+		}
+	})
+}
+
 // A plan that was stored before the seal and left alone, because something used
 // it, is listed with a warning that says so; a plan that is sealed is not.
 func TestPlanListWarnsOfPlansThatAreNotSealed(t *testing.T) {

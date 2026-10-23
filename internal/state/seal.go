@@ -556,6 +556,35 @@ func (s *Store) Protection() Protection {
 	return p
 }
 
+// OutputsReaders returns the reader keys that have a lock in the current group of
+// the state kept in b, which its meta.json holds in the clear: the readers a
+// caller who has several identities to choose from can choose among. It is nil,
+// with no error, for a state that is not sealed or has no meta.json yet. It
+// reads that one object and creates nothing, as OpenOutputs does.
+func OutputsReaders(ctx context.Context, b Backend) ([]protect.ReaderPublic, error) {
+	m, err := readMeta(ctx, b)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	case m.Sealed == nil:
+		return nil, nil
+	}
+	var keys []protect.ReaderPublic
+	for _, g := range m.Sealed.Groups {
+		if g.ID != m.Sealed.Current {
+			continue
+		}
+		for _, l := range g.Locks {
+			if !l.Key.IsZero() {
+				keys = append(keys, l.Key)
+			}
+		}
+	}
+	return keys, nil
+}
+
 // OpenOutputs reads the outputs.json of another state with an identity. It is
 // ReadOutputs for a state that may be sealed.
 func OpenOutputs(ctx context.Context, b Backend, id *protect.Identity) (map[string]json.RawMessage, error) {

@@ -411,7 +411,7 @@ func (ps *PlanStore) replace(ctx context.Context, key string, old, next []byte) 
 	case errors.Is(err, state.ErrNotFound):
 		return 0, true, nil
 	case err != nil:
-		return 0, false, err
+		return 0, false, state.Advise(err)
 	case !ok:
 		return 0, true, nil
 	}

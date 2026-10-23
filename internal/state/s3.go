@@ -121,12 +121,23 @@ func (b *S3Backend) counting() (*attempts, func(*s3.Options)) {
 // condition because the object is the one that was written. Equal contents are
 // the evidence. Another command that wrote the same bytes would have done the
 // same, and a lock, which holds the nonce of its owner, is not the same bytes.
-func (b *S3Backend) landed(ctx context.Context, tries *attempts, key string, data []byte) bool {
+//
+// A read that finds no object says that the write is not there. A read that
+// fails says nothing: the refusal may be the answer to a resend of a write that
+// landed, and the error is ErrUnknownOutcome, which the callers must not take for
+// a refusal. op names the write for the message.
+func (b *S3Backend) landed(ctx context.Context, tries *attempts, op, key string, data []byte) (bool, error) {
 	if tries.n.Load() < 2 {
-		return false
+		return false, nil
 	}
 	got, err := b.Get(ctx, key)
-	return err == nil && bytes.Equal(got, data)
+	switch {
+	case err == nil:
+		return bytes.Equal(got, data), nil
+	case errors.Is(err, ErrNotFound):
+		return false, nil
+	}
+	return false, fmt.Errorf("s3 conditional %s %s: %w: %w", op, key, ErrUnknownOutcome, err)
 }
 
 // S3Backend stores objects in a bucket.
@@ -300,7 +311,7 @@ func (b *S3Backend) PutIfAbsent(ctx context.Context, key string, data []byte) (b
 		if preconditionFailed(err) {
 			// An attempt that was applied and answered 500, or lost its connection,
 			// is sent again and refused because the object it wrote is there.
-			return b.landed(ctx, tries, key, data), nil
+			return b.landed(ctx, tries, "put", key, data)
 		}
 		return false, fmt.Errorf("s3 conditional put %s: %w", key, err)
 	}
@@ -317,6 +328,16 @@ func noEntityTag(op, key string) error {
 // If-Match condition on its entity tag. A store that ignores the condition
 // deletes whatever is there, and two callers that judged the same lock could both
 // delete it.
+//
+// A delete whose answer was lost is sent again by the client and finds nothing:
+// the answer is 404, and it is returned as ErrNotFound although this call
+// deleted the object. That is not an unknown outcome, and no read is made to
+// tell the two apart. Whoever deleted it, the object is gone, which is what the
+// callers want of a delete, and they take ErrNotFound as gone: a lock that is
+// released, a pointer that is removed, a record that a collection deletes. A
+// resend that is refused with 412 means that the object is no longer the one
+// that was read: a delete that was made leaves no object to be refused for, so
+// the refusal is another writer's and (false, nil) is exact.
 func (b *S3Backend) DeleteIf(ctx context.Context, key string, match func(current []byte) bool) (bool, error) {
 	data, etag, err := b.getTagged(ctx, key)
 	if err != nil {
@@ -365,7 +386,7 @@ func (b *S3Backend) ReplaceIf(ctx context.Context, key string, update func(curre
 	case notFound(err):
 		return false, ErrNotFound
 	case preconditionFailed(err):
-		return b.landed(ctx, tries, key, next), nil
+		return b.landed(ctx, tries, "put", key, next)
 	}
 	return false, fmt.Errorf("s3 conditional put %s: %w", key, err)
 }

@@ -42,7 +42,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/spec-providers.md](reference/spec-providers.md) | How to declare a provider, the $-fields that tell pravo how to obtain it, instance keys, and rules that bind every resource built through a provider. | 14 KB |
 | [reference/spec-moves-and-imports.md](reference/spec-moves-and-imports.md) | $from renames or moves a record to a new address. $import adopts an existing object. Both are fields of the resource they describe. | 10 KB |
 | [reference/spec-outputs.md](reference/spec-outputs.md) | pravo.#Output publishes a value. It is recorded in state when a plan is applied and printed by pravo output. | 6 KB |
-| [reference/spec-env.md](reference/spec-env.md) | pravo.#Env and pravo.#SecretEnv read environment variables. pravo.#RemoteOutputs reads the outputs another root has recorded. | 10 KB |
+| [reference/spec-env.md](reference/spec-env.md) | pravo.#Env and pravo.#SecretEnv read environment variables. pravo.#RemoteOutputs reads the outputs another root has recorded. | 11 KB |
 | [reference/spec-meta-fields.md](reference/spec-meta-fields.md) | The $-prefixed fields that resources, data sources and ephemeral resources accept in addition to the provider schema. | 8 KB |
 | [reference/spec-tags-and-variables.md](reference/spec-tags-and-variables.md) | Inputs are fields with a @tag attribute. -t and -T inject their values. Defaults and constraints are plain CUE. | 7 KB |
 | [reference/spec-modules.md](reference/spec-modules.md) | A module is a CUE definition or package that contains resources. Instantiating it is enough. pravo finds the resources inside the instance. | 12 KB |
@@ -66,7 +66,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/exit-codes.md](reference/exit-codes.md) | The exit status of every pravo command, what each code means, and how --json reports an error. | 12 KB |
 | [reference/telemetry.md](reference/telemetry.md) | OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables. | 11 KB |
 | [reference/compatibility.md](reference/compatibility.md) | The versions and formats that pravo reads and writes, the provider protocol it speaks, and what it does with a version it does not know. | 8 KB |
-| [reference/s3-stores.md](reference/s3-stores.md) | The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state. | 7 KB |
+| [reference/s3-stores.md](reference/s3-stores.md) | The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state. | 8 KB |
 
 ### Lookup
 

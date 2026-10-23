@@ -134,7 +134,7 @@ func (s *Store) updateMeta(fn func(m *meta) error) error {
 		})
 		switch {
 		case err != nil:
-			return err
+			return Advise(err)
 		case ok:
 			s.mu.Lock()
 			s.meta = next
@@ -304,7 +304,7 @@ func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, 
 		}
 		rkey := recKey(data)
 		if _, err := s.b.PutIfAbsent(s.ctx, rkey, data); err != nil {
-			return false, fmt.Errorf("writing %s: %w", rkey, err)
+			return false, fmt.Errorf("writing %s: %w", rkey, Advise(err))
 		}
 		ptr, err := indentJSON(pointer{V: pointerVersion, Address: addr, Revision: r.Revision, Generation: r.Generation, Record: rkey})
 		if err != nil {
@@ -322,7 +322,7 @@ func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, 
 		case errors.Is(err, ErrNotFound):
 			return false, errConvertChanged
 		case err != nil:
-			return false, fmt.Errorf("writing %s: %w", key, err)
+			return false, fmt.Errorf("writing %s: %w", key, Advise(err))
 		case ok:
 			if rw.dropOld && isPtr && p.Record != rkey {
 				_ = s.b.Delete(s.ctx, p.Record)

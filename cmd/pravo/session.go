@@ -204,8 +204,11 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 	if opts.Identity == nil {
 		// Looked for only when remote_outputs meets a sealed state, so that a command
 		// that never needs a key never asks for a passphrase.
-		opts.Identity = func() (*protect.Identity, error) {
-			return resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt})
+		// The readers of the other state are given: with several identity files and
+		// none named like the user, the one whose reader key has a lock in it is
+		// chosen, as it is for the state of this root.
+		opts.Identity = func(readers []protect.ReaderPublic) (*protect.Identity, error) {
+			return resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: readers})
 		}
 	}
 	if flagJSON && streamEvents && opts.Event == nil {

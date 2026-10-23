@@ -368,7 +368,7 @@ func (s *Store) redactHistory(ctx context.Context) error {
 				continue
 			}
 			if _, err := s.b.ReplaceIf(ctx, key, func(cur []byte) ([]byte, bool) { return next, bytes.Equal(cur, data) }); err != nil && !errors.Is(err, ErrNotFound) {
-				return err
+				return Advise(err)
 			}
 		}
 	}

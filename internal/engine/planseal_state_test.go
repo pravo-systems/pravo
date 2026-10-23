@@ -311,7 +311,7 @@ func TestRemoteOutputsOfASealedStateNeedAReader(t *testing.T) {
 	asked := 0
 	engineFor := func(id *protect.Identity, idErr error) *Engine {
 		e := h.engine(spec{}, Options{})
-		e.Opts.Identity = func() (*protect.Identity, error) { asked++; return id, idErr }
+		e.Opts.Identity = func([]protect.ReaderPublic) (*protect.Identity, error) { asked++; return id, idErr }
 		return e
 	}
 

@@ -737,15 +737,21 @@ func (ps *PlanStore) Put(ctx context.Context, data []byte, meta *PlanMeta) error
 			}
 		}
 		ok, err := ps.B.PutIfAbsent(ctx, planKey(id), stored)
-		if err != nil {
+		// A write of unknown outcome is read like a refusal: the plan that is there
+		// is the same plan, if the write was made.
+		unknown := errors.Is(err, state.ErrUnknownOutcome)
+		if err != nil && !unknown {
 			return fmt.Errorf("storing the plan: %w", err)
 		}
 		if ok {
 			break
 		}
-		old, err := ps.B.Get(ctx, planKey(id))
-		if err != nil {
-			return fmt.Errorf("storing the plan: %w", err)
+		old, gerr := ps.B.Get(ctx, planKey(id))
+		if gerr != nil {
+			if unknown {
+				return fmt.Errorf("storing the plan: %w", state.Advise(err))
+			}
+			return fmt.Errorf("storing the plan: %w", gerr)
 		}
 		if ps.samePlan(id, old, data) {
 			break
@@ -768,7 +774,7 @@ func (ps *PlanStore) Put(ctx context.Context, data []byte, meta *PlanMeta) error
 		return err
 	}
 	if _, err := ps.B.PutIfAbsent(ctx, metaKey2(id), enc); err != nil {
-		return fmt.Errorf("storing the plan: %w", err)
+		return fmt.Errorf("storing the plan: %w", state.Advise(err))
 	}
 	// A collector that took the plan, written but without its summary, for a write
 	// that did not finish may have removed it meanwhile: its clock is ahead of ours.
@@ -975,7 +981,7 @@ func (ps *PlanStore) updateProgress(ctx context.Context, id string, edit func(p 
 			}
 			ok, err := ps.B.PutIfAbsent(ctx, progressKey(id), data)
 			if err != nil {
-				return err
+				return state.Advise(err)
 			}
 			if ok {
 				return nil
@@ -1010,7 +1016,7 @@ func (ps *PlanStore) updateProgress(ctx context.Context, id string, edit func(p 
 		case errors.Is(err, state.ErrNotFound):
 			continue
 		case err != nil:
-			return err
+			return state.Advise(err)
 		case editErr != nil:
 			return editErr
 		case ok:
