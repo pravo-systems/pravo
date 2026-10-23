@@ -12,8 +12,12 @@ import (
 )
 
 // A real sealed state, with two readers, and a plan store for each of them.
+// signedStores seals its own states, so it does not run in a suite that opens every state sealed.
 func signedStores(t *testing.T) (ada, dan *PlanStore, readers []protect.Reader, b state.Backend) {
 	t.Helper()
+	if state.NewStoreIdentity != nil {
+		t.Skip("the suite runs over sealed stores, and this test seals its own")
+	}
 	ia, id := statetest.Identity(t, "ada"), statetest.Identity(t, "dan")
 	b, err := state.NewLocalBackend(t.TempDir())
 	if err != nil {
