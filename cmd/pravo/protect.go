@@ -1206,7 +1206,7 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes b
 	removing := removeRecovery && prot.Sealed.Recovery != nil
 	// A recovery file that the state has no recovery for is the repository's mistake: it goes.
 	fileRemoving := removeRecovery && !removing && rcf.Found
-	if len(added) == 0 && len(removed) == 0 && !all && setRec == nil && !removing && !fileRemoving {
+	if len(added) == 0 && len(removed) == 0 && !all && setRec == nil && !removing && !fileRemoving && len(prot.RecoveryUnverified) == 0 {
 		if removeRecovery && !flagJSON {
 			out.Println("The state has no recovery recipient, and there is no recovery file.")
 			return nil
@@ -1247,10 +1247,14 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes b
 	began := time.Now()
 	res, err := st.Rewrap(p.ctx, state.RewrapOptions{
 		Readers: p.rf.Readers, All: all, By: id.Name, Recovery: setRec, RemoveRecovery: removing,
+		GuardRecovery: setRec != nil || removing, RecoveryWas: prot.Sealed.Recovery,
 		Plans: engine.NewPlanStoreFor(st).ResealAll,
 	})
 	if err != nil && newRec != nil {
 		p.afterFailure(newRec, removeShares, rcf)
+	}
+	if errors.Is(err, state.ErrRecoveryChanged) {
+		return engine.WithCode(engine.ExitStale, errors.New("another command changed the recovery of the state while this ran, so nothing was set and any new shares were removed; run it again"))
 	}
 	if errors.Is(err, state.ErrChanged) {
 		return engine.WithCode(engine.ExitStale, errors.New("meta.json changed while rewrapping; run it again"))

@@ -26,6 +26,17 @@ func (r *keyring) has() bool {
 	return r.keys != nil
 }
 
+// verifyRecovery lists the groups whose recovery lock does not hold its check, for the
+// groups these keys open. Without keys it is nil.
+func (r *keyring) verifyRecovery(m *protect.Meta) []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.keys == nil {
+		return nil
+	}
+	return r.keys.VerifyRecovery(m)
+}
+
 // current is the group new values are sealed in, empty without keys.
 func (r *keyring) current() string {
 	r.mu.RLock()

@@ -1,8 +1,10 @@
 package protect
 
 import (
+	"crypto/hmac"
 	"crypto/hpke"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -69,6 +71,10 @@ type Lock struct {
 	Name string       `json:"name"`
 	Key  ReaderPublic `json:"key"`
 	Box  []byte       `json:"box"` // 80 bytes, base64 in JSON
+	// Check is set on the lock of the recovery recipient only: a keyed hash of the
+	// lock under its data key. Nobody can open that lock until the shares are used,
+	// but a reader can see that the box is the one that a reader made.
+	Check []byte `json:"check,omitempty"`
 }
 
 // Group is a data key and its locks. Group ids are g1, g2, ... A removal of a
@@ -117,14 +123,21 @@ func (g *Group) Rewrap(lineage string, dk DataKey, readers []Reader) error {
 	for _, r := range readers {
 		if l, ok := have[r.Key.String()]; ok {
 			l.Name = r.Name
-			next = append(next, l)
-			continue
+			// A recovery lock whose check does not hold is made again.
+			if r.Name != RecoveryName || l.checkHolds(dk, lineage, g.ID) {
+				next = append(next, l)
+				continue
+			}
 		}
 		box, err := Wrap(dk, r.Key, WrapCtx{lineage, g.ID})
 		if err != nil {
 			return err
 		}
-		next = append(next, Lock{Name: r.Name, Key: r.Key, Box: box})
+		l := Lock{Name: r.Name, Key: r.Key, Box: box}
+		if r.Name == RecoveryName {
+			l.Check = l.check(dk, lineage, g.ID)
+		}
+		next = append(next, l)
 	}
 	g.Locks = next
 	return nil
@@ -153,4 +166,17 @@ func (g Group) Diff(readers []Reader) (missing, extra []string) {
 	slices.Sort(extra)
 	slices.Sort(missing)
 	return
+}
+
+// check is the keyed hash of a lock under the data key it holds. The key is derived,
+// so that the data key is not used for two purposes.
+func (l Lock) check(dk DataKey, lineage, group string) []byte {
+	k := sha256.Sum256(pae([]byte("pravo/lock-check/v1"), dk.b[:]))
+	h := hmac.New(sha256.New, k[:])
+	h.Write(pae([]byte(lineage), []byte(group), []byte(l.Key.String()), l.Box))
+	return h.Sum(nil)
+}
+
+func (l Lock) checkHolds(dk DataKey, lineage, group string) bool {
+	return len(l.Check) > 0 && hmac.Equal(l.Check, l.check(dk, lineage, group))
 }

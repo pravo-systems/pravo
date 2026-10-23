@@ -610,6 +610,13 @@ func recoveryOf(r *RecoveryFacts) *AccessRecovery {
 		}
 		w = append(w, "The lock of the recovery key is missing from "+strings.Join(ids, ", ")+".")
 	}
+	if len(r.Unverified) > 0 {
+		ids := make([]string, 0, len(r.Unverified))
+		for _, g := range r.Unverified {
+			ids = append(ids, display(g))
+		}
+		w = append(w, "The lock of the recovery key in "+strings.Join(ids, ", ")+" does not hold its check: it was changed in the bucket.")
+	}
 	switch r.File {
 	case "missing":
 		w = append(w, "The repository has no recovery file, so a writer cannot tell that the recovery was taken out of the bucket.")

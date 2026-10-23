@@ -480,3 +480,51 @@ func TestOpenRefusesIndexesOutsideTheRecovery(t *testing.T) {
 		}
 	}
 }
+
+func TestTheRecoveryLockCarriesACheckThatNeedsTheDataKey(t *testing.T) {
+	ada, _ := mustReader(t, "ada")
+	m, keys, _ := NewMeta("L1", []Reader{ada})
+	rec, _, _ := NewRecovery(2, 3)
+	if err := m.SetRecovery(keys, rec, false); err != nil {
+		t.Fatal(err)
+	}
+	if bad := keys.VerifyRecovery(m); len(bad) != 0 {
+		t.Fatalf("%v", bad)
+	}
+	g := &m.Groups[0]
+	idx := -1
+	for i, l := range g.Locks {
+		if m.IsRecoveryLock(l) {
+			idx = i
+		}
+	}
+	good := append([]byte(nil), g.Locks[idx].Box...)
+	for name, tamper := range map[string]func(){
+		"box":     func() { g.Locks[idx].Box[0] ^= 1 },
+		"check":   func() { g.Locks[idx].Check[0] ^= 1 },
+		"dropped": func() { g.Locks[idx].Check = nil },
+	} {
+		save := append([]byte(nil), g.Locks[idx].Check...)
+		tamper()
+		if bad := keys.VerifyRecovery(m); len(bad) != 1 {
+			t.Errorf("%s: not seen", name)
+		}
+		g.Locks[idx].Box, g.Locks[idx].Check = append([]byte(nil), good...), save
+	}
+	// A box and a check that someone made without the data key do not pass.
+	other := NewDataKey()
+	box, _ := Wrap(other, rec.Key, WrapCtx{"L1", g.ID})
+	forged := Lock{Name: RecoveryName, Key: rec.Key, Box: box}
+	forged.Check = forged.check(other, "L1", g.ID)
+	g.Locks[idx] = forged
+	if bad := keys.VerifyRecovery(m); len(bad) != 1 {
+		t.Error("a check made with another data key passes")
+	}
+	// A rewrap makes the lock again.
+	if _, err := m.Rewrap(keys, []Reader{ada}); err != nil {
+		t.Fatal(err)
+	}
+	if bad := keys.VerifyRecovery(m); len(bad) != 0 {
+		t.Errorf("not mended: %v", bad)
+	}
+}

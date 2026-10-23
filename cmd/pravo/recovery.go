@@ -97,9 +97,20 @@ func recoveryProblem(prot state.Protection, rf readersFile) (string, engine.Exit
 		return fmt.Sprintf("the state has a recovery recipient, and %s was not found (looked in %s). Commit the file, or remove the recovery with pravo protect rewrap --remove-recovery.", rcf.shown(), rf.shownDir()), engine.ExitRefused
 	}
 	if st := m.Status(nil); st.Recovery != nil && !st.Recovery.Locked {
-		return fmt.Sprintf("the recovery lock is missing from %s. Run pravo protect rewrap.", plural(len(st.Recovery.Groups), "group "+strings.Join(st.Recovery.Groups, ", "), "groups "+strings.Join(st.Recovery.Groups, ", "))), engine.ExitRefused
+		return fmt.Sprintf("the recovery lock is missing from %s. Run pravo protect rewrap.", groupList(st.Recovery.Groups)), engine.ExitRefused
+	}
+	if bad := prot.RecoveryUnverified; len(bad) > 0 {
+		return fmt.Sprintf("the recovery lock of %s was changed in the bucket: it does not hold its check. Run pravo protect rewrap.", groupList(bad)), engine.ExitRefused
 	}
 	return "", 0
+}
+
+// groupList names groups for a message: "group g1", "groups g1, g2".
+func groupList(ids []string) string {
+	if len(ids) == 1 {
+		return "group " + ids[0]
+	}
+	return "groups " + strings.Join(ids, ", ")
 }
 
 // recoveryStatusText is the Recovery line of protect status, and the file's verdict.
@@ -131,6 +142,9 @@ func recoveryStatusText(prot state.Protection, rf readersFile) (text, file strin
 	}
 	if st := m.Status(nil); st.Recovery != nil && !st.Recovery.Locked {
 		text += " · the lock is missing from " + strings.Join(st.Recovery.Groups, ", ")
+	}
+	if len(prot.RecoveryUnverified) > 0 {
+		text += " · the lock of " + strings.Join(prot.RecoveryUnverified, ", ") + " does not hold its check: run pravo protect rewrap"
 	}
 	return text, file
 }
@@ -457,14 +471,18 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 	// sealed again first, and the replacement is a step of its own.
 	first := state.RewrapOptions{Readers: p.rf.Readers, All: all, By: protect.RecoveryName, Plans: engine.NewPlanStoreFor(st).ResealAll}
 	if newRec != nil && !all {
-		first.Recovery = newRec
+		first.Recovery, first.GuardRecovery, first.RecoveryWas = newRec, true, prot.Sealed.Recovery
 	}
 	res, err := st.Rewrap(p.ctx, first)
 	if err == nil && newRec != nil && all {
-		_, err = st.Rewrap(p.ctx, state.RewrapOptions{Readers: p.rf.Readers, By: protect.RecoveryName, Recovery: newRec})
+		_, err = st.Rewrap(p.ctx, state.RewrapOptions{Readers: p.rf.Readers, By: protect.RecoveryName, Recovery: newRec,
+			GuardRecovery: true, RecoveryWas: prot.Sealed.Recovery})
 	}
 	if err != nil {
 		p.afterFailure(newRec, removeShares, rcf)
+		if errors.Is(err, state.ErrRecoveryChanged) {
+			return engine.WithCode(engine.ExitStale, errors.New("another command changed the recovery of the state while this ran, so this recovery was not set and its shares were removed; run it again"))
+		}
 		if errors.Is(err, state.ErrChanged) {
 			return engine.WithCode(engine.ExitStale, errors.New("meta.json changed while recovering; run it again"))
 		}

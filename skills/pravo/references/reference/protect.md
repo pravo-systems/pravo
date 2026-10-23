@@ -124,7 +124,9 @@ A recovery recipient is one more reader of a sealed state whose key nobody holds
 
 A command that is interrupted after it set the recovery in the state keeps the shares and writes the recovery file, and says so: the lock is there, and the shares are the only way in. Shares of a key that the state does not hold are removed. With `--json`, `rewrap` and `recover` write the files first and report a `recovery` object: `action` (`set`, `replaced`, `from_file` or `removed`), `k`, `n`, `key`, `file` and, for new shares, `shares`.
 
-The lock of the recovery key is a lock like the others, and nothing opens it until the shares are used. A `meta.json` that was damaged in that lock is found by `protect recover` and by nothing sooner. Rehearse once: copy the bucket, and run `protect recover` against the copy with K shares.
+Nothing opens the lock of the recovery key until the shares are used, so the lock carries a keyed check under the data key of its group. A reader, and so every command that writes the state, sees a box that someone with no data key changed: the command stops with exit code 5, `protect status` says which groups, and `protect rewrap` makes the lock again. The check shows that the box is the one a reader made. It does not show that the shares open it, so rehearse once: copy the bucket, and run `protect recover` against the copy with K shares.
+
+Two commands that change the recovery at once do not both succeed. The one that finds the recovery changed since it read the state writes nothing, removes the shares it wrote and exits with code 3; the other one's shares are the ones that open the state.
 
 A share file holds one line, `pravo-share-1`, the id of the key, the index, `K/N`, the share and a short check that catches a mistyped or damaged line, after two lines of comment.
 

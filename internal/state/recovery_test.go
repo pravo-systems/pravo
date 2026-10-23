@@ -2,6 +2,8 @@ package state
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -151,5 +153,89 @@ func TestRewrapSetsKeepsAndRemovesARecovery(t *testing.T) {
 		if len(g.Locks) != 1 {
 			t.Errorf("group %s has %d locks", g.ID, len(g.Locks))
 		}
+	}
+}
+
+// Nobody can open the recovery lock until the shares are used, so a bucket writer who
+// changes its box would go unnoticed. A process that holds the data key sees the check
+// fail, and a rewrap makes the lock again.
+func TestATamperedRecoveryLockIsSeenAndMended(t *testing.T) {
+	b := testBackends()[0].make(t)
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	rec, shares, err := protect.NewRecovery(2, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada), Recovery: rec}); err != nil {
+		t.Fatal(err)
+	}
+	if bad := openIdentity(t, b, ada).Protection().RecoveryUnverified; len(bad) != 0 {
+		t.Fatalf("a good lock is reported: %v", bad)
+	}
+	m := formatMeta(t, b)
+	for i, l := range m.Sealed.Groups[0].Locks {
+		if m.Sealed.IsRecoveryLock(l) {
+			m.Sealed.Groups[0].Locks[i].Box[3] ^= 1
+		}
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Put(ctx, "meta.json", data); err != nil {
+		t.Fatal(err)
+	}
+	cs := openIdentity(t, b, ada)
+	if bad := cs.Protection().RecoveryUnverified; fmt.Sprint(bad) != "[g1]" {
+		t.Fatalf("a changed box is not seen: %v", bad)
+	}
+	// A process with no key cannot tell, and says nothing.
+	if bad := openIdentity(t, b, testIdentity(t, "eve")).Protection().RecoveryUnverified; len(bad) != 0 {
+		t.Errorf("a locked store reports %v", bad)
+	}
+	if _, err := cs.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada)}); err != nil {
+		t.Fatal(err)
+	}
+	ms := openIdentity(t, b, ada)
+	if bad := ms.Protection().RecoveryUnverified; len(bad) != 0 {
+		t.Errorf("still reported after the rewrap: %v", bad)
+	}
+	// The mended lock opens with the shares.
+	rk, err := rec.Open(shares[:2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := protect.RecoveryIdentity(rk)
+	defer id.Close()
+	if got := openIdentity(t, b, id); got.Locked() {
+		t.Error("the shares do not open the state after the mending")
+	}
+}
+
+// Two commands that replace the recovery at once: the second finds that it changed.
+func TestAGuardedRecoveryChangeLosesToAnother(t *testing.T) {
+	b := testBackends()[0].make(t)
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	first, _, _ := protect.NewRecovery(2, 3)
+	second, _, _ := protect.NewRecovery(2, 3)
+	// Both read the state with no recovery. One sets its own.
+	if _, err := s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada), Recovery: first, GuardRecovery: true}); err != nil {
+		t.Fatal(err)
+	}
+	loser := openIdentity(t, b, ada)
+	_, err := loser.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada), Recovery: second, GuardRecovery: true})
+	if !errors.Is(err, ErrRecoveryChanged) {
+		t.Fatalf("the second change: %v", err)
+	}
+	if got := formatMeta(t, b).Sealed.Recovery; !got.Equal(first) {
+		t.Errorf("the recovery is %+v, want the first", got)
+	}
+	// Seen as it is, the change goes through.
+	if _, err := loser.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada), Recovery: second, GuardRecovery: true, RecoveryWas: first}); err != nil {
+		t.Fatal(err)
 	}
 }

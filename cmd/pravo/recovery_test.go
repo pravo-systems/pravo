@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -516,5 +518,49 @@ func TestInitWithARecoveryOnASealedStateSaysItWasNotApplied(t *testing.T) {
 	text, code := runPravo(t, r.dir, "protect", "init", "--encrypt", "--yes", "--recovery", "2/3")
 	if code != 0 || !strings.Contains(text, "--recovery was not applied") {
 		t.Fatalf("exit %d\n%s", code, text)
+	}
+}
+
+// A bucket writer who changes the box of the recovery lock cannot be seen by the lock
+// itself, which nobody opens until the shares are used. The check can be.
+func TestATamperedRecoveryLockStopsAWriterAndRewrapMendsIt(t *testing.T) {
+	r := recoveredBucket(t)
+	var m map[string]any
+	if err := json.Unmarshal(r.f.Objects["prod/meta.json"], &m); err != nil {
+		t.Fatal(err)
+	}
+	groups := m["sealed"].(map[string]any)["groups"].([]any)
+	for _, g := range groups {
+		for _, l := range g.(map[string]any)["locks"].([]any) {
+			lock := l.(map[string]any)
+			if lock["name"] == "recovery" {
+				lock["box"] = base64.StdEncoding.EncodeToString(make([]byte, 80))
+			}
+		}
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.f.Objects["prod/meta.json"] = data
+
+	text, code := runPravo(t, r.dir, "state", "rm", "net.vpc")
+	if code != 5 || !strings.Contains(text, "the recovery lock of group g1 was changed in the bucket") {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, r.dir, "protect", "status")
+	if code != 0 || !strings.Contains(text, "does not hold its check: run pravo protect rewrap") {
+		t.Errorf("status: exit %d\n%s", code, text)
+	}
+	if text, code = runPravo(t, r.dir, "protect", "rewrap"); code != 0 {
+		t.Fatalf("rewrap: exit %d\n%s", code, text)
+	}
+	if text, code = runPravo(t, r.dir, "state", "rm", "net.vpc"); code != 0 {
+		t.Errorf("a writer is still refused: exit %d\n%s", code, text)
+	}
+	// The shares open the mended lock.
+	text, code = runPravo(t, r.dir, "protect", "recover", "--share", r.shares[0], "--share", r.shares[2], "--yes")
+	if code != 0 {
+		t.Errorf("recover: exit %d\n%s", code, text)
 	}
 }

@@ -157,6 +157,9 @@ type Protection struct {
 	// current group. Nil unless State is "sealed" or "migrating". The names and
 	// reader keys of the current readers are the locks of the current group.
 	Sealed *protect.Meta
+	// RecoveryUnverified lists the groups whose recovery lock does not hold its check.
+	// Only a process that holds the data keys can tell; it is empty otherwise.
+	RecoveryUnverified []string
 	// Records is the number of resources. Plain counts records that are not
 	// sealed in a sealed state (written before the seal and not yet reached);
 	// Unreadable counts records sealed in a group that this process holds no key
@@ -243,6 +246,12 @@ type RewrapOptions struct {
 	// RemoveRecovery removes it. At most one of them is set.
 	Recovery       *protect.Recovery
 	RemoveRecovery bool
+	// GuardRecovery makes the change of the recovery conditional on the recovery that the
+	// caller saw, RecoveryWas (nil for none): when another command changed it in between,
+	// nothing is written and the error is ErrRecoveryChanged. Two commands that set a
+	// recovery at once would both report success, and the shares of one would be dead.
+	GuardRecovery bool
+	RecoveryWas   *protect.Recovery
 	// All seals every record, the outputs and the stored plans again under the
 	// current group, instead of leaving them to be sealed when next written.
 	All      bool

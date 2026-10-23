@@ -477,6 +477,9 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 			keys.Close()
 			keys = nil
 		}
+		if o.GuardRecovery && !m.Sealed.Recovery.Equal(o.RecoveryWas) {
+			return ErrRecoveryChanged
+		}
 		k, err := m.Sealed.Unlock(m.Lineage, id.Reader)
 		if err != nil {
 			return fmt.Errorf("rewrapping the state: %w", err)
@@ -554,6 +557,10 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 		return nil
 	})
 }
+
+// ErrRecoveryChanged says that another command changed the recovery recipient of the
+// state after this one read it.
+var ErrRecoveryChanged = errors.New("the recovery of the state was changed by another command")
 
 // errNoRewrap is the error of an update of meta.json that finds nothing to change.
 var errNoRewrap = errors.New("the readers are the readers of the state")

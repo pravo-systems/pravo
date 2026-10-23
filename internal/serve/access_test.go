@@ -1285,6 +1285,19 @@ func TestAccessRecovery(t *testing.T) {
 			t.Error("a card for a recovery that holds")
 		}
 	})
+	t.Run("a lock that does not hold its check: the page offers to mend it", func(t *testing.T) {
+		f := solo()
+		bad := *recovery
+		bad.Unverified = []string{"g1"}
+		f.Store.Recovery = &bad
+		a := build(f)
+		if a.Recovery == nil || !strings.Contains(a.Recovery.Warning, "does not hold its check") {
+			t.Fatalf("recovery %+v", a.Recovery)
+		}
+		if suggestion(*a, "fix-recovery") == nil {
+			t.Error("no card to mend it")
+		}
+	})
 	t.Run("a lock is missing and the file differs: the page offers to mend it", func(t *testing.T) {
 		f := solo()
 		bad := *recovery

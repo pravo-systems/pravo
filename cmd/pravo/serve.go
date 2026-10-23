@@ -321,7 +321,7 @@ func accessFacts(p state.Protection, locked bool, id viewerIdentity, rf readersF
 		}
 		if rs := m.Status(nil).Recovery; rs != nil {
 			_, file := recoveryStatusText(p, rf)
-			s.Recovery = &serve.RecoveryFacts{K: rs.K, N: rs.N, Key: rs.Key.String(), Locked: rs.Locked, Groups: rs.Groups, File: file}
+			s.Recovery = &serve.RecoveryFacts{K: rs.K, N: rs.N, Key: rs.Key.String(), Locked: rs.Locked, Groups: rs.Groups, File: file, Unverified: p.RecoveryUnverified}
 		}
 	}
 	if mg := p.Migration; mg != nil {

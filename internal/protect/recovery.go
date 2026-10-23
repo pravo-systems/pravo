@@ -338,3 +338,24 @@ func (m *Meta) recoveryStatus() *RecoveryStatus {
 	}
 	return st
 }
+
+// VerifyRecovery returns the groups, among those these keys open, whose recovery lock
+// does not hold its check: the box was changed by someone who had no data key, or the
+// lock was made before locks carried one. A lock that is missing is not reported here.
+func (k *Keys) VerifyRecovery(m *Meta) (bad []string) {
+	if m.Recovery == nil {
+		return nil
+	}
+	for _, g := range m.Groups {
+		dk, ok := k.keys[g.ID]
+		if !ok {
+			continue
+		}
+		for _, l := range g.Locks {
+			if m.IsRecoveryLock(l) && !l.checkHolds(dk, k.lineage, g.ID) {
+				bad = append(bad, g.ID)
+			}
+		}
+	}
+	return bad
+}

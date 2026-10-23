@@ -70,6 +70,9 @@ type RecoveryFacts struct {
 	// File is the verdict of the recovery file of the repository: "match",
 	// "differs", "missing" or "invalid".
 	File string
+	// Unverified lists the groups whose recovery lock does not hold its check, when the
+	// viewer can tell.
+	Unverified []string
 }
 
 // ReaderFacts is a reader: a line of the readers file, or a lock of a group.
