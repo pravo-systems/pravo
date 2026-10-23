@@ -608,8 +608,8 @@ function clearSelection() {
   announce('Selection cleared');
 }
 
-// setFull hides the bar, the sidebar and the status bar so that the graph has the screen, and asks the browser for
-// its full screen too. The inspector stays, but only while something is selected.
+// setFull gives the graph the room of the sidebar: the filter rail goes, and the inspector comes only while something
+// is selected. The bar and the status bar stay.
 function setFull(on) {
   on = !!on && S.view === 'graph';
   if (S.full === on) return;
@@ -617,13 +617,9 @@ function setFull(on) {
   document.body.dataset.full = on ? '1' : '';
   const b = $('full-btn');
   b.setAttribute('aria-pressed', String(on));
-  b.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
-  b.dataset.tip = on ? 'Leave full screen' : 'Full screen';
-  try {
-    if (on && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
-    if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  } catch { /* the page still fills the window */ }
-  announce(on ? 'Full screen. Press Escape to leave.' : 'Left full screen.');
+  b.setAttribute('aria-label', on ? 'Show the sidebars' : 'Hide the sidebars');
+  b.dataset.tip = on ? 'Show the sidebars' : 'Hide the sidebars';
+  announce(on ? 'Sidebars hidden.' : 'Sidebars shown.');
 }
 
 function showInspector() {
@@ -1250,7 +1246,7 @@ function onKey(ev) {
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
   if (k === 'f') { gv.fit(true); return; }
-  if (k === 'z') { setFull(!S.full); return; }
+  if (k === 'w') { setFull(!S.full); return; }
   if (k === '0') { resetView(); return; }
   if (k === '[') { setAllModules(true); return; }
   if (k === ']') { setAllModules(false); return; }
@@ -1335,7 +1331,6 @@ function wire() {
   $('theme-btn').addEventListener('click', toggleTheme);
   $('btn-fit').addEventListener('click', () => gv.fit(true));
   $('full-btn').addEventListener('click', () => setFull(!S.full));
-  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && S.full) setFull(false); });
   $('btn-zin').addEventListener('click', () => gv.zoomBy(1.3, undefined, undefined, true));
   $('btn-zout').addEventListener('click', () => gv.zoomBy(1 / 1.3, undefined, undefined, true));
   $('btn-reset').addEventListener('click', resetView);
