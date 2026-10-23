@@ -15,6 +15,8 @@ type Meta struct {
 	Current string  `json:"current"` // group new writes are sealed in
 	Groups  []Group `json:"groups"`  // oldest first
 	Readers string  `json:"readers"` // SetID of the reader list the locks were made from
+	// Recovery is the recovery recipient: every group has a lock for its key.
+	Recovery *Recovery `json:"recovery,omitempty"`
 }
 
 // ErrDamaged means the sealed part of meta.json cannot be what a pravo wrote: it
@@ -30,6 +32,8 @@ func (m *Meta) Check() error {
 		return fmt.Errorf("%w: it lists no group", ErrDamaged)
 	case m.group(m.Current) == nil:
 		return fmt.Errorf("%w: the current group %q is not in the list", ErrDamaged, m.Current)
+	case m.Recovery != nil && (m.Recovery.K < MinRecoveryK || m.Recovery.N < m.Recovery.K || m.Recovery.N > MaxRecoveryN):
+		return fmt.Errorf("%w: its recovery says %d of %d shares", ErrDamaged, m.Recovery.K, m.Recovery.N)
 	}
 	return nil
 }
@@ -111,7 +115,15 @@ func (m *Meta) Rewrap(k *Keys, readers []Reader) (Change, error) {
 	if cur == nil {
 		return ch, errors.New("protect: current group is missing")
 	}
-	miss, extra := cur.Diff(readers)
+	if m.Recovery != nil {
+		for _, r := range readers {
+			if r.Key.Equal(m.Recovery.Key) {
+				return ch, fmt.Errorf("protect: reader %s has the recovery key of the state; a reader needs a key of their own", r.Name)
+			}
+		}
+	}
+	recipients := m.recipients(readers)
+	miss, extra := cur.Diff(recipients)
 	ch.Added, ch.Removed = miss, extra
 	for _, g := range m.Groups {
 		if _, ok := k.keys[g.ID]; !ok {
@@ -120,13 +132,13 @@ func (m *Meta) Rewrap(k *Keys, readers []Reader) (Change, error) {
 	}
 	for i := range m.Groups {
 		g := &m.Groups[i]
-		if err := g.Rewrap(k.lineage, k.keys[g.ID], readers); err != nil {
+		if err := g.Rewrap(k.lineage, k.keys[g.ID], recipients); err != nil {
 			return ch, err
 		}
 	}
 	if len(extra) > 0 {
 		id := "g" + strconv.Itoa(m.nextGroupNumber())
-		g, dk, err := NewGroup(id, k.lineage, readers)
+		g, dk, err := NewGroup(id, k.lineage, recipients)
 		if err != nil {
 			return ch, err
 		}
@@ -179,6 +191,8 @@ type Status struct {
 	Matches bool           // the file and the store agree
 	Groups  int
 	Current string
+	// Recovery is the recovery recipient of the state, nil when it has none.
+	Recovery *RecoveryStatus
 }
 
 // StatusReader is one reader the store knows.
@@ -189,15 +203,18 @@ type StatusReader struct {
 
 // Status compares the store with a parsed readers file (nil if there is none).
 func (m *Meta) Status(readers []Reader) Status {
-	st := Status{Groups: len(m.Groups), Current: m.Current}
+	st := Status{Groups: len(m.Groups), Current: m.Current, Recovery: m.recoveryStatus()}
 	cur := m.group(m.Current)
 	if cur == nil {
 		return st
 	}
 	for _, l := range cur.Locks {
+		if m.IsRecoveryLock(l) {
+			continue
+		}
 		st.Readers = append(st.Readers, StatusReader{l.Name, l.Key})
 	}
-	st.Missing, st.Extra = cur.Diff(readers)
+	st.Missing, st.Extra = cur.Diff(m.recipients(readers))
 	st.Matches = readers != nil && len(st.Missing) == 0 && len(st.Extra) == 0
 	return st
 }

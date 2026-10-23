@@ -225,7 +225,8 @@ A record in format 3 keeps its address, type, name, provider, dependencies, revi
         ]
       }
     ],
-    "readers": "..."
+    "readers": "...",
+    "recovery": {"key": "x25519:Q9mT2w...", "k": 2, "n": 3}
   },
   "migration": {"to": 3, "started": "2026-01-01T00:00:00Z", "by": "ada", "done": 1204, "total": 2001},
   "history": [
@@ -239,10 +240,13 @@ A record in format 3 keeps its address, type, name, provider, dependencies, revi
 | `sealed.current` | The group that new writes are sealed in. |
 | `sealed.groups` | The reader groups, oldest first. A group is one random 256-bit data key, and a lock for each reader: the data key encrypted to the reader key (HPKE: DHKEM X25519, HKDF-SHA256, AES-256-GCM), 80 bytes in base64. The lock is bound to the lineage and the group. |
 | `sealed.readers` | A digest of the reader list that the locks were made from. |
+| `sealed.recovery` | Present when the state has a recovery recipient: its public key and the threshold, K shares of N. It holds no secret. Every group carries a lock named `recovery` for the key, with a `check` field next to `box`: a keyed hash of the lock under the data key of the group, which lets a reader see that the box was not changed. The recovery key is not a reader of the readers file and is not counted with the readers. The name `recovery` is reserved. The shares of the private key are not in the state: they are files, one for each holder. [The recovery recipient](protect.md#the-recovery-recipient) describes them. |
 | `migration` | Present while a seal has begun and has not finished: the number of records sealed so far, which is a note and not a count that anything relies on. |
-| `history` | The last 50 changes of the seal: `sealed`, `rewrap`, `rewrap --all` and `gc`, with the names added and removed. `gc` records that groups were dropped, and names none. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
+| `history` | The last 50 changes of the seal: `sealed`, `rewrap`, `rewrap --all`, `recover` and `gc`, with the names added and removed. `gc` records that groups were dropped, and names none. A change of the recovery is recorded as `recovery set 2/3` or `recovery removed`. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
 
 `meta.json` is not signed. A writer of the bucket who edits it to a lower format is noticed by the writers that have the repository: when `.pravo/access/readers.txt` exists and the state is not sealed, or does not exist yet, a command that writes refuses with exit code 5 and a command that reads warns. A writer without the repository does not notice. [What sealing protects](../concepts/sealed-state.md) says more.
+
+The public key and the threshold of the recovery recipient are also kept in the repository, in `.pravo/access/recovery.txt`, one line `x25519:KEY K/N`, and a writer compares it with `sealed.recovery` as it compares the readers file. A share file is one line, `pravo-share-1 KEYID INDEX K/N SHARE CHECK`, with the share in base64url and a short check that catches a mistyped line.
 
 A reader is a line of `.pravo/access/readers.txt`. Whoever writes the state takes the list from the repository, and a lock is added for a reader who is on the list and not in `meta.json`, or removed for one who is in `meta.json` and not on the list, by a rewrap.
 

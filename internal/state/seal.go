@@ -534,6 +534,7 @@ func (s *Store) Protection() Protection {
 	sealed := *s.meta.Sealed
 	sealed.Groups = slices.Clone(sealed.Groups)
 	p.Sealed = &sealed
+	p.RecoveryUnverified = s.ring.verifyRecovery(&sealed)
 	p.ByGroup = map[string]int{}
 	for _, ref := range s.held {
 		switch {
@@ -577,7 +578,7 @@ func OutputsReaders(ctx context.Context, b Backend) ([]protect.ReaderPublic, err
 			continue
 		}
 		for _, l := range g.Locks {
-			if !l.Key.IsZero() {
+			if !l.Key.IsZero() && !m.Sealed.IsRecoveryLock(l) {
 				keys = append(keys, l.Key)
 			}
 		}

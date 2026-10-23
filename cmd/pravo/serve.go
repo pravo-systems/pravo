@@ -303,15 +303,25 @@ func accessFacts(p state.Protection, locked bool, id viewerIdentity, rf readersF
 		for _, g := range m.Groups {
 			n := p.ByGroup[g.ID]
 			s.Sealed += n
-			s.Groups = append(s.Groups, serve.GroupFacts{ID: g.ID, Current: g.ID == m.Current, Locks: len(g.Locks), Records: n})
+			locks := 0
+			for _, l := range g.Locks {
+				if !m.IsRecoveryLock(l) {
+					locks++
+				}
+			}
+			s.Groups = append(s.Groups, serve.GroupFacts{ID: g.ID, Current: g.ID == m.Current, Locks: locks, Records: n})
 			if g.ID != m.Current {
 				continue
 			}
 			for _, l := range g.Locks {
-				if !l.Key.IsZero() {
+				if !l.Key.IsZero() && !m.IsRecoveryLock(l) {
 					s.Readers = append(s.Readers, serve.ReaderFacts{Name: l.Name, Key: l.Key.String()})
 				}
 			}
+		}
+		if rs := m.Status(nil).Recovery; rs != nil {
+			_, file := recoveryStatusText(p, rf)
+			s.Recovery = &serve.RecoveryFacts{K: rs.K, N: rs.N, Key: rs.Key.String(), Locked: rs.Locked, Groups: rs.Groups, File: file, Unverified: p.RecoveryUnverified}
 		}
 	}
 	if mg := p.Migration; mg != nil {

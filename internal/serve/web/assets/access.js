@@ -61,6 +61,7 @@ export class AccessView {
       a.you ? this.you(a.you) : null,
       this.readers(a),
       this.single(a),
+      this.recovery(a),
       this.file(a),
       this.records(a),
       this.suggestions(a),
@@ -173,6 +174,27 @@ export class AccessView {
       h('h3', { id: 'ac-h-single', class: 'sr-only' }, 'Only one reader'),
       icon('bang'), h('p', null, w.text),
       h('button', { class: 'btn', type: 'button', 'data-fk': 'single', on: { click: go } }, w.action));
+  }
+
+  // recovery says how the state can be opened when every reader has lost their key: a key that is split into shares.
+  // A warning shows when the recovery does not hold, and the button opens the suggestion that mends it.
+  recovery(a) {
+    const r = a.recovery;
+    if (!r) return null;
+    const go = () => {
+      const card = Array.from(this.root.querySelectorAll('details.ac-card')).find((d) => d.dataset.id === 'fix-recovery');
+      if (!card) return;
+      card.open = true;
+      card.scrollIntoView({ block: 'nearest' });
+      const sum = card.querySelector('summary');
+      if (sum) sum.focus();
+    };
+    const fix = r.warning && (a.suggestions || []).some((x) => x.id === 'fix-recovery');
+    return h('section', { class: 'ac-sec ac-recovery', 'aria-labelledby': 'ac-h-recovery' },
+      h('h3', { id: 'ac-h-recovery', class: 'h' }, 'Recovery'),
+      h('p', null, r.text, ' ', h('code', { title: r.key }, r.key_short)),
+      r.warning ? h('div', { class: 'ac-warn', role: 'note' }, icon('bang'), h('p', null, r.warning),
+        fix ? h('button', { class: 'btn', type: 'button', 'data-fk': 'recovery', on: { click: go } }, 'Bring the recovery in line') : null) : null);
   }
 
   // records is the section for what needs a look beyond the sentence in the banner: the groups of data keys, once

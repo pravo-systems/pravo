@@ -78,18 +78,25 @@ func TestAccessFixtures(t *testing.T) {
 	// The repository lists readers and the state is not sealed: it was sealed and meta.json was changed.
 	downgraded := Facts{Store: StoreFacts{State: "off", Format: 1, Records: 46}, File: FileFacts{State: "ok", Readers: []ReaderFacts{fixFile(1, "ada"), fixFile(2, "dan"), fixFile(3, "eve")}}}
 	immutable := Facts{Store: StoreFacts{State: "immutable", Format: 2, Records: 46}, File: FileFacts{State: "missing"}}
+	// A state with a recovery of 2 of 3 shares, and one whose recovery does not hold.
+	withRecovery := fixSealed([]string{"ada"}, []string{"ada"}, ada)
+	withRecovery.Store.Recovery = &RecoveryFacts{K: 2, N: 3, Key: fixKey("recovery"), Locked: true, File: "match"}
+	brokenRecovery := fixSealed([]string{"ada", "dan"}, []string{"ada", "dan"}, ada)
+	brokenRecovery.Store.Recovery = &RecoveryFacts{K: 3, N: 5, Key: fixKey("recovery"), Locked: false, Groups: []string{"g1"}, File: "missing"}
 	cases := map[string]accessInput{
-		"platform":   in(fixSealed([]string{"ada", "dan", "eve"}, []string{"ada", "dan", "eve"}, ada), 3, "s3"),
-		"solo":       in(solo, 3, "s3"),
-		"off":        in(off, 1, "s3"),
-		"downgraded": in(downgraded, 1, "s3"),
-		"immutable":  in(immutable, 2, "s3"),
-		"drift":      in(drift, 3, "s3"),
-		"locked":     in(locked, 3, "s3"),
-		"migrating":  in(migrating, 3, "s3"),
-		"invalid":    in(invalid, 3, "s3"),
-		"missing":    in(missing, 3, "s3"),
-		"notreader":  in(notReader, 3, "s3"),
+		"recovery":    in(withRecovery, 3, "s3"),
+		"recoverybad": in(brokenRecovery, 3, "s3"),
+		"platform":    in(fixSealed([]string{"ada", "dan", "eve"}, []string{"ada", "dan", "eve"}, ada), 3, "s3"),
+		"solo":        in(solo, 3, "s3"),
+		"off":         in(off, 1, "s3"),
+		"downgraded":  in(downgraded, 1, "s3"),
+		"immutable":   in(immutable, 2, "s3"),
+		"drift":       in(drift, 3, "s3"),
+		"locked":      in(locked, 3, "s3"),
+		"migrating":   in(migrating, 3, "s3"),
+		"invalid":     in(invalid, 3, "s3"),
+		"missing":     in(missing, 3, "s3"),
+		"notreader":   in(notReader, 3, "s3"),
 	}
 	for name, input := range cases {
 		doc, err := json.MarshalIndent(buildAccess(input), "", " ")

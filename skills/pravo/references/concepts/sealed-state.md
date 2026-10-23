@@ -59,7 +59,7 @@ These are limits of the version that exists. Each is a fact to plan around.
 
 **Reader names are readable.** `meta.json` holds the name and the key of each reader, so a person with the bucket learns who the readers are.
 
-**There is no recovery recipient.** If every reader loses their key, or forgets the passphrase of the only identity, the state cannot be read. Keep more than one reader, and keep the identity of a job as a CI secret.
+**A recovery recipient is optional, and a sealed state starts without one.** If every reader loses their key, or forgets the passphrase of the only identity, the state cannot be read. Keep more than one reader, and keep the identity of a job as a CI secret. A recovery recipient is a key that nobody holds whole: it is split into N shares, any K of which rebuild it, and every group of the state carries a lock for it. It is a decision about trust and not a delay, since K holders of shares can read the state at once, with no signature and no waiting time. See [The recovery recipient](../reference/protect.md#the-recovery-recipient).
 
 **An identity of a job has no passphrase.** `pravo id new --ci` writes both private keys in the clear. Whoever reads the CI secret is the reader. Use one identity for each job.
 

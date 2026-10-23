@@ -23,6 +23,8 @@ normalize:
     replace: '<ssh-key>'
   - pattern: 'x25519:[A-Za-z0-9_-]{43}'
     replace: 'x25519:<key>'
+  - pattern: 'key x25519:[A-Za-z0-9_-]{6}…'
+    replace: 'key x25519:<key>…'
   - pattern: '[0-9]+(\.[0-9])? s\b'
     replace: '<time> s'
   - pattern: 'rec/[0-9a-f]{64}'
@@ -181,11 +183,12 @@ The state is sealed to ada dan eve.
 Commit the readers file. Writers read the list from git:
   .pravo/access/readers.txt
 No recovery recipient. If every reader loses their key, the state cannot be read.
+Add one with: pravo protect rewrap --recovery 3/5
 ```
 
 The command refuses to run if your identity is not on the list, because sealing to a list you are not on would lock you out. A run that is interrupted leaves the state sealing; run the same command again to finish.
 
-The line about a recovery recipient is a fact and not a step: there is none. If every reader loses their key, nothing can read the state.
+The last two lines are a fact and not a step: this state has no recovery recipient, and if every reader loses their key, nothing can read it. [Section 11](#11-add-a-recovery-recipient) adds one. `pravo protect init --encrypt --recovery 3/5` sets one in the step that seals.
 
 ## 6. Commit the readers file
 
@@ -327,9 +330,102 @@ Dropped group g1: nothing refers to it.
 
 `gc` needs the state at rest, as `rewrap --all` does, and the readers file as any command that writes the state. A record that no pointer names is marked by the first `gc` that finds it 24 hours old, and deleted by one that runs at least 15 minutes after that, so the records of earlier revisions and of resources that were destroyed go the day after they were replaced, on the second run. Run `gc` again then. A group that still has something sealed in it is kept, and the command says what.
 
+## 11. Add a recovery recipient
+
+Until now, the state can be read by its readers and by no one else. If all three lose their keys, or forget their passphrases, nobody can read it again. A **recovery recipient** is one more reader whose key nobody holds whole: it is made when you set it, split into N shares and forgotten. Any K of the shares rebuild it. `pravo protect init --encrypt --recovery 2/3` sets it in the step that seals; for a state that is sealed already, `rewrap` does.
+
+```sh run
+pravo protect rewrap --recovery 2/3
+```
+
+```text out
+Readers in .pravo/access/readers.txt: ada dan deploy-bot
+meta.json updated
+
+Recovery: 3 shares written (any 2 rebuild the recovery key):
+  ./recovery-shares/share-1-of-3.txt  …  share-3-of-3.txt
+Do not commit them. Give each to a different person, offline. They are written once.
+Commit the recovery recipient with the readers file:
+  .pravo/access/recovery.txt
+```
+
+The command wrote three files in `recovery-shares/` with mode 0600, and the public key and the threshold to `.pravo/access/recovery.txt`. The shares are written once. Give each to a different person, keep it offline, and do not commit it. Commit the recovery file with the readers file, so that a writer who has the repository can tell a state that lost its recovery from one that never had it.
+
+```sh run
+ls recovery-shares
+cat .pravo/access/recovery.txt
+pravo protect status | grep -E '^(Sealed|Recovery)'
+```
+
+```text out
+share-1-of-3.txt
+share-2-of-3.txt
+share-3-of-3.txt
+# The recovery recipient of the state: any 2 of 3 shares rebuild its key.
+x25519:<key> 2/3
+Sealed       on · format 3 · 3 readers (ada dan deploy-bot) · recovery 2 of 3
+Recovery     2 of 3 shares · key x25519:<key>… · .pravo/access/recovery.txt matches the state
+```
+
+Two shares are enough to read the state. That is a decision about whom to trust together and not a delay: pravo has no signature and no waiting time for it, so two holders who meet can read every value at once. Choose K higher than the number of holders who could act together, and N high enough that losing a share does not lose the key.
+
+## 12. Recover a state
+
+Say Ada, Dan and the job have all lost their keys. Someone makes a new identity, and the list of readers names it in place of the lost ones.
+
+```sh run
+PRAVO_CONFIG_DIR=people/fay pravo id new --name fay > /dev/null
+PRAVO_CONFIG_DIR=people/fay pravo id show | tail -n 1 | sed 's/^ *//' > .pravo/access/readers.txt
+cat .pravo/access/readers.txt
+```
+
+```text out
+fay ssh-ed25519 <ssh-key> x25519:<key>
+```
+
+Two holders bring their share files. `pravo protect recover` rebuilds the key in memory, checks it against the public key in the state, and shows what it will do.
+
+```sh run
+PRAVO_CONFIG_DIR=people/fay pravo protect recover --share recovery-shares/share-1-of-3.txt --share recovery-shares/share-3-of-3.txt --yes
+```
+
+```text out
+Recovery key rebuilt from 2 shares.
+Readers  .pravo/access/readers.txt  (fay)
+This will:
+  1  lock the data keys for fay
+  2  remove ada dan deploy-bot, and make a new data key
+meta.json updated
+New data keys for 1 reader group. Records are sealed again as they are next written.
+The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap --recovery K/N
+```
+
+Fay is the reader now, and the old readers are not. The key was rebuilt on one machine, so it has been seen in one place: replace it, which makes a new key and three new shares, and the old shares open nothing that is written afterwards.
+
+`rewrap` asks before it replaces or removes a recovery, because the shares that were given out stop working for new records. `--yes` answers the question, as it does for `init`.
+
+```sh run
+rm -r recovery-shares
+PRAVO_CONFIG_DIR=people/fay pravo protect rewrap --recovery 2/3 --yes
+```
+
+```text out
+The recovery key will be replaced (2 of 3 shares, key x25519:<key>…). The shares that were given out open nothing that is written from now on.
+Readers in .pravo/access/readers.txt: fay
+meta.json updated
+
+Recovery: 3 shares written (any 2 rebuild the recovery key):
+  ./recovery-shares/share-1-of-3.txt  …  share-3-of-3.txt
+Do not commit them. Give each to a different person, offline. They are written once.
+Commit the recovery recipient with the readers file:
+  .pravo/access/recovery.txt
+The old shares open nothing that is written from now on. Collect them and destroy them.
+```
+
 ## What next
 
 - [pravo id and pravo protect](../reference/protect.md) lists every flag, the exit codes and the format of the readers file.
 - [What sealing protects](../concepts/sealed-state.md) lists what the seal covers, what it does not, and the risks that remain.
 - [CI](ci.md) runs plan and apply as separate jobs. Give the job `PRAVO_IDENTITY` as in step 9.
+- [The recovery recipient](../reference/protect.md#the-recovery-recipient) says what the files hold, what the writers check and what to do after a recovery.
 - [Exit codes](../reference/exit-codes.md#7-untrusted) describes code 7.

@@ -157,6 +157,9 @@ type Protection struct {
 	// current group. Nil unless State is "sealed" or "migrating". The names and
 	// reader keys of the current readers are the locks of the current group.
 	Sealed *protect.Meta
+	// RecoveryUnverified lists the groups whose recovery lock does not hold its check.
+	// Only a process that holds the data keys can tell; it is empty otherwise.
+	RecoveryUnverified []string
 	// Records is the number of resources. Plain counts records that are not
 	// sealed in a sealed state (written before the seal and not yet reached);
 	// Unreadable counts records sealed in a group that this process holds no key
@@ -212,6 +215,9 @@ type UpgradeOptions struct {
 	// Progress is called as records are converted. It may be called from several
 	// goroutines.
 	Progress func(done, total int)
+	// Recovery, if set, is the recovery recipient of the sealed state: every group
+	// gets a lock for its key. Its shares are the caller's to write.
+	Recovery *protect.Recovery
 	// Plans, if set, is called when the records and the outputs are converted
 	// and before the state is marked sealed. It seals the stored plans, which
 	// the plan store owns, and returns how many it sealed and how many it left
@@ -235,6 +241,17 @@ type UpgradeResult struct {
 // readers file.
 type RewrapOptions struct {
 	Readers []protect.Reader
+	// Recovery, if set, sets the recovery recipient of the state, or replaces it:
+	// every group gets a lock for the new key and loses the one of the old key.
+	// RemoveRecovery removes it. At most one of them is set.
+	Recovery       *protect.Recovery
+	RemoveRecovery bool
+	// GuardRecovery makes the change of the recovery conditional on the recovery that the
+	// caller saw, RecoveryWas (nil for none): when another command changed it in between,
+	// nothing is written and the error is ErrRecoveryChanged. Two commands that set a
+	// recovery at once would both report success, and the shares of one would be dead.
+	GuardRecovery bool
+	RecoveryWas   *protect.Recovery
 	// All seals every record, the outputs and the stored plans again under the
 	// current group, instead of leaving them to be sealed when next written.
 	All      bool

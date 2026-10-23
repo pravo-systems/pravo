@@ -52,6 +52,27 @@ type StoreFacts struct {
 	Migration                          *MigrationFacts
 	// History is the changes of the seal, oldest first.
 	History []ChangeFacts
+	// Recovery is the recovery recipient of the state, nil when it has none. Its
+	// lock is not among Readers and Groups count it in no Locks.
+	Recovery *RecoveryFacts
+}
+
+// RecoveryFacts is the recovery recipient of a sealed state: a key that is split
+// into N shares, any K of which rebuild it.
+type RecoveryFacts struct {
+	K, N int
+	// Key is the public key, "x25519:" and 43 characters of unpadded base64url.
+	Key string
+	// Locked is set when every group has a lock for the key. Groups lists those
+	// that have none.
+	Locked bool
+	Groups []string
+	// File is the verdict of the recovery file of the repository: "match",
+	// "differs", "missing" or "invalid".
+	File string
+	// Unverified lists the groups whose recovery lock does not hold its check, when the
+	// viewer can tell.
+	Unverified []string
 }
 
 // ReaderFacts is a reader: a line of the readers file, or a lock of a group.

@@ -244,7 +244,7 @@ func TestAccessSealedReader(t *testing.T) {
 			t.Errorf("%s is primary in a state that needs nothing", s.ID)
 		}
 	}
-	if want := "add-reader remove-reader:ada remove-reader:dan remove-reader:eve status"; strings.Join(ids, " ") != want {
+	if want := "add-reader remove-reader:ada remove-reader:dan remove-reader:eve set-recovery status"; strings.Join(ids, " ") != want {
 		t.Errorf("suggestions %q, want %q", strings.Join(ids, " "), want)
 	}
 	file := filepath.ToSlash(filepath.Join(".pravo", "access", "readers.txt"))
@@ -1236,4 +1236,94 @@ func TestAccessRemovingYourselfLeavesRewrapAllToAnother(t *testing.T) {
 	if strings.Contains(notes(other), "You are not a reader") {
 		t.Errorf("removing another reader: %q", notes(other))
 	}
+}
+
+// A state with a recovery recipient says how it can be opened when every reader has
+// lost their key, and one reader is no longer a risk the page warns of. Without one,
+// the page offers to set it; when it does not hold, the page offers to mend it.
+func TestAccessRecovery(t *testing.T) {
+	build := func(facts Facts) *Access {
+		return buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, facts: facts, path: "/p/.pravo/access/readers.txt", dir: "/p"})
+	}
+	solo := func() Facts {
+		f := sealedFacts()
+		f.Store.Readers = []ReaderFacts{rs("ada", 'a')}
+		f.Store.Groups = []GroupFacts{{ID: "g1", Current: true, Locks: 1, Records: 5}}
+		f.File.Readers = []ReaderFacts{rf("ada", 'a', 1)}
+		return f
+	}
+	recovery := &RecoveryFacts{K: 2, N: 3, Key: "x25519:" + strings.Repeat("Q", 43), Locked: true, File: "match"}
+
+	t.Run("none: the page offers to set one", func(t *testing.T) {
+		a := build(solo())
+		if a.Recovery != nil || a.SingleReader == nil {
+			t.Fatalf("recovery %+v, single %+v", a.Recovery, a.SingleReader)
+		}
+		s := suggestion(*a, "set-recovery")
+		if s == nil {
+			t.Fatal("no suggestion to set a recovery")
+		}
+		want := []string{"pravo protect rewrap --recovery <K>/<N>", "git add .pravo/access/recovery.txt", "git commit -m 'Set a recovery key'", "git push"}
+		if got := stepTexts(s, "command"); !equalStrings(got, want) {
+			t.Errorf("commands %q, want %q", got, want)
+		}
+		if suggestion(*a, "fix-recovery") != nil {
+			t.Error("a recovery is mended that is not there")
+		}
+	})
+	t.Run("set: the sentence, and no warning of one reader", func(t *testing.T) {
+		f := solo()
+		f.Store.Recovery = recovery
+		a := build(f)
+		if a.Recovery == nil || a.SingleReader != nil {
+			t.Fatalf("recovery %+v, single %+v", a.Recovery, a.SingleReader)
+		}
+		if !strings.Contains(a.Recovery.Text, "any 2 of 3 shares rebuild the recovery key (x25519:QQQQQQ…)") || a.Recovery.Warning != "" {
+			t.Errorf("recovery %+v", a.Recovery)
+		}
+		if suggestion(*a, "set-recovery") != nil || suggestion(*a, "fix-recovery") != nil {
+			t.Error("a card for a recovery that holds")
+		}
+	})
+	t.Run("a lock that does not hold its check: the page offers to mend it", func(t *testing.T) {
+		f := solo()
+		bad := *recovery
+		bad.Unverified = []string{"g1"}
+		f.Store.Recovery = &bad
+		a := build(f)
+		if a.Recovery == nil || !strings.Contains(a.Recovery.Warning, "does not hold its check") {
+			t.Fatalf("recovery %+v", a.Recovery)
+		}
+		if suggestion(*a, "fix-recovery") == nil {
+			t.Error("no card to mend it")
+		}
+	})
+	t.Run("a lock is missing and the file differs: the page offers to mend it", func(t *testing.T) {
+		f := solo()
+		bad := *recovery
+		bad.Locked, bad.Groups, bad.File = false, []string{"g1"}, "differs"
+		f.Store.Recovery = &bad
+		a := build(f)
+		if a.Recovery == nil || !strings.Contains(a.Recovery.Warning, "missing from g1") || !strings.Contains(a.Recovery.Warning, "name different recovery keys") {
+			t.Fatalf("recovery %+v", a.Recovery)
+		}
+		s := suggestion(*a, "fix-recovery")
+		if s == nil || s.Why != a.Recovery.Warning || stepTexts(s, "command")[0] != "pravo protect rewrap" {
+			t.Errorf("suggestion %+v", s)
+		}
+	})
+	t.Run("a reader who is not one is told how the recovery opens the state", func(t *testing.T) {
+		f := sealedFacts()
+		f.Store.Recovery = recovery
+		f.You = &YouFacts{State: "not-reader", Name: "gus", Key: "x25519:" + strings.Repeat("G", 43)}
+		a := build(f)
+		s := suggestion(*a, "identity")
+		if s == nil {
+			t.Fatal("no identity card")
+		}
+		cmds := stepTexts(s, "command")
+		if got := cmds[len(cmds)-1]; got != "pravo protect recover --share <share-file> --share <share-file>" {
+			t.Errorf("commands %q", cmds)
+		}
+	})
 }

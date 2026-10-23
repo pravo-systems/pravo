@@ -583,6 +583,9 @@ type Access struct {
 	// their key, since there is no recovery recipient. The page shows it under the
 	// readers.
 	SingleReader *AccessWarning `json:"single_reader,omitempty"`
+	// Recovery is the recovery recipient of the state: any K of N shares rebuild
+	// its key. It is absent when the state has none.
+	Recovery *AccessRecovery `json:"recovery,omitempty"`
 	// LastChange is the newest entry of the history of the seal.
 	LastChange  *AccessChange `json:"last_change,omitempty"`
 	Suggestions []Suggestion  `json:"suggestions"`
@@ -676,6 +679,19 @@ type AccessMigration struct {
 	By      string    `json:"by"`
 	Done    int       `json:"done"`
 	Total   int       `json:"total"`
+}
+
+// AccessRecovery says how the recovery of a sealed state stands. Text is the
+// sentence the page shows. Warning is set when the recovery does not hold: a group
+// has no lock for its key, or the recovery file of the repository says another
+// thing.
+type AccessRecovery struct {
+	K        int    `json:"k"`
+	N        int    `json:"n"`
+	Key      string `json:"key"`
+	KeyShort string `json:"key_short"`
+	Text     string `json:"text"`
+	Warning  string `json:"warning,omitempty"`
 }
 
 // AccessWarning is a risk of the state, in a sentence, with the suggestion that

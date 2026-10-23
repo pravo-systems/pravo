@@ -145,7 +145,25 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 	two.Current = "g2"
 	older := sealedProtection(&two, reader)
 	older.ByGroup = map[string]int{"g1": 2, "g2": 2}
+	// A state with a recovery of 2 of 3 shares, and one whose group lost the lock.
+	recMeta, recKeys, err := protect.NewMeta("lineage", readers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovery, _, err := protect.NewRecovery(2, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := recMeta.SetRecovery(recKeys, recovery, false); err != nil {
+		t.Fatal(err)
+	}
+	brokenMeta := *recMeta
+	brokenMeta.Groups = slices.Clone(recMeta.Groups)
+	brokenMeta.Groups[0].Locks = brokenMeta.Groups[0].Locks[:len(brokenMeta.Groups[0].Locks)-1]
 	scenes := []scene{
+		{name: "sealed, a recovery", s3: true, file: readers, prot: sealedProtection(recMeta, reader)},
+		{name: "sealed, a recovery that does not hold", s3: true, file: readers, prot: sealedProtection(&brokenMeta, reader)},
+		{name: "sealed, a recovery, no identity", s3: true, file: readers, prot: sealedProtection(recMeta, state.You{State: "no-identity"}), locked: true},
 		{name: "not sealed, a local directory", prot: state.Protection{State: "off", Format: 1}},
 		{name: "not sealed, a bucket", s3: true, prot: state.Protection{State: "off", Format: 1}},
 		{name: "not sealed, a bucket, readers listed", s3: true, file: readers, prot: state.Protection{State: "off", Format: 1}},
@@ -212,7 +230,7 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 	if checked < 20 && findSub(newRootCmd(), "protect") != nil {
 		t.Errorf("only %d pravo commands were checked", checked)
 	}
-	for _, id := range []string{"seal", "check-downgrade", "finish", "identity", "rewrap", "add-reader", "remove-reader", "reseal", "prune", "status"} {
+	for _, id := range []string{"seal", "check-downgrade", "finish", "identity", "rewrap", "add-reader", "remove-reader", "set-recovery", "fix-recovery", "reseal", "prune", "status"} {
 		if !seen[id] {
 			t.Errorf("no scene offered the suggestion %s", id)
 		}

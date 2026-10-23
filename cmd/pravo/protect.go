@@ -46,7 +46,9 @@ decides who may read.
 init --encrypt" stores every record as an immutable object and encrypts the
 attributes, the outputs, the stored plans and the values in command lines to
 the readers. "protect status" says where things stand. "protect rewrap" brings
-the keys in line with the readers file after a reader is added or removed.
+the keys in line with the readers file after a reader is added or removed, and sets
+the recovery recipient. "protect recover" opens a state with the shares of its
+recovery key when no reader can.
 "protect gc" deletes the records that no pointer names, and the reader groups
 that nothing is sealed in any more.`,
 		Args: noArgs,
@@ -54,7 +56,7 @@ that nothing is sealed in any more.`,
 	}
 	pf := cmd.PersistentFlags()
 	pf.StringVar(&flagAccessDir, "access-dir", "", accessDirUsage)
-	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectGCCmd())
+	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRecoverCmd(), protectGCCmd())
 	return cmd
 }
 
@@ -389,9 +391,14 @@ func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
 	default:
 		added, removed := readersDiff(prot, rf)
 		if len(added) == 0 && len(removed) == 0 {
-			return nil
+			// The readers agree; the recovery recipient of the repository must too.
+			problem, code = recoveryProblem(prot, rf)
+			break
 		}
 		problem = fmt.Sprintf("%s and the state differ (%s). Run pravo protect rewrap.", rf.shown(), diffText(added, removed))
+	}
+	if problem == "" {
+		return nil
 	}
 	if write {
 		return engine.WithCode(code, errors.New(problem))
@@ -668,6 +675,7 @@ func versionLess(a, b string) bool {
 
 func protectInitCmd() *cobra.Command {
 	var encrypt, yes, allowLocal bool
+	var recovery string
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Seal the state to the readers in the readers file",
@@ -683,6 +691,12 @@ terminal and without --yes it refuses to ask. It does not run while a command is
 running or a lock is held. It needs an identity that is on the readers file,
 because sealing to a list that you are not on would lock you out.
 
+--recovery K/N also sets a recovery recipient: a key that is split into N shares,
+any K of which rebuild it, so that the state can be opened when every reader has
+lost their key. The shares are written to recovery-shares/ and the public key to
+the recovery file next to the readers file. Give each share to a different person,
+offline, and commit the recovery file; never commit the shares.
+
 A run that is interrupted leaves the state sealing; run it again to finish.
 
 Exit codes: 4 when a command is running or a lock is held, 5 when your identity
@@ -696,13 +710,14 @@ is not on the readers file, 6 when the readers file is missing or invalid.`,
 			if err != nil {
 				return err
 			}
-			return p.init(yes, allowLocal)
+			return p.init(yes, allowLocal, recovery)
 		},
 	}
 	f := cmd.Flags()
 	f.BoolVar(&encrypt, "encrypt", false, "seal the attributes, outputs and stored plans to the readers")
 	f.BoolVar(&yes, "yes", false, "do not ask for confirmation")
 	f.BoolVar(&allowLocal, "allow-local", false, "accept a state in a local directory that only you use")
+	f.StringVar(&recovery, "recovery", "", "also set a recovery recipient, as K/N: N shares, any K rebuild its key")
 	return cmd
 }
 
@@ -731,9 +746,17 @@ func atRest(st *state.Store) error {
 	return nil
 }
 
-func (p *protectRun) init(yes, allowLocal bool) error {
+func (p *protectRun) init(yes, allowLocal bool, recoverySpec string) error {
 	if err := p.refuseLocal(allowLocal); err != nil {
 		return err
+	}
+	var rec *protect.Recovery
+	var shares []protect.Share
+	if recoverySpec != "" {
+		var err error
+		if rec, shares, err = newRecovery(recoverySpec); err != nil {
+			return err
+		}
 	}
 	if err := p.rf.require(); err != nil {
 		return err
@@ -765,7 +788,13 @@ func (p *protectRun) init(yes, allowLocal bool) error {
 	prot := st.Protection()
 	if prot.State == "sealed" {
 		out.Printf("Already sealed (format %d). Use pravo protect rewrap to change the readers.\n", prot.Format)
+		if rec != nil {
+			out.Println(out.C(ui.Yellow, "--recovery was not applied. To set a recovery recipient on a sealed state: pravo protect rewrap --recovery "+fmt.Sprintf("%d/%d", rec.K, rec.N)))
+		}
 		return nil
+	}
+	if rec != nil && prot.State == "migrating" {
+		return errors.New("a seal was started and did not finish, and a run that finishes it does not set a recovery. Finish it with pravo protect init --encrypt, then run pravo protect rewrap --recovery " + fmt.Sprintf("%d/%d", rec.K, rec.N))
 	}
 	if err := atRest(st); err != nil {
 		return err
@@ -779,7 +808,12 @@ func (p *protectRun) init(yes, allowLocal bool) error {
 	out.Printf("  1  write %s as immutable objects  rec/<sha256>\n", counted(prot.Records, "record", "records"))
 	out.Printf("  2  encrypt their attributes and private data to %s (%s)\n", plural(len(p.rf.Readers), "reader", "readers"), names)
 	out.Println("  3  seal outputs.json, stored-plan values and the values in transaction command lines the same way")
-	out.Printf("  4  set the state to format %d. Earlier versions of pravo will refuse it\n", state.FormatSealed)
+	step := 4
+	if rec != nil {
+		out.Printf("  %d  add a recovery recipient: %d shares, any %d rebuild the key\n", step, rec.N, rec.K)
+		step++
+	}
+	out.Printf("  %d  set the state to format %d. Earlier versions of pravo will refuse it\n", step, state.FormatSealed)
 	if ok, err := confirm("Proceed?", yes); err != nil {
 		return err
 	} else if !ok {
@@ -800,12 +834,23 @@ func (p *protectRun) init(yes, allowLocal bool) error {
 	if st, _, _, err = p.open(b, true, true); err != nil {
 		return err
 	}
+	// The shares are written before the state is touched: a seal that lost them would
+	// leave a recovery lock that nobody can open.
+	var removeShares func()
+	if rec != nil {
+		if removeShares, err = writeShares(shares); err != nil {
+			return err
+		}
+	}
 	began := time.Now()
 	res, err := st.Upgrade(p.ctx, state.UpgradeOptions{
-		To: state.FormatSealed, Readers: p.rf.Readers, Identity: id, By: id.Name,
+		To: state.FormatSealed, Readers: p.rf.Readers, Identity: id, By: id.Name, Recovery: rec,
 		Plans: engine.NewPlanStoreFor(st).SealAll,
 	})
 	if err != nil {
+		if rec != nil {
+			p.afterFailure(rec, removeShares, loadRecoveryFile(p.rf))
+		}
 		return err
 	}
 	out.Println(out.C(ui.Green, fmt.Sprintf("%s sealed in %s", counted(res.Records, "record", "records"), elapsed(time.Since(began)))))
@@ -818,7 +863,26 @@ func (p *protectRun) init(yes, allowLocal bool) error {
 	out.Println()
 	out.Println("Commit the readers file. Writers read the list from git:")
 	out.Printf("  %s\n", p.rf.shown())
-	out.Println(out.C(ui.Yellow, "No recovery recipient. If every reader loses their key, the state cannot be read."))
+	rcf := loadRecoveryFile(p.rf)
+	if rec == nil {
+		// A run that was cut short after it set a recovery leaves it in the state.
+		if stored, ok := p.storedRecovery(); ok && stored != nil {
+			if !rcf.Found {
+				if err := writeRecoveryFile(rcf, stored); err != nil {
+					return fmt.Errorf("the state has a recovery recipient, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, stored.Line())
+				}
+			}
+			out.Printf("The state has a recovery recipient from an earlier run: any %d of %d shares rebuild its key. Commit %s.\n", stored.K, stored.N, rcf.shown())
+			return nil
+		}
+		out.Println(out.C(ui.Yellow, "No recovery recipient. If every reader loses their key, the state cannot be read."))
+		out.Println("Add one with: pravo protect rewrap --recovery 3/5")
+		return nil
+	}
+	if err := writeRecoveryFile(rcf, rec); err != nil {
+		return fmt.Errorf("the recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, rec.Line())
+	}
+	printShares(rec, shares, rcf)
 	return nil
 }
 
@@ -915,7 +979,11 @@ func (p *protectRun) status() error {
 		}
 	case prot.State == "sealed":
 		names := protectedNames(prot)
-		add("Sealed", fmt.Sprintf("on · format %d · %s (%s) · recovery none", prot.Format, plural(len(names), "reader", "readers"), nameList(names)))
+		recov := "recovery none"
+		if r := prot.Sealed.Recovery; r != nil {
+			recov = fmt.Sprintf("recovery %d of %d", r.K, r.N)
+		}
+		add("Sealed", fmt.Sprintf("on · format %d · %s (%s) · %s", prot.Format, plural(len(names), "reader", "readers"), nameList(names), recov))
 	case prot.State == "migrating":
 		done, total := 0, prot.Records
 		if m := prot.Migration; m != nil {
@@ -960,6 +1028,12 @@ func (p *protectRun) status() error {
 			add("You", "not a reader of this state (no identity found)")
 		}
 	}
+	recoveryFileState := ""
+	if prot.State == "sealed" && (prot.Sealed.Recovery != nil || loadRecoveryFile(rf).Found) {
+		var text string
+		text, recoveryFileState = recoveryStatusText(prot, rf)
+		add("Recovery", text)
+	}
 	add("Roles", "off")
 	txns, err := st.Transactions()
 	if err != nil {
@@ -991,6 +1065,10 @@ func (p *protectRun) status() error {
 		if sealed {
 			doc["you"] = prot.You.State
 			added, removed := readersDiff(prot, rf)
+			if r := prot.Sealed.Recovery; r != nil {
+				doc["recovery"] = map[string]any{"k": r.K, "n": r.N, "key": r.Key.String(), "file": recoveryFileState,
+					"locked": prot.Sealed.Status(nil).Recovery.Locked}
+			}
 			doc["readers_file"] = map[string]any{"path": rf.shown(), "found": rf.Found, "valid": rf.Found && rf.Err == nil, "matches": rf.Found && rf.Err == nil && len(added) == 0 && len(removed) == 0, "added": added, "removed": removed}
 		}
 		if err := emitJSON(doc); err != nil {
@@ -1037,7 +1115,8 @@ func protectedNames(prot state.Protection) []string {
 // ---------- protect rewrap ----------
 
 func protectRewrapCmd() *cobra.Command {
-	var all bool
+	var all, removeRecovery, yes bool
+	var recovery string
 	cmd := &cobra.Command{
 		Use:   "rewrap",
 		Short: "Bring the keys of the state in line with the readers file",
@@ -1053,6 +1132,16 @@ under the old key until then, and a copy of the state that was made before the
 removal still opens with the old key. --all seals every record, the outputs and
 the stored plans again under the new key now.
 
+--recovery K/N sets the recovery recipient of the state, or replaces it: a new key
+is split into N shares, any K of which rebuild it. The shares are written to
+recovery-shares/, and the public key to the recovery file next to the readers
+file. Give each share to a different person, offline, and commit the recovery
+file. A replaced recovery key opens nothing afterwards, and the old shares are
+worth nothing, so replacing or removing a recovery asks first (--yes does not).
+--remove-recovery takes the recovery out of the state. Without
+either, a recovery file that names a key that the state does not have is set in the
+state, and a recovery lock that is missing from a group is made again.
+
 It needs an identity that is a reader of the state, and the readers file.
 --all does not run while a command is running or a lock is held (exit 4).`,
 		Args: noArgs,
@@ -1061,14 +1150,28 @@ It needs an identity that is a reader of the state, and the readers file.
 			if err != nil {
 				return err
 			}
-			return p.rewrap(all)
+			return p.rewrap(all, recovery, removeRecovery, yes)
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "seal every record, the outputs and the stored plans again under the current key")
+	cmd.Flags().StringVar(&recovery, "recovery", "", "set or replace the recovery recipient, as K/N: N shares, any K rebuild its key")
+	cmd.Flags().BoolVar(&removeRecovery, "remove-recovery", false, "take the recovery recipient out of the state")
+	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before a recovery is replaced or removed")
 	return cmd
 }
 
-func (p *protectRun) rewrap(all bool) error {
+func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes bool) error {
+	if recoverySpec != "" && removeRecovery {
+		return errors.New("set the recovery or remove it, not both")
+	}
+	var newRec *protect.Recovery
+	var shares []protect.Share
+	if recoverySpec != "" {
+		var err error
+		if newRec, shares, err = newRecovery(recoverySpec); err != nil {
+			return err
+		}
+	}
 	b, err := p.backend(true)
 	if err != nil {
 		return err
@@ -1088,13 +1191,33 @@ func (p *protectRun) rewrap(all bool) error {
 		return err
 	}
 	added, removed := readersDiff(prot, p.rf)
-	if len(added) == 0 && len(removed) == 0 && !all {
+	// Without a flag the repository decides: a recovery file that names a key that
+	// the state does not have is set in the state, without new shares.
+	rcf := loadRecoveryFile(p.rf)
+	setRec, fromFile := newRec, false
+	if setRec == nil && !removeRecovery && rcf.Found {
+		if rcf.Err != nil {
+			return engine.WithCode(engine.ExitInvalid, fmt.Errorf("%s: %s", rcf.shown(), rcf.Err))
+		}
+		if !rcf.Rec.Equal(prot.Sealed.Recovery) {
+			setRec, fromFile = rcf.Rec, true
+		}
+	}
+	removing := removeRecovery && prot.Sealed.Recovery != nil
+	// A recovery file that the state has no recovery for is the repository's mistake: it goes.
+	fileRemoving := removeRecovery && !removing && rcf.Found
+	if len(added) == 0 && len(removed) == 0 && !all && setRec == nil && !removing && !fileRemoving && len(prot.RecoveryUnverified) == 0 {
+		if removeRecovery && !flagJSON {
+			out.Println("The state has no recovery recipient, and there is no recovery file.")
+			return nil
+		}
 		if flagJSON {
 			return emitJSON(map[string]any{"added": nil, "removed": nil, "new_group": "", "resealed": 0})
 		}
 		out.Println("The store already matches the readers file.")
 		return nil
 	}
+	replacing := newRec != nil && prot.Sealed.Recovery != nil
 	if all {
 		// --all deletes the records that nothing names; a writer that is half way
 		// through a write has made one and not yet named it.
@@ -1102,19 +1225,85 @@ func (p *protectRun) rewrap(all bool) error {
 			return err
 		}
 	}
+	if replacing || removing {
+		what := "The recovery key will be replaced"
+		if removing {
+			what = "The recovery recipient will be removed"
+		}
+		out.Printf("%s (%d of %d shares, key %s). The shares that were given out open nothing that is written from now on.\n",
+			what, prot.Sealed.Recovery.K, prot.Sealed.Recovery.N, prot.Sealed.Recovery.Key.Short())
+		if ok, err := confirm("Proceed?", yes); err != nil {
+			return err
+		} else if !ok {
+			return errors.New("protect rewrap cancelled; nothing was written")
+		}
+	}
+	var removeShares func()
+	if newRec != nil {
+		if removeShares, err = writeShares(shares); err != nil {
+			return err
+		}
+	}
 	began := time.Now()
 	res, err := st.Rewrap(p.ctx, state.RewrapOptions{
-		Readers: p.rf.Readers, All: all, By: id.Name,
+		Readers: p.rf.Readers, All: all, By: id.Name, Recovery: setRec, RemoveRecovery: removing,
+		GuardRecovery: setRec != nil || removing, RecoveryWas: prot.Sealed.Recovery,
 		Plans: engine.NewPlanStoreFor(st).ResealAll,
 	})
+	if err != nil && newRec != nil {
+		p.afterFailure(newRec, removeShares, rcf)
+	}
+	if errors.Is(err, state.ErrRecoveryChanged) {
+		return engine.WithCode(engine.ExitStale, errors.New("another command changed the recovery of the state while this ran, so nothing was set and any new shares were removed; run it again"))
+	}
 	if errors.Is(err, state.ErrChanged) {
 		return engine.WithCode(engine.ExitStale, errors.New("meta.json changed while rewrapping; run it again"))
 	}
 	if err != nil {
 		return err
 	}
+	// The files of the recovery are settled before anything is reported.
+	var recNote func()
+	var recJSON map[string]any
+	switch {
+	case newRec != nil:
+		if err := writeRecoveryFile(rcf, newRec); err != nil {
+			return fmt.Errorf("the new recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, newRec.Line())
+		}
+		recJSON = recoveryJSON("set", newRec, rcf, true)
+		if replacing {
+			recJSON["action"] = "replaced"
+		}
+		recNote = func() {
+			printShares(newRec, shares, rcf)
+			if replacing {
+				out.Println("The old shares open nothing that is written from now on. Collect them and destroy them.")
+			}
+		}
+	case fromFile:
+		recJSON = recoveryJSON("from_file", setRec, rcf, false)
+		recNote = func() {
+			out.Printf("Recovery recipient set from %s: key %s, any %d of %d shares rebuild its key.\n", rcf.shown(), setRec.Key.Short(), setRec.K, setRec.N)
+		}
+	case removing || fileRemoving:
+		if err := os.Remove(rcf.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		recJSON = recoveryJSON("removed", nil, rcf, false)
+		recNote = func() {
+			if removing {
+				out.Printf("Recovery removed. Commit the deletion of %s, and destroy the shares.\n", rcf.shown())
+			} else {
+				out.Printf("The state has no recovery recipient. Removed %s; commit the deletion.\n", rcf.shown())
+			}
+		}
+	}
 	if flagJSON {
-		return emitJSON(map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup, "resealed": res.Resealed, "plans_skipped": res.PlansSkipped})
+		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup, "resealed": res.Resealed, "plans_skipped": res.PlansSkipped}
+		if recJSON != nil {
+			j["recovery"] = recJSON
+		}
+		return emitJSON(j)
 	}
 	line := "Readers in " + p.rf.shown() + ": " + nameList(readerNames(p.rf.Readers))
 	if len(res.Change.Removed) > 0 {
@@ -1144,6 +1333,9 @@ func (p *protectRun) rewrap(all bool) error {
 		}
 	} else if len(res.Change.Added) > 0 || len(res.Change.Removed) == 0 {
 		out.Println(out.C(ui.Green, "meta.json updated"))
+	}
+	if recNote != nil {
+		recNote()
 	}
 	return nil
 }
