@@ -76,12 +76,17 @@ export class AccessView {
   // banner is the sentence for the state of the store, with its facts.
   banner(a, project) {
     const st = a.state === 'migrating' && a.migration && a.migration.unseal ? { cls: 'chg', label: 'unsealing in progress', ic: 'hold' } : STATE[a.state] || STATE.off;
+    // Four columns, in rows that go together: what the state is, where it is, and when and by what it was read.
+    const f = this.facts(project);
+    const take = (k) => f.find((x) => x && x.dataset.k === k) || null;
     const facts = [
-      h('li', null, h('span', { class: 'k' }, 'format'), h('b', null, String(a.format))),
-      h('li', null, h('span', { class: 'k' }, 'backend'), h('b', null, a.backend)),
-      h('li', { class: 'wide' }, h('span', { class: 'k' }, 'location'), h('code', null, a.location)),
-      ...this.facts(project),
-      a.last_change ? h('li', { class: 'wide', title: stamp(a.last_change.at) }, h('span', { class: 'k' }, 'last change'), h('b', null, a.last_change.text)) : null,
+      h('li', { 'data-k': 'format' }, h('span', { class: 'k' }, 'format'), h('b', null, String(a.format))),
+      h('li', { 'data-k': 'backend' }, h('span', { class: 'k' }, 'backend'), h('b', null, a.backend)),
+      take('records'), take('locks'),
+      h('li', { class: 'wide', 'data-k': 'location' }, h('span', { class: 'k' }, 'location'), h('code', null, a.location)),
+      take('lineage'),
+      take('pravo'), take('read'),
+      a.last_change ? h('li', { class: 'wide', title: stamp(a.last_change.at), 'data-k': 'change' }, h('span', { class: 'k' }, 'last change'), h('b', null, a.last_change.text)) : null,
     ];
     return h('section', { class: `ac-banner st-${a.state}` },
       h('div', { class: 'ac-bhead' }, h('h2', { id: 'ac-h-state', class: 'ac-title' }, 'State'),
@@ -106,11 +111,11 @@ export class AccessView {
     if (!p) return [];
     const st = p.state || {};
     return [
-      st.records !== undefined ? h('li', null, h('span', { class: 'k' }, 'records'), h('b', null, fmt(st.records))) : null,
-      h('li', null, h('span', { class: 'k' }, 'locks'), h('b', null, String(st.locks || 0))),
-      st.lineage ? h('li', { class: 'wide' }, h('span', { class: 'k' }, 'lineage'), h('code', null, st.lineage)) : null,
-      p.version ? h('li', null, h('span', { class: 'k' }, 'pravo'), h('b', null, p.version)) : null,
-      p.loaded_at ? h('li', { title: stamp(p.loaded_at) }, h('span', { class: 'k' }, 'read'), h('b', null, relTime(p.loaded_at))) : null,
+      st.records !== undefined ? h('li', { 'data-k': 'records' }, h('span', { class: 'k' }, 'records'), h('b', null, fmt(st.records))) : null,
+      h('li', { 'data-k': 'locks' }, h('span', { class: 'k' }, 'locks'), h('b', null, String(st.locks || 0))),
+      st.lineage ? h('li', { class: 'wide', 'data-k': 'lineage' }, h('span', { class: 'k' }, 'lineage'), h('code', null, st.lineage)) : null,
+      p.version ? h('li', { 'data-k': 'pravo' }, h('span', { class: 'k' }, 'pravo'), h('b', null, p.version)) : null,
+      p.loaded_at ? h('li', { title: stamp(p.loaded_at), 'data-k': 'read' }, h('span', { class: 'k' }, 'read'), h('b', null, relTime(p.loaded_at))) : null,
     ];
   }
 
