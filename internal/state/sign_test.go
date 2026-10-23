@@ -224,3 +224,117 @@ func TestSignaturesSurviveConversions(t *testing.T) {
 		t.Errorf("after the unseal: %+v", v)
 	}
 }
+
+// A transaction that is running holds what the start signed and nothing else: the outcome is
+// signed by the end, so a running transaction with one is not what any signer wrote.
+func TestARunningTransactionHoldsNothingThatOnlyTheEndSigns(t *testing.T) {
+	skipWhenSealed(t)
+	b := testBackends()[0].make(t)
+	ada, dan := testIdentity(t, "ada"), testIdentity(t, "dan")
+	s := sealedStore(t, b, ada, dan)
+	readers := readersOf(ada, dan)
+	good := txnOf(t, s, run(t, s, "applied", ""))
+	for name, f := range map[string]func(*Transaction){
+		"finished flipped back to running": func(x *Transaction) { x.Status, x.Finished = "running", nil },
+		"changes added to a running one":   func(x *Transaction) { x.Status, x.Finished, x.FinishSig = "running", nil, nil },
+		"a summary on a running one": func(x *Transaction) {
+			x.Status, x.Finished, x.FinishSig, x.Changes, x.Summary = "running", nil, nil, nil, "forged"
+		},
+		"the end signed by another key": func(x *Transaction) {
+			sig, err := dan.SignMessage(protect.DomainTxnFinish, s.Lineage(), txnFinishParts(x)...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			x.FinishSig = &sig
+		},
+	} {
+		tx := good
+		tx.Changes = append([]Change(nil), good.Changes...)
+		f(&tx)
+		if v := VerifyTransaction(s.Lineage(), &tx, readers); v.Overall() != protect.SigInvalid {
+			t.Errorf("%s: %v", name, v.Overall())
+		}
+	}
+	// A run that is really running verifies.
+	r := s.Begin("apply", "pravo apply")
+	if err := r.Start(); err != nil {
+		t.Fatal(err)
+	}
+	got := txnOf(t, s, r.ID())
+	if v := VerifyTransaction(s.Lineage(), &got, readers); v.Overall() != protect.SigVerified {
+		t.Errorf("a run: %v", v.Overall())
+	}
+	// The trace link is covered.
+	tr := good
+	tr.TraceID = "elsewhere"
+	if v := VerifyTransaction(s.Lineage(), &tr, readers); v.Overall() != protect.SigInvalid {
+		t.Errorf("trace id: %v", v.Overall())
+	}
+}
+
+// A field that is not valid UTF-8 is stored as U+FFFD, and the signature covers what is stored.
+func TestATransactionWithBytesThatAreNotTextStillVerifies(t *testing.T) {
+	skipWhenSealed(t)
+	b := testBackends()[0].make(t)
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	tx := s.Begin("apply", "pravo apply --reason caf\xe9\xff\xfe")
+	tx.t.Reason = "caf\xe9"
+	tx.t.Host = "h\xc3"
+	if err := tx.Start(); err != nil {
+		t.Fatal(err)
+	}
+	tx.Record("net.vpc\xff", "update", 1, 2)
+	if err := tx.Finish("applied", "done", true); err != nil {
+		t.Fatal(err)
+	}
+	got := txnOf(t, s, tx.ID())
+	if v := VerifyTransaction(s.Lineage(), &got, readersOf(ada)); v.Overall() != protect.SigVerified {
+		t.Errorf("verdict %v", v.Overall())
+	}
+}
+
+// With a hook, an end that cannot be signed is a warning and the command does not fail.
+func TestAnEndThatCannotBeSignedIsAWarningWhenThereIsAHook(t *testing.T) {
+	skipWhenSealed(t)
+	b := testBackends()[0].make(t)
+	pubOnly := testIdentity(t, "src")
+	agent, err := protect.NewIdentity("ben", "ssh-ed25519 "+protect.SSHBlob(pubOnly.SignPub))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer agent.Close()
+	ada := testIdentity(t, "ada")
+	sealedStore(t, b, ada, agent)
+	old := protect.DialAgentFunc
+	defer func() { protect.DialAgentFunc = old }()
+	protect.DialAgentFunc = func() (io.ReadWriteCloser, error) { return nil, errors.New("no agent") }
+	ben := openIdentity(t, b, agent)
+	var warned string
+	ben.SetWarn(func(m string) { warned = m })
+	tx := ben.Begin("apply", "pravo apply")
+	tx.Record("net.vpc", "update", 1, 2)
+	if err := tx.Finish("applied", "done", true); err != nil {
+		t.Fatalf("Finish = %v", err)
+	}
+	if !strings.Contains(warned, "without a signature") {
+		t.Errorf("warned %q", warned)
+	}
+}
+
+// A copy of a transaction under another name is not another transaction.
+func TestACopyOfATransactionIsNotListedTwice(t *testing.T) {
+	skipWhenSealed(t)
+	b := testBackends()[0].make(t)
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	id := run(t, s, "applied", "")
+	data, _ := s.b.Get(context.Background(), "txn/"+id+".json")
+	if err := s.b.Put(context.Background(), "txn/zzzz.json", data); err != nil {
+		t.Fatal(err)
+	}
+	txns, err := s.Transactions()
+	if err != nil || len(txns) != 1 {
+		t.Errorf("%d transactions, %v", len(txns), err)
+	}
+}

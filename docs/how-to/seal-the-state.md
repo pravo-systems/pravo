@@ -39,7 +39,7 @@ keywords: "encrypt seal secrets readers identity access rewrap leaked bucket bac
 A state holds the attributes of every resource: passwords, keys and tokens that a provider returned. Anyone who can read the bucket can read them. This page seals the state, so that the bucket, a backup or an old version of an object shows addresses and types and no value. A list of readers, kept in the repository, decides who can open it.
 
 > [!NOTE]
-> Every command below runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000, and the three people are three directories on one machine. The state is created with `pravo state import-tfstate` so that the page needs no provider. Sealing stops at format 3: there are no roles and no signatures, and [what sealing protects](../concepts/sealed-state.md) says what that leaves open.
+> Every command below runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000, and the three people are three directories on one machine. The state is created with `pravo state import-tfstate` so that the page needs no provider. Sealing stops at format 3: there are no roles, and [what sealing protects](../concepts/sealed-state.md) says what that leaves open.
 
 ## 1. Make an identity
 

@@ -931,6 +931,7 @@ func (ps *PlanStore) ReadFile(ctx context.Context, id string) (*PlanFile, *PlanP
 		}
 		return nil, nil, fmt.Errorf("the plan %s is not the plan that its name says: %w", id, state.ErrUntrusted)
 	}
+	digest := PlanDigest(plain)
 	pf, err := parsePlanFile(id, plain)
 	if wasSealed {
 		clear(plain)
@@ -938,6 +939,7 @@ func (ps *PlanStore) ReadFile(ctx context.Context, id string) (*PlanFile, *PlanP
 	if err != nil {
 		return nil, nil, err
 	}
+	pf.Digest = digest
 	pf.Unsealed = !wasSealed && ps.sealer() != nil
 	pr, err := ps.Progress(ctx, id)
 	if err != nil {

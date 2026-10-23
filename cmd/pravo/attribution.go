@@ -18,6 +18,7 @@ import (
 // attributionReaders returns the readers a signature is checked against, and whether
 // there are any to check against.
 func attributionReaders(rf readersFile) ([]protect.Reader, bool) {
+	// (see notChecked for what to say when this is false)
 	if !rf.Found || rf.Err != nil {
 		return nil, false
 	}
@@ -94,9 +95,12 @@ type sigStatusJSON struct {
 }
 
 func sigJSON(v state.TxnVerdict) *sigStatusJSON {
-	s := &sigStatusJSON{Status: strings.ReplaceAll(v.Overall().String(), " ", "_"), Signer: v.Signer, Claimed: v.Claimed}
-	if v.Overall() == protect.SigVerified {
-		s.Claimed = ""
+	s := &sigStatusJSON{Status: v.Overall().Key()}
+	switch v.Overall() {
+	case protect.SigVerified:
+		s.Signer = v.Signer
+	case protect.SigUnknownKey, protect.SigInvalid:
+		s.Claimed = v.Claimed
 	}
 	return s
 }
@@ -120,9 +124,10 @@ func storedPlanSignatures(ctx context.Context, s *session, id string) ([]engine.
 	if err != nil {
 		return nil, ""
 	}
-	readers, ok := attributionReaders(loadReadersFile(root.Dir, flagAccessDir))
+	rf := loadReadersFile(root.Dir, flagAccessDir)
+	readers, ok := attributionReaders(rf)
 	if !ok {
-		return nil, "not checked: the readers file is needed to check them"
+		return nil, notChecked(rf)
 	}
 	sigs, err := engine.NewPlanStoreFor(s.state).Signatures(ctx, id, readers)
 	switch {
@@ -158,7 +163,7 @@ func planSigsText(sigs []engine.PlanVerdict) string {
 func planSigsJSON(sigs []engine.PlanVerdict, note string) any {
 	out := []map[string]any{}
 	for _, v := range sigs {
-		m := map[string]any{"status": strings.ReplaceAll(v.Status.String(), " ", "_")}
+		m := map[string]any{"status": v.Status.Key()}
 		if v.Signer != "" {
 			m["signer"] = v.Signer
 		} else if v.Claimed != "" {
@@ -174,4 +179,12 @@ func planSigsJSON(sigs []engine.PlanVerdict, note string) any {
 		doc["note"] = note
 	}
 	return doc
+}
+
+// notChecked says why the signatures are not checked: the readers file is missing or invalid.
+func notChecked(rf readersFile) string {
+	if rf.Found && rf.Err != nil {
+		return "not checked: the readers file is invalid"
+	}
+	return "not checked: the readers file is needed to check them"
 }

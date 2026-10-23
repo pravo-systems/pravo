@@ -3,7 +3,9 @@ package state
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pravo-systems/pravo/internal/protect"
 )
@@ -20,13 +22,27 @@ import (
 // does not say that nothing was deleted, replaced by an older copy or reordered:
 // that takes a ledger.
 
+// text is a field as the log stores it. The log is JSON, which replaces each byte that is
+// not valid UTF-8 by U+FFFD, so a signature that covered the raw bytes would not verify
+// after the transaction was read back. The signature covers the stored form.
+func text(s string) []byte {
+	if utf8.ValidString(s) {
+		return []byte(s)
+	}
+	var b strings.Builder
+	for _, r := range s {
+		b.WriteRune(r) // an invalid byte ranges as U+FFFD
+	}
+	return []byte(b.String())
+}
+
 // txnStartParts are the fields the first signature covers.
 func txnStartParts(t *Transaction) [][]byte {
 	return [][]byte{
-		[]byte(t.ID), []byte(t.Kind), []byte(t.Command), []byte(t.User), []byte(t.Host),
+		text(t.ID), text(t.Kind), text(t.Command), text(t.User), text(t.Host),
 		[]byte(t.Started.UTC().Format(time.RFC3339Nano)),
-		[]byte(t.Actor), []byte(t.Reason), []byte(t.GitRevision), []byte(t.Version),
-		[]byte(t.PlanID), []byte(t.PlanDigest),
+		text(t.Actor), text(t.Reason), text(t.GitRevision), text(t.Version),
+		text(t.PlanID), text(t.PlanDigest), text(t.TraceID),
 	}
 }
 
@@ -38,9 +54,9 @@ func txnFinishParts(t *Transaction) [][]byte {
 	if t.Finished != nil {
 		finished = t.Finished.UTC().Format(time.RFC3339Nano)
 	}
-	parts = append(parts, []byte(finished), []byte(t.Status), []byte(strconv.Itoa(len(t.Changes))))
+	parts = append(parts, []byte(finished), text(t.Status), []byte(strconv.Itoa(len(t.Changes))))
 	for _, c := range t.Changes {
-		parts = append(parts, []byte(c.Addr), []byte(c.Action), []byte(strconv.Itoa(c.Before)), []byte(strconv.Itoa(c.After)))
+		parts = append(parts, text(c.Addr), text(c.Action), []byte(strconv.Itoa(c.Before)), []byte(strconv.Itoa(c.After)))
 	}
 	return parts
 }
@@ -116,13 +132,22 @@ type TxnVerdict struct {
 	Signer, Claimed string
 	// Finished is set when the transaction records an end.
 	Finished bool
+	// Altered is set when the transaction is not what a signer could have signed in the
+	// state it claims: a run that has not finished carries an outcome, or the two
+	// signatures are by different keys.
+	Altered bool
 }
 
 // Overall is the one status a listing shows: the worst of the signatures that the
-// transaction should have. A transaction that is still running is judged by its start; one
-// that has finished is judged by both, and a finish with no signature is unsigned, since
-// the status and the changes it records are not covered by the start.
+// transaction should have. A transaction that is still running is judged by its start,
+// and must hold nothing that only the end signs; one that has finished is judged by both,
+// and a finish with no signature is unsigned, since the status and the changes it records
+// are not covered by the start. Two signatures by different keys are invalid, since a
+// transaction is the work of one identity.
 func (v TxnVerdict) Overall() protect.SigStatus {
+	if v.Altered {
+		return protect.SigInvalid
+	}
 	rank := func(s protect.SigStatus) int {
 		switch s {
 		case protect.SigInvalid:
@@ -135,7 +160,9 @@ func (v TxnVerdict) Overall() protect.SigStatus {
 		return 0
 	}
 	worst := v.Start
-	if v.Finished && rank(v.Finish) > rank(worst) {
+	// A signature on the end counts when it is there, finished or not: a run that is
+	// running has none.
+	if (v.Finished || v.Finish != protect.SigUnsigned) && rank(v.Finish) > rank(worst) {
 		worst = v.Finish
 	}
 	return worst
@@ -154,6 +181,12 @@ func VerifyTransaction(lineage string, t *Transaction, readers []protect.Reader)
 	v.Finish, name = protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, lineage, txnFinishParts(t)...)
 	if v.Signer == "" {
 		v.Signer = name
+	}
+	if !v.Finished && (len(t.Changes) > 0 || t.Summary != "" || t.SummarySealed != nil) {
+		v.Altered = true // the start was signed before there was an outcome to sign
+	}
+	if t.StartSig != nil && t.FinishSig != nil && t.StartSig.Key != t.FinishSig.Key {
+		v.Altered = true
 	}
 	return v
 }
@@ -175,4 +208,18 @@ func (s *Store) SignMessage(domain string, parts ...[]byte) (protect.Signature, 
 		return protect.Signature{}, false, fmt.Errorf("signing: %w", err)
 	}
 	return sig, true, nil
+}
+
+// SetWarn sets the function that receives a warning that a command is to show its user: the
+// end of a transaction that could not be signed. A store without one returns that as an error.
+func (s *Store) SetWarn(f func(string)) {
+	s.mu.Lock()
+	s.warn = f
+	s.mu.Unlock()
+}
+
+func (s *Store) warnFunc() func(string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.warn
 }

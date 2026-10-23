@@ -415,3 +415,8 @@
 
 :root[data-motion="off"] .ibody.in > *, :root[data-motion="off"] .bars .bt i { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .ibody.in > *, .bars .bt i { animation: none !important; } }
+
+/* The signatures of a transaction in the history of a node. */
+.tl-meta .sigmark.sig-verified { color: var(--accent); }
+.tl-meta .sigmark.sig-key_not_in_file, .tl-meta .sigmark.sig-unsigned { color: var(--text-3); font-style: italic; }
+.tl-meta .sigmark.sig-invalid { color: var(--conflict); font-weight: 600; }

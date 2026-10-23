@@ -144,13 +144,13 @@ A passphrase is asked for on the terminal without echo. Without a terminal it is
 
 ## Signatures
 
-In a sealed state every transaction is signed by the identity that ran the command, and every stored plan is signed by the identity that stored it. The signing key is the second field of the identity's line in the readers file. A signature is trusted when its key is in the readers file of the repository, which a writer of the bucket cannot change, so the readers file is the whole key set: there is no other file. A state that is not sealed has no signatures.
+In a sealed state every transaction is signed by the identity that ran the command, and every stored plan is signed by the identity that stored it. The signing key is the second field of the identity's line in the readers file. A signature is trusted when its key is in the readers file of the repository, which a writer of the bucket cannot change, so the readers file is the whole key set: there is no other file. A state that is not sealed gets no new signatures. One that was unsealed keeps those it has, which are checked only when a readers file is there.
 
-**What is signed.** A transaction is signed twice, under the domain tags `pravo/v1/txn-start` and `pravo/v1/txn-finish`, together with the lineage of the state:
+**What is signed.** What a key signs is a fixed prefix and the SHA-256 of the message below, so that an ssh-agent, which refuses large requests, gets the same few bytes for a transaction with ten changes and one with ten thousand. A text field is signed as the log stores it, with each byte that is not valid UTF-8 as U+FFFD. A transaction is signed twice, under the domain tags `pravo/v1/txn-start` and `pravo/v1/txn-finish`, together with the lineage of the state:
 
 | Signature | Covers |
 |---|---|
-| Start | The id, kind, command, user, host, start time, actor, reason, git revision, version and, for an apply, the id and the SHA-256 of the plan file. |
+| Start | The id, kind, command, user, host, start time, actor, reason, git revision, trace id, version and, for an apply, the id and the SHA-256 of the plan file. |
 | Finish | The same, and the end time, the status and each change: address, action and the two revisions. |
 
 A run that is killed leaves the first signature, which attributes what it set out to do. The text of the error of a run that failed is not covered, because sealing, a rewrap and an unseal rewrite it. A stored plan has a signature of its own, in the object `plans/<id>.sig-<key>.json`, over the SHA-256 of the plan file and the time. The object is created and never replaced, so a second person who stores the same plan adds a signature. It holds no digest: a reader recomputes it from the plan, and the object holds nothing that a guess of the plan could be checked against. It does not cover the summary.
@@ -162,11 +162,11 @@ A run that is killed leaves the first signature, which attributes what it set ou
 | `verified` | A key in the readers file made the signature of this content. | |
 | `key not in the file` | The key is not listed: a member who has left, or a key that never was. The transaction shows the name that the signature gives itself. | Reported. Not an error, since every departure would otherwise turn the history red. |
 | `unsigned` | No signature: written before signatures, or by a run that could not sign its end. A finished transaction with no signature on its end is unsigned even if its start is signed. | Reported. |
-| `invalid` | The key is listed and the signature is not its signature of this content: the transaction was changed. | `state log` and `protect status` exit with 7 and say which transaction. |
+| `invalid` | The key is listed and the signature is not its signature of this content: the transaction was changed. So is a transaction that is still running and holds an outcome that only the end signs, and one whose two signatures are by different keys. | `state log` and `protect status` exit with 7 and say which transaction. |
 
-Without a readers file nothing is checked, and the listings say so. A signature that is not verified is a label: a member who has left leaves signatures that are verified only against a copy of the readers file from the time, which git has.
+Without a readers file, or with one that is invalid, nothing is checked, and `state log`, `plan show` and `protect status` say so. The JSON listings omit the signature. Exit code 7 catches a change that leaves the signatures in place. Someone who writes to the bucket can remove both signatures, and the transaction then shows as unsigned, or give them a key that is not listed, which shows as `key not in the file`: the listings count both, and neither is an error. A signature that is not verified is a label: a member who has left leaves signatures that are verified only against a copy of the readers file from the time, which git has.
 
-**When signing fails.** A run that cannot sign its start, because its identity signs through an ssh-agent that is not reachable or does not hold the key, is refused before it changes anything. A run that cannot sign its end has already changed the infrastructure: the transaction is recorded without the second signature, and the command says so. A plan that cannot be signed is not stored. An invalid signature on a stored plan is shown and does not stop an apply, since anyone who can write to the bucket can add objects to it.
+**When signing fails.** A command that changes the state, an apply, a destroy, an import or a state edit, and cannot sign its start, because its identity signs through an ssh-agent that is not reachable or does not hold the key, is refused before it changes anything. A plan that refreshes records is signed when it ends. A run that cannot sign its end has already changed the infrastructure: the transaction is recorded without the second signature, and the command prints a warning and does not fail, since a failure would have a caller treat an apply that was done as one that was not. The agent is waited for 90 seconds, which a touch needs. A plan that cannot be signed is not stored. An invalid signature on a stored plan is shown and does not stop an apply, since anyone who can write to the bucket can add objects to it.
 
 **What it does not cover.**
 
@@ -203,7 +203,7 @@ A command that writes a sealed state compares the recovery file with the state, 
 
 A recovery file that does not load stops a command that writes with exit code 6. A command that only reads prints the same text as a warning.
 
-Setting a recovery is a decision about trust. K holders of shares can read the state together, and nothing delays them: there is no signature and no waiting time until roles exist. A recovery key that was used has been rebuilt on one machine, so replace it afterwards. The shares of a replaced key open nothing that is sealed from then on: replacing or removing the recovery makes a new data key, as removing a reader does, so a holder of old shares who kept a copy of the bucket opens what was in it and nothing written after. A reader may not hold the recovery key: `rewrap` refuses a readers file that lists it.
+Setting a recovery is a decision about trust. K holders of shares can read the state together, and nothing delays them: there is no waiting time and no approval until roles exist. A recovery key that was used has been rebuilt on one machine, so replace it afterwards. The shares of a replaced key open nothing that is sealed from then on: replacing or removing the recovery makes a new data key, as removing a reader does, so a holder of old shares who kept a copy of the bucket opens what was in it and nothing written after. A reader may not hold the recovery key: `rewrap` refuses a readers file that lists it.
 
 ## id new
 

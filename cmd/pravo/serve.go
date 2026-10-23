@@ -411,9 +411,5 @@ func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, 
 		return "", ""
 	}
 	verdict := state.VerifyTransaction(st.Lineage(), t, readers)
-	status := strings.ReplaceAll(verdict.Overall().String(), " ", "_")
-	if verdict.Overall() == protect.SigUnknownKey {
-		status = "key_not_in_file"
-	}
-	return status, verdict.Signer
+	return verdict.Overall().Key(), verdict.Signer
 }

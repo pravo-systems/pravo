@@ -1069,7 +1069,7 @@ func (p *protectRun) status() error {
 			sigs = &c
 			add("Signatures", c.text(len(txns)))
 		} else {
-			add("Signatures", "not checked: the readers file is needed to check them")
+			add("Signatures", notChecked(rf))
 		}
 	}
 	interrupted, err := st.Interrupted(txns)

@@ -290,7 +290,9 @@ A command that began before a reader was removed looks at `meta.json` again when
 
 ### What a signature covers
 
-A signature is Ed25519 over a message that is the domain tag, the lineage and the fields, each framed by its length as a little-endian 64-bit number, after the count of parts. The domains are `pravo/v1/txn-start`, `pravo/v1/txn-finish` and `pravo/v1/plan`, so that a signature made for one kind of event, or in one state, is valid nowhere else. The fields of a transaction are in the order of the table above, with the revisions as decimal numbers and times as UTC RFC 3339 with nanoseconds. A plan's signature has two fields: the SHA-256 of the plan file in hex, and the time.
+A signature is Ed25519 over a fixed prefix, `pravo/v1/signature` and a zero byte, and the SHA-256 of a message. The message is the count of its parts as a little-endian 64-bit number, and then each part framed by its length in the same way: the domain tag, the lineage of the state and the fields. The domains are `pravo/v1/txn-start`, `pravo/v1/txn-finish` and `pravo/v1/plan`, so that a signature made for one kind of event, or in one state, is valid nowhere else. A text field is the text as the log stores it, with each byte that is not valid UTF-8 as U+FFFD. Times are UTC RFC 3339 with nanoseconds, and numbers decimal.
+
+The fields of the start signature are, in this order: `id`, `kind`, `command`, `user`, `host`, `started`, `actor`, `reason`, `git_revision`, `version`, `plan`, `plan_digest`, `trace_id`. The finish signature has those, then `finished`, `status`, the number of changes, and for each change, in the order stored, `addr`, `action`, `before_revision` and `after_revision`. The fields of a plan's signature are the SHA-256 of the plan file in hex, and the time.
 
 ### What a sealed state does not protect
 
@@ -500,7 +502,7 @@ On a store that is not on this machine, the lock files rely on conditional reque
 
 ## Plans
 
-A stored plan is three objects. `pravo plan --store` writes the first two, and the third appears when an apply or a collection first touches the plan. The id is `plan-` and the first eight hexadecimal digits of the SHA-256 digest of the plan object. The id has more digits when two different plans share the first eight.
+A stored plan is three objects, and in a sealed state one more for each identity that stored it. `pravo plan --store` writes the first two, and the third appears when an apply or a collection first touches the plan. The id is `plan-` and the first eight hexadecimal digits of the SHA-256 digest of the plan object. The id has more digits when two different plans share the first eight.
 
 | Object | Written | Contents |
 |---|---|---|

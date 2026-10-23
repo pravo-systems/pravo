@@ -173,6 +173,8 @@ Output:
 
 Each entry has the identifier, the kind, the outcome, the start time and the duration. Below come the command line as it was run, the actor if any, a summary, and one line per node with the revision before and after. The log is evidence. It prevents nothing, and it is as writable as the state.
 
+In a sealed state each entry also says whether its signature verifies against the readers file: `signed by NAME (verified)`, `start signed by NAME (verified)` for a run that has not finished, `signed by NAME, whose key is not in the readers file`, `unsigned` or `the signature does not verify: the transaction was changed`. A signature that does not verify makes the command exit with 7, after the listing. With `--json` each entry has a `signature` object: `status` (`verified`, `key_not_in_file`, `unsigned` or `invalid`) and `signer` for a signature that verified, or `claimed` for the name a signature gives itself; the exit code is the same. See [Signatures](protect.md#signatures).
+
 An apply is `running` from the moment it holds its locks. When its command is killed, the record in the state keeps that status, and the log lists the apply as `interrupted` once no lock that is still live carries its transaction.
 
 ### mv and rm

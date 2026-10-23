@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -93,10 +94,63 @@ func (ps *PlanStore) putSignature(ctx context.Context, id string, sig *PlanSigna
 	if err != nil {
 		return err
 	}
-	if _, err := ps.B.PutIfAbsent(ctx, sigKey(id, signatureID(sig.Signature.Key)), enc); err != nil {
+	key := sigKey(id, signatureID(sig.Signature.Key))
+	ok, err := ps.B.PutIfAbsent(ctx, key, enc)
+	if err != nil {
+		return fmt.Errorf("storing the plan: %w", state.Advise(err))
+	}
+	if ok {
+		return nil
+	}
+	// An object is there already: this identity's own signature of an earlier storing, or
+	// something put under the name of its key by someone who writes to the bucket. Only the
+	// first is kept; the second would stand in the way of the real signature for good.
+	cur, err := ps.B.Get(ctx, key)
+	if errors.Is(err, state.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("storing the plan: %w", err)
+	}
+	var old PlanSignature
+	if len(cur) <= maxSigSize && json.Unmarshal(cur, &old) == nil && old.V == sigVersion && old.ID == id && old.Signature != nil && old.Signature.Key == sig.Signature.Key {
+		return nil
+	}
+	_, err = ps.B.ReplaceIf(ctx, key, func(c []byte) ([]byte, bool) { return enc, bytes.Equal(c, cur) })
+	if err != nil && !errors.Is(err, state.ErrNotFound) {
 		return fmt.Errorf("storing the plan: %w", state.Advise(err))
 	}
 	return nil
+}
+
+// collectOrphanSignatures removes the signature objects of plans that are gone: a collection
+// that stopped between its deletes, or a store that raced one. A signature that is young is
+// left alone, since its plan may be about to appear.
+func (ps *PlanStore) collectOrphanSignatures(ctx context.Context) {
+	all, err := ps.ids(ctx)
+	if err != nil {
+		return
+	}
+	for id, kinds := range all {
+		if !kinds["sig"] || kinds["plan"] || kinds["meta"] {
+			continue
+		}
+		keys, err := ps.sigObjects(ctx, id)
+		if err != nil {
+			continue
+		}
+		for _, k := range keys {
+			data, err := ps.B.Get(ctx, k)
+			if err != nil {
+				continue
+			}
+			var obj PlanSignature
+			if json.Unmarshal(data, &obj) == nil && ps.now().Sub(obj.At) < time.Hour && !obj.At.IsZero() {
+				continue
+			}
+			_, _ = ps.B.DeleteIf(ctx, k, func(c []byte) bool { return bytes.Equal(c, data) })
+		}
+	}
 }
 
 // sigObjects lists the keys of the signature objects of a plan.
@@ -177,7 +231,9 @@ func (ps *PlanStore) Signatures(ctx context.Context, id string, readers []protec
 			return nil, err
 		}
 		var obj PlanSignature
-		if len(data) > maxSigSize || json.Unmarshal(data, &obj) != nil || obj.V != sigVersion || obj.ID != id || obj.Signature == nil {
+		if len(data) > maxSigSize || json.Unmarshal(data, &obj) != nil || obj.V != sigVersion || obj.ID != id || obj.Signature == nil ||
+			k != sigKey(id, signatureID(obj.Signature.Key)) {
+			// An object under the name of another key is not that key's signature.
 			out = append(out, PlanVerdict{Status: protect.SigInvalid})
 			continue
 		}

@@ -808,9 +808,7 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	if err := eng.SetPolicies(policies); err != nil {
 		return err
 	}
-	if digest, err := ps.PlanDigest(ctx, id); err == nil {
-		eng.SetPlan(id, digest)
-	}
+	eng.SetPlan(id, pf.Digest)
 	mark := func(applied []string, txn string, pending []string, finished bool) error {
 		var err error
 		if finished {

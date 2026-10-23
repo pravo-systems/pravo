@@ -208,6 +208,9 @@ type Store struct {
 	// something other than an unseal. Such a record reads without its values, and a
 	// write over it would lose them.
 	strays []string
+	// warn receives what a command should tell its user and no more than that: the end of a
+	// transaction that could not be signed. Without it the error is returned.
+	warn func(string)
 	// index is derived from nodes: the addresses in order and the reverse edges.
 	// It is built by the first query that needs it and dropped by every change of
 	// the nodes. A built index is never changed, so a query reads it without the
@@ -1918,6 +1921,14 @@ func (t *Txn) FinishError(status, summary, full string, record bool) error {
 	if err := t.store.putJSON("txn/"+t.t.ID+".json", t.t); err != nil {
 		return err
 	}
+	if signErr != nil {
+		// The command has done its work. It reports the signature that is missing and does not
+		// fail for it, since a failure would have its caller treat the apply as not done.
+		if warn := t.store.warnFunc(); warn != nil {
+			warn(signErr.Error())
+			return nil
+		}
+	}
 	return signErr
 }
 
@@ -2003,7 +2014,9 @@ func (s *Store) Transactions() ([]Transaction, error) {
 			continue
 		}
 		var t Transaction
-		if json.Unmarshal(data, &t) == nil {
+		// A transaction is in the object that has its id: a copy under another name is
+		// not another transaction.
+		if json.Unmarshal(data, &t) == nil && k == "txn/"+t.ID+".json" {
 			if t.Changes == nil {
 				t.Changes = []Change{}
 			}

@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // txnIDs lists the ids of the transactions of the state, newest first.
@@ -92,6 +95,10 @@ func TestASignatureOfALeaverIsNotAFailure(t *testing.T) {
 	text, code = runPravo(t, s.dir, "--identity", "dan", "protect", "status")
 	if code != 0 || !strings.Contains(text, "1 of 2 transactions verified · 1 signed with a key that is not in the file") {
 		t.Fatalf("status: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, s.dir, "--identity", "dan", "state", "log", "--json")
+	if code != 0 || !strings.Contains(text, `"status": "key_not_in_file"`) || !strings.Contains(text, `"claimed": "ada"`) {
+		t.Fatalf("log --json: exit %d\n%s", code, text)
 	}
 }
 
@@ -188,5 +195,27 @@ func TestAStoredPlanShowsWhoSignedItAndAnApplyNamesIt(t *testing.T) {
 	text, _ = runPravo(t, dir, "--identity", "ada", "plan", "show", id)
 	if !strings.Contains(text, "ada (key not in the readers file)") {
 		t.Errorf("a leaver's plan:\n%s", text)
+	}
+}
+
+// A run that was killed leaves a transaction that state log calls interrupted; its start
+// signature still verifies, and it is not reported as unsigned.
+func TestAKilledRunStillShowsItsStartSignature(t *testing.T) {
+	s := sealedBucket(t)
+	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx := st.Begin("apply", "pravo apply")
+	if err := tx.Start(); err != nil {
+		t.Fatal(err)
+	}
+	text, code := runPravo(t, s.dir, "--identity", "ada", "state", "log")
+	if code != 0 || !strings.Contains(text, "interrupted") || !strings.Contains(text, "start signed by ada (verified)") {
+		t.Fatalf("log: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 0 || !strings.Contains(text, "1 of 1 transaction verified") {
+		t.Fatalf("status: exit %d\n%s", code, text)
 	}
 }

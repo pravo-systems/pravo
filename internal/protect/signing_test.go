@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"time"
 )
 
 func signer(t *testing.T, name string) *Identity {
@@ -149,5 +150,55 @@ func TestAnIdentityThatSignsThroughTheAgent(t *testing.T) {
 	DialAgentFunc = func() (io.ReadWriteCloser, error) { return nil, io.ErrClosedPipe }
 	if _, err := id.SignMessage(DomainTxnStart, "L1", []byte("t-9")); err == nil || !strings.Contains(err.Error(), "not reachable") {
 		t.Errorf("no agent: %v", err)
+	}
+}
+
+func TestAnAgentThatSignsWithAnotherKeyIsRefused(t *testing.T) {
+	pub, _, _ := ed25519.GenerateKey(rand.Reader)
+	_, other, _ := ed25519.GenerateKey(rand.Reader)
+	id, err := NewIdentity("ben", sshEd25519+" "+SSHBlob(pub))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer id.Close()
+	old := DialAgentFunc
+	defer func() { DialAgentFunc = old }()
+	DialAgentFunc = fakeAgent(t, other)
+	if _, err := id.SignMessage(DomainTxnStart, "L1", []byte("t")); err == nil || !strings.Contains(err.Error(), "does not verify") {
+		t.Errorf("an agent with another key: %v", err)
+	}
+}
+
+func TestAnAgentThatDoesNotAnswerIsGivenUp(t *testing.T) {
+	pub, _, _ := ed25519.GenerateKey(rand.Reader)
+	id, _ := NewIdentity("ben", sshEd25519+" "+SSHBlob(pub))
+	defer id.Close()
+	oldDial, oldWait := DialAgentFunc, AgentTimeout
+	defer func() { DialAgentFunc, AgentTimeout = oldDial, oldWait }()
+	AgentTimeout = 50 * time.Millisecond
+	DialAgentFunc = func() (io.ReadWriteCloser, error) {
+		c, s := net.Pipe()
+		go io.Copy(io.Discard, s) // reads the request and never answers
+		return c, nil
+	}
+	if _, err := id.SignMessage(DomainTxnStart, "L1", []byte("t")); err == nil || !strings.Contains(err.Error(), "did not answer") {
+		t.Errorf("a silent agent: %v", err)
+	}
+}
+
+func TestAMessageOfAnySizeGoesToTheAgentAsADigest(t *testing.T) {
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	id, _ := NewIdentity("ben", sshEd25519+" "+SSHBlob(pub))
+	defer id.Close()
+	old := DialAgentFunc
+	defer func() { DialAgentFunc = old }()
+	DialAgentFunc = fakeAgent(t, priv)
+	big := make([]byte, 1<<20)
+	sig, err := id.SignMessage(DomainTxnFinish, "L1", big)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := VerifySignature(&sig, []Reader{id.AsReader()}, DomainTxnFinish, "L1", big); st != SigVerified {
+		t.Errorf("verdict %v", st)
 	}
 }

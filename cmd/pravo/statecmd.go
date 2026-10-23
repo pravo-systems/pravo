@@ -146,6 +146,9 @@ func stateCmd() *cobra.Command {
 				return fmt.Errorf("%s is not in state", args[0])
 			}
 			txn := st.Begin("edit", "pravo state rm "+args[0])
+			if err := txn.Start(); err != nil {
+				return err
+			}
 			if _, err := st.Remove(args[0]); err != nil {
 				return err
 			}
@@ -189,6 +192,9 @@ func stateCmd() *cobra.Command {
 				}
 			}
 			txn := st.Begin("edit", "pravo state mv "+args[0]+" "+args[1])
+			if err := txn.Start(); err != nil {
+				return err
+			}
 			before := r.Revision
 			if _, err := st.Remove(args[0]); err != nil {
 				return err
@@ -233,6 +239,23 @@ func stateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Under a sealed state the signatures are checked against the readers file, on the
+			// transactions as they are stored: the status below is a reading of them.
+			readers, checked := []protect.Reader(nil), false
+			if prot := st.Protection(); prot.Sealed != nil {
+				if root, err := loadRoot(); err == nil {
+					readers, checked = attributionReaders(loadReadersFile(root.Dir, flagAccessDir))
+				}
+			}
+			verdicts := make([]state.TxnVerdict, len(txns))
+			invalid := 0
+			if checked {
+				for i := range txns {
+					if verdicts[i] = state.VerifyTransaction(st.Lineage(), &txns[i], readers); verdicts[i].Overall() == protect.SigInvalid {
+						invalid++
+					}
+				}
+			}
 			// A transaction that is recorded as running and whose command is gone was
 			// left by a command that was killed.
 			interrupted, err := st.Interrupted(txns)
@@ -250,21 +273,8 @@ func stateCmd() *cobra.Command {
 					txns[i].SummarySealed = nil
 				}
 			}
-			// Under a sealed state the signatures are checked against the readers file.
-			readers, checked := []protect.Reader(nil), false
-			if prot := st.Protection(); prot.Sealed != nil {
-				if root, err := loadRoot(); err == nil {
-					readers, checked = attributionReaders(loadReadersFile(root.Dir, flagAccessDir))
-				}
-			}
-			verdicts := make([]state.TxnVerdict, len(txns))
-			invalid := 0
-			if checked {
-				for i := range txns {
-					if verdicts[i] = state.VerifyTransaction(st.Lineage(), &txns[i], readers); verdicts[i].Overall() == protect.SigInvalid {
-						invalid++
-					}
-				}
+			if !checked && !flagJSON && st.Protection().Sealed != nil {
+				out.Println(out.C(ui.Dim, "Signatures are not checked: the readers file is missing or invalid."))
 			}
 			if flagJSON {
 				type view struct {
@@ -588,6 +598,9 @@ once.`,
 				return fmt.Errorf("%s already holds %d resources and %d outputs; use -force to replace them", st.Dir(), st.Len(), len(st.Outputs()))
 			}
 			txn := st.Begin("import", "pravo state import-tfstate "+args[0])
+			if err := txn.Start(); err != nil {
+				return err
+			}
 			if err := st.Clear(); err != nil {
 				return err
 			}
