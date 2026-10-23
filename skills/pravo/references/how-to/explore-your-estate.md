@@ -56,7 +56,7 @@ A graph of a hundred boxes is too much to read, so the page opens the estate at 
 
 *Figure: The platform with network and edge closed by a link. Each is one card with the number of its resources, and the arrows that cross them end at the cards.*
 
-Click a card to open the module. The view moves to it, and the Zoom out button, or Esc, closes it again and returns to the view that you had. To close an open module, click the arrow in the title of its lane, or double-click the title. Collapse all and Expand all act on every module, and `[` and `]` do the same from the keyboard. A selection inside a module that you close moves to the module. Reset view, or `0`, goes back to the first view: the modules that were open when the page loaded, no cluster open and the whole graph in the window.
+Click a card to open the module. The view moves to it, and the Zoom out button, or Esc, closes it again and returns to the view that you had. To close an open module, click the arrow in the title of its lane, or double-click the title. Collapse all and Expand all act on every module, and `[` and `]` do the same from the keyboard. A selection inside a module that you close moves to the module. `0` goes back to the first view: the modules that were open when the page loaded, no cluster open and the whole graph in the window.
 
 Closing hides detail and removes no resource. The sidebar still lists the resources of a closed module. Selecting one in the sidebar, in the palette or through the address opens the modules that hide it.
 

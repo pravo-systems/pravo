@@ -69,7 +69,7 @@ The viewer is one page with a bar, a sidebar, a graph with its toolbar, an inspe
 |---|---|
 | Bar | The project directory and the state location, each a button that copies the path. The two sections, Resources and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
 | Sidebar | Under the heading Show, the filter chips. Under Plans, the stored plans, when the state holds any. Under Modules, the project and the tree of modules with their resources. |
-| Toolbar | Of the Resources section: the switch Graph and Table, then Collapse all, Expand all and Reset view. The filter box, Filter by address or type, with the number of matches. The number of items shown, when it differs from the number of resources. The zoom buttons, minus, Fit and plus, and the button Hide the sidebars. |
+| Toolbar | Of the Resources section: the switch Graph and Table, then Collapse and Expand. The filter box, Filter by address or type, with the number of matches. The zoom buttons, minus, Fit and plus, and the button Hide the sidebars. |
 | Graph | The lanes of open modules, the cards of closed ones and the boxes of resources. The plan bar, while a stored plan is laid over the graph. The legend. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a module. |
 | Inspector | The project, a module or a resource. A resource has a strip of cells and the tabs. |
 | Status bar | In Resources: `no plan loaded`, or the id of a stored plan, `planned N of M` and the number `not read`. The revision. When the data was read. `live`, `reconnecting`, `offline` or `connecting`. `read-only · localhost only`. |
@@ -237,7 +237,7 @@ In the graph:
 | Enter | Open the selected card or cluster. On an open module or one of its resources, close the module. |
 | `f` | Fit the graph to the window. |
 | `w` | Hide or show the sidebars of the graph: the filter sidebar goes and the inspector shows only while something is selected. The bar and the status bar stay. Escape shows them again. The button next to the zoom buttons does the same. |
-| `0` | Go back to the first view: the modules that were open when the page loaded, no cluster open and the whole graph in the window. The selection stays when it still shows, and the filter stays. The Reset view button does the same. |
+| `0` | Go back to the first view: the modules that were open when the page loaded, no cluster open and the whole graph in the window. The selection stays when it still shows, and the filter stays. |
 | `+`, `-` | Zoom in or out. |
 | `[` and `]` | Close or open every module. |
 | Drag | Pan the graph. |

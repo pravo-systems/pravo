@@ -947,10 +947,6 @@ function renderStatus() {
   set('st-notread', plan ? h('span', null, h('b', null, String(plan.total - plan.planned)), ' not read') : null);
   set('st-rev', h('span', null, 'revision ', h('b', null, (g.revision || '').replace(/^r-/, ''))));
   set('st-time', h('span', { title: g.project.loaded_at }, 'updated ', h('b', null, clock(g.project.loaded_at)), ' ', h('span', { class: 'quiet' }, relTime(g.project.loaded_at))));
-  const shown = S.vis ? S.vis.items.size : 0;
-  const sc = $('shown-count');
-  sc.textContent = shown && shown !== m.list.length ? `${shown} items shown` : '';
-  sc.title = shown !== m.list.length ? `${plural(m.nres, 'resource')}${m.nout ? ' and ' + plural(m.nout, 'output') : ''}, grouped into ${shown} items` : '';
 }
 
 function renderLive() {
@@ -1333,7 +1329,6 @@ function wire() {
   $('full-btn').addEventListener('click', () => setFull(!S.full));
   $('btn-zin').addEventListener('click', () => gv.zoomBy(1.3, undefined, undefined, true));
   $('btn-zout').addEventListener('click', () => gv.zoomBy(1 / 1.3, undefined, undefined, true));
-  $('btn-reset').addEventListener('click', resetView);
   $('btn-collapse').addEventListener('click', () => setAllModules(true));
   $('btn-expand').addEventListener('click', () => setAllModules(false));
   $('menu-btn').addEventListener('click', toggleRail);

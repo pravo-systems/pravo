@@ -248,7 +248,6 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
 .filterbox input::placeholder { color: var(--text-3); }
 .filterbox input::-webkit-search-cancel-button { appearance: none; }
 .filterbox .count { font: 500 .66rem/1 var(--font-mono); color: var(--text-3); white-space: nowrap; }
-.shown { font: 400 .7rem/1 var(--font-mono); color: var(--text-3); white-space: nowrap; }
 .toolbar .seg button { height: 2rem; }
 [data-view="table"] .graph-only { display: none; }
 [data-view="access"] .toolbar { display: none; }
@@ -445,7 +444,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .me b { display: none; }
   .me { padding: 0 .55rem; }
   .top { gap: .6rem; padding: 0 .7rem; }
-  .crumbs, .brand small, .top .search kbd, .shown { display: none; }
+  .crumbs, .brand small, .top .search kbd { display: none; }
   .toolbar { flex-wrap: wrap; padding: .5rem .7rem; }
   .filterbox { flex: 1 1 9rem; width: auto; }
   .legend { display: none; }
