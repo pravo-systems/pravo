@@ -60,8 +60,9 @@ export class AccessView {
       this.banner(a),
       a.you ? this.you(a.you) : null,
       this.readers(a),
+      this.single(a),
       this.file(a),
-      a.state === 'off' || a.state === 'immutable' ? null : this.records(a),
+      this.records(a),
       this.suggestions(a),
       h('p', { class: 'ac-foot' }, FOOTER)));
     this.root.scrollTop = top;
@@ -78,12 +79,12 @@ export class AccessView {
       h('li', null, h('span', { class: 'k' }, 'format'), h('b', null, String(a.format))),
       h('li', null, h('span', { class: 'k' }, 'backend'), h('b', null, a.backend)),
       h('li', { class: 'wide' }, h('span', { class: 'k' }, 'location'), h('code', null, a.location)),
-      a.state === 'off' || a.state === 'immutable' ? null : h('li', null, h('span', { class: 'k' }, 'recovery'), h('b', null, a.recovery.state)),
+      a.last_change ? h('li', { class: 'wide', title: stamp(a.last_change.at) }, h('span', { class: 'k' }, 'last change'), h('b', null, a.last_change.text)) : null,
     ];
     return h('section', { class: `ac-banner st-${a.state}` },
       h('div', { class: 'ac-bhead' }, h('h2', { id: 'ac-h-state', class: 'ac-title' }, 'Access'),
         h('span', { class: `b ${st.cls}` }, icon(st.ic), st.label)),
-      h('p', { class: 'ac-sentence' }, a.summary),
+      h('p', { class: 'ac-sentence' }, a.summary, a.records.text ? ' ' + a.records.text : ''),
       a.migration ? this.progress(a.migration) : null,
       h('ul', { class: 'ac-facts' }, facts),
       (a.problems || []).map((p) => h('p', { class: 'ac-problem' }, icon('bang'), h('span', null, p))));
@@ -155,20 +156,35 @@ export class AccessView {
       (f.errors || []).length ? h('ul', { class: 'ac-errors' }, f.errors.map((e) => h('li', null, e.line > 0 ? [h('b', null, `line ${e.line}`), ' '] : null, e.reason))) : null);
   }
 
-  // records says how many records are sealed, and which groups of data keys they are under.
-  records(a) {
-    const r = a.records;
-    const stat = (k, v, cls) => h('li', { class: cls || null }, h('b', null, fmt(v)), h('span', null, k));
-    return h('section', { class: 'ac-sec', 'aria-labelledby': 'ac-h-rec' },
-      h('h3', { id: 'ac-h-rec', class: 'h' }, 'Records'),
-      h('ul', { class: 'ac-stats' }, stat('records', r.total), stat('sealed', r.sealed), r.plain ? stat('not sealed yet', r.plain, 'chg') : null, r.unreadable ? stat('cannot be opened', r.unreadable, 'bad') : null),
-      r.text ? h('p', { class: 'ac-note' }, r.text) : null,
-      (a.groups || []).length ? this.groups(a.groups) : null,
-      h('p', { class: 'ac-note' }, a.recovery.text),
-      a.last_change ? h('p', { class: 'ac-note', title: stamp(a.last_change.at) }, a.last_change.text) : null);
+  // single warns that one reader holds the only lock: there is no recovery key, so losing that key loses the state.
+  // The button opens the suggestion that adds a backup reader.
+  single(a) {
+    const w = a.single_reader;
+    if (!w || !(a.suggestions || []).some((x) => x.id === w.suggestion)) return null;
+    const go = () => {
+      const card = Array.from(this.root.querySelectorAll('details.ac-card')).find((d) => d.dataset.id === w.suggestion);
+      if (!card) return;
+      card.open = true;
+      card.scrollIntoView({ block: 'nearest' });
+      const sum = card.querySelector('summary');
+      if (sum) sum.focus();
+    };
+    return h('section', { class: 'ac-warn', role: 'note', 'aria-labelledby': 'ac-h-single' },
+      h('h3', { id: 'ac-h-single', class: 'sr-only' }, 'Only one reader'),
+      icon('bang'), h('p', null, w.text),
+      h('button', { class: 'btn', type: 'button', 'data-fk': 'single', on: { click: go } }, w.action));
   }
 
-  groups(groups) {
+  // records is the section for what needs a look beyond the sentence in the banner: the groups of data keys, once
+  // there is more than one. A state with one group has nothing to show here.
+  records(a) {
+    if (!(a.groups || []).length) return null;
+    return h('section', { class: 'ac-sec', 'aria-labelledby': 'ac-h-rec' },
+      h('h3', { id: 'ac-h-rec', class: 'h' }, 'Groups of data keys'),
+      this.groups(a.groups, a.groups_text));
+  }
+
+  groups(groups, text) {
     return h('div', { class: 'ac-groups' },
       h('table', { class: 'ac-table small' },
         h('caption', { class: 'sr-only' }, 'Groups of data keys'),
@@ -177,7 +193,7 @@ export class AccessView {
           h('th', { scope: 'row', 'data-label': 'Group' }, h('code', null, g.id), g.current ? h('span', { class: 'b ok' }, 'current') : null),
           h('td', { class: 'c', 'data-label': 'Locks' }, String(g.locks)),
           h('td', { class: 'c', 'data-label': 'Records' }, fmt(g.records)))))),
-      h('p', { class: 'ac-note dim' }, 'A removal starts a new group. Records stay under the old group until they are written again or resealed with rewrap --all.'));
+      text ? h('p', { class: 'ac-note dim' }, text) : null);
   }
 
   suggestions(a) {

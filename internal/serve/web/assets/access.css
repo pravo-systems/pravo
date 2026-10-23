@@ -135,3 +135,9 @@
 .b.linkchip { cursor: pointer; scroll-margin: .5rem; }
 .b.linkchip:hover { background: color-mix(in srgb, var(--c, var(--text-3)) 18%, transparent); }
 .ac-who { padding: .1rem .4rem; border: 1px solid var(--line-strong); background: var(--surface); }
+
+/* the warning that one reader holds the only lock, with the button that opens the suggestion that adds another */
+.ac-warn { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; margin: .8rem 0 0; padding: .6rem .8rem; border: 1px solid var(--change); background: var(--change-wash); font-size: .8rem; line-height: 1.5; }
+.ac-warn p { flex: 1 1 18rem; margin: 0; color: var(--text); text-wrap: pretty; }
+.ac-warn .i { color: var(--change); }
+.ac-table.small th .b { margin-left: .5rem; }

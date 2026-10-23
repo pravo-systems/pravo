@@ -568,13 +568,21 @@ type Access struct {
 	Readers []AccessReader `json:"readers"`
 	File    AccessFile     `json:"file"`
 	// You is absent unless the state is sealed or migrating.
-	You       *AccessYou       `json:"you,omitempty"`
-	Records   AccessRecords    `json:"records"`
-	Groups    []AccessGroup    `json:"groups"`
-	Migration *AccessMigration `json:"migration,omitempty"`
-	// Recovery says whether a recovery recipient exists. It is "none" while
-	// recovery is not built.
-	Recovery AccessRecovery `json:"recovery"`
+	You *AccessYou `json:"you,omitempty"`
+	// Records counts the records. Its Text is the one sentence about them that
+	// the banner shows, absent when the state holds none.
+	Records AccessRecords `json:"records"`
+	// Groups lists the groups of data keys. It is absent unless the state is
+	// sealed and has more than one, which a removal of a reader makes; GroupsText
+	// is then the sentence that says why and what sealing the records again does.
+	Groups     []AccessGroup    `json:"groups,omitempty"`
+	GroupsText string           `json:"groups_text,omitempty"`
+	Migration  *AccessMigration `json:"migration,omitempty"`
+	// SingleReader is set when the state is sealed and exactly one reader holds a
+	// lock in the current group: nobody can read the state if that reader loses
+	// their key, since there is no recovery recipient. The page shows it under the
+	// readers.
+	SingleReader *AccessWarning `json:"single_reader,omitempty"`
 	// LastChange is the newest entry of the history of the seal.
 	LastChange  *AccessChange `json:"last_change,omitempty"`
 	Suggestions []Suggestion  `json:"suggestions"`
@@ -641,7 +649,10 @@ type AccessYou struct {
 // AccessRecords counts the records of the state. Sealed records are encrypted;
 // Plain ones are in a sealed state and are not (written before the seal and not
 // reached since); Unreadable ones are sealed under a group that this process holds
-// no key for, or all of them when it holds none.
+// no key for, or all of them when it holds none. Text is the sentence about them
+// that the page shows, worded by the server: that all are sealed, how many are not
+// sealed yet, how many this key cannot open, or how many there are in a state that
+// is not sealed.
 type AccessRecords struct {
 	Total      int    `json:"total"`
 	Sealed     int    `json:"sealed"`
@@ -667,14 +678,19 @@ type AccessMigration struct {
 	Total   int       `json:"total"`
 }
 
-// AccessRecovery says whether anyone but the readers can open the state.
-type AccessRecovery struct {
-	State string `json:"state"`
-	Text  string `json:"text"`
+// AccessWarning is a risk of the state, in a sentence, with the suggestion that
+// deals with it. Action is the label of the button that opens that suggestion,
+// and Suggestion its ID; the page offers the button only if the suggestion is in
+// the list.
+type AccessWarning struct {
+	Text       string `json:"text"`
+	Action     string `json:"action"`
+	Suggestion string `json:"suggestion"`
 }
 
 // AccessChange is the last change of the seal. By is a label that the machine of
-// the change gave itself, not a proof.
+// the change gave itself, not a proof. Text is the item the banner shows: the time
+// in UTC and what was done, such as "2026-10-23 08:03 UTC · sealed by marcinw".
 type AccessChange struct {
 	At      time.Time `json:"at"`
 	By      string    `json:"by"`
@@ -687,8 +703,8 @@ type AccessChange struct {
 // Suggestion is a change that the page offers as text to copy. The server runs
 // none of it. Steps are in the order they are done.
 type Suggestion struct {
-	// ID is "seal", "finish", "identity", "rewrap", "add-reader", "remove-reader:NAME",
-	// "reseal", "prune" or "status".
+	// ID is "seal", "check-downgrade", "finish", "identity", "rewrap", "add-reader",
+	// "remove-reader:NAME", "reseal", "prune" or "status".
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Why   string `json:"why"`

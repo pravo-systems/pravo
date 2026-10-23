@@ -143,8 +143,11 @@ func TestAccessOff(t *testing.T) {
 	if !strings.HasPrefix(a.Summary, "The state is not sealed. Attributes, outputs and stored plans are stored as plain text, and anyone who can read ") || !strings.Contains(a.Summary, "pravo.state") {
 		t.Errorf("summary %q", a.Summary)
 	}
-	if a.File.Verdict != "none" || len(a.Readers) != 0 || a.Recovery.State != "none" {
-		t.Errorf("file %+v readers %v recovery %+v", a.File, a.Readers, a.Recovery)
+	if a.File.Verdict != "none" || len(a.Readers) != 0 || a.SingleReader != nil || a.LastChange != nil {
+		t.Errorf("file %+v readers %v single reader %+v last change %+v", a.File, a.Readers, a.SingleReader, a.LastChange)
+	}
+	if a.Records.Total != 5 || a.Records.Text != "5 records, not sealed." {
+		t.Errorf("records %+v", a.Records)
 	}
 	if len(a.Suggestions) != 1 || a.Suggestions[0].ID != "seal" || !a.Suggestions[0].Primary {
 		t.Fatalf("suggestions %+v", a.Suggestions)
@@ -177,6 +180,9 @@ func TestAccessImmutable(t *testing.T) {
 	a := accessProject(t, f).access()
 	if a.State != "immutable" || a.Format != 2 || a.Summary != "Records are stored as immutable objects (format 2). They are not encrypted." {
 		t.Errorf("%q %d %q", a.State, a.Format, a.Summary)
+	}
+	if a.Records.Text != "5 records, not sealed." || len(a.Groups) != 0 || a.SingleReader != nil {
+		t.Errorf("records %+v groups %+v single reader %+v", a.Records, a.Groups, a.SingleReader)
 	}
 	if s := suggestion(a, "seal"); s == nil || !s.Primary {
 		t.Errorf("seal: %+v", s)
@@ -213,14 +219,21 @@ func TestAccessSealedReader(t *testing.T) {
 	if !a.Readers[0].You || a.Readers[1].You || a.Readers[0].KeyShort != "x25519:aaaaaa…" || a.Readers[0].Key != key('a') {
 		t.Errorf("you mark or key: %+v", a.Readers[0])
 	}
-	if len(a.Groups) != 1 || a.Groups[0] != (AccessGroup{ID: "g1", Current: true, Locks: 3, Records: 5}) {
-		t.Errorf("groups %+v", a.Groups)
+	// One group is the ordinary state: no list, no sentence about groups. Three readers: no warning.
+	if len(a.Groups) != 0 || a.GroupsText != "" || a.SingleReader != nil {
+		t.Errorf("groups %+v %q single reader %+v", a.Groups, a.GroupsText, a.SingleReader)
 	}
-	if a.LastChange == nil || a.LastChange.Text != "Last change: readers rewrapped by ada on 2026-10-22 10:41 UTC (eve added)." {
+	if a.Records.Text != "All 5 records are sealed." || a.Records.Total != 5 || a.Records.Sealed != 5 {
+		t.Errorf("records %+v", a.Records)
+	}
+	if a.LastChange == nil || a.LastChange.Text != "2026-10-22 10:41 UTC · readers rewrapped by ada" || a.LastChange.By != "ada" || !equalStrings(a.LastChange.Added, []string{"eve"}) {
 		t.Errorf("last change %+v", a.LastChange)
 	}
-	if want := "No recovery recipient. If every reader loses their key, the state cannot be read."; a.Recovery.Text != want {
-		t.Errorf("recovery %+v", a.Recovery)
+	raw := string(p.get("/api/access"))
+	for _, key := range []string{`"groups"`, `"groups_text"`, `"single_reader"`, `"recovery"`} {
+		if strings.Contains(raw, key) {
+			t.Errorf("the document has %s", key)
+		}
 	}
 
 	// The suggestions: the commands are the ones of the design, the names are quoted, and nothing is primary.
@@ -236,6 +249,9 @@ func TestAccessSealedReader(t *testing.T) {
 	}
 	file := filepath.ToSlash(filepath.Join(".pravo", "access", "readers.txt"))
 	add := suggestion(a, "add-reader")
+	if add.Title != "Add a reader" || add.Why != "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps." {
+		t.Errorf("add-reader with three readers: %q %q", add.Title, add.Why)
+	}
 	if got, want := stepTexts(add, "command"), []string{"pravo id new --name <name>", "git add " + file, "git commit -m 'Add a reader'", "git push", "pravo protect rewrap"}; !equalStrings(got, want) {
 		t.Errorf("add-reader commands %q, want %q", got, want)
 	}
@@ -431,12 +447,20 @@ func TestAccessMigrating(t *testing.T) {
 	facts := sealedFacts()
 	facts.Store.State = "migrating"
 	facts.Store.Migration = &MigrationFacts{Started: time.Date(2026, 10, 22, 9, 30, 0, 0, time.UTC), By: "ada", Done: 1204, Total: 2001}
+	facts.Store.Records, facts.Store.Sealed, facts.Store.Plain = 2001, 1204, 797
 	a := accessProject(t, &fakeProtection{facts: facts}).access()
 	if a.State != "migrating" || a.Migration == nil || a.Migration.Done != 1204 {
 		t.Fatalf("%q %+v", a.State, a.Migration)
 	}
-	if want := "Sealing started by ada on 2026-10-22 09:30 UTC and has not finished: 1,204 of 2,001 records. Writers are refused until it finishes."; a.Summary != want {
+	// The count is told once, by the sentence about the records; the summary does not repeat it.
+	if want := "Sealing started by ada on 2026-10-22 09:30 UTC and has not finished. Writers are refused until it finishes."; a.Summary != want {
 		t.Errorf("summary %q", a.Summary)
+	}
+	if want := "797 of 2,001 records are not sealed yet."; a.Records.Text != want {
+		t.Errorf("records %q, want %q", a.Records.Text, want)
+	}
+	if a.SingleReader != nil {
+		t.Errorf("a warning while the seal has not finished: %+v", a.SingleReader)
 	}
 	if a.Suggestions[0].ID != "finish" || !a.Suggestions[0].Primary || !equalStrings(stepTexts(&a.Suggestions[0], "command"), []string{"pravo protect init --encrypt --allow-local"}) {
 		t.Errorf("suggestion %+v", a.Suggestions[0])
@@ -997,13 +1021,186 @@ func TestAccessExpectedSealed(t *testing.T) {
 	})
 }
 
-// Records that are not sealed yet are the ones a seal that did not finish left, and
-// the sentence says what seals them, in the singular as well.
-func TestAccessSaysWhatSealsTheRecordsThatAreNot(t *testing.T) {
-	for n, want := range map[int]string{1: "1 record is not sealed yet: finishing the seal seals it.", 3: "3 records are not sealed yet: finishing the seal seals them."} {
-		if got := recordsText(AccessRecords{Plain: n}, false); got != want {
-			t.Errorf("%d plain: %q, want %q", n, got, want)
+// The sentence about the records is one of five, in the singular as well. A record
+// that is not sealed yet is one that a seal which did not finish left.
+func TestAccessRecordsSentence(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		r         AccessRecords
+		protected bool
+		noKey     bool
+		want      string
+	}{
+		{"all sealed", AccessRecords{Total: 121, Sealed: 121}, true, false, "All 121 records are sealed."},
+		{"all sealed, thousands", AccessRecords{Total: 12034, Sealed: 12034}, true, false, "All 12,034 records are sealed."},
+		{"all sealed, two", AccessRecords{Total: 2, Sealed: 2}, true, false, "All 2 records are sealed."},
+		{"all sealed, one", AccessRecords{Total: 1, Sealed: 1}, true, false, "The only record is sealed."},
+		{"some not sealed yet", AccessRecords{Total: 46, Sealed: 25, Plain: 21}, true, false, "21 of 46 records are not sealed yet."},
+		{"one not sealed yet", AccessRecords{Total: 46, Sealed: 45, Plain: 1}, true, false, "1 of 46 records is not sealed yet."},
+		{"none sealed yet", AccessRecords{Total: 3, Plain: 3}, true, false, "3 of 3 records are not sealed yet."},
+		{"the only record is not sealed yet", AccessRecords{Total: 1, Plain: 1}, true, false, "1 record is not sealed yet."},
+		{"under a group this key cannot open", AccessRecords{Total: 46, Sealed: 46, Unreadable: 12}, true, false, "12 records are sealed under a group that this key cannot open."},
+		{"one under a group this key cannot open", AccessRecords{Total: 46, Sealed: 46, Unreadable: 1}, true, false, "1 record is sealed under a group that this key cannot open."},
+		{"no key was given", AccessRecords{Total: 46, Sealed: 46, Unreadable: 46}, true, true, "46 records are sealed and no key was given to open them."},
+		{"one record and no key", AccessRecords{Total: 1, Sealed: 1, Unreadable: 1}, true, true, "1 record is sealed and no key was given to open them."},
+		{"the key cannot open some, a seal did not reach others", AccessRecords{Total: 46, Plain: 4, Unreadable: 12}, true, false, "12 records are sealed under a group that this key cannot open."},
+		{"not sealed", AccessRecords{Total: 121}, false, false, "121 records, not sealed."},
+		{"not sealed, one", AccessRecords{Total: 1}, false, false, "1 record, not sealed."},
+		{"no records, sealed", AccessRecords{}, true, false, ""},
+		{"no records, not sealed", AccessRecords{}, false, false, ""},
+	} {
+		if got := recordsText(c.r, c.protected, c.noKey); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
 		}
+	}
+}
+
+// A state with one group shows no groups: they are an internal until a removal
+// makes a second, and then the document carries the list and the sentence that
+// says why.
+func TestAccessGroupsAppearAfterARemoval(t *testing.T) {
+	one := buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, facts: sealedFacts(), path: "/p/.pravo/access/readers.txt", dir: "/p"})
+	if one.Groups != nil || one.GroupsText != "" {
+		t.Errorf("one group: %+v %q", one.Groups, one.GroupsText)
+	}
+	facts := sealedFacts()
+	facts.Store.Groups = []GroupFacts{{ID: "g1", Locks: 3, Records: 2}, {ID: "g2", Current: true, Locks: 2, Records: 3}}
+	two := buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, facts: facts, path: "/p/.pravo/access/readers.txt", dir: "/p"})
+	if len(two.Groups) != 2 || two.Groups[0] != (AccessGroup{ID: "g1", Locks: 3, Records: 2}) || two.Groups[1] != (AccessGroup{ID: "g2", Current: true, Locks: 2, Records: 3}) {
+		t.Errorf("two groups: %+v", two.Groups)
+	}
+	if want := "A removal starts a new group, and records stay under the old group until they are written again or resealed with rewrap --all."; two.GroupsText != want {
+		t.Errorf("groups text %q", two.GroupsText)
+	}
+	// The suggestions that act on the groups are there, next to which the page shows them.
+	if suggestion(*two, "reseal") == nil || suggestion(*two, "prune") == nil {
+		t.Errorf("suggestions %v", two.Suggestions)
+	}
+	// A state that is not sealed has no group, whatever the facts say.
+	off := Facts{Store: StoreFacts{State: "off", Format: 1, Records: 5, Groups: facts.Store.Groups}, File: FileFacts{State: "missing"}}
+	if a := buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 1, facts: off, path: "/p/.pravo/access/readers.txt", dir: "/p"}); a.Groups != nil || a.GroupsText != "" {
+		t.Errorf("a state that is not sealed: %+v %q", a.Groups, a.GroupsText)
+	}
+}
+
+// One reader is a risk the page tells under the readers: there is no recovery
+// recipient, so a lost key or passphrase loses the state. The warning, the title of
+// the add-reader card and the first sentence of its why go together, and none of
+// them appears with two readers.
+func TestAccessSingleReader(t *testing.T) {
+	build := func(facts Facts) *Access {
+		return buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, facts: facts, path: "/p/.pravo/access/readers.txt", dir: "/p"})
+	}
+	solo := func() Facts {
+		f := sealedFacts()
+		f.Store.Readers = []ReaderFacts{rs("ada", 'a')}
+		f.Store.Groups = []GroupFacts{{ID: "g1", Current: true, Locks: 1, Records: 5}}
+		f.File.Readers = []ReaderFacts{rf("ada", 'a', 1)}
+		return f
+	}
+	a := build(solo())
+	w := a.SingleReader
+	if w == nil {
+		t.Fatal("no warning for a state with one reader")
+	}
+	if want := "You are the only reader. If you lose your key or its passphrase, nobody can read this state, and there is no recovery key."; w.Text != want {
+		t.Errorf("warning %q", w.Text)
+	}
+	if w.Action != "Add a backup reader" || w.Suggestion != "add-reader" {
+		t.Errorf("warning action %q suggestion %q", w.Action, w.Suggestion)
+	}
+	add := suggestion(*a, "add-reader")
+	if add == nil {
+		t.Fatal("the warning names a suggestion that is not there")
+	}
+	if add.Title != w.Action {
+		t.Errorf("title %q is not the label %q of the button that opens it", add.Title, w.Action)
+	}
+	if !strings.HasPrefix(add.Why, "With one reader and no recovery key, nobody can read the state again if that reader loses their key or its passphrase.") || !strings.Contains(add.Why, "A current reader adds the line, commits it and rewraps.") {
+		t.Errorf("why %q", add.Why)
+	}
+	// The steps are those of every add-reader card, so the commit says what any addition says.
+	if got, want := stepTexts(add, "command"), []string{"pravo id new --name <name>", "git add .pravo/access/readers.txt", "git commit -m 'Add a reader'", "git push", "pravo protect rewrap"}; !equalStrings(got, want) {
+		t.Errorf("commands %q, want %q", got, want)
+	}
+	if add.Primary {
+		t.Error("the card is the next step for a state that needs nothing else; it opens from the warning")
+	}
+
+	// Someone who is not the reader is told of the reader, not "you".
+	f := solo()
+	f.You = &YouFacts{State: "not-reader", Name: "gus", Key: key('g')}
+	f.Store.Locked = true
+	if w := build(f).SingleReader; w == nil || w.Text != "There is only one reader. If they lose their key or its passphrase, nobody can read this state, and there is no recovery key." {
+		t.Errorf("warning for a key that is not the reader: %+v", w)
+	}
+	f.You = nil
+	if w := build(f).SingleReader; w == nil || strings.Contains(w.Text, "You are") {
+		t.Errorf("warning with no identity: %+v", w)
+	}
+	// The card they are sent to by "Read the state with your own key" has the title the page shows.
+	f.You = &YouFacts{State: "not-reader", Name: "gus", Key: key('g')}
+	if id := suggestion(*build(f), "identity"); id == nil || !strings.Contains(id.Why, "described under Add a backup reader.") {
+		t.Errorf("identity %+v", id)
+	}
+
+	// Two readers, none, a state that is not sealed and a seal that is not finished: no warning, today's title and why.
+	two := solo()
+	two.Store.Readers = append(two.Store.Readers, rs("dan", 'd'))
+	for name, facts := range map[string]Facts{"two readers": two, "three readers": sealedFacts(), "no reader": func() Facts { f := solo(); f.Store.Readers = nil; return f }()} {
+		a := build(facts)
+		if a.SingleReader != nil {
+			t.Errorf("%s: a warning: %+v", name, a.SingleReader)
+		}
+		if add := suggestion(*a, "add-reader"); add == nil || add.Title != "Add a reader" || strings.Contains(add.Why, "recovery key") {
+			t.Errorf("%s: add-reader %+v", name, add)
+		}
+	}
+	mig := solo()
+	mig.Store.State = "migrating"
+	for name, facts := range map[string]Facts{"migrating": mig, "off": {Store: StoreFacts{State: "off", Format: 1, Records: 5}, File: FileFacts{State: "ok", Readers: []ReaderFacts{rf("ada", 'a', 1)}}}} {
+		if a := build(facts); a.SingleReader != nil {
+			t.Errorf("%s: a warning: %+v", name, a.SingleReader)
+		}
+	}
+	// A reader is one key: two locks for it are one reader.
+	dup := solo()
+	dup.Store.Readers = []ReaderFacts{rs("ada", 'a'), rs("ada-again", 'a')}
+	if build(dup).SingleReader == nil {
+		t.Error("two locks of one key are two readers")
+	}
+	// Absent from the document, not null.
+	if raw, _ := json.Marshal(build(sealedFacts())); strings.Contains(string(raw), "single_reader") {
+		t.Errorf("single_reader in %s", raw)
+	}
+	// The warning and the readers go together: the table the page shows it under lists the reader.
+	if rows := build(solo()).Readers; len(rows) != 1 || !rows[0].InStore || !rows[0].You {
+		t.Errorf("readers %+v", rows)
+	}
+}
+
+// The last change is a short item with the time in UTC; the name is the label that
+// the machine of the change gave itself.
+func TestAccessLastChange(t *testing.T) {
+	at := time.Date(2026, 10, 23, 8, 3, 0, 0, time.UTC)
+	for _, c := range []struct {
+		h    ChangeFacts
+		want string
+	}{
+		{ChangeFacts{At: at, By: "marcinw", What: "sealed", Added: []string{"marcinw"}}, "2026-10-23 08:03 UTC · sealed by marcinw"},
+		{ChangeFacts{At: at, By: "ada", What: "rewrap", Removed: []string{"dan"}}, "2026-10-23 08:03 UTC · readers rewrapped by ada"},
+		{ChangeFacts{At: at, By: "ada", What: "rewrap --all"}, "2026-10-23 08:03 UTC · records sealed again by ada"},
+		{ChangeFacts{At: at.In(time.FixedZone("x", 2*3600)), By: "ada", What: "something else"}, "2026-10-23 08:03 UTC · changed by ada"},
+		{ChangeFacts{At: at, What: "sealed"}, "2026-10-23 08:03 UTC · sealed"},
+		{ChangeFacts{By: "ada", What: "sealed"}, "sealed by ada"},
+		{ChangeFacts{At: at, By: "a\nb\u202ec", What: "sealed"}, "2026-10-23 08:03 UTC · sealed by abc"},
+	} {
+		if got := changeOf(c.h).Text; got != c.want {
+			t.Errorf("%+v: %q, want %q", c.h, got, c.want)
+		}
+	}
+	if c := changeOf(ChangeFacts{At: at, By: "ada", What: "rewrap", Added: []string{"eve"}, Removed: []string{"dan"}}); c.What != "rewrap" || !equalStrings(c.Added, []string{"eve"}) || !equalStrings(c.Removed, []string{"dan"}) || !c.At.Equal(at) {
+		t.Errorf("change %+v", c)
 	}
 }
 

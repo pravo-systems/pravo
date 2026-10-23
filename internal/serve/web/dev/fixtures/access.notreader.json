@@ -56,18 +56,6 @@
   "unreadable": 46,
   "text": "46 records are sealed under a group that this key cannot open."
  },
- "groups": [
-  {
-   "id": "g1",
-   "current": true,
-   "locks": 3,
-   "records": 46
-  }
- ],
- "recovery": {
-  "state": "none",
-  "text": "No recovery recipient. If every reader loses their key, the state cannot be read."
- },
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",
@@ -75,7 +63,7 @@
   "added": [
    "eve"
   ],
-  "text": "Last change: readers rewrapped by ada on 2026-10-22 10:41 UTC (eve added)."
+  "text": "2026-10-22 10:41 UTC · readers rewrapped by ada"
  },
  "suggestions": [
   {

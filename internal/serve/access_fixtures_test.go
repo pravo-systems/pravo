@@ -56,6 +56,9 @@ func TestAccessFixtures(t *testing.T) {
 		return accessInput{rev: "r-7c41e9b2", location: "s3://acme-state/estate", backend: backend, format: format, records: 46, facts: f,
 			path: "/srv/infra/estate/.pravo/access/readers.txt", dir: "/srv/infra/estate"}
 	}
+	// A state sealed to its maker alone: the page warns under the readers, and the card is "Add a backup reader".
+	solo := fixSealed([]string{"ada"}, []string{"ada"}, ada)
+	solo.Store.History = []ChangeFacts{{At: time.Date(2026, 10, 23, 8, 3, 0, 0, time.UTC), By: "ada", What: "sealed", Added: []string{"ada"}}}
 	drift := fixSealed([]string{"ada", "eve", "fay", "x; rm -rf ~"}, []string{"ada", "dan", "eve"}, ada)
 	drift.Store.Groups = []GroupFacts{{ID: "g1", Locks: 3, Records: 12}, {ID: "g2", Current: true, Locks: 4, Records: 34}}
 	locked := fixSealed([]string{"ada", "dan", "eve"}, []string{"ada", "dan", "eve"}, &YouFacts{State: "no-identity"})
@@ -77,6 +80,7 @@ func TestAccessFixtures(t *testing.T) {
 	immutable := Facts{Store: StoreFacts{State: "immutable", Format: 2, Records: 46}, File: FileFacts{State: "missing"}}
 	cases := map[string]accessInput{
 		"platform":   in(fixSealed([]string{"ada", "dan", "eve"}, []string{"ada", "dan", "eve"}, ada), 3, "s3"),
+		"solo":       in(solo, 3, "s3"),
 		"off":        in(off, 1, "s3"),
 		"downgraded": in(downgraded, 1, "s3"),
 		"immutable":  in(immutable, 2, "s3"),

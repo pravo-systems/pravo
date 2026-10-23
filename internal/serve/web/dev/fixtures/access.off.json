@@ -17,12 +17,8 @@
   "total": 46,
   "sealed": 0,
   "plain": 0,
-  "unreadable": 0
- },
- "groups": [],
- "recovery": {
-  "state": "none",
-  "text": "No recovery recipient. If every reader loses their key, the state cannot be read."
+  "unreadable": 0,
+  "text": "46 records, not sealed."
  },
  "suggestions": [
   {

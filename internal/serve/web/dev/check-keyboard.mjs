@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { Browser, findChrome, serve, tabOrder, sig, FOCUS, REACHABLE } from './cdp-driver.mjs';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURES = ['platform', 'off', 'immutable', 'drift', 'locked', 'notreader', 'missing', 'migrating', 'invalid', 'downgraded'];
+const FIXTURES = ['platform', 'off', 'immutable', 'drift', 'locked', 'notreader', 'missing', 'migrating', 'invalid', 'downgraded', 'solo'];
 const fixture = (n) => JSON.parse(fs.readFileSync(path.join(dir, 'fixtures', `access.${n}.json`), 'utf8'));
 const args = process.argv.slice(2);
 
@@ -106,7 +106,8 @@ async function checkOne(b, f, theme, width, report) {
   const seq = inPane.map((s) => s.fk).filter(Boolean);
   check(JSON.stringify(seq) === JSON.stringify(order.filter((k) => seq.includes(k))), `${tag}: the Tab order is not the order of the page`);
   for (const s of inPane) {
-    if (s.tag === 'button') check(/^Copy /.test(s.ax?.name || ''), `${tag}: the button "${s.ax?.name}" does not say what it copies`);
+    if (s.tag === 'button' && s.fk === 'single') check(/^Add a backup reader/.test(s.ax?.name || ''), `${tag}: the warning button is named "${s.ax?.name}"`);
+    else if (s.tag === 'button') check(/^Copy /.test(s.ax?.name || ''), `${tag}: the button "${s.ax?.name}" does not say what it copies`);
     if (s.tag === 'summary') {
       check(s.ax?.props.expanded !== undefined, `${tag}: the suggestion "${s.ax?.name}" does not say whether it is open`);
       const sug = (doc.suggestions || []).find((x) => 'sum:' + x.id === s.fk);
@@ -210,6 +211,19 @@ async function checkKeys(b, f, theme, width) {
   said = '';
   for (let i = 0; i < 40 && !said.startsWith('Cop'); i++) { await new Promise((r) => setTimeout(r, 50)); said = await live(); }
   check(said === name.replace(/^Copy /, 'Copied '), `${tag}: after Space on "${name}" the live region says "${said}"`);
+
+  // the warning that one reader holds the only lock: its button opens the add-reader suggestion and moves the focus into it
+  await b.load(url(f, theme, ++nonce));
+  if (await b.eval(`!!document.querySelector('#access-pane [data-fk="single"]')`)) {
+    for (const key of ['Enter', ' ']) {
+      await b.load(url(f, theme, ++nonce));
+      check(await tabTo((k) => k === 'single'), `${tag}: the warning button is not a Tab stop`);
+      await b.key(key);
+      check(await b.eval(`document.activeElement.tagName === 'SUMMARY' && document.activeElement.parentElement.open && document.activeElement.parentElement.dataset.id === 'add-reader'`), `${tag}: ${key === ' ' ? 'Space' : 'Enter'} on the warning button does not open the add-reader suggestion and focus it`);
+    }
+  } else {
+    check(f !== 'solo', `${tag}: the solo state shows no single-reader warning`);
+  }
 }
 
 const oi = args.indexOf('--order');

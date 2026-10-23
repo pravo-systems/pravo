@@ -77,7 +77,8 @@
   "total": 46,
   "sealed": 46,
   "plain": 0,
-  "unreadable": 0
+  "unreadable": 0,
+  "text": "All 46 records are sealed."
  },
  "groups": [
   {
@@ -92,10 +93,7 @@
    "records": 34
   }
  ],
- "recovery": {
-  "state": "none",
-  "text": "No recovery recipient. If every reader loses their key, the state cannot be read."
- },
+ "groups_text": "A removal starts a new group, and records stay under the old group until they are written again or resealed with rewrap --all.",
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",
@@ -103,7 +101,7 @@
   "added": [
    "eve"
   ],
-  "text": "Last change: readers rewrapped by ada on 2026-10-22 10:41 UTC (eve added)."
+  "text": "2026-10-22 10:41 UTC · readers rewrapped by ada"
  },
  "suggestions": [
   {

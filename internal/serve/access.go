@@ -42,6 +42,13 @@ var (
 	quotedRE = regexp.MustCompile(`"[^"]*"`)
 )
 
+// The add-reader suggestion has two titles: a state that one reader can open asks
+// for a backup, and the warning under the readers opens it by its ID.
+const (
+	addReaderTitle = "Add a reader"
+	addBackupTitle = "Add a backup reader"
+)
+
 const (
 	maxAccessReaders = 200 // readers listed
 	maxAccessErrors  = 20  // lines of the readers file listed as not loading
@@ -194,7 +201,7 @@ func buildAccess(in accessInput) *Access {
 	f := in.facts
 	st := f.Store
 	a := &Access{Version: APIVersion, Revision: in.rev, Format: in.format, Location: in.location, Backend: in.backend,
-		Readers: []AccessReader{}, Groups: []AccessGroup{}, Suggestions: []Suggestion{}}
+		Readers: []AccessReader{}, Suggestions: []Suggestion{}}
 	a.State = st.State
 	switch a.State {
 	case "off", "immutable", "sealed", "migrating":
@@ -226,6 +233,7 @@ func buildAccess(in accessInput) *Access {
 	if a.Records.Total == 0 {
 		a.Records.Total = in.records
 	}
+	noKey := false
 	if protected {
 		if (in.locked || st.Locked) && a.Records.Unreadable == 0 {
 			// With no key every record that is sealed is out of reach.
@@ -233,19 +241,25 @@ func buildAccess(in accessInput) *Access {
 		}
 		// A key that is not a reader of the state was given: what it cannot open is
 		// out of reach of this key, not for want of one.
-		noKey := (in.locked || st.Locked) && (f.You == nil || f.You.State != "not-reader")
-		a.Records.Text = recordsText(a.Records, noKey)
-		for _, g := range st.Groups {
-			a.Groups = append(a.Groups, AccessGroup{ID: display(g.ID), Current: g.Current, Locks: g.Locks, Records: g.Records})
+		noKey = (in.locked || st.Locked) && (f.You == nil || f.You.State != "not-reader")
+		// A single group is the ordinary state and says nothing that a person decides on.
+		if len(st.Groups) > 1 {
+			for _, g := range st.Groups {
+				a.Groups = append(a.Groups, AccessGroup{ID: display(g.ID), Current: g.Current, Locks: g.Locks, Records: g.Records})
+			}
+			a.GroupsText = groupsText
 		}
 		a.You = youOf(f.You)
 	}
+	a.Records.Text = recordsText(a.Records, protected, noKey)
 	if st.Migration != nil && a.State == "migrating" {
 		mg := st.Migration
 		a.Migration = &AccessMigration{Started: mg.Started.UTC(), By: display(mg.By), Done: mg.Done, Total: mg.Total}
 	}
 	a.Summary = summaryOf(a, storeReaders)
-	a.Recovery = AccessRecovery{State: "none", Text: "No recovery recipient. If every reader loses their key, the state cannot be read."}
+	if a.State == "sealed" && storeReaders == 1 {
+		a.SingleReader = singleReader(a.You)
+	}
 	if n := len(st.History); n > 0 && protected {
 		a.LastChange = changeOf(st.History[n-1])
 	}
@@ -495,18 +509,35 @@ func youOf(y *YouFacts) *AccessYou {
 	return you
 }
 
-func recordsText(r AccessRecords, locked bool) string {
+// groupsText says why a state has more than one group and what sealing the records
+// again does. A group is a data key; a removal of a reader makes a new one.
+const groupsText = "A removal starts a new group, and records stay under the old group until they are written again or resealed with rewrap --all."
+
+// recordsText is the one sentence about the records that the page shows. For a
+// state that is sealed it says that all are sealed, or what keeps a record from
+// being: that this key cannot open it (noKey: that none was given), or that a seal
+// did not reach it. It is empty for a state that holds no record.
+func recordsText(r AccessRecords, protected, noKey bool) string {
+	total := max(r.Total, r.Plain+r.Unreadable)
 	switch {
-	case r.Unreadable > 0 && locked:
+	case total == 0:
+		return ""
+	case !protected:
+		return fmt.Sprintf("%s %s, not sealed.", commas(total), plural(total, "record", "records"))
+	case r.Unreadable > 0 && noKey:
 		return fmt.Sprintf("%s %s sealed and no key was given to open them.", commas(r.Unreadable), plural(r.Unreadable, "record is", "records are"))
 	case r.Unreadable > 0:
 		return fmt.Sprintf("%s %s sealed under a group that this key cannot open.", commas(r.Unreadable), plural(r.Unreadable, "record is", "records are"))
-	case r.Plain > 0:
+	case r.Plain > 0 && total == 1:
 		// Only a seal that is not finished leaves records in the clear, and writers are
 		// refused until it is.
-		return fmt.Sprintf("%s %s not sealed yet: finishing the seal %s.", commas(r.Plain), plural(r.Plain, "record is", "records are"), plural(r.Plain, "seals it", "seals them"))
+		return "1 record is not sealed yet."
+	case r.Plain > 0:
+		return fmt.Sprintf("%s of %s records %s not sealed yet.", commas(r.Plain), commas(total), plural(r.Plain, "is", "are"))
+	case total == 1:
+		return "The only record is sealed."
 	}
-	return ""
+	return fmt.Sprintf("All %s records are sealed.", commas(total))
 }
 
 func summaryOf(a *Access, readers int) string {
@@ -522,8 +553,7 @@ func summaryOf(a *Access, readers int) string {
 			if mg.By != "" {
 				s += " by " + mg.By
 			}
-			s += " on " + mg.Started.Format("2006-01-02 15:04") + " UTC and has not finished: " +
-				commas(mg.Done) + " of " + commas(mg.Total) + " records."
+			s += " on " + mg.Started.Format("2006-01-02 15:04") + " UTC and has not finished."
 		} else {
 			s += " and has not finished."
 		}
@@ -532,6 +562,9 @@ func summaryOf(a *Access, readers int) string {
 	return "The state is not sealed. Attributes, outputs and stored plans are stored as plain text, and anyone who can read " + a.Location + " can read every value."
 }
 
+// changeOf makes the last change of the seal. Its text is the item of the banner:
+// the time in UTC, then what was done and the label that the machine of the change
+// gave itself, such as "2026-10-23 08:03 UTC · sealed by marcinw".
 func changeOf(h ChangeFacts) *AccessChange {
 	c := &AccessChange{At: h.At.UTC(), By: display(h.By), What: display(h.What)}
 	for _, n := range h.Added {
@@ -540,34 +573,34 @@ func changeOf(h ChangeFacts) *AccessChange {
 	for _, n := range h.Removed {
 		c.Removed = append(c.Removed, display(n))
 	}
-	what := "the seal changed"
+	what := "changed"
 	switch h.What {
 	case "sealed":
-		what = "the state sealed"
+		what = "sealed"
 	case "rewrap":
 		what = "readers rewrapped"
 	case "rewrap --all":
 		what = "records sealed again"
 	}
-	s := "Last change: " + what
 	if c.By != "" {
-		s += " by " + c.By
+		what += " by " + c.By
 	}
+	c.Text = what
 	if !h.At.IsZero() {
-		s += " on " + h.At.UTC().Format("2006-01-02 15:04") + " UTC"
+		c.Text = h.At.UTC().Format("2006-01-02 15:04") + " UTC · " + what
 	}
-	var parts []string
-	if len(c.Added) > 0 {
-		parts = append(parts, strings.Join(c.Added, ", ")+" added")
-	}
-	if len(c.Removed) > 0 {
-		parts = append(parts, strings.Join(c.Removed, ", ")+" removed")
-	}
-	if len(parts) > 0 {
-		s += " (" + strings.Join(parts, "; ") + ")"
-	}
-	c.Text = s + "."
 	return c
+}
+
+// singleReader is the warning for a state that one reader can open. The sentence
+// is about the reader who looks when that is the identity of this process, and
+// about the reader otherwise, whose name the table above it gives.
+func singleReader(you *AccessYou) *AccessWarning {
+	text := "There is only one reader. If they lose their key or its passphrase, nobody can read this state, and there is no recovery key."
+	if you != nil && you.State == "reader" {
+		text = "You are the only reader. If you lose your key or its passphrase, nobody can read this state, and there is no recovery key."
+	}
+	return &AccessWarning{Text: text, Action: addBackupTitle, Suggestion: "add-reader"}
 }
 
 // commas writes n with a comma between thousands.
@@ -617,6 +650,10 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	primary := ""
 
 	notReader := a.You != nil && a.You.State != "reader"
+	addTitle := addReaderTitle
+	if a.SingleReader != nil {
+		addTitle = addBackupTitle
+	}
 	switch {
 	case a.State == "migrating":
 		primary = "finish"
@@ -667,7 +704,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	}
 	if protected && notReader {
 		s := Suggestion{ID: "identity", Title: "Read the state with your own key",
-			Why: "This key is not a reader. Print your line and send it to a reader, who adds it as described under Add a reader.",
+			Why: "This key is not a reader. Print your line and send it to a reader, who adds it as described under " + addTitle + ".",
 			Who: "you"}
 		switch a.You.State {
 		case "locked":
@@ -677,7 +714,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			s.Steps = append(s.Steps, note("Start the viewer again from a terminal:"), command("pravo serve"))
 		default:
 			if a.You.State == "no-identity" {
-				s.Why = "No identity was given, so there is no key to open the state with. Make one, send its line to a reader, who adds it as described under Add a reader."
+				s.Why = "No identity was given, so there is no key to open the state with. Make one, send its line to a reader, who adds it as described under " + addTitle + "."
 				s.Steps = append(s.Steps, fill("pravo id new --name <name>"))
 			}
 			s.Steps = append(s.Steps, command("pravo id show"), note("When a reader has added your line and rewrapped, start the viewer again:"), fill("pravo serve --identity <name>"))
@@ -691,8 +728,12 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 				command("git log -p -- " + engine.ShellWord(file))}})
 	}
 	if a.State == "sealed" {
-		add(Suggestion{ID: "add-reader", Title: "Add a reader",
-			Why: "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
+		addWhy := "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps."
+		if a.SingleReader != nil {
+			// With one reader the card is the answer to the risk the page has just told of, so it leads with it.
+			addWhy = "With one reader and no recovery key, nobody can read the state again if that reader loses their key or its passphrase. A backup reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps."
+		}
+		add(Suggestion{ID: "add-reader", Title: addTitle, Why: addWhy,
 			Who: "the new reader, then a current reader",
 			Steps: append(append([]SuggestionStep{note("On the machine of the new reader:"), fill("pravo id new --name <name>"),
 				note("On the machine of a current reader:"),

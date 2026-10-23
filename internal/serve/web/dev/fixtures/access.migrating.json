@@ -5,7 +5,7 @@
  "format": 3,
  "location": "s3://acme-state/estate",
  "backend": "s3",
- "summary": "Sealing started by ada on 2026-10-22 09:30 UTC and has not finished: 25 of 46 records. Writers are refused until it finishes.",
+ "summary": "Sealing started by ada on 2026-10-22 09:30 UTC and has not finished. Writers are refused until it finishes.",
  "readers": [
   {
    "name": "ada",
@@ -45,25 +45,13 @@
   "sealed": 25,
   "plain": 21,
   "unreadable": 0,
-  "text": "21 records are not sealed yet: finishing the seal seals them."
+  "text": "21 of 46 records are not sealed yet."
  },
- "groups": [
-  {
-   "id": "g1",
-   "current": true,
-   "locks": 2,
-   "records": 25
-  }
- ],
  "migration": {
   "started": "2026-10-22T09:30:00Z",
   "by": "ada",
   "done": 25,
   "total": 46
- },
- "recovery": {
-  "state": "none",
-  "text": "No recovery recipient. If every reader loses their key, the state cannot be read."
  },
  "suggestions": [
   {
