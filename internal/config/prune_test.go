@@ -252,7 +252,7 @@ func TestLoadPrunedFailureIsTheFailureOfTheWholePackage(t *testing.T) {
 	}
 }
 
-var regexpTempDir = regexp.MustCompile(`[^\s"]*/(?:T|tmp)/[^\s"]*?/(?:001|002|003|004)`)
+var regexpTempDir = regexp.MustCompile(`[^\s"]*[/\\](?:T|tmp|Temp)[/\\][^\s"]*?[/\\](?:001|002|003|004)`)
 
 func cueCompile(t *testing.T, src string) cue.Value {
 	t.Helper()
