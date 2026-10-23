@@ -45,7 +45,11 @@ func (s *Store) upgradeSealed(ctx context.Context, o UpgradeOptions) (UpgradeRes
 	}
 	s.mu.Lock()
 	started := s.meta.Migration != nil
-	sealed := s.meta.Format >= FormatSealed && !started
+	if started && s.meta.Migration.Unseal {
+		s.mu.Unlock()
+		return res, errors.New("an unseal is in progress; run pravo protect unseal to finish it before the state is sealed again")
+	}
+	sealed := s.meta.Sealed != nil && !started
 	s.mu.Unlock()
 	if sealed {
 		return res, nil // already sealed; nothing is written
@@ -222,7 +226,10 @@ func (s *Store) beginSeal(o UpgradeOptions) error {
 	if !slices.ContainsFunc(o.Readers, func(r protect.Reader) bool { return r.Key.Equal(me) }) {
 		return fmt.Errorf("identity %s is not one of the readers; sealing to a list you are not on would lock you out: %w", o.Identity.Name, ErrNotReader)
 	}
-	sealedMeta, keys, err := protect.NewMeta(s.Lineage(), o.Readers)
+	s.mu.Lock()
+	used := s.meta.GroupsUsed
+	s.mu.Unlock()
+	sealedMeta, keys, err := protect.NewMetaFrom(s.Lineage(), o.Readers, used+1)
 	if err != nil {
 		return err
 	}
@@ -237,10 +244,10 @@ func (s *Store) beginSeal(o UpgradeOptions) error {
 	}
 	total := s.Len()
 	err = s.updateMeta(func(m *meta) error {
-		if m.Format >= FormatSealed || m.Sealed != nil {
+		if m.Sealed != nil || m.GroupsUsed != used {
 			return errors.New("another command began to seal the state; run the command again")
 		}
-		m.Format, m.Sealed = FormatSealed, sealedMeta
+		m.Format, m.Sealed = max(m.Format, FormatSealed), sealedMeta
 		m.Migration = &migrationMeta{To: FormatSealed, Started: time.Now().UTC(), By: by, Total: total}
 		return nil
 	})

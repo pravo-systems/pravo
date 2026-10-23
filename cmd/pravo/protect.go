@@ -48,7 +48,7 @@ attributes, the outputs, the stored plans and the values in command lines to
 the readers. "protect status" says where things stand. "protect rewrap" brings
 the keys in line with the readers file after a reader is added or removed, and sets
 the recovery recipient. "protect recover" opens a state with the shares of its
-recovery key when no reader can.
+recovery key when no reader can. "protect unseal" takes the seal off.
 "protect gc" deletes the records that no pointer names, and the reader groups
 that nothing is sealed in any more.`,
 		Args: noArgs,
@@ -56,7 +56,7 @@ that nothing is sealed in any more.`,
 	}
 	pf := cmd.PersistentFlags()
 	pf.StringVar(&flagAccessDir, "access-dir", "", accessDirUsage)
-	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRecoverCmd(), protectGCCmd())
+	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRecoverCmd(), protectUnsealCmd(), protectGCCmd())
 	return cmd
 }
 
@@ -337,7 +337,7 @@ func differsText(added, removed []string) string {
 
 // isSealed reports whether the state is sealed, or being sealed.
 func isSealed(prot state.Protection) bool {
-	return (prot.State == "sealed" || prot.State == "migrating") && prot.Sealed != nil
+	return (prot.State == "sealed" || prot.State == "migrating" || prot.State == "unsealing") && prot.Sealed != nil
 }
 
 // downgradeProblem is what a command says about a state that is not sealed in a
@@ -494,6 +494,9 @@ func (p *protectRun) check(allowLocal bool) error {
 	}
 	if prot.State == "migrating" && prot.Migration != nil {
 		line += fmt.Sprintf(" · sealing began, %s of %s records done", commas(prot.Migration.Done), commas(prot.Migration.Total))
+	}
+	if prot.State == "unsealing" && prot.Migration != nil {
+		line += fmt.Sprintf(" · unsealing began, %s of %s records done", commas(prot.Migration.Done), commas(prot.Migration.Total))
 	}
 	out.Printf("%-16s %s\n", "State", line)
 	rf := p.rf
@@ -965,7 +968,7 @@ func (p *protectRun) status() error {
 	prot := st.Protection()
 	rows := [][2]string{}
 	add := func(k, v string) { rows = append(rows, [2]string{k, v}) }
-	sealed := prot.State == "sealed" || prot.State == "migrating"
+	sealed := prot.State == "sealed" || prot.State == "migrating" || prot.State == "unsealing"
 	// A state that does not exist yet is read as an empty one of format 1, and
 	// nothing is created. What is true of it is that there is none.
 	_, metaErr := b.Get(p.ctx, metaKey)
@@ -990,6 +993,12 @@ func (p *protectRun) status() error {
 			done, total = m.Done, m.Total
 		}
 		add("Sealed", fmt.Sprintf("migrating · %s of %s records · run pravo protect init --encrypt to finish", commas(done), commas(total)))
+	case prot.State == "unsealing":
+		done, total := 0, prot.Records
+		if m := prot.Migration; m != nil {
+			done, total = m.Done, m.Total
+		}
+		add("Sealed", fmt.Sprintf("unsealing · %s of %s records · run pravo protect unseal to finish", commas(done), commas(total)))
 	case prot.State == "immutable":
 		add("Sealed", fmt.Sprintf("off · format %d · immutable records", prot.Format))
 	default:

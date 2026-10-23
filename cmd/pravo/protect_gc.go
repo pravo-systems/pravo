@@ -99,6 +99,8 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 		return gcFormatOne(prot.Format, fmt.Sprintf("The state is format %d: it keeps one object for each resource and has nothing to collect.", prot.Format))
 	case prot.State == "migrating":
 		return state.ErrSealing
+	case prot.State == "unsealing":
+		return state.ErrUnsealing
 	}
 	// A state that is not sealed in a repository that lists readers may have been
 	// downgraded in the bucket: a collection that deletes is a writer, as any other.

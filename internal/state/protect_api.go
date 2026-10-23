@@ -44,10 +44,18 @@ var (
 	ErrUntrusted = errors.New("the state failed verification")
 	// ErrSealing is returned for a write while a seal is in progress.
 	ErrSealing = errors.New("a seal is in progress; run pravo protect init --encrypt to finish")
+	// ErrUnsealing is returned for a write while an unseal is in progress. It is an
+	// ErrSealing as well, for the callers that refuse a write for either.
+	ErrUnsealing error = &unsealingError{"an unseal is in progress; run pravo protect unseal to finish"}
 	// ErrNotImplemented is for an operation that has no implementation yet. The
 	// state package no longer returns it.
 	ErrNotImplemented = errors.New("not implemented yet")
 )
+
+type unsealingError struct{ msg string }
+
+func (e *unsealingError) Error() string        { return e.msg }
+func (e *unsealingError) Is(target error) bool { return target == ErrSealing }
 
 // Options are the ways of opening a store beyond the defaults.
 type Options struct {
@@ -106,6 +114,9 @@ func (s *Store) writable() error {
 	case s.locked:
 		s.mu.Unlock()
 		return ErrNotReader
+	case s.meta.Migration != nil && s.meta.Migration.Unseal:
+		s.mu.Unlock()
+		return ErrUnsealing
 	case s.meta.Migration != nil:
 		s.mu.Unlock()
 		return ErrSealing
@@ -147,8 +158,9 @@ func (s *Store) CheckCurrent() error {
 // key; it is all that `pravo protect status`, `pravo protect check` and the
 // viewer's Access view need.
 type Protection struct {
-	// State is "off" (format 1), "immutable" (format 2), "sealed" (format 3) or
-	// "migrating" (format 3 with a seal in progress).
+	// State is "off" (format 1), "immutable" (format 2, or format 3 that is not
+	// sealed), "sealed", "migrating" (a seal in progress) or "unsealing" (an unseal
+	// in progress).
 	State  string
 	Format int
 	// Location is the name of the backend, as Backend.Name reports it.
@@ -179,6 +191,8 @@ type Migration struct {
 	Started     time.Time
 	By          string
 	Done, Total int
+	// Unseal is set when the change in progress takes the seal off.
+	Unseal bool
 }
 
 // HistoryEntry is one change of the seal: "sealed", "rewrap", "rewrap --all" or

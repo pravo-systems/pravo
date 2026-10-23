@@ -893,3 +893,48 @@ func TestTheCommandsOfAPlanWhoseTagsAreSealedHavePlaceholders(t *testing.T) {
 		t.Errorf("template: %q, want %q", got, want)
 	}
 }
+
+func TestUnsealAllReturnsThePlansThatNoApplyUses(t *testing.T) {
+	eachSealed(t, func(t *testing.T, s *sealedStore, _ *time.Time) {
+		ctx := context.Background()
+		a := putSecret(t, s.PlanStore, t0, change("a", ActionCreate, 0))
+		b := putSecret(t, s.PlanStore, t0.Add(time.Minute), change("b", ActionCreate, 0))
+		if got := seen(everything(t, s.B)); len(got) != 0 {
+			t.Fatalf("the plans were stored in the open: %v", got)
+		}
+		if err := s.BeginApply(ctx, b.ID, "dan@host#7"); err != nil {
+			t.Fatal(err)
+		}
+		unsealed, skipped, err := s.UnsealAll(ctx)
+		if err != nil || unsealed != 1 || skipped != 1 {
+			t.Fatalf("unsealed %d, skipped %d, %v", unsealed, skipped, err)
+		}
+		for _, tc := range []struct {
+			m      *PlanMeta
+			sealed bool
+		}{{a, false}, {b, true}} {
+			data, _ := s.B.Get(ctx, planKey(tc.m.ID))
+			if _, ok := asSealedPlan(data); ok != tc.sealed {
+				t.Errorf("%s: sealed is %v, want %v", tc.m.ID, ok, tc.sealed)
+			}
+		}
+		// The unsealed plan is the plan its id names, and its summary shows what was typed.
+		data, _ := s.B.Get(ctx, planKey(a.ID))
+		if digestID(data, len(a.ID)-len("plan-")) != a.ID {
+			t.Error("the plan in the open is not the plan its id names")
+		}
+		meta, _ := s.B.Get(ctx, metaKey2(a.ID))
+		if got := string(meta); !strings.Contains(got, a.Command) || strings.Contains(got, `"sealed"`) {
+			t.Errorf("summary after the unseal: %s", got)
+		}
+		// Again: the plan in use is still there, and the rest is not written.
+		before := everything(t, s.B)
+		if n, k, err := s.UnsealAll(ctx); err != nil || n != 0 || k != 1 || everything(t, s.B) != before {
+			t.Errorf("again: %d, %d, %v", n, k, err)
+		}
+		s.EndApply(ctx, b.ID, "dan@host#7")
+		if n, k, err := s.UnsealAll(ctx); err != nil || n != 1 || k != 0 {
+			t.Errorf("after the apply: %d, %d, %v", n, k, err)
+		}
+	})
+}

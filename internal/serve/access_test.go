@@ -178,7 +178,7 @@ func TestAccessOff(t *testing.T) {
 func TestAccessImmutable(t *testing.T) {
 	f := &fakeProtection{facts: Facts{Store: StoreFacts{State: "immutable", Format: 2, Records: 5}, File: FileFacts{State: "missing"}}}
 	a := accessProject(t, f).access()
-	if a.State != "immutable" || a.Format != 2 || a.Summary != "Records are stored as immutable objects (format 2). They are not encrypted." {
+	if a.State != "immutable" || a.Format != 2 || a.Summary != "Records are stored as immutable objects. They are not encrypted." {
 		t.Errorf("%q %d %q", a.State, a.Format, a.Summary)
 	}
 	if a.Records.Text != "5 records, not sealed." || len(a.Groups) != 0 || a.SingleReader != nil {

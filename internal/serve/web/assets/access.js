@@ -75,7 +75,7 @@ export class AccessView {
 
   // banner is the sentence for the state of the store, with its facts.
   banner(a) {
-    const st = STATE[a.state] || STATE.off;
+    const st = a.state === 'migrating' && a.migration && a.migration.unseal ? { cls: 'chg', label: 'unsealing in progress', ic: 'hold' } : STATE[a.state] || STATE.off;
     const facts = [
       h('li', null, h('span', { class: 'k' }, 'format'), h('b', null, String(a.format))),
       h('li', null, h('span', { class: 'k' }, 'backend'), h('b', null, a.backend)),

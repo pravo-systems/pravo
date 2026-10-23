@@ -417,3 +417,132 @@ func (ps *PlanStore) replace(ctx context.Context, key string, old, next []byte) 
 	}
 	return 1, false, nil
 }
+
+// UnsealAll writes in the open every stored plan that is sealed and that no apply uses:
+// the plan file, and the command line and the tags of the summary, which come back as
+// they were typed. The ids do not change, since an id is the digest of the plan file.
+// A plan with a claim on it is left sealed and counted, and so is one that changed or
+// went while it was being unsealed; every object is replaced only if it is still the one
+// that was read. A plan that is in the open already is left alone, so an unseal that was
+// interrupted can be run again.
+func (ps *PlanStore) UnsealAll(ctx context.Context) (unsealed, skipped int, err error) {
+	sl := ps.sealer()
+	if sl == nil {
+		return 0, 0, errors.New("the state is not sealed")
+	}
+	ids, all, err := ps.planObjects(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	var errs []error
+	for _, id := range ids {
+		if err := ctx.Err(); err != nil {
+			return unsealed, skipped, err
+		}
+		busy, err := ps.inUse(ctx, id)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", id, err))
+			continue
+		}
+		n, left, err := ps.unsealPlanObjects(ctx, sl, id, all[id], busy)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", id, err))
+			continue
+		}
+		switch {
+		case left:
+			skipped++
+		case n > 0:
+			unsealed++
+		}
+	}
+	if ps.Cache != nil {
+		for _, id := range ids {
+			ps.Cache.forget(id)
+		}
+	}
+	return unsealed, skipped, errors.Join(errs...)
+}
+
+func (ps *PlanStore) unsealPlanObjects(ctx context.Context, sl state.Sealer, id string, kinds map[string]bool, busy bool) (wrote int, left bool, err error) {
+	if kinds["plan"] {
+		w, l, err := ps.unsealPlanFile(ctx, id, busy)
+		if err != nil {
+			return wrote, left, err
+		}
+		wrote, left = wrote+w, left || l
+		if left {
+			return wrote, left, nil // the summary stays with its plan
+		}
+	}
+	if kinds["meta"] {
+		w, l, err := ps.unsealSummary(ctx, sl, id, busy)
+		if err != nil {
+			return wrote, left, err
+		}
+		wrote, left = wrote+w, left || l
+	}
+	return wrote, left, nil
+}
+
+func (ps *PlanStore) unsealPlanFile(ctx context.Context, id string, busy bool) (wrote int, left bool, err error) {
+	key := planKey(id)
+	data, err := ps.B.Get(ctx, key)
+	if errors.Is(err, state.ErrNotFound) {
+		return 0, true, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	if _, isSealed := asSealedPlan(data); !isSealed {
+		return 0, false, nil
+	}
+	if busy {
+		return 0, true, nil
+	}
+	plain, err := ps.openPlan(id, data)
+	if err != nil {
+		return 0, false, err
+	}
+	defer clear(plain)
+	if digestID(plain, len(id)-len("plan-")) != id {
+		return 0, false, fmt.Errorf("the plan %s opens, and is not the plan its name says it is: %w", id, state.ErrUntrusted)
+	}
+	return ps.replace(ctx, key, data, bytes.Clone(plain))
+}
+
+func (ps *PlanStore) unsealSummary(ctx context.Context, sl state.Sealer, id string, busy bool) (wrote int, left bool, err error) {
+	key := metaKey2(id)
+	data, err := ps.B.Get(ctx, key)
+	if errors.Is(err, state.ErrNotFound) {
+		return 0, true, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	m, err := decodeMeta(id, data)
+	if err != nil {
+		return 0, true, nil // not readable: not ours to rewrite
+	}
+	if m.Sealed == nil {
+		return 0, false, nil
+	}
+	if busy {
+		return 0, true, nil
+	}
+	plain, err := sl.Open(protect.KindPlanCmd, id, *m.Sealed)
+	if err != nil {
+		return 0, false, openError("summary", id, err)
+	}
+	defer clear(plain)
+	var sec planSecrets
+	if err := json.Unmarshal(plain, &sec); err != nil {
+		return 0, false, fmt.Errorf("the summary of %s is not readable: sealed value is not the expected JSON", id)
+	}
+	m.Command, m.Tags, m.Sealed = sec.Command, sec.Tags, nil
+	enc, err := indentJSON(m)
+	if err != nil {
+		return 0, false, err
+	}
+	return ps.replace(ctx, key, data, enc)
+}

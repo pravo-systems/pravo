@@ -114,13 +114,24 @@ func (s *Server) protection(ctx context.Context, store *state.Store, path string
 func defaultFacts(store *state.Store, path string) Facts {
 	f := Facts{File: FileFacts{Path: path}}
 	f.Store.Format = store.Format()
-	f.Store.State = stateOfFormat(f.Store.Format)
+	f.Store.State = stateOfStore(store)
 	f.Store.Records = store.Len()
 	if f.Store.State == "sealed" {
 		f.Store.Locked = true
 		f.You = &YouFacts{State: "no-identity"}
 	}
 	return f
+}
+
+// stateOfStore is the state the store says it is in. An unseal in progress is shown as
+// a change in progress, as the viewer has one name for both.
+func stateOfStore(store *state.Store) string {
+	if s := store.Protection().State; s == "unsealing" {
+		return "migrating"
+	} else if s != "" {
+		return s
+	}
+	return stateOfFormat(store.Format())
 }
 
 func stateOfFormat(format int) string {
@@ -152,7 +163,7 @@ func newAccessModel(f Facts, store *state.Store) accessModel {
 		if f.Store.State != "" && f.Problem == "" {
 			f.Problem = "The protection of the state could not be told."
 		}
-		f.Store.State = stateOfFormat(store.Format())
+		f.Store.State = stateOfStore(store)
 	}
 	a := accessModel{facts: f}
 	a.protected = f.Store.State == "sealed" || f.Store.State == "migrating"
@@ -255,7 +266,7 @@ func buildAccess(in accessInput) *Access {
 	a.Records.Text = recordsText(a.Records, protected, noKey)
 	if st.Migration != nil && a.State == "migrating" {
 		mg := st.Migration
-		a.Migration = &AccessMigration{Started: mg.Started.UTC(), By: display(mg.By), Done: mg.Done, Total: mg.Total}
+		a.Migration = &AccessMigration{Started: mg.Started.UTC(), By: display(mg.By), Done: mg.Done, Total: mg.Total, Unseal: mg.Unseal}
 	}
 	a.Summary = summaryOf(a, storeReaders)
 	if protected && st.Recovery != nil {
@@ -548,12 +559,15 @@ func recordsText(r AccessRecords, protected, noKey bool) string {
 func summaryOf(a *Access, readers int) string {
 	switch a.State {
 	case "immutable":
-		return "Records are stored as immutable objects (format 2). They are not encrypted."
+		return "Records are stored as immutable objects. They are not encrypted."
 	case "sealed":
 		return fmt.Sprintf("The state is sealed to %d %s. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
 			readers, plural(readers, "reader", "readers"))
 	case "migrating":
 		s := "Sealing started"
+		if mg := a.Migration; mg != nil && mg.Unseal {
+			s = "Unsealing started"
+		}
 		if mg := a.Migration; mg != nil {
 			if mg.By != "" {
 				s += " by " + mg.By
@@ -708,7 +722,10 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	if local {
 		initCmd += " --allow-local"
 	}
-	if a.State == "migrating" {
+	if a.State == "migrating" && a.Migration != nil && a.Migration.Unseal {
+		add(Suggestion{ID: "finish", Title: "Finish unsealing the state", Why: "Unsealing started and stopped before it finished. Running it again finishes the records that are left.",
+			Who: "a reader", Steps: []SuggestionStep{protectCmd("unseal")}})
+	} else if a.State == "migrating" {
 		add(Suggestion{ID: "finish", Title: "Finish sealing the state", Why: "Sealing started and stopped before it finished. Running it again finishes the records that are left.",
 			Who: "a reader", Steps: []SuggestionStep{protectCmd(initCmd)}})
 	}

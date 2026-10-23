@@ -41,13 +41,14 @@ func TestUpgradeAndSealFailures(t *testing.T) {
 		}
 	})
 
-	t.Run("a format 3 meta.json with no sealed part", func(t *testing.T) {
+	t.Run("a format 3 meta.json with no sealed part is a state that is not sealed", func(t *testing.T) {
 		b, _ := NewLocalBackend(t.TempDir())
 		if err := b.Put(ctx, "meta.json", []byte(`{"format":3,"lineage":"abc","created":"2026-01-01T00:00:00Z"}`)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := OpenBackendWith(ctx, b, Options{Identity: ada}); err == nil || !strings.Contains(err.Error(), "damaged") {
-			t.Errorf("open = %v, want an error that says meta.json is damaged", err)
+		s, err := OpenBackendWith(ctx, b, Options{Identity: ada})
+		if err != nil || s.Locked() || s.Protection().State != "immutable" {
+			t.Errorf("open = %v, state %q", err, s.Protection().State)
 		}
 	})
 

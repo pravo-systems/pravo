@@ -283,7 +283,9 @@ func (v *viewerState) open(ctx context.Context, root *config.Root) (*state.Store
 	return st, nil
 }
 
-func isProtected(p state.Protection) bool { return p.State == "sealed" || p.State == "migrating" }
+func isProtected(p state.Protection) bool {
+	return p.State == "sealed" || p.State == "migrating" || p.State == "unsealing"
+}
 
 // protection is the function the Access view calls for each revision: what the
 // store says of itself, what the readers file says, and who the viewer is.
@@ -298,6 +300,10 @@ func accessFacts(p state.Protection, locked bool, id viewerIdentity, rf readersF
 	var f serve.Facts
 	s := &f.Store
 	s.State, s.Format, s.Locked = p.State, p.Format, locked
+	if s.State == "unsealing" {
+		// The viewer shows a change in progress as one state; the migration says which way.
+		s.State = "migrating"
+	}
 	s.Records, s.Plain, s.Unreadable = p.Records, p.Plain, p.Unreadable
 	if m := p.Sealed; m != nil {
 		for _, g := range m.Groups {
@@ -325,7 +331,7 @@ func accessFacts(p state.Protection, locked bool, id viewerIdentity, rf readersF
 		}
 	}
 	if mg := p.Migration; mg != nil {
-		s.Migration = &serve.MigrationFacts{Started: mg.Started, By: mg.By, Done: mg.Done, Total: mg.Total}
+		s.Migration = &serve.MigrationFacts{Started: mg.Started, By: mg.By, Done: mg.Done, Total: mg.Total, Unseal: mg.Unseal}
 	}
 	for _, h := range p.History {
 		s.History = append(s.History, serve.ChangeFacts{At: h.At, By: h.By, What: h.What, Added: h.Added, Removed: h.Removed})
