@@ -267,7 +267,7 @@ pravo.state/resources/web.json
 pravo.state/txn/<id>.json
 ```
 
-The files are plain JSON. They hold every attribute that a provider reported, including the ones it marks sensitive. Keep `pravo.state` out of version control, or move it to a bucket with [Keep the state in a shared bucket](../how-to/remote-state.md).
+The files are plain JSON. They hold every attribute that a provider reported, including the ones it marks sensitive. Whoever can read the directory can read them. Keep `pravo.state` out of version control, or move it to a bucket with [Keep the state in a shared bucket](../how-to/remote-state.md). Whoever can read the bucket can read them too. Sealing a state in a bucket encrypts the attributes to a list of readers. A copy of the bucket then shows no value. [What sealing protects](../concepts/sealed-state.md) says what it covers. [Lab 3](lab3-the-leaked-bucket.md) comes after B7 and copies a bucket before and after sealing. [Seal the state to a list of readers](../how-to/seal-the-state.md) does it step by step.
 
 `pravo state log` lists the applies and plans, newest first:
 
@@ -428,10 +428,6 @@ port: Destruction complete after 0s
 Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
 web.conf is gone
 ```
-
-## Who can read the state
-
-The files of the state hold every attribute that a provider reported, secrets included. Whoever can read the directory or the bucket can read them. Sealing encrypts the attributes to a list of readers, so that a copy of the bucket shows addresses and types and no value. [What sealing protects](../concepts/sealed-state.md) says what it covers. [Seal the state to a list of readers](../how-to/seal-the-state.md) does it step by step. [Lab 3](lab3-the-leaked-bucket.md) copies a bucket before and after.
 
 ## Recap
 

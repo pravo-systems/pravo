@@ -3,10 +3,10 @@ title: "Lab 3: the leaked bucket"
 description: Copy a state bucket, find a secret in the copy, seal the state and copy it again. See what a person with the bucket and no key can read.
 order: 53
 group: Track B · Labs and project
-minutes: 15
-needs: B7
+minutes: 25
+needs: "B7, and a checkout of pravo's source with Go, for the in-memory bucket"
 learn: What does a copy of the state bucket show? What does sealing hide, and what does it leave open?
-done_when: "The secret is in the first copy of the bucket and not in the second, and `pravo state show` is refused with exit code 5 for a person with no identity."
+done_when: "The secret is in the first copy of the bucket and not in the second. `pravo state show` is refused with exit code 5 for a person with no identity. You can name what the second copy still shows."
 level: advanced
 services:
   - fakes3:9000
@@ -34,39 +34,47 @@ normalize:
     replace: 'pravo >= <version>'
   - pattern: '[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}'
     replace: '<txn>'
-  - pattern: 'after ([0-9]+m)?[0-9.]+s'
-    replace: 'after 0s'
   - pattern: '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z'
     replace: '<time>'
   - pattern: '"config_hash": "[0-9a-f]+"'
     replace: '"config_hash": "<hash>"'
   - pattern: '"provider_version": "[0-9][0-9A-Za-z.+-]*"'
     replace: '"provider_version": "<version>"'
+  - pattern: '"user": "[^"]*"'
+    replace: '"user": "<user>"'
+  - pattern: '"host": "[^"]*"'
+    replace: '"host": "<host>"'
   - pattern: 'v[0-9]+\.[0-9]+\.[0-9]+ as '
     replace: 'v<version> as '
 ---
 
-A state holds the attributes of every resource, and a provider returns some of them as secrets. Whoever can read the bucket that holds the state can read them. This lab copies a bucket, finds a secret in the copy, seals the state and copies the bucket again. [What sealing protects](../concepts/sealed-state.md) is the reference for it.
+A state holds the attributes of every resource, and a provider returns some of them as secrets. Whoever can read the bucket that holds the state can read them. Sealing encrypts the attributes to a list of readers. This lab copies a bucket, finds a secret in the copy, seals the state and copies the bucket again. [What sealing protects](../concepts/sealed-state.md) explains what it covers, and [pravo id and pravo protect](../reference/protect.md) lists the commands.
 
 > [!NOTE]
 > Every command runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000. The two people of the lab are two directories on one machine.
 
 ## Prepare a state with a secret
 
-Work in an empty directory. Start the bucket in a second terminal, from a checkout of pravo's source. It forgets everything when it stops.
+Work in an empty directory. Start the bucket in a second terminal, from a checkout of pravo's source. It needs Go, and it forgets everything when it stops.
 
 ```sh
 go run ./tools/fakes3 -addr 127.0.0.1:9000
 ```
 
-Give the shell test credentials, a passphrase for the identities of the lab and a directory to keep them in. The passphrase is in the environment so that the commands run without a terminal. Every identity of the lab uses it. The directory keeps the identities apart from `~/.config/pravo`.
+Wait for `listening on 127.0.0.1:9000`. If another program uses port 9000, pick a free port here and in the `endpoint` line of `main.cue`.
+
+Give the shell test credentials, a passphrase for the identities of the lab and a directory to keep them in. The directory keeps the identities apart from `~/.config/pravo`.
 
 ```sh
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test
 export PRAVO_PASSPHRASE="an example passphrase" PRAVO_CONFIG_DIR=people/ada
 ```
 
-The specification keeps its state in the bucket and holds one resource, a password of 24 characters. The provider generates the value, so it appears nowhere in the files. The password has no special characters, which keeps the search in this lab exact.
+Run both lines in every terminal that runs a pravo command.
+
+A script reads the passphrase from the environment. In a terminal pravo ignores the variable and asks for the passphrase without echo, twice when it makes an identity. Type `an example passphrase` each time. Every identity of the lab uses it. Where pravo asks, run the next line of a block only after you answer.
+
+The specification keeps its state in the bucket and holds one resource, a password of 24 characters. [Keep the state in a shared bucket](../how-to/remote-state.md) explains the `state` block. The provider generates the value, so it appears nowhere in your files. The password has no special characters. The state file escapes some of them, such as `<` and `&`, and the search would miss the value.
 
 ```cue file=main.cue title="main.cue"
 package lab
@@ -191,7 +199,7 @@ The copy shows the address, the type, the provider and every attribute, with its
 
 ## Seal the state
 
-Sealing encrypts the attributes of every record to a list of readers. An identity has a reader key, which opens the state. `pravo id new` makes the identity and prints one public line for the list. The lab has two readers: Ada, who runs the commands, and Dan.
+Sealing encrypts the attributes of every record to a list of readers. An identity has two keys. The reader key opens the state. The signing key is not used while the state has no roles. `pravo id new` makes the identity and prints one public line for the list. The lab has two readers: Ada, who runs the commands, and Dan.
 
 ```sh run
 mkdir -p people
@@ -208,12 +216,18 @@ Give whoever keeps .pravo/access/readers.txt this line, and nothing else:
   ada ssh-ed25519 <ssh-key> x25519:<key>
 ```
 
-The repository keeps the lines in `.pravo/access/readers.txt`, one for each reader. Whoever can merge a change to this file decides who may read. Review a change to it like code. In a real repository, commit it.
+The repository keeps the lines in `.pravo/access/readers.txt`, one for each reader. Whoever can merge a change to this file decides who may read, so review a change to it like code. In practice Dan runs `pravo id new` on his own machine and sends his line. Here his machine is a second directory, `people/dan`. The block hides the line that the command prints, because the next block reads it back.
+
+```sh run
+PRAVO_CONFIG_DIR=people/dan pravo id new --name dan > /dev/null
+```
+
+`pravo id show` prints a line again, so the file takes the line of each reader. In a real repository, commit the file.
 
 ```sh run
 mkdir -p .pravo/access
 pravo id show | tail -n 1 | sed 's/^ *//' > .pravo/access/readers.txt
-PRAVO_CONFIG_DIR=people/dan pravo id new --name dan | tail -n 1 | sed 's/^ *//' >> .pravo/access/readers.txt
+PRAVO_CONFIG_DIR=people/dan pravo id show | tail -n 1 | sed 's/^ *//' >> .pravo/access/readers.txt
 cat .pravo/access/readers.txt
 ```
 
@@ -261,6 +275,8 @@ Commit the readers file. Writers read the list from git:
 No recovery recipient. If every reader loses their key, the state cannot be read.
 ```
 
+`pravo protect status` opens the state with your identity and says who it is sealed to.
+
 ```sh run
 pravo protect status
 ```
@@ -274,7 +290,7 @@ Roles        off
 Unsettled    none
 ```
 
-Ada's identity opens the state, and the state is sealed to Ada and Dan. [Seal the state to a list of readers](../how-to/seal-the-state.md) adds readers, removes them and lets a CI job read.
+The `You` line shows that Ada's identity opens the state.
 
 ## A new copy of the bucket
 
@@ -282,10 +298,10 @@ Ada's identity opens the state, and the state is sealed to Ada and Dan. [Seal th
 Sealing rewrote the records. Ask what it had to leave readable so that pravo can still list and order them.
 
 ::reveal
-The address and the names of the readers. The value is encrypted to the readers and is not in the copy.
+The address and the names of the readers. pravo lists and orders resources by their addresses and dependencies, and it needs no key for that. `meta.json` names the readers. The value is encrypted to the readers and is not in the copy.
 :::
 
-A sealed state needs an identity that is a reader, even to pull. The command writes the objects as they are in the bucket. The second copy holds the same bytes as a copy made with any S3 tool.
+A person who copies a bucket uses an S3 tool and needs no key. `pravo state pull` needs a reader of a sealed state, so Ada makes this copy. It writes the objects as they are in the bucket. The copy holds the same bytes as one made with an S3 tool.
 
 ```sh run
 pravo state pull copy-2
@@ -343,18 +359,20 @@ sed -E 's/("ct": ").*"/\1<ciphertext>"/' copy-2/rec/*
 }
 ```
 
-Compare it with the first copy. The address, the type, the provider, the revision and the times are where they were. `attributes` and `config_hash` are gone. `sealed` holds them, encrypted to the readers. `alg` names the scheme, `group` names the data key that the record is sealed under and `ct` is the ciphertext. `outputs.json` holds nothing but an envelope of the same kind.
+Compare it with the first copy. The address, the type, the provider, the revision and the times are where they were. `attributes` and `config_hash` are gone. `sealed` holds them, encrypted to the readers, and `ct` is the ciphertext. `outputs.json` holds an envelope of the same kind and nothing else.
 
-Two more things stay readable. `meta.json` lists the readers by name, and each transaction shows its command and its status.
+Two more things stay readable. `meta.json` lists the readers by name. Each transaction shows who ran it, on which host, with which command and with what status.
 
 ```sh run
-grep -h -E '"(name|command|status)":' copy-2/meta.json copy-2/txn/* | sed 's/^ *//'
+grep -h -E '"(name|command|user|host|status)":' copy-2/meta.json copy-2/txn/* | sed 's/^ *//'
 ```
 
 ```text out
 "name": "ada",
 "name": "dan",
 "command": "pravo apply --auto-approve",
+"user": "<user>",
+"host": "<host>",
 "status": "applied",
 ```
 
@@ -379,17 +397,15 @@ Error: you are not a reader of this state (no identity found).
   Readers are listed in .pravo/access/readers.txt. Ask one of them to add yours.
 ```
 
-[Exit code 5](../reference/exit-codes.md#5-refused) says that the caller is not a reader of a sealed state.
+Exit code 5 is a refusal. [B10](b10-policy.md) and [Lab 1](lab1-break-it-on-purpose.md) meet it as a policy. In a sealed state it also means that the caller is not a reader. The [exit codes](../reference/exit-codes.md) page lists every case.
 
-Dan has an identity, and the readers file lists it. He opens the same record. The second command counts the output lines that hold the secret from the first copy.
+Dan has an identity, and the readers file lists it. He opens the same record. The command counts the output lines that hold the secret from the first copy.
 
 ```sh run
-PRAVO_CONFIG_DIR=people/dan pravo state show db_password | head -n 1
 PRAVO_CONFIG_DIR=people/dan pravo state show db_password | grep -cF -f secret.txt
 ```
 
 ```text out
-// db_password (provider registry.opentofu.org/hashicorp/random v<version> as random, schema version 3, revision 1)
 1
 ```
 
@@ -397,11 +413,11 @@ A reader sees the value. Sealing does not hide a value from the people on the li
 
 ## What sealing does not do
 
+- **A copy made before sealing stays open.** The first copy still holds the secret in the clear. So does every earlier version of an object in a bucket that keeps versions. Replace the secret.
 - **A reader sees every value.** The list of readers is for the whole state. There is no reader for one resource.
 - **A removed reader keeps what they read.** A copy of the bucket made before the removal opens with their key. Replace the secrets they could read where they live.
-- **The readers file decides who can read.** The repository holds it, and a merged change to it grants or removes access. Review it like code.
 - **Nothing recovers a state if every reader loses their key.** There is no recovery recipient. Keep more than one reader.
-- **Roles and signatures are not part of it.** Sealing hides values. It does not say who may change the state, and a person who can write to the bucket can delete or replace its objects.
+- **Roles and signatures are not part of it.** Sealing hides values. It does not say who may change the state. A person who can write to the bucket can delete or replace its objects.
 
 [What sealing protects](../concepts/sealed-state.md) lists the rest.
 
@@ -421,22 +437,28 @@ Destroy complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <txn>]
 rm -r copy-1 copy-2 secret.txt
 ```
 
-Stop the bucket with `Ctrl-C` in the second terminal.
+Stop the bucket with `Ctrl-C` in the second terminal. A second run needs a bucket that you start again and a new empty directory. The old directory keeps the readers file, which says that the state is sealed. A new bucket has no state, so a command that writes is refused. The old bucket keeps a sealed state, and a new directory has no identity that opens it.
+
+Clear the variables of the lab from the shell:
+
+```sh
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY PRAVO_PASSPHRASE PRAVO_CONFIG_DIR
+```
 
 ## Recap
 
-- A copy of the bucket of an unsealed state holds every attribute in the clear, and `(sensitive)` on the screen does not change that.
-- A copy of a sealed state holds addresses, types, revisions, the names of the readers and the commands of the transactions. The attributes are encrypted to the readers.
+- A copy of the bucket of an unsealed state holds every attribute in the clear. `(sensitive)` hides a value on the screen only.
+- A copy of a sealed state shows addresses, types, revisions, the names of the readers and who ran which command. The attributes are encrypted to the readers.
 - A person with no identity lists the state and is refused by `pravo state show` with exit code 5. A reader sees every value.
 
 :::check
-The second copy was made from the same state as the first. Why is the secret not in it?
+The second copy was made of the same bucket as the first. Why is the secret not in it?
 ::answer
-Sealing rewrote the records. The attributes are in `sealed`, encrypted to Ada and Dan.
+Sealing rewrote the records before the second copy was made. The attributes are in `sealed`, encrypted to Ada and Dan.
 
 Dan leaves the team and a reader deletes his line from the readers file. Is the second copy of the bucket safe from him now?
 ::answer
-No. The copy was made before the removal, and Dan's key opens it. Removing a line protects the records that are written after it. Replace the secret.
+No. The copy was made before the removal, and Dan's key opens it. Removing the line and running `pravo protect rewrap` protects the records that are written after it. Replace the secret.
 :::
 
-[Seal the state to a list of readers](../how-to/seal-the-state.md) does the same on a state of your own and adds a reader for a CI job.
+[Seal the state to a list of readers](../how-to/seal-the-state.md) seals a state of your own. It also adds a reader for a CI job.
