@@ -67,7 +67,7 @@ a { color: inherit; }
 .seg button:hover { color: var(--text); background: var(--surface-2); }
 .seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
 .seg button .i { width: .9rem; height: .9rem; }
-.who { flex: none; display: inline-flex; align-items: center; gap: .45rem; height: 2.3rem; box-sizing: border-box; padding: 0 .7rem; border: 1px solid var(--line-strong); background: var(--surface); font: 500 .72rem/1 var(--font-mono); max-width: 10.5rem; min-width: 0; }
+.who { flex: none; display: inline-flex; align-items: center; gap: .45rem; height: 2.3rem; box-sizing: border-box; padding: 0 .7rem; border: 1px solid var(--line-strong); background: var(--surface); font: 500 .72rem/1 var(--font-mono); max-width: 7.5rem; min-width: 0; }
 .who b { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .who .role { color: var(--text-2); text-transform: uppercase; letter-spacing: .07em; font-size: .64rem; white-space: nowrap; }
 .who .i { width: .8rem; height: .8rem; }
@@ -112,7 +112,7 @@ a { color: inherit; }
 .crumbs .sep { flex: none; width: 1px; height: .95rem; background: var(--line-strong); transform: skewX(-18deg); margin: 0 .1rem; }
 /* the controls on the right sit over the inspector and share its width, so that its edge runs up through the bar */
 .topright { flex: none; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: .6rem; box-sizing: border-box; width: 24.5rem; margin-right: -1rem; padding: 0 1rem 0 1.1rem; border-left: 1px solid var(--line-strong); }
-.top .search { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .5rem; height: 2.3rem; box-sizing: border-box; padding: 0 .6rem; border: 1px solid var(--line-strong); background: var(--bg); color: var(--text-3); font-size: .82rem; text-align: left; white-space: nowrap; transition: border-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast); }
+.top .search { flex: 1 0 auto; min-width: 11rem; display: flex; align-items: center; gap: .5rem; height: 2.3rem; box-sizing: border-box; padding: 0 .6rem; border: 1px solid var(--line-strong); background: var(--bg); color: var(--text-3); font-size: .82rem; text-align: left; white-space: nowrap; transition: border-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast); }
 .top .search:hover { border-color: var(--text-3); color: var(--text-2); box-shadow: 0 0 0 3px var(--key-wash); }
 .top .search kbd { margin-left: auto; }
 .viewsw { flex: none; }
@@ -430,7 +430,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 }
 @media (max-width: 68.75em) {
   .topright { width: auto; margin-right: 0; padding: 0; border-left: 0; }
-  .top .search { flex: none; width: auto; padding: 0 .6rem; }
+  .top .search { flex: none; min-width: 0; width: auto; padding: 0 .6rem; }
   .top .search .lbl { display: none; }
   .only-narrow, .only-medium { display: inline-grid; }
   .app, .app[data-view="access"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
