@@ -260,8 +260,15 @@ func TestCopyLeavesOutAPlanThatVanishes(t *testing.T) {
 	if _, err := dst.Get(ctx, "meta.json"); err != nil {
 		t.Errorf("the metadata was not copied: %v", err)
 	}
-	// Anything else that cannot be read is still an error.
-	if _, err := Copy(ctx, &vanishing{Backend: local, key: "meta.json"}, dst); err != nil {
+	// A meta.json that cannot be read is skipped, as it always was. The
+	// destination is a fresh one: the first copy left a state of the source's
+	// format in dst, and a source with no meta.json reads as format 1, which a
+	// copy refuses to put over a state of format 2.
+	fresh, err := NewLocalBackend(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Copy(ctx, &vanishing{Backend: local, key: "meta.json"}, fresh); err != nil {
 		t.Errorf("a missing meta.json is skipped as it always was: %v", err)
 	}
 }

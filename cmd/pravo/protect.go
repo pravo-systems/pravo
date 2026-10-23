@@ -902,24 +902,34 @@ func (p *protectRun) status() error {
 	rows := [][2]string{}
 	add := func(k, v string) { rows = append(rows, [2]string{k, v}) }
 	sealed := prot.State == "sealed" || prot.State == "migrating"
-	switch prot.State {
-	case "sealed":
+	// A state that does not exist yet is read as an empty one of format 1, and
+	// nothing is created. What is true of it is that there is none.
+	_, metaErr := b.Get(p.ctx, metaKey)
+	none := errors.Is(metaErr, state.ErrNotFound) && prot.Records == 0 && !sealed
+	switch {
+	case none:
+		if p.rf.Found {
+			add("Sealed", "no state yet · create it sealed with: pravo protect init --encrypt")
+		} else {
+			add("Sealed", "no state yet")
+		}
+	case prot.State == "sealed":
 		names := protectedNames(prot)
 		add("Sealed", fmt.Sprintf("on · format %d · %s (%s) · recovery none", prot.Format, plural(len(names), "reader", "readers"), nameList(names)))
-	case "migrating":
+	case prot.State == "migrating":
 		done, total := 0, prot.Records
 		if m := prot.Migration; m != nil {
 			done, total = m.Done, m.Total
 		}
 		add("Sealed", fmt.Sprintf("migrating · %s of %s records · run pravo protect init --encrypt to finish", commas(done), commas(total)))
-	case "immutable":
+	case prot.State == "immutable":
 		add("Sealed", fmt.Sprintf("off · format %d · immutable records", prot.Format))
 	default:
 		add("Sealed", fmt.Sprintf("off · format %d", prot.Format))
 	}
 	rf := p.rf
 	expects := expectsSealed(prot, rf)
-	if expects {
+	if expects && !none {
 		rows[len(rows)-1][1] += " · the repository expects a sealed state"
 	}
 	add("Store", p.location())
@@ -971,6 +981,10 @@ func (p *protectRun) status() error {
 	if flagJSON {
 		doc := map[string]any{"state": prot.State, "format": prot.Format, "store": p.location(), "records": prot.Records,
 			"readers": protectedNames(prot), "checked": ver.Checked, "untrusted": ver.Bad, "unsettled": len(interrupted)}
+		if none {
+			doc["state"] = "none"
+			delete(doc, "format")
+		}
 		if expects {
 			doc["expects_sealed"] = true
 		}

@@ -88,6 +88,89 @@ func TestIDNewWritesASealedIdentityAndPrintsItsLine(t *testing.T) {
 	}
 }
 
+// With PRAVO_IDENTITY_DIR set, id new writes there and not to the configuration
+// directory, so the identity is found by the commands that read identities, which
+// look in that directory first.
+func TestIDNewWritesToPravoIdentityDir(t *testing.T) {
+	ids := isolateIdentities(t)
+	t.Setenv("PRAVO_PASSPHRASE", testPass)
+	base := t.TempDir()
+	dir := filepath.Join(base, "keys", "ids") // neither level exists
+	t.Setenv("PRAVO_IDENTITY_DIR", dir)
+	work := t.TempDir()
+
+	made, code := runPravo(t, work, "id", "new", "--name", "ada")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, made)
+	}
+	reader := publicLine(t, made)
+	file := filepath.Join(dir, "ada")
+	if !strings.Contains(made, " in "+file+"\n") {
+		t.Errorf("the output does not name %s:\n%s", file, made)
+	}
+	if _, err := os.Stat(file); err != nil {
+		t.Fatalf("the identity is not in PRAVO_IDENTITY_DIR: %v", err)
+	}
+	if _, err := os.Stat(filepath.Dir(ids)); err == nil {
+		t.Errorf("the configuration directory %s was made", filepath.Dir(ids))
+	}
+	if runtime.GOOS != "windows" {
+		if m := mode(t, file); m != 0o600 {
+			t.Errorf("identity file mode %v, want 0600", m)
+		}
+		if m := mode(t, dir); m != 0o700 {
+			t.Errorf("identity directory mode %v, want 0700", m)
+		}
+	}
+	// A second one is refused where it is looked for.
+	if text, code := runPravo(t, work, "id", "new", "--name", "ada"); code != 1 || !strings.Contains(text, "Error: identity ada already exists at "+file) {
+		t.Errorf("exit %d, want 1 and the refusal\n%s", code, text)
+	}
+
+	// id show finds it, by default and by name, without the passphrase.
+	t.Setenv("PRAVO_PASSPHRASE", "")
+	resetIdentityState(t)
+	for _, args := range [][]string{{"id", "show"}, {"id", "show", "--name", "ada"}} {
+		text, code := runPravo(t, work, args...)
+		if code != 0 || publicLine(t, text).String() != reader.String() || !strings.Contains(text, file) {
+			t.Errorf("%v: exit %d\n%s", args, code, text)
+		}
+	}
+	if _, err := os.Stat(filepath.Dir(ids)); err == nil {
+		t.Errorf("a command made the configuration directory %s", filepath.Dir(ids))
+	}
+}
+
+// A command that opens a sealed state finds an identity that id new made under
+// PRAVO_IDENTITY_DIR: it seals the state to it, and status says who the reader is.
+func TestIdentityMadeUnderPravoIdentityDirOpensAState(t *testing.T) {
+	requireSealing(t)
+	isolateIdentities(t)
+	t.Setenv("PRAVO_PASSPHRASE", testPass)
+	t.Setenv("PRAVO_IDENTITY_DIR", filepath.Join(t.TempDir(), "ids"))
+	dir := specDir(t, map[string]string{"main.cue": "package t\n"})
+
+	made, code := runPravo(t, dir, "id", "new", "--name", "ada")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, made)
+	}
+	reader := publicLine(t, made)
+	writeReaders(t, filepath.Join(dir, ".pravo", "access"), reader.String())
+	resetIdentityState(t)
+	if text, code := runPravo(t, dir, "protect", "init", "--encrypt", "--yes", "--allow-local"); code != 0 {
+		t.Fatalf("init: exit %d\n%s", code, text)
+	}
+	resetIdentityState(t)
+	text, code := runPravo(t, dir, "protect", "status")
+	if code != 0 || !strings.Contains(text, "You          ada · reader key "+reader.Key.String()+"\n") {
+		t.Fatalf("status: exit %d\n%s", code, text)
+	}
+	resetIdentityState(t)
+	if text, code := runPravo(t, dir, "state", "list"); code != 0 || strings.Contains(text, "Warning") {
+		t.Errorf("state list: exit %d\n%s", code, text)
+	}
+}
+
 func TestIDNewNeverOverwritesAnIdentity(t *testing.T) {
 	ids := isolateIdentities(t)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)

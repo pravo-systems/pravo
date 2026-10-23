@@ -261,7 +261,7 @@ Copying a recording, or keeping it in version control, does not keep the modes. 
 | `PRAVO_ACTOR`, `PRAVO_REASON` | The values of `--actor` and `--reason` when the flags are absent. |
 | `PRAVO_ACCESS_DIR` | The directory of the readers file of a sealed state, in place of `.pravo/access`. The flag `--access-dir` of [`pravo protect`](protect.md) wins. |
 | `PRAVO_IDENTITY` | The identity that opens a sealed state: the contents of an identity file, when the value starts with `{`, or the path of one. It is read once and removed from the environment, and providers never receive it. For a CI job, see [`pravo id new --ci`](protect.md#id-new). |
-| `PRAVO_IDENTITY_DIR` | The directory that holds identity files, in place of `id` in the configuration directory. |
+| `PRAVO_IDENTITY_DIR` | The directory that holds identity files, in place of `id` in the configuration directory. Commands that read identities look there, and `pravo id new` writes there, making the directory with mode 0700 when it is missing. |
 | `PRAVO_PASSPHRASE`, `PRAVO_IDENTITY_PASSPHRASE` | The passphrase of a sealed identity, for a command that has no terminal to ask on. It is read once and removed from the environment, and providers never receive it. |
 | `PRAVO_CONFIG_DIR` | The configuration directory, in place of `$XDG_CONFIG_HOME/pravo` or `~/.config/pravo`. Identities are kept in its `id` directory. |
 | `PRAVO_RECORD`, `PRAVO_REPLAY` | A directory to record provider responses to, or to replay them from. |

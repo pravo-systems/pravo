@@ -281,14 +281,11 @@ func fileSource(p string) identitySource {
 // identityDir is where the identity files are: $PRAVO_IDENTITY_DIR, or the id
 // directory below the configuration directory.
 func identityDir() (string, error) {
-	if d := os.Getenv("PRAVO_IDENTITY_DIR"); d != "" {
-		return d, nil
-	}
-	c, err := protect.ConfigDir()
+	d, err := protect.IdentityDir()
 	if err != nil {
 		return "", fmt.Errorf("no configuration directory to keep identities in: %w", err)
 	}
-	return filepath.Join(c, "id"), nil
+	return d, nil
 }
 
 // identityNames lists the identity files of dir, sorted. A directory that does

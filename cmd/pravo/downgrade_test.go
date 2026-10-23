@@ -239,8 +239,18 @@ func TestMissingStateWithAReadersFile(t *testing.T) {
 	if text, code = runPravo(t, e.dir, "protect", "gc", "--dry-run"); code != 0 {
 		t.Errorf("gc --dry-run: exit %d\n%s", code, text)
 	}
-	if text, code = runPravo(t, e.dir, "protect", "status"); code != 0 {
+	text, code = runPravo(t, e.dir, "protect", "status")
+	if code != 0 || !strings.Contains(text, "Sealed       no state yet · create it sealed with: pravo protect init --encrypt\n") ||
+		strings.Contains(text, "off · format") || strings.Contains(text, "expects") {
 		t.Errorf("status: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, e.dir, "protect", "status", "--json")
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(text), &doc); err != nil || code != 0 {
+		t.Fatalf("status --json: exit %d, %v\n%s", code, err, text)
+	}
+	if _, has := doc["format"]; doc["state"] != "none" || has || doc["expects_sealed"] != true || doc["records"] != float64(0) {
+		t.Errorf("status --json of a state that does not exist yet: %v", doc)
 	}
 	if len(e.f.Objects) != 0 || e.puts() != 0 {
 		t.Fatalf("a reader created %d objects: %s", len(e.f.Objects), e.bucketText())
@@ -288,6 +298,10 @@ func TestMissingLocalStateWithAReadersFile(t *testing.T) {
 	if code != 0 || stderr != "Warning: "+missingWant+"\n" {
 		t.Errorf("state list: exit %d\n%s\n%q", code, text, stderr)
 	}
+	text, code = runPravo(t, dir, "protect", "status")
+	if code != 0 || !strings.Contains(text, "Sealed       no state yet · create it sealed with: pravo protect init --encrypt\n") {
+		t.Errorf("status: exit %d\n%s", code, text)
+	}
 	if after := dirNames(t, dir); after != before {
 		t.Fatalf("the commands created %q, there was %q", after, before)
 	}
@@ -301,6 +315,28 @@ func TestMissingLocalStateWithAReadersFile(t *testing.T) {
 	}
 	if text, code = runPravo(t, dir, "state", "unlock", "--stale"); code != 0 {
 		t.Fatalf("writer after init: exit %d\n%s", code, text)
+	}
+}
+
+// Without a readers file nothing is expected of the state, and status still says
+// that there is none, and creates nothing.
+func TestStatusOfAStateThatDoesNotExistYet(t *testing.T) {
+	dir := specDir(t, map[string]string{"main.cue": "package t\n"})
+	before := dirNames(t, dir)
+	text, code := runPravo(t, dir, "protect", "status")
+	if code != 0 || !strings.Contains(text, "Sealed       no state yet\n") || strings.Contains(text, "create it sealed") || strings.Contains(text, "expects") {
+		t.Errorf("status: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, dir, "protect", "status", "--json")
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(text), &doc); err != nil || code != 0 {
+		t.Fatalf("status --json: exit %d, %v\n%s", code, err, text)
+	}
+	if _, expects := doc["expects_sealed"]; doc["state"] != "none" || expects {
+		t.Errorf("status --json: %v", doc)
+	}
+	if after := dirNames(t, dir); after != before {
+		t.Fatalf("status created %q, there was %q", after, before)
 	}
 }
 

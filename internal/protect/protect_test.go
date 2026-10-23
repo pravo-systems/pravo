@@ -423,6 +423,7 @@ func TestFileModes(t *testing.T) {
 	// SaveIdentity makes both ~/.config/pravo and ~/.config/pravo/id private.
 	cfg := filepath.Join(t.TempDir(), ".config", "pravo")
 	t.Setenv("PRAVO_CONFIG_DIR", cfg)
+	t.Setenv("PRAVO_IDENTITY_DIR", "")
 	ip, err := SaveIdentity("dan", []byte("{}"), false)
 	if err != nil || ip != filepath.Join(cfg, "id", "dan") {
 		t.Fatal(ip, err)
@@ -434,6 +435,36 @@ func TestFileModes(t *testing.T) {
 	}
 	if sd, _ := os.Stat(filepath.Dir(cfg)); sd.Mode().Perm() != 0o755 {
 		t.Errorf(".config has mode %v", sd.Mode().Perm())
+	}
+	// With PRAVO_IDENTITY_DIR set, the identity goes there and the configuration
+	// directory is left alone.
+	elsewhere := t.TempDir()
+	custom := filepath.Join(elsewhere, "keys", "ids")
+	cfg2 := filepath.Join(elsewhere, "cfg")
+	t.Setenv("PRAVO_CONFIG_DIR", cfg2)
+	t.Setenv("PRAVO_IDENTITY_DIR", custom)
+	if d, err := IdentityDir(); err != nil || d != custom {
+		t.Fatalf("IdentityDir = %q, %v; want %q", d, err, custom)
+	}
+	if ip, err := IdentityPath("eve"); err != nil || ip != filepath.Join(custom, "eve") {
+		t.Fatalf("IdentityPath = %q, %v", ip, err)
+	}
+	ip, err = SaveIdentity("eve", []byte("{}"), false)
+	if err != nil || ip != filepath.Join(custom, "eve") {
+		t.Fatal(ip, err)
+	}
+	if sd, err := os.Stat(custom); err != nil || sd.Mode().Perm() != 0o700 {
+		t.Errorf("%s: %v %v", custom, sd, err)
+	}
+	if _, err := os.Stat(cfg2); err == nil {
+		t.Error("the configuration directory was made")
+	}
+	if _, err := SaveIdentity("eve", []byte("{}"), false); err == nil {
+		t.Error("an identity that exists was replaced")
+	}
+	t.Setenv("PRAVO_IDENTITY_DIR", "")
+	if d, err := IdentityDir(); err != nil || d != filepath.Join(cfg2, "id") {
+		t.Fatalf("IdentityDir without the variable = %q, %v", d, err)
 	}
 	// A loose unsealed identity is refused; a loose sealed one is a warning.
 	os.WriteFile(filepath.Join(dir, "ci"), []byte(`{"v":1}`), 0o644)

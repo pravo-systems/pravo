@@ -455,9 +455,23 @@ func TestGenerationOfARecord(t *testing.T) {
 			if !strings.Contains(string(data), `"generation": "t3"`) {
 				t.Errorf("the object does not hold the generation:\n%s", data)
 			}
+		})
+	}
+}
 
-			// A record written before generations were recorded has none. A refresh
-			// leaves it so, and the next write gives it one.
+// A record written before generations were recorded has none. A refresh leaves
+// it so, and the next write gives it one. The test plants a whole record, which a
+// sealed state refuses, so it runs over stores that are not sealed.
+func TestGenerationOfARecordWrittenBeforeGenerations(t *testing.T) {
+	skipWhenSealed(t)
+	for _, bk := range testBackends() {
+		t.Run(bk.name, func(t *testing.T) {
+			b := bk.make(t)
+			s := openMany(t, b, 1)[0]
+			ctx := context.Background()
+			rec := func() *Resource {
+				return &Resource{Mode: "managed", Type: "t", Name: "r", Attributes: json.RawMessage(`{}`)}
+			}
 			old := rec()
 			old.Name = "old"
 			if err := s.Set(old, "t4"); err != nil {
@@ -465,7 +479,7 @@ func TestGenerationOfARecord(t *testing.T) {
 			}
 			legacy := *s.Get("t.old")
 			legacy.Generation = ""
-			data, _ = indentJSON(&legacy)
+			data, _ := indentJSON(&legacy)
 			if err := b.Put(ctx, nodeKey("t.old"), data); err != nil {
 				t.Fatal(err)
 			}

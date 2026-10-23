@@ -36,16 +36,35 @@ func ConfigDir() (string, error) {
 	return filepath.Join(h, ".config", "pravo"), nil
 }
 
-// IdentityPath is ~/.config/pravo/id/NAME. NAME is checked, so it cannot name a path.
+// IdentityDir is where identity files are kept and looked for:
+//
+//	$PRAVO_IDENTITY_DIR, else the id directory of ConfigDir
+//
+// The commands that read identities and the one that makes them use this one
+// directory.
+func IdentityDir() (string, error) {
+	if d := os.Getenv("PRAVO_IDENTITY_DIR"); d != "" {
+		return d, nil
+	}
+	c, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(c, "id"), nil
+}
+
+// IdentityPath is the file NAME in IdentityDir, ~/.config/pravo/id/NAME unless
+// $PRAVO_IDENTITY_DIR or $PRAVO_CONFIG_DIR say otherwise. NAME is checked, so it
+// cannot name a path.
 func IdentityPath(name string) (string, error) {
 	if !nameRE.MatchString(name) {
 		return "", fmt.Errorf("identity name %q: use letters, digits, . _ - (at most 64)", name)
 	}
-	d, err := ConfigDir()
+	d, err := IdentityDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(d, "id", name), nil
+	return filepath.Join(d, name), nil
 }
 
 // EnsurePrivateDir creates dir (and its parents with 0755, as MkdirAll would
@@ -158,16 +177,19 @@ func hasPassphraseSeal(data []byte) bool {
 	return json.Unmarshal(data, &probe) == nil && len(probe.Seal) > 0 && string(probe.Seal) != "null"
 }
 
-// SaveIdentity writes ~/.config/pravo/id/NAME (see ConfigDir), creating
-// ~/.config/pravo and ~/.config/pravo/id with mode 0700 when they are missing.
+// SaveIdentity writes the file NAME of the identity directory (see IdentityDir).
+// It creates the directory with mode 0700 when it is missing, and, when the
+// directory is the default one, ~/.config/pravo above it the same way.
 func SaveIdentity(name string, data []byte, replace bool) (string, error) {
 	path, err := IdentityPath(name)
 	if err != nil {
 		return "", err
 	}
 	idDir := filepath.Dir(path)
-	if err := EnsurePrivateDir(filepath.Dir(idDir)); err != nil {
-		return "", err
+	if os.Getenv("PRAVO_IDENTITY_DIR") == "" {
+		if err := EnsurePrivateDir(filepath.Dir(idDir)); err != nil {
+			return "", err
+		}
 	}
 	if err := EnsurePrivateDir(idDir); err != nil {
 		return "", err

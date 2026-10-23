@@ -30,7 +30,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/mod.md](reference/mod.md) | Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file. | 6 KB |
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
 | [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 14 KB |
-| [reference/protect.md](reference/protect.md) | Make an identity, seal the state to a list of readers, check that it holds, change the readers and collect old records. Commands, flags and exit codes. | 32 KB |
+| [reference/protect.md](reference/protect.md) | Make an identity, seal the state to a list of readers, check that it holds, change the readers and collect old records. Commands, flags and exit codes. | 33 KB |
 
 ### Language
 
@@ -93,7 +93,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/policies.md](concepts/policies.md) | One idea at two moments: a constraint on a provider is checked at evaluation, a policy file against a plan. What each binds and what neither guarantees. | 21 KB |
 | [concepts/secrets-and-ephemeral-values.md](concepts/secrets-and-ephemeral-values.md) | Which values pravo records in state, saved plans and outputs, what an ephemeral value is, where it may go, and what hiding a value does and does not do. | 12 KB |
 | [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a module is, what presence means, which values are withheld and why the viewer changes nothing. | 25 KB |
-| [concepts/sealed-state.md](concepts/sealed-state.md) | What a sealed state encrypts, who can read it, and what it does not do. It gives confidentiality of values against a copy of the bucket, and nothing else. | 15 KB |
+| [concepts/sealed-state.md](concepts/sealed-state.md) | What a sealed state encrypts, who can read it, and what it does not do. It gives confidentiality of values against a copy of the bucket, and nothing else. | 16 KB |
 
 ## How-to
 
