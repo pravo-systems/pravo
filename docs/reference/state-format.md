@@ -386,7 +386,7 @@ jq . pravo.state/outputs.json
 }
 ```
 
-A sensitive output is recorded as `{"$sensitive": value}`. `pravo state import-tfstate` records an output that the OpenTofu state marks sensitive in the same form. `pravo.#RemoteOutputs` reads only this object, and leaves the sensitive ones out. It reads the object without a key, and refuses a sealed one with an error that says the outputs are sealed.
+A sensitive output is recorded as `{"$sensitive": value}`. `pravo state import-tfstate` records an output that the OpenTofu state marks sensitive in the same form. `pravo.#RemoteOutputs` reads only this object, and leaves the sensitive ones out. It reads the object without a key, and opens a sealed one with the identity of the process: the identity is chosen among the identity files by the locks of that state, and a process that is not one of its readers is refused with an error that says the outputs are sealed.
 
 ## Transactions
 
