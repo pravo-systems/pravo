@@ -307,6 +307,10 @@ func TestRenewOfUnknownOutcomeIsNotALostLock(t *testing.T) {
 	if err := s.Lock("t.a", "test", ""); err != nil {
 		t.Fatal(err)
 	}
+	// The clock of Windows ticks every few milliseconds, and a renewal in the tick
+	// of the lock writes the bytes that are already there, which is a write that
+	// is made whether its answer is lost or not.
+	time.Sleep(50 * time.Millisecond)
 	lostThenUnreadable(h.f, onKey(lockKey("t.a")))
 	err := s.Renew("t.a")
 	var locked *ErrLocked
