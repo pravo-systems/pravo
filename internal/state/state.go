@@ -203,6 +203,11 @@ type Store struct {
 	// and, in format 2, the record the pointer names. A write replaces the object
 	// only if it is still that.
 	held map[string]nodeRef
+	// strays are the addresses of records that were found sealed in a state whose
+	// meta.json says it is not sealed: the sealed part was removed or replaced by
+	// something other than an unseal. Such a record reads without its values, and a
+	// write over it would lose them.
+	strays []string
 	// index is derived from nodes: the addresses in order and the reverse edges.
 	// It is built by the first query that needs it and dropped by every change of
 	// the nodes. A built index is never changed, so a query reads it without the

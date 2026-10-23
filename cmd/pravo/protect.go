@@ -1010,7 +1010,11 @@ func (p *protectRun) status() error {
 		}
 		add("Sealed", fmt.Sprintf("unsealing · %s of %s records · run pravo protect unseal to finish", commas(done), commas(total)))
 	case prot.State == "immutable":
-		add("Sealed", fmt.Sprintf("off · format %d · immutable records", prot.Format))
+		line := fmt.Sprintf("off · format %d · immutable records", prot.Format)
+		if n := len(prot.StraySealed); n > 0 {
+			line += fmt.Sprintf(" · %s sealed, and meta.json says the state is not: it was changed", plural(n, "record is", "records are"))
+		}
+		add("Sealed", line)
 	default:
 		add("Sealed", fmt.Sprintf("off · format %d", prot.Format))
 	}

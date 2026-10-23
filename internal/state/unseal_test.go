@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -380,5 +381,44 @@ func TestUnsealOfALockedStoreLoadsTheValues(t *testing.T) {
 	}
 	if got := locked.Get("net.vpc"); got == nil || len(got.Attributes) == 0 {
 		t.Errorf("net.vpc after the unseal: %+v", got)
+	}
+}
+
+// A sealed record in a state that says it is not sealed is listed, so that a reader sees
+// that something is wrong, and nothing is written over it.
+func TestAStateThatIsNotSealedDoesNotWriteOverASealedRecord(t *testing.T) {
+	skipWhenSealed(t)
+	fastRecheck(t)
+	b := testBackends()[0].make(t)
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	ptr := pointerAt(t, b, "net.vpc")
+	sealedRec, err := b.Get(ctx, ptr.Record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldPtr, _ := b.Get(ctx, nodeKey("net.vpc"))
+	if _, err := s.Unseal(ctx, UnsealOptions{Identity: ada}); err != nil {
+		t.Fatal(err)
+	}
+	// The sealed record and its pointer come back, as a thief who restored them would.
+	if err := b.Put(ctx, ptr.Record, sealedRec); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Put(ctx, nodeKey("net.vpc"), oldPtr); err != nil {
+		t.Fatal(err)
+	}
+	plain, err := OpenBackendWith(ctx, b, Options{})
+	if err != nil {
+		t.Fatalf("a reader cannot see the state: %v", err)
+	}
+	if p := plain.Protection(); fmt.Sprint(p.StraySealed) != "[net.vpc]" {
+		t.Errorf("stray %v", p.StraySealed)
+	}
+	again := *plain.Get("db.main")
+	again.Attributes = json.RawMessage(`{"id":"db-2"}`)
+	if err := plain.Set(&again, ""); !errors.Is(err, ErrUntrusted) {
+		t.Errorf("Set = %v, want ErrUntrusted", err)
 	}
 }

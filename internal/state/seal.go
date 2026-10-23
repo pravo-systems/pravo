@@ -35,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -282,6 +283,15 @@ func (s *Store) decodeRecord(data []byte) (*Resource, string, error) {
 		var r Resource
 		if err := json.Unmarshal(data, &r); err != nil {
 			return nil, "", err
+		}
+		// A sealed record has no values in the open, and reads as a record with none. The
+		// state still lists it, as a reader without the repository must be able to see
+		// that it is wrong, but it is not written over.
+		if bytes.Contains(data, []byte(`"sealed"`)) {
+			var sr sealedRecord
+			if json.Unmarshal(data, &sr) == nil && sr.Sealed != nil {
+				s.noteStray(r.Address())
+			}
 		}
 		return &r, "", nil
 	}
@@ -537,6 +547,8 @@ func (s *Store) Protection() Protection {
 		p.History = append(p.History, HistoryEntry{At: h.At, By: h.By, What: h.What, Added: h.Added, Removed: h.Removed})
 	}
 	if s.meta.Sealed == nil {
+		p.StraySealed = slices.Clone(s.strays)
+		slices.Sort(p.StraySealed)
 		return p
 	}
 	sealed := *s.meta.Sealed
@@ -646,4 +658,30 @@ func OpenOutputs(ctx context.Context, b Backend, id *protect.Identity) (map[stri
 		return nil, fmt.Errorf("the sealed outputs of %s do not open where they are: %w", b.Name(), ErrUntrusted)
 	}
 	return out, nil
+}
+
+// noteStray records the address of a sealed record found in a state that is not sealed.
+func (s *Store) noteStray(addr string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !slices.Contains(s.strays, addr) {
+		s.strays = append(s.strays, addr)
+	}
+}
+
+// strayError is the refusal of a write to a state that holds sealed records and says it
+// is not sealed, nil when there are none.
+func (s *Store) strayError() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.meta.Sealed != nil || len(s.strays) == 0 {
+		return nil
+	}
+	list := slices.Clone(s.strays)
+	slices.Sort(list)
+	shown := strings.Join(list[:min(len(list), 3)], ", ")
+	if len(list) > 3 {
+		shown += fmt.Sprintf(" and %d more", len(list)-3)
+	}
+	return fmt.Errorf("%d records are sealed (%s), and meta.json says the state is not sealed: meta.json was changed, or replaced by an older one. A write could replace them with records that have no values, so nothing is written. Put meta.json back from a version of the bucket: %w", len(list), shown, ErrUntrusted)
 }

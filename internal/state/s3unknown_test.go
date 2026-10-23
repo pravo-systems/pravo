@@ -433,6 +433,7 @@ func TestCallersOfADeleteWhoseAnswerWasLost(t *testing.T) {
 // The write of meta.json in an upgrade returns the error of a write of unknown
 // outcome with the advice to run the command again.
 func TestUpgradeWhoseMetaWriteIsOfUnknownOutcomeIsAdvised(t *testing.T) {
+	skipWhenSealed(t) // a store that is sealed already is not upgraded
 	s, g := openGated(t)
 	g.set(func(g *gateBackend) {
 		g.putGate = func(k string) error {

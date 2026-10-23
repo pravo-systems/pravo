@@ -65,7 +65,7 @@ func TestDowngradedStateIsRefusedToWriters(t *testing.T) {
 	})
 	t.Run("status says it in the Sealed line", func(t *testing.T) {
 		text, code := runPravo(t, s.dir, "protect", "status")
-		if code != 0 || !strings.Contains(text, "Sealed       off · format 2 · immutable records · the repository expects a sealed state\n") {
+		if code != 0 || !strings.Contains(text, "Sealed       off · format 2 · immutable records · 2 records are sealed, and meta.json says the state is not: it was changed · the repository expects a sealed state\n") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 		text, code = runPravo(t, s.dir, "protect", "status", "--json")
@@ -92,7 +92,7 @@ func TestDowngradedStateIsRefusedToWriters(t *testing.T) {
 			t.Fatal(err)
 		}
 		text, code := runPravo(t, s.dir, "protect", "status")
-		if code != 0 || strings.Contains(text, "expects") || !strings.Contains(text, "Sealed       off · format 2 · immutable records\n") {
+		if code != 0 || strings.Contains(text, "expects") || !strings.Contains(text, "Sealed       off · format 2 · immutable records · 2 records are sealed, and meta.json says the state is not: it was changed\n") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 		var stderr string
