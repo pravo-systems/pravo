@@ -3696,16 +3696,17 @@ html:not(.js) .bl-nojs { display: block; }
 .about-act { gap: .7rem; }
 
 /* ---------- download ---------- */
-.download { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: clamp(1rem, 3vw, 2.5rem); align-items: start; margin-bottom: clamp(1.5rem, 3vw, 2.5rem); padding: clamp(1.2rem, 2.5vw, 2rem); background: var(--surface); border: 1px solid var(--line-strong); }
+.download { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: clamp(1rem, 3vw, 2.5rem); align-items: start; margin-bottom: clamp(1.5rem, 3vw, 2.5rem); padding: clamp(1.2rem, 2.5vw, 2rem); background: var(--surface); border: 1px solid var(--line-strong); }
 @media (max-width: 47.99rem) { .download { grid-template-columns: minmax(0, 1fr); } }
-.download-main, .download-install { display: flex; flex-direction: column; align-items: flex-start; gap: .9rem; min-width: 0; }
+.download-main, .download-all { display: flex; flex-direction: column; align-items: flex-start; gap: .9rem; min-width: 0; }
+.download-all[hidden] { display: none; }
 .download-label { margin: 0; font: 500 .72rem/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.download-label-sub { margin-top: .5rem; }
 .download-note { margin: 0; max-width: 34rem; font-size: .92rem; line-height: 1.5; color: var(--text-2); }
-.download-term { width: 100%; margin: 0; }
-.download-term .cmd-text { overflow-wrap: anywhere; }
-.download-all { font-size: .92rem; color: var(--text-2); }
-.download-all summary { cursor: pointer; }
-.download-list { margin: .6rem 0 0; padding: 0; list-style: none; display: grid; gap: .3rem; }
+.download-term { width: 100%; max-width: 36rem; margin: 0; }
+.download-term .term-body { padding-right: 3.2rem; }
+.download-term .term-line, .download-term .cmd-text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.download-list { margin: 0; padding: 0; list-style: none; display: grid; gap: .45rem; font-size: .95rem; color: var(--text-2); }
 .download-list a { color: var(--text); text-decoration-color: var(--accent); text-underline-offset: .2em; }
 
 /* ==========================================================================
