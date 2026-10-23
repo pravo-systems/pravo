@@ -906,7 +906,20 @@ function renderHeader() {
     cs.querySelector('.cp-be').textContent = st.backend || '';
     cs.querySelector('.cp-be').hidden = !st.backend;
   }
-  $('pill-addr').textContent = location.host || '127.0.0.1';
+  renderWho();
+}
+
+// renderWho names the identity that the page is read as. An unsealed state has none to name.
+const WHO = { reader: 'reader', 'not-reader': 'not a reader', 'no-identity': 'no identity', locked: 'identity locked' };
+function renderWho() {
+  const el = $('who'), y = S.access && S.access.you;
+  el.hidden = !y;
+  if (!y) return;
+  el.className = 'who w-' + y.state;
+  const role = WHO[y.state] || WHO['no-identity'];
+  el.replaceChildren(icon(y.state === 'reader' ? 'check' : 'lock'), y.name ? h('b', null, y.name) : null, h('span', { class: 'role' }, role));
+  el.setAttribute('aria-label', (y.name ? y.name + ': ' : '') + role);
+  el.dataset.tip = y.text;
 }
 
 function renderStatus() {
@@ -1415,7 +1428,7 @@ async function boot() {
   wire();
   applyTheme(frag.theme || (root.getAttribute('data-theme') || null), false);
   if (!frag.theme && root.getAttribute('data-theme')) S.theme = root.getAttribute('data-theme');
-  $('pill-addr').textContent = location.host || '127.0.0.1';
+  $('st-note').dataset.addr = location.host || '127.0.0.1';
   renderLive();
   $('filter-q').value = frag.q;
   await load(frag);

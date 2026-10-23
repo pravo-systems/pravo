@@ -56,13 +56,15 @@ export class AccessView {
     const top = this.root.scrollTop;
     clear(this.root);
     const a = access;
+    // A state that is not sealed and a repository with no readers file has no readers to list and no file to compare.
+    const bare = a.state !== 'sealed' && a.state !== 'migrating' && !(a.readers || []).length && (!a.file || a.file.verdict === 'none');
     this.root.append(h('div', { class: 'ac' },
       this.banner(a, project),
-      a.you ? this.you(a.you) : null,
-      this.readers(a),
+      a.you && a.you.state !== 'reader' ? this.you(a.you) : null,
+      bare ? null : this.readers(a),
       this.single(a),
       this.recovery(a),
-      this.file(a),
+      bare ? null : this.file(a),
       this.records(a),
       this.suggestions(a),
       h('p', { class: 'ac-foot' }, FOOTER)));
@@ -119,7 +121,7 @@ export class AccessView {
     ];
   }
 
-  // you says who the page is read as: the identity that the command opened the state with.
+  // you says why the page is read as nobody who can read. A reader is named in the bar and needs no block.
   you(y) {
     const c = YOU[y.state] || YOU['no-identity'];
     return h('section', { class: `ac-you y-${y.state}`, 'aria-labelledby': 'ac-h-you' },

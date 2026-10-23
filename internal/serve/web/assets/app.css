@@ -66,6 +66,13 @@ a { color: inherit; }
 .seg button:hover { color: var(--text); background: var(--surface-2); }
 .seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
 .seg button .i { width: .9rem; height: .9rem; }
+.who { flex: none; display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .6rem; border: 1px solid var(--line-strong); background: var(--surface); font: 500 .72rem/1 var(--font-mono); max-width: 16rem; }
+.who b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who .role { color: var(--text-2); text-transform: uppercase; letter-spacing: .07em; font-size: .64rem; white-space: nowrap; }
+.who .i { width: .8rem; height: .8rem; }
+.who.w-reader .i { color: var(--accent); }
+.who.w-not-reader, .who.w-no-identity, .who.w-locked { border-color: color-mix(in srgb, var(--change) 50%, transparent); }
+.who.w-not-reader .i, .who.w-no-identity .i, .who.w-locked .i { color: var(--change); }
 .pill { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .55rem; font: 500 .66rem/1 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; border: 1px solid var(--line-strong); color: var(--text-2); white-space: nowrap; }
 .pill .dot { width: .4rem; height: .4rem; background: currentColor; }
 .only-narrow, .only-medium { display: none; }
@@ -116,16 +123,11 @@ a { color: inherit; }
 .sec-tab[aria-pressed="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); }
 .sec-tab .i { width: .95rem; height: .95rem; color: var(--text-3); }
 .sec-tab[aria-pressed="true"] .i { color: var(--accent); }
-.pillset { flex: none; display: inline-flex; align-items: stretch; border: 1px solid var(--line-strong); background: var(--surface); }
-.pillset .pill { border: 0; padding: .4rem .6rem; }
-.pillset .pill + .pill { border-left: 1px solid var(--line); }
-.pillset .pill.ok { color: var(--accent); background: var(--accent-wash); }
 /* the beat of the live dots: a ring that scales and fades, which the compositor draws without the page (an animated box-shadow paints on every frame) */
-.pillset .pill.ok .dot, .conn[data-state="live"] .led { position: relative; }
+.conn[data-state="live"] .led { position: relative; }
 /* it beats three times when the page opens and when something changes, and then it rests: a page that nobody touches stays still */
-.pillset .pill.ok .dot::after, .conn[data-state="live"] .led::after { content: ""; position: absolute; inset: 0; background: var(--glow-ring, var(--accent)); opacity: 0; transform: scale(1); pointer-events: none; }
-:root[data-beat] .pillset .pill.ok .dot::after, :root[data-beat] .conn[data-state="live"] .led::after { will-change: transform, opacity; animation: ui-beat 2.7s ease-out 3; }
-.pillset .pill.addr { text-transform: none; letter-spacing: .02em; color: var(--text-2); }
+.conn[data-state="live"] .led::after { content: ""; position: absolute; inset: 0; background: var(--glow-ring, var(--accent)); opacity: 0; transform: scale(1); pointer-events: none; }
+:root[data-beat] .conn[data-state="live"] .led::after { will-change: transform, opacity; animation: ui-beat 2.7s ease-out 3; }
 @keyframes ui-beat { 0% { opacity: .42; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(2.7); } }
 
 /* ---- the tooltip ---- */
@@ -426,7 +428,6 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 @media (max-width: 68.75em) {
   .top .search { width: auto; padding: .5rem .6rem; }
   .top .search .lbl { display: none; }
-  .pillset .pill.addr { display: none; }
   .only-narrow, .only-medium { display: inline-grid; }
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .stage { grid-row: 1; grid-column: 1; }
@@ -436,9 +437,9 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .crumb-dir .cp-head { display: none; }
 }
 @media (max-width: 47.5em) {
+  .who .role { display: none; }
   .top { gap: .6rem; padding: 0 .7rem; }
   .crumbs, .brand small, .top .search kbd, .shown { display: none; }
-  .pillset .pill.ok { padding: .4rem .5rem; font-size: 0; gap: 0; } .pillset .pill.ok .dot { width: .5rem; height: .5rem; }
   .toolbar { flex-wrap: wrap; padding: .5rem .7rem; }
   .filterbox { flex: 1 1 9rem; width: auto; }
   .legend { display: none; }
