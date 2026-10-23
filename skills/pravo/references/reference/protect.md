@@ -8,10 +8,10 @@ Make an identity, seal the state to a list of readers, check that it holds, chan
 
 | | |
 |---|---|
-| Synopsis | `pravo id new`, `pravo id show`, `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap`, `pravo protect gc` |
+| Synopsis | `pravo id new`, `pravo id show`, `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap`, `pravo protect recover`, `pravo protect gc` |
 | Changes infrastructure | No. |
 | Reads | The state, and `.pravo/access/readers.txt` in the repository. `id` reads and writes only identity files. |
-| Writes | `id new` writes an identity file. `protect init`, `protect rewrap` and `protect gc` write the state; `gc` writes the object `gc/marks.json` as well. `check` and `status` write nothing, and so does `gc --dry-run`. |
+| Writes | `id new` writes an identity file. `protect init`, `protect rewrap`, `protect recover` and `protect gc` write the state; a command that sets a recovery also writes `recovery-shares/` and `.pravo/access/recovery.txt`; `gc` writes the object `gc/marks.json` as well. `check` and `status` write nothing, and so does `gc --dry-run`. |
 | Prints | One line for each check, then a verdict. The line to add to the readers file. For `gc`, what it deleted and dropped. |
 | Taught in | [Seal the state to a list of readers](../how-to/seal-the-state.md) and [Lab 3](https://pravo.systems/learn/lab3-the-leaked-bucket.html). |
 
@@ -37,6 +37,7 @@ A state has three formats.
 | `protect init --encrypt` | Seals the state to the readers file. | yes | yes | no |
 | `protect status` | Says whether the state is sealed, to whom, and whether it verifies. | yes | No. | yes |
 | `protect rewrap` | Brings the keys of the state in line with the readers file. | yes | yes | yes |
+| `protect recover` | Opens the state with the shares of its recovery key, and makes the readers those of the readers file. | yes | yes | yes |
 | `protect gc` | Deletes the records that no pointer names, and the reader groups that nothing is sealed in. | yes | yes | yes |
 
 ### Flags
@@ -51,7 +52,10 @@ A state has three formats.
 | `--identity NAME` | every command that opens a state, and `id show` | The identity to open the state with, a file of the identity directory. A global flag, also written before the command. For `id show` it is another way to write `--name`. |
 | `--allow-local` | `protect check`, `protect init` | Accept a state in a local directory. |
 | `--encrypt` | `protect init` | Required. Seal the attributes, outputs and stored plans to the readers. |
-| `--yes` | `protect init` | Do not ask for confirmation. |
+| `--yes` | `protect init`, `protect recover` | Do not ask for confirmation. |
+| `--recovery K/N` | `protect init`, `protect rewrap`, `protect recover` | Set a recovery recipient, or replace it: a new key is split into N shares, any K of which rebuild it. `2/3` to `20/20`; K is at least 2. |
+| `--remove-recovery` | `protect rewrap` | Take the recovery recipient out of the state, and delete the recovery file. |
+| `--share FILE` | `protect recover` | A share file. Give it once for each share. |
 | `--all` | `protect rewrap` | Seal every record, the outputs, the stored plans and the sealed text of errors again under the current key. |
 | `--older-than DURATION` | `protect gc` | How old a record that no pointer names must be to be deleted: `36h`, `7d`. The default is `24h`. A value below 65 seconds is raised to 65 seconds. It should exceed the skew between the clocks of the machines that write to the state. |
 | `--dry-run` | `protect gc` | Say what would be marked, deleted and dropped, and change nothing. It writes no marks. |
@@ -63,8 +67,8 @@ A state has three formats.
 | 0 | The command did what it was asked. `check` found the store ready. |
 | 1 | Any other failure: a store that cannot be sealed, a local directory without `--allow-local`, an identity that exists, no terminal to ask on and no `--yes`, a state that is not sealed for `rewrap`. |
 | 4 | A command is running or a lock is held. `protect init` and `protect check` do not run then, and neither does `rewrap --all`. `protect gc` collects the records and then exits with 4 without looking at the groups. |
-| 5 | You are not a reader of the state, your identity is not on the readers file, or the readers file and the state differ for a command that writes. For any other command that writes a sealed state, such as `state rm` or `apply`: the readers file is missing. |
-| 6 | The readers file is invalid, for `protect check`, `init` and `rewrap` and for a command that writes a sealed state. For `protect check`, `init` and `rewrap`: the readers file is missing. |
+| 5 | You are not a reader of the state, your identity is not on the readers file, or the readers file and the state differ for a command that writes. The shares do not rebuild the recovery key of the state (`protect recover`). The recovery file and the state name different recovery keys, or the state has a recovery and the repository has no recovery file, for a command that writes. For any other command that writes a sealed state, such as `state rm` or `apply`: the readers file is missing. |
+| 6 | The recovery file is invalid, for a command that writes a sealed state. The readers file is invalid, for `protect check`, `init` and `rewrap` and for a command that writes a sealed state. For `protect check`, `init` and `rewrap`: the readers file is missing. |
 | 7 | A record does not match its name. `protect init` also stops with 7, before it writes anything, when the state says it is not sealed and a record in it is: `meta.json` was lowered or replaced by an older one. Put it back from a version of the bucket. [Exit codes](exit-codes.md#7-untrusted) says what to do. |
 
 ## The readers file
@@ -107,6 +111,31 @@ The identity directory is not `~/.pravo`, which is the provider cache and may be
 pravo finds the identity in this order: `--identity NAME`, `$PRAVO_IDENTITY`, then the files of the identity directory. When there are several files, it uses the one named like the user. If none is, it uses the one file whose reader key has a lock in the current group of the state, which `meta.json` lists. For `protect init`, which has no locks yet, the reader key is one of the readers file. The reader key of an identity file is public: choosing reads no passphrase, and only the chosen identity is asked for its passphrase. If no file or more than one matches, the command stops with `no identity found: ... holds several identities (ada dan) and none is named like you`, and names the files that match when there are several. Name one with `--identity`. The same choice is made for the state of another root that `pravo.#RemoteOutputs` reads, by the locks in that state's `meta.json`. pravo looks only when the state is sealed, so a state with protection off never asks for a passphrase.
 
 A passphrase is asked for on the terminal without echo. Without a terminal it is read from `$PRAVO_PASSPHRASE` or `$PRAVO_IDENTITY_PASSPHRASE`, and a command with neither stops with `the identity ada is sealed with a passphrase and stdin is not a terminal; set PRAVO_PASSPHRASE.` pravo removes `PRAVO_IDENTITY`, `PRAVO_PASSPHRASE` and `PRAVO_IDENTITY_PASSPHRASE` from its environment once it has read them, and provider processes are started without them. [`pravo mcp`](mcp.md) never asks on a terminal: the identity of a server comes from the environment it was started in.
+
+## The recovery recipient
+
+A recovery recipient is one more reader of a sealed state whose key nobody holds whole. The key is made when the recovery is set, split into N shares by Shamir secret sharing, and forgotten. Any K of the shares rebuild it, and fewer give nothing. Every group of the state carries a lock for its public key, so that K holders of shares can open the state when every reader has lost their key.
+
+| Where | What |
+|---|---|
+| `recovery-shares/share-I-of-N.txt` | One share each, with mode 0600, in the directory where the command ran. They are written once. Give each to a different person, offline, and do not commit them. A directory that already holds shares is refused, so that two sets are not mixed. |
+| `.pravo/access/recovery.txt` | The public key and the threshold, `x25519:BASE64URL K/N`, with comments and blank lines allowed. Commit it. It sits in the access directory next to the readers file. |
+| `meta.json` | The key and the threshold under `sealed.recovery`, and a lock named `recovery` in every group. The readers file may not use the name `recovery`. |
+
+A share file holds one line, `pravo-share-1`, the id of the key, the index, `K/N`, the share and a short check that catches a mistyped or damaged line, after two lines of comment.
+
+A command that writes a sealed state compares the recovery file with the state, as it compares the readers file, and stops with exit code 5 when they disagree:
+
+| Message | Meaning | What to do |
+|---|---|---|
+| `.pravo/access/recovery.txt lists a recovery recipient that the state does not have.` | The file names a key and the state has none. | `pravo protect rewrap` sets the key of the file in the state. |
+| `.pravo/access/recovery.txt and the state name different recovery keys.` | The state was changed, or the file was. | `pravo protect rewrap` makes the state follow the file. |
+| `the state has a recovery recipient, and .pravo/access/recovery.txt was not found` | The file was not committed, or the recovery was set from another checkout. | Commit the file, or remove the recovery with `pravo protect rewrap --remove-recovery`. |
+| `the recovery lock is missing from group g1.` | A lock was taken out of `meta.json`. | `pravo protect rewrap` makes it again. |
+
+A recovery file that does not load stops a command that writes with exit code 6. A command that only reads prints the same text as a warning.
+
+Setting a recovery is a decision about trust. K holders of shares can read the state together, and nothing delays them: there is no signature and no waiting time until roles exist. A recovery key that was used has been rebuilt on one machine, so replace it afterwards. The shares of a replaced key open nothing.
 
 ## id new
 
@@ -234,6 +263,8 @@ It shows what it will do and asks `Proceed? [y/N]`. `--yes` answers it. Without 
 3. `outputs.json`, the values of the stored plans, the values in the command lines of transactions and the text of the errors of transactions that failed are sealed the same way. The words of a command and the names of its flags stay readable, and so does a positional argument. The value of a flag that takes one is sealed, written `--flag value` or `--flag=value`, unless it is a flag with a public value such as `--limit`, `--ttl`, `--only`, `--out`, `--policy` or `--chdir`. A word after a flag that takes no value is a positional argument. A secret belongs in `-t`.
 4. The state is set to format 3, and `meta.json` holds the locks.
 
+`--recovery K/N` also sets a recovery recipient: a lock for a key that is split into N shares, any K of which rebuild it. The shares are written to `recovery-shares/` before the state is touched, so that a seal that fails leaves no recovery lock that nobody can open, and the public key is written to `.pravo/access/recovery.txt` when the seal is done. The prompt lists it as one more step. [The recovery recipient](#the-recovery-recipient) says what to do with the files.
+
 A run that is interrupted leaves the state in the middle of sealing, and an earlier pravo cannot open it. A kill leaves it where it was. An interrupt (`Ctrl-C`) finishes the records that are being sealed, starts no other and ends with `interrupted after N records were sealed in this run`. Run the command again to finish: it skips the records it has done. `pravo protect status` says `migrating` until then, and commands that write the state refuse with `a seal is in progress; run pravo protect init --encrypt to finish`. Commit the readers file when the command ends.
 
 ```sh
@@ -272,9 +303,10 @@ The state is sealed to ada dan.
 Commit the readers file. Writers read the list from git:
   .pravo/access/readers.txt
 No recovery recipient. If every reader loses their key, the state cannot be read.
+Add one with: pravo protect rewrap --recovery 3/5
 ```
 
-A state that is already sealed prints `Already sealed (format 3). Use pravo protect rewrap to change the readers.` and writes nothing. There is no recovery recipient: if every reader loses their key, the state cannot be read.
+A state that is already sealed prints `Already sealed (format 3). Use pravo protect rewrap to change the readers.` and writes nothing. Without `--recovery` there is no recovery recipient, and the command prints `No recovery recipient.` with the consequence and the line that adds one, `pravo protect rewrap --recovery 3/5`.
 
 ## protect status
 
@@ -299,10 +331,11 @@ Unsettled    none
 |---|---|
 | `Sealed` | `on`, `off`, `off · format 2 · immutable records`, or `migrating` with the number of records done. A state that is off in a repository that has a readers file ends in `· the repository expects a sealed state`: it has not been sealed yet, or its `meta.json` was changed. A state that does not exist yet is `no state yet`, and with a readers file `no state yet · create it sealed with: pravo protect init --encrypt`. `status` creates nothing. |
 | `Readers` | `matches the store`; `differs:` and who is in the file and not in the store, or the other way round; `file not found (looked in DIR)`; `file is invalid:` and the line and reason. |
+| `Recovery` | Shown when the state has a recovery recipient or the repository has a recovery file: `2 of 3 shares · key x25519:…` and whether the recovery file matches the state, differs from it or is missing, and a group whose lock is missing. |
 | `You` | The identity and its reader key. `identity NAME is not a reader`. `not a reader of this state (no identity found)`. |
 | `Unsettled` | `none`, or the number of interrupted transactions; `pravo state log` lists them. |
 
-With `--json`, `status` prints one document: `state` (`none` for a state that does not exist yet, `off`, `immutable`, `migrating` or `sealed`), `format` (absent when there is no state), `store`, `records`, `checked`, `unsettled`, `untrusted`, `readers` (the names the state is sealed to), `readers_file` (`found`, `valid`, `matches`, `path`, `added`, `removed`) and `you` for a sealed state, and `expects_sealed: true` when the repository lists readers and the state is not sealed, which includes a state that does not exist yet. A job that wants a verdict before it plans runs `pravo protect status --json | jq -e '.format == 3'`.
+With `--json`, `status` prints one document: `state` (`none` for a state that does not exist yet, `off`, `immutable`, `migrating` or `sealed`), `format` (absent when there is no state), `store`, `records`, `checked`, `unsettled`, `untrusted`, `readers` (the names the state is sealed to), `readers_file` (`found`, `valid`, `matches`, `path`, `added`, `removed`), `recovery` (`k`, `n`, `key`, `locked`, and `file`: `match`, `differs`, `missing` or `invalid`, present only when the state has a recovery) and `you` for a sealed state, and `expects_sealed: true` when the repository lists readers and the state is not sealed, which includes a state that does not exist yet. A job that wants a verdict before it plans runs `pravo protect status --json | jq -e '.format == 3'`.
 
 A record that does not match its name, a pointer that disagrees with its record, or a sealed value that does not open where it is, prints `Untrusted:` and the object, and the command exits 7.
 
@@ -315,6 +348,37 @@ A record that does not match its name, a pointer that disagrees with its record,
 **Removing a reader.** A reader who is removed loses their lock in every group, and the state gets a new data key. Records are sealed under it as they are next written. Until then they stay under the old key. `--all` seals every record, the outputs, the stored plans and the sealed text of the errors of transactions again under the new key at once. A copy of the state that was made before the removal still opens with the removed reader's key, and the reader has read what they read. Replace the secrets they could read where they live.
 
 `--all` needs the state at rest: run it while nobody plans or applies. It seals again and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [`pravo protect gc`](#protect-gc) removes both. [What sealing protects](../concepts/sealed-state.md) lists what stays in the bucket.
+
+**The recovery.** `--recovery K/N` sets the recovery recipient of the state, or replaces it: a new key is made, split into N shares and written to `recovery-shares/`, the public key goes to `.pravo/access/recovery.txt`, and every group gets a lock for it. A replaced key loses its lock in every group, so its shares open nothing; collect and destroy them. `--remove-recovery` takes the recovery out of the state and deletes the file; commit the deletion. Without either flag, a recovery file that names a key that the state does not have is set in the state with no new shares, and a recovery lock that is missing from a group is made again. `--all` and a replacement of the recovery run as two steps when the recovery key opens the state; [`protect recover`](#protect-recover) does that for you.
+
+## protect recover
+
+`pravo protect recover --share FILE --share FILE …` opens a state with the shares of its recovery key when no reader can, and makes the readers of the state the readers in the readers file. It is the way back when every reader has lost their key.
+
+1. Make an identity: `pravo id new --name NAME`.
+2. Write its line to the readers file in place of the lines of the readers who are lost.
+3. Collect K share files from their holders, and run `pravo protect recover --share a.txt --share b.txt`.
+
+The command rebuilds the recovery key in memory, checks it against the public key in `meta.json`, shows what it will do and asks `Proceed? [y/N]`. It then opens the state with that key, locks the data keys for the new readers, removes the old ones and makes a new data key, as `rewrap` does, and writes `meta.json`. Commit the readers file. It does not read the readers file for a verdict first: a state is recovered when no identity can open it.
+
+```text
+Recovery key rebuilt from 2 shares.
+Readers  .pravo/access/readers.txt  (eve)
+This will:
+  1  lock the data keys for eve
+  2  remove ada dan, and make a new data key
+meta.json updated
+New data keys for 1 reader group. Records are sealed again as they are next written.
+The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap --recovery K/N
+```
+
+`--all` seals every record, the outputs and the stored plans again under the new key, and does not run while a command is running or a lock is held. `--recovery K/N` also replaces the recovery key, in a second step after the records are sealed again, and writes the new shares; without it the old recovery stays and the command says to replace it. A recovery key that was rebuilt has been seen in one place.
+
+| Failure | Exit code |
+|---|---|
+| Fewer than K shares, a share of another recovery, a share given twice, a wrong or mistyped share | 5, with the reason and the file; the text of a share is never repeated. |
+| The state is not sealed, or has no recovery recipient | 1. A state that was sealed without one can only be opened by a reader. |
+| The readers file is missing or invalid | 6 |
 
 ## protect gc
 

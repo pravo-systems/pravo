@@ -273,6 +273,7 @@ The state is sealed to ada dan.
 Commit the readers file. Writers read the list from git:
   .pravo/access/readers.txt
 No recovery recipient. If every reader loses their key, the state cannot be read.
+Add one with: pravo protect rewrap --recovery 3/5
 ```
 
 `pravo protect status` opens the state with your identity and says who it is sealed to.
@@ -416,7 +417,7 @@ A reader sees the value. Sealing does not hide a value from the people on the li
 - **A copy made before sealing stays open.** The first copy still holds the secret in the clear. So does every earlier version of an object in a bucket that keeps versions. Replace the secret.
 - **A reader sees every value.** The list of readers is for the whole state. There is no reader for one resource.
 - **A removed reader keeps what they read.** A copy of the bucket made before the removal opens with their key. Replace the secrets they could read where they live.
-- **Nothing recovers a state if every reader loses their key.** There is no recovery recipient. Keep more than one reader.
+- **Nothing recovers a state if every reader loses their key,** unless it has a recovery recipient. The lab did not set one. [Seal the state](../how-to/seal-the-state.md) shows how, and keeping more than one reader comes first.
 - **Roles and signatures are not part of it.** Sealing hides values. It does not say who may change the state. A person who can write to the bucket can delete or replace its objects.
 
 [What sealing protects](../concepts/sealed-state.md) lists the rest.
