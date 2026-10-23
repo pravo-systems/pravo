@@ -18,6 +18,7 @@ export const CHIPS = [
   { key: 'orphans', label: 'Orphans', count: 'orphans', hint: 'In the state, no longer declared' },
   { key: 'declared', label: 'Not created', count: 'declared', hint: 'Declared only: in the specification, not created yet' },
   { key: 'outputs', label: 'Outputs', count: 'outputs', hint: 'The values the root publishes' },
+  { key: 'env', label: 'Env', count: 'env', hint: 'The environment variables the specification reads' },
 ];
 
 export class Rail {

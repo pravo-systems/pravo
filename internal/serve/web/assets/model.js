@@ -28,6 +28,7 @@ export const FILTERS = {
   orphans: (n) => !isOut(n) && n.presence === 'state',
   declared: (n) => !isOut(n) && n.presence === 'spec',
   outputs: (n) => isOut(n),
+  env: (n) => !isOut(n) && (n.type === 'env' || n.type === 'secret_env'),
 };
 
 // The counts that a sealed record leaves out: its attributes and its marks are not read, so a zero beside sealed
@@ -80,7 +81,7 @@ export function buildModel(graph, plans) {
     edges.push({ a: a.addr, b: b.addr });
   }
   const nout = list.filter(isOut).length;
-  const counts = { all: list.length - nout, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0, sealed: 0 };
+  const counts = { all: list.length - nout, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0, env: 0, sealed: 0 };
   for (const n of list) {
     for (const k of Object.keys(FILTERS)) if (FILTERS[k](n)) counts[k]++;
     if (n.sealed) counts.sealed++;

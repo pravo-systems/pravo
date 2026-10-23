@@ -87,6 +87,7 @@ The chips set `filter`. The box sets `q`, which matches an address or a type.
 | Orphans | The resources that are recorded and not declared. | `orphans` |
 | Not created | The resources that are declared and not recorded. | `declared` |
 | Outputs | The outputs of the root. | `outputs` |
+| Env | The environment variables that the specification reads, `pravo.#Env` and `pravo.#SecretEnv`. A variable is a node that is declared and never recorded in the state. | `env` |
 
 ### The inspector
 
@@ -204,7 +205,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `expand` | Module paths, `c:MODULE\|MODE\|TYPE` or `all` | Modules drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `q` | Text | The filter box above the graph. |
-| `filter` | `plan`, `drifted`, `sensitive`, `orphans`, `declared` or `outputs` | Only the nodes that match. `outputs` shows the outputs of the root, and every other value shows resources only. |
+| `filter` | `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | Only the nodes that match. `outputs` shows the outputs of the root, and every other value shows resources only. |
 | `view` | `graph`, `table`, `state` or `access` | The graph, the table, or the State section (`access` is the old name of it). |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
