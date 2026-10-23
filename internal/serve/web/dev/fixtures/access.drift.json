@@ -296,7 +296,7 @@
   {
    "id": "prune",
    "title": "Drop the groups nothing is sealed in",
-   "why": "A reader who was removed keeps the data key of the groups they were in. A group that no record, output or stored plan is sealed in is dropped from meta.json, and the key opens nothing that is left. The same command deletes the records that no pointer names once they are a day old.",
+   "why": "A reader who was removed keeps the data key of the groups they were in. A group that no record, output or stored plan is sealed in is dropped from meta.json, and the key opens nothing that is left. The same command marks the records that no pointer names once they are a day old, and deletes them on a run at least 15 minutes later.",
    "who": "a current reader",
    "steps": [
     {
@@ -309,7 +309,7 @@
     },
     {
      "kind": "note",
-     "text": "Say what would be deleted and dropped, and then do it:"
+     "text": "Say what would be marked, deleted and dropped, and then do it. gc marks the records that no pointer names and deletes them on a run at least 15 minutes later:"
     },
     {
      "kind": "command",

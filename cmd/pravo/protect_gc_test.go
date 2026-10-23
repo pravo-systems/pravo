@@ -50,8 +50,12 @@ func (e *s3Env) recKeys() []string {
 	return out
 }
 
-// ageRecords rewrites every record that no pointer names, as one that was written
-// long ago: the same record with an updated_at two days back.
+// hasMarks says whether a collection left its marks in the bucket.
+func (e *s3Env) hasMarks() bool {
+	_, ok := e.f.Objects["prod/gc/marks.json"]
+	return ok
+}
+
 // plantOldRecord adds a copy of a record that no pointer names, written two days
 // ago, and returns its key.
 func (e *s3Env) plantOldRecord(t *testing.T) string {
@@ -75,6 +79,8 @@ func (e *s3Env) plantOldRecord(t *testing.T) string {
 	return ""
 }
 
+// ageRecords rewrites every record that no pointer names, as one that was written
+// long ago: the same record with an updated_at two days back.
 func (e *s3Env) ageRecords(t *testing.T) int {
 	t.Helper()
 	named := map[string]bool{}
@@ -122,24 +128,56 @@ func TestProtectGCOfAStateOfFormatTwo(t *testing.T) {
 		t.Fatalf("aged %d records", aged)
 	}
 
+	// A dry run says what it would mark, and writes nothing: no marks either.
 	snapshot, puts := e.bucketText(), e.puts()
 	text, code = runPravo(t, e.dir, "protect", "gc", "--dry-run")
-	if code != 0 || !strings.Contains(text, "Would delete 3 records older than 24h (") || e.bucketText() != snapshot || e.puts() != puts {
+	if code != 0 || !strings.Contains(text, "Would mark 3 records that no pointer names. A collection at least 15m later deletes the ones that are still unnamed.") || strings.Contains(text, "Would delete") || e.bucketText() != snapshot || e.puts() != puts {
 		t.Fatalf("dry run: exit %d, changed %v\n%s", code, e.bucketText() != snapshot, text)
+	}
+	type gcDoc struct {
+		Format  int  `json:"format"`
+		DryRun  bool `json:"dry_run"`
+		Older   int  `json:"older_than_seconds"`
+		Settle  int  `json:"settle_seconds"`
+		Records struct{ Listed, Named, Unnamed, Marked, Settling, Deleted int }
+		Groups  any `json:"groups"`
 	}
 	text, code = runPravo(t, e.dir, "--json", "protect", "gc", "--dry-run")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
-	var doc struct {
-		Format  int  `json:"format"`
-		DryRun  bool `json:"dry_run"`
-		Older   int  `json:"older_than_seconds"`
-		Records struct{ Listed, Named, Unnamed, Deleted int }
-		Groups  any `json:"groups"`
-	}
-	if err := json.Unmarshal([]byte(text), &doc); err != nil || doc.Format != 2 || !doc.DryRun || doc.Older != 86400 || doc.Records.Listed != 5 || doc.Records.Named != 2 || doc.Records.Unnamed != 3 || doc.Records.Deleted != 3 || doc.Groups != nil {
+	var doc gcDoc
+	if err := json.Unmarshal([]byte(text), &doc); err != nil || doc.Format != 2 || !doc.DryRun || doc.Older != 86400 || doc.Settle != 900 || doc.Records.Listed != 5 || doc.Records.Named != 2 || doc.Records.Unnamed != 3 || doc.Records.Marked != 3 || doc.Records.Deleted != 0 || doc.Groups != nil {
 		t.Fatalf("%v: %+v\n%s", err, doc, text)
+	}
+	if e.bucketText() != snapshot || e.puts() != puts {
+		t.Fatal("a dry run with --json changed the bucket")
+	}
+
+	// The first collection marks and deletes nothing, and so does one inside the
+	// settle interval.
+	text, code = runPravo(t, e.dir, "protect", "gc")
+	if code != 0 || !strings.Contains(text, "Marked 3 records that no pointer names. A collection at least 15m later deletes the ones that are still unnamed.") || len(e.recKeys()) != 5 || !e.hasMarks() {
+		t.Fatalf("the first run: exit %d, %d records\n%s", code, len(e.recKeys()), text)
+	}
+	text, code = runPravo(t, e.dir, "protect", "gc")
+	if code != 0 || !strings.Contains(text, "Kept 3 records that no pointer names: marked less than 15m ago.") || len(e.recKeys()) != 5 {
+		t.Fatalf("a run inside the settle interval: exit %d, %d records\n%s", code, len(e.recKeys()), text)
+	}
+
+	// After it, a dry run says what it would delete.
+	settled := state.GCSettle
+	state.GCSettle = 0
+	t.Cleanup(func() { state.GCSettle = settled })
+	snapshot, puts = e.bucketText(), e.puts()
+	text, code = runPravo(t, e.dir, "protect", "gc", "--dry-run")
+	if code != 0 || !strings.Contains(text, "Would delete 3 records older than 24h (") || e.bucketText() != snapshot || e.puts() != puts {
+		t.Fatalf("dry run after the settle: exit %d, changed %v\n%s", code, e.bucketText() != snapshot, text)
+	}
+	text, code = runPravo(t, e.dir, "--json", "protect", "gc", "--dry-run")
+	doc = gcDoc{}
+	if err := json.Unmarshal([]byte(text), &doc); code != 0 || err != nil || doc.Records.Deleted != 3 || doc.Records.Marked != 0 || doc.Settle != 0 {
+		t.Fatalf("exit %d, %v: %+v\n%s", code, err, doc, text)
 	}
 
 	text, code = runPravo(t, e.dir, "protect", "gc")
@@ -362,7 +400,17 @@ func TestProtectGCHonoursTheAccessDirectory(t *testing.T) {
 	if code != 5 || !strings.Contains(text, "differ") || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
 		t.Fatalf("a file that differs: exit %d, groups %v\n%s", code, s.groups(t), text)
 	}
-	// The records do not wait for the file.
+	// The records do not wait for the file: the first run marks the old one.
+	if _, there := s.f.Objects[planted]; !there || !strings.Contains(text, "Marked 1 record that no pointer names.") {
+		t.Errorf("the old record is gone, or not reported as marked:\n%s", text)
+	}
+	settled := state.GCSettle
+	state.GCSettle = 0
+	t.Cleanup(func() { state.GCSettle = settled })
+	text, code = runPravo(t, s.dir, "protect", "gc")
+	if code != 5 || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
+		t.Fatalf("a file that differs, again: exit %d, groups %v\n%s", code, s.groups(t), text)
+	}
 	if _, there := s.f.Objects[planted]; there || !strings.Contains(text, "Deleted 1 record older than 24h (") {
 		t.Errorf("the old record is still there, or not reported:\n%s", text)
 	}

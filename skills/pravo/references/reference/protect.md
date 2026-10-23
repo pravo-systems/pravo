@@ -11,7 +11,7 @@ Make an identity, seal the state to a list of readers, check that it holds, chan
 | Synopsis | `pravo id new`, `pravo id show`, `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap`, `pravo protect gc` |
 | Changes infrastructure | No. |
 | Reads | The state, and `.pravo/access/readers.txt` in the repository. `id` reads and writes only identity files. |
-| Writes | `id new` writes an identity file. `protect init`, `protect rewrap` and `protect gc` write the state. `check` and `status` write nothing, and so does `gc --dry-run`. |
+| Writes | `id new` writes an identity file. `protect init`, `protect rewrap` and `protect gc` write the state; `gc` writes the object `gc/marks.json` as well. `check` and `status` write nothing, and so does `gc --dry-run`. |
 | Prints | One line for each check, then a verdict. The line to add to the readers file. For `gc`, what it deleted and dropped. |
 | Taught in | [Seal the state to a list of readers](../how-to/seal-the-state.md). |
 
@@ -53,8 +53,8 @@ A state has three formats.
 | `--encrypt` | `protect init` | Required. Seal the attributes, outputs and stored plans to the readers. |
 | `--yes` | `protect init` | Do not ask for confirmation. |
 | `--all` | `protect rewrap` | Seal every record, the outputs, the stored plans and the sealed text of errors again under the current key. |
-| `--older-than DURATION` | `protect gc` | How old a record that no pointer names must be to be deleted: `36h`, `7d`. The default is `24h`. A value below 65 seconds is raised to 65 seconds. |
-| `--dry-run` | `protect gc` | Say what would be deleted and dropped, and change nothing. |
+| `--older-than DURATION` | `protect gc` | How old a record that no pointer names must be to be deleted: `36h`, `7d`. The default is `24h`. A value below 65 seconds is raised to 65 seconds. It should exceed the skew between the clocks of the machines that write to the state. |
+| `--dry-run` | `protect gc` | Say what would be marked, deleted and dropped, and change nothing. It writes no marks. |
 
 ### Exit codes
 
@@ -320,26 +320,33 @@ A record that does not match its name, a pointer that disagrees with its record,
 
 `pravo protect gc` deletes what a state of format 2 or 3 keeps and nothing reads. A state of format 1 keeps one object for each resource, and the command says that it has nothing to collect. It works in two parts, and a state that is not sealed has the first only.
 
-**Records.** A write never overwrites a record. The bucket therefore keeps every revision of every record, the record of a resource that was destroyed or removed with `pravo state rm`, and the record that a write left when it failed. In format 2 these hold their attributes in the clear. A record that no pointer names is garbage once it is older than the grace, 24 hours or `--older-than`. The age is the newest of the times `updated_at`, `refreshed_at` and `applied_at` in the record, which are readable without a key. A record that shows none of them is kept, and so is an object in `rec/` that does not match its name: the command lists it and does not touch it. A record that a pointer names is never deleted.
+**Records.** A write never overwrites a record. The bucket therefore keeps every revision of every record, the record of a resource that was destroyed or removed with `pravo state rm`, and the record that a write left when it failed. In format 2 these hold their attributes in the clear. A record that no pointer names is garbage once it is older than the grace, 24 hours or `--older-than`, and two collections have found it so. The age is the newest of the times `updated_at`, `refreshed_at` and `applied_at` in the record, which are readable without a key. A record that shows none of them is kept, and so is an object in `rec/` that does not match its name: the command lists it and does not touch it. A record that a pointer names is never deleted.
 
-The grace is the protection of a writer that has made its record and has not yet replaced the pointer: until it does, nothing names the record. The two writes follow each other at once, and the grace covers a process that is stopped between them. It is never shorter than 65 seconds: twice the 30 seconds that a command goes on sealing in the group it opened with after a rewrap, and five more. The command lists the pointers again right before it deletes, and deletes a record only if it still holds the bytes it judged, so a record that was named or replaced meanwhile stays.
+Nothing names a record from the time a writer has made it until the writer replaces the pointer. Two things protect that interval. The grace covers a writer that is stopped between the two writes, as long as the record carries the time it was written at. It is never shorter than 65 seconds: twice the 30 seconds that a command goes on sealing in the group it opened with after a rewrap, and five more. The age is read from the record, so it is the clock of the machine that wrote the record against the clock of the machine that collects: `gc` needs the clocks of the machines that write to agree to within the grace. Give `--older-than` more than the skew of the clocks you have.
 
-This part needs no key, and it does not need the state at rest. It can run while commands run.
+Some writers copy a record with the times it already had: `pravo protect rewrap --all`, `pravo protect init` and `pravo state push` and `pull` write every record, old times included, and the pointers after. The grace says nothing of such a record, so a collection is in two phases. A collection that finds an old record unnamed marks it in the object `gc/marks.json` and deletes nothing. A collection at least 15 minutes later deletes the records that are still unnamed and that it marked, and drops the marks of the ones that a pointer names or that are gone. A writer that finishes inside 15 minutes is therefore never caught between its record and its pointer. The first collection of a state prints `Marked 3 records that no pointer names. A collection at least 15m later deletes the ones that are still unnamed.` and a collection inside the 15 minutes keeps what it marked. A copy of the state does not carry the marks, and `--dry-run` reads them and writes nothing, so it does not create them either.
 
-**Groups.** `rewrap` leaves the old groups in `meta.json`, with a lock for each reader that is left, and a command opens one lock for each group. The data key of a reader who was removed still opens whatever is sealed in the group they were in. `gc` drops a group, other than the current one, when nothing is sealed in it: no record that a pointer names, no record that the first part spared, not `outputs.json`, no object of a stored plan, and no sealed text of the error of a transaction that failed. Run `pravo protect rewrap --all` first, so that everything is under the current group, and give a command that opened the state before the rewrap time to finish: while the last change of the readers is younger than 65 seconds, `gc` keeps every group and says so, because such a command still seals in the old group and a record sealed in a group that `meta.json` no longer lists stops the state from opening. A stored plan that an apply uses is left by `rewrap --all`, and keeps its group until the apply is done and `rewrap --all` runs again. A group with something in it is kept, and the command says what. A dropped group is gone from `meta.json` and the history gets the entry `gc`. A removed reader then holds a key that opens nothing that is left. A copy of the bucket made before still opens with it, and so does a version of `meta.json` that a bucket which keeps old versions of its objects holds: the deleted records stay there too until the lifecycle rules of the bucket remove them.
+The command lists the pointers again right before it deletes, and deletes a record only if it still holds the bytes it judged, so a record that was named or replaced meanwhile stays. This part needs no key, and it does not need the state at rest. It can run while commands run, and two collections that run at the same time lose no mark that matters.
+
+**Groups.** `rewrap` leaves the old groups in `meta.json`, with a lock for each reader that is left, and a command opens one lock for each group. The data key of a reader who was removed still opens whatever is sealed in the group they were in. `gc` drops a group, other than the current one, when nothing is sealed in it: no record that a pointer names, no record that the first part spared, not `outputs.json`, no object of a stored plan, and no sealed text of the error of a transaction that failed. Run `pravo protect rewrap --all` first, so that everything is under the current group, and give a command that opened the state before the rewrap time to finish: while the last change of the readers is younger than 65 seconds, `gc` keeps every group and says so, because such a command still seals in the old group and a record sealed in a group that `meta.json` does not list any more stops the state from opening. A stored plan that an apply uses is left by `rewrap --all`, and keeps its group until the apply is done and `rewrap --all` runs again. A group with something in it is kept, and the command says what. A dropped group is gone from `meta.json` and the history gets the entry `gc`. A removed reader then holds a key that opens nothing that is left. A copy of the bucket made before still opens with it, and so does a version of `meta.json` that a bucket which keeps old versions of its objects holds: the deleted records stay there too until the lifecycle rules of the bucket remove them.
 
 This part needs an identity that is a reader, the readers file (a command that writes a sealed state compares it with the state, as above) and the state at rest: no transaction is running and no lock is held. With no identity, or one that is not a reader, `gc` collects the records, says `Groups were not looked at` and exits with 0. With a command running it collects the records and exits with 4. With a readers file that is missing, invalid or different from the state it collects the records and exits with 5 or 6, as any command that writes a sealed state does. `--dry-run` writes nothing, so it warns of the same readers file and exits with 0; a lock that is held still gives 4.
 
 | Line | Meaning |
 |---|---|
 | `Deleted 412 records older than 24h (38 MB)` | The records that were deleted. With `--dry-run`, `Would delete`. |
+| `Marked 3 records that no pointer names. A collection at least 15m later deletes the ones that are still unnamed.` | Old records that no pointer names and that no earlier collection had seen. They are marked and kept. With `--dry-run`, `Would mark`. |
+| `Kept 3 records that no pointer names: marked less than 15m ago.` | Records that an earlier collection marked less than 15 minutes ago. |
 | `Kept 3 records that no pointer names: ...` | Records that no pointer names and that stay, because they are younger than the grace or show no time. |
 | `Left alone 1 object in rec/ that does not match its name` | An object that pravo did not write. `pravo protect status` is the command that checks the records against their names. |
 | `Dropped group g1: nothing refers to it.` | A group removed from `meta.json`. With `--dry-run`, `Would drop`. |
 | `Kept group g1: 2 records and the outputs are sealed in it.` | A group that something is sealed in. The next line says what to run. |
 | `Groups were not looked at: ...` | Why the second part did not run. |
 
+The example waits for those 65 seconds, because the state was sealed just before.
+
 ```sh
+sleep 66
 pravo protect gc
 ```
 
@@ -350,7 +357,7 @@ No record is garbage: a pointer names every record.
 No group needs to be dropped: the state has only its current group.
 ```
 
-With `--json`, `gc` prints one document: `format`, `dry_run`, `older_than_seconds`, `records` (`listed`, `named`, `unnamed`, `young`, `unknown_age`, `deleted`, `bytes` and `foreign`) and, for a sealed state, `groups` (`examined`, `dropped`, `kept` with `id`, `records`, `unnamed_records`, `outputs`, `plans` and `summaries`, and `skipped` with the reason when the groups were not looked at).
+With `--json`, `gc` prints one document: `format`, `dry_run`, `older_than_seconds`, `settle_seconds` (15 minutes, 900), `records` (`listed`, `named`, `unnamed`, `young`, `unknown_age`, `marked`, `settling`, `deleted`, `bytes` and `foreign`) and, for a sealed state, `groups` (`examined`, `dropped`, `kept` with `id`, `records`, `unnamed_records`, `outputs`, `plans` and `summaries`, and `skipped` with the reason when the groups were not looked at).
 
 A stored plan that an apply holds a claim on is left as it is. `--all` counts these plans and prints `2 stored plans in use were not sealed again; run pravo protect rewrap --all when they are done.` With `--json` the count is `plans_skipped`.
 

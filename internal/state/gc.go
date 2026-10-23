@@ -5,9 +5,10 @@ package state
 // that a write left behind. Nothing else deletes them (a refresh that changes only
 // the time of a record deletes its predecessor, and rewrap --all deletes the ones
 // sealed in an earlier group). GC is the collection: it deletes the records that
-// no pointer names once they are older than a grace, and in a sealed state it
-// drops the reader groups that nothing refers to any more, so that the data key of
-// a reader who was removed opens nothing that is left.
+// no pointer names once they are older than a grace and two collections, a settle
+// interval apart, have found them so, and in a sealed state it drops the reader
+// groups that nothing refers to any more, so that the data key of a reader who was
+// removed opens nothing that is left.
 
 import (
 	"bytes"
@@ -15,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -27,6 +29,19 @@ import (
 // DefaultGCGrace is how old a record that no pointer names must be before GC
 // deletes it, unless the caller says otherwise.
 const DefaultGCGrace = 24 * time.Hour
+
+// GCSettle is how long before a collection an earlier one must have found a record
+// unnamed for the collection to delete it. A writer that copies records with the
+// times they already have (rewrap --all, protect init, state push and pull) puts
+// them before it replaces the pointers, and the age of the record says nothing of
+// that; the second look does, as long as the writer is done within the interval.
+// Tests set it.
+var GCSettle = 15 * time.Minute
+
+// gcMarksKey is the object that holds the marks of a collection: the records that
+// a collection found unnamed, and when. It is the only object outside rec/ that GC
+// writes, and a copy of the state does not carry it.
+const gcMarksKey = "gc/marks.json"
 
 // ErrNoRecords is GC's error for a state of format 1, which keeps one object for
 // each resource and no record that a pointer could stop naming.
@@ -76,11 +91,17 @@ type GCResult struct {
 	// Listed is the number of records in the bucket and Named the number of them
 	// that a pointer names. Unnamed counts the ones that no pointer names and that
 	// match their name; Young of those are inside the grace, Unknown are kept
-	// because their age cannot be told, and Deleted are deleted, Bytes in all.
+	// because their age cannot be told, Marked are old enough and were first found
+	// unnamed by this collection, Settling were marked less than the settle
+	// interval ago, and Deleted are deleted, Bytes in all. With DryRun, Marked and
+	// Deleted are what the collection would mark and delete.
 	Listed, Named           int
 	Unnamed, Young, Unknown int
+	Marked, Settling        int
 	Deleted                 int
 	Bytes                   int64
+	// Settle is the interval that was applied.
+	Settle time.Duration
 	// Foreign lists the objects of rec/ that do not match their name. They are not
 	// records pravo wrote, and are left alone.
 	Foreign []string
@@ -194,10 +215,17 @@ func (s *Store) each(n int, fn func(i int)) {
 // A record that no pointer names is garbage once it is older than the grace, by
 // the newest of the times it records in the clear (updated_at, refreshed_at,
 // applied_at): the backend does not tell when an object was written. A record
-// whose age cannot be told is kept. The grace is what protects the record of a
-// writer that has put it and not yet replaced the pointer. Pointers are listed
-// again right before the delete, and a record is deleted only if it still holds the
-// bytes that were judged, so that one that was named or changed meanwhile is not.
+// whose age cannot be told is kept. The grace protects the record of a writer that
+// has put it and not yet replaced the pointer, as long as the record carries the
+// time it was written at. A writer that copies records with the times they already
+// have (rewrap --all, protect init, state push and pull) is protected by the marks
+// instead: a collection that finds an old record unnamed only marks it, in
+// gc/marks.json, and a later one at least GCSettle after the mark deletes it if it
+// is still unnamed. The marks of records that a pointer names, or that are gone,
+// are dropped. Pointers are listed again right before the delete, and a record is
+// deleted only if it still holds the bytes that were judged, so that one that was
+// named or changed meanwhile is not. With DryRun nothing is written, the marks
+// included.
 //
 // With Groups, a group other than the current one that no sealed record, no
 // output and no stored plan is sealed in is dropped from meta.json. The records
@@ -207,7 +235,7 @@ func (s *Store) each(n int, fn func(i int)) {
 func (s *Store) GC(ctx context.Context, o GCOptions) (GCResult, error) {
 	s.metaMu.Lock()
 	defer s.metaMu.Unlock()
-	res := GCResult{DryRun: o.DryRun}
+	res := GCResult{DryRun: o.DryRun, Settle: GCSettle}
 	res.Grace, res.Raised = GCGrace(o.OlderThan)
 	now := time.Now
 	if o.Now != nil {
@@ -288,26 +316,47 @@ func (s *Store) GC(ctx context.Context, o GCOptions) (GCResult, error) {
 		byKey[k] = heads[i]
 	}
 
-	// The records that are garbage by their age.
-	var garbage []string
+	// The marks of the earlier collections. A record is garbage when it is older
+	// than the grace by its own times and an earlier collection found it unnamed
+	// at least the settle interval ago. The first look marks it.
+	marks, err := s.readMarks(ctx)
+	if err != nil {
+		return res, err
+	}
+	var (
+		garbage []string
+		seen    = map[string]bool{}      // the records that are unnamed now
+		added   = map[string]time.Time{} // the marks this collection makes
+		at      = now()
+	)
 	for _, k := range read {
 		h := byKey[k]
 		if named[k] || h.missing {
 			continue
 		}
-		switch {
-		case !h.verified:
+		if !h.verified {
 			res.Foreign = append(res.Foreign, k)
 			continue
+		}
+		seen[k] = true
+		switch {
 		case !h.parsed || h.newest.IsZero():
 			res.Unnamed++
 			res.Unknown++
-		case now().Sub(h.newest) < res.Grace:
+		case at.Sub(h.newest) < res.Grace:
 			res.Unnamed++
 			res.Young++
 		default:
 			res.Unnamed++
-			garbage = append(garbage, k)
+			switch marked, ok := marks[k]; {
+			case !ok:
+				res.Marked++
+				added[k] = at
+			case at.Sub(marked) < GCSettle:
+				res.Settling++
+			default:
+				garbage = append(garbage, k)
+			}
 		}
 	}
 
@@ -352,15 +401,110 @@ func (s *Store) GC(ctx context.Context, o GCOptions) (GCResult, error) {
 			}
 		})
 		res.Deleted, res.Bytes = int(deleted.Load()), size.Load()
-		if firstErr != nil {
-			return res, firstErr
-		}
 		named = fresh
+	}
+	// The marks are written after the delete: a collection that stops between the
+	// two has deleted only records that an earlier one had marked.
+	if !o.DryRun {
+		for k := range named { // a pointer names it now
+			delete(seen, k)
+		}
+		if err := s.writeMarks(ctx, seen, added, gone); err != nil {
+			firstErr = errors.Join(firstErr, err)
+		}
+	}
+	if firstErr != nil {
+		return res, firstErr
 	}
 	if !wantGroups {
 		return res, nil
 	}
 	return res, s.gcGroups(ctx, o, &res, m, named, byKey, gone)
+}
+
+// gcMarks is the contents of gc/marks.json.
+type gcMarks struct {
+	// Unnamed maps the key of a record to the time a collection first found that no
+	// pointer names it.
+	Unnamed map[string]time.Time `json:"unnamed"`
+}
+
+// parseMarks reads the marks. An object that cannot be read holds none: the next
+// collection marks again and replaces it.
+func parseMarks(data []byte) map[string]time.Time {
+	var m gcMarks
+	if json.Unmarshal(data, &m) != nil {
+		return nil
+	}
+	for k := range m.Unnamed {
+		if !validRecKey(k) {
+			delete(m.Unnamed, k)
+		}
+	}
+	return m.Unnamed
+}
+
+func encodeMarks(m map[string]time.Time) []byte {
+	data, _ := json.MarshalIndent(gcMarks{Unnamed: m}, "", "  ")
+	return append(data, '\n')
+}
+
+// readMarks returns the marks, none if the object is not there.
+func (s *Store) readMarks(ctx context.Context) (map[string]time.Time, error) {
+	data, err := s.b.Get(ctx, gcMarksKey)
+	if errors.Is(err, ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", gcMarksKey, err)
+	}
+	return parseMarks(data), nil
+}
+
+// writeMarks replaces the marks with the ones of the records that are still
+// unnamed (seen) and not deleted (gone), and adds the new ones. It merges with
+// what is stored now, so that the marks of a collection that ran at the same time
+// are not lost, and creates the object only when there is a mark to put in it.
+func (s *Store) writeMarks(ctx context.Context, seen map[string]bool, added map[string]time.Time, gone map[string]bool) error {
+	update := func(cur []byte) ([]byte, bool) {
+		old := parseMarks(cur)
+		next := make(map[string]time.Time, len(old)+len(added))
+		for k, t := range old {
+			if seen[k] && !gone[k] {
+				next[k] = t
+			}
+		}
+		for k, t := range added {
+			if _, ok := next[k]; !ok && seen[k] && !gone[k] {
+				next[k] = t
+			}
+		}
+		if maps.EqualFunc(old, next, time.Time.Equal) {
+			return nil, false
+		}
+		return encodeMarks(next), true
+	}
+	for range 10 {
+		_, err := s.b.ReplaceIf(ctx, gcMarksKey, update)
+		switch {
+		case err == nil:
+			return nil
+		case !errors.Is(err, ErrNotFound):
+			return fmt.Errorf("writing %s: %w", gcMarksKey, err)
+		case len(added) == 0:
+			return nil
+		}
+		// Not there yet: create it, or merge with the one that a collection that ran
+		// at the same time has just created.
+		created, err := s.b.PutIfAbsent(ctx, gcMarksKey, encodeMarks(added))
+		if err != nil {
+			return fmt.Errorf("writing %s: %w", gcMarksKey, err)
+		}
+		if created {
+			return nil
+		}
+	}
+	return fmt.Errorf("writing %s: it keeps changing", gcMarksKey)
 }
 
 // errNothingDropped is the error of an update of meta.json that finds no group to

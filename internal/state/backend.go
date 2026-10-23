@@ -273,8 +273,13 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 	}
 	// A state of format 2 or 3 changes the format first, so that a pravo that does
 	// not know the layout refuses the destination before any pointer is in it. Its
-	// records come before the pointers that name them.
+	// records come before the pointers that name them. The marks of the destination's
+	// collections are not carried and are dropped: the copy may put a record that
+	// they mark, and it is unnamed until the pointers come.
 	if srcMeta != nil && srcMeta.Format > Format {
+		if err := dst.Delete(ctx, gcMarksKey); err != nil {
+			return n, fmt.Errorf("%s: %w", gcMarksKey, err)
+		}
 		if err := copyKey("meta.json", false); err != nil {
 			return n, err
 		}

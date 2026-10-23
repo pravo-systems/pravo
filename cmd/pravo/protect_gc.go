@@ -24,11 +24,16 @@ func protectGCCmd() *cobra.Command {
 		Long: `A state of format 2 or 3 never overwrites a record, so every revision of every
 record stays in the bucket, and so does the record of a resource that was
 destroyed. gc deletes the records that no pointer names, once they are older than
-24 hours (--older-than says another time, and not less than 65 seconds). A
-writer that has put a record and not yet replaced the pointer is protected by
-that time and by nothing else. The age is the newest of the times the record
-shows in the clear; a record that shows none is kept. A record that a pointer
-names is never deleted. gc needs no key for this.
+24 hours (--older-than says another time, and not less than 65 seconds) and two
+collections at least 15 minutes apart have found them so. The first collection
+marks the records and deletes nothing; a collection at least 15 minutes later
+deletes the ones that are still unnamed. A writer that has put a record and not
+yet replaced the pointer is protected by that age, which needs the clocks of the
+machines that write to agree to within it, and by the marks, for a writer that
+copies records with the times they already have (rewrap --all, protect init,
+state push and pull). The age is the newest of the times the record shows in the
+clear; a record that shows none is kept. A record that a pointer names is never
+deleted. gc needs no key for this.
 
 In a sealed state gc also drops the reader groups, other than the current one,
 that nothing is sealed in: no record, no output and no stored plan. Run
@@ -43,7 +48,8 @@ not a reader.
 A bucket that keeps old versions of its objects keeps the records that gc deleted
 and the meta.json that listed the groups it dropped.
 
---dry-run says what would be deleted and changes nothing.`,
+--dry-run says what would be marked and deleted and changes nothing, the marks
+included.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var grace time.Duration
@@ -65,8 +71,8 @@ and the meta.json that listed the groups it dropped.
 		},
 	}
 	f := cmd.Flags()
-	f.StringVar(&olderThan, "older-than", "", "delete the records that no pointer names once they are older than this (default 24h; 36h, 7d)")
-	f.BoolVar(&dryRun, "dry-run", false, "say what would be deleted and delete nothing")
+	f.StringVar(&olderThan, "older-than", "", "delete the records that no pointer names once they are older than this (default 24h; 36h, 7d); it should exceed the clock skew of the machines that write")
+	f.BoolVar(&dryRun, "dry-run", false, "say what would be marked and deleted and change nothing")
 	return cmd
 }
 
@@ -177,8 +183,10 @@ func gcJSON(format int, res state.GCResult, examined bool, skipped string) map[s
 	}
 	doc := map[string]any{
 		"format": format, "dry_run": res.DryRun, "older_than_seconds": int64(res.Grace / time.Second),
+		"settle_seconds": int64(res.Settle / time.Second),
 		"records": map[string]any{
 			"listed": res.Listed, "named": res.Named, "unnamed": res.Unnamed, "young": res.Young, "unknown_age": res.Unknown,
+			"marked": res.Marked, "settling": res.Settling,
 			"deleted": res.Deleted, "bytes": res.Bytes, "foreign": foreign,
 		},
 	}
@@ -205,20 +213,26 @@ func gcJSON(format int, res state.GCResult, examined bool, skipped string) map[s
 }
 
 func printGCReport(res state.GCResult, sealed, groups bool, skipped string) {
-	verb, none := "Deleted", "No record is garbage: a pointer names every record."
+	verb, mark, none := "Deleted", "Marked", "No record is garbage: a pointer names every record."
 	if res.DryRun {
-		verb = "Would delete"
+		verb, mark = "Would delete", "Would mark"
 	}
-	age := graceText(res.Grace)
+	age, settle := graceText(res.Grace), graceText(res.Settle)
 	switch {
 	case res.Deleted > 0:
 		out.Printf("%s %s older than %s (%s)\n", verb, counted(res.Deleted, "record", "records"), age, bytesText(res.Bytes))
-	case res.Unnamed > 0:
+	case res.Unnamed > 0 && res.Marked == 0 && res.Settling == 0:
 		out.Printf("No record is older than %s: %s that no pointer names %s kept.\n", age, counted(res.Unnamed, "record", "records"), isAre(res.Unnamed))
-	case len(res.Foreign) == 0:
+	case res.Unnamed == 0 && len(res.Foreign) == 0:
 		out.Println(none)
 	}
-	if kept := res.Young + res.Unknown; res.Deleted > 0 && kept > 0 {
+	if res.Marked > 0 {
+		out.Printf("%s %s that no pointer names. A collection at least %s later deletes the ones that are still unnamed.\n", mark, counted(res.Marked, "record", "records"), settle)
+	}
+	if res.Settling > 0 {
+		out.Printf("Kept %s that no pointer names: marked less than %s ago.\n", counted(res.Settling, "record", "records"), settle)
+	}
+	if kept := res.Young + res.Unknown; (res.Deleted > 0 || res.Marked > 0 || res.Settling > 0) && kept > 0 {
 		var why []string
 		if res.Young > 0 {
 			why = append(why, fmt.Sprintf("%d younger than %s", res.Young, age))

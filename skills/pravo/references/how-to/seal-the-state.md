@@ -295,9 +295,10 @@ Readers in .pravo/access/readers.txt: ada dan deploy-bot
 Sealed 2 records again in <time> s.
 ```
 
-Now nothing is sealed in the first group, and `gc` drops it. `pravo protect gc --dry-run` says what it would do and changes nothing.
+Now nothing is sealed in the first group, and `gc` drops it once the readers have been the same for 65 seconds: a command that opened the state before the change still seals in the old group until then. `pravo protect gc --dry-run` says what it would do and changes nothing.
 
 ```sh
+sleep 66
 pravo protect gc
 ```
 
@@ -308,7 +309,7 @@ No record is garbage: a pointer names every record.
 Dropped group g1: nothing refers to it.
 ```
 
-`gc` needs the state at rest, as `rewrap --all` does, and the readers file as any command that writes the state. A record that no pointer names is deleted once it is 24 hours old, so the records of earlier revisions and of resources that were destroyed go the day after they were replaced. Run `gc` again then. A group that still has something sealed in it is kept, and the command says what.
+`gc` needs the state at rest, as `rewrap --all` does, and the readers file as any command that writes the state. A record that no pointer names is marked by the first `gc` that finds it 24 hours old, and deleted by one that runs at least 15 minutes after that, so the records of earlier revisions and of resources that were destroyed go the day after they were replaced, on the second run. Run `gc` again then. A group that still has something sealed in it is kept, and the command says what.
 
 ## What next
 

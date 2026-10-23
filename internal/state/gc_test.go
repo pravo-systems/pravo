@@ -41,6 +41,33 @@ func putUnnamed(t *testing.T, b Backend, s *Store, addr string, revision int, up
 	return key
 }
 
+// settleNone sets the settle interval to zero for the test, so that a collection
+// deletes what an earlier one marked.
+func settleNone(t *testing.T) {
+	t.Helper()
+	was := GCSettle
+	GCSettle = 0
+	t.Cleanup(func() { GCSettle = was })
+}
+
+// marksOf returns the marks that the collections left in the bucket, none if the
+// object is not there.
+func marksOf(t *testing.T, b Backend) map[string]time.Time {
+	t.Helper()
+	data, err := b.Get(context.Background(), gcMarksKey)
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m gcMarks
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("%s is not what GC writes: %v\n%s", gcMarksKey, err, data)
+	}
+	return m.Unnamed
+}
+
 func exists(t *testing.T, b Backend, key string) bool {
 	t.Helper()
 	_, err := b.Get(context.Background(), key)
@@ -80,18 +107,39 @@ func TestGCDeletesTheRecordsNothingNames(t *testing.T) {
 				t.Fatalf("GC of a young state = %+v, %v", res, err)
 			}
 
-			// A dry run says what it would delete and writes nothing.
+			// A dry run says what it would mark and writes nothing, no marks either.
 			counted := &writeCounter{Backend: b}
 			cs := openFormat2(t, counted)
 			counted.writes.Store(0)
 			dry, err := cs.GC(ctx, GCOptions{DryRun: true, Now: ahead(48 * time.Hour)})
-			if err != nil || dry.Deleted != 4 || dry.Bytes == 0 || !dry.DryRun || counted.writes.Load() != 0 || len(listKeys(t, b, "rec")) != total {
+			if err != nil || dry.Marked != 4 || dry.Deleted != 0 || !dry.DryRun || counted.writes.Load() != 0 || len(listKeys(t, b, "rec")) != total || exists(t, b, gcMarksKey) {
 				t.Fatalf("dry run = %+v, %v, %d writes, %d records", dry, err, counted.writes.Load(), len(listKeys(t, b, "rec")))
 			}
 
-			real, err := s.GC(ctx, GCOptions{Now: ahead(48 * time.Hour)})
+			// The first collection marks the four and deletes nothing.
+			first, err := s.GC(ctx, GCOptions{Now: ahead(48 * time.Hour)})
+			if err != nil || first.Marked != 4 || first.Deleted != 0 || first.Unnamed != 4 || len(listKeys(t, b, "rec")) != total || len(marksOf(t, b)) != 4 {
+				t.Fatalf("the first GC = %+v, %v, %d marks", first, err, len(marksOf(t, b)))
+			}
+			// A collection inside the settle interval deletes nothing either.
+			soon, err := s.GC(ctx, GCOptions{Now: ahead(48*time.Hour + GCSettle/2)})
+			if err != nil || soon.Marked != 0 || soon.Settling != 4 || soon.Deleted != 0 || len(listKeys(t, b, "rec")) != total {
+				t.Fatalf("GC inside the settle interval = %+v, %v", soon, err)
+			}
+
+			// After it, a dry run says what it would delete, and still writes nothing.
+			later := ahead(48*time.Hour + GCSettle + time.Minute)
+			dry, err = cs.GC(ctx, GCOptions{DryRun: true, Now: later})
+			if err != nil || dry.Deleted != 4 || dry.Marked != 0 || dry.Bytes == 0 || counted.writes.Load() != 0 || len(listKeys(t, b, "rec")) != total || len(marksOf(t, b)) != 4 {
+				t.Fatalf("dry run after the settle = %+v, %v, %d writes, %d records", dry, err, counted.writes.Load(), len(listKeys(t, b, "rec")))
+			}
+
+			real, err := s.GC(ctx, GCOptions{Now: later})
 			if err != nil || real.Deleted != dry.Deleted || real.Bytes != dry.Bytes {
 				t.Fatalf("GC = %+v, %v; the dry run said %+v", real, err, dry)
+			}
+			if got := marksOf(t, b); len(got) != 0 {
+				t.Errorf("the marks of deleted records stay: %v", got)
 			}
 			if got := len(listKeys(t, b, "rec")); got != named {
 				t.Errorf("%d records after the collection, want %d", got, named)
@@ -106,7 +154,7 @@ func TestGCDeletesTheRecordsNothingNames(t *testing.T) {
 			if ver, err := fresh.VerifyAll(ctx); err != nil || len(ver.Bad) != 0 {
 				t.Errorf("VerifyAll after the collection = %+v, %v", ver, err)
 			}
-			if again, err := s.GC(ctx, GCOptions{Now: ahead(48 * time.Hour)}); err != nil || again.Deleted != 0 || again.Unnamed != 0 {
+			if again, err := s.GC(ctx, GCOptions{Now: later}); err != nil || again.Deleted != 0 || again.Unnamed != 0 || again.Marked != 0 {
 				t.Errorf("a second collection = %+v, %v", again, err)
 			}
 		})
@@ -152,7 +200,17 @@ func TestGCSparesTheRecordOfAStaleWriter(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			// The first collection marks the old record, and only that one: the young
+			// ones are inside the grace, the record of unknown age is never deleted.
 			res, err := s.GC(ctx, GCOptions{})
+			if err != nil || res.Deleted != 0 || res.Marked != 1 || res.Young != 2 || res.Unknown != 1 || !exists(t, b, old) {
+				t.Fatalf("the first GC = %+v, %v", res, err)
+			}
+			if m := marksOf(t, b); len(m) != 1 || m[old].IsZero() {
+				t.Fatalf("marks = %v, want only the old record", m)
+			}
+			settleNone(t)
+			res, err = s.GC(ctx, GCOptions{})
 			if err != nil || res.Deleted != 1 || res.Young != 2 || res.Unknown != 1 || len(res.Foreign) != 1 || res.Foreign[0] != foreign {
 				t.Fatalf("GC = %+v, %v", res, err)
 			}
@@ -220,6 +278,10 @@ func TestGCReadsThePointersAgainAndComparesTheBytes(t *testing.T) {
 	named := putUnnamed(t, b, s, "net.vpc", 90, old)
 	other := putUnnamed(t, b, s, "net.vpc", 91, old)
 
+	settleNone(t)
+	if first, err := s.GC(ctx, GCOptions{}); err != nil || first.Marked != 2 || first.Deleted != 0 {
+		t.Fatalf("the first GC = %+v, %v", first, err)
+	}
 	rb := &relistBackend{Backend: b}
 	rb.hook = func() {
 		ptr := mustIndent(t, pointer{V: pointerVersion, Address: "x.y", Revision: 90, Generation: "g", Record: named})
@@ -236,6 +298,9 @@ func TestGCReadsThePointersAgainAndComparesTheBytes(t *testing.T) {
 	if err != nil || res.Deleted != 1 || !exists(t, b, named) || exists(t, b, other) {
 		t.Fatalf("GC with a pointer that appeared = %+v, %v (named record there: %v)", res, err, exists(t, b, named))
 	}
+	if m := marksOf(t, b); len(m) != 0 {
+		t.Errorf("marks = %v: the record that a pointer names, and the one that was deleted, lose theirs", m)
+	}
 
 	if err := b.Delete(ctx, "resources/x.y.json"); err != nil {
 		t.Fatal(err)
@@ -244,6 +309,9 @@ func TestGCReadsThePointersAgainAndComparesTheBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	changed := putUnnamed(t, b, s, "net.vpc", 92, old)
+	if first, err := s.GC(ctx, GCOptions{}); err != nil || first.Marked != 1 || first.Deleted != 0 {
+		t.Fatalf("the first GC = %+v, %v", first, err)
+	}
 	cb := &changeBackend{Backend: b}
 	cb.change = func(key string) {
 		if key == changed {
@@ -360,6 +428,14 @@ func TestGCDropsTheGroupOfARemovedReader(t *testing.T) {
 				t.Fatalf("GC with unreadable plans = %+v, %v", res, err)
 			}
 
+			// Once the record of the writer is old, a collection marks it, and the group
+			// stays: the record is not deleted yet.
+			res, err = s.GC(ctx, GCOptions{Groups: true, Plans: planCount, Now: everything})
+			if err != nil || res.Marked != 1 || res.Deleted != 0 || len(res.Groups) != 1 || res.Groups[0].Dropped || res.Groups[0].Spare != 1 || !exists(t, b, stale) {
+				t.Fatalf("the first GC of the old record = %+v, %v", res, err)
+			}
+			everything = ahead(1000*time.Hour + GCSettle + time.Minute)
+
 			// A dry run reports the drop and writes nothing.
 			counted := &writeCounter{Backend: b}
 			cs := openIdentity(t, counted, ada)
@@ -464,6 +540,10 @@ func TestGCOfGroupsNeedsAReaderAndAStateAtRest(t *testing.T) {
 	// A store without a key collects the records: it reads only the pointers and
 	// the times in the clear.
 	locked := openIdentity(t, b, nil)
+	settleNone(t)
+	if first, err := locked.GC(ctx, GCOptions{}); err != nil || first.Marked != 1 || first.Deleted != 0 || !exists(t, b, old) {
+		t.Fatalf("the first GC without a key = %+v, %v", first, err)
+	}
 	res, err := locked.GC(ctx, GCOptions{})
 	if err != nil || res.Deleted != 1 || exists(t, b, old) {
 		t.Fatalf("GC without a key = %+v, %v", res, err)

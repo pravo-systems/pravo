@@ -50,6 +50,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 | `resources/<addr>.json` | One node for each resource or data source, named by its address. In format 1 it holds the whole record. In formats 2 and 3 it is a pointer to a record. |
 | `rec/<sha256>` | In formats 2 and 3, one record, named by the SHA-256 of its bytes. It is written once and never changed. |
 | `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. In format 3 the whole object is sealed. |
+| `gc/marks.json` | In formats 2 and 3, written by `pravo protect gc`: the records that no pointer names and that a collection has seen, with the time. Never sealed. A copy of the state does not carry it. See [Format 2](#format-2-immutable-records). |
 | `txn/<id>.json` | One recorded transaction. |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |
 | `plans/<id>.plan.json`, `plans/<id>.meta.json`, `plans/<id>.progress.json` | A stored plan: the plan, its summary and what was applied from it. See [Plans](#plans). |
@@ -186,13 +187,25 @@ A write of a node makes the record with a conditional create, and then creates t
 
 A write that leaves the revision as it was, which is a refresh that read the same attributes, replaces the record and deletes the one it replaced. A write that moves the revision keeps the record it replaced. Removing a node deletes the pointer, and only if it still names the revision and generation that the store holds, and leaves its records. A write that fails after it made the record, or that loses a race, also leaves a record. No pointer names such a record and nothing reads it. A seal, and a rewrap that seals everything again, delete the ones that hold values in plain text or are sealed in an earlier group.
 
-`pravo protect gc` deletes the rest. A record is garbage when no pointer names it and its newest time is older than the grace, 24 hours unless `--older-than` says another, and never less than 65 seconds. The newest time is the greatest of `updated_at`, `refreshed_at` and `applied_at`, which a sealed record keeps in the clear. A record with none of them is kept, and so is an object of `rec/` whose bytes do not match its name. The grace is what keeps the record that a writer made and has not yet pointed at. The collection lists the pointers once to judge, lists them again right before the delete, and deletes a record only if it still holds the bytes that it judged. It needs no key and may run while commands run.
+`pravo protect gc` deletes the rest. A record is garbage when no pointer names it, its newest time is older than the grace, 24 hours unless `--older-than` says another and never less than 65 seconds, and an earlier collection at least 15 minutes before also found it unnamed. The newest time is the greatest of `updated_at`, `refreshed_at` and `applied_at`, which a sealed record keeps in the clear. A record with none of them is kept, and so is an object of `rec/` whose bytes do not match its name. The grace keeps the record that a writer made and has not yet pointed at, when the record carries the time it was written at; it compares the clock of the writer with the clock of the collector, which must agree to within the grace. A writer that copies records with the times they already have (`rewrap --all`, `protect init`, `state push` and `state pull`) is covered by the second condition. The collection lists the pointers once to judge, lists them again right before the delete, and deletes a record only if it still holds the bytes that it judged. It needs no key and may run while commands run.
+
+The earlier collection leaves its finding in `gc/marks.json`:
+
+```json
+{
+  "unnamed": {
+    "rec/6f1d0c7a52e1b0d94a8c3e5f7b2a9d4c1e8f0a6b3d5c7e9f1a2b4c6d8e0f1a3b": "2026-10-23T00:50:11.482Z"
+  }
+}
+```
+
+`unnamed` maps the key of a record to the time a collection first found it unnamed and old. A collection creates the object with a conditional create and replaces it with a compare-and-swap, merging with what it finds. It drops the entry of a record that a pointer names again or that is gone. An object that cannot be read counts as no marks. `--dry-run` reads it and writes nothing.
 
 A reader accepts an object under `resources/` whether it is a pointer or a whole record, whatever the format of the store says, so that a store that an upgrade left half converted lists every node. A reader checks each record it fetches: the bytes against the name, the address, revision and generation of the record against the pointer, and the key of the pointer against its address. A mismatch is the error "the state failed verification", which exits with code 7, and names the object. A record that is missing when a pointer names it is looked for again after reading the pointer again, twice; one that stays missing fails the same way. The check needs no key.
 
 A store in format 2 or 3 reads two objects for each node when it opens, the pointer and the record, where format 1 reads one. A write makes three requests to a bucket where format 1 makes one: the record, and the read and the replacement of the pointer.
 
-`pravo state pull` and `pravo state push` copy `rec/` before `resources/`, so that a pointer in the copy always has its record. When the state they copy is in format 2 or 3 they copy `meta.json` first.
+`pravo state pull` and `pravo state push` copy `rec/` before `resources/`, so that a pointer in the copy always has its record. When the state they copy is in format 2 or 3 they copy `meta.json` first. They do not copy `gc/marks.json`, and they delete the one in the destination before they copy the records, so that a record they put again is not deleted on a mark that is older than the copy.
 
 ## Format 3: sealed state
 
@@ -694,7 +707,7 @@ A command without a key lists the stored plans from their summaries and fails wi
 
 ## Remote layout
 
-On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 and 3, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
+On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 and 3, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
 
 ## See also
 

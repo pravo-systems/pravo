@@ -127,10 +127,29 @@ func seedMany(t *testing.T, s *Store, n int) {
 
 // 'pravo protect init' that is interrupted must leave a store that the command
 // finishes when it is run again, as it does one that was killed. The context of
-// the upgrade is cancelled after n calls to the backend, for several n; the
-// upgrade is then run again with a context that is not.
+// the upgrade is cancelled by the backend after exactly n calls to it, for several
+// n; the upgrade is then run again with a context that is not. The workers of an
+// upgrade interleave their calls as the scheduler pleases, so this variant asserts
+// only what holds for every interleaving: the interrupted store reads every record,
+// the second run finishes, nothing is lost and no plaintext is left.
 func TestSealInterruptedByCancellationIsResumable(t *testing.T) {
+	sealInterrupted(t, false)
+}
+
+// With one worker the calls come in one order, so the cancellation lands between
+// the conversion of two records for some n, which is what the upgrade has to
+// survive; the variant above leaves that to the scheduler.
+func TestSealInterruptedByCancellationBetweenTwoRecords(t *testing.T) {
+	sealInterrupted(t, true)
+}
+
+func sealInterrupted(t *testing.T, serial bool) {
 	skipWhenSealed(t)
+	if serial {
+		local, remote := convertWidthLocal, convertWidthRemote
+		convertWidthLocal, convertWidthRemote = 1, 1
+		t.Cleanup(func() { convertWidthLocal, convertWidthRemote = local, remote })
+	}
 	for _, from := range []int{Format, FormatImmutable} {
 		for _, bk := range testBackends() {
 			t.Run(fmt.Sprintf("%s from format %d", bk.name, from), func(t *testing.T) {
@@ -155,7 +174,9 @@ func TestSealInterruptedByCancellationIsResumable(t *testing.T) {
 				}
 				interrupted, midway := 0, 0
 				defer func() {
-					if interrupted == 0 || midway == 0 {
+					// The first call is cancelled whatever the interleaving. A cancellation
+					// that leaves some of the records converted needs the order of one worker.
+					if interrupted == 0 || serial && midway == 0 {
 						t.Errorf("of the upgrades cancelled in %d calls, %d were interrupted and %d left records to convert", dry, interrupted, midway)
 					}
 				}()

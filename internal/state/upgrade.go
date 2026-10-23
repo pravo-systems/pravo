@@ -13,8 +13,10 @@ import (
 	"time"
 )
 
-// convertWidth is how many records an upgrade converts at the same time.
-const (
+// convertWidth is how many records an upgrade converts at the same time. They are
+// variables so that a test can make the order of the calls to the backend
+// deterministic.
+var (
 	convertWidthLocal  = 16
 	convertWidthRemote = 32
 )
