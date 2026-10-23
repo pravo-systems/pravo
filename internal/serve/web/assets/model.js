@@ -83,7 +83,9 @@ export function buildModel(graph, plans) {
     edges.push({ a: a.addr, b: b.addr });
   }
   const nout = list.filter(isOut).length;
-  const counts = { all: list.length - nout, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0, env: 0, sealed: 0 };
+  const nenv = list.filter((n) => !isOut(n) && isEnv(n)).length;
+  // All is the resources: what the state records and what a plan counts. Outputs and environment variables are not resources, and their chips count them.
+  const counts = { all: list.length - nout - nenv, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0, env: 0, sealed: 0 };
   for (const n of list) {
     for (const k of Object.keys(FILTERS)) if (FILTERS[k](n)) counts[k]++;
     if (n.sealed) counts.sealed++;
