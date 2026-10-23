@@ -85,7 +85,7 @@ The viewer is one page with a bar, a sidebar, a graph with its toolbar, an inspe
 | Bar | The project directory and the state location, each a button that copies the path. The three sections, Resources, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
 | Sidebar | Under the heading Show, the filter chips. Under Modules, the project and the tree of modules with their resources. |
 | Toolbar | Of the Resources section: the switch Graph and Table, then Collapse and Expand. The filter box, Filter by address or type, with the number of matches. The zoom buttons, minus, Fit and plus, and the button Hide the sidebars. |
-| Graph | The lanes of open modules, the cards of closed ones and the boxes of resources. The plan bar, while a stored plan is laid over the graph. The legend. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a module. |
+| Graph | The lanes of open modules, the cards of closed ones and the boxes of resources. The legend. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a module. |
 | Inspector | The project, a module or a resource. A resource has a strip of cells and the tabs. |
 | Status bar | In Resources: `no plan loaded`, or the id of a stored plan, `planned N of M` and the number `not read`. The revision. When the data was read. `live`, `reconnecting`, `offline` or `connecting`. `read-only · localhost only`. |
 
@@ -118,14 +118,14 @@ The strip above the tabs has the cells Action, Record, Lock, Revision and Refres
 
 ### Stored plans
 
-The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first, and the picker Plan in the toolbar of Resources chooses the one that is laid over the resources. The picker is not there when the state holds none. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
+The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first, A click on a row lays that plan over the resources, and a strip under the bar says which plan it is while one is. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
 
 | Part | Holds |
 |---|---|
 | Pending and All | The filter of the list. Pending lists the plans that can be applied, all of them or a part: `pending`, `partial` and `partly stale`. All lists every plan that no collection has removed. Each shows its number. The list opens on Pending when a plan can be applied. |
 | A row | The badge with the initials of the author, the title (the note of the plan, loaded from its overlay a few plans at a time, or the id when there is none, which then is the line under the title), the status chip, the author, the age, and the counts `+add ~change −destroy`. A mark of two rings says that another plan that can be applied changes a resource of this plan. |
 | The selected row | The reason. For a stale plan, the reasons, twenty at most. For a partly stale plan, how many of its unapplied changes conflict with the state, and the reason of each conflict, twenty at most. The other plans that overlap, each a link that lays that plan over the graph. A closed part, Expires, command, revision. For a plan that can be applied, the command `pravo apply ID` and a button that copies it. For a partly stale plan the command is `pravo apply ID --only ...`, with the changes that can be applied. For the others, a note. The reason, the command and the revision come from the plan itself, which the page reads when the row is chosen, and not from the list. |
-| The plan bar | Above the graph, while a plan is laid over it: the badge, the id, the status, the counts, Detail, which moves the focus to the row, and a button that takes the plan off the graph. |
+| The plan strip | Under the bar, in Resources, while a plan is laid over it: the badge, the note of the author, the id, the status, the counts, the author and the age, Details, which opens the plan in the Plans section, and Take it off. |
 
 A row lays its plan over the graph, as `--plan FILE` lays a plan file: the actions on the nodes are the plan's, the Change tab answers for it, and the first view opens the modules that the plan touches first. A second click on the row takes the plan off. Without `--plan`, the graph shows no plan until a row is chosen.
 

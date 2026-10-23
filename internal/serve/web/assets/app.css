@@ -142,7 +142,7 @@ a { color: inherit; }
 .tip kbd { margin-left: .5rem; background: transparent; color: var(--code-dim); border-color: var(--code-edge); }
 
 /* ---- banners ---- */
-.banners { grid-row: 2; }
+.chip[hidden] { display: none; }
 .app { grid-row: 3; } .status { grid-row: 4; }
 .banners:empty { display: none; }
 .banner { display: flex; gap: .75rem; padding: .6rem 1rem; border-bottom: 1px solid var(--line-strong); font-size: .8rem; line-height: 1.45; align-items: flex-start; position: relative; animation: ui-drop .4s var(--ease); }
@@ -497,10 +497,6 @@ body[data-full="1"] .app:not([data-sel="1"]) .insp { display: none; }
 @media (max-width: 68.75em) { body[data-full="1"] .app, body[data-full="1"] .app:not([data-sel="1"]) { grid-template-columns: minmax(0, 1fr); } }
 body[data-full="1"]:has(.app:not([data-sel="1"])) .topright { border-left-color: transparent; }
 
-/* the picker of the plan, in the toolbar of the resources */
-.planpick { display: inline-flex; align-items: center; gap: .5rem; font: 500 .66rem/1 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
-.planpick[hidden], .chip[hidden] { display: none; }
-.planpick select { height: 2rem; width: 9.5rem; padding: 0 .5rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: 500 .74rem/1 var(--font-mono); text-transform: none; letter-spacing: 0; }
 /* the Plans page */
 .plans-pane { overflow: auto; }
 .pl { max-width: 56rem; margin: 0 auto; padding: 1.6rem 1.2rem 3rem; }

@@ -8,7 +8,7 @@ import { GraphView, Minimap } from './graph.js';
 import { Rail } from './rail.js';
 import { TableView } from './table.js';
 import { Inspector } from './inspector.js';
-import { Plans, planBar, avatar, statusLabel } from './plans.js';
+import { Plans, planStrip, avatar, statusLabel } from './plans.js';
 import { AccessView } from './access.js';
 import { Palette, Sheet } from './palette.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
@@ -322,10 +322,11 @@ function renderPlans() {
   const text = planText();
   if (text && text.reason) reasons.set(text.plan.id, String(text.reason).replace(/\s+/g, ' ').trim());
   plansList.render({ plans: S.plans, sel: S.plan, text, reasons });
-  renderPlanPick();
+  renderPlanLede();
   loadReasons();
   const p = S.plan && S.plans.find((x) => x.id === S.plan);
-  planBar($('planbar'), p, {
+  planStrip($('planstrip'), p, {
+    reason: p && reasons.get(p.id),
     onClear: () => selectPlan(null),
     onDetail: () => {
       setView('plans');
@@ -335,14 +336,8 @@ function renderPlans() {
   });
 }
 
-// renderPlanPick fills the picker of the toolbar and the line at the head of the Plans page.
-function renderPlanPick() {
-  const wrap = $('planpick-wrap'), sel = $('plan-pick');
-  wrap.hidden = !S.plans.length;
-  clear(sel);
-  sel.append(h('option', { value: '' }, 'No plan'));
-  for (const p of S.plans) sel.append(h('option', { value: p.id }, `${p.id} · ${p.author} · ${statusLabel(p.status)}`));
-  sel.value = S.plan && S.plans.some((p) => p.id === S.plan) ? S.plan : '';
+// renderPlanLede is the line at the head of the Plans page.
+function renderPlanLede() {
   const lede = $('pl-lede');
   clear(lede);
   if (!S.plans.length) { lede.textContent = 'The state holds no plan. Make one with pravo plan --store.'; return; }
@@ -1346,7 +1341,6 @@ function wire() {
   $('view-table').addEventListener('click', () => setView('table'));
   $('sec-resources').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); });
   $('sec-plans').addEventListener('click', () => setView('plans'));
-  $('plan-pick').addEventListener('change', (ev) => selectPlan(ev.target.value || null));
   $('sec-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
   $('theme-btn').addEventListener('click', toggleTheme);

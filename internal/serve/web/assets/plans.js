@@ -237,21 +237,25 @@ export class Plans {
   }
 }
 
-// The bar on the canvas that says which plan is laid over the graph, with the way back. It is the only sign on
-// the picture that the colours are a plan's, and it is there on a narrow screen, where the rail is a drawer.
-export function planBar(el, p, cb) {
-  // a bar that says the same is left as it is: drawing it again takes the focus from the button that has it
-  const sig = p ? [p.id, p.status, p.author, JSON.stringify(p.summary || {})].join('|') : '';
+// The strip under the bar that says which plan is laid over the resources, with the way to its detail and the way back.
+// It is the one sign that the colours of the picture are a plan's, so it spans the page and does not hide in the picture.
+export function planStrip(el, p, cb) {
+  // a strip that says the same is left as it is: drawing it again takes the focus from the button that has it
+  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {})].join('|') : '';
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
   clear(el);
   if (!p) { el.hidden = true; return; }
   el.hidden = false;
   el.append(
+    h('span', { class: 'ps-eyebrow' }, 'Plan'),
     avatar(p.author),
-    h('span', { class: 'pb-id' }, p.id),
+    cb.reason ? h('span', { class: 'ps-title', title: cb.reason }, cb.reason) : null,
+    h('code', { class: 'ps-id' }, p.id),
     statusChip(p.status),
     counts(p.summary || {}),
-    h('button', { class: 'pb-det', type: 'button', 'aria-label': 'Show the detail of ' + p.id, on: { click: cb.onDetail } }, 'Detail'),
-    h('button', { class: 'pb-x', type: 'button', 'aria-label': 'Take the plan off the graph', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })));
+    h('span', { class: 'ps-by dim' }, p.author + ' \u00b7 ' + relTime(p.created)),
+    h('span', { class: 'grow' }),
+    h('button', { class: 'ps-det', type: 'button', 'aria-label': 'Open the detail of ' + p.id, on: { click: cb.onDetail } }, 'Details'),
+    h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Take the plan off the resources', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' }), 'Take it off'));
 }

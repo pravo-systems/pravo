@@ -42,7 +42,10 @@
   </div>
 </header>
 
-<div id="banners" class="banners"></div>
+<div class="under">
+  <div class="planstrip" id="planstrip" role="group" aria-label="The plan laid over the resources" hidden></div>
+  <div id="banners" class="banners"></div>
+</div>
 
 <div class="app" id="app">
   <nav class="rail" id="rail" aria-label="Filters and modules">
@@ -71,7 +74,6 @@
         <span class="count" id="match-count" aria-hidden="true"></span>
       </div>
       <span class="grow"></span>
-      <label class="planpick" id="planpick-wrap" hidden><select id="plan-pick" aria-label="The plan laid over the resources"></select></label>
       <div class="seg zoom graph-only" role="group" aria-label="Zoom">
         <button type="button" id="btn-zout" aria-label="Zoom out" title="Zoom out ( - )"><span class="i i-minus" aria-hidden="true"></span></button>
         <button type="button" id="btn-fit" title="Fit the graph ( f )">Fit</button>
@@ -84,7 +86,6 @@
     <div class="pane graph-pane" id="graph-pane">
       <div class="canvas" id="canvas" tabindex="0" role="application" aria-roledescription="dependency graph" aria-label="Dependency graph. Arrow keys follow dependencies. Enter opens or closes the selected module. Press ? for all shortcuts.">
         <div class="overlay reachbar" id="reachbar" hidden></div>
-        <div class="overlay planbar" id="planbar" role="group" aria-label="The plan laid over the graph" hidden></div>
         <div class="overlay legend" id="legend"></div>
         <div class="gskel" id="skeleton" aria-hidden="true">
           <svg viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet"><g class="gs-e"><path d="M150 100C210 100 210 150 270 150M150 100C210 100 210 220 270 220M150 200C210 200 210 150 270 150M150 200C210 200 210 220 270 220M330 150C390 150 390 110 450 110M330 150C390 150 390 220 450 220M330 220C390 220 390 250 450 250"/></g><g class="gs-n"><rect x="60" y="80" width="90" height="40"/><rect x="60" y="180" width="90" height="40"/><rect x="270" y="130" width="60" height="40"/><rect x="270" y="200" width="60" height="40"/><rect x="450" y="90" width="90" height="40"/><rect x="450" y="200" width="90" height="40"/><rect x="450" y="230" width="90" height="40"/></g></svg>
