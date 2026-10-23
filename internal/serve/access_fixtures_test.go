@@ -68,6 +68,11 @@ func TestAccessFixtures(t *testing.T) {
 	migrating.Store.Groups[0].Records = 25
 	migrating.Store.History = nil
 	migrating.Store.Migration = &MigrationFacts{Started: time.Date(2026, 10, 22, 9, 30, 0, 0, time.UTC), By: "ada", Done: 25, Total: 46}
+	unsealing := fixSealed([]string{"ada", "dan"}, []string{"ada", "dan"}, ada)
+	unsealing.Store.State, unsealing.Store.Sealed, unsealing.Store.Plain = "migrating", 21, 25
+	unsealing.Store.Groups[0].Records = 21
+	unsealing.Store.History = nil
+	unsealing.Store.Migration = &MigrationFacts{Started: time.Date(2026, 10, 22, 9, 30, 0, 0, time.UTC), By: "ada", Done: 25, Total: 46, Unseal: true}
 	invalid := fixSealed([]string{"ada", "dan", "eve"}, nil, ada)
 	invalid.File = FileFacts{State: "invalid", Errors: []LineError{{Line: 3, Reason: "want 4 fields: NAME ssh-ed25519 BASE64 x25519:BASE64URL (got 3)"}, {Line: 5, Reason: "reader key …: want x25519:BASE64URL"}}}
 	missing := fixSealed([]string{"ada", "dan", "eve"}, nil, ada)
@@ -94,6 +99,7 @@ func TestAccessFixtures(t *testing.T) {
 		"drift":       in(drift, 3, "s3"),
 		"locked":      in(locked, 3, "s3"),
 		"migrating":   in(migrating, 3, "s3"),
+		"unsealing":   in(unsealing, 3, "s3"),
 		"invalid":     in(invalid, 3, "s3"),
 		"missing":     in(missing, 3, "s3"),
 		"notreader":   in(notReader, 3, "s3"),

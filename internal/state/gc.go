@@ -249,6 +249,8 @@ func (s *Store) GC(ctx context.Context, o GCOptions) (GCResult, error) {
 		return res, fmt.Errorf("the lineage of the state at %s changed since it was opened", s.b.Name())
 	case m.Format < FormatImmutable:
 		return res, ErrNoRecords
+	case m.Migration != nil && m.Migration.Unseal:
+		return res, ErrUnsealing
 	case m.Migration != nil:
 		return res, ErrSealing
 	}

@@ -416,10 +416,74 @@ Commit the recovery recipient with the readers file:
 The old shares open nothing that is written from now on. Collect them and destroy them.
 ```
 
+## 13. Take the seal off
+
+Sealing is not a one-way door. `pravo protect unseal` opens every record, the outputs and the stored plans with your key, writes them in the open and removes the sealed part of `meta.json`. The state keeps its format and its lineage: it is the same state, without the encryption. After it, anyone who can read the bucket can read every value.
+
+The command shows what it will do and asks. This page is a script, so `--yes` answers.
+
+```sh
+PRAVO_CONFIG_DIR=people/fay pravo protect unseal --yes
+```
+
+Output:
+
+```text
+State    s3://northwind-state/prod  (sealed)
+This will:
+  1  open 2 records, the outputs and the stored plans with your key (fay)
+  2  write them in the open, and delete the sealed records
+  3  take the sealed part out of meta.json; the format stays
+Afterwards anyone who can read the bucket can read every value. The readers (fay) lose nothing, and the bucket loses the seal.
+2 records unsealed in <time> s
+outputs unsealed · the sealed part of meta.json is gone
+
+The state is not sealed any more (format 3).
+The repository still expects a sealed state, and writers refuse this one (exit code 5) until these are removed:
+  .pravo/access/readers.txt
+  .pravo/access/recovery.txt
+Remove them and commit the deletion, or run this again with --remove-files.
+Destroy the recovery shares, if there were any: they open nothing now.
+```
+
+The repository still says that the state is sealed. A command that writes refuses the unsealed state until the readers file and the recovery file are gone, which is the same check that catches a bucket whose `meta.json` was edited.
+
+```sh
+PRAVO_CONFIG_DIR=people/fay pravo state rm aws_db_instance.main; echo "exit=$?"
+```
+
+Output:
+
+```text
+Error: the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file and the recovery file.
+exit=5
+```
+
+`--remove-files` deletes both files, after a yes of its own for a state that is unsealed already, or in the same run as the unseal. Commit the deletion, and destroy the recovery shares.
+
+```sh
+PRAVO_CONFIG_DIR=people/fay pravo protect unseal --remove-files --yes
+PRAVO_CONFIG_DIR=people/fay pravo protect status | grep -E '^(Sealed|Readers)'
+```
+
+Output:
+
+```text
+The state is not sealed.
+This will delete .pravo/access/readers.txt and .pravo/access/recovery.txt from the repository.
+Removed .pravo/access/readers.txt; commit the deletion.
+Removed .pravo/access/recovery.txt; commit the deletion.
+Sealed       off · format 3 · immutable records
+Readers      file not found (looked in .pravo/access)
+```
+
+A state that is unsealed is sealed again with `pravo protect init --encrypt`, to the same readers or to others. The groups of the new seal carry on from the number where the first seal stopped.
+
 ## What next
 
 - [pravo id and pravo protect](../reference/protect.md) lists every flag, the exit codes and the format of the readers file.
 - [What sealing protects](../concepts/sealed-state.md) lists what the seal covers, what it does not, and the risks that remain.
 - [CI](ci.md) runs plan and apply as separate jobs. Give the job `PRAVO_IDENTITY` as in step 9.
+- [protect unseal](../reference/protect.md#protect-unseal) lists what the unseal does, in what order, and what it cannot restore.
 - [The recovery recipient](../reference/protect.md#the-recovery-recipient) says what the files hold, what the writers check and what to do after a recovery.
 - [Exit codes](../reference/exit-codes.md#7-untrusted) describes code 7.

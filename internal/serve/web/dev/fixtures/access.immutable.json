@@ -5,7 +5,7 @@
  "format": 2,
  "location": "s3://acme-state/estate",
  "backend": "s3",
- "summary": "Records are stored as immutable objects (format 2). They are not encrypted.",
+ "summary": "Records are stored as immutable objects. They are not encrypted.",
  "readers": [],
  "file": {
   "verdict": "none",

@@ -679,6 +679,8 @@ type AccessMigration struct {
 	By      string    `json:"by"`
 	Done    int       `json:"done"`
 	Total   int       `json:"total"`
+	// Unseal is set when the seal is being taken off.
+	Unseal bool `json:"unseal,omitempty"`
 }
 
 // AccessRecovery says how the recovery of a sealed state stands. Text is the

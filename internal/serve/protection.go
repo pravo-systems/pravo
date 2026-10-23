@@ -99,6 +99,8 @@ type MigrationFacts struct {
 	Started     time.Time
 	By          string
 	Done, Total int
+	// Unseal is set when the seal is being taken off and not put on.
+	Unseal bool
 }
 
 // ChangeFacts is one change of the seal, as the history of meta.json records it.

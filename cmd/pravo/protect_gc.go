@@ -99,6 +99,8 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 		return gcFormatOne(prot.Format, fmt.Sprintf("The state is format %d: it keeps one object for each resource and has nothing to collect.", prot.Format))
 	case prot.State == "migrating":
 		return state.ErrSealing
+	case prot.State == "unsealing":
+		return state.ErrUnsealing
 	}
 	// A state that is not sealed in a repository that lists readers may have been
 	// downgraded in the bucket: a collection that deletes is a writer, as any other.
@@ -151,7 +153,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 		fmt.Fprintf(os.Stderr, "Warning: --older-than %s is below the least, %s, which keeps the record of a writer that opened the state before a rewrap. Using %s.\n", graceText(grace), graceText(res.Grace), graceText(res.Grace))
 	}
 	if flagJSON {
-		if err := emitJSON(gcJSON(prot.Format, res, groups, skipped)); err != nil {
+		if err := emitJSON(gcJSON(prot.Format, prot.Sealed != nil, res, groups, skipped)); err != nil {
 			return err
 		}
 	} else {
@@ -176,7 +178,7 @@ func gcFormatOne(format int, line string) error {
 }
 
 // gcJSON is the JSON form of protect gc.
-func gcJSON(format int, res state.GCResult, examined bool, skipped string) map[string]any {
+func gcJSON(format int, sealed bool, res state.GCResult, examined bool, skipped string) map[string]any {
 	foreign := res.Foreign
 	if foreign == nil {
 		foreign = []string{}
@@ -190,7 +192,7 @@ func gcJSON(format int, res state.GCResult, examined bool, skipped string) map[s
 			"deleted": res.Deleted, "bytes": res.Bytes, "foreign": foreign,
 		},
 	}
-	if format < state.FormatSealed {
+	if !sealed {
 		return doc
 	}
 	dropped, kept := []string{}, []map[string]any{}

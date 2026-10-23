@@ -48,10 +48,19 @@ type Keys struct {
 
 // NewMeta seals a state to readers: group g1, one lock per reader.
 func NewMeta(lineage string, readers []Reader) (*Meta, *Keys, error) {
+	return NewMetaFrom(lineage, readers, 1)
+}
+
+// NewMetaFrom is NewMeta with the first group numbered first: a state that is sealed
+// again after it was unsealed does not reuse the number of a group it once had.
+func NewMetaFrom(lineage string, readers []Reader, first int) (*Meta, *Keys, error) {
 	if len(readers) == 0 {
 		return nil, nil, errors.New("protect: at least one reader is needed")
 	}
-	g, dk, err := NewGroup("g1", lineage, readers)
+	if first < 1 {
+		first = 1
+	}
+	g, dk, err := NewGroup("g"+strconv.Itoa(first), lineage, readers)
 	if err != nil {
 		return nil, nil, err
 	}

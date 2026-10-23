@@ -106,7 +106,7 @@ func (r *keyring) set(keys *protect.Keys) {
 func (s *Store) Close() {
 	s.mu.Lock()
 	s.closed = true
-	if s.meta.Format >= FormatSealed {
+	if s.meta.Sealed != nil {
 		s.locked, s.openable = true, nil
 	}
 	s.mu.Unlock()

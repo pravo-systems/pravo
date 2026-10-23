@@ -716,8 +716,13 @@ func (ps *PlanStore) Put(ctx context.Context, data []byte, meta *PlanMeta) error
 	// A plan is written to the backend and not through the store, so the refusal
 	// that the store gives every other writer while a seal is in progress is made
 	// here: a plan written now could be missed by the seal.
-	if ps.st != nil && ps.st.Protection().State == "migrating" {
-		return state.ErrSealing
+	if ps.st != nil {
+		switch ps.st.Protection().State {
+		case "migrating":
+			return state.ErrSealing
+		case "unsealing":
+			return state.ErrUnsealing
+		}
 	}
 	// A command that opened the store before it was sealed does not seal the plan.
 	if ps.st != nil {

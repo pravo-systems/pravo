@@ -10,7 +10,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
-const downgradeWant = "the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file."
+const downgradeWant = "the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file and the recovery file."
 
 const missingWant = "the repository lists readers in .pravo/access/readers.txt, but the state does not exist yet. Create it sealed with: pravo protect init --encrypt"
 

@@ -178,7 +178,7 @@ func TestAccessOff(t *testing.T) {
 func TestAccessImmutable(t *testing.T) {
 	f := &fakeProtection{facts: Facts{Store: StoreFacts{State: "immutable", Format: 2, Records: 5}, File: FileFacts{State: "missing"}}}
 	a := accessProject(t, f).access()
-	if a.State != "immutable" || a.Format != 2 || a.Summary != "Records are stored as immutable objects (format 2). They are not encrypted." {
+	if a.State != "immutable" || a.Format != 2 || a.Summary != "Records are stored as immutable objects. They are not encrypted." {
 		t.Errorf("%q %d %q", a.State, a.Format, a.Summary)
 	}
 	if a.Records.Text != "5 records, not sealed." || len(a.Groups) != 0 || a.SingleReader != nil {
@@ -467,6 +467,27 @@ func TestAccessMigrating(t *testing.T) {
 	}
 	if suggestion(a, "add-reader") != nil {
 		t.Error("a reader is added while the seal has not finished")
+	}
+}
+
+func TestAccessUnsealing(t *testing.T) {
+	facts := sealedFacts()
+	facts.Store.State = "migrating"
+	facts.Store.Migration = &MigrationFacts{Started: time.Date(2026, 10, 22, 9, 30, 0, 0, time.UTC), By: "ada", Done: 1204, Total: 2001, Unseal: true}
+	facts.Store.Records, facts.Store.Sealed, facts.Store.Plain = 2001, 797, 1204
+	a := accessProject(t, &fakeProtection{facts: facts}).access()
+	if a.Migration == nil || !a.Migration.Unseal {
+		t.Fatalf("migration %+v", a.Migration)
+	}
+	if want := "Unsealing started by ada on 2026-10-22 09:30 UTC and has not finished. Writers are refused until it finishes."; a.Summary != want {
+		t.Errorf("summary %q", a.Summary)
+	}
+	if want := "1,204 of 2,001 records are unsealed so far."; a.Records.Text != want {
+		t.Errorf("records %q, want %q", a.Records.Text, want)
+	}
+	if a.Suggestions[0].ID != "finish" || a.Suggestions[0].Title != "Finish unsealing the state" ||
+		!equalStrings(stepTexts(&a.Suggestions[0], "command"), []string{"pravo protect unseal"}) {
+		t.Errorf("suggestion %+v", a.Suggestions[0])
 	}
 }
 
@@ -1002,7 +1023,7 @@ func TestAccessExpectedSealed(t *testing.T) {
 			if got, want := stepTexts(s, "command"), []string{"pravo protect status", "pravo protect init --encrypt --allow-local"}; !equalStrings(got, want) {
 				t.Errorf("commands %q, want %q", got, want)
 			}
-			if got := stepTexts(s, "note"); len(got) != 1 || !strings.HasPrefix(got[0], "If you did not mean to seal this state, remove the readers file. To seal it: pravo protect init --encrypt") {
+			if got := stepTexts(s, "note"); len(got) != 1 || !strings.HasPrefix(got[0], "If you did not mean to seal this state, remove the readers file and the recovery file. To seal it: pravo protect init --encrypt") {
 				t.Errorf("notes %q", got)
 			}
 			if suggestion(a, "seal") == nil {

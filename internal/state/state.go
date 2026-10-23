@@ -173,10 +173,16 @@ type meta struct {
 	Format  int       `json:"format"`
 	Lineage string    `json:"lineage"`
 	Created time.Time `json:"created"`
-	// Sealed, Migration and History are set in format 3; see seal.go.
+	// Sealed, Migration and History belong to format 3; see seal.go. The state is
+	// sealed when Sealed is present, and not otherwise: a state that was unsealed
+	// stays in format 3, with the layout of format 2 and its history.
 	Sealed    *protect.Meta  `json:"sealed,omitempty"`
 	Migration *migrationMeta `json:"migration,omitempty"`
 	History   []historyMeta  `json:"history,omitempty"`
+	// GroupsUsed is the highest number of a group that the state ever had. A state
+	// that is sealed again after an unseal numbers its groups from there, so that a
+	// record left from the first seal is never taken for one of the second.
+	GroupsUsed int `json:"groups_used,omitempty"`
 }
 
 // Store is an open state graph.
@@ -286,7 +292,7 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 	default:
 		return nil, fmt.Errorf("opening state at %s: %w", b.Name(), err)
 	}
-	if s.meta.Format >= FormatSealed {
+	if s.meta.Sealed != nil {
 		err := s.openSealed(o.Identity)
 		if errors.Is(err, ErrUntrusted) && s.rereadMeta(ctx, data) {
 			// meta.json was replaced since it was read, and what was read of it may

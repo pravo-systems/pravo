@@ -48,7 +48,7 @@ attributes, the outputs, the stored plans and the values in command lines to
 the readers. "protect status" says where things stand. "protect rewrap" brings
 the keys in line with the readers file after a reader is added or removed, and sets
 the recovery recipient. "protect recover" opens a state with the shares of its
-recovery key when no reader can.
+recovery key when no reader can. "protect unseal" takes the seal off.
 "protect gc" deletes the records that no pointer names, and the reader groups
 that nothing is sealed in any more.`,
 		Args: noArgs,
@@ -56,7 +56,7 @@ that nothing is sealed in any more.`,
 	}
 	pf := cmd.PersistentFlags()
 	pf.StringVar(&flagAccessDir, "access-dir", "", accessDirUsage)
-	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRecoverCmd(), protectGCCmd())
+	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRecoverCmd(), protectUnsealCmd(), protectGCCmd())
 	return cmd
 }
 
@@ -337,7 +337,7 @@ func differsText(added, removed []string) string {
 
 // isSealed reports whether the state is sealed, or being sealed.
 func isSealed(prot state.Protection) bool {
-	return (prot.State == "sealed" || prot.State == "migrating") && prot.Sealed != nil
+	return (prot.State == "sealed" || prot.State == "migrating" || prot.State == "unsealing") && prot.Sealed != nil
 }
 
 // downgradeProblem is what a command says about a state that is not sealed in a
@@ -345,7 +345,7 @@ func isSealed(prot state.Protection) bool {
 // writer cannot move: whoever can write to the bucket can lower the format in
 // meta.json, and the writers that follow would write in the clear.
 func downgradeProblem(rf readersFile) string {
-	return fmt.Sprintf("the repository lists readers in %s, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file.", rf.shown())
+	return fmt.Sprintf("the repository lists readers in %s, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file and the recovery file.", rf.shown())
 }
 
 // missingStateProblem is what a command says about a repository that lists
@@ -474,6 +474,13 @@ func (p *protectRun) check(allowLocal bool) error {
 		out.Println("Already sealed. Use pravo protect status.")
 		return nil
 	}
+	if prot.State == "unsealing" {
+		if flagJSON {
+			return emitJSON(res)
+		}
+		out.Println("The state is being unsealed: it was started and did not finish. Finish it with pravo protect unseal.")
+		return nil
+	}
 	out.Printf("%-16s %s\n", "Store", p.storeLine())
 	cond, err := p.probeLines(b)
 	out.Printf("%-16s %s\n", "Conditional", cond[0])
@@ -494,6 +501,9 @@ func (p *protectRun) check(allowLocal bool) error {
 	}
 	if prot.State == "migrating" && prot.Migration != nil {
 		line += fmt.Sprintf(" · sealing began, %s of %s records done", commas(prot.Migration.Done), commas(prot.Migration.Total))
+	}
+	if prot.State == "unsealing" && prot.Migration != nil {
+		line += fmt.Sprintf(" · unsealing began, %s of %s records done", commas(prot.Migration.Done), commas(prot.Migration.Total))
 	}
 	out.Printf("%-16s %s\n", "State", line)
 	rf := p.rf
@@ -793,6 +803,9 @@ func (p *protectRun) init(yes, allowLocal bool, recoverySpec string) error {
 		}
 		return nil
 	}
+	if prot.State == "unsealing" {
+		return errors.New("an unseal was started and did not finish; finish it with pravo protect unseal before the state is sealed again")
+	}
 	if rec != nil && prot.State == "migrating" {
 		return errors.New("a seal was started and did not finish, and a run that finishes it does not set a recovery. Finish it with pravo protect init --encrypt, then run pravo protect rewrap --recovery " + fmt.Sprintf("%d/%d", rec.K, rec.N))
 	}
@@ -965,7 +978,7 @@ func (p *protectRun) status() error {
 	prot := st.Protection()
 	rows := [][2]string{}
 	add := func(k, v string) { rows = append(rows, [2]string{k, v}) }
-	sealed := prot.State == "sealed" || prot.State == "migrating"
+	sealed := prot.State == "sealed" || prot.State == "migrating" || prot.State == "unsealing"
 	// A state that does not exist yet is read as an empty one of format 1, and
 	// nothing is created. What is true of it is that there is none.
 	_, metaErr := b.Get(p.ctx, metaKey)
@@ -990,6 +1003,12 @@ func (p *protectRun) status() error {
 			done, total = m.Done, m.Total
 		}
 		add("Sealed", fmt.Sprintf("migrating · %s of %s records · run pravo protect init --encrypt to finish", commas(done), commas(total)))
+	case prot.State == "unsealing":
+		done, total := 0, prot.Records
+		if m := prot.Migration; m != nil {
+			done, total = m.Done, m.Total
+		}
+		add("Sealed", fmt.Sprintf("unsealing · %s of %s records · run pravo protect unseal to finish", commas(done), commas(total)))
 	case prot.State == "immutable":
 		add("Sealed", fmt.Sprintf("off · format %d · immutable records", prot.Format))
 	default:
@@ -1181,6 +1200,9 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes b
 		return err
 	}
 	prot := st.Protection()
+	if prot.State == "unsealing" {
+		return errors.New("an unseal is in progress; finish it with pravo protect unseal")
+	}
 	if prot.State != "sealed" {
 		return errors.New("the state is not sealed; see pravo protect check")
 	}

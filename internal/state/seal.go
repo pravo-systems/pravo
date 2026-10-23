@@ -64,6 +64,9 @@ type migrationMeta struct {
 	By      string    `json:"by,omitempty"`
 	Done    int       `json:"done"`
 	Total   int       `json:"total"`
+	// Unseal is set while the seal is being taken off: the records are plain or
+	// sealed, as the work has reached them, and writers are refused.
+	Unseal bool `json:"unseal,omitempty"`
 }
 
 // historyMeta is one entry of the "history" key of meta.json.
@@ -111,7 +114,7 @@ func marshalBody(v any) ([]byte, error) {
 func (s *Store) sealedState() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.meta.Format >= FormatSealed && s.meta.Sealed != nil
+	return s.meta.Sealed != nil
 }
 
 // mayHoldPlain reports whether a record of this state may be one that is not
@@ -521,12 +524,17 @@ func (s *Store) Protection() Protection {
 	defer s.mu.Unlock()
 	p := Protection{State: "off", Format: s.meta.Format, Location: s.b.Name(), Records: len(s.nodes)}
 	switch {
-	case s.meta.Format >= FormatSealed && s.meta.Migration != nil:
+	case s.meta.Sealed != nil && s.meta.Migration != nil && s.meta.Migration.Unseal:
+		p.State = "unsealing"
+	case s.meta.Sealed != nil && s.meta.Migration != nil:
 		p.State = "migrating"
-	case s.meta.Format >= FormatSealed:
+	case s.meta.Sealed != nil:
 		p.State = "sealed"
-	case s.meta.Format == FormatImmutable:
+	case s.meta.Format >= FormatImmutable:
 		p.State = "immutable"
+	}
+	for _, h := range s.meta.History {
+		p.History = append(p.History, HistoryEntry{At: h.At, By: h.By, What: h.What, Added: h.Added, Removed: h.Removed})
 	}
 	if s.meta.Sealed == nil {
 		return p
@@ -548,10 +556,7 @@ func (s *Store) Protection() Protection {
 		}
 	}
 	if m := s.meta.Migration; m != nil {
-		p.Migration = &Migration{Started: m.Started, By: m.By, Done: m.Done, Total: m.Total}
-	}
-	for _, h := range s.meta.History {
-		p.History = append(p.History, HistoryEntry{At: h.At, By: h.By, What: h.What, Added: h.Added, Removed: h.Removed})
+		p.Migration = &Migration{Started: m.Started, By: m.By, Done: m.Done, Total: m.Total, Unseal: m.Unseal}
 	}
 	p.You = s.you
 	return p
@@ -605,7 +610,7 @@ func OpenOutputs(ctx context.Context, b Backend, id *protect.Identity) (map[stri
 		case errors.Is(err, ErrNotFound):
 		case err != nil:
 			return nil, fmt.Errorf("reading the outputs of %s: %w", b.Name(), err)
-		case m.Format >= FormatSealed && m.Migration == nil:
+		case m.Sealed != nil && m.Migration == nil:
 			return nil, fmt.Errorf("the outputs of %s are not sealed, and the state is: %w", b.Name(), ErrUntrusted)
 		}
 		var out map[string]json.RawMessage

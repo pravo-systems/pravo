@@ -75,7 +75,7 @@ export class AccessView {
 
   // banner is the sentence for the state of the store, with its facts.
   banner(a) {
-    const st = STATE[a.state] || STATE.off;
+    const st = a.state === 'migrating' && a.migration && a.migration.unseal ? { cls: 'chg', label: 'unsealing in progress', ic: 'hold' } : STATE[a.state] || STATE.off;
     const facts = [
       h('li', null, h('span', { class: 'k' }, 'format'), h('b', null, String(a.format))),
       h('li', null, h('span', { class: 'k' }, 'backend'), h('b', null, a.backend)),
@@ -94,7 +94,7 @@ export class AccessView {
   progress(m) {
     const pct = m.total > 0 ? Math.min(100, Math.round((100 * m.done) / m.total)) : 0;
     return h('div', { class: 'ac-prog' },
-      h('progress', { max: String(Math.max(m.total, 1)), value: String(Math.min(m.done, m.total)), 'aria-label': `${fmt(m.done)} of ${fmt(m.total)} records sealed` }),
+      h('progress', { max: String(Math.max(m.total, 1)), value: String(Math.min(m.done, m.total)), 'aria-label': `${fmt(m.done)} of ${fmt(m.total)} records ${m.unseal ? 'unsealed' : 'sealed'}` }),
       h('span', null, `${fmt(m.done)} of ${fmt(m.total)} records · ${pct}%`),
       h('span', { class: 'dim', title: stamp(m.started) }, m.by ? `started by ${m.by} ${relTime(m.started)}` : `started ${relTime(m.started)}`));
   }
