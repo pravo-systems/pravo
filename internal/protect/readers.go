@@ -54,6 +54,9 @@ func ParseReaderLine(line string) (Reader, error) {
 	if !nameRE.MatchString(f[0]) {
 		return Reader{}, fmt.Errorf("name %q: use letters, digits, . _ - (at most 64, starting with a letter or digit)", f[0])
 	}
+	if strings.EqualFold(f[0], RecoveryName) {
+		return Reader{}, fmt.Errorf("name %q is reserved for the recovery recipient of a state", f[0])
+	}
 	if f[1] != sshEd25519 {
 		return Reader{}, fmt.Errorf("signing key type %q: want ssh-ed25519", f[1])
 	}

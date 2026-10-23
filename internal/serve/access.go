@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -257,7 +258,11 @@ func buildAccess(in accessInput) *Access {
 		a.Migration = &AccessMigration{Started: mg.Started.UTC(), By: display(mg.By), Done: mg.Done, Total: mg.Total}
 	}
 	a.Summary = summaryOf(a, storeReaders)
-	if a.State == "sealed" && storeReaders == 1 {
+	if protected && st.Recovery != nil {
+		a.Recovery = recoveryOf(st.Recovery)
+	}
+	// One reader is a risk that a recovery answers.
+	if a.State == "sealed" && storeReaders == 1 && st.Recovery == nil {
 		a.SingleReader = singleReader(a.You)
 	}
 	if n := len(st.History); n > 0 && protected {
@@ -592,6 +597,31 @@ func changeOf(h ChangeFacts) *AccessChange {
 	return c
 }
 
+// recoveryOf is the sentence about the recovery recipient of the state, and the
+// warning when it does not hold.
+func recoveryOf(r *RecoveryFacts) *AccessRecovery {
+	rec := &AccessRecovery{K: r.K, N: r.N, Key: r.Key, KeyShort: shortKey(r.Key)}
+	rec.Text = fmt.Sprintf("Recovery: any %d of %d shares rebuild the recovery key (%s). If every reader loses their key, the holders of %d shares can open the state.", r.K, r.N, rec.KeyShort, r.K)
+	var w []string
+	if !r.Locked {
+		ids := make([]string, 0, len(r.Groups))
+		for _, g := range r.Groups {
+			ids = append(ids, display(g))
+		}
+		w = append(w, "The lock of the recovery key is missing from "+strings.Join(ids, ", ")+".")
+	}
+	switch r.File {
+	case "missing":
+		w = append(w, "The repository has no recovery file, so a writer cannot tell that the recovery was taken out of the bucket.")
+	case "differs":
+		w = append(w, "The recovery file of the repository and the state name different recovery keys.")
+	case "invalid":
+		w = append(w, "The recovery file of the repository does not load.")
+	}
+	rec.Warning = strings.Join(w, " ")
+	return rec
+}
+
 // singleReader is the warning for a state that one reader can open. The sentence
 // is about the reader who looks when that is the identity of this process, and
 // about the reader otherwise, whose name the table above it gives.
@@ -719,6 +749,10 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			}
 			s.Steps = append(s.Steps, command("pravo id show"), note("When a reader has added your line and rewrapped, start the viewer again:"), fill("pravo serve --identity <name>"))
 		}
+		if a.Recovery != nil {
+			s.Steps = append(s.Steps, note(fmt.Sprintf("If no reader can open the state any more, put your line in the readers file in place of theirs, and open the state with %d of its %d recovery shares:", a.Recovery.K, a.Recovery.N)),
+				fill("pravo protect recover --share <share-file> --share <share-file>"+where))
+		}
 		add(s)
 	}
 	if a.State == "sealed" && a.File.Verdict == "differs" {
@@ -771,6 +805,19 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 		underOld := false
 		for _, g := range a.Groups {
 			underOld = underOld || (!g.Current && g.Records > 0)
+		}
+		recoveryFile := path.Join(path.Dir(file), "recovery.txt")
+		if a.Recovery == nil {
+			// A recovery recipient answers the risk that every reader loses their key.
+			add(Suggestion{ID: "set-recovery", Title: "Set a recovery key",
+				Why: "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
+				Who: "a current reader",
+				Steps: append(append([]SuggestionStep{note("Make the key and the shares. This writes recovery-shares/ and " + recoveryFile + ":"), fill("pravo protect rewrap --recovery <K>/<N>" + where)},
+					gitSteps(recoveryFile, "Set a recovery key")...), note("Do not commit recovery-shares/. Give each file to a different person, offline."))})
+		} else if a.Recovery.Warning != "" {
+			add(Suggestion{ID: "fix-recovery", Title: "Bring the recovery in line",
+				Why: a.Recovery.Warning, Who: "a current reader",
+				Steps: []SuggestionStep{protectCmd("rewrap"), note("The recovery file is " + recoveryFile + ". If it was not committed, commit it:")}})
 		}
 		if underOld || (a.Records.Unreadable > 0 && a.You != nil && a.You.State == "reader") {
 			add(Suggestion{ID: "reseal", Title: "Seal every record again",

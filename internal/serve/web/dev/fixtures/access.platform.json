@@ -222,6 +222,39 @@
    ]
   },
   {
+   "id": "set-recovery",
+   "title": "Set a recovery key",
+   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "Make the key and the shares. This writes recovery-shares/ and .pravo/access/recovery.txt:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --recovery \u003cK\u003e/\u003cN\u003e",
+     "placeholder": true
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/recovery.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Set a recovery key'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "note",
+     "text": "Do not commit recovery-shares/. Give each file to a different person, offline."
+    }
+   ]
+  },
+  {
    "id": "status",
    "title": "Check the state",
    "why": "The check hashes every record against its name and prints who can read the state.",

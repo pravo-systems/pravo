@@ -212,6 +212,9 @@ type UpgradeOptions struct {
 	// Progress is called as records are converted. It may be called from several
 	// goroutines.
 	Progress func(done, total int)
+	// Recovery, if set, is the recovery recipient of the sealed state: every group
+	// gets a lock for its key. Its shares are the caller's to write.
+	Recovery *protect.Recovery
 	// Plans, if set, is called when the records and the outputs are converted
 	// and before the state is marked sealed. It seals the stored plans, which
 	// the plan store owns, and returns how many it sealed and how many it left
@@ -235,6 +238,11 @@ type UpgradeResult struct {
 // readers file.
 type RewrapOptions struct {
 	Readers []protect.Reader
+	// Recovery, if set, sets the recovery recipient of the state, or replaces it:
+	// every group gets a lock for the new key and loses the one of the old key.
+	// RemoveRecovery removes it. At most one of them is set.
+	Recovery       *protect.Recovery
+	RemoveRecovery bool
 	// All seals every record, the outputs and the stored plans again under the
 	// current group, instead of leaving them to be sealed when next written.
 	All      bool

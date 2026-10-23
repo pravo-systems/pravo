@@ -226,6 +226,11 @@ func (s *Store) beginSeal(o UpgradeOptions) error {
 	if err != nil {
 		return err
 	}
+	if o.Recovery != nil {
+		if err := sealedMeta.SetRecovery(keys, o.Recovery); err != nil {
+			return err
+		}
+	}
 	by := o.By
 	if by == "" {
 		by = o.Identity.Name
@@ -256,7 +261,9 @@ func readerNames(m *protect.Meta) []string {
 		if g.ID == m.Current {
 			var out []string
 			for _, l := range g.Locks {
-				out = append(out, l.Name)
+				if !m.IsRecoveryLock(l) {
+					out = append(out, l.Name)
+				}
 			}
 			return out
 		}
@@ -450,6 +457,16 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 	if by == "" {
 		by = id.Name
 	}
+	if o.All && (o.Recovery != nil || o.RemoveRecovery) {
+		// The key that opens the state would lose its lock before the records are sealed
+		// again, and it is the key of the recovery when the state is opened with the shares.
+		s.mu.Lock()
+		cur := s.meta.Sealed
+		s.mu.Unlock()
+		if cur != nil && cur.Recovery != nil && id.Reader.Public().Equal(cur.Recovery.Key) {
+			return res, errors.New("the recovery key opens the state, and this change replaces it: seal the records again first, and change the recovery in a second step")
+		}
+	}
 	var (
 		change protect.Change
 		keys   *protect.Keys
@@ -471,6 +488,24 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 			k.Close()
 			return err
 		}
+		recovery := ""
+		switch {
+		case o.Recovery != nil && o.RemoveRecovery:
+			k.Close()
+			return errors.New("set the recovery or remove it, not both")
+		case o.Recovery != nil:
+			if err := sealed.SetRecovery(k, o.Recovery); err != nil {
+				k.Close()
+				return err
+			}
+			recovery = fmt.Sprintf("recovery set %d/%d", o.Recovery.K, o.Recovery.N)
+		case o.RemoveRecovery && sealed.Recovery != nil:
+			if err := sealed.SetRecovery(k, nil); err != nil {
+				k.Close()
+				return err
+			}
+			recovery = "recovery removed"
+		}
 		before, _ := json.Marshal(m.Sealed)
 		after, _ := json.Marshal(&sealed)
 		change = ch
@@ -480,7 +515,12 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 		}
 		keys = k
 		m.Sealed = &sealed
-		m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: "rewrap", Added: ch.Added, Removed: ch.Removed})
+		if len(ch.Added)+len(ch.Removed) > 0 || recovery == "" {
+			m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: "rewrap", Added: ch.Added, Removed: ch.Removed})
+		}
+		if recovery != "" {
+			m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: recovery})
+		}
 		return nil
 	})
 	switch {

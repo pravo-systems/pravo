@@ -54,7 +54,7 @@ func currentReaders(p state.Protection) []protect.ReaderPublic {
 			continue
 		}
 		for _, l := range g.Locks {
-			if !l.Key.IsZero() {
+			if !l.Key.IsZero() && !p.Sealed.IsRecoveryLock(l) {
 				keys = append(keys, l.Key)
 			}
 		}

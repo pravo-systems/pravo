@@ -577,7 +577,7 @@ func OutputsReaders(ctx context.Context, b Backend) ([]protect.ReaderPublic, err
 			continue
 		}
 		for _, l := range g.Locks {
-			if !l.Key.IsZero() {
+			if !l.Key.IsZero() && !m.Sealed.IsRecoveryLock(l) {
 				keys = append(keys, l.Key)
 			}
 		}
