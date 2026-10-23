@@ -919,7 +919,7 @@ function renderWho() {
   const role = WHO[y.state] || WHO['no-identity'];
   el.replaceChildren(...[icon(y.state === 'reader' ? 'check' : 'lock'), y.name ? h('b', null, y.name) : null, y.state === 'reader' ? null : h('span', { class: 'role' }, role)].filter(Boolean));
   el.setAttribute('aria-label', (y.name ? y.name + ': ' : '') + role);
-  el.dataset.tip = y.text;
+  el.dataset.tip = (y.name ? y.name + '\n' : '') + y.text;
 }
 
 function renderStatus() {
