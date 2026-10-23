@@ -76,9 +76,13 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 			return nil, err
 		}
 	}
-	plog.Debug(ctx, "loaded", "dir", root.Dir, "managed", countMode(root, "managed"), "data", countMode(root, "data"),
+	loaded := []any{"dir", root.Dir, "managed", countMode(root, "managed"), "data", countMode(root, "data"),
 		"ephemeral", countMode(root, "ephemeral"), "calls", countMode(root, "call"), "outputs", len(root.Outputs),
-		"providers", len(root.Providers), "moves", len(root.Moves), "imports", len(root.Imports), "took", took(began))
+		"providers", len(root.Providers), "moves", len(root.Moves), "imports", len(root.Imports)}
+	if root.Pruned {
+		loaded = append(loaded, "pruned", true)
+	}
+	plog.Debug(ctx, "loaded", append(loaded, "took", took(began))...)
 	s := &session{root: root, reg: registry.NewClient()}
 	s.lock, err = engine.ReadLock(root.Dir)
 	if err != nil {

@@ -118,7 +118,10 @@ type Root struct {
 	Sources []string
 	// Modules are the dependency modules that took part, with versions and
 	// content hashes.
-	Modules   []ModuleUse
+	Modules []ModuleUse
+	// Pruned says that the generated provider packages were loaded without the
+	// types that the specification does not use; see prune.go.
+	Pruned    bool
 	Dir       string
 	PkgName   string
 	Ctx       *cue.Context
@@ -198,7 +201,32 @@ func Load(dir string, opts LoadOptions) (*Root, error) {
 		return nil, err
 	}
 	ConfigureRegistry(abs)
-	cfg := &load.Config{Dir: abs, Tags: opts.Tags}
+	if overlay := pruneOverlay(abs); len(overlay) > 0 {
+		if r, err := loadPackage(abs, files, opts, overlay); err == nil {
+			r.Pruned = true
+			return r, nil
+		}
+		// Whatever failed is loaded again with the packages whole, which is how a
+		// type that the scan missed is found, and how the message names a position
+		// in the file on disk.
+	}
+	return loadPackage(abs, files, opts, nil)
+}
+
+// pruneOverlay is the overlay of the generated provider packages without the
+// types that the specification does not use; see prune.go.
+func pruneOverlay(abs string) map[string]load.Source {
+	modRoot := FindModuleRoot(abs)
+	if modRoot == "" {
+		return nil
+	}
+	return prunedOverlay(modRoot, scanTypeUse(modRoot))
+}
+
+// loadPackage loads the package in abs, with overlay replacing the files that
+// it names.
+func loadPackage(abs string, files []string, opts LoadOptions, overlay map[string]load.Source) (*Root, error) {
+	cfg := &load.Config{Dir: abs, Tags: opts.Tags, Overlay: overlay}
 	if opts.SysTags {
 		cfg.TagVars = load.DefaultTagVars()
 	}
