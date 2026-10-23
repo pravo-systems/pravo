@@ -320,3 +320,32 @@ func TestUnreadablePlan(t *testing.T) {
 		t.Errorf("%d resources", len(resourceNodes(g)))
 	}
 }
+
+// The M of "planned N of M" is the resources and data sources, as the plan of
+// the engine counts it: a variable of the environment is a node of the graph and
+// is not planned.
+func TestPlanTotalLeavesTheEnvironmentVariablesOut(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE+"\nregion: {$kind: \"env\", name: \"SERVE_TEST_REGION\", default: \"eu\", value: \"eu\"}\n")
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	path := filepath.Join(dir, "plan.pravo")
+	writePlan(t, &project{t: t, dir: dir, store: st}, path)
+	g := start(t, dir, st, Options{PlanFile: path}).graph()
+	if g.Plan == nil {
+		t.Fatal("no plan in the graph")
+	}
+	var env bool
+	for _, n := range g.Nodes {
+		env = env || n.Mode == "builtin"
+	}
+	if !env {
+		t.Skip("the specification of the test has no node of an environment variable")
+	}
+	if g.Plan.Total != 8 {
+		t.Errorf("planned %d of %d: the variable of the environment is counted", g.Plan.Planned, g.Plan.Total)
+	}
+}

@@ -116,6 +116,14 @@ func TestGraphLineAndClosingSentenceSayWhatWasNotRead(t *testing.T) {
 				Stats: engine.Stats{Total: 5, Skipped: 5, Removed: 2, Fresh: 7}},
 			"Graph: planned 0 of 5, 5 unchanged and skipped, 2 removed from the specification, 7 within refresh age.",
 			"Plan: 0 to add", "No changes"},
+		{"no resource, one function called",
+			engine.Plan{Stats: engine.Stats{Called: 1}},
+			"Graph: 1 functions called.",
+			"No changes. Your infrastructure matches the configuration.", "planned"},
+		{"no resource, one ephemeral opened",
+			engine.Plan{Stats: engine.Stats{Opened: 1}},
+			"Graph: 1 ephemeral opened.",
+			"No changes. Your infrastructure matches the configuration.", "planned"},
 		{"drift and several parts",
 			engine.Plan{Changes: []*engine.Change{{Addr: "home", Type: "local_file", Action: engine.ActionCreate, Schema: pageBlock(), Planned: page("x", "y")}},
 				Stats: engine.Stats{Total: 2001, Reached: 2, Skipped: 1999, Refreshed: 3, Drifted: 1, NotRead: 1998}},
@@ -133,5 +141,13 @@ func TestGraphLineAndClosingSentenceSayWhatWasNotRead(t *testing.T) {
 		if strings.Contains(got, c.notClosing) {
 			t.Errorf("%s: the output has %q:\n%s", c.name, c.notClosing, got)
 		}
+	}
+}
+
+// A root with nothing to plan against a record, only variables of the
+// environment, say, has no graph line to show.
+func TestNoGraphLineWithoutResources(t *testing.T) {
+	if got := render(&engine.Plan{}); strings.Contains(got, "Graph:") {
+		t.Errorf("a root without resources has a graph line:\n%s", got)
 	}
 }

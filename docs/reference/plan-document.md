@@ -98,7 +98,7 @@ pravo plan --json 2>/dev/null | jq 'del(.changes)'
     "blast_radius": 2
   },
   "stats": {
-    "total": 5,
+    "total": 3,
     "reached": 3,
     "skipped": 0,
     "refreshed": 1,
@@ -139,7 +139,7 @@ pravo plan --json 2>/dev/null | jq 'del(.changes)'
 
 | Field | Counts |
 |---|---|
-| `total` | The declarations in the specification. |
+| `total` | The resources and data sources in the specification. Environment variables, remote outputs, ephemeral resources and function calls are tasks of the graph that are not planned against a record, and are not counted; `opened` and `called` count the last two. |
 | `reached` | Declarations planned with the provider. |
 | `skipped` | Declarations reused from the state without planning. |
 | `removed` | Records of resources that the specification does not declare and that the plan deletes. The field is absent when there are none. The `Graph:` line calls them `removed from the specification`. `refreshed`, `fresh` and `not_read` count them, and `total` does not. |
@@ -325,7 +325,7 @@ pravo plan --json 2>/dev/null | jq -c '{summary, stats}'
 ```
 
 ```text out
-{"summary":{"add":2,"change":0,"destroy":2,"read":1,"blast_radius":2},"stats":{"total":5,"reached":3,"skipped":0,"refreshed":3,"fresh":0,"not_read":0,"drifted":0,"opened":1,"called":1,"imported":0,"moved":0}}
+{"summary":{"add":2,"change":0,"destroy":2,"read":1,"blast_radius":2},"stats":{"total":3,"reached":3,"skipped":0,"refreshed":3,"fresh":0,"not_read":0,"drifted":0,"opened":1,"called":1,"imported":0,"moved":0}}
 ```
 
 ### A destroy plan

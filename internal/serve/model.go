@@ -43,7 +43,8 @@ type model struct {
 	stored *storedPlans
 	// definitions counts the nodes written by the same lines, by "file:line:col".
 	definitions map[string]int
-	// resources counts the nodes that are not outputs: the M of "planned N of M".
+	// resources counts the resources and data sources: the M of "planned N of M",
+	// as the engine counts it.
 	resources int
 
 	graph     Graph
@@ -179,7 +180,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	}
 	m.resources = 0
 	for _, a := range m.order {
-		if !m.nodes[a].isOutput() {
+		if mode := m.nodes[a].Mode; mode == "managed" || mode == "data" {
 			m.resources++
 		}
 	}

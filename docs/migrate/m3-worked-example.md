@@ -1090,11 +1090,11 @@ pravo will perform the following actions:
   # local_file.upstreams was moved to upstreams (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 2, 1 refreshed, 1 moved.
+Graph: planned 1 of 1, 1 refreshed, 1 moved.
 upstreams: Refreshing state... [id=a80f4be062d20967b1ee08bdcac01ef45725e8cb]
 
 No changes. Your infrastructure matches the configuration.
-Graph: planned 1 of 2, 1 refreshed.
+Graph: planned 1 of 1, 1 refreshed.
 ```
 
 ## Step 9: delete the scaffolding
@@ -1117,7 +1117,7 @@ Outputs:
   endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]
 
 No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
-Graph: planned 0 of 2, 1 unchanged and skipped, 1 not read.
+Graph: planned 0 of 1, 1 unchanged and skipped, 1 not read.
 admin
 services.api.config
 services.api.host

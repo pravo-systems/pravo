@@ -345,7 +345,7 @@ pravo will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 2.
+Graph: planned 1 of 1.
 
 Error: note.content: value depends on net, which is still unknown at apply time (note.content: undefined field: admin_key)
 ```
