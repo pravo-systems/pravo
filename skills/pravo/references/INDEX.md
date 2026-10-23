@@ -161,7 +161,7 @@ The tutorial on pravo (track B) and the companion pages on CUE errors.
 |---|---|---|
 | [learn/b01-providers-and-resources.md](learn/b01-providers-and-resources.md) | A provider is a struct built from a generated definition. A resource is a struct built through it. Its address is its path. | 10 KB |
 | [learn/b02-reading-a-plan.md](learn/b02-reading-a-plan.md) | A plan is a diff with a legend. Learn the glyphs, unknown values, the replacement marker and the Graph line, then predict three plans. | 13 KB |
-| [learn/b03-apply-outputs-state.md](learn/b03-apply-outputs-state.md) | Apply a plan, read the outputs and open the state. A plan with no changes shows that a refactor changed nothing. | 10 KB |
+| [learn/b03-apply-outputs-state.md](learn/b03-apply-outputs-state.md) | Apply a plan, read the outputs and open the state. A plan with no changes shows that a refactor changed nothing. | 11 KB |
 | [learn/b04-inputs-tags-environments.md](learn/b04-inputs-tags-environments.md) | Run one specification as dev, staging and prod. Use a constrained field, a tag and a state path derived from it. | 10 KB |
 | [learn/b05-many-resources-from-one-rule.md](learn/b05-many-resources-from-one-rule.md) | A comprehension produces resources. Each key becomes the last element of an address, so reordering the source replaces nothing. | 9 KB |
 | [learn/b06-modules-providers-credentials.md](learn/b06-modules-providers-credentials.md) | Share one definition between instances, pass a provider in as an input, and keep a credential out of the state. | 18 KB |

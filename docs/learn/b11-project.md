@@ -1,7 +1,7 @@
 ---
 title: "Project: an estate in three environments"
 description: Build three environments from one definition, with a policy, a secret, a drift check and a destroy. A script checks the outcomes.
-order: 53
+order: 54
 group: Track B · Labs and project
 minutes: 60
 needs: B10

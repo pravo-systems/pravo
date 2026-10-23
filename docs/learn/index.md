@@ -42,7 +42,7 @@ If you write CUE already, begin Track B at [B1, Providers and resources](b01-pro
 | Track | Lessons | Time | You finish with |
 |---|---|---|---|
 | **Track A · CUE from zero** | [A1](a01-your-data-is-already-cue.md) to [A14](a14-project-three-environments.md) and five companion pages | about 2 hours | One definition that produces three environments, checked by `pravo eval`. |
-| **Track B · pravo** | [B1](b01-providers-and-resources.md) to [B10](b10-policy.md), two labs and a [project](b11-project.md) | about 2 hours, plus the labs | A specification that you plan, apply, change, move, check against a policy and destroy. |
+| **Track B · pravo** | [B1](b01-providers-and-resources.md) to [B10](b10-policy.md), three labs and a [project](b11-project.md) | about 2 hours, plus the labs | A specification that you plan, apply, change, move, check against a policy and destroy. |
 
 Do Track A first. Track B assumes the CUE that Track A teaches. The [quick start](../how-to/quick-start.md) runs a plan before you know any CUE, and Track A explains what you saw there.
 

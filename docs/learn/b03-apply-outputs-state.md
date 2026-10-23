@@ -429,6 +429,10 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
 web.conf is gone
 ```
 
+## Who can read the state
+
+The files of the state hold every attribute that a provider reported, secrets included. Whoever can read the directory or the bucket can read them. Sealing encrypts the attributes to a list of readers, so that a copy of the bucket shows addresses and types and no value. [What sealing protects](../concepts/sealed-state.md) says what it covers. [Seal the state to a list of readers](../how-to/seal-the-state.md) does it step by step. [Lab 3](lab3-the-leaked-bucket.md) copies a bucket before and after.
+
 ## Recap
 
 - `apply` plans, asks, creates in dependency order and records one node per resource.
