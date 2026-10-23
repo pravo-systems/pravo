@@ -8,7 +8,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 
 | Path | Contents |
 |---|---|
-| `meta.json` | The format number and the lineage of the store, and in format 3 the locks of the readers, the history of the seal and a seal in progress. |
+| `meta.json` | The format number and the lineage of the store, and in format 3 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
 | `resources/<addr>.json` | One node for each resource or data source, named by its address. In format 1 it holds the whole record. In formats 2 and 3 it is a pointer to a record. |
 | `rec/<sha256>` | In formats 2 and 3, one record, named by the SHA-256 of its bytes. It is written once and never changed. |
 | `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. In format 3 the whole object is sealed. |
@@ -229,6 +229,7 @@ A record in format 3 keeps its address, type, name, provider, dependencies, revi
     "recovery": {"key": "x25519:Q9mT2w...", "k": 2, "n": 3}
   },
   "migration": {"to": 3, "started": "2026-01-01T00:00:00Z", "by": "ada", "done": 1204, "total": 2001},
+  "groups_used": 2,
   "history": [
     {"at": "2026-01-01T00:00:00Z", "by": "ada", "what": "sealed", "added": ["ada", "dan"]}
   ]
@@ -241,8 +242,9 @@ A record in format 3 keeps its address, type, name, provider, dependencies, revi
 | `sealed.groups` | The reader groups, oldest first. A group is one random 256-bit data key, and a lock for each reader: the data key encrypted to the reader key (HPKE: DHKEM X25519, HKDF-SHA256, AES-256-GCM), 80 bytes in base64. The lock is bound to the lineage and the group. |
 | `sealed.readers` | A digest of the reader list that the locks were made from. |
 | `sealed.recovery` | Present when the state has a recovery recipient: its public key and the threshold, K shares of N. It holds no secret. Every group carries a lock named `recovery` for the key, with a `check` field next to `box`: a keyed hash of the lock under the data key of the group, which lets a reader see that the box was not changed. The recovery key is not a reader of the readers file and is not counted with the readers. The name `recovery` is reserved. The shares of the private key are not in the state: they are files, one for each holder. [The recovery recipient](protect.md#the-recovery-recipient) describes them. |
-| `migration` | Present while a seal has begun and has not finished: the number of records sealed so far, which is a note and not a count that anything relies on. |
-| `history` | The last 50 changes of the seal: `sealed`, `rewrap`, `rewrap --all`, `recover` and `gc`, with the names added and removed. `gc` records that groups were dropped, and names none. A change of the recovery is recorded as `recovery set 2/3` or `recovery removed`. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
+| `migration` | Present while a seal has begun and has not finished, or an unseal has: the number of records done so far, which is a note and not a count that anything relies on. An unseal adds `"unseal": true`. |
+| `groups_used` | Written by an unseal: the highest number a group of the state ever had. A state that is sealed again numbers its groups from there. |
+| `history` | The last 50 changes of the seal: `sealed`, `rewrap`, `rewrap --all`, `recover`, `unsealed` and `gc`, with the names added and removed. `gc` records that groups were dropped, and names none. A change of the recovery is recorded as `recovery set 2/3` or `recovery removed`. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
 
 `meta.json` is not signed. A writer of the bucket who edits it to a lower format is noticed by the writers that have the repository: when `.pravo/access/readers.txt` exists and the state is not sealed, or does not exist yet, a command that writes refuses with exit code 5 and a command that reads warns. A writer without the repository does not notice. [What sealing protects](../concepts/sealed-state.md) says more.
 
@@ -261,6 +263,18 @@ The upgrade to format 3 runs in this order, and a command that finds it half don
 5. It replaces `meta.json` again without `migration`, and adds an entry to `history`.
 
 The state must be at rest: the upgrade refuses while a lock is held, and a transaction that is recorded as running and holds none is one that a killed command left.
+
+### Unsealing a state
+
+`pravo protect unseal` runs in this order, and a command that finds it half done finishes it. The format stays 3: a state is sealed when its `meta.json` has a `sealed` part, and a format 3 `meta.json` without one is a state that is not sealed, with the layout of format 2.
+
+1. It adds `migration` with `"unseal": true` to `meta.json`. The state is still sealed. A writer is refused with "an unseal is in progress; run pravo protect unseal to finish", and a seal cannot start.
+2. It writes each sealed record in the open, with the same revision, generation and times, by a compare-and-swap of its pointer on the bytes it read, and deletes the sealed record.
+3. It writes `outputs.json`, the stored plans and the text of the errors of transactions in the open. A plan that an apply uses is not touched, and the command stops there.
+4. It deletes the sealed records that no pointer names.
+5. It replaces `meta.json` without `sealed` and `migration`, with `groups_used` set, and adds an entry `unsealed` to `history`.
+
+A command that reads a state in the middle of an unseal reads a record whichever way it is stored.
 
 ### Reading a sealed state
 

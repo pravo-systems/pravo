@@ -193,4 +193,3 @@ func (p *protectRun) finishFiles(remove, unsealed bool) error {
 	}
 	return nil
 }
-

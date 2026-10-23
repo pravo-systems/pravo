@@ -267,6 +267,10 @@ func buildAccess(in accessInput) *Access {
 	if st.Migration != nil && a.State == "migrating" {
 		mg := st.Migration
 		a.Migration = &AccessMigration{Started: mg.Started.UTC(), By: display(mg.By), Done: mg.Done, Total: mg.Total, Unseal: mg.Unseal}
+		if mg.Unseal && a.Records.Plain > 0 && a.Records.Unreadable == 0 {
+			// The plain records of an unseal are the ones it has reached.
+			a.Records.Text = fmt.Sprintf("%s of %s records are unsealed so far.", commas(a.Records.Plain), commas(max(a.Records.Total, a.Records.Plain)))
+		}
 	}
 	a.Summary = summaryOf(a, storeReaders)
 	if protected && st.Recovery != nil {

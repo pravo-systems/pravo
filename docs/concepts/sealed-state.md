@@ -74,7 +74,9 @@ These are limits of the version that exists. Each is a fact to plan around.
 
 **A state in a local directory is not shared.** The compare-and-swap of a directory is a lock of one user. `pravo protect check` refuses a local directory unless `--allow-local` says that only you use it.
 
-**Earlier versions of pravo refuse a sealed state.** They stop with `state at LOCATION was written by a newer pravo (format 3)`, and do not read or write it.
+**Earlier versions of pravo refuse a sealed state.** They stop with `state at LOCATION was written by a newer pravo (format 3)`, and do not read or write it. A state that was unsealed stays in format 3, so they refuse that too.
+
+**Sealing can be taken off, and it takes the protection with it.** `pravo protect unseal` writes every record, the outputs and the stored plans in the open. From then on anyone who can read the bucket can read every value. A copy of the bucket made while it was sealed still opens with the key of a reader. Values that sealing replaced by a tag in the command lines of old transactions are not restored. The state stays in the same lineage and the same format; see [protect unseal](../reference/protect.md#protect-unseal).
 
 ## Recap
 

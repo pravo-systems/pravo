@@ -470,6 +470,27 @@ func TestAccessMigrating(t *testing.T) {
 	}
 }
 
+func TestAccessUnsealing(t *testing.T) {
+	facts := sealedFacts()
+	facts.Store.State = "migrating"
+	facts.Store.Migration = &MigrationFacts{Started: time.Date(2026, 10, 22, 9, 30, 0, 0, time.UTC), By: "ada", Done: 1204, Total: 2001, Unseal: true}
+	facts.Store.Records, facts.Store.Sealed, facts.Store.Plain = 2001, 797, 1204
+	a := accessProject(t, &fakeProtection{facts: facts}).access()
+	if a.Migration == nil || !a.Migration.Unseal {
+		t.Fatalf("migration %+v", a.Migration)
+	}
+	if want := "Unsealing started by ada on 2026-10-22 09:30 UTC and has not finished. Writers are refused until it finishes."; a.Summary != want {
+		t.Errorf("summary %q", a.Summary)
+	}
+	if want := "1,204 of 2,001 records are unsealed so far."; a.Records.Text != want {
+		t.Errorf("records %q, want %q", a.Records.Text, want)
+	}
+	if a.Suggestions[0].ID != "finish" || a.Suggestions[0].Title != "Finish unsealing the state" ||
+		!equalStrings(stepTexts(&a.Suggestions[0], "command"), []string{"pravo protect unseal"}) {
+		t.Errorf("suggestion %+v", a.Suggestions[0])
+	}
+}
+
 // The finish step of a local state names --allow-local as the seal does; the step
 // of a state in a bucket does not.
 func TestAccessFinishOfALocalStateAllowsLocal(t *testing.T) {
