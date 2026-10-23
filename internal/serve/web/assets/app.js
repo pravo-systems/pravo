@@ -119,7 +119,7 @@ function readFragment() {
     plan: p.plan === 'none' || /^plan-[0-9a-f]{6,64}$/.test(p.plan || '') ? p.plan : '',
     q: p.q || '',
     // an address from before the view was renamed says tree
-    view: p.view === 'table' || p.view === 'tree' ? 'table' : p.view === 'access' || p.view === 'state' ? 'access' : 'graph',
+    view: p.view === 'table' || p.view === 'tree' ? 'table' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : 'graph',
     theme: p.theme === 'light' || p.theme === 'dark' ? p.theme : null,
     motion: p.motion !== 'off',
     collapse: listOf(p, 'collapse'),
@@ -322,16 +322,33 @@ function renderPlans() {
   const text = planText();
   if (text && text.reason) reasons.set(text.plan.id, String(text.reason).replace(/\s+/g, ' ').trim());
   plansList.render({ plans: S.plans, sel: S.plan, text, reasons });
+  renderPlanPick();
   loadReasons();
   const p = S.plan && S.plans.find((x) => x.id === S.plan);
   planBar($('planbar'), p, {
     onClear: () => selectPlan(null),
     onDetail: () => {
-      if (narrow() && !$('app').classList.contains('rail-open')) toggleRail();
-      const el = document.querySelector('#rail-plans .rp[aria-pressed="true"]');
+      setView('plans');
+      const el = document.querySelector('#plans-list .rp[aria-pressed="true"]');
       if (el) el.focus();
     },
   });
+}
+
+// renderPlanPick fills the picker of the toolbar and the line at the head of the Plans page.
+function renderPlanPick() {
+  const wrap = $('planpick-wrap'), sel = $('plan-pick');
+  wrap.hidden = !S.plans.length;
+  clear(sel);
+  sel.append(h('option', { value: '' }, 'No plan'));
+  for (const p of S.plans) sel.append(h('option', { value: p.id }, `${p.id} · ${p.author} · ${statusLabel(p.status)}`));
+  sel.value = S.plan && S.plans.some((p) => p.id === S.plan) ? S.plan : '';
+  const lede = $('pl-lede');
+  clear(lede);
+  if (!S.plans.length) { lede.textContent = 'The state holds no plan. Make one with pravo plan --store.'; return; }
+  const p = S.plan && S.plans.find((x) => x.id === S.plan);
+  if (p) lede.append(`${p.id} is laid over the resources. `, h('button', { class: 'linkbtn', type: 'button', on: { click: () => setView(S.lastResources || 'graph') } }, 'Show them'));
+  else lede.textContent = 'Choose a plan to lay it over the resources. A plan changes how they are coloured and what the filter In plan keeps.';
 }
 
 // selectPlan lays a stored plan over the graph, or, with null, takes it off. The first view is made again for
@@ -381,6 +398,7 @@ function applyPlan() {
   S.collapsed = new Set(S.auto);
   S.clusters = new Map();
   if (S.sel && !(S.model.nodes.has(S.sel) || S.model.modules.has(S.sel))) { S.sel = null; S.reach = false; S.tab = null; }
+  if (S.filter === 'plan' && !S.model.hasPlan) S.filter = null; // the filter is of the plan, and there is none
   revealSel({ collapse: [], expand: [] }, S.sel);
   insp.invalidate();
   palette.setModel(S.model);
@@ -802,6 +820,7 @@ function setQuery(q) {
 const TITLES = {
   graph: 'pravo serve: the specification, the state and the plan as a graph',
   table: 'pravo serve: the resources of the state as a table',
+  plans: 'pravo serve: the plans stored in the state',
   access: 'pravo serve: where the state is kept, how it is protected and who can read it',
 };
 
@@ -812,19 +831,21 @@ function setView(v) {
   $('graph-pane').hidden = v !== 'graph';
   $('table-pane').hidden = v !== 'table';
   $('access-pane').hidden = v !== 'access';
-  if (v !== 'access') S.lastResources = v;
+  $('plans-pane').hidden = v !== 'plans';
+  if (v === 'graph' || v === 'table') S.lastResources = v;
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
   $('view-table').setAttribute('aria-pressed', v === 'table' ? 'true' : 'false');
-  $('sec-resources').setAttribute('aria-pressed', v !== 'access' ? 'true' : 'false');
+  $('sec-resources').setAttribute('aria-pressed', v === 'graph' || v === 'table' ? 'true' : 'false');
+  $('sec-plans').setAttribute('aria-pressed', v === 'plans' ? 'true' : 'false');
   $('sec-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'table' ? 'Skip to the table' : 'Skip to the state';
+  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'table' ? 'Skip to the table' : v === 'plans' ? 'Skip to the plans' : 'Skip to the state';
   if (v === 'table') renderTable();
   else if (v === 'access') renderAccess();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   syncFragment();
-  announce(v === 'table' ? 'Resources, table view' : v === 'access' ? 'State' : 'Resources, graph view');
+  announce(v === 'table' ? 'Resources, table view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : 'Resources, graph view');
 }
 
 function renderAccess() {
@@ -1238,7 +1259,8 @@ function onKey(ev) {
   if (k === '?') { ev.preventDefault(); sheet.open(); return; }
   if (k === 't') { toggleTheme(); return; }
   if (k === 'a') { setView(S.view === 'access' ? (S.lastResources || 'graph') : 'access'); return; }
-  if (S.view === 'access') return; // the keys below are for the resources
+  if (k === 'p') { setView(S.view === 'plans' ? (S.lastResources || 'graph') : 'plans'); return; }
+  if (S.view === 'access' || S.view === 'plans') return; // the keys below are for the resources
   if (k === 'g') { setView(S.view === 'graph' ? 'table' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
@@ -1289,7 +1311,7 @@ function wire() {
     onSelectModule: (p) => selectModule(p, { center: true }),
     onRoot: () => { if (S.sel) clearSelection(); else if (narrow()) openDrawer(); },
   });
-  plansList = new Plans($('rail-plans'), { onSelect: (id) => selectPlan(id) });
+  plansList = new Plans($('plans-list'), { onSelect: (id) => selectPlan(id) });
   table = new TableView($('table-pane'), { onSelectNode: (a) => selectNode(a) });
   accessView = new AccessView($('access-pane'));
   insp = new Inspector($('insp'), {
@@ -1306,7 +1328,7 @@ function wire() {
   palette = new Palette($('palette'), {
     announce,
     onPick: (kind, key) => {
-      if (S.view === 'access') setView(S.lastResources || 'graph'); // a resource is found among the resources
+      if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); // a resource is found among the resources
       if (S.view !== 'graph' && kind === 'module') setView('graph');
       if (kind === 'module') {
         const mod = S.model.modules.get(key);
@@ -1322,7 +1344,9 @@ function wire() {
 
   $('view-graph').addEventListener('click', () => setView('graph'));
   $('view-table').addEventListener('click', () => setView('table'));
-  $('sec-resources').addEventListener('click', () => { if (S.view === 'access') setView(S.lastResources || 'graph'); });
+  $('sec-resources').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); });
+  $('sec-plans').addEventListener('click', () => setView('plans'));
+  $('plan-pick').addEventListener('change', (ev) => selectPlan(ev.target.value || null));
   $('sec-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
   $('theme-btn').addEventListener('click', toggleTheme);
@@ -1344,7 +1368,7 @@ function wire() {
   initTips();
   // the skip link goes to the graph, or to the table in the table view; it must not write #canvas into the address, which is the view
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else table.scroller.focus(); });
+  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else table.scroller.focus(); });
   // the mark at the top left goes back to the start: nothing selected, no filter, the first view (not the address "#/", which would drop the theme and the motion setting too)
   const brand = document.querySelector('.brand');
   if (brand) brand.addEventListener('click', (ev) => {

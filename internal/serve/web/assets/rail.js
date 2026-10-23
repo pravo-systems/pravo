@@ -12,11 +12,11 @@ const ANIMATE_MAX = 40;
 
 export const CHIPS = [
   { key: null, label: 'All', count: 'all', hint: 'Every resource' },
-  { key: 'plan', label: 'In plan', count: 'plan', hint: 'Resources the loaded plan changes' },
+  { key: 'plan', label: 'In plan', count: 'plan', hint: 'Resources the plan that is laid over them changes', plan: true },
   { key: 'drifted', label: 'Drifted', count: 'drifted', hint: 'Resources that differ from the real object, or are gone' },
   { key: 'sensitive', label: 'Sensitive', count: 'sensitive', hint: 'Resources with values that are withheld' },
   { key: 'orphans', label: 'Orphans', count: 'orphans', hint: 'In the state, no longer declared' },
-  { key: 'declared', label: 'Not created', count: 'declared', hint: 'Declared only: in the specification, not created yet' },
+  { key: 'declared', label: 'To create', count: 'declared', hint: 'In the specification and not in the state: nothing has created them yet' },
   { key: 'outputs', label: 'Outputs', count: 'outputs', hint: 'The values the root publishes' },
   { key: 'env', label: 'Env', count: 'env', hint: 'The environment variables the specification reads' },
 ];
@@ -72,6 +72,7 @@ export class Rail {
       const { b, em } = this.chips.get(c.key || '');
       const on = (s.filter || null) === c.key;
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.hidden = !!c.plan && !model.hasPlan; // a filter of the plan has no use while none is laid over the resources
       b.classList.toggle('zero', n === 0 && !!c.key);
       if (notCounted(model.counts, c.count)) {
         // the records are sealed and say nothing of this: a dash, not a zero

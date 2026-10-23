@@ -31,8 +31,9 @@
   </div>
   <span class="grow"></span>
   <nav class="sections" aria-label="Section">
-    <button type="button" class="sec-tab" id="sec-resources" aria-pressed="true" aria-keyshortcuts="a"><span class="i i-stack" aria-hidden="true"></span>Resources</button>
-    <button type="button" class="sec-tab" id="sec-access" aria-pressed="false" aria-keyshortcuts="a"><span class="i i-lock" aria-hidden="true"></span>State</button>
+    <button type="button" class="sec-tab" id="sec-resources" aria-pressed="true" aria-keyshortcuts="a"><span class="i i-stack" aria-hidden="true"></span><span class="lbl">Resources</span></button>
+    <button type="button" class="sec-tab" id="sec-plans" aria-pressed="false" aria-keyshortcuts="p"><span class="i i-file" aria-hidden="true"></span><span class="lbl">Plans</span></button>
+    <button type="button" class="sec-tab" id="sec-access" aria-pressed="false" aria-keyshortcuts="a"><span class="i i-lock" aria-hidden="true"></span><span class="lbl">State</span></button>
   </nav>
   <div class="topright">
     <button class="search" id="search-btn" type="button" aria-label="Search" aria-keyshortcuts="/ Control+K Meta+K"><span class="i i-search" aria-hidden="true"></span><span class="lbl">Find a resource</span><kbd>/</kbd></button>
@@ -48,7 +49,6 @@
     <div class="rail-head">
       <h2 class="h">Show</h2>
       <div class="chips" role="group" aria-label="Filters"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
-      <section class="rail-plans" id="rail-plans" aria-label="Stored plans" hidden></section>
       <div class="rail-title"><h2 class="h">Modules</h2><button class="rail-project" id="rail-root" type="button" aria-label="Show the project"><span></span><em></em></button></div>
     </div>
     <div class="tree" role="tree" aria-label="Modules and resources"><div class="rail-sk" aria-hidden="true"><i style="--w:55%"></i><i style="--w:70%"></i><i style="--w:48%"></i><i style="--w:62%"></i><i style="--w:40%"></i><i style="--w:66%"></i><i style="--w:52%"></i></div></div>
@@ -71,6 +71,7 @@
         <span class="count" id="match-count" aria-hidden="true"></span>
       </div>
       <span class="grow"></span>
+      <label class="planpick" id="planpick-wrap" hidden><select id="plan-pick" aria-label="The plan laid over the resources"></select></label>
       <div class="seg zoom graph-only" role="group" aria-label="Zoom">
         <button type="button" id="btn-zout" aria-label="Zoom out" title="Zoom out ( - )"><span class="i i-minus" aria-hidden="true"></span></button>
         <button type="button" id="btn-fit" title="Fit the graph ( f )">Fit</button>
@@ -98,6 +99,13 @@
       </div>
     </div>
     <div class="pane table-pane" id="table-pane" hidden></div>
+    <div class="pane plans-pane" id="plans-pane" role="region" aria-label="Plans" tabindex="-1" hidden>
+      <div class="pl">
+        <h2 class="pl-title">Plans</h2>
+        <p class="pl-lede" id="pl-lede"></p>
+        <section class="rail-plans" id="plans-list" aria-label="Stored plans"></section>
+      </div>
+    </div>
     <div class="pane access-pane" id="access-pane" role="region" aria-label="State" tabindex="-1" hidden></div>
   </main>
 

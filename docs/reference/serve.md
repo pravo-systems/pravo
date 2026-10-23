@@ -82,8 +82,8 @@ The viewer is one page with a bar, a sidebar, a graph with its toolbar, an inspe
 
 | Part | Holds |
 |---|---|
-| Bar | The project directory and the state location, each a button that copies the path. The two sections, Resources and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
-| Sidebar | Under the heading Show, the filter chips. Under Plans, the stored plans, when the state holds any. Under Modules, the project and the tree of modules with their resources. |
+| Bar | The project directory and the state location, each a button that copies the path. The three sections, Resources, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
+| Sidebar | Under the heading Show, the filter chips. Under Modules, the project and the tree of modules with their resources. |
 | Toolbar | Of the Resources section: the switch Graph and Table, then Collapse and Expand. The filter box, Filter by address or type, with the number of matches. The zoom buttons, minus, Fit and plus, and the button Hide the sidebars. |
 | Graph | The lanes of open modules, the cards of closed ones and the boxes of resources. The plan bar, while a stored plan is laid over the graph. The legend. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a module. |
 | Inspector | The project, a module or a resource. A resource has a strip of cells and the tabs. |
@@ -96,11 +96,11 @@ The chips set `filter`. The box sets `q`, which matches an address or a type.
 | Chip | Counts | `filter` |
 |---|---|---|
 | All | Every resource. | none |
-| In plan | The resources that a loaded plan changes. A no-op is not counted. | `plan` |
+| In plan | The resources that a loaded plan changes. A no-op is not counted. The chip shows only while a plan is loaded. | `plan` |
 | Drifted | The resources that a read marked drifted or gone. | `drifted` |
 | Sensitive | The resources that hold at least one withheld value. | `sensitive` |
 | Orphans | The resources that are recorded and not declared. | `orphans` |
-| Not created | The resources that are declared and not recorded. | `declared` |
+| To create | The resources that are declared and not recorded. | `declared` |
 | Outputs | The outputs of the root. | `outputs` |
 | Env | The environment variables that the specification reads, `pravo.#Env` and `pravo.#SecretEnv`. A variable is a node that is declared and never recorded in the state. | `env` |
 
@@ -118,7 +118,7 @@ The strip above the tabs has the cells Action, Record, Lock, Revision and Refres
 
 ### Stored plans
 
-The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The sidebar lists them under the heading Plans, newest first. The section is not there when the state holds none. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
+The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first, and the picker Plan in the toolbar of Resources chooses the one that is laid over the resources. The picker is not there when the state holds none. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
 
 | Part | Holds |
 |---|---|
@@ -148,7 +148,7 @@ The viewer never applies, approves or removes a plan. It shows the command that 
 
 ## The State section
 
-The State section says where the state is kept, how it is protected and who can read it. It is the second section of the page, next to Resources, which holds the graph and the table, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no sidebar or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
+The State section says where the state is kept, how it is protected and who can read it. It is the last section of the page, after Resources and Plans, which holds the graph and the table, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no sidebar or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
 
 | Part | Holds |
 |---|---|
@@ -221,7 +221,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `q` | Text | The filter box above the graph. |
 | `filter` | `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | Only the nodes that match. `outputs` shows the outputs of the root, and every other value shows resources only. |
-| `view` | `graph`, `table`, `state` or `access` | The graph, the table, or the State section (`access` is the old name of it). |
+| `view` | `graph`, `table`, `plans`, `state` or `access` | The graph, the table, the Plans section, or the State section (`access` is the old name of it). |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
 | `palette` | `1` | The search palette open. |
@@ -240,6 +240,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `t` | Switch the theme. |
 | `g` | Switch the resources between the graph and the table. |
 | `a` | Switch between the Resources and the State sections. |
+| `p` | Switch between the Resources and the Plans sections. |
 | Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the module that a click opened, then clear the selection. |
 
 In the graph:

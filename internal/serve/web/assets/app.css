@@ -243,7 +243,7 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
 
 /* ---- toolbar ---- */
 .toolbar { position: relative; z-index: 5; display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem; min-width: 0; flex: none; }
-.filterbox { display: flex; align-items: center; gap: .45rem; padding: 0 .6rem; height: 2rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-3); min-width: 0; width: 16rem; flex: 0 1 16rem; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+.filterbox { display: flex; align-items: center; gap: .45rem; padding: 0 .6rem; height: 2rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-3); min-width: 9rem; width: 16rem; flex: 0 1 16rem; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
 .filterbox:focus-within { border-color: var(--key); box-shadow: 0 0 0 3px var(--key-wash); }
 .filterbox input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: .8rem; color: var(--text); padding: 0; }
 .filterbox input::placeholder { color: var(--text-3); }
@@ -251,11 +251,11 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
 .filterbox .count { font: 500 .66rem/1 var(--font-mono); color: var(--text-3); white-space: nowrap; }
 .toolbar .seg button { height: 2rem; }
 [data-view="table"] .graph-only { display: none; }
-[data-view="access"] .toolbar { display: none; }
+[data-view="access"] .toolbar, [data-view="plans"] .toolbar { display: none; }
 /* The State page is about who can read the state, not about its resources: no filters, plans or modules. The inspector stays, for the project. */
-[data-view="access"] .rail { display: none; }
-body:has(.app[data-view="access"]) #menu-btn { display: none; }
-.app[data-view="access"] { grid-template-columns: minmax(0, 1fr) 24.5rem; }
+[data-view="access"] .rail, [data-view="plans"] .rail { display: none; }
+body:has(.app[data-view="access"]) #menu-btn, body:has(.app[data-view="plans"]) #menu-btn { display: none; }
+.app[data-view="access"], .app[data-view="plans"] { grid-template-columns: minmax(0, 1fr) 24.5rem; }
 /* The plan numbers of the status bar are about the resources. */
 body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) #st-notread { display: none; }
 
@@ -433,7 +433,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .top .search { flex: none; min-width: 0; width: auto; padding: 0 .6rem; }
   .top .search .lbl { display: none; }
   .only-narrow, .only-medium { display: inline-grid; }
-  .app, .app[data-view="access"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .app, .app[data-view="access"], .app[data-view="plans"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .stage { grid-row: 1; grid-column: 1; }
   .rail { position: fixed; z-index: 60; left: 0; top: 52px; bottom: 30px; width: min(19rem, 88vw); transform: translateX(-102%); visibility: hidden; transition: transform .35s var(--ease), visibility 0s .35s, box-shadow .35s; }
   .app.rail-open .rail { transform: none; visibility: visible; box-shadow: 18px 0 50px color-mix(in srgb, #000 30%, transparent); transition: transform .35s var(--ease), visibility 0s, box-shadow .35s; }
@@ -441,6 +441,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .crumb-dir .cp-head { display: none; }
 }
 @media (max-width: 47.5em) {
+  .sec-tab .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .me .role { display: none; }
   .me b { display: none; }
   .me { padding: 0 .55rem; }
@@ -495,3 +496,16 @@ body[data-full="1"] .app:not([data-sel="1"]) { grid-template-columns: minmax(0, 
 body[data-full="1"] .app:not([data-sel="1"]) .insp { display: none; }
 @media (max-width: 68.75em) { body[data-full="1"] .app, body[data-full="1"] .app:not([data-sel="1"]) { grid-template-columns: minmax(0, 1fr); } }
 body[data-full="1"]:has(.app:not([data-sel="1"])) .topright { border-left-color: transparent; }
+
+/* the picker of the plan, in the toolbar of the resources */
+.planpick { display: inline-flex; align-items: center; gap: .5rem; font: 500 .66rem/1 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.planpick[hidden], .chip[hidden] { display: none; }
+.planpick select { height: 2rem; width: 9.5rem; padding: 0 .5rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: 500 .74rem/1 var(--font-mono); text-transform: none; letter-spacing: 0; }
+/* the Plans page */
+.plans-pane { overflow: auto; }
+.pl { max-width: 56rem; margin: 0 auto; padding: 1.6rem 1.2rem 3rem; }
+.pl-title { margin: 0 0 .4rem; font: 500 1.5rem/1.15 var(--font-display); letter-spacing: -.01em; }
+.pl-lede { margin: 0 0 1.2rem; color: var(--text-2); font-size: .84rem; line-height: 1.5; }
+.pl .rail-plans { max-height: none; overflow: visible; border-top: 0; padding-top: 0; }
+.pl .rp-head { padding-right: 0; }
+.pl .rp { padding-left: .4rem; padding-right: .4rem; }
