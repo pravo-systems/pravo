@@ -393,10 +393,10 @@ func fileVerdict(stateName string, f FileFacts, path, dir string, added, removed
 		af.Verdict = "none"
 		switch f.State {
 		case "ok":
-			// The repository says who may read, so a state that is not sealed was sealed
-			// once, or was meant to be: its meta.json may have been changed.
+			// The repository says who may read, so a state that is not sealed has not
+			// been sealed yet, or was sealed once and its meta.json was changed.
 			af.Verdict = "expected-sealed"
-			af.Text = "The repository lists readers in " + shortPath(dir, af.Path) + ", but the state is not sealed. Its meta.json may have been changed."
+			af.Text = "The repository lists readers in " + shortPath(dir, af.Path) + ", but the state is not sealed. It has not been sealed yet, or its meta.json was changed."
 		case "invalid":
 			af.Text = "The readers file does not load" + firstError(af.Errors) + "."
 		default:
@@ -640,7 +640,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	}
 	if a.File.Verdict == "expected-sealed" {
 		add(Suggestion{ID: "check-downgrade", Title: "Check why the state is not sealed",
-			Why: "The readers file lists readers, so the state was expected to be sealed, and its meta.json says it is not. Someone who can write to the store may have changed it.",
+			Why: "The readers file lists readers, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
 			Who: "a reader",
 			Steps: []SuggestionStep{protectCmd("status"),
 				note("If you did not mean to seal this state, remove the readers file. To seal it: pravo protect " + initCmd),

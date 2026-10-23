@@ -242,7 +242,7 @@ A record in format 3 keeps its address, type, name, provider, dependencies, revi
 | `migration` | Present while a seal has begun and has not finished: the number of records sealed so far, which is a note and not a count that anything relies on. |
 | `history` | The last 50 changes of the seal: `sealed`, `rewrap`, `rewrap --all` and `gc`, with the names added and removed. `gc` records that groups were dropped, and names none. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
 
-`meta.json` is not signed. A writer of the bucket who edits it to a lower format is noticed by the writers that have the repository: when `.pravo/access/readers.txt` exists and the state is not sealed, a command that writes refuses with exit code 5 and a command that reads warns. A writer without the repository does not notice. [What sealing protects](../concepts/sealed-state.md) says more.
+`meta.json` is not signed. A writer of the bucket who edits it to a lower format is noticed by the writers that have the repository: when `.pravo/access/readers.txt` exists and the state is not sealed, or does not exist yet, a command that writes refuses with exit code 5 and a command that reads warns. A writer without the repository does not notice. [What sealing protects](../concepts/sealed-state.md) says more.
 
 A reader is a line of `.pravo/access/readers.txt`. Whoever writes the state takes the list from the repository, and a lock is added for a reader who is on the list and not in `meta.json`, or removed for one who is in `meta.json` and not on the list, by a rewrap.
 

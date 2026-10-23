@@ -41,7 +41,7 @@
  "file": {
   "verdict": "expected-sealed",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed. Its meta.json may have been changed.",
+  "text": "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed. It has not been sealed yet, or its meta.json was changed.",
   "count": 3
  },
  "records": {
@@ -59,7 +59,7 @@
   {
    "id": "check-downgrade",
    "title": "Check why the state is not sealed",
-   "why": "The readers file lists readers, so the state was expected to be sealed, and its meta.json says it is not. Someone who can write to the store may have changed it.",
+   "why": "The readers file lists readers, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
    "who": "a reader",
    "primary": true,
    "steps": [

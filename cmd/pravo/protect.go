@@ -343,7 +343,15 @@ func isSealed(prot state.Protection) bool {
 // writer cannot move: whoever can write to the bucket can lower the format in
 // meta.json, and the writers that follow would write in the clear.
 func downgradeProblem(rf readersFile) string {
-	return fmt.Sprintf("the repository lists readers in %s, but the state is not sealed: its meta.json may have been changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file", rf.shown())
+	return fmt.Sprintf("the repository lists readers in %s, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file.", rf.shown())
+}
+
+// missingStateProblem is what a command says about a repository that lists
+// readers when the state does not exist yet. The state is not created: a first
+// writer would make it in format 1, in the clear, and the guard would then have
+// nothing to say but that it is not sealed.
+func missingStateProblem(rf readersFile) string {
+	return fmt.Sprintf("the repository lists readers in %s, but the state does not exist yet. Create it sealed with: pravo protect init --encrypt", rf.shown())
 }
 
 // expectsSealed reports whether the repository expects the state to be sealed:
@@ -356,8 +364,8 @@ func expectsSealed(prot state.Protection, rf readersFile) bool {
 // checkReadersFile compares the readers file with the sealed state st. A writer
 // refuses to go on when they differ or the file cannot be used; a reader only
 // warns. A state that is not sealed in a repository that has a readers file
-// is refused to a writer with exit code 5 and warned of to a reader: it may have
-// been downgraded in the bucket.
+// is refused to a writer with exit code 5 and warned of to a reader: it was not
+// sealed yet, or it was downgraded in the bucket.
 func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
 	prot := st.Protection()
 	rf := loadReadersFile(root.Dir, flagAccessDir)

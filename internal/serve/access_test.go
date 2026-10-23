@@ -964,7 +964,7 @@ func TestAccessExpectedSealed(t *testing.T) {
 			if a.File.Verdict != "expected-sealed" || a.File.Count != 1 {
 				t.Fatalf("file %+v", a.File)
 			}
-			if want := "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed. Its meta.json may have been changed."; a.File.Text != want {
+			if want := "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed. It has not been sealed yet, or its meta.json was changed."; a.File.Text != want {
 				t.Errorf("text %q", a.File.Text)
 			}
 			if a.State != state || a.You != nil || len(a.File.Added)+len(a.File.Removed) != 0 {

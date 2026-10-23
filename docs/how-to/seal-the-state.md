@@ -132,7 +132,9 @@ eve ssh-ed25519 <ssh-key> x25519:<key>
 
 Writers take the list from the checked-out repository and never from the bucket, so someone who can only write to the bucket cannot add themselves. The reference page describes [the format of the file](../reference/protect.md#the-readers-file).
 
-From here on the repository expects the state to be sealed. A command that writes a state that is not sealed stops with exit code 5 until step 5 has run, and the `Sealed` line of `pravo protect status` ends with `the repository expects a sealed state`. The same check notices a state that someone lowered to an earlier format in the bucket.
+From here on the repository expects the state to be sealed. A command that writes a state that is not sealed stops with exit code 5 until step 5 has run, and the `Sealed` line of `pravo protect status` ends with `the repository expects a sealed state`. The same check notices a state that someone lowered to an earlier format in the bucket, and a state that does not exist yet: a command that writes stops with exit code 5 and creates nothing, and `pravo protect init --encrypt` creates the state sealed.
+
+The readers file covers every root below the directory that holds `.pravo`, because a command looks for it in `.pravo/access` of the root and then of each parent directory up to the one that holds `.git`. A root in the repository that is not meant to be sealed names another directory with `--access-dir` or `$PRAVO_ACCESS_DIR`, and is then not expected to be sealed.
 
 ## 4. Check that the store is ready
 

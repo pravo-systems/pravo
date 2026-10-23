@@ -268,8 +268,23 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 		}
 		return state.OpenBackendWith(ctx, &readOnlyBackend{Backend: &state.LocalBackend{Dir: path}}, o)
 	}
+	// A repository that lists readers expects a sealed state, and a state that does
+	// not exist yet is not one. Whether it exists is looked at before the open, which
+	// would make it, in format 1.
+	missing := false
+	if rf := loadReadersFile(root.Dir, flagAccessDir); rf.Found && stateMissing(ctx, root) {
+		problem := missingStateProblem(rf)
+		if write {
+			return nil, nil, engine.WithCode(engine.ExitRefused, errors.New(problem))
+		}
+		fmt.Fprintln(os.Stderr, "Warning: "+problem)
+		missing = true
+	}
 	if st, err = open(nil); err != nil {
 		return nil, nil, err
+	}
+	if missing {
+		return st, nil, nil // an empty state, read and not created
 	}
 	if !st.Locked() {
 		return st, nil, checkReadersFile(root, st, write)
@@ -295,6 +310,27 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 		}
 	}
 	return st, why, checkReadersFile(root, st, write && !st.Locked())
+}
+
+// stateMissing reports whether the state of the root does not exist yet: its
+// backend holds no meta.json. Nothing is created. A backend that cannot be read
+// is not reported as missing; the open says why.
+func stateMissing(ctx context.Context, root *config.Root) bool {
+	var b state.Backend
+	if root.State.Backend == "s3" {
+		var err error
+		if b, err = s3Backend(ctx, root); err != nil {
+			return false
+		}
+	} else {
+		path := root.StateFile()
+		if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
+			return false // a file: the open says so
+		}
+		b = &state.LocalBackend{Dir: path}
+	}
+	_, err := b.Get(ctx, metaKey)
+	return errors.Is(err, state.ErrNotFound)
 }
 
 // noKey says why a sealed state could not be opened: there is no identity, it

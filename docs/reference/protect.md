@@ -116,7 +116,7 @@ pravo looks for the file in `--access-dir`, then in `$PRAVO_ACCESS_DIR`, then in
 
 A command that writes a sealed state compares the file with the readers recorded in the state. If they differ, it stops with exit code 5 and `.pravo/access/readers.txt and the state differ (dan added, fay removed). Run pravo protect rewrap.` A command that only reads prints the same text as a warning on standard error. A missing file stops a command that writes the state with exit code 5, and an invalid one with exit code 6. The `protect` commands exit with 6 for both: `protect check`, `init` and `rewrap` have no verdict without a valid file. `protect status` prints `file not found` or `file is invalid:` and exits 0.
 
-A state that is not sealed in a repository that has a readers file is refused in the same way. A command that writes stops with exit code 5 and `the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: its meta.json may have been changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file.` A command that only reads prints the text as a warning. A file that is found counts whether or not it can be read. `protect check`, `protect init`, `protect status` and the `id` commands are not stopped. A root in a repository whose readers file is meant for other roots names another access directory with `--access-dir` or `$PRAVO_ACCESS_DIR`, and is then not expected to be sealed.
+A state that is not sealed in a repository that has a readers file is refused in the same way. A command that writes stops with exit code 5 and `the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file.` A state that does not exist yet is refused before anything is created: the command stops with exit code 5 and `the repository lists readers in .pravo/access/readers.txt, but the state does not exist yet. Create it sealed with: pravo protect init --encrypt`. A command that only reads prints the text as a warning, and creates no state. A file that is found counts whether or not it can be read. `protect check`, `protect init`, `protect status` and the `id` commands are not stopped. A root in a repository whose readers file is meant for other roots names another access directory with `--access-dir` or `$PRAVO_ACCESS_DIR`, and is then not expected to be sealed.
 
 ## The identity
 
@@ -241,7 +241,7 @@ A state in a local directory is refused: its compare-and-swap is a lock of one u
 
 ## protect init
 
-`pravo protect init --encrypt` seals the state. It needs the readers file and an identity that is on it, because sealing to a list that you are not on would lock you out: the command stops with exit code 5 otherwise.
+`pravo protect init --encrypt` seals the state. It needs the readers file and an identity that is on it, because sealing to a list that you are not on would lock you out: the command stops with exit code 5 otherwise. A state that does not exist yet is created sealed, with no records.
 
 It shows what it will do and asks `Proceed? [y/N]`. `--yes` answers it. Without a terminal and without `--yes` it refuses to ask. Nothing is written before the answer. The command does not run while a transaction is running or a lock is held. Run it while nobody plans or applies.
 
@@ -331,7 +331,7 @@ Unsettled    none
 
 | Line | Values |
 |---|---|
-| `Sealed` | `on`, `off`, `off · format 2 · immutable records`, or `migrating` with the number of records done. A state that is off in a repository that has a readers file ends in `· the repository expects a sealed state`: its `meta.json` may have been changed. |
+| `Sealed` | `on`, `off`, `off · format 2 · immutable records`, or `migrating` with the number of records done. A state that is off in a repository that has a readers file ends in `· the repository expects a sealed state`: it has not been sealed yet, or its `meta.json` was changed. |
 | `Readers` | `matches the store`; `differs:` and who is in the file and not in the store, or the other way round; `file not found (looked in DIR)`; `file is invalid:` and the line and reason. |
 | `You` | The identity and its reader key. `identity NAME is not a reader`. `not a reader of this state (no identity found)`. |
 | `Unsettled` | `none`, or the number of interrupted transactions; `pravo state log` lists them. |
