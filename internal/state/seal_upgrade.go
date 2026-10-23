@@ -227,7 +227,7 @@ func (s *Store) beginSeal(o UpgradeOptions) error {
 		return err
 	}
 	if o.Recovery != nil {
-		if err := sealedMeta.SetRecovery(keys, o.Recovery); err != nil {
+		if err := sealedMeta.SetRecovery(keys, o.Recovery, false); err != nil {
 			return err
 		}
 	}
@@ -494,13 +494,13 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 			k.Close()
 			return errors.New("set the recovery or remove it, not both")
 		case o.Recovery != nil:
-			if err := sealed.SetRecovery(k, o.Recovery); err != nil {
+			if err := sealed.SetRecovery(k, o.Recovery, ch.NewGroup != ""); err != nil {
 				k.Close()
 				return err
 			}
 			recovery = fmt.Sprintf("recovery set %d/%d", o.Recovery.K, o.Recovery.N)
 		case o.RemoveRecovery && sealed.Recovery != nil:
-			if err := sealed.SetRecovery(k, nil); err != nil {
+			if err := sealed.SetRecovery(k, nil, ch.NewGroup != ""); err != nil {
 				k.Close()
 				return err
 			}

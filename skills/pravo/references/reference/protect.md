@@ -52,7 +52,7 @@ A state has three formats.
 | `--identity NAME` | every command that opens a state, and `id show` | The identity to open the state with, a file of the identity directory. A global flag, also written before the command. For `id show` it is another way to write `--name`. |
 | `--allow-local` | `protect check`, `protect init` | Accept a state in a local directory. |
 | `--encrypt` | `protect init` | Required. Seal the attributes, outputs and stored plans to the readers. |
-| `--yes` | `protect init`, `protect recover` | Do not ask for confirmation. |
+| `--yes` | `protect init`, `protect recover`, `protect rewrap` | Do not ask for confirmation. `rewrap` asks only before it replaces or removes a recovery recipient, since that makes the shares that were given out worth nothing. |
 | `--recovery K/N` | `protect init`, `protect rewrap`, `protect recover` | Set a recovery recipient, or replace it: a new key is split into N shares, any K of which rebuild it. `2/3` to `20/20`; K is at least 2. |
 | `--remove-recovery` | `protect rewrap` | Take the recovery recipient out of the state, and delete the recovery file. |
 | `--share FILE` | `protect recover` | A share file. Give it once for each share. |
@@ -118,9 +118,13 @@ A recovery recipient is one more reader of a sealed state whose key nobody holds
 
 | Where | What |
 |---|---|
-| `recovery-shares/share-I-of-N.txt` | One share each, with mode 0600, in the directory where the command ran. They are written once. Give each to a different person, offline, and do not commit them. A directory that already holds shares is refused, so that two sets are not mixed. |
+| `recovery-shares/share-I-of-N.txt` | One share each, with mode 0600, in the directory where the command ran. They are written once. Give each to a different person, offline, and do not commit them. A directory that already holds shares is refused, so that two sets are not mixed, and it gets a `.gitignore` that ignores everything in it. |
 | `.pravo/access/recovery.txt` | The public key and the threshold, `x25519:BASE64URL K/N`, with comments and blank lines allowed. Commit it. It sits in the access directory next to the readers file. |
 | `meta.json` | The key and the threshold under `sealed.recovery`, and a lock named `recovery` in every group. The readers file may not use the name `recovery`. |
+
+A command that is interrupted after it set the recovery in the state keeps the shares and writes the recovery file, and says so: the lock is there, and the shares are the only way in. Shares of a key that the state does not hold are removed. With `--json`, `rewrap` and `recover` write the files first and report a `recovery` object: `action` (`set`, `replaced`, `from_file` or `removed`), `k`, `n`, `key`, `file` and, for new shares, `shares`.
+
+The lock of the recovery key is a lock like the others, and nothing opens it until the shares are used. A `meta.json` that was damaged in that lock is found by `protect recover` and by nothing sooner. Rehearse once: copy the bucket, and run `protect recover` against the copy with K shares.
 
 A share file holds one line, `pravo-share-1`, the id of the key, the index, `K/N`, the share and a short check that catches a mistyped or damaged line, after two lines of comment.
 
@@ -135,7 +139,7 @@ A command that writes a sealed state compares the recovery file with the state, 
 
 A recovery file that does not load stops a command that writes with exit code 6. A command that only reads prints the same text as a warning.
 
-Setting a recovery is a decision about trust. K holders of shares can read the state together, and nothing delays them: there is no signature and no waiting time until roles exist. A recovery key that was used has been rebuilt on one machine, so replace it afterwards. The shares of a replaced key open nothing.
+Setting a recovery is a decision about trust. K holders of shares can read the state together, and nothing delays them: there is no signature and no waiting time until roles exist. A recovery key that was used has been rebuilt on one machine, so replace it afterwards. The shares of a replaced key open nothing that is sealed from then on: replacing or removing the recovery makes a new data key, as removing a reader does, so a holder of old shares who kept a copy of the bucket opens what was in it and nothing written after. A reader may not hold the recovery key: `rewrap` refuses a readers file that lists it.
 
 ## id new
 
@@ -349,7 +353,7 @@ A record that does not match its name, a pointer that disagrees with its record,
 
 `--all` needs the state at rest: run it while nobody plans or applies. It seals again and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [`pravo protect gc`](#protect-gc) removes both. [What sealing protects](../concepts/sealed-state.md) lists what stays in the bucket.
 
-**The recovery.** `--recovery K/N` sets the recovery recipient of the state, or replaces it: a new key is made, split into N shares and written to `recovery-shares/`, the public key goes to `.pravo/access/recovery.txt`, and every group gets a lock for it. A replaced key loses its lock in every group, so its shares open nothing; collect and destroy them. `--remove-recovery` takes the recovery out of the state and deletes the file; commit the deletion. Without either flag, a recovery file that names a key that the state does not have is set in the state with no new shares, and a recovery lock that is missing from a group is made again. `--all` and a replacement of the recovery run as two steps when the recovery key opens the state; [`protect recover`](#protect-recover) does that for you.
+**The recovery.** `--recovery K/N` sets the recovery recipient of the state, or replaces it: a new key is made, split into N shares and written to `recovery-shares/`, the public key goes to `.pravo/access/recovery.txt`, and every group gets a lock for it. A replaced key loses its lock in every group and the state gets a new data key, so its shares open nothing that is written afterwards; a copy of the bucket made before still opens with them, so collect and destroy them. `--remove-recovery` takes the recovery out of the state and deletes the file; commit the deletion. Both ask first, unless `--yes` is given. `--remove-recovery` also deletes a recovery file when the state has no recovery. Without either flag, a recovery file that names a key that the state does not have is set in the state with no new shares, and a recovery lock that is missing from a group is made again. `--all` and a replacement of the recovery run as two steps when the recovery key opens the state; [`protect recover`](#protect-recover) does that for you.
 
 ## protect recover
 

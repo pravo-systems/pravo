@@ -154,7 +154,7 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := recMeta.SetRecovery(recKeys, recovery); err != nil {
+	if err := recMeta.SetRecovery(recKeys, recovery, false); err != nil {
 		t.Fatal(err)
 	}
 	brokenMeta := *recMeta

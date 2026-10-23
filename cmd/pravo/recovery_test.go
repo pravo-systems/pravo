@@ -127,7 +127,7 @@ func TestProtectInitWithARecovery(t *testing.T) {
 		}
 	})
 	t.Run("a second set of shares is not mixed with the first", func(t *testing.T) {
-		text, code := runPravo(t, e.dir, "protect", "rewrap", "--recovery", "2/3")
+		text, code := runPravo(t, e.dir, "protect", "rewrap", "--recovery", "2/3", "--yes")
 		if code == 0 || !strings.Contains(text, "recovery-shares already holds shares") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -291,11 +291,11 @@ func TestProtectRecover(t *testing.T) {
 		if err := os.Rename(filepath.Join(r.dir, "recovery-shares"), old); err != nil {
 			t.Fatal(err)
 		}
-		text, code := runPravo(t, r.dir, "protect", "rewrap", "--recovery", "3/4")
+		text, code := runPravo(t, r.dir, "protect", "rewrap", "--recovery", "3/4", "--yes")
 		if code != 0 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		for _, want := range []string{"Recovery: 4 shares written (any 3 rebuild the recovery key):", "The old shares open nothing now."} {
+		for _, want := range []string{"Recovery: 4 shares written (any 3 rebuild the recovery key):", "The old shares open nothing that is written from now on."} {
 			if !strings.Contains(text, want) {
 				t.Errorf("the output lacks %q:\n%s", want, text)
 			}
@@ -311,7 +311,7 @@ func TestProtectRecover(t *testing.T) {
 		}
 	})
 	t.Run("the recovery is removed", func(t *testing.T) {
-		text, code := runPravo(t, r.dir, "protect", "rewrap", "--remove-recovery")
+		text, code := runPravo(t, r.dir, "protect", "rewrap", "--remove-recovery", "--yes")
 		if code != 0 || !strings.Contains(text, "Recovery removed. Commit the deletion of .pravo/access/recovery.txt") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -369,7 +369,7 @@ func TestProtectRecoverWithANewRecovery(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	for _, want := range []string{
-		"  4  replace the recovery key: 4 new shares, any 3 rebuild it, and the old shares open nothing\n",
+		"  4  replace the recovery key: 4 new shares, any 3 rebuild it, and the old shares open nothing written from now on\n",
 		"Recovery: 4 shares written (any 3 rebuild the recovery key):\n",
 	} {
 		if !strings.Contains(text, want) {
@@ -392,5 +392,129 @@ func TestProtectRecoverWithANewRecovery(t *testing.T) {
 		"--share", filepath.Join(old, "share-1-of-3.txt"), "--share", filepath.Join(old, "share-2-of-3.txt"), "--share", filepath.Join(old, "share-3-of-3.txt"))
 	if code != 5 || !strings.Contains(text, "another recovery key") {
 		t.Errorf("the old shares: exit %d\n%s", code, text)
+	}
+}
+
+func TestReplacingTheRecoveryAsksFirst(t *testing.T) {
+	r := recoveredBucket(t)
+	file := filepath.Join(r.dir, ".pravo", "access", "recovery.txt")
+	before, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"--recovery", "3/4"}, {"--remove-recovery"}} {
+		text, code := runPravo(t, r.dir, append([]string{"protect", "rewrap"}, args...)...)
+		if code == 0 || !strings.Contains(text, "pass --yes") {
+			t.Fatalf("%v: exit %d\n%s", args, code, text)
+		}
+		after, _ := os.ReadFile(file)
+		if string(after) != string(before) {
+			t.Errorf("%v: the recovery file changed", args)
+		}
+		if _, err := os.Stat(filepath.Join(r.dir, "recovery-shares", "share-4-of-4.txt")); err == nil {
+			t.Errorf("%v: new shares were written", args)
+		}
+	}
+}
+
+func TestRecoveryFilesAreSettledBeforeJSON(t *testing.T) {
+	r := recoveredBucket(t)
+	file := filepath.Join(r.dir, ".pravo", "access", "recovery.txt")
+	before, _ := os.ReadFile(file)
+	if err := os.RemoveAll(filepath.Join(r.dir, "recovery-shares")); err != nil {
+		t.Fatal(err)
+	}
+	text, code := runPravo(t, r.dir, "--json", "protect", "rewrap", "--recovery", "3/4", "--yes")
+	if code != 0 || !strings.Contains(text, `"action": "replaced"`) || !strings.Contains(text, `"shares": "recovery-shares"`) {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	after, _ := os.ReadFile(file)
+	if string(after) == string(before) || !strings.Contains(string(after), " 3/4") {
+		t.Errorf("recovery.txt was not rewritten:\n%s", after)
+	}
+	if text, code = runPravo(t, r.dir, "state", "list"); code != 0 {
+		t.Errorf("a writer is refused after --json: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, r.dir, "--json", "protect", "rewrap", "--remove-recovery", "--yes")
+	if code != 0 || !strings.Contains(text, `"action": "removed"`) {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	if _, err := os.Stat(file); err == nil {
+		t.Error("recovery.txt stayed after --remove-recovery --json")
+	}
+	if text, code = runPravo(t, r.dir, "state", "list"); code != 0 {
+		t.Errorf("a writer is refused after the removal: exit %d\n%s", code, text)
+	}
+}
+
+func TestRemoveRecoveryDeletesAStaleFile(t *testing.T) {
+	requireSealing(t)
+	ids := isolateIdentities(t)
+	e := newS3Env(t, false)
+	st := e.store(t)
+	e.record(t, st, "net.vpc", secretA)
+	_, adaLine := person(t, ids, "ada")
+	e.readers(t, adaLine)
+	if text, code := runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	other, _, _ := protect.NewRecovery(2, 3)
+	file := filepath.Join(e.dir, ".pravo", "access", "recovery.txt")
+	if err := os.WriteFile(file, []byte(other.Line()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	text, code := runPravo(t, e.dir, "protect", "rewrap", "--remove-recovery")
+	if code != 0 || !strings.Contains(text, "Removed .pravo/access/recovery.txt") {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	if _, err := os.Stat(file); err == nil {
+		t.Error("the stale file stayed")
+	}
+	if text, code = runPravo(t, e.dir, "protect", "rewrap", "--remove-recovery"); code != 0 || !strings.Contains(text, "no recovery recipient") {
+		t.Errorf("exit %d\n%s", code, text)
+	}
+}
+
+func TestTheRecoveryFileIsNotWrittenThroughALink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("links need privileges on Windows")
+	}
+	requireSealing(t)
+	ids := isolateIdentities(t)
+	e := newS3Env(t, false)
+	st := e.store(t)
+	e.record(t, st, "net.vpc", secretA)
+	_, adaLine := person(t, ids, "ada")
+	e.readers(t, adaLine)
+	victim := filepath.Join(t.TempDir(), "victim.txt")
+	if err := os.WriteFile(victim, []byte("keep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(e.dir, ".pravo", "access", "recovery.txt")
+	if err := os.Symlink(victim, file); err != nil {
+		t.Fatal(err)
+	}
+	text, code := runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes", "--recovery", "2/3")
+	if code == 0 && !strings.Contains(text, "is not a regular file") {
+		t.Logf("exit %d\n%s", code, text)
+	}
+	if b, _ := os.ReadFile(victim); string(b) != "keep\n" {
+		t.Errorf("the target of the link was written:\n%s", b)
+	}
+}
+
+func TestSharesDirectoryIsIgnoredByGit(t *testing.T) {
+	r := recoveredBucket(t)
+	b, err := os.ReadFile(filepath.Join(r.dir, "recovery-shares", ".gitignore"))
+	if err != nil || string(b) != "*\n" {
+		t.Errorf("%q %v", b, err)
+	}
+}
+
+func TestInitWithARecoveryOnASealedStateSaysItWasNotApplied(t *testing.T) {
+	r := recoveredBucket(t)
+	text, code := runPravo(t, r.dir, "protect", "init", "--encrypt", "--yes", "--recovery", "2/3")
+	if code != 0 || !strings.Contains(text, "--recovery was not applied") {
+		t.Fatalf("exit %d\n%s", code, text)
 	}
 }

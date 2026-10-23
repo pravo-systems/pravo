@@ -2,6 +2,7 @@ package protect
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -219,7 +220,7 @@ func TestMetaKeepsTheRecoveryThroughRewraps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := m.SetRecovery(keys, rec); err != nil {
+	if err := m.SetRecovery(keys, rec, false); err != nil {
 		t.Fatal(err)
 	}
 	st := m.Status([]Reader{ada, dan})
@@ -282,11 +283,11 @@ func TestSetRecoveryReplacesAndRemoves(t *testing.T) {
 		t.Fatal(err)
 	}
 	first, firstShares, _ := NewRecovery(2, 2)
-	if err := m.SetRecovery(keys, first); err != nil {
+	if err := m.SetRecovery(keys, first, false); err != nil {
 		t.Fatal(err)
 	}
 	second, secondShares, _ := NewRecovery(3, 4)
-	if err := m.SetRecovery(keys, second); err != nil {
+	if err := m.SetRecovery(keys, second, false); err != nil {
 		t.Fatal(err)
 	}
 	if st := m.Status([]Reader{ada}); !st.Matches || len(st.Readers) != 1 || st.Recovery.K != 3 {
@@ -312,7 +313,7 @@ func TestSetRecoveryReplacesAndRemoves(t *testing.T) {
 	if _, err := m.Unlock("L1", newKey); err != nil {
 		t.Errorf("the new recovery key: %v", err)
 	}
-	if err := m.SetRecovery(keys, nil); err != nil {
+	if err := m.SetRecovery(keys, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if m.Recovery != nil || len(m.Groups[0].Locks) != 1 {
@@ -327,7 +328,7 @@ func TestRecoveryLockMissingIsReported(t *testing.T) {
 	ada, _ := mustReader(t, "ada")
 	m, keys, _ := NewMeta("L1", []Reader{ada})
 	rec, _, _ := NewRecovery(2, 3)
-	if err := m.SetRecovery(keys, rec); err != nil {
+	if err := m.SetRecovery(keys, rec, false); err != nil {
 		t.Fatal(err)
 	}
 	// Someone with write access to the bucket takes the recovery lock out.
@@ -353,7 +354,7 @@ func TestRecoveryIdentityOpensAndNeverSigns(t *testing.T) {
 	ada, _ := mustReader(t, "ada")
 	m, keys, _ := NewMeta("L1", []Reader{ada})
 	rec, shares, _ := NewRecovery(2, 3)
-	if err := m.SetRecovery(keys, rec); err != nil {
+	if err := m.SetRecovery(keys, rec, false); err != nil {
 		t.Fatal(err)
 	}
 	rk, err := rec.Open(shares[1:3])
@@ -371,4 +372,111 @@ func TestRecoveryIdentityOpensAndNeverSigns(t *testing.T) {
 		t.Error("the recovery identity signed")
 	}
 	id.Close()
+}
+
+// Holders of the old shares can keep a copy of meta.json from before the change. The data key
+// that new records are sealed under must be one that copy cannot open.
+func TestReplacingOrRemovingTheRecoveryRotatesTheDataKey(t *testing.T) {
+	for _, remove := range []bool{false, true} {
+		ada, _ := mustReader(t, "ada")
+		m, keys, err := NewMeta("L1", []Reader{ada})
+		if err != nil {
+			t.Fatal(err)
+		}
+		first, firstShares, _ := NewRecovery(2, 3)
+		if err := m.SetRecovery(keys, first, false); err != nil {
+			t.Fatal(err)
+		}
+		stale := cloneMeta(t, m)
+		next := &Recovery{}
+		if remove {
+			next = nil
+		} else if next, _, err = NewRecovery(2, 3); err != nil {
+			t.Fatal(err)
+		}
+		before := m.Current
+		if err := m.SetRecovery(keys, next, false); err != nil {
+			t.Fatal(err)
+		}
+		if m.Current == before || len(m.Groups) != 2 {
+			t.Fatalf("remove=%v: current %s of %d groups, want a new group", remove, m.Current, len(m.Groups))
+		}
+		old, err := first.Open(firstShares[:2])
+		if err != nil {
+			t.Fatal(err)
+		}
+		oldKeys, err := stale.Unlock("L1", old)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := oldKeys.keys[m.Current]; ok {
+			t.Errorf("remove=%v: the old recovery opens the current group", remove)
+		}
+		// A change that already rotated the data key does not rotate it again, and a change of
+		// the threshold alone keeps the key.
+		if !remove {
+			groups := len(m.Groups)
+			if err := m.SetRecovery(keys, next, false); err != nil || len(m.Groups) != groups {
+				t.Errorf("same recovery: %v, %d groups, want %d", err, len(m.Groups), groups)
+			}
+		}
+	}
+}
+
+func cloneMeta(t *testing.T, m *Meta) *Meta {
+	t.Helper()
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c Meta
+	if err := json.Unmarshal(b, &c); err != nil {
+		t.Fatal(err)
+	}
+	return &c
+}
+
+func TestAReaderMayNotHoldTheRecoveryKey(t *testing.T) {
+	ada, _ := mustReader(t, "ada")
+	m, keys, _ := NewMeta("L1", []Reader{ada})
+	rec, _, _ := NewRecovery(2, 3)
+	if err := m.SetRecovery(keys, rec, false); err != nil {
+		t.Fatal(err)
+	}
+	bob := Reader{Name: "bob", Key: rec.Key}
+	if _, err := m.Rewrap(keys, []Reader{ada, bob}); err == nil {
+		t.Fatal("a reader with the recovery key was accepted")
+	}
+}
+
+func TestRecoveryInMetaMustHaveAValidThreshold(t *testing.T) {
+	ada, _ := mustReader(t, "ada")
+	m, keys, _ := NewMeta("L1", []Reader{ada})
+	rec, _, _ := NewRecovery(2, 3)
+	if err := m.SetRecovery(keys, rec, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, kn := range [][2]int{{-1, 3}, {0, 0}, {1, 3}, {4, 3}, {2, 21}, {1 << 60, 1 << 60}} {
+		bad := *m.Recovery
+		bad.K, bad.N = kn[0], kn[1]
+		c := *m
+		c.Recovery = &bad
+		if err := c.Check(); !errors.Is(err, ErrDamaged) {
+			t.Errorf("%v: %v", kn, err)
+		}
+	}
+	if err := m.Check(); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestOpenRefusesIndexesOutsideTheRecovery(t *testing.T) {
+	rec, shares, _ := NewRecovery(2, 3)
+	for _, idx := range []int{0, 4, 257, -255} {
+		bad := shares[0]
+		bad.Index = idx
+		if _, err := rec.Open([]Share{bad, shares[1]}); !errors.Is(err, ErrRecovery) {
+			t.Errorf("index %d: %v", idx, err)
+		}
+	}
 }

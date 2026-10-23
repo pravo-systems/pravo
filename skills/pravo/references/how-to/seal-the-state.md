@@ -392,16 +392,19 @@ New data keys for 1 reader group. Records are sealed again as they are next writ
 The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap --recovery K/N
 ```
 
-Fay is the reader now, and the old readers are not. The key was rebuilt on one machine, so it has been seen in one place: replace it, which makes a new key and three new shares, and the old shares open nothing afterwards.
+Fay is the reader now, and the old readers are not. The key was rebuilt on one machine, so it has been seen in one place: replace it, which makes a new key and three new shares, and the old shares open nothing that is written afterwards.
+
+`rewrap` asks before it replaces or removes a recovery, because the shares that were given out stop working for new records. `--yes` answers the question, as it does for `init`.
 
 ```sh
 rm -r recovery-shares
-PRAVO_CONFIG_DIR=people/fay pravo protect rewrap --recovery 2/3
+PRAVO_CONFIG_DIR=people/fay pravo protect rewrap --recovery 2/3 --yes
 ```
 
 Output:
 
 ```text
+The recovery key will be replaced (2 of 3 shares, key x25519:<key>…). The shares that were given out open nothing that is written from now on.
 Readers in .pravo/access/readers.txt: fay
 meta.json updated
 
@@ -410,7 +413,7 @@ Recovery: 3 shares written (any 2 rebuild the recovery key):
 Do not commit them. Give each to a different person, offline. They are written once.
 Commit the recovery recipient with the readers file:
   .pravo/access/recovery.txt
-The old shares open nothing now. Collect them and destroy them.
+The old shares open nothing that is written from now on. Collect them and destroy them.
 ```
 
 ## What next

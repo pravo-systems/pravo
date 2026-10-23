@@ -149,15 +149,32 @@ func shareName(s protect.Share) string {
 	return fmt.Sprintf("share-%d-of-%d.txt", s.Index, s.N)
 }
 
+// sharesDirFree is nil when recovery-shares/ holds no share.
+func sharesDirFree() error {
+	if old, _ := filepath.Glob(filepath.Join(recoverySharesDir, "share-*-of-*.txt")); len(old) > 0 {
+		return fmt.Errorf("%s already holds shares (%s). Move them away first: two sets of shares must not be mixed. Shares that you are using now belong elsewhere.", recoverySharesDir, filepath.Base(old[0]))
+	}
+	return nil
+}
+
+func fileMissing(p string) bool {
+	_, err := os.Lstat(p)
+	return errors.Is(err, os.ErrNotExist)
+}
+
 // writeShares writes the share files to recovery-shares/, with mode 0600, and
 // returns a function that removes what it wrote. It refuses to go on when the
 // directory already holds a share, so that two sets are never mixed.
 func writeShares(shares []protect.Share) (remove func(), err error) {
-	if old, _ := filepath.Glob(filepath.Join(recoverySharesDir, "share-*-of-*.txt")); len(old) > 0 {
-		return nil, fmt.Errorf("%s already holds shares (%s). Move them away first: two sets of shares must not be mixed.", recoverySharesDir, filepath.Base(old[0]))
+	if err := sharesDirFree(); err != nil {
+		return nil, err
 	}
 	if err := protect.EnsurePrivateDir(recoverySharesDir); err != nil {
 		return nil, err
+	}
+	// A repository that holds the directory must not commit it by git add -A.
+	if p := filepath.Join(recoverySharesDir, ".gitignore"); fileMissing(p) {
+		_ = protect.WritePrivateFile(p, []byte("*\n"), false)
 	}
 	var written []string
 	remove = func() {
@@ -177,11 +194,90 @@ func writeShares(shares []protect.Share) (remove func(), err error) {
 }
 
 // writeRecoveryFile writes the recovery file to the access directory.
+// It never writes through a link: a file in the way that is not a regular file is
+// refused, and the new content replaces the old whole, by a rename.
 func writeRecoveryFile(rcf recoveryFile, rec *protect.Recovery) error {
-	if err := os.MkdirAll(filepath.Dir(rcf.Path), 0o755); err != nil {
+	dir := filepath.Dir(rcf.Path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(rcf.Path, []byte(rec.Line()), 0o644)
+	if fi, err := os.Lstat(rcf.Path); err == nil && !fi.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", rcf.shown())
+	}
+	f, err := os.CreateTemp(dir, ".recovery.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	_, werr := f.WriteString(rec.Line())
+	if werr == nil {
+		werr = f.Chmod(0o644)
+	}
+	if werr == nil {
+		werr = f.Sync()
+	}
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		return werr
+	}
+	return os.Rename(f.Name(), rcf.Path)
+}
+
+// storedRecovery is the recovery recipient that the store holds now, read afresh. ok
+// is false when the store could not be read, which a caller treats as "unknown".
+func (p *protectRun) storedRecovery() (rec *protect.Recovery, ok bool) {
+	b, err := p.backend(false)
+	if err != nil {
+		return nil, false
+	}
+	st, err := state.OpenBackendWith(p.ctx, b, state.Options{})
+	if err != nil {
+		return nil, false
+	}
+	prot := st.Protection()
+	if prot.Sealed == nil {
+		return nil, true
+	}
+	return prot.Sealed.Recovery, true
+}
+
+// afterFailure decides what to do with the shares of rec when the command that set it
+// failed. meta.json is written early, so the recovery may be in the store already. Shares
+// of a lock that is there are the only way in, and they stay; so do shares when the store
+// cannot be read to tell. Only shares of a key that the store does not hold are removed.
+func (p *protectRun) afterFailure(rec *protect.Recovery, removeShares func(), rcf recoveryFile) {
+	if removeShares == nil {
+		return
+	}
+	stored, ok := p.storedRecovery()
+	switch {
+	case ok && !stored.Equal(rec):
+		removeShares()
+	case ok:
+		note := fmt.Sprintf("The recovery is already in the state, so its shares stay in %s. Do not delete them.", recoverySharesDir)
+		if err := writeRecoveryFile(rcf, rec); err != nil {
+			note += fmt.Sprintf(" %s could not be written: write this line to it:\n%s", rcf.shown(), rec.Line())
+		} else {
+			note += fmt.Sprintf(" %s was written; commit it.", rcf.shown())
+		}
+		out.Println(out.C(ui.Yellow, note))
+	default:
+		out.Println(out.C(ui.Yellow, fmt.Sprintf("Could not tell whether the recovery was set, so the shares stay in %s. Run pravo protect status, and delete them only if the state has no recovery.", recoverySharesDir)))
+	}
+}
+
+// recoveryJSON is what --json says of a change of the recovery.
+func recoveryJSON(action string, rec *protect.Recovery, rcf recoveryFile, shares bool) map[string]any {
+	m := map[string]any{"action": action}
+	if rec != nil {
+		m["k"], m["n"], m["key"], m["file"] = rec.K, rec.N, rec.Key.String(), rcf.Path
+		if shares {
+			m["shares"] = recoverySharesDir
+		}
+	}
+	return m
 }
 
 // printShares says where the shares are and what to do with them.
@@ -211,7 +307,7 @@ files.
 
 The recovery key is rebuilt on this machine, so it has been seen in one place.
 Replace it when the state is open again: --recovery K/N makes a new key and new
-shares in the same step, and the old shares open nothing afterwards. Without it
+shares in the same step, and the old shares open nothing that is written afterwards. Without it
 the old recovery stays, and the command says to replace it.
 
 Removing a reader makes a new data key, as protect rewrap does; --all seals every
@@ -304,6 +400,12 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 	id := protect.RecoveryIdentity(rk)
 	defer id.Close()
 
+	if newRec != nil {
+		// Before the prompt: the shares in use are often in the very directory the new ones go to.
+		if err := sharesDirFree(); err != nil {
+			return err
+		}
+	}
 	added, removed := readersDiff(prot, p.rf)
 	names := nameList(readerNames(p.rf.Readers))
 	out.Printf("Recovery key rebuilt from %s.\n", plural(len(shares), "share", "shares"))
@@ -326,7 +428,7 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 		step("seal every record, the outputs and the stored plans again under the new key")
 	}
 	if newRec != nil {
-		step(fmt.Sprintf("replace the recovery key: %d new shares, any %d rebuild it, and the old shares open nothing", newRec.N, newRec.K))
+		step(fmt.Sprintf("replace the recovery key: %d new shares, any %d rebuild it, and the old shares open nothing written from now on", newRec.N, newRec.K))
 	}
 	if ok, err := confirm("Proceed?", yes); err != nil {
 		return err
@@ -344,11 +446,10 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 			return err
 		}
 	}
+	rcf := loadRecoveryFile(p.rf)
 	st, err := state.OpenBackendWith(p.ctx, b, state.Options{Identity: id})
 	if err != nil {
-		if removeShares != nil {
-			removeShares()
-		}
+		p.afterFailure(newRec, removeShares, rcf)
 		return err
 	}
 	began := time.Now()
@@ -363,17 +464,24 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 		_, err = st.Rewrap(p.ctx, state.RewrapOptions{Readers: p.rf.Readers, By: protect.RecoveryName, Recovery: newRec})
 	}
 	if err != nil {
-		if removeShares != nil {
-			removeShares()
-		}
+		p.afterFailure(newRec, removeShares, rcf)
 		if errors.Is(err, state.ErrChanged) {
 			return engine.WithCode(engine.ExitStale, errors.New("meta.json changed while recovering; run it again"))
 		}
 		return err
 	}
+	if newRec != nil {
+		if err := writeRecoveryFile(rcf, newRec); err != nil {
+			return fmt.Errorf("the new recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, newRec.Line())
+		}
+	}
 	if flagJSON {
-		return emitJSON(map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup,
-			"resealed": res.Resealed, "recovery_replaced": newRec != nil})
+		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup,
+			"resealed": res.Resealed, "recovery_replaced": newRec != nil}
+		if newRec != nil {
+			j["recovery"] = recoveryJSON("replaced", newRec, rcf, true)
+		}
+		return emitJSON(j)
 	}
 	out.Println(out.C(ui.Green, "meta.json updated"))
 	if res.Change.NewGroup != "" && !all {
@@ -383,10 +491,6 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 		out.Printf("Sealed %s again in %s.\n", counted(res.Resealed, "record", "records"), elapsed(time.Since(began)))
 	}
 	if newRec != nil {
-		rcf := loadRecoveryFile(p.rf)
-		if err := writeRecoveryFile(rcf, newRec); err != nil {
-			return fmt.Errorf("the new recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, newRec.Line())
-		}
 		printShares(newRec, newShares, rcf)
 	} else {
 		out.Println(out.C(ui.Yellow, "The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap --recovery K/N"))

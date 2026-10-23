@@ -167,6 +167,8 @@ func (r *Recovery) Open(shares []Share) (*ReaderKey, error) {
 	pick := make([][]byte, 0, r.K)
 	for i, s := range shares {
 		switch {
+		case s.Index < 1 || s.Index > r.N:
+			return nil, fmt.Errorf("%w: share %d has index %d, and this recovery has %d shares", ErrRecovery, i+1, s.Index, r.N)
 		case s.KeyID != r.Key.ID():
 			return nil, fmt.Errorf("%w: share %d is of another recovery key (%s, this state has %s)", ErrRecovery, i+1, s.KeyID, r.Key.ID())
 		case seen[s.Index]:
@@ -265,7 +267,13 @@ func (m *Meta) IsRecoveryLock(l Lock) bool {
 // SetRecovery sets the recovery recipient of the state, or replaces it, or removes
 // it when rec is nil: every group gets a lock for the new key, and the lock of the
 // old key goes. The keys must open every group.
-func (m *Meta) SetRecovery(k *Keys, rec *Recovery) error {
+//
+// Holders of the old shares, or of a copy of the bucket made while the old key had a
+// lock, can still open the data key of the current group. So when a lock goes, the
+// current group is replaced by a new one with a new data key, as Rewrap does for a
+// reader who is removed. rotated says that the caller's Rewrap already did that in
+// the same change, and the new group has no copy anywhere.
+func (m *Meta) SetRecovery(k *Keys, rec *Recovery, rotated bool) error {
 	for _, g := range m.Groups {
 		if _, ok := k.keys[g.ID]; !ok {
 			return fmt.Errorf("protect: you cannot open group %s, so you cannot change its recovery", g.ID)
@@ -289,6 +297,22 @@ func (m *Meta) SetRecovery(k *Keys, rec *Recovery) error {
 		}
 	}
 	m.Recovery = rec
+	if old == nil || rotated || (rec != nil && rec.Key.Equal(old.Key)) {
+		return nil
+	}
+	var rs []Reader
+	if cur := m.group(m.Current); cur != nil {
+		for _, l := range cur.Locks {
+			rs = append(rs, Reader{Name: l.Name, Key: l.Key})
+		}
+	}
+	id := "g" + strconv.Itoa(m.nextGroupNumber())
+	g, dk, err := NewGroup(id, k.lineage, rs)
+	if err != nil {
+		return err
+	}
+	m.Groups = append(m.Groups, g)
+	m.Current, k.current, k.keys[id] = id, id, dk
 	return nil
 }
 

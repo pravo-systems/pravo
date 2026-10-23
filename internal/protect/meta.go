@@ -32,6 +32,8 @@ func (m *Meta) Check() error {
 		return fmt.Errorf("%w: it lists no group", ErrDamaged)
 	case m.group(m.Current) == nil:
 		return fmt.Errorf("%w: the current group %q is not in the list", ErrDamaged, m.Current)
+	case m.Recovery != nil && (m.Recovery.K < MinRecoveryK || m.Recovery.N < m.Recovery.K || m.Recovery.N > MaxRecoveryN):
+		return fmt.Errorf("%w: its recovery says %d of %d shares", ErrDamaged, m.Recovery.K, m.Recovery.N)
 	}
 	return nil
 }
@@ -112,6 +114,13 @@ func (m *Meta) Rewrap(k *Keys, readers []Reader) (Change, error) {
 	cur := m.group(m.Current)
 	if cur == nil {
 		return ch, errors.New("protect: current group is missing")
+	}
+	if m.Recovery != nil {
+		for _, r := range readers {
+			if r.Key.Equal(m.Recovery.Key) {
+				return ch, fmt.Errorf("protect: reader %s has the recovery key of the state; a reader needs a key of their own", r.Name)
+			}
+		}
 	}
 	recipients := m.recipients(readers)
 	miss, extra := cur.Diff(recipients)
