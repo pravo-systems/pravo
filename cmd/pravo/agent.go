@@ -241,13 +241,15 @@ func schemaText(ps *schema.ProviderSchema, typ string, required bool, source reg
 	var body []string
 	in := false
 	for _, l := range lines {
+		// The definitions are written once, at package level, as _#Resource and
+		// its kin; #Provider holds a reference to each.
 		switch {
-		case !in && l == "\t"+def+": {":
+		case !in && l == "_"+def+": {":
 			in = true
-		case in && l == "\t}":
+		case in && l == "}":
 			in = false
 		case in:
-			body = append(body, strings.TrimPrefix(l, "\t\t"))
+			body = append(body, strings.TrimPrefix(l, "\t"))
 		}
 	}
 	if len(body) == 0 {

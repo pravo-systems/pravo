@@ -122,17 +122,17 @@ Output:
 The package exports one definition, `#Provider`. The definitions that resources are built from are its members.
 
 ```sh
-grep -E '^[[:space:]]?#(Provider|Resource|Data|Ephemeral|Function): \{' cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue
+grep -E '^[[:space:]]?#(Provider|Resource|Data|Ephemeral|Function): ' cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue
 ```
 
 Output:
 
 ```text
 #Provider: {
-	#Resource: {
-	#Data: {
-	#Ephemeral: {
-	#Function: {
+	#Resource: _#Resource
+	#Data: _#Data
+	#Ephemeral: _#Ephemeral
+	#Function: _#Function
 ```
 
 | Member | Contents |
@@ -141,6 +141,8 @@ Output:
 | `#Data` | One for each data source type. |
 | `#Ephemeral` | One for each ephemeral resource type. |
 | `#Function` | One for each provider function, with `args` and `result`. |
+
+Each member refers to a set of definitions that the file writes once, after `#Provider`, as `_#Resource`, `_#Data`, `_#Ephemeral` and `_#Function`. CUE copies what a struct holds each time the struct is unified, so a provider that held its definitions would carry thousands of them into every provider struct and every module that takes one. A reference is shared. A specification does not use the hidden names. It writes `$aws.#Resource.aws_s3_bucket`.
 
 The provider-level fields of `#Provider` come first in the file.
 

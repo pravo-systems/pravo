@@ -118,7 +118,7 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	if res == nil {
 		res = p.SortedResourceNames()
 	}
-	b.WriteString("\n// Managed resource types.\n#Resource: {\n")
+	b.WriteString("\n// Managed resource types.\n_#Resource: {\n")
 	for _, name := range res {
 		s := p.Resources[name]
 		if s == nil {
@@ -139,7 +139,7 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	if ds == nil {
 		ds = p.SortedDataSourceNames()
 	}
-	b.WriteString("\n// Data source types.\n#Data: {\n")
+	b.WriteString("\n// Data source types.\n_#Data: {\n")
 	for _, name := range ds {
 		s := p.DataSources[name]
 		if s == nil {
@@ -159,7 +159,7 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	if eph == nil {
 		eph = p.SortedEphemeralNames()
 	}
-	b.WriteString("\n// Ephemeral resource types: opened for the duration of a run, never recorded in state.\n#Ephemeral: {\n")
+	b.WriteString("\n// Ephemeral resource types: opened for the duration of a run, never recorded in state.\n_#Ephemeral: {\n")
 	for _, name := range eph {
 		s := p.Ephemerals[name]
 		if s == nil {
@@ -178,7 +178,7 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	if fns == nil {
 		fns = p.SortedFunctionNames()
 	}
-	b.WriteString("\n// Provider-defined functions: a struct with args; the result is filled in at run time.\n#Function: {\n")
+	b.WriteString("\n// Provider-defined functions: a struct with args; the result is filled in at run time.\n_#Function: {\n")
 	for _, name := range fns {
 		f := p.Functions[name]
 		if f == nil {
@@ -213,14 +213,17 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	b.WriteString("}\n")
 	// #Resource, #Data, #Ephemeral and #Function are members of #Provider, so a
 	// resource is built through a provider instance: eu.#Resource.aws_s3_bucket
-	// & {...}. That is how pravo knows which provider it uses.
-	return scopeIntoProvider(b.Bytes())
+	// & {...}. That is how pravo knows which provider it uses. The definitions
+	// themselves are written once, at package level, and each member is a
+	// reference to them: CUE copies what a struct holds every time the struct is
+	// unified, and a provider holds thousands of definitions.
+	return referenceCatalogues(b.Bytes())
 }
 
-// scopeIntoProvider moves everything after the #Provider block into it,
-// indented, so the definitions of resources, data sources, ephemerals and
-// functions become members of #Provider.
-func scopeIntoProvider(src []byte) []byte {
+// referenceCatalogues adds the members #Resource, #Data, #Ephemeral and
+// #Function to #Provider, each a reference to the definitions that follow the
+// block at package level.
+func referenceCatalogues(src []byte) []byte {
 	lines := strings.Split(string(src), "\n")
 	start, end := -1, -1
 	for i, l := range lines {
@@ -238,15 +241,19 @@ func scopeIntoProvider(src []byte) []byte {
 	}
 	var out []string
 	out = append(out, lines[:end]...)
-	out = append(out, "", "\t// Definitions reached through a provider: a resource built through one uses it.")
-	for _, l := range lines[end+1:] {
-		if l == "" {
-			out = append(out, "")
-		} else {
-			out = append(out, "\t"+l)
-		}
-	}
-	out = append(out, "}", "")
+	out = append(out,
+		"",
+		"\t// Definitions reached through a provider: a resource built through one uses it.",
+		"\t// Managed resource types.",
+		"\t#Resource: _#Resource",
+		"\t// Data source types.",
+		"\t#Data: _#Data",
+		"\t// Ephemeral resource types: opened for the duration of a run, never recorded in state.",
+		"\t#Ephemeral: _#Ephemeral",
+		"\t// Provider-defined functions: a struct with args; the result is filled in at run time.",
+		"\t#Function: _#Function",
+	)
+	out = append(out, lines[end:]...)
 	return []byte(strings.Join(out, "\n"))
 }
 
