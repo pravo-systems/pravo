@@ -217,35 +217,34 @@ func schemaText(ps *schema.ProviderSchema, typ string, required bool, source reg
 	opts := schema.GenOptions{Resources: []string{}, DataSources: []string{}, Ephemerals: []string{}, Functions: []string{}, Source: source.String()}
 	var kind string
 	switch {
-	case ps.Resources[typ] != nil:
+	case ps.Resource(typ) != nil:
 		opts.Resources, kind = []string{typ}, "resource"
-	case ps.DataSources[typ] != nil:
+	case ps.DataSource(typ) != nil:
 		opts.DataSources, kind = []string{typ}, "data"
-	case ps.Ephemerals[typ] != nil:
+	case ps.Ephemeral(typ) != nil:
 		opts.Ephemerals, kind = []string{typ}, "ephemeral"
-	case ps.Functions[typ] != nil:
+	case ps.Function(typ) != nil:
 		opts.Functions, kind = []string{typ}, "call"
 	default:
 		return "", fmt.Errorf("the provider has no type %q", typ)
 	}
 	if required {
-		filtered := *ps
-		filtered.Resources = map[string]*schema.Schema{}
-		filtered.DataSources = map[string]*schema.Schema{}
-		filtered.Ephemerals = map[string]*schema.Schema{}
-		keep := func(m map[string]*schema.Schema, name string) {
-			if s := ps.Resources[name]; s != nil && kind == "resource" {
-				m[name] = requiredOnly(s)
-			}
+		filtered := &schema.ProviderSchema{
+			Provider: ps.Provider, ProviderMeta: ps.ProviderMeta,
+			Resources: map[string]*schema.Schema{}, DataSources: map[string]*schema.Schema{},
+			Ephemerals: map[string]*schema.Schema{}, Functions: map[string]*schema.Function{},
 		}
-		keep(filtered.Resources, typ)
-		if s := ps.DataSources[typ]; s != nil && kind == "data" {
-			filtered.DataSources[typ] = requiredOnly(s)
+		switch kind {
+		case "resource":
+			filtered.Resources[typ] = requiredOnly(ps.Resource(typ))
+		case "data":
+			filtered.DataSources[typ] = requiredOnly(ps.DataSource(typ))
+		case "ephemeral":
+			filtered.Ephemerals[typ] = requiredOnly(ps.Ephemeral(typ))
+		case "call":
+			filtered.Functions[typ] = ps.Function(typ)
 		}
-		if s := ps.Ephemerals[typ]; s != nil && kind == "ephemeral" {
-			filtered.Ephemerals[typ] = requiredOnly(s)
-		}
-		ps = &filtered
+		ps = filtered
 	}
 	src := schema.GenerateCUE(ps, "schema", opts)
 	// Show only the definition of the requested type, dedented out of #Provider.
@@ -255,13 +254,15 @@ func schemaText(ps *schema.ProviderSchema, typ string, required bool, source reg
 	var body []string
 	in := false
 	for _, l := range lines {
+		// The definitions are written once, at package level, as _#Resource and
+		// its kin; #Provider holds a reference to each.
 		switch {
-		case !in && l == "\t"+def+": {":
+		case !in && l == "_"+def+": {":
 			in = true
-		case in && l == "\t}":
+		case in && l == "}":
 			in = false
 		case in:
-			body = append(body, strings.TrimPrefix(l, "\t\t"))
+			body = append(body, strings.TrimPrefix(l, "\t"))
 		}
 	}
 	if len(body) == 0 {

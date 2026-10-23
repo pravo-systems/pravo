@@ -134,11 +134,22 @@ func providersInstalled(t *testing.T) bool {
 		if _, ok := c.FindInstalled(src, ver); !ok {
 			return false
 		}
-		if _, err := os.Stat(c.SchemaCachePath(src, ver)); err != nil {
+		if !schemaCached(c, src, ver) {
 			return false
 		}
 	}
 	return true
+}
+
+// schemaCached reports whether the schema of a provider version is in the cache,
+// as a pack or, where an earlier pravo wrote it, as JSON.
+func schemaCached(c *registry.Client, src registry.Source, ver string) bool {
+	for _, path := range []string{c.SchemaPackPath(src, ver), c.SchemaCachePath(src, ver)} {
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // secretsOf reads the values of the sensitive attributes that the example's

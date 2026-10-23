@@ -56,7 +56,7 @@ The [global flags](global-flags.md) apply. A single dash works as well: `-upgrad
 | Path below `$PRAVO_HOME` | Holds |
 |---|---|
 | `providers/<host>/<namespace>/<type>/<version>/<os>_<arch>/` | The provider binary. |
-| `schemas/<host>/<namespace>/<type>/<version>.json` | The cached schema of that provider version. |
+| `schemas/<host>/<namespace>/<type>/<version>.pack` | The cached schema of that provider version: an index, and one document for each type. A command reads the types that it uses. A cache that an earlier pravo wrote as `<version>.json` is read once and kept as a pack. |
 | `s3-probe/` | One empty file for each S3 store that passed the check for conditional requests. |
 
 Set `PRAVO_HOME` to move the directory, for example to a cache directory on a build machine. Later commands in that root need the same `PRAVO_HOME`.

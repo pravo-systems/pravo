@@ -266,16 +266,28 @@ func (m *Providers) Schema(ctx context.Context, local string) (*schema.ProviderS
 	if !ok {
 		return nil, fmt.Errorf("provider %q is not resolved", local)
 	}
-	cachePath := ""
+	packPath, jsonPath := "", ""
 	// Recording and replaying must go through the provider interface: the
 	// on-disk schema cache would hide GetSchema from the recorder.
 	useCache := os.Getenv("PRAVO_RECORD") == "" && !plugin.Replaying()
 	if rp.Req.Path == "" && !rp.Reattached() && useCache {
-		cachePath = m.Registry.SchemaCachePath(rp.Req.Source, rp.Version)
+		packPath = m.Registry.SchemaPackPath(rp.Req.Source, rp.Version)
+		jsonPath = m.Registry.SchemaCachePath(rp.Req.Source, rp.Version)
 		began := time.Now()
-		if data, err := os.ReadFile(cachePath); err == nil {
+		// The pack is opened and its types are read when they are first asked for.
+		if s, err := schema.OpenPack(packPath); err == nil {
+			plog.Debug(ctx, "schema from the cache", "provider", local, "path", packPath, "took", time.Since(began).Round(time.Millisecond))
+			m.mu.Lock()
+			m.schemas[local] = s
+			m.mu.Unlock()
+			return s, nil
+		}
+		// A cache that an earlier pravo wrote is a JSON file. It is read whole, and
+		// written as a pack so that the next run does not.
+		if data, err := os.ReadFile(jsonPath); err == nil {
 			if s, err := schema.Unmarshal(data); err == nil {
-				plog.Debug(ctx, "schema from the cache", "provider", local, "path", cachePath, "bytes", len(data), "took", time.Since(began).Round(time.Millisecond))
+				plog.Debug(ctx, "schema from the cache", "provider", local, "path", jsonPath, "bytes", len(data), "took", time.Since(began).Round(time.Millisecond))
+				writePack(packPath, s)
 				m.mu.Lock()
 				m.schemas[local] = s
 				m.mu.Unlock()
@@ -296,11 +308,8 @@ func (m *Providers) Schema(ctx context.Context, local string) (*schema.ProviderS
 		return nil, fmt.Errorf("fetching schema of provider %s: %w", local, err)
 	}
 	s.Sort()
-	if cachePath != "" {
-		if data, err := s.Marshal(); err == nil {
-			_ = os.MkdirAll(filepath.Dir(cachePath), 0o755)
-			_ = os.WriteFile(cachePath, data, 0o644)
-		}
+	if packPath != "" {
+		writePack(packPath, s)
 	}
 	m.mu.Lock()
 	m.schemas[local] = s
@@ -483,4 +492,26 @@ func (m *Providers) Close() {
 	}
 	m.instances = map[string]*instance{}
 	plugin.CleanupClients()
+}
+
+// writePack caches a schema as a pack. A failure only means that the next run
+// asks the provider again, so it is not reported. The file is written aside and
+// moved into place, so that a run that reads it never sees half of it.
+func writePack(path string, s *schema.ProviderSchema) {
+	data, err := s.MarshalPack()
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp*")
+	if err != nil {
+		return
+	}
+	_, werr := tmp.Write(data)
+	cerr := tmp.Close()
+	if werr != nil || cerr != nil || os.Rename(tmp.Name(), path) != nil {
+		_ = os.Remove(tmp.Name())
+	}
 }

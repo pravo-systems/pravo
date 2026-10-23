@@ -32,7 +32,7 @@ func (e *Engine) planOrphans(ctx context.Context, present map[string]bool) ([]*C
 	warm := newWarmth()
 	for _, sr := range records {
 		if ps, ok := e.Schemas[config.LocalName(sr.ProviderKey)]; ok {
-			warm.up(ps.Resources[sr.Type])
+			warm.up(ps.Resource(sr.Type))
 		}
 	}
 	ctx, cancel := context.WithCancel(ctx)

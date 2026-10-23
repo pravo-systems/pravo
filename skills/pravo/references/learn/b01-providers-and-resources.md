@@ -133,10 +133,10 @@ Output:
 ```text
 #Lifecycle: {
 #Provider: {
-	#Resource: {
-	#Data: {
-	#Ephemeral: {
-	#Function: {
+	#Resource: _#Resource
+	#Data: _#Data
+	#Ephemeral: _#Ephemeral
+	#Function: _#Function
 ```
 
 This is why `main.cue` writes `$random.#Resource.random_integer`: the resource type is a definition inside the provider it runs on.

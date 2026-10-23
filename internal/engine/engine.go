@@ -478,11 +478,11 @@ func (e *Engine) resourceSchema(r *config.Resource) (*schema.Schema, error) {
 	var s *schema.Schema
 	switch r.Mode {
 	case "data":
-		s = ps.DataSources[r.Type]
+		s = ps.DataSource(r.Type)
 	case "ephemeral":
-		s = ps.Ephemerals[r.Type]
+		s = ps.Ephemeral(r.Type)
 	default:
-		s = ps.Resources[r.Type]
+		s = ps.Resource(r.Type)
 	}
 	if s == nil {
 		return nil, fmt.Errorf("%s: provider %s has no %s type %q", r.Address(), r.LocalProvider(), r.Mode, r.Type)
@@ -713,7 +713,7 @@ func (e *Engine) planDelete(ctx context.Context, sr *state.Resource, reason stri
 		}
 		return nil, fmt.Errorf("%s: provider %s is needed to destroy it but is not available%s", sr.Address(), local, hint)
 	}
-	s := ps.Resources[sr.Type]
+	s := ps.Resource(sr.Type)
 	if s == nil {
 		return nil, fmt.Errorf("%s: provider %s no longer has resource type %q", sr.Address(), local, sr.Type)
 	}

@@ -399,9 +399,9 @@ func (e *Engine) restoreChange(sc savedChange) (*Change, error) {
 	}
 	var s *schema.Schema
 	if sc.Mode == "data" {
-		s = ps.DataSources[sc.Type]
+		s = ps.DataSource(sc.Type)
 	} else {
-		s = ps.Resources[sc.Type]
+		s = ps.Resource(sc.Type)
 	}
 	if s == nil {
 		return nil, fmt.Errorf("%s: provider has no %s type %q", sc.Addr, sc.Mode, sc.Type)

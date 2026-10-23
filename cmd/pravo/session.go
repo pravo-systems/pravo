@@ -77,9 +77,13 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 			return nil, err
 		}
 	}
-	plog.Debug(ctx, "loaded", "dir", root.Dir, "managed", countMode(root, "managed"), "data", countMode(root, "data"),
+	loaded := []any{"dir", root.Dir, "managed", countMode(root, "managed"), "data", countMode(root, "data"),
 		"ephemeral", countMode(root, "ephemeral"), "calls", countMode(root, "call"), "outputs", len(root.Outputs),
-		"providers", len(root.Providers), "moves", len(root.Moves), "imports", len(root.Imports), "took", took(began))
+		"providers", len(root.Providers), "moves", len(root.Moves), "imports", len(root.Imports)}
+	if root.Pruned {
+		loaded = append(loaded, "pruned", true)
+	}
+	plog.Debug(ctx, "loaded", append(loaded, "took", took(began))...)
 	s := &session{root: root, reg: registry.NewClient()}
 	s.lock, err = engine.ReadLock(root.Dir)
 	if err != nil {
@@ -512,7 +516,7 @@ func (s *session) writeGenerated(verbose bool) error {
 			if !changed {
 				verb = "Up to date"
 			}
-			out.Printf("%s %s (%d resource types, %d data sources, %d ephemeral, %d functions)\n", verb, filepath.Join("cue.mod", "gen", filepath.FromSlash(importPath)), len(ps.Resources), len(ps.DataSources), len(ps.Ephemerals), len(ps.Functions))
+			out.Printf("%s %s (%d resource types, %d data sources, %d ephemeral, %d functions)\n", verb, filepath.Join("cue.mod", "gen", filepath.FromSlash(importPath)), len(ps.SortedResourceNames()), len(ps.SortedDataSourceNames()), len(ps.SortedEphemeralNames()), len(ps.SortedFunctionNames()))
 		}
 	}
 	pdir := filepath.Join(modDir, "gen", "pravo.dev", "pravo")

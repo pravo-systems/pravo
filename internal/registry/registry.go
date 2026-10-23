@@ -153,9 +153,17 @@ func (c *Client) ProviderDir(src Source, ver string) string {
 	return filepath.Join(c.Home, "providers", src.storeDir(), ver, CurrentPlatform().String())
 }
 
-// SchemaCachePath is where the provider's schema JSON is cached.
+// SchemaCachePath is where the provider's schema JSON is cached. Newer versions
+// of pravo keep it as a pack, at SchemaPackPath, and read this file only when
+// the pack is not there.
 func (c *Client) SchemaCachePath(src Source, ver string) string {
 	return filepath.Join(c.Home, "schemas", src.storeDir(), ver+".json")
+}
+
+// SchemaPackPath is where the provider's schema is cached as a pack, an index
+// and one document for each type, so that a run reads the types it uses.
+func (c *Client) SchemaPackPath(src Source, ver string) string {
+	return filepath.Join(c.Home, "schemas", src.storeDir(), ver+".pack")
 }
 
 func (c *Client) providersBase(ctx context.Context, host string) (string, error) {

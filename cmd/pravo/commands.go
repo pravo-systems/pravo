@@ -814,7 +814,7 @@ func importCmd() *cobra.Command {
 				return fmt.Errorf("%s is already in state", args[0])
 			}
 			ps := s.schemas[res.LocalProvider()]
-			sch := ps.Resources[res.Type]
+			sch := ps.Resource(res.Type)
 			prov, err := s.providers.Provider(ctx, res.ProviderKey)
 			if err != nil {
 				return err
@@ -1099,9 +1099,9 @@ that declares none, so it also serves to try out CUE.
 				ps := s.schemas[r.LocalProvider()]
 				var sch *schema.Schema
 				if r.Mode == "data" {
-					sch = ps.DataSources[r.Type]
+					sch = ps.DataSource(r.Type)
 				} else {
-					sch = ps.Resources[r.Type]
+					sch = ps.Resource(r.Type)
 				}
 				if sch == nil {
 					continue

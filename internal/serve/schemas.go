@@ -31,11 +31,11 @@ type ProviderSchemas struct{ PS *schema.ProviderSchema }
 func (p ProviderSchemas) Type(mode, typ string) *schema.Schema {
 	switch mode {
 	case "data":
-		return p.PS.DataSources[typ]
+		return p.PS.DataSource(typ)
 	case "ephemeral":
-		return p.PS.Ephemerals[typ]
+		return p.PS.Ephemeral(typ)
 	}
-	return p.PS.Resources[typ]
+	return p.PS.Resource(typ)
 }
 
 // Provider implements Schemas.
@@ -49,10 +49,19 @@ type cacheStore struct {
 
 	mu    sync.Mutex
 	files map[string]*cacheFile
+	packs map[string]*cachePack
 }
 
 func newCacheStore() *cacheStore {
-	return &cacheStore{client: &registry.Client{Home: registry.Home()}, files: map[string]*cacheFile{}}
+	return &cacheStore{client: &registry.Client{Home: registry.Home()}, files: map[string]*cacheFile{}, packs: map[string]*cachePack{}}
+}
+
+// cachePack is one cached provider schema in the form that pravo writes now: an
+// index and a document for each type, which the schema reads as they are asked for.
+type cachePack struct {
+	mod     time.Time
+	size    int64
+	schemas Schemas
 }
 
 // cacheFile is one cached provider schema. mod and size say which version of
@@ -73,6 +82,9 @@ type cacheFile struct {
 func (c *cacheStore) lookup(src registry.Source, version string) (Schemas, bool) {
 	if version == "" {
 		return nil, false
+	}
+	if s, ok := c.lookupPack(c.client.SchemaPackPath(src, version)); ok {
+		return s, true
 	}
 	path := c.client.SchemaCachePath(src, version)
 	fi, err := os.Stat(path)
@@ -105,6 +117,29 @@ func (c *cacheStore) lookup(src registry.Source, version string) (Schemas, bool)
 	c.files[path] = f
 	c.mu.Unlock()
 	return f, true
+}
+
+// lookupPack opens the cache of a provider that is kept as a pack.
+func (c *cacheStore) lookupPack(path string) (Schemas, bool) {
+	fi, err := os.Stat(path)
+	if err != nil || fi.IsDir() {
+		return nil, false
+	}
+	c.mu.Lock()
+	p := c.packs[path]
+	c.mu.Unlock()
+	if p != nil && p.mod.Equal(fi.ModTime()) && p.size == fi.Size() {
+		return p.schemas, true
+	}
+	ps, err := schema.OpenPack(path)
+	if err != nil {
+		return nil, false
+	}
+	p = &cachePack{mod: fi.ModTime(), size: fi.Size(), schemas: ProviderSchemas{PS: ps}}
+	c.mu.Lock()
+	c.packs[path] = p
+	c.mu.Unlock()
+	return p.schemas, true
 }
 
 // Type implements Schemas.

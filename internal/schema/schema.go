@@ -81,6 +81,11 @@ type ProviderSchema struct {
 	DataSources  map[string]*Schema   `json:"data_sources"`
 	Ephemerals   map[string]*Schema   `json:"ephemerals"`
 	Functions    map[string]*Function `json:"functions"`
+
+	// lazy is the pack that the types are read from when the schema was opened
+	// with OpenPack; the maps then hold the types that were asked for. Read the
+	// types of such a schema through Resource, DataSource, Ephemeral and Function.
+	lazy *lazyPack
 }
 
 // Parameter is one parameter of a provider-defined function.
@@ -134,14 +139,7 @@ func parseType(raw json.RawMessage) tftypes.Type {
 }
 
 // SortedFunctionNames returns function names in order.
-func (p *ProviderSchema) SortedFunctionNames() []string {
-	out := make([]string, 0, len(p.Functions))
-	for k := range p.Functions {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
-}
+func (p *ProviderSchema) SortedFunctionNames() []string { return p.names(kindFunction) }
 
 // Type returns the tftypes type of the attribute.
 func (a *Attribute) Type() tftypes.Type {
@@ -243,17 +241,17 @@ func (o *Object) Attribute(name string) *Attribute {
 
 // SortedResourceNames returns resource type names in order.
 func (p *ProviderSchema) SortedResourceNames() []string {
-	return sortedKeys(p.Resources)
+	return p.names(kindResource)
 }
 
 // SortedDataSourceNames returns data source type names in order.
 func (p *ProviderSchema) SortedDataSourceNames() []string {
-	return sortedKeys(p.DataSources)
+	return p.names(kindData)
 }
 
 // SortedEphemeralNames returns ephemeral resource type names in order.
 func (p *ProviderSchema) SortedEphemeralNames() []string {
-	return sortedKeys(p.Ephemerals)
+	return p.names(kindEphemeral)
 }
 
 func sortedKeys(m map[string]*Schema) []string {
@@ -291,6 +289,7 @@ func (o *Object) sort() {
 
 // Sort orders everything in the provider schema for stable output.
 func (p *ProviderSchema) Sort() {
+	_ = p.Materialize()
 	if p.Provider != nil && p.Provider.Block != nil {
 		p.Provider.Block.Sort()
 	}
@@ -307,6 +306,9 @@ func (p *ProviderSchema) Sort() {
 
 // Marshal encodes the schema for the on-disk cache.
 func (p *ProviderSchema) Marshal() ([]byte, error) {
+	if err := p.Materialize(); err != nil {
+		return nil, err
+	}
 	p.CacheVersion = CacheVersion
 	return json.MarshalIndent(p, "", " ")
 }

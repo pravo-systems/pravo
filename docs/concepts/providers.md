@@ -187,15 +187,15 @@ sed -n 1,2p cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue
 The package exports one definition, `#Provider`. The definitions that resources are built from are its members.
 
 ```sh run
-grep -E '^[[:space:]]?#(Provider|Resource|Data|Ephemeral|Function): \{' cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue
+grep -E '^[[:space:]]?#(Provider|Resource|Data|Ephemeral|Function): ' cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue
 ```
 
 ```text out
 #Provider: {
-	#Resource: {
-	#Data: {
-	#Ephemeral: {
-	#Function: {
+	#Resource: _#Resource
+	#Data: _#Data
+	#Ephemeral: _#Ephemeral
+	#Function: _#Function
 ```
 
 | Member | Contents |
@@ -204,6 +204,8 @@ grep -E '^[[:space:]]?#(Provider|Resource|Data|Ephemeral|Function): \{' cue.mod/
 | `#Data` | One for each data source type. |
 | `#Ephemeral` | One for each ephemeral resource type. |
 | `#Function` | One for each provider function, with `args` and `result`. |
+
+Each member refers to a set of definitions that the file writes once, after `#Provider`, as `_#Resource`, `_#Data`, `_#Ephemeral` and `_#Function`. CUE copies what a struct holds each time the struct is unified, so a provider that held its definitions would carry thousands of them into every provider struct and every module that takes one. A reference is shared. A specification does not use the hidden names. It writes `$aws.#Resource.aws_s3_bucket`.
 
 The provider-level fields of `#Provider` come first in the file.
 
@@ -222,6 +224,8 @@ grep -E '^[[:space:]]\$' cue.mod/gen/pravo.dev/providers/hashicorp/random/random
 ```
 
 The package holds every type that the provider offers, not only the ones that a root uses. A resource, a data source or a function is a struct that unifies with one definition, and the definition is closed. A misspelt attribute is a conflict that CUE reports before any provider runs. The definitions also carry the documentation of the provider as comments, so an editor shows it.
+
+A run does not load all of it. The package of a large provider is megabytes of CUE, and evaluating it is most of the time that a small root takes. When pravo loads a root, it reads the CUE of the module for the types that it names, such as `$aws.#Resource.aws_s3_bucket`, and loads a copy of each large generated package in which the other types are blanked. The lines keep their numbers, so a position in a message is a position in the file on disk. The file is not changed, and an editor still sees the whole package. A package is loaded whole when the module uses a catalogue as a whole, as in `for k, v in $aws.#Resource`, or names a type with an expression, and when the load fails, which is how a type that the scan did not find is found. `PRAVO_NO_PRUNE` loads whole packages.
 
 A computed attribute is a regular field of the type `T | null`. Referring to it before it is known gives a non-concrete value, which pravo sends to the provider as unknown. An attribute that is both optional and computed has the same shape. A sensitive, deprecated or write-only attribute carries an `@pravo(...)` attribute.
 

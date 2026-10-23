@@ -2,6 +2,7 @@ package schema
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -46,5 +47,37 @@ func TestGenerateCUECompilesAndShadowSafe(t *testing.T) {
 	}
 	if !def.LookupPath(cue.ParsePath("id")).Exists() {
 		t.Fatal("computed attribute must be a regular field")
+	}
+}
+
+// The definitions of a provider are written once, at package level, and the
+// members of #Provider refer to them: CUE copies what a struct holds every time
+// it is unified, and an AWS provider holds thousands of definitions.
+func TestGenerateCUEWritesTheDefinitionsOnce(t *testing.T) {
+	ps := &ProviderSchema{
+		Resources:   map[string]*Schema{"x_thing": {Block: &Block{}}},
+		DataSources: map[string]*Schema{"x_lookup": {Block: &Block{}}},
+	}
+	src := string(GenerateCUE(ps, "x", GenOptions{}))
+	for _, want := range []string{
+		"\n\t#Resource: _#Resource\n", "\n\t#Data: _#Data\n", "\n\t#Ephemeral: _#Ephemeral\n", "\n\t#Function: _#Function\n",
+		"\n_#Resource: {\n", "\n_#Data: {\n", "\n_#Ephemeral: {\n", "\n_#Function: {\n",
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("the package lacks %q:\n%s", want, src)
+		}
+	}
+	ctx := cuecontext.New()
+	v := ctx.CompileBytes([]byte(src))
+	if err := v.Err(); err != nil {
+		t.Fatal(err)
+	}
+	// A provider struct reaches a definition as before.
+	p := v.LookupPath(cue.MakePath(cue.Def("#Provider")))
+	for path, want := range map[string]string{"#Resource.x_thing.$kind": "resource", "#Data.x_lookup.$kind": "data"} {
+		got, err := p.LookupPath(cue.ParsePath(path)).String()
+		if err != nil || got != want {
+			t.Errorf("%s = %q, %v; want %q", path, got, err, want)
+		}
 	}
 }

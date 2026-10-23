@@ -40,7 +40,7 @@ func localRoot(t *testing.T, spec string) string {
 	if _, ok := c.FindInstalled(src, "2.9.1"); !ok {
 		t.Skip("the local provider is not installed")
 	}
-	if _, err := os.Stat(c.SchemaCachePath(src, "2.9.1")); err != nil {
+	if !schemaCached(c, src, "2.9.1") {
 		t.Skip("the schema of the local provider is not cached")
 	}
 	if spec == "" {
