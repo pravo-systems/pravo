@@ -28,6 +28,8 @@ const YOU = {
   locked: { cls: 'chg', label: 'identity locked' },
 };
 
+const NAME_REASON = 'This name is not a valid reader name. It is listed and used in no command.';
+
 export const FOOTER = 'This page suggests commands. It runs nothing and writes nothing.';
 
 // withParts shows the parts of a text that a person fills in (words in angle brackets) apart from the rest.
@@ -78,7 +80,7 @@ export class AccessView {
       h('li', { class: 'wide' }, h('span', { class: 'k' }, 'location'), h('code', null, a.location)),
       a.state === 'off' || a.state === 'immutable' ? null : h('li', null, h('span', { class: 'k' }, 'recovery'), h('b', null, a.recovery.state)),
     ];
-    return h('section', { class: `ac-banner st-${a.state}`, 'aria-labelledby': 'ac-h-state' },
+    return h('section', { class: `ac-banner st-${a.state}` },
       h('div', { class: 'ac-bhead' }, h('h2', { id: 'ac-h-state', class: 'ac-title' }, 'Access'),
         h('span', { class: `b ${st.cls}` }, icon(st.ic), st.label)),
       h('p', { class: 'ac-sentence' }, a.summary),
@@ -114,20 +116,20 @@ export class AccessView {
     const mark = (on, what) => on
       ? h('span', { class: 'ac-mark yes', role: 'img', 'aria-label': `in the ${what}` }, icon('check'))
       : h('span', { class: 'ac-mark no', role: 'img', 'aria-label': `not in the ${what}` }, '–');
-    const body = rows.map((r) => h('tr', { class: 'ac-r' + (r.you ? ' you' : '') + (r.name_ok ? '' : ' bad') },
-      h('th', { scope: 'row', 'data-label': 'Name' }, h('span', { class: 'nm' }, r.name || '(no name)'),
+    const body = rows.map((r) => h('tr', { class: 'ac-r' + (r.you ? ' you' : '') + (r.name_ok ? '' : ' bad'), role: 'row' },
+      h('th', { scope: 'row', role: 'rowheader', 'data-label': 'Name' }, h('span', { class: 'nm' }, r.name || '(no name)'),
         r.you ? h('span', { class: 'b ok' }, 'you') : null,
-        r.name_ok ? null : h('span', { class: 'b bad', 'data-tip': 'This name is not a valid reader name. It is listed and used in no command.' }, 'name not usable')),
-      h('td', { 'data-label': 'Reader key' }, r.key ? this.key(r.key_short, r.key, 'reader key of ' + (r.name || 'a reader')) : h('span', { class: 'dim' }, 'none')),
-      h('td', { 'data-label': 'Signing key' }, r.fingerprint ? this.key(r.fingerprint.length > 18 ? r.fingerprint.slice(0, 18) + '…' : r.fingerprint, r.fingerprint, 'signing key fingerprint of ' + (r.name || 'a reader')) : h('span', { class: 'dim' }, 'none')),
-      h('td', { class: 'c', 'data-label': 'In the file' }, mark(r.in_file, 'readers file')),
-      h('td', { class: 'c', 'data-label': 'In the store' }, mark(r.in_store, 'store')),
-      h('td', { class: 'c', 'data-label': 'Line' }, r.line ? String(r.line) : h('span', { class: 'dim' }, '–'))));
+        r.name_ok ? null : h('span', { class: 'b bad', tabindex: '0', role: 'note', 'aria-label': 'name not usable', 'aria-description': NAME_REASON, 'data-tip': NAME_REASON, 'data-fk': 'nm:' + (r.name || '') }, 'name not usable')),
+      h('td', { role: 'cell', 'data-label': 'Reader key' }, r.key ? this.key(r.key_short, r.key, 'reader key of ' + (r.name || 'a reader')) : h('span', { class: 'dim' }, 'none')),
+      h('td', { role: 'cell', 'data-label': 'Signing key' }, r.fingerprint ? this.key(r.fingerprint.length > 18 ? r.fingerprint.slice(0, 18) + '…' : r.fingerprint, r.fingerprint, 'signing key fingerprint of ' + (r.name || 'a reader')) : h('span', { class: 'dim' }, 'none')),
+      h('td', { class: 'c', role: 'cell', 'data-label': 'In the file' }, mark(r.in_file, 'readers file')),
+      h('td', { class: 'c', role: 'cell', 'data-label': 'In the store' }, mark(r.in_store, 'store')),
+      h('td', { class: 'c', role: 'cell', 'data-label': 'Line' }, r.line ? String(r.line) : h('span', { class: 'dim' }, h('span', { 'aria-hidden': 'true' }, '–'), h('span', { class: 'sr-only' }, 'none')))));
     return h('section', { class: 'ac-sec', 'aria-labelledby': 'ac-h-readers' }, head,
-      h('div', { class: 'ac-tablewrap' }, h('table', { class: 'ac-table' },
+      h('div', { class: 'ac-tablewrap' }, h('table', { class: 'ac-table', role: 'table' },
         h('caption', { class: 'sr-only' }, 'The readers of the state, in the readers file and in the store'),
-        h('thead', null, h('tr', null, ['Name', 'Reader key', 'Signing key', 'In the file', 'In the store', 'Line'].map((t, i) => h('th', { scope: 'col', class: i > 2 ? 'c' : '' }, t)))),
-        h('tbody', null, body))));
+        h('thead', { role: 'rowgroup' }, h('tr', { role: 'row' }, ['Name', 'Reader key', 'Signing key', 'In the file', 'In the store', 'Line'].map((t, i) => h('th', { scope: 'col', role: 'columnheader', class: i > 2 ? 'c' : '' }, t)))),
+        h('tbody', { role: 'rowgroup' }, body))));
   }
 
   key(shown, full, what) {
@@ -193,8 +195,8 @@ export class AccessView {
     d.addEventListener('toggle', () => this.opened.set(s.id, d.open));
     d.append(h('summary', { 'data-fk': 'sum:' + s.id },
       h('span', { class: 'ti' }, s.title),
-      s.primary ? h('span', { class: 'b ok' }, 'next') : null,
-      s.who ? h('span', { class: 'who' }, s.who) : null),
+      s.primary ? [h('span', { class: 'sr-only' }, ', '), h('span', { class: 'b ok' }, 'next')] : null,
+      s.who ? [h('span', { class: 'sr-only' }, ', '), h('span', { class: 'who' }, s.who)] : null),
       h('div', { class: 'ac-cbody' }, h('p', { class: 'ac-why' }, s.why), h('div', { class: 'ac-steps' }, s.steps.map((st, i) => this.step(s, st, i)))));
     return d;
   }

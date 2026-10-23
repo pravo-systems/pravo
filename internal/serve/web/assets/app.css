@@ -177,6 +177,7 @@ a { color: inherit; }
 .rail-title .h { margin-bottom: .4rem; width: 100%; }
 .rail-project { display: flex; align-items: center; width: 100%; padding: 0 1rem; height: 2rem; font: 500 .82rem/1 var(--font-mono); color: var(--text); text-align: left; border-bottom: 1px solid var(--line); box-shadow: 0 6px 12px -10px color-mix(in srgb, #000 40%, transparent); transition: background var(--t-fast); }
 .rail-project:hover { background: var(--surface-2); }
+.rail-project:focus-visible { outline-offset: -2px; } /* the rail clips what lies outside the row */
 .rail-project.sel { background: var(--accent-wash); box-shadow: inset 2px 0 0 var(--accent); }
 .rail-project em { margin-left: auto; font-style: normal; font-size: .7rem; color: var(--text-3); }
 .tree { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: .25rem 0 2rem; font: 400 .76rem/1 var(--font-mono); }

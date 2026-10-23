@@ -783,8 +783,16 @@ function setQuery(q) {
   syncFragment();
 }
 
+// TITLES is the h1 of the page for each view, which a screen reader gives as the name of the page.
+const TITLES = {
+  graph: 'pravo serve: the specification, the state and the plan as a graph',
+  table: 'pravo serve: the resources of the state as a table',
+  access: 'pravo serve: how the state is protected and who can read it',
+};
+
 function setView(v) {
   S.view = v;
+  $('page-title').textContent = TITLES[v] || TITLES.graph;
   $('graph-pane').hidden = v !== 'graph';
   $('table-pane').hidden = v !== 'table';
   $('access-pane').hidden = v !== 'access';

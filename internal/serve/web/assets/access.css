@@ -5,6 +5,8 @@
 .ac { display: grid; gap: 1.4rem; width: 100%; max-width: 62rem; margin: 0 auto; }
 .ac .h { margin: 0 0 .55rem; }
 .ac-sec { min-width: 0; }
+/* a ring is drawn 4 px outside the element: when the pane scrolls to a focused element the ring must stay inside it */
+.access-pane :is(button, summary, [tabindex]) { scroll-margin: .5rem; }
 .ac code { font: 400 .74rem/1.4 var(--font-mono); overflow-wrap: anywhere; }
 .ac .dim { color: var(--text-3); }
 .ac-note { margin: .5rem 0 0; font-size: .74rem; line-height: 1.5; color: var(--text-2); text-wrap: pretty; }
@@ -119,7 +121,7 @@
   .ac-table:not(.small) tr { padding: .5rem .2rem; border-bottom: 1px solid var(--line); }
   .ac-table:not(.small) tbody tr:last-child { border-bottom: 0; }
   .ac-table:not(.small) th, .ac-table:not(.small) td { border: 0; padding: .2rem .7rem; text-align: left; }
-  .ac-table:not(.small) td[data-label]::before { content: attr(data-label); display: inline-block; min-width: 6.5rem; font: 500 .58rem/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+  .ac-table:not(.small) td[data-label]::before { content: attr(data-label); content: attr(data-label) / ""; display: inline-block; min-width: 6.5rem; font: 500 .58rem/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
   .ac-table:not(.small) .c { text-align: left; }
 }
 @media (max-width: 47.5em) {
@@ -130,6 +132,6 @@
 }
 
 /* the chip in the project panel that opens this view */
-.b.linkchip { cursor: pointer; }
+.b.linkchip { cursor: pointer; scroll-margin: .5rem; }
 .b.linkchip:hover { background: color-mix(in srgb, var(--c, var(--text-3)) 18%, transparent); }
 .ac-who { padding: .1rem .4rem; border: 1px solid var(--line-strong); background: var(--surface); }
