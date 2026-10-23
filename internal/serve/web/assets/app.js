@@ -119,7 +119,7 @@ function readFragment() {
     plan: p.plan === 'none' || /^plan-[0-9a-f]{6,64}$/.test(p.plan || '') ? p.plan : '',
     q: p.q || '',
     // an address from before the view was renamed says tree
-    view: p.view === 'table' || p.view === 'tree' ? 'table' : p.view === 'access' ? 'access' : 'graph',
+    view: p.view === 'table' || p.view === 'tree' ? 'table' : p.view === 'access' || p.view === 'state' ? 'access' : 'graph',
     theme: p.theme === 'light' || p.theme === 'dark' ? p.theme : null,
     motion: p.motion !== 'off',
     collapse: listOf(p, 'collapse'),
@@ -787,7 +787,7 @@ function setQuery(q) {
 const TITLES = {
   graph: 'pravo serve: the specification, the state and the plan as a graph',
   table: 'pravo serve: the resources of the state as a table',
-  access: 'pravo serve: how the state is protected and who can read it',
+  access: 'pravo serve: where the state is kept, how it is protected and who can read it',
 };
 
 function setView(v) {
@@ -803,16 +803,16 @@ function setView(v) {
   $('sec-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'table' ? 'Skip to the table' : 'Skip to the access view';
+  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'table' ? 'Skip to the table' : 'Skip to the state';
   if (v === 'table') renderTable();
   else if (v === 'access') renderAccess();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   syncFragment();
-  announce(v === 'table' ? 'Resources, table view' : v === 'access' ? 'Access' : 'Resources, graph view');
+  announce(v === 'table' ? 'Resources, table view' : v === 'access' ? 'State' : 'Resources, graph view');
 }
 
 function renderAccess() {
-  accessView.render({ access: S.access });
+  accessView.render({ access: S.access, project: S.model && S.model.graph ? S.model.graph.project : null });
 }
 
 function renderTable() {
@@ -1266,7 +1266,7 @@ function wire() {
   accessView = new AccessView($('access-pane'));
   insp = new Inspector($('insp'), {
     onPlan: (id) => selectPlan(id),
-    onAccess: () => setView('access'),
+    onAccess: () => setView('access'), // the State section
     onSelectNode: (a) => selectNode(a, { center: true }),
     onSelectModule: (p) => selectModule(p, { center: true }),
     onTab: setTab,

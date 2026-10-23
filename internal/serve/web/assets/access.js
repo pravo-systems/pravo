@@ -45,10 +45,10 @@ export class AccessView {
     this.doc = null;
   }
 
-  render({ access }) {
+  render({ access, project }) {
     if (!access) {
       clear(this.root);
-      this.root.append(h('div', { class: 'ac' }, h('h2', { class: 'ac-title' }, 'Access'), h('p', { class: 'ac-empty' }, 'The access document could not be read. The rest of the page is unaffected.')));
+      this.root.append(h('div', { class: 'ac' }, h('h2', { class: 'ac-title' }, 'State'), h('p', { class: 'ac-empty' }, 'The protection of the state could not be read. The rest of the page is unaffected.')));
       return;
     }
     this.doc = access;
@@ -57,7 +57,7 @@ export class AccessView {
     clear(this.root);
     const a = access;
     this.root.append(h('div', { class: 'ac' },
-      this.banner(a),
+      this.banner(a, project),
       a.you ? this.you(a.you) : null,
       this.readers(a),
       this.single(a),
@@ -74,16 +74,17 @@ export class AccessView {
   }
 
   // banner is the sentence for the state of the store, with its facts.
-  banner(a) {
+  banner(a, project) {
     const st = a.state === 'migrating' && a.migration && a.migration.unseal ? { cls: 'chg', label: 'unsealing in progress', ic: 'hold' } : STATE[a.state] || STATE.off;
     const facts = [
       h('li', null, h('span', { class: 'k' }, 'format'), h('b', null, String(a.format))),
       h('li', null, h('span', { class: 'k' }, 'backend'), h('b', null, a.backend)),
       h('li', { class: 'wide' }, h('span', { class: 'k' }, 'location'), h('code', null, a.location)),
+      ...this.facts(project),
       a.last_change ? h('li', { class: 'wide', title: stamp(a.last_change.at) }, h('span', { class: 'k' }, 'last change'), h('b', null, a.last_change.text)) : null,
     ];
     return h('section', { class: `ac-banner st-${a.state}` },
-      h('div', { class: 'ac-bhead' }, h('h2', { id: 'ac-h-state', class: 'ac-title' }, 'Access'),
+      h('div', { class: 'ac-bhead' }, h('h2', { id: 'ac-h-state', class: 'ac-title' }, 'State'),
         h('span', { class: `b ${st.cls}` }, icon(st.ic), st.label)),
       h('p', { class: 'ac-sentence' }, a.summary, a.records.text ? ' ' + a.records.text : ''),
       a.migration ? this.progress(a.migration) : null,
@@ -97,6 +98,20 @@ export class AccessView {
       h('progress', { max: String(Math.max(m.total, 1)), value: String(Math.min(m.done, m.total)), 'aria-label': `${fmt(m.done)} of ${fmt(m.total)} records ${m.unseal ? 'unsealed' : 'sealed'}` }),
       h('span', null, `${fmt(m.done)} of ${fmt(m.total)} records · ${pct}%`),
       h('span', { class: 'dim', title: stamp(m.started) }, m.by ? `started by ${m.by} ${relTime(m.started)}` : `started ${relTime(m.started)}`));
+  }
+
+  // facts are what the project says of the state besides where it is: the records, the locks, the lineage, and when
+  // and by which pravo it was read.
+  facts(p) {
+    if (!p) return [];
+    const st = p.state || {};
+    return [
+      st.records !== undefined ? h('li', null, h('span', { class: 'k' }, 'records'), h('b', null, fmt(st.records))) : null,
+      h('li', null, h('span', { class: 'k' }, 'locks'), h('b', null, String(st.locks || 0))),
+      st.lineage ? h('li', { class: 'wide' }, h('span', { class: 'k' }, 'lineage'), h('code', null, st.lineage)) : null,
+      p.version ? h('li', null, h('span', { class: 'k' }, 'pravo'), h('b', null, p.version)) : null,
+      p.loaded_at ? h('li', { title: stamp(p.loaded_at) }, h('span', { class: 'k' }, 'read'), h('b', null, relTime(p.loaded_at))) : null,
+    ];
   }
 
   // you says who the page is read as: the identity that the command opened the state with.

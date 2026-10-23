@@ -25,17 +25,13 @@ export function projectPanel(ins, model) {
   const plan = g.plan;
   if (plan) body.push(planSection(ins, plan, model));
 
+  // The rest of what is known of the state, the backend, the lineage, the format, the pravo that read it, is on the State page.
   body.push(sec('State',
     kv([
       ['location', pathValue(st.location, ins)],
-      ['backend', st.backend ? h('span', { class: 'b' }, st.backend) : null],
-      st.lineage ? ['lineage', h('span', { class: 'mono-s' }, st.lineage)] : null,
-      st.format ? ['format', String(st.format)] : null,
-      st.sealed ? ['protection', h('button', { class: 'b lock linkchip', type: 'button', 'data-fk': 'protection', 'aria-label': 'sealed, open the Access view', 'data-tip': 'Who can read the state', on: { click: () => ins.cb.onAccess && ins.cb.onAccess() } }, icon('lock'), 'sealed')] : null,
+      ['protection', h('button', { class: 'b linkchip' + (st.sealed ? ' lock' : ''), type: 'button', 'data-fk': 'protection', 'aria-label': (st.sealed ? 'sealed' : 'not sealed') + ', open the State page', 'data-tip': 'Where the state is kept, and who can read it', on: { click: () => ins.cb.onAccess && ins.cb.onAccess() } }, st.sealed ? icon('lock') : null, st.sealed ? 'sealed' : 'not sealed')],
       ['records', fmt(st.records ?? model.list.length)],
-      ['locks', st.locks ? h('span', { class: 'b lock' }, icon('hold'), String(st.locks)) : '0'],
-      ['pravo', p.version],
-      p.loaded_at ? ['loaded', h('span', null, relTime(p.loaded_at), h('span', { class: 'dim' }, ' · ' + stamp(p.loaded_at)))] : null,
+      st.locks ? ['locks', h('span', { class: 'b lock' }, icon('hold'), String(st.locks))] : null,
     ])));
 
   if ((p.providers || []).length) {

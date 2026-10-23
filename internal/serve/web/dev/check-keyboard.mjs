@@ -127,7 +127,7 @@ async function checkOne(b, f, theme, width, report) {
   const { pane, out } = await paneTree(b);
   const texts = out.filter((n) => n.role === 'StaticText').map((n) => n.name.toLowerCase());
   const has = (t) => texts.some((x) => x.includes(t.toLowerCase()));
-  check(pane && out.some((n) => n.role === 'heading' && n.name === 'Access'), `${tag}: no heading Access in the view`);
+  check(pane && out.some((n) => n.role === 'heading' && n.name === 'State'), `${tag}: no heading State in the view`);
   if (doc.you) check(has(doc.you.text.slice(0, 20)) && has(YOU[doc.you.state]), `${tag}: the state of You (${YOU[doc.you.state]}) is not in the accessibility tree`);
   const sealed = doc.state === 'sealed' || doc.state === 'migrating' || doc.file.verdict === 'expected-sealed';
   if (sealed && VERDICT[doc.file.verdict]) check(has(VERDICT[doc.file.verdict]), `${tag}: the verdict "${VERDICT[doc.file.verdict]}" is not in the accessibility tree`);

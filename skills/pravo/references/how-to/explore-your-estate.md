@@ -242,7 +242,7 @@ In a container, the viewer listens on the loopback interface of the container. A
 
 ## 12. See who can read the state
 
-The Access button, or `g` pressed twice from the graph, opens the Access view. It is for a state that is sealed to a list of readers ([Seal the state](seal-the-state.md) shows how), and it explains a state that is not: the banner says whether the state is sealed, and the first suggestion is the one that seals it.
+The State tab of the bar, or `a`, opens the State section. It is for a state that is sealed to a list of readers ([Seal the state](seal-the-state.md) shows how), and it explains a state that is not: the banner says whether the state is sealed, and the first suggestion is the one that seals it.
 
 For a sealed state, start the viewer with your identity:
 
@@ -250,7 +250,7 @@ For a sealed state, start the viewer with your identity:
 pravo serve --identity ada
 ```
 
-Without `--identity` the viewer finds an identity as the other commands do. If it has a passphrase, the command asks for it on the terminal before it listens. If you hold no identity, or the identity is not a reader of the state, the viewer starts anyway: it lists every resource and shows no value, and the Access view says why. `--identity none` shows what a person with no key sees.
+Without `--identity` the viewer finds an identity as the other commands do. If it has a passphrase, the command asks for it on the terminal before it listens. If you hold no identity, or the identity is not a reader of the state, the viewer starts anyway: it lists every resource and shows no value, and the State section says why. `--identity none` shows what a person with no key sees.
 
 The view has these parts, from the top:
 
@@ -270,7 +270,7 @@ The view updates when the readers file or the state changes. Edit the file in yo
 - The Source tab shows the definition and the instance that write a resource. The Change tab shows what a saved plan changes.
 - The Plans section lists the plans that your team stored in the state. A disc on a resource names who plans to change it, and a ring marks two plans on one resource. The viewer copies the command that applies a plan and applies nothing.
 - A value that is sensitive, or has a secret's name, or contains a secret, never reaches the page.
-- The Access view shows who can read a sealed state and whether the readers file matches the store. It suggests commands, and the viewer runs none.
+- The State section shows who can read a sealed state and whether the readers file matches the store. It suggests commands, and the viewer runs none.
 - The fragment of the address holds the view, so a link reproduces it. Press `?` in the viewer for the shortcuts.
 
 Next: [`pravo serve`](../reference/serve.md) lists the flags, the keys and the endpoints. [The viewer](../concepts/the-viewer.md) explains what each mark means.

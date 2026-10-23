@@ -94,7 +94,7 @@ export class StateView {
     const total = (this.d.attrs || []).length;
     if (!total) {
       if (this.d.node && this.d.node.sealed) {
-        host.append(h('div', { class: 'blank' }, icon('lock'), h('p', null, 'The attributes of this record are sealed.'), h('small', null, 'This viewer cannot open them. The Access view says who can read the state.')));
+        host.append(h('div', { class: 'blank' }, icon('lock'), h('p', null, 'The attributes of this record are sealed.'), h('small', null, 'This viewer cannot open them. The State page says who can read the state.')));
         return;
       }
       host.append(h('div', { class: 'blank' }, icon('stack'), h('p', null, 'No attributes are recorded for this resource.'), h('small', null, 'It exists in the state without values, or it is declared and not created yet.')));
