@@ -1023,7 +1023,7 @@ func TestAccessExpectedSealed(t *testing.T) {
 			if got, want := stepTexts(s, "command"), []string{"pravo protect status", "pravo protect init --encrypt --allow-local"}; !equalStrings(got, want) {
 				t.Errorf("commands %q, want %q", got, want)
 			}
-			if got := stepTexts(s, "note"); len(got) != 1 || !strings.HasPrefix(got[0], "If you did not mean to seal this state, remove the readers file. To seal it: pravo protect init --encrypt") {
+			if got := stepTexts(s, "note"); len(got) != 1 || !strings.HasPrefix(got[0], "If you did not mean to seal this state, remove the readers file and the recovery file. To seal it: pravo protect init --encrypt") {
 				t.Errorf("notes %q", got)
 			}
 			if suggestion(a, "seal") == nil {
