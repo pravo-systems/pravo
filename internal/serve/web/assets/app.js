@@ -608,8 +608,27 @@ function clearSelection() {
   announce('Selection cleared');
 }
 
+// setFull hides the bar, the sidebar and the status bar so that the graph has the screen, and asks the browser for
+// its full screen too. The inspector stays, but only while something is selected.
+function setFull(on) {
+  on = !!on && S.view === 'graph';
+  if (S.full === on) return;
+  S.full = on;
+  document.body.dataset.full = on ? '1' : '';
+  const b = $('full-btn');
+  b.setAttribute('aria-pressed', String(on));
+  b.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
+  b.dataset.tip = on ? 'Leave full screen' : 'Full screen';
+  try {
+    if (on && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+    if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  } catch { /* the page still fills the window */ }
+  announce(on ? 'Full screen. Press Escape to leave.' : 'Left full screen.');
+}
+
 function showInspector() {
   const m = S.model;
+  $('app').dataset.sel = S.sel ? '1' : '';
   if (!S.sel) { insp.showProject(m); return; }
   if (m.nodes.has(S.sel)) {
     const n = m.nodes.get(S.sel);
@@ -791,6 +810,7 @@ const TITLES = {
 };
 
 function setView(v) {
+  if (v !== 'graph') setFull(false);
   S.view = v;
   $('page-title').textContent = TITLES[v] || TITLES.graph;
   $('graph-pane').hidden = v !== 'graph';
@@ -1210,6 +1230,7 @@ function onKey(ev) {
   if (ev.altKey || mod) return;
   const typing = isTyping(ev.target);
   if (k === 'Escape') {
+    if (S.full && !S.sel && !S.reach) { setFull(false); return; }
     if ($('app').classList.contains('insp-open') || $('app').classList.contains('rail-open')) { closeDrawer(); return; }
     if (typing) { ev.target.blur(); return; }
     if (S.reach) { setReach(false); return; }
@@ -1229,6 +1250,7 @@ function onKey(ev) {
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
   if (k === 'f') { gv.fit(true); return; }
+  if (k === 'z') { setFull(!S.full); return; }
   if (k === '0') { resetView(); return; }
   if (k === '[') { setAllModules(true); return; }
   if (k === ']') { setAllModules(false); return; }
@@ -1312,6 +1334,8 @@ function wire() {
   $('search-btn').addEventListener('click', () => palette.open());
   $('theme-btn').addEventListener('click', toggleTheme);
   $('btn-fit').addEventListener('click', () => gv.fit(true));
+  $('full-btn').addEventListener('click', () => setFull(!S.full));
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && S.full) setFull(false); });
   $('btn-zin').addEventListener('click', () => gv.zoomBy(1.3, undefined, undefined, true));
   $('btn-zout').addEventListener('click', () => gv.zoomBy(1 / 1.3, undefined, undefined, true));
   $('btn-reset').addEventListener('click', resetView);

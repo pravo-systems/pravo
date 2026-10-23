@@ -487,3 +487,10 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .fatal .mark .n, .stage-empty .mark .n { opacity: 1; }
   .toast .tbar { display: none; }
 }
+
+/* Full screen: the graph has the window. The inspector stays for a selection. */
+body[data-full="1"] .top, body[data-full="1"] .rail, body[data-full="1"] .status, body[data-full="1"] .banners { display: none; }
+body[data-full="1"] .app { grid-row: 1 / -1; grid-template-columns: minmax(0, 1fr) 24.5rem; }
+body[data-full="1"] .app:not([data-sel="1"]) { grid-template-columns: minmax(0, 1fr); }
+body[data-full="1"] .app:not([data-sel="1"]) .insp { display: none; }
+@media (max-width: 68.75em) { body[data-full="1"] .app, body[data-full="1"] .app:not([data-sel="1"]) { grid-template-columns: minmax(0, 1fr); } }

@@ -182,7 +182,7 @@ export class Palette {
 export const SHORTCUTS = [
   ['Search', [['/', 'or', 'Ctrl K', 'Find a resource, a type or a module']]],
   ['Move around', [['←', '', '', 'To a dependency of the selection'], ['→', '', '', 'To a dependent'], ['↑ ↓', '', '', 'To the sibling above or below'], ['Esc', '', '', 'Clear the selection']]],
-  ['View', [['f', '', '', 'Fit the graph'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every module'], ['Enter', '', '', 'Open or close the selected module'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or table of the resources'], ['a', '', '', 'Resources or access'], ['?', '', '', 'This sheet']]],
+  ['View', [['f', '', '', 'Fit the graph'], ['z', '', '', 'Full screen for the graph'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every module'], ['Enter', '', '', 'Open or close the selected module'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or table of the resources'], ['a', '', '', 'Resources or access'], ['?', '', '', 'This sheet']]],
   ['Module tree', [['↑ ↓', '', '', 'Move between rows, Home and End jump'], ['← →', '', '', 'Close or open a module'], ['Enter', '', '', 'Select the row'], ['*', '', '', 'Open every module of this level'], ['a–z', '', '', 'Jump to the next row that starts with it']]],
   ['Pointer', [['Drag', '', '', 'Pan'], ['Wheel', '', 'Pinch', 'Zoom'], ['Double-click', '', '', 'Open or close a module']]],
 ];
