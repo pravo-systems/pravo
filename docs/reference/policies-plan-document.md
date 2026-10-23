@@ -153,7 +153,6 @@ pravo -C empty plan --json 2>/dev/null | jq -c '{changes, summary}'
 
 ```text out
 No changes. Your infrastructure matches the configuration.
-Graph: planned 0 of 1.
 
 Outputs:
   where: "eu-west-1"

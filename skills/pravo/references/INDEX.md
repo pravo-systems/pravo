@@ -62,7 +62,7 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/state-format.md](reference/state-format.md) | The files of the state graph: nodes, outputs, transactions, locks, stored plans and the metadata that identifies a store. | 44 KB |
-| [reference/plan-document.md](reference/plan-document.md) | The JSON document that pravo plan --json prints, the form of a saved plan file, and the events that apply and destroy stream. | 20 KB |
+| [reference/plan-document.md](reference/plan-document.md) | The JSON document that pravo plan --json prints, the form of a saved plan file, and the events that apply and destroy stream. | 21 KB |
 | [reference/exit-codes.md](reference/exit-codes.md) | The exit status of every pravo command, what each code means, and how --json reports an error. | 12 KB |
 | [reference/telemetry.md](reference/telemetry.md) | OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables. | 11 KB |
 | [reference/compatibility.md](reference/compatibility.md) | The versions and formats that pravo reads and writes, the provider protocol it speaks, and what it does with a version it does not know. | 8 KB |
@@ -194,6 +194,6 @@ From OpenTofu or Terraform: a runbook with its lookups.
 
 | File | Covers | Size |
 |---|---|---|
-| [migrate/function-map.md](migrate/function-map.md) | Every OpenTofu built-in function, with the CUE expression that replaces it, or the statement that none does. | 31 KB |
+| [migrate/function-map.md](migrate/function-map.md) | Every OpenTofu built-in function, with the CUE expression that replaces it, or the statement that none does. | 30 KB |
 | [migrate/command-map.md](migrate/command-map.md) | Each OpenTofu command, flag, environment variable and file beside the pravo command, flag, variable or file that replaces it. | 10 KB |
 | [migrate/construct-matrix.md](migrate/construct-matrix.md) | Which OpenTofu constructs pravo supports, supports in part, or does not support, with the replacement for each. | 9 KB |

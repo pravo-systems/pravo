@@ -222,14 +222,18 @@ func pathLabels(addr string) string {
 // renderStats prints how much of the graph the plan walked.
 func (p *Printer) renderStats(plan *engine.Plan) {
 	st := plan.Stats
-	if st.Total == 0 && !plan.Destroy {
+	// A root with no resource or data source has nothing to plan; what it opens
+	// or calls is still said.
+	if st.Total == 0 && !plan.Destroy && st.Opened == 0 && st.Called == 0 {
 		return
 	}
 	var parts []string
 	if plan.Destroy {
 		parts = append(parts, fmt.Sprintf("%d resources in state", len(plan.Changes)))
 	} else {
-		parts = append(parts, fmt.Sprintf("planned %d of %d", st.Reached, st.Total))
+		if st.Total > 0 {
+			parts = append(parts, fmt.Sprintf("planned %d of %d", st.Reached, st.Total))
+		}
 		if st.Skipped > 0 {
 			parts = append(parts, fmt.Sprintf("%d unchanged and skipped", st.Skipped))
 		}

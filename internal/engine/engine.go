@@ -1752,7 +1752,22 @@ func (e *Engine) resetRun(changes bool) {
 		e.changes = map[string]*Change{}
 	}
 	e.targets = nil
-	e.stats = Stats{Total: len(e.Root.Resources)}
+	e.stats = Stats{Total: e.countPlannable()}
+}
+
+// countPlannable is the number of resources and data sources in the
+// configuration: the nodes that a plan plans or skips, and so the M of "planned N
+// of M". The environment variables, the remote outputs, the ephemeral resources
+// and the function calls are tasks of the graph that are not planned against a
+// record; the last two have counts of their own.
+func (e *Engine) countPlannable() int {
+	n := 0
+	for _, r := range e.Root.Resources {
+		if r.Mode == "managed" || r.Mode == "data" {
+			n++
+		}
+	}
+	return n
 }
 
 // runTask plans (or applies) one task against the current configuration and
