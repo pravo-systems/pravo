@@ -94,7 +94,7 @@ export class AccessView {
   progress(m) {
     const pct = m.total > 0 ? Math.min(100, Math.round((100 * m.done) / m.total)) : 0;
     return h('div', { class: 'ac-prog' },
-      h('progress', { max: String(Math.max(m.total, 1)), value: String(Math.min(m.done, m.total)), 'aria-label': `${fmt(m.done)} of ${fmt(m.total)} records sealed` }),
+      h('progress', { max: String(Math.max(m.total, 1)), value: String(Math.min(m.done, m.total)), 'aria-label': `${fmt(m.done)} of ${fmt(m.total)} records ${m.unseal ? 'unsealed' : 'sealed'}` }),
       h('span', null, `${fmt(m.done)} of ${fmt(m.total)} records · ${pct}%`),
       h('span', { class: 'dim', title: stamp(m.started) }, m.by ? `started by ${m.by} ${relTime(m.started)}` : `started ${relTime(m.started)}`));
   }

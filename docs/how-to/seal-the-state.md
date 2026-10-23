@@ -457,19 +457,20 @@ PRAVO_CONFIG_DIR=people/fay pravo state rm aws_db_instance.main; echo "exit=$?"
 ```
 
 ```text out
-Error: the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file.
+Error: the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file and the recovery file.
 exit=5
 ```
 
-`--remove-files` deletes both files. Commit the deletion, and destroy the recovery shares.
+`--remove-files` deletes both files, after a yes of its own for a state that is unsealed already, or in the same run as the unseal. Commit the deletion, and destroy the recovery shares.
 
 ```sh run
-PRAVO_CONFIG_DIR=people/fay pravo protect unseal --remove-files
+PRAVO_CONFIG_DIR=people/fay pravo protect unseal --remove-files --yes
 PRAVO_CONFIG_DIR=people/fay pravo protect status | grep -E '^(Sealed|Readers)'
 ```
 
 ```text out
 The state is not sealed.
+This will delete .pravo/access/readers.txt and .pravo/access/recovery.txt from the repository.
 Removed .pravo/access/readers.txt; commit the deletion.
 Removed .pravo/access/recovery.txt; commit the deletion.
 Sealed       off · format 3 · immutable records

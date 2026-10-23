@@ -345,7 +345,7 @@ func isSealed(prot state.Protection) bool {
 // writer cannot move: whoever can write to the bucket can lower the format in
 // meta.json, and the writers that follow would write in the clear.
 func downgradeProblem(rf readersFile) string {
-	return fmt.Sprintf("the repository lists readers in %s, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file.", rf.shown())
+	return fmt.Sprintf("the repository lists readers in %s, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file and the recovery file.", rf.shown())
 }
 
 // missingStateProblem is what a command says about a repository that lists
@@ -472,6 +472,13 @@ func (p *protectRun) check(allowLocal bool) error {
 			return emitJSON(res)
 		}
 		out.Println("Already sealed. Use pravo protect status.")
+		return nil
+	}
+	if prot.State == "unsealing" {
+		if flagJSON {
+			return emitJSON(res)
+		}
+		out.Println("The state is being unsealed: it was started and did not finish. Finish it with pravo protect unseal.")
 		return nil
 	}
 	out.Printf("%-16s %s\n", "Store", p.storeLine())
@@ -795,6 +802,9 @@ func (p *protectRun) init(yes, allowLocal bool, recoverySpec string) error {
 			out.Println(out.C(ui.Yellow, "--recovery was not applied. To set a recovery recipient on a sealed state: pravo protect rewrap --recovery "+fmt.Sprintf("%d/%d", rec.K, rec.N)))
 		}
 		return nil
+	}
+	if prot.State == "unsealing" {
+		return errors.New("an unseal was started and did not finish; finish it with pravo protect unseal before the state is sealed again")
 	}
 	if rec != nil && prot.State == "migrating" {
 		return errors.New("a seal was started and did not finish, and a run that finishes it does not set a recovery. Finish it with pravo protect init --encrypt, then run pravo protect rewrap --recovery " + fmt.Sprintf("%d/%d", rec.K, rec.N))
@@ -1190,6 +1200,9 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes b
 		return err
 	}
 	prot := st.Protection()
+	if prot.State == "unsealing" {
+		return errors.New("an unseal is in progress; finish it with pravo protect unseal")
+	}
 	if prot.State != "sealed" {
 		return errors.New("the state is not sealed; see pravo protect check")
 	}

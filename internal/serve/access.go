@@ -738,7 +738,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			Why: "The readers file lists readers, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
 			Who: "a reader",
 			Steps: []SuggestionStep{protectCmd("status"),
-				note("If you did not mean to seal this state, remove the readers file. To seal it: pravo protect " + initCmd),
+				note("If you did not mean to seal this state, remove the readers file and the recovery file. To seal it: pravo protect " + initCmd),
 				protectCmd(initCmd)}})
 	}
 	if !protected {

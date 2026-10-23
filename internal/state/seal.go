@@ -533,6 +533,9 @@ func (s *Store) Protection() Protection {
 	case s.meta.Format >= FormatImmutable:
 		p.State = "immutable"
 	}
+	for _, h := range s.meta.History {
+		p.History = append(p.History, HistoryEntry{At: h.At, By: h.By, What: h.What, Added: h.Added, Removed: h.Removed})
+	}
 	if s.meta.Sealed == nil {
 		return p
 	}
@@ -554,9 +557,6 @@ func (s *Store) Protection() Protection {
 	}
 	if m := s.meta.Migration; m != nil {
 		p.Migration = &Migration{Started: m.Started, By: m.By, Done: m.Done, Total: m.Total, Unseal: m.Unseal}
-	}
-	for _, h := range s.meta.History {
-		p.History = append(p.History, HistoryEntry{At: h.At, By: h.By, What: h.What, Added: h.Added, Removed: h.Removed})
 	}
 	p.You = s.you
 	return p

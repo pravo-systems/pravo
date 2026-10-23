@@ -65,7 +65,7 @@
     },
     {
      "kind": "note",
-     "text": "If you did not mean to seal this state, remove the readers file. To seal it: pravo protect init --encrypt"
+     "text": "If you did not mean to seal this state, remove the readers file and the recovery file. To seal it: pravo protect init --encrypt"
     },
     {
      "kind": "command",

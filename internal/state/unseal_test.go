@@ -8,12 +8,21 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
 )
 
 // unsealed opens the store with no identity and says whether it holds the secret in
 // the open.
+// fastRecheck makes a store look at meta.json at once, so that an unseal does not wait.
+func fastRecheck(t *testing.T) {
+	t.Helper()
+	old := metaRecheck
+	metaRecheck = time.Millisecond
+	t.Cleanup(func() { metaRecheck = old })
+}
+
 func holdsSecret(t *testing.T, b Backend) bool {
 	t.Helper()
 	for _, data := range allObjects(t, b) {
@@ -28,6 +37,7 @@ func holdsSecret(t *testing.T, b Backend) bool {
 // same without a key, and the secret is in the bucket in the open.
 func TestUnsealReturnsTheStateWithoutAKey(t *testing.T) {
 	skipWhenSealed(t)
+	fastRecheck(t)
 	for _, bk := range testBackends() {
 		t.Run(bk.name, func(t *testing.T) {
 			b := bk.make(t)
@@ -87,6 +97,7 @@ func TestUnsealReturnsTheStateWithoutAKey(t *testing.T) {
 // Sealed again, the groups carry on from the number the state reached.
 func TestASealAfterAnUnsealDoesNotReuseAGroup(t *testing.T) {
 	skipWhenSealed(t)
+	fastRecheck(t)
 	b := testBackends()[0].make(t)
 	ctx := context.Background()
 	ada, dan := testIdentity(t, "ada"), testIdentity(t, "dan")
@@ -116,6 +127,7 @@ func TestASealAfterAnUnsealDoesNotReuseAGroup(t *testing.T) {
 // running it again.
 func TestUnsealResumes(t *testing.T) {
 	skipWhenSealed(t)
+	fastRecheck(t)
 	b := testBackends()[0].make(t)
 	ada := testIdentity(t, "ada")
 	s := sealedStore(t, b, ada)
@@ -160,6 +172,7 @@ func TestUnsealResumes(t *testing.T) {
 // A key that cannot open every group cannot finish, and nothing is written.
 func TestUnsealRefusesGroupsItCannotOpen(t *testing.T) {
 	skipWhenSealed(t)
+	fastRecheck(t)
 	b := testBackends()[0].make(t)
 	ctx := context.Background()
 	ada, dan := testIdentity(t, "ada"), testIdentity(t, "dan")
@@ -198,6 +211,7 @@ func TestUnsealRefusesGroupsItCannotOpen(t *testing.T) {
 // Unsealing needs a reader.
 func TestUnsealNeedsAReader(t *testing.T) {
 	skipWhenSealed(t)
+	fastRecheck(t)
 	b := testBackends()[0].make(t)
 	ada, eve := testIdentity(t, "ada"), testIdentity(t, "eve")
 	sealedStore(t, b, ada)
@@ -212,4 +226,159 @@ func TestUnsealNeedsAReader(t *testing.T) {
 		t.Error("the seal came off")
 	}
 	_ = protect.RecoveryName
+}
+
+// A sealed record that is young is not kept: the key goes with the next write.
+func TestUnsealLeavesNoSealedRecordBehind(t *testing.T) {
+	skipWhenSealed(t)
+	fastRecheck(t)
+	b := testBackends()[0].make(t)
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	// A new revision leaves the old one unnamed, and young.
+	again := *s.Get("db.main")
+	again.Attributes = json.RawMessage(`{"id":"db-1","password":"` + secretValue + `","rev":3}`)
+	mustSet(t, s, &again)
+	if _, err := s.Unseal(ctx, UnsealOptions{Identity: ada}); err != nil {
+		t.Fatal(err)
+	}
+	for k, data := range allObjects(t, b) {
+		if strings.HasPrefix(k, "rec/") && bytes.Contains(data, []byte(`"sealed"`)) {
+			t.Errorf("%s is still sealed", k)
+		}
+	}
+}
+
+// The text of the error of a transaction that failed comes back in the open.
+func TestUnsealRestoresTheTextOfErrors(t *testing.T) {
+	skipWhenSealed(t)
+	fastRecheck(t)
+	b := testBackends()[0].make(t)
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	tx := s.Begin("apply", "pravo apply")
+	if err := tx.Start(); err != nil {
+		t.Fatal(err)
+	}
+	tx.Record("net.vpc", "update", 1, 2)
+	if err := tx.FinishError("failed", "the apply failed", "provider said: "+secretValue, true); err != nil {
+		t.Fatal(err)
+	}
+	text := func() string {
+		txns, _ := s.Transactions()
+		return txns[0].Summary
+	}
+	if got := text(); got != "the apply failed" {
+		t.Fatalf("summary while sealed: %q", got)
+	}
+	if _, err := s.Unseal(ctx, UnsealOptions{Identity: ada}); err != nil {
+		t.Fatal(err)
+	}
+	if got := text(); !strings.Contains(got, secretValue) {
+		t.Errorf("summary after the unseal: %q", got)
+	}
+	for _, data := range allObjects(t, b) {
+		if bytes.Contains(data, []byte("summary_sealed")) {
+			t.Error("a sealed summary is left")
+		}
+	}
+}
+
+// A stored plan that an apply uses holds the unseal: the state stays sealed and
+// unsealing, and the command can be run again.
+func TestUnsealHoldsForAPlanInUse(t *testing.T) {
+	skipWhenSealed(t)
+	fastRecheck(t)
+	b := testBackends()[0].make(t)
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	busy := 1
+	plans := func(context.Context) (int, int, error) { return 0, busy, nil }
+	_, err := s.Unseal(ctx, UnsealOptions{Identity: ada, Plans: plans})
+	if !errors.Is(err, ErrPlansInUse) {
+		t.Fatalf("Unseal = %v", err)
+	}
+	if p := s.Protection(); p.State != "unsealing" || p.Sealed == nil {
+		t.Fatalf("protection %+v", p)
+	}
+	busy = 0
+	if _, err := s.Unseal(ctx, UnsealOptions{Identity: ada, Plans: plans}); err != nil {
+		t.Fatal(err)
+	}
+	if s.Protection().State != "immutable" {
+		t.Error("not unsealed")
+	}
+}
+
+// Something sealed in a group the key cannot open is found before anything is written,
+// whether it is a record, the outputs or the plans.
+func TestUnsealRefusesWhatItCannotOpenBeforeItWrites(t *testing.T) {
+	skipWhenSealed(t)
+	fastRecheck(t)
+	b := testBackends()[0].make(t)
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	before, _ := b.Get(ctx, "meta.json")
+	_, err := s.Unseal(ctx, UnsealOptions{Identity: ada, PlanGroups: func(context.Context) (map[string]int, error) {
+		return map[string]int{"g9": 2}, nil
+	}})
+	if !errors.Is(err, ErrNotReader) || !strings.Contains(err.Error(), "2 in group g9") {
+		t.Fatalf("Unseal = %v", err)
+	}
+	after, _ := b.Get(ctx, "meta.json")
+	if !bytes.Equal(before, after) {
+		t.Error("meta.json was written")
+	}
+}
+
+// A writer that last looked at meta.json before the mark is refused, or its record is
+// converted: the secret never comes back sealed after the flip.
+func TestUnsealIsNotUndoneByAStaleWriter(t *testing.T) {
+	skipWhenSealed(t)
+	b := testBackends()[0].make(t)
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	stale := openIdentity(t, b, ada)
+	again := *stale.Get("net.vpc")
+	again.Attributes = json.RawMessage(`{"id":"vpc-2"}`)
+	mustSet(t, stale, &again) // its view of meta.json is fresh now
+	if _, err := s.Unseal(ctx, UnsealOptions{Identity: ada}); err != nil {
+		t.Fatal(err)
+	}
+	again.Attributes = json.RawMessage(`{"id":"vpc-3"}`)
+	if err := stale.Set(&again, ""); err == nil {
+		// The write was allowed: it must not have left a sealed record behind.
+		plain, err := OpenBackendWith(ctx, b, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := plain.Get("net.vpc"); got == nil || !strings.Contains(string(got.Attributes), "vpc") {
+			t.Errorf("net.vpc reads %+v", got)
+		}
+	}
+}
+
+// A store opened locked and unsealed with an identity reads the attributes afterwards.
+func TestUnsealOfALockedStoreLoadsTheValues(t *testing.T) {
+	skipWhenSealed(t)
+	fastRecheck(t)
+	b := testBackends()[0].make(t)
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	sealedStore(t, b, ada)
+	locked, err := OpenBackendWith(ctx, b, Options{})
+	if err != nil || !locked.Locked() {
+		t.Fatalf("open: %v locked %v", err, locked.Locked())
+	}
+	if _, err := locked.Unseal(ctx, UnsealOptions{Identity: ada}); err != nil {
+		t.Fatal(err)
+	}
+	if got := locked.Get("net.vpc"); got == nil || len(got.Attributes) == 0 {
+		t.Errorf("net.vpc after the unseal: %+v", got)
+	}
 }

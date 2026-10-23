@@ -489,7 +489,7 @@ func (ps *PlanStore) unsealPlanFile(ctx context.Context, id string, busy bool) (
 	key := planKey(id)
 	data, err := ps.B.Get(ctx, key)
 	if errors.Is(err, state.ErrNotFound) {
-		return 0, true, nil
+		return 0, false, nil // a summary without its plan: nothing here is sealed
 	}
 	if err != nil {
 		return 0, false, err
@@ -515,14 +515,16 @@ func (ps *PlanStore) unsealSummary(ctx context.Context, sl state.Sealer, id stri
 	key := metaKey2(id)
 	data, err := ps.B.Get(ctx, key)
 	if errors.Is(err, state.ErrNotFound) {
-		return 0, true, nil
+		return 0, false, nil
 	}
 	if err != nil {
 		return 0, false, err
 	}
 	m, err := decodeMeta(id, data)
 	if err != nil {
-		return 0, true, nil // not readable: not ours to rewrite
+		// Not readable by this pravo: not ours to rewrite, and no reason to hold the
+		// unseal. Only a plan that an apply uses does that.
+		return 0, false, nil
 	}
 	if m.Sealed == nil {
 		return 0, false, nil

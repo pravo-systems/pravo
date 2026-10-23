@@ -145,17 +145,31 @@ func (s *Store) upgradeSealed(ctx context.Context, o UpgradeOptions) (UpgradeRes
 // them. It reads every record once, as the conversion does, before anything is
 // written.
 func (s *Store) refuseSealedRecords(ctx context.Context) error {
+	key, err := s.firstSealedRecord(ctx)
+	if err != nil {
+		return err
+	}
+	if key != "" {
+		return fmt.Errorf("%s names a sealed record, and meta.json says the state is not sealed: meta.json was changed, or replaced by an older one. Sealing would write new keys over what is left of it, and the sealed records could not be opened again. Nothing was written. Put meta.json back from a version of the bucket: %w", key, ErrUntrusted)
+	}
+	return nil
+}
+
+// firstSealedRecord reads the records that the pointers name, and returns the key of
+// the pointer of one that is sealed, empty when none is.
+func (s *Store) firstSealedRecord(ctx context.Context) (string, error) {
 	if s.Format() < FormatImmutable {
-		return nil // a record of format 1 is the whole record, never sealed
+		return "", nil // a record of format 1 is the whole record, never sealed
 	}
 	keys, err := s.b.List(s.ctx, "resources")
 	if err != nil {
-		return err
+		return "", err
 	}
 	keys = jsonKeysOf(keys)
 	var (
 		mu       sync.Mutex
 		firstErr error
+		found    string
 		next     atomic.Int64
 		wg       sync.WaitGroup
 	)
@@ -203,7 +217,11 @@ func (s *Store) refuseSealedRecords(ctx context.Context) error {
 					Sealed json.RawMessage `json:"sealed"`
 				}
 				if json.Unmarshal(rec, &probe) == nil && len(probe.Sealed) > 0 && string(probe.Sealed) != "null" {
-					fail(fmt.Errorf("%s names a sealed record, and meta.json says the state is not sealed: meta.json was changed, or replaced by an older one. Sealing would write new keys over what is left of it, and the sealed records could not be opened again. Nothing was written. Put meta.json back from a version of the bucket: %w", keys[i], ErrUntrusted))
+					mu.Lock()
+					if found == "" {
+						found = keys[i]
+					}
+					mu.Unlock()
 					return
 				}
 			}
@@ -211,9 +229,9 @@ func (s *Store) refuseSealedRecords(ctx context.Context) error {
 	}
 	wg.Wait()
 	if firstErr != nil {
-		return firstErr
+		return "", firstErr
 	}
-	return ctx.Err()
+	return found, ctx.Err()
 }
 
 // beginSeal makes the sealed part of meta.json and flips the store to format 3
@@ -397,6 +415,12 @@ var sweepGrace = func() time.Duration { return 2*sealRecheck + 5*time.Second }
 // a write left behind, or a revision that was replaced.
 // A record younger than sweepGrace is left alone.
 func (s *Store) sweepRecords(keep func(group string) bool) error {
+	return s.sweepRecordsGrace(keep, sweepGrace())
+}
+
+// sweepRecordsGrace is sweepRecords with the age below which a sealed record is left
+// alone given: an unseal gives none.
+func (s *Store) sweepRecordsGrace(keep func(group string) bool, grace time.Duration) error {
 	keys, err := s.b.List(s.ctx, "rec")
 	if err != nil {
 		return err
@@ -432,7 +456,7 @@ func (s *Store) sweepRecords(keep func(group string) bool) error {
 		// it looks at meta.json again, so its record is not one that keep keeps. A
 		// record that is not sealed is deleted whatever its age: it holds what the
 		// seal is there to remove, and a writer of the old layout is refused.
-		if group != "" && time.Since(head.UpdatedAt) < sweepGrace() {
+		if group != "" && time.Since(head.UpdatedAt) < grace {
 			continue
 		}
 		if err := s.b.Delete(s.ctx, k); err != nil {

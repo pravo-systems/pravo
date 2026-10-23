@@ -34,7 +34,13 @@ type UnsealOptions struct {
 	Progress func(done, total int)
 	// Plans unseals the stored plans, which the state package does not know. It
 	// returns how many it unsealed and how many it left because an apply uses them.
+	// Nil means that the caller has no stored plans: any that are sealed are lost
+	// when the seal comes off.
 	Plans func(ctx context.Context) (unsealed, skipped int, err error)
+	// PlanGroups counts the sealed objects of the stored plans for each group, so that
+	// an unseal that this key cannot finish is refused before it writes. Nil skips the
+	// check for the plans.
+	PlanGroups func(ctx context.Context) (map[string]int, error)
 }
 
 // UnsealResult says what an unseal did.
@@ -94,7 +100,8 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 	} else if err := s.checkAtRest(); err != nil {
 		return res, err
 	}
-	if s.Locked() {
+	wasLocked := s.Locked()
+	if wasLocked {
 		if err := s.openSealed(o.Identity); err != nil {
 			return res, err
 		}
@@ -102,7 +109,7 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 			return res, fmt.Errorf("identity %s is not a reader of the state at %s: %w", o.Identity.Name, s.b.Name(), ErrNotReader)
 		}
 	}
-	if err := s.refuseUnopenable(); err != nil {
+	if err := s.refuseUnopenable(ctx, o); err != nil {
 		return res, err
 	}
 	by := o.By
@@ -110,6 +117,13 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 		by = o.Identity.Name
 	}
 	if err := s.beginUnseal(by); err != nil {
+		return res, err
+	}
+	// A process that last looked at meta.json just before the mark still writes, sealed,
+	// until it looks again. Wait that out, and see that nothing is held, before any
+	// record is converted: what it wrote is then a record to convert and not one that
+	// shows up after the seal is off.
+	if err := s.waitForWriters(ctx); err != nil {
 		return res, err
 	}
 
@@ -142,6 +156,12 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 		}
 		return res, err
 	}
+	_ = s.updateMeta(func(m *meta) error {
+		if m.Migration != nil {
+			m.Migration.Done = m.Migration.Total
+		}
+		return nil
+	})
 	if err := ctx.Err(); err != nil {
 		return res, fmt.Errorf("interrupted before the outputs and the stored plans were unsealed; run the command again to finish: %w", err)
 	}
@@ -160,7 +180,12 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 	if err := s.unsealSummaries(ctx); err != nil {
 		return res, err
 	}
-	if err := s.sweepRecords(func(group string) bool { return group == "" }); err != nil {
+	// Writers are refused, and the key is gone with the next write: a sealed record that
+	// is young is as unreadable as an old one, so none is kept for a grace.
+	if err := s.sweepRecordsGrace(func(group string) bool { return group == "" }, 0); err != nil {
+		return res, err
+	}
+	if err := s.verifyUnsealed(ctx); err != nil {
 		return res, err
 	}
 	err = s.updateMeta(func(m *meta) error {
@@ -177,9 +202,57 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 	}
 	s.mu.Lock()
 	s.openable, s.locked, s.you = nil, false, You{}
+	if wasLocked {
+		// The nodes are the shells that a locked store lists, without attributes.
+		s.nodes, s.held, s.index = map[string]*Resource{}, map[string]nodeRef{}, nil
+	}
 	s.mu.Unlock()
 	s.ring.set(nil)
+	if wasLocked {
+		if err := s.load(); err != nil {
+			return res, fmt.Errorf("the seal is off, and the state could not be read again: %w", err)
+		}
+	}
 	return res, nil
+}
+
+// waitForWriters waits until every process that could still write to the store sealed
+// has looked at meta.json again, and then checks that no lock is held.
+func (s *Store) waitForWriters(ctx context.Context) error {
+	s.mu.Lock()
+	var began time.Time
+	if m := s.meta.Migration; m != nil {
+		began = m.Started
+	}
+	s.mu.Unlock()
+	if wait := 2*metaRecheck - time.Since(began); wait > 0 {
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return s.checkLocks()
+}
+
+// verifyUnsealed checks, before the seal is taken off for good, that nothing the
+// state names is still sealed: a record, and the outputs. A writer that wrote sealed
+// after the records were converted is found here, while the keys can still open it,
+// and the command is run again.
+func (s *Store) verifyUnsealed(ctx context.Context) error {
+	if key, err := s.firstSealedRecord(ctx); err != nil {
+		return err
+	} else if key != "" {
+		return fmt.Errorf("%s is sealed again: a command wrote it while the seal was coming off. Nothing was lost; run the command again", key)
+	}
+	raw, err := s.b.Get(s.ctx, "outputs.json")
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return err
+	}
+	if _, sealed := asSealedOutputs(raw); sealed {
+		return errors.New("outputs.json is sealed again: a command wrote it while the seal was coming off. Nothing was lost; run the command again")
+	}
+	return nil
 }
 
 // highestGroup is the largest number among the groups of m.
@@ -193,17 +266,46 @@ func highestGroup(m *protect.Meta) int {
 	return hi
 }
 
-// refuseUnopenable stops an unseal that this key cannot finish: a record sealed in a
+// refuseUnopenable stops an unseal that this key cannot finish: something sealed in a
 // group that it holds no lock in would be left sealed with no key, once the seal is
-// off. Nothing is written.
-func (s *Store) refuseUnopenable() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// off. It looks at the records, the outputs, the text of the errors of transactions and
+// the stored plans. Nothing is written.
+func (s *Store) refuseUnopenable(ctx context.Context, o UnsealOptions) error {
 	bad := map[string]int{}
+	s.mu.Lock()
 	for _, ref := range s.held {
 		if ref.Group != "" && !s.openable[ref.Group] {
 			bad[ref.Group]++
 		}
+	}
+	s.mu.Unlock()
+	note := func(counts map[string]int) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		for g, n := range counts {
+			if g != "" && !s.openable[g] {
+				bad[g] += n
+			}
+		}
+	}
+	if raw, err := s.b.Get(s.ctx, "outputs.json"); err == nil {
+		if env, sealed := asSealedOutputs(raw); sealed {
+			note(map[string]int{env.Sealed.Group: 1})
+		}
+	} else if !errors.Is(err, ErrNotFound) {
+		return err
+	}
+	if counts, err := s.sealedSummaries(ctx); err != nil {
+		return err
+	} else {
+		note(counts)
+	}
+	if o.PlanGroups != nil {
+		counts, err := o.PlanGroups(ctx)
+		if err != nil {
+			return err
+		}
+		note(counts)
 	}
 	if len(bad) == 0 {
 		return nil
@@ -213,7 +315,7 @@ func (s *Store) refuseUnopenable() error {
 		parts = append(parts, fmt.Sprintf("%d in group %s", n, g))
 	}
 	sort.Strings(parts)
-	return fmt.Errorf("records are sealed in groups that your key cannot open (%s). A reader of those groups can run pravo protect rewrap --all first, which seals everything again under the current group: %w", strings.Join(parts, ", "), ErrNotReader)
+	return fmt.Errorf("objects are sealed in groups that your key cannot open (%s). A reader of those groups can run pravo protect rewrap --all first, which seals everything again under the current group: %w", strings.Join(parts, ", "), ErrNotReader)
 }
 
 // beginUnseal marks meta.json as unsealing. A mark that is there already is left.

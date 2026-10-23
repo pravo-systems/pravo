@@ -11,7 +11,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 | `meta.json` | The format number and the lineage of the store, and in format 3 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
 | `resources/<addr>.json` | One node for each resource or data source, named by its address. In format 1 it holds the whole record. In formats 2 and 3 it is a pointer to a record. |
 | `rec/<sha256>` | In formats 2 and 3, one record, named by the SHA-256 of its bytes. It is written once and never changed. |
-| `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. In format 3 the whole object is sealed. |
+| `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. While the state is sealed, the whole object is sealed. |
 | `gc/marks.json` | In formats 2 and 3, written by `pravo protect gc`: the records that no pointer names and that a collection has seen, with the time. Never sealed. A copy of the state does not carry it. See [Format 2](#format-2-immutable-records). |
 | `txn/<id>.json` | One recorded transaction. |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |
@@ -179,7 +179,7 @@ A store in format 2 or 3 reads two objects for each node when it opens, the poin
 
 ## Format 3: sealed state
 
-A record in format 3 keeps its address, type, name, provider, dependencies, revision, generation and times in the clear. Its `attributes`, `private`, `config_hash` and `provider_config` are one AES-256-GCM message under the data key of a reader group, in the field `sealed`:
+Format 3 is the layout of format 2 with room for a seal. A state is sealed when `meta.json` has a `sealed` part, and `pravo protect unseal` takes that part away and leaves the format at 3. A record of a sealed state keeps its address, type, name, provider, dependencies, revision, generation and times in the clear. Its `attributes`, `private`, `config_hash` and `provider_config` are one AES-256-GCM message under the data key of a reader group, in the field `sealed`:
 
 ```json
 {
@@ -268,10 +268,10 @@ The state must be at rest: the upgrade refuses while a lock is held, and a trans
 
 `pravo protect unseal` runs in this order, and a command that finds it half done finishes it. The format stays 3: a state is sealed when its `meta.json` has a `sealed` part, and a format 3 `meta.json` without one is a state that is not sealed, with the layout of format 2.
 
-1. It adds `migration` with `"unseal": true` to `meta.json`. The state is still sealed. A writer is refused with "an unseal is in progress; run pravo protect unseal to finish", and a seal cannot start.
+1. It adds `migration` with `"unseal": true` to `meta.json`. The state is still sealed. A writer is refused with "an unseal is in progress; run pravo protect unseal to finish", and a seal cannot start. It then waits twice the time a writer takes to look at `meta.json` again, and checks that no lock is held.
 2. It writes each sealed record in the open, with the same revision, generation and times, by a compare-and-swap of its pointer on the bytes it read, and deletes the sealed record.
 3. It writes `outputs.json`, the stored plans and the text of the errors of transactions in the open. A plan that an apply uses is not touched, and the command stops there.
-4. It deletes the sealed records that no pointer names.
+4. It deletes the sealed records that no pointer names, with no grace, since the key is gone with the next step. It checks that no record and not `outputs.json` is sealed any more.
 5. It replaces `meta.json` without `sealed` and `migration`, with `groups_used` set, and adds an entry `unsealed` to `history`.
 
 A command that reads a state in the middle of an unseal reads a record whichever way it is stored.

@@ -134,7 +134,7 @@ async function checkOne(b, f, theme, width, report) {
   check(has(doc.file.text.slice(0, 30)), `${tag}: the sentence of the verdict is not in the accessibility tree`);
   if (doc.migration) {
     const pb = out.find((n) => n.role === 'progressbar');
-    check(pb && /records sealed$/.test(pb.name), `${tag}: the progress of a seal is not a named progress bar in the accessibility tree`);
+    check(pb && /records (un)?sealed$/.test(pb.name), `${tag}: the progress of a seal is not a named progress bar in the accessibility tree`);
   }
   const levels = out.filter((n) => n.role === 'heading').map((n) => n.props.level);
   check(levels.every((l, i) => i === 0 || l - levels[i - 1] <= 1), `${tag}: the headings skip a level: ${levels.join(',')}`);

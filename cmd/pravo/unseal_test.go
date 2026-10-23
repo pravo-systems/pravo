@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,7 +62,7 @@ func TestProtectUnseal(t *testing.T) {
 		}
 	})
 	t.Run("--remove-files finishes it", func(t *testing.T) {
-		text, code := runPravo(t, r.dir, "protect", "unseal", "--remove-files")
+		text, code := runPravo(t, r.dir, "protect", "unseal", "--remove-files", "--yes")
 		if code != 0 || !strings.Contains(text, "The state is not sealed.") ||
 			!strings.Contains(text, "Removed .pravo/access/readers.txt; commit the deletion.") ||
 			!strings.Contains(text, "Removed .pravo/access/recovery.txt; commit the deletion.") {
@@ -99,5 +100,82 @@ func TestProtectUnsealJSONAndSealAgain(t *testing.T) {
 	}
 	if !strings.Contains(r.bucketText(), `"current": "g2"`) {
 		t.Errorf("the second seal did not number its group after the first:\n%s", r.f.Objects["prod/meta.json"])
+	}
+}
+
+func TestProtectUnsealTouchesNothingItShouldNot(t *testing.T) {
+	requireSealing(t)
+	ids := isolateIdentities(t)
+	e := newS3Env(t, false)
+	st := e.store(t)
+	e.record(t, st, "net.vpc", secretA)
+	_, adaLine := person(t, ids, "ada")
+	e.readers(t, adaLine)
+	readers := filepath.Join(e.dir, ".pravo", "access", "readers.txt")
+
+	// A state that was never sealed keeps the files of the repository, with or without the flag.
+	for _, args := range [][]string{{"protect", "unseal"}, {"protect", "unseal", "--remove-files", "--yes"}} {
+		puts := e.puts()
+		text, code := runPravo(t, e.dir, args...)
+		if code != 0 || !strings.Contains(text, "The state is not sealed.") || e.puts() != puts {
+			t.Fatalf("%v: exit %d, %d puts\n%s", args, code, e.puts()-puts, text)
+		}
+		if _, err := os.Stat(readers); err != nil {
+			t.Fatalf("%v: the readers file is gone", args)
+		}
+	}
+	// A state that does not exist is not made.
+	empty := newS3Env(t, false)
+	empty.readers(t, adaLine)
+	before := empty.puts()
+	if text, code := runPravo(t, empty.dir, "protect", "unseal", "--yes"); code != 0 || !strings.Contains(text, "There is no state yet.") || empty.puts() != before {
+		t.Errorf("exit %d, %d puts\n%s", code, empty.puts()-before, text)
+	}
+}
+
+func TestProtectUnsealByAStrangerWritesNothing(t *testing.T) {
+	r := recoveredBucket(t)
+	before := r.bucketText()
+	stranger := t.TempDir()
+	eve, eveData := newIdentityFile(t, "eve", true)
+	putIdentity(t, stranger, "eve", eveData)
+	_ = eve
+	t.Setenv("PRAVO_IDENTITY_DIR", stranger)
+	text, code := runPravo(t, r.dir, "protect", "unseal", "--yes", "--remove-files")
+	if code != 5 || r.bucketText() != before {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	if _, err := os.Stat(filepath.Join(r.dir, ".pravo", "access", "readers.txt")); err != nil {
+		t.Error("the readers file was deleted")
+	}
+}
+
+func TestProtectUnsealMessagesForAnUnsealingState(t *testing.T) {
+	r := recoveredBucket(t)
+	var m map[string]any
+	if err := json.Unmarshal(r.f.Objects["prod/meta.json"], &m); err != nil {
+		t.Fatal(err)
+	}
+	m["migration"] = map[string]any{"to": 3, "started": "2026-10-22T09:30:00Z", "by": "ada", "done": 1, "total": 2, "unseal": true}
+	data, _ := json.Marshal(m)
+	r.f.Objects["prod/meta.json"] = data
+	for _, tc := range []struct {
+		args []string
+		want string
+		code int
+	}{
+		{[]string{"protect", "check", "--allow-local"}, "Finish it with pravo protect unseal.", 0},
+		{[]string{"protect", "init", "--encrypt", "--yes"}, "an unseal was started and did not finish", 1},
+		{[]string{"protect", "rewrap"}, "an unseal is in progress; finish it with pravo protect unseal", 1},
+		{[]string{"protect", "status"}, "unsealing · 1 of 2 records · run pravo protect unseal to finish", 0},
+	} {
+		text, code := runPravo(t, r.dir, tc.args...)
+		if code != tc.code || !strings.Contains(text, tc.want) {
+			t.Errorf("%v: exit %d, want %d with %q:\n%s", tc.args, code, tc.code, tc.want, text)
+		}
+	}
+	// Finishing it works: the records are sealed, the mark says unseal.
+	if text, code := runPravo(t, r.dir, "protect", "unseal", "--yes"); code != 0 || !strings.Contains(text, "Finished an unseal that was begun earlier.") {
+		t.Errorf("finish: exit %d\n%s", code, text)
 	}
 }
