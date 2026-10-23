@@ -897,8 +897,10 @@ func (s *Store) lockOutputs() (func(), error) {
 			return s.unlockOutputs, nil
 		}
 		raw, holder, rerr := s.readOutputsLock()
-		if unknown && rerr == nil && bytes.Equal(raw, data) {
-			return s.unlockOutputs, nil // a write of unknown outcome that was made
+		if rerr == nil && bytes.Equal(raw, data) {
+			// A create of unknown outcome that was made, found now or by a later round
+			// whose own create was refused: the bytes are this call's.
+			return s.unlockOutputs, nil
 		}
 		if errors.Is(rerr, ErrNotFound) {
 			// Released between the two calls: ask again. A store that refuses the
@@ -1282,8 +1284,10 @@ func (s *Store) lock(addr, command, txn string, keep bool) (bool, error) {
 		}
 		if holder.Nonce == s.nonce {
 			// The nonce is this store's, and so is a lock that holds the bytes of
-			// this write: it was created by this call, which must release it.
-			return unknown && bytes.Equal(raw, data), nil
+			// this write: it was created by this call, which must release it. The
+			// bytes name this call, not this round: a create of unknown outcome that
+			// was made is found by a later round, whose own create was refused.
+			return bytes.Equal(raw, data), nil
 		}
 		stale := s.stale(holder)
 		if keep && !stale && s.OwnsReservation(holder) {
@@ -1396,14 +1400,17 @@ func (s *Store) ReserveAll(addrs []string, command string, until time.Time) (map
 // reserve reserves one address. It returns the end of the reservation and the
 // reservation of the owner that it replaced, if any.
 func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock, error) {
-	// maybe is a replacement of this store's reservation that the store may or may
-	// not have made: the bytes written, the end of the reservation, and the
-	// reservation it would have replaced.
-	var maybe struct {
+	// maybe lists the writes of this call that the store may or may not have made,
+	// from any round: the bytes written, the end of the reservation, and the
+	// reservation it replaced, nil for a create. A round that finds one of them in
+	// the store took the reservation, and the rounds after an unknown outcome and a
+	// failed read must not take it for the reservation of an earlier command.
+	type possible struct {
 		data []byte
 		end  time.Time
 		prev *Lock
 	}
+	var maybe []possible
 	for attempt := 0; attempt < 4; attempt++ {
 		l := s.newLock(addr, command, "")
 		l.Kind = "reservation"
@@ -1417,6 +1424,9 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 		if created {
 			return until, nil, nil
 		}
+		if unknown {
+			maybe = append(maybe, possible{data, until, nil})
+		}
 		raw, holder, rerr := s.readHolder(addr)
 		if rerr != nil {
 			if errors.Is(rerr, ErrNotFound) {
@@ -1425,11 +1435,10 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 			s.deleteLock(addr, raw)
 			continue
 		}
-		if unknown && bytes.Equal(raw, data) {
-			return until, nil, nil // the create was made
-		}
-		if maybe.data != nil && bytes.Equal(raw, maybe.data) {
-			return maybe.end, maybe.prev, nil // the replacement was made
+		for _, m := range maybe {
+			if bytes.Equal(raw, m.data) {
+				return m.end, m.prev, nil // the create or the replacement was made
+			}
 		}
 		stale := s.stale(holder)
 		if !stale && s.OwnsReservation(holder) {
@@ -1450,7 +1459,7 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 			case errors.Is(err, ErrUnknownOutcome):
 				// Read again, as after a refusal; the lock is this call's if it holds
 				// these bytes, and then the reservation that it replaced is this one.
-				maybe.data, maybe.end, maybe.prev = data, end, &holder
+				maybe = append(maybe, possible{data, end, &holder})
 				continue
 			case err != nil:
 				return time.Time{}, nil, err
