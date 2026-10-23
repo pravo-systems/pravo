@@ -247,7 +247,7 @@ export function planStrip(el, p, cb) {
   clear(el);
   if (!p) { el.hidden = true; return; }
   el.hidden = false;
-  el.append(
+  el.append(...[
     h('span', { class: 'ps-eyebrow' }, 'Plan'),
     avatar(p.author),
     cb.reason ? h('span', { class: 'ps-title', title: cb.reason }, cb.reason) : null,
@@ -257,5 +257,5 @@ export function planStrip(el, p, cb) {
     h('span', { class: 'ps-by dim' }, p.author + ' \u00b7 ' + relTime(p.created)),
     h('span', { class: 'grow' }),
     h('button', { class: 'ps-det', type: 'button', 'aria-label': 'Open the detail of ' + p.id, on: { click: cb.onDetail } }, 'Details'),
-    h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Take the plan off the resources', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' }), 'Take it off'));
+    h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Take the plan off the resources', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' }), 'Take it off')].filter(Boolean));
 }
