@@ -1,0 +1,257 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "state": "sealed",
+ "format": 3,
+ "location": "s3://acme-state/estate",
+ "backend": "s3",
+ "summary": "The state is sealed to 3 readers. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
+ "readers": [
+  {
+   "name": "ada",
+   "name_ok": true,
+   "key": "x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
+   "key_short": "x25519:zILxDZ…",
+   "fingerprint": "SHA256:m8YMmlDg9T6mFey9zpNAmej98q7pMpDsi0aia27rJlo",
+   "in_store": true,
+   "in_file": true,
+   "line": 1
+  },
+  {
+   "name": "dan",
+   "name_ok": true,
+   "key": "x25519:Hli_Xj5WuXVFv4DwxC4drR13YSgBV_Idby_OkIthUm0",
+   "key_short": "x25519:Hli_Xj…",
+   "fingerprint": "SHA256:OXONlpNIN4+YAxgAA72tFS273MSP9v31RNyZ2aJwA7g",
+   "in_store": true,
+   "in_file": true,
+   "line": 2
+  },
+  {
+   "name": "eve",
+   "name_ok": true,
+   "key": "x25519:1SF2s5-AKKnLO9umTOT0kedPWRnElvdGZ7B5sBXfXgU",
+   "key_short": "x25519:1SF2s5…",
+   "fingerprint": "SHA256:UcAPC/FaE/Zgq+rhXHTUBQDP09GW9+NCURIOldYtkf0",
+   "in_store": true,
+   "in_file": true,
+   "line": 3
+  }
+ ],
+ "file": {
+  "verdict": "match",
+  "path": "/srv/infra/estate/.pravo/access/readers.txt",
+  "text": "The readers file matches the store.",
+  "count": 3
+ },
+ "you": {
+  "state": "not-reader",
+  "name": "gus",
+  "text": "This key is not a reader of the state. Resources are listed and no value is shown."
+ },
+ "records": {
+  "total": 46,
+  "sealed": 46,
+  "plain": 0,
+  "unreadable": 46,
+  "text": "46 records are sealed under a group that this key cannot open."
+ },
+ "last_change": {
+  "at": "2026-10-22T10:41:00Z",
+  "by": "ada",
+  "what": "rewrap",
+  "added": [
+   "eve"
+  ],
+  "text": "2026-10-22 10:41 UTC · readers rewrapped by ada"
+ },
+ "suggestions": [
+  {
+   "id": "identity",
+   "title": "Read the state with your own key",
+   "why": "This key is not a reader. Print your line and send it to a reader, who adds it as described under Add a reader.",
+   "who": "you",
+   "primary": true,
+   "steps": [
+    {
+     "kind": "command",
+     "text": "pravo id show"
+    },
+    {
+     "kind": "note",
+     "text": "When a reader has added your line and rewrapped, start the viewer again:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo serve --identity \u003cname\u003e",
+     "placeholder": true
+    }
+   ]
+  },
+  {
+   "id": "add-reader",
+   "title": "Add a reader",
+   "why": "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
+   "who": "the new reader, then a current reader",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "On the machine of the new reader:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo id new --name \u003cname\u003e",
+     "placeholder": true
+    },
+    {
+     "kind": "note",
+     "text": "On the machine of a current reader:"
+    },
+    {
+     "kind": "add-line",
+     "text": "\u003cthe line pravo id new printed\u003e",
+     "file": ".pravo/access/readers.txt",
+     "placeholder": true
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Add a reader'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    }
+   ]
+  },
+  {
+   "id": "remove-reader:ada",
+   "title": "Remove ada",
+   "why": "Removing the line stops new records being sealed to ada. ada keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets ada could read where they live.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "remove-line",
+     "text": "ada ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH5ET7znEbFgMprQljUaVlzyk4qjIG3fNOQdttLes/Jq x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
+     "file": ".pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'ada leaves'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    },
+    {
+     "kind": "note",
+     "text": "rewrap --all seals every existing record again under the new key."
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --all"
+    }
+   ]
+  },
+  {
+   "id": "remove-reader:dan",
+   "title": "Remove dan",
+   "why": "Removing the line stops new records being sealed to dan. dan keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets dan could read where they live.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "remove-line",
+     "text": "dan ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHPAbTnt1+T+s2W2FeyhOamXfBHN8I8WOVA7ril08/DO x25519:Hli_Xj5WuXVFv4DwxC4drR13YSgBV_Idby_OkIthUm0",
+     "file": ".pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'dan leaves'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    },
+    {
+     "kind": "note",
+     "text": "rewrap --all seals every existing record again under the new key."
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --all"
+    }
+   ]
+  },
+  {
+   "id": "remove-reader:eve",
+   "title": "Remove eve",
+   "why": "Removing the line stops new records being sealed to eve. eve keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets eve could read where they live.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "remove-line",
+     "text": "eve ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGe+NVO75qo2wza1AlFu432QsP511ID6I1oF2BaEG8v8 x25519:1SF2s5-AKKnLO9umTOT0kedPWRnElvdGZ7B5sBXfXgU",
+     "file": ".pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'eve leaves'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    },
+    {
+     "kind": "note",
+     "text": "rewrap --all seals every existing record again under the new key."
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --all"
+    }
+   ]
+  },
+  {
+   "id": "status",
+   "title": "Check the state",
+   "why": "The check hashes every record against its name and prints who can read the state.",
+   "steps": [
+    {
+     "kind": "command",
+     "text": "pravo protect status"
+    }
+   ]
+  }
+ ]
+}

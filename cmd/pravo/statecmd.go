@@ -48,6 +48,15 @@ func stateCmd() *cobra.Command {
 		}
 		return openStateReadOnly(context.Background(), root)
 	}
+	// loadValues is loadRead for a subcommand that prints values: a sealed state
+	// is refused to a user who is not one of its readers.
+	loadValues := func() (*state.Store, error) {
+		root, err := loadRoot()
+		if err != nil {
+			return nil, err
+		}
+		return openStateValues(context.Background(), root)
+	}
 	copyCmd := func(use, short string, toRemote bool) *cobra.Command {
 		return &cobra.Command{
 			Use: use, Short: short, Args: cobra.ExactArgs(1),
@@ -88,7 +97,7 @@ func stateCmd() *cobra.Command {
 	}, &cobra.Command{
 		Use: "show <addr>", Short: "Show a node: attributes as CUE plus its bookkeeping", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			st, err := loadRead()
+			st, err := loadValues()
 			if err != nil {
 				return err
 			}
@@ -233,6 +242,12 @@ func stateCmd() *cobra.Command {
 				if interrupted[txns[i].ID] {
 					txns[i].Status = "interrupted"
 				}
+				// A reader of a sealed state gets the text of an error that the
+				// transaction keeps sealed; anyone else sees the summary as it is.
+				if txns[i].SummarySealed != nil {
+					txns[i].Summary = st.SummaryText(txns[i])
+					txns[i].SummarySealed = nil
+				}
 			}
 			if flagJSON {
 				return emitJSON(txns)
@@ -310,7 +325,7 @@ func stateCmd() *cobra.Command {
 			}
 			return nil
 		},
-	}, unlockCmd(load), copyCmd("pull <dir>", "Copy the configured state graph into a local directory", false),
+	}, upgradeCmd(load), unlockCmd(load), copyCmd("pull <dir>", "Copy the configured state graph into a local directory", false),
 		copyCmd("push <dir>", "Copy a local state directory into the configured backend", true),
 		stateEdgesCmd(loadRead), &cobra.Command{
 			Use: "dependents <addr>", Short: "List everything a change to the resource can reach", Args: cobra.ExactArgs(1),
@@ -344,7 +359,7 @@ Examples:
   pravo state query 'len(resources)'`,
 			Args: cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				st, err := loadRead()
+				st, err := loadValues()
 				if err != nil {
 					return err
 				}
@@ -388,6 +403,33 @@ Examples:
 
 // unlockCmd is "state unlock": it releases one lock, or with --stale every lock
 // that may be reclaimed.
+// upgradeCmd is "state upgrade": the first step of "protect init" alone. It is
+// hidden, because a state in format 2 is not encrypted and nothing but a test or
+// a careful operator has a use for it.
+func upgradeCmd(load func() (*state.Store, error)) *cobra.Command {
+	return &cobra.Command{
+		Use:    "upgrade",
+		Short:  "Store each record as an immutable object (format 2), without encrypting it",
+		Hidden: true,
+		Args:   noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			st, err := load()
+			if err != nil {
+				return err
+			}
+			res, err := st.Upgrade(cmd.Context(), state.UpgradeOptions{To: state.FormatImmutable})
+			if err != nil {
+				return err
+			}
+			if flagJSON {
+				return emitJSON(map[string]any{"from": res.From, "to": res.To, "records": res.Records})
+			}
+			out.Printf("The state is in format %d: %s as immutable objects\n", res.To, plural(res.Records, "record", "records"))
+			return nil
+		},
+	}
+}
+
 func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 	var stale bool
 	cmd := &cobra.Command{

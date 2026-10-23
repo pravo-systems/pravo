@@ -1,6 +1,6 @@
 ---
 name: pravo
-description: Use when writing, reviewing, running or debugging infrastructure with pravo, the CUE-based tool that drives OpenTofu and Terraform providers. Covers CUE specifications with provider structs and resources, the pravo commands (init, validate, plan, apply, destroy, drift, why, state, import, eval, schema, mod, serve, mcp), plan policies, state and locks, modules, migrating from OpenTofu or Terraform, and reading pravo errors and exit codes. Apply when a directory has a pravo.lock.cue or cue.mod/gen, when the user mentions pravo, pravo.state or pravo.dev/providers, or asks for CUE instead of HCL.
+description: Use when writing, reviewing, running or debugging infrastructure with pravo, the CUE-based tool that drives OpenTofu and Terraform providers. Covers CUE specifications with provider structs and resources, the pravo commands (init, validate, plan, apply, destroy, drift, why, state, import, eval, schema, mod, serve, mcp, id, protect), plan policies, state and locks, modules, migrating from OpenTofu or Terraform, and reading pravo errors and exit codes. Apply when a directory has a pravo.lock.cue or cue.mod/gen, when the user mentions pravo, pravo.state or pravo.dev/providers, or asks for CUE instead of HCL.
 ---
 
 # pravo
@@ -86,8 +86,9 @@ pravo destroy                       # destroys everything recorded; asks first
 - `pravo why ADDR` explains why a plan creates, changes, replaces or skips a resource. `-v` logs what pravo decides, `-vv` adds the providers' own log.
 - `--json` makes a command print machine-readable output on standard output and progress on standard error. `--actor NAME` and `--reason TEXT` are labels recorded on transactions, locks and plans; they are not verified.
 - `pravo serve` opens a read-only viewer of the specification, the state and a saved plan in a browser (`--plan FILE`). It lists the plans stored in the state, with who made them and which resources they share, and `pravo serve --plan plan-ID` lays one over the graph. It applies nothing.
+- A state can be sealed: its attributes, outputs and stored plans are encrypted to the readers listed in `.pravo/access/readers.txt`. `pravo id new --name NAME` makes an identity and prints the line for that file, `pravo protect check` says whether the store can be sealed, `pravo protect init --encrypt` seals it, `pravo protect status` says where it stands, `pravo protect rewrap` brings the keys in line with the file after a reader is added or removed, and `pravo protect gc` deletes the records that no pointer names and drops the reader groups that nothing is sealed in. Without an identity that is a reader, `pravo state list` works and a command that needs a value exits with code 5. A job gets its identity from `PRAVO_IDENTITY` (`pravo id new --ci --name NAME --out FILE`).
 
-Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`), 3 stale saved plan, or a stored plan that is stale, partly stale (the whole plan) or expired, 4 locked or reserved, 5 refused by a policy or a module lock, 6 invalid specification. `references/reference/exit-codes.md` has the full table.
+Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`), 3 stale saved plan, or a stored plan that is stale, partly stale (the whole plan) or expired, 4 locked or reserved, 5 refused by a policy or a module lock, 6 invalid specification, 7 a state that failed verification. `references/reference/exit-codes.md` has the full table.
 
 ## Safety for an agent
 
@@ -98,6 +99,7 @@ Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`),
 - Do not print values of sensitive attributes or outputs, and do not put secrets in a specification. `pravo.#SecretEnv` reads one from the environment without recording it.
 - An agent that calls pravo through tools should use `pravo mcp --policy FILE`. The server applies only from saved plans, a plan file or the id of a stored plan with its `tags` (`pravo_plan` with `store` stores one, `pravo_plan_list` lists them), and refuses arguments that start with `-`. `references/how-to/agents-and-mcp.md` states what that does and does not protect.
 - `--actor` is a label that the caller types. It is not an identity.
+- Do not run `pravo protect init`, `pravo protect rewrap`, `pravo protect gc` or `pravo id new` unless the user asked for it: they change who can read the state or delete from it. Never print an identity file, `PRAVO_IDENTITY` or a passphrase. Exit code 7 means that a record in the state does not match its name: stop and report it, do not apply.
 
 ## Where to look
 
@@ -118,5 +120,6 @@ Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`),
 | Moving from OpenTofu or Terraform | `references/migrate/` (start with `m1-before-you-start.md`; constructs in `construct-matrix.md`, commands in `command-map.md`) |
 | CUE itself | `references/learn/cue-cheat-sheet.md`, `references/learn/c1-reading-a-cue-error.md` |
 | The viewer | `references/reference/serve.md` |
+| Sealing the state to a list of readers, identities, the readers file | `references/how-to/seal-the-state.md`, `references/reference/protect.md`, `references/concepts/sealed-state.md` |
 
 If a file does not answer it, `grep -r` the references: every error message pravo prints is in `references/reference/errors.md`. The documentation is also at https://pravo.systems, and https://pravo.systems/llms-full.txt has all of it in one file.

@@ -1,0 +1,147 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "state": "sealed",
+ "format": 3,
+ "location": "s3://acme-state/estate",
+ "backend": "s3",
+ "summary": "The state is sealed to 1 reader. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
+ "readers": [
+  {
+   "name": "ada",
+   "name_ok": true,
+   "key": "x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
+   "key_short": "x25519:zILxDZ…",
+   "fingerprint": "SHA256:m8YMmlDg9T6mFey9zpNAmej98q7pMpDsi0aia27rJlo",
+   "in_store": true,
+   "in_file": true,
+   "you": true,
+   "line": 1
+  }
+ ],
+ "file": {
+  "verdict": "match",
+  "path": "/srv/infra/estate/.pravo/access/readers.txt",
+  "text": "The readers file matches the store.",
+  "count": 1
+ },
+ "you": {
+  "state": "reader",
+  "name": "ada",
+  "text": "You are ada, a reader."
+ },
+ "records": {
+  "total": 46,
+  "sealed": 46,
+  "plain": 0,
+  "unreadable": 0,
+  "text": "All 46 records are sealed."
+ },
+ "single_reader": {
+  "text": "You are the only reader. If you lose your key or its passphrase, nobody can read this state, and there is no recovery key.",
+  "action": "Add a backup reader",
+  "suggestion": "add-reader"
+ },
+ "last_change": {
+  "at": "2026-10-23T08:03:00Z",
+  "by": "ada",
+  "what": "sealed",
+  "added": [
+   "ada"
+  ],
+  "text": "2026-10-23 08:03 UTC · sealed by ada"
+ },
+ "suggestions": [
+  {
+   "id": "add-reader",
+   "title": "Add a backup reader",
+   "why": "With one reader and no recovery key, nobody can read the state again if that reader loses their key or its passphrase. A backup reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
+   "who": "the new reader, then a current reader",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "On the machine of the new reader:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo id new --name \u003cname\u003e",
+     "placeholder": true
+    },
+    {
+     "kind": "note",
+     "text": "On the machine of a current reader:"
+    },
+    {
+     "kind": "add-line",
+     "text": "\u003cthe line pravo id new printed\u003e",
+     "file": ".pravo/access/readers.txt",
+     "placeholder": true
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Add a reader'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    }
+   ]
+  },
+  {
+   "id": "remove-reader:ada",
+   "title": "Remove ada",
+   "why": "Removing the line stops new records being sealed to ada. ada keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets ada could read where they live.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "remove-line",
+     "text": "ada ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH5ET7znEbFgMprQljUaVlzyk4qjIG3fNOQdttLes/Jq x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
+     "file": ".pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'ada leaves'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    },
+    {
+     "kind": "note",
+     "text": "You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --all"
+    }
+   ]
+  },
+  {
+   "id": "status",
+   "title": "Check the state",
+   "why": "The check hashes every record against its name and prints who can read the state.",
+   "steps": [
+    {
+     "kind": "command",
+     "text": "pravo protect status"
+    }
+   ]
+  }
+ ]
+}

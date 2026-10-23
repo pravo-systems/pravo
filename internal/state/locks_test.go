@@ -366,7 +366,12 @@ func TestRefreshWritesNothingFromAnOlderView(t *testing.T) {
 				t.Fatalf("after a refresh: %+v", got)
 			}
 
-			// Another command applies the record.
+			// Another command applies the record. In format 2 the refresh replaced the
+			// pointer, and a command that read the record before it does not write over
+			// it: the command is run again, which is a new view.
+			if NewStoreFormat != Format {
+				other = openMany(t, b, 1)[0]
+			}
 			if err := other.Set(other.Get("t.r"), "t3"); err != nil {
 				t.Fatal(err)
 			}
@@ -450,9 +455,23 @@ func TestGenerationOfARecord(t *testing.T) {
 			if !strings.Contains(string(data), `"generation": "t3"`) {
 				t.Errorf("the object does not hold the generation:\n%s", data)
 			}
+		})
+	}
+}
 
-			// A record written before generations were recorded has none. A refresh
-			// leaves it so, and the next write gives it one.
+// A record written before generations were recorded has none. A refresh leaves
+// it so, and the next write gives it one. The test plants a whole record, which a
+// sealed state refuses, so it runs over stores that are not sealed.
+func TestGenerationOfARecordWrittenBeforeGenerations(t *testing.T) {
+	skipWhenSealed(t)
+	for _, bk := range testBackends() {
+		t.Run(bk.name, func(t *testing.T) {
+			b := bk.make(t)
+			s := openMany(t, b, 1)[0]
+			ctx := context.Background()
+			rec := func() *Resource {
+				return &Resource{Mode: "managed", Type: "t", Name: "r", Attributes: json.RawMessage(`{}`)}
+			}
 			old := rec()
 			old.Name = "old"
 			if err := s.Set(old, "t4"); err != nil {
@@ -460,7 +479,7 @@ func TestGenerationOfARecord(t *testing.T) {
 			}
 			legacy := *s.Get("t.old")
 			legacy.Generation = ""
-			data, _ = indentJSON(&legacy)
+			data, _ := indentJSON(&legacy)
 			if err := b.Put(ctx, nodeKey("t.old"), data); err != nil {
 				t.Fatal(err)
 			}

@@ -1,0 +1,129 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "state": "sealed",
+ "format": 3,
+ "location": "s3://acme-state/estate",
+ "backend": "s3",
+ "summary": "The state is sealed to 3 readers. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
+ "readers": [
+  {
+   "name": "ada",
+   "name_ok": true,
+   "key": "x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
+   "key_short": "x25519:zILxDZ…",
+   "in_store": true,
+   "in_file": false,
+   "you": true
+  },
+  {
+   "name": "dan",
+   "name_ok": true,
+   "key": "x25519:Hli_Xj5WuXVFv4DwxC4drR13YSgBV_Idby_OkIthUm0",
+   "key_short": "x25519:Hli_Xj…",
+   "in_store": true,
+   "in_file": false
+  },
+  {
+   "name": "eve",
+   "name_ok": true,
+   "key": "x25519:1SF2s5-AKKnLO9umTOT0kedPWRnElvdGZ7B5sBXfXgU",
+   "key_short": "x25519:1SF2s5…",
+   "in_store": true,
+   "in_file": false
+  }
+ ],
+ "file": {
+  "verdict": "invalid",
+  "path": "/srv/infra/estate/.pravo/access/readers.txt",
+  "text": "The readers file does not load: line 3: want 4 fields: NAME ssh-ed25519 BASE64 x25519:BASE64URL (got 3).",
+  "count": 0,
+  "errors": [
+   {
+    "line": 3,
+    "reason": "want 4 fields: NAME ssh-ed25519 BASE64 x25519:BASE64URL (got 3)"
+   },
+   {
+    "line": 5,
+    "reason": "reader key …: want x25519:BASE64URL"
+   }
+  ]
+ },
+ "you": {
+  "state": "reader",
+  "name": "ada",
+  "text": "You are ada, a reader."
+ },
+ "records": {
+  "total": 46,
+  "sealed": 46,
+  "plain": 0,
+  "unreadable": 0,
+  "text": "All 46 records are sealed."
+ },
+ "last_change": {
+  "at": "2026-10-22T10:41:00Z",
+  "by": "ada",
+  "what": "rewrap",
+  "added": [
+   "eve"
+  ],
+  "text": "2026-10-22 10:41 UTC · readers rewrapped by ada"
+ },
+ "suggestions": [
+  {
+   "id": "add-reader",
+   "title": "Add a reader",
+   "why": "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
+   "who": "the new reader, then a current reader",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "On the machine of the new reader:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo id new --name \u003cname\u003e",
+     "placeholder": true
+    },
+    {
+     "kind": "note",
+     "text": "On the machine of a current reader:"
+    },
+    {
+     "kind": "add-line",
+     "text": "\u003cthe line pravo id new printed\u003e",
+     "file": ".pravo/access/readers.txt",
+     "placeholder": true
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Add a reader'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    }
+   ]
+  },
+  {
+   "id": "status",
+   "title": "Check the state",
+   "why": "The check hashes every record against its name and prints who can read the state.",
+   "steps": [
+    {
+     "kind": "command",
+     "text": "pravo protect status"
+    }
+   ]
+  }
+ ]
+}

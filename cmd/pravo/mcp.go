@@ -298,6 +298,11 @@ from saved plan files, and a tool argument that is empty or begins with "-" is
 refused so that it cannot be read as a flag. That narrows what this tool does,
 not what the process around it may do.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// The server has no terminal: the identity that opens a sealed state
+			// comes from PRAVO_IDENTITY and PRAVO_PASSPHRASE, which the commands
+			// it runs inherit.
+			identityPrompt = false
+			defer func() { identityPrompt = true }()
 			// Read and compile the files now, so that a bad path fails the start
 			// and not every later call. Paths are absolute so that the file a
 			// policy names does not depend on the directory the server was
@@ -410,6 +415,9 @@ func runSelf(ctx context.Context, args []string) (string, int) {
 	}
 	if flagReason != "" {
 		full = append(full, "--reason", flagReason)
+	}
+	if flagIdentity != "" {
+		full = append(full, "--identity", flagIdentity)
 	}
 	// The server's policies bind the runs that can change something, and only
 	// those: the other commands do not take the flag.

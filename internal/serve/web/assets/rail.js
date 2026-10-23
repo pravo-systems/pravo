@@ -4,7 +4,7 @@
 // focus stays where it was.
 
 import { h, icon, tick, motionOn, baseName, nodeMark } from './util.js';
-import { FILTERS } from './model.js';
+import { FILTERS, notCounted } from './model.js';
 import { avatar } from './plans.js';
 
 const LEAF_LIMIT = 120;
@@ -72,8 +72,18 @@ export class Rail {
       const on = (s.filter || null) === c.key;
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
       b.classList.toggle('zero', n === 0 && !!c.key);
-      b.setAttribute('aria-label', `${c.label}, ${n}`);
-      tick(em, n);
+      if (notCounted(model.counts, c.count)) {
+        // the records are sealed and say nothing of this: a dash, not a zero
+        if (em._tick) { cancelAnimationFrame(em._tick); em._tick = 0; }
+        delete em.dataset.v;
+        em.textContent = '\u2014';
+        em.title = 'sealed';
+        b.setAttribute('aria-label', `${c.label}, sealed`);
+      } else {
+        em.removeAttribute('title');
+        b.setAttribute('aria-label', `${c.label}, ${n}`);
+        tick(em, n);
+      }
     }
     if (this.titleEl) {
       const g = model.graph.project;

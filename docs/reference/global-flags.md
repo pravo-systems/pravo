@@ -31,6 +31,7 @@ These flags belong to the command `pravo` and every subcommand accepts them.
 | `--json` | off | Machine-readable output on stdout, progress on stderr. See [JSON](#json). |
 | `--actor LABEL` | `$PRAVO_ACTOR` | A label for who is acting. Recorded on transactions, locks, reservations and plans, and it is the author that `pravo plan list` shows for a stored plan. It is not verified. |
 | `--reason TEXT` | `$PRAVO_REASON` | Why. Recorded with the actor. On a plan, it is the note that the viewer and `pravo plan show` give. An apply of a saved or stored plan records the reason of the plan, unless it is given its own. |
+| `--identity NAME` | `$PRAVO_IDENTITY` | The identity file to read a sealed state with, from the identity directory. It wins over `$PRAVO_IDENTITY`, and it matters only for a state that is sealed. See [`pravo id and pravo protect`](protect.md#the-identity). |
 | `-h`, `--help` | | Print the help of the command. |
 
 `pravo help COMMAND` prints the same help. `pravo completion bash`, `zsh`, `fish` or `powershell` prints a completion script for that shell.
@@ -50,6 +51,7 @@ A command that takes no argument refuses a word, so a misplaced value is an erro
 | `--refresh=age\|expired\|false\|all` | `plan`, `apply`, `destroy`, `why` | When to read real state from the providers. See [`pravo plan`](plan.md#refresh). |
 | `--full` | `plan`, `apply` | Plan every resource with its provider. |
 | `--policy FILE` | `plan`, `apply`, `destroy`, `mcp` | A CUE file the plan must satisfy. Repeatable. |
+| `--access-dir DIR` | `protect`, `serve` | The directory of the readers file of a sealed state, in place of `.pravo/access`. `PRAVO_ACCESS_DIR` sets the same, and the flag wins. A relative directory is relative to the root. See [`pravo id and pravo protect`](protect.md#the-readers-file). |
 
 `pravo show`, `pravo fmt`, `pravo version` and `pravo mod` take no tags. Use the same tags for `plan` and `apply`. Otherwise they evaluate different specifications. A saved plan carries its own.
 
@@ -248,6 +250,11 @@ Copying a recording, or keeping it in version control, does not keep the modes. 
 | `PRAVO_NO_PRUNE` | When set, the generated provider packages are loaded whole. A run loads them without the types that the specification does not use. See [Providers](../concepts/providers.md#the-generated-package). |
 | `PRAVO_S3_PROBE` | `off` skips the check that an S3 store honours conditional requests. See [S3-compatible stores](s3-stores.md). |
 | `PRAVO_ACTOR`, `PRAVO_REASON` | The values of `--actor` and `--reason` when the flags are absent. |
+| `PRAVO_ACCESS_DIR` | The directory of the readers file of a sealed state, in place of `.pravo/access`. The flag `--access-dir` of [`pravo protect`](protect.md) wins. |
+| `PRAVO_IDENTITY` | The identity that opens a sealed state: the contents of an identity file, when the value starts with `{`, or the path of one. It is read once and removed from the environment, and providers never receive it. For a CI job, see [`pravo id new --ci`](protect.md#id-new). |
+| `PRAVO_IDENTITY_DIR` | The directory that holds identity files, in place of `id` in the configuration directory. Commands that read identities look there, and `pravo id new` writes there, making the directory with mode 0700 when it is missing. |
+| `PRAVO_PASSPHRASE`, `PRAVO_IDENTITY_PASSPHRASE` | The passphrase of a sealed identity, for a command that has no terminal to ask on. It is read once and removed from the environment, and providers never receive it. |
+| `PRAVO_CONFIG_DIR` | The configuration directory, in place of `$XDG_CONFIG_HOME/pravo` or `~/.config/pravo`. Identities are kept in its `id` directory. |
 | `PRAVO_RECORD`, `PRAVO_REPLAY` | A directory to record provider responses to, or to replay them from. |
 | `NO_COLOR` | When set, the output is not coloured. |
 | `CUE_REGISTRY` | The registry for CUE modules. When it is set, pravo uses it as it is. See [`pravo mod`](mod.md). |
@@ -257,7 +264,7 @@ Copying a recording, or keeping it in version control, does not keep the modes. 
 
 ## Exit codes
 
-Every command exits with 0, 1, 2, 3, 4, 5 or 6. [Exit codes](exit-codes.md) gives the meaning of each code and runs a command that ends with it. Under `--json` an error also prints `{"code":N,"kind":"error","message":"..."}` on standard output. The tools of [`pravo mcp`](mcp.md) return the same codes in `structuredContent.exit_code`.
+Every command exits with 0, 1, 2, 3, 4, 5, 6 or 7. [Exit codes](exit-codes.md) gives the meaning of each code and runs a command that ends with it. Under `--json` an error also prints `{"code":N,"kind":"error","message":"..."}` on standard output. The tools of [`pravo mcp`](mcp.md) return the same codes in `structuredContent.exit_code`.
 
 ## See also
 

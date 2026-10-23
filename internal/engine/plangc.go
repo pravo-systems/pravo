@@ -234,6 +234,12 @@ func (ps *PlanStore) GC(ctx context.Context, o GCOptions) (*GCResult, error) {
 			// or because a newer pravo wrote it, says nothing about the plan.
 			continue
 		}
+		if kinds["plan"] && !kinds["meta"] && ps.foreignPlan(ctx, id) {
+			// A plan object that is not the plan its name says it is, and that no
+			// summary goes with: no write of a plan makes one. See gcForeign.
+			ps.gcForeign(ctx, id, kinds, &o, now, res)
+			continue
+		}
 		if !kinds["plan"] || !kinds["meta"] || r.metaErr != nil {
 			// The objects of a plan that is not whole: a write that did not finish, or
 			// the remains of a removal.
@@ -242,7 +248,7 @@ func (ps *PlanStore) GC(ctx context.Context, o GCOptions) (*GCResult, error) {
 				continue
 			}
 			item := GCItem{ID: id, Reason: "incomplete: the plan was not stored whole"}
-			if o.DryRun || ps.remove(ctx, id, &o, nil) {
+			if o.DryRun || ps.remove(ctx, id, &o, nil, false) {
 				res.Removed = append(res.Removed, item)
 			}
 			continue
@@ -291,7 +297,7 @@ func (ps *PlanStore) GC(ctx context.Context, o GCOptions) (*GCResult, error) {
 			}
 			res.Marked = append(res.Marked, item)
 		case v.collect:
-			if o.DryRun || ps.remove(ctx, id, &o, m) {
+			if o.DryRun || ps.remove(ctx, id, &o, m, false) {
 				res.Removed = append(res.Removed, item)
 			}
 		}
@@ -299,22 +305,79 @@ func (ps *PlanStore) GC(ctx context.Context, o GCOptions) (*GCResult, error) {
 	return res, nil
 }
 
+// foreignPlan reports whether the plan object of id is not the plan that its name
+// says: its digest is not the id, or a sealed envelope names another id. A plan
+// that is stored has its digest as its id, so such an object was planted, or damaged.
+func (ps *PlanStore) foreignPlan(ctx context.Context, id string) bool {
+	data, err := ps.B.Get(ctx, planKey(id))
+	return err == nil && !planDigestMatches(data, id)
+}
+
+// gcForeign collects a plan object that is not the plan its name says it is and
+// that has no summary. The backend has no time of writing to ask for, so the
+// first collection that sees the object marks it, by a progress object, and a
+// collection that runs incompleteGrace later removes it, as it removes the objects
+// of a write that did not finish. A plan object with a summary is left alone, as
+// are the objects of a plan whose summary cannot be read.
+func (ps *PlanStore) gcForeign(ctx context.Context, id string, kinds map[string]bool, o *GCOptions, now time.Time, res *GCResult) {
+	item := GCItem{ID: id, Reason: "the plan file is not the plan that its name says: its digest is not the id"}
+	var seen time.Time
+	if kinds["progress"] {
+		p, err := ps.Progress(ctx, id)
+		if err != nil {
+			return
+		}
+		seen = p.Updated
+	}
+	if seen.IsZero() {
+		if !o.DryRun {
+			err := ps.updateProgress(ctx, id, func(cur *PlanProgress) error {
+				if !cur.Updated.IsZero() {
+					return errSkip
+				}
+				return nil
+			})
+			if err != nil {
+				return
+			}
+		}
+		res.Marked = append(res.Marked, item)
+		return
+	}
+	if now.Sub(seen) <= incompleteGrace {
+		return
+	}
+	if o.DryRun || ps.remove(ctx, id, o, nil, true) {
+		res.Removed = append(res.Removed, item)
+	}
+}
+
 // orphanAge says when the objects of a plan that is not whole were written, as far
 // as it can be told: by the time in the summary, in the plan or in the progress. A
 // plan object that is not what its name says it is has none: it is not touched.
 func (ps *PlanStore) orphanAge(ctx context.Context, id string, kinds map[string]bool) (time.Time, bool) {
 	if kinds["meta"] {
-		if m, err := ps.Meta(ctx, id); err == nil {
-			return m.Created, true
+		// The time is in the clear in a sealed summary: nothing is opened.
+		if data, err := ps.B.Get(ctx, metaKey2(id)); err == nil {
+			if m, err := decodeMeta(id, data); err == nil {
+				return m.Created, true
+			}
 		}
 	}
 	if kinds["plan"] {
 		if data, err := ps.B.Get(ctx, planKey(id)); err == nil {
-			if digestID(data, len(id)-len("plan-")) != id {
+			if !planDigestMatches(data, id) {
 				return time.Time{}, false
 			}
-			if pf, err := parsePlanFile(id, data); err == nil {
-				return pf.Created, true
+			// A sealed plan is opened to read the time, and has none for a store that cannot.
+			if plain, err := ps.openPlan(id, data); err == nil {
+				pf, err := parsePlanFile(id, plain)
+				if _, sealed := asSealedPlan(data); sealed {
+					clear(plain)
+				}
+				if err == nil {
+					return pf.Created, true
+				}
 			}
 		}
 	}
@@ -348,8 +411,9 @@ func (ps *PlanStore) repairProgress(ctx context.Context, id string, created, now
 }
 
 // remove claims a plan and deletes its objects, and reports whether this call
-// removed any of them. m is nil for a plan that is not whole.
-func (ps *PlanStore) remove(ctx context.Context, id string, o *GCOptions, m *PlanMeta) bool {
+// removed any of them. m is nil for a plan that is not whole. foreign is set for a
+// plan object that is not what its name says it is, which is deleted for that.
+func (ps *PlanStore) remove(ctx context.Context, id string, o *GCOptions, m *PlanMeta, foreign bool) bool {
 	now := ps.now()
 	existed := false
 	err := ps.updateProgress(ctx, id, func(p *PlanProgress) error {
@@ -401,16 +465,16 @@ func (ps *PlanStore) remove(ctx context.Context, id string, o *GCOptions, m *Pla
 	_, metaErr := ps.B.Get(ctx, metaKey2(id))
 	_, planErr := ps.B.Get(ctx, planKey(id))
 	if errors.Is(metaErr, state.ErrNotFound) && errors.Is(planErr, state.ErrNotFound) && !existed {
-		ps.deleteObject(ctx, id, "progress", o.Owner)
+		ps.deleteObject(ctx, id, "progress", o.Owner, false)
 		return false
 	}
 	removed := false
 	for _, kind := range []string{"plan", "meta"} {
-		if deleted := ps.deleteObject(ctx, id, kind, o.Owner); deleted {
+		if deleted := ps.deleteObject(ctx, id, kind, o.Owner, foreign); deleted {
 			removed = true
 		}
 	}
-	if deleted := ps.deleteObject(ctx, id, "progress", o.Owner); deleted && existed && m == nil {
+	if deleted := ps.deleteObject(ctx, id, "progress", o.Owner, false); deleted && existed && m == nil {
 		removed = true
 	}
 	return removed
@@ -424,8 +488,10 @@ func (ps *PlanStore) claimed(ctx context.Context, id, owner string) bool {
 
 // deleteObject deletes one object of a plan if it is what its name says it is: a
 // plan whose digest is its id, a summary that names the id, and a progress object
-// that the collector has claimed. It reports whether this call deleted the object.
-func (ps *PlanStore) deleteObject(ctx context.Context, id, kind, owner string) bool {
+// that the collector has claimed. With foreign set it deletes the plan object if it
+// is not what its name says, as a plan object that was planted is. It reports
+// whether this call deleted the object.
+func (ps *PlanStore) deleteObject(ctx context.Context, id, kind, owner string, foreign bool) bool {
 	var key string
 	switch kind {
 	case "plan":
@@ -441,7 +507,7 @@ func (ps *PlanStore) deleteObject(ctx context.Context, id, kind, owner string) b
 	match := func(current []byte) bool {
 		switch kind {
 		case "plan":
-			return digestID(current, len(id)-len("plan-")) == id
+			return planDigestMatches(current, id) != foreign
 		case "meta":
 			var h struct {
 				ID string `json:"id"`

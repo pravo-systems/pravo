@@ -30,6 +30,11 @@ export const FILTERS = {
   outputs: (n) => isOut(n),
 };
 
+// The counts that a sealed record leaves out: its attributes and its marks are not read, so a zero beside sealed
+// records says nothing, and the page shows a dash for it. A count above zero is shown: it is at least that many.
+const SEALED_COUNTS = new Set(['drifted', 'sensitive']);
+export const notCounted = (counts, key) => counts.sealed > 0 && counts[key] === 0 && SEALED_COUNTS.has(key);
+
 // buildModel indexes a graph. plans are the stored plans (the answer of /api/plans), which the badges on the
 // nodes name by id.
 export function buildModel(graph, plans) {
@@ -75,9 +80,10 @@ export function buildModel(graph, plans) {
     edges.push({ a: a.addr, b: b.addr });
   }
   const nout = list.filter(isOut).length;
-  const counts = { all: list.length - nout, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0 };
+  const counts = { all: list.length - nout, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0, sealed: 0 };
   for (const n of list) {
     for (const k of Object.keys(FILTERS)) if (FILTERS[k](n)) counts[k]++;
+    if (n.sealed) counts.sealed++;
   }
   // aggregates, bottom-up
   const add = (agg, n) => {
@@ -391,7 +397,7 @@ export function fuzzy(q, text) {
 
 // ---- diff of two graphs ----
 
-const FIELDS = ['action', 'drifted', 'gone', 'locked', 'sensitive', 'revision', 'presence', 'overlap'];
+const FIELDS = ['action', 'drifted', 'gone', 'locked', 'sealed', 'sensitive', 'revision', 'presence', 'overlap'];
 export function diffModels(a, b) {
   const added = [], removed = [], changed = [];
   for (const [addr, n] of b.nodes) {

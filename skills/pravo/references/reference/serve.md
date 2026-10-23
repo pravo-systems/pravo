@@ -10,7 +10,7 @@ Serve a read-only viewer on the loopback interface: a graph of modules and resou
 |---|---|
 | Synopsis | `pravo serve [flags]` |
 | Changes infrastructure | No. |
-| Reads | The specification, the state, the plans stored in it, the provider schemas that are cached already and, with `--plan FILE`, a saved plan. |
+| Reads | The specification, the state, the plans stored in it, the provider schemas that are cached already and, with `--plan FILE`, a saved plan. For a state that is sealed, the readers file and the identity of the person who runs the command. |
 | Writes | Nothing: no state record, no transaction, no lock, no `pravo.lock.cue`, no generated package, and nothing of a stored plan: no claim, no progress, no removal. It starts no provider and downloads nothing. |
 | Prints | The address of the viewer, with its token. With `--json`, one line of JSON. Then nothing until it stops. |
 | Taught in | [Explore an estate in a browser](../how-to/explore-your-estate.md). |
@@ -24,6 +24,8 @@ The command runs until a signal ends it. The viewer is one page that the server 
 | `--port N` | `0` | The port to listen on. `0` picks a free port. |
 | `--no-open` | off | Do not open a browser. The address is printed either way. |
 | `--plan FILE\|ID` | none | A plan to show on top of the graph: a saved plan file, or the id of a plan stored in the state, whole or its first six hexadecimal digits when no other plan starts with them. A file with that name is a file. The viewer reads the plan and never makes one. |
+| `--identity NAME` | the identity that the other commands find | The identity to read a sealed state with: a file of the identity directory. `none` reads the state as a person with no key sees it. It matters only for a state that is sealed. |
+| `--access-dir DIR` | `.pravo/access` | The directory that holds `readers.txt`. `$PRAVO_ACCESS_DIR` sets it too, and the flag wins. A relative directory is relative to the project directory. Without either, the viewer looks in `.pravo/access` of the project directory and of each parent up to the one that holds `.git`. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field, as `pravo plan` does. Repeatable. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE into tags written `@tag(name,var=os)`. |
 
@@ -36,6 +38,8 @@ The [global flags](global-flags.md) apply. With `--json`, the address is printed
 With `--plan FILE` and no `-t` or `-T`, the specification is read with the tags that the plan was made with. `--plan ID` does not take the tags of the plan. The stored plans are read from the state that the tags select, so give the `-t` and `-T` that `pravo plan list` takes for the same state. The viewer lists the stored plans whether or not `--plan` is given.
 
 There is no flag for the address. The server listens on `127.0.0.1`.
+
+A state that is sealed is read with an identity (see [`pravo protect`](protect.md)). The command finds it once, as `pravo protect status` finds it, when it first reads a sealed state, and a passphrase is asked for on the terminal before the server listens: never in the page, and never while a request is served. Without an identity, or with one that is not a reader, the viewer lists the resources of a sealed state and shows no value. The command prints a line that says so. A plain state asks for no identity.
 
 ### Exit codes
 
@@ -63,7 +67,7 @@ The viewer is one page with a bar, a sidebar, a graph with its toolbar, an inspe
 
 | Part | Holds |
 |---|---|
-| Bar | The project directory and the state location, each a button that copies the path. The switch Graph and Table. The search button, Find a resource. The mark `read-only` with the address of the server. The theme button. |
+| Bar | The project directory and the state location, each a button that copies the path. The switch Graph, Table and Access. The search button, Find a resource. The mark `read-only` with the address of the server. The theme button. |
 | Sidebar | Under the heading Show, the filter chips. Under Plans, the stored plans, when the state holds any. Under Modules, the project and the tree of modules with their resources. |
 | Toolbar | Collapse all, Expand all and Reset view. The filter box, Filter by address or type, with the number of matches. The number of items shown, when it differs from the number of resources. The zoom buttons, minus, Fit and plus. |
 | Graph | The lanes of open modules, the cards of closed ones and the boxes of resources. The plan bar, while a stored plan is laid over the graph. The legend. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a module. |
@@ -126,10 +130,31 @@ A resource that a plan which can be applied still has a change to apply on carri
 
 The viewer never applies, approves or removes a plan. It shows the command that applies a plan, and the button copies it.
 
+## The Access view
+
+The Access view shows how the state is protected and who can read it. It is the third view, next to the graph and the table, and its link is `view=access`. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
+
+| Part | Holds |
+|---|---|
+| The banner | The state, as a chip and a sentence, with the format, the backend, the location and the last change of the seal, with the name that the machine of the change gave itself (a label, not a proof). One more sentence says how many records are sealed, or how many are not sealed yet or cannot be opened with this identity. `not sealed`: attributes, outputs and stored plans are plain text, and anyone who can read the location can read every value. `immutable records` (format 2): each record is stored once and never overwritten, and none is encrypted. `sealed` (format 3): attributes, outputs and stored plans are encrypted, and addresses, types, names, dependencies and revisions stay readable. `sealing in progress`: a seal started and has not finished, with how many records it has reached. |
+| You | The identity that the viewer was started with: `reader`, `not a reader`, `no identity`, or `identity locked` when its passphrase was not available. For the last three, the viewer lists the resources and shows no value. |
+| Readers | The readers of the store and of the readers file, matched by reader key. Each row has the name, the reader key and the fingerprint of the signing key, each with a button that copies it, and marks that say whether the reader is in the file and in the store, and the line of the file. A name that does not match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` is listed with the mark `name not usable`, which is a Tab stop and shows the reason as its tip, and is used in no suggestion. |
+| Readers file | The path that was read and a verdict: `matches the store`; `differs from the store`, with the readers that are in the file and not in the store, and the ones that are in the store and not in the file, which `pravo protect rewrap` brings together; `no file`; or `does not load`, with the line and the reason, never the text of the line. Writers refuse to write a sealed state until the file and the store agree. When the file loads and the state is `not sealed` or `immutable records`, the verdict is `state not sealed`: the repository lists readers but the state is not sealed: it has not been sealed yet, or its `meta.json` was changed. |
+| Only one reader | When exactly one reader holds a lock, a warning says that nobody can read the state if that reader loses their key or its passphrase, since there is no recovery key. Its button opens the suggestion that adds a backup reader and moves the focus to it. With two or more readers the warning is not shown. |
+| Groups of data keys | Shown only when the state has more than one group, which a removal of a reader makes: the groups with the number of locks and of records of each, and what resealing does. A state with one group shows nothing here. |
+| Suggested changes | Cards that each have a title, who does it, why, and steps. A step is a command with a button that copies it, a line to add to or remove from the readers file, shown as a small diff whose button copies the line only, or a note. The card for the next step is open. |
+
+The view is made for the keyboard and for a screen reader. Tab visits, in the order of the page, each button that copies a reader key, a fingerprint or the path of the readers file, each `name not usable` mark, each suggestion, and the buttons that copy the steps of a suggestion that is open. Enter and Space open and close a suggestion, which says whether it is open; Esc leaves it as it is and hides the tip of a button. A button that copies is named for what it copies, and when the copy is done the page says `Copied` and the name of what was copied, or `Could not copy`. The skip link at the top of the page moves the focus to the view, and the next Tab goes to its first stop. The marks `in the readers file` and `in the store` carry those words as their names, and the chips of the state, of You and of the verdict show theirs, so that no state is told by colour alone. The readers are a table with header cells; when the pane is narrow each row is a small card and keeps its table roles. The page title that a screen reader reads follows the view.
+
+The suggestions are: `seal` (for a state that is not sealed), `check why the state is not sealed` (the verdict `state not sealed`: `pravo protect status`, then `pravo protect init --encrypt` or removing the readers file, whichever was meant), `finish` (a seal that did not finish), `identity` (the viewer is not reading as a reader), `rewrap` (the file and the store differ), `add a reader`, `remove` for each reader of the file, `seal every record again` (records are under an old group), `drop the groups nothing is sealed in` (the state has more than one group), and `check the state`. A part that you fill in is written in angle brackets and is never quoted, so a command that was pasted without being filled in fails and does nothing. A reader that is removed from the file is removed by editing the file; the page offers no command that edits it. A state that is a local directory gets a note and then the seal command with `--allow-local` (the `finish` step carries the flag too), since `pravo protect` refuses a directory that two people could share unless that flag is given.
+
+The Table and the inspector mark a record that cannot be opened with the chip `sealed`. The inspector shows its address, type, dependencies and revision, and a note, and no attribute. The outputs of a state that cannot be opened show `sealed` and no value. A count that depends on what a record says, the drifted and the sensitive resources of the filter chips and of the project card, shows a dash with the title `sealed` where it would be zero, since a record that cannot be opened is not counted. A stored plan that cannot be opened is laid over the graph from its summary, which gives the address, the type and the action of each change, with the warning "The values of this plan are sealed." and no attribute change.
+
 ## What it never does
 
 - It writes no state, takes no lock, makes no plan, runs no apply, writes no lock file and generates no package. It takes no claim on a stored plan, marks no progress and collects none. The project directory and the state hold the same bytes after a session as before it, stored plans included.
 - It listens on no interface but loopback.
+- It runs no command that the Access view suggests, edits no readers file, and sends no key: no secret of an identity and no lock of the state is in a response. Reader keys and signing-key fingerprints are public and are sent.
 - It sends no value that the provider schema marks sensitive or write-only, no value of an attribute that the schema does not know, no value of an attribute that is named like a secret, no value that contains a string that the state keeps in a sensitive attribute, and no value of a sensitive output.
 - It serves no file by path. A request names an address, and the server looks the address up in the specification that it loaded.
 
@@ -142,6 +167,8 @@ The viewer reads a state that holds secrets and sends it to a browser. These rul
 **A token for each run.** Each run makes a 128-bit random token and prints it in the address. A request for `/?token=TOKEN` sets a cookie named `pravo_serve_PORT` that is `HttpOnly` and `SameSite=Strict`, and redirects to `/` without the token. Every request to `/api/` needs that cookie, or the header `Authorization: Bearer TOKEN`. The server compares tokens in constant time. A request without either gets 401 and a body that names nothing.
 
 **A check of the host.** A request whose `Host` is not `127.0.0.1:PORT`, `localhost:PORT` or `[::1]:PORT` gets 421. A request that another site makes through the browser gets 403, and so does a request to `/api/` from another port of the same host or with an `Origin` header other than the viewer's. Every response carries `Cross-Origin-Resource-Policy` and `Cross-Origin-Opener-Policy` set to `same-origin`. At most 32 event streams are open at once. The server sends no CORS header, so no other page can read its answers. It answers `GET` and `HEAD` and refuses every other method with 405.
+
+**A sealed state.** A record of a sealed state that the viewer cannot open is listed with its address, type, dependencies and revision and no value. The server drops the attributes of such a record before anything reads them, withholds the outputs, and carries no key, no lock and no identity in a response. The identity is found once, before the server listens, and held in memory. The Access view suggests commands as text. Every reader name in a command passes the rule for names, every word is quoted, and a line of the readers file is rebuilt from its parsed parts and never copied. A line that does not parse is a number and a reason.
 
 **Redaction on the server.** A value is sent only when the provider schema says that it is not sensitive and not write-only. Nested attributes and blocks follow the schema down. These withhold a value too:
 
@@ -177,7 +204,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `q` | Text | The filter box above the graph. |
 | `filter` | `plan`, `drifted`, `sensitive`, `orphans`, `declared` or `outputs` | Only the nodes that match. `outputs` shows the outputs of the root, and every other value shows resources only. |
-| `view` | `graph` or `table` | The graph, or the table. |
+| `view` | `graph`, `table` or `access` | The graph, the table, or the Access view. |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
 | `palette` | `1` | The search palette open. |
@@ -194,7 +221,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `/`, Ctrl-K, Cmd-K | Open the palette to find a resource, a type or a module. |
 | `?` | Open the sheet of shortcuts. |
 | `t` | Switch the theme. |
-| `g` | Switch between the graph and the table. |
+| `g` | Go to the next view: the graph, the table, the Access view. |
 | Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the module that a click opened, then clear the selection. |
 
 In the graph:
@@ -250,7 +277,8 @@ The interface of the page is a set of read-only endpoints. They are for the page
 | `GET /api/plans` | The plans stored in the state, newest first, as a list of stored plans. The free text of a plan is not in it. |
 | `GET /api/plan?id=ID` | A stored plan laid over the graph: the plan, the action of each node that it ran, and the `reason`, `command` and `git_revision` that the author wrote with it. |
 | `GET /api/search?q=TEXT` | The nodes and modules that match. |
-| `GET /api/events` | A stream of server-sent events. Each event `change` carries the new revision and what changed: `state`, `spec`, `plan`, `locks` or `plans`. `plan` is the plan file of `--plan`, and `plans` are the plans stored in the state. |
+| `GET /api/access` | How the state is protected, the readers of the store and of the readers file, the verdict between them, who the viewer is, and the suggested commands. See [The Access view](#the-access-view). |
+| `GET /api/events` | A stream of server-sent events. Each event `change` carries the new revision and what changed: `state`, `spec`, `plan`, `locks`, `plans` or `access`. `plan` is the plan file of `--plan`, `plans` are the plans stored in the state, and `access` is the readers file. |
 
 `ADDR` is URL-encoded. An address that is not known gets 404 and `{"error":"..."}`. An `id` or `plan` that is not `plan-` and six or more hexadecimal digits gets 400, and an id that no stored plan has gets 404. The server looks an id up among the plans that it lists. It is never a path, and the beginning of an id is not taken for it. The additions are `/api/plans`, `/api/plan`, the `plan` parameter, `Node.plans` and `Node.overlap` in the graph, and `id` and `status` in the plan of the graph. A reader that does not know them reads the rest as before.
 
@@ -393,10 +421,10 @@ Output:
 | `planned`, `applied`, `applying` | The number of changes, how many were applied already, and whether an apply from the plan runs now. |
 | `reasons`, `reasons_omitted` | Why a stale plan cannot be applied: twenty reasons at most, each cut at 300 characters. `reasons_omitted` counts the others. A partly stale plan has none. |
 | `conflicts`, `conflicts_omitted`, `unapplied` | For a partly stale plan: the changes that cannot be applied now, each with its `addr` and its `reasons`, twenty at most, sorted by address. `conflicts_omitted` counts the others, and `unapplied` is the number of changes the plan has left, the conflicts included. |
-| `apply_only`, `apply_only_omitted`, `apply_live` | For a partly stale plan: the addresses of the part that can be applied, sorted, up to 2000, with `apply_only_omitted` for the rest. The part is a closed selection for `pravo apply --only`. `apply_live` is the command that applies it, `pravo apply ID --only a,b,c`. It is absent when the part has no change, and when the command would be longer than 16 KiB. |
+| `apply_only`, `apply_only_omitted`, `apply_live` | For a partly stale plan: the addresses of the part that can be applied, sorted, up to 2000, with `apply_only_omitted` for the rest. The part is a closed selection for `pravo apply --only`. `apply_live` is the command that applies it, `apply` followed by `--only a,b,c`. It is absent when the part has no change, and when the command would be longer than 16 KiB. |
 | `touches`, `truncated` | The resources the plan changes, each with its `addr`, its `action`, `applied` when the plan has applied that change, and `conflict` when a partly stale plan cannot apply it, up to 2000. `truncated` counts the rest. |
 | `overlaps` | The other plans that can be applied and have a change left on a resource that this plan has a change left on, in both directions: `id`, `count`, the first twenty addresses in `addrs`, and `truncated` for the rest. A change that a plan has applied does not count, and neither does a change that a partly stale plan cannot apply. |
-| `apply` | The command that applies what is left of the plan, `pravo apply ID`. It names no tag and no state. A partly stale plan is refused by it: `apply_live` is the command for that plan. |
+| `apply` | The command that applies what is left of the plan, `pravo apply ID`, with `-t key=<value>` for each tag the plan was made with and `-T` when it was made with it. It carries the keys of the tags and never the values, so that a line pasted as it is fails in the shell until the values are put in place of `<value>`. It names no state. A partly stale plan is refused by it: `apply_live` is the command for that plan. |
 
 `GET /api/plan?id=ID` lays a stored plan over the graph, as `--plan FILE` does for a plan file: the plan, the action of each node that it ran, and the `reason`, `command` and `git_revision` that the author wrote with it, which the list does not carry. `/api/detail` and `/api/source` take `plan=ID` for the same plan, and `plan=none` for no plan at all. An id that does not have the form of a plan id is 400. An id that no stored plan has is 404, and so is the beginning of an id: the server wants the whole id.
 
@@ -532,24 +560,28 @@ Serve a read-only viewer on the loopback interface and open it in the default br
 
 The viewer shows the specification and the state as a graph of modules and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top: a plan file, or the id of a plan stored in the state with "pravo plan --store". The plans stored in the state are listed in the viewer whether or not --plan is given, and any of them can be laid over the graph. It updates when the state, the specification, the plan file or the stored plans change.
 
+A state that is sealed (see "pravo protect") is read with your reader identity, named by --identity or found as the other commands find it, and a sealed identity asks for its passphrase on the terminal before the server starts. Without an identity, or with one that is not a reader, the viewer lists the resources and shows no value; --identity none shows the state as someone with no key sees it. The Access view shows who can read the state and suggests commands to copy. It runs none of them.
+
 The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.
 
 Usage:
   pravo serve [flags]
 
 Flags:
-  -h, --help              help for serve
-  -T, --inject-vars       inject system tag variables (os, arch, cwd, ...)
-      --no-open           do not open a browser
-      --plan string       a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-<id>)
-      --port int          the port to listen on (0 picks a free one)
-  -t, --tag stringArray   inject a value for an @tag() field: -t key=value
+      --access-dir string   directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR
+  -h, --help                help for serve
+  -T, --inject-vars         inject system tag variables (os, arch, cwd, ...)
+      --no-open             do not open a browser
+      --plan string         a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-<id>)
+      --port int            the port to listen on (0 picks a free one)
+  -t, --tag stringArray     inject a value for an @tag() field: -t key=value
 
 Global Flags:
-      --actor string    a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)
-  -C, --chdir string    run as if started in this directory
-      --json            machine-readable output on stdout (progress goes to stderr)
-      --no-color        disable coloured output
-      --reason string   why; recorded on transactions and plans ($PRAVO_REASON)
-  -v, --verbose count   log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)
+      --actor string      a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)
+  -C, --chdir string      run as if started in this directory
+      --identity string   name of the identity to read a sealed state with; overrides $PRAVO_IDENTITY
+      --json              machine-readable output on stdout (progress goes to stderr)
+      --no-color          disable coloured output
+      --reason string     why; recorded on transactions and plans ($PRAVO_REASON)
+  -v, --verbose count     log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)
 ```

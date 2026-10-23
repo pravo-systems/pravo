@@ -36,8 +36,10 @@ func TestInterfaceFixturesMatchTheContract(t *testing.T) {
 			into = &PlanList{}
 		case "plan":
 			into = &PlanOverlay{}
+		case "access":
+			into = &Access{}
 		default:
-			t.Errorf("%s: a fixture is named graph.*, detail.*, source.*, search.*, event.*, plans.* or plan.*", name)
+			t.Errorf("%s: a fixture is named graph.*, detail.*, source.*, search.*, event.*, plans.*, plan.* or access.*", name)
 			continue
 		}
 		data, err := os.ReadFile(f)

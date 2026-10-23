@@ -209,3 +209,44 @@ func TestPackIsSafeToReadFromManyGoroutines(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// On Windows a pack is opened for each read, so that a directory that holds one
+// can be removed and the file can be replaced while a schema is in use. The mode
+// is tested on every system.
+func TestPackOpenedForEachRead(t *testing.T) {
+	was := holdPack
+	holdPack = false
+	t.Cleanup(func() { holdPack = was })
+	orig := packFixture()
+	path := writePackFile(t, orig)
+	p, err := OpenPack(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.lazy.f != nil {
+		t.Fatal("the file is held open")
+	}
+	if p.Provider == nil || p.Resource("x_alpha") == nil || len(p.Resource("x_alpha").Block.Attributes) != 2 {
+		t.Fatalf("a type is read from the file when it is asked for: %+v", p.Resource("x_alpha"))
+	}
+	if p.Function("parse") == nil {
+		t.Error("a function is read from the file when it is asked for")
+	}
+	// The file is replaced by a pack of another size: a type that was not read yet
+	// is not found, and the bytes of the other file are not taken for it.
+	other := packFixture()
+	other.Resources["x_delta"] = other.Resources["x_alpha"]
+	data, err := other.MarshalPack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.Resource("x_beta"); got != nil {
+		t.Errorf("a type was read from a file that is not the one that was opened: %+v", got)
+	}
+	if p.Resource("x_alpha") == nil {
+		t.Error("a type that was read before stays")
+	}
+}

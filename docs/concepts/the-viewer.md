@@ -208,13 +208,23 @@ A module can hold many resources of one type, written by a comprehension. Drawin
 
 Resources of one type in different modules are not one cluster, because a module is the unit that you open and close.
 
+## A sealed state
+
+A state can be sealed to a list of readers ([Sealed state](sealed-state.md) says what that protects and what it leaves open). Its attributes, outputs and stored plans are then encrypted, and the readers are named in a file that is kept in the repository, `.pravo/access/readers.txt`. The address, type, name, dependencies and revision of every record stay readable, so the graph and the plans work for someone who holds no key. The viewer reads a sealed state with the identity that you start it with. It finds the identity once, before it listens, and asks for the passphrase on the terminal if the identity has one. The key stays in the memory of the command. It is not in a response.
+
+A record that the viewer cannot open is listed with its address, type, dependencies and revision, marked `sealed`, and has no value. The viewer does not guess at a value, and it drops the attributes of such a record before anything reads them. A person who is not a reader, or who started the viewer with no identity, sees the shape of the estate and none of its values. A stored plan that the viewer cannot open is laid over the graph all the same, from its summary: each change keeps its action, and the page says that the values of the plan are sealed.
+
+The Access view is the third view. It says in a sentence whether the state is sealed, lists the readers of the store and of the readers file side by side, and says whether the two agree. Writers refuse to write a sealed state until they do, so a difference is a thing to resolve: someone edited the file and has not run `pravo protect rewrap` yet, or the store lists someone that the repository does not. It says who the viewer is reading as. And it suggests commands: to seal the state, to add a reader, to remove one, to bring the store in line with the file, to drop the groups that nothing is sealed in. A suggestion is text with a button that copies it. The viewer runs none of it and edits no file: a line to add to the readers file is shown as a line, and you add it.
+
+A name in the store or in the file is data that someone else wrote, and it can be anything. The viewer puts a reader's name into a command or a line only if it matches the rule that the readers file uses, and it quotes every word of a command. A name that does not match is listed and used nowhere.
+
 ## Why the viewer is read-only
 
-The server writes nothing. It creates no record and no transaction, takes no lock, does not write `pravo.lock.cue` and does not generate a package. The project directory and the state hold the same bytes after a session as before it.
+The server writes nothing. It creates no record and no transaction, takes no lock, does not write `pravo.lock.cue` and does not generate a package. The project directory and the state hold the same bytes after a session as before it, a sealed state included.
 
 Three consequences follow. You can leave the viewer open while someone else applies: it never contends for a lock, and it shows the locks that the apply holds. You can start it on any root that you can read, because starting it changes no file. And the page has no button that changes anything, since the server has no endpoint that would carry the request.
 
-The viewer stays current without writing. It watches the state, the files that the evaluation loaded, the plan file and the plans stored in the state. When any of them changes, it sends one event to the page, and the page fetches the graph, the list of plans and the open node again. The page says what changed, the state, the specification, the plan, the stored plans or a lock, with how many resources changed, are new or are gone, and the resources that changed flash once.
+The viewer stays current without writing. It watches the state, the files that the evaluation loaded, the plan file and the plans stored in the state. When any of them changes, or the readers file does, it sends one event to the page, and the page fetches the graph, the list of plans and the open node again. The page says what changed, the state, the specification, the plan, the stored plans or a lock, with how many resources changed, are new or are gone, and the resources that changed flash once.
 
 A plan appears in the list when someone stores it. It becomes partial or applied when an apply from it records progress, which a failed apply does for the changes it finished. It becomes partly stale, and then stale, as something else changes the nodes that it expects. It leaves the list when a collection removes it. A plan that nobody applies expires without any write, so the viewer counts the moment that the nearest expiry of a plan that can be applied, or is stale, passes as a change. When the plan that is laid over the graph is collected, a notice says so and the graph shows no plan. The badges on the resources follow the plans that can be applied. When the resource that you were reading is gone, a notice says so and the inspector shows the project again. When the server stops, the page says that it is not answering, keeps the last picture and reads the project again when the server returns.
 
@@ -226,6 +236,7 @@ A plan appears in the list when someone stores it. It becomes partial or applied
 - The server withholds sensitive values, values of a type with no schema and values whose names say secret. A withheld value is not in the response.
 - The first view opens modules one level at a time, the ones that hold a change or a mark first, as far as the drawing stays readable. The rest are cards that a click opens.
 - A cluster stands for many resources of one type in one module. Closing a module and clustering hide detail and remove no node.
+- A sealed state is read with your identity, and a record that cannot be opened is listed with no value. The Access view shows who can read the state and suggests commands to copy; it runs none of them.
 - The viewer reads the project and the state and writes neither.
 
 Next: [Explore an estate in a browser](../how-to/explore-your-estate.md) uses the viewer on an estate of three modules.

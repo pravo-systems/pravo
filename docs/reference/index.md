@@ -40,6 +40,7 @@ Every page opens with the synopsis, the flags with their defaults, and the exit 
 | `pravo mcp` | Serves pravo to an agent over the Model Context Protocol. | [mcp](mcp.md) |
 | `pravo skill` | Installs or prints the skill that teaches an agent to use pravo. | [skill](skill.md) |
 | `pravo mod` | Creates, fetches, publishes and verifies CUE modules. | [mod](mod.md) |
+| `pravo id`, `protect` | Makes an identity. Seals the state to a list of readers, checks it and changes the readers. | [id and protect](protect.md) |
 | `pravo version` | Prints the version of pravo and of CUE. | [version](version.md) |
 | Flags, environment, exit codes | The parts every command shares. | [global flags](global-flags.md) |
 

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 const (
@@ -65,7 +66,7 @@ type storedPlans struct {
 // belong to one working copy, and "pravo apply" checks them.
 func (s *Server) loadStored(ctx context.Context, m *model) *storedPlans {
 	sp := &storedPlans{srv: s, byID: map[string]*engine.PlanEntry{}, overlays: map[string]*planOverlay{}, touched: map[string][]string{}}
-	sp.ps = engine.NewPlanStore(m.store.Backend())
+	sp.ps = engine.NewPlanStoreFor(m.store)
 	// The summaries are written once: a rebuild of the model reads them again only
 	// for a plan it has not seen, and forgets the ones that were collected.
 	sp.ps.Cache = s.planMeta
@@ -160,6 +161,17 @@ func (sp *storedPlans) resolve(ref string) (*engine.PlanEntry, error) {
 func (sp *storedPlans) readFile(ctx context.Context, id string) (*engine.PlanFile, error) {
 	pf, _, err := sp.ps.ReadFile(ctx, id)
 	return pf, err
+}
+
+// planFile reads the plan of an entry. A process that is not a reader of the plan
+// gets its summary instead, with sealed set: the addresses, the types and the
+// actions, which the state leaves readable, and no value.
+func (sp *storedPlans) planFile(ctx context.Context, e *engine.PlanEntry) (pf *engine.PlanFile, sealed bool, err error) {
+	pf, err = sp.readFile(ctx, e.Meta.ID)
+	if errors.Is(err, state.ErrNotReader) {
+		return e.SummaryFile(), true, nil
+	}
+	return pf, false, err
 }
 
 // nextExpiry is when the first claim on a plan lapses, or when the first of the plans that can still be applied (a partly
@@ -308,7 +320,7 @@ func (m *model) storedPlan(e *engine.PlanEntry) StoredPlan {
 		Planned: len(meta.Changes), Applied: e.AppliedCount(),
 		Applying: prog.ApplyRunning(time.Now()),
 		Touches:  make([]PlanChange, 0, min(len(meta.Changes), maxTouches)),
-		Apply:    "pravo apply " + meta.ID,
+		Apply:    meta.ApplyTemplate(),
 	}
 	if e.Status == engine.PlanPartlyStale {
 		m.partlyStale(&sp, e)
@@ -349,8 +361,8 @@ func (m *model) partlyStale(sp *StoredPlan, e *engine.PlanEntry) {
 	if len(sp.ApplyOnly) > maxTouches {
 		sp.ApplyOnly, sp.ApplyOnlyOmitted = sp.ApplyOnly[:maxTouches], len(e.Live)-maxTouches
 	}
-	// The tags that the plan was made with are not part of the command, as they are
-	// not of Apply: they are what a person wrote, and a listing carries none of it.
+	// The tags that the plan was made with are placeholders in the command, as they
+	// are in Apply: they are what a person wrote, and a listing carries none of it.
 	if only := e.OnlyFlag(); only != "" && len(only) <= maxCommand {
 		sp.ApplyLive = sp.Apply + " " + only
 	}
@@ -390,7 +402,7 @@ func (m *model) overlayOf(ctx context.Context, id string) (*planOverlay, error) 
 	if po := sp.overlays[id]; po != nil {
 		return po, nil
 	}
-	pf, err := sp.readFile(ctx, id)
+	pf, sealed, err := sp.planFile(ctx, e)
 	if errors.Is(err, engine.ErrNoPlan) {
 		return nil, errNoSuchPlan // collected since the listing
 	}
@@ -401,7 +413,7 @@ func (m *model) overlayOf(ctx context.Context, id string) (*planOverlay, error) 
 	// specification, which the load of a model and a request for a source hold.
 	m.spec.cueMu.Lock()
 	defer m.spec.cueMu.Unlock()
-	po := m.srv.overlay(m, pf, id, e, m.secrets.clone())
+	po := m.srv.overlay(m, pf, id, e, m.secrets.clone(), sealed)
 	po.collectSecrets()
 	sp.overlays[id] = po
 	return po, nil

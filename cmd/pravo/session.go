@@ -17,6 +17,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -90,7 +91,7 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 	}
 	if opts.loadState {
 		if opts.readOnlyState {
-			s.state, err = openStateReadOnly(ctx, root)
+			s.state, err = openStateValues(ctx, root)
 		} else {
 			s.state, err = openState(ctx, root)
 		}
@@ -182,8 +183,14 @@ func lockString(l *engine.Lock) string {
 }
 
 func (s *session) close() {
-	if s != nil && s.providers != nil {
+	if s == nil {
+		return
+	}
+	if s.providers != nil {
 		s.providers.Close()
+	}
+	if s.state != nil {
+		s.state.Close()
 	}
 }
 
@@ -195,9 +202,19 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 		opts.DefaultRefresh = s.root.Refresh
 	}
 	if opts.Command == "" {
-		opts.Command = "pravo " + strings.Join(os.Args[1:], " ")
+		setCommand(s.state, os.Args[1:], &opts)
 	}
 	opts.Actor, opts.Reason, opts.GitRevision = flagActor, flagReason, gitRevision(s.root.Dir)
+	if opts.Identity == nil {
+		// Looked for only when remote_outputs meets a sealed state, so that a command
+		// that never needs a key never asks for a passphrase.
+		// The readers of the other state are given: with several identity files and
+		// none named like the user, the one whose reader key has a lock in it is
+		// chosen, as it is for the state of this root.
+		opts.Identity = func(readers []protect.ReaderPublic) (*protect.Identity, error) {
+			return resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: readers})
+		}
+	}
 	if flagJSON && streamEvents && opts.Event == nil {
 		// Only commands that change things stream events; plan-like
 		// commands print a single document.
@@ -216,20 +233,122 @@ func openState(ctx context.Context, root *config.Root) (*state.Store, error) {
 	return st, err
 }
 
+// openStateStore opens the state of the root for a command that writes it. A
+// sealed state needs the identity of a reader and a readers file that matches
+// the state.
 func openStateStore(ctx context.Context, root *config.Root) (*state.Store, error) {
-	switch root.State.Backend {
-	case "s3":
-		b, err := s3Backend(ctx, root)
-		if err != nil {
-			return nil, err
+	st, _, err := openStateAs(ctx, root, true, false)
+	return st, err
+}
+
+// openStateAs opens the state, to write it or not. A state that is sealed is
+// opened with the identity of the user, which is looked for only then, so that
+// a state that is not sealed never asks for a passphrase. Without a usable
+// identity the store is locked: it lists addresses and revisions and returns no
+// value, and why says why there is no identity (nil when there is one). A
+// command that needs values gets the refusal of a store that is not read, unless
+// allowLocked is set. A command that writes also needs a readers
+// file that matches the state; one that reads only warns.
+func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool) (st *state.Store, why *noKey, err error) {
+	open := func(id *protect.Identity) (*state.Store, error) {
+		o := state.Options{Identity: id}
+		switch {
+		case root.State.Backend == "s3":
+			b, err := s3Backend(ctx, root)
+			if err != nil {
+				return nil, err
+			}
+			if write {
+				if err := checkS3Store(ctx, root, b); err != nil {
+					return nil, err
+				}
+			} else {
+				b = &readOnlyBackend{Backend: b}
+			}
+			return state.OpenBackendWith(ctx, b, o)
+		case write:
+			return state.OpenWith(root.StateFile(), o)
 		}
-		if err := checkS3Store(ctx, root, b); err != nil {
-			return nil, err
+		path := root.StateFile()
+		if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
+			return state.Open(path) // says that the path is a file
 		}
-		return state.OpenBackend(ctx, b)
-	default:
-		return state.Open(root.StateFile())
+		return state.OpenBackendWith(ctx, &readOnlyBackend{Backend: &state.LocalBackend{Dir: path}}, o)
 	}
+	// A repository that lists readers expects a sealed state, and a state that does
+	// not exist yet is not one. Whether it exists is looked at before the open, which
+	// would make it, in format 1.
+	missing := false
+	if rf := loadReadersFile(root.Dir, flagAccessDir); rf.Found && stateMissing(ctx, root) {
+		problem := missingStateProblem(rf)
+		if write {
+			return nil, nil, engine.WithCode(engine.ExitRefused, errors.New(problem))
+		}
+		fmt.Fprintln(os.Stderr, "Warning: "+problem)
+		missing = true
+	}
+	if st, err = open(nil); err != nil {
+		return nil, nil, err
+	}
+	if missing {
+		return st, nil, nil // an empty state, read and not created
+	}
+	if !st.Locked() {
+		return st, nil, checkReadersFile(root, st, write)
+	}
+	// The state is sealed.
+	id, idErr := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: currentReaders(st.Protection())})
+	if idErr == nil {
+		keyed, err := open(id)
+		if err != nil && !errors.Is(err, state.ErrNotReader) {
+			return nil, nil, err
+		}
+		if err == nil {
+			st = keyed
+		}
+	}
+	if st.Locked() {
+		why = &noKey{id: id, err: idErr}
+		if !allowLocked {
+			return nil, why, engine.WithCode(engine.ExitRefused, why.error(root))
+		}
+		if idErr != nil && !errors.Is(idErr, errNoIdentity) {
+			fmt.Fprintln(os.Stderr, "Warning: "+idErr.Error())
+		}
+	}
+	return st, why, checkReadersFile(root, st, write && !st.Locked())
+}
+
+// stateMissing reports whether the state of the root does not exist yet: its
+// backend holds no meta.json. Nothing is created. A backend that cannot be read
+// is not reported as missing; the open says why.
+func stateMissing(ctx context.Context, root *config.Root) bool {
+	var b state.Backend
+	if root.State.Backend == "s3" {
+		var err error
+		if b, err = s3Backend(ctx, root); err != nil {
+			return false
+		}
+	} else {
+		path := root.StateFile()
+		if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
+			return false // a file: the open says so
+		}
+		b = &state.LocalBackend{Dir: path}
+	}
+	_, err := b.Get(ctx, metaKey)
+	return errors.Is(err, state.ErrNotFound)
+}
+
+// noKey says why a sealed state could not be opened: there is no identity, it
+// cannot be opened, or it is not a reader.
+type noKey struct {
+	id  *protect.Identity
+	err error
+}
+
+func (k *noKey) error(root *config.Root) error {
+	return notReaderError(loadReadersFile(root.Dir, flagAccessDir), k.id, k.err)
 }
 
 func s3Backend(ctx context.Context, root *config.Root) (state.Backend, error) {
@@ -243,28 +362,33 @@ func s3Backend(ctx context.Context, root *config.Root) (state.Backend, error) {
 // openStateReadOnly opens the state for a command that only looks at it. A
 // state that does not exist yet is read as an empty one, and nothing is
 // created: opening a store otherwise makes the directory and writes its
-// metadata.
+// metadata. A sealed state that cannot be opened with an identity is returned
+// locked (see state.Store.Locked); commands that need values check for that.
 func openStateReadOnly(ctx context.Context, root *config.Root) (*state.Store, error) {
-	var b state.Backend
-	switch root.State.Backend {
-	case "s3":
-		var err error
-		if b, err = s3Backend(ctx, root); err != nil {
-			return nil, err
-		}
-	default:
-		path := root.StateFile()
-		if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
-			return state.Open(path) // says that the path is a file
-		}
-		b = &state.LocalBackend{Dir: path}
-	}
+	st, _, err := openStateReadOnlyWhy(ctx, root)
+	return st, err
+}
+
+func openStateReadOnlyWhy(ctx context.Context, root *config.Root) (*state.Store, *noKey, error) {
 	began := time.Now()
-	st, err := state.OpenBackend(ctx, &readOnlyBackend{Backend: b})
+	st, why, err := openStateAs(ctx, root, false, true)
 	if err == nil {
 		plog.Debug(ctx, "state opened for reading", "backend", backendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
 	}
-	return st, err
+	return st, why, err
+}
+
+// openStateValues is openStateReadOnly for a command that prints values: a
+// locked store is refused.
+func openStateValues(ctx context.Context, root *config.Root) (*state.Store, error) {
+	st, why, err := openStateReadOnlyWhy(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	if st.Locked() {
+		return nil, engine.WithCode(engine.ExitRefused, why.error(root))
+	}
+	return st, nil
 }
 
 // readOnlyBackend refuses every write but one. The store writes its metadata

@@ -52,6 +52,29 @@ func (f *flakyWrites) Put(ctx context.Context, key string, data []byte) error {
 	return f.Backend.Put(ctx, key, data)
 }
 
+// A store of format 2 writes a pointer with PutIfAbsent or ReplaceIf, and removes
+// it with DeleteIf; they fail where Put and Delete do.
+func (f *flakyWrites) PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error) {
+	if f.fails(f.failPut, key) {
+		return false, errors.New("simulated: connection reset by peer")
+	}
+	return f.Backend.PutIfAbsent(ctx, key, data)
+}
+
+func (f *flakyWrites) ReplaceIf(ctx context.Context, key string, update func([]byte) ([]byte, bool)) (bool, error) {
+	if f.fails(f.failPut, key) {
+		return false, errors.New("simulated: connection reset by peer")
+	}
+	return f.Backend.ReplaceIf(ctx, key, update)
+}
+
+func (f *flakyWrites) DeleteIf(ctx context.Context, key string, match func([]byte) bool) (bool, error) {
+	if f.fails(f.failDelete, key) {
+		return false, errors.New("simulated: connection reset by peer")
+	}
+	return f.Backend.DeleteIf(ctx, key, match)
+}
+
 func (f *flakyWrites) Delete(ctx context.Context, key string) error {
 	if f.fails(f.failDelete, key) {
 		return errors.New("simulated: connection reset by peer")

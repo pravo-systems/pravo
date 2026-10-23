@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -148,9 +150,50 @@ func (e *Engine) builtinTask(ctx context.Context, r *config.Resource, v cue.Valu
 	return e.envTask(r, v)
 }
 
+// notReaderOfOutputs is the error for the outputs of a state that is sealed to
+// readers that do not include this process. It wraps state.ErrNotReader, so that
+// the command exits with the code of that error.
+func notReaderOfOutputs(name string, id *protect.Identity, idErr error) error {
+	who := "no identity was found"
+	switch {
+	case idErr != nil && !errors.Is(idErr, os.ErrNotExist):
+		who = "the identity could not be used: " + idErr.Error()
+	case id != nil:
+		who = "the identity " + id.Name + " is not one of them"
+	}
+	return fmt.Errorf("the outputs of %s are sealed to other readers, and %s; ask one of its readers to add yours to .pravo/access/readers.txt of that state: %w", name, who, state.ErrNotReader)
+}
+
+// openRemoteOutputs reads the outputs of the state at b. If that state is sealed,
+// they are read with the identity of this process, which is looked for only then.
+// A state that is sealed to other readers is an error that wraps state.ErrNotReader.
+func (e *Engine) openRemoteOutputs(ctx context.Context, b state.Backend) (map[string]json.RawMessage, error) {
+	raw, err := state.OpenOutputs(ctx, b, nil)
+	if !errors.Is(err, state.ErrNotReader) {
+		return raw, err
+	}
+	var id *protect.Identity
+	var idErr error
+	if e.Opts.Identity != nil {
+		// A meta.json that cannot be read leaves the choice without the readers; the
+		// open that follows says why it failed.
+		readers, _ := state.OutputsReaders(ctx, b)
+		if id, idErr = e.Opts.Identity(readers); idErr != nil {
+			id = nil
+		}
+	}
+	if id != nil {
+		if raw, err = state.OpenOutputs(ctx, b, id); !errors.Is(err, state.ErrNotReader) {
+			return raw, err
+		}
+	}
+	return nil, notReaderOfOutputs(b.Name(), id, idErr)
+}
+
 // remoteOutputsTask reads the outputs another root has recorded and fills
 // them into the configuration. Outputs that root marked sensitive are left
-// out.
+// out. If that root's state is sealed, they are read with the identity of this
+// process, which has to be one of its readers.
 func (e *Engine) remoteOutputsTask(ctx context.Context, r *config.Resource) error {
 	var b state.Backend
 	if r.Remote.State.Backend == "s3" {
@@ -168,7 +211,7 @@ func (e *Engine) remoteOutputsTask(ctx context.Context, r *config.Resource) erro
 		b = &state.LocalBackend{Dir: r.Remote.Dir}
 	}
 	plog.Debug(ctx, "reading outputs of another root", "addr", r.Address(), "state", b.Name())
-	raw, err := state.ReadOutputs(ctx, b)
+	raw, err := e.openRemoteOutputs(ctx, b)
 	if err != nil {
 		return fmt.Errorf("%s: %w", r.Address(), err)
 	}

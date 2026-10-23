@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sort"
 	"sync"
+	"time"
 )
 
 // A provider schema is tens of megabytes of JSON for a large provider, and a
@@ -57,10 +59,20 @@ const (
 	kindFunction
 )
 
-// lazyPack is the open pack that a schema reads its types from.
+// holdPack says whether a pack keeps its file open between reads. On Windows a
+// file that is open cannot be replaced or removed, so a long-lived process such
+// as the viewer would stop "pravo providers schema" from writing the pack again,
+// and a directory that holds a pack could not be deleted. There the file is
+// opened for each read, and checked to be the file that was opened first.
+var holdPack = runtime.GOOS != "windows"
+
+// lazyPack is the pack that a schema reads its types from.
 type lazyPack struct {
 	mu    sync.Mutex
-	f     *os.File
+	f     *os.File // the file while it is held open; nil when it is opened for each read
+	path  string
+	size  int64
+	mtime time.Time
 	base  int64 // where the documents start
 	index packIndex
 }
@@ -82,8 +94,23 @@ func (l *lazyPack) read(r packRange) ([]byte, error) {
 	if r[0] < 0 || r[1] < 0 {
 		return nil, errors.New("a range of the schema pack is negative")
 	}
+	f := l.f
+	if f == nil {
+		var err error
+		if f, err = os.Open(l.path); err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		st, err := f.Stat()
+		if err != nil {
+			return nil, err
+		}
+		if st.Size() != l.size || !st.ModTime().Equal(l.mtime) {
+			return nil, fmt.Errorf("%s changed after it was opened", l.path)
+		}
+	}
 	buf := make([]byte, r[1])
-	if _, err := l.f.ReadAt(buf, l.base+r[0]); err != nil && !(errors.Is(err, io.EOF) && int64(len(buf)) == r[1]) {
+	if _, err := f.ReadAt(buf, l.base+r[0]); err != nil && !(errors.Is(err, io.EOF) && int64(len(buf)) == r[1]) {
 		return nil, err
 	}
 	return buf, nil
@@ -167,10 +194,14 @@ func OpenPack(path string) (*ProviderSchema, error) {
 	}
 	ok := false
 	defer func() {
-		if !ok {
+		if !ok || !holdPack {
 			f.Close()
 		}
 	}()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
 	head := make([]byte, len(packMagic)+4)
 	if _, err := io.ReadFull(f, head); err != nil || string(head[:len(packMagic)]) != packMagic {
 		return nil, fmt.Errorf("%s is not a provider schema pack", path)
@@ -183,7 +214,10 @@ func OpenPack(path string) (*ProviderSchema, error) {
 	if _, err := io.ReadFull(f, raw); err != nil {
 		return nil, fmt.Errorf("%s: reading the index of the schema pack: %w", path, err)
 	}
-	l := &lazyPack{f: f, base: int64(len(head)) + int64(n)}
+	l := &lazyPack{path: path, size: st.Size(), mtime: st.ModTime(), base: int64(len(head)) + int64(n)}
+	if holdPack {
+		l.f = f
+	}
 	if err := json.Unmarshal(raw, &l.index); err != nil {
 		return nil, fmt.Errorf("%s: decoding the index of the schema pack: %w", path, err)
 	}

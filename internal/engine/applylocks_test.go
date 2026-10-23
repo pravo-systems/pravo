@@ -290,7 +290,8 @@ func TestApplyIsRejectedWhenNodeMovedAfterPlan(t *testing.T) {
 		}
 		if tx.Status == "rejected" {
 			rejected++
-			if len(tx.Changes) != 0 || !strings.Contains(tx.Summary, "r changed in state") {
+			// A sealed state does not record the text of an error.
+			if len(tx.Changes) != 0 || now.Sealer() == nil && !strings.Contains(tx.Summary, "r changed in state") {
 				t.Errorf("the rejected transaction is %+v", tx)
 			}
 		}
@@ -999,17 +1000,27 @@ func TestApplyOverASlowBackend(t *testing.T) {
 	took := time.Since(start)
 	t.Logf("apply of %d creates, %s per call: %s", n, delay, took.Round(time.Millisecond))
 
-	for _, c := range []struct {
+	writes := []struct {
+		op, prefix string
+		want       int
+	}{{"Put", "resources", n}}
+	if !statetest.LayoutIsDefault() {
+		// Format 2 creates a record and then a pointer, each with PutIfAbsent.
+		writes = []struct {
+			op, prefix string
+			want       int
+		}{{"PutIfAbsent", "rec", n}, {"PutIfAbsent", "resources", n}, {"Put", "resources", 0}}
+	}
+	for _, c := range append(writes, []struct {
 		op, prefix string
 		want       int
 	}{
 		{"PutIfAbsent", "locks", n},
 		{"Get", "resources", n},
-		{"Put", "resources", n},
 		{"Get", "locks", n},
 		{"Delete", "locks", n},
 		{"Put", "locks", 0},
-	} {
+	}...) {
 		if got := h.backend.Count(c.op, c.prefix); got != c.want {
 			t.Errorf("%s on %s: %d calls, want %d", c.op, c.prefix, got, c.want)
 		}

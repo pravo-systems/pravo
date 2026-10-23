@@ -35,6 +35,8 @@ export const search = (q) => get('/api/search?q=' + encodeURIComponent(q));
 export const ping = () => get('/api/ping');
 // plans lists the plans stored in the state; a server that does not know them has none.
 export const plans = () => get('/api/plans').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', plans: [] }; throw err; });
+// access is how the state is protected, who can read it and the commands that change that; a server that does not know it says the state is not sealed.
+export const access = () => get('/api/access').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', state: 'off', format: 1, location: '', backend: 'local', summary: '', readers: [], file: { verdict: 'none', path: '', text: '', count: 0 }, records: { total: 0, sealed: 0, plain: 0, unreadable: 0 }, groups: [], recovery: { state: 'none', text: '' }, suggestions: [] }; throw err; });
 // plan is a stored plan as an overlay of the graph: the plan, and the action of each node it ran.
 export const plan = (id) => get('/api/plan?id=' + encodeURIComponent(id));
 

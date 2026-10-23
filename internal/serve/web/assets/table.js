@@ -120,7 +120,9 @@ export class TableView {
     if (n.gone) stat.push(h('span', { class: 'b bad' }, h('span', { class: 'i i-gone' }), 'gone'));
     if (n.drifted && !n.gone) stat.push(h('span', { class: 'b chg' }, h('span', { class: 'i i-drift' }), 'drifted'));
     if (n.locked) stat.push(h('span', { class: 'b lock' }, h('span', { class: 'i i-hold' }), 'locked'));
-    if (n.sensitive > 0) stat.push(h('span', { class: 'b lock' }, h('span', { class: 'i i-lock' }), String(n.sensitive)));
+    // beside another badge the word goes, so that the narrow column does not clip it: the lock and the title stay
+    if (n.sealed) stat.push(h('span', { class: 'b lock', title: 'The record is sealed and this viewer cannot open it: no value is shown.', 'aria-label': 'sealed' }, h('span', { class: 'i i-lock' }), stat.length ? null : 'sealed'));
+    else if (n.sensitive > 0) stat.push(h('span', { class: 'b lock' }, h('span', { class: 'i i-lock' }), String(n.sensitive)));
     if (n.presence === 'spec') stat.push(h('span', { class: 'b' }, isOut(n) ? 'not published' : 'declared only'));
     if (n.presence === 'state') stat.push(h('span', { class: 'b bad' }, 'orphan'));
     // a plan lists the value of every output and does not say which it changes: an output is neither planned nor "not read"

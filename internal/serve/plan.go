@@ -85,14 +85,15 @@ func (s *Server) loadPlan(ctx context.Context, m *model) *planOverlay {
 			po.warnings = append(po.warnings, "The plan file could not be read: "+err.Error())
 			return po
 		}
-		return s.overlay(m, pf, s.planDisplay(), nil, m.secrets)
+		return s.overlay(m, pf, s.planDisplay(), nil, m.secrets, false)
 	case s.opts.PlanID != "":
 		po := &planOverlay{entries: map[string]*planEntry{}, secrets: m.secrets}
 		e, err := m.stored.resolve(s.opts.PlanID)
 		if err == nil {
 			var pf *engine.PlanFile
-			if pf, err = m.stored.readFile(ctx, e.Meta.ID); err == nil {
-				return s.overlay(m, pf, e.Meta.ID, e, m.secrets)
+			var sealed bool
+			if pf, sealed, err = m.stored.planFile(ctx, e); err == nil {
+				return s.overlay(m, pf, e.Meta.ID, e, m.secrets, sealed)
 			}
 		}
 		po.failed, po.err = true, err
@@ -106,8 +107,10 @@ func (s *Server) loadPlan(ctx context.Context, m *model) *planOverlay {
 // cached schemas allow, the values of its changes. stored is the listing entry
 // of a stored plan, which says where the plan stands: it is judged against the
 // shared state alone, as the listing is, and not against this working copy. For
-// the plan of a file the configuration counts too.
-func (s *Server) overlay(m *model, pf *engine.PlanFile, display string, stored *engine.PlanEntry, secrets *secretSet) *planOverlay {
+// the plan of a file the configuration counts too. sealed is set when pf is the
+// summary of a stored plan that this process cannot open: it holds no value, and
+// the overlay says so.
+func (s *Server) overlay(m *model, pf *engine.PlanFile, display string, stored *engine.PlanEntry, secrets *secretSet, sealed bool) *planOverlay {
 	po := &planOverlay{entries: map[string]*planEntry{}, secrets: secrets}
 	po.info.File = display
 	po.info.Created = pf.Created
@@ -137,8 +140,15 @@ func (s *Server) overlay(m *model, pf *engine.PlanFile, display string, stored *
 	}
 	po.info.Planned = len(po.entries)
 
-	plan, stale, derr := s.decodePlan(m, pf, stored != nil)
+	var plan *engine.Plan
+	var stale *engine.ErrStalePlan
+	var derr error
+	if !sealed {
+		plan, stale, derr = s.decodePlan(m, pf, stored != nil)
+	}
 	switch {
+	case sealed:
+		po.warnings = append(po.warnings, "The values of this plan are sealed.")
 	case derr != nil:
 		po.warnings = append(po.warnings, "The values of the plan are not shown: "+derr.Error()+".")
 		if stored == nil {

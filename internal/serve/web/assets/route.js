@@ -39,7 +39,7 @@ export function writeFragment(v) {
   put('filter', v.filter);
   put('plan', v.plan);
   put('q', v.q);
-  put('view', v.view === 'table' ? 'table' : '');
+  put('view', v.view === 'table' || v.view === 'access' ? v.view : '');
   put('theme', v.theme);
   put('motion', v.motion === 'off' ? 'off' : '');
   put('zoom', v.zoom && v.zoom !== 'fit' ? v.zoom : '');

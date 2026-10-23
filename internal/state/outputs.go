@@ -17,6 +17,9 @@ func ReadOutputs(ctx context.Context, b Backend) (map[string]json.RawMessage, er
 	if err != nil {
 		return nil, err
 	}
+	if _, sealed := asSealedOutputs(data); sealed {
+		return nil, fmt.Errorf("the outputs of %s are sealed to the readers of that state, and remote_outputs reads them without a key: %w", b.Name(), ErrNotReader)
+	}
 	var out map[string]json.RawMessage
 	if err := json.Unmarshal(data, &out); err != nil {
 		return nil, fmt.Errorf("reading outputs of %s: %w", b.Name(), err)

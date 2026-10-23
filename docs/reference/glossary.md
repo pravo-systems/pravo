@@ -11,7 +11,7 @@ A term links to the lesson that teaches it, or to the page that describes it. A 
 | Group | Terms |
 |---|---|
 | CUE | [attribute](#attribute), [bottom](#bottom), [bound](#bound), [closed](#closed), [comprehension](#comprehension), [concrete](#concrete), [conflict](#conflict), [constraint](#constraint), [default](#default), [definition](#definition), [disjunction](#disjunction), [embedding](#embedding), [evaluation](#evaluation), [field](#field), [hidden field](#hidden-field), [import](#import), [incomplete](#incomplete), [interpolation](#interpolation), [let](#let), [list](#list), [open](#open), [optional field](#optional-field), [package](#package), [pattern](#pattern), [reference](#reference), [regular field](#regular-field), [required field](#required-field), [standard library](#standard-library), [struct](#struct), [tag](#tag), [type](#type), [unification](#unification) |
-| pravo | [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
+| pravo | [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
 
 ## Terms of CUE
 
@@ -287,6 +287,12 @@ A CUE package that `pravo init` writes under `cue.mod/gen/`: one for each provid
 
 See [Generated packages](spec-generated-packages.md).
 
+### identity
+
+A name, a signing key and a reader key, kept in a file that `pravo id new` writes. The reader key opens a [sealed state](#sealed-state). An identity for a CI job has no passphrase and is read from `PRAVO_IDENTITY`.
+
+See [pravo id and pravo protect](protect.md#the-identity).
+
 ### input
 
 A resource or data source that another resource reads. A plan looks at the inputs of the resources it reaches and reads their records when they are older than their refresh age. An apply takes an input from its record.
@@ -389,6 +395,18 @@ What a change touches: the resource that changed and the resources whose configu
 
 See [Plans](../concepts/plans.md#scoped-plans).
 
+### reader
+
+A person or a job that can open the values of a [sealed state](#sealed-state). A reader is a line of the [readers file](#readers-file) and has a lock for each data key of the state.
+
+See [What sealing protects](../concepts/sealed-state.md).
+
+### readers file
+
+`.pravo/access/readers.txt` in the repository: one line for each [reader](#reader), as `pravo id new` prints it. Writers take the list of readers from it and never from the state.
+
+See [pravo id and pravo protect](protect.md#the-readers-file).
+
 ### refresh age
 
 How old a record may be before a plan that looks at the resource reads it from its provider again. A record is within its refresh age while its age is no greater than the refresh age, and older than it once its age is greater. `always` is an age of zero, `never` is no limit, and `"30m"` is a duration. It is set per root and per resource. [Reach](#reach) decides what a plan looks at; the refresh age decides whether a record that it looks at is read.
@@ -431,9 +449,15 @@ A plan that plans only what a change [reaches](#reach), and reads only the recor
 
 See [Plans](../concepts/plans.md).
 
+### sealed state
+
+A state whose attributes, outputs, stored plans and the values in command lines are encrypted to a list of [readers](#reader). Addresses, types, names, dependencies and revisions stay readable. It is format 3.
+
+See [What sealing protects](../concepts/sealed-state.md).
+
 ### sensitive value
 
-A value that a plan hides as `(sensitive)`. It is still recorded in state as it is, and the plan document shows it. Protect the state as you protect any other secret store.
+A value that a plan hides as `(sensitive)`. It is still recorded in state as it is, and the plan document shows it, unless the state is [sealed](#sealed-state). Protect the state as you protect any other secret store.
 
 See [Outputs](spec-outputs.md#sensitive-outputs).
 

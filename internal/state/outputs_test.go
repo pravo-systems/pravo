@@ -8,6 +8,7 @@ import (
 )
 
 func TestReadOutputs(t *testing.T) {
+	skipWhenSealed(t)
 	dir := t.TempDir()
 	b := &LocalBackend{Dir: dir}
 	ctx := context.Background()

@@ -201,6 +201,7 @@ export class Inspector {
     const pv = prov ? [prov.key, prov.version].filter(Boolean).join(' ') : node.provider;
     if (pv) tags.push(h('span', { class: 'b' }, pv));
     if (n.mode !== 'managed' && !out) tags.push(h('span', { class: 'b' }, n.mode));
+    if (n.sealed) tags.push(h('span', { class: 'b lock' }, icon('lock'), 'sealed'));
     if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), out ? 'sensitive' : `${n.sensitive} sensitive`));
     if (n.no_schema) tags.push(h('span', { class: 'b chg' }, 'no schema'));
     this.header({
@@ -239,7 +240,7 @@ export class Inspector {
       else cells.push(cell('Plan', 'not read', 'dimv', 'The loaded plan did not run this resource'));
     }
     let sync, scls, stip;
-    if (n.gone) { sync = [icon('gone'), 'gone']; scls = 'bad'; stip = 'A read found that the real object is absent'; } else if (n.drifted) { sync = [icon('drift'), 'drifted']; scls = 'chg'; stip = 'A read found that the real object differs from the record'; } else if (n.presence === 'spec') { sync = 'declared only'; scls = 'dimv'; stip = 'Declared in the specification, not created yet'; } else if (n.presence === 'state') { sync = 'orphan'; scls = 'bad'; stip = 'Recorded in the state, no longer declared: the next apply would destroy it'; } else { sync = [icon('check'), 'in sync']; scls = 'ok'; stip = 'Declared and recorded, with no drift found'; }
+    if (n.gone) { sync = [icon('gone'), 'gone']; scls = 'bad'; stip = 'A read found that the real object is absent'; } else if (n.drifted) { sync = [icon('drift'), 'drifted']; scls = 'chg'; stip = 'A read found that the real object differs from the record'; } else if (n.presence === 'spec') { sync = 'declared only'; scls = 'dimv'; stip = 'Declared in the specification, not created yet'; } else if (n.presence === 'state') { sync = 'orphan'; scls = 'bad'; stip = 'Recorded in the state, no longer declared: the next apply would destroy it'; } else if (n.sealed) { sync = [icon('lock'), 'sealed']; scls = 'dimv'; stip = 'The record is sealed and this viewer cannot open it, so whether it drifted is not known'; } else { sync = [icon('check'), 'in sync']; scls = 'ok'; stip = 'Declared and recorded, with no drift found'; }
     cells.push(cell('Record', sync, scls, stip));
     if (n.locked) cells.push(cell('Lock', [icon('hold'), 'held'], 'lock', 'A lock or reservation holds this resource'));
     cells.push(cell('Revision', n.revision ? String(n.revision) : '—', n.revision ? '' : 'dimv', 'The revision of the record'));

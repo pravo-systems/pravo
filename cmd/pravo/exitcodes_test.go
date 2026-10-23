@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -29,6 +33,7 @@ var exitCodeTable = []struct {
 	{4, "rejected", []string{"locked", "reserved"}},
 	{5, "refused", []string{"plan policy", "policy file", "lock"}},
 	{6, "invalid", []string{"does not load or evaluate", "circle"}},
+	{7, "untrusted", []string{"does not match", "pravo protect status"}},
 }
 
 // docTable reads the rows of the table in the exit codes reference.
@@ -76,7 +81,7 @@ func TestExitCodeTableMatchesTheReference(t *testing.T) {
 			}
 		}
 	}
-	for code, c := range map[int]engine.ExitCode{0: engine.ExitOK, 1: engine.ExitError, 2: engine.ExitChanges, 3: engine.ExitStale, 4: engine.ExitLocked, 5: engine.ExitRefused, 6: engine.ExitInvalid} {
+	for code, c := range map[int]engine.ExitCode{0: engine.ExitOK, 1: engine.ExitError, 2: engine.ExitChanges, 3: engine.ExitStale, 4: engine.ExitLocked, 5: engine.ExitRefused, 6: engine.ExitInvalid, 7: engine.ExitUntrusted} {
 		if int(c) != code {
 			t.Errorf("the engine constant for %d is %d", code, c)
 		}
@@ -97,6 +102,28 @@ func pendingDir(t *testing.T) (string, *state.Store) {
 		t.Fatal(err)
 	}
 	return dir, st
+}
+
+// untrustedDir is a root whose state holds one immutable record that was
+// changed after it was written: the bytes of rec/<sha256> no longer hash to the
+// name.
+func untrustedDir(t *testing.T) string {
+	t.Helper()
+	dir, st := pendingDir(t)
+	if _, err := st.Upgrade(context.Background(), state.UpgradeOptions{To: state.FormatImmutable}); err != nil {
+		if errors.Is(err, state.ErrNotImplemented) {
+			t.Skip("the immutable layout is not implemented in this tree yet")
+		}
+		t.Fatal(err)
+	}
+	recs, _ := filepath.Glob(filepath.Join(dir, "pravo.state", "rec", "*"))
+	if len(recs) == 0 {
+		t.Fatal("the upgrade wrote no rec/ object")
+	}
+	if err := os.WriteFile(recs[0], []byte(`{"addr":"cfg","attributes":{"tampered":true}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
 }
 
 // stdin answers the prompt of a command that asks for confirmation.
@@ -238,6 +265,11 @@ func exitScenarios() map[int][]exitScenario {
 				return runPravo(t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "schema", "random_pet")
 			}, `no provider "random"`},
 		},
+		7: {
+			{"a record that does not match its name", func(t *testing.T) (string, int) {
+				return runPravo(t, untrustedDir(t), "protect", "status")
+			}, "Untrusted: "},
+		},
 	}
 }
 
@@ -339,3 +371,27 @@ var missingFileMessage = func() string {
 	}
 	return "no such file"
 }()
+
+// The errors of the state package that a sealed state adds map to the codes of
+// the reference, whatever their text.
+func TestExitCodeOfTheErrorsOfASealedState(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		code engine.ExitCode
+	}{
+		{state.ErrUntrusted, engine.ExitUntrusted},
+		{fmt.Errorf("rec/ab: %w", state.ErrUntrusted), engine.ExitUntrusted},
+		{state.ErrNotReader, engine.ExitRefused},
+		{protect.ErrNotReader, engine.ExitRefused},
+		{state.ErrSealing, engine.ExitLocked},
+		{&state.ErrLocked{Lock: state.Lock{Addr: "a"}}, engine.ExitLocked},
+		{errors.New("something else"), engine.ExitError},
+		// A write whose outcome the store did not say is a failure like the others
+		// of the store: the command is run again.
+		{state.Advise(fmt.Errorf("writing resources/a.json: %w", state.ErrUnknownOutcome)), engine.ExitError},
+	} {
+		if got := exitCodeOf(c.err); got != int(c.code) {
+			t.Errorf("exitCodeOf(%v) = %d, want %d", c.err, got, c.code)
+		}
+	}
+}

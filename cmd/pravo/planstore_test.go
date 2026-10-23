@@ -605,6 +605,35 @@ func TestListSaysWhichPlansItCouldNotRead(t *testing.T) {
 	}
 }
 
+// A plan file that is not the plan its name says and that has no summary is named
+// by the listing, and a collection marks it and removes it an hour later.
+func TestListNamesAPlanFileThatIsNotWhatItsNameSays(t *testing.T) {
+	dir, _ := pendingDir(t)
+	good := storePlanAs(t, dir, "alice")
+	const bad = "plan-dddddd00"
+	file := filepath.Join(dir, "pravo.state", "plans", bad+".plan.json")
+	if err := os.WriteFile(file, []byte(`{"format":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	text, code := runPravo(t, dir, "plan", "list")
+	if code != 0 || !strings.Contains(text, good) || !strings.Contains(text, "Warning: "+bad+" is not listed: the plan file is not the plan that its name says") {
+		t.Errorf("exit %d:\n%s", code, text)
+	}
+	text, code = runPravo(t, dir, "--json", "plan", "list")
+	var doc struct {
+		Unreadable []struct{ ID, Error string }
+	}
+	if err := json.Unmarshal([]byte(text), &doc); err != nil || code != 0 || len(doc.Unreadable) != 1 || doc.Unreadable[0].ID != bad {
+		t.Errorf("exit %d: %v\n%s", code, err, text)
+	}
+	if text, code := runPravo(t, dir, "plan", "gc"); code != 0 || !strings.Contains(text, bad) {
+		t.Errorf("gc: exit %d:\n%s", code, text)
+	}
+	if _, err := os.Stat(file); err != nil {
+		t.Errorf("the first collection removed the file: %v", err)
+	}
+}
+
 // When the configuration is not the one that a plan was made from, the reason names
 // the files that differ, for a stored plan and for a plan file alike.
 func TestAPlanThatFindsTheConfigurationChangedNamesTheFiles(t *testing.T) {

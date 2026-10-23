@@ -31,6 +31,7 @@ export function projectPanel(ins, model) {
       ['backend', st.backend ? h('span', { class: 'b' }, st.backend) : null],
       st.lineage ? ['lineage', h('span', { class: 'mono-s' }, st.lineage)] : null,
       st.format ? ['format', String(st.format)] : null,
+      st.sealed ? ['protection', h('button', { class: 'b lock linkchip', type: 'button', 'data-fk': 'protection', 'aria-label': 'sealed, open the Access view', 'data-tip': 'Who can read the state', on: { click: () => ins.cb.onAccess && ins.cb.onAccess() } }, icon('lock'), 'sealed')] : null,
       ['records', fmt(st.records ?? model.list.length)],
       ['locks', st.locks ? h('span', { class: 'b lock' }, icon('hold'), String(st.locks)) : '0'],
       ['pravo', p.version],

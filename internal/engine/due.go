@@ -84,7 +84,7 @@ func (e *Engine) DriftDue(ctx context.Context, limit int) (*DueReport, error) {
 	e.keepOpen = false
 	e.closeEphemerals(context.WithoutCancel(ctx))
 	if err != nil {
-		_ = e.txn.Finish("failed", err.Error(), false)
+		e.finishError("failed", err, false)
 		return nil, err
 	}
 	sort.Slice(rep.Drifted, func(i, j int) bool { return rep.Drifted[i].Addr < rep.Drifted[j].Addr })

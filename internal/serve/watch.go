@@ -19,8 +19,8 @@ import (
 
 // The components of the signature the watcher keeps, in the order they are
 // named in an event. "plan" is the plan file of --plan, "plans" the plans stored
-// in the state.
-var components = []string{"state", "spec", "plan", "locks", "plans"}
+// in the state, "access" the readers file.
+var components = []string{"state", "spec", "plan", "locks", "plans", "access"}
 
 // fullScanEvery is how often, in polls, a state directory of many records is
 // read entry by entry. In between, the directories themselves are looked at:
@@ -51,7 +51,8 @@ type watcher struct {
 	location string // the directory of a local state, "" for a remote one
 	backend  state.Backend
 	plan     string
-	remote   int // polls since the remote state was looked at
+	access   string // the readers file, "" for none
+	remote   int    // polls since the remote state was looked at
 
 	// The stored plans are signed by what is written: the base. A plan that is
 	// not applied expires without anything being written, so the nearest expiry of
@@ -93,6 +94,14 @@ func (w *watcher) setState(location string, b state.Backend) {
 	w.mu.Unlock()
 }
 
+// setAccess tells the watcher which readers file the Access view reads. The path
+// is the resolved one: the file can sit in a parent of the project directory.
+func (w *watcher) setAccess(path string) {
+	w.mu.Lock()
+	w.access = path
+	w.mu.Unlock()
+}
+
 // setPlanExpiry tells the watcher when the first of the open stored plans
 // expires, the zero time if none does.
 func (w *watcher) setPlanExpiry(t time.Time) {
@@ -125,10 +134,11 @@ func (w *watcher) sample() (string, map[string]string) {
 func (w *watcher) sampleLocked(remote []string) (string, map[string]string) {
 	w.n++
 	next := map[string]string{
-		"spec":  specSignature(w.dir, w.files, w.noSpec()),
-		"plan":  fileSignature(w.plan),
-		"state": w.sigs["state"],
-		"locks": w.sigs["locks"],
+		"spec":   specSignature(w.dir, w.files, w.noSpec()),
+		"plan":   fileSignature(w.plan),
+		"access": fileSignature(w.access),
+		"state":  w.sigs["state"],
+		"locks":  w.sigs["locks"],
 	}
 	if w.location != "" {
 		next["state"], next["locks"] = w.localState()

@@ -37,6 +37,12 @@ type stored struct {
 	// summary has none is judged as a whole when the state moves on; one that has
 	// them, even an empty map, is judged change by change.
 	Needs map[string][]string
+	// Sealed puts the plan in the state sealed by a key that the viewer does not
+	// hold: its summary stays readable and its values do not.
+	Sealed bool
+	// Tags and SysTags are the -t and -T that the plan was made with.
+	Tags    []string
+	SysTags bool
 }
 
 // storePlan stores a plan in the state the way "pravo plan --store" does: the
@@ -94,7 +100,7 @@ func storePlan(t *testing.T, p *project, o stored) string {
 	}
 	meta := &engine.PlanMeta{Format: engine.PlanMetaFormat, Created: o.Created, Expires: o.Created.Add(o.TTL), Author: o.Author, Actor: o.Author,
 		Reason: o.Reason, Command: o.Command, GitRevision: o.Git, Lineage: pf.Lineage, Fingerprint: pf.ConfigFingerprint,
-		Bases: map[string]engine.PlanBase{}, Changes: []engine.PlanTouch{}, Needs: o.Needs}
+		Bases: map[string]engine.PlanBase{}, Changes: []engine.PlanTouch{}, Needs: o.Needs, Tags: o.Tags, SysTags: o.SysTags}
 	for _, sc := range pf.Changes {
 		switch sc.Action {
 		case engine.ActionCreate:
@@ -119,6 +125,9 @@ func storePlan(t *testing.T, p *project, o stored) string {
 	}
 	sort.Slice(meta.Changes, func(i, j int) bool { return meta.Changes[i].Addr < meta.Changes[j].Addr })
 	ps := engine.NewPlanStore(p.store.Backend())
+	if o.Sealed {
+		ps.Seal = otherKey{}
+	}
 	if err := ps.Put(context.Background(), data, meta); err != nil {
 		t.Fatal(err)
 	}
@@ -187,6 +196,27 @@ func storeFive(t *testing.T, p *project) fiveStored {
 		t.Fatal(err)
 	}
 	return f
+}
+
+// The command that applies a plan made with -t has a placeholder for each tag, with
+// the key that was given: the values are what a person wrote and are not in the
+// listing, and a line pasted as it is fails in the shell.
+func TestTheApplyLineOfAPlanMadeWithTagsHasPlaceholders(t *testing.T) {
+	p := newProject(t)
+	id := storePlan(t, p, stored{Author: "ana@acme", Tags: []string{"db_password=" + secretToken, "env=prod"}, SysTags: true, Addrs: []string{"services.a.db"}})
+	plain := storePlan(t, p, stored{Author: "ben@acme", Addrs: []string{"hosts.x"}})
+	waitFor(t, "the stored plans", func() bool { return len(p.plans().Plans) == 2 })
+	l := p.plans()
+	if got, want := planOf(l, id).Apply, "pravo apply "+id+" -t db_password=<value> -t env=<value> -T"; got != want {
+		t.Errorf("apply is %q, want %q", got, want)
+	}
+	if got := planOf(l, plain).Apply; got != "pravo apply "+plain {
+		t.Errorf("a plan made without tags: %q", got)
+	}
+	noSecrets(t, "the list of plans", p.get("/api/plans"))
+	if strings.Contains(string(p.get("/api/plans")), "=prod") {
+		t.Error("the listing carries the value of a tag")
+	}
 }
 
 // The listing: every status, newest first, with what a reader needs to choose a

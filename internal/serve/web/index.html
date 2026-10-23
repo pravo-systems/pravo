@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="assets/inspector.css">
 <link rel="stylesheet" href="assets/graph.css">
 <link rel="stylesheet" href="assets/plans.css">
+<link rel="stylesheet" href="assets/access.css">
 <script type="module" src="assets/app.js"></script>
 </head>
 <body>
@@ -32,6 +33,7 @@
   <div class="seg viewsw" role="group" aria-label="View">
     <button type="button" id="view-graph" aria-pressed="true">Graph</button>
     <button type="button" id="view-table" aria-pressed="false">Table</button>
+    <button type="button" id="view-access" aria-pressed="false">Access</button>
   </div>
   <button class="search" id="search-btn" type="button" aria-label="Search" aria-keyshortcuts="/ Control+K Meta+K"><span class="i i-search" aria-hidden="true"></span><span class="lbl">Find a resource</span><kbd>/</kbd></button>
   <span class="pillset" data-tip="This page cannot change anything: it only reads.\nIt is served on the loopback interface only." tabindex="0" role="note" aria-label="Read-only: this page cannot change anything. Served on the loopback interface only."><span class="pill ok"><span class="dot" aria-hidden="true"></span>read-only</span><span class="pill addr" id="pill-addr">127.0.0.1</span></span>
@@ -52,7 +54,7 @@
   </nav>
 
   <main class="stage" id="main">
-    <h1 class="sr-only">pravo serve: the specification, the state and the plan as a graph</h1>
+    <h1 class="sr-only" id="page-title">pravo serve: the specification, the state and the plan as a graph</h1>
     <div class="toolbar" id="toolbar">
       <div class="seg graph-only" role="group" aria-label="Modules">
         <button type="button" id="btn-collapse" title="Collapse every module ( [ )">Collapse all</button>
@@ -92,6 +94,7 @@
       </div>
     </div>
     <div class="pane table-pane" id="table-pane" hidden></div>
+    <div class="pane access-pane" id="access-pane" role="region" aria-label="Access" tabindex="-1" hidden></div>
   </main>
 
   <aside class="insp" id="insp" aria-label="Inspector">

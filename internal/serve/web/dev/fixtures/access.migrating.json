@@ -1,0 +1,71 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "state": "migrating",
+ "format": 3,
+ "location": "s3://acme-state/estate",
+ "backend": "s3",
+ "summary": "Sealing started by ada on 2026-10-22 09:30 UTC and has not finished. Writers are refused until it finishes.",
+ "readers": [
+  {
+   "name": "ada",
+   "name_ok": true,
+   "key": "x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
+   "key_short": "x25519:zILxDZ…",
+   "fingerprint": "SHA256:m8YMmlDg9T6mFey9zpNAmej98q7pMpDsi0aia27rJlo",
+   "in_store": true,
+   "in_file": true,
+   "you": true,
+   "line": 1
+  },
+  {
+   "name": "dan",
+   "name_ok": true,
+   "key": "x25519:Hli_Xj5WuXVFv4DwxC4drR13YSgBV_Idby_OkIthUm0",
+   "key_short": "x25519:Hli_Xj…",
+   "fingerprint": "SHA256:OXONlpNIN4+YAxgAA72tFS273MSP9v31RNyZ2aJwA7g",
+   "in_store": true,
+   "in_file": true,
+   "line": 2
+  }
+ ],
+ "file": {
+  "verdict": "match",
+  "path": "/srv/infra/estate/.pravo/access/readers.txt",
+  "text": "The readers file matches the store.",
+  "count": 2
+ },
+ "you": {
+  "state": "reader",
+  "name": "ada",
+  "text": "You are ada, a reader."
+ },
+ "records": {
+  "total": 46,
+  "sealed": 25,
+  "plain": 21,
+  "unreadable": 0,
+  "text": "21 of 46 records are not sealed yet."
+ },
+ "migration": {
+  "started": "2026-10-22T09:30:00Z",
+  "by": "ada",
+  "done": 25,
+  "total": 46
+ },
+ "suggestions": [
+  {
+   "id": "finish",
+   "title": "Finish sealing the state",
+   "why": "Sealing started and stopped before it finished. Running it again finishes the records that are left.",
+   "who": "a reader",
+   "primary": true,
+   "steps": [
+    {
+     "kind": "command",
+     "text": "pravo protect init --encrypt"
+    }
+   ]
+  }
+ ]
+}

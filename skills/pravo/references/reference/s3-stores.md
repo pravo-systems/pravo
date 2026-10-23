@@ -14,6 +14,10 @@ The S3 backend keeps one object for each record, one object for each lock and up
 
 `If-Match` on an object that does not exist is answered with `404 NoSuchKey` by some stores. pravo treats that as a missing object, as it does for a plain read.
 
+A `409 ConditionalRequestConflict` says that another conditional request on the same key is running. It is neither a refusal nor a failure: pravo sends the request again, and it ends in a success or in a `412`. The same goes for `500`, `502`, `503` (`SlowDown`), `504` and `429`, and for a lost connection. A request is sent up to eight times, with a random wait that doubles from 100 ms up to 5 s, and there is no quota of retries across requests. A store that answers every attempt with a conflict or with `SlowDown` gives an error that names the answer.
+
+A write that the store applied and whose answer was lost is sent again, and the store refuses it with `412`, because the object is there. pravo reads the object and counts the write as made when it holds the bytes that were sent. When that read fails as well, pravo does not know whether the write was made, and it does not report a refusal: the error says `the store did not say whether the write was made`. A lock that is being taken is read again and is taken or held by another, as after any refusal. A command that writes a record, a pointer, `meta.json` or a stored plan stops with exit code 1 and the advice to run it again, which reads the state as it is. A heartbeat that cannot tell whether a lock was renewed does not count the lock as lost. A delete that is sent again and finds nothing counts as a delete: the object is gone.
+
 A collection of stored plans deletes an object only through `If-Match`, after it has claimed the plan in the progress object with the same request. A store that ignores `If-Match` lets a collection remove a plan that an apply has just claimed. The permissions are those of the rest of the state: get, put, delete and list, here on the keys below `PREFIX/plans/` as well.
 
 Before a command that writes the state first uses a bucket, pravo probes the store. It writes scratch objects under `PREFIX/probe/` and tries each of the three requests with a tag that must be refused and with one that must be accepted. It reads the contents back after a refused request, and it starts eight creates of one key at once and requires one winner. It deletes the scratch objects when it ends. A store that ignores a condition, or answers `501`, is refused with a message that names the condition:
@@ -51,5 +55,20 @@ $settings: pravo.#Settings & {
 ```
 
 The probe shows that the store checks the conditions one request at a time and that concurrent creates have one winner. It does not show that the store keeps that guarantee under every load. Amazon S3 honours the conditions on a versioned bucket. On other stores a versioned bucket is where conditional requests tend to be weakest, so probe the bucket as it will be used, with versioning set the way you will set it.
+
+A sealed state needs more of the store. Its records are objects that are never overwritten, and a pointer to each is replaced by compare-and-swap. `pravo protect check` runs the checks above and two more: eight writers replace one object at once with the entity tag they all read and exactly one must win, and a key that has just been written must be in the listing of its prefix. See [pravo id and pravo protect](protect.md#protect-check).
+
+## Stores that have been tried
+
+The checks have been run against these servers. `ignored` means that the server accepts the request and does not look at the header.
+
+| Store | `If-None-Match: *` on a put | `If-Match` on a put | `If-Match` on a delete | Holds a state that more than one command writes |
+|---|---|---|---|---|
+| SeaweedFS 4.48 | `412` | `412`, also for a key that does not exist | `412` | yes |
+| MinIO RELEASE.2026-09-22 | `412` | `412`, and `404 NoSuchKey` for a key that does not exist | ignored: the object is deleted and the answer is `204` | no |
+| MinIO, build of May 2025 | `412` | `412`, and it creates a key that does not exist | ignored | no |
+| Garage 2.1.0 | ignored | ignored | ignored | no |
+
+A store that fails the delete check cannot hold a state that more than one command writes, whatever else it honours: a lock that is reclaimed while its holder renews it is deleted although it has changed. `pravo state probe` names the check that fails. Amazon S3 and Cloudflare R2 are not in the table.
 
 [Remote state](../how-to/remote-state.md) sets up the bucket, and [State format](state-format.md#remote-layout) describes the objects.

@@ -340,7 +340,7 @@ Apply complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <id>]
 
 ## Sensitive attributes and the state
 
-A provider marks an attribute sensitive in its schema. pravo prints it as `(sensitive)` in a plan. The state holds the attribute as the provider returned it. Here is the private key of `deploy`, in the record.
+A provider marks an attribute sensitive in its schema. pravo prints it as `(sensitive)` in a plan. The state holds the attribute as the provider returned it, unless the state is [sealed](sealed-state.md), when it holds the attribute encrypted to a list of readers. Here is the private key of `deploy`, in the record.
 
 ```sh run
 pravo state show deploy | grep -c 'BEGIN OPENSSH PRIVATE KEY'

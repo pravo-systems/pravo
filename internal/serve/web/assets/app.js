@@ -9,6 +9,7 @@ import { Rail } from './rail.js';
 import { TableView } from './table.js';
 import { Inspector } from './inspector.js';
 import { Plans, planBar, avatar, statusLabel } from './plans.js';
+import { AccessView } from './access.js';
 import { Palette, Sheet } from './palette.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
 import { h, s as svgEl, clear, store, relTime, clock, plural, schedule, actionOf, icon, copyText, pathParts, tilde, motionOn, tick } from './util.js';
@@ -22,17 +23,23 @@ const root = document.documentElement;
 const S = {
   // graph is what the page draws; raw is what the server sent, and the stored plan that is laid over it (plan, with
   // its overlay when the server did not lay it itself) makes the difference
-  graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null,
+  graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null, access: null,
   view: 'graph', sel: null, tab: null, filter: null, q: '',
   collapsed: new Set(), auto: new Set(), clusters: new Map(), trail: [],
   theme: null, motion: true, reach: false, zoom: 'fit',
   live: 'connecting', focus: null, palette: false, help: false,
 };
-let gv, minimap, rail, table, insp, palette, sheet, conn, backBtn, plansList;
+let gv, minimap, rail, table, insp, palette, sheet, conn, backBtn, plansList, accessView;
 let booted = false;
 
 // ---------------------------------------------------------------------------------------------------------
 // announcements and toasts
+
+// copiedWhat names what a copy button copied, from its label ("Copy the reader key of ada" gives "Copied the reader key of ada").
+function copiedWhat(btn) {
+  const label = btn.getAttribute('aria-label') || '';
+  return label.startsWith('Copy ') ? 'Copied ' + label.slice(5) : 'Copied';
+}
 
 function announce(text) {
   const el = $('live');
@@ -112,7 +119,7 @@ function readFragment() {
     plan: p.plan === 'none' || /^plan-[0-9a-f]{6,64}$/.test(p.plan || '') ? p.plan : '',
     q: p.q || '',
     // an address from before the view was renamed says tree
-    view: p.view === 'table' || p.view === 'tree' ? 'table' : 'graph',
+    view: p.view === 'table' || p.view === 'tree' ? 'table' : p.view === 'access' ? 'access' : 'graph',
     theme: p.theme === 'light' || p.theme === 'dark' ? p.theme : null,
     motion: p.motion !== 'off',
     collapse: listOf(p, 'collapse'),
@@ -241,10 +248,15 @@ function wantedPlan(f) {
 // fetchAll reads the graph and the stored plans of one revision and, when the plan to show is a stored plan that
 // the server did not lay itself, its overlay. want is a plan id, 'none', or undefined for the page's own choice.
 async function fetchAll(want) {
-  let raw, list;
+  let raw, list, access;
   for (let i = 0; ; i++) {
-    [raw, list] = await Promise.all([api.graph(), api.plans()]);
-    if (!list.revision || list.revision === raw.revision || i >= 2) break; // the project changed between the two requests
+    // the Access view does not stop the page: a document that cannot be read leaves the view saying so
+    [raw, list, access] = await Promise.all([api.graph(), api.plans(), api.access().catch((err) => {
+      if (err instanceof api.Unauthorized || err instanceof api.Unreachable) throw err;
+      return null;
+    })]);
+    const same = (x) => !x || !x.revision || x.revision === raw.revision;
+    if ((same(list) && same(access)) || i >= 2) break; // the project changed between the requests
   }
   const plans = list.plans || [];
   const own = ownPlan(raw);
@@ -266,7 +278,7 @@ async function fetchAll(want) {
     plan = own;
     overlay = plan ? await read(plan) : null;
   }
-  return { raw, plans, plan, overlay, gone, failed };
+  return { raw, plans, access, plan, overlay, gone, failed };
 }
 
 // the overlay of the plan that is laid over the graph, which has what the author wrote with it
@@ -771,19 +783,34 @@ function setQuery(q) {
   syncFragment();
 }
 
+// TITLES is the h1 of the page for each view, which a screen reader gives as the name of the page.
+const TITLES = {
+  graph: 'pravo serve: the specification, the state and the plan as a graph',
+  table: 'pravo serve: the resources of the state as a table',
+  access: 'pravo serve: how the state is protected and who can read it',
+};
+
 function setView(v) {
   S.view = v;
+  $('page-title').textContent = TITLES[v] || TITLES.graph;
   $('graph-pane').hidden = v !== 'graph';
   $('table-pane').hidden = v !== 'table';
+  $('access-pane').hidden = v !== 'access';
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
   $('view-table').setAttribute('aria-pressed', v === 'table' ? 'true' : 'false');
+  $('view-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : 'Skip to the table';
+  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'table' ? 'Skip to the table' : 'Skip to the access view';
   if (v === 'table') renderTable();
+  else if (v === 'access') renderAccess();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   syncFragment();
-  announce(v === 'table' ? 'Table view' : 'Graph view');
+  announce(v === 'table' ? 'Table view' : v === 'access' ? 'Access view' : 'Graph view');
+}
+
+function renderAccess() {
+  accessView.render({ access: S.access });
 }
 
 function renderTable() {
@@ -980,7 +1007,7 @@ function toggleInspSize() {
 // ---------------------------------------------------------------------------------------------------------
 // live updates
 
-const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock', plans: 'the stored plans' };
+const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock', plans: 'the stored plans', access: 'the readers file' };
 let pendingWhat = new Set();
 
 async function refresh() {
@@ -1006,6 +1033,7 @@ async function refresh() {
   const droppedPlan = asked && r.plan !== asked && mark === planMark ? asked : null; // the plan that was laid over the graph is not stored any more
   S.raw = r.raw;
   S.plans = r.plans;
+  S.access = r.access;
   S.plan = r.plan;
   S.overlay = r.overlay;
   const g = shown(r.raw);
@@ -1032,6 +1060,7 @@ async function refresh() {
   renderLegend();
   renderPlans();
   if (S.view === 'table') renderTable();
+  if (S.view === 'access') renderAccess();
   const flash = [...d.changed, ...d.added].map((a) => S.vis.rep.get(a)).filter(Boolean);
   gv.flash(new Set(flash));
   showInspector();
@@ -1179,7 +1208,7 @@ function onKey(ev) {
   if (k === '/') { ev.preventDefault(); palette.open(); return; }
   if (k === '?') { ev.preventDefault(); sheet.open(); return; }
   if (k === 't') { toggleTheme(); return; }
-  if (k === 'g') { setView(S.view === 'graph' ? 'table' : 'graph'); return; }
+  if (k === 'g') { setView(S.view === 'graph' ? 'table' : S.view === 'table' ? 'access' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
   if (k === 'f') { gv.fit(true); return; }
@@ -1230,8 +1259,10 @@ function wire() {
   });
   plansList = new Plans($('rail-plans'), { onSelect: (id) => selectPlan(id) });
   table = new TableView($('table-pane'), { onSelectNode: (a) => selectNode(a) });
+  accessView = new AccessView($('access-pane'));
   insp = new Inspector($('insp'), {
     onPlan: (id) => selectPlan(id),
+    onAccess: () => setView('access'),
     onSelectNode: (a) => selectNode(a, { center: true }),
     onSelectModule: (p) => selectModule(p, { center: true }),
     onTab: setTab,
@@ -1259,6 +1290,7 @@ function wire() {
 
   $('view-graph').addEventListener('click', () => setView('graph'));
   $('view-table').addEventListener('click', () => setView('table'));
+  $('view-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
   $('theme-btn').addEventListener('click', toggleTheme);
   $('btn-fit').addEventListener('click', () => gv.fit(true));
@@ -1274,12 +1306,12 @@ function wire() {
   document.addEventListener('click', (ev) => {
     const c = ev.target instanceof Element && ev.target.closest('[data-copy]');
     // the check mark is for a copy that worked; a copy that did not shows the cross, as the other copy buttons do
-    if (c) copyText(c.dataset.copy).then((ok) => { c.classList.toggle('done', ok); c.classList.toggle('failed', !ok); const i = c.querySelector('.i'); if (i) i.className = 'i ' + (ok ? 'i-check' : 'i-x'); setTimeout(() => { c.classList.remove('done', 'failed'); if (i) i.className = 'i i-copy'; }, 1400); announce(ok ? 'Copied' : 'Could not copy'); });
+    if (c) copyText(c.dataset.copy).then((ok) => { c.classList.toggle('done', ok); c.classList.toggle('failed', !ok); const i = c.querySelector('.i'); if (i) i.className = 'i ' + (ok ? 'i-check' : 'i-x'); setTimeout(() => { c.classList.remove('done', 'failed'); if (i) i.className = 'i i-copy'; }, 1400); announce(ok ? copiedWhat(c) : 'Could not copy'); });
   });
   initTips();
   // the skip link goes to the graph, or to the table in the table view; it must not write #canvas into the address, which is the view
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else table.scroller.focus(); });
+  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else table.scroller.focus(); });
   // the mark at the top left goes back to the start: nothing selected, no filter, the first view (not the address "#/", which would drop the theme and the motion setting too)
   const brand = document.querySelector('.brand');
   if (brand) brand.addEventListener('click', (ev) => {
@@ -1400,6 +1432,7 @@ async function load(frag) {
   S.autoSize = { w: gv.size.w, h: gv.size.h };
   S.raw = r.raw;
   S.plans = r.plans;
+  S.access = r.access;
   S.plan = r.plan;
   S.overlay = r.overlay;
   setModel(shown(r.raw), frag);
@@ -1447,7 +1480,7 @@ async function load(frag) {
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, rail, plansList, table, insp, palette, relayout, selectNode, selectModule, toggleModule, clusterAction, setFilter, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, rail, plansList, table, accessView, insp, palette, relayout, selectNode, selectModule, toggleModule, clusterAction, setFilter, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

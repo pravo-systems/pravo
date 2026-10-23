@@ -29,6 +29,9 @@ type PlanFile struct {
 	Format  int       `json:"format"`
 	Created time.Time `json:"created"`
 	Command string    `json:"command"`
+	// Unsealed is set by a PlanStore on a plan that was read from a sealed state and
+	// was stored before the state was sealed.
+	Unsealed bool `json:"-"`
 	// Lineage of the state graph the plan was made against.
 	Lineage string `json:"lineage"`
 	// ConfigFingerprint digests every CUE file of the root.
@@ -137,11 +140,22 @@ func unpackValue(data []byte, t tftypes.Type) (tftypes.Value, error) {
 	return tftypes.ValueFromMsgPack(data, t)
 }
 
+// commandLine is the command line as it was typed. Options.Command is what a
+// sealed state shows of it, and Options.Args, when the caller set them, are the
+// arguments it was made from. The plan file keeps the original: it is sealed
+// with the plan, or written to a file of the person who asked for it.
+func (e *Engine) commandLine() string {
+	if len(e.Opts.Args) > 0 {
+		return "pravo " + strings.Join(e.Opts.Args, " ")
+	}
+	return e.Opts.Command
+}
+
 // buildPlanFile makes the plan file of a plan: what SavePlan writes and what a
 // stored plan holds.
 func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFile, error) {
 	pf := &PlanFile{
-		Format: PlanFileFormat, Created: time.Now().UTC(), Command: e.Opts.Command, Lineage: e.State.Lineage(),
+		Format: PlanFileFormat, Created: time.Now().UTC(), Command: e.commandLine(), Lineage: e.State.Lineage(),
 		Tags: tags, SysTags: sysTags, Providers: map[string]string{}, Destroy: plan.Destroy, NoRefresh: plan.NoRefresh, Stats: plan.Stats,
 		Outputs: map[string]json.RawMessage{}, Actor: e.Opts.Actor, Reason: e.Opts.Reason, GitRevision: e.Opts.GitRevision,
 		Reservation: plan.Reservation,

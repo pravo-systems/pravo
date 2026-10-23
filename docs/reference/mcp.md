@@ -37,6 +37,8 @@ The [global flags](global-flags.md) apply.
 
 A tool call that fails does not end the server. Its exit code is returned in the result.
 
+The server never asks for a passphrase. The commands it runs open a [sealed state](protect.md) with the identity in the environment of the server: `PRAVO_IDENTITY`, and `PRAVO_PASSPHRASE` for an identity that has a passphrase. A server without one gets exit code 5 from a tool that needs a value.
+
 ## Tools
 
 | Tool | Arguments | Runs | `--policy` added |

@@ -33,6 +33,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/telemetry"
@@ -302,9 +303,23 @@ type Options struct {
 	Full bool
 	// Replace lists resource addresses to destroy and create again even
 	// though the specification did not change.
-	Replace  []string
-	Destroy  bool
-	Command  string
+	Replace []string
+	Destroy bool
+	// Command is the command line as the state shows it in transactions, locks and
+	// the summaries of stored plans. In a sealed state it holds the tags of the
+	// values that are sealed: see state.Store.ShowCommand.
+	Command string
+	// Args, when set, are the arguments Command was made from (os.Args without the
+	// program name). The plan files keep the command line they give, as it was typed.
+	Args []string
+	// Identity, if set, returns the key of this process to the states that are
+	// sealed. It is called only when remote_outputs finds that the state of another
+	// root is sealed, so that a command that never needs a key never asks for a
+	// passphrase. readers are the reader keys with a lock in the current group of
+	// that state, as its meta.json lists them, for a caller that has several
+	// identities and chooses the one that can read it; they are nil when meta.json
+	// could not be read.
+	Identity func(readers []protect.ReaderPublic) (*protect.Identity, error)
 	Progress func(format string, args ...any)
 	// Event receives structured progress; nil disables it.
 	Event func(Event)
@@ -583,7 +598,7 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 	if e.Opts.Destroy {
 		changes, err := e.planOrphans(ctx, nil)
 		if err != nil {
-			_ = e.txn.Finish("failed", err.Error(), false)
+			e.finishError("failed", err, false)
 			return nil, err
 		}
 		plan.Changes = changes
@@ -591,12 +606,12 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		return plan, e.txn.Finish("planned", e.summary(plan), false)
 	}
 	if err := e.relabelProviders(); err != nil {
-		_ = e.txn.Finish("failed", err.Error(), true)
+		e.finishError("failed", err, true)
 		return nil, err
 	}
 	moves, err := e.applyMoves(ctx)
 	if err != nil {
-		_ = e.txn.Finish("failed", err.Error(), true)
+		e.finishError("failed", err, true)
 		return nil, err
 	}
 	plan.Changes = append(plan.Changes, moves...)
@@ -605,7 +620,7 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		final, err = e.readInputs(ctx, final)
 	}
 	if err != nil {
-		_ = e.txn.Finish("failed", err.Error(), false)
+		e.finishError("failed", err, false)
 		return nil, err
 	}
 	e.countUnread()
@@ -620,7 +635,7 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 	}
 	orphans, err := e.planOrphans(ctx, present)
 	if err != nil {
-		_ = e.txn.Finish("failed", err.Error(), false)
+		e.finishError("failed", err, false)
 		return nil, err
 	}
 	plan.Changes = append(plan.Changes, orphans...)
@@ -635,19 +650,51 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		}
 	}
 	if err := e.frontier(plan); err != nil {
-		_ = e.txn.Finish("failed", err.Error(), false)
+		e.finishError("failed", err, false)
 		return nil, err
 	}
 	plan.Stats = e.statsNow()
 	if err := e.checkReservations(plan); err != nil {
-		_ = e.txn.Finish("rejected", err.Error(), true)
+		e.finishError("rejected", err, true)
 		return nil, err
 	}
 	if err := e.reserve(plan); err != nil {
-		_ = e.txn.Finish("rejected", err.Error(), true)
+		e.finishError("rejected", err, true)
 		return nil, err
 	}
 	return plan, e.txn.Finish("planned", e.summary(plan), false)
+}
+
+// errText is the summary a transaction records for a run that failed or was
+// rejected. The text of an error can hold a value that a provider echoed, or a
+// message of a policy over a value, so in a sealed state, where the history of
+// the state is readable by anyone who can read the store, the summary does not
+// hold it: finishError keeps the text sealed for the readers.
+func (e *Engine) errText(err error) string {
+	if e.State.Sealer() == nil {
+		return err.Error()
+	}
+	// The notes about the changes whose result is unknown name addresses and
+	// actions, and say what a person has to check.
+	text := state.SealedErrorText
+	if notes := e.unsettledNotes(); len(notes) > 0 {
+		text += "; " + strings.Join(notes, "; ")
+	}
+	return text
+}
+
+// finishError ends the transaction of a run that failed or was rejected. A
+// sealed state keeps the whole text of the error sealed in the transaction, so
+// that a reader keeps the diagnostic (see errText).
+func (e *Engine) finishError(status string, err error, record bool) {
+	full := ""
+	if e.State.Sealer() != nil {
+		full = err.Error()
+		if notes := e.unsettledNotes(); len(notes) > 0 {
+			full += "; " + strings.Join(notes, "; ")
+		}
+	}
+	_ = e.txn.FinishError(status, e.errText(err), full, record)
 }
 
 func (e *Engine) summary(plan *Plan) string {
@@ -2167,13 +2214,13 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	fail := func(err error) (*ApplyResult, error) {
 		err = e.withUnsettled(err)
 		result.Applied = e.completedAddrs()
-		_ = e.txn.Finish("failed", err.Error(), true)
+		e.finishError("failed", err, true)
 		return result, err
 	}
 	lockStart := time.Now()
 	held, err := e.lockAll(plan)
 	if err != nil {
-		_ = e.txn.Finish("rejected", err.Error(), true)
+		e.finishError("rejected", err, true)
 		return result, err
 	}
 	defer held.release()
@@ -2183,7 +2230,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	// With the locks held, the records are read from the backend again: a node
 	// that another process wrote after the plan was made is not applied over.
 	if err := e.checkRevisions(plan, sc.inputsOf(plan)); err != nil {
-		_ = e.txn.Finish("rejected", err.Error(), true)
+		e.finishError("rejected", err, true)
 		return result, err
 	}
 	if locked > 0 {

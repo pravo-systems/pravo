@@ -33,11 +33,25 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/pravo-systems/pravo/internal/protect"
 )
 
-// Format is the store format version that this build writes and reads. A store
-// with a higher number was written by a newer pravo and is refused.
+// Format is the format of a new store, and the layout that every released pravo
+// reads and writes: resources/<address>.json holds the whole record. This build
+// reads up to MaxFormat; a store with a higher number was written by a newer
+// pravo and is refused. Formats 2 and 3 are in protect_api.go.
 const Format = 1
+
+// NewStoreFormat is the format of a store that an open creates when Options
+// leaves it zero. It is Format, and is a variable only so that the helpers of the
+// tests (statetest) can run a suite over a store of another format.
+var NewStoreFormat = Format
+
+// NewStoreIdentity is, for the same helpers, the identity that opens every store
+// whose options give none, and that a new store of format 3 is sealed to. It is
+// nil, and a store opened with no identity is locked.
+var NewStoreIdentity *protect.Identity
 
 // writeStripes is the number of mutexes that order the writes of records.
 const writeStripes = 64
@@ -159,6 +173,10 @@ type meta struct {
 	Format  int       `json:"format"`
 	Lineage string    `json:"lineage"`
 	Created time.Time `json:"created"`
+	// Sealed, Migration and History are set in format 3; see seal.go.
+	Sealed    *protect.Meta  `json:"sealed,omitempty"`
+	Migration *migrationMeta `json:"migration,omitempty"`
+	History   []historyMeta  `json:"history,omitempty"`
 }
 
 // Store is an open state graph.
@@ -175,6 +193,10 @@ type Store struct {
 	mu      sync.Mutex
 	nodes   map[string]*Resource
 	outputs map[string]json.RawMessage
+	// held is what the store read or wrote of the object of each node: the version
+	// and, in format 2, the record the pointer names. A write replaces the object
+	// only if it is still that.
+	held map[string]nodeRef
 	// index is derived from nodes: the addresses in order and the reverse edges.
 	// It is built by the first query that needs it and dropped by every change of
 	// the nodes. A built index is never changed, so a query reads it without the
@@ -189,6 +211,25 @@ type Store struct {
 	metaMu, outMu sync.Mutex
 	// nonce identifies this process's locks across hosts.
 	nonce string
+	// The state is sealed (see seal.go): id is the identity the store was opened
+	// with, ring holds the data keys it unlocked, openable lists the groups it holds
+	// a lock in, and locked is set when it holds no key for the state. metaRead is
+	// when meta.json was last read, for the check for a new group.
+	id       *protect.Identity
+	ring     keyring
+	openable map[string]bool
+	locked   bool
+	// closed is set by Close: the store takes no keys again.
+	closed   bool
+	you      You
+	metaRead time.Time
+	// groupReload is when meta.json was last read again because a value is sealed in
+	// a group the store does not know; reloadMu lets one goroutine do it for all.
+	groupReload time.Time
+	reloadMu    sync.Mutex
+	// metaChecked is when writable last compared meta.json with the format the store
+	// holds; zero until the first write, which always looks.
+	metaChecked time.Time
 
 	actor, reason, gitRevision, traceID string
 }
@@ -197,14 +238,7 @@ type Store struct {
 // names a file is an error and changes nothing: the state is a directory, and
 // an OpenTofu state file is read with "pravo state import-tfstate".
 func Open(path string) (*Store, error) {
-	if st, err := os.Stat(path); err == nil && !st.IsDir() {
-		return nil, fmt.Errorf("the state path %s is a file; a state path is a directory (set $settings.state.path to a directory such as pravo.state, and read an OpenTofu state file with \"pravo state import-tfstate\")", path)
-	}
-	b, err := NewLocalBackend(path)
-	if err != nil {
-		return nil, err
-	}
-	return OpenBackend(context.Background(), b)
+	return OpenWith(path, Options{})
 }
 
 // OpenBackend opens (or creates) the store kept in b. ctx governs the opening
@@ -213,34 +247,83 @@ func Open(path string) (*Store, error) {
 // and finish its transaction, and a backend that honours the context, as the S3
 // client does, would refuse every one of those calls.
 func OpenBackend(ctx context.Context, b Backend) (*Store, error) {
-	return openBackend(ctx, b)
+	return openBackend(ctx, b, Options{})
 }
 
 // openBackend opens the store kept in b.
-func openBackend(ctx context.Context, b Backend) (*Store, error) {
-	s := &Store{b: b, ctx: ctx, nodes: map[string]*Resource{}, outputs: map[string]json.RawMessage{}, nonce: newID(8)}
+func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
+	s := &Store{b: b, ctx: ctx, nodes: map[string]*Resource{}, held: map[string]nodeRef{}, outputs: map[string]json.RawMessage{}, nonce: newID(8)}
+	if o.Identity == nil {
+		o.Identity = NewStoreIdentity
+	}
+	sealNew := false
 	data, err := b.Get(ctx, "meta.json")
 	switch {
 	case err == nil:
 		if err := json.Unmarshal(data, &s.meta); err != nil {
 			return nil, fmt.Errorf("reading %s/meta.json: %w", b.Name(), err)
 		}
-		if s.meta.Format > Format {
+		if s.meta.Format > MaxFormat {
 			return nil, fmt.Errorf("state at %s was written by a newer pravo (format %d)", b.Name(), s.meta.Format)
 		}
 	case errors.Is(err, ErrNotFound):
-		s.meta = meta{Format: Format, Lineage: newID(16), Created: time.Now().UTC()}
+		format := o.NewFormat
+		if format == 0 {
+			format = NewStoreFormat
+		}
+		if format == FormatSealed && NewStoreIdentity != nil {
+			// A suite that runs over sealed stores: the store is made in format 2 and sealed
+			// once it is open.
+			format, sealNew = FormatImmutable, true
+		}
+		if format != Format && format != FormatImmutable {
+			return nil, fmt.Errorf("a new state is created in format %d or %d, not %d; a sealed state is made by upgrading one", Format, FormatImmutable, format)
+		}
+		s.meta = meta{Format: format, Lineage: newID(16), Created: time.Now().UTC()}
 		if err := s.putJSON("meta.json", s.meta); err != nil {
 			return nil, err
 		}
 	default:
 		return nil, fmt.Errorf("opening state at %s: %w", b.Name(), err)
 	}
+	if s.meta.Format >= FormatSealed {
+		err := s.openSealed(o.Identity)
+		if errors.Is(err, ErrUntrusted) && s.rereadMeta(ctx, data) {
+			// meta.json was replaced since it was read, and what was read of it may
+			// have been a part of a change.
+			err = s.openSealed(o.Identity)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
 	if err := s.load(); err != nil {
 		return nil, err
 	}
 	s.ctx = context.WithoutCancel(ctx)
+	if sealNew {
+		id := NewStoreIdentity
+		if _, err := s.Upgrade(ctx, UpgradeOptions{To: FormatSealed, Readers: []protect.Reader{id.AsReader()}, Identity: id}); err != nil {
+			return nil, err
+		}
+	}
 	return s, nil
+}
+
+// rereadMeta reads meta.json again and, if it differs from first, the bytes read
+// when the store was opened, takes it as the meta of the store. It reports whether
+// it did.
+func (s *Store) rereadMeta(ctx context.Context, first []byte) bool {
+	data, err := s.b.Get(ctx, "meta.json")
+	if err != nil || bytes.Equal(data, first) {
+		return false
+	}
+	var m meta
+	if json.Unmarshal(data, &m) != nil || m.Format > MaxFormat || m.Lineage != s.meta.Lineage {
+		return false
+	}
+	s.meta = m
+	return true
 }
 
 func (s *Store) load() error {
@@ -257,6 +340,7 @@ func (s *Store) load() error {
 	// Fetch nodes concurrently; remote backends pay a round trip per node.
 	type res struct {
 		r   *Resource
+		h   nodeRef
 		err error
 	}
 	results := make([]res, len(jsonKeys))
@@ -277,18 +361,8 @@ func (s *Store) load() error {
 				if i >= len(jsonKeys) {
 					return
 				}
-				k := jsonKeys[i]
-				data, err := s.b.Get(s.ctx, k)
-				if err != nil {
-					results[i].err = fmt.Errorf("reading %s: %w", k, err)
-					continue
-				}
-				var r Resource
-				if err := json.Unmarshal(data, &r); err != nil {
-					results[i].err = fmt.Errorf("reading state node %s: %w", k, err)
-					continue
-				}
-				results[i].r = &r
+				r, h, err := s.readNode(s.ctx, jsonKeys[i])
+				results[i].r, results[i].h, results[i].err = r, h, err
 			}
 		}()
 	}
@@ -299,12 +373,16 @@ func (s *Store) load() error {
 		}
 		if r.r != nil {
 			s.nodes[r.r.Address()] = r.r
+			s.held[r.r.Address()] = r.h
 		}
 	}
 	data, err := s.b.Get(s.ctx, "outputs.json")
 	if err == nil {
-		if err := json.Unmarshal(data, &s.outputs); err != nil {
-			return fmt.Errorf("reading outputs: %w", err)
+		// A locked store lists the records and has no outputs.
+		if out, err := s.decodeOutputs(data); err == nil {
+			s.outputs = out
+		} else if !s.locked || errors.Is(err, ErrUntrusted) {
+			return err
 		}
 	} else if !errors.Is(err, ErrNotFound) {
 		return err
@@ -633,26 +711,26 @@ func (s *Store) set(r *Resource, txn string) error {
 // changes nothing in memory, neither the store nor r. The caller holds the
 // stripe of the node.
 func (s *Store) put(r *Resource, revision int, generation, txn string) error {
+	if err := s.writable(); err != nil {
+		return err
+	}
 	c := *r
 	c.Revision, c.Generation = revision, generation
 	c.UpdatedAt = time.Now().UTC()
 	if txn != "" {
 		c.Txn = txn
 	}
-	if err := s.putNode(&c); err != nil {
+	ref, err := s.putNode(&c)
+	if err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r.Revision, r.Generation, r.UpdatedAt, r.Txn = c.Revision, c.Generation, c.UpdatedAt, c.Txn
 	s.nodes[r.Address()] = r
+	s.held[r.Address()] = ref
 	s.index = nil
 	return nil
-}
-
-// putNode writes the node.
-func (s *Store) putNode(r *Resource) error {
-	return s.putJSON(nodeKey(r.Address()), r)
 }
 
 // sameTime reports whether two optional times are the same instant.
@@ -670,15 +748,20 @@ func (s *Store) Remove(addr string) (bool, error) {
 	defer mu.Unlock()
 	s.mu.Lock()
 	_, ok := s.nodes[addr]
+	ref := s.held[addr]
 	s.mu.Unlock()
 	if !ok {
 		return false, nil
 	}
-	if err := s.b.Delete(s.ctx, nodeKey(addr)); err != nil {
+	if err := s.writable(); err != nil {
+		return true, err
+	}
+	if err := s.removeNode(addr, ref); err != nil {
 		return true, err
 	}
 	s.mu.Lock()
 	delete(s.nodes, addr)
+	delete(s.held, addr)
 	s.index = nil
 	s.mu.Unlock()
 	return true, nil
@@ -711,8 +794,8 @@ func (s *Store) LoadOutputs() (outputs map[string]json.RawMessage, present bool,
 	switch {
 	case err == nil:
 		present = true
-		if err := json.Unmarshal(data, &out); err != nil {
-			return nil, false, fmt.Errorf("reading outputs: %w", err)
+		if out, err = s.decodeOutputs(data); err != nil {
+			return nil, false, err
 		}
 		if out == nil {
 			out = map[string]json.RawMessage{}
@@ -735,10 +818,17 @@ func (s *Store) SetOutputs(outputs map[string]json.RawMessage) error {
 
 // setOutputs is SetOutputs for a caller that holds outMu.
 func (s *Store) setOutputs(outputs map[string]json.RawMessage) error {
+	if err := s.writable(); err != nil {
+		return err
+	}
 	if outputs == nil {
 		outputs = map[string]json.RawMessage{}
 	}
-	if err := s.putJSON("outputs.json", outputs); err != nil {
+	data, err := s.encodeOutputs(outputs)
+	if err != nil {
+		return err
+	}
+	if err := s.b.Put(s.ctx, "outputs.json", data); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -767,6 +857,9 @@ var (
 // record and whether to write them. Two commands that finish together each
 // merge their outputs into what the other wrote.
 func (s *Store) UpdateOutputs(fn func(recorded map[string]json.RawMessage, present bool) (updated map[string]json.RawMessage, write bool, err error)) error {
+	if err := s.writable(); err != nil {
+		return err
+	}
 	s.outMu.Lock()
 	defer s.outMu.Unlock()
 	unlock, err := s.lockOutputs()
@@ -793,18 +886,37 @@ func (s *Store) lockOutputs() (func(), error) {
 	deadline := time.Now().Add(outputsLockWait)
 	delay := 2 * time.Millisecond
 	unreadable := false
+	misses := 0
 	for {
 		created, err := s.b.PutIfAbsent(s.ctx, outputsLockKey, data)
-		if err != nil {
+		unknown := errors.Is(err, ErrUnknownOutcome)
+		if err != nil && !unknown {
 			return nil, err
 		}
 		if created {
 			return s.unlockOutputs, nil
 		}
 		raw, holder, rerr := s.readOutputsLock()
-		if errors.Is(rerr, ErrNotFound) {
-			continue // released between the two calls
+		if rerr == nil && bytes.Equal(raw, data) {
+			// A create of unknown outcome that was made, found now or by a later round
+			// whose own create was refused: the bytes are this call's.
+			return s.unlockOutputs, nil
 		}
+		if errors.Is(rerr, ErrNotFound) {
+			// Released between the two calls: ask again. A store that refuses the
+			// create and has no object under the key is not waited for for ever.
+			if misses++; misses > 3 {
+				if time.Now().After(deadline) {
+					return nil, fmt.Errorf("outputs.json stayed locked for %s: the store refuses to create the lock and has none to read", outputsLockWait)
+				}
+				time.Sleep(delay + mrand.N(delay))
+				if delay < 100*time.Millisecond {
+					delay *= 2
+				}
+			}
+			continue
+		}
+		misses = 0
 		// An object that cannot be read may be half written; it is the holder's no
 		// longer when it is still unreadable the next time.
 		gone := rerr == nil && s.outputsLockStale(holder) || rerr != nil && unreadable
@@ -1152,7 +1264,10 @@ func (s *Store) lock(addr, command, txn string, keep bool) (bool, error) {
 	data, _ := indentJSON(l)
 	for attempt := 0; attempt < 3; attempt++ {
 		created, err := s.b.PutIfAbsent(s.ctx, lockKey(addr), data)
-		if err != nil {
+		// A write of unknown outcome is not acquired, as a refusal is not, and the
+		// lock is read: if the store holds the bytes written, this call took it.
+		unknown := errors.Is(err, ErrUnknownOutcome)
+		if err != nil && !unknown {
 			return false, err
 		}
 		if created {
@@ -1168,7 +1283,11 @@ func (s *Store) lock(addr, command, txn string, keep bool) (bool, error) {
 			continue
 		}
 		if holder.Nonce == s.nonce {
-			return false, nil
+			// The nonce is this store's, and so is a lock that holds the bytes of
+			// this write: it was created by this call, which must release it. The
+			// bytes name this call, not this round: a create of unknown outcome that
+			// was made is found by a later round, whose own create was refused.
+			return bytes.Equal(raw, data), nil
 		}
 		stale := s.stale(holder)
 		if keep && !stale && s.OwnsReservation(holder) {
@@ -1281,17 +1400,32 @@ func (s *Store) ReserveAll(addrs []string, command string, until time.Time) (map
 // reserve reserves one address. It returns the end of the reservation and the
 // reservation of the owner that it replaced, if any.
 func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock, error) {
+	// maybe lists the writes of this call that the store may or may not have made,
+	// from any round: the bytes written, the end of the reservation, and the
+	// reservation it replaced, nil for a create. A round that finds one of them in
+	// the store took the reservation, and the rounds after an unknown outcome and a
+	// failed read must not take it for the reservation of an earlier command.
+	type possible struct {
+		data []byte
+		end  time.Time
+		prev *Lock
+	}
+	var maybe []possible
 	for attempt := 0; attempt < 4; attempt++ {
 		l := s.newLock(addr, command, "")
 		l.Kind = "reservation"
 		l.Expires = &until
 		data, _ := indentJSON(l)
 		created, err := s.b.PutIfAbsent(s.ctx, lockKey(addr), data)
-		if err != nil {
+		unknown := errors.Is(err, ErrUnknownOutcome)
+		if err != nil && !unknown {
 			return time.Time{}, nil, err
 		}
 		if created {
 			return until, nil, nil
+		}
+		if unknown {
+			maybe = append(maybe, possible{data, until, nil})
 		}
 		raw, holder, rerr := s.readHolder(addr)
 		if rerr != nil {
@@ -1300,6 +1434,11 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 			}
 			s.deleteLock(addr, raw)
 			continue
+		}
+		for _, m := range maybe {
+			if bytes.Equal(raw, m.data) {
+				return m.end, m.prev, nil // the create or the replacement was made
+			}
 		}
 		stale := s.stale(holder)
 		if !stale && s.OwnsReservation(holder) {
@@ -1316,6 +1455,11 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 			ok, err := s.b.ReplaceIf(s.ctx, lockKey(addr), func(current []byte) ([]byte, bool) { return data, bytes.Equal(current, raw) })
 			switch {
 			case errors.Is(err, ErrNotFound):
+				continue
+			case errors.Is(err, ErrUnknownOutcome):
+				// Read again, as after a refusal; the lock is this call's if it holds
+				// these bytes, and then the reservation that it replaced is this one.
+				maybe = append(maybe, possible{data, end, &holder})
 				continue
 			case err != nil:
 				return time.Time{}, nil, err
@@ -1641,7 +1785,11 @@ type Transaction struct {
 	Finished *time.Time `json:"finished,omitempty"`
 	Status   string     `json:"status"`
 	Summary  string     `json:"summary,omitempty"`
-	Changes  []Change   `json:"changes"`
+	// SummarySealed holds the full text of the error of a run that failed or
+	// was rejected, in a sealed state, where Summary says only that the text is
+	// sealed. It is bound to the id of the transaction.
+	SummarySealed *protect.Sealed `json:"summary_sealed,omitempty"`
+	Changes       []Change        `json:"changes"`
 	// Actor, Reason and GitRevision attribute the run: who (a person or
 	// an agent), why, and which revision of the specification.
 	Actor       string `json:"actor,omitempty"`
@@ -1649,6 +1797,9 @@ type Transaction struct {
 	GitRevision string `json:"git_revision,omitempty"`
 	// TraceID links the transaction to its OpenTelemetry trace.
 	TraceID string `json:"trace_id,omitempty"`
+	// Version is the pravo that wrote the transaction. Transactions written
+	// before it was recorded have none.
+	Version string `json:"version,omitempty"`
 }
 
 // Txn is an in-progress transaction.
@@ -1658,13 +1809,19 @@ type Txn struct {
 	t     Transaction
 }
 
+// PravoVersion is the version of the pravo that writes transactions. The program
+// sets it when it starts; the state package cannot see the version of the
+// program that links it. An empty PravoVersion leaves the field out. (Version is
+// the name of the revision and generation of a record.)
+var PravoVersion string
+
 // Begin starts a transaction of the given kind (plan, apply, destroy, import, edit).
 func (s *Store) Begin(kind, command string) *Txn {
 	host, _ := os.Hostname()
 	return &Txn{store: s, t: Transaction{
 		ID: newTxnID(), Kind: kind, Command: command,
 		User: osUser(), Host: host, Started: time.Now().UTC(), Status: "running", Changes: []Change{},
-		Actor: s.actor, Reason: s.reason, GitRevision: s.gitRevision, TraceID: s.traceID,
+		Actor: s.actor, Reason: s.reason, GitRevision: s.gitRevision, TraceID: s.traceID, Version: PravoVersion,
 	}}
 }
 
@@ -1677,6 +1834,9 @@ func (t *Txn) ID() string { return t.t.ID }
 func (t *Txn) Start() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if err := t.store.writable(); err != nil {
+		return err
+	}
 	return t.store.putJSON("txn/"+t.t.ID+".json", t.t)
 }
 
@@ -1697,6 +1857,16 @@ func (t *Txn) Len() int {
 // Finish writes the transaction with the given status and summary. A
 // transaction without changes is not recorded unless record is true.
 func (t *Txn) Finish(status, summary string, record bool) error {
+	return t.FinishError(status, summary, "", record)
+}
+
+// FinishError is Finish for a run that failed or was rejected, whose full text
+// can hold a value that a provider returned. In a sealed state summary is what
+// anyone who can read the bucket sees, and full is kept sealed for the readers
+// (see Store.SummaryText); when the store holds no key, or the state is not
+// sealed, full is dropped and summary is all there is. full is empty when there
+// is nothing to keep.
+func (t *Txn) FinishError(status, summary, full string, record bool) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if len(t.t.Changes) == 0 && !record {
@@ -1706,8 +1876,83 @@ func (t *Txn) Finish(status, summary string, record bool) error {
 	t.t.Finished = &now
 	t.t.Status = status
 	t.t.Summary = summary
+	t.t.SummarySealed = nil
+	if sl := t.store.Sealer(); sl != nil && full != "" {
+		if box, err := sl.Seal(protect.KindSummary, t.t.ID, []byte(full)); err == nil {
+			t.t.SummarySealed = &box
+		}
+	}
 	sort.Slice(t.t.Changes, func(i, j int) bool { return t.t.Changes[i].Addr < t.t.Changes[j].Addr })
+	if err := t.store.writable(); err != nil {
+		return err
+	}
 	return t.store.putJSON("txn/"+t.t.ID+".json", t.t)
+}
+
+// SealedErrorText is what the summary of a transaction that failed or was rejected
+// says in a sealed state, in place of the text of the error. The text is kept
+// sealed beside it (Transaction.SummarySealed), for the readers.
+const SealedErrorText = "the text of the error is sealed to the readers of the state"
+
+// SummaryText returns the summary of t as the holder of this store may read it:
+// the full text of the error that a sealed state keeps for its readers when the
+// store can open it, and the summary that anyone sees otherwise.
+func (s *Store) SummaryText(t Transaction) string {
+	sl := s.Sealer()
+	if sl == nil || t.SummarySealed == nil {
+		return t.Summary
+	}
+	full, err := sl.Open(protect.KindSummary, t.ID, *t.SummarySealed)
+	if err != nil {
+		return t.Summary
+	}
+	return string(full)
+}
+
+// resealSummaries seals the text of the errors that transactions keep sealed again
+// under the current group, as the records are by a rewrap. A box that does not open
+// is left as it is: a transaction is a log, and one that is damaged is not a reason
+// to stop.
+func (s *Store) resealSummaries(ctx context.Context, current string) error {
+	sl := s.Sealer()
+	keys, err := s.b.List(ctx, "txn")
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		if !strings.HasSuffix(k, ".json") {
+			continue
+		}
+		data, err := s.b.Get(ctx, k)
+		if errors.Is(err, ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		var t Transaction
+		if json.Unmarshal(data, &t) != nil || t.SummarySealed == nil || t.SummarySealed.Group == current {
+			continue
+		}
+		plain, err := sl.Open(protect.KindSummary, t.ID, *t.SummarySealed)
+		if err != nil {
+			continue
+		}
+		box, err := sl.Seal(protect.KindSummary, t.ID, plain)
+		clear(plain)
+		if err != nil {
+			return err
+		}
+		t.SummarySealed = &box
+		next, err := indentJSON(t)
+		if err != nil {
+			return err
+		}
+		if _, err := s.b.ReplaceIf(ctx, k, func(cur []byte) ([]byte, bool) { return next, bytes.Equal(cur, data) }); err != nil && !errors.Is(err, ErrNotFound) {
+			return Advise(err)
+		}
+	}
+	return nil
 }
 
 // Transactions lists recorded transactions, newest first.

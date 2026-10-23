@@ -54,6 +54,8 @@ type StateInfo struct {
 	Format  int    `json:"format,omitempty"`
 	Records int    `json:"records"`
 	Locks   int    `json:"locks"`
+	// Sealed is set when the state is sealed (format 3): see Access.
+	Sealed bool `json:"sealed,omitempty"`
 }
 
 // ProviderInfo is a provider the specification declares or the state records.
@@ -111,6 +113,9 @@ type Node struct {
 	Gone    bool `json:"gone,omitempty"`
 	// Locked is set when a lock or reservation holds the node.
 	Locked bool `json:"locked,omitempty"`
+	// Sealed is set when the record is sealed and this process cannot open it: the
+	// address, type, dependencies and revision are shown, no value is.
+	Sealed bool `json:"sealed,omitempty"`
 	// Plans lists the stored plans (see StoredPlan) that can still be applied, all
 	// of them or in part, and have a change left on the node, newest first. Overlap
 	// is set when two or more can apply that change: applying one makes the other
@@ -175,8 +180,9 @@ type Output struct {
 	Name      string `json:"name"`
 	Sensitive bool   `json:"sensitive,omitempty"`
 	// Redacted is "" when the value is sent, else "sensitive" (the output is
-	// marked so) or "derived" (the value contains a sensitive value of the
-	// state). Sensitive is set in both cases.
+	// marked so), "derived" (the value contains a sensitive value of the
+	// state) or "sealed" (the state is sealed and this process cannot open the
+	// value). Sensitive is set in all three cases.
 	Redacted string `json:"redacted,omitempty"`
 	Value    any    `json:"value,omitempty"`
 	Unknown  bool   `json:"unknown,omitempty"`
@@ -538,13 +544,197 @@ type PlanOverlay struct {
 	GitRevision string `json:"git_revision,omitempty"`
 }
 
+// Access is GET /api/access: how the state is protected, who can read it, what
+// the readers file says, and commands to copy that change it. The page shows it
+// and runs nothing. A reader is a name and public keys; the response holds no
+// secret, no key of the identity and no line of the readers file as written.
+type Access struct {
+	Version int `json:"version"`
+	// Revision is the revision of the graph that the document goes with.
+	Revision string `json:"revision"`
+	// State is "off" (format 1), "immutable" (format 2: records are stored once and
+	// never overwritten), "sealed" (format 3) or "migrating" (a seal started and
+	// has not finished). Whether this process can open the values is You, not State.
+	State    string `json:"state"`
+	Format   int    `json:"format"`
+	Location string `json:"location"`
+	// Backend is "local" or "s3".
+	Backend string `json:"backend"`
+	// Summary is the sentence for the state.
+	Summary string `json:"summary"`
+	// Readers lists the readers of the store and of the readers file, the file's
+	// first. A name that does not match the rule for names is listed with NameOK
+	// false and appears in no suggestion.
+	Readers []AccessReader `json:"readers"`
+	File    AccessFile     `json:"file"`
+	// You is absent unless the state is sealed or migrating.
+	You *AccessYou `json:"you,omitempty"`
+	// Records counts the records. Its Text is the one sentence about them that
+	// the banner shows, absent when the state holds none.
+	Records AccessRecords `json:"records"`
+	// Groups lists the groups of data keys. It is absent unless the state is
+	// sealed and has more than one, which a removal of a reader makes; GroupsText
+	// is then the sentence that says why and what sealing the records again does.
+	Groups     []AccessGroup    `json:"groups,omitempty"`
+	GroupsText string           `json:"groups_text,omitempty"`
+	Migration  *AccessMigration `json:"migration,omitempty"`
+	// SingleReader is set when the state is sealed and exactly one reader holds a
+	// lock in the current group: nobody can read the state if that reader loses
+	// their key, since there is no recovery recipient. The page shows it under the
+	// readers.
+	SingleReader *AccessWarning `json:"single_reader,omitempty"`
+	// LastChange is the newest entry of the history of the seal.
+	LastChange  *AccessChange `json:"last_change,omitempty"`
+	Suggestions []Suggestion  `json:"suggestions"`
+	// Problems are sentences about what could not be read.
+	Problems []string `json:"problems,omitempty"`
+}
+
+// AccessReader is a reader that the store, the readers file or both list. Readers
+// are matched by reader key, as the locks of the store are.
+type AccessReader struct {
+	// Name is clipped and has control and direction characters removed.
+	Name   string `json:"name"`
+	NameOK bool   `json:"name_ok"`
+	// Key is the public reader key; KeyShort is the form shown.
+	Key      string `json:"key"`
+	KeyShort string `json:"key_short"`
+	// Fingerprint is the SHA256 fingerprint of the signing key, "" where the reader
+	// is known from the store alone.
+	Fingerprint string `json:"fingerprint,omitempty"`
+	InStore     bool   `json:"in_store"`
+	InFile      bool   `json:"in_file"`
+	// You marks the reader whose key is the identity of this process.
+	You bool `json:"you,omitempty"`
+	// Line is the line of the readers file, 0 for a reader that is not in it.
+	Line int `json:"line,omitempty"`
+}
+
+// AccessFile is what the readers file says in relation to the store.
+type AccessFile struct {
+	// Verdict is "match" (file and store list the same readers), "differs",
+	// "missing" (no file), "invalid" (the file does not load),
+	// "expected-sealed" (the file loads and the state is not sealed: it has not been
+	// sealed yet, or its meta.json was changed) or "none" (the state is not sealed and the file adds
+	// nothing, so nothing is compared).
+	Verdict string `json:"verdict"`
+	// Path is where the file is looked for.
+	Path string `json:"path"`
+	Text string `json:"text"`
+	// Count is the number of readers of the file when it loads.
+	Count int `json:"count"`
+	// Added are the readers in the file and not in the store, Removed the ones in
+	// the store and not in the file: rewrap makes the store match the file.
+	Added   []string          `json:"added,omitempty"`
+	Removed []string          `json:"removed,omitempty"`
+	Errors  []AccessLineError `json:"errors,omitempty"`
+}
+
+// AccessLineError is a line of the readers file that does not load. It carries the
+// number of the line and a reason, and never the text of the line.
+type AccessLineError struct {
+	Line   int    `json:"line"`
+	Reason string `json:"reason"`
+}
+
+// AccessYou is the identity of this process.
+type AccessYou struct {
+	// State is "reader", "not-reader", "no-identity" or "locked".
+	State string `json:"state"`
+	Name  string `json:"name,omitempty"`
+	// Text is the sentence for the state of the identity.
+	Text string `json:"text"`
+}
+
+// AccessRecords counts the records of the state. Sealed records are encrypted;
+// Plain ones are in a sealed state and are not (written before the seal and not
+// reached since); Unreadable ones are sealed under a group that this process holds
+// no key for, or all of them when it holds none. Text is the sentence about them
+// that the page shows, worded by the server: that all are sealed, how many are not
+// sealed yet, how many this key cannot open, or how many there are in a state that
+// is not sealed.
+type AccessRecords struct {
+	Total      int    `json:"total"`
+	Sealed     int    `json:"sealed"`
+	Plain      int    `json:"plain"`
+	Unreadable int    `json:"unreadable"`
+	Text       string `json:"text,omitempty"`
+}
+
+// AccessGroup is a group of data keys: records sealed under it, and the readers
+// that hold a lock for it.
+type AccessGroup struct {
+	ID      string `json:"id"`
+	Current bool   `json:"current,omitempty"`
+	Locks   int    `json:"locks"`
+	Records int    `json:"records"`
+}
+
+// AccessMigration is a seal that started and has not finished.
+type AccessMigration struct {
+	Started time.Time `json:"started"`
+	By      string    `json:"by"`
+	Done    int       `json:"done"`
+	Total   int       `json:"total"`
+}
+
+// AccessWarning is a risk of the state, in a sentence, with the suggestion that
+// deals with it. Action is the label of the button that opens that suggestion,
+// and Suggestion its ID; the page offers the button only if the suggestion is in
+// the list.
+type AccessWarning struct {
+	Text       string `json:"text"`
+	Action     string `json:"action"`
+	Suggestion string `json:"suggestion"`
+}
+
+// AccessChange is the last change of the seal. By is a label that the machine of
+// the change gave itself, not a proof. Text is the item the banner shows: the time
+// in UTC and what was done, such as "2026-10-23 08:03 UTC · sealed by marcinw".
+type AccessChange struct {
+	At      time.Time `json:"at"`
+	By      string    `json:"by"`
+	What    string    `json:"what"`
+	Added   []string  `json:"added,omitempty"`
+	Removed []string  `json:"removed,omitempty"`
+	Text    string    `json:"text"`
+}
+
+// Suggestion is a change that the page offers as text to copy. The server runs
+// none of it. Steps are in the order they are done.
+type Suggestion struct {
+	// ID is "seal", "check-downgrade", "finish", "identity", "rewrap", "add-reader",
+	// "remove-reader:NAME", "reseal", "prune" or "status".
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Why   string `json:"why"`
+	// Who says whose machine the steps are for, such as "a current reader".
+	Who string `json:"who,omitempty"`
+	// Primary marks the next step for the state shown.
+	Primary bool             `json:"primary,omitempty"`
+	Steps   []SuggestionStep `json:"steps"`
+}
+
+// SuggestionStep is one step of a Suggestion. Kind is "command" (one line, no
+// newline, for a shell), "add-line" or "remove-line" (a line of Text to add to or
+// remove from File, which the person edits by hand) or "note" (a sentence). A
+// command that has parts to fill in carries them as unquoted angle brackets, so
+// that a paste that was not filled in fails in the shell, and Placeholder is set.
+type SuggestionStep struct {
+	Kind        string `json:"kind"`
+	Text        string `json:"text"`
+	File        string `json:"file,omitempty"`
+	Placeholder bool   `json:"placeholder,omitempty"`
+}
+
 // Event is the data of a server-sent event on /api/events. The event name is
 // "change" and the page fetches /api/graph again, and the open node, when the
 // Revision differs from the one it holds.
 type Event struct {
 	Revision string `json:"revision"`
-	// What is any of "state", "spec", "plan", "locks", "plans". "plan" is the plan
-	// file of --plan; "plans" are the plans stored in the state: one appeared, was
-	// collected, was applied from, or passed its expiry.
+	// What is any of "state", "spec", "plan", "locks", "plans", "access". "plan" is
+	// the plan file of --plan; "plans" are the plans stored in the state: one
+	// appeared, was collected, was applied from, or passed its expiry; "access" is
+	// the readers file.
 	What []string `json:"what"`
 }

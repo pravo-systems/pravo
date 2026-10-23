@@ -50,6 +50,12 @@ type model struct {
 	graph     Graph
 	graphJSON []byte
 
+	// acc is the protection of the state; access is the document of GET
+	// /api/access, accessJSON its bytes.
+	acc        accessModel
+	access     *Access
+	accessJSON []byte
+
 	txOnce sync.Once
 	txns   []state.Transaction
 }
@@ -102,10 +108,20 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 		warnings = append(warnings, "The locks could not be listed: "+err.Error())
 	}
 
+	// The protection of the state, and the records that cannot be opened: they are
+	// listed without a value, whatever the store returned for them.
+	accessPath := s.accessPath()
+	m.acc = newAccessModel(s.protection(ctx, store, accessPath), store)
+
 	// The nodes: every declared resource and every record, and the outputs, which
 	// are declared, recorded or both.
 	recs := map[string]*state.Resource{}
 	for _, r := range store.List() {
+		if m.acc.sealedRec(r) {
+			cp := *r
+			cp.Attributes, cp.Private = nil, nil
+			r = &cp
+		}
 		recs[r.Address()] = r
 	}
 	addrs := make([]string, 0, len(recs)+len(ss.byPath))
@@ -155,7 +171,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 		m.order = append(m.order, addr)
 		m.place(addr, mn)
 		m.resolveSchema(mn)
-		if mn.rec != nil && !transient(mn.Mode) {
+		if mn.rec != nil && !transient(mn.Mode) && !mn.Sealed {
 			m.countNode(mn, missing)
 		}
 	}
@@ -165,6 +181,9 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	for _, ms := range sortedMissing(missing) {
 		warnings = append(warnings, fmt.Sprintf("The schema of provider %s is not cached, so the values of %d %s are withheld. Run \"pravo init\" to fetch it.",
 			ms.name, ms.count, plural(ms.count, "resource", "resources")))
+	}
+	if n := m.sealedCount(); n > 0 {
+		warnings = append(warnings, fmt.Sprintf("The state is sealed and %d %s could not be opened, so their values are not shown.", n, plural(n, "record", "records")))
 	}
 	m.stored = s.loadStored(ctx, m)
 	if m.stored.err != nil {
@@ -203,7 +222,20 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	m.graph.Edges = m.edgeList()
 	m.graph.Modules = m.moduleList()
 	m.graphJSON, _ = json.Marshal(&m.graph)
+	m.access = m.accessDoc(accessPath)
+	m.accessJSON, _ = json.Marshal(m.access)
 	return m
+}
+
+// sealedCount is the number of records that are sealed and cannot be opened.
+func (m *model) sealedCount() int {
+	n := 0
+	for _, mn := range m.nodes {
+		if mn.Sealed {
+			n++
+		}
+	}
+	return n
 }
 
 // scrubText masks, in a sentence for the reader, the sensitive values of the
@@ -280,6 +312,7 @@ func (m *model) baseNode(addr string, mn *mnode) Node {
 	}
 	if rec != nil {
 		n.Revision = rec.Revision
+		n.Sealed = m.acc.sealedRec(rec)
 		n.RefreshedAt = rec.RefreshedAt
 		n.Gone = rec.Gone
 		n.Drifted = rec.DriftedAt != nil && !rec.Gone
@@ -589,6 +622,9 @@ func (m *model) outputs(set *outputSet) []Output {
 	for n := range recorded {
 		names[n] = true
 	}
+	if m.acc.locked {
+		recorded = nil // sealed: the names stay, no value is read
+	}
 	list := make([]string, 0, len(names))
 	for n := range names {
 		list = append(list, n)
@@ -621,6 +657,8 @@ func (m *model) outputs(set *outputSet) []Output {
 			sens = sens || recSens
 		}
 		switch {
+		case m.acc.locked:
+			o.Sensitive, o.Redacted = true, "sealed"
 		case sens:
 			o.Sensitive, o.Redacted = true, "sensitive"
 		case !isRecorded:
@@ -704,7 +742,7 @@ func (m *model) project() Project {
 	if m.root != nil && m.root.State.Backend != "" {
 		backend = m.root.State.Backend
 	}
-	p.State = StateInfo{Location: m.store.Dir(), Backend: backend, Lineage: m.store.Lineage(), Format: m.store.Format(), Records: m.store.Len(), Locks: len(m.locks)}
+	p.State = StateInfo{Location: m.store.Dir(), Backend: backend, Lineage: m.store.Lineage(), Format: m.store.Format(), Records: m.store.Len(), Locks: len(m.locks), Sealed: m.acc.protected}
 	seen := map[string]ProviderInfo{}
 	if m.spec.root != nil {
 		for local, req := range m.spec.root.Providers {
