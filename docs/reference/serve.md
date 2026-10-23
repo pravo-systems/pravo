@@ -82,7 +82,7 @@ The viewer is one page with a bar, a sidebar, a graph with its toolbar, an inspe
 
 | Part | Holds |
 |---|---|
-| Bar | The project directory and the state location, each a button that copies the path. The two sections, Resources and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name and `reader`, `not a reader`, `no identity` or `identity locked`. The theme button. |
+| Bar | The project directory and the state location, each a button that copies the path. The two sections, Resources and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
 | Sidebar | Under the heading Show, the filter chips. Under Plans, the stored plans, when the state holds any. Under Modules, the project and the tree of modules with their resources. |
 | Toolbar | Of the Resources section: the switch Graph and Table, then Collapse all, Expand all and Reset view. The filter box, Filter by address or type, with the number of matches. The number of items shown, when it differs from the number of resources. The zoom buttons, minus, Fit and plus. |
 | Graph | The lanes of open modules, the cards of closed ones and the boxes of resources. The plan bar, while a stored plan is laid over the graph. The legend. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a module. |

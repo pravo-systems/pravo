@@ -917,7 +917,7 @@ function renderWho() {
   if (!y) return;
   el.className = 'who w-' + y.state;
   const role = WHO[y.state] || WHO['no-identity'];
-  el.replaceChildren(icon(y.state === 'reader' ? 'check' : 'lock'), y.name ? h('b', null, y.name) : null, h('span', { class: 'role' }, role));
+  el.replaceChildren(icon(y.state === 'reader' ? 'check' : 'lock'), y.name ? h('b', null, y.name) : null, y.state === 'reader' ? null : h('span', { class: 'role' }, role));
   el.setAttribute('aria-label', (y.name ? y.name + ': ' : '') + role);
   el.dataset.tip = y.text;
 }
