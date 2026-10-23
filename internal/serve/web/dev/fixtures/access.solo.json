@@ -96,43 +96,6 @@
    ]
   },
   {
-   "id": "remove-reader:ada",
-   "title": "Remove ada",
-   "why": "Removing the line stops new records being sealed to ada. ada keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets ada could read where they live.",
-   "who": "a current reader",
-   "steps": [
-    {
-     "kind": "remove-line",
-     "text": "ada ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH5ET7znEbFgMprQljUaVlzyk4qjIG3fNOQdttLes/Jq x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
-     "file": ".pravo/access/readers.txt"
-    },
-    {
-     "kind": "command",
-     "text": "git add .pravo/access/readers.txt"
-    },
-    {
-     "kind": "command",
-     "text": "git commit -m 'ada leaves'"
-    },
-    {
-     "kind": "command",
-     "text": "git push"
-    },
-    {
-     "kind": "command",
-     "text": "pravo protect rewrap"
-    },
-    {
-     "kind": "note",
-     "text": "You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"
-    },
-    {
-     "kind": "command",
-     "text": "pravo protect rewrap --all"
-    }
-   ]
-  },
-  {
    "id": "set-recovery",
    "title": "Set a recovery key",
    "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",

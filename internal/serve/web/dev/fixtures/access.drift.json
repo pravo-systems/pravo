@@ -171,7 +171,7 @@
   {
    "id": "remove-reader:ada",
    "title": "Remove ada",
-   "why": "Removing the line stops new records being sealed to ada. ada keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets ada could read where they live.",
+   "why": "This removes you: once it has run you cannot open the state, and another reader has to finish it. Removing the line stops new records being sealed to ada. ada keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets ada could read where they live.",
    "who": "a current reader",
    "steps": [
     {

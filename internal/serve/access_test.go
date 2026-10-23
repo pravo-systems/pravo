@@ -1348,3 +1348,40 @@ func TestAccessRecovery(t *testing.T) {
 		}
 	})
 }
+
+// The only reader is not offered for removal: the readers file would list nobody, and rewrap
+// refuses to remove every reader. With two readers, each can be removed, and the card of the
+// person looking says that it removes them.
+func TestAccessDoesNotOfferToRemoveTheOnlyReader(t *testing.T) {
+	build := func(facts Facts) *Access {
+		return buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, facts: facts, path: "/p/.pravo/access/readers.txt", dir: "/p"})
+	}
+	solo := sealedFacts()
+	solo.Store.Readers = []ReaderFacts{rs("ada", 'a')}
+	solo.Store.Groups = []GroupFacts{{ID: "g1", Current: true, Locks: 1, Records: 5}}
+	solo.File.Readers = []ReaderFacts{rf("ada", 'a', 1)}
+	a := build(solo)
+	for _, s := range a.Suggestions {
+		if strings.HasPrefix(s.ID, "remove-reader:") {
+			t.Errorf("the only reader is offered for removal: %s", s.ID)
+		}
+	}
+	// A second reader in the file makes both removable, and yours warns.
+	pair := solo
+	pair.Store.Readers = []ReaderFacts{rs("ada", 'a'), rs("dan", 'd')}
+	pair.File.Readers = []ReaderFacts{rf("ada", 'a', 1), rf("dan", 'd', 2)}
+	b := build(pair)
+	self, other := suggestion(*b, "remove-reader:ada"), suggestion(*b, "remove-reader:dan")
+	if self == nil || other == nil {
+		t.Fatalf("with two readers: %v %v", self, other)
+	}
+	if !strings.HasPrefix(self.Why, "This removes you:") || strings.HasPrefix(other.Why, "This removes you:") {
+		t.Errorf("why: %q / %q", self.Why, other.Why)
+	}
+	// A reader who is in the store and not in the file does not count as one that stays.
+	gone := solo
+	gone.Store.Readers = []ReaderFacts{rs("ada", 'a'), rs("dan", 'd')}
+	if c := build(gone); suggestion(*c, "remove-reader:ada") != nil {
+		t.Error("the one reader of the file is offered for removal")
+	}
+}

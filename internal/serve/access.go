@@ -801,9 +801,17 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 				note("On the machine of a current reader:"),
 				{Kind: "add-line", File: file, Text: "<the line pravo id new printed>", Placeholder: true}},
 				gitSteps(file, "Add a reader")...), protectCmd("rewrap"))})
+		// A reader who is the only one cannot be removed: the readers file would list nobody, and
+		// pravo protect rewrap refuses to remove every reader. A second reader is added first.
+		inFile := 0
+		for _, r := range a.Readers {
+			if r.InFile {
+				inFile++
+			}
+		}
 		removals := 0
 		for _, r := range a.Readers {
-			if removals == maxRemovals {
+			if removals == maxRemovals || inFile < 2 {
 				break
 			}
 			if !r.InFile || !r.NameOK {
@@ -824,8 +832,12 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 				steps = append(steps, note("rewrap --all seals every existing record again under the new key."))
 			}
 			steps = append(steps, protectCmd("rewrap --all"))
+			why := "Removing the line stops new records being sealed to " + r.Name + ". " + r.Name + " keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets " + r.Name + " could read where they live."
+			if r.You {
+				why = "This removes you: once it has run you cannot open the state, and another reader has to finish it. " + why
+			}
 			add(Suggestion{ID: "remove-reader:" + r.Name, Title: "Remove " + r.Name,
-				Why: "Removing the line stops new records being sealed to " + r.Name + ". " + r.Name + " keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets " + r.Name + " could read where they live.",
+				Why: why,
 				Who: "a current reader", Steps: steps})
 		}
 		// Records out of reach of a reader are under a group that an old reader list made; with no key every
