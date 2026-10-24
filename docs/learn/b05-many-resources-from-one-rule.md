@@ -207,7 +207,7 @@ pravo plan | grep -E '^(No changes|Plan|Graph)'
 
 ```text out
 No changes. The specification matches the state. 6 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 6, 6 unchanged and skipped, 6 not read.
+Graph: planned 0 · skipped 6 · not read 6
 ```
 
 The plan reports `No changes.` and reaches no resource. Sort the services, group them or add a comment between them. The infrastructure does not move.
@@ -266,7 +266,7 @@ pravo -C list plan | grep -E '^(  #|Plan|Graph|No changes)'
   # conf[1] (local_file) must be replaced
   # conf[2] (local_file) must be replaced
 Plan: 3 to add, 0 to change, 3 to destroy.
-Graph: planned 3 of 3, 3 refreshed.
+Graph: planned 3 · refreshed 3
 ```
 
 Each address now holds a different service. The file names differ, so every file is replaced. The services did not change, and the plan replaces three files.
@@ -312,7 +312,7 @@ pravo plan | grep -E '^(  #|Plan|Graph)'
   # conf.worker (local_file) will be destroyed
   # port.worker (random_integer) will be destroyed
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 6, 4 unchanged and skipped, 2 removed from the specification, 2 refreshed, 4 not read.
+Graph: planned 2 · skipped 4 · removed 2 · refreshed 2 · not read 4
 ```
 
 ```sh run check

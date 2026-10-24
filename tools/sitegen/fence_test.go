@@ -143,7 +143,7 @@ func TestRenderTerminal(t *testing.T) {
 }
 
 func TestColorizeOutput(t *testing.T) {
-	plan := "pravo will perform the following actions:\n\n  # pet (random_pet) will be created\n  + pet: {\n  +     id: (known after apply)\n    }\n\n  # hello must be replaced\n-/+ hello: {\n  ~     content: \"a\" -> \"b\" # forces replacement\n  -     old: 1\n    }\n\nPlan: 1 to add, 1 to change, 1 to destroy.\nGraph: planned 2 of 340, 338 skipped.\n"
+	plan := "pravo will perform the following actions:\n\n  # pet (random_pet) will be created\n  + pet: {\n  +     id: (known after apply)\n    }\n\n  # hello must be replaced\n-/+ hello: {\n  ~     content: \"a\" -> \"b\" # forces replacement\n  -     old: 1\n    }\n\nPlan: 1 to add, 1 to change, 1 to destroy.\nGraph: planned 2 · skipped 338\n"
 	got := colorizeOutput(plan)
 	mustContain(t, got,
 		`<span class="out-dim">  # pet (random_pet) will be created</span>`,

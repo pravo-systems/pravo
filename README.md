@@ -44,7 +44,7 @@ pravo will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 1.
+Graph: planned 1
 
 $ pravo apply -t env=prod -auto-approve
 ...

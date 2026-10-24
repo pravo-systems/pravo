@@ -232,40 +232,40 @@ func (p *Printer) renderStats(plan *engine.Plan) {
 		parts = append(parts, fmt.Sprintf("%d resources in state", len(plan.Changes)))
 	} else {
 		if st.Total > 0 {
-			parts = append(parts, fmt.Sprintf("planned %d of %d", st.Reached, st.Total))
+			parts = append(parts, fmt.Sprintf("planned %d", st.Reached))
 		}
 		if st.Skipped > 0 {
-			parts = append(parts, fmt.Sprintf("%d unchanged and skipped", st.Skipped))
+			parts = append(parts, fmt.Sprintf("skipped %d", st.Skipped))
 		}
 		if st.Removed > 0 {
-			parts = append(parts, fmt.Sprintf("%d removed from the specification", st.Removed))
+			parts = append(parts, fmt.Sprintf("removed %d", st.Removed))
 		}
 	}
 	if st.Refreshed > 0 {
-		parts = append(parts, fmt.Sprintf("%d refreshed", st.Refreshed))
+		parts = append(parts, fmt.Sprintf("refreshed %d", st.Refreshed))
 	}
 	if st.Drifted > 0 {
-		parts = append(parts, fmt.Sprintf("%d drifted", st.Drifted))
+		parts = append(parts, fmt.Sprintf("drifted %d", st.Drifted))
 	}
 	if st.Fresh > 0 {
-		parts = append(parts, fmt.Sprintf("%d within refresh age", st.Fresh))
+		parts = append(parts, fmt.Sprintf("within refresh age %d", st.Fresh))
 	}
 	if st.NotRead > 0 {
-		parts = append(parts, fmt.Sprintf("%d not read", st.NotRead))
+		parts = append(parts, fmt.Sprintf("not read %d", st.NotRead))
 	}
 	if st.Opened > 0 {
-		parts = append(parts, fmt.Sprintf("%d ephemeral opened", st.Opened))
+		parts = append(parts, fmt.Sprintf("opened %d", st.Opened))
 	}
 	if st.Called > 0 {
-		parts = append(parts, fmt.Sprintf("%d functions called", st.Called))
+		parts = append(parts, fmt.Sprintf("called %d", st.Called))
 	}
 	if st.Imported > 0 {
-		parts = append(parts, fmt.Sprintf("%d imported", st.Imported))
+		parts = append(parts, fmt.Sprintf("imported %d", st.Imported))
 	}
 	if st.Moved > 0 {
-		parts = append(parts, fmt.Sprintf("%d moved", st.Moved))
+		parts = append(parts, fmt.Sprintf("moved %d", st.Moved))
 	}
-	p.Println(p.C(Dim, "Graph: "+strings.Join(parts, ", ")+"."))
+	p.Println(p.C(Dim, "Graph: "+strings.Join(parts, " · ")))
 }
 
 func (p *Printer) renderOutputs(plan *engine.Plan) {

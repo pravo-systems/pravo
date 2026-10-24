@@ -73,7 +73,7 @@ pravo will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 1.
+Graph: planned 1
 ```
 
 The first line gives the time, the command line and the actor. The rest is the plan as `pravo plan` printed it. A change that `--only` has applied carries `(already applied in txn ...)`.

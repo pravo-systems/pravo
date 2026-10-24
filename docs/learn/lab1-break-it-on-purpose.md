@@ -244,7 +244,7 @@ pravo -C root plan --out change.plan
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 3, 2 unchanged and skipped, 1 refreshed, 1 not read.
+Graph: planned 1 · skipped 2 · refreshed 1 · not read 1
 
 Saved the plan to change.plan. To apply exactly these actions, run:
   pravo apply change.plan
@@ -274,7 +274,7 @@ pravo -C root apply --auto-approve
 ```text out
 ...
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 3, 2 unchanged and skipped, 1 refreshed, 1 not read.
+Graph: planned 1 · skipped 2 · refreshed 1 · not read 1
 ...
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
@@ -299,7 +299,7 @@ pravo -C root plan --policy ../policy/no-delete.cue
     }
 
 Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: planned 0 of 2, 2 unchanged and skipped, 1 removed from the specification, 1 refreshed, 2 not read.
+Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
 Error: the plan violates the policy ../policy/no-delete.cue (sha256:a1757b6a34e5):
 changes.2: extra: delete is not allowed:
@@ -343,7 +343,7 @@ pravo -C root plan --reserve 15m --actor ana
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 4, 3 unchanged and skipped, 3 not read.
+Graph: planned 1 · skipped 3 · not read 3
 Reserved 1 node until <time>.
 ```
 

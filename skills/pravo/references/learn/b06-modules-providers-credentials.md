@@ -144,7 +144,7 @@ pravo will perform the following actions:
     }
 ...
 Plan: 4 to add, 0 to change, 0 to destroy.
-Graph: planned 4 of 4.
+Graph: planned 4
 ...
 Apply complete! Resources: 4 added, 0 changed, 0 destroyed. [txn <txn>]
 api.config
@@ -391,7 +391,7 @@ Output:
     }
 ...
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 6, 4 unchanged and skipped, 4 not read.
+Graph: planned 2 · skipped 4 · not read 4
 ...
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
@@ -546,7 +546,7 @@ Output:
   # docs.key (tls_private_key) will be created
 ...
 Plan: 3 to add, 0 to change, 0 to destroy.
-Graph: planned 3 of 9, 6 unchanged and skipped, 6 not read.
+Graph: planned 3 · skipped 6 · not read 6
 ...
 Apply complete! Resources: 3 added, 0 changed, 0 destroyed. [txn <txn>]
 ```

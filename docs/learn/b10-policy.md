@@ -107,7 +107,7 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 1.
+Graph: planned 1
 ```
 
 `key` never set a mode. The plan shows `file_permission: "0600"` all the same.
@@ -204,7 +204,7 @@ pravo -C root apply --auto-approve
 ```text out
 ...
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 ...
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
@@ -250,7 +250,7 @@ pravo -C root plan --out add.plan --policy ../policy/no-delete.cue
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 3, 2 unchanged and skipped, 2 not read.
+Graph: planned 1 · skipped 2 · not read 2
 Policy ../policy/no-delete.cue (sha256:a1757b6a34e5) is satisfied.
 
 Saved the plan to add.plan. To apply exactly these actions, run:
@@ -318,7 +318,7 @@ pravo -C root plan --out delete.plan --policy ../policy/no-delete.cue
     }
 
 Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: planned 0 of 2, 2 unchanged and skipped, 1 removed from the specification, 1 refreshed, 2 not read.
+Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
 Error: the plan violates the policy ../policy/no-delete.cue (sha256:a1757b6a34e5):
 changes.2: note: delete is not allowed:
@@ -388,7 +388,7 @@ pravo -C root plan --out delete.plan
 ```text out
 ...
 Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: planned 0 of 2, 2 unchanged and skipped, 1 removed from the specification, 1 refreshed, 2 not read.
+Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
 Saved the plan to delete.plan. To apply exactly these actions, run:
   pravo apply delete.plan
@@ -565,7 +565,7 @@ pravo -C root plan --policy ../policy/no-delete.cue
     }
 
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 1 refreshed, 1 not read.
+Graph: planned 1 · skipped 1 · refreshed 1 · not read 1
 
 Error: the plan violates the policy ../policy/no-delete.cue (sha256:3aeafc5246d4):
 changes.0: key: replace is not allowed:

@@ -225,7 +225,7 @@ pravo plan --policy policy/refactor.cue
 
 ```text out
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 1 of 9, 8 unchanged and skipped, 1 refreshed, 8 not read.
+Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -325,7 +325,7 @@ pravo plan --policy policy/refactor.cue
 
 ```text out
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 1 of 9, 8 unchanged and skipped, 1 refreshed, 8 not read.
+Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -409,7 +409,7 @@ pravo will perform the following actions:
   # ports[1] was moved to port.admin (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 9, 8 unchanged and skipped, 1 refreshed, 8 not read, 2 moved.
+Graph: planned 0 · skipped 8 · refreshed 1 · not read 8 · moved 2
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -476,7 +476,7 @@ pravo plan --policy policy/refactor.cue
 
 ```text out
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 1 of 9, 8 unchanged and skipped, 1 refreshed, 8 not read.
+Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -541,7 +541,7 @@ pravo plan --policy policy/refactor.cue
 Success! 8 resources, 1 data sources, 0 ephemeral, 0 function calls, 3 outputs across 2 providers.
 
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 1 of 9, 8 unchanged and skipped, 1 refreshed, 8 not read.
+Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]

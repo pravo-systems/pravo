@@ -294,7 +294,7 @@ pravo -C calls plan 2>&1 | tail -n 4
 ```
 
 ```text out
-Graph: 1 functions called.
+Graph: called 1
 
 Outputs:
   kind: "ConfigMap"

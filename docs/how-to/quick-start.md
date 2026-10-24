@@ -212,14 +212,14 @@ pravo will perform the following actions:
     }
 
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 ```
 
 The plan changes nothing. Four things to read in it:
 
 - `+` marks a resource to create. Each block is headed by its address and its type.
 - `(known after apply)` marks a value that only the provider can supply. `content` is unknown because it uses `pet.id`.
-- `Plan:` counts the actions. `Graph:` says how many resources the plan covers: here 2 of 2.
+- `Plan:` counts the actions. `Graph:` says how many resources the plan covers: here `planned 2`.
 - `file_permission: "0777"` is the default of the provider. It lets every user read, write and run the file, less what your umask removes. Step 7 pins a stricter mode.
 
 ## 6. Apply
@@ -232,7 +232,7 @@ pravo apply -auto-approve
 pravo will perform the following actions:
 ...
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 pet: Creating... 
 pet: Creation complete after 0s [id=unique-coral]
 config: Creating... 
@@ -306,10 +306,10 @@ pravo will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 2 refreshed.
+Graph: planned 1 · skipped 1 · refreshed 2
 ```
 
-Only `config`. `~` marks an attribute that changes. `# forces replacement` marks one that the provider can change only by creating the resource again. `-/+` marks that replacement. `pet` has nothing to do with the rule, so pravo skips it: `planned 1 of 2`. The `Refreshing state` lines show pravo reading `config`, which the plan reaches, and `pet`, which `config` reads, from their providers first.
+Only `config`. `~` marks an attribute that changes. `# forces replacement` marks one that the provider can change only by creating the resource again. `-/+` marks that replacement. `pet` has nothing to do with the rule, so pravo skips it: `planned 1`. The `Refreshing state` lines show pravo reading `config`, which the plan reaches, and `pet`, which `config` reads, from their providers first.
 :::
 
 Apply the change and look at the mode of the file:
@@ -321,7 +321,7 @@ pravo apply -auto-approve
 ```text out
 ...
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 2 refreshed.
+Graph: planned 1 · skipped 1 · refreshed 2
 ...
 config: Destroying... [id=261ce15616ccd7d5df87e363a6975949dbddb862]
 config: Creating replacement...
@@ -443,7 +443,7 @@ pravo will perform the following actions:
     }
 
 Plan: 0 to add, 0 to change, 2 to destroy.
-Graph: 2 resources in state, 2 refreshed.
+Graph: 2 resources in state · refreshed 2
 config: Destroying... [id=261ce15616ccd7d5df87e363a6975949dbddb862]
 config: Destruction complete after 0s
 pet: Destroying... [id=unique-coral]
@@ -469,7 +469,7 @@ rules.cue
 ## Recap
 
 - A resource is a CUE struct built through a provider. Its name is its address, and a reference to another resource is the dependency.
-- A plan lists every action before it happens and counts what it skipped: `planned 1 of 2`.
+- A plan lists every action before it happens and counts what it skipped: `planned 1`.
 - Two values for one field must agree. A conflict is an error that names the path, both values and both places, before any provider starts.
 
 The reference pages for the commands on this page: [init](../reference/init.md), [validate](../reference/validate-eval-fmt-gen.md), [plan](../reference/plan.md), [apply](../reference/apply.md), [destroy](../reference/destroy.md) and [state](../reference/state.md).

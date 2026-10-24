@@ -139,7 +139,7 @@ pravo will perform the following actions:
     }
 
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 
 Outputs:
   url: (known after apply)
@@ -168,18 +168,18 @@ Other lines:
 | `Graph: ...` | How much of the specification the plan reached. See below. |
 | `Outputs:` | The outputs, known or `(known after apply)`. |
 
-The `Graph:` line lists these parts, in this order, and leaves out a part that is zero.
+The `Graph:` line lists these parts, in this order, separated by `·`, and leaves out a part that is zero.
 
 | Part | Meaning |
 |---|---|
-| `planned N of M` | N resources went to a provider out of M in the specification. With `--destroy`: `N resources in state`. |
-| `N unchanged and skipped` | Nothing changed for these, so no provider planned them. |
-| `N removed from the specification` | The records of resources that the specification does not declare and that the plan deletes. They are not among the `M`. |
-| `N refreshed` | The provider reported their real state. |
-| `N drifted` | A refresh found a difference. |
-| `N within refresh age` | Their refresh was skipped because the record is within its refresh age. |
-| `N not read` | The plan did not read them, and their record is older than its refresh age. |
-| `N ephemeral opened`, `N functions called`, `N imported`, `N moved` | The count of each. |
+| `planned N` | N resources went to a provider. A data source is read, not planned, and counts in `refreshed`. With `--destroy`: `N resources in state`. |
+| `skipped N` | Nothing changed for these, so no provider planned them. |
+| `removed N` | The records of resources that the specification does not declare and that the plan deletes. |
+| `refreshed N` | The provider reported their real state. |
+| `drifted N` | A refresh found a difference. |
+| `within refresh age N` | Their refresh was skipped because the record is within its refresh age. |
+| `not read N` | The plan did not read them, and their record is older than its refresh age. |
+| `opened N` (ephemeral resources), `called N` (functions), `imported N`, `moved N` | The count of each. |
 
 ### Save a plan
 
@@ -205,7 +205,7 @@ pravo plan
 
 ```text out
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
 
 Outputs:
   url: "http://localhost:20093"
@@ -227,9 +227,9 @@ pravo plan -refresh=all | grep '^Graph'
 ```
 
 ```text out
-Graph: planned 0 of 2, 2 unchanged and skipped.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 refreshed.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 refreshed.
+Graph: planned 0 · skipped 2
+Graph: planned 0 · skipped 2 · refreshed 2
+Graph: planned 0 · skipped 2 · refreshed 2
 ```
 
 Write the value after `=`. `-refresh false` is read as `-refresh` followed by the word `false`, and means `all`. Any other value is an error: `invalid -refresh value "soon": want age, expired, false or all`.
@@ -248,7 +248,7 @@ pravo plan --replace base | grep -E '^(Plan|Graph|  #)'
   # base (random_integer) must be replaced
   # port (random_integer) must be replaced
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 2, 2 refreshed.
+Graph: planned 2 · refreshed 2
 ```
 
 `port` is replaced too, because its `min` reads `base.result`, which is unknown after the replacement.
@@ -307,7 +307,7 @@ pravo will perform the following actions:
     }
 
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 2, 2 refreshed.
+Graph: planned 2 · refreshed 2
 
 Outputs:
   url: (known after apply)
@@ -381,7 +381,7 @@ base: Refreshing state... [id=9]
 port: Refreshing state... [id=20093]
 ...
 Plan: 0 to add, 0 to change, 2 to destroy.
-Graph: 2 resources in state, 2 refreshed.
+Graph: 2 resources in state · refreshed 2
 
 Error: the plan violates the policy policy/keep.cue (sha256:238d99a0ac31):
 summary.destroy: conflicting values 2 and 0:

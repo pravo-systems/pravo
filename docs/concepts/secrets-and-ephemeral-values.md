@@ -79,7 +79,7 @@ pravo plan -out p.plan | grep -E '^(Plan|Graph)'
 
 ```text out
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 1, 1 ephemeral opened.
+Graph: planned 1 · opened 1
 ```
 
 The plan opened `token`. The apply of the saved plan opens it again.

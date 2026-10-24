@@ -238,7 +238,7 @@ pravo will perform the following actions:
 
 Plan: 1 to add, 0 to change, 1 to destroy.
 Hint: listen looks like port under a new address; to keep the existing object, add $from: "port" to listen
-Graph: planned 1 of 8, 7 unchanged and skipped, 1 removed from the specification, 8 within refresh age.
+Graph: planned 1 · skipped 7 · removed 1 · within refresh age 8
 ```
 
 The plan destroys the object at the old address and creates one at the new address. It also prints a hint, because the two have the same type and the same configuration. After the apply, the object at `listen` is a new object.
@@ -272,7 +272,7 @@ pravo will perform the following actions:
   # port was moved to listen (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 of 8, 8 unchanged and skipped, 8 within refresh age, 1 moved.
+Graph: planned 0 · skipped 8 · within refresh age 8 · moved 1
 ```
 
 The plan renames the record and changes nothing else. A plan makes the move when it runs, so the state already holds `listen`.
@@ -337,7 +337,7 @@ pravo will perform the following actions:
   # api.secret was moved to backend.secret (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 of 8, 8 unchanged and skipped, 8 within refresh age, 2 moved.
+Graph: planned 0 · skipped 8 · within refresh age 8 · moved 2
 ```
 
 ### Position and key

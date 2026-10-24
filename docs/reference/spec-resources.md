@@ -177,7 +177,7 @@ Up to date cue.mod/gen/pravo.dev/providers/hashicorp/kubernetes (81 resource typ
 pravo has been initialised. Run "pravo plan" to see what it would do.
 
 No changes. Your infrastructure matches the configuration.
-Graph: 1 functions called.
+Graph: called 1
 
 Outputs:
   kind: "ConfigMap"

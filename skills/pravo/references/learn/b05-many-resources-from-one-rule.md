@@ -196,7 +196,7 @@ Output:
 
 ```text
 No changes. The specification matches the state. 6 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 6, 6 unchanged and skipped, 6 not read.
+Graph: planned 0 · skipped 6 · not read 6
 ```
 
 The plan reports `No changes.` and reaches no resource. Sort the services, group them or add a comment between them. The infrastructure does not move.
@@ -265,7 +265,7 @@ Output:
   # conf[1] (local_file) must be replaced
   # conf[2] (local_file) must be replaced
 Plan: 3 to add, 0 to change, 3 to destroy.
-Graph: planned 3 of 3, 3 refreshed.
+Graph: planned 3 · refreshed 3
 ```
 
 Each address now holds a different service. The file names differ, so every file is replaced. The services did not change, and the plan replaces three files.

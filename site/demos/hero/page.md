@@ -47,5 +47,5 @@ pravo will perform the following actions:
   +     filename:             "api.env"
 ...
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 ```

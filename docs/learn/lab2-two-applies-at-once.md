@@ -106,7 +106,7 @@ cp all.plan c.plan
     }
 ...
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 3, 1 unchanged and skipped, 1 not read.
+Graph: planned 2 · skipped 1 · not read 1
 
 Saved the plan to all.plan. To apply exactly these actions, run:
   pravo apply all.plan
@@ -257,7 +257,7 @@ pravo plan
 ```text out
 ...
 No changes. The specification matches the state. 3 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 3, 3 unchanged and skipped, 3 not read.
+Graph: planned 0 · skipped 3 · not read 3
 ```
 
 Remove what the lab created.

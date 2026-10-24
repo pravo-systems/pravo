@@ -206,9 +206,9 @@ pravo plan -t env=prod | grep -E '^(No changes|Graph)'
 
 ```text out
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
 ```
 
 Each environment finds its own state and reports no changes. Pass the same tags to `plan`, `apply` and `destroy`. Otherwise they evaluate different specifications.
@@ -275,10 +275,10 @@ pravo plan -t env=prod --out prod.plan | grep -E '^(  #|Plan|Graph|Saved|  pravo
 
 ```text out
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
   # web (local_file) must be replaced
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 2 refreshed.
+Graph: planned 1 · skipped 1 · refreshed 2
 Saved the plan to prod.plan. To apply exactly these actions, run:
   pravo apply prod.plan
 ```

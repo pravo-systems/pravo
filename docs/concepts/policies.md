@@ -186,7 +186,7 @@ pravo plan --policy policy/no-delete.cue | tail -3
 
 ```text out
 Plan: 3 to add, 0 to change, 0 to destroy.
-Graph: planned 3 of 3.
+Graph: planned 3
 Policy policy/no-delete.cue (sha256:065bfbaff717) is satisfied.
 ```
 

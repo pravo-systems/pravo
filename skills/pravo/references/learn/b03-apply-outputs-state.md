@@ -137,7 +137,7 @@ pravo will perform the following actions:
     }
 
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 
 Outputs:
   web_file: "web.conf"
@@ -276,7 +276,7 @@ Output:
     create   web  r0 -> r1
 ```
 
-The hash is how the next plan knows that `web` is unchanged. pravo evaluates the specification and hashes the configuration for the provider. It compares the hash with the record. This is the reason for `planned 0 of 2` in B2.
+The hash is how the next plan knows that `web` is unchanged. pravo evaluates the specification and hashes the configuration for the provider. It compares the hash with the record. This is the reason for `planned 0` in B2.
 
 ## Refactor with a plan of zero changes
 
@@ -314,7 +314,7 @@ Output:
 
 ```text
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
 exit status 0
 ```
 
@@ -346,7 +346,7 @@ Output:
   # web (local_file) must be replaced
   ~     content:              "port = 26720\n" -> (known after apply) # forces replacement
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 2, 2 refreshed.
+Graph: planned 2 · refreshed 2
 exit status 2
 ```
 
@@ -373,7 +373,7 @@ Output:
 
 ```text
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
 ```
 
 ## Exercise
@@ -391,7 +391,7 @@ Output:
 
 ```text
 Plan: 0 to add, 0 to change, 2 to destroy.
-Graph: 2 resources in state, 2 refreshed.
+Graph: 2 resources in state · refreshed 2
 web: Destroying... [id=d79ddeb22063b83d015e9cd3e32402a02f16849e]
 web: Destruction complete after 0s
 port: Destroying... [id=26720]

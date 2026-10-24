@@ -1365,7 +1365,7 @@ pravo will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 1, 1 refreshed.
+Graph: planned 1 · refreshed 1
 
 Error: apply rejected: pet is locked by pravo apply (pid 48213 on build-7, ci, since <time>)
 exit=4
@@ -1459,7 +1459,7 @@ pravo will perform the following actions:
     }
 
 Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: 1 resources in state, 1 refreshed.
+Graph: 1 resources in state · refreshed 1
 
 Do you really want to destroy all resources?
   Only 'yes' will be accepted to approve.
@@ -1637,7 +1637,7 @@ pravo will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 1.
+Graph: planned 1
 
 Error: the plan violates the policy policy/bare.cue (sha256:<digest>):
 changes.0: cannot reference optional field: before:
@@ -1657,7 +1657,7 @@ pravo will perform the following actions:
     }
 
 Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: 1 resources in state, 1 refreshed.
+Graph: 1 resources in state · refreshed 1
 
 Error: the plan violates the policy policy/no-destroy.cue (sha256:<digest>):
 changes.0: pet: delete is not allowed:

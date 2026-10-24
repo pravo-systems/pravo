@@ -174,7 +174,7 @@ Success! 4 resources, 0 data sources, 1 ephemeral, 0 function calls, 0 outputs a
   # sites.a.file (local_file) will be created
   # sites.b.file (local_file) will be created
 Plan: 3 to add, 0 to change, 0 to destroy.
-Graph: planned 4 of 4, 1 ephemeral opened, 1 imported.
+Graph: planned 4 · opened 1 · imported 1
 ```
 
 The plan creates the pet and the two files, imports `port`, and opens the ephemeral resource without recording it.

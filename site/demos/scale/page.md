@@ -67,7 +67,7 @@ pravo plan -t version=2 | grep -E '^(Plan|Graph)'
 
 ```text out
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read.
+Graph: planned 1 · skipped 2000 · refreshed 1 · not read 2000
 ```
 
 ```sh run id=tofu
@@ -106,7 +106,7 @@ pravo plan -t version=1 | grep -E '^(No changes|Graph)'
 
 ```text out
 No changes. The specification matches the state. 2001 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2001, 2001 unchanged and skipped, 2001 not read.
+Graph: planned 0 · skipped 2001 · not read 2001
 ```
 
 The apply of the change uses what the plan read. It locks the one resource it writes.
@@ -116,7 +116,7 @@ pravo apply --auto-approve -v -t version=2 2>&1 | grep -E '^(Graph|Apply)|locked
 ```
 
 ```text out
-Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read.
+Graph: planned 1 · skipped 2000 · refreshed 1 · not read 2000
 locked 1 resources
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 ```

@@ -130,7 +130,7 @@ pravo will perform the following actions:
     }
 
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 ```
 
 The `...` stands for the hash and permission lines of `web`, which are cut here. Read the plan from the top.
@@ -174,15 +174,15 @@ pravo plan --refresh=false | grep '^Graph'
 ```
 
 ```text out
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
-Graph: planned 0 of 2, 2 unchanged and skipped.
+Graph: planned 0 · skipped 2 · not read 2
+Graph: planned 0 · skipped 2
 ```
 
 | Part of the line | Meaning |
 |---|---|
-| `planned 0 of 2` | The plan reached no resource out of the two in the specification. |
-| `2 unchanged and skipped` | Nothing changed for these two, so no provider planned them. |
-| `2 not read` | The plan did not reach them, so it did not read their real state from the providers either. |
+| `planned 0` | The plan reached none of the two resources in the specification. |
+| `skipped 2` | Nothing changed for these two, so no provider planned them. |
+| `not read 2` | The plan did not reach them, so it did not read their real state from the providers either. |
 
 A plan reads the resources it reaches, and the resources they read, before it compares, so it sees a change made outside pravo in those. `--refresh=false` skips every read. [B9](b09-drift.md) shows what a read finds, which resources a plan does not read and how a refresh age limits it.
 
@@ -230,7 +230,7 @@ pravo will perform the following actions:
     }
 
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 2, 2 refreshed.
+Graph: planned 2 · refreshed 2
 ```
 
 This answers the opening question: both. Follow the cause.
@@ -313,7 +313,7 @@ pravo will perform the following actions:
 
 Plan: 1 to add, 0 to change, 1 to destroy.
 Hint: site looks like web under a new address; to keep the existing object, add $from: "web" to site
-Graph: planned 1 of 2, 1 unchanged and skipped, 1 removed from the specification, 2 refreshed.
+Graph: planned 1 · skipped 1 · removed 1 · refreshed 2
 ```
 
 The plan creates one resource and destroys another. The address is the identity of a resource. `site` is a new address, so pravo creates it. `web` has left the file, so pravo destroys it. `-` marks the destroyed one, and every attribute of it is printed with `-`.
@@ -360,10 +360,10 @@ pravo plan | grep -E '^(  #|Plan|Hint|Graph|No changes)|forces replacement'
   # web (local_file) must be replaced
   ~     filename:             "web.conf" -> "site.conf" # forces replacement
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 2 refreshed.
+Graph: planned 1 · skipped 1 · refreshed 2
 ```
 
-Only `web`. The provider cannot change `filename` in place. Nothing that `port` reads has changed, so `port` is not reached: `planned 1 of 2`.
+Only `web`. The provider cannot change `filename` in place. Nothing that `port` reads has changed, so `port` is not reached: `planned 1`.
 
 Write the original file back before the next edit.
 
@@ -397,7 +397,7 @@ pravo plan | grep -E '^(  #|Plan|Hint|Graph|No changes)|forces replacement'
 
 ```text out
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
 ```
 
 The plan compares evaluated values, not text. An expression that evaluates to the same value is not a change.
@@ -427,10 +427,10 @@ pravo plan | grep -E '^(  #|Plan|Hint|Graph|No changes)|forces replacement'
 ```text out
   # web (local_file) will be destroyed
 Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: planned 0 of 1, 1 unchanged and skipped, 1 removed from the specification, 1 refreshed, 1 not read.
+Graph: planned 0 · skipped 1 · removed 1 · refreshed 1 · not read 1
 ```
 
-A resource that leaves the specification is destroyed. Nothing else is touched. The `Graph:` line counts one resource in the specification now, `port`, and it was skipped and not read. The state still holds the record of `web`. The plan read it to plan the destroy, so the line counts it as `removed from the specification` and as `refreshed`.
+A resource that leaves the specification is destroyed. Nothing else is touched. The `Graph:` line counts one resource in the specification now, `port`, and it was skipped and not read. The state still holds the record of `web`. The plan read it to plan the destroy, so the line counts it as `removed 1` and as `refreshed`.
 
 Write the file back.
 

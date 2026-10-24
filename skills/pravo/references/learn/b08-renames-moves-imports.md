@@ -145,7 +145,7 @@ pravo will perform the following actions:
   # server was moved to primary (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read, 1 moved.
+Graph: planned 0 · skipped 2 · not read 2 · moved 1
 ```
 
 The plan renames the record. It changes nothing in the world: `0 to add, 0 to change, 0 to destroy`. The move happens as the first step of the plan, so the state already holds the new address.
@@ -165,7 +165,7 @@ note
 primary
 ...
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
 ```
 
 A second plan finds nothing to do. The `$from` can stay in the file or go. Once the old address is gone from the state, the field does nothing.
@@ -244,7 +244,7 @@ Output:
 ```text
 ...
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 4, 2 unchanged and skipped, 2 not read.
+Graph: planned 2 · skipped 2 · not read 2
 ...
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 names.first
@@ -302,7 +302,7 @@ pravo will perform the following actions:
   # names.second was moved to ids.second (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 of 4, 4 unchanged and skipped, 4 not read, 2 moved.
+Graph: planned 0 · skipped 4 · not read 4 · moved 2
 ```
 
 Both records moved. This is how you rename a module instance, or move resources into one.
@@ -393,7 +393,7 @@ pravo will perform the following actions:
   # dice was imported from id "5,1,10" and matches the specification
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 5, 4 unchanged and skipped, 4 not read, 1 imported.
+Graph: planned 1 · skipped 4 · not read 4 · imported 1
 ```
 
 The provider read the object, and the result became the record for `dice`. The plan compared the record with the specification. They match, so there is nothing to do. With `max: 20` the plan reports the import and a replacement, because a new `max` forces one.

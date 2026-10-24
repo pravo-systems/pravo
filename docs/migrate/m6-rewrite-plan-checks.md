@@ -211,7 +211,7 @@ sed -n '/^Plan:/,$p' plan.txt
 ```text out
 exit=5
 Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: planned 0 of 1, 1 unchanged and skipped, 1 removed from the specification, 1 refreshed, 1 not read.
+Graph: planned 0 · skipped 1 · removed 1 · refreshed 1 · not read 1
 
 Error: the plan violates the policy ../policy/no-delete.cue (sha256:0c23a31e78bd):
 changes.1: note: delete is not allowed:
@@ -248,7 +248,7 @@ sed -n '/^Plan:/,$p' plan.txt
 ```text out
 exit=5
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 3, 2 unchanged and skipped, 2 not read.
+Graph: planned 1 · skipped 2 · not read 2
 
 Error: the plan violates the policy ../policy/permission.cue (sha256:7d3651432df2):
 changes.0.after.file_permission: conflicting values "0600" and "0777":

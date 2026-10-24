@@ -50,7 +50,7 @@ pravo -C alice --actor alice --reason "Reserve a port for the web server" plan -
 Output:
 
 ```text
-Graph: planned 1 of 1.
+Graph: planned 1
 
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
   pravo apply plan-<id>
@@ -129,7 +129,7 @@ pravo -C bob plan list --json | jq -r '.plans[] | select(.author == "bob") | .id
 Output:
 
 ```text
-Graph: planned 1 of 1.
+Graph: planned 1
 
 Warning: plan-<id> by alice (just now) also changes 1 of these resources: port
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:

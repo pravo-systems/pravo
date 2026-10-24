@@ -133,7 +133,7 @@ Output:
 port
 server
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
 ```
 
 The second checkout sees the same state. The resources are random values, which exist only in the state, so nothing differs. A resource that lives on one machine's disk, such as `local_file`, is a different case. Another machine finds the file missing and plans to create it again. Remote state suits resources that live somewhere shared, as cloud resources do.

@@ -484,7 +484,7 @@ type planLine struct {
 var (
 	headRe  = regexp.MustCompile(`^  # (\S+) \((\S+)\) (will be created|will be updated in-place|must be replaced|will be destroyed)$`)
 	planRe  = regexp.MustCompile(`^Plan: (\d+) to add, (\d+) to change, (\d+) to destroy\.$`)
-	graphRe = regexp.MustCompile(`^Graph: planned (\d+) of (\d+), (\d+) unchanged and skipped`)
+	graphRe = regexp.MustCompile(`^Graph: planned (\d+)(?: · skipped (\d+))?`)
 	lockRe  = regexp.MustCompile(`^(\S+)\s+locked by (\S+)$`)
 	edgeRe  = regexp.MustCompile(`^(\S+) -> (\S+)$`)
 	typeRe  = regexp.MustCompile(`^\s*"([^"]+)":\s*"([^"]+)"\s*$`)
@@ -909,8 +909,8 @@ func parsePlan(out string) planParsed {
 		if m := graphRe.FindStringSubmatch(l); m != nil {
 			p.Graph = l
 			p.Planned, _ = strconv.Atoi(m[1])
-			p.Total, _ = strconv.Atoi(m[2])
-			p.Skipped, _ = strconv.Atoi(m[3])
+			p.Skipped, _ = strconv.Atoi(m[2])
+			p.Total = p.Planned + p.Skipped
 		}
 	}
 	return p
@@ -1031,8 +1031,8 @@ func laneScene(title string, plans, locks jblock, g *graph, total int) *sceneJS 
 		if m := graphRe.FindStringSubmatch(l); m != nil {
 			cur.Graph = l
 			cur.Planned, _ = strconv.Atoi(m[1])
-			cur.Total, _ = strconv.Atoi(m[2])
-			cur.Skipped, _ = strconv.Atoi(m[3])
+			cur.Skipped, _ = strconv.Atoi(m[2])
+			cur.Total = cur.Planned + cur.Skipped
 			pl = append(pl, cur)
 		}
 	}

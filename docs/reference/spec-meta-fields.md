@@ -134,7 +134,7 @@ pravo plan 2>/dev/null | grep -E '^  #|^Plan|^Graph'
 ```text out
   # pet (random_pet) must be replaced
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 2 of 2, 1 refreshed, 1 within refresh age.
+Graph: planned 2 · refreshed 1 · within refresh age 1
 ```
 
 The plan replaces `pet` and leaves `note` alone. On the `Graph:` line, `within refresh age` counts `note`, whose `refresh` age of 15 minutes has not run out. `pet` has the default age, `always`, and is read again.
@@ -226,7 +226,7 @@ pravo plan 2>/dev/null | tail -n 2
 
 ```text out
 No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
-Graph: planned 1 of 2, 1 unchanged and skipped, 1 refreshed, 1 not read.
+Graph: planned 1 · skipped 1 · refreshed 1 · not read 1
 ```
 
 ### refresh

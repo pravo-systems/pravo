@@ -119,7 +119,7 @@ pravo will perform the following actions:
     }
 
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 ```
 
 `deploy.a` reads `ports.a`, so `port` is unknown until `ports.a` exists. Attribute values print in CUE syntax and are nested by address.
@@ -324,7 +324,7 @@ Output:
 
 ```text
 Plan: 14 to add, 0 to change, 0 to destroy.
-Graph: planned 14 of 16, 2 unchanged and skipped, 2 within refresh age.
+Graph: planned 14 · skipped 2 · within refresh age 2
 ```
 
 Fourteen resources are new, so the plan reaches fourteen. `ports.a` and `deploy.a` are within their refresh age and skipped.
@@ -377,7 +377,7 @@ pravo will perform the following actions:
     }
 
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 16, 14 unchanged and skipped, 16 within refresh age.
+Graph: planned 2 · skipped 14 · within refresh age 16
 ```
 
 The provider cannot change `max` in place, so `ports.c` is replaced. A replacement makes the computed attributes of the resource unknown again, so `deploy.c`, which reads `ports.c`, is reached and replaced too. Fourteen resources are not.
@@ -388,14 +388,14 @@ The `Graph:` line reports what happened.
 
 | Part | Counts |
 |---|---|
-| `planned N of M` | The resources and data sources that were reached, of all that the specification declares. |
-| `N unchanged and skipped` | The ones that were not reached. |
-| `N removed from the specification` | The records of resources that the specification does not declare and that the plan deletes. They are not among the `M`. |
-| `N refreshed` | The ones whose real state was read from the provider during the run. |
-| `N drifted` | The refreshed ones that differed from the record. |
-| `N within refresh age` | The ones that were not read and whose record is within its refresh age. |
-| `N not read` | The ones that were not read and whose record is older than its refresh age. |
-| `N ephemeral opened`, `N functions called`, `N imported`, `N moved` | Work of other kinds. |
+| `planned N` | The resources that were reached and planned with their provider. A data source is read, not planned, and counts in `refreshed`. |
+| `skipped N` | The resources and data sources that were not reached and not planned. |
+| `removed N` | The records of resources that the specification does not declare and that the plan deletes. |
+| `refreshed N` | The ones whose real state was read from the provider during the run. |
+| `drifted N` | The refreshed ones that differed from the record. |
+| `within refresh age N` | The ones that were not read and whose record is within its refresh age. |
+| `not read N` | The ones that were not read and whose record is older than its refresh age. |
+| `opened N` (ephemeral resources), `called N` (functions), `imported N`, `moved N` | Work of other kinds. |
 
 Each resource and data source that has a record is in exactly one of `refreshed`, `within refresh age` and `not read`. The three add up to the number of records, which are those of the declarations and the removed ones, and `drifted` is a part of `refreshed`. A resource that has no record, because the plan creates it, is in none of them, and neither is an ephemeral resource or a call. A part with a count of zero is not printed, except `planned`. With `-refresh=false` the line has neither `within refresh age` nor `not read`, because nothing is read. `pravo plan -full` plans every resource with its provider.
 
@@ -411,7 +411,7 @@ Output:
 
 ```text
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 16 of 16, 16 within refresh age.
+Graph: planned 16 · within refresh age 16
 ```
 
 `pravo why` prints the reason of each change, and of each skip.
@@ -553,7 +553,7 @@ Output:
 note: Refreshing state... [id=<sha1>]
 
 No changes. Your infrastructure matches the configuration.
-Graph: planned 0 of 4, 4 unchanged and skipped, 1 refreshed, 3 within refresh age.
+Graph: planned 0 · skipped 4 · refreshed 1 · within refresh age 3
 ```
 
 `pravo why` says what happened to each resource.
@@ -596,7 +596,7 @@ Output:
 
 ```text
 No changes. Your infrastructure matches the configuration.
-Graph: planned 0 of 4, 4 unchanged and skipped, 4 refreshed.
+Graph: planned 0 · skipped 4 · refreshed 4
 ```
 
 ```sh
@@ -607,7 +607,7 @@ Output:
 
 ```text
 No changes. The specification matches the state. Nothing was read from the infrastructure.
-Graph: planned 0 of 4, 4 unchanged and skipped.
+Graph: planned 0 · skipped 4
 ```
 
 ```sh
@@ -671,7 +671,7 @@ Output:
 ```text
 release: Refreshing state... [id=<sha1>]
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 21, 20 unchanged and skipped, 1 refreshed, 20 not read.
+Graph: planned 1 · skipped 20 · refreshed 1 · not read 20
 ```
 
 `-refresh=expired` reads every record that is older than its refresh age. With the age `always`, that is every record. The two counts below are the lines `Refreshing state` of the plan above and of the plan with `-refresh=expired`.
@@ -698,7 +698,7 @@ Output:
 
 ```text
 No changes. The specification matches the state. 21 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 21, 21 unchanged and skipped, 21 not read.
+Graph: planned 0 · skipped 21 · not read 21
 ```
 
 `pravo plan -detailed-exitcode` exits 0 for this plan: the plan found no change among what it looked at. It does not detect drift in a resource that it did not read. The next section finds that drift. [CI](../how-to/ci.md) schedules it.
@@ -756,7 +756,7 @@ Output:
 
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 21, 20 unchanged and skipped, 1 refreshed, 1 drifted, 20 not read.
+Graph: planned 1 · skipped 20 · refreshed 1 · drifted 1 · not read 20
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
@@ -866,7 +866,7 @@ Output:
 
 ```text
 No changes. Your infrastructure matches the configuration.
-Graph: planned 0 of 1, 1 unchanged and skipped, 1 within refresh age.
+Graph: planned 0 · skipped 1 · within refresh age 1
 ```
 
 Another proxy address does.
@@ -899,7 +899,7 @@ Output:
 key: no-op
   - the non-sensitive configuration of its provider changed
   - skipped: nothing the provider saw has changed
-Graph: planned 0 of 1, 1 unchanged and skipped, 1 within refresh age.
+Graph: planned 0 · skipped 1 · within refresh age 1
 ```
 
 The first command read the record, found no drift and wrote the digest of the new configuration. The plan that follows has nothing to read.
@@ -1074,7 +1074,7 @@ Output:
 
 ```text
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 18, 16 unchanged and skipped, 16 within refresh age.
+Graph: planned 2 · skipped 16 · within refresh age 16
 ```
 
 ```sh
@@ -1149,7 +1149,7 @@ Output:
 
 ```text
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 2 of 2, 2 refreshed.
+Graph: planned 1 · refreshed 2
 ```
 
 The apply writes what the plan read.
@@ -1176,7 +1176,7 @@ Output:
 
 ```text
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 2 of 2, 2 refreshed.
+Graph: planned 1 · refreshed 2
 ```
 
 ### What apply checks while it runs

@@ -105,7 +105,7 @@ pravo plan
 dice: Refreshing state... [id=4]
 
 No changes. Your infrastructure matches the configuration.
-Graph: planned 1 of 1, 1 refreshed.
+Graph: planned 1 · refreshed 1
 ```
 
 ### Refusals

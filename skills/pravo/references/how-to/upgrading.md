@@ -126,7 +126,7 @@ Output:
 server: Refreshing state... [id=<id>]
 
 No changes. Your infrastructure matches the configuration.
-Graph: planned 1 of 1, 1 refreshed.
+Graph: planned 1 · refreshed 1
 ```
 
 An empty plan shows that the upgrade changed nothing in the real world. A plan with changes is the provider telling you what the new version does differently. Read each one, and apply when you accept them.

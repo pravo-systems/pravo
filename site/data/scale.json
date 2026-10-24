@@ -24,7 +24,7 @@
       "command": "pravo plan -t version=2 | grep -E '^(Plan|Graph)'",
       "expect_exit": 0,
       "exit": 0,
-      "output": "Plan: 1 to add, 0 to change, 1 to destroy.\nGraph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read.",
+      "output": "Plan: 1 to add, 0 to change, 1 to destroy.\nGraph: planned 1 · skipped 2000 · refreshed 1 · not read 2000",
       "ok": true
     },
     {
@@ -64,7 +64,7 @@
       "command": "pravo plan -t version=1 | grep -E '^(No changes|Graph)'",
       "expect_exit": 0,
       "exit": 0,
-      "output": "No changes. The specification matches the state. 2001 records were not read; run pravo drift to compare them with the infrastructure.\nGraph: planned 0 of 2001, 2001 unchanged and skipped, 2001 not read.",
+      "output": "No changes. The specification matches the state. 2001 records were not read; run pravo drift to compare them with the infrastructure.\nGraph: planned 0 · skipped 2001 · not read 2001",
       "ok": true
     },
     {
@@ -74,7 +74,7 @@
       "command": "pravo apply --auto-approve -v -t version=2 2\u003e\u00261 | grep -E '^(Graph|Apply)|locked [0-9]+ resources' | sed 's/^+[0-9.]*s debug //'",
       "expect_exit": 0,
       "exit": 0,
-      "output": "Graph: planned 1 of 2001, 2000 unchanged and skipped, 1 refreshed, 2000 not read.\nlocked 1 resources\nApply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn \u003cid\u003e]",
+      "output": "Graph: planned 1 · skipped 2000 · refreshed 1 · not read 2000\nlocked 1 resources\nApply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn \u003cid\u003e]",
       "ok": true
     },
     {

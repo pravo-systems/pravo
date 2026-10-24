@@ -106,7 +106,7 @@ pravo will perform the following actions:
     }
 
 Plan: 0 to add, 0 to change, 2 to destroy.
-Graph: 2 resources in state, 2 refreshed.
+Graph: 2 resources in state · refreshed 2
 ```
 
 The `Graph:` line counts the nodes in the state. `port` comes first, because it depends on `base`.
@@ -132,7 +132,7 @@ base: Refreshing state... [id=9]
 port: Refreshing state... [id=20093]
 ...
 Plan: 0 to add, 0 to change, 2 to destroy.
-Graph: 2 resources in state, 2 refreshed.
+Graph: 2 resources in state · refreshed 2
 
 Error: the plan violates the policy policy/keep.cue (sha256:238d99a0ac31):
 summary.destroy: conflicting values 2 and 0:
@@ -168,7 +168,7 @@ base: Refreshing state... [id=9]
 port: Refreshing state... [id=20093]
 ...
 Plan: 0 to add, 0 to change, 2 to destroy.
-Graph: 2 resources in state, 2 refreshed.
+Graph: 2 resources in state · refreshed 2
 port: Destroying... [id=20093]
 port: Destruction complete after 0s
 base: Destroying... [id=9]

@@ -34,7 +34,7 @@
       "expect_exit": 0,
       "line": 253,
       "ok": true,
-      "output": "pravo will perform the following actions:\n\n  # random_pet.server was moved to server (record renamed; no change to the object)\n\n  # local_file.motd was moved to motd (record renamed; no change to the object)\n\n  # local_file.note_alpha was moved to note.alpha (record renamed; no change to the object)\n\n  # local_file.note_beta was moved to note.beta (record renamed; no change to the object)\n\nPlan: 0 to add, 0 to change, 0 to destroy.\nGraph: planned 4 of 4, 4 refreshed, 4 moved.",
+      "output": "pravo will perform the following actions:\n\n  # random_pet.server was moved to server (record renamed; no change to the object)\n\n  # local_file.motd was moved to motd (record renamed; no change to the object)\n\n  # local_file.note_alpha was moved to note.alpha (record renamed; no change to the object)\n\n  # local_file.note_beta was moved to note.beta (record renamed; no change to the object)\n\nPlan: 0 to add, 0 to change, 0 to destroy.\nGraph: planned 4 · refreshed 4 · moved 4",
       "stage": "main"
     },
     {
@@ -44,7 +44,7 @@
       "expect_exit": 0,
       "line": 272,
       "ok": true,
-      "output": "No changes. Your infrastructure matches the configuration.\nGraph: planned 4 of 4, 4 refreshed.",
+      "output": "No changes. Your infrastructure matches the configuration.\nGraph: planned 4 · refreshed 4",
       "stage": "main"
     },
     {
@@ -222,7 +222,7 @@
           },
           {
             "cls": "out-dim",
-            "t": "Graph: planned 4 of 4, 4 refreshed, 4 moved."
+            "t": "Graph: planned 4 · refreshed 4 · moved 4"
           }
         ]
       },
@@ -236,7 +236,7 @@
           },
           {
             "cls": "out-dim",
-            "t": "Graph: planned 4 of 4, 4 refreshed."
+            "t": "Graph: planned 4 · refreshed 4"
           }
         ]
       }

@@ -736,7 +736,7 @@ pravo will perform the following actions:
   # local_file.notes_note_beta was moved to notes.files.beta (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 9 of 9, 9 refreshed, 9 moved.
+Graph: planned 8 · refreshed 9 · moved 9
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -747,7 +747,7 @@ Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
 
 Read the plan. Each line says that a record was renamed and that the object did not change. The summary adds nothing and destroys nothing. The `Policy` line confirms that the stop rule held.
 
-The `Graph:` line says `planned 9 of 9`. Imported records carry no configuration hash yet, so this plan asks the provider about every one of them, once.
+The `Graph:` line says `planned 9`. Imported records carry no configuration hash yet, so this plan asks the provider about every one of them, once.
 
 A plan carries out the moves: it renames the records in the pravo state. They sit at their new addresses now:
 
@@ -776,7 +776,7 @@ echo "exit=$?"
 
 ```text out
 No changes. Your infrastructure matches the configuration.
-Graph: planned 9 of 9, 9 refreshed.
+Graph: planned 8 · refreshed 9
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -803,7 +803,7 @@ Read the first non-empty plan from the top. The line that differs from the objec
 | `# server (random_pet) must be replaced` with `~ length: 2 -> 3 # forces replacement` | The translated value differs from the object. | Set the specification to the value that `pravo state show server` prints. |
 | A change on a resource that you did not touch, such as a new default. | The provider is newer than the one OpenTofu applied with. | Pin `$version` to the version in `.terraform.lock.hcl`, run `pravo init`, and plan again. |
 | A progress line says that `hello` does not exist and will be created again, and the plan has `# hello (local_file) will be created`. | The provider cannot find the object. The file is missing, the working directory is another one, or the provider reads another region, account or endpoint. | Run from the directory OpenTofu used. Give the provider the same configuration and credentials. |
-| `Graph: planned 9 of 9` and no change | Imported records have no hash yet. | None. The first apply writes it. |
+| `Graph: planned 9` and no change | Imported records have no hash yet. | None. The first apply writes it. |
 
 Do not apply a plan that matches any row except the last. Apply only after the fix in the table has produced an empty plan. The deep dive below runs five of them.
 
@@ -926,7 +926,7 @@ pravo state show hello | head -n 3
 
 ```text out
 No changes. Your infrastructure matches the configuration.
-Graph: planned 9 of 9, 9 refreshed.
+Graph: planned 8 · refreshed 9
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -970,7 +970,7 @@ pravo will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 10, 8 unchanged and skipped, 1 refreshed, 8 not read.
+Graph: planned 1 · skipped 8 · refreshed 1 · not read 8
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -1020,7 +1020,7 @@ pravo plan
 
 ```text out
 No changes. The specification matches the state. 9 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 1 of 10, 9 unchanged and skipped, 1 refreshed, 9 not read.
+Graph: planned 0 · skipped 9 · refreshed 1 · not read 9
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -1035,7 +1035,7 @@ Outputs:
 - The first apply of an empty plan finalises the records. A small saved plan proves that pravo can write.
 
 :::check
-Why does the first plan after the import say `planned 9 of 9`?
+Why does the first plan after the import say `planned 9`?
 ::answer
 Imported records have no configuration hash. pravo cannot tell that nothing changed, so it asks the provider about each record once.
 

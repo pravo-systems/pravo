@@ -558,7 +558,7 @@ pravo will perform the following actions:
     }
 
 Plan: 7 to add, 0 to change, 7 to destroy.
-Graph: planned 7 of 7, 7 removed from the specification, 7 refreshed.
+Graph: planned 7 · removed 7 · refreshed 7
 
 Outputs:
   admin_password: (sensitive)
@@ -653,7 +653,7 @@ pravo will perform the following actions:
   # local_file.service_worker_config was moved to services.worker.config (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 7 of 7, 7 refreshed, 7 moved.
+Graph: planned 7 · refreshed 7 · moved 7
 
 Outputs:
   admin_password: (sensitive)
@@ -662,7 +662,7 @@ Outputs:
 
 Every change is a move: `record renamed; no change to the object`. The summary has no adds, changes or destroys, and the exit code is 0. This is the plan you wait for.
 
-The plan renames the records in pravo's state at once. Plan again and the moves are gone. The records have no configuration hash yet, so the plan asked each provider to plan all seven resources: `planned 7 of 7`.
+The plan renames the records in pravo's state at once. Plan again and the moves are gone. The records have no configuration hash yet, so the plan asked each provider to plan all seven resources: `planned 7`.
 
 ## Step 7: apply the empty plan
 
@@ -678,7 +678,7 @@ Output:
 ```text
 ...
 No changes. Your infrastructure matches the configuration.
-Graph: planned 7 of 7, 7 refreshed.
+Graph: planned 7 · refreshed 7
 
 Outputs:
   admin_password: (sensitive)
@@ -736,11 +736,11 @@ pravo will perform the following actions:
   # local_file.upstreams was moved to upstreams (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 1, 1 refreshed, 1 moved.
+Graph: planned 1 · refreshed 1 · moved 1
 upstreams: Refreshing state... [id=a80f4be062d20967b1ee08bdcac01ef45725e8cb]
 
 No changes. Your infrastructure matches the configuration.
-Graph: planned 1 of 1, 1 refreshed.
+Graph: planned 1 · refreshed 1
 ```
 
 ## Step 9: delete the scaffolding
@@ -758,14 +758,14 @@ Output:
 
 ```text
 No changes. The specification matches the state. 7 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 7, 7 unchanged and skipped, 7 not read.
+Graph: planned 0 · skipped 7 · not read 7
 
 Outputs:
   admin_password: (sensitive)
   endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]
 
 No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
-Graph: planned 0 of 1, 1 unchanged and skipped, 1 not read.
+Graph: planned 0 · skipped 1 · not read 1
 admin
 services.api.config
 services.api.host
@@ -775,7 +775,7 @@ services.worker.config
 services.worker.host
 ```
 
-Both plans report no changes. `7 not read` means that pravo trusted the seven records and read none of their objects, so the plan says that the specification matches the state, not the infrastructure. `planned 0 of 7` means that nothing in the specification had changed, so it planned none. In the second plan, `of 2` counts `platform` together with `upstreams`. The addresses in `state list` are now the CUE paths.
+Both plans report no changes. `not read 7` means that pravo trusted the seven records and read none of their objects, so the plan says that the specification matches the state, not the infrastructure. `planned 0` means that nothing in the specification had changed, so it planned none. The addresses in `state list` are now the CUE paths.
 
 Check the promise. The state files and the four objects are the files they were at the start. List what else the directories hold.
 

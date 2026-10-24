@@ -98,7 +98,7 @@ motd: no longer exists; it will be created again
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 2 refreshed, 1 drifted.
+Graph: planned 1 · skipped 1 · refreshed 2 · drifted 1
 ```
 
 The plan creates `motd`, and the `Graph:` line counts one drifted resource. `pravo drift` always reads everything and answers with an exit code.
@@ -163,7 +163,7 @@ Output:
 
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 2 within refresh age.
+Graph: planned 1 · skipped 1 · within refresh age 2
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 

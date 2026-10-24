@@ -87,7 +87,7 @@ Output:
   },
   "stats": {
     "total": 3,
-    "reached": 3,
+    "reached": 2,
     "skipped": 0,
     "refreshed": 1,
     "fresh": 0,
@@ -128,7 +128,7 @@ Output:
 | Field | Counts |
 |---|---|
 | `total` | The resources and data sources in the specification. Environment variables, remote outputs, ephemeral resources and function calls are tasks of the graph that are not planned against a record, and are not counted; `opened` and `called` count the last two. |
-| `reached` | Declarations planned with the provider. |
+| `reached` | Resources planned with the provider. A data source is read, not planned, and counts in `refreshed`. |
 | `skipped` | Declarations reused from the state without planning. |
 | `removed` | Records of resources that the specification does not declare and that the plan deletes. The field is absent when there are none. The `Graph:` line calls them `removed from the specification`. `refreshed`, `fresh` and `not_read` count them, and `total` does not. |
 | `refreshed` | Records read from the provider during the plan. |
@@ -323,7 +323,7 @@ pravo plan --json 2>/dev/null | jq -c '{summary, stats}'
 Output:
 
 ```text
-{"summary":{"add":2,"change":0,"destroy":2,"read":1,"blast_radius":2},"stats":{"total":3,"reached":3,"skipped":0,"refreshed":3,"fresh":0,"not_read":0,"drifted":0,"opened":1,"called":1,"imported":0,"moved":0}}
+{"summary":{"add":2,"change":0,"destroy":2,"read":1,"blast_radius":2},"stats":{"total":3,"reached":2,"skipped":0,"refreshed":3,"fresh":0,"not_read":0,"drifted":0,"opened":1,"called":1,"imported":0,"moved":0}}
 ```
 
 ### A destroy plan

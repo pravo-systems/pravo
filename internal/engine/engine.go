@@ -200,7 +200,8 @@ type Plan struct {
 type Stats struct {
 	// Total is the number of resources and data sources in configuration.
 	Total int `json:"total"`
-	// Reached is the number of nodes that were planned with the provider.
+	// Reached is the number of resources that were planned with the provider. A
+	// data source is read, not planned, and counts in Refreshed.
 	Reached int `json:"reached"`
 	// Skipped is the number of nodes reused from state without planning.
 	Skipped int `json:"skipped"`
@@ -1472,7 +1473,7 @@ func (e *Engine) planResource(ctx context.Context, r *config.Resource, v cue.Val
 		if st, ok := e.cachedData(addr, ch.ConfigHash); ok && (strict || !e.dependsOnPendingChange(addr)) {
 			ch.Planned, ch.Refreshed = st, true
 			ch.Kept = unchanged && e.recordHolds(sr, ch, st)
-			e.count(func(st *Stats) { st.Reached++; st.Refreshed++ })
+			e.count(func(st *Stats) { st.Refreshed++ })
 			return ch, nil
 		}
 		if unchanged && !e.dependsOnPendingChange(addr) {
@@ -1512,7 +1513,6 @@ func (e *Engine) planResource(ctx context.Context, r *config.Resource, v cue.Val
 		if conv.Unknown || (!strict && e.dependsOnPendingChange(addr)) {
 			ch.Deferred = true
 			ch.Planned = tftypes.NewValue(objT, tftypes.UnknownValue)
-			e.count(func(st *Stats) { st.Reached++ })
 			return ch, nil
 		}
 		e.step("read", addr, "start", "", time.Time{}, "%s: Reading...", addr)
@@ -1529,7 +1529,7 @@ func (e *Engine) planResource(ctx context.Context, r *config.Resource, v cue.Val
 			e.renewData(addr, sr, age)
 		}
 		e.rememberData(addr, ch.ConfigHash, st)
-		e.count(func(st *Stats) { st.Reached++; st.Refreshed++ })
+		e.count(func(st *Stats) { st.Refreshed++ })
 		return ch, nil
 	}
 

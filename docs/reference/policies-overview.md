@@ -74,7 +74,7 @@ pravo -C infra plan --policy ../policy/no-destroy.cue 2>&1 | sed -n '/^Plan:/,$p
 
 ```text out
 Plan: 3 to add, 0 to change, 0 to destroy.
-Graph: planned 3 of 3.
+Graph: planned 3
 
 Outputs:
   name: (known after apply)

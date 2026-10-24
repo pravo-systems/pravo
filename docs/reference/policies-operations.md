@@ -223,7 +223,7 @@ pravo -C infra destroy --policy ../policy/no-destroy.cue 2>&1 | sed -n '/^Plan:/
 
 ```text out
 Plan: 0 to add, 0 to change, 3 to destroy.
-Graph: 3 resources in state, 3 refreshed.
+Graph: 3 resources in state · refreshed 3
 
 Error: the plan violates the policy ../policy/no-destroy.cue (sha256:0c23a31e78bd):
 changes.0: seed: delete is not allowed:

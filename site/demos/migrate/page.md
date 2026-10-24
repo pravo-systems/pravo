@@ -266,7 +266,7 @@ pravo will perform the following actions:
   # local_file.note_beta was moved to note.beta (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 4 of 4, 4 refreshed, 4 moved.
+Graph: planned 4 · refreshed 4 · moved 4
 ```
 
 ```sh run
@@ -275,7 +275,7 @@ pravo plan
 
 ```text out
 No changes. Your infrastructure matches the configuration.
-Graph: planned 4 of 4, 4 refreshed.
+Graph: planned 4 · refreshed 4
 ```
 
 ## Facts for the band

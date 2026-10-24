@@ -156,7 +156,7 @@ Output:
 server: provider registry.opentofu.org/hashicorp/random -> oci://localhost:5001/acme/providers/random
 
 No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
-Graph: planned 0 of 1, 1 unchanged and skipped, 1 not read.
+Graph: planned 0 · skipped 1 · not read 1
 ```
 
 The first line of the plan relabelled the record. The plan changes nothing else: no change and no replacement. A second plan prints no relabelling line.
@@ -170,7 +170,7 @@ Output:
 
 ```text
 No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
-Graph: planned 0 of 1, 1 unchanged and skipped, 1 not read.
+Graph: planned 0 · skipped 1 · not read 1
 // server (provider oci://localhost:5001/acme/providers/random v3.9.1 as random, schema version 0, revision 2)
 ```
 

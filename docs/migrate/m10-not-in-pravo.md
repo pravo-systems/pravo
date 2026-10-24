@@ -229,7 +229,7 @@ pravo -C target plan 2>&1 | grep -E '^(  # |Plan:)'
   # a (random_pet) must be replaced
   # b (random_pet) must be replaced
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 3, 1 unchanged and skipped, 2 refreshed, 1 not read.
+Graph: planned 2 · skipped 1 · refreshed 2 · not read 1
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
 1 change remains in part.plan; apply with "pravo apply part.plan".
   # b (random_pet) must be replaced

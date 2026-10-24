@@ -139,7 +139,7 @@ task addr=port phase=plan outcome=ok action=create
 provider started provider=local version=<v>
 task addr=web phase=plan outcome=ok action=create
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 apply changes=2 destroy=false
 task addr=port phase=apply outcome=ok action=create
 task addr=web phase=apply outcome=ok action=create
@@ -176,7 +176,7 @@ graph built tasks=2
 task addr=port phase=plan outcome=ok action=no-op skipped=true unread=true
 task addr=web phase=plan outcome=ok action=no-op skipped=true unread=true
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read.
+Graph: planned 0 · skipped 2 · not read 2
 Policy policy/no-delete.cue (sha256:a66a4e4c547d) is satisfied.
 ```
 

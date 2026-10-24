@@ -230,7 +230,7 @@ Output:
 ```text
 random
 No changes. Your infrastructure matches the configuration.
-Graph: planned 0 of 1, 1 unchanged and skipped, 1 refreshed.
+Graph: planned 0 · skipped 1 · refreshed 1
 ```
 
 A recording holds the values the provider returned: the attributes of your objects, the sensitive ones included, and the results of ephemeral resources. Handle it like state. pravo creates the directory of each provider with mode 0700 and each file with mode 0600, and it does not write the values of a request. The provider configuration, which carries the credentials, and the write-only attributes are therefore not in the recording. A request is recorded as its method and its type, name or version.

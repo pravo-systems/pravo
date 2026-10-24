@@ -303,7 +303,7 @@ Output:
 
 ```text
 No changes. Your infrastructure matches the configuration.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 within refresh age.
+Graph: planned 0 · skipped 2 · within refresh age 2
 ```
 
 ## 4. Check whether the real world agrees
@@ -319,7 +319,7 @@ Output:
 
 ```text
 No changes. Your infrastructure matches the configuration.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 within refresh age.
+Graph: planned 0 · skipped 2 · within refresh age 2
 ```
 
 The plan found nothing, because the record is within its refresh age and pravo did not read the file. `pravo drift` ignores refresh ages, reads every resource and exits 2 when something differs. `-refresh=all` does the same for a plan. A plan that finds nothing among a large estate may also not have looked: the `Graph:` line says how many records it did not read, and `-refresh=expired` reads every record that is past its refresh age.
@@ -346,7 +346,7 @@ Output:
 note: Refreshing state... [id=<id>]
 note: no longer exists; it will be created again
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 2 refreshed, 1 drifted.
+Graph: planned 1 · skipped 1 · refreshed 2 · drifted 1
 ```
 
 `-refresh` takes `age`, the default, `expired`, `false` and `all`. The `Graph:` line counts what a plan read: `refreshed` and `drifted`, and what it did not: `within refresh age` and `not read`.

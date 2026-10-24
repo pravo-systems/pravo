@@ -213,7 +213,7 @@ pravo apply -auto-approve | grep '^Apply complete'
   # payments.codename (random_pet) will be created
   # payments.config (local_file) will be created
 Plan: 4 to add, 0 to change, 0 to destroy.
-Graph: planned 4 of 4.
+Graph: planned 4
 Apply complete! Resources: 4 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
@@ -278,7 +278,7 @@ pravo plan | grep -E '^(  #|Plan|Graph)'
   # cart.config (local_file) must be replaced
   # payments.config (local_file) must be replaced
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 4, 2 unchanged and skipped, 4 refreshed.
+Graph: planned 2 · skipped 2 · refreshed 4
 ```
 
 The new input has a default, so the existing uses evaluate. The two files change and nothing else does. Apply when you are satisfied. The lock file now says v0.2.0 with the hash of that version.

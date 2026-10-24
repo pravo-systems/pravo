@@ -426,7 +426,7 @@ pravo plan | grep -E '^(  #|Plan|Graph)'
   # service.c.web.cert (tls_locally_signed_cert) must be replaced
   # service.c.web.file (local_file) must be replaced
 Plan: 21 to add, 0 to change, 21 to destroy.
-Graph: planned 21 of 39, 18 unchanged and skipped, 33 refreshed, 6 not read.
+Graph: planned 21 · skipped 18 · refreshed 33 · not read 6
 ```
 
 The curve goes back to P256 before the next scene.
@@ -525,7 +525,7 @@ pravo plan | grep -E '^(  #|Plan|Graph)'
 ```text out
   # service.b.web.cert (tls_locally_signed_cert) will be updated in-place
 Plan: 0 to add, 1 to change, 0 to destroy.
-Graph: planned 1 of 39, 38 unchanged and skipped, 4 refreshed, 35 not read.
+Graph: planned 1 · skipped 38 · refreshed 4 · not read 35
 ```
 
 The window goes back to its default before the next scene.
@@ -594,9 +594,9 @@ pravo plan --replace zone.b.key --out b.plan --actor bob | grep -E '^(Plan|Graph
 
 ```text out
 Plan: 8 to add, 0 to change, 8 to destroy.
-Graph: planned 8 of 39, 31 unchanged and skipped, 12 refreshed, 27 not read.
+Graph: planned 8 · skipped 31 · refreshed 12 · not read 27
 Plan: 8 to add, 0 to change, 8 to destroy.
-Graph: planned 8 of 39, 31 unchanged and skipped, 12 refreshed, 27 not read.
+Graph: planned 8 · skipped 31 · refreshed 12 · not read 27
 ```
 
 The script waits until a resource is locked, which makes the run repeatable.
@@ -717,7 +717,7 @@ pravo plan | grep -E '^(  #|Plan|Graph)'
   # zone.d.cert (tls_locally_signed_cert) will be created
   # zone.d.file (local_file) will be created
 Plan: 4 to add, 0 to change, 0 to destroy.
-Graph: planned 4 of 43, 39 unchanged and skipped, 2 refreshed, 37 not read.
+Graph: planned 4 · skipped 39 · refreshed 2 · not read 37
 ```
 
 The apply adds the four resources. The state records their edges and what depends on them.

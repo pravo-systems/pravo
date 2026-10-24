@@ -119,7 +119,7 @@ pravo will perform the following actions:
   # server was moved to primary (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read, 1 moved.
+Graph: planned 0 · skipped 2 · not read 2 · moved 1
 ```
 
 The record was renamed and the object was not touched. The move happens as the first step of the plan, so the state already holds `primary`:

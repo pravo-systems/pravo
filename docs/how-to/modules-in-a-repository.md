@@ -211,10 +211,10 @@ pravo -C envs/prod plan | grep -E '^(  #|Plan|Graph)'
 ```text out
   # api.config (local_file) must be replaced
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 2 refreshed.
+Graph: planned 1 · skipped 1 · refreshed 2
   # api.config (local_file) must be replaced
 Plan: 1 to add, 0 to change, 1 to destroy.
-Graph: planned 1 of 2, 1 unchanged and skipped, 2 refreshed.
+Graph: planned 1 · skipped 1 · refreshed 2
 ```
 
 One edit reached both roots, and each shows its own plan to review. The pet did not change, so pravo did not plan it.

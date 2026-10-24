@@ -77,7 +77,7 @@ Providers:
 pravo has been initialised. Run "pravo plan" to see what it would do.
 ...
 Plan: 2 to add, 0 to change, 0 to destroy.
-Graph: planned 2 of 2.
+Graph: planned 2
 ...
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
@@ -130,7 +130,7 @@ pravo will perform the following actions:
     }
 
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 2, 2 refreshed.
+Graph: planned 2 · refreshed 2
 
 Saved the plan to change.plan. To apply exactly these actions, run:
   pravo apply change.plan
@@ -157,7 +157,7 @@ pravo will perform the following actions:
     }
 ...
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 2, 2 refreshed.
+Graph: planned 2 · refreshed 2
 ```
 
 The plan carries the tags it was made with, so a tag cannot change at apply time.
@@ -265,7 +265,7 @@ pravo will perform the following actions:
   # manifest (local_file) must be replaced
 ...
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 2, 2 refreshed.
+Graph: planned 2 · refreshed 2
 ```
 
 Check the new release. The manifest still holds the old number.
@@ -355,7 +355,7 @@ pravo plan --out audit.plan
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 3, 2 unchanged and skipped, 1 refreshed, 1 not read.
+Graph: planned 1 · skipped 2 · refreshed 1 · not read 1
 
 Saved the plan to audit.plan. To apply exactly these actions, run:
   pravo apply audit.plan
@@ -368,7 +368,7 @@ pravo apply --auto-approve
 ```text out
 ...
 Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 3, 2 unchanged and skipped, 1 refreshed, 1 not read.
+Graph: planned 1 · skipped 2 · refreshed 1 · not read 1
 ...
 audit: Creating...
 audit: Creation complete after 0s [id=3fe13eb17d7ee300fd5f4871245bcc6e47abed5a]

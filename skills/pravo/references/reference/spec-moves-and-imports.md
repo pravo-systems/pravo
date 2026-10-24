@@ -114,7 +114,7 @@ pravo will perform the following actions:
   # hello was moved to greeting (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 of 2, 2 unchanged and skipped, 2 not read, 1 moved.
+Graph: planned 0 · skipped 2 · not read 2 · moved 1
 greeting
 pet
 Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
@@ -339,7 +339,7 @@ pravo will perform the following actions:
   # n was imported from id "5,1,10" and matches the specification
 
 Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 1, 1 imported.
+Graph: planned 1 · imported 1
 ```
 
 At the plan, the provider reads the object by id and its state becomes the record of `n`. The plan compares the record with the configuration and shows the import with any update the specification implies. When the configuration differs, the header ends `and must be replaced` or `and will be updated`, followed by the changes. After the plan the record exists, so the field is not used again, and the same specification works from an empty state. Leave `$import` or remove it in a later change.
@@ -355,7 +355,7 @@ Output:
 n: Refreshing state... [id=5]
 
 No changes. Your infrastructure matches the configuration.
-Graph: planned 1 of 1, 1 refreshed.
+Graph: planned 1 · refreshed 1
 // n (provider registry.opentofu.org/hashicorp/random v3.9.1 as random, schema version 0, revision 2)
 ```
 

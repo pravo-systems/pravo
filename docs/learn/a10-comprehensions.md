@@ -244,7 +244,7 @@ pravo -C plan plan | grep -E '^  #|^Plan:|^Graph:'
   # byIndex.subnet0 (local_file) must be replaced
   # byIndex.subnet1 (local_file) must be replaced
 Plan: 2 to add, 0 to change, 2 to destroy.
-Graph: planned 2 of 6, 4 unchanged and skipped, 2 refreshed, 4 not read.
+Graph: planned 2 · skipped 4 · refreshed 2 · not read 4
 ```
 
 :::
