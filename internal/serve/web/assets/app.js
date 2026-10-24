@@ -298,6 +298,7 @@ function diffPlans(before, after) {
 // the secrets of its own plan, so it comes with the overlay of the plan, which is asked for a few at a time and kept:
 // a plan does not change.
 const reasons = new Map();
+const texts = new Map(); // what the author wrote with each plan, and the command that made it, by id
 let reasonsAsked = false;
 async function loadReasons() {
   if (reasonsAsked) return;
@@ -310,7 +311,7 @@ async function loadReasons() {
   const worker = async () => {
     while (want.length) {
       const id = want.shift();
-      try { const o = await api.plan(id); if (o && o.reason) { reasons.set(id, String(o.reason).replace(/\s+/g, ' ').trim()); draw(); } } catch (err) { /* the title stays the id */ }
+      try { const o = await api.plan(id); if (o) texts.set(id, o); if (o && o.reason) { reasons.set(id, String(o.reason).replace(/\s+/g, ' ').trim()); draw(); } } catch (err) { /* the title stays the id */ }
     }
   };
   await Promise.all([worker(), worker(), worker()]);
@@ -320,30 +321,23 @@ async function loadReasons() {
 
 function renderPlans() {
   const text = planText();
+  if (text) texts.set(text.plan.id, text);
   if (text && text.reason) reasons.set(text.plan.id, String(text.reason).replace(/\s+/g, ' ').trim());
-  plansList.render({ plans: S.plans, sel: S.plan, text, reasons });
+  plansList.render({ plans: S.plans, sel: S.plan, texts, reasons });
   renderPlanLede();
   loadReasons();
   const p = S.plan && S.plans.find((x) => x.id === S.plan);
   planStrip($('planstrip'), p, {
     reason: p && reasons.get(p.id),
     onClear: () => selectPlan(null),
-    onDetail: () => {
-      setView('plans');
-      const el = document.querySelector('#plans-list .rp[aria-pressed="true"]');
-      if (el) el.focus();
-    },
   });
 }
 
-// renderPlanLede is the line at the head of the Plans page.
+// renderPlanLede is the line at the head of the Plans page: it is there to say that there is none.
 function renderPlanLede() {
   const lede = $('pl-lede');
-  clear(lede);
-  if (!S.plans.length) { lede.textContent = 'The state holds no plan. Make one with pravo plan --store.'; return; }
-  const p = S.plan && S.plans.find((x) => x.id === S.plan);
-  if (p) lede.append(`${p.id} is laid over the resources. `, h('button', { class: 'linkbtn', type: 'button', on: { click: () => setView(S.lastResources || 'graph') } }, 'Show them'));
-  else lede.textContent = 'Choose a plan to lay it over the resources. A plan changes how they are coloured and what the filter In plan keeps.';
+  lede.textContent = S.plans.length ? '' : 'The state holds no plan. Make one with pravo plan --store.';
+  lede.hidden = !!S.plans.length;
 }
 
 // selectPlan lays a stored plan over the graph, or, with null, takes it off. The first view is made again for
@@ -1306,7 +1300,7 @@ function wire() {
     onSelectModule: (p) => selectModule(p, { center: true }),
     onRoot: () => { if (S.sel) clearSelection(); else if (narrow()) openDrawer(); },
   });
-  plansList = new Plans($('plans-list'), { onSelect: (id) => selectPlan(id) });
+  plansList = new Plans($('plans-list'), { onView: (id) => selectPlan(id).then(() => setView(S.lastResources || 'graph')) });
   table = new TableView($('table-pane'), { onSelectNode: (a) => selectNode(a) });
   accessView = new AccessView($('access-pane'));
   insp = new Inspector($('insp'), {

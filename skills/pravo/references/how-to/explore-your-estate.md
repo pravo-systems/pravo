@@ -163,7 +163,7 @@ pravo serve
 
 The Plans tab of the bar, or `p`, lists the plans of the state. Each row is one plan, newest first: the initials of the author, the note that the author wrote with the plan (`--reason`) as the title, or the id when there is none, the status, the author, the age, the id under a note, and the counts of resources to add, change and destroy. Pending lists the plans that can be applied. A mark of two rings on a row says that another plan changes one of the same resources.
 
-Click a row. The plan is laid over the graph, as a saved plan is in step 6. The graph shows its actions, the Change tab shows its attributes, and a strip under the bar names it. The row opens and shows the reason, what overlaps, and the command that applies the plan, with a button that copies it. A second click on the row, Esc in the list or the button Take it off in the strip takes the plan off the graph.
+Click a row to open it. It shows the reason, what overlaps, when the plan expires, the command that made it and the command that applies it, with a button that copies it. A second click, or Esc, closes it. The button View on a row lays the plan over the graph, as a saved plan is in step 6, and goes to Resources. The graph shows its actions, the Change tab shows its attributes, and a strip under the bar names it. The button with the cross in the strip stops showing the plan.
 
 *Figure: The platform with the plan of ana laid over the graph. The plan of ben also replaces what writes orders, so those resources carry two discs and a ring, and the sidebar says that the plans overlap.*
 

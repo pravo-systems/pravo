@@ -152,20 +152,28 @@ export class Plans {
     this.root = root;
     this.cb = cb;
     this.filter = null; // null: pending if any plan is, else all
+    this.open = null; // the plan whose detail is shown under its row
     this.s = null;
     root.addEventListener('click', (ev) => {
       const f = ev.target.closest('button[data-filter]');
       if (f) { this.filter = f.dataset.filter; this.render(this.s); return; }
       const all = ev.target.closest('button[data-showall]');
       if (all) { this.filter = 'all'; this.render(this.s); return; }
+      const view = ev.target.closest('button.rp-view');
+      if (view) { cb.onView(view.dataset.id); return; }
       const row = ev.target.closest('button.rp');
-      if (row) cb.onSelect(row.getAttribute('aria-pressed') === 'true' ? null : row.dataset.id);
+      if (row) this.toggle(row.dataset.id);
     });
     root.addEventListener('keydown', (ev) => this.onKey(ev));
   }
 
   // mode is the filter: the one that was chosen, else the pending plans, else all of them; a plan that is not
   // pending and is laid over the graph (a link names it) shows the whole list around it
+  toggle(id) {
+    this.open = this.open === id ? null : id;
+    this.render(this.s);
+  }
+
   mode(plans, sel) {
     if (this.filter) return this.filter;
     const picked = sel && plans.find((p) => p.id === sel);
@@ -176,50 +184,53 @@ export class Plans {
   render(s) {
     this.s = s;
     const { plans, sel } = s;
+    const open = this.open && plans.some((p) => p.id === this.open) ? this.open : null;
     const root = this.root;
     root.hidden = !plans.length;
     if (!plans.length) { clear(root); return; }
     const mode = this.mode(plans, sel);
-    const open = plans.filter((p) => p.open).length;
-    const shown = plans.filter((p) => mode === 'all' || p.open || p.id === sel);
+    const pending = plans.filter((p) => p.open).length;
+    const shown = plans.filter((p) => mode === 'all' || p.open || p.id === sel || p.id === open);
     // what has the focus is found again after the section is drawn: a row, a filter, or a control of the detail
     const at = root.contains(document.activeElement) ? document.activeElement.dataset : null;
     const focus = at && (at.id ? ['id', at.id] : at.filter ? ['filter', at.filter] : at.fk ? ['fk', at.fk] : null);
     const seg = (key, label, n) => h('button', { type: 'button', 'aria-pressed': String(mode === key), data: { filter: key }, 'data-tip': key === 'pending' ? 'Plans that can still be applied' : 'Every plan in the state, applied and expired too' }, label, h('em', null, String(n)));
-    const rows = shown.map((p, i) => this.row(p, p.id === sel, sel ? p.id === sel : i === 0, (s.reasons && s.reasons.get(p.id)) || ""));
+    const rows = shown.map((p, i) => this.row(p, p.id === sel, p.id === open, open ? p.id === open : i === 0, (s.reasons && s.reasons.get(p.id)) || ""));
     const list = h('div', { class: 'rp-list', role: 'group', 'aria-label': 'Stored plans' }, rows);
     if (!shown.length) {
       list.append(h('p', { class: 'rp-none' }, 'No plan can be applied. ', h('button', { class: 'linkbtn', type: 'button', data: { showall: '1' } }, `Show all ${plans.length}`)));
     }
-    const picked = sel && plans.find((p) => p.id === sel);
-    const detailEl = picked ? h('div', { class: 'rp-detail', role: 'region', 'aria-label': 'Plan ' + picked.id }, detail(picked, { onPlan: (id) => this.cb.onSelect(id), byId: new Map(plans.map((p) => [p.id, p])), text: s.text })) : null;
+    const picked = open && plans.find((p) => p.id === open);
+    const detailEl = picked ? h('div', { class: 'rp-detail', role: 'region', 'aria-label': 'Plan ' + picked.id }, detail(picked, { onPlan: (id) => { this.open = id; this.render(this.s); }, byId: new Map(plans.map((p) => [p.id, p])), text: s.texts && s.texts.get(picked.id) })) : null;
     // the detail sits under its row
-    if (detailEl) rows[shown.findIndex((p) => p.id === sel)].after(detailEl);
+    if (detailEl) rows[shown.findIndex((p) => p.id === open)].after(detailEl);
     clear(root);
     root.append(
-      h('div', { class: 'rp-head' }, h('h2', { class: 'h' }, 'Plans'), h('div', { class: 'seg rp-seg', role: 'group', 'aria-label': 'Which plans to list' }, seg('pending', 'Pending', open), seg('all', 'All', plans.length))),
+      h('div', { class: 'rp-head' }, h('h2', { class: 'h' }, 'Plans'), h('div', { class: 'seg rp-seg', role: 'group', 'aria-label': 'Which plans to list' }, seg('pending', 'Pending', pending), seg('all', 'All', plans.length))),
       list);
     // the section scrolls to the plan that is laid over the graph when that changes, and not each time it is drawn
-    if (picked && this.shownSel !== sel) { const el = root.querySelector('.rp[aria-pressed="true"]'); if (el) el.scrollIntoView({ block: 'nearest' }); }
-    this.shownSel = sel;
+    if (picked && this.shownOpen !== open) { const el = root.querySelector('.rp[aria-expanded="true"]'); if (el) el.scrollIntoView({ block: 'nearest' }); }
+    this.shownOpen = open;
     if (focus) { const el = root.querySelector(`[data-${focus[0]}="${CSS.escape(focus[1])}"]`); if (el) el.focus({ preventScroll: true }); }
   }
 
   // The title of a row is what the author wrote with the plan, which says more to a person than the id; the id is
   // the title of a plan that has no note, and the line under the title of one that has.
-  row(p, on, tab, reason) {
+  row(p, shown, expanded, tab, reason) {
     const overlaps = (p.overlaps || []).length;
-    return h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (on ? ' sel' : ''), type: 'button', 'aria-pressed': String(on), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) },
+    const btn = h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (shown ? ' sel' : ''), type: 'button', 'aria-expanded': String(expanded), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) },
       avatar(p.author),
       h('span', { class: 'rp-main' },
         h('span', { class: 'rp-l1' }, reason ? h('span', { class: 'rp-title', title: reason }, reason) : h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null, statusChip(p.status)),
         h('span', { class: 'rp-l2' }, h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(p.summary || {})),
         reason ? h('code', { class: 'rp-l3' }, p.id) : null));
+    return h('div', { class: 'rp-row' + (shown ? ' sel' : '') }, btn,
+      h('button', { class: 'rp-view', type: 'button', data: { id: p.id }, 'aria-label': 'View ' + (reason || p.id) + ' on the resources' }, shown ? 'Viewing' : 'View'));
   }
 
   onKey(ev) {
     const row = ev.target.closest('button.rp');
-    if (ev.key === 'Escape' && this.s && this.s.sel) { ev.preventDefault(); this.cb.onSelect(null); return; }
+    if (ev.key === 'Escape' && this.open) { ev.preventDefault(); this.open = null; this.render(this.s); return; }
     if (!row) return;
     const rows = [...this.root.querySelectorAll('button.rp')];
     const i = rows.indexOf(row);
@@ -252,6 +263,5 @@ export function planStrip(el, p, cb) {
     counts(p.summary || {}),
     h('span', { class: 'ps-by dim' }, p.author + ' \u00b7 ' + relTime(p.created)),
     h('span', { class: 'grow' }),
-    h('button', { class: 'ps-det', type: 'button', 'aria-label': 'Open the detail of ' + p.id, on: { click: cb.onDetail } }, 'Details'),
-    h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Take the plan off the resources', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' }), 'Take it off')].filter(Boolean));
+    h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' }))].filter(Boolean));
 }
