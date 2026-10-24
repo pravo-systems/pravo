@@ -294,8 +294,7 @@ export function planStrip(el, p, cb) {
     h('code', { class: 'ps-id' }, p.id),
     p.status ? statusChip(p.status) : null,
     c,
-    h('span', { class: 'ps-by dim' }, (p.author ? p.author + ' \u00b7 ' : '') + relTime(p.created)),
-    signedIcon(cb.signatures),
+    h('span', { class: 'ps-by dim' }, p.author || null, signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
     expiryRing(p),
     h('span', { class: 'grow' }),
     cb.onClear ? h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })) : null].filter(Boolean));
