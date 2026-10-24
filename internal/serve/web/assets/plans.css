@@ -159,6 +159,9 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 .planstrip .ps-title { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
 .planstrip .ps-id { color: var(--text-2); white-space: nowrap; }
 .planstrip .ps-by { white-space: nowrap; font-size: .74rem; }
+.planstrip .ps-sig { display: inline-flex; margin-left: -.35rem; }
+.planstrip .ps-sig .i { width: .85rem; height: .85rem; }
+.planstrip .ps-sig.ok { color: var(--accent); } .planstrip .ps-sig.chg { color: var(--change); } .planstrip .ps-sig.bad { color: var(--conflict); } .planstrip .ps-sig.dim { color: var(--text-3); }
 .planstrip .grow { flex: 1; }
 .planstrip button { flex: none; padding: .3rem .6rem; border: 1px solid var(--line-strong); color: var(--text-2); background: var(--surface); font: 500 .72rem/1 var(--font-mono); display: inline-flex; align-items: center; gap: .4rem; }
 .planstrip button:hover { color: var(--text); border-color: var(--text-3); }

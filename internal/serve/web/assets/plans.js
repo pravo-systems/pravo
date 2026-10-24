@@ -246,14 +246,17 @@ export class Plans {
 
 // The strip under the bar that says which plan is laid over the resources, with the way to its detail and the way back.
 // It is the one sign that the colours of the picture are a plan's, so it spans the page and does not hide in the picture.
-// signedMarks says who stored a stored plan of a sealed state: each signature as the readers file judges it, or that
-// there is none, or why they were not checked. A state that is not sealed has no signatures to say.
-export function signedMarks(sg) {
-  if (!sg) return null;
-  if (sg.note) return h('span', { class: 'sigmark sig-unsigned', title: sg.note }, sg.note);
-  const items = sg.items || [];
-  if (!items.length) return signatureMark('unsigned');
-  return h('span', null, items.flatMap((it, i) => [i ? ', ' : '', signatureMark(it.status, it.signer, it.claimed)]));
+// signedIcon is the mark after the author: a check when the signature verifies, a sign of caution when it does not, or
+// when there is none, or when its key is not in the readers file. What it says in words is in its tooltip. A state
+// that was not asked, and a state that is not sealed, have no signatures to mark.
+const SIGNED = { verified: ['check', 'ok'], key_not_in_file: ['bang', 'chg'], invalid: ['bang', 'bad'], unsigned: ['bang', 'dim'] };
+export function signedIcon(sg) {
+  if (!sg || sg.note) return null;
+  const it = (sg.items || [])[0];
+  const status = it ? it.status : 'unsigned';
+  const [glyph, cls] = SIGNED[status] || SIGNED.unsigned;
+  const mark = signatureMark(status, it && it.signer, it && it.claimed);
+  return h('span', { class: 'ps-sig ' + cls, role: 'img', 'aria-label': mark.textContent, 'data-tip': mark.textContent + '\n' + mark.title }, icon(glyph));
 }
 
 export function planStrip(el, p, cb) {
@@ -272,7 +275,7 @@ export function planStrip(el, p, cb) {
     statusChip(p.status),
     counts(p.summary || {}),
     h('span', { class: 'ps-by dim' }, p.author + ' \u00b7 ' + relTime(p.created)),
-    signedMarks(cb.signatures),
+    signedIcon(cb.signatures),
     h('span', { class: 'grow' }),
     h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' }))].filter(Boolean));
 }
