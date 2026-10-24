@@ -364,7 +364,7 @@ pravo validate
 Error: evaluating .:
 a.prefix: invalid value "us-" (out of bound =~"^eu-"):
     ./policy/policy.cue:6:33
-    ./cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue:230:12
+    ./cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue:238:12
     ./main.cue:7:51
 ```
 

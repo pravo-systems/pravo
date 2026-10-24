@@ -120,7 +120,7 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 		}
 		shown = append(shown, c)
 	}
-	if len(shown) == 0 {
+	if len(shown) == 0 && len(plan.Relabels) == 0 {
 		p.Println()
 		p.Println(p.C(Bold+Green, "No changes.") + " " + noChanges(plan))
 		p.renderStats(plan)
@@ -129,6 +129,10 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 	}
 	p.Println()
 	p.Println("pravo will perform the following actions:")
+	for _, r := range plan.Relabels {
+		p.Println()
+		p.Println(p.C(Bold, fmt.Sprintf("  # %s will have its provider changed from %s to %s", r.Addr, r.From, r.To)) + p.C(Dim, " (record relabelled; no change to the object)"))
+	}
 	for _, c := range shown {
 		p.Println()
 		sym, color := actionSymbol(c.Action)

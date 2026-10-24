@@ -23,6 +23,9 @@ func (c *Change) declared() bool {
 
 // HasDeclared reports whether the plan has a move or an import that an apply is to write.
 func (p *Plan) HasDeclared() bool {
+	if len(p.Relabels) > 0 {
+		return true
+	}
 	for _, c := range p.Changes {
 		if c.declared() {
 			return true
@@ -82,7 +85,7 @@ func (e *Engine) retarget(plan *Plan) {
 // records that $from moves. A record that is not as the plan saw it stops the apply.
 func (e *Engine) commitMoves(plan *Plan) error {
 	e.State.DropStaged()
-	if err := e.relabelProviders(false); err != nil {
+	if _, err := e.relabelProviders(false); err != nil {
 		return err
 	}
 	var moves []*Change

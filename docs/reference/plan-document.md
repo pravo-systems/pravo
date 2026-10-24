@@ -399,7 +399,10 @@ The text of a plan hides sensitive attributes. The document does not. Sensitive 
 | `stale` | `null` when the plan can still be applied. Otherwise `{"reasons": [...]}`. |
 | `plan` | The document. `created`, `actor`, `reason` and `git_revision` are those of the plan file. It carries `reservation` when the plan reserved its nodes. |
 
+The plan with `$from` wrote nothing, so the record is still at `pet`. Apply the move, drop the `$from` that has done its work, and change the length:
+
 ```sh run
+pravo apply --auto-approve > /dev/null 2>&1
 sed -i.bak 's/\$from: "pet",//' main.cue
 sed -i.bak 's/length: 2/length: 3/' main.cue
 pravo plan --reserve 15m --actor ci --out change.plan > /dev/null 2>&1

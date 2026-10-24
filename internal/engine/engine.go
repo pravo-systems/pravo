@@ -181,6 +181,9 @@ type Plan struct {
 	// Hints are suggestions that do not change the plan, such as a create
 	// and a delete that look like one resource under a new address.
 	Hints []string
+	// Relabels are the records whose provider a provider $from renames: the plan holds the
+	// new label in memory, and the apply writes it.
+	Relabels []Relabel
 
 	// The apply of a plan walks the nodes the plan changes and the nodes they
 	// read, and no others. Write lists the addresses it writes or removes. Inputs
@@ -616,10 +619,12 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		plan.Stats = e.statsNow()
 		return plan, e.txn.Finish("planned", e.summary(plan), false)
 	}
-	if err := e.relabelProviders(true); err != nil {
+	relabels, err := e.relabelProviders(true)
+	if err != nil {
 		e.finishError("failed", err, true)
 		return nil, err
 	}
+	plan.Relabels = relabels
 	moves, err := e.applyMoves(ctx, true)
 	if err != nil {
 		e.finishError("failed", err, true)

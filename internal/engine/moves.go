@@ -277,7 +277,8 @@ func (e *Engine) importedRecord(r *config.Resource, s *schema.Schema, st tftypes
 // current address. A record under some other address than the provider's own
 // is an error that says how to declare the change. A plan stages the new label: only an
 // apply writes it.
-func (e *Engine) relabelProviders(stage bool) error {
+func (e *Engine) relabelProviders(stage bool) ([]Relabel, error) {
+	var labels []Relabel
 	for _, n := range e.State.List() {
 		if n.Provider == "" {
 			continue
@@ -291,33 +292,41 @@ func (e *Engine) relabelProviders(stage bool) error {
 			known = known || was.String() == n.Provider
 		}
 		if !known {
-			return fmt.Errorf("%s was written by provider %s, but the provider is now %s; add $from: %q to the provider", n.Address(), n.Provider, req.Source.String(), n.Provider)
+			return nil, fmt.Errorf("%s was written by provider %s, but the provider is now %s; add $from: %q to the provider", n.Address(), n.Provider, req.Source.String(), n.Provider)
 		}
 		addr := n.Address()
 		if stage {
 			moved := *n
 			moved.Provider = req.Source.String()
 			e.State.Stage(&moved)
+			labels = append(labels, Relabel{Addr: addr, From: n.Provider, To: req.Source.String()})
 			continue
 		}
 		if err := e.State.Lock(addr, e.Opts.Command+" (provider moved)", e.txnID()); err != nil {
-			return fmt.Errorf("provider $from %s: %w", n.Provider, err)
+			return nil, fmt.Errorf("provider $from %s: %w", n.Provider, err)
 		}
 		if err := e.State.Verify(addr); err != nil {
 			_ = e.State.Unlock(addr)
-			return fmt.Errorf("provider $from %s: %w", n.Provider, err)
+			return nil, fmt.Errorf("provider $from %s: %w", n.Provider, err)
 		}
 		moved := *n
 		moved.Provider = req.Source.String()
 		before := n.Revision
 		if err := e.State.Set(&moved, e.txnID()); err != nil {
-			return err
+			return nil, err
 		}
 		e.txn.Record(addr, "provider-move", before, moved.Revision)
 		_ = e.State.Unlock(addr)
 		e.Opts.Progress("%s: provider %s -> %s", addr, n.Provider, req.Source.String())
 	}
-	return nil
+	return labels, nil
+}
+
+// Relabel is a record whose provider a provider $from renames.
+type Relabel struct {
+	Addr string `json:"addr"`
+	From string `json:"from"`
+	To   string `json:"to"`
 }
 
 // importedID returns the id of the import that this plan made at addr.

@@ -52,6 +52,8 @@ type PlanFile struct {
 	NoRefresh bool          `json:"no_refresh,omitempty"`
 	Stats     Stats         `json:"stats"`
 	Changes   []savedChange `json:"changes"`
+	// Relabels lists the records whose provider a provider $from renames.
+	Relabels []Relabel `json:"provider_moves,omitempty"`
 	// Inputs maps the address of every record that the changes read to its
 	// revision when the plan was made. The records themselves are not in the file.
 	Inputs map[string]int `json:"inputs,omitempty"`
@@ -163,7 +165,7 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 		Format: PlanFileFormat, Created: time.Now().UTC(), Command: e.commandLine(), Lineage: e.State.Lineage(),
 		Tags: tags, SysTags: sysTags, Providers: map[string]string{}, Destroy: plan.Destroy, NoRefresh: plan.NoRefresh, Stats: plan.Stats,
 		Outputs: map[string]json.RawMessage{}, Actor: e.Opts.Actor, Reason: e.Opts.Reason, GitRevision: e.Opts.GitRevision,
-		Reservation: plan.Reservation,
+		Reservation: plan.Reservation, Relabels: plan.Relabels,
 	}
 	fp, err := e.Root.Fingerprint()
 	if err != nil {
@@ -313,7 +315,7 @@ func (e *ErrStalePlan) Error() string {
 
 // newPlan makes the plan that a file stands for, with the changes it holds.
 func (e *Engine) newPlan(pf *PlanFile) (*Plan, error) {
-	plan := &Plan{Outputs: map[string]cue.Value{}, Destroy: pf.Destroy, NoRefresh: pf.NoRefresh, Stats: pf.Stats, SavedOutputs: pf.Outputs, UnknownOutputs: pf.UnknownOutputs, SensitiveOutputs: stringSet(pf.SensitiveOutputs), Actor: pf.Actor, Reservation: pf.Reservation,
+	plan := &Plan{Outputs: map[string]cue.Value{}, Destroy: pf.Destroy, NoRefresh: pf.NoRefresh, Stats: pf.Stats, SavedOutputs: pf.Outputs, UnknownOutputs: pf.UnknownOutputs, SensitiveOutputs: stringSet(pf.SensitiveOutputs), Actor: pf.Actor, Reservation: pf.Reservation, Relabels: pf.Relabels,
 		Inputs: pf.Inputs, InputGenerations: pf.InputGenerations, EvalOutputs: pf.EvalOutputs, DropOutputs: pf.DropOutputs}
 	for _, sc := range pf.Changes {
 		ch, err := e.restoreChange(sc)

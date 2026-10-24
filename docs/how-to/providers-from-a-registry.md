@@ -150,20 +150,24 @@ pravo plan
 ```
 
 ```text out
-server: provider registry.opentofu.org/hashicorp/random -> oci://localhost:5001/acme/providers/random
+pravo will perform the following actions:
 
-No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
+  # server will have its provider changed from registry.opentofu.org/hashicorp/random to oci://localhost:5001/acme/providers/random (record relabelled; no change to the object)
+
+Plan: 0 to add, 0 to change, 0 to destroy.
 Graph: planned 0 · skipped 1 · not read 1
 ```
 
-The first line of the plan relabelled the record. The plan changes nothing else: no change and no replacement. A second plan prints no relabelling line.
+The plan lists the relabelling of the record and writes nothing. It changes nothing else: no change and no replacement. The apply writes the new label, and then a plan prints no relabelling.
 
 ```sh run
+pravo apply --auto-approve | grep '^Apply complete'
 pravo plan
 pravo state show server | head -n 1
 ```
 
 ```text out
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
 Graph: planned 0 · skipped 1 · not read 1
 // server (provider oci://localhost:5001/acme/providers/random v3.9.1 as random, schema version 0, revision 2)

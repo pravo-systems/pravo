@@ -197,3 +197,71 @@ user: $demo.#Resource.demo_server & {name: "uses-\(new.id)"}
 		t.Errorf("a record still depends on the old address:\n%s", text)
 	}
 }
+
+// A provider $from renames the provider of the records. The plan lists it and writes nothing;
+// the apply writes the label.
+func TestPlanDoesNotRelabelAProvider(t *testing.T) {
+	newDemoProvider(t)
+	dir := demoEstate(t, `item: $demo.#Resource.demo_server & {name: "keep"}`)
+	if text, code := runPravo(t, dir, "apply", "-auto-approve"); code != 0 {
+		t.Fatalf("apply exited %d:\n%s", code, text)
+	}
+	shown, _ := runPravo(t, dir, "state", "show", "item")
+	cur := ""
+	for _, w := range strings.Fields(shown) {
+		if strings.HasPrefix(w, "registry.") || strings.HasPrefix(w, "pravo.dev/") || strings.Contains(w, "/demo") {
+			cur = w
+			break
+		}
+	}
+	if cur == "" {
+		t.Fatalf("no provider in:\n%s", shown)
+	}
+	// The record names another provider than the specification does.
+	old := "registry.example.com/acme/demo"
+	patched := false
+	err := filepath.Walk(filepath.Join(dir, "pravo.state"), func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".json") {
+			return err
+		}
+		b, _ := os.ReadFile(path)
+		if strings.Contains(string(b), `"provider": "`+cur+`"`) || strings.Contains(string(b), `"provider":"`+cur+`"`) {
+			s := strings.ReplaceAll(string(b), cur, old)
+			patched = true
+			return os.WriteFile(path, []byte(s), 0o644)
+		}
+		return nil
+	})
+	if err != nil || !patched {
+		t.Fatalf("could not change the provider of the record: %v (patched %v)", err, patched)
+	}
+	if text, code := runPravo(t, dir, "plan"); code == 0 {
+		t.Fatalf("a plan did not ask for $from:\n%s", text)
+	}
+	spec := readFile(t, dir, "main.cue")
+	mustWrite(t, dir, "main.cue", strings.Replace(spec, "demo.#Provider & {", `demo.#Provider & {$from: "`+old+`", `, 1))
+
+	for i := 0; i < 2; i++ {
+		text, code := runPravo(t, dir, "plan")
+		if code != 0 {
+			t.Fatalf("plan %d exited %d:\n%s", i+1, code, text)
+		}
+		contains(t, text, "item will have its provider changed from "+old+" to "+cur)
+		lacks(t, text, "No changes.")
+		if got, _ := runPravo(t, dir, "state", "show", "item"); !strings.Contains(got, old) {
+			t.Fatalf("a plan relabelled the record (plan %d):\n%s", i+1, got)
+		}
+	}
+	if _, code := runPravo(t, dir, "plan", "--detailed-exitcode"); code != 0 {
+		t.Errorf("a relabel is no change to an object, but the plan exited %d", code)
+	}
+	if text, code := runPravo(t, dir, "apply", "-auto-approve"); code != 0 {
+		t.Fatalf("apply exited %d:\n%s", code, text)
+	}
+	if got, _ := runPravo(t, dir, "state", "show", "item"); !strings.Contains(got, cur) || strings.Contains(got, old) {
+		t.Errorf("the apply left the record as:\n%s", got)
+	}
+	if text, code := runPravo(t, dir, "plan"); code != 0 || !strings.Contains(text, "No changes.") {
+		t.Errorf("a plan after the relabel: %d\n%s", code, text)
+	}
+}
