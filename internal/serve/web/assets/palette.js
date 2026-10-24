@@ -109,7 +109,7 @@ export class Palette {
       for (const r of items) this.list.append(this.option(r, i++));
     };
     if (nss) add('Namespaces', this.total > this.results.length && q ? `${nss}` : String(nss), this.results.slice(0, nss));
-    if (nodes) add(q ? 'Resources' : 'In the plan', String(nodes), this.results.slice(nss, nss + nodes));
+    if (nodes) add(q ? 'Items' : 'In the plan', String(nodes), this.results.slice(nss, nss + nodes));
     if (outs) add('Outputs', String(outs), this.results.slice(nss + nodes));
     if (!this.results.length) this.list.append(h('p', { class: 'pal-none' }, q ? `Nothing matches “${q}”.` : 'Nothing to show.'));
     const extra = this.total - this.results.length;
@@ -182,7 +182,7 @@ export class Palette {
 export const SHORTCUTS = [
   ['Search', [['/', 'or', 'Ctrl K', 'Find a resource, a type or a namespace']]],
   ['Move around', [['←', '', '', 'To a dependency of the selection'], ['→', '', '', 'To a dependent'], ['↑ ↓', '', '', 'To the sibling above or below'], ['Esc', '', '', 'Clear the selection']]],
-  ['View', [['f', '', '', 'Fit the graph'], ['i', '', '', 'Show or hide the project'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every namespace'], ['Enter', '', '', 'Open or close the selected namespace'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or list of the resources'], ['a', '', '', 'Resources or state'], ['p', '', '', 'Resources or plans'], ['?', '', '', 'This sheet']]],
+  ['View', [['f', '', '', 'Fit the graph'], ['i', '', '', 'Show or hide the project'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every namespace'], ['Enter', '', '', 'Open or close the selected namespace'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or list of the resources'], ['a', '', '', 'Inventory or state'], ['p', '', '', 'Inventory or plans'], ['?', '', '', 'This sheet']]],
   ['The list', [['↑ ↓', '', '', 'Select the row above or below, Home and End jump'], ['← →', '', '', 'Close or open a namespace, or go to its row'], ['Enter', 'or', 'Space', 'Close or open the namespace'], ['*', '', '', 'Open every namespace of this level']]],
   ['Pointer', [['Drag', '', '', 'Pan'], ['Wheel', '', 'Pinch', 'Zoom'], ['Double-click', '', '', 'Open or close a namespace']]],
 ];

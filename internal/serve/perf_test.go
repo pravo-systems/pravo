@@ -77,4 +77,24 @@ func TestBigEstate(t *testing.T) {
 		t.Errorf("detail %+v", d)
 	}
 	t.Logf("detail of one node: %s", time.Since(began).Round(time.Microsecond))
+	// The field index is built on the first search and reused after it.
+	began = time.Now()
+	f := m.fieldMatches("settings.region=eu")
+	build := time.Since(began)
+	began = time.Now()
+	g := m.fieldMatches("settings.region=eu")
+	query := time.Since(began)
+	began = time.Now()
+	m.fieldMatches("*.pin=p-*")
+	wild := time.Since(began)
+	t.Logf("field index of %d records: first search %s, next %s, a wildcard on paths %s", n, build.Round(time.Millisecond), query.Round(time.Millisecond), wild.Round(time.Millisecond))
+	if len(f.Addrs) != n || len(g.Addrs) != n || f.Indexed != n {
+		t.Errorf("settings.region=eu found %d of %d, indexed %d", len(f.Addrs), n, f.Indexed)
+	}
+	if got := m.fieldMatches("rule.0.pin=p-1"); len(got.Addrs) != 0 {
+		t.Errorf("a sensitive value matched %v", got.Addrs)
+	}
+	if build > limit/5 || query > limit/50 {
+		t.Errorf("field search of 5000 records: index %s, query %s", build, query)
+	}
 }

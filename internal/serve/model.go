@@ -58,6 +58,10 @@ type model struct {
 
 	txOnce sync.Once
 	txns   []state.Transaction
+
+	// fieldsOnce builds fieldIdx the first time a field search asks for it.
+	fieldsOnce sync.Once
+	fieldIdx   *fieldIndex
 }
 
 // mnode is a node with what is needed to answer for it.

@@ -45,6 +45,13 @@ const bucketOf = (a) => {
   return 'configured';
 };
 
+// facetValue is the text of a value that a filter term can carry: not long, one line, no double quote (a space or a comma is quoted)
+function facetValue(v) {
+  if (v === undefined || v === null || typeof v === 'object') return null;
+  const s = String(v);
+  return s && s.length <= 80 && !/["\n\r]/.test(s) ? s : null;
+}
+
 const isList = (t) => /^(list|set|tuple)/.test(t || '');
 const isMap = (t) => /^(map|object)/.test(t || '');
 
@@ -91,10 +98,16 @@ export class StateView {
     const q = this.q;
     const host = this.host;
     host.textContent = '';
+    // the rows that the field and value terms of the filter are about
+    this.hit = this.ctx.fieldMatch ? this.ctx.fieldMatch() : null;
     const total = (this.d.attrs || []).length;
     if (!total) {
       if (this.d.node && this.d.node.sealed) {
         host.append(h('div', { class: 'blank' }, icon('lock'), h('p', null, 'The attributes of this record are sealed.'), h('small', null, 'This viewer cannot open them. The State page says who can read the state.')));
+        return;
+      }
+      if (this.d.node && this.d.node.mode === 'ephemeral') {
+        host.append(h('div', { class: 'blank' }, icon('stack'), h('p', null, 'An ephemeral resource is never recorded.'), h('small', null, 'It is opened for each run and kept out of the state, so there is nothing to show here.')));
         return;
       }
       host.append(h('div', { class: 'blank' }, icon('stack'), h('p', null, 'No attributes are recorded for this resource.'), h('small', null, 'It exists in the state without values, or it is declared and not created yet.')));
@@ -107,7 +120,7 @@ export class StateView {
     for (const [key, title, hint] of order) {
       const list = this.buckets[key];
       if (!list.length) continue;
-      const hidden = key === 'computed' && !this.showComputed && !q;
+      const hidden = key === 'computed' && !this.showComputed && !q && !(this.hit && list.some((a) => this.hits(a, a.name)));
       const rows = h('div', { class: 'attrs', role: 'list', 'aria-label': title });
       let n = 0;
       if (!hidden) {
@@ -130,6 +143,15 @@ export class StateView {
     if (sw) sw.click();
   }
 
+  // hits reports whether an attribute, or anything under it, is a value that a field or value term asks for
+  hits(a, path) {
+    const f = this.hit;
+    if (!f || a.redacted || a.sensitive || a.unknown || a.null) return false;
+    const kids = a.children || [];
+    if (kids.length) return kids.some((k) => this.hits(k, path + '.' + k.name));
+    return a.value !== undefined && a.value !== null && typeof a.value !== 'object' && f(path, a.value);
+  }
+
   // matches reports whether an attribute, or anything under it, matches the filter.
   matches(a) {
     const q = this.q;
@@ -149,7 +171,8 @@ export class StateView {
     const kids0 = a.children || [];
     const v = this.value(a, kids0, path);
     const kids = v.leaf ? [] : kids0;
-    const open = kids.length ? (q ? true : this.ctx.open.has(path) ? this.ctx.open.get(path) : depth === 0 && kids.length <= 4 && !kids.some((k) => (k.children || []).length)) : false;
+    const hitHere = this.hit ? this.hits(a, path) : false;
+    const open = kids.length ? (q ? true : this.ctx.open.has(path) ? this.ctx.open.get(path) : hitHere || (depth === 0 && kids.length <= 4 && !kids.some((k) => (k.children || []).length))) : false;
     const hasKids = kids.length > 0;
     const isChanged = this.changed.has(path) || [...this.changed].some((c) => c.startsWith(path + '.'));
     const flash = this.prev && !hasKids && this.prev.get(path) !== JSON.stringify([a.redacted || '', !!a.sensitive, !!a.unknown, !!a.null, a.value === undefined ? null : a.value]);
@@ -161,7 +184,7 @@ export class StateView {
     if (kind.includes('computed') && (kind.includes('optional') || kind.includes('required'))) tags.push(h('em', { class: 'tg cmp' }, 'computed'));
     if (a.deprecated) tags.push(h('em', { class: 'tg dep' }, 'deprecated'));
     const nameEl = h('span', { class: 'an' + (idx ? ' idx' : '') }, idx ? `[${a.name}]` : a.name);
-    const row = h('div', { class: 'attr' + (isChanged ? ' changed' : '') + (hasKids ? ' group' + (open ? ' open-kids' : '') : '') + (locked ? ' locked' : '') + (v.block ? ' blk' : '') + (depth ? ' nested' : '') + (flash ? ' flash' : ''), role: 'listitem', style: `--d:${depth}` },
+    const row = h('div', { class: 'attr' + (isChanged ? ' changed' : '') + (hasKids ? ' group' + (open ? ' open-kids' : '') : '') + (locked ? ' locked' : '') + (hitHere ? (hasKids ? ' hit-in' : ' hit') : '') + (v.block ? ' blk' : '') + (depth ? ' nested' : '') + (flash ? ' flash' : ''), role: 'listitem', style: `--d:${depth}` },
       h('div', { class: 'at' },
         h('div', { class: 'ar' },
           hasKids ? h('button', { class: 'twist' + (open ? ' open' : ''), type: 'button', 'aria-expanded': open ? 'true' : 'false', 'aria-label': (open ? 'Collapse ' : 'Expand ') + a.name, on: { click: () => this.toggle(path, open) } }, icon('chev')) : null,
@@ -169,6 +192,12 @@ export class StateView {
         h('div', { class: 'am' }, a.type ? h('span', { class: 'ty' }, a.type) : null, tags)),
       h('div', { class: 'av' }, v.el));
     if (v.copy !== undefined) row.append(copyButton(() => v.copy, { label: `Copy the value of ${a.name}`, tip: 'Copy the value', cls: 'row-cp', announce: this.ctx.announce, done: 'Copied the value' }));
+    // a plain value is a way to find the nodes that hold the same: the server searches the values that it sends
+    const fv = !locked && !hasKids && !a.unknown && !a.null && !this.d.bare ? facetValue(a.value) : null;
+    if (fv !== null && this.ctx.onFacet) {
+      row.append(h('button', { class: 'row-fx', type: 'button', 'aria-label': `Show the nodes with ${path} = ${fv}`, 'data-tip': 'Show the nodes with this value (shift: hide them, alt: under any name)',
+        on: { click: (ev) => { ev.stopPropagation(); if (ev.altKey) this.ctx.onFacet('value', fv, ev.shiftKey); else this.ctx.onFacet('field', path + '=' + fv, ev.shiftKey); } } }, icon('search')));
+    }
     host.append(row);
     if (hasKids && open) {
       const box = h('div', { class: 'kids', role: 'list', style: `--d:${depth + 1}` });

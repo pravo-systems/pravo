@@ -10,7 +10,6 @@
 
 /* ---- the palette of the canvas ---- */
 :root {
-  --th0: 232; --th1: 192; --th2: 272; --th3: 312; --th4: 212; /* the tints of the top-level namespaces */
   --pvh0: 196; --pvh1: 212; --pvh2: 236; --pvh3: 262; --pvh4: 292; --pvh5: 322; /* the tints of providers */
   --tn-s: 62%; --tn-l: 46%; --tn-a: .09; --tn-text: 32%; /* lane: saturation, lightness, wash, title */
   --pv-s: 58%; --pv-l: 38%; --pv-lx: 26%; --pv-a: .13; /* saturation, lightness, the lightness of the second look, wash */
@@ -55,10 +54,9 @@
 .graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; overflow: hidden; text-rendering: geometricPrecision; --lab: 1; --sub: 1; }
 .vp { transform-origin: 0 0; }
 
-/* ---- lanes: an open namespace is a quiet panel in the tint of its top-level namespace ---- */
-.lane, .lane-head { --th: var(--th0); }
-.lane[data-tint="1"], .lane-head[data-tint="1"] { --th: var(--th1); } .lane[data-tint="2"], .lane-head[data-tint="2"] { --th: var(--th2); }
-.lane[data-tint="3"], .lane-head[data-tint="3"] { --th: var(--th3); } .lane[data-tint="4"], .lane-head[data-tint="4"] { --th: var(--th4); }
+/* ---- lanes: an open namespace is a quiet panel in the tint of its provider, when its resources all use one, and a neutral grey otherwise ---- */
+/* the provider tints come from the look of the provider; the tile of a node, the dot and a namespace share them */
+.neutral { --th: 164; --tn-s: 10%; --pv-s: 10%; }
 .lane .band { fill: hsl(var(--th) var(--tn-s) var(--tn-l) / var(--tn-a)); stroke: hsl(var(--th) var(--tn-s) var(--tn-l) / .3); stroke-width: 1; vector-effect: non-scaling-stroke; transition: stroke var(--t-fast), fill var(--t-fast); }
 .lane-head .hit { fill: transparent; cursor: pointer; }
 .lane-head .hs { transform: scale(min(var(--ls, 1), var(--cap, 1))); transform-origin: 0 0; }
@@ -99,7 +97,7 @@
 .lod-low .ec { opacity: 0; }
 .lod-far .ge { marker-end: none; }
 /* far out the text is gone (opacity 0 already): taking it out of the tree makes a heavy picture cheap to zoom */
-.lod-far .node :is(.nm, .ty, .tile, .mk, .act), .lod-far .ns-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .cluster-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .ec { display: none; }
+.lod-far .node :is(.nm, .ty, .tile, .mk, .act, .kb), .lod-far .ns-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .cluster-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .ec { display: none; }
 .lod-far .node .ring { animation: none; }
 
 /* ---- items ---- */
@@ -121,18 +119,27 @@
 .gl .gs { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* the status bar at the left edge, and the tile with the monogram of the provider */
-.node, .pvdot { --pvb: var(--pvh0); }
-:is(.node, .pvdot).pv1 { --pvb: var(--pvh1); } :is(.node, .pvdot).pv2 { --pvb: var(--pvh2); } :is(.node, .pvdot).pv3 { --pvb: var(--pvh3); } :is(.node, .pvdot).pv4 { --pvb: var(--pvh4); } :is(.node, .pvdot).pv5 { --pvb: var(--pvh5); }
-.node, .pvdot { --pvh: var(--pvb); }
+.node, .pvdot, .pvl { --pvb: var(--pvh0); }
+:is(.node, .pvdot, .pvl).pv1 { --pvb: var(--pvh1); } :is(.node, .pvdot, .pvl).pv2 { --pvb: var(--pvh2); } :is(.node, .pvdot, .pvl).pv3 { --pvb: var(--pvh3); } :is(.node, .pvdot, .pvl).pv4 { --pvb: var(--pvh4); } :is(.node, .pvdot, .pvl).pv5 { --pvb: var(--pvh5); }
+.node, .pvdot, .pvl { --pvh: var(--pvb); }
+.pvl { --th: var(--pvh); }
 /* a second look for a provider instance: the hue moves on and the lightness steps away from the base, deeper on both themes */
-:is(.node, .pvdot).pvx { --pvh: calc(var(--pvb) + 16); --pv-l: var(--pv-lx); }
+:is(.node, .pvdot, .pvl).pvx { --pvh: calc(var(--pvb) + 16); --pv-l: var(--pv-lx); }
 .pvdot { display: inline-block; width: .6em; height: .6em; border-radius: 50%; margin-right: .5em; vertical-align: baseline; background: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .85); }
 .node .bar, .ns-item .bar, .cluster-item .bar { fill: hsl(var(--pvh, var(--th)) var(--pv-s) var(--pv-l) / .75); }
 .node .tb { fill: hsl(var(--pvh) var(--pv-s) var(--pv-l) / var(--pv-a)); stroke: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .28); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .node .tm { font: 600 10px var(--font-mono); text-anchor: middle; fill: hsl(var(--pvh) var(--pv-s) var(--pv-l)); letter-spacing: .02em; opacity: var(--sub); }
 .node.m-ephemeral .tb { stroke-dasharray: 3 2.5; stroke: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .75); fill: hsl(var(--pvh) var(--pv-s) var(--pv-l) / calc(var(--pv-a) * .4)); }
 .node .tile, .node .act, .ns-item .pb, .cluster-item .pb, .ns-item .cico, .cluster-item .cico { opacity: var(--lab); transition: opacity .2s; }
-.node.m-data .box { fill: color-mix(in srgb, var(--g-card) 70%, var(--bg)); }
+.node.m-data .box { fill: color-mix(in srgb, var(--g-card) 70%, var(--bg)); stroke-dasharray: 1.5 3; stroke-linecap: round; stroke-width: 1.5; }
+.node.m-ephemeral .box { fill: color-mix(in srgb, var(--g-card) 45%, transparent); stroke-dasharray: 5 3; }
+.node.m-ephemeral :is(.nm, .ty) { font-style: italic; }
+.node:is(.m-output, .m-env) .box { fill: color-mix(in srgb, var(--text-3) 9%, var(--g-card)); }
+.node .kb .kbr { fill: var(--bg); stroke: var(--g-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.node .kb .kbg { color: var(--text-2); }
+.node .kb .kbg .gs { stroke-width: 1.8; }
+.node .kb .kbt { font: 500 9.5px var(--font-mono); fill: var(--text-2); }
+.node .kb { opacity: var(--lab); transition: opacity .2s; }
 .node.drifted .bar { fill: var(--change); } .node.gone .bar, .node.orphan .bar { fill: var(--conflict); }
 .node.a-create .bar { fill: var(--accent); } .node.a-update .bar, .node.a-replace .bar { fill: var(--change); } .node.a-delete .bar { fill: var(--conflict); }
 .node.a-read .bar, .node.a-move .bar, .node.a-import .bar { fill: var(--key); }
@@ -152,9 +159,7 @@
 .node.gone .box { stroke: var(--conflict); stroke-dasharray: 6 3; }
 .mk { opacity: var(--sub); transition: opacity .2s; }
 /* an output: a card like the others, with the bar and the tile in the colour of structure */
-.node.m-output .bar { fill: color-mix(in srgb, var(--key) 78%, transparent); }
-.node.m-output .tb { fill: color-mix(in srgb, var(--key) 14%, var(--surface)); stroke: color-mix(in srgb, var(--key) 38%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.node.m-output .mk-out, .node .mk-env { color: var(--key); }
+.node.m-output .mk-out, .node .mk-env { color: var(--text-2); }
 .node.m-output.sel .mk-out, .node.m-output.hov .mk-out, .node.sel .mk-env, .node.hov .mk-env { color: var(--text); }
 .node.m-output.orphan .box { stroke-dasharray: 2 3; }
 .mk-lock, .mk-hold { color: var(--key); } .mk-drift { color: var(--change); } .mk-gone, .mk-orphan { color: var(--conflict); } .mk-hold { color: var(--change); }
@@ -168,9 +173,6 @@
 .node.flash .halo { stroke: var(--accent); stroke-width: 2; animation: flash 1.5s ease-out both; }
 
 /* collapsed namespaces and groups: cards on a stack, with a cell for every resource */
-.ns-item, .cluster-item { --th: var(--th0); }
-.ns-item.tn1, .cluster-item.tn1 { --th: var(--th1); } .ns-item.tn2, .cluster-item.tn2 { --th: var(--th2); }
-.ns-item.tn3, .cluster-item.tn3 { --th: var(--th3); } .ns-item.tn4, .cluster-item.tn4 { --th: var(--th4); }
 .ns-item .bar { fill: hsl(var(--th) var(--pv-s) var(--pv-l) / .9); }
 .cluster-item .bar { fill: var(--text-3); opacity: .7; }
 .ns-item .box { stroke: hsl(var(--th) var(--tn-s) var(--tn-l) / .45); }
@@ -280,3 +282,9 @@
 .reachbar { top: .5rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .8rem; padding: .4rem .5rem .4rem .8rem; border: 1px solid var(--change); border-radius: 999px; background: var(--surface); font: 400 .76rem/1 var(--font-mono); color: var(--text); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
 .reachbar b { font-weight: 500; }
 .reachbar button { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-2); }
+
+/* the kind and the provider of a card filter the graph */
+.node .fx { cursor: pointer; pointer-events: all; }
+.node .tile.fx:hover .tb { stroke-width: 2; stroke: var(--accent); }
+.node .kb.fx:hover .kbr { stroke: var(--accent); stroke-width: 1.5; }
+.node .kb.fx:hover :is(.kbt, .kbg) { fill: var(--text); color: var(--text); }

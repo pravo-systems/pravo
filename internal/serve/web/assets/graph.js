@@ -12,6 +12,7 @@ import { G, FIT, fitScale, pathOf, midOf, lengthOf } from './layout.js';
 import { eachNode, cellsOf, isOut, isEnv } from './model.js';
 import { initials, hueOf } from './plans.js';
 import { providerOf, pvClass } from './provider.js';
+import { ENTITY_LABEL } from './query.js';
 
 // glyphs on a 16 by 16 grid
 const GLYPH = {
@@ -27,9 +28,20 @@ const GLYPH = {
   plus: [['line', 'M8 3.5v9M3.5 8h9']],
   // an output: a value leaves the root through a door
   out: [['line', 'M7 3.5H3.6v9H7M7.6 8h5.8M11 5.4L13.6 8 11 10.6']],
+  // a data source reads: an eye; an ephemeral resource lives for a run: an hourglass
+  eye: [['line', 'M1.8 8S4.2 3.8 8 3.8 14.2 8 14.2 8 11.8 12.2 8 12.2 1.8 8 1.8 8zM8 6.2a1.8 1.8 0 1 0 .01 0z']],
+  glass: [['line', 'M4 2.8h8M4 13.2h8M5 2.8c0 3 3 3.4 3 5.2s-3 2.2-3 5.2M11 2.8c0 3-3 3.4-3 5.2s3 2.2 3 5.2']],
   // an environment variable: a dollar sign
   env: [['line', 'M10.6 5.3C10.1 4.3 9.1 3.8 8 3.8c-1.4 0-2.4.7-2.4 1.8 0 2.4 4.9 1.2 4.9 3.8 0 1.1-1 1.9-2.5 1.9-1.1 0-2.1-.5-2.6-1.4M8 2.4v1.4M8 12.2v1.4']],
 };
+
+// facet marks an element of a card as a way to filter: a click shows only what holds the value, shift hides it
+function facet(el, col, value, label) {
+  el.dataset.facet = col + ':' + value;
+  el.classList.add('fx');
+  el.append(s('title', null, label));
+  return el;
+}
 
 function glyph(name, x, y, size, cls) {
   const g = s('g', { class: 'gl' + (cls ? ' ' + cls : ''), transform: `translate(${x} ${y}) scale(${size / 16})` });
@@ -39,11 +51,11 @@ function glyph(name, x, y, size, cls) {
 
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
-  if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.tint, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
+  if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.look, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   const pi = plansIn(x, ctx);
-  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.tint, x.h, x.kind === 'namespace' ? x.ns.kids.length : ''].join('|');
+  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.look, x.h, x.kind === 'namespace' ? x.ns.kids.length : ''].join('|');
 }
 
 const trunc = (t, n) => (t.length > n ? t.slice(0, Math.max(1, n - 1)) + '…' : t);
@@ -62,6 +74,7 @@ export function nodeClasses(n, ctx) {
   if (n.presence === 'spec') c += ' spec';
   if (n.presence === 'state') c += ' orphan';
   if (n.mode && n.mode !== 'managed') c += ' m-' + n.mode;
+  if (isEnv(n)) c += ' m-env';
   if (n.overlap) c += ' overlap';
   return c;
 }
@@ -131,13 +144,37 @@ const stateMarks = (agg) => {
 // motion that settles with a little give
 const spring = (t) => { if (t <= 0) return 0; if (t >= 1) return 1; const c = 0.8, u = t - 1; return 1 + (c + 1) * u * u * u + c * u * u; };
 
-const tintOf = (ns) => {
-  let m = ns;
-  if (!m || m.isRoot) return -1;
-  while (m.up && !m.up.isRoot) m = m.up;
-  return m.up ? m.up.kids.indexOf(m) : -1;
-};
-export const TINTS = 5;
+// How a namespace is coloured: a namespace whose resources all use one provider instance has the look of that
+// provider (the class of its tile), and any other namespace is neutral, so is one that holds only built-in values and
+// outputs. The built-in values, the environment variables and the outputs belong to no provider and do not count.
+const looks = new WeakMap();
+const unowned = (n) => isOut(n) || isEnv(n) || n.mode === 'call' || n.mode === 'builtin';
+function lookOfNodes(nodes) {
+  let first = null;
+  for (const n of nodes) {
+    if (unowned(n)) continue;
+    if (!first) first = n;
+    else if ((n.provider || '') !== (first.provider || '') || (!n.provider && n.type.split('_')[0] !== first.type.split('_')[0])) return null;
+  }
+  return first ? providerOf(first.type, first.provider) : null;
+}
+function lookOf(ns) {
+  if (!ns || ns.isRoot) return null;
+  if (!looks.has(ns)) {
+    const all = [];
+    eachNode(ns, (n) => all.push(n));
+    looks.set(ns, lookOfNodes(all));
+  }
+  return looks.get(ns);
+}
+const lookClass = (p) => (p ? 'pvl ' + pvClass(p) : 'neutral');
+const LOOK_CLASSES = /^(pvl|neutral|pv\d|pvx)$/;
+// setLook gives an element the classes of a look and takes off the ones of the look it had
+function setLook(el, p) {
+  const next = lookClass(p).split(' ');
+  for (const c of [...el.classList]) if (LOOK_CLASSES.test(c)) el.classList.remove(c);
+  el.classList.add(...next);
+}
 
 export class GraphView {
   constructor(host, cb) {
@@ -228,7 +265,7 @@ export class GraphView {
     for (const it of vis.order) {
       const p = lay.pos.get(it.id);
       seen.add(it.id);
-      it.tint = tintOf(it.kind === 'node' ? it.n.ns : it.ns);
+      it.look = it.kind === 'namespace' ? lookClass(lookOf(it.ns)) : it.kind === 'cluster' ? lookClass(lookOfNodes(it.members)) : '';
       let r = this.items.get(it.id);
       if (!r) {
         r = this.createItem(it);
@@ -292,9 +329,9 @@ export class GraphView {
         el.style.setProperty('--i', String(li));
       }
       li++;
-      L.tint = ((tintOf(ns) % TINTS) + TINTS) % TINTS;
-      r.g.setAttribute('data-tint', String(L.tint));
-      r.hg.setAttribute('data-tint', String(L.tint));
+      L.look = lookOf(ns);
+      setLook(r.g, L.look);
+      setLook(r.hg, L.look);
       r.from = Object.assign({}, r.box);
       r.to = { x: L.x, y: L.y, w: L.w, h: L.h };
       if (!animate) { r.box = Object.assign({}, r.to); this.placeLane(r); } else { moves.lanes.push(r); this.placeLane(r); }
@@ -503,7 +540,7 @@ export class GraphView {
     const marks = [];
     if (n.sensitive > 0) marks.push('lock');
     if (n.presence === 'state') marks.push('orphan');
-    const g = s('g', { class: nodeClasses(n, this.ctx), role: 'button', 'aria-label': describeNode(n, this.ctx) });
+    const g = s('g', { class: nodeClasses(n, this.ctx) + ' neutral', role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
     inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
     if (this.ctx.hasPlan && n.action && n.action !== 'no-op') inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 9 }));
@@ -513,8 +550,7 @@ export class GraphView {
     tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 6 }), glyph('out', 5, 5, 16, 'mk mk-out'));
     inn.append(tile);
     const nameRoom = W - 52 - (badge ? 34 : 14);
-    inn.append(s('text', { class: 'nm', x: 53, y: 22.5 }, trunc(n.name, chars(nameRoom, 14))));
-    inn.append(s('text', { class: 'ty', x: 53, y: 40 }, 'output'));
+    inn.append(s('text', { class: 'nm', x: 53, y: H / 2 + 5 }, trunc(n.name, chars(nameRoom, 14))));
     if (badge) {
       const b = s('g', { class: 'act', transform: `translate(${W - 26} 8)` });
       b.append(s('circle', { class: 'ab', cx: 8, cy: 8, r: 8 }), s('path', { class: 'ag', d: act.glyph, transform: 'translate(2 2)' }));
@@ -522,6 +558,7 @@ export class GraphView {
     }
     let mx = W - 12 - 13;
     for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
+    inn.append(this.kindBadge('output', H));
     g.append(inn);
     return g;
   }
@@ -538,7 +575,7 @@ export class GraphView {
     const act = actionOf(n.action);
     const badge = !!(act && act.glyph);
     const pv = providerOf(n.type, n.provider);
-    const g = s('g', { class: nodeClasses(n, this.ctx) + ' ' + pvClass(pv), role: 'button', 'aria-label': describeNode(n, this.ctx) });
+    const g = s('g', { class: nodeClasses(n, this.ctx) + ' ' + (unowned(n) ? 'neutral' : pvClass(pv)), role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
     inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
     if (n.drifted || n.gone || (this.ctx.hasPlan && n.action && n.action !== 'no-op')) inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 9 }));
@@ -548,11 +585,12 @@ export class GraphView {
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
     tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: n.mode === 'data' ? 13 : 6 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
+    if (n.provider && !isEnv(n)) facet(tile, 'provider', n.provider, `Show only ${n.provider} (shift: hide it)`);
     inn.append(tile);
     const nameRoom = W - 52 - (badge ? 34 : 14);
-    inn.append(s('text', { class: 'nm', x: 53, y: 22.5 }, trunc(n.name, chars(nameRoom, 14))));
-    const ty = (n.mode && n.mode !== 'managed' ? n.mode + '.' : '') + n.type;
-    inn.append(s('text', { class: 'ty', x: 53, y: 40 }, trunc(ty, chars(W - 53 - 12 - marks.length * 16, 11))));
+    // an environment variable has the kind in its badge and no type to show
+    inn.append(s('text', { class: 'nm', x: 53, y: isEnv(n) ? H / 2 + 5 : 22.5 }, trunc(n.name, chars(nameRoom, 14))));
+    if (!isEnv(n)) inn.append(s('text', { class: 'ty', x: 53, y: 40 }, trunc(n.type, chars(W - 53 - 12 - marks.length * 16, 11))));
     if (badge) {
       const b = s('g', { class: 'act', transform: `translate(${W - 26} 8)` });
       b.append(s('circle', { class: 'ab', cx: 8, cy: 8, r: 8 }), s('path', { class: 'ag', d: act.glyph, transform: 'translate(2 2)' }));
@@ -560,10 +598,21 @@ export class GraphView {
     }
     let mx = W - 12 - 13;
     for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
+    const kind = isEnv(n) ? 'env' : n.mode === 'data' || n.mode === 'ephemeral' ? n.mode : '';
+    if (kind) inn.append(this.kindBadge(kind, H));
     const aus = this.authorBadges(authorsOf(n, this.ctx), W);
     if (aus) inn.append(aus);
     g.append(inn);
     return g;
+  }
+
+  // kindBadge hangs on the bottom edge at the left of a node (a stack of a collapsed namespace hangs below its card, so the top edge has no room) that is not a plain resource: a glyph and the kind
+  kindBadge(mode, H) {
+    const label = ENTITY_LABEL[mode] || mode;
+    const word = mode, w = 24 + word.length * 5.8;
+    const g = s('g', { class: 'kb', transform: `translate(15 ${H})` });
+    g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 7 }), glyph({ data: 'eye', ephemeral: 'glass', output: 'out', env: 'env' }[mode], 5, -5.5, 11, 'kbg'), s('text', { class: 'kbt', x: 19, y: 3.4 }, word));
+    return facet(g, 'entity', mode, `Show only ${label.toLowerCase()}s (shift: hide them)`);
   }
 
   // authorBadges hang on the top edge of a node that open stored plans change: a disc with the initial of the author
@@ -598,7 +647,7 @@ export class GraphView {
     const W = it.w, H = it.h;
     const isNs = it.kind === 'namespace';
     const agg = it.agg;
-    const pv = it.tint >= 0 ? ' tn' + (it.tint % TINTS) : '';
+    const pv = it.look ? ' ' + it.look : '';
     const outs = it.mode === 'output';
     const outsNote = agg.out ? `, ${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
     const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isNs ? `namespace ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
@@ -1251,6 +1300,13 @@ export class GraphView {
     // a disc of an author is a way into the plan that it stands for
     const disc = target.closest && target.closest('[data-plan]');
     if (disc) { this.cb.onPlan(disc.dataset.plan); return; }
+    // the kind and the provider of a card filter the graph
+    const fx = target.closest && target.closest('[data-facet]');
+    if (fx && this.cb.onFacet) {
+      const i = fx.dataset.facet.indexOf(':');
+      this.cb.onFacet(fx.dataset.facet.slice(0, i), fx.dataset.facet.slice(i + 1), !!(ev && ev.shiftKey));
+      return;
+    }
     const act = target.closest && target.closest('[data-act]');
     const el = target.closest && target.closest('[data-id]');
     if (act && el) {
@@ -1335,7 +1391,7 @@ export class Minimap {
   refreshColors() {
     const cs = getComputedStyle(this.canvas);
     const g = (n) => cs.getPropertyValue(n).trim() || '#888';
-    this.colors = { line: g('--line-strong'), text: g('--text-3'), accent: g('--accent'), change: g('--change'), conflict: g('--conflict'), key: g('--key'), overlap: g('--overlap'), surface: g('--surface-3'), hue: [0, 1, 2, 3, 4].map((i) => parseFloat(g('--th' + i)) || 232), lane: g('--mm-lane') || '60% 62%' };
+    this.colors = { line: g('--line-strong'), text: g('--text-3'), accent: g('--accent'), change: g('--change'), conflict: g('--conflict'), key: g('--key'), overlap: g('--overlap'), surface: g('--surface-3'), pvh: [0, 1, 2, 3, 4, 5].map((i) => parseFloat(g('--pvh' + i)) || 232), lane: g('--mm-lane') || '60% 62%' };
   }
 
   draw() {
@@ -1362,11 +1418,12 @@ export class Minimap {
     this.root.classList.toggle('off', whole);
     const [ls, ll] = col.lane.split(' ').map((v) => parseFloat(v));
     for (const L of gv.lay.lanes) {
-      const hue = col.hue[L.tint || 0];
-      ctx.fillStyle = `hsla(${hue}, ${ls}%, ${ll}%, ${L.depth ? 0.1 : 0.14})`;
+      const hue = L.look ? col.pvh[L.look.hue] + (L.look.alt ? 16 : 0) : 220;
+      const sat = L.look ? ls : 6;
+      ctx.fillStyle = `hsla(${hue}, ${sat}%, ${ll}%, ${L.depth ? 0.1 : 0.14})`;
       roundRect(ctx, L.x * f + ox, L.y * f + oy, Math.max(1.5, L.w * f), Math.max(1.5, L.h * f), 2);
       ctx.fill();
-      ctx.strokeStyle = `hsla(${hue}, ${ls}%, ${ll}%, .45)`;
+      ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${ll}%, .45)`;
       ctx.lineWidth = 1;
       ctx.stroke();
     }

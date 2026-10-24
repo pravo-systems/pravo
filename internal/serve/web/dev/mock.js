@@ -327,6 +327,34 @@ window.fetch = async (input, init) => {
     if (files[addr] && mutations === 0 && !n.sealed) { const v = await fixture(files[addr]); if (v) return json(200, shift(v, by)); }
     return json(200, kind === 'detail' ? synthDetail(n) : synthSource(n));
   }
+  if (p === '/api/fields') {
+    // the same rules as the server: only what the detail sends, a path that names a field or what lies below it, * for any run
+    const spec = (url.searchParams.get('q') || '').toLowerCase().trim();
+    const eq = spec.indexOf('=');
+    const path = (eq < 0 ? spec : spec.slice(0, eq)).trim(), value = eq < 0 ? null : spec.slice(eq + 1);
+    const glob = (pat, s) => new RegExp('^' + pat.split('*').map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$').test(s);
+    const bare = !/[.*]/.test(path);
+    const pathOk = (pp) => { for (;;) { if (bare ? pp === path || pp.endsWith('.' + path) : glob(path, pp)) return true; const i = pp.lastIndexOf('.'); if (i < 0) return false; pp = pp.slice(0, i); } };
+    const rows = (a, pp, out) => {
+      if (a.redacted || a.sensitive || a.unknown || a.null) return out;
+      if ((a.children || []).length) { for (const c of a.children) rows(c, pp + '.' + c.name, out); return out; }
+      if (a.value !== undefined && a.value !== null && typeof a.value !== 'object') out.push([pp.toLowerCase(), String(a.value).toLowerCase()]);
+      return out;
+    };
+    const addrs = [];
+    if (path) {
+      for (const n of graph.nodes) {
+        if (n.sealed) continue;
+        // the detail that the page would get: a fixture where there is one
+        let d = detailFiles[n.addr] && mutations === 0 && !n.sealed ? await fixture(detailFiles[n.addr]) : null;
+        if (!d) d = n.mode === 'output' ? synthOutput(n) : synthDetail(n);
+        if (!d.schema_known) continue;
+        const all = (d.attrs || []).flatMap((a) => rows(a, a.name, []));
+        if (all.some(([pp, v]) => pathOk(pp) && (value === null || glob(value, v)))) addrs.push(n.addr);
+      }
+    }
+    return json(200, { version: 1, addrs, indexed: graph.nodes.length, withheld: 0 });
+  }
   if (p === '/api/search') {
     const q = (url.searchParams.get('q') || '').toLowerCase();
     return json(200, { version: 1, nodes: graph.nodes.filter((n) => n.addr.includes(q)).slice(0, 50), namespaces: graph.namespaces.filter((m) => m.path.includes(q)) });

@@ -428,6 +428,23 @@ type Search struct {
 	Namespaces []Namespace `json:"namespaces"`
 }
 
+// Fields is GET /api/fields?q=path=value: the nodes whose recorded attributes
+// hold the value at the path. A path is dotted ("tags.env", "rule.0.cidr"), a
+// path with no dot also names a field of that name anywhere ("region"), and *
+// stands for any run of characters in a path or a value. A path with no value
+// ("region") matches the nodes that hold the field. Matching ignores case and a
+// value is matched whole. Only what the record view sends can be searched: a
+// withheld value never matches, and the nodes whose values are withheld whole
+// (a sealed record, a type whose schema is not cached) are counted in Withheld.
+type Fields struct {
+	Version int      `json:"version"`
+	Addrs   []string `json:"addrs"`
+	// Indexed is the number of nodes whose values were searched, Withheld the
+	// number that could not be.
+	Indexed  int `json:"indexed"`
+	Withheld int `json:"withheld"`
+}
+
 // PlanCounts are the actions of a plan, as the plan prints them: a replace
 // counts as an add and a destroy.
 type PlanCounts struct {

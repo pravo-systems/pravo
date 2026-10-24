@@ -1,17 +1,17 @@
 // pravo serve: the page. It holds the view state, keeps it in the URL fragment, and connects the model, the
-// graph, the chips, the list, the inspector and the palette. It only reads: every request is a GET.
+// graph, the filter pills, the list, the inspector and the palette. It only reads: every request is a GET.
 
 import * as api from './api.js';
-import { buildModel, buildItems, firstView, touchedNamespaces, reveal, diffModels, FILTERS, CLUSTER_CAP, isChange, chain, isOut, isEnv } from './model.js';
+import { buildModel, buildItems, firstView, touchedNamespaces, reveal, diffModels, CLUSTER_CAP, isChange, chain, isOut, isEnv } from './model.js';
 import { layout } from './layout.js';
 import { GraphView, Minimap } from './graph.js';
-import { Chips } from './chips.js';
+import { Pills } from './pills.js';
 import { ListView } from './list.js';
 import { Inspector } from './inspector.js';
 import { Plans, planStrip, avatar, statusLabel } from './plans.js';
 import { AccessView } from './access.js';
 import { Palette, Sheet } from './palette.js';
-import { compileQuery, QueryMenu, addTerm, removeTerm } from './query.js';
+import { compileQuery, QueryMenu, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
 import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, pathParts, tilde, motionOn, tick } from './util.js';
 import { initTips } from './ui.js';
@@ -25,12 +25,12 @@ const S = {
   // graph is what the page draws; raw is what the server sent, and the stored plan that is laid over it (plan, with
   // its overlay when the server did not lay it itself) makes the difference
   graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null, access: null,
-  view: 'graph', sel: null, tab: null, filter: null, q: '',
+  view: 'graph', sel: null, tab: null, q: '',
   collapsed: new Set(), auto: new Set(), clusters: new Map(), trail: [],
   theme: null, motion: true, reach: false, zoom: 'fit',
   live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
-let gv, minimap, chips, list, insp, palette, sheet, conn, backBtn, plansList, accessView;
+let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView;
 let booted = false;
 
 // ---------------------------------------------------------------------------------------------------------
@@ -115,10 +115,10 @@ function readFragment() {
   return {
     sel: p.sel || null,
     tab: TABKEYS.includes(p.tab) ? p.tab : null,
-    filter: Object.hasOwn(FILTERS, p.filter) ? p.filter : null,
     // a stored plan by id, 'none' for no plan at all, '' for the plan the server laid over the graph (if any)
     plan: p.plan === 'none' || /^plan-[0-9a-f]{6,64}$/.test(p.plan || '') ? p.plan : '',
-    q: p.q || '',
+    // the old filter= is the chip of that name: its term goes in the text
+    q: Object.hasOwn(LEGACY_FILTERS, p.filter) ? addTerm(p.q || '', LEGACY_FILTERS[p.filter].col, LEGACY_FILTERS[p.filter].value, false) : p.q || '',
     // an address from before the view was renamed says table, or tree
     view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : 'graph',
     theme: p.theme === 'light' || p.theme === 'dark' ? p.theme : null,
@@ -146,7 +146,7 @@ function syncFragment() {
     if (expand.length && S.collapsed.size === 0) expand = ['all'];
     expand = expand.concat([...S.clusters.keys()].sort());
     const hash = writeFragment({
-      sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, filter: S.filter, plan: planFragment(), q: S.q,
+      sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q,
       view: S.view, theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
       motion: S.motion ? '' : 'off', zoom: S.zoom,
     });
@@ -391,7 +391,8 @@ function applyPlan() {
   S.collapsed = new Set(S.auto);
   S.clusters = new Map();
   if (S.sel && !(S.model.nodes.has(S.sel) || S.model.namespaces.has(S.sel))) { S.sel = null; S.reach = false; S.tab = null; }
-  if (S.filter === 'plan' && !S.model.hasPlan) S.filter = null; // the filter is of the plan, and there is none
+  // the filter is of the plan, and there is none
+  if (!S.model.hasPlan && /plan:/i.test(S.q)) { S.q = removeValues(S.q, 'plan', ['any']); $('filter-q').value = S.q; }
   revealSel({ collapse: [], expand: [] }, S.sel);
   insp.invalidate();
   palette.setModel(S.model);
@@ -410,6 +411,8 @@ function applyPlan() {
 
 // setModel makes the model of the graph that the page opens with, and the namespaces that its link asks to open or close.
 function setModel(g, frag) {
+  fieldGen++; fieldHits.clear(); fieldWait.clear();
+  ensureFields();
   S.graph = g;
   S.model = buildModel(g, S.plans);
   S.model.planParam = planParam();
@@ -529,13 +532,12 @@ function setReach(on, fitIt) {
 }
 
 function matchSet() {
-  if (!S.filter && !S.q) return null;
-  const f = S.filter ? FILTERS[S.filter] : null;
+  if (!S.q) return null;
   const q = compileQuery(S.q);
   const set = new Set();
   let n = 0;
   for (const node of S.model.list) {
-    if ((!f || f(node)) && (!q || q(node))) {
+    if (!q || q(node)) {
       n++;
       const id = S.vis.rep.get(node.addr);
       if (id) set.add(id);
@@ -550,7 +552,7 @@ function applyMatch() {
   const set = matchSet();
   gv.setMatch(set);
   const c = $('match-count');
-  c.textContent = set || S.q || S.filter ? plural(S.matches, 'match', 'matches') : '';
+  c.textContent = set || S.q ? plural(S.matches, 'match', 'matches') : plural(S.model.list.length, 'item');
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -795,13 +797,10 @@ function clusterAction(cid, act) {
 // ---------------------------------------------------------------------------------------------------------
 // filters, search, views
 
-function setFilter(f) {
-  S.filter = f || null;
-  renderSide();
-  applyMatch();
-  if (S.view === 'list') renderList();
-  syncFragment();
-  announce(f ? `Filter: ${f}` : 'No filter');
+// facetFilter is a click on a kind, a type or a provider where it is shown: only that, or with shift not that
+function facetFilter(col, value, neg) {
+  setQueryText(addTerm(S.q, col, value, neg));
+  announce(`${neg ? 'Hiding' : 'Showing only'} ${col} ${value}`);
 }
 
 // setQueryText puts the text in the box, as a click on a pill or on a cell does
@@ -810,8 +809,32 @@ function setQueryText(q) {
   setQuery(q);
 }
 
+// ensureFields asks the server for each field term of the filter that it has not answered, and shows the result when it
+// comes. What it answered is for one revision of the state: setModel forgets it.
+let fieldGen = 0;
+const fieldWait = new Set();
+function ensureFields() {
+  for (const spec of fieldSpecs(S.q)) {
+    if (fieldHits.has(spec) || fieldWait.has(spec)) continue;
+    fieldWait.add(spec);
+    const gen = fieldGen;
+    api.fields(spec).then((r) => r.addrs, () => null).then((addrs) => {
+      fieldWait.delete(spec);
+      if (gen !== fieldGen) return;
+      if (addrs === null) toast('The search of the values did not work.', 'error', 4000);
+      fieldHits.set(spec, new Set(addrs || []));
+      if (!fieldSpecs(S.q).includes(spec)) return;
+      applyMatch();
+      if (S.view === 'list') renderList();
+      renderSide();
+    });
+  }
+}
+
 function setQuery(q) {
   S.q = q;
+  ensureFields();
+  if (insp) insp.queryChanged();
   renderSide();
   applyMatch();
   if (S.view === 'list') renderList();
@@ -836,7 +859,7 @@ function setView(v) {
   if (v === 'graph' || v === 'list') S.lastResources = v;
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
   $('view-list').setAttribute('aria-pressed', v === 'list' ? 'true' : 'false');
-  $('sec-resources').setAttribute('aria-pressed', v === 'graph' || v === 'list' ? 'true' : 'false');
+  $('sec-inventory').setAttribute('aria-pressed', v === 'graph' || v === 'list' ? 'true' : 'false');
   $('sec-plans').setAttribute('aria-pressed', v === 'plans' ? 'true' : 'false');
   $('sec-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
   $('app').dataset.view = v;
@@ -846,7 +869,7 @@ function setView(v) {
   else if (v === 'access') renderAccess();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   syncFragment();
-  announce(v === 'list' ? 'Resources, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : 'Resources, graph view');
+  announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : 'Inventory, graph view');
 }
 
 // openPlan goes to the Plans page with the detail of a plan open under its row.
@@ -861,14 +884,14 @@ function renderAccess() {
 }
 
 function renderList() {
-  const n = list.render({ model: S.model, collapsed: S.collapsed, filter: S.filter, q: S.q, sel: S.sel });
+  const n = list.render({ model: S.model, collapsed: S.collapsed, q: S.q, sel: S.sel });
   const c = $('match-count');
-  c.textContent = S.q || S.filter ? plural(n, 'match', 'matches') : '';
+  c.textContent = S.q ? plural(n, 'match', 'matches') : plural(S.model.list.length, 'item');
 }
 
-// renderSide draws what the resources views share besides the graph: the chips, and the list when it is the view
+// renderSide draws what the resources views share besides the graph: the filter pills, and the list when it is the view
 function renderSide() {
-  chips.render({ model: S.model, filter: S.filter, q: S.q });
+  pills.render(S.q);
   if (S.view === 'list') renderList();
 }
 
@@ -1302,6 +1325,7 @@ function wire() {
     onToggleNamespace: toggleNamespace,
     onOpenNamespace: openNamespace,
     onPlan: openPlan,
+    onFacet: facetFilter,
     onCluster: clusterAction,
     onClear: clearSelection,
     onView: () => minimapDraw(),
@@ -1313,9 +1337,9 @@ function wire() {
   backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, 'aria-label': 'Zoom out of the namespace that was opened (Escape)', on: { click: () => backOut() } },
     svgEl('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('circle', { cx: 7, cy: 7, r: 4.6 }), svgEl('path', { d: 'M5 7h4M10.6 10.6L14 14' })), h('span', { class: 'bl' }, 'Zoom out'), h('kbd', null, 'esc'));
   $('canvas').append(backBtn);
-  chips = new Chips($('chips'), { onFilter: setFilter, onRemoveTerm: (raw) => setQueryText(removeTerm(S.q, raw)) });
+  pills = new Pills($('pills'), { onRemoveTerm: (raw) => setQueryText(removeTerm(S.q, raw)) });
   list = new ListView($('list-pane'), {
-    onFacet: (col, value, neg) => { setQueryText(addTerm(S.q, col, value, neg)); announce(`${neg ? 'Hiding' : 'Showing only'} ${col} ${value}`); },
+    onFacet: facetFilter,
     onToggle: toggleNamespace,
     onSelectNode: (a) => selectNode(a),
     onSelectNamespace: (p) => selectNamespace(p),
@@ -1325,6 +1349,8 @@ function wire() {
   accessView = new AccessView($('access-pane'));
   insp = new Inspector($('insp'), {
     onPlan: (id) => selectPlan(id),
+    onFacet: facetFilter,
+    fieldMatch: () => fieldMatcher(S.q),
     onSelectNode: (a) => selectNode(a, { center: true }),
     onSelectNamespace: (p) => selectNamespace(p, { center: true }),
     onTab: setTab,
@@ -1352,7 +1378,7 @@ function wire() {
 
   $('view-graph').addEventListener('click', () => setView('graph'));
   $('view-list').addEventListener('click', () => setView('list'));
-  $('sec-resources').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); });
+  $('sec-inventory').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); });
   $('sec-plans').addEventListener('click', () => setView('plans'));
   $('sec-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
@@ -1382,7 +1408,7 @@ function wire() {
   if (brand) brand.addEventListener('click', (ev) => {
     ev.preventDefault();
     if (!S.model) return;
-    applyExternal(Object.assign(readFragment(), { sel: null, tab: null, filter: null, q: '', collapse: [], expand: [], zoom: 'fit', palette: false, help: false }));
+    applyExternal(Object.assign(readFragment(), { sel: null, tab: null, q: '', collapse: [], expand: [], zoom: 'fit', palette: false, help: false }));
     gv.fit(true);
     syncFragment();
   });
@@ -1396,7 +1422,7 @@ function wire() {
   const q = $('filter-q');
   let qt = 0;
   q.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(() => setQuery(q.value), 120); });
-  new QueryMenu(q, q.closest('.filterbox'), { model: () => S.model, scope: () => (S.filter ? FILTERS[S.filter] : null), change: (v) => { clearTimeout(qt); setQuery(v); } });
+  new QueryMenu(q, q.closest('.filterbox'), { model: () => S.model, change: (v) => { clearTimeout(qt); setQuery(v); } });
   document.addEventListener('keydown', onKey);
   window.addEventListener('hashchange', () => { if (booted) applyExternal(readFragment()); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(S.theme, false));
@@ -1429,7 +1455,6 @@ function applyView(f) {
   S.collapsed = base;
   S.trail = [];
   updateBack();
-  S.filter = f.filter;
   S.q = f.q;
   $('filter-q').value = f.q;
   S.tab = f.tab;
@@ -1502,7 +1527,6 @@ async function load(frag) {
   S.overlay = r.overlay;
   setModel(shown(r.raw), frag);
   S.view = frag.view;
-  S.filter = frag.filter;
   S.q = frag.q;
   S.tab = frag.tab;
   S.zoom = frag.zoom;
@@ -1543,7 +1567,7 @@ async function load(frag) {
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, chips, plansList, list, accessView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setFilter, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

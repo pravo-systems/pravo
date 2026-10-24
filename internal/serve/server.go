@@ -398,7 +398,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/events":
 		s.events(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/plans", "/api/plan", "/api/access":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -432,6 +432,12 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		if po, ok := s.storedPlan(w, r, m, id); ok {
 			writeJSON(w, http.StatusOK, m.planOverlayDoc(po))
 		}
+	case "/api/fields":
+		q := r.URL.Query().Get("q")
+		if len(q) > 512 {
+			q = q[:512]
+		}
+		writeJSON(w, http.StatusOK, m.fieldMatches(q))
 	case "/api/search":
 		q := r.URL.Query().Get("q")
 		if len(q) > 512 {

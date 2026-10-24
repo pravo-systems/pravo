@@ -420,3 +420,19 @@
 .sigmark.sig-verified { color: var(--accent); }
 .sigmark.sig-key_not_in_file, .sigmark.sig-unsigned { color: var(--text-3); font-style: italic; }
 .sigmark.sig-invalid { color: var(--conflict); font-weight: 600; }
+
+/* a tag that filters by what it says: a button that looks like the tag */
+.ih button.fx { appearance: none; cursor: pointer; font-family: inherit; }
+.ih button.b.fx:hover, .ih button.b.fx:focus-visible { --c: var(--accent); border-color: var(--accent); }
+.ih button.kick.fx { background: none; border: 0; padding: 0; margin: 0; }
+.ih button.kick.fx:hover, .ih button.kick.fx:focus-visible { color: var(--text); text-decoration: underline dotted; text-underline-offset: .25em; }
+.row-fx { position: absolute; right: 2.4rem; top: .45rem; opacity: 0; display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; color: var(--text-3); border: 1px solid transparent; }
+.row-fx .i { width: .8rem; height: .8rem; }
+.row-fx:hover { color: var(--text); border-color: var(--line-strong); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.attr:hover .row-fx, .row-fx:focus-visible { opacity: 1; }
+@media (hover: none) { .row-fx { opacity: .7; } }
+
+/* a value that a field or value term of the filter is about: the row is marked, and a group says that one is inside */
+.attr.hit { background: color-mix(in srgb, var(--accent) 11%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.attr.hit .av { color: var(--text); }
+.attr.hit-in .an::after { content: ""; display: inline-block; width: .38rem; height: .38rem; margin-left: .4rem; border-radius: 50%; background: var(--accent); vertical-align: middle; }

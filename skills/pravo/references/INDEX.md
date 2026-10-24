@@ -24,7 +24,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/validate-eval-fmt-gen.md](reference/validate-eval-fmt-gen.md) | Check a specification without planning it, print its evaluated value, format the CUE files and regenerate the provider packages. | 9 KB |
 | [reference/schema.md](reference/schema.md) | Print the CUE definition of a resource, data source, ephemeral resource or function type, with the provider's documentation. | 8 KB |
 | [reference/why-and-drift.md](reference/why-and-drift.md) | Explain why a plan creates, changes, replaces or skips a resource, and read the records that a plan does not read to report what changed outside pravo. | 13 KB |
-| [reference/serve.md](reference/serve.md) | Serve a read-only viewer on the loopback interface: a graph of namespaces and resources from the specification, the state, a saved plan and the plans stored in the state. | 54 KB |
+| [reference/serve.md](reference/serve.md) | Serve a read-only viewer on the loopback interface: a graph of namespaces and resources from the specification, the state, a saved plan and the plans stored in the state. | 56 KB |
 | [reference/mcp.md](reference/mcp.md) | Serve pravo to an agent over the Model Context Protocol on stdio. Fourteen tools, applies only from saved plans, and plan policies the agent cannot remove. | 11 KB |
 | [reference/skill.md](reference/skill.md) | Install or print the skill that teaches an AI agent to use pravo. It is built from this documentation and is part of the binary, so it matches the version that installed it. | 6 KB |
 | [reference/mod.md](reference/mod.md) | Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file. | 6 KB |
@@ -131,7 +131,7 @@ One task each, for a reader who knows the basics.
 | [how-to/policies.md](how-to/policies.md) | Write a plan policy, test it on fixtures with the matching cue version, roll a new rule out as advice, exempt by type and name the policy in the apply job. | 14 KB |
 | [how-to/agents-and-mcp.md](how-to/agents-and-mcp.md) | Give a program or an AI agent the schema, a plan file, a reservation and a tool server bound to a policy, and see what that does and does not protect. | 13 KB |
 | [how-to/secrets.md](how-to/secrets.md) | Read a secret from the environment with pravo.#SecretEnv, hand it to a provider and see where pravo allows the value and where it refuses. | 9 KB |
-| [how-to/explore-your-estate.md](how-to/explore-your-estate.md) | Start pravo serve, read the graph, find a resource, open and close namespaces, read the source, overlay a saved plan, see what your team has planned, find drift and share a view. | 31 KB |
+| [how-to/explore-your-estate.md](how-to/explore-your-estate.md) | Start pravo serve, read the graph, find a resource, open and close namespaces, read the source, overlay a saved plan, see what your team has planned, find drift and share a view. | 33 KB |
 | [how-to/share-a-plan-before-you-apply-it.md](how-to/share-a-plan-before-you-apply-it.md) | Store a plan in the state so that a team can list it, read it, see who else plans the same resources and apply it by its id. | 14 KB |
 
 ### Maintain
@@ -164,7 +164,7 @@ The tutorial on pravo (track B) and the companion pages on CUE errors.
 | [learn/b03-apply-outputs-state.md](learn/b03-apply-outputs-state.md) | Apply a plan, read the outputs and open the state. A plan with no changes shows that a refactor changed nothing. | 11 KB |
 | [learn/b04-inputs-tags-environments.md](learn/b04-inputs-tags-environments.md) | Run one specification as dev, staging and prod. Use a constrained field, a tag and a state path derived from it. | 10 KB |
 | [learn/b05-many-resources-from-one-rule.md](learn/b05-many-resources-from-one-rule.md) | A comprehension produces resources. Each key becomes the last element of an address, so reordering the source replaces nothing. | 9 KB |
-| [learn/b06-modules-providers-credentials.md](learn/b06-modules-providers-credentials.md) | Share one definition between instances, pass a provider in as an input, and keep a credential out of the state. | 18 KB |
+| [learn/b06-modules-providers-credentials.md](learn/b06-modules-providers-credentials.md) | Share one definition between instances, pass a provider in as an input, and keep a credential out of the state. | 17 KB |
 | [learn/b07-changing-live-infrastructure.md](learn/b07-changing-live-infrastructure.md) | Save a plan, apply exactly that plan or nothing, and apply it in stages. Read the refusal when the plan is stale. | 7 KB |
 | [learn/b08-renames-moves-imports.md](learn/b08-renames-moves-imports.md) | Keep the object of a resource when its address changes, and adopt an object that already exists. | 13 KB |
 | [learn/b09-drift.md](learn/b09-drift.md) | Change a resource outside pravo, find the change with pravo drift, and reconcile it in both directions. | 7 KB |

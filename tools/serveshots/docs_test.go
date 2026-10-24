@@ -256,13 +256,13 @@ func TestPairedShotsAreLinkedWithTheThemeClasses(t *testing.T) {
 }
 
 var (
-	chipRe = regexp.MustCompile(`\{ key: (?:null|'(\w+)'), label: '([^']+)'`)
-	tabRe  = regexp.MustCompile(`\{ key: '(\w+)', label: '([^']+)' \}`)
+	columnsRe = regexp.MustCompile(`export const COLUMNS = \[([^\]]*)\]`)
+	tabRe     = regexp.MustCompile(`\{ key: '(\w+)', label: '([^']+)' \}`)
 )
 
-// The reference names the chips of the sidebar and the tabs of the inspector as
+// The reference names the columns of the filter box and the tabs of the inspector as
 // the interface does, with the parameter value that each sets.
-func TestReferenceNamesTheChipsAndTabsOfTheInterface(t *testing.T) {
+func TestReferenceNamesTheColumnsAndTabsOfTheInterface(t *testing.T) {
 	root := repoRoot(t)
 	page, err := os.ReadFile(filepath.Join(root, "docs", "reference", "serve.md"))
 	if err != nil {
@@ -287,6 +287,18 @@ func TestReferenceNamesTheChipsAndTabsOfTheInterface(t *testing.T) {
 			}
 		}
 	}
-	check("chips.js", chipRe, "filter", "chip")
+	src, err := os.ReadFile(filepath.Join(web, "query.js"))
+	if err != nil {
+		t.Skip("the interface is not in the tree:", err)
+	}
+	m := columnsRe.FindStringSubmatch(string(src))
+	if m == nil {
+		t.Fatal("query.js: no list of columns found")
+	}
+	for _, col := range regexp.MustCompile(`'(\w+)'`).FindAllStringSubmatch(m[1], -1) {
+		if !strings.Contains(string(page), "| `"+col[1]+"` |") {
+			t.Errorf("serve.md has no table row for the filter column `%s` of query.js", col[1])
+		}
+	}
 	check("inspector.js", tabRe, "tab", "tab")
 }

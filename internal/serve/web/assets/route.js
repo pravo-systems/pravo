@@ -1,4 +1,4 @@
-// The view is in the URL fragment: #/?sel=ADDR&tab=state&collapse=A,B&expand=C&theme=dark&q=TEXT&filter=plan
+// The view is in the URL fragment: #/?sel=ADDR&tab=state&collapse=A,B&expand=C&theme=dark&q=TEXT
 // &plan=plan-2f9c1a4e&view=graph|list|state&motion=off&zoom=fit. Values are URL-encoded and lists are comma separated.
 
 export function parseFragment(hash) {
@@ -36,7 +36,6 @@ export function writeFragment(v) {
   put('tab', v.tab);
   if (v.collapse && v.collapse.length) parts.push('collapse=' + joinList(v.collapse));
   if (v.expand && v.expand.length) parts.push('expand=' + joinList(v.expand));
-  put('filter', v.filter);
   put('plan', v.plan);
   put('q', v.q);
   put('view', v.view === 'list' ? 'list' : v.view === 'access' ? 'state' : v.view === 'plans' ? 'plans' : '');

@@ -62,10 +62,11 @@ export function namespacePanel(ins, ns, model, collapsed) {
 
   // the numbers
   body.push(h('section', { class: 'sec' },
-    h('div', { class: 'tiles' },
+    h('div', { class: 'tiles', style: model.hasPlan ? null : 'grid-template-columns: repeat(3, minmax(0, 1fr))' },
       h('div', { class: 'tile big' }, num(a.n), h('span', { class: 'tlb' }, a.n === 1 ? 'resource' : 'resources')),
       h('div', { class: 'tile' + (ns.kids.length ? '' : ' zero') }, num(ns.kids.length), h('span', { class: 'tlb' }, ns.kids.length === 1 ? 'namespace' : 'namespaces')),
-      h('div', { class: 'tile' + (a.plan ? ' chg' : ' zero') }, num(a.plan), h('span', { class: 'tlb' }, 'in plan')),
+      // with no plan laid over the graph there is nothing that it could change
+      model.hasPlan ? h('div', { class: 'tile' + (a.plan ? ' chg' : ' zero') }, num(a.plan), h('span', { class: 'tlb' }, 'in plan')) : null,
       h('div', { class: 'tile' + (a.drifted + a.gone ? ' chg' : ' zero') }, num(a.drifted + a.gone), h('span', { class: 'tlb' }, 'drifted'))),
     flags(a)));
 

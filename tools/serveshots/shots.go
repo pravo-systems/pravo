@@ -35,7 +35,6 @@ type Fragment struct {
 	Expand   []string
 	Theme    string
 	Q        string
-	Filter   string
 	// Plan is a stored plan to lay over the graph: its id, "none", or "@ACTOR"
 	// for the plan that an actor of the scenario made, whose id is not known
 	// until the plans are stored.
@@ -53,14 +52,13 @@ type Fragment struct {
 }
 
 var (
-	fragmentTabs    = []string{"state", "source", "schema", "history", "change"}
-	fragmentThemes  = []string{"light", "dark"}
-	fragmentFilters = []string{"plan", "drifted", "sensitive", "orphans", "declared"}
-	fragmentViews   = []string{"graph", "list", "access", "plans"}
+	fragmentTabs   = []string{"state", "source", "schema", "history", "change"}
+	fragmentThemes = []string{"light", "dark"}
+	fragmentViews  = []string{"graph", "list", "access", "plans"}
 )
 
 // String is the fragment without the leading #, in the order of the deep-link
-// table: sel, tab, collapse, expand, theme, q, filter, plan, view, motion, zoom,
+// table: sel, tab, collapse, expand, theme, q, plan, view, motion, zoom,
 // and then palette, pq and help.
 // Values are URL-encoded, and a list is written comma separated with each
 // element encoded.
@@ -87,7 +85,6 @@ func (f Fragment) String() string {
 	list("expand", f.Expand)
 	add("theme", f.Theme)
 	add("q", f.Q)
-	add("filter", f.Filter)
 	add("plan", f.Plan)
 	add("view", f.View)
 	add("motion", f.Motion)
@@ -152,7 +149,6 @@ func (f Fragment) validate() error {
 	for _, e := range []error{
 		check("tab", f.Tab, fragmentTabs),
 		check("theme", f.Theme, fragmentThemes),
-		check("filter", f.Filter, fragmentFilters),
 		check("view", f.View, fragmentViews),
 		check("zoom", f.Zoom, []string{"fit"}),
 		check("motion", f.Motion, []string{"off"}),
@@ -273,7 +269,7 @@ func allShots() []Shot {
 	s = append(s, shot("plans-list-dark", "platform", situationStored, Fragment{View: "plans", Plan: "@ana"}))
 	s = append(s, shot("plan-expired-dark", "platform", situationStored, Fragment{Plan: "@ci", Collapse: []string{"network", "api"}}))
 	s = append(s,
-		shot("drift-dark", "platform", situationChanged, Fragment{Sel: dnsRecords, Tab: "state", Filter: "drifted"}),
+		shot("drift-dark", "platform", situationChanged, Fragment{Sel: dnsRecords, Tab: "state", Q: "status:drifted"}),
 		shot("sensitive-dark", "platform", situationClean, Fragment{Sel: dbDSN, Tab: "state", Collapse: []string{"network", "edge"}}),
 		shot("palette-dark", "platform", situationClean, Fragment{Palette: true, PQ: "billing"}),
 		shot("list-dark", "platform", situationChanged, Fragment{Sel: billingConfig, Tab: "state", View: "list"}),

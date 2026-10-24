@@ -3,7 +3,7 @@
 // grouping is off. Only the rows in view are in the document, so an estate of thousands of resources scrolls freely.
 
 import { h, clear, relTime, stamp, actionOf, store, kindMark, icon } from './util.js';
-import { FILTERS, natural, isOut, isEnv } from './model.js';
+import { natural, isOut, isEnv } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { avatar } from './plans.js';
 import { compileQuery } from './query.js';
@@ -16,7 +16,6 @@ const COLS = [
   { key: 'mode', label: 'Mode', cls: 'c-mode' },
   { key: 'status', label: 'Status', cls: 'c-status' },
   { key: 'action', label: 'Plan', cls: 'c-action' },
-  { key: 'revision', label: 'Rev', cls: 'c-rev num' },
   { key: 'refreshed', label: 'Refreshed', cls: 'c-ref' },
 ];
 const ACTION_ORDER = { delete: 0, replace: 1, update: 2, create: 3, move: 4, import: 5, read: 6, 'no-op': 7, '': 8 };
@@ -29,7 +28,6 @@ const SORTERS = {
   mode: (a, b) => natural(a.mode, b.mode) || natural(a.addr, b.addr),
   status: (a, b) => statusRank(a) - statusRank(b) || natural(a.addr, b.addr),
   action: (a, b) => (ACTION_ORDER[a.action || ''] ?? 9) - (ACTION_ORDER[b.action || ''] ?? 9) || natural(a.addr, b.addr),
-  revision: (a, b) => (a.revision || 0) - (b.revision || 0) || natural(a.addr, b.addr),
   refreshed: (a, b) => (Date.parse(a.refreshed_at) || 0) - (Date.parse(b.refreshed_at) || 0) || natural(a.addr, b.addr),
 };
 
@@ -101,7 +99,7 @@ export class ListView {
     this.paint(true);
   }
 
-  // render takes { model, collapsed, filter, q, sel }; it returns the number of nodes that match.
+  // render takes { model, collapsed, q, sel }; it returns the number of nodes that match.
   render(s) {
     this.s = s;
     this.selKey = this.keyOf(s.sel);
@@ -119,16 +117,15 @@ export class ListView {
 
   matcher() {
     const s = this.s;
-    const f = s.filter ? FILTERS[s.filter] : null;
     const q = compileQuery(s.q);
-    return (n) => (!f || f(n)) && (!q || q(n));
+    return (n) => !q || q(n);
   }
 
   compute() {
     const s = this.s;
     if (!s) return;
     const { model } = s;
-    const active = !!(s.filter || s.q);
+    const active = !!s.q;
     const test = active ? this.matcher() : () => true;
     const cmp = SORTERS[this.sort.key];
     const dir = this.sort.dir;
@@ -206,7 +203,6 @@ export class ListView {
       h('div', { class: 'c-mode', role: 'gridcell' }),
       h('div', { class: 'c-status', role: 'gridcell' }, drift ? h('span', { class: 'b chg' }, h('span', { class: 'i i-drift' }), String(drift)) : null),
       h('div', { class: 'c-action', role: 'gridcell' }, plan),
-      h('div', { class: 'c-rev num', role: 'gridcell' }),
       h('div', { class: 'c-ref', role: 'gridcell' }));
   }
 
@@ -239,7 +235,6 @@ export class ListView {
       h('div', { class: 'c-mode' + (n.mode === 'managed' ? ' plain' : ''), role: 'gridcell' }, n.mode, facet('mode', n.mode)),
       h('div', { class: 'c-status', role: 'gridcell' }, stat),
       h('div', { class: 'c-action', role: 'gridcell' }, act, who.length ? h('span', { class: 'who' }, who) : null, a ? facet('plan', n.action) : null),
-      h('div', { class: 'c-rev num', role: 'gridcell' }, n.revision ? String(n.revision) : '—'),
       h('div', { class: 'c-ref', role: 'gridcell', title: n.refreshed_at ? stamp(n.refreshed_at) : '' }, n.refreshed_at ? relTime(n.refreshed_at, now) : '—'));
   }
 
@@ -295,7 +290,7 @@ export class ListView {
       if (ev.key === 'ArrowRight' && row.kind === 'ns') {
         if (!row.open) { this.cb.onToggle(row.ns.path); ev.preventDefault(); } else if (cur < last) next = cur + 1;
       } else if (ev.key === 'ArrowLeft') {
-        if (row.kind === 'ns' && row.open && !(this.s.filter || this.s.q)) { this.cb.onToggle(row.ns.path); ev.preventDefault(); return; }
+        if (row.kind === 'ns' && row.open && !this.s.q) { this.cb.onToggle(row.ns.path); ev.preventDefault(); return; }
         for (let j = cur - 1; j >= 0; j--) if (this.rows[j].kind === 'ns' && this.rows[j].depth < row.depth) { next = j; break; }
       } else if ((ev.key === 'Enter' || ev.key === ' ') && row.kind === 'ns') {
         this.cb.onToggle(row.ns.path); ev.preventDefault(); return;

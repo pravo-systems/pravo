@@ -32,6 +32,8 @@ export const graph = () => get('/api/graph');
 export const detail = (addr, plan) => get('/api/detail?addr=' + encodeURIComponent(addr) + withPlan(plan));
 export const source = (addr, plan) => get('/api/source?addr=' + encodeURIComponent(addr) + withPlan(plan));
 export const search = (q) => get('/api/search?q=' + encodeURIComponent(q));
+// fields lists the nodes whose recorded values match path=value; the server searches what the detail would send
+export const fields = (q) => get('/api/fields?q=' + encodeURIComponent(q));
 export const ping = () => get('/api/ping');
 // plans lists the plans stored in the state; a server that does not know them has none.
 export const plans = () => get('/api/plans').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', plans: [] }; throw err; });

@@ -4,7 +4,8 @@
 
 import { h, clear, icon, relTime, stamp, copyButton, actionOf, plural, motionOn, splitPath, pathEl, baseName, nodeMark, signatureMark } from './util.js';
 import * as api from './api.js';
-import { isChange, chain, isOut } from './model.js';
+import { isChange, chain, isOut, isEnv } from './model.js';
+import { entityOf, ENTITY_LABEL } from './query.js';
 import { codeWindow, kindLabel } from './ui.js';
 import { StateView, withheld, unknownEl, timeRow } from './values.js';
 import { projectPanel, namespacePanel } from './panels.js';
@@ -34,8 +35,12 @@ export class Inspector {
     this.addr = null;
     this.tab = 'state';
     this.ink = h('i', { class: 'itab-ink', 'aria-hidden': 'true' });
-    this.state = new StateView({ open: this.open, announce: (t) => cb.announce(t) });
+    this.state = new StateView({ open: this.open, announce: (t) => cb.announce(t), onFacet: (col, value, neg) => cb.onFacet(col, value, neg), fieldMatch: () => cb.fieldMatch() });
     this.values = this.state;
+    this.head.addEventListener('click', (ev) => {
+      const f = ev.target.closest('button.fx');
+      if (f) cb.onFacet(f.dataset.col, f.dataset.value, ev.shiftKey);
+    });
     this.tabs.addEventListener('keydown', (ev) => this.onTabKey(ev));
     this.body.addEventListener('scroll', () => { this.root.classList.toggle('scrolled', this.body.scrollTop > 4); }, { passive: true });
     this.body.addEventListener('click', (ev) => {
@@ -86,11 +91,21 @@ export class Inspector {
 
   // ---- the header: a title, the place of the thing in its namespaces, tags ----
 
-  header({ kick, title, path, tags, copy, long }) {
+  // facetPill is a tag that filters by what it says: a click shows only that, shift hides it
+  facetPill(cls, col, value, text) {
+    return h('button', { type: 'button', class: cls + ' fx', 'data-col': col, 'data-value': value, title: `Show only ${col} ${value} (shift: hide it)` }, text);
+  }
+
+  // queryChanged shows again which values the field terms of the filter are about, when the State tab is open
+  queryChanged() {
+    if (this.mode === 'node' && this.state.host && this.state.host.isConnected) this.state.drawKeep();
+  }
+
+  header({ kick, kickFacet, title, path, tags, copy, long }) {
     clear(this.head);
     // append() writes the word "null" for a null: only what exists goes in
     this.head.append(...[
-      h('div', { class: 'ih-top' }, h('span', { class: 'kick' }, kick), copy ? this.copyBtn(copy) : null),
+      h('div', { class: 'ih-top' }, (kickFacet ? this.facetPill('kick fx', 'entity', kickFacet, kick) : h('span', { class: 'kick' }, kick)), copy ? this.copyBtn(copy) : null),
       h('h2', { class: 'ih-title' + (long ? ' long' : '') }, title),
       path,
       tags && tags.length ? h('div', { class: 'ih-tags' }, tags) : null].filter(Boolean));
@@ -197,15 +212,16 @@ export class Inspector {
     const prov = detail ? detail.provider : null;
     const tags = [];
     const out = isOut(n);
-    if (!out) tags.push(h('span', { class: 'b ty', title: n.type }, n.type));
+    // an output and a plain variable are what the kicker says: the type would only repeat it
+    if (!out && n.type !== 'env') tags.push(this.facetPill('b ty', 'type', n.type, n.type));
     const pv = prov ? [prov.key, prov.version].filter(Boolean).join(' ') : node.provider;
-    if (pv) tags.push(h('span', { class: 'b' }, pv));
-    if (n.mode !== 'managed' && !out) tags.push(h('span', { class: 'b' }, n.mode));
+    if (pv) tags.push(node.provider ? this.facetPill('b pv', 'provider', node.provider, pv) : h('span', { class: 'b pv' }, pv));
     if (n.sealed) tags.push(h('span', { class: 'b lock' }, icon('lock'), 'sealed'));
     if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), out ? 'sensitive' : `${n.sensitive} sensitive`));
     if (n.no_schema) tags.push(h('span', { class: 'b chg' }, 'no schema'));
     this.header({
-      kick: n.mode === 'managed' ? 'Resource' : n.mode === 'data' ? 'Data source' : n.mode === 'output' ? 'Output' : n.mode,
+      kick: ENTITY_LABEL[entityOf(n)] || n.mode,
+      kickFacet: entityOf(n),
       title: n.name,
       long: n.name.length > 22,
       path: this.crumbs(this.model.nodes.get(n.addr) ? this.model.nodes.get(n.addr).ns : null, this.model, null),
