@@ -341,11 +341,14 @@ function renderPlans() {
   });
 }
 
-// renderPlanLede is the line at the head of the Plans page: it is there to say that there is none.
+// renderPlanLede is the line at the head of the Plans page: how many of the stored plans can still be applied, or that there is none.
 function renderPlanLede() {
   const lede = $('pl-lede');
-  lede.textContent = S.plans.length ? '' : 'The state holds no plan. Make one with pravo plan --store.';
-  lede.hidden = !!S.plans.length;
+  const open = S.plans.filter((p) => p.open).length;
+  lede.textContent = !S.plans.length ? 'The state holds no plan. Make one with pravo plan --store.'
+    : open ? `${plural(open, 'stored plan')} can still be applied, of ${S.plans.length} in the state.`
+      : `No stored plan can be applied. The state holds ${plural(S.plans.length, 'plan')}, applied or expired.`;
+  $('pl-head').classList.toggle('none', !open);
 }
 
 // selectPlan lays a stored plan over the graph, or, with null, takes it off. The first view is made again for
@@ -876,6 +879,7 @@ function setView(v) {
   else if (v === 'access') renderAccess();
   else if (v === 'discovery') renderDiscovery();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
+  setDocTitle();
   syncFragment();
   announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : 'Inventory, graph view');
 }
@@ -1000,6 +1004,14 @@ function renderHeader() {
     cs.querySelector('.cp-be').hidden = !st.backend;
   }
   renderWho();
+  setDocTitle();
+}
+
+// the tab says where the page is: the project, then the section, so that several estates in several tabs tell apart
+const SECTION = { graph: 'Inventory', list: 'Inventory', plans: 'Plans', discovery: 'Discovery', access: 'State' };
+function setDocTitle() {
+  const dir = S.graph && S.graph.project && S.graph.project.dir;
+  document.title = dir ? `${baseName(dir)} \u00b7 ${SECTION[S.view] || 'Inventory'} \u00b7 pravo serve` : 'pravo serve';
 }
 
 // renderWho names the identity that the page is read as. An unsealed state has none to name.

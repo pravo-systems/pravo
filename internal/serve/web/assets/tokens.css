@@ -92,6 +92,15 @@
   --tick-color: var(--line-strong);
 
   /* ---- the interface of pravo serve (not in the site's tokens) ---- */
+  /* shape: three radii, so that the chrome, the panels and the cards of the canvas (rx 7 and 12 in graph.js) are one family */
+  --rad-s: 4px;                               /* chips, keys, tags */
+  --rad: 7px;                                 /* controls, rows of a list, code of a diff */
+  --rad-l: 12px;                              /* cards, panels, windows, popovers */
+  --font-ui: var(--font-sans);                /* the words of the interface; mono is for what is typed or measured */
+  --focus: 0 0 0 3px var(--key-wash);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");   /* a fine paper tooth under the stage; ink has a lighter one */
+  --page-pad: 1.6rem 1.25rem 3rem;           /* the room around the page of Plans, Discovery and State */
+  --page-w: 62rem;
   --sh: 22%;                                  /* strength of a drop shadow: light paper, deeper ink */
   --shadow-1: 0 1px 2px color-mix(in srgb, #000 calc(var(--sh) * .5), transparent), 0 8px 24px color-mix(in srgb, #000 calc(var(--sh) * .6), transparent);
   --shadow-2: 0 2px 6px color-mix(in srgb, #000 calc(var(--sh) * .5), transparent), 0 28px 80px color-mix(in srgb, #000 var(--sh), transparent);
@@ -163,6 +172,7 @@
     --overlap: #f27ae0;
     --overlap-wash: rgba(242, 122, 224, .10);
     --sh: 55%;
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     color-scheme: dark;
   }
 }
@@ -191,6 +201,7 @@
   --overlap: #f27ae0;
   --overlap-wash: rgba(242, 122, 224, .10);
   --sh: 55%;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   color-scheme: dark;
 }
 

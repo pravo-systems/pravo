@@ -45,6 +45,9 @@ function add(el, kids) {
   }
 }
 
+// softBreaks lets a long identifier wrap after its underscores, dots and slashes instead of in the middle of a word.
+export const softBreaks = (str) => String(str).split(/(?<=[_./-])/).flatMap((part, i) => (i ? [document.createElement('wbr'), part] : [part]));
+
 export const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
 export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + 's'}`;

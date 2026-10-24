@@ -169,6 +169,7 @@ export class Inspector {
     });
     this.paint(projectPanel(this, model));
     this.root.dataset.mode = 'project';
+    this.root.dataset.act = '';
     this.root.classList.remove('scrolled');
   }
 
@@ -188,6 +189,7 @@ export class Inspector {
     });
     this.paint(namespacePanel(this, ns, model, collapsed));
     this.root.dataset.mode = 'namespace';
+    this.root.dataset.act = '';
     this.root.classList.remove('scrolled');
   }
 
@@ -239,6 +241,8 @@ export class Inspector {
     if (n.sealed) tags.push(h('span', { class: 'b lock' }, icon('lock'), 'sealed'));
     if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), out ? 'sensitive' : `${n.sensitive} sensitive`));
     if (n.no_schema) tags.push(h('span', { class: 'b chg' }, 'no schema'));
+    // the header takes the colour of what the plan does to the resource, so that the panel says it before the strip does
+    this.root.dataset.act = n.action && n.action !== 'no-op' ? n.action : '';
     this.header({
       kick: ENTITY_LABEL[entityOf(n)] || n.mode,
       kickFacet: entityOf(n),

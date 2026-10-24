@@ -3,7 +3,7 @@
 // an unknown one, a null. Values arrive redacted from the server; nothing here asks for more, and there is no
 // control that reveals a withheld value.
 
-import { h, icon, plural, store, copyButton, relTime, stamp } from './util.js';
+import { h, icon, plural, store, copyButton, relTime, stamp, softBreaks } from './util.js';
 import { textBlock } from './ui.js';
 
 export const REDACTED = {
@@ -183,7 +183,7 @@ export class StateView {
     if (kind.includes('required')) tags.push(h('em', { class: 'tg req' }, 'required'));
     if (kind.includes('computed') && (kind.includes('optional') || kind.includes('required'))) tags.push(h('em', { class: 'tg cmp' }, 'computed'));
     if (a.deprecated) tags.push(h('em', { class: 'tg dep' }, 'deprecated'));
-    const nameEl = h('span', { class: 'an' + (idx ? ' idx' : '') }, idx ? `[${a.name}]` : a.name);
+    const nameEl = h('span', { class: 'an' + (idx ? ' idx' : '') }, idx ? `[${a.name}]` : softBreaks(a.name));
     const row = h('div', { class: 'attr' + (isChanged ? ' changed' : '') + (hasKids ? ' group' + (open ? ' open-kids' : '') : '') + (locked ? ' locked' : '') + (hitHere ? (hasKids ? ' hit-in' : ' hit') : '') + (v.block ? ' blk' : '') + (depth ? ' nested' : '') + (flash ? ' flash' : ''), role: 'listitem', style: `--d:${depth}` },
       h('div', { class: 'at' },
         h('div', { class: 'ar' },

@@ -206,7 +206,8 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
       return asp + 0.35 * waste;
     };
     let best = null, bestScore = Infinity;
-    const take = (sc, kind, offs, w, h) => { if (sc < bestScore - 1e-9) { bestScore = sc; best = { kind, offs, w, h }; } };
+    // a score that is not a number (a canvas with no size yet) still leaves an arrangement: the first one is kept
+    const take = (sc, kind, offs, w, h) => { if (!best || sc < bestScore - 1e-9) { bestScore = sc; best = { kind, offs, w, h }; } };
     // shelves: rows that wrap at a limit
     const limits = new Set();
     if (n <= 26) {

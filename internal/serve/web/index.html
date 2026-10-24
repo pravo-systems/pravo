@@ -100,9 +100,11 @@
     <div class="pane list-pane" id="list-pane" hidden></div>
     <div class="pane plans-pane" id="plans-pane" role="region" aria-label="Plans" tabindex="-1" hidden>
       <div class="pl">
-        <h2 class="pl-title">Plans</h2>
-        <p class="pl-lede" id="pl-lede"></p>
-        <section class="rail-plans" id="plans-list" aria-label="Stored plans"></section>
+        <header class="pl-head" id="pl-head">
+          <h2 class="pl-title">Plans</h2>
+          <p class="pl-lede" id="pl-lede"></p>
+        </header>
+        <div class="pl-list-wrap"><section class="rail-plans" id="plans-list" aria-label="Stored plans"></section></div>
       </div>
     </div>
     <div class="pane discovery-pane" id="discovery-pane" role="region" aria-label="Discovery" tabindex="-1" hidden></div>
