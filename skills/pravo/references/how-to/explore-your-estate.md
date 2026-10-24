@@ -165,7 +165,9 @@ The Plans tab of the bar, or `p`, lists the plans of the state. Each row is one 
 
 Click a row to open it. It shows the reason, what overlaps, when the plan expires, the command that made it and the command that applies it, with a button that copies it. A second click, or Esc, closes it. The button View on a row lays the plan over the graph, as a saved plan is in step 6, and goes to Resources. The graph shows its actions, the Change tab shows its attributes, and a strip under the bar names it. The button with the cross in the strip stops showing the plan.
 
-*Figure: The platform with the plan of ana laid over the graph. The plan of ben also replaces what writes orders, so those resources carry two discs and a ring, and the sidebar says that the plans overlap.*
+*Figure: The Plans section. The plan of ana is the one laid over the resources, so its row says Viewing and is tinted. Each row carries the status, the author, the age, the counts and a ring for the time that is left.*
+
+*Figure: The platform with the plan of ana laid over the graph. The plan of ben also replaces what writes orders, so those resources carry two discs and a ring, and the strip under the bar names the plan that is laid over them.*
 
 Look for the discs before you apply. Each disc on a resource is the initial of the author of a plan that can be applied and changes it. A resource with two discs and a ring is one that two people have planned and not applied. A plan that has applied its change on a resource has no disc there. Applying one of the plans makes the other stale, or partly stale when its other changes can still be applied, because the resource is then at another revision. The Plans cell of the resource, above the tabs, lists the plans, and a click on a disc lays that plan over the graph. The legend names `plan author` and `overlap`.
 
@@ -175,7 +177,7 @@ The viewer applies nothing and has no control that approves or removes a plan. C
 
 Choose All to list the plans that cannot be applied: the stale, the applied and the expired, until a collection removes them. A plan that cannot be applied has no command to copy, and none of its resources carries a disc.
 
-*Figure: The plan of ci under All. It expired two days ago. Its row has a note instead of a command, and the inspector shows the plan: its counts, who made it, when it expired, the reason and the command that made it.*
+*Figure: The plan of ci, which expired two days ago, laid over the graph. The strip names it and has no ring, since an expired plan has no time left.*
 
 Leave the viewer open and the list follows the state. A plan that a teammate stores gets a row, and a notice names it. The status of a plan changes when an apply from it records progress, and when something else changes a resource it expects. A plan that is collected leaves the list, and a plan that expires without an apply moves to All. When the plan that is laid over the graph is collected, a notice says so and the graph shows no plan.
 

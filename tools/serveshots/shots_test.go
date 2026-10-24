@@ -63,6 +63,7 @@ var wantShots = []string{
 	"source-dark", "source-light",
 	"plan-dark", "plan-light",
 	"plans-dark", "plans-light",
+	"plans-list-dark",
 	"plan-expired-dark",
 	"drift-dark",
 	"sensitive-dark",

@@ -56,7 +56,7 @@ var (
 	fragmentTabs    = []string{"state", "source", "schema", "history", "change"}
 	fragmentThemes  = []string{"light", "dark"}
 	fragmentFilters = []string{"plan", "drifted", "sensitive", "orphans", "declared"}
-	fragmentViews   = []string{"graph", "table", "access"}
+	fragmentViews   = []string{"graph", "table", "access", "plans"}
 )
 
 // String is the fragment without the leading #, in the order of the deep-link
@@ -269,6 +269,8 @@ func allShots() []Shot {
 	// badges and the ring of an overlap; the plan of ana is laid over the graph.
 	// The third expired, and is laid over the graph in its own picture.
 	s = append(s, both("plans", "platform", situationStored, Fragment{Sel: ordersConfig, Tab: "change", Plan: "@ana", Collapse: []string{"network", "edge"}})...)
+	// The Plans section, with the row of the plan of ana open.
+	s = append(s, shot("plans-list-dark", "platform", situationStored, Fragment{View: "plans", Plan: "@ana"}))
 	s = append(s, shot("plan-expired-dark", "platform", situationStored, Fragment{Plan: "@ci", Collapse: []string{"network", "api"}}))
 	s = append(s,
 		shot("drift-dark", "platform", situationChanged, Fragment{Sel: dnsRecords, Tab: "state", Filter: "drifted"}),
