@@ -138,6 +138,8 @@
 .rows.provs li.inst { border-top: 0; padding: .1rem 0 .1rem 1.1rem; color: var(--text-2); justify-content: space-between; }
 .rows.provs li.inst .ic { color: var(--text-3); }
 .rows.provs li:has(+ li.inst) { padding-bottom: .3rem; }
+/* the last instance of a provider sits above the rule that opens the next one: it gets the padding that the rule has below it */
+.rows.provs li.inst:has(+ li:not(.inst)) { padding-bottom: .5rem; }
 
 /* navigable lists */
 .nav { list-style: none; margin: 0; padding: 0; }
