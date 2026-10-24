@@ -19,8 +19,9 @@ import (
 
 // The components of the signature the watcher keeps, in the order they are
 // named in an event. "plan" is the plan file of --plan, "plans" the plans stored
-// in the state, "access" the readers file.
-var components = []string{"state", "spec", "plan", "locks", "plans", "access"}
+// in the state, "access" the readers file, "discovery" what the discoveries
+// found and the acknowledgements of it.
+var components = []string{"state", "spec", "plan", "locks", "plans", "access", "discovery"}
 
 // fullScanEvery is how often, in polls, a state directory of many records is
 // read entry by entry. In between, the directories themselves are looked at:
@@ -61,6 +62,8 @@ type watcher struct {
 	plansBase string
 	expiry    time.Time
 	epoch     int
+	// discoveryBase signs the objects of the discoveries.
+	discoveryBase string
 
 	// scan is what the full reads of a large state directory found.
 	scan struct {
@@ -122,8 +125,8 @@ func (w *watcher) sample() (string, map[string]string) {
 	w.mu.Unlock()
 	var remote []string
 	if due {
-		state, locks, plans := remoteStateSignature(b)
-		remote = []string{state, locks, plans}
+		state, locks, plans, discovery := remoteStateSignature(b)
+		remote = []string{state, locks, plans, discovery}
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -143,9 +146,10 @@ func (w *watcher) sampleLocked(remote []string) (string, map[string]string) {
 	if w.location != "" {
 		next["state"], next["locks"] = w.localState()
 		w.plansBase = localPlansSignature(w.location)
+		w.discoveryBase = localDiscoverySignature(w.location)
 	} else if w.backend != nil {
 		if remote != nil {
-			next["state"], next["locks"], w.plansBase = remote[0], remote[1], remote[2]
+			next["state"], next["locks"], w.plansBase, w.discoveryBase = remote[0], remote[1], remote[2], remote[3]
 		}
 		w.remote = (w.remote + 1) % remoteEvery
 	}
@@ -154,6 +158,7 @@ func (w *watcher) sampleLocked(remote []string) (string, map[string]string) {
 		w.expiry = time.Time{}
 	}
 	next["plans"] = w.plansBase + "#" + strconv.Itoa(w.epoch)
+	next["discovery"] = w.discoveryBase
 	var what []string
 	first := w.rev == ""
 	for _, c := range components {
@@ -345,8 +350,9 @@ var progressKeyRe = regexp.MustCompile(`^plans/plan-[0-9a-f]{6,64}\.progress\.js
 // remoteStateSignature signs a state in a bucket by listing it. A record that is
 // written again keeps its key, so the listing alone would miss it; the
 // transactions, which every apply adds, and the outputs are looked at as well.
-// The third signature is that of the stored plans.
-func remoteStateSignature(b state.Backend) (stateSig, locksSig, plansSig string) {
+// The third signature is that of the stored plans, the fourth that of the
+// discoveries.
+func remoteStateSignature(b state.Backend) (stateSig, locksSig, plansSig, discoverySig string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	var parts []string
@@ -367,7 +373,51 @@ func remoteStateSignature(b state.Backend) (stateSig, locksSig, plansSig string)
 		parts = append(parts, key+"|"+digest(string(data)))
 	}
 	keys, _ := b.List(ctx, "locks")
-	return digest(strings.Join(parts, "\n")), digest(strings.Join(keys, ";")), remotePlansSignature(ctx, b)
+	return digest(strings.Join(parts, "\n")), digest(strings.Join(keys, ";")), remotePlansSignature(ctx, b), remoteDiscoverySignature(ctx, b)
+}
+
+// localDiscoverySignature signs the runs of the discoveries in a local state, by
+// name, size and time. A state without any costs a failed directory read.
+func localDiscoverySignature(location string) string {
+	return dirSignature(filepath.Join(location, "discovery", "runs"), true)
+}
+
+// maxDiscoverySigned bounds the objects of the discoveries that a bucket is asked
+// for at each look.
+const maxDiscoverySigned = 200
+
+// remoteDiscoverySignature signs the objects of the discoveries in a bucket. A run
+// is replaced under its key and the listing carries no time, so each object is read
+// and digested, up to eight at a time and at most maxDiscoverySigned of them. A
+// bucket is looked at every fifth poll, and runs are written when someone runs
+// "pravo discover".
+func remoteDiscoverySignature(ctx context.Context, b state.Backend) string {
+	keys, err := b.List(ctx, state.DiscoveryRunDir)
+	if err != nil {
+		return "!"
+	}
+	if len(keys) > maxDiscoverySigned {
+		keys = keys[:maxDiscoverySigned]
+	}
+	parts := make([]string, len(keys))
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+	for i, key := range keys {
+		parts[i] = key
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if data, err := b.Get(ctx, key); err == nil {
+				parts[i] += "|" + digest(string(data))
+			} else {
+				parts[i] += "|-"
+			}
+		}()
+	}
+	wg.Wait()
+	return digest(strings.Join(parts, ";"))
 }
 
 // specSignature signs the files the specification is made of, the files that

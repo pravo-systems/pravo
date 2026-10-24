@@ -56,6 +56,9 @@ type model struct {
 	access     *Access
 	accessJSON []byte
 
+	// disc is what the discoveries found, set against the records of this revision.
+	disc *discoveryState
+
 	txOnce sync.Once
 	txns   []state.Transaction
 
@@ -228,6 +231,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	m.graphJSON, _ = json.Marshal(&m.graph)
 	m.access = m.accessDoc(accessPath)
 	m.accessJSON, _ = json.Marshal(m.access)
+	m.buildDiscovery(rev)
 	return m
 }
 

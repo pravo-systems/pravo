@@ -405,7 +405,7 @@ rm root-policy.cue
 
 A relative path is resolved in the directory that pravo runs in, which is the `-C` directory when that flag is given. A policy may define helper values and hidden fields. It may import only the CUE standard library. A policy kept in a subdirectory of the root is not loaded as part of the specification and is accepted.
 
-Before the verdict, a plan is not read-only. To compute it, pravo installs providers and updates the lock. It refreshes records, applies `$from` moves and adopts `$import` objects. It runs data sources and ephemeral resources, and it takes the reservations that `--reserve` asks for. A refusal does not release a reservation. It expires.
+Before the verdict, a plan is not read-only. To compute it, pravo installs providers and updates the lock. It refreshes records, and reads the objects that `$import` names. It writes no record for a `$from` move or an `$import`: the apply does. It runs data sources and ephemeral resources, and it takes the reservations that `--reserve` asks for. A refusal does not release a reservation. It expires.
 
 The guarantee concerns changes to infrastructure. With `--policy`, `plan -out` writes no refused plan. `apply FILE` and `destroy` ask no provider to create, update or delete anything unless every named policy is satisfied.
 

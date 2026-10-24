@@ -35,7 +35,7 @@ The action of a change is one of these.
 | delete | `-` | A record has no address in the specification, or the plan is `-destroy`. |
 | read | `<=` | A data source whose read waits for the apply. |
 | no-op | none | The planned state equals the record. The plan does not print it. |
-| move | none | A `$from` renamed a record. The plan prints `# OLD was moved to NEW`. |
+| move | none | A `$from` renames a record. The plan prints `# OLD will be moved to NEW`, and the apply makes the move. |
 
 Work in an empty directory. The first root has two resources: a number that the provider draws, and a resource that records it.
 

@@ -2,11 +2,12 @@
 // pill takes that term out of the text. The row is not there while the text has no term.
 
 import { h } from './util.js';
-import { parseQuery } from './query.js';
+import { parseQuery, INVENTORY } from './query.js';
 
 export class Pills {
-  constructor(root, cb) {
+  constructor(root, cb, lang = INVENTORY) {
     this.root = root;
+    this.lang = lang;
     this.key = null;
     root.addEventListener('click', (ev) => {
       const x = ev.target.closest('button[data-term]');
@@ -15,7 +16,7 @@ export class Pills {
   }
 
   render(q) {
-    const terms = parseQuery(q).terms;
+    const terms = parseQuery(q, this.lang).terms;
     const key = terms.map((t) => t.raw).join(' ');
     if (key === this.key) return;
     this.key = key;

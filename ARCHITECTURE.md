@@ -19,8 +19,8 @@ pravo is one Go binary, built from the module `github.com/pravo-systems/pravo`. 
 | `cmd/pravo/` | The command line: cobra commands, flags, text and JSON output, the MCP server. |
 | `internal/config/` | Loads a root, finds resources, providers and outputs in the evaluated value, scans for provider requirements, fingerprints a root. |
 | `internal/convert/` | CUE values to provider values (known, unknown, null), provider values back into CUE, reference analysis. |
-| `internal/engine/` | Dependency graph and scheduler, plan, apply, saved plans, stored plans and their collection, plan policies, moves and imports, ephemeral resources, function calls, provider management, the lock file. |
-| `internal/state/` | The state store: records, outputs, transactions, locks, local and S3 backends. |
+| `internal/engine/` | Dependency graph and scheduler, plan, apply, saved plans, stored plans and their collection, plan policies, moves and imports, ephemeral resources, function calls, discoveries, provider management, the lock file. |
+| `internal/state/` | The state store: records, outputs, transactions, locks, the runs of discoveries, local and S3 backends. |
 | `internal/plugin/` | The `Provider` interface, the protocol 5 and 6 adapters, process start and reattach, recording and replay, tracing. |
 | `internal/tfplugin/` | The `.proto` files, the generated message types and hand-written gRPC client stubs for protocols 5 and 6. |
 | `internal/registry/` | Provider registry client, container registry client, download, checksum, unpack, provider store. |
@@ -118,7 +118,7 @@ After a node runs, `convert.Fill` computes the provider's values for every part 
 
 1. `checkOutputs` refuses an output that references an ephemeral value. `checkReplace` validates `--replace`. With `--destroy`, `checkDestroy` builds the graph and applies `prevent_destroy`.
 2. `State.Begin("plan", command)` starts the transaction.
-3. `relabelProviders` carries out a provider `$from`. `applyMoves` carries out `$from` declarations by renaming records and rewriting the dependencies of other records (`moveNode`).
+3. `relabelProviders(true)` and `applyMoves(ctx, true)` stage what the specification declares: a provider `$from`, the records that `$from` moves (`stageMove`, which rewrites the dependencies of other records) and the objects that `$import` reads (`importResource`). A staged record lives in the memory of the `Store` (`Stage`, `StageRemove`; `Get` and `Verify` see it, a `Set` of the plan does not write it) and the plan lists it as a `move` or an import. The plan writes nothing of this; `Plan.HasDeclared` is true, `Plan.HasChanges` is not, and `Plan.HasWrites` is either. The apply drops the staged records (`DropStaged`) and writes them: `commitMoves` before `lockAll` (`moveNode`, then `retarget` points the plan at the new revisions) and `commitImports` once the locks are held.
 4. `run(ctx, false)` walks the graph.
 5. `planOrphans` plans a delete for every record whose address the specification does not declare (`planDelete`), ordered with dependents first (`orderForDestroy`). With `--destroy` it plans a delete for every record and nothing else runs.
 6. `renameHints` pairs a create and a delete of the same type and configuration hash.
@@ -217,6 +217,16 @@ A source is `[host/]namespace/type` on a provider registry (default host `regist
 
 `internal/tfplugin/proto/*.proto` are copies of the protocol definitions. `tools/protogen` produces the message types: `go run ./tools/protogen internal/tfplugin/proto tfplugin6.proto internal/tfplugin/tfplugin6`. The client stubs are written by hand for the RPCs pravo uses.
 
+### 4.1 Discoveries
+
+A discovery lists what exists and manages nothing. `config` finds the structs with `$kind: "discovery"` (`Root.Discoveries`, `config.Discovery`), which are not resources: they are not nodes of the graph and no plan or apply reads them, but they name the provider they list through as a resource does, so the requirement and the instance are found the same way. Its scope is read from the evaluated struct at load, as JSON-ready values; a field without a value is `ScopeErr` and fails that discovery alone. `Discovery.Digest` is the digest of the provider instance, the type, the scope and the limit. The `$ack` list is read as well (`parseAcks`, `config.Ack`) and left out of the digest, so changing it does not make a run stale; an entry with no pattern or with a pattern that matches everything fails the load.
+
+`plugin.Provider.ListResource` calls the server-streaming RPC of protocols 5 and 6 (`ListResource` in the hand-written client of `tfplugin5` and `tfplugin6`), decodes each identity without the identity schema (`decodeIdentity`) and stops the stream at the limit. `schema.ProviderSchema.ListResources` holds the list resource schemas, in the cache and in the pack, and `GenerateCUE` writes them as the catalogue `_#Discovery` and the member `#Discovery` of `#Provider`; `config/prune.go` prunes the catalogue as it prunes the others, and reads a package without it.
+
+`Engine.Discover` converts the scope against the schema of the list resource, asks for one object more than the bound to tell a list that ended from one that was cut, and returns a `state.DiscoveryRun`; the command stores it with `Store.PutDiscovery`. `engine.BuildDiscoveryReport` sets a run against the records, the `$import` declarations and the `$ack` entries of the specification (`discoveryview.go`): an object is managed when a record of the type agrees on every attribute of the identity that it also carries, and on one that is not a scoping attribute; adopting when a resource names it in `$import`; acknowledged when a `config.Ack` covers it by pattern; unmanaged otherwise. `AckEntry` writes an entry that the viewer offers for copying. `AdoptSnippet` and `ReadAdoption` write the resource that adopts an object, naming it in `$import` by its listed identity. An `$import` is a `config.Import` with an `ID` or an `Identity`; `plugin.ImportTarget` carries either to `ImportResourceState`, and `v5` and `v6` ask the provider once for its identity schemas (`GetResourceIdentitySchemas`) to encode an identity (`IdentitySchema.encode`). The report reads and starts nothing, so `pravo discover show` and the viewer both use it. In the state a run is `discovery/runs/<name>.json`; it is not sealed, and `state.Copy` carries it. Nothing else of a discovery is stored: the acknowledgements are code.
+
+The viewer builds `Discovery` (`internal/serve/discovery.go`) for each model from the report, after the secrets of the state are known, and answers `/api/adopt` from the same report. The watcher signs `discovery/` as the component `discovery`.
+
 ## 5. Schema generator
 
 `schema.ProviderSchema` holds the provider block, resources, data sources, ephemeral resources and functions as returned by `GetProviderSchema`. Its JSON form is cached at `$PRAVO_HOME/schemas/<source>/<version>.json`; `CacheVersion` invalidates old caches.
@@ -274,6 +284,7 @@ Security model. The listener is on `127.0.0.1` or `::1`, and `Serve` refuses a l
 | `tools/fakes3/` | `go run ./tools/fakes3 -addr 127.0.0.1:9000` serves an in-memory bucket for the `s3` state backend. |
 | `tools/fakeoci/` | `go run ./tools/fakeoci -addr 127.0.0.1:5000` serves an in-memory container registry for `pravo mod publish` and `providers copy`. |
 | `tools/protogen/` | Compiles the plugin protocol `.proto` files to Go messages without `protoc`. |
+| `tools/fakeprovider/` | A provider binary of protocol 6 with one resource type that can also be listed, for the tests of discoveries and for trying one without a cloud. Its objects are in `$FAKEPROVIDER_DIR/catalog.json`. |
 
 `sitegen` runs these steps: `discover` and `arrange` read pages and order them by section, group and `order`; the lint matches `banned.txt`; `loadGlossary` collects definitions; `renderPage` runs goldmark after a pre-pass (`scan`) that replaces containers and callouts with placeholders, renders code fences (`fence.go`, `highlight.go`, `output.go`), and collects headings; `prepareLanding` assembles `site/landing/*.html` and substitutes `{{data}}` and `{{json}}` tokens; `writeAll` writes pages, Markdown twins, the landing page, `contents.html`, the search index, the sitemap and the `llms` files; `checkOutput` verifies every link, fragment and identifier in the output.
 
@@ -293,6 +304,7 @@ go vet ./...
 | `cmd/pravo` | `cli_test.go` defines `runPravo`, which runs the root command in the test process against a temporary directory made by `specDir`. `mcp_test.go` tests the arguments of the MCP tools. |
 | `internal/serve` | Tests over a project in a temporary directory with a hand-written provider and schema: the token and cookie, the Host and `Sec-Fetch-Site` checks, redaction, source masking, the plan overlay, the watcher and the events, a hash of the directories before and after a session, and `TestInterfaceFixturesMatchTheContract`, which decodes the fixtures of `web/dev/fixtures` into the types of `api.go`. `cmd/pravo/serve_test.go` serves the example with modules after a real `init`, `apply` and `plan`. |
 | `internal/state` | Local backend tests, and `s3_test.go` against `internal/fakes3`. `internal/state/statetest` wraps a backend for the tests of other packages: `Counting` counts calls, `Latency` delays them and `Honouring` refuses a call made with a context that is done, as the S3 client does. |
+| `cmd/pravo` (discoveries) | `demoprovider_test.go` builds `tools/fakeprovider` once and the tests of `discover` run the command against it: the provider is a real process that speaks the plugin protocol, so the stream of `ListResource`, the generated `#Discovery` definitions, the state and the report are tested together. They skip under `-short`. |
 | `internal/config`, `internal/convert`, `internal/schema`, `internal/registry`, `internal/plugin`, `internal/tfstate`, `internal/ui`, `internal/plog`, `internal/telemetry` | Unit tests of each package. |
 | `tools/capture` | Unit tests; end-to-end tests with a stand-in `pravo` script in `testdata/fakepravo`; one test that builds the real binary; `TestAgreesWithSitegen`, which checks that `capture` and `sitegen` read the Markdown grammar the same way. |
 | `tools/sitegen` | Tests of fences, containers, highlighting, the lint, the link check and a build of the kitchen-sink pages in `testdata/`. |

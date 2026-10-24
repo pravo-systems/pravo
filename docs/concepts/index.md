@@ -22,6 +22,7 @@ Read them in this order. Later pages use terms that earlier pages define.
 9. [Secrets and ephemeral values](secrets-and-ephemeral-values.md). How sensitive and short-lived values travel through plans, state and outputs.
 10. [The viewer](the-viewer.md). How `pravo serve` joins the specification, the state and a saved plan into one graph, what a namespace is to it, and which values it withholds.
 11. [What sealing protects](sealed-state.md). What a sealed state encrypts, how a reader opens it, and what it leaves open.
+12. [Discovery](discovery.md). How a discovery lists the objects that exist, tells the unmanaged ones from the rest and notices that its scope changed.
 
 ## Where each idea is taught
 
@@ -36,5 +37,6 @@ Read them in this order. Later pages use terms that earlier pages define.
 | Secrets and ephemeral values | [B6, Modules, providers, credentials](../learn/b06-modules-providers-credentials.md) |
 | The viewer | None. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows it. |
 | Sealed state | None. [Seal the state to a list of readers](../how-to/seal-the-state.md) shows it. |
+| Discovery | None. [Find what nothing manages](../how-to/find-what-nothing-manages.md) shows it. |
 
 The lessons run the commands. The concept pages explain what the commands did.

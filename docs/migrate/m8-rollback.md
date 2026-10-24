@@ -28,7 +28,7 @@ Write the rollback before you start, and rehearse it before you need it. The rol
 
 pravo writes to its own state directory, `pravo.state`, and to the files of its own root. It reads the objects through their providers. It never writes the `.tfstate` file or the OpenTofu backend.
 
-Until the first `pravo apply` that creates, updates, replaces or deletes an object, no object has changed. These write records and nothing else: `import-tfstate`, `plan` (moves included), `import`, `drift` and the apply of an empty plan. Deleting the pravo files undoes everything, and the OpenTofu state and the objects are what they were.
+Until the first `pravo apply` that creates, updates, replaces or deletes an object, no object has changed. These write records and nothing else: `import-tfstate`, `import`, `drift` and the apply of a plan that changes no object, which includes the renames of `$from`. A `plan` writes nothing that you declared: it lists the moves and imports and leaves the state as it was. Deleting the pravo files undoes everything, and the OpenTofu state and the objects are what they were.
 
 From the first apply that changes an object, the OpenTofu state is out of date. pravo does not write it, and pravo has no command that converts its state back into an OpenTofu state. Rolling back means making the OpenTofu state agree with the objects, or making the objects agree with the OpenTofu state.
 
@@ -509,17 +509,17 @@ rm -rf r1 && mkdir r1 && cp -R cue.mod banner.txt out terraform.tfstate *.cue r1
 cksum r1/terraform.tfstate r1/out/hello.txt r1/out/notes/alpha.txt r1/out/notes/beta.txt > before.txt
 pravo -C r1 state import-tfstate terraform.tfstate > /dev/null
 pravo -C r1 plan > /dev/null 2>&1
-pravo -C r1 apply 2>&1 | grep -E '^(No changes|Apply complete)'
+pravo -C r1 apply --auto-approve 2>&1 | grep '^Apply complete'
 cksum r1/terraform.tfstate r1/out/hello.txt r1/out/notes/alpha.txt r1/out/notes/beta.txt > after.txt
 cmp before.txt after.txt && echo "unchanged"
 ```
 
 ```text out
-No changes. Your infrastructure matches the configuration.
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 unchanged
 ```
 
-The state file and the objects have the same checksums after the import, a plan with moves and an apply. Now roll back. Remove what pravo made and nothing else:
+The state file and the objects have the same checksums after the import, a plan and an apply that renames the records. Now roll back. Remove what pravo made and nothing else:
 
 1. Stop every pravo job for the root.
 2. Delete `pravo.state`.
@@ -692,7 +692,7 @@ No changes. Your infrastructure matches the configuration.
 :::check
 Which pravo commands change no object?
 ::answer
-`init`, `validate`, `plan`, `import`, `drift`, `eval`, the `state` subcommands and the apply of an empty plan. `import` and `$import` only read the object.
+`init`, `validate`, `plan`, `import`, `drift`, `eval`, the `state` subcommands and the apply of a plan that changes no object. `import` and `$import` only read the object.
 
 Does pravo write an OpenTofu state?
 ::answer

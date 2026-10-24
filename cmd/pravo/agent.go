@@ -146,10 +146,10 @@ func exitCodeOf(err error) int {
 // ---------- pravo schema ----------
 
 func schemaCmd() *cobra.Command {
-	var required bool
+	var required, discovery bool
 	cmd := &cobra.Command{
 		Use:   "schema <type> [<type>...]",
-		Short: "Print the CUE definition of resource, data source, ephemeral or function types",
+		Short: "Print the CUE definition of resource, data source, ephemeral, discovery or function types",
 		Long: `Prints the generated CUE definition of one or more types, with the
 provider's documentation as comments. The provider is inferred from the type
 prefix (random_pet -> random) or given explicitly as provider/type, where
@@ -193,7 +193,7 @@ specification. With --json the definitions are returned as {"type":
 				if err != nil {
 					return err
 				}
-				text, err := schemaText(ps, t.typ, required, s.providers.Resolved[t.local].Req.Source)
+				text, err := schemaText(ps, t.typ, required, discovery, s.providers.Resolved[t.local].Req.Source)
 				if err != nil {
 					return engine.WithCode(engine.ExitInvalid, err)
 				}
@@ -209,14 +209,20 @@ specification. With --json the definitions are returned as {"type":
 		},
 	}
 	cmd.Flags().BoolVar(&required, "required", false, "show only required attributes")
+	cmd.Flags().BoolVar(&discovery, "discovery", false, "show the discovery of a type that the provider can list")
 	addTagFlags(cmd)
 	return cmd
 }
 
-func schemaText(ps *schema.ProviderSchema, typ string, required bool, source registry.Source) (string, error) {
-	opts := schema.GenOptions{Resources: []string{}, DataSources: []string{}, Ephemerals: []string{}, Functions: []string{}, Source: source.String()}
+func schemaText(ps *schema.ProviderSchema, typ string, required, discovery bool, source registry.Source) (string, error) {
+	opts := schema.GenOptions{Resources: []string{}, DataSources: []string{}, Ephemerals: []string{}, Discoveries: []string{}, Functions: []string{}, Source: source.String()}
 	var kind string
 	switch {
+	case discovery:
+		if ps.ListResource(typ) == nil {
+			return "", fmt.Errorf("the provider cannot list %q, so there is no discovery of it", typ)
+		}
+		opts.Discoveries, kind = []string{typ}, "discovery"
 	case ps.Resource(typ) != nil:
 		opts.Resources, kind = []string{typ}, "resource"
 	case ps.DataSource(typ) != nil:
@@ -232,7 +238,7 @@ func schemaText(ps *schema.ProviderSchema, typ string, required bool, source reg
 		filtered := &schema.ProviderSchema{
 			Provider: ps.Provider, ProviderMeta: ps.ProviderMeta,
 			Resources: map[string]*schema.Schema{}, DataSources: map[string]*schema.Schema{},
-			Ephemerals: map[string]*schema.Schema{}, Functions: map[string]*schema.Function{},
+			Ephemerals: map[string]*schema.Schema{}, ListResources: map[string]*schema.Schema{}, Functions: map[string]*schema.Function{},
 		}
 		switch kind {
 		case "resource":
@@ -241,6 +247,8 @@ func schemaText(ps *schema.ProviderSchema, typ string, required bool, source reg
 			filtered.DataSources[typ] = requiredOnly(ps.DataSource(typ))
 		case "ephemeral":
 			filtered.Ephemerals[typ] = requiredOnly(ps.Ephemeral(typ))
+		case "discovery":
+			filtered.ListResources[typ] = requiredOnly(ps.ListResource(typ))
 		case "call":
 			filtered.Functions[typ] = ps.Function(typ)
 		}
@@ -249,7 +257,7 @@ func schemaText(ps *schema.ProviderSchema, typ string, required bool, source reg
 	src := schema.GenerateCUE(ps, "schema", opts)
 	// Show only the definition of the requested type, dedented out of #Provider.
 	text := string(src)
-	def := map[string]string{"resource": "#Resource", "data": "#Data", "ephemeral": "#Ephemeral", "call": "#Function"}[kind]
+	def := map[string]string{"resource": "#Resource", "data": "#Data", "ephemeral": "#Ephemeral", "discovery": "#Discovery", "call": "#Function"}[kind]
 	lines := strings.Split(text, "\n")
 	var body []string
 	in := false

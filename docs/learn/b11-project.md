@@ -35,7 +35,7 @@ Each outcome is a property of your estate. The number is the number in the scrip
 Two more outcomes are yours to confirm. The script does not look for them.
 
 - The bucket is a definition in its own package under `estate/modules`. It takes its providers as inputs, as in [B6](b06-modules-providers-credentials.md).
-- Renaming a bucket with `$from` plans `0 to add, 0 to change, 0 to destroy`. The plan says that the record moved, as in [B8](b08-renames-moves-imports.md).
+- Renaming a bucket with `$from` plans `0 to add, 0 to change, 0 to destroy`. The plan says that the record will move, as in [B8](b08-renames-moves-imports.md).
 
 ## What the script relies on
 

@@ -18,6 +18,7 @@ Print the CUE definition of a resource, data source, ephemeral resource or funct
 | Flag | Default | Meaning |
 |---|---|---|
 | `--required` | off | Show only the attributes that must be set, and the blocks that contain one. |
+| `--discovery` | off | Show the discovery of the type, `#Discovery.<type>`, whose attributes are the scope it lists in. The provider must be able to list the type. |
 | `-t`, `--tag key=value`, `-T` | none | Tags, as for [`pravo plan`](plan.md). |
 
 The [global flags](global-flags.md) apply. With `--json`, the output is one object that maps each argument to its definition as a string.
@@ -73,9 +74,11 @@ random_integer: {
 	// The address the record had before this resource was written here. Moves
 	// the record to this address at the next plan.
 	$from?: __string
-	// The id of an existing object to bring under management, as the provider
-	// understands it. Read at the next plan; leave it in place afterwards.
-	$import?: __string
+	// The existing object to bring under management: its id as the provider
+	// documents it for importing, or its identity, the attributes of the identity of
+	// the resource type (what a discovery lists it by). Read at the next plan; leave
+	// it in place afterwards.
+	$import?: __string | {...}
 	// Additional dependencies, as references to other resources.
 	$depends_on?: [..._]
 	$lifecycle?: #Lifecycle
@@ -117,9 +120,11 @@ random_pet: {
 	// The address the record had before this resource was written here. Moves
 	// the record to this address at the next plan.
 	$from?: __string
-	// The id of an existing object to bring under management, as the provider
-	// understands it. Read at the next plan; leave it in place afterwards.
-	$import?: __string
+	// The existing object to bring under management: its id as the provider
+	// documents it for importing, or its identity, the attributes of the identity of
+	// the resource type (what a discovery lists it by). Read at the next plan; leave
+	// it in place afterwards.
+	$import?: __string | {...}
 	// Additional dependencies, as references to other resources.
 	$depends_on?: [..._]
 	$lifecycle?: #Lifecycle
@@ -215,7 +220,7 @@ Output:
 Error: the provider has no type "random_nope"
 ```
 
-When a name is both a resource and a data source, `schema` prints the resource. `pravo providers schema NAME` prints the whole provider package, with `#Resource`, `#Data`, `#Ephemeral` and `#Function`.
+When a name is both a resource and a data source, `schema` prints the resource. A type that a provider can list is also a discovery, and `--discovery` prints that one. `pravo providers schema NAME` prints the whole provider package, with `#Resource`, `#Data`, `#Ephemeral`, `#Discovery` and `#Function`.
 
 ### JSON
 

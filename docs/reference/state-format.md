@@ -54,6 +54,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 | `txn/<id>.json` | One recorded transaction. |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |
 | `plans/<id>.plan.json`, `plans/<id>.meta.json`, `plans/<id>.progress.json` | A stored plan: the plan, its summary and what was applied from it. See [Plans](#plans). |
+| `discovery/runs/<name>.json` | What the last run of one discovery found. Replaced by the next run. See [Discoveries](#discoveries). |
 
 The graph lives in a directory, `pravo.state` next to the specification by default. [Settings](spec-settings.md#state) sets another directory or an S3 bucket. A state path that names a file is an error, and pravo changes nothing. Keep the directory on storage that every user of the root can reach. Treat nodes as sensitive: provider attributes can include secrets.
 
@@ -735,6 +736,16 @@ A command without a key lists the stored plans from their summaries and fails wi
 ## Remote layout
 
 On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 and 3, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
+
+## Discoveries
+
+`pravo discover` keeps one kind of object below `discovery/`, apart from the records. It is not a node: no plan or apply reads it, no lock covers it and nothing in it is sealed.
+
+| Object | Holds |
+|---|---|
+| `discovery/runs/<name>.json` | `v` (the layout, 1), `name` (the address of the discovery), `type`, `provider`, `provider_key`, `scope_digest`, `scope`, `limit`, `started`, `finished`, `actor`, `status` (`complete` or `truncated`), `warnings` and `items`. An item has `key` (the whole identity on one line), `id`, `name`, `identity` and `import_id`. At most 100000 items. The file name is the address, encoded as a node's is. |
+
+An object that a newer pravo wrote, with a larger `v`, is not read, and is reported. `pravo state pull` and `pravo state push` copy it, and a store that holds only these objects is not taken for an empty one. What is known and left alone is not in the state: it is the `$ack` of the discovery in the specification. [Discovery](../concepts/discovery.md) explains what the objects mean.
 
 ## See also
 

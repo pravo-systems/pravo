@@ -5,6 +5,7 @@ package config
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -138,6 +139,9 @@ type Root struct {
 	// Imports are the $import declarations by resource address.
 	Imports   map[string]*Import
 	Resources []*Resource
+	// Discoveries are the discoveries in the specification, in the order they were
+	// found.
+	Discoveries []*Discovery
 	// ProviderKeys lists every provider instance key in use, sorted.
 	ProviderKeys []string
 	// ProviderDecls are the provider structs found in the specification,
@@ -164,10 +168,37 @@ type Move struct {
 	Prefix bool
 }
 
-// Import is one entry of the top-level import field.
+// Import is the $import of a resource: the object that the first plan reads and
+// adopts. It names the object by an id, the string that the provider documents for
+// importing, or by an identity, the attributes of the identity schema of the
+// resource type, which a list of the type gives. It has one of them.
 type Import struct {
-	Addr string
-	ID   string
+	Addr     string
+	ID       string
+	Identity map[string]any
+}
+
+// Label writes what the import names on one line: the id, or the identity as
+// name=value pairs.
+func (i *Import) Label() string {
+	if i.Identity == nil {
+		return i.ID
+	}
+	names := make([]string, 0, len(i.Identity))
+	for n := range i.Identity {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	parts := make([]string, len(names))
+	for k, n := range names {
+		if s, ok := i.Identity[n].(string); ok {
+			parts[k] = n + "=" + s
+		} else {
+			b, _ := json.Marshal(i.Identity[n])
+			parts[k] = n + "=" + string(b)
+		}
+	}
+	return strings.Join(parts, ",")
 }
 
 // StateConfig is the parsed $settings.state block.

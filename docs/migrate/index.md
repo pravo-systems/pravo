@@ -23,7 +23,7 @@ Every step before the first `pravo apply` with changes leaves your infrastructur
 - Before an apply, pravo calls only the read side of a provider: schema, validation, configuration, upgrade, read, import, plan, data sources, ephemeral resources and functions. It never calls the operation that creates, updates or deletes an object.
 - pravo writes `pravo.state` (or the bucket that `$settings` names), `pravo.lock.cue` and `cue.mod` in each root. It writes the provider cache in `~/.pravo` (`PRAVO_HOME`). It writes a plan file when you name one with `--out`.
 
-A plan writes to `pravo.state`: it refreshes records, carries out `$from` moves and `$import` declarations there, and adds an entry to the transaction log when it wrote anything. Those writes change pravo's records and nothing else.
+A plan writes to `pravo.state`: it refreshes records and marks the ones whose object differs, and adds an entry to the transaction log when it wrote anything. Those writes change pravo's records and nothing else.
 
 Two limits belong to the promise.
 

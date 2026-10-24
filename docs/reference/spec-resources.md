@@ -19,6 +19,8 @@ A resource is a struct built through a provider. The provider struct holds the d
 | Ephemeral resource | `#Ephemeral.<type>` | `ephemeral` | no | `$depends_on` |
 | Function call | `#Function.<name>` | `call` | no | none |
 
+A fifth kind, the discovery, is built from `#Discovery.<type>` and has `$kind` `discovery`. It lists objects and manages none, so it is not a resource: it has no address in the graph, no record and no plan. Its `$limit` bounds a run, and its `$ack` lists the objects that are known and left alone. [Discovery](../concepts/discovery.md) describes it.
+
 Each definition carries three identity fields: `$kind`, `$type` (the provider's name for the type, such as `random_pet`) and `$source` (the provider address). A struct that has them is a resource, whatever else it holds. The rest of the definition is the provider schema, followed by the [meta fields](spec-meta-fields.md).
 
 A provider struct is declared first. See [Providers](spec-providers.md). Work in an empty directory.

@@ -60,7 +60,7 @@ const defs = `
 			$kind: "resource", $type: "local_file", $source: "hashicorp/local"
 			$depends_on?: [..._]
 			$from?:       string
-			$import?:     string
+			$import?:     string | {...}
 			filename:     string
 			content?:     string
 			id:           string | *null
@@ -70,9 +70,19 @@ const defs = `
 		local_file: {
 			$kind: "data", $type: "local_file", $source: "hashicorp/local"
 			$from?:   string
-			$import?: string
+			$import?: string | {...}
 			filename: string
 			content:  string | *null
+		}
+	}
+	#Discovery: {
+		local_file: {
+			$kind: "discovery", $type: "local_file", $source: "hashicorp/local"
+			$limit?: int & >0
+			$ack?: [...{ids?: [...string], names?: [...string], reason?: string}]
+			dir:     string
+			prefix?: string
+			depth?:  int
 		}
 	}
 }
@@ -669,6 +679,38 @@ c: base & {a: "y"}
 		}
 		if len(got) != 1 || got[0] != want {
 			t.Errorf("%s: paths = %v, want [%s]", field, got, want)
+		}
+	}
+}
+
+// $import is an id, a string, or an identity, a struct of attributes.
+func TestImportIsAnIdOrAnIdentity(t *testing.T) {
+	r, err := loadSpec(t, `
+byid:  $local.#Resource.local_file & {filename: "a", $import: "5"}
+byident: $local.#Resource.local_file & {filename: "b", $import: {bucket: "logs", region: "eu", n: 3, tags: ["a"]}}
+none:  $local.#Resource.local_file & {filename: "c"}
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if imp := r.Imports["byid"]; imp == nil || imp.ID != "5" || imp.Identity != nil || imp.Label() != "5" {
+		t.Errorf("by id: %+v", r.Imports["byid"])
+	}
+	imp := r.Imports["byident"]
+	if imp == nil || imp.ID != "" || imp.Identity["bucket"] != "logs" || imp.Identity["region"] != "eu" || imp.Label() != `bucket=logs,n=3,region=eu,tags=["a"]` {
+		t.Errorf("by identity: %+v", imp)
+	}
+	if r.Imports["none"] != nil {
+		t.Errorf("a resource without $import has one: %+v", r.Imports["none"])
+	}
+	for name, bad := range map[string]string{
+		"an empty identity":           `x: $local.#Resource.local_file & {filename: "a", $import: {}}`,
+		"an identity that is not set": `x: $local.#Resource.local_file & {filename: "a", $import: {bucket: string}}`,
+		"a number":                    `x: $local.#Resource.local_file & {filename: "a", $import: 5}`,
+		"an identity on data":         `d: $local.#Data.local_file & {filename: "i", $import: {a: "b"}}`,
+	} {
+		if _, err := loadSpec(t, bad); err == nil {
+			t.Errorf("%s was accepted", name)
 		}
 	}
 }

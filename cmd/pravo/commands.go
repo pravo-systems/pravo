@@ -22,6 +22,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -651,7 +652,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 	if err := eng.CheckPolicyView(view); err != nil {
 		return err
 	}
-	if !plan.HasChanges() {
+	if !plan.HasWrites() {
 		// The plan has nothing to change. What it still writes is the record of a
 		// node whose configuration changed and whose object did not, and an output
 		// whose value changed.
@@ -820,7 +821,7 @@ func importCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			imported, diags, err := prov.ImportResourceState(ctx, res.Type, args[1], typesOf(ps))
+			imported, diags, err := prov.ImportResourceState(ctx, res.Type, plugin.ImportTarget{ID: args[1]}, typesOf(ps))
 			if err != nil {
 				return err
 			}

@@ -137,7 +137,7 @@ Output:
 | `drifted` | Refreshed records that had changed. |
 | `opened` | Ephemeral resources opened. |
 | `called` | Function calls made. |
-| `imported`, `moved` | Imports and moves carried out by the plan. |
+| `imported`, `moved` | Imports and moves that the plan declares and the apply carries out. The plan holds them in memory and writes none of them. |
 
 Under `-refresh=false` no record is compared with its age, so none is counted in `fresh`. Under `-refresh=all` every record is read and counted in `refreshed`.
 
@@ -361,7 +361,7 @@ Output:
 {"add":2,"change":0,"destroy":2,"read":1,"blast_radius":3}
 ```
 
-Name the old address in `$from`, and the plan renames the record. The entry has the action `move`, followed by the ordinary entry for the new address:
+Name the old address in `$from`, and the plan lists the rename. The entry has the action `move`, followed by the ordinary entry for the new address:
 
 ```sh
 sed -i.bak 's/random_pet & {/random_pet \& {$from: "pet",/' main.cue
@@ -405,7 +405,10 @@ The text of a plan hides sensitive attributes. The document does not. Sensitive 
 | `stale` | `null` when the plan can still be applied. Otherwise `{"reasons": [...]}`. |
 | `plan` | The document. `created`, `actor`, `reason` and `git_revision` are those of the plan file. It carries `reservation` when the plan reserved its nodes. |
 
+The plan with `$from` wrote nothing, so the record is still at `pet`. Apply the move, drop the `$from` that has done its work, and change the length:
+
 ```sh
+pravo apply --auto-approve > /dev/null 2>&1
 sed -i.bak 's/\$from: "pet",//' main.cue
 sed -i.bak 's/length: 2/length: 3/' main.cue
 pravo plan --reserve 15m --actor ci --out change.plan > /dev/null 2>&1

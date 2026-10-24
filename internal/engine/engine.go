@@ -117,12 +117,15 @@ type Change struct {
 	// Applied marks a change of a saved plan that was applied earlier.
 	Applied    bool
 	AppliedTxn string
-	// Imported marks a resource whose record was created from an "import"
-	// declaration during this plan; MovedFrom names the previous address of
-	// a record renamed by a $from declaration.
-	Imported  bool
-	ImportID  string
-	MovedFrom string
+	// Imported marks a resource whose object an $import declaration names: the plan
+	// read it and stages the record, and the apply writes it. MovedFrom names the previous
+	// address of a record that a $from declaration renames; the apply moves it.
+	Imported bool
+	// ImportID is what the import named: an id, or the identity written as
+	// name=value pairs, when ImportIdentity is set.
+	ImportID       string
+	ImportIdentity bool
+	MovedFrom      string
 	// Reasons explains why the change is planned, for "pravo why".
 	Reasons []string
 
@@ -178,6 +181,9 @@ type Plan struct {
 	// Hints are suggestions that do not change the plan, such as a create
 	// and a delete that look like one resource under a new address.
 	Hints []string
+	// Relabels are the records whose provider a provider $from renames: the plan holds the
+	// new label in memory, and the apply writes it.
+	Relabels []Relabel
 
 	// The apply of a plan walks the nodes the plan changes and the nodes they
 	// read, and no others. Write lists the addresses it writes or removes. Inputs
@@ -278,6 +284,8 @@ func (p *Plan) PendingAddrs() []string {
 	return out
 }
 
+// HasChanges reports whether applying the plan would change an object. A move and an
+// import are not changes of an object: HasWrites counts them.
 func (p *Plan) HasChanges() bool {
 	for _, c := range p.Changes {
 		if c.Applied {
@@ -360,8 +368,10 @@ type Engine struct {
 	// dataReads holds what this plan read from the data sources, by address, with
 	// the hash of the configuration that was read.
 	dataReads map[string]dataRead
-	// imported holds the id of each import made by this plan, by address.
-	imported map[string]string
+	// imported holds what each import made by this plan named, by address.
+	imported map[string]importMark
+	// touchedAddrs are the records that the apply of the declarations wrote (see declared.go).
+	touchedAddrs map[string]bool
 	// ages holds the refresh ages that were parsed, by their text.
 	ages map[string]parsedAge
 	// now is the clock that records are aged against; nil is the wall clock.
@@ -609,11 +619,13 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		plan.Stats = e.statsNow()
 		return plan, e.txn.Finish("planned", e.summary(plan), false)
 	}
-	if err := e.relabelProviders(); err != nil {
+	relabels, err := e.relabelProviders(true)
+	if err != nil {
 		e.finishError("failed", err, true)
 		return nil, err
 	}
-	moves, err := e.applyMoves(ctx)
+	plan.Relabels = relabels
+	moves, err := e.applyMoves(ctx, true)
 	if err != nil {
 		e.finishError("failed", err, true)
 		return nil, err
@@ -1554,9 +1566,9 @@ func (e *Engine) planResource(ctx context.Context, r *config.Resource, v cue.Val
 		if err != nil {
 			return nil, err
 		}
-		if id, ok := e.importedID(addr); ok && !strict {
+		if mark, ok := e.importedID(addr); ok && !strict {
 			// The record was written by the import of an earlier walk of this plan.
-			ch.Imported, ch.ImportID = true, id
+			ch.Imported, ch.ImportID, ch.ImportIdentity = true, mark.label, mark.identity
 		}
 	} else if imp, ok := e.Root.Imports[addr]; ok && !strict {
 		prior, private, err = e.importResource(ctx, prov, r, s, imp, ch)
@@ -2221,6 +2233,13 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.finishError("failed", err, true)
 		return result, err
 	}
+	// What the specification declares about the state is written first: the plan staged it.
+	if !e.Opts.Destroy {
+		if err := e.commitMoves(plan); err != nil {
+			e.finishError("rejected", err, true)
+			return result, err
+		}
+	}
 	lockStart := time.Now()
 	held, err := e.lockAll(plan)
 	if err != nil {
@@ -2247,6 +2266,11 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	e.held = held
 	defer func() { e.held = nil }()
 	defer e.register(ctx, held)()
+	if !e.Opts.Destroy {
+		if err := e.commitImports(plan); err != nil {
+			return fail(err)
+		}
+	}
 	var skipped []string
 	if !e.Opts.Destroy {
 		defer e.approve(plan)()

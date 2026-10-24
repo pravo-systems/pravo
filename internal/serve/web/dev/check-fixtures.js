@@ -64,7 +64,7 @@ function check(value, type, where, anon) {
   }
   switch (type) {
     case 'string': if (typeof value !== 'string') fail(where, `want a string, got ${JSON.stringify(value)}`); return;
-    case 'int': if (!Number.isInteger(value)) fail(where, `want an integer, got ${JSON.stringify(value)}`); return;
+    case 'int': case 'int64': if (!Number.isInteger(value)) fail(where, `want an integer, got ${JSON.stringify(value)}`); return;
     case 'bool': if (typeof value !== 'boolean') fail(where, 'want a bool'); return;
     case 'any': return;
     case 'time.Time':
@@ -89,7 +89,7 @@ const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
 for (const f of files) {
   const v = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
   const kind = f.split('.')[0];
-  const type = { graph: 'Graph', detail: 'Detail', source: 'Source', plans: 'PlanList', plan: 'PlanOverlay', access: 'Access' }[kind];
+  const type = { graph: 'Graph', detail: 'Detail', source: 'Source', plans: 'PlanList', plan: 'PlanOverlay', access: 'Access', discovery: 'Discovery', adopt: 'Adopt' }[kind];
   if (!type) { fail(f, 'unknown fixture kind'); continue; }
   const before = errors;
   check(v, type, f);

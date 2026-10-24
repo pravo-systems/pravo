@@ -154,14 +154,14 @@ Output:
 ```text
 Success! 4 resources, 0 data sources, 1 ephemeral, 0 function calls, 0 outputs across 2 providers.
   # keep (random_pet) will be created
-  # port was imported from id "3,1,5" and matches the specification
+  # port will be imported from id "3,1,5" and matches the specification
   # sites.a.file (local_file) will be created
   # sites.b.file (local_file) will be created
-Plan: 3 to add, 0 to change, 0 to destroy.
-Graph: planned 4 · opened 1 · imported 1
+Plan: 3 to add, 0 to change, 0 to destroy, 1 to import.
+Graph: planned 4 · opened 1 · to import 1
 ```
 
-The plan creates the pet and the two files, imports `port`, and opens the ephemeral resource without recording it.
+The plan creates the pet and the two files, reads `port` for the import that the apply makes, and opens the ephemeral resource without recording it.
 
 ## Recap
 

@@ -52,6 +52,8 @@ type PlanFile struct {
 	NoRefresh bool          `json:"no_refresh,omitempty"`
 	Stats     Stats         `json:"stats"`
 	Changes   []savedChange `json:"changes"`
+	// Relabels lists the records whose provider a provider $from renames.
+	Relabels []Relabel `json:"provider_moves,omitempty"`
 	// Inputs maps the address of every record that the changes read to its
 	// revision when the plan was made. The records themselves are not in the file.
 	Inputs map[string]int `json:"inputs,omitempty"`
@@ -126,7 +128,9 @@ type savedChange struct {
 	AppliedTxn string `json:"applied_txn,omitempty"`
 	Imported   bool   `json:"imported,omitempty"`
 	ImportID   string `json:"import_id,omitempty"`
-	MovedFrom  string `json:"moved_from,omitempty"`
+	// ImportIdentity says that ImportID is an identity, written as pairs.
+	ImportIdentity bool   `json:"import_identity,omitempty"`
+	MovedFrom      string `json:"moved_from,omitempty"`
 }
 
 func packValue(v tftypes.Value) ([]byte, error) {
@@ -161,7 +165,7 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 		Format: PlanFileFormat, Created: time.Now().UTC(), Command: e.commandLine(), Lineage: e.State.Lineage(),
 		Tags: tags, SysTags: sysTags, Providers: map[string]string{}, Destroy: plan.Destroy, NoRefresh: plan.NoRefresh, Stats: plan.Stats,
 		Outputs: map[string]json.RawMessage{}, Actor: e.Opts.Actor, Reason: e.Opts.Reason, GitRevision: e.Opts.GitRevision,
-		Reservation: plan.Reservation,
+		Reservation: plan.Reservation, Relabels: plan.Relabels,
 	}
 	fp, err := e.Root.Fingerprint()
 	if err != nil {
@@ -191,13 +195,11 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 			ConfigHash: ch.ConfigHash, PriorPrivate: ch.PriorPrivate, PlannedPrivate: ch.PlannedPrivate, CreatePrivate: ch.CreatePrivate,
 			Deps: ch.Deps, CreateBeforeDestroy: ch.CreateBeforeDestroy, PreventDestroy: ch.PreventDestroy,
 			Deferred: ch.Deferred, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Kept: ch.Kept, Drifted: ch.Drifted, Forced: ch.Forced, Fresh: ch.Fresh,
-			Imported: ch.Imported, ImportID: ch.ImportID, MovedFrom: ch.MovedFrom, Reasons: ch.Reasons,
+			Imported: ch.Imported, ImportID: ch.ImportID, ImportIdentity: ch.ImportIdentity, MovedFrom: ch.MovedFrom, Reasons: ch.Reasons,
 		}
 		sc.PriorRevision, sc.PriorGeneration = ch.PriorRevision, ch.PriorGeneration
 		if ch.Action == ActionMove {
-			if n := e.State.Get(ch.Addr); n != nil {
-				sc.PriorRevision, sc.PriorGeneration = n.Revision, n.Generation
-			}
+			// The version is that of the record that moves, which is at its old address.
 			pf.Changes = append(pf.Changes, sc)
 			continue
 		}
@@ -313,7 +315,7 @@ func (e *ErrStalePlan) Error() string {
 
 // newPlan makes the plan that a file stands for, with the changes it holds.
 func (e *Engine) newPlan(pf *PlanFile) (*Plan, error) {
-	plan := &Plan{Outputs: map[string]cue.Value{}, Destroy: pf.Destroy, NoRefresh: pf.NoRefresh, Stats: pf.Stats, SavedOutputs: pf.Outputs, UnknownOutputs: pf.UnknownOutputs, SensitiveOutputs: stringSet(pf.SensitiveOutputs), Actor: pf.Actor, Reservation: pf.Reservation,
+	plan := &Plan{Outputs: map[string]cue.Value{}, Destroy: pf.Destroy, NoRefresh: pf.NoRefresh, Stats: pf.Stats, SavedOutputs: pf.Outputs, UnknownOutputs: pf.UnknownOutputs, SensitiveOutputs: stringSet(pf.SensitiveOutputs), Actor: pf.Actor, Reservation: pf.Reservation, Relabels: pf.Relabels,
 		Inputs: pf.Inputs, InputGenerations: pf.InputGenerations, EvalOutputs: pf.EvalOutputs, DropOutputs: pf.DropOutputs}
 	for _, sc := range pf.Changes {
 		ch, err := e.restoreChange(sc)
@@ -366,6 +368,13 @@ func (e *Engine) LoadPlanFor(pf *PlanFile, only []string) (*Plan, error) {
 	inputs, generations := pf.Inputs, pf.InputGenerations
 	selected := stringSet(only)
 	for _, sc := range pf.Changes {
+		if sc.Action == ActionMove && !sc.Applied {
+			// The record to move is at the old address as the plan saw it, or it was moved already.
+			if reason := e.moveReason(sc); reason != "" {
+				reasons = append(reasons, reason)
+			}
+			continue
+		}
 		if sc.Applied || sc.Skipped || sc.Kept || sc.Action == ActionMove || (selected != nil && !selected[sc.Addr]) {
 			continue
 		}
@@ -395,7 +404,7 @@ func (e *Engine) restoreChange(sc savedChange) (*Change, error) {
 		ConfigHash: sc.ConfigHash, PriorPrivate: sc.PriorPrivate, PlannedPrivate: sc.PlannedPrivate, CreatePrivate: sc.CreatePrivate,
 		Deps: sc.Deps, CreateBeforeDestroy: sc.CreateBeforeDestroy, PreventDestroy: sc.PreventDestroy,
 		Deferred: sc.Deferred, Skipped: sc.Skipped, Refreshed: sc.Refreshed, Kept: sc.Kept, Drifted: sc.Drifted, Forced: sc.Forced, Fresh: sc.Fresh,
-		Applied: sc.Applied, AppliedTxn: sc.AppliedTxn, Imported: sc.Imported, ImportID: sc.ImportID, MovedFrom: sc.MovedFrom,
+		Applied: sc.Applied, AppliedTxn: sc.AppliedTxn, Imported: sc.Imported, ImportID: sc.ImportID, ImportIdentity: sc.ImportIdentity, MovedFrom: sc.MovedFrom,
 		Reasons: sc.Reasons, PriorRevision: sc.PriorRevision, PriorGeneration: sc.PriorGeneration,
 	}
 	if sc.Action == ActionMove {
@@ -768,7 +777,7 @@ func (p *Plan) Subset(addrs []string) (*Plan, error) {
 // to mark, and an apply that failed after it applied the other changes marked
 // them and did not record the outputs.
 func (pf *PlanFile) LeftToApply(remaining *Plan) bool {
-	if remaining.HasChanges() {
+	if remaining.HasWrites() {
 		return true
 	}
 	return !remaining.Destroy && remaining.NeedsApply() && pf.ApplyTxn == ""

@@ -4,6 +4,8 @@ package tfplugin5
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"google.golang.org/grpc"
 )
@@ -20,12 +22,17 @@ type ProviderClient interface {
 	PlanResourceChange(ctx context.Context, in *PlanResourceChange_Request, opts ...grpc.CallOption) (*PlanResourceChange_Response, error)
 	ApplyResourceChange(ctx context.Context, in *ApplyResourceChange_Request, opts ...grpc.CallOption) (*ApplyResourceChange_Response, error)
 	ImportResourceState(ctx context.Context, in *ImportResourceState_Request, opts ...grpc.CallOption) (*ImportResourceState_Response, error)
+	GetResourceIdentitySchemas(ctx context.Context, in *GetResourceIdentitySchemas_Request, opts ...grpc.CallOption) (*GetResourceIdentitySchemas_Response, error)
 	ReadDataSource(ctx context.Context, in *ReadDataSource_Request, opts ...grpc.CallOption) (*ReadDataSource_Response, error)
 	ValidateEphemeralResourceConfig(ctx context.Context, in *ValidateEphemeralResourceConfig_Request, opts ...grpc.CallOption) (*ValidateEphemeralResourceConfig_Response, error)
 	OpenEphemeralResource(ctx context.Context, in *OpenEphemeralResource_Request, opts ...grpc.CallOption) (*OpenEphemeralResource_Response, error)
 	RenewEphemeralResource(ctx context.Context, in *RenewEphemeralResource_Request, opts ...grpc.CallOption) (*RenewEphemeralResource_Response, error)
 	CloseEphemeralResource(ctx context.Context, in *CloseEphemeralResource_Request, opts ...grpc.CallOption) (*CloseEphemeralResource_Response, error)
 	CallFunction(ctx context.Context, in *CallFunction_Request, opts ...grpc.CallOption) (*CallFunction_Response, error)
+	// ListResource calls the server-streaming RPC. fn receives each event in the
+	// order the provider sent it; when fn returns false the stream is cancelled and
+	// ListResource returns nil.
+	ListResource(ctx context.Context, in *ListResource_Request, fn func(*ListResource_Event) bool, opts ...grpc.CallOption) error
 	StopProvider(ctx context.Context, in *Stop_Request, opts ...grpc.CallOption) (*Stop_Response, error)
 }
 
@@ -76,6 +83,9 @@ func (c *providerClient) ApplyResourceChange(ctx context.Context, in *ApplyResou
 func (c *providerClient) ImportResourceState(ctx context.Context, in *ImportResourceState_Request, opts ...grpc.CallOption) (*ImportResourceState_Response, error) {
 	return invoke[ImportResourceState_Response](ctx, c.cc, "/tfplugin5.Provider/ImportResourceState", in, opts)
 }
+func (c *providerClient) GetResourceIdentitySchemas(ctx context.Context, in *GetResourceIdentitySchemas_Request, opts ...grpc.CallOption) (*GetResourceIdentitySchemas_Response, error) {
+	return invoke[GetResourceIdentitySchemas_Response](ctx, c.cc, "/tfplugin5.Provider/GetResourceIdentitySchemas", in, opts)
+}
 func (c *providerClient) ReadDataSource(ctx context.Context, in *ReadDataSource_Request, opts ...grpc.CallOption) (*ReadDataSource_Response, error) {
 	return invoke[ReadDataSource_Response](ctx, c.cc, "/tfplugin5.Provider/ReadDataSource", in, opts)
 }
@@ -96,4 +106,31 @@ func (c *providerClient) CallFunction(ctx context.Context, in *CallFunction_Requ
 }
 func (c *providerClient) StopProvider(ctx context.Context, in *Stop_Request, opts ...grpc.CallOption) (*Stop_Response, error) {
 	return invoke[Stop_Response](ctx, c.cc, "/tfplugin5.Provider/Stop", in, opts)
+}
+
+func (c *providerClient) ListResource(ctx context.Context, in *ListResource_Request, fn func(*ListResource_Event) bool, opts ...grpc.CallOption) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	st, err := c.cc.NewStream(ctx, &grpc.StreamDesc{StreamName: "ListResource", ServerStreams: true}, "/tfplugin5.Provider/ListResource", opts...)
+	if err != nil {
+		return err
+	}
+	if err := st.SendMsg(in); err != nil {
+		return err
+	}
+	if err := st.CloseSend(); err != nil {
+		return err
+	}
+	for {
+		ev := new(ListResource_Event)
+		if err := st.RecvMsg(ev); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		if !fn(ev) {
+			return nil
+		}
+	}
 }
