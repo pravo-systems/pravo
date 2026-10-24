@@ -12,15 +12,7 @@
     {
       "kind": "command",
       "text": "pravo discover adopt compute.instances i-0aa0000 --read"
-    },
-    {
-      "kind": "note",
-      "text": "Or say that it is known, and is meant to stay as it is:"
-    },
-    {
-      "kind": "command",
-      "text": "pravo discover ack compute.instances --id i-0aa0000 --reason <why>",
-      "placeholder": true
     }
-  ]
+  ],
+  "ack": "// An entry of $ack in the discovery compute.instances, which is the list `$ack: [...]` of its struct.\n{\n\tids: [\"i-0aa0000\"]\n\treason: \"<why>\"\n}\n"
 }

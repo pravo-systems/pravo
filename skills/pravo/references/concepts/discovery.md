@@ -59,7 +59,7 @@ servers: $demo.#Discovery.demo_server & {
 
 An entry has `ids`, `names` or both, and a `reason`. A pattern in `ids` is matched against the id of an object, or its whole identity, or the id that `$import` takes. A pattern in `names` is matched against the display name the provider gave. `*` stands for any run of characters and `?` for one. One entry can cover many objects, and the objects that appear later and match it. An entry with no pattern, or a pattern that matches everything, is an error when the specification loads.
 
-`pravo discover ack` prints an entry for you to paste in. It writes nothing, and the state holds no acknowledgement.
+The viewer writes the entry for an object, or for all that are unmanaged, with the identity filled in and the reason left for you to give. You copy it into the list. pravo writes nothing, and the state holds no acknowledgement.
 
 An acknowledged object is still listed. It stops asking to be adopted, and it does not count for the number on the tab of the viewer, for `pravo discover show --exit-code` or for the sentence at the head of the page. Take the entry out of the specification and it asks again. The entries are not part of the scope: changing them does not make the last run stale, since they change what the objects mean and not what was listed.
 

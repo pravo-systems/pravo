@@ -30,8 +30,8 @@ type of a provider with the scope to list it in:
 It asks the provider which objects exist in that scope and keeps what it
 lists in the state. The objects that a record of the state already is are
 counted and left alone. The rest are unmanaged, and are shown for adoption
-unless someone acknowledged them: "pravo discover ack" says that an object is
-known and is meant to stay as it is.
+unless the specification acknowledges them: an entry in the $ack list of the
+discovery says that an object is known and is meant to stay as it is.
 
 Without names, discover runs the discoveries that have not run yet and the
 ones whose scope changed since they ran, since what they found answers another
@@ -99,7 +99,7 @@ discover adopt" to write the resource that adopts an object.`,
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "run every discovery, not only the ones that have not run or whose scope changed")
 	addTagFlags(cmd)
-	cmd.AddCommand(discoverShowCmd(), discoverAckCmd(), discoverAdoptCmd())
+	cmd.AddCommand(discoverShowCmd(), discoverAdoptCmd())
 	return cmd
 }
 
@@ -431,95 +431,6 @@ func countsJSON(v *engine.DiscoveryView) map[string]int {
 		m[string(st)] = v.Counts[st]
 	}
 	return m
-}
-
-// ---------- pravo discover ack ----------
-
-func discoverAckCmd() *cobra.Command {
-	var ids, patterns []string
-	var unmanaged bool
-	cmd := &cobra.Command{
-		Use:   "ack <name> [--id <pattern>...] [--name <pattern>...] [--unmanaged]",
-		Short: "Write the $ack entry that says objects a discovery found are known and meant to stay unmanaged",
-		Long: `Prints an entry for the $ack list of a discovery: the CUE that says that
-the objects it matches are known, and meant to stay as they are. Add it to the
-discovery in the specification, as you add the resource that adopts an object.
-The objects are still listed in the discovery, and they stop asking to be adopted.
-One entry can cover many objects, and the objects that appear later and match it.
-Nothing is written to the specification or the state.
-
---id takes a pattern for the id of the object (or its whole identity), --name one
-for the name the provider gave it. In a pattern * stands for any run of
-characters and ? for one. The flags can be repeated. --unmanaged covers the
-objects that are unmanaged now, one by one, and none that appear later.
-
-The reason is the global --reason flag.`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			name := args[0]
-			s, err := newSession(cmd.Context(), sessionOptions{loadState: true, readOnlyState: true})
-			if err != nil {
-				return err
-			}
-			defer s.close()
-			rep, err := discoveryReport(s)
-			if err != nil {
-				return err
-			}
-			v := rep.View(name)
-			if v == nil {
-				return engine.WithCode(engine.ExitInvalid, unknownDiscovery(s.root, name))
-			}
-			match := append([]string(nil), ids...)
-			if unmanaged {
-				for _, it := range v.Unmanaged() {
-					match = append(match, escapeGlob(it.ID))
-				}
-			}
-			if len(match)+len(patterns) == 0 {
-				if unmanaged {
-					out.Printf("%s has no unmanaged objects; nothing to acknowledge.\n", name)
-					return nil
-				}
-				return engine.WithCode(engine.ExitInvalid, fmt.Errorf("say what to acknowledge: --id, --name or --unmanaged"))
-			}
-			entry := &config.Ack{IDs: match, Names: patterns, Reason: flagReason}
-			if err := entry.Validate(); err != nil {
-				return engine.WithCode(engine.ExitInvalid, err)
-			}
-			covered := 0
-			if v.Run != nil {
-				for _, l := range v.Run.Items {
-					if entry.Covers(l.ID, l.Key, l.ImportID, l.Name) {
-						covered++
-					}
-				}
-			}
-			snippet := engine.FormatCUE(engine.AckEntry(name, match, patterns, flagReason))
-			if flagJSON {
-				return emitJSON(map[string]any{"discovery": name, "entry": snippet, "covers": covered})
-			}
-			fmt.Print(snippet)
-			out.Printf("// It covers %s of the last run.\n", plural(covered, "object", "objects"))
-			return nil
-		},
-	}
-	cmd.Flags().StringArrayVar(&ids, "id", nil, "a pattern for the id of the objects to acknowledge (repeatable)")
-	cmd.Flags().StringArrayVar(&patterns, "name", nil, "a pattern for the name of the objects to acknowledge (repeatable)")
-	cmd.Flags().BoolVar(&unmanaged, "unmanaged", false, "acknowledge the objects that are unmanaged now, by id")
-	addTagFlags(cmd)
-	return cmd
-}
-
-// escapeGlob makes a pattern that matches only s: the ids of the objects come into
-// the entry as patterns, and an id may hold * or ?.
-func escapeGlob(s string) string {
-	if !strings.ContainsAny(s, "*?") {
-		return s
-	}
-	// There is no escape in a pattern; ? matches the character itself, so a *
-	// is the one that cannot be written exactly.
-	return strings.ReplaceAll(s, "*", "?")
 }
 
 // ---------- pravo discover adopt ----------

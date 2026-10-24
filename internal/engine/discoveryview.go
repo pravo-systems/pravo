@@ -498,9 +498,17 @@ var bidiEscaper = func() *strings.Replacer {
 	return strings.NewReplacer(pairs...)
 }()
 
+// EscapeGlob makes a pattern that matches only s, for the id of an object that is
+// written into an $ack entry: an id may hold * or ?. A pattern has no escape, and
+// ? matches the character itself, so a * is the one that cannot be written exactly.
+func EscapeGlob(s string) string {
+	return strings.ReplaceAll(s, "*", "?")
+}
+
 // AckEntry is the CUE of an entry of the $ack list of a discovery, which says that
 // the objects it matches are known and meant to stay unmanaged. A person adds it to
-// the list of the discovery in the specification: pravo does not edit the files.
+// the list of the discovery in the specification: pravo does not edit the files. The
+// viewer offers it for copying.
 func AckEntry(discovery string, ids, names []string, reason string) string {
 	list := func(patterns []string) string {
 		parts := make([]string, len(patterns))

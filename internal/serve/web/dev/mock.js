@@ -72,12 +72,9 @@ function adoptOf(name, key) {
   else {
     steps.push({ kind: 'note', text: it.importable ? 'To write the resource with the attributes the object has, ask the provider for it:' : `The identity is not an id that $import takes. Give the id that the provider documents for importing a ${d.type}:` });
     steps.push(it.importable ? { kind: 'command', text: `pravo discover adopt ${d.name} ${it.id} --read` } : { kind: 'command', text: `pravo discover adopt ${d.name} ${it.id} --read --import-id <id>`, placeholder: true });
-    if (it.status === 'unmanaged') {
-      steps.push({ kind: 'note', text: 'Or say that it is known, and is meant to stay as it is:' });
-      steps.push({ kind: 'command', text: `pravo discover ack ${d.name} --id ${it.id} --reason <why>`, placeholder: true });
-    }
   }
-  return Object.assign({}, adoptExample, { discovery: name, key, id: it.id, status: it.status, snippet, steps });
+  const ack = it.status === 'unmanaged' ? `// An entry of $ack in the discovery ${d.name}, which is the list \`$ack: [...]\` of its struct.\n{\n\tids: ["${it.id}"]\n\treason: "<why>"\n}\n` : undefined;
+  return Object.assign({}, adoptExample, { discovery: name, key, id: it.id, status: it.status, snippet, steps, ack });
 }
 
 // ---- the Access view: access.NAME.json, the sealed platform unless the query says another ----

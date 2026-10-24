@@ -78,22 +78,10 @@ func TestDiscoverLifecycle(t *testing.T) {
 		t.Errorf("show --exit-code exited %d with objects unmanaged", code)
 	}
 
-	// Acknowledge two of them with one entry. The command prints it and writes nothing.
-	text, code = runPravo(t, dir, "--reason", "the nightly jobs", "discover", "ack", "vms", "--name", "batch-*")
-	if code != 0 {
-		t.Fatalf("ack exited %d:\n%s", code, text)
-	}
-	contains(t, text, "names: [\"batch-*\"]", `reason: "the nightly jobs"`, "$ack", "covers 2 objects")
-	if st.Len() != 1 {
-		t.Errorf("ack wrote to the state")
-	}
-	if text, _ := runPravo(t, dir, "discover", "show"); !strings.Contains(text, "3 unmanaged") {
-		t.Errorf("an entry that is not in the specification acknowledges nothing:\n%s", text)
-	}
-
-	// The entry goes into the discovery in the specification. It is not part of
-	// the scope, so the run is still current and the provider is not asked again.
+	// Acknowledge two of them with one entry, written in the discovery of the specification.
 	spec, _ := os.ReadFile(filepath.Join(dir, "main.cue"))
+	// An entry is not part of the scope, so the run is still current and the
+	// provider is not asked again.
 	entry := "\n\t{\n\t\tnames: [\"batch-*\"]\n\t\treason: \"the nightly jobs\"\n\t}\n"
 	acked := strings.Replace(string(spec), `{region: "eu"}`, "{region: \"eu\", $ack: ["+entry+"]}", 1)
 	mustWrite(t, dir, "main.cue", acked)
@@ -258,9 +246,6 @@ func TestDiscoverNamesAndMistakes(t *testing.T) {
 	}{
 		{[]string{"discover", "nope"}, int(engine.ExitInvalid), `there is no discovery "nope"`},
 		{[]string{"discover", "show", "nope"}, int(engine.ExitInvalid), "it has vms"},
-		{[]string{"discover", "ack", "nope", "--id", "x"}, int(engine.ExitInvalid), `there is no discovery "nope"`},
-		{[]string{"discover", "ack", "vms"}, int(engine.ExitInvalid), "say what to acknowledge"},
-		{[]string{"discover", "ack", "vms", "--id", "*"}, int(engine.ExitInvalid), "matches everything"},
 		{[]string{"discover", "adopt", "vms", "x"}, int(engine.ExitInvalid), "has not run"},
 		{[]string{"discover", "--all", "vms"}, 1, "--all runs every discovery"},
 	} {
@@ -275,12 +260,11 @@ func TestDiscoverNamesAndMistakes(t *testing.T) {
 	if text, code := runPravo(t, dir, "discover", "adopt", "vms", "nope"); code != int(engine.ExitInvalid) || !strings.Contains(text, `did not find "nope"`) {
 		t.Errorf("%d\n%s", code, text)
 	}
-	text, code := runPravo(t, dir, "discover", "ack", "vms", "--unmanaged")
-	if code != 0 || !strings.Contains(text, "covers 3 objects") || !strings.Contains(text, `"srv-web-old"`) {
-		t.Errorf("ack --unmanaged: %d\n%s", code, text)
-	}
-	if text, code := runPravo(t, dir, "discover", "acks"); code == 0 {
-		t.Errorf("acks is no command any more: %s", text)
+	// An $ack entry that covers everything is refused when the specification loads.
+	spec, _ := os.ReadFile(filepath.Join(dir, "main.cue"))
+	mustWrite(t, dir, "main.cue", strings.Replace(string(spec), `{region: "eu"}`, `{region: "eu", $ack: [{names: ["*"], reason: "x"}]}`, 1))
+	if text, code := runPravo(t, dir, "discover", "show"); code != int(engine.ExitInvalid) || !strings.Contains(text, "matches everything") {
+		t.Errorf("%d\n%s", code, text)
 	}
 }
 

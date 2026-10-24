@@ -185,8 +185,11 @@ func TestDiscoveryDocumentSetsTheRunAgainstTheState(t *testing.T) {
 	if len(by["stray-1"].Identity) != 2 || by["stray-1"].Identity[0].Name != "name" || by["stray-1"].Identity[0].Value != "stray-1" {
 		t.Errorf("%+v", by["stray-1"].Identity)
 	}
-	if v.AckAll != "pravo discover ack vms --unmanaged --reason <why>" {
-		t.Errorf("ack_all = %q", v.AckAll)
+	// What is unmanaged is offered as an $ack entry to paste, with the reason left to give.
+	for _, want := range []string{"$ack", `ids: ["name=stray-1,region=eu"]`, `reason: "<why>"`} {
+		if !strings.Contains(v.AckAll, want) {
+			t.Errorf("ack_all lacks %q:\n%s", want, v.AckAll)
+		}
 	}
 	if g := find(d, "gone"); g != nil && g.AckAll != "" {
 		t.Errorf("a discovery that is not declared cannot be acknowledged: %q", g.AckAll)
@@ -349,9 +352,14 @@ func TestAdoptEndpoint(t *testing.T) {
 			}
 		}
 	}
-	if len(cmds) != 2 || !strings.HasPrefix(cmds[0], "pravo discover adopt vms name=stray-1,region=eu --read --import-id <id>") ||
-		!strings.HasPrefix(cmds[1], "pravo discover ack vms --id name=stray-1,region=eu --reason <why>") || placeholders != 2 {
+	if len(cmds) != 1 || !strings.HasPrefix(cmds[0], "pravo discover adopt vms name=stray-1,region=eu --read --import-id <id>") || placeholders != 1 {
 		t.Errorf("steps %+v", a.Steps)
+	}
+	// Saying that it is known is code too: an entry to add to the $ack of the discovery.
+	for _, want := range []string{`ids: ["name=stray-1,region=eu"]`, `reason: "<why>"`} {
+		if !strings.Contains(a.Ack, want) {
+			t.Errorf("the $ack entry lacks %q:\n%s", want, a.Ack)
+		}
 	}
 
 	// An object with an id gets the id.
@@ -363,10 +371,8 @@ func TestAdoptEndpoint(t *testing.T) {
 	if code != 200 || a.Status != "acknowledged" {
 		t.Fatalf("%d %+v", code, a)
 	}
-	for _, s := range a.Steps {
-		if strings.Contains(s.Text, "discover ack") {
-			t.Errorf("an object that was acknowledged is offered an acknowledgement: %+v", s)
-		}
+	if a.Ack != "" {
+		t.Errorf("an object that was acknowledged is offered an acknowledgement: %s", a.Ack)
 	}
 
 	// A command is made only from what a shell can be given safely.

@@ -854,9 +854,9 @@ type DiscoveryInfo struct {
 	ItemsOmitted int              `json:"items_omitted,omitempty"`
 	// Acks are the entries of $ack of the discovery.
 	Acks []AckInfo `json:"acks,omitempty"`
-	// Command runs this discovery. AckAll prints an $ack entry for the objects that
-	// are unmanaged now, with a reason for the person to give; it is empty when none
-	// is unmanaged or the name cannot be put in a command.
+	// Command runs this discovery. AckAll is the CUE of an $ack entry for the objects
+	// that are unmanaged now, with a reason for the person to give; it is empty when
+	// none is unmanaged or there are too many to name one by one.
 	Command string `json:"command"`
 	AckAll  string `json:"ack_all,omitempty"`
 }
@@ -928,6 +928,9 @@ type Adopt struct {
 	Status    string `json:"status"`
 	// Snippet is CUE: a resource that names the object in $import.
 	Snippet string `json:"snippet"`
+	// Ack is the CUE of an $ack entry that says the object is known and is meant to
+	// stay as it is, with a reason for the person to give. Only for an unmanaged one.
+	Ack string `json:"ack,omitempty"`
 	// Steps follow the snippet: commands to copy, and notes. A step with
 	// Placeholder has a part, in angle brackets, for the person to fill in.
 	Steps []SuggestionStep `json:"steps"`

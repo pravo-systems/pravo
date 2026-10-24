@@ -209,7 +209,7 @@ Taught in [A3](https://pravo.systems/learn/a03-writing-a-field-twice.html).
 
 ### acknowledgement
 
-An entry of the `$ack` list of a [discovery](#discovery), in the specification, that says that the objects that match its patterns are known and are meant to stay unmanaged. They are still listed, and they stop asking to be adopted. `pravo discover ack` prints one.
+An entry of the `$ack` list of a [discovery](#discovery), in the specification, that says that the objects that match its patterns are known and are meant to stay unmanaged. They are still listed, and they stop asking to be adopted. The viewer writes one for an object.
 
 See [Discovery](../concepts/discovery.md#acknowledging).
 

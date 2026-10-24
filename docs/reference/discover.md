@@ -1,6 +1,6 @@
 ---
 title: pravo discover
-description: Run the discoveries of the specification, show what they found against the state, acknowledge the objects that are meant to stay unmanaged and write the resource that adopts one.
+description: Run the discoveries of the specification, show what they found against the state, show the objects that are meant to stay unmanaged apart and write the resource that adopts one.
 order: 20
 group: Commands
 keywords: "list unmanaged inventory orphans import audit"
@@ -11,14 +11,14 @@ capture: false
 
 | | |
 |---|---|
-| Synopsis | `pravo discover [NAME...]`, `pravo discover show [NAME...]`, `pravo discover ack NAME`, `pravo discover adopt NAME ID` |
+| Synopsis | `pravo discover [NAME...]`, `pravo discover show [NAME...]`, `pravo discover adopt NAME ID` |
 | Changes infrastructure | No. A discovery lists. |
 | Starts providers | `discover` and `adopt --read`. The other subcommands read the state and start nothing. |
 | Writes | `discover`: one object for each discovery it runs, `discovery/runs/<name>.json`. Nothing else: no record, no transaction and no lock. |
 | Requires | A discovery in the specification, built from a provider that implements list resources. [Discovery](../concepts/discovery.md) explains what one is. |
 | Taught in | [Find what nothing manages](../how-to/find-what-nothing-manages.md). |
 
-A discovery is written `name: $provider.#Discovery.<type> & {scope...}` and may set `$limit`, the most objects that one run keeps, and `$ack`, the list of what is known and left alone. `NAME` is the address of the struct, such as `servers` or `network.vpcs`. A name that no discovery has is an error that lists the names that exist. A discovery cannot be called `show`, `ack` or `adopt`: a first argument that is one of them is the subcommand.
+A discovery is written `name: $provider.#Discovery.<type> & {scope...}` and may set `$limit`, the most objects that one run keeps, and `$ack`, the list of what is known and left alone. `NAME` is the address of the struct, such as `servers` or `network.vpcs`. A name that no discovery has is an error that lists the names that exist. A discovery cannot be called `show` or `adopt`: a first argument that is one of them is the subcommand.
 
 ## pravo discover
 
@@ -45,14 +45,6 @@ For each discovery it prints the name, the type and the provider instance, the s
 | `--exit-code` | off | Exit 2 when an object that is shown is unmanaged. |
 | `--managed` | off | List the managed objects too. |
 
-## pravo discover ack
-
-`pravo discover ack NAME [--id PATTERN]... [--name PATTERN]... [--unmanaged]` prints an entry for the `$ack` list of the discovery: the CUE that says the objects it covers are known and are meant to stay as they are. You add it to the discovery in the specification. Nothing is written to the specification or the state. The objects stay listed, and stop asking to be adopted once the entry is in.
-
-`--id` is a pattern for the id of an object, or its whole identity, and `--name` one for the name that the provider gave it. Both repeat. In a pattern `*` stands for any run of characters and `?` for one. `--unmanaged` covers the objects that are unmanaged in the last run, each by its id, and none that appear later. The `reason` of the entry is the global `--reason`. After the entry the command says how many objects of the last run it covers.
-
-A pattern that is empty, longer than 512 bytes or made of `*` alone is refused, and so is an entry with more than 10000 patterns. The specification is held to the same rules when it loads. With `--json` the command prints `discovery`, `entry` and `covers`.
-
 ## pravo discover adopt
 
 `pravo discover adopt NAME ID [--read] [--import-id ID]` prints the CUE of a resource that adopts one object of the last run: a struct of the type of the discovery, built through its provider, with `$import` set to the id of the object. `ID` is the id that the listing shows, or the whole identity. Nothing is written to the specification or the state.
@@ -68,7 +60,7 @@ An object whose identity is not an id, and is made of more than one attribute, h
 | 0 | The command did what it was asked. |
 | 1 | A discovery failed to run: the provider returned an error, the scope has no value, or the provider cannot list the type. An argument that is wrong. |
 | 2 | `show --exit-code` found an unmanaged object. |
-| 6 | The specification does not load, or `NAME` is not a discovery, or the object is not in the last run, or the object is managed, or the entry of `ack` is refused, or an `$ack` entry of the specification is not valid. |
+| 6 | The specification does not load, or `NAME` is not a discovery, or the object is not in the last run, or the object is managed, or an `$ack` entry of the specification is not valid: it has no pattern, a pattern that is empty, longer than 512 bytes or made of `*` alone, or more than 10000 patterns. |
 
 The [global flags](global-flags.md) apply.
 

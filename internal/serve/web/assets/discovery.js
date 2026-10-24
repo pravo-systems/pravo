@@ -44,6 +44,12 @@ function command(text, placeholder, label, fk) {
     h('button', { class: 'cpbtn', type: 'button', 'data-copy': text, 'data-fk': fk, 'aria-label': `${label}: ${text}`, 'data-tip': label }, icon('copy')));
 }
 
+// snippet is a block of CUE with a button that copies it.
+function snippet(text, label, fk) {
+  return h('div', { class: 'dv-snip' }, h('pre', { class: 'dv-code' }, h('code', null, withParts(text))),
+    h('button', { class: 'cpbtn', type: 'button', 'data-copy': text, 'data-fk': fk, 'aria-label': label, 'data-tip': label }, icon('copy')));
+}
+
 // matches says whether a row passes the filter: every word is in its id, name, status or identity.
 function matches(it, words) {
   if (!words.length) return true;
@@ -205,7 +211,7 @@ export class DiscoveryView {
         status === 'unmanaged' ? h('p', { class: 'dv-why' }, why) : null,
         h('ul', { class: 'dv-items' }, list.slice(0, n).map((it) => this.item(x, it))),
         list.length > n ? h('button', { class: 'btn dv-more', type: 'button', 'data-fk': 'more:' + key, on: { click: () => { this.shown.set(key, n + PAGE); this.redrawRows(); } } }, `Show ${Math.min(PAGE, list.length - n)} more of ${fmt(list.length - n)}`) : null,
-        status === 'unmanaged' && x.ack_all && !words.length ? h('div', { class: 'dv-ackall' }, h('p', { class: 'dv-note' }, 'To leave all of them as they are:'), command(x.ack_all, true, 'Copy the command that acknowledges them all', 'ackall:' + x.name)) : null));
+        status === 'unmanaged' && x.ack_all && !words.length ? h('div', { class: 'dv-ackall' }, h('p', { class: 'dv-note' }, 'To leave all of them as they are, add this to the $ack list of the discovery and give the reason:'), snippet(x.ack_all, 'Copy the $ack entry for all of them', 'ackall:' + x.name)) : null));
     }
     if (!any) {
       const quiet = x.counts.unmanaged + x.counts.adopting + x.counts.acknowledged === 0;
@@ -278,13 +284,16 @@ export class DiscoveryView {
     if (a.status !== 'adopting') {
       box.append(
         h('p', { class: 'dv-lead' }, 'Add this to the specification. The next plan reads the object and shows how it differs from what you wrote.'),
-        h('div', { class: 'dv-snip' }, h('pre', { class: 'dv-code' }, h('code', null, a.snippet)),
-          h('button', { class: 'cpbtn', type: 'button', 'data-copy': a.snippet, 'data-fk': 'snip:' + k, 'aria-label': 'Copy the resource', 'data-tip': 'Copy the resource' }, icon('copy'))));
+        snippet(a.snippet, 'Copy the resource', 'snip:' + k));
     }
     (a.steps || []).forEach((s, i) => {
       if (s.kind === 'command') box.append(command(s.text, !!s.placeholder, 'Copy the command', `step:${k}:${i}`));
       else box.append(h('p', { class: 'dv-note' }, s.text));
     });
+    if (a.ack) {
+      box.append(h('p', { class: 'dv-note' }, 'Or say that it is known, and is meant to stay as it is. Add this to the $ack list of the discovery, and give the reason:'),
+        snippet(a.ack, 'Copy the $ack entry', 'ack:' + k));
+    }
     if (it.identity && it.identity.length) {
       box.append(h('details', { class: 'dv-idt' }, h('summary', null, 'Identity the provider gave'),
         h('dl', null, it.identity.map((f) => [h('dt', null, f.name), h('dd', null, h('code', null, f.value))]))));

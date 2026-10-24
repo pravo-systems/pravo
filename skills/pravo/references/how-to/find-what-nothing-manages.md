@@ -80,22 +80,7 @@ Every discovery is current. Run pravo discover --all to list them again.
 
 ## 3. Acknowledge what you know
 
-`batch-1` and `batch-2` are started by a nightly job and removed by it. Say so once, for both, with a pattern for the name. The acknowledgement is code: an entry of the `$ack` list of the discovery. `pravo discover ack` prints the entry.
-
-```sh
-pravo --reason "started and removed by the nightly job" discover ack servers --name 'batch-*'
-```
-
-```text
-// An entry of $ack in the discovery servers, which is the list `$ack: [...]` of its struct.
-{
-	names: ["batch-*"]
-	reason: "started and removed by the nightly job"
-}
-// It covers 2 objects of the last run.
-```
-
-Nothing is written. Add the entry to the discovery in the specification:
+`batch-1` and `batch-2` are started by a nightly job and removed by it. Say so once, for both, with a pattern for the name. The acknowledgement is code: an entry of the `$ack` list of the discovery, written in the specification.
 
 ```cue
 servers: $demo.#Discovery.demo_server & {
@@ -106,6 +91,8 @@ servers: $demo.#Discovery.demo_server & {
 	}]
 }
 ```
+
+A pattern in `names` is matched against the display name the provider gave, and one in `ids` against the id of the object or its whole identity. `*` stands for any run of characters and `?` for one. The viewer writes an entry for any object, with its id in place and the reason left to give; [step 6](#6-see-it-in-the-viewer) shows where.
 
 The entry also covers a `batch-3` that the job starts tomorrow. To withdraw it, take it out of the list. The entries are not part of the scope, so the discovery is still current and nothing runs again.
 
@@ -127,7 +114,7 @@ servers  demo_server via demo
     srv-batch-2                   batch-2  $ack[0] “started and removed by the nightly job”
 ```
 
-To acknowledge the objects that are unmanaged now, one by one, and none that appear later, use `--unmanaged`. To acknowledge by id, use `--id` with a pattern.
+To acknowledge one object, write its id in `ids`.
 
 ## 4. Adopt one
 
@@ -188,7 +175,7 @@ servers  demo_server via demo
 pravo serve
 ```
 
-Open the Discovery section, or press `d`. Each discovery is a card: its scope, when it ran and who ran it, and the count of objects by status. The unmanaged objects come first, with an amber edge and an Adopt button. The button opens the resource that adopts the object, the command that reads the object into it, and the command that prints the entry that acknowledges it. The acknowledged objects are listed below in grey with their reasons, and under them the `$ack` entries of the specification with the number of objects each covers, and the managed objects are a number. The number on the tab is the objects that ask to be adopted.
+Open the Discovery section, or press `d`. Each discovery is a card: its scope, when it ran and who ran it, and the count of objects by status. The unmanaged objects come first, with an amber edge and an Adopt button. The button opens the resource that adopts the object, the command that reads the object into it, and the `$ack` entry that acknowledges it, to copy. The acknowledged objects are listed below in grey with their reasons, and under them the `$ack` entries of the specification with the number of objects each covers, and the managed objects are a number. The number on the tab is the objects that ask to be adopted.
 
 The page runs nothing and writes nothing. It shows each command, and a button copies it.
 

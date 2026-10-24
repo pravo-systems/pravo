@@ -126,8 +126,12 @@ func (m *model) discoveryInfo(v *engine.DiscoveryView, specOK bool) DiscoveryInf
 	if info.Scope == nil {
 		info.Scope = []Field{}
 	}
-	if info.Counts.Unmanaged > 0 && v.Declared && safeArg(v.Name) {
-		info.AckAll = "pravo discover ack " + engine.ShellWord(v.Name) + " --unmanaged --reason <why>"
+	if n := info.Counts.Unmanaged; n > 0 && n <= maxAckPatternsShown && v.Declared {
+		ids := make([]string, 0, n)
+		for _, it := range v.Unmanaged() {
+			ids = append(ids, engine.EscapeGlob(it.ID))
+		}
+		info.AckAll = m.scrubText(engine.FormatCUE(engine.AckEntry(v.Name, ids, nil, "<why>")))
 	}
 	if ref := m.spec.discRefs[v.Name]; ref != nil && v.Declared {
 		info.Source = ref
@@ -230,6 +234,9 @@ func (m *model) adoptFor(name, key string) (*Adopt, bool) {
 	}
 	snippet := engine.FormatCUE(engine.AdoptSnippet(root, v, item.Listed, ""))
 	out := &Adopt{Discovery: m.clipText(name), Key: m.clipText(item.Key), ID: m.clipText(item.ID), Status: string(item.Status), Snippet: m.scrubText(snippet)}
+	if item.Status == engine.Unmanaged {
+		out.Ack = m.scrubText(engine.FormatCUE(engine.AckEntry(name, []string{engine.EscapeGlob(item.ID)}, nil, "<why>")))
+	}
 	if item.Status == engine.Adopting {
 		out.Steps = append(out.Steps, SuggestionStep{Kind: "note", Text: item.By + " already names this object in $import. The next plan reads it and an apply records it."})
 		return out, true
@@ -247,11 +254,6 @@ func (m *model) adoptFor(name, key string) (*Adopt, bool) {
 		out.Steps = append(out.Steps,
 			SuggestionStep{Kind: "note", Text: "The identity is not an id that $import takes. Give the id that the provider documents for importing a " + v.Type + ":"},
 			SuggestionStep{Kind: "command", Text: "pravo discover adopt " + n + " " + id + " --read --import-id <id>", Placeholder: true})
-	}
-	if item.Status == engine.Unmanaged {
-		out.Steps = append(out.Steps,
-			SuggestionStep{Kind: "note", Text: "Or say that it is known, and is meant to stay as it is:"},
-			SuggestionStep{Kind: "command", Text: "pravo discover ack " + n + " --id " + id + " --reason <why>", Placeholder: true})
 	}
 	return out, true
 }

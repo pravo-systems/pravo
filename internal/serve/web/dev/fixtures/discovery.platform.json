@@ -139,7 +139,7 @@
         }
       ],
       "command": "pravo discover network.vpcs",
-      "ack_all": "pravo discover ack network.vpcs --unmanaged --reason <why>"
+      "ack_all": "// An entry of $ack in the discovery network.vpcs, which is the list `$ack: [...]` of its struct.\n{\n\tids: [\"vpc-0a91c2\", \"vpc-07f3d8\"]\n\treason: \"<why>\"\n}\n"
     },
     {
       "name": "compute.instances",
@@ -354,7 +354,7 @@
         }
       ],
       "command": "pravo discover compute.instances",
-      "ack_all": "pravo discover ack compute.instances --unmanaged --reason <why>"
+      "ack_all": "// An entry of $ack in the discovery compute.instances, which is the list `$ack: [...]` of its struct.\n{\n\tids: [\"i-0aa0000\", \"i-0aa0001\", \"i-0aa0002\", \"i-0aa0003\", \"i-0aa0004\"]\n\treason: \"<why>\"\n}\n"
     },
     {
       "name": "buckets",
