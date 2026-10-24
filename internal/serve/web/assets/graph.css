@@ -256,11 +256,14 @@
 /* a small screen has no room for the key (graph.css comes after app.css, so its own rule has to say so) */
 @media (max-width: 47.5em) { .legend { display: none; } }
 /* where the minimap stands at the other corner, the key leaves it room and wraps */
-.canvas:has(.minimap:not(.off)) .legend { max-width: calc(100% - 15rem); }
+.canvas:has(.minimap:not(.off)) .legend.open { max-width: min(34rem, calc(100% - 15rem)); }
+.canvas:has(.minimap:not(.off)) .legend:not(.open) { max-width: none; }
 .legend .lg { display: inline-flex; align-items: center; gap: .4rem; }
 .legend .lg-toggle { pointer-events: auto; display: inline-flex; align-items: center; gap: .4rem; padding: 0; font: inherit; color: var(--text-2); }
 .legend .lg-toggle:hover { color: var(--text); }
 .legend:not(.open) { border-radius: 999px; gap: 0; }
+.legend.open { justify-content: flex-start; max-width: min(34rem, calc(100% - 2rem)); }
+.legend.open .lg-toggle { flex-basis: 100%; margin-bottom: .1rem; }
 .legend:not(.open) .lg, .canvas.has-sel .legend:not(.open) .lg-sel { display: none; }
 .legend .lg-sel { display: none; }
 .canvas.has-sel .legend .lg-sel { display: inline-flex; }
