@@ -121,7 +121,7 @@ export function buildModel(graph, plans) {
   const planned = list.filter((n) => n.action).length;
   const stored = plans || [];
   return {
-    graph: g, nodes, list, modules, root, edges, counts, planned, hasPlan: !!g.plan, specError, nres: list.length - nout, nout,
+    graph: g, nodes, list, modules, root, edges, counts, planned, hasPlan: !!g.plan, specError, nres: counts.all, nout,
     plans: stored, planById: new Map(stored.map((p) => [p.id, p])), authors: new Map(stored.map((p) => [p.id, p.author])),
   };
 }

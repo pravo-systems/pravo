@@ -549,7 +549,7 @@ function applyMatch() {
   const set = matchSet();
   gv.setMatch(set);
   const c = $('match-count');
-  c.textContent = set || S.q || S.filter ? `${S.matches} of ${S.model.list.length}` : '';
+  c.textContent = set || S.q || S.filter ? plural(S.matches, 'match', 'matches') : '';
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -847,7 +847,7 @@ function renderAccess() {
 function renderTable() {
   const n = table.render({ model: S.model, filter: S.filter, q: S.q, sel: S.sel && S.model.nodes.has(S.sel) ? S.sel : null });
   const c = $('match-count');
-  c.textContent = S.q || S.filter ? `${n} of ${S.model.list.length}` : `${n}`;
+  c.textContent = S.q || S.filter ? plural(n, 'match', 'matches') : '';
 }
 
 function renderRail() {
