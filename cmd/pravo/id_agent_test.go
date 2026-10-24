@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -148,8 +149,10 @@ func TestIDNewCanSealTheIdentityUnderTheSSHAgent(t *testing.T) {
 		t.Errorf("the agent signed %d times, want 2 (the second is the check)", n)
 	}
 	file := filepath.Join(ids, "ada-mac")
-	if m := mode(t, file); m != 0o600 {
-		t.Errorf("identity file mode %v, want 0600", m)
+	if runtime.GOOS != "windows" {
+		if m := mode(t, file); m != 0o600 {
+			t.Errorf("identity file mode %v, want 0600", m)
+		}
 	}
 	data, err := os.ReadFile(file)
 	if err != nil {
