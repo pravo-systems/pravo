@@ -11,6 +11,7 @@ import { Inspector } from './inspector.js';
 import { Plans, planStrip, avatar, statusLabel } from './plans.js';
 import { AccessView } from './access.js';
 import { Palette, Sheet } from './palette.js';
+import { compileQuery, QueryMenu, addTerm, removeTerm } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
 import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, pathParts, tilde, motionOn, tick } from './util.js';
 import { initTips } from './ui.js';
@@ -530,11 +531,11 @@ function setReach(on, fitIt) {
 function matchSet() {
   if (!S.filter && !S.q) return null;
   const f = S.filter ? FILTERS[S.filter] : null;
-  const q = S.q.trim().toLowerCase();
+  const q = compileQuery(S.q);
   const set = new Set();
   let n = 0;
   for (const node of S.model.list) {
-    if ((!f || f(node)) && (!q || node.addr.toLowerCase().includes(q) || node.type.toLowerCase().includes(q))) {
+    if ((!f || f(node)) && (!q || q(node))) {
       n++;
       const id = S.vis.rep.get(node.addr);
       if (id) set.add(id);
@@ -803,6 +804,12 @@ function setFilter(f) {
   announce(f ? `Filter: ${f}` : 'No filter');
 }
 
+// setQueryText puts the text in the box, as a click on a pill or on a cell does
+function setQueryText(q) {
+  $('filter-q').value = q;
+  setQuery(q);
+}
+
 function setQuery(q) {
   S.q = q;
   renderSide();
@@ -861,7 +868,7 @@ function renderList() {
 
 // renderSide draws what the resources views share besides the graph: the chips, and the list when it is the view
 function renderSide() {
-  chips.render({ model: S.model, filter: S.filter });
+  chips.render({ model: S.model, filter: S.filter, q: S.q });
   if (S.view === 'list') renderList();
 }
 
@@ -1306,8 +1313,9 @@ function wire() {
   backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, 'aria-label': 'Zoom out of the namespace that was opened (Escape)', on: { click: () => backOut() } },
     svgEl('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('circle', { cx: 7, cy: 7, r: 4.6 }), svgEl('path', { d: 'M5 7h4M10.6 10.6L14 14' })), h('span', { class: 'bl' }, 'Zoom out'), h('kbd', null, 'esc'));
   $('canvas').append(backBtn);
-  chips = new Chips($('chips'), { onFilter: setFilter });
+  chips = new Chips($('chips'), { onFilter: setFilter, onRemoveTerm: (raw) => setQueryText(removeTerm(S.q, raw)) });
   list = new ListView($('list-pane'), {
+    onFacet: (col, value, neg) => { setQueryText(addTerm(S.q, col, value, neg)); announce(`${neg ? 'Hiding' : 'Showing only'} ${col} ${value}`); },
     onToggle: toggleNamespace,
     onSelectNode: (a) => selectNode(a),
     onSelectNamespace: (p) => selectNamespace(p),
@@ -1388,6 +1396,7 @@ function wire() {
   const q = $('filter-q');
   let qt = 0;
   q.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(() => setQuery(q.value), 120); });
+  new QueryMenu(q, q.closest('.filterbox'), { model: () => S.model, scope: () => (S.filter ? FILTERS[S.filter] : null), change: (v) => { clearTimeout(qt); setQuery(v); } });
   document.addEventListener('keydown', onKey);
   window.addEventListener('hashchange', () => { if (booted) applyExternal(readFragment()); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(S.theme, false));

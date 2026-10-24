@@ -3,6 +3,7 @@
 
 import { h, tick } from './util.js';
 import { notCounted } from './model.js';
+import { parseQuery } from './query.js';
 
 export const CHIPS = [
   { key: null, label: 'All', count: 'all', hint: 'Every resource' },
@@ -22,9 +23,12 @@ export class Chips {
   constructor(root, cb) {
     this.root = root;
     this.chips = new Map();
+    this.pills = [];
     root.addEventListener('click', (ev) => {
       const b = ev.target.closest('button[data-filter]');
       if (b) cb.onFilter(b.dataset.filter || null);
+      const x = ev.target.closest('button[data-term]');
+      if (x) cb.onRemoveTerm(x.dataset.term);
     });
   }
 
@@ -38,10 +42,28 @@ export class Chips {
     }
   }
 
-  // render takes { model, filter }
+  // The terms of the filter box, each as a pill that takes itself out of the text
+  renderPills(q) {
+    const terms = parseQuery(q).terms;
+    const key = terms.map((t) => t.raw).join(' ');
+    if (key === this.pillKey) return;
+    this.pillKey = key;
+    for (const p of this.pills) p.remove();
+    this.pills = terms.map((t) => {
+      const what = `${t.neg ? 'not ' : ''}${t.col} ${t.values.join(' or ')}`;
+      const pill = h('span', { class: 'qpill' + (t.neg ? ' neg' : ''), role: 'group', 'aria-label': 'Filter: ' + what },
+        t.neg ? h('i', null, 'not') : null, h('b', null, t.col), h('span', null, t.values.join(', ')),
+        h('button', { type: 'button', 'aria-label': 'Remove the filter ' + what, 'data-tip': 'Remove', data: { term: t.raw } }, '×'));
+      this.root.append(pill);
+      return pill;
+    });
+  }
+
+  // render takes { model, filter, q }
   render(s) {
     const { model } = s;
     if (!this.chips.size) this.build();
+    this.renderPills(s.q || '');
     for (const c of CHIPS) {
       const n = model.counts[c.count];
       const { b, em } = this.chips.get(c.key || '');

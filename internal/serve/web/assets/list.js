@@ -6,6 +6,7 @@ import { h, clear, relTime, stamp, actionOf, store, kindMark, icon } from './uti
 import { FILTERS, natural, isOut, isEnv } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { avatar } from './plans.js';
+import { compileQuery } from './query.js';
 
 const ROW = 30;
 const COLS = [
@@ -31,6 +32,11 @@ const SORTERS = {
   revision: (a, b) => (a.revision || 0) - (b.revision || 0) || natural(a.addr, b.addr),
   refreshed: (a, b) => (Date.parse(a.refreshed_at) || 0) - (Date.parse(b.refreshed_at) || 0) || natural(a.addr, b.addr),
 };
+
+// facet is the pair of buttons at the end of a cell: show only the rows that hold this value, or hide them
+const facet = (col, value) => (value ? h('span', { class: 'cf', role: 'group', 'aria-label': `Filter by ${col} ${value}` },
+  h('button', { type: 'button', tabIndex: -1, 'data-tip': `Show only ${col}:${value}`, 'aria-label': `Show only ${col} ${value}`, data: { col, value, neg: '' } }, '+'),
+  h('button', { type: 'button', tabIndex: -1, 'data-tip': `Hide ${col}:${value}`, 'aria-label': `Hide ${col} ${value}`, data: { col, value, neg: '1' } }, '−')) : null);
 
 const keyOfNode = (addr) => 'n:' + addr;
 const keyOfNs = (path) => 'ns:' + path;
@@ -114,8 +120,8 @@ export class ListView {
   matcher() {
     const s = this.s;
     const f = s.filter ? FILTERS[s.filter] : null;
-    const q = (s.q || '').trim().toLowerCase();
-    return (n) => (!f || f(n)) && (!q || n.addr.toLowerCase().includes(q) || n.type.toLowerCase().includes(q) || (n.action || '').includes(q) || n.mode.includes(q));
+    const q = compileQuery(s.q);
+    return (n) => (!f || f(n)) && (!q || q(n));
   }
 
   compute() {
@@ -228,16 +234,18 @@ export class ListView {
       : [h('span', { class: 'pre' }, n.addr.slice(0, n.addr.length - n.name.length)), h('b', null, n.name)];
     return h('div', { class: 'tv-row leaf' + (on ? ' sel' : ''), role: 'row', 'aria-rowindex': String(i + 2), 'aria-selected': on ? 'true' : 'false', 'aria-level': this.grouped ? String(r.depth + 1) : null, data: { key, addr: n.addr }, style: `--lvl:${r.depth}` },
       h('div', { class: 'c-addr' + (isOut(n) ? ' out' : ''), role: 'gridcell', title: n.addr }, mark, name),
-      h('div', { class: 'c-type', role: 'gridcell', title: n.type }, n.type),
-      h('div', { class: 'c-prov', role: 'gridcell', title: n.provider ? 'The provider instance: ' + n.provider : '' }, n.provider ? [h('span', { class: 'pvdot ' + pvClass(providerOf(n.type, n.provider)), 'aria-hidden': 'true' }), n.provider] : h('span', { class: 'dim' }, '—')),
-      h('div', { class: 'c-mode' + (n.mode === 'managed' ? ' plain' : ''), role: 'gridcell' }, n.mode),
+      h('div', { class: 'c-type', role: 'gridcell', title: n.type }, n.type, isOut(n) ? null : facet('type', n.type)),
+      h('div', { class: 'c-prov', role: 'gridcell', title: n.provider ? 'The provider instance: ' + n.provider : '' }, n.provider ? [h('span', { class: 'pvdot ' + pvClass(providerOf(n.type, n.provider)), 'aria-hidden': 'true' }), n.provider, facet('provider', n.provider)] : h('span', { class: 'dim' }, '—')),
+      h('div', { class: 'c-mode' + (n.mode === 'managed' ? ' plain' : ''), role: 'gridcell' }, n.mode, facet('mode', n.mode)),
       h('div', { class: 'c-status', role: 'gridcell' }, stat),
-      h('div', { class: 'c-action', role: 'gridcell' }, act, who.length ? h('span', { class: 'who' }, who) : null),
+      h('div', { class: 'c-action', role: 'gridcell' }, act, who.length ? h('span', { class: 'who' }, who) : null, a ? facet('plan', n.action) : null),
       h('div', { class: 'c-rev num', role: 'gridcell' }, n.revision ? String(n.revision) : '—'),
       h('div', { class: 'c-ref', role: 'gridcell', title: n.refreshed_at ? stamp(n.refreshed_at) : '' }, n.refreshed_at ? relTime(n.refreshed_at, now) : '—'));
   }
 
   onClick(ev) {
+    const f = ev.target.closest('.cf button');
+    if (f) { ev.stopPropagation(); this.cb.onFacet(f.dataset.col, f.dataset.value, !!f.dataset.neg); return; }
     const t = ev.target.closest('[data-toggle]');
     if (t) { ev.stopPropagation(); this.cb.onToggle(t.dataset.toggle); return; }
     const row = ev.target.closest('[data-key]');

@@ -68,8 +68,8 @@ The viewer is one page with a bar, a toolbar, the filter chips, a graph or a lis
 | Part | Holds |
 |---|---|
 | Bar | The project directory and the state location, each a button that copies the path. The three sections, Resources, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
-| Chips | Under the toolbar, the filter chips, each with the number that it matches. |
-| Toolbar | Of the Resources section: the switch Graph and List, the switch Grouped and Flat of the list, then Collapse and Expand. The filter box, Filter by address or type, with the number of matches. The zoom buttons, minus, Fit and plus, and the button that shows the project. |
+| Chips | Under the toolbar, the filter chips, each with the number that it matches, then a pill for each `column:value` term of the filter box, with a cross that takes it out. |
+| Toolbar | Of the Resources section: the switch Graph and List, the switch Grouped and Flat of the list, then Collapse and Expand. The filter box, which takes words and column:value terms such as `type:s3_bucket` and `mode:data`, with the number of matches. The zoom buttons, minus, Fit and plus, and the button that shows the project. |
 | Graph | The lanes of open namespaces, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks that the graph shows and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a namespace. |
 | List | One row for each namespace and each resource, grouped by namespace or flat, with the columns Name (Address when flat), Type, Provider, Mode, Status, Plan, Rev and Refreshed. |
 | Inspector | It comes in at the right when a resource or a namespace is selected, or when the project is asked for with `i`. It shows the project, a namespace or a resource. A resource has a strip of cells and the tabs. |
@@ -208,7 +208,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `collapse` | Namespace paths, or `all` | Namespaces drawn as one card, on top of the first view. |
 | `expand` | Namespace paths, `c:NAMESPACE\|MODE\|TYPE` or `all` | Namespaces drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
-| `q` | Text | The filter box above the graph. |
+| `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (type, provider, mode, status, plan, ns, addr, rev, refreshed). |
 | `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | Only the nodes that match. `outputs` shows the outputs of the root, `sensitive` shows the resources and the outputs with withheld values, and every other value shows resources only. |
 | `view` | `graph`, `list`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Plans section, or the State section (`access` is the old name of it). |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
