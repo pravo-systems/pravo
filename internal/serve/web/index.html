@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="assets/graph.css">
 <link rel="stylesheet" href="assets/plans.css">
 <link rel="stylesheet" href="assets/access.css">
+<link rel="stylesheet" href="assets/discovery.css">
 <script type="module" src="assets/app.js"></script>
 </head>
 <body>
@@ -31,6 +32,7 @@
   <span class="grow"></span>
   <nav class="sections" aria-label="Section">
     <button type="button" class="sec-tab" id="sec-inventory" aria-pressed="true" aria-keyshortcuts="a"><span class="i i-stack" aria-hidden="true"></span><span class="lbl">Inventory</span></button>
+    <button type="button" class="sec-tab" id="sec-discovery" aria-pressed="false" aria-keyshortcuts="d"><span class="i i-radar" aria-hidden="true"></span><span class="lbl">Discovery</span><span class="cnt" id="sec-disc-count" hidden></span></button>
     <button type="button" class="sec-tab" id="sec-plans" aria-pressed="false" aria-keyshortcuts="p"><span class="i i-file" aria-hidden="true"></span><span class="lbl">Plans</span></button>
     <button type="button" class="sec-tab" id="sec-access" aria-pressed="false" aria-keyshortcuts="a"><span class="i i-lock" aria-hidden="true"></span><span class="lbl">State</span></button>
   </nav>
@@ -103,6 +105,7 @@
         <section class="rail-plans" id="plans-list" aria-label="Stored plans"></section>
       </div>
     </div>
+    <div class="pane discovery-pane" id="discovery-pane" role="region" aria-label="Discovery" tabindex="-1" hidden></div>
     <div class="pane access-pane" id="access-pane" role="region" aria-label="State" tabindex="-1" hidden></div>
   </main>
 

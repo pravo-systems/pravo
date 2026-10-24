@@ -18,6 +18,7 @@ Print the CUE definition of a resource, data source, ephemeral resource or funct
 | Flag | Default | Meaning |
 |---|---|---|
 | `--required` | off | Show only the attributes that must be set, and the blocks that contain one. |
+| `--discovery` | off | Show the discovery of the type, `#Discovery.<type>`, whose attributes are the scope it lists in. The provider must be able to list the type. |
 | `-t`, `--tag key=value`, `-T` | none | Tags, as for [`pravo plan`](plan.md). |
 
 The [global flags](global-flags.md) apply. With `--json`, the output is one object that maps each argument to its definition as a string.
@@ -215,7 +216,7 @@ Output:
 Error: the provider has no type "random_nope"
 ```
 
-When a name is both a resource and a data source, `schema` prints the resource. `pravo providers schema NAME` prints the whole provider package, with `#Resource`, `#Data`, `#Ephemeral` and `#Function`.
+When a name is both a resource and a data source, `schema` prints the resource. A type that a provider can list is also a discovery, and `--discovery` prints that one. `pravo providers schema NAME` prints the whole provider package, with `#Resource`, `#Data`, `#Ephemeral`, `#Discovery` and `#Function`.
 
 ### JSON
 

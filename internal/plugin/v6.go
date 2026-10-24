@@ -159,6 +159,10 @@ func (p *v6) GetSchema(ctx context.Context) (*schema.ProviderSchema, Diagnostics
 	for k, v := range resp.EphemeralResourceSchemas {
 		ps.Ephemerals[k] = schema6(v)
 	}
+	ps.ListResources = map[string]*schema.Schema{}
+	for k, v := range resp.ListResourceSchemas {
+		ps.ListResources[k] = schema6(v)
+	}
 	ps.Functions = functions6(resp.Functions)
 	return ps, diags6(resp.Diagnostics), nil
 }
@@ -329,6 +333,37 @@ func (p *v6) ImportResourceState(ctx context.Context, typ, id string, types map[
 		out = append(out, ImportedResource{TypeName: r.TypeName, State: v, Private: r.Private})
 	}
 	return out, diags, nil
+}
+
+func (p *v6) ListResource(ctx context.Context, typ string, cfg tftypes.Value, limit int64) ([]ListedResource, Diagnostics, error) {
+	d, err := dv6(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	var (
+		out     []ListedResource
+		diags   Diagnostics
+		recvErr error
+	)
+	req := &pb.ListResource_Request{TypeName: typ, Config: d, Limit: limit}
+	err = p.c.ListResource(ctx, req, func(ev *pb.ListResource_Event) bool {
+		diags = append(diags, diags6(ev.Diagnostic)...)
+		if ev.Identity == nil && ev.DisplayName == "" {
+			return true // an event that carries only diagnostics
+		}
+		var id map[string]any
+		if ev.Identity != nil && ev.Identity.IdentityData != nil {
+			if id, recvErr = decodeIdentity(ev.Identity.IdentityData.Msgpack, ev.Identity.IdentityData.Json); recvErr != nil {
+				return false
+			}
+		}
+		out = append(out, ListedResource{Identity: id, DisplayName: ev.DisplayName})
+		return limit <= 0 || int64(len(out)) < limit
+	})
+	if err == nil {
+		err = recvErr
+	}
+	return out, diags, err
 }
 
 func (p *v6) ReadDataSource(ctx context.Context, typ string, cfg tftypes.Value) (tftypes.Value, Diagnostics, error) {

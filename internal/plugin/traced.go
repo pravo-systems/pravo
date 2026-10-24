@@ -149,6 +149,14 @@ func (t *Traced) OpenEphemeral(ctx context.Context, typ string, cfg tftypes.Valu
 	return r, d, err
 }
 
+func (t *Traced) ListResource(ctx context.Context, typ string, cfg tftypes.Value, limit int64) ([]ListedResource, Diagnostics, error) {
+	ctx, end := t.begin(ctx, "ListResource", typ)
+	out, d, err := t.inner.ListResource(ctx, typ, cfg, limit)
+	trace.SpanFromContext(ctx).SetAttributes(attribute.Int("pravo.listed", len(out)))
+	end(err, d)
+	return out, d, err
+}
+
 func (t *Traced) RenewEphemeral(ctx context.Context, typ string, private []byte) (*EphemeralResult, Diagnostics, error) {
 	ctx, end := t.begin(ctx, "RenewEphemeralResource", typ)
 	r, d, err := t.inner.RenewEphemeral(ctx, typ, private)

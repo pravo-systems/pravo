@@ -296,7 +296,7 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 			return n, err
 		}
 	}
-	for _, prefix := range []string{"rec", "resources", "txn", "plans"} {
+	for _, prefix := range []string{"rec", "resources", "txn", "plans", DiscoveryRunDir, DiscoveryAckDir} {
 		keys, err := src.List(ctx, prefix)
 		if err != nil {
 			return n, err
@@ -304,8 +304,9 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 		for _, k := range keys {
 			// A stored plan is removed on its own schedule by a collection: one
 			// that went since the listing is not part of the copy. The same goes for
-			// a record that was superseded.
-			if err := copyKey(k, prefix == "plans" || prefix == "rec"); err != nil {
+			// a record that was superseded, and for a discovery object that someone
+			// withdrew.
+			if err := copyKey(k, prefix != "resources" && prefix != "txn"); err != nil {
 				return n, err
 			}
 		}
@@ -384,10 +385,10 @@ func checkCopy(ctx context.Context, src *meta, dst Backend) error {
 	return fmt.Errorf("%w: %s is a state of another lineage, and sealed records open only in their own", ErrCopyRefused, dst.Name())
 }
 
-// holdsNothing reports whether b holds no record, output or stored plan, which is
-// what a store that was opened and never written holds.
+// holdsNothing reports whether b holds no record, output, stored plan or
+// discovery object, which is what a store that was opened and never written holds.
 func holdsNothing(ctx context.Context, b Backend) (bool, error) {
-	for _, prefix := range []string{"resources", "rec", "plans"} {
+	for _, prefix := range []string{"resources", "rec", "plans", DiscoveryRunDir, DiscoveryAckDir} {
 		keys, err := b.List(ctx, prefix)
 		if err != nil {
 			return false, err

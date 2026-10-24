@@ -75,6 +75,15 @@ const defs = `
 			content:  string | *null
 		}
 	}
+	#Discovery: {
+		local_file: {
+			$kind: "discovery", $type: "local_file", $source: "hashicorp/local"
+			$limit?: int & >0
+			dir:     string
+			prefix?: string
+			depth?:  int
+		}
+	}
 }
 #Random: {
 	$kind: "provider", $source: "hashicorp/random"

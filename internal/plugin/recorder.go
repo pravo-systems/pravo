@@ -390,6 +390,35 @@ func (r *Recorder) OpenEphemeral(ctx context.Context, typ string, cfg tftypes.Va
 	return res, diags, err
 }
 
+func (r *Recorder) ListResource(ctx context.Context, typ string, cfg tftypes.Value, limit int64) ([]ListedResource, Diagnostics, error) {
+	key, req := r.key("ListResource", reqOf(map[string]any{"type": typ, "limit": limit}, cfg))
+	if r.replay {
+		rec, err := r.load(key)
+		if err != nil {
+			return nil, nil, r.replayErr("ListResource " + typ)
+		}
+		var out []ListedResource
+		if len(rec.Extra) > 0 {
+			if err := json.Unmarshal(rec.Extra, &out); err != nil {
+				return nil, nil, err
+			}
+		}
+		for i := range out {
+			// JSON has one kind of number: a whole one is an integer, as MessagePack gives it.
+			if id, ok := integral(out[i].Identity).(map[string]any); ok {
+				out[i].Identity = id
+			}
+		}
+		return out, rec.Diags, nil
+	}
+	out, diags, err := r.inner.ListResource(ctx, typ, cfg, limit)
+	if err == nil {
+		extra, _ := json.Marshal(out)
+		r.save(key, &record{Method: "ListResource", Request: req, Diags: diags, Extra: extra})
+	}
+	return out, diags, err
+}
+
 func (r *Recorder) RenewEphemeral(ctx context.Context, typ string, private []byte) (*EphemeralResult, Diagnostics, error) {
 	if r.replay {
 		return &EphemeralResult{Private: private}, nil, nil
@@ -425,6 +454,29 @@ func (r *Recorder) CallFunction(ctx context.Context, name string, args []tftypes
 		r.save(key, rec)
 	}
 	return v, ferr, err
+}
+
+// integral turns the numbers of a decoded JSON value that have no fraction into int64.
+func integral(v any) any {
+	switch x := v.(type) {
+	case float64:
+		if x == float64(int64(x)) {
+			return int64(x)
+		}
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = integral(e)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[k] = integral(e)
+		}
+		return out
+	}
+	return v
 }
 
 // Wrap applies PRAVO_RECORD / PRAVO_REPLAY to a freshly started provider

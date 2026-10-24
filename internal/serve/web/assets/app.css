@@ -436,10 +436,10 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .pal-wrap { padding-top: 1rem; }
   .sheet-body dl { grid-template-columns: 6.5rem 1fr; }
 }
-/* The two section tabs with their icons do not fit the bar of a phone with the word beside the mark: the link keeps its aria-label. */
+/* The section tabs do not fit the bar of a phone with the word beside the mark: the tab keeps its icon, and its label for a screen reader. */
 @media (max-width: 30em) {
   .brand .word { display: none; }
-  .sec-tab { padding-inline: .6rem; } .sec-tab .i { display: none; }
+  .sec-tab { padding-inline: .6rem; gap: .3rem; }
 }
 
 /* ---- a page that nobody sees does not animate: the script sets data-hidden from the Page Visibility API ---- */

@@ -138,6 +138,9 @@ type Root struct {
 	// Imports are the $import declarations by resource address.
 	Imports   map[string]*Import
 	Resources []*Resource
+	// Discoveries are the discoveries in the specification, in the order they were
+	// found.
+	Discoveries []*Discovery
 	// ProviderKeys lists every provider instance key in use, sorted.
 	ProviderKeys []string
 	// ProviderDecls are the provider structs found in the specification,

@@ -792,9 +792,148 @@ type SuggestionStep struct {
 // Revision differs from the one it holds.
 type Event struct {
 	Revision string `json:"revision"`
-	// What is any of "state", "spec", "plan", "locks", "plans", "access". "plan" is
-	// the plan file of --plan; "plans" are the plans stored in the state: one
-	// appeared, was collected, was applied from, or passed its expiry; "access" is
-	// the readers file.
+	// What is any of "state", "spec", "plan", "locks", "plans", "access",
+	// "discovery". "plan" is the plan file of --plan; "plans" are the plans stored
+	// in the state: one appeared, was collected, was applied from, or passed its
+	// expiry; "access" is the readers file; "discovery" is what the discoveries
+	// found and the acknowledgements of it, which "pravo discover" writes.
 	What []string `json:"what"`
+}
+
+// Discovery is GET /api/discovery: the discoveries of the specification, what
+// their last runs found, and what each found object is to the state. Objects that
+// a record of the state already is are counted and not listed. The page shows the
+// rest, in a section of its own: nothing of it is in the graph.
+type Discovery struct {
+	Version  int    `json:"version"`
+	Revision string `json:"revision"`
+	// SpecOK is false when the specification does not load. A run cannot be
+	// compared with a scope then: every Freshness is "unknown".
+	SpecOK bool `json:"spec_ok"`
+	// Unmanaged counts the objects that ask to be adopted, in every discovery.
+	Unmanaged   int             `json:"unmanaged"`
+	Discoveries []DiscoveryInfo `json:"discoveries"`
+	// OrphanAcks are the acknowledgements of a discovery that the specification
+	// does not have and the state holds no run of.
+	OrphanAcks []AckInfo `json:"orphan_acks,omitempty"`
+	Warnings   []string  `json:"warnings,omitempty"`
+	// Command runs the discoveries that have not run, or whose scope changed. The
+	// page copies it and runs nothing.
+	Command string `json:"command"`
+}
+
+// DiscoveryInfo is one discovery.
+type DiscoveryInfo struct {
+	Name string `json:"name"`
+	// Type is the list resource type, Provider the source of its provider and
+	// Instance the provider instance it lists through.
+	Type     string `json:"type"`
+	Provider string `json:"provider"`
+	Instance string `json:"instance,omitempty"`
+	// Declared is false for a discovery that only the state holds a run of.
+	Declared bool `json:"declared"`
+	// Freshness is "current" (the last run listed in the scope that is written
+	// now), "stale" (the scope, the limit or the provider changed since: the run
+	// answers the old question), "never", "broken" (the scope cannot be listed
+	// with: see Problem), "undeclared" or "unknown" (the specification does not
+	// load).
+	Freshness string `json:"freshness"`
+	Problem   string `json:"problem,omitempty"`
+	// Scope is the scope that is written now, or the scope of the last run for a
+	// discovery that is not declared.
+	Scope  []Field `json:"scope,omitempty"`
+	Limit  int64   `json:"limit,omitempty"`
+	Source *Ref    `json:"source,omitempty"`
+	// Run is the last run, nil for a discovery that has not run.
+	Run    *RunInfo        `json:"run,omitempty"`
+	Counts DiscoveryCounts `json:"counts"`
+	// Unreadable counts the records of the type that could not be opened, so that
+	// objects they are may be listed as unmanaged.
+	Unreadable int `json:"unreadable,omitempty"`
+	// Items are the objects of the last run that are not managed: unmanaged first,
+	// then adopting and acknowledged, each by name. At most 2000 are listed;
+	// ItemsOmitted counts the rest.
+	Items        []DiscoveredInfo `json:"items"`
+	ItemsOmitted int              `json:"items_omitted,omitempty"`
+	Acks         []AckInfo        `json:"acks,omitempty"`
+	// Command runs this discovery. AckAll acknowledges the objects that are
+	// unmanaged now, with a reason for the person to give; it is empty when none
+	// is unmanaged or the name cannot be put in a command.
+	Command string `json:"command"`
+	AckAll  string `json:"ack_all,omitempty"`
+}
+
+// RunInfo is a run of a discovery.
+type RunInfo struct {
+	Started  time.Time `json:"started"`
+	Finished time.Time `json:"finished"`
+	Actor    string    `json:"actor,omitempty"`
+	// Status is "complete", or "truncated" when the run stopped at its limit.
+	Status string `json:"status"`
+	// Total is the number of objects the run found, managed ones included.
+	Total    int      `json:"total"`
+	Warnings []string `json:"warnings,omitempty"`
+}
+
+// DiscoveryCounts counts the objects of the last run by what they are.
+type DiscoveryCounts struct {
+	Unmanaged    int `json:"unmanaged"`
+	Adopting     int `json:"adopting"`
+	Acknowledged int `json:"acknowledged"`
+	Managed      int `json:"managed"`
+}
+
+// DiscoveredInfo is an object that a discovery found and that no record is.
+type DiscoveredInfo struct {
+	// Key is the whole identity as one line and names the object; ID is what a
+	// person calls it.
+	Key  string `json:"key"`
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	// Status is "unmanaged" (it asks to be adopted), "adopting" (a resource names it
+	// in $import) or "acknowledged" (an acknowledgement covers it).
+	Status string `json:"status"`
+	// By is the address of the resource that adopts the object, or the id of the
+	// acknowledgement that covers it; Reason is the reason of the acknowledgement.
+	By       string  `json:"by,omitempty"`
+	Reason   string  `json:"reason,omitempty"`
+	Identity []Field `json:"identity,omitempty"`
+	// Importable is set when the identity gives an id that $import takes.
+	Importable bool `json:"importable,omitempty"`
+}
+
+// AckInfo is an acknowledgement.
+type AckInfo struct {
+	ID        string    `json:"id"`
+	Discovery string    `json:"discovery"`
+	IDs       []string  `json:"ids,omitempty"`
+	Names     []string  `json:"names,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
+	By        string    `json:"by,omitempty"`
+	At        time.Time `json:"at"`
+	// Covers is how many objects of the last run it covers, -1 when there is none.
+	Covers int `json:"covers"`
+	// Command withdraws it.
+	Command string `json:"command,omitempty"`
+}
+
+// Field is a name and a value as text.
+type Field struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// Adopt is GET /api/adopt?discovery=NAME&key=KEY: what a person does to bring one
+// discovered object under management. The server builds it from the last run and
+// the specification and asks no provider.
+type Adopt struct {
+	Discovery string `json:"discovery"`
+	Key       string `json:"key"`
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	// Snippet is CUE: a resource that names the object in $import.
+	Snippet string `json:"snippet"`
+	// Steps follow the snippet: commands to copy, and notes. A step with
+	// Placeholder has a part, in angle brackets, for the person to fill in.
+	Steps []SuggestionStep `json:"steps"`
 }

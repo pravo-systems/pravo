@@ -180,6 +180,8 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		mode = kind
 	case "provider":
 		mode = "provider"
+	case "discovery":
+		mode = "discovery"
 	case "output":
 		if nested := findNested(v, p, 0); nested != "" {
 			return fmt.Errorf("%s is an output, so it cannot contain %s, which is a resource", p, nested)
@@ -228,7 +230,7 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		r.Resources = append(r.Resources, &Resource{Mode: mode, Type: kind, Name: name, Path: p, addr: p.String(), Builtin: true})
 		return nil
 	default:
-		return fmt.Errorf("%s: $kind is %q; want resource, data, ephemeral, call, provider, output, env, secret_env or remote_outputs", p, kind)
+		return fmt.Errorf("%s: $kind is %q; want resource, data, ephemeral, call, provider, discovery, output, env, secret_env or remote_outputs", p, kind)
 	}
 	srcText, ok := stringField(v, "$source")
 	if !ok {
@@ -254,6 +256,16 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 	typ, ok := stringField(v, "$type")
 	if !ok {
 		return fmt.Errorf("%s: carries $kind but no $type; use a definition from a generated provider package", p)
+	}
+	if mode == "discovery" {
+		d := newDiscovery(v, p, typ, src)
+		r.Discoveries = append(r.Discoveries, d)
+		// A discovery is not a node of the graph: it finds objects and manages none.
+		// It still names the provider it lists through, which is found as for a
+		// resource.
+		res := &Resource{Mode: mode, Type: typ, Name: d.Name, Path: p, addr: p.String()}
+		r.pending = append(r.pending, pendingResource{res: res, src: src, val: v, disc: d})
+		return nil
 	}
 	if from, ok := stringField(v, "$from"); ok {
 		r.moves = append(r.moves, pendingMove{to: p.String(), from: from})

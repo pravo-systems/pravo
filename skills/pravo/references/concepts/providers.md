@@ -140,9 +140,10 @@ Output:
 | `#Resource` | One definition for each managed resource type. |
 | `#Data` | One for each data source type. |
 | `#Ephemeral` | One for each ephemeral resource type. |
+| `#Discovery` | One for each list resource type, when the provider can list. See [Discovery](discovery.md). |
 | `#Function` | One for each provider function, with `args` and `result`. |
 
-Each member refers to a set of definitions that the file writes once, after `#Provider`, as `_#Resource`, `_#Data`, `_#Ephemeral` and `_#Function`. CUE copies what a struct holds each time the struct is unified, so a provider that held its definitions would carry thousands of them into every provider struct and every module that takes one. A reference is shared. A specification does not use the hidden names. It writes `$aws.#Resource.aws_s3_bucket`.
+Each member refers to a set of definitions that the file writes once, after `#Provider`, as `_#Resource`, `_#Data`, `_#Ephemeral`, `_#Discovery` and `_#Function`. CUE copies what a struct holds each time the struct is unified, so a provider that held its definitions would carry thousands of them into every provider struct and every module that takes one. A reference is shared. A specification does not use the hidden names. It writes `$aws.#Resource.aws_s3_bucket`.
 
 The provider-level fields of `#Provider` come first in the file.
 

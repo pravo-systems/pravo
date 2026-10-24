@@ -38,7 +38,7 @@ export function writeFragment(v) {
   if (v.expand && v.expand.length) parts.push('expand=' + joinList(v.expand));
   put('plan', v.plan);
   put('q', v.q);
-  put('view', v.view === 'list' ? 'list' : v.view === 'access' ? 'state' : v.view === 'plans' ? 'plans' : '');
+  put('view', v.view === 'list' ? 'list' : v.view === 'access' ? 'state' : v.view === 'plans' ? 'plans' : v.view === 'discovery' ? 'discovery' : '');
   put('theme', v.theme);
   put('motion', v.motion === 'off' ? 'off' : '');
   put('zoom', v.zoom && v.zoom !== 'fit' ? v.zoom : '');

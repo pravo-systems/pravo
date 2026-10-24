@@ -1,0 +1,478 @@
+{
+  "version": 1,
+  "revision": "r-platform",
+  "spec_ok": true,
+  "unmanaged": 8,
+  "discoveries": [
+    {
+      "name": "network.vpcs",
+      "type": "aws_vpc",
+      "provider": "registry.opentofu.org/hashicorp/aws",
+      "instance": "aws",
+      "declared": true,
+      "freshness": "current",
+      "scope": [
+        {
+          "name": "region",
+          "value": "eu-west-1"
+        }
+      ],
+      "source": {
+        "file": "network/main.cue",
+        "line": 31,
+        "col": 1,
+        "end_line": 34
+      },
+      "run": {
+        "started": "2026-10-21T11:01:35Z",
+        "finished": "2026-10-21T11:02:11Z",
+        "actor": "ana@acme",
+        "status": "complete",
+        "total": 14
+      },
+      "counts": {
+        "unmanaged": 2,
+        "adopting": 1,
+        "acknowledged": 2,
+        "managed": 9
+      },
+      "items": [
+        {
+          "key": "vpc-0a91c2",
+          "id": "vpc-0a91c2",
+          "status": "unmanaged",
+          "name": "scratch-vpc",
+          "identity": [
+            {
+              "name": "id",
+              "value": "vpc-0a91c2"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "vpc-07f3d8",
+          "id": "vpc-07f3d8",
+          "status": "unmanaged",
+          "identity": [
+            {
+              "name": "id",
+              "value": "vpc-07f3d8"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "vpc-0c44e1",
+          "id": "vpc-0c44e1",
+          "status": "adopting",
+          "name": "payments-migration",
+          "by": "network.migration",
+          "identity": [
+            {
+              "name": "id",
+              "value": "vpc-0c44e1"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "vpc-0e10aa",
+          "id": "vpc-0e10aa",
+          "status": "acknowledged",
+          "name": "default",
+          "by": "ack-4f1b9c02",
+          "reason": "the default VPC of the account; nobody should use it",
+          "identity": [
+            {
+              "name": "id",
+              "value": "vpc-0e10aa"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "vpc-0b6a13",
+          "id": "vpc-0b6a13",
+          "status": "acknowledged",
+          "name": "default (us-east-1 copy)",
+          "by": "ack-4f1b9c02",
+          "reason": "the default VPC of the account; nobody should use it",
+          "identity": [
+            {
+              "name": "id",
+              "value": "vpc-0b6a13"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            }
+          ],
+          "importable": true
+        }
+      ],
+      "acks": [
+        {
+          "id": "ack-4f1b9c02",
+          "discovery": "network.vpcs",
+          "ids": [
+            "vpc-0e10aa",
+            "vpc-0b6a13"
+          ],
+          "reason": "the default VPC of the account; nobody should use it",
+          "by": "dan@acme",
+          "at": "2026-10-18T16:02:11Z",
+          "covers": 2,
+          "command": "pravo discover unack ack-4f1b9c02"
+        }
+      ],
+      "command": "pravo discover network.vpcs",
+      "ack_all": "pravo discover ack network.vpcs --unmanaged --reason <why>"
+    },
+    {
+      "name": "compute.instances",
+      "type": "aws_instance",
+      "provider": "registry.opentofu.org/hashicorp/aws",
+      "instance": "aws",
+      "declared": true,
+      "freshness": "stale",
+      "scope": [
+        {
+          "name": "region",
+          "value": "eu-west-1"
+        },
+        {
+          "name": "filter",
+          "value": "{\"name\":\"tag:team\",\"values\":[\"platform\"]}"
+        }
+      ],
+      "source": {
+        "file": "compute/main.cue",
+        "line": 12,
+        "col": 1,
+        "end_line": 19
+      },
+      "run": {
+        "started": "2026-10-20T12:01:35Z",
+        "finished": "2026-10-20T12:02:11Z",
+        "actor": "ben@acme",
+        "status": "complete",
+        "total": 14,
+        "warnings": [
+          "2 instances were being terminated and are left out"
+        ]
+      },
+      "counts": {
+        "unmanaged": 5,
+        "adopting": 0,
+        "acknowledged": 3,
+        "managed": 6
+      },
+      "items": [
+        {
+          "key": "i-0aa0000",
+          "id": "i-0aa0000",
+          "status": "unmanaged",
+          "name": "jump-host-old",
+          "identity": [
+            {
+              "name": "id",
+              "value": "i-0aa0000"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            },
+            {
+              "name": "account_id",
+              "value": "482215903377"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "i-0aa0001",
+          "id": "i-0aa0001",
+          "status": "unmanaged",
+          "name": "ml-experiment-7",
+          "identity": [
+            {
+              "name": "id",
+              "value": "i-0aa0001"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            },
+            {
+              "name": "account_id",
+              "value": "482215903377"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "i-0aa0002",
+          "id": "i-0aa0002",
+          "status": "unmanaged",
+          "identity": [
+            {
+              "name": "id",
+              "value": "i-0aa0002"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            },
+            {
+              "name": "account_id",
+              "value": "482215903377"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "i-0aa0003",
+          "id": "i-0aa0003",
+          "status": "unmanaged",
+          "name": "bastion-test",
+          "identity": [
+            {
+              "name": "id",
+              "value": "i-0aa0003"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            },
+            {
+              "name": "account_id",
+              "value": "482215903377"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "i-0aa0004",
+          "id": "i-0aa0004",
+          "status": "unmanaged",
+          "name": "load-gen-2",
+          "identity": [
+            {
+              "name": "id",
+              "value": "i-0aa0004"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            },
+            {
+              "name": "account_id",
+              "value": "482215903377"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "i-0bb0000",
+          "id": "i-0bb0000",
+          "status": "acknowledged",
+          "name": "batch-runner-1",
+          "by": "ack-91c7d3aa",
+          "reason": "nightly jobs; they come and go",
+          "identity": [
+            {
+              "name": "id",
+              "value": "i-0bb0000"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "i-0bb0001",
+          "id": "i-0bb0001",
+          "status": "acknowledged",
+          "name": "batch-runner-2",
+          "by": "ack-91c7d3aa",
+          "reason": "nightly jobs; they come and go",
+          "identity": [
+            {
+              "name": "id",
+              "value": "i-0bb0001"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            }
+          ],
+          "importable": true
+        },
+        {
+          "key": "i-0bb0002",
+          "id": "i-0bb0002",
+          "status": "acknowledged",
+          "name": "batch-runner-3",
+          "by": "ack-91c7d3aa",
+          "reason": "nightly jobs; they come and go",
+          "identity": [
+            {
+              "name": "id",
+              "value": "i-0bb0002"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            }
+          ],
+          "importable": true
+        }
+      ],
+      "acks": [
+        {
+          "id": "ack-91c7d3aa",
+          "discovery": "compute.instances",
+          "names": [
+            "batch-runner-*"
+          ],
+          "reason": "nightly jobs; they come and go",
+          "by": "ben@acme",
+          "at": "2026-10-16T14:02:11Z",
+          "covers": 3,
+          "command": "pravo discover unack ack-91c7d3aa"
+        }
+      ],
+      "command": "pravo discover compute.instances",
+      "ack_all": "pravo discover ack compute.instances --unmanaged --reason <why>"
+    },
+    {
+      "name": "buckets",
+      "type": "aws_s3_bucket",
+      "provider": "registry.opentofu.org/hashicorp/aws",
+      "instance": "aws",
+      "declared": true,
+      "freshness": "never",
+      "scope": [],
+      "source": {
+        "file": "main.cue",
+        "line": 22,
+        "col": 1,
+        "end_line": 22
+      },
+      "counts": {
+        "unmanaged": 0,
+        "adopting": 0,
+        "acknowledged": 0,
+        "managed": 0
+      },
+      "items": [],
+      "command": "pravo discover buckets"
+    },
+    {
+      "name": "legacy.queues",
+      "type": "aws_sqs_queue",
+      "provider": "registry.opentofu.org/hashicorp/aws",
+      "instance": "aws",
+      "declared": true,
+      "freshness": "broken",
+      "problem": "queue_name_prefix has no value yet: a scope is written out in the specification and cannot read what a run produces (incomplete value string)",
+      "scope": [],
+      "source": {
+        "file": "legacy/main.cue",
+        "line": 4,
+        "col": 1,
+        "end_line": 6
+      },
+      "counts": {
+        "unmanaged": 0,
+        "adopting": 0,
+        "acknowledged": 0,
+        "managed": 0
+      },
+      "items": [],
+      "command": "pravo discover legacy.queues"
+    },
+    {
+      "name": "old.dbs",
+      "type": "aws_db_instance",
+      "provider": "registry.opentofu.org/hashicorp/aws",
+      "instance": "aws",
+      "declared": false,
+      "freshness": "undeclared",
+      "scope": [
+        {
+          "name": "region",
+          "value": "eu-west-1"
+        }
+      ],
+      "limit": 50,
+      "run": {
+        "started": "2026-10-13T06:01:35Z",
+        "finished": "2026-10-13T06:02:11Z",
+        "actor": "ana@acme",
+        "status": "truncated",
+        "total": 50
+      },
+      "counts": {
+        "unmanaged": 1,
+        "adopting": 0,
+        "acknowledged": 0,
+        "managed": 49
+      },
+      "items": [
+        {
+          "key": "identifier=legacy-reporting,region=eu-west-1",
+          "id": "legacy-reporting",
+          "status": "unmanaged",
+          "name": "reporting (read replica)",
+          "identity": [
+            {
+              "name": "identifier",
+              "value": "legacy-reporting"
+            },
+            {
+              "name": "region",
+              "value": "eu-west-1"
+            }
+          ]
+        }
+      ],
+      "command": "pravo discover old.dbs"
+    }
+  ],
+  "orphan_acks": [
+    {
+      "id": "ack-c0ffee11",
+      "discovery": "experiments.queues",
+      "names": [
+        "tmp-*"
+      ],
+      "reason": "scratch queues",
+      "by": "eve@acme",
+      "at": "2026-09-30T18:02:11Z",
+      "covers": -1,
+      "command": "pravo discover unack ack-c0ffee11"
+    }
+  ],
+  "warnings": [],
+  "command": "pravo discover"
+}

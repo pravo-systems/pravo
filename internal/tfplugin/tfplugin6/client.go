@@ -4,6 +4,8 @@ package tfplugin6
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"google.golang.org/grpc"
 )
@@ -26,6 +28,10 @@ type ProviderClient interface {
 	RenewEphemeralResource(ctx context.Context, in *RenewEphemeralResource_Request, opts ...grpc.CallOption) (*RenewEphemeralResource_Response, error)
 	CloseEphemeralResource(ctx context.Context, in *CloseEphemeralResource_Request, opts ...grpc.CallOption) (*CloseEphemeralResource_Response, error)
 	CallFunction(ctx context.Context, in *CallFunction_Request, opts ...grpc.CallOption) (*CallFunction_Response, error)
+	// ListResource calls the server-streaming RPC. fn receives each event in the
+	// order the provider sent it; when fn returns false the stream is cancelled and
+	// ListResource returns nil.
+	ListResource(ctx context.Context, in *ListResource_Request, fn func(*ListResource_Event) bool, opts ...grpc.CallOption) error
 	StopProvider(ctx context.Context, in *StopProvider_Request, opts ...grpc.CallOption) (*StopProvider_Response, error)
 }
 
@@ -96,4 +102,31 @@ func (c *providerClient) CallFunction(ctx context.Context, in *CallFunction_Requ
 }
 func (c *providerClient) StopProvider(ctx context.Context, in *StopProvider_Request, opts ...grpc.CallOption) (*StopProvider_Response, error) {
 	return invoke[StopProvider_Response](ctx, c.cc, "/tfplugin6.Provider/StopProvider", in, opts)
+}
+
+func (c *providerClient) ListResource(ctx context.Context, in *ListResource_Request, fn func(*ListResource_Event) bool, opts ...grpc.CallOption) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	st, err := c.cc.NewStream(ctx, &grpc.StreamDesc{StreamName: "ListResource", ServerStreams: true}, "/tfplugin6.Provider/ListResource", opts...)
+	if err != nil {
+		return err
+	}
+	if err := st.SendMsg(in); err != nil {
+		return err
+	}
+	if err := st.CloseSend(); err != nil {
+		return err
+	}
+	for {
+		ev := new(ListResource_Event)
+		if err := st.RecvMsg(ev); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		if !fn(ev) {
+			return nil
+		}
+	}
 }

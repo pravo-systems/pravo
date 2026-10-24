@@ -14,6 +14,7 @@ A root is a directory that holds one CUE package. pravo unifies every `.cue` fil
 | Data source | `$aws.#Data.<type> & {...}` | [Resources](spec-resources.md#data-sources) |
 | Ephemeral resource | `$aws.#Ephemeral.<type> & {...}` | [Resources](spec-resources.md#ephemeral-resources) |
 | Function call | `$aws.#Function.<name> & {args: [...]}` | [Resources](spec-resources.md#function-calls) |
+| Discovery | `$aws.#Discovery.<type> & {...}` | [Discovery](../concepts/discovery.md) |
 | Output | `pravo.#Output & {value: ...}` | [Outputs](spec-outputs.md) |
 | Environment variable | `pravo.#Env`, `pravo.#SecretEnv` | [Environment and remote outputs](spec-env.md) |
 | Outputs of another root | `pravo.#RemoteOutputs` | [Environment and remote outputs](spec-env.md#remote-outputs) |

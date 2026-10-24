@@ -6,6 +6,7 @@
 //   &latency=300                          every answer is delayed by that many milliseconds
 //   &stale=1                              the saved plan is stale, with reasons
 //   &plan=plan-2f9c1a4e                   the server lays that stored plan itself (pravo serve --plan plan-2f9c1a4e)
+//   &discovery=NAME                       the Discovery view answers discovery.NAME.json: platform (five discoveries of every freshness), empty
 //   &access=NAME                          the Access view answers access.NAME.json: platform (sealed, a reader), off, immutable,
 //                                         drift, locked (no identity: every record is sealed), notreader, missing (no readers file), migrating, invalid,
 //                                         downgraded (the repository lists readers and the state is not sealed), solo (sealed to one reader: the warning)
@@ -53,6 +54,32 @@ if (graph) {
     graph.plan.reasons = ['the state changed after the plan was made: api.db is at revision 15, the plan read revision 14', 'the provider aws is now version 5.62.0, the plan was made with 5.61.0'];
   }
 }
+// ---- the Discovery view: discovery.NAME.json, the platform's unless the query says another ----
+let discoveryName = params.get('discovery') || (NAME === 'platform' ? 'platform' : 'empty');
+let discovery = await fixture(`discovery.${discoveryName}.json`);
+const adoptExample = await fixture('adopt.example.json');
+// adoptOf makes the answer of /api/adopt for an object of the fixture, as the server words it
+function adoptOf(name, key) {
+  const d = discovery && discovery.discoveries.find((x) => x.name === name);
+  const it = d && d.items.find((x) => x.key === key);
+  if (!it) return null;
+  const label = it.name ? ` (${it.name})` : '';
+  const ident = it.importable ? `"${it.id}"` : '"<id>"';
+  const res = (it.name || it.id).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'adopted';
+  const snippet = `// Adopts the ${d.type} "${it.id}"${label} that the discovery ${d.name} found.\n${res}: $${d.instance || 'provider'}.#Resource.${d.type} & {\n\t$import: ${ident}\n}\n`;
+  const steps = [];
+  if (it.status === 'adopting') steps.push({ kind: 'note', text: `${it.by} already names this object in $import. The next plan reads it and an apply records it.` });
+  else {
+    steps.push({ kind: 'note', text: it.importable ? 'To write the resource with the attributes the object has, ask the provider for it:' : `The identity is not an id that $import takes. Give the id that the provider documents for importing a ${d.type}:` });
+    steps.push(it.importable ? { kind: 'command', text: `pravo discover adopt ${d.name} ${it.id} --read` } : { kind: 'command', text: `pravo discover adopt ${d.name} ${it.id} --read --import-id <id>`, placeholder: true });
+    if (it.status === 'unmanaged') {
+      steps.push({ kind: 'note', text: 'Or say that it is known, and is meant to stay as it is:' });
+      steps.push({ kind: 'command', text: `pravo discover ack ${d.name} --id ${it.id} --reason <why>`, placeholder: true });
+    }
+  }
+  return Object.assign({}, adoptExample, { discovery: name, key, id: it.id, status: it.status, snippet, steps });
+}
+
 // ---- the Access view: access.NAME.json, the sealed platform unless the query says another ----
 let accessName = params.get('access') || (NAME === 'platform' ? 'platform' : 'off');
 let access = await fixture(`access.${accessName}.json`);
@@ -290,6 +317,11 @@ window.fetch = async (input, init) => {
   if (p === '/api/ping') return json(200, { ok: true, version: 1 });
   if (p === '/api/graph') return json(200, graph);
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/adopt') {
+    const a = adoptOf(url.searchParams.get('discovery') || '', url.searchParams.get('key') || '');
+    return a ? json(200, a) : json(404, { error: 'no such object in the last run of that discovery' });
+  }
   if (p === '/api/plans') return json(200, Object.assign({}, stored, { revision: graph.revision }));
   if (p === '/api/plan') {
     const id = url.searchParams.get('id') || '';
@@ -451,6 +483,17 @@ window.__mock = {
     g.revision = 'r-access-' + (++mutations);
     graph = g;
     this.emit({ revision: g.revision, what: ['access'] });
+    return true;
+  },
+  // setDiscovery swaps the Discovery document for another fixture, as a run of "pravo discover" would, and sends the event
+  async setDiscovery(name) {
+    const d = await fixture(`discovery.${name}.json`);
+    if (!d) return false;
+    discovery = d;
+    const g = JSON.parse(JSON.stringify(graph));
+    g.revision = 'r-discovery-' + (++mutations);
+    graph = g;
+    this.emit({ revision: g.revision, what: ['discovery'] });
     return true;
   },
   drop() { for (const s of sources) { s.readyState = 0; s.fire('error', {}); } },

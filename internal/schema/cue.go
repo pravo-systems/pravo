@@ -15,6 +15,8 @@ type GenOptions struct {
 	Resources   []string
 	DataSources []string
 	Ephemerals  []string
+	// Discoveries are the list resource types a discovery can be built from.
+	Discoveries []string
 	Functions   []string
 	// Header is written as the first comment line (e.g. provider address and version).
 	Header string
@@ -78,6 +80,12 @@ const fromMeta = `		// The address the record had before this resource was writt
 const importMeta = `		// The id of an existing object to bring under management, as the provider
 		// understands it. Read at the next plan; leave it in place afterwards.
 		$import?: __string
+`
+
+// discoveryMeta is what a discovery sets besides the scope that the list
+// resource's own schema gives it.
+const discoveryMeta = `		// The most objects one run lists. Leave out for the provider's own bound.
+		$limit?: int & >0
 `
 
 const resourceMeta = `		// Additional dependencies, as references to other resources.
@@ -174,6 +182,25 @@ func GenerateCUE(p *ProviderSchema, pkgName string, opts GenOptions) []byte {
 	}
 	b.WriteString("}\n")
 
+	lst := opts.Discoveries
+	if lst == nil {
+		lst = p.SortedListNames()
+	}
+	b.WriteString("\n// Discoveries: a list resource type with the scope to list it in. A discovery finds objects; it manages none.\n_#Discovery: {\n")
+	for _, name := range lst {
+		s := p.ListResource(name)
+		if s == nil {
+			continue
+		}
+		writeDoc(&b, s.Block.Description, "\t")
+		fmt.Fprintf(&b, "\t%s: {\n", fieldName(name))
+		b.WriteString(identityCUE("discovery", name, opts.Source))
+		b.WriteString(discoveryMeta)
+		writeBlockBody(&b, s.Block, "\t\t")
+		b.WriteString("\t}\n")
+	}
+	b.WriteString("}\n")
+
 	fns := opts.Functions
 	if fns == nil {
 		fns = p.SortedFunctionNames()
@@ -250,6 +277,8 @@ func referenceCatalogues(src []byte) []byte {
 		"\t#Data: _#Data",
 		"\t// Ephemeral resource types: opened for the duration of a run, never recorded in state.",
 		"\t#Ephemeral: _#Ephemeral",
+		"\t// Discoveries: list resource types, each with the scope to list them in.",
+		"\t#Discovery: _#Discovery",
 		"\t// Provider-defined functions: a struct with args; the result is filled in at run time.",
 		"\t#Function: _#Function",
 	)
@@ -466,6 +495,9 @@ func shadowsBuiltins(p *ProviderSchema) bool {
 		visitBlock(s.Block)
 	}
 	for _, s := range p.Ephemerals {
+		visitBlock(s.Block)
+	}
+	for _, s := range p.ListResources {
 		visitBlock(s.Block)
 	}
 	return found

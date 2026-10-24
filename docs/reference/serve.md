@@ -25,8 +25,8 @@ keywords: "viewer web ui browser graph dashboard visualise localhost token"
 |---|---|
 | Synopsis | `pravo serve [flags]` |
 | Changes infrastructure | No. |
-| Reads | The specification, the state, the plans stored in it, the provider schemas that are cached already and, with `--plan FILE`, a saved plan. For a state that is sealed, the readers file and the identity of the person who runs the command. |
-| Writes | Nothing: no state record, no transaction, no lock, no `pravo.lock.cue`, no generated package, and nothing of a stored plan: no claim, no progress, no removal. It starts no provider and downloads nothing. |
+| Reads | The specification, the state, the plans stored in it, the runs of the discoveries and the acknowledgements stored in it, the provider schemas that are cached already and, with `--plan FILE`, a saved plan. For a state that is sealed, the readers file and the identity of the person who runs the command. |
+| Writes | Nothing: no state record, no transaction, no lock, no `pravo.lock.cue`, no generated package, and nothing of a stored plan: no claim, no progress, no removal. It runs no discovery and writes no acknowledgement. It starts no provider and downloads nothing. |
 | Prints | The address of the viewer, with its token. With `--json`, one line of JSON. Then nothing until it stops. |
 | Taught in | [Explore an estate in a browser](../how-to/explore-your-estate.md). |
 
@@ -82,7 +82,7 @@ The viewer is one page with a bar, a toolbar, a graph or a list, an inspector th
 
 | Part | Holds |
 |---|---|
-| Bar | The project directory and the state location, each a button that copies the path. The three sections, Inventory, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
+| Bar | The project directory and the state location, each a button that copies the path. The four sections, Inventory, Discovery, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
 | Toolbar | Of the Inventory section: the switch Graph and List, the switch Grouped and Flat of the list, then Collapse and Expand. The filter box, which takes words and column:value terms such as `type:s3_bucket` and `mode:data`, with the number of matches, or of items. The zoom buttons, minus, Fit and plus, and the button that shows the project. |
 | Pills | Under the toolbar, one pill for each term of the filter box, with a cross that takes it out. The row is not there while the box has no term. |
 | Graph | The lanes of open namespaces, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks that the graph shows and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a namespace. |
@@ -153,9 +153,25 @@ A resource that a plan which can be applied still has a change to apply on carri
 
 The viewer never applies, approves or removes a plan. It shows the command that applies a plan, and the button copies it.
 
+## The Discovery section
+
+The Discovery section shows what the discoveries of the specification found, and what each object found is to the state. [Discovery](../concepts/discovery.md) explains the statuses. The objects are shown here and in no other section: they are not in the graph or in the list of the Inventory. Its link is `view=discovery`, and its key is `d`. The tab carries the number of objects that ask to be adopted. It has no toolbar of the Inventory and no inspector, and a box that filters the objects by id, name or identity.
+
+| Part | Holds |
+|---|---|
+| The head | A sentence that says how many objects ask to be adopted, or that none does, in amber when some do, and the command that runs the discoveries that need to run. |
+| A card | One for each discovery, with its name, the list resource type, the provider instance and a chip: `current`, `scope changed` (the run answers the scope that was written before: run it again), `not run`, `cannot run` (the scope has no value, with the reason), `not in the specification` (the state holds a run of it) or `not compared` (the specification does not load). The scope, when it ran and who ran it, and where it is written. The notice and the command to run it, for a discovery that needs one. A warning of the provider, a warning that the list was cut off at its limit, and a warning that records of the type could not be opened. |
+| The counts | The objects of the last run by status: unmanaged, adopting, acknowledged and managed. Only unmanaged is in colour. |
+| Unmanaged | The objects that ask to be adopted, each with an amber edge, its name, its id, its identity and an Adopt button. The button opens the resource that adopts the object, with a button that copies it, the command that writes it with the attributes of the object (`pravo discover adopt NAME ID --read`) and the command that acknowledges the object, with the reason for you to fill in. A command for all of them, `pravo discover ack NAME --unmanaged --reason <why>`. |
+| Adopting | The objects that a resource names in `$import`, with the address of the resource. Quiet. |
+| Acknowledged | The objects that an acknowledgement covers, in grey, each with its reason. Quiet. Below the list, the acknowledgements of the discovery: their patterns, who wrote them, when, how many objects of the last run each covers, and the command that withdraws it. |
+| Managed | Counted. Never listed. |
+
+A group lists 100 objects and a button shows more. A discovery lists at most 2000, and says how many it leaves out. The text of every name, identity and reason comes from a provider or a person, is masked as other text of the page is, and has its control and direction characters removed. A command is suggested only for a name and an id that a shell can carry, and it is quoted. The page runs nothing: its footer says `This page suggests commands. It runs nothing and writes nothing.`
+
 ## The State section
 
-The State section says where the state is kept, how it is protected and who can read it. It is the last section of the page, after Inventory and Plans, which holds the graph and the list, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no chips or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
+The State section says where the state is kept, how it is protected and who can read it. It is the last section of the page, after Inventory, Discovery and Plans, which holds the graph and the list, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no chips or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
 
 | Part | Holds |
 |---|---|
@@ -228,7 +244,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, instance, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
 | `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer does not write it any more. |
-| `view` | `graph`, `list`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Plans section, or the State section (`access` is the old name of it). |
+| `view` | `graph`, `list`, `discovery`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Discovery section, the Plans section, or the State section (`access` is the old name of it). |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
 | `palette` | `1` | The search palette open. |
@@ -248,6 +264,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `g` | Switch the resources between the graph and the list. |
 | `a` | Switch between the Inventory and the State sections. |
 | `p` | Switch between the Inventory and the Plans sections. |
+| `d` | Switch between the Inventory and the Discovery sections. |
 | Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the namespace that a click opened, then clear the selection. |
 
 In the graph:
@@ -306,7 +323,9 @@ The interface of the page is a set of read-only endpoints. They are for the page
 | `GET /api/search?q=TEXT` | The nodes and namespaces that match. |
 | `GET /api/fields?q=PATH=VALUE` | The addresses of the nodes whose recorded values match, as `{"version":1,"addrs":[...],"indexed":N,"withheld":M}`. `PATH` is dotted (`settings.region`, `rule.0.cidr`), a name alone is a field of that name at any depth, and `*` stands for any run in the path or the value; with no `=VALUE` it matches the nodes that hold the field. Only what `/api/detail` sends is searched, so a withheld value never matches. `indexed` is the number of nodes searched, `withheld` the number whose values are withheld whole. The index is built on the first search and kept for the revision. |
 | `GET /api/access` | How the state is protected, the readers of the store and of the readers file, the verdict between them, who the viewer is, and the suggested commands. See [The State section](#the-state-section). |
-| `GET /api/events` | A stream of server-sent events. Each event `change` carries the new revision and what changed: `state`, `spec`, `plan`, `locks`, `plans` or `access`. `plan` is the plan file of `--plan`, `plans` are the plans stored in the state, and `access` is the readers file. |
+| `GET /api/discovery` | The discoveries of the specification and what their last runs found, set against the state: for each its scope, its freshness, its last run, the counts by status, the objects that are not managed (at most 2000), its acknowledgements and the commands. The acknowledgements of discoveries that are gone are in `orphan_acks`. See [The Discovery section](#the-discovery-section). |
+| `GET /api/adopt?discovery=NAME&key=KEY` | The resource that adopts one object of the last run of a discovery, as CUE, and the commands to copy. `KEY` is the `key` of the object in `/api/discovery`. 404 for an object that is not in the run or is managed, 400 for a name or key that is too long. The server asks no provider. |
+| `GET /api/events` | A stream of server-sent events. Each event `change` carries the new revision and what changed: `state`, `spec`, `plan`, `locks`, `plans`, `access` or `discovery`. `plan` is the plan file of `--plan`, `plans` are the plans stored in the state, `access` is the readers file, and `discovery` is the runs and the acknowledgements of the discoveries. |
 
 `ADDR` is URL-encoded. An address that is not known gets 404 and `{"error":"..."}`. An `id` or `plan` that is not `plan-` and six or more hexadecimal digits gets 400, and an id that no stored plan has gets 404. The server looks an id up among the plans that it lists. It is never a path, and the beginning of an id is not taken for it. The additions are `/api/plans`, `/api/plan`, the `plan` parameter, `Node.plans` and `Node.overlap` in the graph, and `id` and `status` in the plan of the graph. A reader that does not know them reads the rest as before.
 
