@@ -95,7 +95,7 @@ A resource that plans which can be applied still have a change to apply on carri
 
 A plan whose objects cannot be read, because they are damaged or a newer pravo wrote them, is not listed. A warning above the graph names up to five of them, with a short reason, so that a person who looks for a colleague's plan can tell why it is not there.
 
-Badges are drawn on boxes and in the rows of the sidebar. The cards of closed modules and the Table view show none.
+Badges are drawn on boxes and in the rows of the sidebar. The card of a closed module or of a group carries the discs of the plans that change something inside it, so that a plan is not hidden by a module that is closed. The Table view shows none.
 
 [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md) stores plans for two people. [Explore an estate in a browser](../how-to/explore-your-estate.md#7-see-what-your-team-has-planned) reads them in the viewer.
 

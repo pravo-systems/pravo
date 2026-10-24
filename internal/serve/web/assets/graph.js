@@ -7,7 +7,7 @@
 // --sub) carry how much of the text shows, and the titles of the lanes are counter-scaled (--ls) so that they
 // stay readable when the picture is small. Nothing in the picture is a bitmap.
 
-import { s, h, clamp, ease, schedule, actionOf } from './util.js';
+import { s, h, clamp, ease, schedule, actionOf, plural } from './util.js';
 import { G, FIT, fitScale, pathOf, midOf, lengthOf } from './layout.js';
 import { eachNode, cellsOf, isOut, isEnv } from './model.js';
 import { initials, hueOf } from './plans.js';
@@ -42,7 +42,8 @@ function itemSig(x, ctx) {
   if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.tint, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
-  return [x.kind, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.tint, x.h, x.kind === 'module' ? x.mod.kids.length : ''].join('|');
+  const pi = plansIn(x, ctx);
+  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.tint, x.h, x.kind === 'module' ? x.mod.kids.length : ''].join('|');
 }
 
 const trunc = (t, n) => (t.length > n ? t.slice(0, Math.max(1, n - 1)) + '…' : t);
@@ -68,6 +69,23 @@ export function nodeClasses(n, ctx) {
 // authorsOf lists the authors of the open stored plans that change a node, one for each plan, newest first
 export function authorsOf(n, ctx) {
   return (n.plans || []).map((id) => ({ id, author: (ctx.authors && ctx.authors.get(id)) || '?' }));
+}
+
+// plansIn says which open stored plans change something inside a module or a group of siblings: the authors, one for
+// each plan, in the order that the nodes give them, how many resources are changed, and whether two plans change one.
+// A card has no resource of its own to carry the discs, so it carries those of what it holds.
+export function plansIn(it, ctx) {
+  const out = { list: [], resources: 0, overlap: false };
+  if (!ctx.authors || !ctx.authors.size) return out;
+  const seen = new Set();
+  const visit = (n) => {
+    if (isOut(n) || !(n.plans || []).length) return;
+    out.resources++;
+    if (n.overlap) out.overlap = true;
+    for (const p of authorsOf(n, ctx)) if (!seen.has(p.id)) { seen.add(p.id); out.list.push(p); }
+  };
+  if (it.kind === 'module') eachNode(it.mod, visit); else for (const n of it.members || []) visit(n);
+  return out;
 }
 
 export function describeNode(n, ctx) {
@@ -542,7 +560,7 @@ export class GraphView {
     }
     let mx = W - 12 - 13;
     for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
-    const aus = this.authorBadges(n, W);
+    const aus = this.authorBadges(authorsOf(n, this.ctx), W);
     if (aus) inn.append(aus);
     g.append(inn);
     return g;
@@ -550,8 +568,7 @@ export class GraphView {
 
   // authorBadges hang on the top edge of a node that open stored plans change: a disc with the initial of the author
   // of each plan, newest at the right, overlapping a little; more than three give their number
-  authorBadges(n, W) {
-    const list = authorsOf(n, this.ctx);
+  authorBadges(list, W) {
     if (!list.length) return null;
     const g = s('g', { class: 'aus' });
     const SHOWN = 3, R = 7.5, PITCH = 11;
@@ -634,6 +651,11 @@ export class GraphView {
       mx -= 8;
     }
     inn.append(this.cells(it, 14, 57, W - 28));
+    // the discs of the plans that change something inside, which the resources would carry if the card were open
+    const pin = plansIn(it, this.ctx);
+    if (pin.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 10.5 }));
+    const aus = this.authorBadges(pin.list, W);
+    if (aus) inn.append(aus);
     g.append(inn);
     return g;
   }
@@ -939,6 +961,13 @@ export class GraphView {
     return out;
   }
 
+  // tipPlans names the open plans that change something inside a card, and how many resources they change
+  tipPlans(out, pin) {
+    if (!pin.list.length) return;
+    out.push(h('div', { class: 'gtip-plans' }, pin.list.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${p.author} \u00b7 ${p.id}`)),
+      h('div', { class: 'dim' }, `${plural(pin.resources, 'resource')} changed by open plans${pin.overlap ? ', two of them by more than one' : ''}`)));
+  }
+
   tipModule(mod, open) {
     const a = mod.agg;
     const outs = a.out ? `${a.out} ${a.out === 1 ? 'output' : 'outputs'}` : '';
@@ -950,6 +979,7 @@ export class GraphView {
     if (a.sensitive) chips.push(h('span', { class: 'gchip sens' }, `${a.sensitive} sensitive`));
     if (a.drifted + a.gone) chips.push(h('span', { class: 'gchip drift' }, `${a.drifted + a.gone} drifted`));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
+    this.tipPlans(out, plansIn({ kind: 'module', mod }, this.ctx));
     out.push(h('div', { class: 'gtip-meta' }, open ? 'click to select, chevron to close' : 'click or press Enter to open'));
     return out;
   }
@@ -963,6 +993,7 @@ export class GraphView {
     if (a.delete) chips.push(h('span', { class: 'gchip a-delete' }, `${a.delete} delete`));
     if (a.sensitive) chips.push(h('span', { class: 'gchip sens' }, `${a.sensitive} sensitive`));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
+    this.tipPlans(out, plansIn(it, this.ctx));
     out.push(h('div', { class: 'gtip-meta' }, 'click or press Enter to show the group'));
     return out;
   }
