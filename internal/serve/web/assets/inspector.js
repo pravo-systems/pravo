@@ -214,8 +214,10 @@ export class Inspector {
     const out = isOut(n);
     // an output and a plain variable are what the kicker says: the type would only repeat it
     if (!out && n.type !== 'env') tags.push(this.facetPill('b ty', 'type', n.type, n.type));
-    const pv = prov ? [prov.key, prov.version].filter(Boolean).join(' ') : node.provider;
+    // the provider and its version are two things: the provider is a facet of the filter, the version is not
+    const pv = prov && prov.key || node.provider;
     if (pv) tags.push(node.provider ? this.facetPill('b pv', 'provider', node.provider, pv) : h('span', { class: 'b pv' }, pv));
+    if (prov && prov.version) tags.push(h('span', { class: 'b pv', title: 'Provider version' }, prov.version));
     if (n.sealed) tags.push(h('span', { class: 'b lock' }, icon('lock'), 'sealed'));
     if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), out ? 'sensitive' : `${n.sensitive} sensitive`));
     if (n.no_schema) tags.push(h('span', { class: 'b chg' }, 'no schema'));
