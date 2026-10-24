@@ -973,6 +973,12 @@ function renderLegend() {
   clear(el);
   const m = S.model;
   if (!m.list.length) return;
+  // the key is one small button until it is asked for, and stays as it was left
+  const open = store.get('pravo.key') === 'open';
+  el.classList.toggle('open', open);
+  const tg = h('button', { class: 'lg-toggle', type: 'button', 'aria-expanded': String(open), 'aria-label': 'Key to the marks of the graph' }, icon('info'), 'Key');
+  tg.addEventListener('click', () => { store.set('pravo.key', el.classList.contains('open') ? 'closed' : 'open'); renderLegend(); });
+  el.append(tg);
   const sq = (a) => h('i', { class: 'sq ' + actionOf(a).cls });
   const item = (...k) => h('span', { class: 'lg' }, ...k);
   const sel = (...k) => h('span', { class: 'lg lg-sel' }, ...k); // the keys of the edges show once something is selected
