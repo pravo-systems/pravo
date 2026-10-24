@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseQuery, addTerm, removeTerm } from '../assets/query.js';
-import { compile, rowsOf, suggest, LANG, COLUMNS } from '../assets/dquery.js';
+import { compile, rowsOf, suggest, marks, LANG, COLUMNS } from '../assets/dquery.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const doc = JSON.parse(fs.readFileSync(path.join(dir, 'discovery.platform.json'), 'utf8'));
@@ -61,7 +61,14 @@ check(removeTerm('status:unmanaged type:x', 'status:unmanaged') === 'type:x', 'r
 
 // the menu
 const s0 = suggest(doc, '', 0);
-check(s0 && s0.items.some((i) => i.label === 'status:unmanaged' && i.count === st('unmanaged')) && s0.items.some((i) => i.label === 'status:' && i.group === 'Columns'), 'an empty box offers the filters of this page and the columns');
+check(s0 && s0.items.some((i) => i.label === 'status:unmanaged' && i.count === st('unmanaged')) && s0.items.some((i) => i.label === 'status:' && i.group === 'Narrow by'), 'an empty box offers the filters of this page and what it can be narrowed by');
+const names = s0.items.filter((i) => i.group === 'Narrow by').map((i) => i.label);
+check(!names.includes('provider:') && !names.includes('instance:'), 'a column that every card shares is not offered: ' + names);
+check(names.includes('discovery:') && names.includes('type:') && names.includes('field:'), 'the columns that tell this page apart are');
+const one = { discoveries: [doc.discoveries[0]] };
+const n1 = suggest(one, '', 0).items.filter((i) => i.group === 'Narrow by').map((i) => i.label);
+check(!n1.includes('discovery:') && !n1.includes('type:') && !n1.includes('freshness:'), 'one discovery is not told apart from itself: ' + n1);
+check(suggest(doc, 'pro', 3).items.length > 0, 'a column nothing can use is still offered for a word that only it begins');
 const sc = suggest(doc, 'sta', 3);
 check(sc && sc.items.length === 1 && sc.items[0].insert === 'status:', 'the columns that a word begins');
 const sv = suggest(doc, 'status:', 7);
@@ -75,6 +82,16 @@ check(sf && sf.items.some((i) => i.label === 'region=eu-west-1'), 'field: offers
 check(suggest(doc, 'status:unmanaged,', 17).items.every((i) => i.label !== 'unmanaged'), 'a value that is there is not offered again');
 check(suggest(doc, 'nope:', 5) === null, 'an unknown column offers nothing');
 check(COLUMNS.every((c) => suggest(doc, c.slice(0, 2), 2) !== undefined), 'columns suggest');
+
+// what a term names is lit on the page
+const lit = marks('status:unmanaged type:aws_instance -discovery:old field:region=eu-west-1 by:web*');
+const comp = doc.discoveries.find((x) => x.name === 'compute.instances');
+check(lit.status('unmanaged') && !lit.status('adopting'), 'marks: a status that a term names');
+check(lit.type(comp) && !lit.type(doc.discoveries[0]), 'marks: the type of a card');
+check(!lit.discovery(doc.discoveries.find((x) => x.name === 'old.dbs')), 'marks: a term that is turned round lights nothing');
+check(lit.field({ name: 'region', value: 'eu-west-1' }) && !lit.field({ name: 'region', value: 'us-east-1' }), 'marks: an attribute of an identity');
+check(lit.by({ by: 'web_old' }) && !lit.by({ by: 'x' }), 'marks: the adopter');
+check(marks('').any === false && !marks('').status('unmanaged'), 'marks: an empty text lights nothing');
 
 if (failed) { console.log(failed + ' failed'); process.exit(1); }
 console.log('discovery query checks pass');

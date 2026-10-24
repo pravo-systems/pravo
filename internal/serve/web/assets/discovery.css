@@ -29,7 +29,7 @@ body:has(.app[data-view="discovery"]) .planstrip, body:has(.app[data-view="disco
 .dv-sentence { margin: 0 0 .1rem; max-width: 46rem; font-size: .9rem; line-height: 1.55; text-wrap: pretty; }
 .dv-head .cmdline { margin-top: .7rem; }
 .dv-tools { display: grid; gap: .5rem; min-width: 0; }
-.dv-tools .filterbox { width: auto; flex: none; max-width: 36rem; }
+.dv-tools .filterbox { width: auto; max-width: none; flex: none; }
 .dv-q { width: 100%; }
 .dv-pills { padding: 0; }
 .dv-nomatch { display: flex; align-items: baseline; flex-wrap: wrap; gap: .5rem 1rem; }
@@ -47,11 +47,29 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 .dv-card { display: grid; gap: .7rem; padding: .9rem 1rem 1rem; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-1); min-width: 0; }
 .dv-card.loud { border-left: 4px solid var(--change); }
 .dv-card.f-undeclared, .dv-card.f-unknown { background: var(--surface-2); }
-.dv-chead { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.dv-card.closed { padding-block: .65rem; }
+.dv-body { display: grid; gap: .7rem; min-width: 0; }
+.dv-chead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .4rem 1rem; }
 .dv-ctitle { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .6rem; min-width: 0; }
 .dv-name { margin: 0; font: 500 1.05rem/1.2 var(--font-mono); min-width: 0; overflow-wrap: anywhere; }
-.dv-fold .i-chev { transform: rotate(180deg); transition: transform var(--t-fast); }
-.dv-fold .i-chev.open { transform: rotate(-90deg); }
+/* the name of a discovery opens and closes it, with the chevron that the tree of the Inventory has: it points right, and down when open */
+.dv-toggle { display: inline-flex; align-items: center; gap: .45rem; min-width: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.dv-toggle .chev { display: inline-grid; place-items: center; width: 1rem; height: 1rem; flex: none; color: var(--text-3); }
+.dv-toggle .chev .i { width: .8rem; height: .8rem; transition: transform var(--t-fast) var(--ease); }
+.dv-toggle .chev.open .i { transform: rotate(90deg); }
+.dv-toggle:hover .chev, .dv-toggle:focus-visible .chev { color: var(--text); }
+.dv-toggle:hover .nm { text-decoration: underline; text-underline-offset: .2em; }
+/* what a closed card says of its objects */
+.dv-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem 1rem; margin: 0; padding: 0; list-style: none; font-size: .74rem; color: var(--text-2); }
+.dv-sum b { font: 500 .85rem/1 var(--font-mono); color: var(--text); }
+.dv-sum li.u:not(.zero), .dv-sum li.u:not(.zero) b { color: var(--change); }
+.dv-sum li.zero, .dv-sum li.zero b { color: var(--text-3); }
+/* what the filter names is lit in green, on the chips of a card, the counts and the attributes of an identity */
+.b.hit, button.facet.b.hit { --c: var(--accent); border-color: var(--accent); background: var(--accent-wash); color: var(--text); font-weight: 600; }
+.dv-name .nm.hit, .dv-id .nm.hit, .dv-id code.hit, .dv-gh.hit { color: var(--accent); }
+.dv-counts li.hit, .dv-sum li.hit { box-shadow: inset 0 -2px 0 var(--accent); }
+.sc.hit { background: var(--accent-wash); box-shadow: inset 0 -2px 0 var(--accent); }
+.sc.hit b { color: var(--accent); }
 .dv-facts { display: flex; flex-wrap: wrap; gap: .35rem 1.6rem; margin: 0; padding: 0; list-style: none; font-size: .76rem; color: var(--text-2); }
 .dv-facts li { display: inline-flex; align-items: baseline; gap: .5rem; min-width: 0; }
 .dv-facts .k { font: 500 .58rem/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
@@ -74,7 +92,9 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 /* ---- the objects ---- */
 .dv-rows { display: grid; gap: .9rem; min-width: 0; }
 .dv-group { display: grid; gap: .35rem; min-width: 0; }
-.dv-gh { display: flex; align-items: baseline; gap: .6rem; margin: 0; font: 500 .62rem/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+.dv-ackbtn { margin-left: auto; padding: .3rem .6rem; font-size: .66rem; }
+.dv-ackbtn[aria-pressed="true"], .dv-act[aria-pressed="true"] { background: var(--change-wash); border-color: var(--change); color: var(--text); }
+.dv-gh { display: flex; align-items: center; gap: .6rem; margin: 0; font: 500 .62rem/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
 .dv-gh .n { font-weight: 400; letter-spacing: 0; }
 .g-unmanaged > .dv-gh { color: var(--change); }
 .dv-why { margin: 0; font-size: .74rem; color: var(--text-2); }
@@ -92,10 +112,12 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 /* what screams: an amber edge, the name in the text colour, and a filled button */
 .s-unmanaged { box-shadow: inset 3px 0 0 var(--change); background: linear-gradient(var(--change-wash), transparent 60%); }
 .s-unmanaged .dv-id .nm { color: var(--text); }
-.dv-adopt { margin-left: auto; border-color: var(--change); background: var(--change); color: var(--surface); }
+.dv-acts { display: inline-flex; align-items: center; gap: .4rem; margin-left: auto; }
+.dv-adopt { border-color: var(--change); background: var(--change); color: var(--surface); }
 .dv-adopt:hover { background: color-mix(in srgb, var(--change) 85%, var(--text)); border-color: var(--change); }
-.dv-adopt[aria-expanded="true"] { background: var(--change-wash); color: var(--text); }
+.dv-adopt[aria-pressed="true"] { background: var(--change-wash); color: var(--text); }
 :root[data-theme="dark"] .dv-adopt { color: var(--bg); }
+:root[data-theme="dark"] .dv-adopt[aria-pressed="true"] { color: var(--text); }
 
 /* what is quiet: grey, small, and nothing to do */
 .s-acknowledged .dv-id .nm, .s-acknowledged .dv-id .id { color: var(--text-3); font-weight: 400; }
@@ -146,6 +168,6 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 
 @media (max-width: 44em) {
   .discovery-pane { padding-inline: .75rem; }
-  .dv-adopt { margin-left: 0; }
+  .dv-acts { margin-left: 0; }
   .dv-ack { justify-content: flex-start; text-align: left; margin-left: 0; }
 }

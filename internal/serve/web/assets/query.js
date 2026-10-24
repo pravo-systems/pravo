@@ -415,8 +415,8 @@ export class QueryMenu {
       group = it.group || group;
       this.list.append(h('li', { id: 'qsug-' + i, role: 'option', 'aria-selected': 'false', data: { i: String(i) } },
         h('span', { class: 'v' }, it.label),
-        it.count != null && it.count > 0 ? h('em', null, String(it.count)) : null,
-        it.hint ? h('span', { class: 'hint' }, it.hint) : null));
+        h('em', null, it.count != null && it.count > 0 ? String(it.count) : ''),
+        h('span', { class: 'hint' }, it.hint || '')));
     });
     this.list.hidden = false;
     this.input.setAttribute('aria-expanded', 'true');

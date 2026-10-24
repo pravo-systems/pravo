@@ -64,6 +64,14 @@ function testCard(col, v, x) {
   }
 }
 
+// fieldTest says whether a field term (path=value, or a path) names one attribute of an identity
+function fieldTest(v, f) {
+  const eq = v.indexOf('=');
+  const path = (eq < 0 ? v : v.slice(0, eq)).trim();
+  const want = eq < 0 ? null : v.slice(eq + 1);
+  return f.name.toLowerCase() === path && (want === null || same(f.value, want));
+}
+
 function testItem(col, v, it) {
   switch (col) {
     case 'status': return it.status === (STATUS_ALIAS[v] || v);
@@ -71,14 +79,28 @@ function testItem(col, v, it) {
     case 'name': return same(it.name || '', v);
     case 'by': return same(it.by || '', v);
     case 'value': return same(it.id, v) || same(it.name || '', v) || (it.identity || []).some((f) => same(f.value, v));
-    case 'field': {
-      const eq = v.indexOf('=');
-      const path = (eq < 0 ? v : v.slice(0, eq)).trim();
-      const want = eq < 0 ? null : v.slice(eq + 1);
-      return (it.identity || []).some((f) => f.name.toLowerCase() === path && (want === null || same(f.value, want)));
-    }
+    case 'field': return (it.identity || []).some((f) => fieldTest(v, f));
     default: return false;
   }
+}
+
+// marks says, for the text, which of the things that the page shows are named by a term that is not turned round: the
+// chips of a card, a count, an attribute of an identity. The page lights them, as the inspector lights a tag of the
+// Inventory, so that what the filter holds can be seen in the cards it leaves.
+export function marks(text) {
+  const terms = parseQuery(text, LANG).terms.filter((t) => !t.neg);
+  const any = (col, f) => terms.some((t) => t.col === col && t.values.some(f));
+  return {
+    any: terms.length > 0,
+    discovery: (x) => any('discovery', (v) => testCard('discovery', v, x)),
+    type: (x) => any('type', (v) => testCard('type', v, x)),
+    provider: (x) => any('provider', (v) => testCard('provider', v, x)) || any('instance', (v) => testCard('instance', v, x)),
+    freshness: (x) => any('freshness', (v) => testCard('freshness', v, x)),
+    status: (s) => any('status', (v) => (STATUS_ALIAS[v] || v) === s),
+    field: (f) => any('field', (v) => fieldTest(v, f)) || any('value', (v) => same(f.value, v)),
+    by: (it) => any('by', (v) => same(it.by || '', v)),
+    name: (it) => any('name', (v) => same(it.name || '', v)) || any('id', (v) => same(it.id, v) || same(it.key || '', v)),
+  };
 }
 
 // compile makes the filter of a text: card(x) says whether a discovery is shown, item(x, it) whether one of its objects is,
@@ -136,21 +158,53 @@ function valuesOf(doc, col, pool) {
   return [...c].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
 }
 
-// quick is what an empty word can become: the filters that the page has something for, with how many objects each leaves, then the columns
+// relevant lists the columns that this page has something to say about, for the objects of the pool: a column that every card
+// shares, or that no object has a value for, cannot narrow anything and is not offered.
+function relevant(doc, pool) {
+  const ds = doc.discoveries;
+  const distinct = (f) => new Set(ds.map(f)).size > 1;
+  const has = pool.length > 0;
+  return COLUMNS.filter((c) => {
+    switch (c) {
+      case 'status': return new Set(pool.map((r) => r.it.status)).size > 1 || (has && !pool.every((r) => r.it.status === 'unmanaged'));
+      case 'discovery': return ds.length > 1;
+      case 'type': return distinct((x) => x.type);
+      case 'provider': return distinct(providerType);
+      case 'instance': return distinct(providerOf);
+      case 'freshness': return distinct((x) => x.freshness);
+      case 'by': return pool.some((r) => r.it.by);
+      case 'field': case 'value': return pool.some((r) => (r.it.identity || []).length);
+      default: return has;
+    }
+  });
+}
+
+// quick is what an empty word can become: the filters that this page has something for, with how many objects each leaves, and
+// then what it can be narrowed by, as far as the objects in view differ in it
 function quick(doc, text, start, caret) {
   const rest = compile(text);
   const pool = rowsOf(doc, rest);
   const held = new Set(parseQuery(text, LANG).terms.filter((t) => !t.neg).flatMap((t) => t.values.map((v) => t.col + ':' + v)));
   const items = [];
-  for (const [v, n] of valuesOf(doc, 'status', pool)) {
-    if (n > 0 && !held.has('status:' + v)) items.push({ label: 'status:' + v, count: n, hint: VALUE_HINTS['status:' + v], group: 'Filters', insert: 'status:' + v + ' ' });
+  const add = (col, v, n, hint) => {
+    if (!held.has(col + ':' + v.toLowerCase())) items.push({ label: col + ':' + v, count: n, hint: hint || VALUE_HINTS[col + ':' + v], group: 'Filters', insert: col + ':' + quoted(col, v) + ' ' });
+  };
+  const statuses = valuesOf(doc, 'status', pool);
+  if (statuses.length > 1) for (const [v, n] of statuses) add('status', v, n);
+  // the discoveries and the types of the page, when there is more than one to tell apart
+  if (doc.discoveries.length > 1) for (const [v, n] of valuesOf(doc, 'discovery', pool).filter(([, n]) => n > 0).slice(0, 5)) add('discovery', v, n);
+  const types = valuesOf(doc, 'type', pool).filter(([, n]) => n > 0);
+  if (types.length > 1) for (const [v, n] of types.slice(0, 4)) add('type', v, n);
+  // a discovery that needs to run is worth finding
+  for (const k of ['stale', 'never']) {
+    const n = doc.discoveries.filter((x) => x.freshness === k).length;
+    if (n > 0 && doc.discoveries.length > n) add('freshness', k, 0, VALUE_HINTS['freshness:' + k]);
   }
-  if (doc.discoveries.length > 1) {
-    for (const [v, n] of valuesOf(doc, 'discovery', pool).slice(0, 6)) {
-      if (n > 0 && !held.has('discovery:' + v)) items.push({ label: 'discovery:' + v, count: n, group: 'Filters', insert: 'discovery:' + quoted('discovery', v) + ' ' });
-    }
+  // an attribute of the identity that tells a few groups apart: a region, a kind
+  for (const [pair, n] of valuesOf(doc, 'field', pool).filter(([v]) => v.includes('=')).slice(0, 4)) {
+    if (n < pool.length) add('field', pair, n);
   }
-  for (const c of COLUMNS) items.push({ label: c + ':', hint: HINTS[c], group: 'Columns', insert: c + ':' });
+  for (const c of relevant(doc, pool)) items.push({ label: c + ':', hint: HINTS[c], group: 'Narrow by', insert: c + ':' });
   return { from: start, to: caret, items };
 }
 
@@ -167,7 +221,11 @@ export function suggest(doc, text, caret) {
   if (!m[3]) {
     const p = m[2].toLowerCase();
     if (!p) return null;
-    const items = COLUMNS.filter((c) => c.startsWith(p) && c !== p).map((c) => ({ label: c + ':', hint: HINTS[c], insert: neg + c + ':' }));
+    // the columns that the page can use first; one that cannot narrow anything is offered only when nothing else begins the word
+    const pool = rowsOf(doc, compile(text.slice(0, start) + text.slice(caret)));
+    const begins = COLUMNS.filter((c) => c.startsWith(p) && c !== p);
+    const useful = begins.filter((c) => relevant(doc, pool).includes(c));
+    const items = (useful.length ? useful : begins).map((c) => ({ label: c + ':', hint: HINTS[c], insert: neg + c + ':' }));
     return items.length ? { from: start, to: caret, items } : null;
   }
   const col = ALIAS[m[2].toLowerCase()] || m[2].toLowerCase();

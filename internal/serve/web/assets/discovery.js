@@ -63,7 +63,9 @@ export class DiscoveryView {
     this.open = new Map(); // "discovery\0key" -> true: the rows whose adoption is open
     this.adopt = new Map(); // "discovery\0key" -> the answer of /api/adopt, or an error
     this.shown = new Map(); // "discovery\0status" -> rows drawn
-    this.fold = new Map(); // discovery name -> true when the person closed it
+    this.expanded = new Map(); // discovery name -> whether the person opened or closed it; a card the person did not touch is closed unless it is the only one
+    this.ackAll = new Set(); // the discoveries whose entry for all their unmanaged objects is open
+    this.marks = dq.marks('');
     this.revision = '';
   }
 
@@ -81,6 +83,7 @@ export class DiscoveryView {
     clear(this.root);
     const d = discovery;
     this.f = dq.compile(this.q);
+    this.marks = dq.marks(this.q);
     this.input = null;
     const list = d.discoveries.length ? h('div', { class: 'dv-list' }) : null;
     this.root.append(h('div', { class: 'dv' },
@@ -142,11 +145,18 @@ export class DiscoveryView {
   setQuery(q, notify = false, typed = false) {
     this.q = q;
     this.f = dq.compile(q);
+    this.marks = dq.marks(q);
     if (this.input && !typed && this.input.value !== q) this.input.value = q;
     const list = this.root.querySelector('.dv-list');
     if (list) { clear(list); this.fill(list); }
     this.summary();
     if (notify && this.cb.onQuery) this.cb.onQuery(q);
+  }
+
+  // redraw draws the cards again, for a card that was opened or closed or a button that was pressed, and leaves the filter box alone.
+  redraw() {
+    const list = this.root.querySelector('.dv-list');
+    if (list) { clear(list); this.fill(list); }
   }
 
   // facet is a value on a card that a click makes a term of the filter.
@@ -177,31 +187,55 @@ export class DiscoveryView {
     for (const x of shown) list.append(this.card(x));
   }
 
+  // isOpen says whether a card shows its body. The cards are closed until someone opens one, unless there is only one, or the
+  // filter asks something of the objects, which is what the cards that it leaves are for; what a person chose stays.
+  isOpen(x) {
+    const v = this.expanded.get(x.name);
+    if (v !== undefined) return v;
+    return this.doc.discoveries.length === 1 || !!(this.f && this.f.items);
+  }
+
   card(x) {
     const f = FRESH[x.freshness] || FRESH.unknown;
     const loud = x.counts.unmanaged > 0;
-    const folded = this.fold.get(x.name) === true;
+    const open = this.isOpen(x);
+    const m = this.marks;
     const idn = 'dv-' + x.name.replace(/[^A-Za-z0-9_-]/g, '_');
+    const lit = (on) => (on ? ' hit' : '');
     const head = h('header', { class: 'dv-chead' },
       h('div', { class: 'dv-ctitle' },
-        h('h3', { id: idn, class: 'dv-name' }, this.facet('button', [['discovery', x.name]], [x.name], `Show only ${x.name}`, 'nm')),
-        this.facet('button', [['type', x.type]], [x.type], `Filter by type ${x.type}: the list resource type the provider lists`, 'b ty'),
-        this.facet('button', [['instance', dq.providerOf(x)]], [x.instance || x.provider], `Filter by the provider ${dq.providerOf(x)}`, 'b pv'),
-        h('span', { class: `b ${f.cls}` }, f.ic ? icon(f.ic) : null, f.label)),
-      h('button', { class: 'iconbtn dv-fold', type: 'button', 'aria-expanded': folded ? 'false' : 'true', 'aria-label': (folded ? 'Open ' : 'Close ') + x.name, 'data-fk': 'fold:' + x.name, 'data-tip': folded ? 'Open' : 'Close',
-        on: { click: () => { this.fold.set(x.name, !folded); this.render({ discovery: this.doc }); } } }, icon('chev', folded ? '' : 'open')));
-    const card = h('section', { class: 'dv-card' + (loud ? ' loud' : '') + ' f-' + x.freshness, 'aria-labelledby': idn, 'data-name': x.name }, head);
-    if (folded) return card;
-    card.append(this.facts(x));
-    if (FRESH_TEXT[x.freshness]) card.append(this.notice(x));
-    if (x.problem) card.append(h('p', { class: 'dv-problem' }, icon('bang'), h('span', null, x.problem)));
-    for (const w of (x.run && x.run.warnings) || []) card.append(h('p', { class: 'dv-problem soft' }, icon('bang'), h('span', null, w)));
-    if (x.unreadable) card.append(h('p', { class: 'dv-problem soft' }, icon('lock'), h('span', null, `${plural(x.unreadable, 'record')} of this type could not be opened, so the objects ${x.unreadable === 1 ? 'it is' : 'they are'} may be listed as unmanaged.`)));
-    if (x.run) card.append(this.counts(x));
-    if (x.run && x.run.status === 'truncated') card.append(h('p', { class: 'dv-problem soft' }, icon('bang'), h('span', null, `The list was cut off at the limit of ${fmt(x.limit)} objects, so there may be more.`)));
-    card.append(this.rows(x));
-    if ((x.acks || []).length) card.append(this.acks(x));
+        h('h3', { id: idn, class: 'dv-name' },
+          h('button', { class: 'dv-toggle', type: 'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': idn + '-body', 'data-fk': 'fold:' + x.name,
+            on: { click: () => { this.expanded.set(x.name, !open); this.redraw(); } } },
+          h('span', { class: 'chev' + (open ? ' open' : ''), 'aria-hidden': 'true' }, icon('chev')), h('span', { class: 'nm' + lit(m.discovery(x)) }, x.name))),
+        this.facet('button', [['type', x.type]], [x.type], `Filter by type ${x.type}: the list resource type the provider lists`, 'b ty' + lit(m.type(x))),
+        this.facet('button', [['instance', dq.providerOf(x)]], [x.instance || x.provider], `Filter by the provider ${dq.providerOf(x)}`, 'b pv' + lit(m.provider(x))),
+        this.facet('button', [['freshness', x.freshness]], [f.ic ? icon(f.ic) : null, f.label], `Filter by freshness ${x.freshness}`, `b ${f.cls}` + lit(m.freshness(x)))),
+      // a card that is closed still says what it holds
+      open || !x.run ? null : this.summaryOf(x));
+    const card = h('section', { class: 'dv-card' + (loud ? ' loud' : '') + (open ? ' open' : ' closed') + ' f-' + x.freshness, 'aria-labelledby': idn, 'data-name': x.name }, head);
+    if (!open) return card;
+    const body = h('div', { class: 'dv-body', id: idn + '-body' });
+    card.append(body);
+    body.append(this.facts(x));
+    if (FRESH_TEXT[x.freshness]) body.append(this.notice(x));
+    if (x.problem) body.append(h('p', { class: 'dv-problem' }, icon('bang'), h('span', null, x.problem)));
+    for (const w of (x.run && x.run.warnings) || []) body.append(h('p', { class: 'dv-problem soft' }, icon('bang'), h('span', null, w)));
+    if (x.unreadable) body.append(h('p', { class: 'dv-problem soft' }, icon('lock'), h('span', null, `${plural(x.unreadable, 'record')} of this type could not be opened, so the objects ${x.unreadable === 1 ? 'it is' : 'they are'} may be listed as unmanaged.`)));
+    if (x.run) body.append(this.counts(x));
+    if (x.run && x.run.status === 'truncated') body.append(h('p', { class: 'dv-problem soft' }, icon('bang'), h('span', null, `The list was cut off at the limit of ${fmt(x.limit)} objects, so there may be more.`)));
+    body.append(this.rows(x));
+    if ((x.acks || []).length) body.append(this.acks(x));
     return card;
+  }
+
+  // summaryOf is the line that a closed card has: the objects of the last run by what they are, the unmanaged ones in colour.
+  summaryOf(x) {
+    const c = x.counts;
+    const m = this.marks;
+    const part = (n, cls, word) => h('li', { class: cls + (n ? '' : ' zero') + (m.status(word) ? ' hit' : '') }, h('b', null, fmt(n)), ' ', word);
+    return h('ul', { class: 'dv-sum', 'aria-label': 'What the last run found' },
+      part(c.unmanaged, 'u', 'unmanaged'), part(c.adopting, 'a', 'adopting'), part(c.acknowledged, 'k', 'acknowledged'), part(c.managed, 'm', 'managed'));
   }
 
   facts(x) {
@@ -217,10 +251,12 @@ export class DiscoveryView {
     return h('div', { class: 'dv-notice n-' + x.freshness }, h('p', null, FRESH_TEXT[x.freshness]), run ? command(x.command, false, 'Copy the command that runs it', 'run:' + x.name) : null);
   }
 
-  // counts is the strip of the objects of the last run by what they are. Only the unmanaged ones are in colour.
+  // counts is the strip of the objects of the last run by what they are. Only the unmanaged ones are in colour. A count is a button
+  // that shows those objects of this discovery.
   counts(x) {
     const c = x.counts;
-    const part = (n, cls, word) => h('li', { class: cls + (n ? '' : ' zero') },
+    const m = this.marks;
+    const part = (n, cls, word) => h('li', { class: cls + (n ? '' : ' zero') + (m.status(word) ? ' hit' : '') },
       n && word !== 'managed' ? this.facet('button', [['discovery', x.name], ['status', word]], [h('b', null, fmt(n)), ' ', word], `Show the ${word} objects of ${x.name}`, 'ct') : [h('b', null, fmt(n)), ' ', word]);
     return h('ul', { class: 'dv-counts', 'aria-label': 'What the last run found' },
       part(c.unmanaged, 'u', 'unmanaged'), part(c.adopting, 'a', 'adopting'), part(c.acknowledged, 'k', 'acknowledged'), part(c.managed, 'm', 'managed'),
@@ -247,12 +283,15 @@ export class DiscoveryView {
       const key = x.name + '\0' + status;
       const n = this.shown.get(key) || PAGE;
       const total = x.counts[status];
+      const allOpen = this.ackAll.has(x.name);
+      const canAckAll = status === 'unmanaged' && x.ack_all && !filtered;
       out.append(h('div', { class: 'dv-group g-' + status },
-        h('h4', { class: 'dv-gh' }, title, h('span', { class: 'n' }, filtered ? `${list.length} of ${fmt(total)}` : fmt(total))),
+        h('h4', { class: 'dv-gh' + (this.marks.status(status) ? ' hit' : '') }, title, h('span', { class: 'n' }, filtered ? `${list.length} of ${fmt(total)}` : fmt(total)),
+          canAckAll ? h('button', { class: 'btn dv-ackbtn', type: 'button', 'aria-pressed': allOpen ? 'true' : 'false', 'data-fk': 'ackall:' + x.name, on: { click: () => { if (allOpen) this.ackAll.delete(x.name); else this.ackAll.add(x.name); this.redraw(); } } }, 'Acknowledge all') : null),
         status === 'unmanaged' ? h('p', { class: 'dv-why' }, why) : null,
+        canAckAll && allOpen ? h('div', { class: 'dv-ackall' }, h('p', { class: 'dv-note' }, 'To leave all of them as they are, add this to the $ack list of the discovery and give the reason:'), snippet(x.ack_all, 'Copy the $ack entry for all of them', 'ackall-snip:' + x.name)) : null,
         h('ul', { class: 'dv-items' }, list.slice(0, n).map((it) => this.item(x, it))),
-        list.length > n ? h('button', { class: 'btn dv-more', type: 'button', 'data-fk': 'more:' + key, on: { click: () => { this.shown.set(key, n + PAGE); this.setQuery(this.q); } } }, `Show ${Math.min(PAGE, list.length - n)} more of ${fmt(list.length - n)}`) : null,
-        status === 'unmanaged' && x.ack_all && !filtered ? h('div', { class: 'dv-ackall' }, h('p', { class: 'dv-note' }, 'To leave all of them as they are, add this to the $ack list of the discovery and give the reason:'), snippet(x.ack_all, 'Copy the $ack entry for all of them', 'ackall:' + x.name)) : null));
+        list.length > n ? h('button', { class: 'btn dv-more', type: 'button', 'data-fk': 'more:' + key, on: { click: () => { this.shown.set(key, n + PAGE); this.redraw(); } } }, `Show ${Math.min(PAGE, list.length - n)} more of ${fmt(list.length - n)}`) : null));
     }
     if (!any) {
       const quiet = x.counts.unmanaged + x.counts.adopting + x.counts.acknowledged === 0;
@@ -262,38 +301,44 @@ export class DiscoveryView {
     return out;
   }
 
+  // item is one object. What can be done with it is behind buttons, one at a time: Adopt shows the resource that adopts it,
+  // Acknowledge the entry that says it is known. The button that is open is pressed, and a second press closes it.
   item(x, it) {
     const k = x.name + '\0' + it.key;
-    const opened = this.open.get(k) === true;
-    const li = h('li', { class: 'dv-item s-' + it.status + (opened ? ' open' : ''), 'data-key': it.key });
+    const mode = this.open.get(k) || null;
+    const m = this.marks;
+    const li = h('li', { class: 'dv-item s-' + it.status + (mode ? ' open' : ''), 'data-key': it.key });
+    const lit = (on) => (on ? ' hit' : '');
     const id = h('div', { class: 'dv-id' },
-      h('span', { class: 'nm' }, it.name || it.id), it.name && it.name !== it.id && it.id !== it.key ? h('code', { class: 'id', title: it.key }, it.id) : null,
-      it.status === 'adopting' ? h('span', { class: 'by' }, 'adopted by ', h('code', null, it.by)) : null);
-    const ident = h('span', { class: 'dv-ident' }, (it.identity || []).filter((f) => f.value !== it.id && f.value !== it.name).map((f) => h('span', { class: 'sc' }, h('b', null, f.name), '=', f.value)));
+      h('span', { class: 'nm' + lit(m.name(it)) }, it.name || it.id), it.name && it.name !== it.id && it.id !== it.key ? h('code', { class: 'id', title: it.key }, it.id) : null,
+      it.status === 'adopting' ? h('span', { class: 'by' }, 'adopted by ', h('code', { class: lit(m.by(it)).trim() }, it.by)) : null);
+    const ident = h('span', { class: 'dv-ident' }, (it.identity || []).filter((f) => f.value !== it.id && f.value !== it.name).map((f) => h('span', { class: 'sc' + lit(m.field(f)) }, h('b', null, f.name), '=', f.value)));
+    const press = (which, label, cls, aria) => h('button', { class: cls, type: 'button', 'aria-pressed': mode === which ? 'true' : 'false', 'data-fk': which + ':' + k, 'aria-label': aria, on: { click: () => this.toggle(x, it, li, which) } }, label);
     let tail = null;
     if (it.status === 'unmanaged') {
-      tail = h('button', { class: 'btn primary dv-adopt', type: 'button', 'aria-expanded': opened ? 'true' : 'false', 'data-fk': 'adopt:' + k,
-        'aria-label': `Adopt ${it.name || it.id}`, on: { click: () => this.toggle(x, it, li) } }, 'Adopt');
+      tail = h('span', { class: 'dv-acts' },
+        press('ack', 'Acknowledge', 'btn dv-act', `Acknowledge ${it.name || it.id}: say that it is known and meant to stay as it is`),
+        press('adopt', 'Adopt', 'btn primary dv-adopt dv-act', `Adopt ${it.name || it.id}`));
     } else if (it.status === 'acknowledged') {
       tail = h('span', { class: 'dv-ack', title: it.by }, it.reason ? h('span', { class: 'rs' }, '“', it.reason, '”') : h('span', { class: 'dim' }, 'no reason given'),
-        h('button', { class: 'linkbtn', type: 'button', 'aria-expanded': opened ? 'true' : 'false', 'data-fk': 'adopt:' + k, 'aria-label': `How to adopt ${it.name || it.id} after all`, on: { click: () => this.toggle(x, it, li) } }, 'adopt anyway'));
+        press('adopt', 'adopt anyway', 'linkbtn', `How to adopt ${it.name || it.id} after all`));
     } else {
-      tail = h('button', { class: 'linkbtn', type: 'button', 'aria-expanded': opened ? 'true' : 'false', 'data-fk': 'adopt:' + k, on: { click: () => this.toggle(x, it, li) } }, 'details');
+      tail = press('adopt', 'details', 'linkbtn', `Details of ${it.name || it.id}`);
     }
     li.append(h('div', { class: 'dv-row' }, id, ident, tail));
-    if (opened) li.append(this.detail(x, it));
+    if (mode) li.append(this.detail(x, it, mode));
     return li;
   }
 
-  toggle(x, it, li) {
+  toggle(x, it, li, which) {
     const k = x.name + '\0' + it.key;
-    const on = !(this.open.get(k) === true);
-    this.open.set(k, on);
+    const next = this.open.get(k) === which ? null : which;
+    if (next) this.open.set(k, next); else this.open.delete(k);
     const fresh = this.item(x, it);
     li.replaceWith(fresh);
-    const btn = fresh.querySelector('[data-fk="adopt:' + k.replace(/"/g, '\\"') + '"]');
+    const btn = fresh.querySelector('[data-fk="' + which + ':' + k.replace(/"/g, '\\"') + '"]');
     if (btn) btn.focus({ preventScroll: true });
-    if (on && !this.adopt.has(k)) this.load(x, it, k);
+    if (next && !this.adopt.has(k)) this.load(x, it, k);
   }
 
   async load(x, it, k) {
@@ -308,11 +353,11 @@ export class DiscoveryView {
     if (cur && this.open.get(k)) cur.replaceWith(this.item(x, it));
   }
 
-  // detail is what to do with one object: the resource that adopts it, and the commands.
-  detail(x, it) {
+  // detail is what the open button of an object says: the resource that adopts it, and the commands; or the entry that acknowledges it.
+  detail(x, it, mode) {
     const k = x.name + '\0' + it.key;
     const a = this.adopt.get(k);
-    const box = h('div', { class: 'dv-detail', role: 'group', 'aria-label': `Adopting ${it.name || it.id}` });
+    const box = h('div', { class: 'dv-detail', role: 'group', 'aria-label': (mode === 'ack' ? 'Acknowledging ' : 'Adopting ') + (it.name || it.id) });
     if (!a) {
       box.append(h('p', { class: 'dv-note' }, 'Reading…'));
       return box;
@@ -321,19 +366,20 @@ export class DiscoveryView {
       box.append(h('p', { class: 'dv-problem' }, icon('bang'), h('span', null, a.error)));
       return box;
     }
-    // An object that a resource adopts already has its resource: only the note applies.
-    if (a.status !== 'adopting') {
-      box.append(
-        h('p', { class: 'dv-lead' }, 'Add this to the specification. The next plan reads the object and shows how it differs from what you wrote.'),
-        snippet(a.snippet, 'Copy the resource', 'snip:' + k));
-    }
-    (a.steps || []).forEach((s, i) => {
-      if (s.kind === 'command') box.append(command(s.text, !!s.placeholder, 'Copy the command', `step:${k}:${i}`));
-      else box.append(h('p', { class: 'dv-note' }, s.text));
-    });
-    if (a.ack) {
-      box.append(h('p', { class: 'dv-note' }, 'Or say that it is known, and is meant to stay as it is. Add this to the $ack list of the discovery, and give the reason:'),
-        snippet(a.ack, 'Copy the $ack entry', 'ack:' + k));
+    if (mode === 'ack' && a.ack) {
+      box.append(h('p', { class: 'dv-lead' }, 'Say that it is known, and is meant to stay as it is. Add this to the $ack list of the discovery, and give the reason:'),
+        snippet(a.ack, 'Copy the $ack entry', 'ack-snip:' + k));
+    } else {
+      // An object that a resource adopts already has its resource: only the note applies.
+      if (a.status !== 'adopting') {
+        box.append(
+          h('p', { class: 'dv-lead' }, 'Add this to the specification. The next plan reads the object and shows how it differs from what you wrote.'),
+          snippet(a.snippet, 'Copy the resource', 'snip:' + k));
+      }
+      (a.steps || []).forEach((s, i) => {
+        if (s.kind === 'command') box.append(command(s.text, !!s.placeholder, 'Copy the command', `step:${k}:${i}`));
+        else box.append(h('p', { class: 'dv-note' }, s.text));
+      });
     }
     if (it.identity && it.identity.length) {
       box.append(h('details', { class: 'dv-idt' }, h('summary', null, 'Identity the provider gave'),
