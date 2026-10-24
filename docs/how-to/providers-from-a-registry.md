@@ -168,6 +168,7 @@ pravo state show server | head -n 1
 
 ```text out
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
+
 No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
 Graph: planned 0 · skipped 1 · not read 1
 // server (provider oci://localhost:5001/acme/providers/random v3.9.1 as random, schema version 0, revision 2)
