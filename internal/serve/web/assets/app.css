@@ -511,6 +511,10 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 :is(.btn, .filter, .sfbox, .plrow, .rp-view, .navrow, .dv-ackrec, .dv-notice, .dv-empty, .dv-none, .ac-empty, .ac-youline, .ac-verdict, .ac-warn, .note, .errbox, .rp-why, .dv-items, .dv-code, .ac-diff, .cmd, .cmdline, .tb) { border-radius: var(--rad); }
 :is(.tg, .kd, .kindpill, .rows .ver, .v-tag, .v-hash, .v-unk, .wh, .jhead .jl, .plovl, .dv-ack .b, .ac-who, .cw-role, .cw-tag, .hint code, .h .cnt, .itab .tc, .src-h .step, .grp-h .gc, .sf-count, .gtip .gchip) { border-radius: var(--rad-s); }
 :is(.cw, .tile, .tv-grid, .dv-head, .dv-card, .ac-banner, .ac-card, .ac-tablewrap) { border-radius: var(--rad-l); }
+:is(.cpbtn, .row-fx, .tv-row .cf button, .fatal .term, .fatal .fat-msg, .cw-skel, .iconbtn) { border-radius: var(--rad); }
+:is(.fatal .card) { border-radius: calc(var(--rad-l) + 4px); }
+.qpill { border-radius: 999px; overflow: hidden; }
+.fatal .fat-ico { border-radius: 50%; }
 .cw, .tv-grid, .ac-tablewrap { overflow: hidden; }
 .cw-scroll, .tv-scroll { border-radius: 0; }
 
@@ -533,3 +537,8 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 /* a card answers the pointer */
 :is(.dv-card, .ac-card, .rp-list) { transition: border-color var(--t-fast), box-shadow var(--t-fast); }
 :is(.dv-card, .ac-card):hover { border-color: color-mix(in srgb, var(--text) 38%, transparent); }
+
+/* the change of theme: the new picture is drawn through a circle that grows from the button */
+:root[data-vt]::view-transition-old(root), :root[data-vt]::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+:root[data-vt]::view-transition-new(root) { animation: ui-reveal .75s var(--ease) both; }
+@keyframes ui-reveal { from { clip-path: circle(0 at var(--vt-x) var(--vt-y)); } to { clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y)); } }

@@ -85,10 +85,23 @@ function applyTheme(t, persist) {
   if (minimap) { minimap.refreshColors(); minimap.draw(); }
 }
 
-function toggleTheme() {
-  applyTheme(effectiveTheme() === 'dark' ? 'light' : 'dark', true);
-  syncFragment();
-  announce(effectiveTheme() === 'dark' ? 'Dark theme' : 'Light theme');
+// The other theme spreads from the button (or from the middle of the window, for the key), as a circle that the browser
+// draws between the two pictures. Where the browser cannot, or motion is off, the theme just changes.
+function toggleTheme(ev) {
+  const swap = () => {
+    applyTheme(effectiveTheme() === 'dark' ? 'light' : 'dark', true);
+    syncFragment();
+    announce(effectiveTheme() === 'dark' ? 'Dark theme' : 'Light theme');
+  };
+  if (!document.startViewTransition || !motionOn()) { swap(); return; }
+  const box = ev && ev.currentTarget && ev.currentTarget.getBoundingClientRect ? ev.currentTarget.getBoundingClientRect() : null;
+  const x = box ? box.left + box.width / 2 : innerWidth / 2, y = box ? box.top + box.height / 2 : innerHeight / 2;
+  root.style.setProperty('--vt-x', x + 'px');
+  root.style.setProperty('--vt-y', y + 'px');
+  root.style.setProperty('--vt-r', Math.ceil(Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))) + 'px');
+  root.setAttribute('data-vt', '');
+  const done = () => root.removeAttribute('data-vt');
+  document.startViewTransition(swap).finished.then(done, done);
 }
 
 // beat makes the live dots beat for a few cycles: when the page opens and when something changes. At rest
