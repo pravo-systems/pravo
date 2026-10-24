@@ -215,7 +215,7 @@ func (v *DiscoveryView) fill(idx map[string][]recordIdentity, adopts map[string]
 
 func coveredBy(l state.Listed, acks []*config.Ack) *config.Ack {
 	for _, a := range acks {
-		if a.Covers(l.ID, l.Key, l.ImportID, l.Name) {
+		if a.Covers(l.ID, l.Key, l.Name) {
 			return a
 		}
 	}
@@ -320,7 +320,12 @@ func identityText(v any) string {
 	return string(b)
 }
 
-type adoption struct{ addr, id string }
+// adoption is a resource that names an object in $import: by an id, or by an
+// identity.
+type adoption struct {
+	addr, id string
+	identity map[string]any
+}
 
 // adoptions lists, by type, the resources of the specification that name an
 // object in $import.
@@ -336,14 +341,39 @@ func adoptions(root *config.Root) map[string][]adoption {
 		if res == nil {
 			continue
 		}
-		out[res.Type] = append(out[res.Type], adoption{addr: addr, id: root.Imports[addr].ID})
+		imp := root.Imports[addr]
+		out[res.Type] = append(out[res.Type], adoption{addr: addr, id: imp.ID, identity: imp.Identity})
 	}
 	return out
 }
 
+// namesIdentity says that the identity of an $import is the identity of a listed
+// object: every attribute that the import gives is the object's, and one of them
+// says which object it is, not where it is. An import may leave out an attribute
+// that the provider fills in, such as the region.
+func namesIdentity(imp, listed map[string]any) bool {
+	strong := false
+	for name, v := range imp {
+		lv, ok := listed[name]
+		if !ok || identityText(lv) != identityText(v) {
+			return false
+		}
+		if !scoping[name] {
+			strong = true
+		}
+	}
+	return strong
+}
+
 func adoptedBy(l state.Listed, as []adoption) (string, bool) {
 	for _, a := range as {
-		if a.id == l.ImportID && a.id != "" || a.id == l.ID || a.id == l.Key {
+		if a.identity != nil {
+			if namesIdentity(a.identity, l.Identity) {
+				return a.addr, true
+			}
+			continue
+		}
+		if a.id != "" && (a.id == l.ID || a.id == l.Key) {
 			return a.addr, true
 		}
 	}
@@ -436,17 +466,65 @@ func AdoptSnippet(root *config.Root, d *DiscoveryView, l state.Listed, body stri
 	}
 	fmt.Fprintf(&b, "// Adopts the %s that the discovery %s found.\n", label, oneLine(d.Name))
 	fmt.Fprintf(&b, "%s: %s.#Resource.%s & {\n", SnippetName(root, l), prov, fieldPath(d.Type))
-	if l.ImportID != "" {
-		fmt.Fprintf(&b, "\t$import: %s\n", quoteCUE(l.ImportID))
-	} else {
-		fmt.Fprintf(&b, "\t// The provider lists this object by its identity, which is not an id that $import takes:\n")
-		fmt.Fprintf(&b, "\t//   %s\n", oneLine(l.Key))
-		fmt.Fprintf(&b, "\t// Use the id that the provider's documentation gives for importing a %s.\n", oneLine(d.Type))
-		b.WriteString("\t$import: \"<id>\"\n")
-	}
+	// The identity is what the provider lists the object by, and what it imports it
+	// by: no id has to be told from it.
+	b.WriteString(importIdentity(l.Identity, "\t"))
 	b.WriteString(body)
 	b.WriteString("}\n")
 	return b.String()
+}
+
+// importIdentity writes $import as the identity of a listed object, a struct of
+// its attributes, one to a line. An attribute that is null is left out: the
+// provider fills it in.
+func importIdentity(identity map[string]any, indent string) string {
+	names := make([]string, 0, len(identity))
+	for n, v := range identity {
+		if v != nil {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s$import: {\n", indent)
+	for _, n := range names {
+		fmt.Fprintf(&b, "%s\t%s: %s\n", indent, fieldPath(n), cueLiteral(identity[n]))
+	}
+	fmt.Fprintf(&b, "%s}\n", indent)
+	return b.String()
+}
+
+// cueLiteral writes a value that a provider listed, a string, a number, a boolean,
+// a list or an object, as CUE.
+func cueLiteral(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return "null"
+	case string:
+		return quoteCUE(x)
+	case bool:
+		return fmt.Sprint(x)
+	case int64, int, uint64, float64, json.Number:
+		return fmt.Sprint(x)
+	case []any:
+		parts := make([]string, len(x))
+		for i, e := range x {
+			parts[i] = cueLiteral(e)
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case map[string]any:
+		names := make([]string, 0, len(x))
+		for n := range x {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		parts := make([]string, len(names))
+		for i, n := range names {
+			parts[i] = fieldPath(n) + ": " + cueLiteral(x[n])
+		}
+		return "{" + strings.Join(parts, ", ") + "}"
+	}
+	return quoteCUE(fmt.Sprint(v))
 }
 
 func fieldPath(typ string) string {

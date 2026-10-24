@@ -125,9 +125,9 @@ func (t *Traced) ApplyResourceChange(ctx context.Context, typ string, prior, pla
 	return r, d, err
 }
 
-func (t *Traced) ImportResourceState(ctx context.Context, typ, id string, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
+func (t *Traced) ImportResourceState(ctx context.Context, typ string, target ImportTarget, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
 	ctx, end := t.begin(ctx, "ImportResourceState", typ)
-	r, d, err := t.inner.ImportResourceState(ctx, typ, id, types)
+	r, d, err := t.inner.ImportResourceState(ctx, typ, target, types)
 	end(err, d)
 	return r, d, err
 }

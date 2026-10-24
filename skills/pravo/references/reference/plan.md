@@ -149,7 +149,7 @@ Other lines:
 | `(known after apply)` | The provider supplies the value. Everything computed from it is unknown too. |
 | `(sensitive)` | The attribute is sensitive. |
 | `# a was moved to b` | The record of `a` is renamed because of `$from`. The object does not change. |
-| `# a was imported from id "..."` | The object was adopted because of `$import`. |
+| `# a was imported from id "..."` | The object was adopted because of `$import`. With an identity in `$import` the header says `from the identity "..."`, followed by the attributes as `name=value`. |
 | `Plan: N to add, N to change, N to destroy.` | A replacement counts once under add and once under destroy. |
 | `Hint: ...` | A resource looks like one that was renamed without `$from`. |
 | `Graph: ...` | How much of the specification the plan reached. See below. |

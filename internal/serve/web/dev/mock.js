@@ -64,14 +64,14 @@ function adoptOf(name, key) {
   const it = d && d.items.find((x) => x.key === key);
   if (!it) return null;
   const label = it.name ? ` (${it.name})` : '';
-  const ident = it.importable ? `"${it.id}"` : '"<id>"';
+  const ident = `{\n${(it.identity && it.identity.length ? it.identity : [{ name: 'id', value: it.id }]).map((f) => `\t\t${f.name}: ${JSON.stringify(f.value)}\n`).join('')}\t}`;
   const res = (it.name || it.id).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'adopted';
   const snippet = `// Adopts the ${d.type} "${it.id}"${label} that the discovery ${d.name} found.\n${res}: $${d.instance || 'provider'}.#Resource.${d.type} & {\n\t$import: ${ident}\n}\n`;
   const steps = [];
   if (it.status === 'adopting') steps.push({ kind: 'note', text: `${it.by} already names this object in $import. The next plan reads it and an apply records it.` });
   else {
-    steps.push({ kind: 'note', text: it.importable ? 'To write the resource with the attributes the object has, ask the provider for it:' : `The identity is not an id that $import takes. Give the id that the provider documents for importing a ${d.type}:` });
-    steps.push(it.importable ? { kind: 'command', text: `pravo discover adopt ${d.name} ${it.id} --read` } : { kind: 'command', text: `pravo discover adopt ${d.name} ${it.id} --read --import-id <id>`, placeholder: true });
+    steps.push({ kind: 'note', text: 'To write the resource with the attributes the object has, ask the provider for it:' });
+    steps.push({ kind: 'command', text: `pravo discover adopt ${d.name} ${it.id} --read` });
   }
   const ack = it.status === 'unmanaged' ? `// An entry of $ack in the discovery ${d.name}, which is the list \`$ack: [...]\` of its struct.\n{\n\tids: ["${it.id}"]\n\treason: "<why>"\n}\n` : undefined;
   return Object.assign({}, adoptExample, { discovery: name, key, id: it.id, status: it.status, snippet, steps, ack });

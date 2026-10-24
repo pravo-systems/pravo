@@ -156,7 +156,7 @@ func (m *model) discoveryInfo(v *engine.DiscoveryView, specOK bool) DiscoveryInf
 		}
 		info.Items = append(info.Items, DiscoveredInfo{
 			Key: m.clipText(it.Key), ID: m.clipText(it.ID), Name: m.clipText(it.Name), Status: string(it.Status),
-			By: m.clipText(it.By), Reason: m.clipText(it.Reason), Identity: m.fieldList(it.Identity), Importable: it.ImportID != "",
+			By: m.clipText(it.By), Reason: m.clipText(it.Reason), Identity: m.fieldList(it.Identity),
 		})
 	}
 	for _, a := range v.Acks {
@@ -181,7 +181,7 @@ func (m *model) ackInfo(a *config.Ack, v *engine.DiscoveryView) AckInfo {
 	if v != nil && v.Run != nil {
 		info.Covers = 0
 		for _, l := range v.Run.Items {
-			if a.Covers(l.ID, l.Key, l.ImportID, l.Name) {
+			if a.Covers(l.ID, l.Key, l.Name) {
 				info.Covers++
 			}
 		}
@@ -246,15 +246,9 @@ func (m *model) adoptFor(name, key string) (*Adopt, bool) {
 		return out, true
 	}
 	n, id := engine.ShellWord(name), engine.ShellWord(item.ID)
-	if item.ImportID != "" {
-		out.Steps = append(out.Steps,
-			SuggestionStep{Kind: "note", Text: "To write the resource with the attributes the object has, ask the provider for it:"},
-			SuggestionStep{Kind: "command", Text: "pravo discover adopt " + n + " " + id + " --read"})
-	} else {
-		out.Steps = append(out.Steps,
-			SuggestionStep{Kind: "note", Text: "The identity is not an id that $import takes. Give the id that the provider documents for importing a " + v.Type + ":"},
-			SuggestionStep{Kind: "command", Text: "pravo discover adopt " + n + " " + id + " --read --import-id <id>", Placeholder: true})
-	}
+	out.Steps = append(out.Steps,
+		SuggestionStep{Kind: "note", Text: "To write the resource with the attributes the object has, ask the provider for it:"},
+		SuggestionStep{Kind: "command", Text: "pravo discover adopt " + n + " " + id + " --read"})
 	return out, true
 }
 

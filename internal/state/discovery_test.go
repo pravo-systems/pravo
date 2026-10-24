@@ -22,22 +22,22 @@ func openTemp(t *testing.T) (*Store, string) {
 
 func TestListedOf(t *testing.T) {
 	l := ListedOf(map[string]any{"id": "i-1", "region": "eu", "account_id": int64(7)}, "web")
-	if l.ID != "i-1" || l.ImportID != "i-1" || l.Name != "web" || l.Key != "account_id=7,id=i-1,region=eu" {
+	if l.ID != "i-1" || l.Name != "web" || l.Key != "account_id=7,id=i-1,region=eu" {
 		t.Errorf("%+v", l)
 	}
 	one := ListedOf(map[string]any{"bucket": "logs"}, "")
-	if one.ID != "logs" || one.ImportID != "logs" {
+	if one.ID != "logs" {
 		t.Errorf("a one-attribute identity is the id: %+v", one)
 	}
 	many := ListedOf(map[string]any{"bucket": "logs", "region": "eu"}, "")
-	if many.ID != "bucket=logs,region=eu" || many.ImportID != "" {
-		t.Errorf("an identity of several attributes without id has no import id: %+v", many)
+	if many.ID != "bucket=logs,region=eu" {
+		t.Errorf("an identity of several attributes without id is called by the whole identity: %+v", many)
 	}
 	nested := ListedOf(map[string]any{"tags": []any{"a", int64(2)}}, "")
-	if nested.ImportID != "" || nested.Key != `tags=["a",2]` {
+	if nested.Key != `tags=["a",2]` {
 		t.Errorf("%+v", nested)
 	}
-	if empty := ListedOf(nil, "n"); empty.Key != "" || empty.ID != "" || empty.ImportID != "" {
+	if empty := ListedOf(nil, "n"); empty.Key != "" || empty.ID != "" {
 		t.Errorf("%+v", empty)
 	}
 }

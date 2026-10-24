@@ -138,10 +138,14 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 		}
 		header := fmt.Sprintf("  # %s %s", addrWithType(c), actionVerb(c.Action))
 		if c.Imported {
+			from := "id"
+			if c.ImportIdentity {
+				from = "the identity"
+			}
 			if c.Action == engine.ActionNoop {
-				header = fmt.Sprintf("  # %s was imported from id %q and matches the specification", c.Addr, c.ImportID)
+				header = fmt.Sprintf("  # %s was imported from %s %q and matches the specification", c.Addr, from, c.ImportID)
 			} else {
-				header = fmt.Sprintf("  # %s was imported from id %q and %s", c.Addr, c.ImportID, actionVerb(c.Action))
+				header = fmt.Sprintf("  # %s was imported from %s %q and %s", c.Addr, from, c.ImportID, actionVerb(c.Action))
 			}
 		}
 		if c.Deferred {

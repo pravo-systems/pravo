@@ -74,9 +74,11 @@ random_integer: {
 	// The address the record had before this resource was written here. Moves
 	// the record to this address at the next plan.
 	$from?: __string
-	// The id of an existing object to bring under management, as the provider
-	// understands it. Read at the next plan; leave it in place afterwards.
-	$import?: __string
+	// The existing object to bring under management: its id as the provider
+	// documents it for importing, or its identity, the attributes of the identity of
+	// the resource type (what a discovery lists it by). Read at the next plan; leave
+	// it in place afterwards.
+	$import?: __string | {...}
 	// Additional dependencies, as references to other resources.
 	$depends_on?: [..._]
 	$lifecycle?: #Lifecycle
@@ -118,9 +120,11 @@ random_pet: {
 	// The address the record had before this resource was written here. Moves
 	// the record to this address at the next plan.
 	$from?: __string
-	// The id of an existing object to bring under management, as the provider
-	// understands it. Read at the next plan; leave it in place afterwards.
-	$import?: __string
+	// The existing object to bring under management: its id as the provider
+	// documents it for importing, or its identity, the attributes of the identity of
+	// the resource type (what a discovery lists it by). Read at the next plan; leave
+	// it in place afterwards.
+	$import?: __string | {...}
 	// Additional dependencies, as references to other resources.
 	$depends_on?: [..._]
 	$lifecycle?: #Lifecycle

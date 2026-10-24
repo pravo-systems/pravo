@@ -170,13 +170,18 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 	for name, rs := range ps.AllResources() {
 		types[name] = rs.Block.Type()
 	}
-	e.Opts.Progress("%s: Importing from id %q...", addr, imp.ID)
-	imported, diags, err := prov.ImportResourceState(ctx, r.Type, imp.ID, types)
+	label := imp.Label()
+	if imp.Identity != nil {
+		e.Opts.Progress("%s: Importing from the identity %q...", addr, label)
+	} else {
+		e.Opts.Progress("%s: Importing from id %q...", addr, label)
+	}
+	imported, diags, err := prov.ImportResourceState(ctx, r.Type, importTarget(imp), types)
 	if err != nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: importing %q: %w", addr, imp.ID, err)
+		return tftypes.Value{}, nil, fmt.Errorf("%s: importing %q: %w", addr, label, err)
 	}
 	if err := diags.Err(); err != nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: importing %q: %w", addr, imp.ID, err)
+		return tftypes.Value{}, nil, fmt.Errorf("%s: importing %q: %w", addr, label, err)
 	}
 	var found *plugin.ImportedResource
 	for i := range imported {
@@ -186,7 +191,7 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 		}
 	}
 	if found == nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: the provider returned no %s for id %q", addr, r.Type, imp.ID)
+		return tftypes.Value{}, nil, fmt.Errorf("%s: the provider returned no %s for %q", addr, r.Type, label)
 	}
 	st, private, diags, err := prov.ReadResource(ctx, r.Type, found.State, found.Private)
 	if err != nil {
@@ -196,7 +201,7 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 		return tftypes.Value{}, nil, fmt.Errorf("%s: reading imported object: %w", addr, err)
 	}
 	if st.IsNull() {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: no object with id %q exists", addr, imp.ID)
+		return tftypes.Value{}, nil, fmt.Errorf("%s: no object %q exists", addr, label)
 	}
 	attrs, err := convert.ToJSON(st)
 	if err != nil {
@@ -219,12 +224,12 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 		return tftypes.Value{}, nil, err
 	}
 	e.txn.Record(addr, "import", 0, n.Revision)
-	ch.Imported, ch.ImportID = true, imp.ID
+	ch.Imported, ch.ImportID, ch.ImportIdentity = true, label, imp.Identity != nil
 	e.mu.Lock()
 	if e.imported == nil {
-		e.imported = map[string]string{}
+		e.imported = map[string]importMark{}
 	}
-	e.imported[addr] = imp.ID
+	e.imported[addr] = importMark{label: label, identity: imp.Identity != nil}
 	e.mu.Unlock()
 	e.count(func(st *Stats) { st.Imported++ })
 	return st, private, nil
@@ -272,9 +277,20 @@ func (e *Engine) relabelProviders() error {
 }
 
 // importedID returns the id of the import that this plan made at addr.
-func (e *Engine) importedID(addr string) (string, bool) {
+func (e *Engine) importedID(addr string) (importMark, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	id, ok := e.imported[addr]
-	return id, ok
+	mark, ok := e.imported[addr]
+	return mark, ok
+}
+
+// importMark is what an import named: an id, or an identity written as pairs.
+type importMark struct {
+	label    string
+	identity bool
+}
+
+// importTarget is what the provider is asked to import.
+func importTarget(imp *config.Import) plugin.ImportTarget {
+	return plugin.ImportTarget{ID: imp.ID, Identity: imp.Identity}
 }

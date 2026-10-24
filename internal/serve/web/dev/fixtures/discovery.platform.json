@@ -51,8 +51,7 @@
               "name": "region",
               "value": "eu-west-1"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "vpc-07f3d8",
@@ -67,8 +66,7 @@
               "name": "region",
               "value": "eu-west-1"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "vpc-0c44e1",
@@ -85,8 +83,7 @@
               "name": "region",
               "value": "eu-west-1"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "vpc-0e10aa",
@@ -104,8 +101,7 @@
               "name": "region",
               "value": "eu-west-1"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "vpc-0b6a13",
@@ -123,8 +119,7 @@
               "name": "region",
               "value": "eu-west-1"
             }
-          ],
-          "importable": true
+          ]
         }
       ],
       "acks": [
@@ -199,8 +194,7 @@
               "name": "account_id",
               "value": "482215903377"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "i-0aa0001",
@@ -220,8 +214,7 @@
               "name": "account_id",
               "value": "482215903377"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "i-0aa0002",
@@ -240,8 +233,7 @@
               "name": "account_id",
               "value": "482215903377"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "i-0aa0003",
@@ -261,8 +253,7 @@
               "name": "account_id",
               "value": "482215903377"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "i-0aa0004",
@@ -282,8 +273,7 @@
               "name": "account_id",
               "value": "482215903377"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "i-0bb0000",
@@ -301,8 +291,7 @@
               "name": "region",
               "value": "eu-west-1"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "i-0bb0001",
@@ -320,8 +309,7 @@
               "name": "region",
               "value": "eu-west-1"
             }
-          ],
-          "importable": true
+          ]
         },
         {
           "key": "i-0bb0002",
@@ -339,8 +327,7 @@
               "name": "region",
               "value": "eu-west-1"
             }
-          ],
-          "importable": true
+          ]
         }
       ],
       "acks": [

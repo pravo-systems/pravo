@@ -20,7 +20,7 @@ An address is where a resource sits in the specification. A rename, or a move to
 | `$from` | a resource or data source | the old address | The record is renamed. The object is not touched. |
 | `$from` | a struct that holds resources | the old path | Every record below the old path moves to the same place below the struct. |
 | `$from` | a provider | the old registry address | Records written under that address are relabelled. |
-| `$import` | a managed resource | the provider's id for the object | The provider reads the object, and its state becomes the record. |
+| `$import` | a managed resource | the provider's id for the object, or its identity | The provider reads the object, and its state becomes the record. |
 
 `pravo state mv` and `pravo import` do the same for one-off use. See [state](state.md) and [import](import.md).
 
@@ -286,7 +286,7 @@ Removed k.y
 
 ## $import
 
-`$import` brings an existing object under management as part of the specification. The value is the id as the provider understands it.
+`$import` brings an existing object under management as part of the specification. The value is the id as the provider understands it, a string, or the identity of the object, a struct.
 
 ```cue file=main.cue
 package demo
@@ -327,6 +327,19 @@ No changes. Your infrastructure matches the configuration.
 Graph: planned 1 · refreshed 1
 // n (provider registry.opentofu.org/hashicorp/random v3.9.1 as random, schema version 0, revision 2)
 ```
+
+### By identity
+
+A provider that gives resources an identity can import an object by it. The identity is a set of attributes that the resource type lists in its identity schema, such as an account, a name and a region. It is what a [discovery](../concepts/discovery.md) lists an object by, and it is written as a struct:
+
+```cue
+logs: $aws.#Resource.aws_s3_bucket & {
+	$import: {account_id: "000000000000", bucket: "logs", region: "eu-north-1"}
+	bucket: "logs"
+}
+```
+
+pravo asks the provider for the identity schema of the type and sends the attributes as the identity of the import. An attribute that the schema marks optional for import may be left out, and the provider fills it in from its configuration. An attribute that the type does not have, or a required one that is missing, stops the plan and names the attributes the identity is made of. A provider that has no identity for the type cannot import by it, and the plan says so. An id and an identity are alternatives: `$import` is one or the other. The plan header says `imported from the identity "…"` for the second.
 
 Only managed resources can be imported. The generated data definitions do not declare `$import`. An id the provider cannot use stops the plan:
 

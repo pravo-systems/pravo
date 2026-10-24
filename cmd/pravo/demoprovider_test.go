@@ -94,6 +94,17 @@ func (p *demoProvider) add(objs ...demoObject) {
 	}
 }
 
+// addBucket adds a demo_bucket, a resource that has no id and is named by an
+// identity: its account, its name and its region.
+func (p *demoProvider) addBucket(name, region string) {
+	p.t.Helper()
+	all := append(p.catalog(), map[string]string{"type": "demo_bucket", "id": "bkt-" + name, "name": name, "region": region})
+	b, _ := json.Marshal(all)
+	if err := os.WriteFile(filepath.Join(p.dir, "catalog.json"), b, 0o644); err != nil {
+		p.t.Fatal(err)
+	}
+}
+
 // listCalls is how many times the provider was asked to list.
 func (p *demoProvider) listCalls() int {
 	b, err := os.ReadFile(filepath.Join(p.dir, "calls"))

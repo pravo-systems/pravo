@@ -59,7 +59,7 @@ servers: $demo.#Discovery.demo_server & {
 }
 ```
 
-An entry has `ids`, `names` or both, and a `reason`. A pattern in `ids` is matched against the id of an object, or its whole identity, or the id that `$import` takes. A pattern in `names` is matched against the display name the provider gave. `*` stands for any run of characters and `?` for one. One entry can cover many objects, and the objects that appear later and match it. An entry with no pattern, or a pattern that matches everything, is an error when the specification loads.
+An entry has `ids`, `names` or both, and a `reason`. A pattern in `ids` is matched against the id of an object, or its whole identity, A pattern in `names` is matched against the display name the provider gave. `*` stands for any run of characters and `?` for one. One entry can cover many objects, and the objects that appear later and match it. An entry with no pattern, or a pattern that matches everything, is an error when the specification loads.
 
 The viewer writes the entry for an object, or for all that are unmanaged, with the identity filled in and the reason left for you to give. You copy it into the list. pravo writes nothing, and the state holds no acknowledgement.
 
@@ -75,9 +75,9 @@ A run that stops at its limit is marked `truncated`, and the page says that ther
 
 ## Adopting
 
-An unmanaged object becomes managed when a resource of the specification takes it over. `pravo discover adopt` prints that resource: a struct of the type, built through the provider of the discovery, with `$import` set to the id of the object. The viewer shows the same text with a button that copies it. With `--read` pravo asks the provider for the object and writes its attributes into the resource, the way a plan would show them, so that the plan of the new resource has little to say. A sensitive attribute is named in a comment and its value is never written.
+An unmanaged object becomes managed when a resource of the specification takes it over. `pravo discover adopt` prints that resource: a struct of the type, built through the provider of the discovery, with `$import` set to the identity of the object. The viewer shows the same text with a button that copies it. With `--read` pravo asks the provider for the object and writes its attributes into the resource, the way a plan would show them, so that the plan of the new resource has little to say. A sensitive attribute is named in a comment and its value is never written.
 
-A provider lists an object by its identity, which can be an id or a set of attributes. `$import` takes an id. When the identity is made of an `id`, or of one attribute, pravo uses it as the id. For any other identity it leaves a placeholder and says so: the provider's documentation names the id that its import takes, and `--import-id` gives it.
+A provider lists an object by its identity, which is a set of attributes: an id, or an account, a name and a region. `$import` takes that identity as a struct, and the provider imports the object by it, so no id has to be found. An identity is not an id: the id that a provider documents for an import is one string, and a provider cannot always make it from the identity, so pravo does not try. The attributes that the provider can fill in from its configuration may be left out, and a null one is not written. [Moves and imports](../reference/spec-moves-and-imports.md#import) describes both forms.
 
 Nothing writes the specification for you. pravo does not edit your `.cue` files.
 

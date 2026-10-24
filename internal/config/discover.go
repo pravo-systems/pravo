@@ -168,6 +168,38 @@ func stringField(v cue.Value, name string) (string, bool) {
 	return s, true
 }
 
+// importField reads $import: an id as a string, or an identity as a struct. A
+// value that is neither, an empty one, or one that is not concrete is an error.
+func importField(v cue.Value, addr string) (*Import, error) {
+	f := v.LookupPath(cue.MakePath(cue.Str("$import")))
+	if !f.Exists() {
+		return nil, nil
+	}
+	switch f.Kind() {
+	case cue.StringKind:
+		s, err := f.String()
+		if err != nil || s == "" {
+			return nil, nil
+		}
+		return &Import{Addr: addr, ID: s}, nil
+	case cue.StructKind:
+		if err := f.Validate(cue.Concrete(true)); err != nil {
+			return nil, fmt.Errorf("%s: the identity in $import is not concrete: %w", addr, err)
+		}
+		var id map[string]any
+		if err := f.Decode(&id); err != nil {
+			return nil, fmt.Errorf("%s: the identity in $import: %w", addr, err)
+		}
+		if len(id) == 0 {
+			return nil, fmt.Errorf("%s: the identity in $import has no attribute", addr)
+		}
+		return &Import{Addr: addr, Identity: id}, nil
+	case cue.BottomKind:
+		return nil, nil
+	}
+	return nil, fmt.Errorf("%s: $import is an id, a string, or an identity, a struct of the attributes of the identity of the resource", addr)
+}
+
 // register adds the struct at path as a resource, data source, ephemeral
 // resource, function call or provider.
 func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
@@ -275,14 +307,18 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 	if from, ok := stringField(v, "$from"); ok {
 		r.moves = append(r.moves, pendingMove{to: p.String(), from: from})
 	}
-	if id, ok := stringField(v, "$import"); ok {
+	imp, err := importField(v, p.String())
+	if err != nil {
+		return err
+	}
+	if imp != nil {
 		if mode != "managed" {
 			return fmt.Errorf("%s: $import applies to resources, not to %s", p, kind)
 		}
 		if r.Imports == nil {
 			r.Imports = map[string]*Import{}
 		}
-		r.Imports[p.String()] = &Import{Addr: p.String(), ID: id}
+		r.Imports[p.String()] = imp
 	}
 	name := path[len(path)-1].String()
 	if path[len(path)-1].Type() == cue.StringLabel {

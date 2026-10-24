@@ -91,6 +91,8 @@ type fakeProvider struct {
 	// importable maps the ids that ImportResourceState finds to the content of the
 	// object.
 	importable map[string]string
+	// importTargets are the targets that ImportResourceState was asked for.
+	importTargets []plugin.ImportTarget
 }
 
 // canImport makes ImportResourceState find the object with this id.
@@ -537,8 +539,13 @@ func (f *fakeProvider) destroy(prior tftypes.Value) (fails bool) {
 	return f.undestroyable[name]
 }
 
-func (f *fakeProvider) ImportResourceState(_ context.Context, typ, id string, types map[string]tftypes.Type) ([]plugin.ImportedResource, plugin.Diagnostics, error) {
+func (f *fakeProvider) ImportResourceState(_ context.Context, typ string, target plugin.ImportTarget, types map[string]tftypes.Type) ([]plugin.ImportedResource, plugin.Diagnostics, error) {
+	id := target.ID
+	if target.Identity != nil {
+		id, _ = target.Identity["id"].(string)
+	}
 	f.mu.Lock()
+	f.importTargets = append(f.importTargets, target)
 	content, ok := f.importable[id]
 	f.mu.Unlock()
 	if !ok {

@@ -92,11 +92,11 @@ const (
 func (a *Ack) Ref() string { return fmt.Sprintf("$ack[%d]", a.Index) }
 
 // Covers reports whether the entry covers an object. id is the id a person calls
-// it, key its whole identity on one line, importID the id $import takes ("" when
-// it gives none) and name the display name ("" when it has none).
-func (a *Ack) Covers(id, key, importID, name string) bool {
+// it, key its whole identity on one line and name the display name ("" when it has
+// none).
+func (a *Ack) Covers(id, key, name string) bool {
 	for _, p := range a.IDs {
-		if Glob(p, id) || Glob(p, key) || (importID != "" && Glob(p, importID)) {
+		if Glob(p, id) || Glob(p, key) {
 			return true
 		}
 	}

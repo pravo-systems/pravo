@@ -132,8 +132,11 @@ pravo discover adopt servers srv-web-old --read
 ```cue
 // Adopts the demo_server "srv-web-old" (web-old) that the discovery servers found.
 web_old: $demo.#Resource.demo_server & {
-	$import: "srv-web-old"
-	name:    "web-old"
+	$import: {
+		id:     "srv-web-old"
+		region: "eu"
+	}
+	name: "web-old"
 	// secret is sensitive: write its value yourself.
 	size: "large"
 }
@@ -158,7 +161,7 @@ pravo apply -auto-approve
 pravo discover --all
 ```
 
-The identity of an object does not always give an id for `$import`. For such an object the snippet has `$import: "<id>"` and a comment that says what the provider listed. Find the id in the documentation of the provider and give it with `--import-id`.
+An object is adopted by its identity, whatever it is made of. A bucket that a provider names by an account, a name and a region has no id to look up: the snippet has `$import: {account_id: …, bucket: …, region: …}`, and the plan imports it by those attributes.
 
 ## 5. Change the scope
 

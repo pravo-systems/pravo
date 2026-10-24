@@ -351,11 +351,11 @@ func (r *Recorder) ApplyResourceChange(ctx context.Context, typ string, prior, p
 	return res, diags, err
 }
 
-func (r *Recorder) ImportResourceState(ctx context.Context, typ, id string, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
+func (r *Recorder) ImportResourceState(ctx context.Context, typ string, target ImportTarget, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
 	if r.replay {
 		return nil, nil, r.replayErr("ImportResourceState")
 	}
-	return r.inner.ImportResourceState(ctx, typ, id, types)
+	return r.inner.ImportResourceState(ctx, typ, target, types)
 }
 
 func (r *Recorder) ReadDataSource(ctx context.Context, typ string, cfg tftypes.Value) (tftypes.Value, Diagnostics, error) {

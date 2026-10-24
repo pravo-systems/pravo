@@ -3,6 +3,8 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
@@ -13,6 +15,10 @@ import (
 type v6 struct {
 	c     pb.ProviderClient
 	close func()
+
+	// identities are the identity schemas of the provider, asked for once.
+	idMu       sync.Mutex
+	identities map[string]*IdentitySchema
 }
 
 func (p *v6) ProtocolVersion() int { return 6 }
@@ -314,8 +320,24 @@ func (p *v6) ApplyResourceChange(ctx context.Context, typ string, prior, planned
 	return &ApplyResult{NewState: newState, Private: resp.Private, LegacyTypeSystem: resp.LegacyTypeSystem}, diags, nil
 }
 
-func (p *v6) ImportResourceState(ctx context.Context, typ, id string, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
-	resp, err := p.c.ImportResourceState(ctx, &pb.ImportResourceState_Request{TypeName: typ, Id: id, ClientCapabilities: caps6()})
+func (p *v6) ImportResourceState(ctx context.Context, typ string, target ImportTarget, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
+	req := &pb.ImportResourceState_Request{TypeName: typ, Id: target.ID, ClientCapabilities: caps6()}
+	if target.Identity != nil {
+		is, err := p.identitySchema(ctx, typ)
+		if err != nil {
+			return nil, nil, err
+		}
+		v, err := is.encode(typ, target.Identity)
+		if err != nil {
+			return nil, nil, err
+		}
+		d, err := dv6(v)
+		if err != nil {
+			return nil, nil, err
+		}
+		req.Identity = &pb.ResourceIdentityData{IdentityData: d}
+	}
+	resp, err := p.c.ImportResourceState(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -488,4 +510,39 @@ func functions6(in map[string]*pb.Function) map[string]*schema.Function {
 func (p *v6) Stop(ctx context.Context) error {
 	_, err := p.c.StopProvider(ctx, &pb.StopProvider_Request{})
 	return err
+}
+
+// identitySchema returns the identity of a resource type, from the schemas that
+// the provider gives for all of them. A provider that does not give identities,
+// or none for the type, cannot import by identity, and the error says so.
+func (p *v6) identitySchema(ctx context.Context, typ string) (*IdentitySchema, error) {
+	p.idMu.Lock()
+	defer p.idMu.Unlock()
+	if p.identities == nil {
+		resp, err := p.c.GetResourceIdentitySchemas(ctx, &pb.GetResourceIdentitySchemas_Request{})
+		if err != nil {
+			return nil, fmt.Errorf("the provider does not give resource identities, so an object cannot be imported by its identity: %w", err)
+		}
+		if err := diags6(resp.Diagnostics).Err(); err != nil {
+			return nil, err
+		}
+		all := map[string]*IdentitySchema{}
+		for name, s := range resp.IdentitySchemas {
+			is := &IdentitySchema{Version: s.GetVersion()}
+			for _, a := range s.GetIdentityAttributes() {
+				t, err := tftypes.ParseJSONType(a.Type)
+				if err != nil {
+					return nil, fmt.Errorf("the type of the identity attribute %q of %s: %w", a.Name, name, err)
+				}
+				is.Attributes = append(is.Attributes, IdentityAttribute{Name: a.Name, Type: t, RequiredForImport: a.RequiredForImport, OptionalForImport: a.OptionalForImport})
+			}
+			all[name] = is
+		}
+		p.identities = all
+	}
+	is := p.identities[typ]
+	if is == nil {
+		return nil, fmt.Errorf("the provider declares no identity for %s, so an object of it cannot be imported by identity", typ)
+	}
+	return is, nil
 }

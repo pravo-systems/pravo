@@ -9,6 +9,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 )
@@ -341,9 +342,15 @@ func countsText(v *engine.DiscoveryView) string {
 }
 
 func itemLine(v *engine.DiscoveryView, it engine.DiscoveredItem) string {
-	line := fmt.Sprintf("%-28s", engine.PlainText(it.ID))
-	if it.Name != "" {
-		line += "  " + engine.PlainText(it.Name)
+	// An object that only its whole identity names is called by its display name, and
+	// the identity is in the command that adopts it.
+	lead, name := it.ID, it.Name
+	if it.ID == it.Key && name != "" {
+		lead, name = name, ""
+	}
+	line := fmt.Sprintf("%-28s", engine.PlainText(lead))
+	if name != "" {
+		line += "  " + engine.PlainText(name)
 	}
 	switch it.Status {
 	case engine.Unmanaged:
@@ -381,9 +388,6 @@ func discoveryJSON(rep *engine.DiscoveryReport, only []string, managed bool) map
 			if it.Name != "" {
 				item["name"] = it.Name
 			}
-			if it.ImportID != "" {
-				item["import_id"] = it.ImportID
-			}
 			if it.By != "" {
 				item["by"] = it.By
 			}
@@ -408,7 +412,7 @@ func discoveryJSON(rep *engine.DiscoveryReport, only []string, managed bool) map
 				covers := 0
 				if v.Run != nil {
 					for _, l := range v.Run.Items {
-						if a.Covers(l.ID, l.Key, l.ImportID, l.Name) {
+						if a.Covers(l.ID, l.Key, l.Name) {
 							covers++
 						}
 					}
@@ -437,22 +441,19 @@ func countsJSON(v *engine.DiscoveryView) map[string]int {
 
 func discoverAdoptCmd() *cobra.Command {
 	var read bool
-	var importID string
 	cmd := &cobra.Command{
 		Use:   "adopt <name> <id>",
 		Short: "Write the resource that adopts an object a discovery found",
 		Long: `Prints the CUE of a resource that brings one discovered object under
 management: a resource of the object's type, built through the provider the
-discovery lists through, that names the object in $import. Add it to the
-specification, and "pravo plan" reads the object and says what differs.
+discovery lists through, that names the object in $import by its identity: the
+attributes the provider listed it by. Add it to the specification, and "pravo
+plan" reads the object and says what differs.
 
 <id> is the id the discovery shows, or the whole identity. With --read the
 provider is asked for the object, and the attributes it has are written into the
 resource, so that a plan of it has little to say. Sensitive attributes are named
-in a comment and not written. Nothing is recorded in the state.
-
---import-id gives the id that $import takes, for an object whose identity is not
-one; the provider's documentation names it.`,
+in a comment and not written. Nothing is recorded in the state.`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, id := args[0], args[1]
@@ -475,7 +476,7 @@ one; the provider's documentation names it.`,
 			var item *engine.DiscoveredItem
 			for i := range v.Items {
 				it := &v.Items[i]
-				if it.ID == id || it.Key == id || (it.ImportID != "" && it.ImportID == id) {
+				if it.ID == id || it.Key == id {
 					item = it
 					break
 				}
@@ -487,22 +488,16 @@ one; the provider's documentation names it.`,
 				return engine.WithCode(engine.ExitInvalid, fmt.Errorf("%s is already managed, as %s", id, item.By))
 			}
 			l := item.Listed
-			if importID != "" {
-				l.ImportID = importID
-			}
 			body := ""
 			if read {
-				if l.ImportID == "" {
-					return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the identity of %s is not an id that can be imported; give the id with --import-id", id))
-				}
 				eng := s.engine(engine.Options{Progress: func(string, ...any) {}})
-				if body, err = eng.ReadAdoption(cmd.Context(), v.ProviderKey, v.Type, l.ImportID); err != nil {
+				if body, err = eng.ReadAdoption(cmd.Context(), v.ProviderKey, v.Type, plugin.ImportTarget{Identity: l.Identity}); err != nil {
 					return err
 				}
 			}
 			snippet := engine.FormatCUE(engine.AdoptSnippet(s.root, v, l, body))
 			if flagJSON {
-				return emitJSON(map[string]any{"discovery": name, "id": l.ID, "import_id": l.ImportID, "status": item.Status, "snippet": snippet})
+				return emitJSON(map[string]any{"discovery": name, "id": l.ID, "identity": l.Identity, "status": item.Status, "snippet": snippet})
 			}
 			fmt.Print(snippet)
 			if item.Status == engine.Adopting {
@@ -512,7 +507,6 @@ one; the provider's documentation names it.`,
 		},
 	}
 	cmd.Flags().BoolVar(&read, "read", false, "ask the provider for the object and write its attributes into the resource")
-	cmd.Flags().StringVar(&importID, "import-id", "", "the id that $import takes, when the identity of the object is not one")
 	addTagFlags(cmd)
 	return cmd
 }

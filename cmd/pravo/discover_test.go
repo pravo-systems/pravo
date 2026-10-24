@@ -139,18 +139,22 @@ func TestDiscoverAdoptThenManage(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("adopt exited %d:\n%s", code, snippet)
 	}
-	contains(t, snippet, "web_old: $demo.#Resource.demo_server & {", `$import: "srv-web-old"`, "// Adopts the demo_server")
+	contains(t, snippet, "web_old: $demo.#Resource.demo_server & {", "$import: {", `id:     "srv-web-old"`, `region: "eu"`, "// Adopts the demo_server")
 
 	// With --read the provider says what the object is.
 	read, code := runPravo(t, dir, "discover", "adopt", "vms", "srv-web-old", "--read")
 	if code != 0 {
 		t.Fatalf("adopt --read exited %d:\n%s", code, read)
 	}
-	contains(t, read, `$import: "srv-web-old"`, "is sensitive: write its value yourself")
+	contains(t, read, "$import: {", `id:     "srv-web-old"`, "is sensitive: write its value yourself")
 	if !regexp.MustCompile(`name:\s+"web-old"`).MatchString(read) || !regexp.MustCompile(`size:\s+"large"`).MatchString(read) {
 		t.Errorf("the attributes of the object are in the resource:\n%s", read)
 	}
-	lacks(t, read, "id:", "hunter2")
+	// The computed id is not written into the resource; the one in $import is the identity.
+	if regexp.MustCompile(`(?m)^\tid:`).MatchString(read) {
+		t.Errorf("a computed attribute is written:\n%s", read)
+	}
+	lacks(t, read, "hunter2")
 
 	// The snippet goes into the specification. Until the next plan reads the object,
 	// the discovery knows that something is about to adopt it.
@@ -191,7 +195,6 @@ func TestDiscoverJSON(t *testing.T) {
 				ID       string         `json:"id"`
 				Name     string         `json:"name"`
 				Status   string         `json:"status"`
-				ImportID string         `json:"import_id"`
 				Identity map[string]any `json:"identity"`
 			} `json:"items"`
 			LastRun map[string]any `json:"last_run"`
@@ -209,7 +212,7 @@ func TestDiscoverJSON(t *testing.T) {
 		t.Errorf("%+v", d)
 	}
 	// The managed object is counted and not listed; the others are, with their identity.
-	if len(d.Items) != 3 || d.Items[0].Status != "unmanaged" || d.Items[0].ImportID == "" || d.Items[0].Identity["region"] != "eu" {
+	if len(d.Items) != 3 || d.Items[0].Status != "unmanaged" || d.Items[0].Identity["region"] != "eu" {
 		t.Errorf("%+v", d.Items)
 	}
 	text, _ = runPravo(t, dir, "--json", "discover", "show", "--managed")
@@ -218,7 +221,7 @@ func TestDiscoverJSON(t *testing.T) {
 	}
 	text, code = runPravo(t, dir, "--json", "discover", "adopt", "vms", "srv-batch-1")
 	var ad map[string]any
-	if code != 0 || json.Unmarshal([]byte(text), &ad) != nil || !strings.Contains(ad["snippet"].(string), "$import") || ad["import_id"] != "srv-batch-1" {
+	if code != 0 || json.Unmarshal([]byte(text), &ad) != nil || !strings.Contains(ad["snippet"].(string), "$import") || ad["identity"].(map[string]any)["id"] != "srv-batch-1" {
 		t.Errorf("adopt --json: %d\n%s", code, text)
 	}
 }
@@ -331,4 +334,50 @@ func TestSpecificationOfOnlyADiscovery(t *testing.T) {
 	contains(t, text, "1 unmanaged", "srv-1")
 	lacks(t, text, "scope:")
 	_ = p
+}
+
+// An object that has no id, and is named by an identity of several attributes, is
+// adopted by that identity: the snippet carries it, the provider imports by it, and
+// the plan that reads it finds it. No id is asked of anyone.
+func TestDiscoverAdoptsAnObjectByItsIdentity(t *testing.T) {
+	p := newDemoProvider(t)
+	p.addBucket("shadow-assets", "eu-north-1")
+	p.addBucket("logs", "eu-north-1")
+	dir := demoEstate(t, `buckets: $demo.#Discovery.demo_bucket & {region: "eu-north-1"}`)
+	text, code := runPravo(t, dir, "discover")
+	if code != 0 {
+		t.Fatalf("discover exited %d:\n%s", code, text)
+	}
+	contains(t, text, "2 unmanaged", "shadow-assets")
+	// The identity is all there is to call it by, and the display name stands for it.
+	contains(t, text, "account_id=000000000000,bucket=shadow-assets,region=eu-north-1")
+
+	read, code := runPravo(t, dir, "discover", "adopt", "buckets", "account_id=000000000000,bucket=shadow-assets,region=eu-north-1", "--read")
+	if code != 0 {
+		t.Fatalf("adopt --read exited %d:\n%s", code, read)
+	}
+	contains(t, read, "shadow_assets: $demo.#Resource.demo_bucket & {", "$import: {", `account_id: "000000000000"`, `bucket:     "shadow-assets"`, `region:     "eu-north-1"`)
+	if !regexp.MustCompile(`bucket:\s+"shadow-assets"`).MatchString(read) {
+		t.Errorf("the attributes of the object are in the resource:\n%s", read)
+	}
+	lacks(t, read, "<id>", "--import-id")
+
+	// Written into the specification, the resource is seen to adopt the object, and
+	// the plan imports it by identity.
+	spec, _ := os.ReadFile(filepath.Join(dir, "main.cue"))
+	mustWrite(t, dir, "main.cue", string(spec)+"\n"+read)
+	if text, _ := runPravo(t, dir, "discover", "show"); !strings.Contains(text, "1 adopting") || !strings.Contains(text, "by shadow_assets") {
+		t.Errorf("the discovery does not see the adoption:\n%s", text)
+	}
+	text, code = runPravo(t, dir, "plan")
+	if code != 0 {
+		t.Fatalf("plan exited %d:\n%s", code, text)
+	}
+	contains(t, text, "shadow_assets was imported from the identity", "bucket=shadow-assets")
+	if text, code := runPravo(t, dir, "apply", "-auto-approve"); code != 0 {
+		t.Fatalf("apply exited %d:\n%s", code, text)
+	}
+	text, _ = runPravo(t, dir, "discover", "--all")
+	contains(t, text, "1 managed", "1 unmanaged", "0 adopting")
+	lacks(t, text, "shadow-assets")
 }

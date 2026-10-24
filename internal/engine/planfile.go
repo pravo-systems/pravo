@@ -126,7 +126,9 @@ type savedChange struct {
 	AppliedTxn string `json:"applied_txn,omitempty"`
 	Imported   bool   `json:"imported,omitempty"`
 	ImportID   string `json:"import_id,omitempty"`
-	MovedFrom  string `json:"moved_from,omitempty"`
+	// ImportIdentity says that ImportID is an identity, written as pairs.
+	ImportIdentity bool   `json:"import_identity,omitempty"`
+	MovedFrom      string `json:"moved_from,omitempty"`
 }
 
 func packValue(v tftypes.Value) ([]byte, error) {
@@ -191,7 +193,7 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 			ConfigHash: ch.ConfigHash, PriorPrivate: ch.PriorPrivate, PlannedPrivate: ch.PlannedPrivate, CreatePrivate: ch.CreatePrivate,
 			Deps: ch.Deps, CreateBeforeDestroy: ch.CreateBeforeDestroy, PreventDestroy: ch.PreventDestroy,
 			Deferred: ch.Deferred, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Kept: ch.Kept, Drifted: ch.Drifted, Forced: ch.Forced, Fresh: ch.Fresh,
-			Imported: ch.Imported, ImportID: ch.ImportID, MovedFrom: ch.MovedFrom, Reasons: ch.Reasons,
+			Imported: ch.Imported, ImportID: ch.ImportID, ImportIdentity: ch.ImportIdentity, MovedFrom: ch.MovedFrom, Reasons: ch.Reasons,
 		}
 		sc.PriorRevision, sc.PriorGeneration = ch.PriorRevision, ch.PriorGeneration
 		if ch.Action == ActionMove {
@@ -395,7 +397,7 @@ func (e *Engine) restoreChange(sc savedChange) (*Change, error) {
 		ConfigHash: sc.ConfigHash, PriorPrivate: sc.PriorPrivate, PlannedPrivate: sc.PlannedPrivate, CreatePrivate: sc.CreatePrivate,
 		Deps: sc.Deps, CreateBeforeDestroy: sc.CreateBeforeDestroy, PreventDestroy: sc.PreventDestroy,
 		Deferred: sc.Deferred, Skipped: sc.Skipped, Refreshed: sc.Refreshed, Kept: sc.Kept, Drifted: sc.Drifted, Forced: sc.Forced, Fresh: sc.Fresh,
-		Applied: sc.Applied, AppliedTxn: sc.AppliedTxn, Imported: sc.Imported, ImportID: sc.ImportID, MovedFrom: sc.MovedFrom,
+		Applied: sc.Applied, AppliedTxn: sc.AppliedTxn, Imported: sc.Imported, ImportID: sc.ImportID, ImportIdentity: sc.ImportIdentity, MovedFrom: sc.MovedFrom,
 		Reasons: sc.Reasons, PriorRevision: sc.PriorRevision, PriorGeneration: sc.PriorGeneration,
 	}
 	if sc.Action == ActionMove {

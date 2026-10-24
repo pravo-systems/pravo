@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
 
@@ -21,7 +22,8 @@ import (
 // The body leaves out what the provider computes and the configuration does not
 // set, what is write-only, and what is null. A sensitive attribute is named in a
 // comment and its value is not written.
-func (e *Engine) ReadAdoption(ctx context.Context, providerKey, typ, id string) (string, error) {
+func (e *Engine) ReadAdoption(ctx context.Context, providerKey, typ string, target plugin.ImportTarget) (string, error) {
+	label := target.Label()
 	ps := e.Schemas[providerLocal(providerKey)]
 	if ps == nil {
 		return "", fmt.Errorf("no schema for provider %s", providerKey)
@@ -38,12 +40,12 @@ func (e *Engine) ReadAdoption(ctx context.Context, providerKey, typ, id string) 
 	for name, s := range ps.AllResources() {
 		types[name] = s.Block.Type()
 	}
-	imported, diags, err := prov.ImportResourceState(ctx, typ, id, types)
+	imported, diags, err := prov.ImportResourceState(ctx, typ, target, types)
 	if err != nil {
-		return "", fmt.Errorf("importing %q: %w", id, err)
+		return "", fmt.Errorf("importing %q: %w", label, err)
 	}
 	if err := diags.Err(); err != nil {
-		return "", fmt.Errorf("importing %q: %w", id, err)
+		return "", fmt.Errorf("importing %q: %w", label, err)
 	}
 	var found *tftypes.Value
 	var private []byte
@@ -54,17 +56,17 @@ func (e *Engine) ReadAdoption(ctx context.Context, providerKey, typ, id string) 
 		}
 	}
 	if found == nil {
-		return "", fmt.Errorf("the provider returned no %s for id %q", typ, id)
+		return "", fmt.Errorf("the provider returned no %s for %q", typ, label)
 	}
 	st, _, diags, err := prov.ReadResource(ctx, typ, *found, private)
 	if err != nil {
-		return "", fmt.Errorf("reading the object %q: %w", id, err)
+		return "", fmt.Errorf("reading the object %q: %w", label, err)
 	}
 	if err := diags.Err(); err != nil {
-		return "", fmt.Errorf("reading the object %q: %w", id, err)
+		return "", fmt.Errorf("reading the object %q: %w", label, err)
 	}
 	if st.IsNull() {
-		return "", fmt.Errorf("no %s with id %q exists", typ, id)
+		return "", fmt.Errorf("no %s %q exists", typ, label)
 	}
 	return RenderAdoption(rs.Block, st), nil
 }

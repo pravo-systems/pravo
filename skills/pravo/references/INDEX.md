@@ -22,7 +22,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/import.md](reference/import.md) | Bring an existing object under management from the command line, by the address of a declared resource and the provider's import id. | 4 KB |
 | [reference/providers.md](reference/providers.md) | List the providers a root resolves, print a provider's schema, pin archive hashes for more platforms and copy a provider to a container registry. | 6 KB |
 | [reference/validate-eval-fmt-gen.md](reference/validate-eval-fmt-gen.md) | Check a specification without planning it, print its evaluated value, format the CUE files and regenerate the provider packages. | 9 KB |
-| [reference/schema.md](reference/schema.md) | Print the CUE definition of a resource, data source, ephemeral resource or function type, with the provider's documentation. | 8 KB |
+| [reference/schema.md](reference/schema.md) | Print the CUE definition of a resource, data source, ephemeral resource or function type, with the provider's documentation. | 9 KB |
 | [reference/why-and-drift.md](reference/why-and-drift.md) | Explain why a plan creates, changes, replaces or skips a resource, and read the records that a plan does not read to report what changed outside pravo. | 13 KB |
 | [reference/serve.md](reference/serve.md) | Serve a read-only viewer on the loopback interface: a graph of namespaces and resources from the specification, the state, a saved plan and the plans stored in the state. | 60 KB |
 | [reference/mcp.md](reference/mcp.md) | Serve pravo to an agent over the Model Context Protocol on stdio. Fourteen tools, applies only from saved plans, and plan policies the agent cannot remove. | 11 KB |
@@ -41,7 +41,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/spec-settings.md](reference/spec-settings.md) | The $settings block. It sets where the state lives and the default refresh age, and nothing else. | 10 KB |
 | [reference/spec-resources.md](reference/spec-resources.md) | How to declare managed resources, data sources, ephemeral resources and function calls, how pravo finds them, and how they are addressed. | 15 KB |
 | [reference/spec-providers.md](reference/spec-providers.md) | How to declare a provider, the $-fields that tell pravo how to obtain it, instance keys, and rules that bind every resource built through a provider. | 14 KB |
-| [reference/spec-moves-and-imports.md](reference/spec-moves-and-imports.md) | $from renames or moves a record to a new address. $import adopts an existing object. Both are fields of the resource they describe. | 10 KB |
+| [reference/spec-moves-and-imports.md](reference/spec-moves-and-imports.md) | $from renames or moves a record to a new address. $import adopts an existing object. Both are fields of the resource they describe. | 11 KB |
 | [reference/spec-outputs.md](reference/spec-outputs.md) | pravo.#Output publishes a value. It is recorded in state when a plan is applied and printed by pravo output. | 6 KB |
 | [reference/spec-env.md](reference/spec-env.md) | pravo.#Env and pravo.#SecretEnv read environment variables. pravo.#RemoteOutputs reads the outputs another root has recorded. | 11 KB |
 | [reference/spec-meta-fields.md](reference/spec-meta-fields.md) | The $-prefixed fields that resources, data sources and ephemeral resources accept in addition to the provider schema. | 8 KB |

@@ -22,6 +22,7 @@ type ProviderClient interface {
 	PlanResourceChange(ctx context.Context, in *PlanResourceChange_Request, opts ...grpc.CallOption) (*PlanResourceChange_Response, error)
 	ApplyResourceChange(ctx context.Context, in *ApplyResourceChange_Request, opts ...grpc.CallOption) (*ApplyResourceChange_Response, error)
 	ImportResourceState(ctx context.Context, in *ImportResourceState_Request, opts ...grpc.CallOption) (*ImportResourceState_Response, error)
+	GetResourceIdentitySchemas(ctx context.Context, in *GetResourceIdentitySchemas_Request, opts ...grpc.CallOption) (*GetResourceIdentitySchemas_Response, error)
 	ReadDataSource(ctx context.Context, in *ReadDataSource_Request, opts ...grpc.CallOption) (*ReadDataSource_Response, error)
 	ValidateEphemeralResourceConfig(ctx context.Context, in *ValidateEphemeralResourceConfig_Request, opts ...grpc.CallOption) (*ValidateEphemeralResourceConfig_Response, error)
 	OpenEphemeralResource(ctx context.Context, in *OpenEphemeralResource_Request, opts ...grpc.CallOption) (*OpenEphemeralResource_Response, error)
@@ -81,6 +82,9 @@ func (c *providerClient) ApplyResourceChange(ctx context.Context, in *ApplyResou
 }
 func (c *providerClient) ImportResourceState(ctx context.Context, in *ImportResourceState_Request, opts ...grpc.CallOption) (*ImportResourceState_Response, error) {
 	return invoke[ImportResourceState_Response](ctx, c.cc, "/tfplugin6.Provider/ImportResourceState", in, opts)
+}
+func (c *providerClient) GetResourceIdentitySchemas(ctx context.Context, in *GetResourceIdentitySchemas_Request, opts ...grpc.CallOption) (*GetResourceIdentitySchemas_Response, error) {
+	return invoke[GetResourceIdentitySchemas_Response](ctx, c.cc, "/tfplugin6.Provider/GetResourceIdentitySchemas", in, opts)
 }
 func (c *providerClient) ReadDataSource(ctx context.Context, in *ReadDataSource_Request, opts ...grpc.CallOption) (*ReadDataSource_Response, error) {
 	return invoke[ReadDataSource_Response](ctx, c.cc, "/tfplugin6.Provider/ReadDataSource", in, opts)

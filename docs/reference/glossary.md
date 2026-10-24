@@ -229,7 +229,7 @@ Taught in [B1](../learn/b01-providers-and-resources.md). See [Resources](spec-re
 
 ### adoption
 
-Bringing an object that already exists under management. `$import: "<id>"` on a resource does it in the specification, and `pravo import` does it once from the command line.
+Bringing an object that already exists under management. `$import: "<id>"` or `$import: {...identity}` on a resource does it in the specification, and `pravo import` does it once from the command line.
 
 Taught in [B8](../learn/b08-renames-moves-imports.md). See [Moves and imports](spec-moves-and-imports.md#import).
 

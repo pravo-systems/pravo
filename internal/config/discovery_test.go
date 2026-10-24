@@ -164,10 +164,10 @@ func TestDiscoveryReadsItsAcks(t *testing.T) {
 	if len(d.Acks) != 2 || d.Acks[0].Ref() != "$ack[0]" || d.Acks[0].Names[0] != "batch-*" || d.Acks[0].Reason != "nightly" || d.Acks[1].IDs[1] != "b-?" {
 		t.Fatalf("%+v", d.Acks)
 	}
-	if !d.Acks[0].Covers("x", "x", "", "batch-7") || d.Acks[0].Covers("x", "x", "", "web") || d.Acks[0].Covers("batch-7", "batch-7", "", "") {
+	if !d.Acks[0].Covers("x", "x", "batch-7") || d.Acks[0].Covers("x", "x", "web") || d.Acks[0].Covers("batch-7", "batch-7", "") {
 		t.Error("a name pattern covers by name alone")
 	}
-	if !d.Acks[1].Covers("b-2", "k", "", "") || !d.Acks[1].Covers("x", "a-1", "", "") || !d.Acks[1].Covers("x", "k", "a-1", "") || d.Acks[1].Covers("b-22", "k", "", "") {
+	if !d.Acks[1].Covers("b-2", "k", "") || !d.Acks[1].Covers("x", "a-1", "") || d.Acks[1].Covers("b-22", "k", "") {
 		t.Error("an id pattern covers by id, key or import id")
 	}
 	// The acknowledgements are not part of the question a run answers.

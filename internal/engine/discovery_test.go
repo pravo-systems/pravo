@@ -168,16 +168,20 @@ func TestReportSetsTheRunAgainstTheState(t *testing.T) {
 		cue: `vms: {region: "eu"}
 a: ` + thing("a", "") + `
 b: ` + thing("b", "") + `
-adopt: ` + thing("adopt", `$import: "i-adopt"`),
-		resources:   []string{"a", "b", "adopt"},
+adopt: ` + thing("adopt", `$import: "i-adopt"`) + `
+adopt2: ` + thing("adopt2", `$import: {id: "i-adopt2", region: "eu"}`),
+		resources:   []string{"a", "b", "adopt", "adopt2"},
 		discoveries: []string{"vms"},
 	}
 	e := h.engine(s, Options{})
 	e.Root.Imports["adopt"] = &config.Import{Addr: "adopt", ID: "i-adopt"}
+	// The second adopts by identity, which the specification gave without the region too.
+	e.Root.Imports["adopt2"] = &config.Import{Addr: "adopt2", Identity: map[string]any{"id": "i-adopt2"}}
 
 	h.fake.list("fake_thing",
 		listed(idA, "eu", "managed one"),
 		listed("i-adopt", "eu", "being adopted"),
+		listed("i-adopt2", "eu", "being adopted by identity"),
 		listed("i-ack-1", "eu", "batch-1"),
 		listed("i-ack-2", "eu", "batch-2"),
 		listed("i-stray", "eu", "stray"),
@@ -195,7 +199,7 @@ adopt: ` + thing("adopt", `$import: "i-adopt"`),
 		t.Fatalf("%+v", v)
 	}
 	want := map[string]DiscoveryStatus{
-		idA: Managed, "i-adopt": Adopting, "i-ack-1": Acknowledged, "i-ack-2": Acknowledged, "i-stray": Unmanaged, "i-loose": Unmanaged,
+		idA: Managed, "i-adopt": Adopting, "i-adopt2": Adopting, "i-ack-1": Acknowledged, "i-ack-2": Acknowledged, "i-stray": Unmanaged, "i-loose": Unmanaged,
 	}
 	got := map[string]DiscoveryStatus{}
 	for _, it := range v.Items {
@@ -206,11 +210,11 @@ adopt: ` + thing("adopt", `$import: "i-adopt"`),
 			t.Errorf("%s is %q, want %q", id, got[id], st)
 		}
 	}
-	if v.Counts[Unmanaged] != 2 || v.Counts[Acknowledged] != 2 || v.Counts[Adopting] != 1 || v.Counts[Managed] != 1 {
+	if v.Counts[Unmanaged] != 2 || v.Counts[Acknowledged] != 2 || v.Counts[Adopting] != 2 || v.Counts[Managed] != 1 {
 		t.Errorf("counts %v", v.Counts)
 	}
 	// Unmanaged first, then adopting, acknowledged, managed.
-	order := []DiscoveryStatus{Unmanaged, Unmanaged, Adopting, Acknowledged, Acknowledged, Managed}
+	order := []DiscoveryStatus{Unmanaged, Unmanaged, Adopting, Adopting, Acknowledged, Acknowledged, Managed}
 	for i, it := range v.Items {
 		if it.Status != order[i] {
 			t.Errorf("item %d is %s, want %s: %+v", i, it.Status, order[i], v.Items)
@@ -224,7 +228,7 @@ adopt: ` + thing("adopt", `$import: "i-adopt"`),
 				t.Errorf("the record is %q", it.By)
 			}
 		case Adopting:
-			if it.By != "adopt" {
+			if it.By != "adopt" && it.By != "adopt2" {
 				t.Errorf("the adopter is %q", it.By)
 			}
 		case Acknowledged:
@@ -384,32 +388,32 @@ func TestAdoptSnippet(t *testing.T) {
 	}, Options{})
 	v := &DiscoveryView{Name: "vms", Type: "fake_thing", ProviderKey: "fake"}
 
-	got := AdoptSnippet(e.Root, v, state.ListedOf(map[string]any{"id": "i-0abc", "region": "eu"}, "Web 1"), "")
+	// An object is adopted by its identity, whatever the identity is made of.
+	got := FormatCUE(AdoptSnippet(e.Root, v, state.ListedOf(map[string]any{"id": "i-0abc", "region": "eu"}, "Web 1"), ""))
 	for _, want := range []string{
 		`// Adopts the fake_thing "i-0abc" (Web 1) that the discovery vms found.`,
 		"web_1_2: $fake.#Resource.fake_thing & {", // web_1 is taken
-		`$import: "i-0abc"`,
+		"$import: {", `id:     "i-0abc"`, `region: "eu"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the snippet lacks %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "<id>") {
-		t.Errorf("an object with an id has no placeholder:\n%s", got)
-	}
 
-	noID := AdoptSnippet(e.Root, v, state.ListedOf(map[string]any{"bucket": "logs", "region": "eu"}, ""), "")
-	for _, want := range []string{"logs_eu: ", `$import: "<id>"`, "bucket=logs,region=eu", "not an id that $import takes"} {
-		if want == "logs_eu: " {
-			want = "bucket_logs_region_eu: "
-		}
+	// An identity of other attributes needs no id to be told from it: the provider
+	// is given the attributes.
+	noID := FormatCUE(AdoptSnippet(e.Root, v, state.ListedOf(map[string]any{"account_id": "123", "bucket": "logs", "region": "eu", "versions": []any{int64(1), "b"}, "unset": nil}, "Logs"), ""))
+	for _, want := range []string{"logs: ", "$import: {", `account_id: "123"`, `bucket:     "logs"`, `region:     "eu"`, `versions: [1, "b"]`} {
 		if !strings.Contains(noID, want) {
 			t.Errorf("the snippet lacks %q:\n%s", want, noID)
 		}
 	}
+	if strings.Contains(noID, "<id>") || strings.Contains(noID, "unset") {
+		t.Errorf("a placeholder, or an attribute that is null:\n%s", noID)
+	}
 
-	withBody := AdoptSnippet(e.Root, v, state.ListedOf(map[string]any{"id": "i-1"}, ""), "\tcontent: \"x\"\n")
-	if !strings.Contains(withBody, "\t$import: \"i-1\"\n\tcontent: \"x\"\n}") {
+	withBody := FormatCUE(AdoptSnippet(e.Root, v, state.ListedOf(map[string]any{"id": "i-1"}, ""), "\tcontent: \"x\"\n"))
+	if !strings.Contains(withBody, "\t$import: {\n\t\tid: \"i-1\"\n\t}\n\tcontent: \"x\"\n}") {
 		t.Errorf("%s", withBody)
 	}
 	// The snippet is CUE.
@@ -444,9 +448,12 @@ func TestReadAdoptionRendersWhatTheObjectHas(t *testing.T) {
 	h := newHarness(t)
 	h.fake.canImport("i-1", "hello")
 	e := h.engine(discoverySpec(""), Options{})
-	body, err := e.ReadAdoption(context.Background(), "fake", "fake_thing", "i-1")
+	body, err := e.ReadAdoption(context.Background(), "fake", "fake_thing", plugin.ImportTarget{Identity: map[string]any{"id": "i-1", "region": "eu"}})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if got := h.fake.importTargets; len(got) != 1 || got[0].Identity["id"] != "i-1" || got[0].ID != "" {
+		t.Errorf("the provider was asked for %+v", got)
 	}
 	// The id is computed and not set by the configuration; the name and the content are.
 	if !strings.Contains(body, `name: "obj-i-1"`) || !strings.Contains(body, `content: "hello"`) || strings.Contains(body, "id:") {
@@ -455,10 +462,10 @@ func TestReadAdoptionRendersWhatTheObjectHas(t *testing.T) {
 	if h.state.Len() != 0 {
 		t.Error("reading an adoption wrote a record")
 	}
-	if _, err := e.ReadAdoption(context.Background(), "fake", "fake_thing", "i-none"); err == nil {
+	if _, err := e.ReadAdoption(context.Background(), "fake", "fake_thing", plugin.ImportTarget{ID: "i-none"}); err == nil {
 		t.Error("an object the provider does not have")
 	}
-	if _, err := e.ReadAdoption(context.Background(), "fake", "fake_nope", "i-1"); err == nil {
+	if _, err := e.ReadAdoption(context.Background(), "fake", "fake_nope", plugin.ImportTarget{ID: "i-1"}); err == nil {
 		t.Error("a type the provider does not have")
 	}
 }
@@ -478,7 +485,8 @@ func TestAdoptSnippetKeepsListedTextInItsLine(t *testing.T) {
 		switch {
 		case strings.HasPrefix(trim, "//"):
 		case i == 1 && regexp.MustCompile(`^[a-z0-9_]+: \$provider\.#Resource\.fake_thing & \{$`).MatchString(line):
-		case trim == `$import: "<id>"`, line == "}":
+		case trim == "$import: {", trim == "}", line == "}":
+		case regexp.MustCompile(`^(bucket|region): "`).MatchString(trim):
 		default:
 			t.Errorf("line %d lets listed text out of its comment: %q\n%s", i, line, got)
 		}
@@ -488,10 +496,30 @@ func TestAdoptSnippetKeepsListedTextInItsLine(t *testing.T) {
 	}
 	// A literal carries the character as an escape.
 	lit := AdoptSnippet(e.Root, v, state.ListedOf(map[string]any{"id": "a\u202eb"}, ""), "")
-	if !strings.Contains(lit, `$import: "a\u202eb"`) || strings.ContainsRune(lit, '\u202e') {
+	if !strings.Contains(lit, `id: "a\u202eb"`) || strings.ContainsRune(lit, '\u202e') {
 		t.Errorf("a direction character in an id is written raw:\n%s", lit)
 	}
 	if PlainText("a\x1b[31mred\u202e") != "a [31mred " {
 		t.Errorf("PlainText = %q", PlainText("a\x1b[31mred\u202e"))
+	}
+}
+
+func TestNamesIdentity(t *testing.T) {
+	listed := map[string]any{"account_id": "1", "bucket": "logs", "region": "eu"}
+	for _, c := range []struct {
+		name string
+		imp  map[string]any
+		want bool
+	}{
+		{"all of it", map[string]any{"account_id": "1", "bucket": "logs", "region": "eu"}, true},
+		{"the provider fills in the rest", map[string]any{"bucket": "logs"}, true},
+		{"another object", map[string]any{"bucket": "other", "region": "eu"}, false},
+		{"another region", map[string]any{"bucket": "logs", "region": "us"}, false},
+		{"only where it is", map[string]any{"region": "eu"}, false},
+		{"an attribute the object lacks", map[string]any{"bucket": "logs", "arn": "x"}, false},
+	} {
+		if got := namesIdentity(c.imp, listed); got != c.want {
+			t.Errorf("%s: %v", c.name, got)
+		}
 	}
 }

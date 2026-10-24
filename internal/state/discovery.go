@@ -53,9 +53,6 @@ type Listed struct {
 	Name string `json:"name,omitempty"`
 	// Identity is the identity as the provider gave it.
 	Identity map[string]any `json:"identity,omitempty"`
-	// ImportID is the id that $import takes to adopt the object, when it can be told
-	// from the identity; it is empty when the provider has to be asked.
-	ImportID string `json:"import_id,omitempty"`
 }
 
 // DiscoveryRun is what one run of one discovery found.
@@ -114,20 +111,19 @@ func identityValue(v any) string {
 }
 
 // ListedOf makes the record of a listed object from its identity and display name.
-// The id is the identity's id when it has a string one. $import takes an id, and
-// the identity gives one only when it is made of an id or of one attribute: with
-// more, the provider has to be asked which of them is the id of an import, so
-// ImportID is left empty.
+// The id is what a person calls the object: the identity's id when it has a string
+// one, its one attribute when it has one, else the whole identity. It is not what
+// $import takes: that is the identity.
 func ListedOf(identity map[string]any, name string) Listed {
 	l := Listed{Key: IdentityKey(identity), Name: name, Identity: identity}
 	id, hasID := identity["id"].(string)
 	switch {
 	case hasID && id != "":
-		l.ID, l.ImportID = id, id
+		l.ID = id
 	case len(identity) == 1:
 		for _, v := range identity {
 			if s, ok := v.(string); ok && s != "" {
-				l.ID, l.ImportID = s, s
+				l.ID = s
 			}
 		}
 	}

@@ -176,7 +176,7 @@ func TestDiscoveryDocumentSetsTheRunAgainstTheState(t *testing.T) {
 	for _, it := range v.Items {
 		by[it.Name] = it
 	}
-	if by["being adopted"].By != "adopting" || !by["being adopted"].Importable || by["stray-1"].Importable {
+	if by["being adopted"].By != "adopting" {
 		t.Errorf("%+v", by)
 	}
 	if ack := by["batch-1"]; ack.Reason != "nightly" || ack.By != "$ack[0]" {
@@ -336,12 +336,12 @@ func TestAdoptEndpoint(t *testing.T) {
 	if code != 200 || a.Status != "unmanaged" || a.ID != "name=stray-1,region=eu" {
 		t.Fatalf("%d %+v", code, a)
 	}
-	for _, want := range []string{"$fake.#Resource.fake_db & {", `$import: "<id>"`, "name=stray-1,region=eu"} {
+	// The object is adopted by its identity: no id is told from it, and no placeholder is left.
+	for _, want := range []string{"$fake.#Resource.fake_db & {", "$import: {", `name:   "stray-1"`, `region: "eu"`} {
 		if !strings.Contains(a.Snippet, want) {
 			t.Errorf("the snippet lacks %q:\n%s", want, a.Snippet)
 		}
 	}
-	// This identity gives no id for $import: the command asks for one, with a part to fill in.
 	var cmds []string
 	var placeholders int
 	for _, s := range a.Steps {
@@ -352,7 +352,7 @@ func TestAdoptEndpoint(t *testing.T) {
 			}
 		}
 	}
-	if len(cmds) != 1 || !strings.HasPrefix(cmds[0], "pravo discover adopt vms name=stray-1,region=eu --read --import-id <id>") || placeholders != 1 {
+	if len(cmds) != 1 || cmds[0] != "pravo discover adopt vms name=stray-1,region=eu --read" || placeholders != 0 {
 		t.Errorf("steps %+v", a.Steps)
 	}
 	// Saying that it is known is code too: an entry to add to the $ack of the discovery.
@@ -364,7 +364,7 @@ func TestAdoptEndpoint(t *testing.T) {
 
 	// An object with an id gets the id.
 	a, code = adopt("vms", keyOf("being adopted"))
-	if code != 200 || a.Status != "adopting" || !strings.Contains(a.Snippet, `$import: "xx"`) || len(a.Steps) != 1 || a.Steps[0].Kind != "note" {
+	if code != 200 || a.Status != "adopting" || !strings.Contains(a.Snippet, `id: "xx"`) || len(a.Steps) != 1 || a.Steps[0].Kind != "note" {
 		t.Errorf("%d %+v", code, a)
 	}
 	a, code = adopt("vms", keyOf("batch-1"))

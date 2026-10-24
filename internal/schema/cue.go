@@ -77,9 +77,11 @@ const fromMeta = `		// The address the record had before this resource was writt
 `
 
 // importMeta lets a managed resource adopt an existing object.
-const importMeta = `		// The id of an existing object to bring under management, as the provider
-		// understands it. Read at the next plan; leave it in place afterwards.
-		$import?: __string
+const importMeta = `		// The existing object to bring under management: its id as the provider
+		// documents it for importing, or its identity, the attributes of the identity of
+		// the resource type (what a discovery lists it by). Read at the next plan; leave
+		// it in place afterwards.
+		$import?: __string | {...}
 `
 
 // discoveryMeta is what a discovery sets besides the scope that the list

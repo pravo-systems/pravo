@@ -891,13 +891,11 @@ type DiscoveredInfo struct {
 	// Status is "unmanaged" (it asks to be adopted), "adopting" (a resource names it
 	// in $import) or "acknowledged" (an acknowledgement covers it).
 	Status string `json:"status"`
-	// By is the address of the resource that adopts the object, or the id of the
-	// acknowledgement that covers it; Reason is the reason of the acknowledgement.
+	// By is the address of the resource that adopts the object, or the ref of the
+	// $ack entry that covers it; Reason is the reason of the acknowledgement.
 	By       string  `json:"by,omitempty"`
 	Reason   string  `json:"reason,omitempty"`
 	Identity []Field `json:"identity,omitempty"`
-	// Importable is set when the identity gives an id that $import takes.
-	Importable bool `json:"importable,omitempty"`
 }
 
 // AckInfo is an entry of the $ack list of a discovery, as the specification has it.
