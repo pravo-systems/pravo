@@ -184,6 +184,9 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		if nested := findNested(v, p, 0); nested != "" {
 			return fmt.Errorf("%s is an output, so it cannot contain %s, which is a resource", p, nested)
 		}
+		if name := selfReference(v.LookupPath(cue.ParsePath("value"))); name != "" {
+			return fmt.Errorf("output %s: the field %s of its value reads itself, not the %s outside it. Rename the field, or bind the name first with let", p, name, name)
+		}
 		out := &Output{Name: p.String(), Path: p}
 		out.Sensitive, _ = v.LookupPath(cue.ParsePath("sensitive")).Bool()
 		r.Outputs = append(r.Outputs, out)

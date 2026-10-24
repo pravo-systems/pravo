@@ -2285,7 +2285,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 					skipped = append(skipped, o.Name)
 					continue
 				}
-				return fail(fmt.Errorf("output %s is not concrete after apply. A name inside its value may refer to a field of the output itself, as in value: {pet: pet.id}; rename the field", o.Name))
+				return fail(fmt.Errorf("output %s is not concrete after apply", o.Name))
 			}
 			b, err := outputJSON(ov)
 			if err != nil {

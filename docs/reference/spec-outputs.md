@@ -171,7 +171,7 @@ Another root reads the outputs of this one with `pravo.#RemoteOutputs`. A sensit
 |---|---|
 | An output may not use an ephemeral value, because it is recorded in state. | `output text references secret; outputs are recorded in state, so ephemeral values cannot be used in them` |
 | An output may not sit inside a resource. | CUE rejects the field: `pet.out: field not allowed`. |
-| The value must be concrete after the apply. | `output summary is not concrete after apply. A name inside its value may refer to a field of the output itself, as in value: {pet: pet.id}; rename the field` |
+| A field of the value may not read a name that it repeats. | `output summary: the field pet of its value reads itself, not the pet outside it. Rename the field, or bind the name first with let` |
 
 An output is a field like any other, so the usual scoping applies. Inside `value: {pet: pet.id}` the inner `pet` is the field being defined, and the value never resolves.
 
@@ -200,29 +200,12 @@ summary: pravo.#Output & {
 }
 ```
 
-```sh run exit=1
+```sh run exit=6
 pravo apply --auto-approve
 ```
 
 ```text out
-pravo will perform the following actions:
-
-  # pet (random_pet) will be created
-  + pet: {
-  +     id:        (known after apply)
-  +     length:    2
-  +     separator: "-"
-    }
-
-Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 1.
-
-Outputs:
-  summary: (known after apply)
-pet: Creating...
-pet: Creation complete after 0s [id=<pet>]
-
-Error: output summary is not concrete after apply. A name inside its value may refer to a field of the output itself, as in value: {pet: pet.id}; rename the field
+Error: output summary: the field pet of its value reads itself, not the pet outside it. Rename the field, or bind the name first with let
 ```
 
 Name the keys differently from the resources they read.

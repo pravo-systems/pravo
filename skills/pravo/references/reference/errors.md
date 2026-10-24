@@ -865,25 +865,8 @@ pravo apply --auto-approve; echo "exit=$?"
 Output:
 
 ```text
-pravo will perform the following actions:
-
-  # pet (random_pet) will be created
-  + pet: {
-  +     id:        (known after apply)
-  +     length:    2
-  +     separator: "-"
-    }
-
-Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 of 1.
-
-Outputs:
-  summary: (known after apply)
-pet: Creating...
-pet: Creation complete after 0s [id=<pet>]
-
-Error: output summary is not concrete after apply. A name inside its value may refer to a field of the output itself, as in value: {pet: pet.id}; rename the field
-exit=1
+Error: output summary: the field pet of its value reads itself, not the pet outside it. Rename the field, or bind the name first with let
+exit=6
 ```
 
 Resources that read each other in a circle have no first one to run. The plan stops before any provider is asked and names the resources on the cycle. `d` is not part of it. `pravo validate` reports the same cycle:
@@ -930,7 +913,7 @@ exit=6
 | `decoded: args reference secret; function results may be recorded in state, so ephemeral values cannot be passed to a function` | An ephemeral value as an argument of a function call. | Pass a value that is not ephemeral. |
 | `db: the environment variable ERRORS_DB_PASSWORD is not set` | A `pravo.#SecretEnv` and no variable. A secret has no default. | Set the variable. See [Environment](spec-env.md#secret-env). |
 | `region: the environment variable ERRORS_REGION is not set, and there is no default` | A `pravo.#Env` without a default and without the variable. | Set the variable, or add a `default`. |
-| `output summary is not concrete after apply. A name inside its value may refer to a field of the output itself, as in value: {pet: pet.id}; rename the field` | A key in the value repeats the name of the resource it reads. | Name the keys differently from the resources. See [Outputs](spec-outputs.md#rules). |
+| `output summary: the field pet of its value reads itself, not the pet outside it. Rename the field, or bind the name first with let` | A key in the value repeats the name of the resource it reads, so CUE resolves the name to the key. `validate`, `plan` and `apply` report it before any provider is asked, with exit code 6. | Name the keys differently from the resources, or bind the resource with `let` first. See [Outputs](spec-outputs.md#rules). |
 | `dependency cycle between a, b, c` | The named resources read each other, directly or through others, so none can run first. A resource that only reads a member of the cycle is not named. `validate`, `plan`, `apply` and `destroy` report it, with exit code 6. | Remove one of the references. |
 
 ## Moves and imports
