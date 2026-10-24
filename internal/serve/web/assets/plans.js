@@ -3,7 +3,7 @@
 // that anyone who reads the state finds. The page only reads: nothing here applies a plan, approves it or
 // removes it. What it offers is the exact command that applies a plan, to copy and run elsewhere.
 
-import { h, clear, icon, relTime, relUntil, stamp, plural } from './util.js';
+import { h, clear, icon, relTime, relUntil, stamp, plural, signatureMark } from './util.js';
 
 // STATUS says where a plan stands. The word is the carrier; the colour agrees with it: green can be applied,
 // blue is part way, amber moved on, grey is over. A plan that is partly stale is amber with a green edge: the
@@ -246,9 +246,19 @@ export class Plans {
 
 // The strip under the bar that says which plan is laid over the resources, with the way to its detail and the way back.
 // It is the one sign that the colours of the picture are a plan's, so it spans the page and does not hide in the picture.
+// signedMarks says who stored a stored plan of a sealed state: each signature as the readers file judges it, or that
+// there is none, or why they were not checked. A state that is not sealed has no signatures to say.
+export function signedMarks(sg) {
+  if (!sg) return null;
+  if (sg.note) return h('span', { class: 'sigmark sig-unsigned', title: sg.note }, sg.note);
+  const items = sg.items || [];
+  if (!items.length) return signatureMark('unsigned');
+  return h('span', null, items.flatMap((it, i) => [i ? ', ' : '', signatureMark(it.status, it.signer, it.claimed)]));
+}
+
 export function planStrip(el, p, cb) {
   // a strip that says the same is left as it is: drawing it again takes the focus from the button that has it
-  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {})].join('|') : '';
+  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(cb.signatures || null)].join('|') : '';
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
   clear(el);
@@ -262,6 +272,7 @@ export function planStrip(el, p, cb) {
     statusChip(p.status),
     counts(p.summary || {}),
     h('span', { class: 'ps-by dim' }, p.author + ' \u00b7 ' + relTime(p.created)),
+    signedMarks(cb.signatures),
     h('span', { class: 'grow' }),
     h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' }))].filter(Boolean));
 }

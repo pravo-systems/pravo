@@ -1,11 +1,11 @@
 // The inspector when nothing is selected (the project) and when a module is: summaries, bars, navigable lists,
 // and the places where a module is written.
 
-import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, baseName, fmt, nodeMark, signatureMark } from './util.js';
+import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, baseName, fmt, nodeMark } from './util.js';
 import { eachNode, isOut } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { codeWindow } from './ui.js';
-import { statusChip, facts, planActions, conflictsBox } from './plans.js';
+import { planActions, conflictsBox } from './plans.js';
 import * as api from './api.js';
 
 const num = (n, cls = '') => {
@@ -64,10 +64,9 @@ function planSection(ins, plan, model) {
       tile(c.add, 'add', 'ok'), tile(c.change, 'change', 'chg'), tile(c.destroy, 'destroy', 'bad'), tile(c.read, 'read', 'lock')),
     h('div', { class: 'plan-meta' },
       kv([
-        stored ? ['plan', h('span', { class: 'mono-s' }, plan.id)] : ['file', h('span', { class: 'mono-s' }, baseName(plan.file))],
-        stored && plan.status ? ['status', statusChip(plan.status)] : null,
-        ...(sp ? facts(sp, model.planText) : [['created', stamp(plan.created) + (plan.actor ? ' · ' + plan.actor : '')]]),
-        stored ? signedRow(plan.signatures) : null,
+        // a stored plan is named, dated and signed in the strip under the bar, and its facts are in the Plans section
+        stored ? null : ['file', h('span', { class: 'mono-s' }, baseName(plan.file))],
+        stored ? null : ['created', stamp(plan.created) + (plan.actor ? ' · ' + plan.actor : '')],
         ['blast radius', plural(c.blast_radius || 0, 'resource')],
         plan.applied ? ['applied', `${plan.applied} of ${plan.planned}`] : null,
       ])),
@@ -207,14 +206,4 @@ async function fillWhere(ins, host, mod, model) {
       h('p', { class: 'hint' }, `One resource that the definition writes: ${defn.label || rep.name}.`), codeWindow(defn, Object.assign({ title: 'Lines of the definition' }, opts))].filter(Boolean));
   } else if (mod.definition) host.append(ref('definition', mod.definition));
   if (!host.childNodes.length) fallback();
-}
-
-// signedRow says who stored a stored plan of a sealed state: each signature as the readers file judges it, or that there
-// is none, or why they were not checked.
-function signedRow(sg) {
-  if (!sg) return null;
-  if (sg.note) return ['signed', h('span', { class: 'sigmark sig-unsigned', title: sg.note }, sg.note)];
-  const items = sg.items || [];
-  if (!items.length) return ['signed', signatureMark('unsigned')];
-  return ['signed', h('span', null, items.flatMap((it, i) => [i ? ', ' : '', signatureMark(it.status, it.signer, it.claimed)]))];
 }

@@ -329,6 +329,7 @@ function renderPlans() {
   const p = S.plan && S.plans.find((x) => x.id === S.plan);
   planStrip($('planstrip'), p, {
     reason: p && reasons.get(p.id),
+    signatures: p && S.graph && S.graph.plan && S.graph.plan.id === p.id ? S.graph.plan.signatures : null,
     onClear: () => selectPlan(null),
   });
 }
