@@ -413,9 +413,17 @@ pravo -C t1 plan 2>&1 | grep -E '^(  # .* will be|Plan:)'
 Output:
 
 ```text
+  # data.local_file.banner will be moved to banner (record renamed; no change to the object)
+  # random_pet.server will be moved to server (record renamed; no change to the object)
+  # local_file.hello will be moved to hello (record renamed; no change to the object)
+  # random_integer.port_0 will be moved to ports[0] (record renamed; no change to the object)
+  # random_integer.port_1 will be moved to ports[1] (record renamed; no change to the object)
+  # random_pet.region_us will be moved to region.us (record renamed; no change to the object)
+  # local_file.notes_note_alpha will be moved to notes.files.alpha (record renamed; no change to the object)
+  # local_file.notes_note_beta will be moved to notes.files.beta (record renamed; no change to the object)
   # region.eu (random_pet) will be created
   # random_pet.region_eu (random_pet) will be destroyed
-Plan: 1 to add, 0 to change, 1 to destroy.
+Plan: 1 to add, 0 to change, 1 to destroy, 8 to move.
 ```
 
 A `$from` that names a record of another type:
@@ -545,8 +553,8 @@ echo "exit=$?"
 Output:
 
 ```text
-No changes. The specification matches the state. 9 records were not read; run pravo drift to compare them with the infrastructure.
-Graph: planned 0 · skipped 9 · not read 9
+No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
+Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]

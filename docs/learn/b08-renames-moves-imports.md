@@ -597,7 +597,7 @@ pravo plan
   # note will be moved to readme (record renamed; no change to the object)
 
 Plan: 0 to add, 0 to change, 0 to destroy, 1 to move.
-Graph: planned 2 · skipped 4 · refreshed 2 · not read 4 · to move 1
+Graph: planned 1 · skipped 5 · refreshed 1 · not read 5 · to move 1
 ```
 
 ```sh run check
