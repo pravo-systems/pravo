@@ -5,7 +5,6 @@ import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, ba
 import { eachNode, isOut } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { codeWindow } from './ui.js';
-import { planActions, conflictsBox } from './plans.js';
 import * as api from './api.js';
 
 const num = (n, cls = '') => {
@@ -23,7 +22,8 @@ export function projectPanel(ins, model) {
   const g = model.graph, p = g.project;
   const body = [];
   const plan = g.plan;
-  if (plan) body.push(planSection(ins, plan, model));
+  // a stored plan is named, counted and judged in the strip under the bar, the banner and the status bar: this is for a plan file
+  if (plan && !plan.id) body.push(planSection(ins, plan, model));
 
   if ((p.providers || []).length) {
     // an instance is named by its key and drawn in its colour; a provider with one instance that is named like it needs no list
@@ -48,31 +48,25 @@ function pathValue(p, ins) {
   return h('span', { class: 'pv', 'data-tip': p }, pathEl(p), copyButton(p, { label: 'Copy the path', tip: 'Copy the path', announce: ins.cb.announce, done: 'Copied the path' }));
 }
 
-function planSection(ins, plan, model) {
+function planSection(ins, plan) {
   const c = plan.summary || {};
   const tile = (n, label, cls) => h('div', { class: 'tile ' + cls + (n ? '' : ' zero') }, num(n), h('span', { class: 'tlb' }, label));
   const notRead = plan.total - plan.planned;
-  const stored = !!plan.id;
-  const sp = stored ? model.planById.get(plan.id) : null; // what the list says of it: the reason, the command, when it expires
   return h('section', { class: 'sec plan' },
-    h('h3', { class: 'h' }, stored ? 'The stored plan' : 'The plan'),
+    h('h3', { class: 'h' }, 'The plan'),
     h('div', { class: 'planned' },
       h('span', { class: 'pl-big' }, num(plan.planned), h('span', { class: 'of' }, ' of '), h('span', { class: 'bn' }, fmt(plan.total))),
-      h('span', { class: 'pl-sub' }, `resources planned${notRead ? ` · ${notRead} not read` : ''}`),
+      h('span', { class: 'pl-sub' }, `resources planned${notRead ? ` \u00b7 ${notRead} not read` : ''}`),
       plan.stale ? h('span', { class: 'b bad' }, 'stale') : null),
     h('div', { class: 'tiles' },
       tile(c.add, 'add', 'ok'), tile(c.change, 'change', 'chg'), tile(c.destroy, 'destroy', 'bad'), tile(c.read, 'read', 'lock')),
     h('div', { class: 'plan-meta' },
       kv([
-        // a stored plan is named, dated and signed in the strip under the bar, and its facts are in the Plans section
-        stored ? null : ['file', h('span', { class: 'mono-s' }, baseName(plan.file))],
-        stored ? null : ['created', stamp(plan.created) + (plan.actor ? ' · ' + plan.actor : '')],
+        ['file', h('span', { class: 'mono-s' }, baseName(plan.file))],
+        ['created', stamp(plan.created) + (plan.actor ? ' \u00b7 ' + plan.actor : '')],
         ['blast radius', plural(c.blast_radius || 0, 'resource')],
         plan.applied ? ['applied', `${plan.applied} of ${plan.planned}`] : null,
       ])),
-    // the page applies nothing: it gives the command, for a terminal
-    sp && sp.status === 'partly-stale' ? conflictsBox(sp) : null,
-    sp && sp.open ? h('div', { class: 'plan-apply' }, planActions(sp)) : null,
     plan.stale ? h('p', { class: 'note bad' }, icon('bang'), h('span', null, 'This plan is stale: ' + (plan.reasons || []).join('; '))) : null,
     (plan.hints || []).map((x) => h('p', { class: 'note' }, icon('bang'), h('span', null, x))));
 }
