@@ -2,7 +2,7 @@
 // namespace by default, as an outline of the graph (a namespace that is open here is open there), and flat when
 // grouping is off. Only the rows in view are in the document, so an estate of thousands of resources scrolls freely.
 
-import { h, clear, relTime, stamp, actionOf, store, kindMark, icon } from './util.js';
+import { h, clear, relTime, stamp, actionOf, store, icon } from './util.js';
 import { natural, isOut, isEnv } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { avatar } from './plans.js';
@@ -224,12 +224,11 @@ export class ListView {
     // a plan lists the value of every output and does not say which it changes: an output is neither planned nor "not read"
     const act = a ? h('span', { class: 'act' }, h('span', { class: 'sq ' + a.cls }), a.label) : (model.hasPlan && !isOut(n) ? h('span', { class: 'dim' }, 'not read') : '');
     const who = (n.plans || []).slice(0, 2).map((id) => avatar(model.authors.get(id) || '?', 'tiny'));
-    const mark = isOut(n) ? h('span', { class: 'i i-output omark', 'aria-hidden': 'true' }) : isEnv(n) ? h('span', { class: 'i i-env omark', 'aria-hidden': 'true' }) : kindMark(n);
     const name = this.grouped || !(n.addr.length > n.name.length && n.addr.endsWith(n.name))
       ? (this.grouped ? h('b', null, n.name) : n.addr)
       : [h('span', { class: 'pre' }, n.addr.slice(0, n.addr.length - n.name.length)), h('b', null, n.name)];
     return h('div', { class: 'tv-row leaf' + (on ? ' sel' : ''), role: 'row', 'aria-rowindex': String(i + 2), 'aria-selected': on ? 'true' : 'false', 'aria-level': this.grouped ? String(r.depth + 1) : null, data: { key, addr: n.addr }, style: `--lvl:${r.depth}` },
-      h('div', { class: 'c-addr' + (isOut(n) ? ' out' : ''), role: 'gridcell', title: n.addr }, mark, name),
+      h('div', { class: 'c-addr' + (isOut(n) ? ' out' : ''), role: 'gridcell', title: n.addr }, name),
       h('div', { class: 'c-type', role: 'gridcell', title: n.type }, n.type, isOut(n) ? null : facet('type', n.type)),
       h('div', { class: 'c-prov', role: 'gridcell', title: n.provider ? 'The provider instance: ' + n.provider : '' }, n.provider ? [h('span', { class: 'pvdot ' + pvClass(providerOf(n.type, n.provider)), 'aria-hidden': 'true' }), n.provider, facet('provider', n.provider)] : h('span', { class: 'dim' }, '—')),
       h('div', { class: 'c-mode' + (n.mode === 'managed' ? ' plain' : ''), role: 'gridcell' }, n.mode, facet('mode', n.mode)),

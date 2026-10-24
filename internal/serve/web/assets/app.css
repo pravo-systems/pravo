@@ -177,11 +177,9 @@ i.sq.skip, span.sq.skip { opacity: .45; }
 /* the kind of a node, by the shape of its square: a circle reads a data source, a dashed edge an ephemeral resource */
 i.sq.k-data, span.sq.k-data { border-radius: 50%; }
 i.sq.k-ephemeral, span.sq.k-ephemeral { border-style: dashed; }
-.tv-row .c-addr .kmark { margin: .22rem .55rem 0 .05rem; }
 .tv-row .c-mode.plain { color: var(--text-3); }
 /* an output in a list stands where a resource has its square: the glyph of a value that leaves the root */
 .i.omark { color: var(--text-3); width: .78rem; height: .78rem; flex: none; margin-left: -.09rem; margin-right: -.09rem; }
-.tv-row .c-addr .omark { margin: .05rem .45rem 0 0; }
 .out-desc { margin: 0; padding: 1rem 1.1rem 0; color: var(--text-2); font-size: .86rem; line-height: 1.45; }
 i.sq.tiny, span.sq.tiny { width: .45rem; height: .45rem; }
 i.sq.a-create, span.sq.a-create { background: var(--accent); border-color: var(--accent); }
