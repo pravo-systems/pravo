@@ -137,15 +137,15 @@ Error: dice is already in state
 
 ### The declarative form
 
-`$import: "ID"` on the resource adopts the object at the next plan and needs no command:
+`$import: "ID"` on the resource names the object. The plan reads it, and the apply writes the record. It needs no command:
 
 ```cue
 dice: $random.#Resource.random_integer & {min: 1, max: 6, $import: "4,1,6"}
 ```
 
-The plan reports `dice was imported from id "4,1,6"`. Leave the field in place afterwards. See [Moves and imports](spec-moves-and-imports.md) and [Importing and moving](../how-to/importing-and-moving.md).
+The plan reports `dice will be imported from id "4,1,6"`, and writes no record: the apply does. Leave the field in place afterwards. See [Moves and imports](spec-moves-and-imports.md) and [Importing and moving](../how-to/importing-and-moving.md).
 
 ## See also
 
 - [`pravo state`](state.md) moves, forgets and queries nodes.
-- [`pravo plan`](plan.md) adopts `$import` objects.
+- [`pravo plan`](plan.md) reads `$import` objects, and the apply adopts them.

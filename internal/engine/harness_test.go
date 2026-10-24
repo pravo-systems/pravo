@@ -83,6 +83,69 @@ type fakeProvider struct {
 	stop  chan struct{}
 	// configured holds the configuration of each call to Configure.
 	configured []tftypes.Value
+	// listed is what ListResource answers for a list type, in order; listFails
+	// makes the call fail with this text. lists holds the scope of each call.
+	listed    map[string][]plugin.ListedResource
+	listFails string
+	lists     []tftypes.Value
+	// importable maps the ids that ImportResourceState finds to the content of the
+	// object.
+	importable map[string]string
+	// importTargets are the targets that ImportResourceState was asked for.
+	importTargets []plugin.ImportTarget
+}
+
+// canImport makes ImportResourceState find the object with this id.
+func (f *fakeProvider) canImport(id, content string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.importable == nil {
+		f.importable = map[string]string{}
+	}
+	f.importable[id] = content
+}
+
+// list sets the objects that ListResource answers for the list type typ.
+func (f *fakeProvider) list(typ string, objects ...plugin.ListedResource) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.listed == nil {
+		f.listed = map[string][]plugin.ListedResource{}
+	}
+	f.listed[typ] = objects
+}
+
+// ListResource answers the objects of the type that are in the scope: the
+// scope attribute region keeps the objects of that region, name_prefix the
+// ones whose display name starts with it.
+func (f *fakeProvider) ListResource(_ context.Context, typ string, cfg tftypes.Value, limit int64) ([]plugin.ListedResource, plugin.Diagnostics, error) {
+	f.count("ListResource")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lists = append(f.lists, cfg)
+	if f.listFails != "" {
+		return nil, nil, fmt.Errorf("%s", f.listFails)
+	}
+	var m map[string]tftypes.Value
+	var region, prefix string
+	if cfg.As(&m) == nil {
+		_ = m["region"].As(&region)
+		_ = m["name_prefix"].As(&prefix)
+	}
+	var out []plugin.ListedResource
+	for _, o := range f.listed[typ] {
+		if r, _ := o.Identity["region"].(string); region != "" && r != region {
+			continue
+		}
+		if !strings.HasPrefix(o.DisplayName, prefix) {
+			continue
+		}
+		out = append(out, o)
+		if limit > 0 && int64(len(out)) >= limit {
+			break
+		}
+	}
+	return out, nil, nil
 }
 
 // hold is the apply of one resource that waits for the test. reached is closed
@@ -476,8 +539,24 @@ func (f *fakeProvider) destroy(prior tftypes.Value) (fails bool) {
 	return f.undestroyable[name]
 }
 
-func (f *fakeProvider) ImportResourceState(context.Context, string, string, map[string]tftypes.Type) ([]plugin.ImportedResource, plugin.Diagnostics, error) {
-	return nil, nil, fmt.Errorf("not supported")
+func (f *fakeProvider) ImportResourceState(_ context.Context, typ string, target plugin.ImportTarget, types map[string]tftypes.Type) ([]plugin.ImportedResource, plugin.Diagnostics, error) {
+	id := target.ID
+	if target.Identity != nil {
+		id, _ = target.Identity["id"].(string)
+	}
+	f.mu.Lock()
+	f.importTargets = append(f.importTargets, target)
+	content, ok := f.importable[id]
+	f.mu.Unlock()
+	if !ok {
+		return nil, nil, fmt.Errorf("not supported")
+	}
+	t := types[typ]
+	st := tftypes.NewValue(t, map[string]tftypes.Value{
+		"id": tftypes.NewValue(tftypes.String, id), "name": tftypes.NewValue(tftypes.String, "obj-"+id),
+		"content": tftypes.NewValue(tftypes.String, content),
+	})
+	return []plugin.ImportedResource{{TypeName: typ, State: st}}, nil, nil
 }
 func (f *fakeProvider) ReadDataSource(_ context.Context, _ string, cfg tftypes.Value) (tftypes.Value, plugin.Diagnostics, error) {
 	f.count("ReadDataSource")
@@ -563,6 +642,9 @@ func fakeSchema() *schema.ProviderSchema {
 		Ephemerals: map[string]*schema.Schema{"fake_session": {Block: &schema.Block{Attributes: []*schema.Attribute{
 			attr("name", true, false, false), attr("token", false, false, true),
 		}}}},
+		ListResources: map[string]*schema.Schema{"fake_thing": {Block: &schema.Block{Attributes: []*schema.Attribute{
+			attr("region", false, true, false), attr("name_prefix", false, true, false),
+		}}}},
 		Functions: map[string]*schema.Function{"fake_upper": {
 			Parameters: []*schema.Parameter{{Name: "text", TypeJSON: json.RawMessage(`"string"`)}},
 			ReturnJSON: json.RawMessage(`"string"`),
@@ -628,6 +710,9 @@ type spec struct {
 	// function calls (fake_upper) of the specification.
 	ephemerals []string
 	calls      []string
+	// discoveries lists the addresses of the discoveries (of fake_thing) of the
+	// specification.
+	discoveries []string
 	// providers maps the key of each provider instance to the path of its
 	// configuration in the specification; keys maps a resource to the instance it
 	// uses, "fake" when absent.
@@ -675,6 +760,10 @@ func (h *harness) engine(s spec, opts Options) *Engine {
 	}
 	for _, name := range s.outputs {
 		root.Outputs = append(root.Outputs, &config.Output{Name: name, Path: cue.ParsePath(name)})
+	}
+	for _, addr := range s.discoveries {
+		p := cue.ParsePath(addr)
+		root.Discoveries = append(root.Discoveries, config.NewDiscovery(v.LookupPath(p), p, "fake_thing", registry.Source{Host: "example.test", Namespace: "x", Type: "fake"}, s.keyOf(addr)))
 	}
 	for key, path := range s.providers {
 		root.ProviderDecls = append(root.ProviderDecls, &config.ProviderDecl{Path: cue.ParsePath(path), Key: key, Local: "fake"})

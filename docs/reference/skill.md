@@ -92,7 +92,7 @@ name: pravo
 # Reference files
 SKILL.md
 references/INDEX.md
-references/concepts/evaluation.md
+references/concepts/discovery.md
 ```
 
 `pravo skill list` prints the paths of the files, one for each line, with `SKILL.md` first.

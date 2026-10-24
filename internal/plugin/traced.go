@@ -125,9 +125,9 @@ func (t *Traced) ApplyResourceChange(ctx context.Context, typ string, prior, pla
 	return r, d, err
 }
 
-func (t *Traced) ImportResourceState(ctx context.Context, typ, id string, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
+func (t *Traced) ImportResourceState(ctx context.Context, typ string, target ImportTarget, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
 	ctx, end := t.begin(ctx, "ImportResourceState", typ)
-	r, d, err := t.inner.ImportResourceState(ctx, typ, id, types)
+	r, d, err := t.inner.ImportResourceState(ctx, typ, target, types)
 	end(err, d)
 	return r, d, err
 }
@@ -147,6 +147,14 @@ func (t *Traced) OpenEphemeral(ctx context.Context, typ string, cfg tftypes.Valu
 		telemetry.EphemeralOpened(ctx, typ)
 	}
 	return r, d, err
+}
+
+func (t *Traced) ListResource(ctx context.Context, typ string, cfg tftypes.Value, limit int64) ([]ListedResource, Diagnostics, error) {
+	ctx, end := t.begin(ctx, "ListResource", typ)
+	out, d, err := t.inner.ListResource(ctx, typ, cfg, limit)
+	trace.SpanFromContext(ctx).SetAttributes(attribute.Int("pravo.listed", len(out)))
+	end(err, d)
+	return out, d, err
 }
 
 func (t *Traced) RenewEphemeral(ctx context.Context, typ string, private []byte) (*EphemeralResult, Diagnostics, error) {

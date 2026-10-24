@@ -28,8 +28,8 @@ var pruneMinSize int64 = 1 << 20
 // typeUse is the types of the providers that a body of CUE names, and whether it
 // names the catalogues in a way that this cannot read.
 type typeUse struct {
-	// names holds, for each of #Resource, #Data, #Ephemeral and #Function, the types
-	// that are used.
+	// names holds, for each of #Resource, #Data, #Ephemeral, #Discovery and
+	// #Function, the types that are used.
 	names map[string]map[string]bool
 	// dynamic is set when a catalogue is used as a whole or indexed by a
 	// computed name: then any type may be needed.
@@ -38,7 +38,7 @@ type typeUse struct {
 
 // A use of a type is $aws.#Resource.aws_s3_bucket, or #Function."arn_parse". A
 // catalogue that is not followed by a name is used as a whole.
-var typeUseRe = regexp.MustCompile(`#(Resource|Data|Ephemeral|Function)\b(?:\.("(?:[^"\\]|\\.)*"|[A-Za-z_][A-Za-z0-9_]*))?`)
+var typeUseRe = regexp.MustCompile(`#(Resource|Data|Ephemeral|Discovery|Function)\b(?:\.("(?:[^"\\]|\\.)*"|[A-Za-z_][A-Za-z0-9_]*))?`)
 
 // scanTypeUse reads the CUE files under dirs for the types they name. The
 // directories cue.mod (apart from cue.mod/pkg, where dependencies are kept), the
@@ -123,13 +123,15 @@ var catalogueOpen = map[string]string{
 	"_#Resource: {":  "#Resource",
 	"_#Data: {":      "#Data",
 	"_#Ephemeral: {": "#Ephemeral",
+	"_#Discovery: {": "#Discovery",
 	"_#Function: {":  "#Function",
 }
 
 // pruneGenerated returns src with the types that use does not name blanked, and
 // whether it blanked any. It returns src as it is when it does not have the
-// layout that pravo writes (the four catalogues at package level), so that a
-// package from an earlier pravo is loaded whole.
+// layout that pravo writes (the four catalogues at package level, and the
+// catalogue of discoveries, which a package from an earlier pravo lacks), so
+// that a package from an earlier pravo is loaded whole.
 func pruneGenerated(src []byte, use *typeUse) ([]byte, bool) {
 	lines := bytes.Split(src, []byte("\n"))
 	opened := 0
@@ -139,7 +141,9 @@ func pruneGenerated(src []byte, use *typeUse) ([]byte, bool) {
 		if !ok {
 			continue
 		}
-		opened++
+		if kind != "#Discovery" {
+			opened++
+		}
 		keep := use.names[kind]
 		doc := -1 // where the comment above the type starts
 		j := i + 1
@@ -179,7 +183,7 @@ func pruneGenerated(src []byte, use *typeUse) ([]byte, bool) {
 		}
 		i = j
 	}
-	if opened != len(catalogueOpen) {
+	if opened != len(catalogueOpen)-1 {
 		return src, false
 	}
 	if removed == 0 {

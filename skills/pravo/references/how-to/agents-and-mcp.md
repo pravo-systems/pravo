@@ -65,7 +65,7 @@ random_integer: {
 	$type:   "random_integer"
 	$source: "registry.opentofu.org/hashicorp/random"
 	$from?: __string
-	$import?: __string
+	$import?: __string | {...}
 	$depends_on?: [..._]
 	$lifecycle?: #Lifecycle
 	max: number

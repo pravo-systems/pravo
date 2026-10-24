@@ -199,6 +199,8 @@ type Store struct {
 	mu      sync.Mutex
 	nodes   map[string]*Resource
 	outputs map[string]json.RawMessage
+	// staged holds what the addresses that a plan changed in memory held before (see stage.go).
+	staged map[string]stagedNode
 	// held is what the store read or wrote of the object of each node: the version
 	// and, in format 2, the record the pointer names. A write replaces the object
 	// only if it is still that.
@@ -505,6 +507,9 @@ func (s *Store) Get(addr string) *Resource {
 // from the copy it read, verifies it first, or it would write over what another
 // command wrote before the lock was taken.
 func (s *Store) Verify(addr string) error {
+	if s.Staged(addr) {
+		return nil // there is no record in the backend to differ from
+	}
 	cur, found, err := s.head(addr)
 	if err != nil {
 		return err
@@ -640,6 +645,9 @@ var ErrChanged = errors.New("the record changed in the state since it was read")
 // would replace what another process wrote with what this one read before.
 func (s *Store) Refresh(r *Resource, txn string) error {
 	addr := r.Address()
+	if s.writeStaged(r, addr, false) {
+		return nil
+	}
 	mu := s.stripe(addr)
 	mu.Lock()
 	defer mu.Unlock()
@@ -670,6 +678,9 @@ func (s *Store) Refresh(r *Resource, txn string) error {
 // Set writes a node, bumping its revision. txn is recorded on the node and
 // may be empty.
 func (s *Store) Set(r *Resource, txn string) error {
+	if s.writeStaged(r, r.Address(), false) {
+		return nil
+	}
 	mu := s.stripe(r.Address())
 	mu.Lock()
 	defer mu.Unlock()
@@ -681,6 +692,18 @@ func (s *Store) Set(r *Resource, txn string) error {
 // write like Set: the revision moves, and a plan made against the node is stale.
 // It returns the revision before and after, and false when there is no node.
 func (s *Store) Invalidate(addr, txn string) (before, after int, found bool, err error) {
+	if s.Staged(addr) {
+		s.mu.Lock()
+		prev, ok := s.nodes[addr]
+		s.mu.Unlock()
+		if !ok {
+			return 0, 0, false, nil
+		}
+		n := *prev
+		n.RefreshedAt = nil
+		s.writeStaged(&n, addr, false)
+		return prev.Revision, prev.Revision, true, nil
+	}
 	mu := s.stripe(addr)
 	mu.Lock()
 	defer mu.Unlock()
@@ -757,6 +780,13 @@ func sameTime(a, b *time.Time) bool {
 
 // Remove deletes the node at addr and reports whether it existed.
 func (s *Store) Remove(addr string) (bool, error) {
+	if s.Staged(addr) {
+		s.mu.Lock()
+		_, ok := s.nodes[addr]
+		s.mu.Unlock()
+		s.writeStaged(nil, addr, true)
+		return ok, nil
+	}
 	mu := s.stripe(addr)
 	mu.Lock()
 	defer mu.Unlock()

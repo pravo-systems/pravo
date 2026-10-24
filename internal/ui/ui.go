@@ -120,7 +120,7 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 		}
 		shown = append(shown, c)
 	}
-	if len(shown) == 0 {
+	if len(shown) == 0 && len(plan.Relabels) == 0 {
 		p.Println()
 		p.Println(p.C(Bold+Green, "No changes.") + " " + noChanges(plan))
 		p.renderStats(plan)
@@ -129,19 +129,27 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 	}
 	p.Println()
 	p.Println("pravo will perform the following actions:")
+	for _, r := range plan.Relabels {
+		p.Println()
+		p.Println(p.C(Bold, fmt.Sprintf("  # %s will have its provider changed from %s to %s", r.Addr, r.From, r.To)) + p.C(Dim, " (record relabelled; no change to the object)"))
+	}
 	for _, c := range shown {
 		p.Println()
 		sym, color := actionSymbol(c.Action)
 		if c.Action == engine.ActionMove {
-			p.Println(p.C(Bold, fmt.Sprintf("  # %s was moved to %s", c.MovedFrom, c.Addr)) + p.C(Dim, " (record renamed; no change to the object)"))
+			p.Println(p.C(Bold, fmt.Sprintf("  # %s will be moved to %s", c.MovedFrom, c.Addr)) + p.C(Dim, " (record renamed; no change to the object)"))
 			continue
 		}
 		header := fmt.Sprintf("  # %s %s", addrWithType(c), actionVerb(c.Action))
 		if c.Imported {
+			from := "id"
+			if c.ImportIdentity {
+				from = "the identity"
+			}
 			if c.Action == engine.ActionNoop {
-				header = fmt.Sprintf("  # %s was imported from id %q and matches the specification", c.Addr, c.ImportID)
+				header = fmt.Sprintf("  # %s will be imported from %s %q and matches the specification", c.Addr, from, c.ImportID)
 			} else {
-				header = fmt.Sprintf("  # %s was imported from id %q and %s", c.Addr, c.ImportID, actionVerb(c.Action))
+				header = fmt.Sprintf("  # %s will be imported from %s %q and %s", c.Addr, from, c.ImportID, actionVerb(c.Action))
 			}
 		}
 		if c.Deferred {
@@ -164,7 +172,26 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 	}
 	add, change, destroy, _ := plan.Counts()
 	p.Println()
-	p.Printf("%s %s to add, %s to change, %s to destroy.\n", p.C(Bold, "Plan:"), p.C(Green, fmt.Sprint(add)), p.C(Yellow, fmt.Sprint(change)), p.C(Red, fmt.Sprint(destroy)))
+	// what the specification declares about the state is counted after the objects: a plan that has only those
+	// says what the apply will write
+	var declared string
+	imports, moves := 0, 0
+	for _, c := range plan.Changes {
+		switch {
+		case c.Applied:
+		case c.Action == engine.ActionMove:
+			moves++
+		case c.Imported:
+			imports++
+		}
+	}
+	if imports > 0 {
+		declared += fmt.Sprintf(", %s to import", p.C(Cyan, fmt.Sprint(imports)))
+	}
+	if moves > 0 {
+		declared += fmt.Sprintf(", %s to move", p.C(Cyan, fmt.Sprint(moves)))
+	}
+	p.Printf("%s %s to add, %s to change, %s to destroy%s.\n", p.C(Bold, "Plan:"), p.C(Green, fmt.Sprint(add)), p.C(Yellow, fmt.Sprint(change)), p.C(Red, fmt.Sprint(destroy)), declared)
 	for _, h := range plan.Hints {
 		p.Println(p.C(Yellow, "Hint: ") + h)
 	}
@@ -260,10 +287,10 @@ func (p *Printer) renderStats(plan *engine.Plan) {
 		parts = append(parts, fmt.Sprintf("called %d", st.Called))
 	}
 	if st.Imported > 0 {
-		parts = append(parts, fmt.Sprintf("imported %d", st.Imported))
+		parts = append(parts, fmt.Sprintf("to import %d", st.Imported))
 	}
 	if st.Moved > 0 {
-		parts = append(parts, fmt.Sprintf("moved %d", st.Moved))
+		parts = append(parts, fmt.Sprintf("to move %d", st.Moved))
 	}
 	p.Println(p.C(Dim, "Graph: "+strings.Join(parts, " · ")))
 }

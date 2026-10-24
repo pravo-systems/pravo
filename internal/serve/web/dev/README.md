@@ -68,4 +68,6 @@ node check-fixtures.js   # reads the Go types of api.go and checks every fixture
 
 `node check-sealed-counts.mjs` checks that a locked state shows a dash, with the title `sealed`, where a count of drifted or sensitive resources would be a zero that only means the records were not opened (the filter chips and the tiles of the project card).
 
+`node check-dquery.mjs` checks the filter box of the Discovery section: the same language over the objects that discoveries found, which cards a term leaves, and what the menu offers.
+
 `node check-query.mjs` checks the filter box: the words and the `column:value` terms, the comma, the minus, the ranges, and what the menu under the box offers.

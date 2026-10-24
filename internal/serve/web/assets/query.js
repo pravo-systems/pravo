@@ -12,6 +12,10 @@ import { h, clear } from './util.js';
 const ALIAS = { address: 'addr', name: 'addr', namespace: 'ns', module: 'ns', action: 'plan', changes: 'plan', age: 'refreshed', fields: 'field', attr: 'field', attribute: 'field', values: 'value' };
 export const COLUMNS = ['entity', 'type', 'provider', 'instance', 'mode', 'status', 'plan', 'ns', 'addr', 'field', 'value', 'refreshed'];
 
+// A language is the columns that a filter box knows and the other names for them. The Inventory has one; the Discovery section has its own
+// (see dquery.js), and the box, its pills and its menu are the same.
+export const INVENTORY = { columns: COLUMNS, alias: ALIAS };
+
 // The key of a provider instance is the provider type, and after a dot the name of the instance when the type has several:
 // "aws" and "aws.$west". providerType is the type of a key; the instance is named by the whole key.
 export const providerType = (key) => (key || '').split('.')[0];
@@ -111,13 +115,13 @@ const UNIT = { m: 60e3, h: 3600e3, d: 86400e3, w: 7 * 86400e3 };
 // A double quote keeps what is inside it together: `field:tags.team="platform core"` is one term, and the comma of
 // `field:tags.note="a,b"` is not a separator. The quotes themselves are not part of a value. A quote that is not closed
 // holds to the end of the text, which is what the box has while the closing quote is being typed.
-const TOKEN = /(?:[^\s"]|"[^"]*"?)+/g;
+export const TOKEN = /(?:[^\s"]|"[^"]*"?)+/g;
 
 // wordsOf splits the text into the words that the spaces outside of quotes separate
-const wordsOf = (text) => String(text || '').match(TOKEN) || [];
+export const wordsOf = (text) => String(text || '').match(TOKEN) || [];
 
 // pieces splits a list of values at the commas outside of quotes, keeping the quotes on each piece
-function pieces(s) {
+export function pieces(s) {
   const out = [];
   let cur = '', q = false;
   for (const ch of s) {
@@ -129,23 +133,23 @@ function pieces(s) {
 }
 
 // unquote takes the quotes off a value
-const unquote = (s) => s.replace(/"/g, '');
+export const unquote = (s) => s.replace(/"/g, '');
 
 // quoted writes a value so that it is read back whole: quoted when it holds a space or a comma. For a field spec only
 // what follows the = is quoted, as in field:tags.team="platform core".
-function quoted(col, value) {
+export function quoted(col, value) {
   if (!/[\s,]/.test(value)) return value;
   const eq = col === 'field' ? value.indexOf('=') : -1;
   return eq < 0 ? '"' + value + '"' : value.slice(0, eq + 1) + '"' + value.slice(eq + 1) + '"';
 }
 
 // parseQuery splits the text into words and terms
-export function parseQuery(text) {
+export function parseQuery(text, lang = INVENTORY) {
   const words = [], terms = [];
   for (const raw of wordsOf(text)) {
     const m = /^(-?)([a-z]+):(.*)$/i.exec(raw);
-    const col = m && (ALIAS[m[2].toLowerCase()] || m[2].toLowerCase());
-    if (m && COLUMNS.includes(col)) {
+    const col = m && (lang.alias[m[2].toLowerCase()] || m[2].toLowerCase());
+    if (m && lang.columns.includes(col)) {
       const values = pieces(m[3]).map((v) => unquote(v).trim().toLowerCase()).filter(Boolean);
       if (values.length) terms.push({ col, neg: m[1] === '-', values, raw });
       continue;
@@ -166,14 +170,14 @@ export function removeTerm(text, raw) {
 
 // addTerm makes the text hold col:value, or -col:value to leave it out. The value joins a term of the same column and sign
 // that is there, and leaves the term of the other sign.
-export function addTerm(text, col, value, neg) {
+export function addTerm(text, col, value, neg, lang = INVENTORY) {
   const words = wordsOf(text);
   const v = value.toLowerCase();
   let joined = false;
   const out = [];
   for (const w of words) {
     const m = /^(-?)([a-z]+):(.*)$/i.exec(w);
-    const c = m && (ALIAS[m[2].toLowerCase()] || m[2].toLowerCase());
+    const c = m && (lang.alias[m[2].toLowerCase()] || m[2].toLowerCase());
     if (!m || c !== col) { out.push(w); continue; }
     const vals = pieces(m[3]);
     if ((m[1] === '-') === neg) {
@@ -190,12 +194,12 @@ export function addTerm(text, col, value, neg) {
 }
 
 // removeValues takes values of a column out of the terms of the text that include it; a term left with none goes
-export function removeValues(text, col, values) {
+export function removeValues(text, col, values, lang = INVENTORY) {
   const drop = new Set(values.map((v) => v.toLowerCase()));
   const out = [];
   for (const w of wordsOf(text)) {
     const m = /^(-?)([a-z]+):(.*)$/i.exec(w);
-    const c = m && (ALIAS[m[2].toLowerCase()] || m[2].toLowerCase());
+    const c = m && (lang.alias[m[2].toLowerCase()] || m[2].toLowerCase());
     if (!m || c !== col || m[1]) { out.push(w); continue; }
     const rest = pieces(m[3]).filter((x) => !drop.has(unquote(x).toLowerCase()));
     if (rest.length) out.push(m[2] + ':' + rest.join(','));
@@ -214,7 +218,7 @@ function compare(op, a, b) {
 }
 
 // same tells whether a value is the one that v names, whole; a * in v stands for any run of characters
-function same(value, v) {
+export function same(value, v) {
   value = value.toLowerCase();
   if (!v.includes('*')) return value === v;
   return new RegExp('^' + v.split('*').map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$').test(value);
@@ -399,7 +403,7 @@ export class QueryMenu {
   get isOpen() { return !this.list.hidden; }
 
   refresh() {
-    const r = suggest(this.cb.model(), this.input.value, this.input.selectionStart ?? this.input.value.length);
+    const r = (this.cb.suggest || suggest)(this.cb.model(), this.input.value, this.input.selectionStart ?? this.input.value.length);
     if (!r) { this.close(); return; }
     this.span = r;
     this.items = r.items;
@@ -411,8 +415,8 @@ export class QueryMenu {
       group = it.group || group;
       this.list.append(h('li', { id: 'qsug-' + i, role: 'option', 'aria-selected': 'false', data: { i: String(i) } },
         h('span', { class: 'v' }, it.label),
-        it.count != null && it.count > 0 ? h('em', null, String(it.count)) : null,
-        it.hint ? h('span', { class: 'hint' }, it.hint) : null));
+        h('em', null, it.count != null && it.count > 0 ? String(it.count) : ''),
+        h('span', { class: 'hint' }, it.hint || '')));
     });
     this.list.hidden = false;
     this.input.setAttribute('aria-expanded', 'true');

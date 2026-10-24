@@ -5,11 +5,13 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/pravo-systems/pravo/internal/schema"
 )
@@ -152,6 +154,16 @@ type ImportedResource struct {
 	Private  []byte
 }
 
+// ListedResource is one object that a provider listed.
+type ListedResource struct {
+	// Identity is the identity of the object as the provider gave it. It is decoded
+	// without the identity schema, so a number is an int64 or a float64, a list is a
+	// []any and an object a map[string]any.
+	Identity map[string]any
+	// DisplayName is what the provider calls the object in a list, such as its name.
+	DisplayName string
+}
+
 // Provider is the protocol-independent view of a running provider plugin.
 // All values are typed by the schema the caller obtained from GetSchema.
 type Provider interface {
@@ -165,18 +177,96 @@ type Provider interface {
 	ReadResource(ctx context.Context, typ string, state tftypes.Value, private []byte) (tftypes.Value, []byte, Diagnostics, error)
 	PlanResourceChange(ctx context.Context, typ string, prior, proposed, config tftypes.Value, priorPrivate []byte) (*PlanResult, Diagnostics, error)
 	ApplyResourceChange(ctx context.Context, typ string, prior, planned, config tftypes.Value, plannedPrivate []byte) (*ApplyResult, Diagnostics, error)
-	ImportResourceState(ctx context.Context, typ, id string, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error)
+	// ImportResourceState asks the provider for the object that target names: by id,
+	// or by the identity of the resource type.
+	ImportResourceState(ctx context.Context, typ string, target ImportTarget, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error)
 	ReadDataSource(ctx context.Context, typ string, cfg tftypes.Value) (tftypes.Value, Diagnostics, error)
 	ValidateEphemeralConfig(ctx context.Context, typ string, cfg tftypes.Value) (Diagnostics, error)
 	OpenEphemeral(ctx context.Context, typ string, cfg tftypes.Value) (*EphemeralResult, Diagnostics, error)
 	RenewEphemeral(ctx context.Context, typ string, private []byte) (*EphemeralResult, Diagnostics, error)
 	CloseEphemeral(ctx context.Context, typ string, private []byte) (Diagnostics, error)
+	// ListResource lists the objects of a list resource type in the scope that cfg
+	// sets, at most limit of them (0 is no limit of pravo's: the provider's own
+	// bound holds). A diagnostic of an object, or of the stream, is in the
+	// diagnostics.
+	ListResource(ctx context.Context, typ string, cfg tftypes.Value, limit int64) ([]ListedResource, Diagnostics, error)
 	// CallFunction invokes a provider-defined function. ret is the declared
 	// return type used to decode the result.
 	CallFunction(ctx context.Context, name string, args []tftypes.Value, argTypes []tftypes.Type, ret tftypes.Type) (tftypes.Value, *FunctionError, error)
 	Stop(ctx context.Context) error
 	// Close terminates the plugin process.
 	Close()
+}
+
+// decodeIdentity reads the identity of a listed object. The identity schema is
+// not asked for: the value is decoded as MessagePack is, which gives the names
+// and the values that a provider sent.
+func decodeIdentity(msgpackData, jsonData []byte) (map[string]any, error) {
+	var raw any
+	switch {
+	case len(msgpackData) > 0:
+		if err := msgpack.Unmarshal(msgpackData, &raw); err != nil {
+			return nil, fmt.Errorf("decoding the identity of a listed object: %w", err)
+		}
+	case len(jsonData) > 0:
+		if err := json.Unmarshal(jsonData, &raw); err != nil {
+			return nil, fmt.Errorf("decoding the identity of a listed object: %w", err)
+		}
+	default:
+		return nil, nil
+	}
+	m, ok := normalize(raw).(map[string]any)
+	if !ok && raw != nil {
+		return nil, fmt.Errorf("the identity of a listed object is not an object")
+	}
+	return m, nil
+}
+
+// normalize turns what MessagePack decodes into the values that encoding/json
+// writes the way a person expects: every integer an int64, every map keyed by
+// strings.
+func normalize(v any) any {
+	switch x := v.(type) {
+	case int8:
+		return int64(x)
+	case int16:
+		return int64(x)
+	case int32:
+		return int64(x)
+	case int:
+		return int64(x)
+	case uint8:
+		return int64(x)
+	case uint16:
+		return int64(x)
+	case uint32:
+		return int64(x)
+	case uint64:
+		return int64(x)
+	case uint:
+		return int64(x)
+	case float32:
+		return float64(x)
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = normalize(e)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[k] = normalize(e)
+		}
+		return out
+	case map[any]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[fmt.Sprint(k)] = normalize(e)
+		}
+		return out
+	}
+	return v
 }
 
 func marshal(v tftypes.Value) ([]byte, error) {

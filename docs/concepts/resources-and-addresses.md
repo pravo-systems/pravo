@@ -301,23 +301,23 @@ pravo plan
 ```
 
 ```text out
-port: moved to listen
-
 pravo will perform the following actions:
 
-  # port was moved to listen (record renamed; no change to the object)
+  # port will be moved to listen (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 · skipped 8 · within refresh age 8 · moved 1
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to move.
+Graph: planned 0 · skipped 8 · within refresh age 8 · to move 1
 ```
 
-The plan renames the record and changes nothing else. A plan makes the move when it runs, so the state already holds `listen`.
+The plan lists the rename and changes nothing else, and it writes nothing: the state holds `port` until the apply makes the move.
 
 ```sh run
+pravo apply --auto-approve | grep '^Apply complete'
 pravo state list
 ```
 
 ```text out
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 api.config
 api.secret
 listen
@@ -357,17 +357,24 @@ pravo plan
 ```
 
 ```text out
-api.config: moved to backend.config
-api.secret: moved to backend.secret
-
 pravo will perform the following actions:
 
-  # api.config was moved to backend.config (record renamed; no change to the object)
+  # api.config will be moved to backend.config (record renamed; no change to the object)
 
-  # api.secret was moved to backend.secret (record renamed; no change to the object)
+  # api.secret will be moved to backend.secret (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 · skipped 8 · within refresh age 8 · moved 2
+Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
+Graph: planned 0 · skipped 8 · within refresh age 8 · to move 2
+```
+
+The apply makes both moves:
+
+```sh run
+pravo apply --auto-approve | grep '^Apply complete'
+```
+
+```text out
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
 ### Position and key

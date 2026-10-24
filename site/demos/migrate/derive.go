@@ -240,8 +240,8 @@ var (
 	hclResource  = regexp.MustCompile(`^resource "([^"]+)" "([^"]+)" \{`)
 	cueTop       = regexp.MustCompile(`^([a-z_][a-z0-9_]*): .*\{$`)
 	cueFrom      = regexp.MustCompile(`\$from:\s+"([^"]+)"`)
-	moveLine     = regexp.MustCompile(`^  # (\S+) was moved to (\S+) \(`)
-	planSummary  = regexp.MustCompile(`^(Plan: )(\d+ to add)(, )(\d+ to change)(, )(\d+ to destroy)(\.)$`)
+	moveLine     = regexp.MustCompile(`^  # (\S+) will be moved to (\S+) \(`)
+	planSummary  = regexp.MustCompile(`^(Plan: )(\d+ to add)(, )(\d+ to change)(, )(\d+ to destroy)(\.|, \d+ to move\.)$`)
 	validateLine = regexp.MustCompile(`^Success! (\d+) resources, .* across (\d+) providers\.$`)
 	importLine   = regexp.MustCompile(`^Imported (\d+) resources and (\d+) outputs `)
 )
@@ -434,7 +434,7 @@ func main() {
 	if len(v.Groups) != 1+len(hclBlocks) {
 		die("%d resource blocks in main.tf but %d groups matched", len(hclBlocks), len(v.Groups)-1)
 	}
-	// the CUE path of a group, as the plan prints it: the first "was moved to" target that starts with the field name
+	// the CUE path of a group, as the plan prints it: the first "will be moved to" target that starts with the field name
 	for gi := 1; gi < len(v.Groups); gi++ {
 		g := &v.Groups[gi]
 		var targets []string

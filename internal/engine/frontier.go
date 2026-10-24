@@ -147,7 +147,7 @@ func (p *Plan) writeAddrs() []string {
 // NeedsApply reports whether applying the plan writes a record or an output, or
 // removes an output.
 func (p *Plan) NeedsApply() bool {
-	return len(p.EvalOutputs) > 0 || len(p.DropOutputs) > 0 || len(p.writeAddrs()) > 0
+	return len(p.EvalOutputs) > 0 || len(p.DropOutputs) > 0 || len(p.writeAddrs()) > 0 || p.HasDeclared()
 }
 
 // scopeFor computes what the apply of the plan walks. The nodes it writes run.

@@ -1177,7 +1177,7 @@ pravo plan; echo "exit=$?"
 Output:
 
 ```text
-n: Importing from id "zzz"...
+n: Reading the object of id "zzz"...
 
 Error: n: importing "zzz": Import Random Integer Error: Invalid import usage: expecting {result},{min},{max} or {result},{min},{max},{seed}
 exit=1

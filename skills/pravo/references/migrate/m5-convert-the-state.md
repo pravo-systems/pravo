@@ -180,10 +180,10 @@ Output:
 ```text
 Imported 1 resources and 0 outputs from dev.tfstate into ./ws/state/dev
 Imported 1 resources and 0 outputs from prod.tfstate into ./ws/state/prod
-  # random_pet.pet was moved to pet (record renamed; no change to the object)
-Plan: 0 to add, 0 to change, 0 to destroy.
-  # random_pet.pet was moved to pet (record renamed; no change to the object)
-Plan: 0 to add, 0 to change, 0 to destroy.
+  # random_pet.pet will be moved to pet (record renamed; no change to the object)
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to move.
+  # random_pet.pet will be moved to pet (record renamed; no change to the object)
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to move.
 dev
 prod
 ```
@@ -247,7 +247,7 @@ The plan creates every resource at its new address and deletes every record at i
 
 ## Point each record at its address
 
-`$from` on a resource names the address its record has now. At the next plan the record moves to the resource. The field belongs in the specification, so a reviewer can read it.
+`$from` on a resource names the address its record has now. When the plan is applied the record moves to the resource. The field belongs in the specification, so a reviewer can read it.
 
 Put every `$from` in one file. pravo unifies `moves.cue` with the declarations in the other files, and the migration adds one file to the repository. A loop in the specification gets a loop in `moves.cue`.
 
@@ -300,26 +300,26 @@ Output:
 ```text
 pravo will perform the following actions:
 
-  # data.local_file.banner was moved to banner (record renamed; no change to the object)
+  # data.local_file.banner will be moved to banner (record renamed; no change to the object)
 
-  # random_pet.server was moved to server (record renamed; no change to the object)
+  # random_pet.server will be moved to server (record renamed; no change to the object)
 
-  # local_file.hello was moved to hello (record renamed; no change to the object)
+  # local_file.hello will be moved to hello (record renamed; no change to the object)
 
-  # random_integer.port_0 was moved to ports[0] (record renamed; no change to the object)
+  # random_integer.port_0 will be moved to ports[0] (record renamed; no change to the object)
 
-  # random_integer.port_1 was moved to ports[1] (record renamed; no change to the object)
+  # random_integer.port_1 will be moved to ports[1] (record renamed; no change to the object)
 
-  # random_pet.region_eu was moved to region.eu (record renamed; no change to the object)
+  # random_pet.region_eu will be moved to region.eu (record renamed; no change to the object)
 
-  # random_pet.region_us was moved to region.us (record renamed; no change to the object)
+  # random_pet.region_us will be moved to region.us (record renamed; no change to the object)
 
-  # local_file.notes_note_alpha was moved to notes.files.alpha (record renamed; no change to the object)
+  # local_file.notes_note_alpha will be moved to notes.files.alpha (record renamed; no change to the object)
 
-  # local_file.notes_note_beta was moved to notes.files.beta (record renamed; no change to the object)
+  # local_file.notes_note_beta will be moved to notes.files.beta (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 8 · refreshed 9 · moved 9
+Plan: 0 to add, 0 to change, 0 to destroy, 9 to move.
+Graph: planned 8 · refreshed 9 · to move 9
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -328,11 +328,11 @@ Outputs:
 Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
 ```
 
-Read the plan. Each line says that a record was renamed and that the object did not change. The summary adds nothing and destroys nothing. The `Policy` line confirms that the stop rule held.
+Read the plan. Each line says that a record will be renamed and that the object does not change. The summary adds nothing and destroys nothing. The `Policy` line confirms that the stop rule held.
 
-The `Graph:` line says `planned 9`. Imported records carry no configuration hash yet, so this plan asks the provider about every one of them, once.
+The `Graph:` line says `planned 8`. Imported records carry no configuration hash yet, so this plan asks the provider about every one of them, once.
 
-A plan carries out the moves: it renames the records in the pravo state. They sit at their new addresses now:
+The plan writes nothing. It holds the renamed records in memory, so that it compares each one with the specification, and the pravo state keeps the OpenTofu addresses until the first apply renames them:
 
 ```sh
 pravo state list
@@ -341,39 +341,31 @@ pravo state list
 Output:
 
 ```text
-banner
-hello
-notes.files.alpha
-notes.files.beta
-ports[0]
-ports[1]
-region.eu
-region.us
-server
+data.local_file.banner
+local_file.hello
+local_file.notes_note_alpha
+local_file.notes_note_beta
+random_integer.port_0
+random_integer.port_1
+random_pet.region_eu
+random_pet.region_us
+random_pet.server
 ```
 
-Plan again. This plan has nothing left to do.
+A move is no change to an object, so the exit code of a plan that has moves and nothing else is 0:
 
 ```sh
-pravo plan --detailed-exitcode --policy policy/no-destroy.cue
+pravo plan --detailed-exitcode --policy policy/no-destroy.cue > /dev/null
 echo "exit=$?"
 ```
 
 Output:
 
 ```text
-No changes. Your infrastructure matches the configuration.
-Graph: planned 8 · refreshed 9
-
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-charmed-buzzard"
-Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
 exit=0
 ```
 
-With `--detailed-exitcode` the exit code is 0 for an empty plan and 2 when the plan has changes. A CI job uses it as the gate. Moves count as no change.
+With `--detailed-exitcode` the exit code is 0 for a plan that changes no object and 2 when the plan has changes. A CI job uses it as the gate. Moves count as no change, and so do the imports of `$import`.
 
 This plan read all nine objects, as `9 refreshed` says. After the first apply the records carry hashes, and a plan reads only the records it looks at. A gate that must read every object runs `pravo plan -refresh=all --detailed-exitcode`.
 
@@ -421,9 +413,17 @@ pravo -C t1 plan 2>&1 | grep -E '^(  # .* will be|Plan:)'
 Output:
 
 ```text
+  # data.local_file.banner will be moved to banner (record renamed; no change to the object)
+  # random_pet.server will be moved to server (record renamed; no change to the object)
+  # local_file.hello will be moved to hello (record renamed; no change to the object)
+  # random_integer.port_0 will be moved to ports[0] (record renamed; no change to the object)
+  # random_integer.port_1 will be moved to ports[1] (record renamed; no change to the object)
+  # random_pet.region_us will be moved to region.us (record renamed; no change to the object)
+  # local_file.notes_note_alpha will be moved to notes.files.alpha (record renamed; no change to the object)
+  # local_file.notes_note_beta will be moved to notes.files.beta (record renamed; no change to the object)
   # region.eu (random_pet) will be created
   # random_pet.region_eu (random_pet) will be destroyed
-Plan: 1 to add, 0 to change, 1 to destroy.
+Plan: 1 to add, 0 to change, 1 to destroy, 8 to move.
 ```
 
 A `$from` that names a record of another type:
@@ -492,24 +492,24 @@ Output:
 ```text
 Error: $from random_integer.port_0 -> ports[0]: both addresses exist in state; remove one with "pravo state rm"
 Removed ports[0]
-Plan: 0 to add, 0 to change, 0 to destroy.
+Plan: 0 to add, 0 to change, 0 to destroy, 9 to move.
 ```
 
 ## The first apply
 
-An apply of an empty plan changes no object. It finalises the records: it writes the configuration hash, the provider version and the instance key of every record. The records of the converted state show the difference.
+The first apply carries out the moves, and then finalises the records: it writes the configuration hash, the provider version and the instance key of every record. It changes no object. The records of the converted state show the difference: the plan left the record of `hello` as the import wrote it.
 
 ```sh
-pravo state show hello | head -n 3
+pravo state show local_file.hello | head -n 3 | sed -E 's/revision [0-9]+/revision <n>/'
 pravo output
 ```
 
 Output:
 
 ```text
-// hello (provider registry.opentofu.org/hashicorp/local as local, schema version 0, revision 6)
+// local_file.hello (provider registry.opentofu.org/hashicorp/local as local, schema version 0, revision <n>)
 // refreshed <age> ago, applied never, config hash none
-// depends on banner, ports[0], ports[1], server
+// depends on data.local_file.banner, random_integer.port_0, random_integer.port_1, random_pet.server
 note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
 port_numbers: (sensitive)
 server_name: "acme-dev-charmed-buzzard"
@@ -518,28 +518,51 @@ server_name: "acme-dev-charmed-buzzard"
 The import copies the output values and their `sensitive` mark. `pravo output` lists `port_numbers` as `(sensitive)`.
 
 ```sh
-pravo apply
-pravo state show hello | head -n 3
+pravo apply --auto-approve | grep '^Apply complete'
+pravo state list
+pravo state show hello | head -n 3 | sed -E 's/revision [0-9]+/revision <n>/'
 ```
 
 Output:
 
 ```text
-No changes. Your infrastructure matches the configuration.
-Graph: planned 8 · refreshed 9
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
+banner
+hello
+notes.files.alpha
+notes.files.beta
+ports[0]
+ports[1]
+region.eu
+region.us
+server
+// hello (provider registry.opentofu.org/hashicorp/local v<version> as local.$local, schema version 0, revision <n>)
+// refreshed <age> ago, applied never, config hash <hash>
+// depends on banner, ports[0], ports[1], server
+```
+
+The records are at their new addresses now. `config hash none` became a hash, and the provider version and the instance key `local.$local` appeared. `applied never` stays, because pravo created and changed nothing. The apply left the objects and the OpenTofu state as they were, so `tofu plan -detailed-exitcode` on the root still exits 0 in OpenTofu 1.13.1. The next plan skips every record whose hash and provider version match, so it is faster.
+
+The first apply records the outputs again, from the specification. An output marked `sensitive` there stays hidden in the list.
+
+```sh
+pravo plan --detailed-exitcode --policy policy/no-destroy.cue
+echo "exit=$?"
+```
+
+Output:
+
+```text
+No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
+Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
   port_numbers: (sensitive)
   server_name: "acme-dev-charmed-buzzard"
-// hello (provider registry.opentofu.org/hashicorp/local v<version> as local.$local, schema version 0, revision 7)
-// refreshed <age> ago, applied never, config hash <hash>
-// depends on banner, ports[0], ports[1], server
+Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
+exit=0
 ```
-
-`config hash none` became a hash, and the provider version and the instance key `local.$local` appeared. `applied never` stays, because pravo created and changed nothing. The apply left the objects and the OpenTofu state as they were, so `tofu plan -detailed-exitcode` on the root still exits 0 in OpenTofu 1.13.1. The next plan skips every record whose hash and provider version match, so it is faster.
-
-The first apply records the outputs again, from the specification. An output marked `sensitive` there stays hidden in the list.
 
 ## A first real change
 

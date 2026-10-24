@@ -168,6 +168,38 @@ func stringField(v cue.Value, name string) (string, bool) {
 	return s, true
 }
 
+// importField reads $import: an id as a string, or an identity as a struct. A
+// value that is neither, an empty one, or one that is not concrete is an error.
+func importField(v cue.Value, addr string) (*Import, error) {
+	f := v.LookupPath(cue.MakePath(cue.Str("$import")))
+	if !f.Exists() {
+		return nil, nil
+	}
+	switch f.Kind() {
+	case cue.StringKind:
+		s, err := f.String()
+		if err != nil || s == "" {
+			return nil, nil
+		}
+		return &Import{Addr: addr, ID: s}, nil
+	case cue.StructKind:
+		if err := f.Validate(cue.Concrete(true)); err != nil {
+			return nil, fmt.Errorf("%s: the identity in $import is not concrete: %w", addr, err)
+		}
+		var id map[string]any
+		if err := f.Decode(&id); err != nil {
+			return nil, fmt.Errorf("%s: the identity in $import: %w", addr, err)
+		}
+		if len(id) == 0 {
+			return nil, fmt.Errorf("%s: the identity in $import has no attribute", addr)
+		}
+		return &Import{Addr: addr, Identity: id}, nil
+	case cue.BottomKind:
+		return nil, nil
+	}
+	return nil, fmt.Errorf("%s: $import is an id, a string, or an identity, a struct of the attributes of the identity of the resource", addr)
+}
+
 // register adds the struct at path as a resource, data source, ephemeral
 // resource, function call or provider.
 func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
@@ -180,6 +212,8 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		mode = kind
 	case "provider":
 		mode = "provider"
+	case "discovery":
+		mode = "discovery"
 	case "output":
 		if nested := findNested(v, p, 0); nested != "" {
 			return fmt.Errorf("%s is an output, so it cannot contain %s, which is a resource", p, nested)
@@ -228,7 +262,7 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		r.Resources = append(r.Resources, &Resource{Mode: mode, Type: kind, Name: name, Path: p, addr: p.String(), Builtin: true})
 		return nil
 	default:
-		return fmt.Errorf("%s: $kind is %q; want resource, data, ephemeral, call, provider, output, env, secret_env or remote_outputs", p, kind)
+		return fmt.Errorf("%s: $kind is %q; want resource, data, ephemeral, call, provider, discovery, output, env, secret_env or remote_outputs", p, kind)
 	}
 	srcText, ok := stringField(v, "$source")
 	if !ok {
@@ -255,17 +289,36 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 	if !ok {
 		return fmt.Errorf("%s: carries $kind but no $type; use a definition from a generated provider package", p)
 	}
+	if mode == "discovery" {
+		d := newDiscovery(v, p, typ, src)
+		acks, err := parseAcks(v, p.String())
+		if err != nil {
+			return err
+		}
+		d.Acks = acks
+		r.Discoveries = append(r.Discoveries, d)
+		// A discovery is not a node of the graph: it finds objects and manages none.
+		// It still names the provider it lists through, which is found as for a
+		// resource.
+		res := &Resource{Mode: mode, Type: typ, Name: d.Name, Path: p, addr: p.String()}
+		r.pending = append(r.pending, pendingResource{res: res, src: src, val: v, disc: d})
+		return nil
+	}
 	if from, ok := stringField(v, "$from"); ok {
 		r.moves = append(r.moves, pendingMove{to: p.String(), from: from})
 	}
-	if id, ok := stringField(v, "$import"); ok {
+	imp, err := importField(v, p.String())
+	if err != nil {
+		return err
+	}
+	if imp != nil {
 		if mode != "managed" {
 			return fmt.Errorf("%s: $import applies to resources, not to %s", p, kind)
 		}
 		if r.Imports == nil {
 			r.Imports = map[string]*Import{}
 		}
-		r.Imports[p.String()] = &Import{Addr: p.String(), ID: id}
+		r.Imports[p.String()] = imp
 	}
 	name := path[len(path)-1].String()
 	if path[len(path)-1].Type() == cue.StringLabel {

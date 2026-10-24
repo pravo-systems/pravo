@@ -42,6 +42,9 @@ type pendingResource struct {
 	res *Resource
 	src registry.Source
 	val cue.Value // the resource struct, to see how its definition was reached
+	// disc is set when the struct is a discovery, which takes the provider
+	// instance of res as well.
+	disc *Discovery
 }
 
 // ProviderPath returns where the configuration of the provider instance key
@@ -182,6 +185,10 @@ func (r *Root) resolveProviders() error {
 			return err
 		}
 		pr.res.ProviderKey = key
+		if pr.disc != nil {
+			pr.disc.ProviderKey = key
+			pr.disc.finish()
+		}
 		used[key] = true
 	}
 	r.pending = nil
@@ -199,6 +206,9 @@ func (r *Root) instanceFor(pr pendingResource, byPath map[string]*ProviderDecl, 
 		d = r.providerBelowInstance(pr.val, at, byPath, canon)
 	}
 	if d == nil {
+		if pr.disc != nil {
+			return "", fmt.Errorf("%s was not built through a provider. Declare a provider, for example\n\t$aws: awsp.#Provider & {...}\nand build the discovery through it: $aws.#Discovery.%s & {...}", at, pr.res.Type)
+		}
 		return "", fmt.Errorf("%s was not built through a provider. Declare a provider, for example\n\t$aws: awsp.#Provider & {...}\nand build the resource through it: $aws.#Resource.%s & {...}", at, pr.res.Type)
 	}
 	if d.Source != pr.src {

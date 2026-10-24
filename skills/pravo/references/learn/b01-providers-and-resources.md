@@ -136,6 +136,7 @@ Output:
 	#Resource: _#Resource
 	#Data: _#Data
 	#Ephemeral: _#Ephemeral
+	#Discovery: _#Discovery
 	#Function: _#Function
 ```
 
