@@ -98,7 +98,8 @@ The filter box sets `q`: words, and terms of the form `column:value`. A word mat
 |---|---|---|
 | `entity` | What the node is. Every node is one of them. | `resource`, `data` (a data source), `ephemeral`, `output`, `env` (an environment variable that the specification reads, `pravo.#Env` and `pravo.#SecretEnv`). `managed`, `datasource` and `environment` are read as `resource`, `data` and `env`. |
 | `type` | The resource type, whole. | A type, such as `aws_s3_bucket`. A `*` stands for any run of characters: `aws_s3*`. |
-| `provider` | The provider of the resource. | A provider (`aws`) is every instance of it, and an instance (`aws.west`) is that one. A `*` works. |
+| `provider` | The provider type of the resource. | A provider type, such as `aws`, whatever its instance. A `*` works. |
+| `instance` | The provider instance of the resource, by its whole key. | `aws.west`: the provider type and the name of the instance, which is only unique within its type. A `*` works. |
 | `mode` | The mode of the block. | `managed`, `data`, `ephemeral`, `output`. |
 | `status` | The marks of the record and of the declaration. | `drifted` (drifted or gone), `gone`, `orphan` (recorded and not declared), `declared` (declared and not recorded), `locked`, `sensitive` (holds withheld values). |
 | `plan` | What the loaded plan does to the resource. | `any` (every change, a no-op not counted), `create`, `update`, `replace`, `delete`, `read`, `none`. |
@@ -225,8 +226,8 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `collapse` | Namespace paths, or `all` | Namespaces drawn as one card, on top of the first view. |
 | `expand` | Namespace paths, `c:NAMESPACE\|MODE\|TYPE` or `all` | Namespaces drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
-| `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
-| `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer no longer writes it. |
+| `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, instance, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
+| `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer does not write it any more. |
 | `view` | `graph`, `list`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Plans section, or the State section (`access` is the old name of it). |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
