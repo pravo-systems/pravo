@@ -141,6 +141,8 @@ A discovery lists objects that exist and that no node of the graph is. The viewe
 
 The section reads the last run of each discovery from the state, and sets it against the records, the `$import` declarations and the `$ack` entries of the specification, as [Discovery](discovery.md#what-each-object-is) describes. It shows the unmanaged objects in the amber that the rest of the page keeps for a change that is wanted, each with the means to adopt it: the resource to add to the specification, and the commands that read the object into it or print the entry that acknowledges it. The acknowledged and the adopting objects are listed in grey, and the managed ones are a number. The tab says how many objects ask to be adopted.
 
+The objects can be filtered with the filter box of the Inventory, with the columns that suit them: the status, the discovery, the type, the provider, the identity, the adopter. [The reference](../reference/serve.md#filtering-the-objects) lists them.
+
 It does not run a discovery. A run starts a provider, and the viewer starts none. A card says that a run is missing or answers an old scope, with the command to copy, and the page changes when the command has run, as it does for any change of the state.
 
 ## Why the viewer is read-only

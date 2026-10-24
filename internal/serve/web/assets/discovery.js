@@ -11,6 +11,9 @@
 
 import { h, clear, icon, plural, relTime, stamp, fmt } from './util.js';
 import * as api from './api.js';
+import { Pills } from './pills.js';
+import { QueryMenu, addTerm, removeTerm } from './query.js';
+import * as dq from './dquery.js';
 
 // FRESH says what the state of a discovery is and what to do about it.
 const FRESH = {
@@ -50,19 +53,13 @@ function snippet(text, label, fk) {
     h('button', { class: 'cpbtn', type: 'button', 'data-copy': text, 'data-fk': fk, 'aria-label': label, 'data-tip': label }, icon('copy')));
 }
 
-// matches says whether a row passes the filter: every word is in its id, name, status or identity.
-function matches(it, words) {
-  if (!words.length) return true;
-  const hay = [it.id, it.name, it.status, it.by, it.reason, ...(it.identity || []).map((f) => f.name + '=' + f.value)].join('\n').toLowerCase();
-  return words.every((w) => hay.includes(w));
-}
-
 export class DiscoveryView {
   constructor(root, cb = {}) {
     this.root = root;
     this.cb = cb;
     this.doc = null;
-    this.q = '';
+    this.q = ''; // the text of the filter box, which the fragment carries as dq=
+    this.f = null; // what dq.compile made of it
     this.open = new Map(); // "discovery\0key" -> true: the rows whose adoption is open
     this.adopt = new Map(); // "discovery\0key" -> the answer of /api/adopt, or an error
     this.shown = new Map(); // "discovery\0status" -> rows drawn
@@ -83,12 +80,17 @@ export class DiscoveryView {
     const top = this.root.scrollTop;
     clear(this.root);
     const d = discovery;
+    this.f = dq.compile(this.q);
+    this.input = null;
+    const list = d.discoveries.length ? h('div', { class: 'dv-list' }) : null;
     this.root.append(h('div', { class: 'dv' },
       this.head(d),
       (d.warnings || []).map((w) => h('p', { class: 'dv-warn', role: 'note' }, icon('bang'), h('span', null, w))),
       d.discoveries.length ? this.toolbar() : null,
-      d.discoveries.length ? h('div', { class: 'dv-list' }, d.discoveries.map((x) => this.card(x))) : this.none(d),
+      list || this.none(d),
       h('p', { class: 'dv-foot' }, FOOTER)));
+    if (list) this.fill(list);
+    this.summary();
     this.root.scrollTop = top;
     if (focus) {
       const el = Array.from(this.root.querySelectorAll('[data-fk]')).find((x) => x.dataset.fk === focus);
@@ -119,23 +121,60 @@ export class DiscoveryView {
       h('p', { class: 'dv-note' }, 'Then run ', h('code', null, d.command), ' and come back.'));
   }
 
+  // toolbar is the filter box of the Inventory over the objects of the page: words, column:value terms, a menu that offers
+  // the columns and the values that this page has, and a pill for each term.
   toolbar() {
-    const input = h('input', { type: 'search', class: 'dv-q', placeholder: 'Filter the objects by id, name or identity', 'aria-label': 'Filter the objects by id, name or identity', autocomplete: 'off', spellcheck: 'false', 'data-fk': 'q', value: this.q });
-    input.addEventListener('input', () => {
-      this.q = input.value;
-      this.redrawRows();
-    });
-    return h('div', { class: 'dv-tools' }, h('div', { class: 'filterbox' }, icon('search'), input));
+    const input = h('input', { type: 'search', class: 'dv-q', id: 'dv-filter', placeholder: 'Filter, e.g. status:unmanaged type:s3', autocomplete: 'off', spellcheck: 'false', 'data-fk': 'q', value: this.q,
+      'aria-label': 'Filter the objects by words, or by column:value such as status:unmanaged, type:aws_s3_bucket or field:region=eu' });
+    this.input = input;
+    this.countEl = h('span', { class: 'count', 'aria-live': 'polite' });
+    this.pillsEl = h('div', { class: 'pills dv-pills', role: 'group', 'aria-label': 'Active filters' });
+    this.pills = new Pills(this.pillsEl, { onRemoveTerm: (raw) => this.setQuery(removeTerm(this.q, raw), true) }, dq.LANG);
+    const box = h('div', { class: 'filterbox' }, icon('search'), input, this.countEl);
+    let t = 0;
+    input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => this.setQuery(input.value, true, true), 100); });
+    new QueryMenu(input, box, { model: () => this.doc, suggest: dq.suggest, change: (v) => { clearTimeout(t); this.setQuery(v, true, true); } });
+    return h('div', { class: 'dv-tools' }, box, this.pillsEl);
   }
 
-  // redrawRows draws the rows again for the filter, without touching the rest of the page, so that the filter box keeps its focus.
-  redrawRows() {
-    for (const card of this.root.querySelectorAll('.dv-card')) {
-      const x = this.doc.discoveries.find((y) => y.name === card.dataset.name);
-      if (!x) continue;
-      const body = card.querySelector('.dv-rows');
-      if (body) body.replaceWith(this.rows(x));
+  // setQuery puts a text in the filter box and draws the cards for it. notify tells the page, which keeps it in the
+  // address; typed says that the box already holds the text, so that the caret stays where it is.
+  setQuery(q, notify = false, typed = false) {
+    this.q = q;
+    this.f = dq.compile(q);
+    if (this.input && !typed && this.input.value !== q) this.input.value = q;
+    const list = this.root.querySelector('.dv-list');
+    if (list) { clear(list); this.fill(list); }
+    this.summary();
+    if (notify && this.cb.onQuery) this.cb.onQuery(q);
+  }
+
+  // facet is a value on a card that a click makes a term of the filter.
+  facet(tag, cols, label, tip, cls) {
+    return h(tag, { class: cls + ' facet', type: 'button', 'data-tip': tip, 'aria-label': tip,
+      on: { click: () => { let q = this.q; for (const [col, value] of cols) q = addTerm(q, col, value, false, dq.LANG); this.setQuery(q, true); } } }, ...label);
+  }
+
+  // summary says how many objects the filter leaves, and shows its terms as pills.
+  summary() {
+    if (!this.countEl || !this.doc) return;
+    const all = dq.rowsOf(this.doc, null).length;
+    const n = this.f ? dq.rowsOf(this.doc, this.f).length : all;
+    this.countEl.textContent = this.f ? plural(n, 'match', 'matches') : plural(all, 'object');
+    this.pills.render(this.q);
+  }
+
+  // fill draws the cards that the filter leaves: the discoveries that it names, and, when it asks something of the objects,
+  // those that have one that matches.
+  fill(list) {
+    const f = this.f;
+    const shown = this.doc.discoveries.filter((x) => !f || (f.card(x) && (!f.items || (x.items || []).some((it) => f.item(x, it)))));
+    if (!shown.length) {
+      list.append(h('div', { class: 'dv-empty dv-nomatch' }, h('span', null, 'No object matches the filter.'),
+        h('button', { class: 'linkbtn', type: 'button', 'data-fk': 'clear-filter', on: { click: () => this.setQuery('', true) } }, 'Clear the filter')));
+      return;
     }
+    for (const x of shown) list.append(this.card(x));
   }
 
   card(x) {
@@ -145,9 +184,9 @@ export class DiscoveryView {
     const idn = 'dv-' + x.name.replace(/[^A-Za-z0-9_-]/g, '_');
     const head = h('header', { class: 'dv-chead' },
       h('div', { class: 'dv-ctitle' },
-        h('h3', { id: idn, class: 'dv-name' }, h('span', { class: 'nm' }, x.name)),
-        h('span', { class: 'b ty', 'data-tip': 'The list resource type the provider lists' }, x.type),
-        h('span', { class: 'b pv', 'data-tip': x.provider }, x.instance || x.provider),
+        h('h3', { id: idn, class: 'dv-name' }, this.facet('button', [['discovery', x.name]], [x.name], `Show only ${x.name}`, 'nm')),
+        this.facet('button', [['type', x.type]], [x.type], `Filter by type ${x.type}: the list resource type the provider lists`, 'b ty'),
+        this.facet('button', [['instance', dq.providerOf(x)]], [x.instance || x.provider], `Filter by the provider ${dq.providerOf(x)}`, 'b pv'),
         h('span', { class: `b ${f.cls}` }, f.ic ? icon(f.ic) : null, f.label)),
       h('button', { class: 'iconbtn dv-fold', type: 'button', 'aria-expanded': folded ? 'false' : 'true', 'aria-label': (folded ? 'Open ' : 'Close ') + x.name, 'data-fk': 'fold:' + x.name, 'data-tip': folded ? 'Open' : 'Close',
         on: { click: () => { this.fold.set(x.name, !folded); this.render({ discovery: this.doc }); } } }, icon('chev', folded ? '' : 'open')));
@@ -181,7 +220,8 @@ export class DiscoveryView {
   // counts is the strip of the objects of the last run by what they are. Only the unmanaged ones are in colour.
   counts(x) {
     const c = x.counts;
-    const part = (n, cls, word) => h('li', { class: cls + (n ? '' : ' zero') }, h('b', null, fmt(n)), ' ', word);
+    const part = (n, cls, word) => h('li', { class: cls + (n ? '' : ' zero') },
+      n && word !== 'managed' ? this.facet('button', [['discovery', x.name], ['status', word]], [h('b', null, fmt(n)), ' ', word], `Show the ${word} objects of ${x.name}`, 'ct') : [h('b', null, fmt(n)), ' ', word]);
     return h('ul', { class: 'dv-counts', 'aria-label': 'What the last run found' },
       part(c.unmanaged, 'u', 'unmanaged'), part(c.adopting, 'a', 'adopting'), part(c.acknowledged, 'k', 'acknowledged'), part(c.managed, 'm', 'managed'),
       h('li', { class: 'dim tot' }, `of ${fmt(x.run.total)} found`));
@@ -189,10 +229,11 @@ export class DiscoveryView {
 
   // rows are the objects that are not managed, in groups: the unmanaged ones first.
   rows(x) {
-    const words = this.q.toLowerCase().split(/\s+/).filter(Boolean);
+    const f = this.f;
+    const filtered = !!(f && f.items);
     const out = h('div', { class: 'dv-rows' });
     if (!x.run) return out;
-    const by = (s) => (x.items || []).filter((it) => it.status === s && matches(it, words));
+    const by = (s) => (x.items || []).filter((it) => it.status === s && (!f || f.item(x, it)));
     const groups = [
       ['unmanaged', 'Unmanaged', 'Nothing manages these. Adopt them, or acknowledge them if they are meant to stay as they are.'],
       ['adopting', 'Adopting', 'A resource of the specification names these in $import. The next plan reads them.'],
@@ -207,15 +248,15 @@ export class DiscoveryView {
       const n = this.shown.get(key) || PAGE;
       const total = x.counts[status];
       out.append(h('div', { class: 'dv-group g-' + status },
-        h('h4', { class: 'dv-gh' }, title, h('span', { class: 'n' }, words.length ? `${list.length} of ${fmt(total)}` : fmt(total))),
+        h('h4', { class: 'dv-gh' }, title, h('span', { class: 'n' }, filtered ? `${list.length} of ${fmt(total)}` : fmt(total))),
         status === 'unmanaged' ? h('p', { class: 'dv-why' }, why) : null,
         h('ul', { class: 'dv-items' }, list.slice(0, n).map((it) => this.item(x, it))),
-        list.length > n ? h('button', { class: 'btn dv-more', type: 'button', 'data-fk': 'more:' + key, on: { click: () => { this.shown.set(key, n + PAGE); this.redrawRows(); } } }, `Show ${Math.min(PAGE, list.length - n)} more of ${fmt(list.length - n)}`) : null,
-        status === 'unmanaged' && x.ack_all && !words.length ? h('div', { class: 'dv-ackall' }, h('p', { class: 'dv-note' }, 'To leave all of them as they are, add this to the $ack list of the discovery and give the reason:'), snippet(x.ack_all, 'Copy the $ack entry for all of them', 'ackall:' + x.name)) : null));
+        list.length > n ? h('button', { class: 'btn dv-more', type: 'button', 'data-fk': 'more:' + key, on: { click: () => { this.shown.set(key, n + PAGE); this.setQuery(this.q); } } }, `Show ${Math.min(PAGE, list.length - n)} more of ${fmt(list.length - n)}`) : null,
+        status === 'unmanaged' && x.ack_all && !filtered ? h('div', { class: 'dv-ackall' }, h('p', { class: 'dv-note' }, 'To leave all of them as they are, add this to the $ack list of the discovery and give the reason:'), snippet(x.ack_all, 'Copy the $ack entry for all of them', 'ackall:' + x.name)) : null));
     }
     if (!any) {
       const quiet = x.counts.unmanaged + x.counts.adopting + x.counts.acknowledged === 0;
-      out.append(h('p', { class: 'dv-empty' }, words.length ? 'No object matches the filter.' : quiet ? (x.counts.managed ? `Every object the run found is managed (${fmt(x.counts.managed)}).` : 'The run found no object.') : ''));
+      out.append(h('p', { class: 'dv-empty' }, filtered ? 'No object matches the filter.' : quiet ? (x.counts.managed ? `Every object the run found is managed (${fmt(x.counts.managed)}).` : 'The run found no object.') : ''));
     }
     if (x.items_omitted) out.append(h('p', { class: 'dv-note' }, `${fmt(x.items_omitted)} more are not listed here. Narrow the scope of the discovery.`));
     return out;

@@ -180,6 +180,8 @@ pravo serve
 
 Open the Discovery section, or press `d`. Each discovery is a card: its scope, when it ran and who ran it, and the count of objects by status. The unmanaged objects come first, with an amber edge and an Adopt button. The button opens the resource that adopts the object, the command that reads the object into it, and the `$ack` entry that acknowledges it, to copy. The acknowledged objects are listed below in grey with their reasons, and under them the `$ack` entries of the specification with the number of objects each covers, and the managed objects are a number. The number on the tab is the objects that ask to be adopted.
 
+To narrow what a long list shows, type in the filter box, as in the Inventory: `status:unmanaged` leaves what asks to be adopted, `type:aws_s3*` the buckets, `field:region=eu` the objects of a region, `-status:acknowledged` leaves out what is known. The menu offers the columns and the values the page holds, and a click on the type, the provider or a count of a card adds the term. [The reference](../reference/serve.md#filtering-the-objects) lists the columns.
+
 The page runs nothing and writes nothing. It shows each command, and a button copies it.
 
 ## 7. Check it from a schedule

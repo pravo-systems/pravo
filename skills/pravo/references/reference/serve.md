@@ -152,6 +152,26 @@ The Discovery section shows what the discoveries of the specification found, and
 | Acknowledged | The objects that an entry of `$ack` covers, in grey, each with its reason. Quiet. Below the list, the `$ack` entries of the discovery as the specification has them: their patterns, their reason and how many objects of the last run each covers. |
 | Managed | Counted. Never listed. |
 
+### Filtering the objects
+
+The filter box above the cards is the filter box of the Inventory over the objects that the discoveries found: words, terms of the form `column:value`, a comma between values for either, a minus before the column for the others, `*` for any run of characters, double quotes around a value that holds a space or a comma. The text is in the address as `dq`. Every term that names a card, the discovery or its type or provider, says which cards are shown. Every term that names an object says which objects a card lists, and a card with none left is not shown. A word matches the id, the name, the status, the adopter or the entry, the reason, or a value of the identity.
+
+| Column | Holds | Value |
+|---|---|---|
+| `status` | What the object is to the state. | `unmanaged`, `adopting` or `acknowledged`. A managed object is counted and is not listed, so it has no value. |
+| `discovery` | The discovery that listed it. | Its address, whole, or a namespace, which takes the discoveries below it: `network` or `network.vpcs`. |
+| `type` | The list resource type of the discovery. | The type, whole: `aws_s3_bucket`. A `*` stands for any run, as in `aws_s3*`. |
+| `provider` | The provider of the discovery. | The provider type, as in `provider:aws`: every instance of it. |
+| `instance` | The provider instance. | Its whole key, as in `instance:aws.west`. |
+| `freshness` | Whether the last run answers the scope that is written now. | `current`, `stale`, `never`, `broken`, `undeclared` or `unknown`. |
+| `id` | The id of the object. | The id, or the whole identity, whole. A `*` works. |
+| `name` | The name that the provider gave it. | The name, whole. A `*` works. |
+| `by` | What adopts or acknowledges it. | The address of the resource that names it in `$import`, or the entry of `$ack`, as `$ack[0]`. |
+| `field` | An attribute of its identity. | `path=value`, as in `region=eu`; a path alone matches the objects that have the attribute. |
+| `value` | A value of its identity, anywhere. | The value, whole: an account, a name, a region. |
+
+The menu under the box works as it does in the Inventory. While the box is empty it offers the statuses with how many objects each leaves, the discoveries and the columns. After a colon it offers the values that the page holds, with the counts of what the rest of the filter leaves, and for `field` the attributes of the identity with the values that few objects share. Each pill takes one term out. The type, the provider, the name of a discovery and the count of a status on a card are buttons that add the term for it. The count at the end of the box is the number of objects that the filter leaves.
+
 A group lists 100 objects and a button shows more. A discovery lists at most 2000, and says how many it leaves out. The text of every name, identity and reason comes from a provider or a person, is masked as other text of the page is, and has its control and direction characters removed. A command is suggested only for a name and an id that a shell can carry, and it is quoted. The page runs nothing: its footer says `This page suggests commands. It runs nothing and writes nothing.`
 
 ## The State section
@@ -227,6 +247,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `collapse` | Namespace paths, or `all` | Namespaces drawn as one card, on top of the first view. |
 | `expand` | Namespace paths, `c:NAMESPACE\|MODE\|TYPE` or `all` | Namespaces drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
+| `dq` | Text | The filter box of the Discovery section: words, and terms of the form `column:value` (status, discovery, type, provider, instance, freshness, id, name, by, field, value). |
 | `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, instance, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
 | `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer does not write it any more. |
 | `view` | `graph`, `list`, `discovery`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Discovery section, the Plans section, or the State section (`access` is the old name of it). |

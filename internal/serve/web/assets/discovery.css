@@ -17,7 +17,7 @@
 .dv-warn .i, .dv-problem .i { flex: none; margin-top: .1rem; }
 
 /* ---- the page: it has the whole width, and none of the Inventory's filters, plan or counts ---- */
-[data-view="discovery"] .toolbar, [data-view="discovery"] .pills { display: none; }
+[data-view="discovery"] .toolbar, [data-view="discovery"] #pills { display: none; }
 body:has(.app[data-view="discovery"]) .planstrip, body:has(.app[data-view="discovery"]) #st-plan, body:has(.app[data-view="discovery"]) #st-notread { display: none; }
 .app[data-view="discovery"] { grid-template-columns: minmax(0, 1fr); }
 .app[data-view="discovery"] .insp { display: none; }
@@ -28,8 +28,17 @@ body:has(.app[data-view="discovery"]) .planstrip, body:has(.app[data-view="disco
 .dv-title { margin: 0; font: 500 1.5rem/1.15 var(--font-display); letter-spacing: -.01em; }
 .dv-sentence { margin: 0 0 .1rem; max-width: 46rem; font-size: .9rem; line-height: 1.55; text-wrap: pretty; }
 .dv-head .cmdline { margin-top: .7rem; }
-.dv-tools { display: flex; }
+.dv-tools { display: grid; gap: .5rem; min-width: 0; }
+.dv-tools .filterbox { width: auto; flex: none; max-width: 36rem; }
 .dv-q { width: 100%; }
+.dv-pills { padding: 0; }
+.dv-nomatch { display: flex; align-items: baseline; flex-wrap: wrap; gap: .5rem 1rem; }
+/* a value on a card that a click makes a term of the filter: it looks as it did, and says what it will do on hover */
+button.facet { margin: 0; cursor: pointer; }
+button.facet:not(.b) { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: inherit; letter-spacing: inherit; text-transform: inherit; }
+button.facet:hover, button.facet:focus-visible { color: var(--key); }
+button.facet:not(.b):hover, button.facet:not(.b):focus-visible { text-decoration: underline; text-underline-offset: .2em; }
+button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 .dv-list { display: grid; gap: 1rem; }
 .dv-none { padding: 1rem 1.1rem; border: 1px dashed var(--line-strong); font-size: .85rem; line-height: 1.55; }
 .dv-none p { margin: 0 0 .6rem; }

@@ -38,6 +38,7 @@ export function writeFragment(v) {
   if (v.expand && v.expand.length) parts.push('expand=' + joinList(v.expand));
   put('plan', v.plan);
   put('q', v.q);
+  put('dq', v.dq);
   put('view', v.view === 'list' ? 'list' : v.view === 'access' ? 'state' : v.view === 'plans' ? 'plans' : v.view === 'discovery' ? 'discovery' : '');
   put('theme', v.theme);
   put('motion', v.motion === 'off' ? 'off' : '');
