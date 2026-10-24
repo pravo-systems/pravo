@@ -70,7 +70,7 @@ The viewer is one page with a bar, a sidebar, a graph with its toolbar, an inspe
 | Bar | The project directory and the state location, each a button that copies the path. The three sections, Resources, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
 | Sidebar | Under the heading Show, the filter chips. Under Explore, the project and the tree of namespaces with their resources. |
 | Toolbar | Of the Resources section: the switch Graph and Table, then Collapse and Expand. The filter box, Filter by address or type, with the number of matches. The zoom buttons, minus, Fit and plus, and the button Hide the sidebars. |
-| Graph | The lanes of open namespaces, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a namespace. |
+| Graph | The lanes of open namespaces, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks that the graph shows and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a namespace. |
 | Inspector | The project, a namespace or a resource. A resource has a strip of cells and the tabs. |
 | Status bar | In Resources: `no plan loaded`, or the id of a stored plan, `planned N of M` and the number `not read`. The revision. When the data was read. `live`, `reconnecting`, `offline` or `connecting`. `read-only · localhost only`. |
 
@@ -81,6 +81,9 @@ The chips set `filter`. The box sets `q`, which matches an address or a type.
 | Chip | Counts | `filter` |
 |---|---|---|
 | All | Every resource. | none |
+| Resources | The managed resources, without the data sources and the ephemeral resources. The chip shows only when the graph has a data source or an ephemeral resource, since it would otherwise match what All does. | `resources` |
+| Data sources | The data sources. The chip shows only when there is one. | `data` |
+| Ephemeral | The ephemeral resources. The chip shows only when there is one. | `ephemeral` |
 | In plan | The resources that a loaded plan changes. A no-op is not counted. The chip shows only while a plan is loaded. | `plan` |
 | Drifted | The resources that a read marked drifted or gone. | `drifted` |
 | Sensitive | The resources that hold at least one withheld value. | `sensitive` |
@@ -127,7 +130,7 @@ A plan whose objects cannot be read, because they are damaged or a newer pravo w
 
 The status is judged against the state alone, as `pravo plan list` judges it, change by change: the lineage, and the revision and the generation of the nodes that the plan changes. The configuration and the providers belong to one checkout. `pravo apply` and `pravo plan show` compare them, and the viewer does not, so a plan that is `pending` here can still be refused in a checkout whose files differ.
 
-A resource that a plan which can be applied still has a change to apply on carries a disc with the initial of the author, one for each plan, the newest at the right. A plan that has applied its change on a resource has no disc there. Three discs show, and a number counts the rest. Two plans that each have a change left on one resource draw a solid ring in the colour of overlap: applying one makes the other stale. The relation is the same for both plans. A change that a partly stale plan cannot apply does not count: the resource keeps the disc of the plan, no ring is drawn for it, and the Plans cell of the inspector says that the plan cannot apply the change and marks that plan with `conflict`. The Change tab of that resource gives the reason. The legend names `plan author` and `overlap` when the graph has them. The card of a closed namespace or of a group carries the discs of the plans that change something inside it, one for each plan, with the ring when two plans change one resource in it, and its hover names the plans and counts the resources. The Table view shows no badges. In the sidebar, a resource shows the mark of overlap and the first two discs. The Plans cell of the strip has a disc for each plan that changes the resource, four at most, and a click on a disc lays that plan over the graph.
+A resource that a plan which can be applied still has a change to apply on carries a disc with the initial of the author, one for each plan, the newest at the right. A plan that has applied its change on a resource has no disc there. Three discs show, and a number counts the rest. A click on a disc goes to the Plans page and opens its plan under its row. Two plans that each have a change left on one resource draw a solid ring in the colour of overlap: applying one makes the other stale. The relation is the same for both plans. A change that a partly stale plan cannot apply does not count: the resource keeps the disc of the plan, no ring is drawn for it, and the Plans cell of the inspector says that the plan cannot apply the change and marks that plan with `conflict`. The Change tab of that resource gives the reason. The legend names `plan author` and `overlap` when the graph has them. The card of a closed namespace or of a group carries the discs of the plans that change something inside it, one for each plan, with the ring when two plans change one resource in it, and its hover names the plans and counts the resources. The Table view shows no badges. In the sidebar, a resource shows the mark of overlap and the first two discs. The Plans cell of the strip has a disc for each plan that changes the resource, four at most, and a click on a disc lays that plan over the graph.
 
 The viewer never applies, approves or removes a plan. It shows the command that applies a plan, and the button copies it.
 
@@ -205,7 +208,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `expand` | Namespace paths, `c:NAMESPACE\|MODE\|TYPE` or `all` | Namespaces drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `q` | Text | The filter box above the graph. |
-| `filter` | `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | Only the nodes that match. `outputs` shows the outputs of the root, and every other value shows resources only. |
+| `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | Only the nodes that match. `outputs` shows the outputs of the root, `sensitive` shows the resources and the outputs with withheld values, and every other value shows resources only. |
 | `view` | `graph`, `table`, `plans`, `state` or `access` | The graph, the table, the Plans section, or the State section (`access` is the old name of it). |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
@@ -244,6 +247,7 @@ In the graph:
 | Drag | Pan the graph. |
 | Wheel or pinch | Zoom the graph. Shift and the wheel pan sideways. |
 | Click a card | Open the namespace, move the view to it and select it. |
+| Click a disc of an author | Go to the Plans page and open that plan under its row. |
 | Click a cluster | Open the cluster. |
 | Double-click the title of a lane | Close or open the namespace. |
 

@@ -840,6 +840,13 @@ function setView(v) {
   announce(v === 'table' ? 'Resources, table view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : 'Resources, graph view');
 }
 
+// openPlan goes to the Plans page with the detail of a plan open under its row.
+function openPlan(id) {
+  if (!S.plans.some((p) => p.id === id)) { toast(`${id} is not stored any more`, 'warn', 6000); return; }
+  plansList.reveal(id);
+  setView('plans');
+}
+
 function renderAccess() {
   accessView.render({ access: S.access, project: S.model && S.model.graph ? S.model.graph.project : null });
 }
@@ -983,14 +990,19 @@ function renderLegend() {
   const item = (...k) => h('span', { class: 'lg' }, ...k);
   const sel = (...k) => h('span', { class: 'lg lg-sel' }, ...k); // the keys of the edges show once something is selected
   if (m.hasPlan) {
-    el.append(item(sq('create'), 'create'), item(sq('update'), 'update'), item(sq('replace'), 'replace'), item(sq('delete'), 'delete'), item(h('i', { class: 'sq skip' }), 'not read'));
+    // only the actions that the plan has on a resource of the graph
+    const acts = new Set(m.list.map((n) => n.action));
+    for (const a of ['create', 'update', 'replace', 'delete']) if (acts.has(a)) el.append(item(sq(a), a));
+    if (m.list.some((n) => !n.action && n.mode !== 'output')) el.append(item(h('i', { class: 'sq skip' }), 'not read'));
   }
   el.append(
     sel(h('i', { class: 'ln up' }), 'depends on'), sel(h('i', { class: 'ln down' }), 'used by'),
     ...(m.nout ? [item(h('span', { class: 'i i-output key' }), 'output')] : []),
     ...(m.list.some(isEnv) ? [item(h('span', { class: 'i i-env key' }), 'environment variable')] : []),
-    item(h('span', { class: 'i i-lock key' }), 'sensitive'),
-    item(h('span', { class: 'i i-drift warn' }), 'drifted'));
+    ...(m.list.some((n) => n.mode === 'data') ? [item(h('i', { class: 'sq k-data' }), 'data source')] : []),
+    ...(m.list.some((n) => n.mode === 'ephemeral') ? [item(h('i', { class: 'sq k-ephemeral' }), 'ephemeral')] : []),
+    ...(m.list.some((n) => n.sensitive > 0) ? [item(h('span', { class: 'i i-lock key' }), 'sensitive')] : []),
+    ...(m.list.some((n) => n.drifted) ? [item(h('span', { class: 'i i-drift warn' }), 'drifted')] : []));
   // the badges of the authors of open plans, and the ring of a resource that two of them change
   if (m.list.some((n) => (n.plans || []).length)) el.append(item(avatar('author', 'tiny'), 'plan author'));
   if (m.list.some((n) => n.overlap)) el.append(item(h('i', { class: 'ringkey' }), 'overlap'));
@@ -1291,6 +1303,7 @@ function wire() {
     onSelectNamespace: (p) => selectNamespace(p),
     onToggleNamespace: toggleNamespace,
     onOpenNamespace: openNamespace,
+    onPlan: openPlan,
     onCluster: clusterAction,
     onClear: clearSelection,
     onView: () => minimapDraw(),

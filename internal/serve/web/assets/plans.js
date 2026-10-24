@@ -192,6 +192,12 @@ export class Plans {
     this.render(this.s);
   }
 
+  // reveal opens the detail of a plan under its row, for a link from another part of the page
+  reveal(id) {
+    this.open = id;
+    if (this.s) this.render(this.s);
+  }
+
   mode(plans, sel) {
     if (this.filter) return this.filter;
     const picked = sel && plans.find((p) => p.id === sel);

@@ -160,11 +160,16 @@ export const actionOf = (a) => ACTIONS[a] || null;
 
 // nodeMark is the small figure before a node in a list: the square of its plan action, or, for an output, the
 // glyph of a value that leaves the root. An output has no action, and a plan never "does not read" it.
+export const KINDS = { data: 'data source', ephemeral: 'ephemeral resource' };
+export const kindClass = (n) => (KINDS[n.mode] ? ' k-' + n.mode : '');
+// kindMark is the small figure of a node that is not a managed resource, for a list without the plan's square: a circle
+// for a data source, a dashed square for an ephemeral resource. A managed resource, the plain case, has none.
+export const kindMark = (n) => (KINDS[n.mode] ? h('i', { class: 'sq kmark' + kindClass(n), title: KINDS[n.mode], 'aria-hidden': 'true' }) : null);
 export function nodeMark(n, hasPlan) {
   if (n.mode === 'output') return h('span', { class: 'i i-output omark', 'aria-hidden': 'true' });
   if (n.type === 'env' || n.type === 'secret_env') return h('span', { class: 'i i-env omark', 'aria-hidden': 'true' });
   const act = actionOf(n.action);
-  return h('i', { class: 'sq' + (act ? ' ' + act.cls : '') + (hasPlan && !n.action ? ' skip' : '') });
+  return h('i', { class: 'sq' + kindClass(n) + (act ? ' ' + act.cls : '') + (hasPlan && !n.action ? ' skip' : '') });
 }
 
 // ---- motion ----

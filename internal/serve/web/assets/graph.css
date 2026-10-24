@@ -130,7 +130,7 @@
 .node .bar, .ns-item .bar, .cluster-item .bar { fill: hsl(var(--pvh, var(--th)) var(--pv-s) var(--pv-l) / .75); }
 .node .tb { fill: hsl(var(--pvh) var(--pv-s) var(--pv-l) / var(--pv-a)); stroke: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .28); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .node .tm { font: 600 10px var(--font-mono); text-anchor: middle; fill: hsl(var(--pvh) var(--pv-s) var(--pv-l)); letter-spacing: .02em; opacity: var(--sub); }
-.node.m-data .tb { stroke-dasharray: 2 2; }
+.node.m-ephemeral .tb { stroke-dasharray: 3 2.5; stroke: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .75); fill: hsl(var(--pvh) var(--pv-s) var(--pv-l) / calc(var(--pv-a) * .4)); }
 .node .tile, .node .act, .ns-item .pb, .cluster-item .pb, .ns-item .cico, .cluster-item .cico { opacity: var(--lab); transition: opacity .2s; }
 .node.m-data .box { fill: color-mix(in srgb, var(--g-card) 70%, var(--bg)); }
 .node.drifted .bar { fill: var(--change); } .node.gone .bar, .node.orphan .bar { fill: var(--conflict); }

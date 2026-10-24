@@ -22,11 +22,14 @@ export const isChange = (a) => CHANGING.has(a);
 // n counts the resources of a namespace, out its outputs
 const zero = () => ({ n: 0, out: 0, plan: 0, create: 0, update: 0, replace: 0, delete: 0, read: 0, drifted: 0, gone: 0, sensitive: 0, locked: 0, orphan: 0, spec: 0 });
 
-// FILTERS match a node; the key is the value of filter= in the fragment. All but outputs match resources only.
+// FILTERS match a node; the key is the value of filter= in the fragment. The outputs chip and the sensitive one match outputs; the others match resources only.
 export const FILTERS = {
+  resources: (n) => n.mode === 'managed',
+  data: (n) => n.mode === 'data',
+  ephemeral: (n) => n.mode === 'ephemeral',
   plan: (n) => !isOut(n) && !!n.action && n.action !== 'no-op',
   drifted: (n) => !isOut(n) && !!(n.drifted || n.gone),
-  sensitive: (n) => !isOut(n) && n.sensitive > 0,
+  sensitive: (n) => n.sensitive > 0,
   orphans: (n) => !isOut(n) && n.presence === 'state',
   declared: (n) => !isOut(n) && n.presence === 'spec',
   outputs: (n) => isOut(n),
@@ -85,7 +88,7 @@ export function buildModel(graph, plans) {
   const nout = list.filter(isOut).length;
   const nenv = list.filter((n) => !isOut(n) && isEnv(n)).length;
   // All is the resources: what the state records and what a plan counts. Outputs and environment variables are not resources, and their chips count them.
-  const counts = { all: list.length - nout - nenv, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0, env: 0, sealed: 0 };
+  const counts = { all: list.length - nout - nenv, resources: 0, data: 0, ephemeral: 0, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0, env: 0, sealed: 0 };
   for (const n of list) {
     for (const k of Object.keys(FILTERS)) if (FILTERS[k](n)) counts[k]++;
     if (n.sealed) counts.sealed++;

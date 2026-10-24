@@ -547,7 +547,7 @@ export class GraphView {
     inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
-    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 6 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
+    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: n.mode === 'data' ? 13 : 6 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
     inn.append(tile);
     const nameRoom = W - 52 - (badge ? 34 : 14);
     inn.append(s('text', { class: 'nm', x: 53, y: 22.5 }, trunc(n.name, chars(nameRoom, 14))));
@@ -573,7 +573,7 @@ export class GraphView {
     const g = s('g', { class: 'aus' });
     const SHOWN = 3, R = 7.5, PITCH = 11;
     list.slice(0, SHOWN).forEach((p, i) => {
-      const b = s('g', { class: 'au au' + hueOf(p.author), transform: `translate(${W - 15 - i * PITCH} 0)` });
+      const b = s('g', { class: 'au au' + hueOf(p.author), 'data-plan': p.id, transform: `translate(${W - 15 - i * PITCH} 0)` });
       b.append(s('circle', { class: 'aur', r: R + 1.6 }), s('circle', { class: 'aub', r: R }), s('text', { y: 2.7 }, initials(p.author).slice(0, 2)));
       g.append(b);
     });
@@ -956,7 +956,7 @@ export class GraphView {
     if (n.overlap) chips.push(h('span', { class: 'gchip ovl' }, 'overlap'));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
     const authors = authorsOf(n, this.ctx);
-    if (authors.length) out.push(h('div', { class: 'gtip-plans' }, authors.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${p.author} · ${p.id}`))));
+    if (authors.length) out.push(h('div', { class: 'gtip-plans' }, authors.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${p.author} · ${p.id}`)), h('div', { class: 'dim' }, 'Click a disc to open its plan')));
     out.push(h('div', { class: 'gtip-meta' }, isO ? `reads ${n.deps.length} · read by ${n.used.length}` : `${n.deps.length} ${n.deps.length === 1 ? 'dependency' : 'dependencies'} · ${n.used.length} ${n.used.length === 1 ? 'dependent' : 'dependents'}`));
     return out;
   }
@@ -965,7 +965,7 @@ export class GraphView {
   tipPlans(out, pin) {
     if (!pin.list.length) return;
     out.push(h('div', { class: 'gtip-plans' }, pin.list.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${p.author} \u00b7 ${p.id}`)),
-      h('div', { class: 'dim' }, `${plural(pin.resources, 'resource')} changed by open plans${pin.overlap ? ', two of them by more than one' : ''}`)));
+      h('div', { class: 'dim' }, `${plural(pin.resources, 'resource')} changed by open plans${pin.overlap ? ', two of them by more than one' : ''}`), h('div', { class: 'dim' }, 'Click a disc to open its plan')));
   }
 
   tipNamespace(ns, open) {
@@ -1248,6 +1248,9 @@ export class GraphView {
 
   click(target, ev) {
     if (performance.now() < this.guardUntil) return;
+    // a disc of an author is a way into the plan that it stands for
+    const disc = target.closest && target.closest('[data-plan]');
+    if (disc) { this.cb.onPlan(disc.dataset.plan); return; }
     const act = target.closest && target.closest('[data-act]');
     const el = target.closest && target.closest('[data-id]');
     if (act && el) {

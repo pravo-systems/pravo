@@ -1,7 +1,7 @@
 // The table view: a dense, searchable, sortable table of every node, with the same filters as the rail.
 // Only the rows in view are in the document, so an estate of thousands of resources scrolls freely.
 
-import { h, clear, relTime, stamp, actionOf, store } from './util.js';
+import { h, clear, relTime, stamp, actionOf, store, kindMark } from './util.js';
 import { FILTERS, natural, isOut, isEnv } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 
@@ -128,10 +128,10 @@ export class TableView {
     // a plan lists the value of every output and does not say which it changes: an output is neither planned nor "not read"
     const act = a ? h('span', { class: 'act' }, h('span', { class: 'sq ' + a.cls }), a.label) : (this.s.model.hasPlan && !isOut(n) ? h('span', { class: 'dim' }, 'not read') : '');
     return h('div', { class: 'tv-row' + (on ? ' sel' : ''), role: 'row', 'aria-rowindex': String(i + 2), 'aria-selected': on ? 'true' : 'false', data: { addr: n.addr } },
-      h('div', { class: 'c-addr' + (isOut(n) ? ' out' : ''), role: 'gridcell', title: n.addr }, isOut(n) ? h('span', { class: 'i i-output omark', 'aria-hidden': 'true' }) : isEnv(n) ? h('span', { class: 'i i-env omark', 'aria-hidden': 'true' }) : null, n.addr.length > n.name.length && n.addr.endsWith(n.name) ? [h('span', { class: 'pre' }, n.addr.slice(0, n.addr.length - n.name.length)), h('b', null, n.name)] : n.addr),
+      h('div', { class: 'c-addr' + (isOut(n) ? ' out' : ''), role: 'gridcell', title: n.addr }, isOut(n) ? h('span', { class: 'i i-output omark', 'aria-hidden': 'true' }) : isEnv(n) ? h('span', { class: 'i i-env omark', 'aria-hidden': 'true' }) : kindMark(n), n.addr.length > n.name.length && n.addr.endsWith(n.name) ? [h('span', { class: 'pre' }, n.addr.slice(0, n.addr.length - n.name.length)), h('b', null, n.name)] : n.addr),
       h('div', { class: 'c-type', role: 'gridcell', title: n.type }, n.type),
       h('div', { class: 'c-prov', role: 'gridcell', title: n.provider ? 'The provider instance: ' + n.provider : '' }, n.provider ? [h('span', { class: 'pvdot ' + pvClass(providerOf(n.type, n.provider)), 'aria-hidden': 'true' }), n.provider] : h('span', { class: 'dim' }, '—')),
-      h('div', { class: 'c-mode', role: 'gridcell' }, n.mode),
+      h('div', { class: 'c-mode' + (n.mode === 'managed' ? ' plain' : ''), role: 'gridcell' }, n.mode),
       h('div', { class: 'c-status', role: 'gridcell' }, stat),
       h('div', { class: 'c-action', role: 'gridcell' }, act),
       h('div', { class: 'c-rev num', role: 'gridcell' }, n.revision ? String(n.revision) : '—'),

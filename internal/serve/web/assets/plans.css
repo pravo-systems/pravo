@@ -109,6 +109,8 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 /* ---- the bar on the canvas: which plan is laid over the graph, and the way back ---- */
 /* ---- on the graph ---- */
 :is(.node, .ns-item, .cluster-item) .aus { pointer-events: none; }
+:is(.node, .ns-item, .cluster-item) .aus .au { pointer-events: all; cursor: pointer; }
+:is(.node, .ns-item, .cluster-item) .aus .au:hover .aub { stroke-width: 2; stroke: hsl(var(--auh) var(--pv-s) var(--pv-l)); }
 :is(.node, .ns-item, .cluster-item) .au { --auh: var(--pvh0); }
 :is(.node, .ns-item, .cluster-item) .au1 { --auh: var(--pvh1); } :is(.node, .ns-item, .cluster-item) .au2 { --auh: var(--pvh2); } :is(.node, .ns-item, .cluster-item) .au3 { --auh: var(--pvh3); } :is(.node, .ns-item, .cluster-item) .au4 { --auh: var(--pvh4); } :is(.node, .ns-item, .cluster-item) .au5 { --auh: var(--pvh5); }
 :is(.node, .ns-item, .cluster-item) .au .aur { fill: var(--bg); }

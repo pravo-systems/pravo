@@ -228,6 +228,11 @@ a { color: inherit; }
 .rail-empty { margin: 1rem; color: var(--text-3); font-size: .8rem; }
 i.sq, span.sq { display: inline-block; width: .6rem; height: .6rem; border: 1.5px solid var(--text-3); flex: none; }
 i.sq.skip, span.sq.skip { opacity: .45; }
+/* the kind of a node, by the shape of its square: a circle reads a data source, a dashed edge an ephemeral resource */
+i.sq.k-data, span.sq.k-data { border-radius: 50%; }
+i.sq.k-ephemeral, span.sq.k-ephemeral { border-style: dashed; }
+.tv-row .c-addr .kmark { margin: .22rem .55rem 0 .05rem; }
+.tv-row .c-mode.plain { color: var(--text-3); }
 /* an output in a list stands where a resource has its square: the glyph of a value that leaves the root */
 .i.omark { color: var(--key); width: .78rem; height: .78rem; flex: none; margin-left: -.09rem; margin-right: -.09rem; }
 .row .mout { display: inline-flex; align-items: center; gap: .15rem; color: var(--key); font: 500 .62rem/1 var(--font-mono); }
