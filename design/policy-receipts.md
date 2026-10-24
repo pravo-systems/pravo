@@ -9,14 +9,12 @@ was judged against it and passed. Access control, rollback and applies outside p
 
 ## The idea
 
-A policy is an entity in the specification, so it is checked in with the code. A plan carries a
-**receipt** naming each policy that judged it, by digest, and the verdict. The plan file is already
-bound to the code by its configuration fingerprint and to itself by its digest. The receipt hangs on
-those two links. No new key and no new service.
+A policy is an entity in the specification, so it is checked in with the code. A policy judges the plan
+file and nothing else, so the verdict is a pure function of two things that are already hashed: the
+plan file and the code. The plan file records which policies judged it. No new object, no new key.
 
 ```cue
 $policies: no_delete: {
-	// the same CUE a --policy file holds today, judged against the plan document
 	changes: [...{
 		addr:   string
 		mode:   string
@@ -29,90 +27,74 @@ $policies: no_delete: {
 ```
 
 `$policies` is a meta block like `$settings`. Its members are not unified with the resources. Every
-policy in it judges every plan of the root. There is no flag and nothing to omit, so "the policies
-that were present" is defined by the code and not by the invocation. A policy that is removed
-from the code stops judging, and the change is in git.
+policy in it judges every plan of the root. There is no flag to omit. A policy removed from the code
+stops judging, and the change is in git.
 
-## The receipt
-
-`plan` judges the plan document against every entry of `$policies` (the code that `CheckPolicyView`
-has now). If any fails, the plan is refused with exit 5 and not saved. If all pass, the plan file
-gains:
+## What the plan file gains
 
 ```json
-"receipt": {
-  "document": "sha256 of the plan document that was judged",
-  "policies": [ { "name": "no_delete", "digest": "sha256 of the policy source", "verdict": "pass" } ],
-  "set": "sha256 over the sorted (name, digest) pairs",
-  "evaluator": "pravo 0.9.0 / cue 0.14.1"
-}
+"policies": [ { "name": "no_delete", "digest": "sha256 of the policy source" } ],
+"blast_radius": 4,
+"dependents": { "vpc": ["subnet", "db"] }
 ```
 
-The plan file is hashed (`PlanDigest`), recorded by the apply transaction, and signed by the
-identity that stores it in a sealed state (`plansign.go`). The receipt is inside that hash, so the
-signature covers it with no new signing code.
+A saved plan has passed every policy, so a verdict field adds nothing. `plan` refuses a plan that fails
+(exit 5) and saves none. `blast_radius` and `dependents` are read from the state once, when the plan is
+made, and written into the file. They are the only state-derived values a policy needs; the rest of the
+document is the plan's changes.
+
+## The document is a function of the file
+
+The policy sees the changes of the plan, the two values above, the counts and the provider versions.
+It does not see:
+
+- stubs for the nodes the plan left alone. They carry only address, type and name, and a rule over what
+  exists is an audit and not a judgment of a plan (`pravo state query`);
+- `created`, `actor`, `reason`, `git_revision` and `trace_id`. They are the caller's words, and the
+  policy docs already say that a rule over them binds nothing.
+
+This is a deliberate narrowing. A policy judges what a plan does.
 
 ## The chain
 
 ```
-signature of the stored plan  (who made it; existing)
-  └ plan digest                       covers the receipt
-      ├ receipt.policies[].digest  = sha256 of each policy source
-      ├ receipt.set                = sha256 of the whole set
-      └ config_fingerprint         = digest of every CUE file of the root
-            └ git commit            = the code, including $policies
+plan digest (SHA-256 of the file; signed by the storing identity in a sealed state)
+  ├ policies[].digest        covered by the digest
+  ├ blast_radius, dependents covered by the digest
+  └ config_fingerprint       digest of every CUE file of the root, $policies included
+        └ git commit         the code
 ```
-
-Two facts are enough:
-
-1. The receipt's set equals the set of policies in the code the fingerprint names. Nothing present was
-   left out, and nothing absent is claimed.
-2. Re-running each policy over the document gives `pass`.
 
 ## Verify
 
 `pravo plan verify PLAN [--at COMMIT]`, and the same check inside `apply`:
 
-1. Take the code: the checkout, or `COMMIT`. Its fingerprint must equal the plan's. The plan already
-   stores a per-file digest (`ConfigFiles`); store it in full so a mismatch names the file.
-2. Compute the digest of every entry of `$policies` and the set. They must equal the receipt's.
-3. Check that the document in the plan hashes to `receipt.document`.
-4. Evaluate each policy over that document. Every one must pass, and the verdicts must equal the
-   receipt's.
-5. Check the plan signature, if the state is sealed and a signature is there.
+1. The plan's fingerprint equals the fingerprint of the code (the checkout, or `COMMIT`). `apply`
+   already refuses a plan when it differs.
+2. The digest of every policy in the code, and the set, equal `policies` in the file. Nothing present
+   was left out.
+3. Build the document from the file, run every policy, and require that all pass.
 
-Steps 1 to 4 need no key and no trust in the maker of the plan. A forged receipt fails step 4, because
-the verifier computes the verdict itself. The signature is for a third party that does not run the
-evaluator and does not want to: it attests that the identity stored a plan whose receipt says
-`pass`.
-
-`apply` already refuses a plan whose fingerprint differs from the code (`ErrStalePlan`). So a plan
-that applies was made from the code it is applied under, which holds exactly the policies it was
-judged by. A policy added after the plan makes the plan stale, and the replan is judged by it.
+Steps 1 and 2 are hash comparisons. Step 3 is a re-run, so the verifier does not trust the maker of
+the file. The signature is for a third party that will not re-run it: it says the identity stored this
+file with this list of policies.
 
 ## Changes
 
 | Where | Change |
 |---|---|
-| Specification loader | Accept `$policies`, compile each entry in the root's CUE context. Today a policy in the root is refused and `$settings.policy` is an error. This reverses both on purpose. |
-| `engine.CheckPolicyView` | Judge `$policies` and return a result for each policy; drop `--policy`, or keep it only to add a rule for a rehearsal. |
-| `PlanFile` | Add `receipt`; store full `ConfigFiles` digests; store the judged document. |
-| Apply transaction | Add `receipt.set` to the signed start (a new domain version, so old transactions verify). The log then shows which policies an apply ran under. |
-| Commands | `pravo plan verify`; `plan show` and `apply` print the receipt. |
+| Specification loader | Accept `$policies`. A policy in the root is refused today and `$settings.policy` is an error; this reverses both on purpose. |
+| `NewView` | A mode that builds the document from the plan only. Judge that. |
+| `PlanFile` | Add `policies`, `blast_radius`, `dependents`. Store full `ConfigFiles` digests. |
+| Apply transaction | Add the policy set to the signed start, under a new domain version so old transactions verify. |
+| Commands | `pravo plan verify`; `plan show` and `apply` print the list. |
 
-## The one real wrinkle
-
-Today the judged document is not a function of the plan file. It holds entries for the nodes the
-plan left alone, built from the state, and `blast_radius` and `dependents`, read from the state at that
-moment. Step 4 above needs the same document. Write the state-derived parts into the plan file when it
-is made and judge that. The document is then a pure function of the file, and anyone can reproduce
-the verdict from the file and the code.
+Cost: about 100 bytes per policy, plus the dependents of the changed nodes.
 
 ## Limits
 
-- The proof is only as good as the evaluator. A verifier that runs another version of CUE may judge
-  differently, so the receipt records the version and the verifier says when it differs.
-- A policy that is wrong, or misspelt and forbids nothing, passes. The receipt proves what was
-  judged, not that the rule was good.
-- A plan whose receipt is true can still be the wrong plan. The proof covers the plan file and not
-  what happens after it.
+- The proof is as good as the evaluator. The file records its version, and the verifier says when it
+  differs.
+- A policy that is wrong, or misspelt and forbids nothing, passes. The file proves what judged the
+  plan, not that the rule was good.
+- A rule about what exists, such as a count of resources, is not a plan policy any more.
