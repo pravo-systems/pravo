@@ -1383,7 +1383,7 @@ function wire() {
   window.addEventListener('hashchange', () => { if (booted) applyExternal(readFragment()); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(S.theme, false));
   // the ages of the plans move on; a list that has the focus is left alone until the focus goes
-  setInterval(() => { if (S.graph) { renderStatus(); if (!$('rail-plans').contains(document.activeElement)) renderPlans(); } }, 30000);
+  setInterval(() => { if (S.graph) { renderStatus(); if (!$('plans-list').contains(document.activeElement)) renderPlans(); } }, 30000);
 }
 
 // applyExternal brings the view in line with a fragment that someone else wrote (a pasted link).

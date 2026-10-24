@@ -172,3 +172,12 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 .planstrip button .i { width: .7rem; height: .7rem; }
 body:has(.app[data-view="access"]) .planstrip, body:has(.app[data-view="plans"]) .planstrip { display: none; }
 @media (max-width: 47.5em) { .planstrip .pcnt, .planstrip .ps-by, .planstrip .ps-id, .planstrip .ps-eyebrow, .planstrip .ps-x-t { display: none; } }
+
+/* ---- the ring of the time that a plan has left ---- */
+.rg { display: inline-flex; align-items: center; gap: .3rem; flex: none; }
+.rg svg { display: block; }
+.rg .rg-track { stroke: var(--line-strong); }
+.rg .rg-left { stroke: var(--accent); }
+.rg-chg .rg-left { stroke: var(--change); } .rg-bad .rg-left { stroke: var(--conflict); }
+.rg-t { font: 400 .68rem/1 var(--font-mono); white-space: nowrap; }
+.rg-chg .rg-t { color: var(--change); } .rg-bad .rg-t { color: var(--conflict); }

@@ -3,7 +3,7 @@
 // that anyone who reads the state finds. The page only reads: nothing here applies a plan, approves it or
 // removes it. What it offers is the exact command that applies a plan, to copy and run elsewhere.
 
-import { h, clear, icon, relTime, relUntil, stamp, plural, signatureMark } from './util.js';
+import { h, s as svgEl, clear, icon, relTime, relUntil, stamp, plural, signatureMark } from './util.js';
 
 // STATUS says where a plan stands. The word is the carrier; the colour agrees with it: green can be applied,
 // blue is part way, amber moved on, grey is over. A plan that is partly stale is amber with a green edge: the
@@ -46,6 +46,24 @@ export const statusLabel = (status) => String(status || '').replace(/-/g, ' ');
 export function statusChip(status) {
   const st = STATUS[status] || STATUS.expired;
   return h('span', { class: 'b ps ps-' + st.cls, 'data-tip': st.tip }, status === 'applied' ? icon('check') : null, statusLabel(status));
+}
+
+// expiryRing is the small ring that says how much of the life of a plan that can be applied is left: grey for the time
+// that has gone and the colour of the plan for the time that remains, amber under a day and red under three hours.
+// The words come with it when the time is short, and the tooltip always has them.
+export function expiryRing(p, now = Date.now()) {
+  if (!p.open || !p.created || !p.expires) return null;
+  const start = Date.parse(p.created), end = Date.parse(p.expires);
+  if (!(end > start)) return null;
+  const left = Math.max(0, end - now);
+  const hours = left / 36e5;
+  const cls = hours < 3 ? 'bad' : hours < 24 ? 'chg' : 'ok';
+  const size = 16, r = 6, c = 2 * Math.PI * r, mid = size / 2;
+  const svg = svgEl('svg', { width: size, height: size, viewBox: `0 0 ${size} ${size}`, 'aria-hidden': 'true' },
+    svgEl('circle', { class: 'rg-track', cx: mid, cy: mid, r, fill: 'none', 'stroke-width': 1.75 }),
+    svgEl('circle', { class: 'rg-left', cx: mid, cy: mid, r, fill: 'none', 'stroke-width': 1.75, 'stroke-linecap': 'round', 'stroke-dasharray': `${c * Math.min(1, left / (end - start))} ${c}`, transform: `rotate(-90 ${mid} ${mid})` }));
+  const when = relUntil(p.expires, now);
+  return h('span', { class: 'rg rg-' + cls, 'data-tip': 'Expires ' + when + '\n' + stamp(p.expires), role: 'img', 'aria-label': 'expires ' + when }, svg, hours < 24 ? h('span', { class: 'rg-t' }, when) : null);
 }
 
 // conflictAt says whether a plan has a change on the resource that it cannot apply now (it is partly stale)
@@ -222,7 +240,7 @@ export class Plans {
       avatar(p.author),
       h('span', { class: 'rp-main' },
         h('span', { class: 'rp-l1' }, reason ? h('span', { class: 'rp-title', title: reason }, reason) : h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null),
-        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(p.summary || {})),
+        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(p.summary || {}), expiryRing(p)),
         reason ? h('code', { class: 'rp-l3' }, p.id) : null));
     return h('div', { class: 'rp-row' + (shown ? ' sel' : '') }, btn,
       h('button', { class: 'rp-view', type: 'button', data: { id: p.id }, 'aria-label': 'View ' + (reason || p.id) + ' on the resources' }, shown ? 'Viewing' : 'View'));
@@ -261,7 +279,7 @@ export function signedIcon(sg) {
 
 export function planStrip(el, p, cb) {
   // a strip that says the same is left as it is: drawing it again takes the focus from the button that has it
-  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(cb.signatures || null), !!cb.onClear].join('|') : '';
+  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(cb.signatures || null), !!cb.onClear, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
   clear(el);
@@ -278,6 +296,7 @@ export function planStrip(el, p, cb) {
     c,
     h('span', { class: 'ps-by dim' }, (p.author ? p.author + ' \u00b7 ' : '') + relTime(p.created)),
     signedIcon(cb.signatures),
+    expiryRing(p),
     h('span', { class: 'grow' }),
     cb.onClear ? h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })) : null].filter(Boolean));
 }
