@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 )
 
@@ -121,29 +122,55 @@ var DialAgentFunc = DialAgent
 // touch. A test shortens it.
 var AgentTimeout = 90 * time.Second
 
-// signViaAgent asks the ssh-agent to sign msg with the signing key of the identity.
-func (id *Identity) signViaAgent(msg []byte) ([]byte, error) {
+// agentUnreachable is the error of a connection to the ssh-agent that could not be
+// made.
+type agentUnreachable struct{ err error }
+
+func (e agentUnreachable) Error() string { return e.err.Error() }
+func (e agentUnreachable) Unwrap() error { return e.err }
+
+// agentSilent is the error of an ssh-agent that did not answer in time.
+type agentSilent struct{ wait time.Duration }
+
+func (e agentSilent) Error() string {
+	return fmt.Sprintf("protect: the ssh-agent did not answer in %s (does it wait for a touch?)", e.wait)
+}
+
+// callAgent runs f on a connection to the ssh-agent and gives up when the agent
+// does not answer in AgentTimeout. A connection that cannot be made is an
+// agentUnreachable, and an agent that does not answer is an agentSilent.
+func callAgent(f func(rw io.ReadWriter) error) error {
 	rw, err := DialAgentFunc()
 	if err != nil {
-		return nil, fmt.Errorf("protect: identity %s signs through the ssh-agent, which is not reachable: %w", id.Name, err)
+		return agentUnreachable{err}
 	}
 	defer rw.Close()
-	type reply struct {
-		sig []byte
-		err error
-	}
-	done := make(chan reply, 1)
-	go func() {
-		sig, err := AgentSign(rw, id.SignPub, msg)
-		done <- reply{sig, err}
-	}()
+	done := make(chan error, 1)
+	go func() { done <- f(rw) }()
 	select {
-	case r := <-done:
-		if r.err != nil {
-			return nil, fmt.Errorf("protect: identity %s signs through the ssh-agent: %w", id.Name, r.err)
-		}
-		return r.sig, nil
+	case err := <-done:
+		return err
 	case <-time.After(AgentTimeout):
-		return nil, fmt.Errorf("protect: the ssh-agent did not answer in %s (does it wait for a touch?)", AgentTimeout)
+		return agentSilent{AgentTimeout}
 	}
+}
+
+// signViaAgent asks the ssh-agent to sign msg with the signing key of the identity.
+func (id *Identity) signViaAgent(msg []byte) ([]byte, error) {
+	var sig []byte
+	err := callAgent(func(rw io.ReadWriter) (err error) {
+		sig, err = AgentSign(rw, id.SignPub, msg)
+		return err
+	})
+	var down agentUnreachable
+	var silent agentSilent
+	switch {
+	case errors.As(err, &down):
+		return nil, fmt.Errorf("protect: identity %s signs through the ssh-agent, which is not reachable: %w", id.Name, err)
+	case errors.As(err, &silent):
+		return nil, err
+	case err != nil:
+		return nil, fmt.Errorf("protect: identity %s signs through the ssh-agent: %w", id.Name, err)
+	}
+	return sig, nil
 }

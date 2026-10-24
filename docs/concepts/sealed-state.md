@@ -26,7 +26,7 @@ Addresses, types, names and dependencies stay readable so that the graph, the lo
 
 ## How a reader opens it
 
-The readers file in the repository, `.pravo/access/readers.txt`, lists the readers. Each reader has an identity, made by `pravo id new`, with a reader key that never leaves their machine except sealed under a passphrase.
+The readers file in the repository, `.pravo/access/readers.txt`, lists the readers. Each reader has an identity, made by `pravo id new`, with a reader key that never leaves their machine except sealed under a passphrase, or under a key that their ssh-agent derives.
 
 A group of records shares one data key of 32 random bytes. The state holds that key once for each reader, locked with the reader's public key by HPKE (RFC 9180: X25519, HKDF-SHA256, AES-256-GCM). A reader opens their lock with their reader key and holds the data key until the command ends. A command that moves to a new group wipes the keys it replaces, and the viewer wipes the keys of a state it has replaced after a minute. A value is encrypted with AES-256-GCM under the data key. Its associated data names the lineage of the state, the group, the kind of object, the address, the revision and the generation, so a sealed value that is copied to another address, or to another revision, does not open.
 
@@ -61,6 +61,8 @@ These are limits of the version that exists. Each is a fact to plan around.
 **Reader names are readable.** `meta.json` holds the name and the key of each reader, so a person with the bucket learns who the readers are.
 
 **A recovery recipient is optional, and a sealed state starts without one.** If every reader loses their key, or forgets the passphrase of the only identity, the state cannot be read. Keep more than one reader, and keep the identity of a job as a CI secret. A recovery recipient is a key that nobody holds whole: it is split into N shares, any K of which rebuild it, and every group of the state carries a lock for it. It is a decision about trust and not a delay, since K holders of shares can read the state at once, with no signature and no waiting time. See [The recovery recipient](../reference/protect.md#the-recovery-recipient).
+
+**An identity that the ssh-agent unlocks is as safe as the agent.** The file is sealed under a key derived from the agent's signature of a challenge, so it opens for any process that the agent signs for. 1Password asks before it lets an application sign, `ssh-add -c` asks for each use, and an agent with neither asks for nothing. The file holds no passphrase to guess, and it opens nothing without the key. If the key is removed, the identity is lost with it, so keep a second reader. See [Unlock with the ssh-agent](../reference/protect.md#unlock-with-the-ssh-agent).
 
 **An identity of a job has no passphrase.** `pravo id new --ci` writes both private keys in the clear. Whoever reads the CI secret is the reader. Use one identity for each job.
 

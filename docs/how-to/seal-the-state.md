@@ -62,6 +62,8 @@ Give whoever keeps .pravo/access/readers.txt this line, and nothing else:
 
 The identity is a file in `~/.config/pravo/id`, apart from `~/.pravo`, which is the provider cache and may be deleted. The line at the end is public. To reuse an SSH key as the signing key, add `--ssh ~/.ssh/id_ed25519`.
 
+A person who reads from more than one machine, or who wants an identity with a passphrase and another that the ssh-agent unlocks, has one identity for each, under different names such as `ada` and `ada-mac`. Each is a reader with a line of its own. Add the second as [step 9](#9-let-a-ci-job-read) adds a job: put its line in the readers file, commit it, and let an existing reader run `rewrap`. To unlock an identity with a key of the ssh-agent, such as one in 1Password that Touch ID approves, add `--unlock agent`: see [Unlock with the ssh-agent](../reference/protect.md#unlock-with-the-ssh-agent). That identity is lost with the key, so keep the identity with a passphrase as a second reader.
+
 ## 2. Have a state to seal
 
 Point the root at the bucket and give it some records. The `terraform.tfstate` below stands for a state that an earlier tool wrote, with a password in it.

@@ -34,7 +34,7 @@ An identity touches no state. Its public line goes into
 }
 
 func idNewCmd() *cobra.Command {
-	var name, sshFile, outFile string
+	var name, sshFile, outFile, unlock, agentKey string
 	var ci bool
 	cmd := &cobra.Command{
 		Use:   "new",
@@ -44,6 +44,13 @@ the identity directory, and prints the public line for .pravo/access/readers.txt
 The reader key is sealed under a passphrase, which is asked for twice on the
 terminal, or read from $PRAVO_PASSPHRASE when stdin is not a terminal.
 An identity that exists is never overwritten.
+
+--unlock agent seals it under a key that the ssh-agent derives instead: opening
+the identity asks the agent to sign a fixed challenge, so whatever the agent asks
+for before it signs (in 1Password, an approval that Touch ID can give) is what
+unlocks it, and no passphrase is set. The agent must hold an ssh-ed25519 key; --agent-key picks one
+when it holds several, by its fingerprint or by part of its comment. The key has
+to stay in the agent: the identity file cannot be opened without it.
 
 --ssh FILE uses the ssh-ed25519 public key FILE (or FILE.pub) as the signing
 key. Without it a signing key is made and kept in the identity file. Signing is
@@ -56,7 +63,7 @@ file holds both private keys in the clear, with mode 0600, in the file given by
 Nothing is written to the identity directory.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runIDNew(name, sshFile, outFile, ci)
+			return runIDNew(name, sshFile, outFile, ci, unlock, agentKey)
 		},
 	}
 	f := cmd.Flags()
@@ -64,6 +71,8 @@ Nothing is written to the identity directory.`,
 	f.StringVar(&sshFile, "ssh", "", "use this ssh-ed25519 public key (FILE or FILE.pub) as the signing key")
 	f.BoolVar(&ci, "ci", false, "make an identity for a CI job: no passphrase, written to --out")
 	f.StringVar(&outFile, "out", "", "with --ci: the file to write the identity to")
+	f.StringVar(&unlock, "unlock", "passphrase", "what opens the identity: passphrase, or agent (a key of the ssh-agent)")
+	f.StringVar(&agentKey, "agent-key", "", "with --unlock agent: the key of the ssh-agent, by fingerprint or part of its comment")
 	return cmd
 }
 
@@ -88,7 +97,18 @@ $PRAVO_IDENTITY, then the identity directory ($PRAVO_IDENTITY_DIR, default ~/.co
 	return cmd
 }
 
-func runIDNew(name, sshFile, outFile string, ci bool) error {
+func runIDNew(name, sshFile, outFile string, ci bool, unlock, agentKey string) error {
+	switch unlock {
+	case "passphrase", "agent":
+	default:
+		return fmt.Errorf("--unlock %s: use passphrase or agent", unlock)
+	}
+	if ci && unlock == "agent" {
+		return errors.New("--unlock agent is for a person; an identity for a job has no passphrase and no agent to ask")
+	}
+	if agentKey != "" && unlock != "agent" {
+		return errors.New("--agent-key goes with --unlock agent")
+	}
 	if ci && name == "" {
 		return errors.New("--ci needs --name NAME: name the identity after the job, such as deploy-bot. A name taken from the user would be the name of a person in the readers file")
 	}
@@ -131,15 +151,28 @@ func runIDNew(name, sshFile, outFile string, ci bool) error {
 			return fmt.Errorf("identity %s already exists at %s", name, tilde(path))
 		}
 	}
+	var unlocker protect.AgentKey
+	if unlock == "agent" {
+		keys, err := protect.AgentKeys()
+		if err != nil {
+			return err
+		}
+		if unlocker, err = protect.PickAgentKey(keys, agentKey); err != nil {
+			return err
+		}
+	}
 	id, err := protect.NewIdentity(name, sshLine)
 	if err != nil {
 		return err
 	}
 	defer id.Close()
 	var data []byte
-	if ci {
+	switch {
+	case ci:
 		data, err = id.MarshalUnsealed()
-	} else {
+	case unlock == "agent":
+		data, err = id.MarshalAgentSealed(unlocker.Pub)
+	default:
 		var pass []byte
 		if pass, err = newPassphrase(name); err != nil {
 			return err
@@ -166,8 +199,18 @@ func runIDNew(name, sshFile, outFile string, ci bool) error {
 	if sshFrom != "" {
 		sum.Source = "from " + sshFrom
 	}
+	keeping := "sealed with a passphrase"
+	unlocked := map[string]any{"by": "passphrase"}
+	if ci {
+		unlocked = map[string]any{"by": "none"}
+	}
+	if unlock == "agent" {
+		fp := protect.SSHFingerprint(unlocker.Pub)
+		keeping = "sealed under ssh-agent key " + fp
+		unlocked = map[string]any{"by": "ssh-agent", "key": fp, "comment": unlocker.Comment}
+	}
 	if flagJSON {
-		return emitJSON(map[string]any{"name": id.Name, "path": path, "ci": ci,
+		return emitJSON(map[string]any{"name": id.Name, "path": path, "ci": ci, "unlock": unlocked,
 			"signing": map[string]string{"alg": "ssh-ed25519", "fingerprint": sum.Fingerprint, "source": sum.Source},
 			"reader":  sum.Reader, "line": sum.Line})
 	}
@@ -182,7 +225,7 @@ func runIDNew(name, sshFile, outFile string, ci bool) error {
 	}
 	out.Printf("Identity %s created\n", id.Name)
 	out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
-	out.Printf("  reader   %s  sealed with a passphrase in %s\n", sum.Reader, tilde(path))
+	out.Printf("  reader   %s  %s in %s\n", sum.Reader, keeping, tilde(path))
 	out.Println()
 	out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else:")
 	out.Println()
@@ -287,6 +330,26 @@ type publicIdentity struct {
 	Seal json.RawMessage `json:"seal"`
 }
 
+// unlockedBy says what opens an identity file, from its public parts: "passphrase",
+// "ssh-agent" with the fingerprint of the key, or "none" for the file of a job.
+func (p publicIdentity) unlockedBy() (by, key string) {
+	if len(p.Seal) == 0 || string(p.Seal) == "null" {
+		return "none", ""
+	}
+	var seal struct {
+		KDF   string `json:"kdf"`
+		Agent string `json:"agent"`
+	}
+	if json.Unmarshal(p.Seal, &seal) != nil || seal.Agent == "" {
+		return "passphrase", ""
+	}
+	pub, err := protect.ParseSSHBlob(seal.Agent)
+	if err != nil {
+		return "ssh-agent", ""
+	}
+	return "ssh-agent", protect.SSHFingerprint(pub)
+}
+
 func runIDShow(name string) error {
 	taken.mu.Lock()
 	src, err := findIdentity(identityOptions{Name: name})
@@ -317,15 +380,22 @@ func runIDShow(name string) error {
 		return fmt.Errorf("%s: %w", where, err)
 	}
 	sum := identitySummary(p.Name, sign, p.Signing.Via, reader)
-	sealed := len(p.Seal) > 0 && string(p.Seal) != "null"
+	by, agentKey := p.unlockedBy()
 	if flagJSON {
-		return emitJSON(map[string]any{"name": p.Name, "path": where, "sealed": sealed,
+		unlocked := map[string]any{"by": by}
+		if agentKey != "" {
+			unlocked["key"] = agentKey
+		}
+		return emitJSON(map[string]any{"name": p.Name, "path": where, "sealed": by != "none", "unlock": unlocked,
 			"signing": map[string]string{"alg": "ssh-ed25519", "fingerprint": sum.Fingerprint, "source": sum.Source},
 			"reader":  sum.Reader, "line": sum.Line})
 	}
 	keeping := "no passphrase"
-	if sealed {
+	switch by {
+	case "passphrase":
 		keeping = "sealed with a passphrase"
+	case "ssh-agent":
+		keeping = "sealed under ssh-agent key " + agentKey
 	}
 	out.Printf("Identity %s (%s)\n", p.Name, where)
 	out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)

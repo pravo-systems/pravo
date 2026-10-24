@@ -51,6 +51,8 @@ The format is the layout, and it only goes up. Whether the state is sealed is a 
 | `--ssh FILE` | `id new` | Use the `ssh-ed25519` public key `FILE.pub`, or `FILE` if that is a public key, as the signing key. The private key is never read. |
 | `--ci` | `id new` | Make an identity for a job. It has no passphrase and is written to `--out`. It requires `--name`. |
 | `--out FILE` | `id new` | With `--ci`: the file to write the identity to. |
+| `--unlock MODE` | `id new` | What opens the identity file: `passphrase`, the default, or `agent`. `agent` seals the file under a key that the ssh-agent derives and asks for no passphrase. `--ci` refuses it. |
+| `--agent-key SELECTOR` | `id new` | With `--unlock agent`: the key of the ssh-agent, by its fingerprint (`SHA256:...`) or by part of its comment, which is the title of the item in 1Password. Required when the agent holds more than one `ssh-ed25519` key. |
 | `--access-dir DIR` | `protect` | The directory of the readers file, in place of `.pravo/access`. `$PRAVO_ACCESS_DIR` sets the same. A relative directory is relative to the root. |
 | `--identity NAME` | every command that opens a state, and `id show` | The identity to open the state with, a file of the identity directory. A global flag, also written before the command. For `id show` it is another way to write `--name`. |
 | `--allow-local` | `protect check`, `protect init` | Accept a state in a local directory. |
@@ -114,7 +116,7 @@ The identity directory is not `~/.pravo`, which is the provider cache and may be
 
 pravo finds the identity in this order: `--identity NAME`, `$PRAVO_IDENTITY`, then the files of the identity directory. When there are several files, it uses the one named like the user. If none is, it uses the one file whose reader key has a lock in the current group of the state, which `meta.json` lists. For `protect init`, which has no locks yet, the reader key is one of the readers file. The reader key of an identity file is public: choosing reads no passphrase, and only the chosen identity is asked for its passphrase. If no file or more than one matches, the command stops with `no identity found: ... holds several identities (ada dan) and none is named like you`, and names the files that match when there are several. Name one with `--identity`. The same choice is made for the state of another root that `pravo.#RemoteOutputs` reads, by the locks in that state's `meta.json`. pravo looks only when the state is sealed, so a state with protection off never asks for a passphrase.
 
-A passphrase is asked for on the terminal without echo. Without a terminal it is read from `$PRAVO_PASSPHRASE` or `$PRAVO_IDENTITY_PASSPHRASE`, and a command with neither stops with `the identity ada is sealed with a passphrase and stdin is not a terminal; set PRAVO_PASSPHRASE.` pravo removes `PRAVO_IDENTITY`, `PRAVO_PASSPHRASE` and `PRAVO_IDENTITY_PASSPHRASE` from its environment once it has read them, and provider processes are started without them. [`pravo mcp`](mcp.md) never asks on a terminal: the identity of a server comes from the environment it was started in.
+A passphrase is asked for on the terminal without echo. Without a terminal it is read from `$PRAVO_PASSPHRASE` or `$PRAVO_IDENTITY_PASSPHRASE`, and a command with neither stops with `the identity ada is sealed with a passphrase and stdin is not a terminal; set PRAVO_PASSPHRASE.` An identity that the ssh-agent unlocks asks the agent once for each command and neither asks for a passphrase nor reads the variables. pravo removes `PRAVO_IDENTITY`, `PRAVO_PASSPHRASE` and `PRAVO_IDENTITY_PASSPHRASE` from its environment once it has read them, and provider processes are started without them. [`pravo mcp`](mcp.md) never asks on a terminal: the identity of a server comes from the environment it was started in.
 
 ## Signatures
 
@@ -206,6 +208,26 @@ An identity is never overwritten. `pravo id new --name ada` for a name that exis
 
 `--ssh FILE` uses an `ssh-ed25519` public key as the signing key, so that there is no new signing key to manage. pravo reads `FILE.pub`, or `FILE` if that is itself a public key, and never reads a private key. Keys of other types are refused. Such an identity signs through the ssh-agent that `SSH_AUTH_SOCK` names (on Windows the OpenSSH pipe), and the key has to be loaded in it; an agent that asks for a touch asks for it at each signature, which is two for a run.
 
+### Unlock with the ssh-agent
+
+`--unlock agent` seals the identity file under a key that the ssh-agent derives, so that opening it takes whatever the agent takes to sign, and no passphrase is set. With the SSH agent of 1Password that is an approval, which Touch ID can give. The agent must hold an `ssh-ed25519` key. If it holds one, pravo uses it. If it holds several, `--agent-key` names one by its fingerprint or by part of its comment.
+
+```sh
+pravo id new --name ada-mac --unlock agent --agent-key "pravo key"
+```
+
+The command prints the same lines as one with a passphrase, and the reader line says `sealed under ssh-agent key SHA256:<fingerprint>`. The line for the readers file is the same too: the readers file and `rewrap` do not know how an identity file is opened.
+
+The wrapping key is HKDF-SHA256 over the agent's signature of a challenge. The challenge holds the name of the identity, its reader key, the agent key and a random salt of 32 bytes that the file stores, so a signature made for one file opens no other. An Ed25519 signature of one message by one key is the same every time (RFC 8032), so the same signature opens the file each time. The challenge starts with a tag that the signatures of events never start with, so signing an event never yields the key.
+
+`id new` asks the agent for the signature twice and stops with `the ssh-agent signs differently each time` if the two differ, since a file sealed under a key that cannot be derived again could never be opened. Nothing is written then. Keys of other types are not offered, and the agent has to be reachable through `SSH_AUTH_SOCK`.
+
+**The agent decides who can open the file.** Any process that the agent signs for opens it. 1Password asks before it lets an application use a key, and its settings say how long an approval lasts; `ssh-add -c` asks for each use; an agent that signs for every process of the user asks for nothing, and the file is then as open as the agent. The file holds no passphrase to guess, and a copy of it opens nothing without the key.
+
+**The key has to stay.** If the key is removed from the agent, the identity is lost with it. Keep a second reader that does not depend on the key: an identity with a passphrase, under another name. Adding it is the same as adding any reader; see [Seal the state to a list of readers](../how-to/seal-the-state.md#1-make-an-identity).
+
+A pravo that does not know this seal refuses the file with `identity uses kdf "ssh-agent-ed25519", which this pravo does not know`.
+
 ### For a CI job
 
 A job has no person to type a passphrase. `--ci` makes an identity with no passphrase and writes it to the file named by `--out`, with mode 0600. It writes nothing to the identity directory. `--out` is required with `--ci` and refused without it. An existing file is not overwritten.
@@ -228,7 +250,7 @@ Store the contents of the file as the secret `PRAVO_IDENTITY` of the job, then d
 
 ## id show
 
-`pravo id show` prints the signing key, the reader key and the line for the readers file. It reads the public part of the file and does not ask for the passphrase.
+`pravo id show` prints the signing key, the reader key and the line for the readers file. It reads the public part of the file and does not ask for the passphrase or call the ssh-agent.
 
 ```sh
 pravo id show
@@ -246,7 +268,9 @@ Give whoever keeps .pravo/access/readers.txt this line, and nothing else:
   ada ssh-ed25519 <ssh-key> x25519:<key>
 ```
 
-With `--json`, `id new` and `id show` print one document with `name`, `path`, `signing` (`alg`, `fingerprint`, `source`), `reader` and `line`.
+For an identity that the ssh-agent unlocks, the reader line says `sealed under ssh-agent key SHA256:<fingerprint>`.
+
+With `--json`, `id new` and `id show` print one document with `name`, `path`, `signing` (`alg`, `fingerprint`, `source`), `reader`, `line` and `unlock`. `unlock.by` is `passphrase`, `ssh-agent` or `none` (the file of a job). For `ssh-agent`, `unlock.key` is the fingerprint of the agent key, and `id new` adds `unlock.comment`.
 
 ## protect check
 

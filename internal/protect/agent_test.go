@@ -13,8 +13,10 @@ import (
 	"time"
 )
 
-// Runs against a private OpenSSH agent started for the test, never the user's.
-func TestAgentAgainstOpenSSH(t *testing.T) {
+// openSSHAgent starts a private OpenSSH agent for the test, never the user's, and
+// loads one new Ed25519 key into it. It skips the test when OpenSSH is not there.
+func openSSHAgent(t *testing.T) (sock string, pub ed25519.PublicKey) {
+	t.Helper()
 	agent, err1 := exec.LookPath("ssh-agent")
 	add, err2 := exec.LookPath("ssh-add")
 	kg, err3 := exec.LookPath("ssh-keygen")
@@ -25,13 +27,13 @@ func TestAgentAgainstOpenSSH(t *testing.T) {
 	if err != nil {
 		t.Skip(err)
 	}
-	defer os.RemoveAll(dir)
-	sock := filepath.Join(dir, "s")
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	sock = filepath.Join(dir, "s")
 	cmd := exec.Command(agent, "-D", "-a", sock)
 	if err := cmd.Start(); err != nil {
 		t.Skip(err)
 	}
-	defer func() { cmd.Process.Kill(); cmd.Wait() }()
+	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
 	for i := 0; i < 50; i++ {
 		if _, err := os.Stat(sock); err == nil {
 			break
@@ -48,10 +50,15 @@ func TestAgentAgainstOpenSSH(t *testing.T) {
 		t.Skip(string(out))
 	}
 	pubLine, _ := os.ReadFile(key + ".pub")
-	want, err := ParseSSHPublicLine(string(pubLine))
+	pub, err = ParseSSHPublicLine(string(pubLine))
 	if err != nil {
 		t.Fatal(err)
 	}
+	return sock, pub
+}
+
+func TestAgentAgainstOpenSSH(t *testing.T) {
+	sock, want := openSSHAgent(t)
 	conn, err := net.Dial("unix", sock)
 	if err != nil {
 		t.Fatal(err)
@@ -73,5 +80,40 @@ func TestAgentAgainstOpenSSH(t *testing.T) {
 	other, _, _ := ed25519.GenerateKey(nil)
 	if _, err := AgentSign(conn, other, msg); err == nil {
 		t.Error("signed with a key the agent does not hold")
+	}
+}
+
+// An identity sealed under a real agent opens again with it: OpenSSH signs the
+// challenge the same way every time, which the key derivation depends on.
+func TestAnIdentityUnderAnOpenSSHAgent(t *testing.T) {
+	sock, pub := openSSHAgent(t)
+	t.Setenv("SSH_AUTH_SOCK", sock) // the default way to reach the agent
+	id, err := NewIdentity("ada-mac", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer id.Close()
+	file, err := id.MarshalAgentSealed(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		got, err := ParseIdentity(file, nil)
+		if err != nil {
+			t.Fatalf("open %d: %v", i, err)
+		}
+		if got.Line() != id.Line() {
+			t.Errorf("open %d: the identity changed", i)
+		}
+		got.Close()
+	}
+	keys, err := AgentKeys()
+	if err != nil || len(keys) != 1 || !keys[0].Pub.Equal(pub) {
+		t.Fatalf("AgentKeys = %v, %v", keys, err)
+	}
+	// An agent without the key refuses to open it.
+	t.Setenv("SSH_AUTH_SOCK", filepath.Join(t.TempDir(), "gone"))
+	if _, err := ParseIdentity(file, nil); err == nil || !strings.Contains(err.Error(), "not reachable") {
+		t.Errorf("no agent: %v", err)
 	}
 }

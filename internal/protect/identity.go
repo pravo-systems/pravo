@@ -16,7 +16,8 @@ import (
 // and a reader key (X25519). It lives in one JSON file:
 //
 //   - ~/.config/pravo/id/NAME, made by `pravo id new`: the secrets (reader key and,
-//     if pravo made the signing key, its seed) are sealed under a passphrase;
+//     if pravo made the signing key, its seed) are sealed under a passphrase, or
+//     under a key that the ssh-agent derives (`--unlock agent`, see unlock.go);
 //   - NAME.identity, made by `pravo id new --ci --out`: the secrets are in the file in
 //     the clear, for a CI secret. Mode 0600.
 //
@@ -38,23 +39,26 @@ type identityFile struct {
 		Pub ReaderPublic `json:"pub"`
 		Key []byte       `json:"key,omitempty"` // CI files only
 	} `json:"reader"`
-	Seal *passSeal `json:"seal,omitempty"` // interactive files only
+	Seal *fileSeal `json:"seal,omitempty"` // interactive files only
 }
 
-// passSeal holds reader key || seed (64 bytes, or 32 without a seed) under a key
-// derived from a passphrase. The parameters are stored so that a later version can
-// raise the cost or switch to scrypt/argon2 ("kdf" names the function).
-type passSeal struct {
-	KDF  string `json:"kdf"`  // "pbkdf2-sha256"
-	Iter int    `json:"iter"` // 1000000 when written
-	Salt []byte `json:"salt"` // 16 random bytes
-	CT   []byte `json:"ct"`   // nonce (12) || ciphertext || tag
+// fileSeal holds reader key || seed (64 bytes, or 32 without a seed) under a key
+// derived from a passphrase, or from the ssh-agent. The parameters are stored so
+// that a later version can raise the cost or switch to scrypt/argon2 ("kdf" names
+// the function; a file whose function this pravo does not know is refused).
+type fileSeal struct {
+	KDF   string `json:"kdf"`             // "pbkdf2-sha256", or "ssh-agent-ed25519"
+	Iter  int    `json:"iter,omitempty"`  // 1000000 when written; none for the agent
+	Salt  []byte `json:"salt"`            // 16 random bytes; 32 for the agent
+	Agent string `json:"agent,omitempty"` // the BASE64 blob of the agent key, for "ssh-agent-ed25519"
+	CT    []byte `json:"ct"`              // nonce (12) || ciphertext || tag
 }
 
 // PBKDF2 cost. OWASP's floor for PBKDF2-HMAC-SHA256 is 600,000; 1,000,000 takes 100-250 ms. Load refuses
 // less than minIter (a weak file is a downgrade) and more than maxIter (a hang).
 const (
 	kdfName     = "pbkdf2-sha256"
+	kdfAgent    = "ssh-agent-ed25519" // see unlock.go
 	defaultIter = 1_000_000
 	minIter     = 100_000
 	maxIter     = 20_000_000
@@ -148,7 +152,7 @@ func (id *Identity) MarshalSealed(passphrase []byte) ([]byte, error) {
 		return nil, fmt.Errorf("passphrase must be at least %d characters (use --ci for an identity without one)", MinPassLen)
 	}
 	f := id.file()
-	s := &passSeal{KDF: kdfName, Iter: defaultIter, Salt: randBytes(16)}
+	s := &fileSeal{KDF: kdfName, Iter: defaultIter, Salt: randBytes(16)}
 	secret := append(id.Reader.Bytes(), id.seed...)
 	defer clear(secret)
 	ct, err := s.crypt(passphrase, f, secret, nil)
@@ -161,27 +165,45 @@ func (id *Identity) MarshalSealed(passphrase []byte) ([]byte, error) {
 }
 
 // aad binds the parameters and the public parts, so none can be changed without
-// the passphrase.
-func (s *passSeal) aad(f *identityFile) []byte {
-	return pae([]byte("pravo/identity/v1"), []byte(f.Name), []byte(f.Reader.Pub.String()),
+// the passphrase (or the agent key).
+func (s *fileSeal) aad(f *identityFile) []byte {
+	parts := [][]byte{[]byte("pravo/identity/v1"), []byte(f.Name), []byte(f.Reader.Pub.String()),
 		[]byte(f.Signer.Alg), []byte(f.Signer.Pub), []byte(f.Signer.Via),
-		[]byte(s.KDF), u64(uint64(s.Iter)), s.Salt)
+		[]byte(s.KDF), u64(uint64(s.Iter)), s.Salt}
+	if s.Agent != "" {
+		parts = append(parts, []byte(s.Agent))
+	}
+	return pae(parts...)
+}
+
+// wrappingKey derives the key that seals and opens the secrets: from the
+// passphrase, or from the signature that the ssh-agent makes of a challenge.
+func (s *fileSeal) wrappingKey(pass []byte, f *identityFile) ([]byte, error) {
+	switch s.KDF {
+	case kdfName:
+		if s.Iter < minIter || s.Iter > maxIter || len(s.Salt) < 16 {
+			return nil, errors.New("identity file has unacceptable key derivation parameters")
+		}
+		// pbkdf2.Key takes the password as a string: a copy that cannot be cleared.
+		return pbkdf2.Key(sha256.New, string(pass), s.Salt, s.Iter, 32)
+	case kdfAgent:
+		return s.agentKey(f)
+	}
+	return nil, fmt.Errorf("identity uses kdf %q, which this pravo does not know", s.KDF)
 }
 
 // crypt seals secret (when ct == nil) or opens ct.
-func (s *passSeal) crypt(pass []byte, f *identityFile, secret, ct []byte) ([]byte, error) {
-	if s.KDF != kdfName {
-		return nil, fmt.Errorf("identity uses kdf %q, which this pravo does not know", s.KDF)
-	}
-	if s.Iter < minIter || s.Iter > maxIter || len(s.Salt) < 16 {
-		return nil, errors.New("identity file has unacceptable key derivation parameters")
-	}
-	// pbkdf2.Key takes the password as a string: a copy that cannot be cleared.
-	key, err := pbkdf2.Key(sha256.New, string(pass), s.Salt, s.Iter, 32)
+func (s *fileSeal) crypt(pass []byte, f *identityFile, secret, ct []byte) ([]byte, error) {
+	key, err := s.wrappingKey(pass, f)
 	if err != nil {
 		return nil, err
 	}
 	defer clear(key)
+	return s.aead(key, f, secret, ct)
+}
+
+// aead seals secret (when ct == nil) or opens ct under key.
+func (s *fileSeal) aead(key []byte, f *identityFile, secret, ct []byte) ([]byte, error) {
 	blk, _ := aes.NewCipher(key)
 	g, err := cipher.NewGCMWithRandomNonce(blk)
 	if err != nil {
@@ -192,6 +214,9 @@ func (s *passSeal) crypt(pass []byte, f *identityFile, secret, ct []byte) ([]byt
 	}
 	pt, err := g.Open(nil, nil, ct, s.aad(f))
 	if err != nil {
+		if s.KDF == kdfAgent {
+			return nil, errors.New("the key from the ssh-agent does not open the identity file: it is damaged, or the agent signs differently now")
+		}
 		return nil, errors.New("wrong passphrase, or the identity file is damaged")
 	}
 	return pt, nil
@@ -217,14 +242,17 @@ func ParseIdentity(data []byte, passphrase func() ([]byte, error)) (*Identity, e
 	var readerKey, seed []byte
 	switch {
 	case f.Seal != nil:
-		if passphrase == nil {
-			return nil, errors.New("identity is sealed with a passphrase and none can be asked for")
+		// The agent unlocks its own seals; only a passphrase is asked for.
+		var pass []byte
+		if f.Seal.KDF != kdfAgent {
+			if passphrase == nil {
+				return nil, errors.New("identity is sealed with a passphrase and none can be asked for")
+			}
+			if pass, err = passphrase(); err != nil {
+				return nil, err
+			}
+			defer clear(pass)
 		}
-		pass, err := passphrase()
-		if err != nil {
-			return nil, err
-		}
-		defer clear(pass)
 		pt, err := f.Seal.crypt(pass, &f, nil, f.Seal.CT)
 		if err != nil {
 			return nil, err
