@@ -57,8 +57,8 @@ func TestFragmentValidate(t *testing.T) {
 // exactly these.
 var wantShots = []string{
 	"overview-dark", "overview-light",
-	"modules-collapsed-dark", "modules-collapsed-light",
-	"modules-expanded-dark",
+	"namespaces-collapsed-dark", "namespaces-collapsed-light",
+	"namespaces-expanded-dark",
 	"clusters-dark",
 	"source-dark", "source-light",
 	"plan-dark", "plan-light",

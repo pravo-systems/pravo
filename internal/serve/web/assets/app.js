@@ -2,7 +2,7 @@
 // graph, the rail, the table, the inspector and the palette. It only reads: every request is a GET.
 
 import * as api from './api.js';
-import { buildModel, buildItems, firstView, touchedModules, reveal, diffModels, FILTERS, CLUSTER_CAP, isChange, chain, isOut, isEnv } from './model.js';
+import { buildModel, buildItems, firstView, touchedNamespaces, reveal, diffModels, FILTERS, CLUSTER_CAP, isChange, chain, isOut, isEnv } from './model.js';
 import { layout } from './layout.js';
 import { GraphView, Minimap } from './graph.js';
 import { Rail } from './rail.js';
@@ -134,14 +134,14 @@ function readFragment() {
 function syncFragment() {
   schedule('fragment', () => {
     if (!S.model) return;
-    // a module inside a closed one says nothing that anyone can see, and a link cannot say it (expand= opens
-    // what is above): only the modules that show are written
-    const mods = S.model.modules;
-    const hidden = (p) => { const m = mods.get(p); for (let u = m && m.up; u && !u.isRoot; u = u.up) if (S.collapsed.has(u.path)) return true; return false; };
+    // a namespace inside a closed one says nothing that anyone can see, and a link cannot say it (expand= opens
+    // what is above): only the namespaces that show are written
+    const nss = S.model.namespaces;
+    const hidden = (p) => { const m = nss.get(p); for (let u = m && m.up; u && !u.isRoot; u = u.up) if (S.collapsed.has(u.path)) return true; return false; };
     let collapse = [...S.collapsed].filter((x) => !S.auto.has(x) && !hidden(x)).sort();
     let expand = [...S.auto].filter((x) => !S.collapsed.has(x) && !hidden(x)).sort();
-    // every module closed, or every module open, has a short name
-    if (collapse.length && S.collapsed.size === S.model.modules.size - 1) collapse = ['all'];
+    // every namespace closed, or every namespace open, has a short name
+    if (collapse.length && S.collapsed.size === S.model.namespaces.size - 1) collapse = ['all'];
     if (expand.length && S.collapsed.size === 0) expand = ['all'];
     expand = expand.concat([...S.clusters.keys()].sort());
     const hash = writeFragment({
@@ -160,20 +160,20 @@ function syncFragment() {
 // ---------------------------------------------------------------------------------------------------------
 // the model and the scene
 
-// linkHides says whether a link closes a module that the selection sits in: collapse= names it or one above
+// linkHides says whether a link closes a namespace that the selection sits in: collapse= names it or one above
 // it (or says all). A selection that no collapse= names is shown, however the first view was made.
-function linkHides(frag, mod) {
+function linkHides(frag, ns) {
   if (frag.collapse.includes('all')) return true;
-  return chain(mod).some((m) => frag.collapse.includes(m.path));
+  return chain(ns).some((m) => frag.collapse.includes(m.path));
 }
 
-// autoCollapsed is the first view for a model: which modules are closed before anyone has touched anything. It
+// autoCollapsed is the first view for a model: which namespaces are closed before anyone has touched anything. It
 // depends on the canvas and on what the plan, the drift and the state say, and on nothing the person chooses
-// (the selection, a filter, a search): the fragment states the open and closed modules relative to it, so a
+// (the selection, a filter, a search): the fragment states the open and closed namespaces relative to it, so a
 // reload, which works it out again, must reach the same answer.
 function autoCollapsed(model) {
-  // an output is a light item: it does not decide which modules open first
-  const touched = touchedModules(model, (n) => !isOut(n) && (isChange(n.action) || n.drifted || n.gone || n.presence === 'state' || n.presence === 'spec'));
+  // an output is a light item: it does not decide which namespaces open first
+  const touched = touchedNamespaces(model, (n) => !isOut(n) && (isChange(n.action) || n.drifted || n.gone || n.presence === 'state' || n.presence === 'spec'));
   // the canvas as it was when the page opened, before the inspector took room from it on a narrow screen
   const sz = S.autoSize || (gv ? gv.size : { w: 0, h: 0 });
   const fv = firstView(model, new Map(), { width: sz.w, height: sz.h, touched });
@@ -181,13 +181,13 @@ function autoCollapsed(model) {
   return fv.collapsed;
 }
 
-// revealSel opens what hides the selection of a link: the modules above a resource, and above a module. A
-// collapse= that names a module above it wins.
+// revealSel opens what hides the selection of a link: the namespaces above a resource, and above a namespace. A
+// collapse= that names a namespace above it wins.
 function revealSel(frag, sel) {
   if (!sel) return;
   const m = S.model;
-  if (m.nodes.has(sel)) { if (!linkHides(frag, m.nodes.get(sel).mod)) reveal(m, sel, S.collapsed, S.clusters); } else if (m.modules.has(sel)) {
-    const up = m.modules.get(sel).up;
+  if (m.nodes.has(sel)) { if (!linkHides(frag, m.nodes.get(sel).ns)) reveal(m, sel, S.collapsed, S.clusters); } else if (m.namespaces.has(sel)) {
+    const up = m.namespaces.get(sel).up;
     if (up && !up.isRoot && !linkHides(frag, up)) for (const c of chain(up)) S.collapsed.delete(c.path);
   }
 }
@@ -344,7 +344,7 @@ function renderPlanLede() {
 }
 
 // selectPlan lays a stored plan over the graph, or, with null, takes it off. The first view is made again for
-// it: the modules the plan touches open first.
+// it: the namespaces the plan touches open first.
 // planSeq counts the choices that were begun; planMark also counts the ones that were made, so that a read of the
 // project that began before a choice does not put the old plan back.
 let planSeq = 0;
@@ -389,7 +389,7 @@ function applyPlan() {
   S.auto = autoCollapsed(S.model);
   S.collapsed = new Set(S.auto);
   S.clusters = new Map();
-  if (S.sel && !(S.model.nodes.has(S.sel) || S.model.modules.has(S.sel))) { S.sel = null; S.reach = false; S.tab = null; }
+  if (S.sel && !(S.model.nodes.has(S.sel) || S.model.namespaces.has(S.sel))) { S.sel = null; S.reach = false; S.tab = null; }
   if (S.filter === 'plan' && !S.model.hasPlan) S.filter = null; // the filter is of the plan, and there is none
   revealSel({ collapse: [], expand: [] }, S.sel);
   insp.invalidate();
@@ -402,12 +402,12 @@ function applyPlan() {
   renderStatus();
   if (S.view === 'table') renderTable();
   showInspector();
-  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'm:' + S.sel, false);
+  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'ns:' + S.sel, false);
   gv.fit(true);
   syncFragment();
 }
 
-// setModel makes the model of the graph that the page opens with, and the modules that its link asks to open or close.
+// setModel makes the model of the graph that the page opens with, and the namespaces that its link asks to open or close.
 function setModel(g, frag) {
   S.graph = g;
   S.model = buildModel(g, S.plans);
@@ -415,16 +415,16 @@ function setModel(g, frag) {
   S.model.planText = planText();
   S.clusters = new Map();
   S.trail = [];
-  const mods = S.model.modules;
+  const nss = S.model.namespaces;
   S.auto = autoCollapsed(S.model);
   S.collapsed = new Set(S.auto);
   for (const x of frag.collapse) {
-    if (x === 'all') { for (const m of mods.values()) if (!m.isRoot) S.collapsed.add(m.path); } else if (mods.has(x)) S.collapsed.add(x);
+    if (x === 'all') { for (const m of nss.values()) if (!m.isRoot) S.collapsed.add(m.path); } else if (nss.has(x)) S.collapsed.add(x);
   }
   for (const x of frag.expand) {
     if (x === 'all') S.collapsed.clear();
     else if (x.startsWith('c:')) S.clusters.set(x, CLUSTER_CAP);
-    else if (mods.has(x)) for (const m of chain(mods.get(x))) S.collapsed.delete(m.path);
+    else if (nss.has(x)) for (const m of chain(nss.get(x))) S.collapsed.delete(m.path);
   }
 }
 
@@ -433,7 +433,7 @@ function relayout(o = {}) {
   const t0 = performance.now();
   const vis = buildItems(S.model, S.collapsed, S.clusters);
   const sh = gv.shape;
-  // a module that opens or closes keeps the lanes that it does not touch where they were (o.stable)
+  // a namespace that opens or closes keeps the lanes that it does not touch where they were (o.stable)
   const lay = layout({ root: vis.root, items: vis.items, edges: vis.edges, aspect: sh.fit.w > 0 ? sh.fit.w / sh.fit.h : 1.4, fit: sh.fit.w > 0 ? sh.fit : null, hint: o.stable && S.lay && S.shaped ? S.lay.arr : null });
   S.vis = vis;
   S.lay = lay;
@@ -487,12 +487,12 @@ function applySelection(pulse) {
       if (down.has(e.b) && (e.a === addr || down.has(e.a))) put(out.downE, key, down.get(e.b));
     }
     out.reach = S.reach;
-  } else if (m.modules.has(S.sel)) {
-    const item = 'm:' + S.sel;
+  } else if (m.namespaces.has(S.sel)) {
+    const item = 'ns:' + S.sel;
     if (vis.items.has(item)) {
       out.ids.add(item);
       out.node = item;
-      // the module as a card: what it depends on and what depends on it, one step out
+      // the namespace as a card: what it depends on and what depends on it, one step out
       for (const e of vis.edges) {
         if (e.b === item) { out.up.add(e.a); out.upE.set(e.key, 1); } else if (e.a === item) { out.down.add(e.b); out.downE.set(e.key, 1); }
       }
@@ -580,19 +580,19 @@ function selectNode(addr, o = {}) {
     : `${n.name}, ${n.type}${n.action ? ', ' + n.action : ''}. ${plural(n.deps.length, 'dependency', 'dependencies')}, ${plural(n.used.length, 'dependent')}.`);
 }
 
-function selectModule(path, o = {}) {
-  const mod = S.model.modules.get(path);
-  if (!mod) return;
+function selectNamespace(path, o = {}) {
+  const ns = S.model.namespaces.get(path);
+  if (!ns) return;
   S.sel = path;
   S.reach = false;
   S.tab = null;
   applySelection(false);
   showInspector();
-  const ok = rail.setSelected('m:' + path);
-  if (!ok) { renderRail(); rail.setSelected('m:' + path); }
+  const ok = rail.setSelected('ns:' + path);
+  if (!ok) { renderRail(); rail.setSelected('ns:' + path); }
   table.setSelected(null);
   openDrawer();
-  const id = S.vis.items.has('m:' + path) ? 'm:' + path : null;
+  const id = S.vis.items.has('ns:' + path) ? 'ns:' + path : null;
   S.focus = id;
   gv.setFocus(o.kbd ? id : null);
   if (S.view === 'graph' && o.center) {
@@ -600,7 +600,7 @@ function selectModule(path, o = {}) {
     if (lane) gv.centerOnBox(lane); else if (id) gv.centerOn(id);
   }
   syncFragment();
-  announce(`Module ${mod.name}, ${plural(mod.agg.n, 'resource')}${mod.agg.out ? ' and ' + plural(mod.agg.out, 'output') : ''}.`);
+  announce(`Namespace ${ns.name}, ${plural(ns.agg.n, 'resource')}${ns.agg.out ? ' and ' + plural(ns.agg.out, 'output') : ''}.`);
 }
 
 function clearSelection() {
@@ -639,7 +639,7 @@ function showInspector() {
   if (m.nodes.has(S.sel)) {
     const n = m.nodes.get(S.sel);
     insp.showNode(n, m, effectiveTab(n), S.graph);
-  } else if (m.modules.has(S.sel)) insp.showModule(m.modules.get(S.sel), m, S.collapsed);
+  } else if (m.namespaces.has(S.sel)) insp.showNamespace(m.namespaces.get(S.sel), m, S.collapsed);
   else insp.showProject(m);
 }
 
@@ -656,28 +656,28 @@ function setTab(t) {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// modules and clusters
+// namespaces and clusters
 
-// openModule opens a closed module the way a person drilling into the picture means it: the module opens,
+// openNamespace opens a closed namespace the way a person drilling into the picture means it: the namespace opens,
 // is selected, and the camera glides to frame it. What was on screen is kept on a trail, so that Escape (or
-// the zoom-out control) can close the module again and return to the same picture. A module that is open
+// the zoom-out control) can close the namespace again and return to the same picture. A namespace that is open
 // is selected and framed.
-function openModule(path) {
-  const mod = S.model.modules.get(path);
-  if (!mod) return;
+function openNamespace(path) {
+  const ns = S.model.namespaces.get(path);
+  if (!ns) return;
   if (S.view !== 'graph') setView('graph');
-  if (!S.collapsed.has(path)) { selectModule(path, { center: true }); return; }
+  if (!S.collapsed.has(path)) { selectNamespace(path, { center: true }); return; }
   gv.guardUntil = performance.now() + 450;
   S.trail.push({ path, view: Object.assign({}, gv.view), moved: gv.userMoved });
-  for (const m of chain(mod)) S.collapsed.delete(m.path);
+  for (const m of chain(ns)) S.collapsed.delete(m.path);
   relayout({ stable: true });
   renderRail();
-  selectModule(path, { center: true });
+  selectNamespace(path, { center: true });
   updateBack();
-  announce(`Opened module ${mod.name}, ${plural(mod.agg.n, 'resource')}. Escape zooms out.`);
+  announce(`Opened namespace ${ns.name}, ${plural(ns.agg.n, 'resource')}. Escape zooms out.`);
 }
 
-// backOut undoes the last openModule: the module closes and the camera returns to where it was.
+// backOut undoes the last openNamespace: the namespace closes and the camera returns to where it was.
 function backOut() {
   let t = S.trail.pop();
   while (t && S.collapsed.has(t.path)) t = S.trail.pop();
@@ -691,11 +691,11 @@ function backOut() {
   S.tab = null;
   relayout({ stable: true });
   renderRail();
-  selectModule(t.path, { center: false });
+  selectNamespace(t.path, { center: false });
   gv.setView(t.view, true);
   gv.userMoved = t.moved;
   updateBack();
-  announce(`Closed module ${S.model.modules.get(t.path).name}.`);
+  announce(`Closed namespace ${S.model.namespaces.get(t.path).name}.`);
   return true;
 }
 
@@ -706,22 +706,22 @@ function updateBack() {
   if (t) backBtn.querySelector('.bl').textContent = 'Zoom out';
 }
 
-function toggleModule(path) {
-  const mod = S.model.modules.get(path);
-  if (!mod) return;
+function toggleNamespace(path) {
+  const ns = S.model.namespaces.get(path);
+  if (!ns) return;
   const closing = !S.collapsed.has(path);
-  // the module that was opened last by drilling in closes as Escape would close it
+  // the namespace that was opened last by drilling in closes as Escape would close it
   if (closing && S.trail.length && S.trail[S.trail.length - 1].path === path && backOut()) return;
   if (closing) S.collapsed.add(path);
-  else for (const m of chain(mod)) S.collapsed.delete(m.path);
-  // a selection inside a module that closes moves to the module
+  else for (const m of chain(ns)) S.collapsed.delete(m.path);
+  // a selection inside a namespace that closes moves to the namespace
   if (closing && S.sel && S.sel !== path) {
-    const at = S.model.nodes.has(S.sel) ? S.model.nodes.get(S.sel).mod : S.model.modules.get(S.sel);
+    const at = S.model.nodes.has(S.sel) ? S.model.nodes.get(S.sel).ns : S.model.namespaces.get(S.sel);
     for (let m = at; m; m = m.up) if (m.path === path) { S.sel = path; S.reach = false; S.tab = null; showInspector(); break; }
   }
   relayout({ stable: true });
   renderRail();
-  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'm:' + S.sel, false);
+  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'ns:' + S.sel, false);
   if (!closing) {
     const lane = S.lay.lanes.find((l) => l.path === path);
     if (lane && !boxVisible(lane)) gv.centerOnBox(lane);
@@ -729,7 +729,7 @@ function toggleModule(path) {
   if (closing) S.trail = S.trail.filter((x) => !S.collapsed.has(x.path));
   updateBack();
   syncFragment();
-  announce(`${closing ? 'Closed' : 'Opened'} module ${mod.name}, ${plural(mod.agg.n, 'resource')}.`);
+  announce(`${closing ? 'Closed' : 'Opened'} namespace ${ns.name}, ${plural(ns.agg.n, 'resource')}.`);
 }
 
 function boxVisible(b) {
@@ -738,13 +738,13 @@ function boxVisible(b) {
   return sx > 0 && sy > 0 && sx + b.w * k < gv.size.w && sy + b.h * k < gv.size.h;
 }
 
-function setAllModules(collapse) {
+function setAllNamespaces(collapse) {
   S.trail = [];
   updateBack();
-  if (collapse) { for (const m of S.model.modules.values()) if (!m.isRoot) S.collapsed.add(m.path); } else S.collapsed.clear();
+  if (collapse) { for (const m of S.model.namespaces.values()) if (!m.isRoot) S.collapsed.add(m.path); } else S.collapsed.clear();
   if (S.sel && collapse) {
-    // a selection inside a module moves to the module at the top that now holds it
-    const at = S.model.nodes.has(S.sel) ? S.model.nodes.get(S.sel).mod : S.model.modules.get(S.sel);
+    // a selection inside a namespace moves to the namespace at the top that now holds it
+    const at = S.model.nodes.has(S.sel) ? S.model.nodes.get(S.sel).ns : S.model.namespaces.get(S.sel);
     const top = at && !at.isRoot ? chain(at)[0] : null;
     if (top) { S.sel = top.path; S.reach = false; S.tab = null; showInspector(); }
   }
@@ -752,11 +752,11 @@ function setAllModules(collapse) {
   renderRail();
   gv.fit(true);
   syncFragment();
-  announce(collapse ? 'Every module is closed' : 'Every module is open');
+  announce(collapse ? 'Every namespace is closed' : 'Every namespace is open');
 }
 
-// resetView goes back to the first view: the modules that were open when the page loaded, no group opened, the
-// whole picture in frame. The selection stays when it still shows as itself; else it moves to the module that
+// resetView goes back to the first view: the namespaces that were open when the page loaded, no group opened, the
+// whole picture in frame. The selection stays when it still shows as itself; else it moves to the namespace that
 // now holds it. The filter and the search stay.
 function resetView() {
   if (S.view !== 'graph') return;
@@ -765,14 +765,14 @@ function resetView() {
   S.clusters = new Map();
   S.reach = false;
   if (S.sel) {
-    const at = S.model.nodes.has(S.sel) ? S.model.nodes.get(S.sel).mod : S.model.modules.get(S.sel);
+    const at = S.model.nodes.has(S.sel) ? S.model.nodes.get(S.sel).ns : S.model.namespaces.get(S.sel);
     const top = at ? chain(at).find((m) => S.collapsed.has(m.path)) : null;
     if (top) { S.sel = top.path; S.tab = null; }
   }
   updateBack();
   relayout();
   renderRail();
-  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'm:' + S.sel, false);
+  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'ns:' + S.sel, false);
   showInspector();
   gv.fit(true);
   syncFragment();
@@ -1089,13 +1089,13 @@ async function refresh() {
   nm.planText = planText();
   const d = diffModels(old, nm);
   // what the person was looking at may be gone: the page says so, and shows the project
-  const lost = S.sel && !(nm.nodes.has(S.sel) || nm.modules.has(S.sel)) ? S.sel : null;
+  const lost = S.sel && !(nm.nodes.has(S.sel) || nm.namespaces.has(S.sel)) ? S.sel : null;
   if (lost) { S.sel = null; S.reach = false; S.tab = null; }
   S.graph = g;
   S.model = nm;
-  for (const p of [...S.collapsed]) if (!nm.modules.has(p)) S.collapsed.delete(p);
+  for (const p of [...S.collapsed]) if (!nm.namespaces.has(p)) S.collapsed.delete(p);
   S.auto = autoCollapsed(nm); // the fragment is relative to it: a reload works it out from the new graph
-  S.trail = S.trail.filter((x) => nm.modules.has(x.path));
+  S.trail = S.trail.filter((x) => nm.namespaces.has(x.path));
   updateBack();
   insp.invalidate();
   palette.setModel(nm);
@@ -1197,7 +1197,7 @@ function isTyping(t) {
 
 function currentItem() {
   if (S.sel && S.model.nodes.has(S.sel)) return itemOf(S.sel);
-  if (S.sel && S.vis.items.has('m:' + S.sel)) return 'm:' + S.sel;
+  if (S.sel && S.vis.items.has('ns:' + S.sel)) return 'ns:' + S.sel;
   return S.focus && S.vis.items.has(S.focus) ? S.focus : null;
 }
 
@@ -1205,7 +1205,7 @@ function goItem(id) {
   const it = S.vis.items.get(id);
   if (!it) return;
   if (it.kind === 'node') selectNode(it.n.addr, { center: !gv.visible(id, 80), pulse: true, kbd: true });
-  else if (it.kind === 'module') { selectModule(it.mod.path, { center: false, kbd: true }); if (!gv.visible(id, 80)) gv.centerOn(id); } else { S.focus = id; gv.setFocus(id); if (!gv.visible(id, 80)) gv.centerOn(id); }
+  else if (it.kind === 'namespace') { selectNamespace(it.ns.path, { center: false, kbd: true }); if (!gv.visible(id, 80)) gv.centerOn(id); } else { S.focus = id; gv.setFocus(id); if (!gv.visible(id, 80)) gv.centerOn(id); }
 }
 
 function navigate(dir) {
@@ -1236,17 +1236,17 @@ function navigate(dir) {
 function onKey(ev) {
   if (ev.defaultPrevented) return;
   const k = ev.key;
-  const mod = ev.metaKey || ev.ctrlKey;
+  const ns = ev.metaKey || ev.ctrlKey;
   if (palette.isOpen || sheet.isOpen) return;
-  if (mod && (k === 'k' || k === 'K')) { ev.preventDefault(); palette.open(); return; }
-  if (ev.altKey || mod) return;
+  if (ns && (k === 'k' || k === 'K')) { ev.preventDefault(); palette.open(); return; }
+  if (ev.altKey || ns) return;
   const typing = isTyping(ev.target);
   if (k === 'Escape') {
     if (S.full && !S.sel && !S.reach) { setFull(false); return; }
     if ($('app').classList.contains('insp-open') || $('app').classList.contains('rail-open')) { closeDrawer(); return; }
     if (typing) { ev.target.blur(); return; }
     if (S.reach) { setReach(false); return; }
-    // Escape zooms out of a module that was opened by drilling in, once nothing else is selected
+    // Escape zooms out of a namespace that was opened by drilling in, once nothing else is selected
     const top = S.trail[S.trail.length - 1];
     if (top && (!S.sel || S.sel === top.path) && backOut()) return;
     clearSelection();
@@ -1265,18 +1265,18 @@ function onKey(ev) {
   if (k === 'f') { gv.fit(true); return; }
   if (k === 'w') { setFull(!S.full); return; }
   if (k === '0') { resetView(); return; }
-  if (k === '[') { setAllModules(true); return; }
-  if (k === ']') { setAllModules(false); return; }
+  if (k === '[') { setAllNamespaces(true); return; }
+  if (k === ']') { setAllNamespaces(false); return; }
   if (k === '+' || k === '=') { gv.zoomBy(1.25, undefined, undefined, true); return; }
   if (k === '-' || k === '_') { gv.zoomBy(0.8, undefined, undefined, true); return; }
   if (!onCanvas) return;
   if (k === 'ArrowLeft') { ev.preventDefault(); navigate('left'); } else if (k === 'ArrowRight') { ev.preventDefault(); navigate('right'); } else if (k === 'ArrowUp') { ev.preventDefault(); navigate('up'); } else if (k === 'ArrowDown') { ev.preventDefault(); navigate('down'); } else if (k === 'Enter') {
     const id = currentItem();
     const it = id && S.vis.items.get(id);
-    if (it && it.kind === 'module') { ev.preventDefault(); openModule(it.mod.path); } else if (it && it.kind === 'cluster') { ev.preventDefault(); clusterAction(it.id, 'open'); } else if (S.sel && S.model.modules.has(S.sel)) { ev.preventDefault(); toggleModule(S.sel); } else if (S.sel && S.model.nodes.has(S.sel)) {
-      // Enter on a resource: the module it sits in, when that has a lane header, is the one to close
-      const m = S.model.nodes.get(S.sel).mod;
-      if (m && !m.isRoot) { ev.preventDefault(); toggleModule(m.path); }
+    if (it && it.kind === 'namespace') { ev.preventDefault(); openNamespace(it.ns.path); } else if (it && it.kind === 'cluster') { ev.preventDefault(); clusterAction(it.id, 'open'); } else if (S.sel && S.model.namespaces.has(S.sel)) { ev.preventDefault(); toggleNamespace(S.sel); } else if (S.sel && S.model.nodes.has(S.sel)) {
+      // Enter on a resource: the namespace it sits in, when that has a lane header, is the one to close
+      const m = S.model.nodes.get(S.sel).ns;
+      if (m && !m.isRoot) { ev.preventDefault(); toggleNamespace(m.path); }
     }
   }
 }
@@ -1286,11 +1286,11 @@ function onKey(ev) {
 
 function wire() {
   gv = new GraphView($('canvas'), {
-    moduleOf: (p) => S.model && S.model.modules.get(p),
+    namespaceOf: (p) => S.model && S.model.namespaces.get(p),
     onSelectNode: (a) => selectNode(a),
-    onSelectModule: (p) => selectModule(p),
-    onToggleModule: toggleModule,
-    onOpenModule: openModule,
+    onSelectNamespace: (p) => selectNamespace(p),
+    onToggleNamespace: toggleNamespace,
+    onOpenNamespace: openNamespace,
     onCluster: clusterAction,
     onClear: clearSelection,
     onView: () => minimapDraw(),
@@ -1299,14 +1299,14 @@ function wire() {
   });
   gv.motion = S.motion; // motion=off in the fragment was read before the graph existed
   minimap = new Minimap($('canvas'), gv);
-  backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, 'aria-label': 'Zoom out of the module that was opened (Escape)', on: { click: () => backOut() } },
+  backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, 'aria-label': 'Zoom out of the namespace that was opened (Escape)', on: { click: () => backOut() } },
     svgEl('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('circle', { cx: 7, cy: 7, r: 4.6 }), svgEl('path', { d: 'M5 7h4M10.6 10.6L14 14' })), h('span', { class: 'bl' }, 'Zoom out'), h('kbd', null, 'esc'));
   $('canvas').append(backBtn);
   rail = new Rail($('rail'), {
     onFilter: setFilter,
-    onToggle: toggleModule,
+    onToggle: toggleNamespace,
     onSelectNode: (a) => selectNode(a, { center: true }),
-    onSelectModule: (p) => selectModule(p, { center: true }),
+    onSelectNamespace: (p) => selectNamespace(p, { center: true }),
     onRoot: () => { if (S.sel) clearSelection(); else if (narrow()) openDrawer(); },
   });
   plansList = new Plans($('plans-list'), { onView: (id) => selectPlan(id).then(() => setView(S.lastResources || 'graph')) });
@@ -1315,11 +1315,11 @@ function wire() {
   insp = new Inspector($('insp'), {
     onPlan: (id) => selectPlan(id),
     onSelectNode: (a) => selectNode(a, { center: true }),
-    onSelectModule: (p) => selectModule(p, { center: true }),
+    onSelectNamespace: (p) => selectNamespace(p, { center: true }),
     onTab: setTab,
     onReach: (a) => { if (S.sel !== a) selectNode(a, { pulse: false }); setReach(true, true); },
-    onToggleModule: toggleModule,
-    onFit: (p) => { const lane = S.lay.lanes.find((l) => l.path === p); if (lane) gv.centerOnBox(lane); else { const id = S.vis.items.get('m:' + p) ? 'm:' + p : null; if (id) gv.centerOn(id, 0.9); } if (S.view !== 'graph') setView('graph'); },
+    onToggleNamespace: toggleNamespace,
+    onFit: (p) => { const lane = S.lay.lanes.find((l) => l.path === p); if (lane) gv.centerOnBox(lane); else { const id = S.vis.items.get('ns:' + p) ? 'ns:' + p : null; if (id) gv.centerOn(id, 0.9); } if (S.view !== 'graph') setView('graph'); },
     onError: (m) => toast(m, 'error', 6000),
     announce,
   });
@@ -1327,13 +1327,13 @@ function wire() {
     announce,
     onPick: (kind, key) => {
       if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); // a resource is found among the resources
-      if (S.view !== 'graph' && kind === 'module') setView('graph');
-      if (kind === 'module') {
-        const mod = S.model.modules.get(key);
-        for (const m of chain(mod)) S.collapsed.delete(m.path);
+      if (S.view !== 'graph' && kind === 'namespace') setView('graph');
+      if (kind === 'namespace') {
+        const ns = S.model.namespaces.get(key);
+        for (const m of chain(ns)) S.collapsed.delete(m.path);
         relayout();
         renderRail();
-        selectModule(key, { center: true });
+        selectNamespace(key, { center: true });
       } else selectNode(key, { center: true });
     },
     onOpen: (on) => { S.palette = on; },
@@ -1351,8 +1351,8 @@ function wire() {
   $('full-btn').addEventListener('click', () => setFull(!S.full));
   $('btn-zin').addEventListener('click', () => gv.zoomBy(1.3, undefined, undefined, true));
   $('btn-zout').addEventListener('click', () => gv.zoomBy(1 / 1.3, undefined, undefined, true));
-  $('btn-collapse').addEventListener('click', () => setAllModules(true));
-  $('btn-expand').addEventListener('click', () => setAllModules(false));
+  $('btn-collapse').addEventListener('click', () => setAllNamespaces(true));
+  $('btn-expand').addEventListener('click', () => setAllNamespaces(false));
   $('menu-btn').addEventListener('click', toggleRail);
   $('insp-btn').addEventListener('click', toggleInspector);
   $('insp-close').addEventListener('click', () => { closeDrawer(); });
@@ -1409,11 +1409,11 @@ function applyView(f) {
   if (f.theme && f.theme !== S.theme) applyTheme(f.theme, false);
   applyMotion(f.motion);
   const collapsedBefore = [...S.collapsed].sort().join('|') + '#' + [...S.clusters.keys()].sort().join('|');
-  const mods = S.model.modules;
+  const nss = S.model.namespaces;
   const base = new Set(S.auto);
-  for (const x of f.collapse) { if (x === 'all') for (const m of mods.values()) { if (!m.isRoot) base.add(m.path); } else if (mods.has(x)) base.add(x); }
+  for (const x of f.collapse) { if (x === 'all') for (const m of nss.values()) { if (!m.isRoot) base.add(m.path); } else if (nss.has(x)) base.add(x); }
   S.clusters = new Map();
-  for (const x of f.expand) { if (x === 'all') base.clear(); else if (x.startsWith('c:')) S.clusters.set(x, CLUSTER_CAP); else if (mods.has(x)) for (const m of chain(mods.get(x))) base.delete(m.path); }
+  for (const x of f.expand) { if (x === 'all') base.clear(); else if (x.startsWith('c:')) S.clusters.set(x, CLUSTER_CAP); else if (nss.has(x)) for (const m of chain(nss.get(x))) base.delete(m.path); }
   S.collapsed = base;
   S.trail = [];
   updateBack();
@@ -1421,7 +1421,7 @@ function applyView(f) {
   S.q = f.q;
   $('filter-q').value = f.q;
   S.tab = f.tab;
-  const sel = f.sel && (S.model.nodes.has(f.sel) || mods.has(f.sel)) ? f.sel : null;
+  const sel = f.sel && (S.model.nodes.has(f.sel) || nss.has(f.sel)) ? f.sel : null;
   revealSel(f, sel);
   const collapsedAfter = [...S.collapsed].sort().join('|') + '#' + [...S.clusters.keys()].sort().join('|');
   if (collapsedBefore !== collapsedAfter) relayout();
@@ -1432,11 +1432,11 @@ function applyView(f) {
   S.reach = false;
   applySelection(false);
   showInspector();
-  rail.setSelected(sel ? (S.model.nodes.has(sel) ? 'n:' + sel : 'm:' + sel) : null, false);
+  rail.setSelected(sel ? (S.model.nodes.has(sel) ? 'n:' + sel : 'ns:' + sel) : null, false);
   table.setSelected(S.model.nodes.has(sel) ? sel : null);
   if (S.view === 'table') renderTable();
   // the camera follows the link: a resource is brought into view at a scale that can be read, a link that
-  // changes which modules are open shows the whole picture, and zoom= is a scale
+  // changes which namespaces are open shows the whole picture, and zoom= is a scale
   if (S.view === 'graph') {
     const zoom = parseFloat(f.zoom);
     const id = sel && S.model.nodes.has(sel) ? itemOf(sel) : null;
@@ -1444,9 +1444,9 @@ function applyView(f) {
       if (id) { const p = S.lay.pos.get(id); gv.userMoved = true; gv.setView({ x: gv.size.w / 2 - (p.x + p.w / 2) * zoom, y: gv.size.h / 2 - (p.y + p.h / 2) * zoom, k: zoom }, true); } else { gv.fit(false); gv.zoomBy(zoom / gv.view.k, undefined, undefined, true); }
     } else if (id) {
       if (gv.view.k < 0.8 || !gv.visible(id, 60)) gv.centerOn(id, 0.95);
-    } else if (sel && S.model.modules.has(sel)) {
+    } else if (sel && S.model.namespaces.has(sel)) {
       const lane = S.lay.lanes.find((l) => l.path === sel);
-      const box = lane || (S.lay.pos.get('m:' + sel));
+      const box = lane || (S.lay.pos.get('ns:' + sel));
       if (box && !boxVisible(box)) gv.centerOnBox(box);
     } else if (collapsedBefore !== collapsedAfter) gv.fit(true);
   }
@@ -1495,7 +1495,7 @@ async function load(frag) {
   S.q = frag.q;
   S.tab = frag.tab;
   S.zoom = frag.zoom;
-  const sel = frag.sel && (S.model.nodes.has(frag.sel) || S.model.modules.has(frag.sel)) ? frag.sel : null;
+  const sel = frag.sel && (S.model.nodes.has(frag.sel) || S.model.namespaces.has(frag.sel)) ? frag.sel : null;
   revealSel(frag, sel);
   S.sel = sel;
   $('skeleton').hidden = true;
@@ -1523,7 +1523,7 @@ async function load(frag) {
   if (sel) {
     const isNode = S.model.nodes.has(sel);
     rail.ensureVisible(sel);
-    rail.setSelected((isNode ? 'n:' : 'm:') + sel, false);
+    rail.setSelected((isNode ? 'n:' : 'ns:') + sel, false);
     table.setSelected(isNode ? sel : null);
     // a deep link to a resource shows it at a scale that can be read: when the whole picture does not do that, the camera goes to the resource
     if (S.view === 'graph' && isNode && !(zoom > 0) && (gv.view.k < 0.8 || !gv.visible(itemOf(sel), 60))) gv.centerOn(itemOf(sel), 0.95, false);
@@ -1534,7 +1534,7 @@ async function load(frag) {
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, rail, plansList, table, accessView, insp, palette, relayout, selectNode, selectModule, toggleModule, clusterAction, setFilter, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, rail, plansList, table, accessView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setFilter, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

@@ -2,7 +2,7 @@
 
 # pravo serve
 
-Serve a read-only viewer on the loopback interface: a graph of modules and resources from the specification, the state, a saved plan and the plans stored in the state.
+Serve a read-only viewer on the loopback interface: a graph of namespaces and resources from the specification, the state, a saved plan and the plans stored in the state.
 
 ## Quick reference
 
@@ -50,7 +50,7 @@ A state that is sealed is read with an identity (see [`pravo protect`](protect.m
 
 ## What the viewer shows
 
-- **The graph.** Every resource, data source, ephemeral resource and function call of the specification and of the state, in the module that holds it, with the edges between them. Each node says whether it is declared, recorded or both, whether a read marked it drifted or gone, whether a lock holds it, and how many of its values are withheld. The outputs of the root are nodes too, with `mode` and `type` `output`, and edges from what their values read. An output is not a resource: it has no record, no history, no lock, and no count of resources includes it.
+- **The graph.** Every resource, data source, ephemeral resource and function call of the specification and of the state, in the namespace that holds it, with the edges between them. Each node says whether it is declared, recorded or both, whether a read marked it drifted or gone, whether a lock holds it, and how many of its values are withheld. The outputs of the root are nodes too, with `mode` and `type` `output`, and edges from what their values read. An output is not a resource: it has no record, no history, no lock, and no count of resources includes it.
 - **The attributes.** The record of a node in the order of the provider schema, with the type of each attribute and whether it is required, optional or computed. Sensitive values are withheld.
 - **The source.** The lines of the specification that write the node: the definition of the resource and each instance that fills it in. Only files that the evaluation loaded are shown.
 - **The schema.** The attributes of the resource type with their types and the provider's descriptions.
@@ -68,10 +68,10 @@ The viewer is one page with a bar, a sidebar, a graph with its toolbar, an inspe
 | Part | Holds |
 |---|---|
 | Bar | The project directory and the state location, each a button that copies the path. The three sections, Resources, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
-| Sidebar | Under the heading Show, the filter chips. Under Modules, the project and the tree of modules with their resources. |
+| Sidebar | Under the heading Show, the filter chips. Under Explore, the project and the tree of namespaces with their resources. |
 | Toolbar | Of the Resources section: the switch Graph and Table, then Collapse and Expand. The filter box, Filter by address or type, with the number of matches. The zoom buttons, minus, Fit and plus, and the button Hide the sidebars. |
-| Graph | The lanes of open modules, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a module. |
-| Inspector | The project, a module or a resource. A resource has a strip of cells and the tabs. |
+| Graph | The lanes of open namespaces, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a namespace. |
+| Inspector | The project, a namespace or a resource. A resource has a strip of cells and the tabs. |
 | Status bar | In Resources: `no plan loaded`, or the id of a stored plan, `planned N of M` and the number `not read`. The revision. When the data was read. `live`, `reconnecting`, `offline` or `connecting`. `read-only · localhost only`. |
 
 ### Filters
@@ -112,7 +112,7 @@ The state may hold plans that someone stored with [`pravo plan --store`](plan.md
 | The open row | The reason. For a stale plan, the reasons, twenty at most. For a partly stale plan, how many of its unapplied changes conflict with the state, and the reason of each conflict, twenty at most. The other plans that overlap, each a link that lays that plan over the graph. When the plan expires, the command that made it and the revision it was made at. For a plan that can be applied, the command `pravo apply ID` and a button that copies it. For a partly stale plan the command is `pravo apply ID --only ...`, with the changes that can be applied. For the others, a note. The reason, the command and the revision come from the plan itself, which the page reads when the row is chosen, and not from the list. |
 | The plan strip | Under the bar, in Resources, while a plan is laid over the graph: the badge, the note of the author, the id, the status, the counts, the author and the age, in a sealed state a mark after the author that is a check when the signature verifies against the readers file and a sign of caution when it does not, when its key is not in the file, or when there is none (its tooltip says which), a thin ring for a plan that can still be applied, grey for the time that has gone and coloured for the time that is left, and a button with a cross that stops showing the plan. A plan that `--plan FILE` loaded has the strip too, with the name of the file, whether it is stale, the counts and its age, and no cross, since the page cannot take it off. The blast radius is in the tooltip of the counts. |
 
-The button View on a row lays its plan over the graph, as `--plan FILE` lays a plan file: the actions on the nodes are the plan's, the Change tab answers for it, and the first view opens the modules that the plan touches first. The cross in the strip takes the plan off. Without `--plan`, the graph shows no plan until a plan is viewed.
+The button View on a row lays its plan over the graph, as `--plan FILE` lays a plan file: the actions on the nodes are the plan's, the Change tab answers for it, and the first view opens the namespaces that the plan touches first. The cross in the strip takes the plan off. Without `--plan`, the graph shows no plan until a plan is viewed.
 
 | Status | Meaning |
 |---|---|
@@ -127,7 +127,7 @@ A plan whose objects cannot be read, because they are damaged or a newer pravo w
 
 The status is judged against the state alone, as `pravo plan list` judges it, change by change: the lineage, and the revision and the generation of the nodes that the plan changes. The configuration and the providers belong to one checkout. `pravo apply` and `pravo plan show` compare them, and the viewer does not, so a plan that is `pending` here can still be refused in a checkout whose files differ.
 
-A resource that a plan which can be applied still has a change to apply on carries a disc with the initial of the author, one for each plan, the newest at the right. A plan that has applied its change on a resource has no disc there. Three discs show, and a number counts the rest. Two plans that each have a change left on one resource draw a solid ring in the colour of overlap: applying one makes the other stale. The relation is the same for both plans. A change that a partly stale plan cannot apply does not count: the resource keeps the disc of the plan, no ring is drawn for it, and the Plans cell of the inspector says that the plan cannot apply the change and marks that plan with `conflict`. The Change tab of that resource gives the reason. The legend names `plan author` and `overlap` when the graph has them. The card of a closed module or of a group carries the discs of the plans that change something inside it, one for each plan, with the ring when two plans change one resource in it, and its hover names the plans and counts the resources. The Table view shows no badges. In the sidebar, a resource shows the mark of overlap and the first two discs. The Plans cell of the strip has a disc for each plan that changes the resource, four at most, and a click on a disc lays that plan over the graph.
+A resource that a plan which can be applied still has a change to apply on carries a disc with the initial of the author, one for each plan, the newest at the right. A plan that has applied its change on a resource has no disc there. Three discs show, and a number counts the rest. Two plans that each have a change left on one resource draw a solid ring in the colour of overlap: applying one makes the other stale. The relation is the same for both plans. A change that a partly stale plan cannot apply does not count: the resource keeps the disc of the plan, no ring is drawn for it, and the Plans cell of the inspector says that the plan cannot apply the change and marks that plan with `conflict`. The Change tab of that resource gives the reason. The legend names `plan author` and `overlap` when the graph has them. The card of a closed namespace or of a group carries the discs of the plans that change something inside it, one for each plan, with the ring when two plans change one resource in it, and its hover names the plans and counts the resources. The Table view shows no badges. In the sidebar, a resource shows the mark of overlap and the first two discs. The Plans cell of the strip has a disc for each plan that changes the resource, four at most, and a click on a disc lays that plan over the graph.
 
 The viewer never applies, approves or removes a plan. It shows the command that applies a plan, and the button copies it.
 
@@ -199,10 +199,10 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 
 | Parameter | Value | Meaning |
 |---|---|---|
-| `sel` | An address, or the path of a module | The selected node or module. It opens the modules and the cluster that hide the node, unless `collapse` names a module that holds it. |
+| `sel` | An address, or the path of a namespace | The selected node or namespace. It opens the namespaces and the cluster that hide the node, unless `collapse` names a namespace that holds it. |
 | `tab` | `state`, `source`, `schema`, `history` or `change` | The tab of the inspector. `change` shows what a saved plan does to the node. |
-| `collapse` | Module paths, or `all` | Modules drawn as one card, on top of the first view. |
-| `expand` | Module paths, `c:MODULE\|MODE\|TYPE` or `all` | Modules drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
+| `collapse` | Namespace paths, or `all` | Namespaces drawn as one card, on top of the first view. |
+| `expand` | Namespace paths, `c:NAMESPACE\|MODE\|TYPE` or `all` | Namespaces drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `q` | Text | The filter box above the graph. |
 | `filter` | `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | Only the nodes that match. `outputs` shows the outputs of the root, and every other value shows resources only. |
@@ -220,13 +220,13 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 
 | Key | Action |
 |---|---|
-| `/`, Ctrl-K, Cmd-K | Open the palette to find a resource, a type or a module. |
+| `/`, Ctrl-K, Cmd-K | Open the palette to find a resource, a type or a namespace. |
 | `?` | Open the sheet of shortcuts. |
 | `t` | Switch the theme. |
 | `g` | Switch the resources between the graph and the table. |
 | `a` | Switch between the Resources and the State sections. |
 | `p` | Switch between the Resources and the Plans sections. |
-| Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the module that a click opened, then clear the selection. |
+| Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the namespace that a click opened, then clear the selection. |
 
 In the graph:
 
@@ -235,17 +235,17 @@ In the graph:
 | Left arrow | Move to a dependency of the selection. |
 | Right arrow | Move to a dependent. |
 | Up arrow, Down arrow | Move to the sibling above or below. |
-| Enter | Open the selected card or cluster. On an open module or one of its resources, close the module. |
+| Enter | Open the selected card or cluster. On an open namespace or one of its resources, close the namespace. |
 | `f` | Fit the graph to the window. |
 | `w` | Hide or show the sidebars of the graph: the filter sidebar goes and the inspector shows only while something is selected. The bar and the status bar stay. Escape shows them again. The button next to the zoom buttons does the same. |
-| `0` | Go back to the first view: the modules that were open when the page loaded, no cluster open and the whole graph in the window. The selection stays when it still shows, and the filter stays. |
+| `0` | Go back to the first view: the namespaces that were open when the page loaded, no cluster open and the whole graph in the window. The selection stays when it still shows, and the filter stays. |
 | `+`, `-` | Zoom in or out. |
-| `[` and `]` | Close or open every module. |
+| `[` and `]` | Close or open every namespace. |
 | Drag | Pan the graph. |
 | Wheel or pinch | Zoom the graph. Shift and the wheel pan sideways. |
-| Click a card | Open the module, move the view to it and select it. |
+| Click a card | Open the namespace, move the view to it and select it. |
 | Click a cluster | Open the cluster. |
-| Double-click the title of a lane | Close or open the module. |
+| Double-click the title of a lane | Close or open the namespace. |
 
 In the list of stored plans:
 
@@ -255,15 +255,15 @@ In the list of stored plans:
 | Enter, Space | Lay the plan of the row over the graph, or take it off when it is laid. |
 | Esc | Take the plan off the graph. |
 
-In the tree of modules in the sidebar:
+In the tree of namespaces in the sidebar:
 
 | Key | Action |
 |---|---|
 | Up arrow, Down arrow, Home, End | Move between rows. |
-| Left arrow | Close an open module, or move to the parent row. |
-| Right arrow | Open a closed module, or move to the next row. |
+| Left arrow | Close an open namespace, or move to the parent row. |
+| Right arrow | Open a closed namespace, or move to the next row. |
 | Enter, Space | Select the row. |
-| `*` | Open every module of this level. |
+| `*` | Open every namespace of this level. |
 | A letter | Jump to the next row that starts with it. In the tree, a letter is not a shortcut of the page. |
 
 In the table, the up and down arrows, Page Up, Page Down, Home and End move the selection. In the palette, the arrows and Page Up and Page Down move, Enter goes to the result and Esc closes it.
@@ -276,12 +276,12 @@ The interface of the page is a set of read-only endpoints. They are for the page
 |---|---|
 | `GET /` and `/assets/...` | The page, with no data. |
 | `GET /api/ping` | `{"ok":true,"version":1}`. |
-| `GET /api/graph` | The nodes, edges, modules, outputs, the project, the plan and the warnings. No attribute values. |
+| `GET /api/graph` | The nodes, edges, namespaces, outputs, the project, the plan and the warnings. No attribute values. |
 | `GET /api/detail?addr=ADDR` | One node with its attributes, dependencies, the plan's change, history, lock and times. With `&plan=ID` the plan is that stored plan, and with `&plan=none` there is none. For an output the one attribute is `value`, which is withheld when the output is sensitive or its value contains a sensitive string, and `description` when the output has one. |
 | `GET /api/source?addr=ADDR` | The lines that write the node, and everything that shapes it. `&plan=ID` marks the lines that stored plan changes. |
 | `GET /api/plans` | The plans stored in the state, newest first, as a list of stored plans. The free text of a plan is not in it. |
 | `GET /api/plan?id=ID` | A stored plan laid over the graph: the plan, the action of each node that it ran, and the `reason`, `command` and `git_revision` that the author wrote with it. In a sealed state `plan.signatures` has `items` (`status` of `verified`, `key_not_in_file` or `invalid`, with `signer` or `claimed`, and `at`) and a `note` when they could not be checked; no item and no note is a plan with none. |
-| `GET /api/search?q=TEXT` | The nodes and modules that match. |
+| `GET /api/search?q=TEXT` | The nodes and namespaces that match. |
 | `GET /api/access` | How the state is protected, the readers of the store and of the readers file, the verdict between them, who the viewer is, and the suggested commands. See [The State section](#the-state-section). |
 | `GET /api/events` | A stream of server-sent events. Each event `change` carries the new revision and what changed: `state`, `spec`, `plan`, `locks`, `plans` or `access`. `plan` is the plan file of `--plan`, `plans` are the plans stored in the state, and `access` is the readers file. |
 
@@ -563,7 +563,7 @@ Output:
 ```text
 Serve a read-only viewer on the loopback interface and open it in the default browser.
 
-The viewer shows the specification and the state as a graph of modules and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top: a plan file, or the id of a plan stored in the state with "pravo plan --store". The plans stored in the state are listed in the viewer whether or not --plan is given, and any of them can be laid over the graph. It updates when the state, the specification, the plan file or the stored plans change.
+The viewer shows the specification and the state as a graph of namespaces and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top: a plan file, or the id of a plan stored in the state with "pravo plan --store". The plans stored in the state are listed in the viewer whether or not --plan is given, and any of them can be laid over the graph. It updates when the state, the specification, the plan file or the stored plans change.
 
 A state that is sealed (see "pravo protect") is read with your reader identity, named by --identity or found as the other commands find it, and a sealed identity asks for its passphrase on the terminal before the server starts. Without an identity, or with one that is not a reader, the viewer lists the resources and shows no value; --identity none shows the state as someone with no key sees it. The State page shows who can read the state and suggests commands to copy. It runs none of them.
 

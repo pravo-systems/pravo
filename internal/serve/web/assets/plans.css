@@ -36,8 +36,8 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 .pcnt .ok { color: var(--accent); } .pcnt .chg { color: var(--change); } .pcnt .bad { color: var(--conflict); } .pcnt .dim { color: var(--text-3); font-weight: 400; }
 
 /* ---- the list in the rail ---- */
-/* one region that scrolls, so that the detail of the plan under its row is never cut off from the list, and the modules below keep their room */
-/* it takes what the module tree can spare: the tree keeps about twelve rows of the window, whatever its height (the chrome of the page is 82px, and a banner or two more) */
+/* one region that scrolls, so that the detail of the plan under its row is never cut off from the list, and the namespaces below keep their room */
+/* it takes what the namespace tree can spare: the tree keeps about twelve rows of the window, whatever its height (the chrome of the page is 82px, and a banner or two more) */
 .rail-plans { border-top: 1px solid var(--line); padding: .8rem 0 0; max-height: clamp(7rem, calc(100dvh - 82px - 26rem), 25rem); overflow: auto; overscroll-behavior: contain; }
 .rp-head { display: flex; align-items: center; gap: .6rem; padding-right: 1rem; margin-bottom: .55rem; }
 .rp-head .h { flex: 1; margin-bottom: 0; }
@@ -108,16 +108,16 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 
 /* ---- the bar on the canvas: which plan is laid over the graph, and the way back ---- */
 /* ---- on the graph ---- */
-:is(.node, .mod-item, .cluster-item) .aus { pointer-events: none; }
-:is(.node, .mod-item, .cluster-item) .au { --auh: var(--pvh0); }
-:is(.node, .mod-item, .cluster-item) .au1 { --auh: var(--pvh1); } :is(.node, .mod-item, .cluster-item) .au2 { --auh: var(--pvh2); } :is(.node, .mod-item, .cluster-item) .au3 { --auh: var(--pvh3); } :is(.node, .mod-item, .cluster-item) .au4 { --auh: var(--pvh4); } :is(.node, .mod-item, .cluster-item) .au5 { --auh: var(--pvh5); }
-:is(.node, .mod-item, .cluster-item) .au .aur { fill: var(--bg); }
-:is(.node, .mod-item, .cluster-item) .au .aub { fill: color-mix(in srgb, hsl(var(--auh) var(--pv-s) var(--pv-l)) 26%, var(--g-card)); stroke: hsl(var(--auh) var(--pv-s) var(--pv-l) / .55); stroke-width: 1; vector-effect: non-scaling-stroke; }
-:is(.node, .mod-item, .cluster-item) .au text { font: 700 8px var(--font-mono); text-anchor: middle; fill: hsl(var(--auh) var(--pv-s) var(--au-l)); letter-spacing: 0; }
-:is(.node, .mod-item, .cluster-item) .aun { font: 600 9px var(--font-mono); text-anchor: end; fill: var(--text-2); }
-:is(.node, .mod-item, .cluster-item) .ovl { fill: none; stroke: var(--overlap); stroke-width: 2.2; vector-effect: non-scaling-stroke; pointer-events: none; }
-:is(.node, .mod-item, .cluster-item) .aus { opacity: var(--lab); transition: opacity .2s; }
-.lod-far :is(.node, .mod-item, .cluster-item) .aus { display: none; }
+:is(.node, .ns-item, .cluster-item) .aus { pointer-events: none; }
+:is(.node, .ns-item, .cluster-item) .au { --auh: var(--pvh0); }
+:is(.node, .ns-item, .cluster-item) .au1 { --auh: var(--pvh1); } :is(.node, .ns-item, .cluster-item) .au2 { --auh: var(--pvh2); } :is(.node, .ns-item, .cluster-item) .au3 { --auh: var(--pvh3); } :is(.node, .ns-item, .cluster-item) .au4 { --auh: var(--pvh4); } :is(.node, .ns-item, .cluster-item) .au5 { --auh: var(--pvh5); }
+:is(.node, .ns-item, .cluster-item) .au .aur { fill: var(--bg); }
+:is(.node, .ns-item, .cluster-item) .au .aub { fill: color-mix(in srgb, hsl(var(--auh) var(--pv-s) var(--pv-l)) 26%, var(--g-card)); stroke: hsl(var(--auh) var(--pv-s) var(--pv-l) / .55); stroke-width: 1; vector-effect: non-scaling-stroke; }
+:is(.node, .ns-item, .cluster-item) .au text { font: 700 8px var(--font-mono); text-anchor: middle; fill: hsl(var(--auh) var(--pv-s) var(--au-l)); letter-spacing: 0; }
+:is(.node, .ns-item, .cluster-item) .aun { font: 600 9px var(--font-mono); text-anchor: end; fill: var(--text-2); }
+:is(.node, .ns-item, .cluster-item) .ovl { fill: none; stroke: var(--overlap); stroke-width: 2.2; vector-effect: non-scaling-stroke; pointer-events: none; }
+:is(.node, .ns-item, .cluster-item) .aus { opacity: var(--lab); transition: opacity .2s; }
+.lod-far :is(.node, .ns-item, .cluster-item) .aus { display: none; }
 .gtip .gchip.ovl { color: var(--overlap); border-color: color-mix(in srgb, var(--overlap) 50%, transparent); background: var(--overlap-wash); }
 .gtip-plans { margin-top: .5rem; display: grid; gap: .25rem; font: 400 .68rem/1.3 var(--font-mono); color: var(--text-2); }
 .gtip-plans .au { display: inline-grid; place-items: center; min-width: 1.05rem; height: 1.05rem; padding: 0 .15rem; font: 600 .52rem/1 var(--font-mono); border-radius: 50%; margin-right: .2rem;

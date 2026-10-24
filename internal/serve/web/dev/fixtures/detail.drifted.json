@@ -5,7 +5,7 @@
   "mode": "managed",
   "type": "aws_lb",
   "name": "lb",
-  "module": "edge",
+  "namespace": "edge",
   "provider": "aws",
   "presence": "both",
   "action": "update",

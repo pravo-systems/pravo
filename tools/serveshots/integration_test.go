@@ -54,18 +54,18 @@ func TestScenariosWithPravo(t *testing.T) {
 				}
 				// A node that only the changed situation adds or removes is not
 				// in the state of a clean workspace, and no shot selects one. A
-				// shot may select a module, the prefix of an address.
+				// shot may select a namespace, the prefix of an address.
 				if sel := s.Fragment.Sel; sel != "" && !has[sel] && !prefix[sel] {
-					t.Errorf("%s selects %s, which is neither a resource nor a module in the state", s.Name, sel)
+					t.Errorf("%s selects %s, which is neither a resource nor a namespace in the state", s.Name, sel)
 				}
 				for _, list := range [][]string{s.Fragment.Collapse, s.Fragment.Expand} {
 					for _, p := range list {
-						// c:MODULE|MODE|TYPE names the cluster of a type in a module.
+						// c:NAMESPACE|MODE|TYPE names the cluster of a type in a namespace.
 						if rest, ok := strings.CutPrefix(p, "c:"); ok {
 							p, _, _ = strings.Cut(rest, "|")
 						}
 						if !prefix[p] && !has[p] {
-							t.Errorf("%s names the module %s, which is not in the state", s.Name, p)
+							t.Errorf("%s names the namespace %s, which is not in the state", s.Name, p)
 						}
 					}
 				}

@@ -5,7 +5,7 @@
   "mode": "output",
   "type": "output",
   "name": "summary",
-  "module": "",
+  "namespace": "",
   "presence": "both",
   "source": {
    "file": "main.cue",

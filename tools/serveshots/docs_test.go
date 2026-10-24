@@ -214,7 +214,7 @@ func TestClusterThresholdAgreesWithTheInterface(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(page), "holds "+word+" or more resources") {
-		t.Errorf("the-viewer.md does not say that a module with %s or more resources of one type is drawn as a cluster", word)
+		t.Errorf("the-viewer.md does not say that a namespace with %s or more resources of one type is drawn as a cluster", word)
 	}
 }
 

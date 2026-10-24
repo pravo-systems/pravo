@@ -207,7 +207,7 @@ func (s Shot) size(w, h int) Shot {
 	return s
 }
 
-// The nodes and modules that the shots select. They are addresses of the
+// The nodes and namespaces that the shots select. They are addresses of the
 // platform and fleet scenarios; the tests check that each exists.
 const (
 	// billingConfig comes from the definition #Service in kit/kit.cue and is
@@ -221,7 +221,7 @@ const (
 	// database: the provider marks its content sensitive, so the State tab
 	// lists the attribute and withholds the value.
 	dbDSN = "api.database.dsn"
-	// euProd is a module two levels deep in the fleet, the production
+	// euProd is a namespace two levels deep in the fleet, the production
 	// environment of the region eu.
 	euProd = "eu.prod"
 )
@@ -238,22 +238,22 @@ func allShots() []Shot {
 	// Nothing is selected, so the inspector shows the project: this is the page
 	// as it opens.
 	s = append(s, both("overview", "platform", situationClean, Fragment{})...)
-	s = append(s, both("modules-collapsed", "platform", situationClean, Fragment{Sel: billingConfig, Tab: "state", Collapse: []string{"network", "edge"}})...)
+	s = append(s, both("namespaces-collapsed", "platform", situationClean, Fragment{Sel: billingConfig, Tab: "state", Collapse: []string{"network", "edge"}})...)
 	s = append(s,
-		shot("modules-expanded-dark", "fleet", situationClean, Fragment{
+		shot("namespaces-expanded-dark", "fleet", situationClean, Fragment{
 			Sel:      euProd,
 			Collapse: []string{"us", "ap", "eu.stage"},
 			// The three services of the production environment are siblings
 			// of one shape: they open together. The pool of nodes stays one
-			// box, and the module is selected so that the inspector shows it.
+			// box, and the namespace is selected so that the inspector shows it.
 			Expand: []string{"eu", "eu.prod", "eu.prod.api", "eu.prod.jobs", "eu.prod.web"},
 		}),
 		shot("clusters-dark", "fleet", situationClean, Fragment{
 			Sel:      "eu.prod.nodes.n04",
 			Tab:      "state",
 			Collapse: []string{"us", "ap", "eu.stage", "eu.prod.api", "eu.prod.web", "eu.prod.jobs"},
-			// c:MODULE|MODE|TYPE is the cluster of the resources of one type in a
-			// module.
+			// c:NAMESPACE|MODE|TYPE is the cluster of the resources of one type in a
+			// namespace.
 			Expand: []string{"eu", "eu.prod", "c:eu.prod.nodes|managed|null_resource"},
 		}),
 	)

@@ -203,8 +203,8 @@ a { color: inherit; }
 .row.sel::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); box-shadow: 0 0 12px var(--glow); }
 .row:focus-visible { outline-offset: -2px; outline-color: var(--key); }
 .row .nm { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.row.mod .nm { color: var(--key); }
-.row.mod.sel .nm { color: var(--text); }
+.row.ns .nm { color: var(--key); }
+.row.ns.sel .nm { color: var(--text); }
 .row .n { color: var(--text-3); font-size: .7rem; flex: none; min-width: 1.6em; text-align: right; }
 .row .mk { margin-left: auto; display: inline-flex; align-items: center; gap: .45rem; flex: none; }
 .row .chev { width: .8rem; height: .8rem; display: inline-grid; place-items: center; color: var(--text-3); flex: none; }
@@ -252,7 +252,7 @@ i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg
 .toolbar .seg button { height: 2rem; }
 [data-view="table"] .graph-only { display: none; }
 [data-view="access"] .toolbar, [data-view="plans"] .toolbar { display: none; }
-/* The State page is about who can read the state, not about its resources: no filters, plans or modules. The inspector stays, for the project. */
+/* The State page is about who can read the state, not about its resources: no filters, plans or namespaces. The inspector stays, for the project. */
 [data-view="access"] .rail, [data-view="plans"] .rail { display: none; }
 body:has(.app[data-view="access"]) #menu-btn, body:has(.app[data-view="plans"]) #menu-btn { display: none; }
 .app[data-view="access"], .app[data-view="plans"] { grid-template-columns: minmax(0, 1fr) 24.5rem; }

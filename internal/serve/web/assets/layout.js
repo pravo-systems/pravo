@@ -1,6 +1,6 @@
-// Layered left-to-right layout with nested module lanes, shaped to the canvas. Pure functions, no DOM.
+// Layered left-to-right layout with nested namespace lanes, shaped to the canvas. Pure functions, no DOM.
 //
-// Ranks are the longest path over the visible items. A module that is open is a lane: a box that holds a
+// Ranks are the longest path over the visible items. A namespace that is open is a lane: a box that holds a
 // block (its own items, one column for each rank that it uses, the columns closed up) and its sub-lanes.
 // Nothing is placed by a global column any more: every lane is measured bottom-up, and the entries of a
 // lane (its block and its sub-lanes, in the order of the flow) are arranged by whichever of two packings
@@ -35,7 +35,7 @@ const log = Math.log;
 //   fit:    { w, h } the canvas; the root then picks the arrangement that fits it at the largest zoom
 //   route:  false leaves the routes out (a trial layout needs the bounds only)
 //   hint:   the arr of an earlier layout. A lane whose entries were arranged then keeps its entries in the rows
-//           (or columns) they were in, when that costs little of the fit: a module that opens or closes does not
+//           (or columns) they were in, when that costs little of the fit: a namespace that opens or closes does not
 //           send every other lane across the canvas.
 // It returns { pos, lanes, routes, back, bounds, rank, maxRank, arr }.
 export function layout({ root, items, edges, aspect = 1.4, fit = null, route = true, sweeps = null, hint = null }) {
@@ -272,7 +272,7 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
   }
 
   // stableArrange lays the entries of a lane out in the rows or columns that they were in, in the same order,
-  // with the entries that are new beside the block (where a module that has opened stood as a card). It
+  // with the entries that are new beside the block (where a namespace that has opened stood as a card). It
   // gives up (null) when most of the entries are new.
   function stableArrange(entries, prev, gap) {
     const at = new Map(prev.keys.map((k, i) => [k, i]));

@@ -5,7 +5,7 @@
   "mode": "managed",
   "type": "aws_db_instance",
   "name": "db",
-  "module": "api",
+  "namespace": "api",
   "provider": "aws",
   "presence": "both",
   "action": "update",

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   pravo serve: the inspector (the project, a module, a resource with its tabs) and the code windows
+   pravo serve: the inspector (the project, a namespace, a resource with its tabs) and the code windows
    Code windows are dark in both themes; everything else follows paper and ink.
    ========================================================================== */
 
@@ -10,7 +10,7 @@
 .ih-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 1.6rem; margin-bottom: .25rem; }
 .ih .kick { display: inline-flex; align-items: center; gap: .5rem; font: 500 .62rem/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
 .ih .kick::before { content: ""; width: .42rem; height: .42rem; background: var(--accent); box-shadow: 0 0 10px var(--glow); }
-.insp[data-mode="module"] .ih .kick::before { background: var(--key); box-shadow: none; }
+.insp[data-mode="namespace"] .ih .kick::before { background: var(--key); box-shadow: none; }
 .insp[data-mode="project"] .ih .kick::before { background: var(--text-3); box-shadow: none; }
 .ih-title { margin: 0; font: 500 1.8rem/1.08 var(--font-display); letter-spacing: -.015em; overflow-wrap: anywhere; text-wrap: balance; }
 .ih-title.long { font-size: 1.3rem; line-height: 1.2; }
@@ -145,7 +145,7 @@
 .navrow:hover { background: var(--surface-2); color: var(--text); }
 .navrow:hover::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
 .navrow .nn { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
-.navrow.mod .nn { color: var(--key); }
+.navrow.ns .nn { color: var(--key); }
 .navrow .nt { color: var(--text-3); font-size: .68rem; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 55%; text-align: right; }
 .navrow .nb { margin-left: auto; width: 2.6rem; height: 3px; background: var(--line); flex: none; }
 .navrow .nb i { display: block; height: 100%; width: var(--w); background: var(--key); opacity: .7; }

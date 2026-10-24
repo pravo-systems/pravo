@@ -1,5 +1,5 @@
 // Checks the policy of the first view (firstView in ../assets/model.js) on the fixtures: at several canvas
-// sizes the picture stays within the budget, fits at a legible zoom when it can, opens modules of one shape
+// sizes the picture stays within the budget, fits at a legible zoom when it can, opens namespaces of one shape
 // together, opens what it is told to, and takes a few milliseconds. No DOM, no browser.
 //
 //   node check-firstview.mjs
@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildModel, buildItems, firstView, touchedModules, isChange, budgetFor } from '../assets/model.js';
+import { buildModel, buildItems, firstView, touchedNamespaces, isChange, budgetFor } from '../assets/model.js';
 import { layout, fitScale, FIT } from '../assets/layout.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -18,8 +18,8 @@ const check = (ok, msg) => { if (!ok) { failed++; console.log('FAIL', msg); } };
 
 for (const name of ['graph.platform.json', 'graph.fleet.json', 'graph.big.json']) {
   const m = load(name);
-  // an output is a light item: it does not decide which modules open first (see autoCollapsed in app.js)
-  const touched = touchedModules(m, (n) => n.mode !== 'output' && (isChange(n.action) || n.drifted || n.gone || n.presence !== 'both'));
+  // an output is a light item: it does not decide which namespaces open first (see autoCollapsed in app.js)
+  const touched = touchedNamespaces(m, (n) => n.mode !== 'output' && (isChange(n.action) || n.drifted || n.gone || n.presence !== 'both'));
   for (const [w, h] of sizes) {
     const t0 = performance.now();
     const fv = firstView(m, new Map(), { width: w, height: h, touched });
@@ -29,11 +29,11 @@ for (const name of ['graph.platform.json', 'graph.fleet.json', 'graph.big.json']
     const lay = layout({ root: vis.root, items: vis.items, edges: vis.edges, aspect: fit.w / fit.h, fit });
     const k = fitScale(lay.bounds, w, h, 99);
     const tag = `${name} ${w}x${h}`;
-    const open = [...m.modules.keys()].filter((p) => p && !fv.collapsed.has(p));
+    const open = [...m.namespaces.keys()].filter((p) => p && !fv.collapsed.has(p));
     const everyClosed = open.length === 0;
     check(vis.items.size <= Math.max(budgetFor(w, h), m.root.kids.length + m.root.nodes.length), `${tag}: ${vis.items.size} items over the budget ${budgetFor(w, h)}`);
-    // above the floor (every module a card) the fit zoom is legible
-    check(everyClosed || k >= 0.78, `${tag}: fit zoom ${k.toFixed(2)} is too small with ${open.length} modules open`);
+    // above the floor (every namespace a card) the fit zoom is legible
+    check(everyClosed || k >= 0.78, `${tag}: fit zoom ${k.toFixed(2)} is too small with ${open.length} namespaces open`);
     check(ms < 120, `${tag}: ${ms.toFixed(0)} ms is too slow`);
     // determinism
     const again = firstView(m, new Map(), { width: w, height: h, touched });
@@ -52,7 +52,7 @@ for (const name of ['graph.platform.json', 'graph.fleet.json', 'graph.big.json']
   }
 }
 
-// a forced module stays open, and so does what is above it
+// a forced namespace stays open, and so does what is above it
 {
   const m = load('graph.platform.json');
   const fv = firstView(m, new Map(), { width: 560, height: 620, must: new Set(['api', 'api.services', 'api.services.billing']) });
@@ -63,7 +63,7 @@ for (const name of ['graph.platform.json', 'graph.fleet.json', 'graph.big.json']
 {
   const m = load('graph.empty.json');
   const fv = firstView(m, new Map(), { width: 776, height: 820 });
-  check(fv.collapsed.size === 0, 'empty: modules out of nothing');
+  check(fv.collapsed.size === 0, 'empty: namespaces out of nothing');
 }
 
 if (failed) { console.log(`${failed} failed`); process.exit(1); }

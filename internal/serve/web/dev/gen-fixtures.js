@@ -17,7 +17,7 @@ const LOCAL = { local: 'local', source: 'registry.opentofu.org/hashicorp/local',
 const NULLP = { local: 'null', source: 'registry.opentofu.org/hashicorp/null', version: '3.2.2' };
 
 // ---------------------------------------------------------------------------------------------------------
-// platform: about 45 nodes in three top-level modules with nested modules, a plan, drift, a gone node, a
+// platform: about 45 nodes in three top-level namespaces with nested namespaces, a plan, drift, a gone node, a
 // spec-only node, an orphan and a locked node.
 
 function platform() {
@@ -591,7 +591,7 @@ function sourcePassword(g) {
     contributions: [
       { kind: 'cache', where: 'github.com/acme/pravo-aws-params@v0.4.2', note: 'defines #Parameter and the resource it writes' },
       { kind: 'file', where: 'modules/api/main.cue:31', note: 'instantiates #Parameter; two literals are masked' },
-      { kind: 'tag', where: '-t env=production', note: 'sets env, used by the tags of the module' },
+      { kind: 'tag', where: '-t env=production', note: 'sets env, used by the tags of the namespace' },
       { kind: 'generated', where: 'cue.mod/gen/pravo.dev/providers/hashicorp/aws', note: 'marks value as sensitive and value_wo as write-only' },
       { kind: 'builtin', where: 'pravo.dev/pravo', note: '#Resource and $provider' },
       { kind: 'policy', where: 'policy/no-public-db.cue', note: 'does not match this type; listed because it was loaded' },
@@ -645,7 +645,7 @@ function fleet() {
     }
     b.deps(`regions.${r}.web.service`, `regions.${r}.api.lb`);
   }
-  // for-each groups: a struct of one type is a module of its own; flat siblings sit in their module
+  // for-each groups: a struct of one type is a namespace of its own; flat siblings sit in their namespace
   for (let i = 0; i < 12; i++) {
     const q = `regions.eu_west.jobs.queues.q${String(i).padStart(2, '0')}`;
     b.add(q, 'aws_sqs_queue', { source: src('modules/jobs/queues.cue', 6, 12) });
@@ -731,7 +731,7 @@ function empty() {
     },
     nodes: [],
     edges: [],
-    modules: [],
+    namespaces: [],
     outputs: [],
   };
 }
@@ -794,4 +794,4 @@ const F = fleet();
 out('graph.fleet.json', F.g);
 out('graph.empty.json', empty());
 out('graph.specerror.json', specError());
-console.log('platform', P.g.nodes.length, 'nodes', P.g.edges.length, 'edges', P.g.modules.length, 'modules; fleet', F.g.nodes.length, 'nodes', F.g.edges.length, 'edges', F.g.modules.length, 'modules');
+console.log('platform', P.g.nodes.length, 'nodes', P.g.edges.length, 'edges', P.g.namespaces.length, 'namespaces; fleet', F.g.nodes.length, 'nodes', F.g.edges.length, 'edges', F.g.namespaces.length, 'namespaces');

@@ -22,7 +22,7 @@ How-to pages are for when you know the basics and need to do one thing: share st
 | Let an agent plan and apply | [Agents and MCP](agents-and-mcp.md) | [pravo mcp](../reference/mcp.md) |
 | Handle secrets and credentials | [Secrets](secrets.md) | [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) |
 | Rename a resource, move it, or adopt an existing object | [Importing and moving](importing-and-moving.md) | [B8, Renames, moves, imports](../learn/b08-renames-moves-imports.md) |
-| See an estate as a graph of modules and resources, with its source, a saved plan and drift | [Explore an estate in a browser](explore-your-estate.md) | [The viewer](../concepts/the-viewer.md) |
+| See an estate as a graph of namespaces and resources, with its source, a saved plan and drift | [Explore an estate in a browser](explore-your-estate.md) | [The viewer](../concepts/the-viewer.md) |
 | Find out why an evaluation or a plan fails | [Debugging](debugging.md) | [Reading a CUE error](../learn/c1-reading-a-cue-error.md) |
 | Upgrade pravo or a provider | [Upgrading](upgrading.md) | [Compatibility](../reference/compatibility.md) |
 

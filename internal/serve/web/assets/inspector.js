@@ -1,4 +1,4 @@
-// The inspector on the right: the project when nothing is selected, a module, or a node with the tabs
+// The inspector on the right: the project when nothing is selected, a namespace, or a node with the tabs
 // State, Source, Schema, History and Change. Values arrive redacted from the server; this file never asks
 // for more and has no control that reveals a withheld value.
 
@@ -7,7 +7,7 @@ import * as api from './api.js';
 import { isChange, chain, isOut } from './model.js';
 import { codeWindow, kindLabel } from './ui.js';
 import { StateView, withheld, unknownEl, timeRow } from './values.js';
-import { projectPanel, modulePanel } from './panels.js';
+import { projectPanel, namespacePanel } from './panels.js';
 import { avatar, statusChip, conflictAt } from './plans.js';
 
 const TABS = [
@@ -41,8 +41,8 @@ export class Inspector {
     this.body.addEventListener('click', (ev) => {
       const ref = ev.target.closest('[data-goto]');
       if (ref) { ev.preventDefault(); cb.onSelectNode(ref.dataset.goto); return; }
-      const mod = ev.target.closest('[data-gomod]');
-      if (mod) { ev.preventDefault(); cb.onSelectModule(mod.dataset.gomod); return; }
+      const ns = ev.target.closest('[data-gons]');
+      if (ns) { ev.preventDefault(); cb.onSelectNamespace(ns.dataset.gons); return; }
       const tb = ev.target.closest('[data-tab]');
       if (tb) { cb.onTab(tb.dataset.tab); return; }
       const rc = ev.target.closest('[data-reach]');
@@ -57,8 +57,8 @@ export class Inspector {
       if (pl) cb.onPlan(pl.dataset.plan);
     });
     this.head.addEventListener('click', (ev) => {
-      const mod = ev.target.closest('[data-gomod]');
-      if (mod) { ev.preventDefault(); cb.onSelectModule(mod.dataset.gomod); }
+      const ns = ev.target.closest('[data-gons]');
+      if (ns) { ev.preventDefault(); cb.onSelectNamespace(ns.dataset.gons); }
     });
     window.addEventListener('resize', () => this.placeInk(false));
   }
@@ -84,7 +84,7 @@ export class Inspector {
     return p;
   }
 
-  // ---- the header: a title, the place of the thing in its modules, tags ----
+  // ---- the header: a title, the place of the thing in its namespaces, tags ----
 
   header({ kick, title, path, tags, copy, long }) {
     clear(this.head);
@@ -100,16 +100,16 @@ export class Inspector {
     return copyButton(text, { label: 'Copy the address', tip: 'Copy the address', cls: 'ih-cp', announce: (t) => this.cb.announce(t), done: 'Copied the address' });
   }
 
-  // crumbs: the modules a thing sits in, each a link to that module
-  crumbs(mod, model, last) {
-    const mods = mod ? chain(mod) : [];
-    if (!mods.length && !last) return null;
+  // crumbs: the namespaces a thing sits in, each a link to that namespace
+  crumbs(ns, model, last) {
+    const nss = ns ? chain(ns) : [];
+    if (!nss.length && !last) return null;
     const out = h('div', { class: 'ih-path', 'aria-label': 'Where it sits' });
-    mods.forEach((m, i) => {
+    nss.forEach((m, i) => {
       if (i) out.append(h('span', { class: 'sep', 'aria-hidden': 'true' }, '.'));
-      out.append(h('a', { class: 'mseg', href: '#', data: { gomod: m.path }, title: `Module ${m.path}` }, m.name));
+      out.append(h('a', { class: 'mseg', href: '#', data: { gons: m.path }, title: `Namespace ${m.path}` }, m.name));
     });
-    if (last) { if (mods.length) out.append(h('span', { class: 'sep', 'aria-hidden': 'true' }, '.')); out.append(h('span', { class: 'cur' }, last)); }
+    if (last) { if (nss.length) out.append(h('span', { class: 'sep', 'aria-hidden': 'true' }, '.')); out.append(h('span', { class: 'cur' }, last)); }
     return out;
   }
 
@@ -145,22 +145,22 @@ export class Inspector {
     this.root.classList.remove('scrolled');
   }
 
-  showModule(mod, model, collapsed) {
-    this.mode = 'module';
-    this.modAddr = mod.path;
+  showNamespace(ns, model, collapsed) {
+    this.mode = 'namespace';
+    this.nsAddr = ns.path;
     this.token++;
     this.noTabs();
-    const a = mod.agg;
+    const a = ns.agg;
     this.header({
-      kick: 'Module',
-      title: mod.name,
-      long: mod.name.length > 22,
-      path: this.crumbs(mod.up && !mod.up.isRoot ? mod.up : null, model, null),
-      copy: mod.path,
-      tags: [h('span', { class: 'b' }, plural(a.n, 'resource')), mod.kids.length ? h('span', { class: 'b' }, plural(mod.kids.length, 'sub-module')) : null, a.out ? h('span', { class: 'b' }, plural(a.out, 'output')) : null],
+      kick: 'Namespace',
+      title: ns.name,
+      long: ns.name.length > 22,
+      path: this.crumbs(ns.up && !ns.up.isRoot ? ns.up : null, model, null),
+      copy: ns.path,
+      tags: [h('span', { class: 'b' }, plural(a.n, 'resource')), ns.kids.length ? h('span', { class: 'b' }, plural(ns.kids.length, 'sub-namespace')) : null, a.out ? h('span', { class: 'b' }, plural(a.out, 'output')) : null],
     });
-    this.paint(modulePanel(this, mod, model, collapsed));
-    this.root.dataset.mode = 'module';
+    this.paint(namespacePanel(this, ns, model, collapsed));
+    this.root.dataset.mode = 'namespace';
     this.root.classList.remove('scrolled');
   }
 
@@ -208,7 +208,7 @@ export class Inspector {
       kick: n.mode === 'managed' ? 'Resource' : n.mode === 'data' ? 'Data source' : n.mode === 'output' ? 'Output' : n.mode,
       title: n.name,
       long: n.name.length > 22,
-      path: this.crumbs(this.model.nodes.get(n.addr) ? this.model.nodes.get(n.addr).mod : null, this.model, null),
+      path: this.crumbs(this.model.nodes.get(n.addr) ? this.model.nodes.get(n.addr).ns : null, this.model, null),
       copy: n.addr,
       tags,
     });
@@ -442,7 +442,7 @@ export class Inspector {
         l.expires ? [h('dt', null, 'expires'), h('dd', null, stamp(l.expires))] : null));
   }
 
-  // a list of resources: the status square, the name, the module they sit in
+  // a list of resources: the status square, the name, the namespace they sit in
   nodeList(nodes, model, from) {
     const LIMIT = 8;
     const ul = h('ul', { class: 'nav' });
@@ -451,7 +451,7 @@ export class Inspector {
       const shown = all ? nodes : nodes.slice(0, LIMIT);
       for (const n of shown) {
         const full = model.nodes.get(n.addr);
-        const where = full && full.module ? full.module : '';
+        const where = full && full.namespace ? full.namespace : '';
         ul.append(h('li', null, h('a', { class: 'navrow', href: '#', data: { goto: n.addr }, title: n.addr }, nodeMark(full || n, model.hasPlan && !!full), h('span', { class: 'nn' }, full ? full.name : n.addr), where ? h('span', { class: 'nt' }, where) : null)));
       }
       if (!all && nodes.length > LIMIT) ul.append(h('li', null, h('button', { class: 'more-btn', type: 'button', on: { click: () => draw(true) } }, `Show all ${nodes.length}`)));

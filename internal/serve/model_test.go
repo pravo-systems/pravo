@@ -31,10 +31,10 @@ func resourceNodes(g Graph) []Node {
 	return out
 }
 
-func moduleOf(g Graph, path string) *Module {
-	for i := range g.Modules {
-		if g.Modules[i].Path == path {
-			return &g.Modules[i]
+func namespaceOf(g Graph, path string) *Namespace {
+	for i := range g.Namespaces {
+		if g.Namespaces[i].Path == path {
+			return &g.Namespaces[i]
 		}
 	}
 	return nil
@@ -89,15 +89,15 @@ func TestGraph(t *testing.T) {
 	if a.Source == nil || *a.Source != *b.Source || a.Source.File != "main.cue" || a.Source.Line < 20 {
 		t.Errorf("services.a.db is at %+v, services.b.db at %+v", a.Source, b.Source)
 	}
-	if a.Module != "services.a" || nodeOf(g, "shared").Module != "" || nodeOf(g, "hosts.x").Module != "hosts" {
-		t.Errorf("modules of nodes: %q %q %q", a.Module, nodeOf(g, "shared").Module, nodeOf(g, "hosts.x").Module)
+	if a.Namespace != "services.a" || nodeOf(g, "shared").Namespace != "" || nodeOf(g, "hosts.x").Namespace != "hosts" {
+		t.Errorf("namespaces of nodes: %q %q %q", a.Namespace, nodeOf(g, "shared").Namespace, nodeOf(g, "hosts.x").Namespace)
 	}
 	if a.Sensitive != 7 || a.Revision != 1 || a.RefreshedAt == nil {
 		t.Errorf("services.a.db: sensitive %d revision %d refreshed %v", a.Sensitive, a.Revision, a.RefreshedAt)
 	}
 	// blob, api_token (by name), payload (write-only), tags.db_password (by key), settings.key, rule[0].pin, legacy (unknown to the schema).
 
-	// Modules.
+	// Namespaces.
 	for path, c := range map[string]struct {
 		parent, name string
 		resources    int
@@ -110,34 +110,34 @@ func TestGraph(t *testing.T) {
 		"hosts":      {"", "hosts", 2, 0, false},
 		"old":        {"", "old", 1, 0, false},
 	} {
-		m := moduleOf(g, path)
+		m := namespaceOf(g, path)
 		if m == nil {
-			t.Errorf("no module %s", path)
+			t.Errorf("no namespace %s", path)
 			continue
 		}
 		if m.Parent != c.parent || m.Name != c.name || m.Resources != c.resources || m.Depth != c.depth {
-			t.Errorf("module %s is %+v, want %+v", path, *m, c)
+			t.Errorf("namespace %s is %+v, want %+v", path, *m, c)
 		}
 		if c.instance {
 			if m.Definition == nil || m.Declared == nil || m.Definition.Line >= m.Declared.Line && false {
-				t.Errorf("module %s: declared %+v definition %+v", path, m.Declared, m.Definition)
+				t.Errorf("namespace %s: declared %+v definition %+v", path, m.Declared, m.Definition)
 			}
 			if m.Definition != nil && m.Declared != nil && m.Definition.Line == m.Declared.Line {
-				t.Errorf("module %s: declared and definition are on the same line", path)
+				t.Errorf("namespace %s: declared and definition are on the same line", path)
 			}
 		}
 		if path != "old" && m.Declared == nil {
-			t.Errorf("module %s has no position", path)
+			t.Errorf("namespace %s has no position", path)
 		}
 	}
-	if moduleOf(g, "old").Declared != nil {
-		t.Errorf("a module of the state alone has a position")
+	if namespaceOf(g, "old").Declared != nil {
+		t.Errorf("a namespace of the state alone has a position")
 	}
-	if moduleOf(g, "services.a").Declared.Line == moduleOf(g, "services.b").Declared.Line {
+	if namespaceOf(g, "services.a").Declared.Line == namespaceOf(g, "services.b").Declared.Line {
 		t.Errorf("two instances at one line")
 	}
-	if len(g.Modules) != 5 {
-		t.Errorf("%d modules", len(g.Modules))
+	if len(g.Namespaces) != 5 {
+		t.Errorf("%d namespaces", len(g.Namespaces))
 	}
 
 	// Edges run from the dependency to the dependent.
@@ -259,8 +259,8 @@ func TestSearch(t *testing.T) {
 	if err := jsonUnmarshal(p.get("/api/search?q=services"), &res); err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Nodes) != 4 || len(res.Modules) != 3 {
-		t.Errorf("search services: %d nodes %d modules", len(res.Nodes), len(res.Modules))
+	if len(res.Nodes) != 4 || len(res.Namespaces) != 3 {
+		t.Errorf("search services: %d nodes %d namespaces", len(res.Nodes), len(res.Namespaces))
 	}
 	if err := jsonUnmarshal(p.get("/api/search?q="), &res); err != nil || len(res.Nodes) != 0 {
 		t.Errorf("an empty query: %v %d", err, len(res.Nodes))
@@ -274,7 +274,7 @@ func TestDetailUnknownAndBadRequests(t *testing.T) {
 		"/api/detail":               400,
 		"/api/source?addr=nope":     404,
 		"/api/source":               400,
-		"/api/detail?addr=services": 404, // a module is not a node
+		"/api/detail?addr=services": 404, // a namespace is not a node
 	} {
 		resp, body := p.do("GET", path, nil)
 		if resp.StatusCode != want {

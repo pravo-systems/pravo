@@ -1,7 +1,7 @@
 // The fleet estate: three regions, each with a production and a staging
 // environment, each environment with three services and a pool of twelve nodes.
 // Comprehensions write every region, environment, service and node from the
-// lists below, so the addresses are three modules deep: eu.prod.api.config.
+// lists below, so the addresses are three namespaces deep: eu.prod.api.config.
 // The providers random, local and null stand for the real ones.
 package fleet
 

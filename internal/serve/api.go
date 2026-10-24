@@ -11,19 +11,19 @@ import "time"
 // APIVersion is the layout version of every response in this file.
 const APIVersion = 1
 
-// Graph is GET /api/graph: everything the graph view and the module tree need,
+// Graph is GET /api/graph: everything the graph view and the namespace tree need,
 // without attribute values.
 type Graph struct {
 	Version int `json:"version"`
 	// Revision changes whenever anything in the response would. The page
 	// compares it with the one in an event from /api/events.
-	Revision string    `json:"revision"`
-	Project  Project   `json:"project"`
-	Nodes    []Node    `json:"nodes"`
-	Edges    []Edge    `json:"edges"`
-	Modules  []Module  `json:"modules"`
-	Outputs  []Output  `json:"outputs"`
-	Plan     *PlanInfo `json:"plan,omitempty"`
+	Revision   string      `json:"revision"`
+	Project    Project     `json:"project"`
+	Nodes      []Node      `json:"nodes"`
+	Edges      []Edge      `json:"edges"`
+	Namespaces []Namespace `json:"namespaces"`
+	Outputs    []Output    `json:"outputs"`
+	Plan       *PlanInfo   `json:"plan,omitempty"`
 	// Warnings are sentences for the reader: a provider schema that is not
 	// cached, a specification that no longer loads, a plan that is stale.
 	Warnings []string `json:"warnings,omitempty"`
@@ -77,11 +77,11 @@ type ProviderInstance struct {
 // Node is one resource, data source, ephemeral resource, function call or built-in
 // value, or one output of the root: the other end of the data flow, a value that
 // the root publishes. An output is not a resource. It has no record, no history,
-// no lock and no refresh time, and no resource count (Module.Resources, the
+// no lock and no refresh time, and no resource count (Namespace.Resources, the
 // "planned N of M" of a plan) includes it.
 type Node struct {
 	// Addr is the CUE path of the node, such as "services.api.secret". It is
-	// opaque to the page: it is a key, never split. Use Module for the parent.
+	// opaque to the page: it is a key, never split. Use Namespace for the parent.
 	Addr string `json:"addr"`
 	// Mode is "managed", "data", "ephemeral", "call", "builtin" or "output". The
 	// Type of an output is "output".
@@ -89,8 +89,8 @@ type Node struct {
 	Type string `json:"type"`
 	// Name is the last label of the address.
 	Name string `json:"name"`
-	// Module is the Path of the module the node sits in, "" for the root.
-	Module string `json:"module"`
+	// Namespace is the Path of the namespace the node sits in, "" for the root.
+	Namespace string `json:"namespace"`
 	// Provider is the provider key: "aws" or "aws.west".
 	Provider string `json:"provider,omitempty"`
 	// Presence is "both" (declared and recorded), "spec" (declared, not yet
@@ -145,14 +145,14 @@ type Edge struct {
 	Dependent  string `json:"dependent"`
 }
 
-// Module is a struct of the specification that contains resources: an instance
+// Namespace is a struct of the specification that contains resources: an instance
 // of a definition, a package instance, or a plain struct. The address of every
 // node below it starts with its Path.
-type Module struct {
+type Namespace struct {
 	Path   string `json:"path"`
 	Parent string `json:"parent"`
 	Name   string `json:"name"`
-	// Resources counts the nodes below the module, nested modules included, the
+	// Resources counts the nodes below the namespace, nested namespaces included, the
 	// outputs not. Outputs counts the outputs below it.
 	Resources int `json:"resources"`
 	Outputs   int `json:"outputs,omitempty"`
@@ -419,13 +419,13 @@ type Contribution struct {
 	Note  string `json:"note"`
 }
 
-// Search is GET /api/search?q=...: the nodes and modules that match, for the
+// Search is GET /api/search?q=...: the nodes and namespaces that match, for the
 // palette. The page also searches the graph it holds; this exists for a graph
 // that was cut down.
 type Search struct {
-	Version int      `json:"version"`
-	Nodes   []Node   `json:"nodes"`
-	Modules []Module `json:"modules"`
+	Version    int         `json:"version"`
+	Nodes      []Node      `json:"nodes"`
+	Namespaces []Namespace `json:"namespaces"`
 }
 
 // PlanCounts are the actions of a plan, as the plan prints them: a replace

@@ -1,5 +1,5 @@
 'use strict';
-// Generates fixtures/graph.big.json: about 1800 nodes in 30 modules, with flat groups of siblings of one
+// Generates fixtures/graph.big.json: about 1800 nodes in 30 namespaces, with flat groups of siblings of one
 // type, a plan and a few marks. Deterministic. Run: node gen-big.js
 
 const fs = require('fs');
@@ -11,7 +11,7 @@ const rand = rng(20261021);
 const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 const int = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
 
-// module -> singles (types of distinct resources) and groups ([type, count])
+// namespace -> singles (types of distinct resources) and groups ([type, count])
 const SINGLES = {
   vpc: ['aws_vpc', 'aws_internet_gateway', 'aws_nat_gateway', 'aws_eip', 'aws_route_table', 'aws_vpc_endpoint', 'aws_flow_log'],
   db: ['aws_db_subnet_group', 'aws_db_parameter_group', 'aws_db_instance', 'aws_kms_key', 'aws_secretsmanager_secret', 'aws_cloudwatch_metric_alarm'],
@@ -31,7 +31,7 @@ const GROUPS = {
 };
 
 // [path, profile, groups]
-const MODS = [
+const NSS = [
   ['platform', 'vpc'], ['platform.network', 'vpc', ['vpc']], ['platform.compute', 'svc', ['ec2']], ['platform.iam', 'iam', ['iam']], ['platform.dns', 'svc', ['dns']],
   ['data', 'db'], ['data.postgres', 'db', ['db']], ['data.postgres.replicas', 'db', ['db']], ['data.cache', 'db'], ['data.streams', 'obs', ['queue']], ['data.warehouse', 'db', ['db']],
   ['apps', 'svc'], ['apps.checkout', 'svc', ['svc']], ['apps.checkout.workers', 'svc', ['ec2']], ['apps.catalog', 'svc', ['svc']], ['apps.catalog.images', 'svc', ['queue']], ['apps.search', 'svc', ['svc']],
@@ -39,17 +39,17 @@ const MODS = [
   ['edge', 'svc'], ['edge.cdn', 'svc', ['dns']], ['edge.waf', 'iam', ['iam']], ['edge.lb', 'svc', ['svc']],
   ['observability', 'obs'], ['observability.logs', 'obs', ['obs']], ['observability.metrics', 'obs', ['obs']], ['observability.alerts', 'obs', ['obs']],
 ];
-// the list above has 30 module paths; security is the 31st below and is folded into iam
-MODS.length = 30;
+// the list above has 30 namespace paths; security is the 31st below and is folded into iam
+NSS.length = 30;
 
 const b = new Builder();
-const singles = new Map(); // module -> addrs of singles
-const groups = new Map(); // module -> [[addrs of group]]
+const singles = new Map(); // namespace -> addrs of singles
+const groups = new Map(); // namespace -> [[addrs of group]]
 let n = 0;
 
 function nameFor(type, i) { return type.replace(/^aws_/, '').replace(/_/g, '') .slice(0, 12) + '_' + String(i).padStart(3, '0'); }
 
-for (const [mpath, profile, gkeys] of MODS) {
+for (const [mpath, profile, gkeys] of NSS) {
   const s = [];
   const types = SINGLES[profile];
   const count = int(6, 16);
@@ -78,8 +78,8 @@ for (const [mpath, profile, gkeys] of MODS) {
   groups.set(mpath, gs);
 }
 
-// edges: forward only, by module order, so the graph is acyclic
-const order = MODS.map((m) => m[0]);
+// edges: forward only, by namespace order, so the graph is acyclic
+const order = NSS.map((m) => m[0]);
 order.forEach((mpath, mi) => {
   const s = singles.get(mpath);
   for (let i = 1; i < s.length; i++) b.dep(s[int(0, i - 1)], s[i]);
@@ -141,4 +141,4 @@ const g = b.graph({
   plan,
 });
 fs.writeFileSync(path.join(__dirname, 'fixtures', 'graph.big.json'), JSON.stringify(g) + '\n');
-console.log('big', g.nodes.length, 'nodes', g.edges.length, 'edges', g.modules.length, 'modules');
+console.log('big', g.nodes.length, 'nodes', g.edges.length, 'edges', g.namespaces.length, 'namespaces');

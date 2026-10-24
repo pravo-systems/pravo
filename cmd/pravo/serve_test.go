@@ -235,12 +235,12 @@ func TestServeARealRoot(t *testing.T) {
 	if g.Plan.Summary.Add != 5 || g.Plan.Summary.Destroy != 5 || g.Plan.Stale {
 		t.Errorf("plan %+v", g.Plan)
 	}
-	mods := map[string]serve.Module{}
-	for _, m := range g.Modules {
-		mods[m.Path] = m
+	nss := map[string]serve.Namespace{}
+	for _, m := range g.Namespaces {
+		nss[m.Path] = m
 	}
-	if m := mods["services.api"]; m.Resources != 2 || m.Definition == nil || m.Declared == nil || m.Parent != "services" || m.Depth != 1 {
-		t.Errorf("module services.api: %+v", m)
+	if m := nss["services.api"]; m.Resources != 2 || m.Definition == nil || m.Declared == nil || m.Parent != "services" || m.Depth != 1 {
+		t.Errorf("namespace services.api: %+v", m)
 	}
 	var all [][]byte
 	all = append(all, raw)

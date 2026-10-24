@@ -103,7 +103,7 @@ if (graph && params.get('plan')) {
 const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 const hex = (s, n) => { let o = ''; let h = hash(s); while (o.length < n) { o += h.toString(16); h = Math.imul(h ^ (h >>> 13), 0x5bd1e995) >>> 0; } return o.slice(0, n); };
 
-// type -> [name, type, kind, value] ; strings may use {name} {mod} {id}
+// type -> [name, type, kind, value] ; strings may use {name} {ns} {id}
 const TPL = {
   aws_vpc: [['cidr_block', 'string', 'required', '10.{n}.0.0/16'], ['enable_dns_hostnames', 'bool', 'optional', true], ['enable_dns_support', 'bool', 'optional', true], ['instance_tenancy', 'string', 'optional', 'default']],
   aws_subnet: [['availability_zone', 'string', 'optional,computed', 'eu-west-1a'], ['cidr_block', 'string', 'optional,computed', '10.{n}.{m}.0/24'], ['map_public_ip_on_launch', 'bool', 'optional', false], ['vpc_id', 'string', 'required', 'vpc-{id}']],
@@ -124,7 +124,7 @@ const TPL = {
 };
 const GENERIC = [['name', 'string', 'optional,computed', '{name}']];
 
-const fill = (v, n, ctx) => (typeof v !== 'string' ? v : v.replace(/\{name\}/g, n.name).replace(/\{mod\}/g, n.module).replace(/\{id\}/g, hex(n.addr, 17))
+const fill = (v, n, ctx) => (typeof v !== 'string' ? v : v.replace(/\{name\}/g, n.name).replace(/\{ns\}/g, n.namespace).replace(/\{id\}/g, hex(n.addr, 17))
   .replace(/\{rev\}/g, String(n.revision || 1)).replace(/\{n\}/g, String(10 + (ctx.h % 20))).replace(/\{m\}/g, String((ctx.h >> 5) % 250)).replace(/\{k\}/g, String(4 + ((ctx.h >> 9) % 240))));
 
 function provRef(n) {
@@ -154,7 +154,7 @@ function synthAttrs(n) {
     attrs.push({ name: nm, type: 'string', kind: 'optional', sensitive: true, redacted: 'sensitive' });
   }
   if (n.type.startsWith('aws_')) {
-    attrs.push({ name: 'tags', type: 'map(string)', kind: 'optional', children: [{ name: 'Environment', type: 'string', value: 'production' }, { name: 'ManagedBy', type: 'string', value: 'pravo' }, { name: 'Module', type: 'string', value: n.module || 'root' }] });
+    attrs.push({ name: 'tags', type: 'map(string)', kind: 'optional', children: [{ name: 'Environment', type: 'string', value: 'production' }, { name: 'ManagedBy', type: 'string', value: 'pravo' }, { name: 'Namespace', type: 'string', value: n.namespace || 'root' }] });
   }
   attrs.sort((a, b) => (a.name < b.name ? -1 : 1));
   return attrs;
@@ -171,7 +171,7 @@ function synthOutput(n) {
   else val.value = o.value;
   const attrs = [val];
   const notes = [n.presence === 'state' ? 'Recorded in the state, and the specification no longer declares it: the next apply would remove it.' : n.presence === 'spec' ? 'Declared in the specification and not published yet: no apply has recorded its value.' : 'The value is the one the last apply recorded.'];
-  return { version: 1, node: { ...n, deps: undefined, used: undefined, mod: undefined }, provider: { key: '' }, attrs, schema_known: true,
+  return { version: 1, node: { ...n, deps: undefined, used: undefined, ns: undefined }, provider: { key: '' }, attrs, schema_known: true,
     depends_on: g.edges.filter((e) => e.dependent === n.addr).map((e) => e.dependency).sort(), used_by: g.edges.filter((e) => e.dependency === n.addr).map((e) => e.dependent).sort(), times: {}, notes };
 }
 
@@ -192,7 +192,7 @@ function synthDetail(n) {
   if (n.presence === 'state') notes.push('This resource is in the state but no longer declared. The next apply destroys it.');
   if (n.presence === 'spec') notes.push('This resource is declared and not created yet. The values below are the planned ones; the rest is known after apply.');
   if (n.gone) notes.push('The object does not exist at the provider any more. The next plan creates it again.');
-  const d = { version: 1, node: { ...n, deps: undefined, used: undefined, mod: undefined }, provider: provRef(n), attrs, schema_known: n.type !== 'aws_wafv2_web_acl', depends_on: deps, used_by: used, times };
+  const d = { version: 1, node: { ...n, deps: undefined, used: undefined, ns: undefined }, provider: provRef(n), attrs, schema_known: n.type !== 'aws_wafv2_web_acl', depends_on: deps, used_by: used, times };
   if (n.sealed) { d.attrs = []; d.schema_known = true; notes.push('The attributes of this record are sealed, and no identity was given. Start the viewer with pravo serve --identity NAME. Resources are listed and no value is shown.'); }
   if (!d.schema_known) d.attrs = attrs.map((a) => ({ name: a.name, type: a.type, kind: a.kind, redacted: 'schema' }));
   if (seen.size) d.reach = [...seen].sort();
@@ -259,13 +259,13 @@ function synthSource(n) {
   }
   for (let i = 0; i < n.sensitive; i++) lines.push({ no: no++, text: `\t${['password', 'secret_string', 'token'][i % 3]}: "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"`, mark: 'sensitive' });
   lines.push({ no: no++, text: '}', mark: 'focus' });
-  const ctxBefore = [{ no: start - 2, text: '', dim: true }, { no: start - 1, text: `// ${n.module || 'root'}`, dim: true }];
+  const ctxBefore = [{ no: start - 2, text: '', dim: true }, { no: start - 1, text: `// ${n.namespace || 'root'}`, dim: true }];
   const blocks = [{ role: 'definition', label: n.name, file: f, kind: 'file', start_line: start - 2, end_line: no - 1, modified: new Date(Date.now() - 3 * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), lines: [...ctxBefore, ...lines] }];
-  const mod = graph.modules.find((m) => m.path === n.module);
-  if (mod && mod.declared) {
-    const d = mod.declared;
-    blocks.push({ role: 'instance', label: mod.name, file: d.file, kind: 'file', start_line: d.line, end_line: d.line + 3, modified: new Date(Date.now() - 3 * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), lines: [
-      { no: d.line, text: `${mod.name}: svc.#Service & {`, mark: 'focus' }, { no: d.line + 1, text: '\tname: "estate"', mark: 'focus' }, { no: d.line + 2, text: '\tsize: "m6g.large"', mark: 'focus' }, { no: d.line + 3, text: '}', mark: 'focus' }] });
+  const ns = graph.namespaces.find((m) => m.path === n.namespace);
+  if (ns && ns.declared) {
+    const d = ns.declared;
+    blocks.push({ role: 'instance', label: ns.name, file: d.file, kind: 'file', start_line: d.line, end_line: d.line + 3, modified: new Date(Date.now() - 3 * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), lines: [
+      { no: d.line, text: `${ns.name}: svc.#Service & {`, mark: 'focus' }, { no: d.line + 1, text: '\tname: "estate"', mark: 'focus' }, { no: d.line + 2, text: '\tsize: "m6g.large"', mark: 'focus' }, { no: d.line + 3, text: '}', mark: 'focus' }] });
   }
   return { version: 1, addr: n.addr, blocks, contributions: [
     { kind: 'file', where: `${f}:${start}`, note: 'defines the resource' },
@@ -329,7 +329,7 @@ window.fetch = async (input, init) => {
   }
   if (p === '/api/search') {
     const q = (url.searchParams.get('q') || '').toLowerCase();
-    return json(200, { version: 1, nodes: graph.nodes.filter((n) => n.addr.includes(q)).slice(0, 50), modules: graph.modules.filter((m) => m.path.includes(q)) });
+    return json(200, { version: 1, nodes: graph.nodes.filter((n) => n.addr.includes(q)).slice(0, 50), namespaces: graph.namespaces.filter((m) => m.path.includes(q)) });
   }
   return json(404, { error: 'unknown endpoint' });
 };

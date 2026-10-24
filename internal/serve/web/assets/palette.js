@@ -65,17 +65,17 @@ export class Palette {
     const model = this.model;
     if (!model) return;
     const q = raw.trim().toLowerCase();
-    const mods = [], nodes = [];
+    const nss = [], nodes = [];
     if (!q) {
-      // without a query: the modules and the resources the plan changes
-      for (const m of model.modules.values()) if (!m.isRoot && m.depth === 0) mods.push({ kind: 'mod', m, score: 0, cs: [] });
+      // without a query: the namespaces and the resources the plan changes
+      for (const m of model.namespaces.values()) if (!m.isRoot && m.depth === 0) nss.push({ kind: 'ns', m, score: 0, cs: [] });
       for (const n of model.list) if (n.action && n.action !== 'no-op' && nodes.length < 12) nodes.push({ kind: 'node', n, score: 0, cs: [] });
       if (!nodes.length) for (const n of model.list.filter((x) => x.mode !== 'output').concat(model.list.filter((x) => x.mode === 'output')).slice(0, 12)) nodes.push({ kind: 'node', n, score: 0, cs: [] });
     } else {
-      for (const m of model.modules.values()) {
+      for (const m of model.namespaces.values()) {
         if (m.isRoot) continue;
         const f = fuzzy(q, m.path);
-        if (f) mods.push({ kind: 'mod', m, score: f.score + 2, cs: f.cs });
+        if (f) nss.push({ kind: 'ns', m, score: f.score + 2, cs: f.cs });
       }
       for (const n of model.list) {
         const f = fuzzy(q, n.addr);
@@ -85,15 +85,15 @@ export class Palette {
         if (ft && ft.score * 0.8 > score) { score = ft.score * 0.8; cs = []; }
         if (score > -1) nodes.push({ kind: 'node', n, score, cs });
       }
-      mods.sort((a, b) => b.score - a.score);
+      nss.sort((a, b) => b.score - a.score);
       nodes.sort((a, b) => b.score - a.score);
     }
-    const m = mods.slice(0, MAX_MODS), found = nodes.slice(0, MAX_NODES);
+    const m = nss.slice(0, MAX_MODS), found = nodes.slice(0, MAX_NODES);
     // the outputs are a group of their own, after the resources
     const n = found.filter((x) => x.n.mode !== 'output'), o = found.filter((x) => x.n.mode === 'output');
-    this.total = mods.length + nodes.length;
+    this.total = nss.length + nodes.length;
     this.results = [...m, ...n, ...o];
-    this.groups = { mods: m.length, nodes: n.length, outs: o.length, q };
+    this.groups = { nss: m.length, nodes: n.length, outs: o.length, q };
     this.active = 0;
     this.draw();
     const msg = this.results.length ? `${plural(this.total, 'result')}` : 'No results';
@@ -102,15 +102,15 @@ export class Palette {
 
   draw() {
     clear(this.list);
-    const { mods, nodes, outs, q } = this.groups;
+    const { nss, nodes, outs, q } = this.groups;
     let i = 0;
     const add = (title, count, items) => {
       this.list.append(h('div', { class: 'pal-grp', role: 'presentation' }, title, h('em', null, String(count))));
       for (const r of items) this.list.append(this.option(r, i++));
     };
-    if (mods) add('Modules', this.total > this.results.length && q ? `${mods}` : String(mods), this.results.slice(0, mods));
-    if (nodes) add(q ? 'Resources' : 'In the plan', String(nodes), this.results.slice(mods, mods + nodes));
-    if (outs) add('Outputs', String(outs), this.results.slice(mods + nodes));
+    if (nss) add('Namespaces', this.total > this.results.length && q ? `${nss}` : String(nss), this.results.slice(0, nss));
+    if (nodes) add(q ? 'Resources' : 'In the plan', String(nodes), this.results.slice(nss, nss + nodes));
+    if (outs) add('Outputs', String(outs), this.results.slice(nss + nodes));
     if (!this.results.length) this.list.append(h('p', { class: 'pal-none' }, q ? `Nothing matches “${q}”.` : 'Nothing to show.'));
     const extra = this.total - this.results.length;
     this.foot.textContent = this.results.length ? `${this.results.length}${extra > 0 ? ' of ' + this.total : ''} shown` : '';
@@ -119,7 +119,7 @@ export class Palette {
 
   option(r, i) {
     const id = 'pal-o-' + i;
-    if (r.kind === 'mod') {
+    if (r.kind === 'ns') {
       return h('div', { class: 'pal-opt', role: 'option', id, data: { i: String(i) }, 'aria-selected': 'false' },
         h('span', { class: 'pal-ico' }, icon('chev')),
         h('span', { class: 'pal-t' }, this.hl(r.m.path, r.cs)),
@@ -174,17 +174,17 @@ export class Palette {
     const r = this.results[i];
     if (!r) return;
     this.close(false);
-    if (r.kind === 'mod') this.cb.onPick('module', r.m.path);
+    if (r.kind === 'ns') this.cb.onPick('namespace', r.m.path);
     else this.cb.onPick('node', r.n.addr);
   }
 }
 
 export const SHORTCUTS = [
-  ['Search', [['/', 'or', 'Ctrl K', 'Find a resource, a type or a module']]],
+  ['Search', [['/', 'or', 'Ctrl K', 'Find a resource, a type or a namespace']]],
   ['Move around', [['←', '', '', 'To a dependency of the selection'], ['→', '', '', 'To a dependent'], ['↑ ↓', '', '', 'To the sibling above or below'], ['Esc', '', '', 'Clear the selection']]],
-  ['View', [['f', '', '', 'Fit the graph'], ['w', '', '', 'Hide or show the sidebars'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every module'], ['Enter', '', '', 'Open or close the selected module'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or table of the resources'], ['a', '', '', 'Resources or state'], ['p', '', '', 'Resources or plans'], ['?', '', '', 'This sheet']]],
-  ['Module tree', [['↑ ↓', '', '', 'Move between rows, Home and End jump'], ['← →', '', '', 'Close or open a module'], ['Enter', '', '', 'Select the row'], ['*', '', '', 'Open every module of this level'], ['a–z', '', '', 'Jump to the next row that starts with it']]],
-  ['Pointer', [['Drag', '', '', 'Pan'], ['Wheel', '', 'Pinch', 'Zoom'], ['Double-click', '', '', 'Open or close a module']]],
+  ['View', [['f', '', '', 'Fit the graph'], ['w', '', '', 'Hide or show the sidebars'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every namespace'], ['Enter', '', '', 'Open or close the selected namespace'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or table of the resources'], ['a', '', '', 'Resources or state'], ['p', '', '', 'Resources or plans'], ['?', '', '', 'This sheet']]],
+  ['Namespace tree', [['↑ ↓', '', '', 'Move between rows, Home and End jump'], ['← →', '', '', 'Close or open a namespace'], ['Enter', '', '', 'Select the row'], ['*', '', '', 'Open every namespace of this level'], ['a–z', '', '', 'Jump to the next row that starts with it']]],
+  ['Pointer', [['Drag', '', '', 'Pan'], ['Wheel', '', 'Pinch', 'Zoom'], ['Double-click', '', '', 'Open or close a namespace']]],
 ];
 
 export class Sheet {

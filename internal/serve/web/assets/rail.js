@@ -1,6 +1,6 @@
-// The left rail: filter chips and the module tree. The tree is the outline of the graph: a module that is
+// The left rail: filter chips and the namespace tree. The tree is the outline of the graph: a namespace that is
 // open here is open there. It is a flat list of rows with the tree role, a roving tabindex and arrow keys.
-// A change of the rows reuses the rows that stay, so that a module opens and closes with a motion and the
+// A change of the rows reuses the rows that stay, so that a namespace opens and closes with a motion and the
 // focus stays where it was.
 
 import { h, icon, tick, motionOn, baseName, nodeMark } from './util.js';
@@ -41,8 +41,8 @@ export class Rail {
     if (this.titleEl) this.titleEl.addEventListener('click', () => cb.onRoot && cb.onRoot());
     this.treeEl.addEventListener('click', (ev) => this.onClick(ev));
     this.treeEl.addEventListener('dblclick', (ev) => {
-      const row = ev.target.closest('[data-mod]');
-      if (row) cb.onToggle(row.dataset.mod);
+      const row = ev.target.closest('[data-ns]');
+      if (row) cb.onToggle(row.dataset.ns);
     });
     this.treeEl.addEventListener('keydown', (ev) => this.onKey(ev));
     this.treeEl.addEventListener('focusin', (ev) => {
@@ -99,27 +99,27 @@ export class Rail {
     const test = this.matcher(s);
     const has = new Set();
     if (active) {
-      for (const n of model.list) if (test(n)) for (let m = n.mod; m; m = m.up) has.add(m.path);
+      for (const n of model.list) if (test(n)) for (let m = n.ns; m; m = m.up) has.add(m.path);
     }
     const rows = [];
-    const visit = (mod, depth) => {
-      for (const k of mod.kids) {
+    const visit = (ns, depth) => {
+      for (const k of ns.kids) {
         if (active && !has.has(k.path)) continue;
         const open = active ? true : !s.collapsed.has(k.path);
-        rows.push({ kind: 'mod', mod: k, depth, open, key: 'm:' + k.path });
+        rows.push({ kind: 'ns', ns: k, depth, open, key: 'ns:' + k.path });
         if (open) visit(k, depth + 1);
       }
       let shown = 0;
-      const limit = Math.max(this.limits.get(mod.path) || 0, LEAF_LIMIT);
+      const limit = Math.max(this.limits.get(ns.path) || 0, LEAF_LIMIT);
       let total = 0;
-      for (const n of mod.nodes) if (!active || test(n)) total++;
-      for (const n of mod.nodes) {
+      for (const n of ns.nodes) if (!active || test(n)) total++;
+      for (const n of ns.nodes) {
         if (active && !test(n)) continue;
         if (shown >= limit) break;
         rows.push({ kind: 'node', n, depth, key: 'n:' + n.addr });
         shown++;
       }
-      if (total > shown) rows.push({ kind: 'more', mod, depth, rest: total - shown, key: 'x:' + mod.path });
+      if (total > shown) rows.push({ kind: 'more', ns, depth, rest: total - shown, key: 'x:' + ns.path });
     };
     visit(model.root, 0);
     this.rows = rows;
@@ -130,7 +130,7 @@ export class Rail {
       this.rendered = true;
       return;
     }
-    const selKey = s.sel ? (model.nodes.has(s.sel) ? 'n:' + s.sel : 'm:' + s.sel) : null;
+    const selKey = s.sel ? (model.nodes.has(s.sel) ? 'n:' + s.sel : 'ns:' + s.sel) : null;
     const tabKey = rows.some((r) => r.key === selKey) ? selKey : rows[0].key;
     this.reconcile(rows, s, tabKey, selKey, !first);
     this.focusKey = tabKey;
@@ -198,15 +198,15 @@ export class Rail {
   row(r, s) {
     const lvl = r.depth;
     const base = { role: 'treeitem', 'aria-level': String(lvl + 1), 'aria-selected': 'false', tabIndex: -1, data: { key: r.key }, style: `--lvl:${lvl}` };
-    if (r.kind === 'mod') {
-      const m = r.mod, a = m.agg;
+    if (r.kind === 'ns') {
+      const m = r.ns, a = m.agg;
       const seg = (n, cls) => (n ? h('i', { class: cls, style: `width:${(n / a.n) * 100}%` }) : null);
       const plan = a.plan
         ? h('span', { class: 'mini', 'data-tip': [a.create && `${a.create} create`, a.update + a.replace && `${a.update + a.replace} change`, a.delete && `${a.delete} delete`, a.read && `${a.read} read`].filter(Boolean).join(', ') + ` of ${a.n}`, 'aria-hidden': 'true' },
           seg(a.create, 'm-ok'), seg(a.update + a.replace, 'm-chg'), seg(a.delete, 'm-bad'), seg(a.read, 'm-key'))
         : null;
       const drift = a.drifted + a.gone;
-      return h('div', Object.assign(base, { class: 'row mod', 'aria-expanded': r.open ? 'true' : 'false', data: { key: r.key, mod: m.path }, title: m.path }),
+      return h('div', Object.assign(base, { class: 'row ns', 'aria-expanded': r.open ? 'true' : 'false', data: { key: r.key, ns: m.path }, title: m.path }),
         h('button', { class: 'chev' + (r.open ? ' open' : ''), type: 'button', tabIndex: -1, 'aria-label': (r.open ? 'Collapse ' : 'Expand ') + m.name, data: { toggle: m.path } }, icon('chev')),
         h('span', { class: 'nm' }, m.name),
         h('span', { class: 'mk' }, plan, drift ? h('span', { class: 'i i-drift warn', title: `${drift} drifted` }) : null,
@@ -214,7 +214,7 @@ export class Rail {
           h('span', { class: 'n' }, String(a.n))));
     }
     if (r.kind === 'more') {
-      return h('div', Object.assign(base, { class: 'row more', data: { key: r.key, more: r.mod.path } }), h('span', { class: 'nm' }, `${r.rest} more…`));
+      return h('div', Object.assign(base, { class: 'row more', data: { key: r.key, more: r.ns.path } }), h('span', { class: 'nm' }, `${r.rest} more…`));
     }
     const n = r.n;
     return h('div', Object.assign(base, { class: 'row leaf' + (n.mode === 'output' ? ' out' : ''), data: { key: r.key, addr: n.addr }, title: n.mode === 'output' ? `${n.addr}\noutput` : `${n.addr}\n${n.type}` }),
@@ -238,7 +238,7 @@ export class Rail {
 
   activate(row) {
     if (row.dataset.more) { this.limits.set(row.dataset.more, 1e9); this.render(this.s); return; }
-    if (row.dataset.mod) this.cb.onSelectModule(row.dataset.mod);
+    if (row.dataset.ns) this.cb.onSelectNamespace(row.dataset.ns);
     else if (row.dataset.addr) this.cb.onSelectNode(row.dataset.addr);
   }
 
@@ -266,21 +266,21 @@ export class Rail {
       case 'Home': this.focusRow(rows[0]); break;
       case 'End': this.focusRow(rows[rows.length - 1]); break;
       case 'ArrowRight':
-        if (row.dataset.mod) {
-          if (row.getAttribute('aria-expanded') === 'false') this.cb.onToggle(row.dataset.mod);
+        if (row.dataset.ns) {
+          if (row.getAttribute('aria-expanded') === 'false') this.cb.onToggle(row.dataset.ns);
           else this.focusRow(rows[i + 1]);
         }
         break;
       case 'ArrowLeft':
-        if (row.dataset.mod && row.getAttribute('aria-expanded') === 'true') this.cb.onToggle(row.dataset.mod);
+        if (row.dataset.ns && row.getAttribute('aria-expanded') === 'true') this.cb.onToggle(row.dataset.ns);
         else {
           const lvl = Number(row.getAttribute('aria-level'));
           for (let j = i - 1; j >= 0; j--) if (Number(rows[j].getAttribute('aria-level')) < lvl) { this.focusRow(rows[j]); break; }
         }
         break;
       case '*':
-        // open every module at this level
-        for (const r of rows) if (r.dataset.mod && r.getAttribute('aria-level') === row.getAttribute('aria-level') && r.getAttribute('aria-expanded') === 'false') this.cb.onToggle(r.dataset.mod);
+        // open every namespace at this level
+        for (const r of rows) if (r.dataset.ns && r.getAttribute('aria-level') === row.getAttribute('aria-level') && r.getAttribute('aria-expanded') === 'false') this.cb.onToggle(r.dataset.ns);
         break;
       case 'Enter':
       case ' ':
@@ -321,18 +321,18 @@ export class Rail {
   }
 
   ensureVisible(addr) {
-    // a leaf beyond the limit of its module is shown by raising the limit
+    // a leaf beyond the limit of its namespace is shown by raising the limit
     const n = this.s && this.s.model.nodes.get(addr);
     if (!n) return false;
-    const i = n.mod.nodes.indexOf(n);
-    if (i >= Math.max(this.limits.get(n.mod.path) || 0, LEAF_LIMIT)) { this.limits.set(n.mod.path, i + 1); return true; }
+    const i = n.ns.nodes.indexOf(n);
+    if (i >= Math.max(this.limits.get(n.ns.path) || 0, LEAF_LIMIT)) { this.limits.set(n.ns.path, i + 1); return true; }
     return false;
   }
 }
 
 // signature is what a row looks like, apart from its selection: when it changes the row is drawn again.
 function signature(r, s) {
-  if (r.kind === 'mod') { const a = r.mod.agg; return ['m', r.mod.name, r.depth, r.open, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.read, a.drifted, a.gone].join('|'); }
+  if (r.kind === 'ns') { const a = r.ns.agg; return ['m', r.ns.name, r.depth, r.open, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.read, a.drifted, a.gone].join('|'); }
   if (r.kind === 'more') return ['x', r.depth, r.rest].join('|');
   const n = r.n;
   return ['n', n.addr, r.depth, n.mode, n.action || '', n.drifted ? 1 : 0, n.gone ? 1 : 0, n.locked ? 1 : 0, n.sensitive || 0, s.model.hasPlan ? 1 : 0, (n.plans || []).join(','), n.overlap ? 1 : 0].join('|');

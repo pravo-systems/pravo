@@ -50,10 +50,10 @@ func TestBigEstate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("5000 records: first model %s (state open, schemas, graph); rebuild %s; graph %d bytes, %d nodes, %d edges, %d modules",
-		first.Round(time.Millisecond), rebuild.Round(time.Millisecond), len(m.graphJSON), len(m.graph.Nodes), len(m.graph.Edges), len(m.graph.Modules))
-	if len(m.graph.Nodes) != n || len(m.graph.Edges) != n-n/100 || len(m.graph.Modules) != 51 {
-		t.Errorf("%d nodes, %d edges, %d modules", len(m.graph.Nodes), len(m.graph.Edges), len(m.graph.Modules))
+	t.Logf("5000 records: first model %s (state open, schemas, graph); rebuild %s; graph %d bytes, %d nodes, %d edges, %d namespaces",
+		first.Round(time.Millisecond), rebuild.Round(time.Millisecond), len(m.graphJSON), len(m.graph.Nodes), len(m.graph.Edges), len(m.graph.Namespaces))
+	if len(m.graph.Nodes) != n || len(m.graph.Edges) != n-n/100 || len(m.graph.Namespaces) != 51 {
+		t.Errorf("%d nodes, %d edges, %d namespaces", len(m.graph.Nodes), len(m.graph.Edges), len(m.graph.Namespaces))
 	}
 	if len(m.graphJSON) > 4<<20 {
 		t.Errorf("the graph is %d bytes", len(m.graphJSON))

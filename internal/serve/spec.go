@@ -47,9 +47,9 @@ type specState struct {
 	modRoot string
 	genDir  string
 
-	// modules caches the position of a module struct and of the definition it
+	// namespaces caches the position of a namespace struct and of the definition it
 	// instantiates, by path.
-	modules map[string][2]*Ref
+	namespaces map[string][2]*Ref
 	// byPath finds a declared resource by address.
 	byPath map[string]*config.Resource
 	// outputs finds a declared output by address, which is its name. Its edges are
@@ -70,7 +70,7 @@ type specState struct {
 // not load is not an error: the viewer shows the state alone.
 func loadSpec(opts Options, sig string) *specState {
 	ss := &specState{sig: sig, loaded: time.Now().UTC(), edges: map[string][]string{}, refs: map[string]*Ref{},
-		allowed: map[string]bool{}, real: map[string]string{}, modules: map[string][2]*Ref{}, byPath: map[string]*config.Resource{},
+		allowed: map[string]bool{}, real: map[string]string{}, namespaces: map[string][2]*Ref{}, byPath: map[string]*config.Resource{},
 		abs: map[string]string{}, typeDefs: map[string]*Ref{}, outputs: map[string]*config.Output{}}
 	dir := opts.Dir
 	lo := config.LoadOptions{Tags: opts.Tags, SysTags: opts.SysTags}
@@ -302,7 +302,7 @@ func (ss *specState) computeEdges() {
 	}
 	// An output reads what its value reads: a resource, a built-in value or another
 	// output. The reference analysis is the engine's, with the outputs counted as
-	// tasks, so a reference through a module or an intermediate field is followed
+	// tasks, so a reference through a namespace or an intermediate field is followed
 	// and an output that reads another one is joined to it, not to what it reads.
 	outRes := newSpecResolver(root).withOutputs()
 	for _, o := range root.Outputs {
@@ -392,13 +392,13 @@ func (ss *specState) fileKind(file string) string {
 	return "file"
 }
 
-// moduleRefs returns where the struct at path is written, and where the
+// namespaceRefs returns where the struct at path is written, and where the
 // definition it instantiates is written.
-func (ss *specState) moduleRefs(path string) (declared, definition *Ref) {
+func (ss *specState) namespaceRefs(path string) (declared, definition *Ref) {
 	if ss.root == nil {
 		return nil, nil
 	}
-	if r, ok := ss.modules[path]; ok {
+	if r, ok := ss.namespaces[path]; ok {
 		return r[0], r[1]
 	}
 	p := cue.ParsePath(path)
@@ -409,7 +409,7 @@ func (ss *specState) moduleRefs(path string) (declared, definition *Ref) {
 			definition = ss.definitionOf(v, 0)
 		}
 	}
-	ss.modules[path] = [2]*Ref{declared, definition}
+	ss.namespaces[path] = [2]*Ref{declared, definition}
 	return declared, definition
 }
 

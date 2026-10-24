@@ -30,10 +30,10 @@ type model struct {
 	store *state.Store
 	root  *config.Root
 
-	nodes   map[string]*mnode
-	order   []string
-	modules map[string]*Module
-	modList []string
+	nodes      map[string]*mnode
+	order      []string
+	namespaces map[string]*Namespace
+	nsList     []string
 	// deps maps a node to the nodes it reads, used to the nodes that read it.
 	deps, used map[string][]string
 	locks      map[string]state.Lock
@@ -94,7 +94,7 @@ func transient(mode string) bool {
 func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store *state.Store, root *config.Root) *model {
 	began := time.Now()
 	m := &model{rev: rev, built: began.UTC(), srv: s, spec: ss, store: store, root: root, nodes: map[string]*mnode{},
-		modules: map[string]*Module{}, deps: map[string][]string{}, used: map[string][]string{}, locks: map[string]state.Lock{},
+		namespaces: map[string]*Namespace{}, deps: map[string][]string{}, used: map[string][]string{}, locks: map[string]state.Lock{},
 		secrets: newSecretSet(), definitions: map[string]int{}}
 	var warnings []string
 	if ss.root == nil {
@@ -176,7 +176,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 		}
 	}
 	m.graph.Outputs = m.outputs(outs)
-	m.linkModules()
+	m.linkNamespaces()
 	m.linkEdges()
 	for _, ms := range sortedMissing(missing) {
 		warnings = append(warnings, fmt.Sprintf("The schema of provider %s is not cached, so the values of %d %s are withheld. Run \"pravo init\" to fetch it.",
@@ -220,7 +220,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 		m.graph.Nodes = append(m.graph.Nodes, m.nodes[a].Node)
 	}
 	m.graph.Edges = m.edgeList()
-	m.graph.Modules = m.moduleList()
+	m.graph.Namespaces = m.namespaceList()
 	m.graphJSON, _ = json.Marshal(&m.graph)
 	m.access = m.accessDoc(accessPath)
 	m.accessJSON, _ = json.Marshal(m.access)
@@ -324,7 +324,7 @@ func (m *model) baseNode(addr string, mn *mnode) Node {
 	return n
 }
 
-// place puts the node in its module and creates the modules above it.
+// place puts the node in its namespace and creates the namespaces above it.
 func (m *model) place(addr string, mn *mnode) {
 	if mn.rec != nil && mn.res == nil && mn.rec.Addr == "" {
 		return // written before addresses were paths: type.name is not a path to split
@@ -335,31 +335,31 @@ func (m *model) place(addr string, mn *mnode) {
 	}
 	for i := 1; i < len(path.names); i++ {
 		p := path.prefix(i)
-		mod := m.modules[p]
-		if mod == nil {
-			mod = &Module{Path: p, Name: path.names[i-1], Depth: i - 1}
+		ns := m.namespaces[p]
+		if ns == nil {
+			ns = &Namespace{Path: p, Name: path.names[i-1], Depth: i - 1}
 			if i > 1 {
-				mod.Parent = path.prefix(i - 1)
+				ns.Parent = path.prefix(i - 1)
 			}
-			m.modules[p] = mod
-			m.modList = append(m.modList, p)
+			m.namespaces[p] = ns
+			m.nsList = append(m.nsList, p)
 		}
 		if mn.isOutput() {
-			mod.Outputs++
+			ns.Outputs++
 		} else {
-			mod.Resources++
+			ns.Resources++
 		}
 	}
-	mn.Module = path.prefix(len(path.names) - 1)
+	mn.Namespace = path.prefix(len(path.names) - 1)
 }
 
-// linkModules gives each module the position of its struct and of the definition
+// linkNamespaces gives each namespace the position of its struct and of the definition
 // it instantiates.
-func (m *model) linkModules() {
-	sort.Strings(m.modList)
-	for _, p := range m.modList {
-		mod := m.modules[p]
-		mod.Declared, mod.Definition = m.spec.moduleRefs(p)
+func (m *model) linkNamespaces() {
+	sort.Strings(m.nsList)
+	for _, p := range m.nsList {
+		ns := m.namespaces[p]
+		ns.Declared, ns.Definition = m.spec.namespaceRefs(p)
 	}
 }
 
@@ -429,10 +429,10 @@ func (m *model) edgeList() []Edge {
 	return edges
 }
 
-func (m *model) moduleList() []Module {
-	out := make([]Module, 0, len(m.modList))
-	for _, p := range m.modList {
-		out = append(out, *m.modules[p])
+func (m *model) namespaceList() []Namespace {
+	out := make([]Namespace, 0, len(m.nsList))
+	for _, p := range m.nsList {
+		out = append(out, *m.namespaces[p])
 	}
 	return out
 }
@@ -592,7 +592,7 @@ func (m *model) outputSet(recs map[string]*state.Resource) *outputSet {
 }
 
 // outputNode is the node of an output. It has no provider, no record and no lock,
-// and its module is set by place.
+// and its namespace is set by place.
 func outputNode(addr string, st outputState) Node {
 	n := Node{Addr: addr, Mode: "output", Type: "output", Presence: "state"}
 	switch {

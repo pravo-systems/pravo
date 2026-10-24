@@ -64,8 +64,8 @@ func TestOutputsAreNodes(t *testing.T) {
 	p := newOutputsProject(t)
 	g := p.graph()
 	for addr, c := range map[string]struct {
-		presence, name, module string
-		sensitive              int
+		presence, name, namespace string
+		sensitive                 int
 	}{
 		"host":      {"both", "host", "", 0},
 		"summary":   {"both", "summary", "", 0},
@@ -82,7 +82,7 @@ func TestOutputsAreNodes(t *testing.T) {
 			t.Errorf("no node %s", addr)
 			continue
 		}
-		if n.Mode != "output" || n.Type != "output" || n.Name != c.name || n.Module != c.module || n.Presence != c.presence || n.Sensitive != c.sensitive {
+		if n.Mode != "output" || n.Type != "output" || n.Name != c.name || n.Namespace != c.namespace || n.Presence != c.presence || n.Sensitive != c.sensitive {
 			t.Errorf("%s is %+v, want %+v", addr, *n, c)
 		}
 		if n.Provider != "" || n.Revision != 0 || n.RefreshedAt != nil || n.Locked || n.Drifted || n.Gone || n.Action != "" {
@@ -104,13 +104,13 @@ func TestOutputsAreNodes(t *testing.T) {
 func TestOutputsAreNotResources(t *testing.T) {
 	p := newOutputsProject(t)
 	g := p.graph()
-	// A module that holds outputs only counts none as a resource, and is known to hold one.
-	if m := moduleOf(g, "report"); m == nil || m.Resources != 0 || m.Outputs != 1 {
-		t.Errorf("module report is %+v, want no resources and one output", m)
+	// A namespace that holds outputs only counts none as a resource, and is known to hold one.
+	if m := namespaceOf(g, "report"); m == nil || m.Resources != 0 || m.Outputs != 1 {
+		t.Errorf("namespace report is %+v, want no resources and one output", m)
 	}
 	for path, want := range map[string]int{"services": 4, "services.a": 2, "services.b": 2, "hosts": 2, "old": 1} {
-		if m := moduleOf(g, path); m == nil || m.Resources != want || m.Outputs != 0 {
-			t.Errorf("module %s is %+v, want %d resources and no outputs", path, m, want)
+		if m := namespaceOf(g, path); m == nil || m.Resources != want || m.Outputs != 0 {
+			t.Errorf("namespace %s is %+v, want %d resources and no outputs", path, m, want)
 		}
 	}
 	if n := len(resourceNodes(g)); n != 8 {
@@ -289,12 +289,12 @@ func TestOutputsAreFound(t *testing.T) {
 	if len(res.Nodes) != 1 || res.Nodes[0].Addr != "summary" || res.Nodes[0].Mode != "output" {
 		t.Errorf("search for summary: %+v", res.Nodes)
 	}
-	// The module that holds only outputs is found like any.
+	// The namespace that holds only outputs is found like any.
 	if err := json.Unmarshal(p.get("/api/search?q=report"), &res); err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Modules) != 1 || res.Modules[0].Path != "report" || len(res.Nodes) != 1 || res.Nodes[0].Addr != "report.a" {
-		t.Errorf("search for report: %+v %+v", res.Modules, res.Nodes)
+	if len(res.Namespaces) != 1 || res.Namespaces[0].Path != "report" || len(res.Nodes) != 1 || res.Nodes[0].Addr != "report.a" {
+		t.Errorf("search for report: %+v %+v", res.Namespaces, res.Nodes)
 	}
 }
 

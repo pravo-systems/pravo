@@ -18,7 +18,7 @@ function rng(seed) {
 }
 
 // Fields of api.go that are not omitempty: their zero value is sent.
-const KEEP = new Set(['records', 'locks', 'add', 'change', 'destroy', 'read', 'blast_radius', 'planned', 'total', 'resources', 'depth', 'line', 'no', 'schema_known', 'key', 'start_line', 'version', 'value', 'before', 'after', 'module', 'parent', 'text']);
+const KEEP = new Set(['records', 'locks', 'add', 'change', 'destroy', 'read', 'blast_radius', 'planned', 'total', 'resources', 'depth', 'line', 'no', 'schema_known', 'key', 'start_line', 'version', 'value', 'before', 'after', 'namespace', 'parent', 'text']);
 
 // Drop keys whose value is the zero value of an omitempty field.
 function prune(o) {
@@ -41,9 +41,9 @@ class Builder {
     this.nodes = [];
     this.edges = [];
     this.index = new Map();
-    this.refs = new Map(); // module path -> {declared, definition}
+    this.refs = new Map(); // namespace path -> {declared, definition}
   }
-  // add records a node. The module is the address without its last label.
+  // add records a node. The namespace is the address without its last label.
   add(addr, type, o = {}) {
     const parts = addr.split('.');
     const n = {
@@ -51,7 +51,7 @@ class Builder {
       mode: o.mode || 'managed',
       type,
       name: parts[parts.length - 1],
-      module: parts.slice(0, -1).join('.'),
+      namespace: parts.slice(0, -1).join('.'),
       provider: o.provider || type.split('_')[0],
       presence: o.presence || 'both',
       action: o.action,
@@ -68,7 +68,7 @@ class Builder {
     return n;
   }
   // output records the node of an output of the root: it has no provider, no revision and no refresh time, and
-  // it is a node of the graph and not a resource (Module.resources and the counts of a plan leave it out)
+  // it is a node of the graph and not a resource (Namespace.resources and the counts of a plan leave it out)
   output(addr, o = {}) {
     const parts = addr.split('.');
     const n = {
@@ -76,7 +76,7 @@ class Builder {
       mode: 'output',
       type: 'output',
       name: parts[parts.length - 1],
-      module: parts.slice(0, -1).join('.'),
+      namespace: parts.slice(0, -1).join('.'),
       presence: o.presence || 'both',
       sensitive: o.sensitive ? 1 : undefined,
       source: o.presence === 'state' ? undefined : o.source,
@@ -92,7 +92,7 @@ class Builder {
   deps(dependent, ...dependencies) { for (const d of dependencies) this.dep(d, dependent); }
   ref(path, declared, definition) { this.refs.set(path, { declared, definition }); }
 
-  modules() {
+  namespaces() {
     const m = new Map();
     for (const n of this.nodes) {
       const parts = n.addr.split('.');
@@ -128,7 +128,7 @@ class Builder {
       project: meta.project,
       nodes,
       edges: [...this.edges].sort((a, b) => (a.dependency + a.dependent < b.dependency + b.dependent ? -1 : 1)),
-      modules: this.modules(),
+      namespaces: this.namespaces(),
       outputs: meta.outputs || [],
       plan: meta.plan,
       warnings: meta.warnings,

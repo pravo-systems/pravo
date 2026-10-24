@@ -297,10 +297,10 @@ func withholdAll(attrs map[string]any) []Attr {
 	return out
 }
 
-// search answers /api/search: the nodes and modules that match every word of
+// search answers /api/search: the nodes and namespaces that match every word of
 // the query, in their address, type or name.
 func (m *model) search(q string) *Search {
-	res := &Search{Version: APIVersion, Nodes: []Node{}, Modules: []Module{}}
+	res := &Search{Version: APIVersion, Nodes: []Node{}, Namespaces: []Namespace{}}
 	words := strings.Fields(strings.ToLower(q))
 	if len(words) == 0 {
 		return res
@@ -342,10 +342,10 @@ func (m *model) search(q string) *Search {
 	for i := 0; i < len(nodes) && i < maxSearch; i++ {
 		res.Nodes = append(res.Nodes, nodes[i].n)
 	}
-	for _, p := range m.modList {
-		mod := m.modules[p]
-		if match(mod.Name, mod.Path) > 0 && len(res.Modules) < maxSearch {
-			res.Modules = append(res.Modules, *mod)
+	for _, p := range m.nsList {
+		ns := m.namespaces[p]
+		if match(ns.Name, ns.Path) > 0 && len(res.Namespaces) < maxSearch {
+			res.Namespaces = append(res.Namespaces, *ns)
 		}
 	}
 	return res

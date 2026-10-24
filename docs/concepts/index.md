@@ -20,7 +20,7 @@ Read them in this order. Later pages use terms that earlier pages define.
 7. [Providers](providers.md). How pravo finds, starts and talks to a provider.
 8. [Policies](policies.md). Two moments for one idea: a rule on a provider and a policy on a plan, and what each of them binds.
 9. [Secrets and ephemeral values](secrets-and-ephemeral-values.md). How sensitive and short-lived values travel through plans, state and outputs.
-10. [The viewer](the-viewer.md). How `pravo serve` joins the specification, the state and a saved plan into one graph, what a module is to it, and which values it withholds.
+10. [The viewer](the-viewer.md). How `pravo serve` joins the specification, the state and a saved plan into one graph, what a namespace is to it, and which values it withholds.
 11. [What sealing protects](sealed-state.md). What a sealed state encrypts, how a reader opens it, and what it leaves open.
 
 ## Where each idea is taught

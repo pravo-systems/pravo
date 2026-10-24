@@ -96,18 +96,18 @@ for (const f of files) {
   // cross checks the type system does not know
   if (type === 'Graph') {
     const addrs = new Set(v.nodes.map((n) => n.addr));
-    const mods = new Set((v.modules || []).map((m) => m.path));
+    const nss = new Set((v.namespaces || []).map((m) => m.path));
     for (const e of v.edges || []) if (!addrs.has(e.dependency) || !addrs.has(e.dependent)) fail(f, `edge to a node that is not there: ${e.dependency} -> ${e.dependent}`);
-    for (const n of v.nodes) if (n.module !== '' && !mods.has(n.module)) fail(f, `node ${n.addr} in unknown module ${n.module}`);
-    for (const m of v.modules || []) if (m.parent !== '' && !mods.has(m.parent)) fail(f, `module ${m.path} has unknown parent ${m.parent}`);
+    for (const n of v.nodes) if (n.namespace !== '' && !nss.has(n.namespace)) fail(f, `node ${n.addr} in unknown namespace ${n.namespace}`);
+    for (const m of v.namespaces || []) if (m.parent !== '' && !nss.has(m.parent)) fail(f, `namespace ${m.path} has unknown parent ${m.parent}`);
     if (new Set(v.nodes.map((n) => n.addr)).size !== v.nodes.length) fail(f, 'duplicate addresses');
-    // an output is a node but not a resource: no provider, no record, no action; the modules and the plan count it apart
+    // an output is a node but not a resource: no provider, no record, no action; the namespaces and the plan count it apart
     const outs = new Map((v.outputs || []).map((o) => [o.name, o]));
     for (const n of v.nodes.filter((x) => x.mode === 'output')) {
       const w = `${f} output ${n.addr}`;
       if (n.type !== 'output') fail(w, `type ${n.type}`);
       for (const k of ['provider', 'revision', 'refreshed_at', 'action', 'locked', 'drifted', 'gone', 'plans', 'overlap', 'no_schema']) if (n[k] !== undefined) fail(w, `${k} on an output`);
-      if (n.name !== n.addr.split('.').pop() || n.module !== n.addr.split('.').slice(0, -1).join('.')) fail(w, 'name or module');
+      if (n.name !== n.addr.split('.').pop() || n.namespace !== n.addr.split('.').slice(0, -1).join('.')) fail(w, 'name or namespace');
       const o = outs.get(n.addr);
       if (!o) fail(w, 'not among the outputs of the graph');
       else if ((n.sensitive === 1) !== !!o.sensitive) fail(w, 'sensitive does not agree with the list of outputs');
@@ -115,9 +115,9 @@ for (const f of files) {
     }
     for (const name of outs.keys()) if (!v.nodes.some((n) => n.addr === name && n.mode === 'output')) fail(f, `output ${name} is not a node`);
     for (const e of v.edges || []) if (v.nodes.find((n) => n.addr === e.dependency).mode === 'output' && v.nodes.find((n) => n.addr === e.dependent).mode !== 'output') fail(f, `a resource reads an output: ${e.dependency} -> ${e.dependent}`);
-    for (const m of v.modules || []) {
+    for (const m of v.namespaces || []) {
       const below = v.nodes.filter((n) => n.addr.startsWith(m.path + '.'));
-      if (m.resources !== below.filter((n) => n.mode !== 'output').length || (m.outputs || 0) !== below.filter((n) => n.mode === 'output').length) fail(f, `module ${m.path} counts ${m.resources} resources and ${m.outputs || 0} outputs`);
+      if (m.resources !== below.filter((n) => n.mode !== 'output').length || (m.outputs || 0) !== below.filter((n) => n.mode === 'output').length) fail(f, `namespace ${m.path} counts ${m.resources} resources and ${m.outputs || 0} outputs`);
     }
     if (v.plan && v.plan.total !== v.nodes.filter((n) => n.mode !== 'output').length) fail(f, 'plan.total counts the outputs');
   }
@@ -166,8 +166,8 @@ for (const f of files) {
         if (/[\n\r]/.test(st.text)) fail(f, `a step with a line break in ${s.id}`);
         if (st.kind === 'command' && !/^(pravo|git) /.test(st.text)) fail(f, `command ${st.text}`);
         if ((st.kind === 'add-line' || st.kind === 'remove-line') && !st.file) fail(f, `${st.kind} without a file in ${s.id}`);
-        if (st.placeholder && !/<[a-z -]+>/.test(st.text)) fail(f, `placeholder without a placeholder in ${s.id}`);
-        if (!st.placeholder && st.kind !== 'note' && /<[a-z -]+>/.test(st.text)) fail(f, `an unmarked placeholder in ${s.id}: ${st.text}`);
+        if (st.placeholder && !/<[A-Za-z -]+>/.test(st.text)) fail(f, `placeholder without a placeholder in ${s.id}`);
+        if (!st.placeholder && st.kind !== 'note' && /<[A-Za-z -]+>/.test(st.text)) fail(f, `an unmarked placeholder in ${s.id}: ${st.text}`);
       }
     }
     if (errors === before) console.log(`ok   ${f} (suggestions)`);

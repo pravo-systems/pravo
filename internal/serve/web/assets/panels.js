@@ -1,5 +1,5 @@
-// The inspector when nothing is selected (the project) and when a module is: summaries, bars, navigable lists,
-// and the places where a module is written.
+// The inspector when nothing is selected (the project) and when a namespace is: summaries, bars, navigable lists,
+// and the places where a namespace is written.
 
 import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, baseName, fmt, nodeMark } from './util.js';
 import { eachNode, isOut } from './model.js';
@@ -36,7 +36,7 @@ export function projectPanel(ins, model) {
   }
   if ((p.policies || []).length) body.push(sec(`Policies · ${p.policies.length}`, h('ul', { class: 'rows' }, p.policies.map((v) => h('li', null, h('b', { class: 'mono-s' }, v))))));
   if ((g.warnings || []).length) body.push(sec(`Warnings · ${g.warnings.length}`, g.warnings.map((w) => h('p', { class: 'note warn' }, icon('bang'), h('span', null, w)))));
-  body.push(h('section', { class: 'sec hintsec' }, h('p', { class: 'hint' }, 'Select a resource or a module to see its values, its source and its history. Press ', h('kbd', null, '?'), ' for the shortcuts.')));
+  body.push(h('section', { class: 'sec hintsec' }, h('p', { class: 'hint' }, 'Select a resource or a namespace to see its values, its source and its history. Press ', h('kbd', null, '?'), ' for the shortcuts.')));
   return body;
 }
 
@@ -46,32 +46,32 @@ function pathValue(p, ins) {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// a module
+// a namespace
 
 const ACTION_ROWS = [['create', 'create'], ['update', 'update'], ['replace', 'replace'], ['delete', 'delete'], ['read', 'read']];
 
-export function modulePanel(ins, mod, model, collapsed) {
-  const a = mod.agg;
+export function namespacePanel(ins, ns, model, collapsed) {
+  const a = ns.agg;
   const body = [];
-  const closed = collapsed.has(mod.path);
+  const closed = collapsed.has(ns.path);
 
   body.push(h('section', { class: 'sec tight' },
     h('div', { class: 'actions' },
-      h('button', { class: 'btn', type: 'button', on: { click: () => ins.cb.onToggleModule(mod.path) } }, closed ? 'Open in the graph' : 'Collapse in the graph'),
-      h('button', { class: 'btn', type: 'button', on: { click: () => ins.cb.onFit(mod.path) } }, 'Fit in the graph'))));
+      h('button', { class: 'btn', type: 'button', on: { click: () => ins.cb.onToggleNamespace(ns.path) } }, closed ? 'Open in the graph' : 'Collapse in the graph'),
+      h('button', { class: 'btn', type: 'button', on: { click: () => ins.cb.onFit(ns.path) } }, 'Fit in the graph'))));
 
   // the numbers
   body.push(h('section', { class: 'sec' },
     h('div', { class: 'tiles' },
       h('div', { class: 'tile big' }, num(a.n), h('span', { class: 'tlb' }, a.n === 1 ? 'resource' : 'resources')),
-      h('div', { class: 'tile' + (mod.kids.length ? '' : ' zero') }, num(mod.kids.length), h('span', { class: 'tlb' }, mod.kids.length === 1 ? 'module' : 'modules')),
+      h('div', { class: 'tile' + (ns.kids.length ? '' : ' zero') }, num(ns.kids.length), h('span', { class: 'tlb' }, ns.kids.length === 1 ? 'namespace' : 'namespaces')),
       h('div', { class: 'tile' + (a.plan ? ' chg' : ' zero') }, num(a.plan), h('span', { class: 'tlb' }, 'in plan')),
       h('div', { class: 'tile' + (a.drifted + a.gone ? ' chg' : ' zero') }, num(a.drifted + a.gone), h('span', { class: 'tlb' }, 'drifted'))),
     flags(a)));
 
   // by resource type
   const types = new Map();
-  eachNode(mod, (n) => { if (!isOut(n)) types.set(n.type, (types.get(n.type) || 0) + 1); });
+  eachNode(ns, (n) => { if (!isOut(n)) types.set(n.type, (types.get(n.type) || 0) + 1); });
   const tlist = [...types.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
   if (tlist.length) {
     const max = tlist[0][1];
@@ -90,27 +90,27 @@ export function modulePanel(ins, mod, model, collapsed) {
       rows.length || notRead ? h('ul', { class: 'bars act' }, [
         ...rows.map(([k, label]) => { const at = actionOf(k); return h('li', { class: 'k-' + k }, h('span', { class: 'bl' }, h('i', { class: 'sq ' + at.cls }), label), h('span', { class: 'bt' }, h('i', { style: `--w:${Math.max(4, (a[k] / max) * 100)}%` })), h('span', { class: 'bv' }, String(a[k]))); }),
         notRead ? h('li', { class: 'k-skip' }, h('span', { class: 'bl' }, h('i', { class: 'sq skip' }), 'not changed'), h('span', { class: 'bt' }, h('i', { style: `--w:${Math.max(4, (notRead / max) * 100)}%` })), h('span', { class: 'bv' }, String(notRead))) : null,
-      ]) : h('p', { class: 'hint' }, 'The plan does not touch this module.')));
+      ]) : h('p', { class: 'hint' }, 'The plan does not touch this namespace.')));
   }
 
   // children
-  if (mod.kids.length) {
-    const maxKid = Math.max(1, ...mod.kids.map((k) => k.agg.n));
-    body.push(sec(`Sub-modules · ${mod.kids.length}`, h('ul', { class: 'nav' }, mod.kids.map((k) =>
-      h('li', null, h('a', { class: 'navrow mod', href: '#', data: { gomod: k.path }, title: k.path },
+  if (ns.kids.length) {
+    const maxKid = Math.max(1, ...ns.kids.map((k) => k.agg.n));
+    body.push(sec(`Sub-namespaces · ${ns.kids.length}`, h('ul', { class: 'nav' }, ns.kids.map((k) =>
+      h('li', null, h('a', { class: 'navrow ns', href: '#', data: { gons: k.path }, title: k.path },
         icon('chev', 'tiny'), h('span', { class: 'nn' }, k.name),
         k.agg.plan ? h('span', { class: 'sq a-update tiny', title: `${k.agg.plan} in plan` }) : null,
         k.agg.drifted + k.agg.gone ? h('span', { class: 'i i-drift warn', title: 'drifted' }) : null,
         h('span', { class: 'nb', 'aria-hidden': 'true' }, h('i', { style: `--w:${Math.max(6, (k.agg.n / maxKid) * 100)}%` })),
         h('span', { class: 'nc' }, String(k.agg.n))))))));
   }
-  if (mod.nodes.some((n) => !isOut(n))) body.push(resourcesSection(ins, mod, model, false));
-  if (mod.nodes.some(isOut)) body.push(resourcesSection(ins, mod, model, true));
+  if (ns.nodes.some((n) => !isOut(n))) body.push(resourcesSection(ins, ns, model, false));
+  if (ns.nodes.some(isOut)) body.push(resourcesSection(ins, ns, model, true));
 
   // where it is written
   const where = h('div', { class: 'where' });
   body.push(h('section', { class: 'sec' }, h('h3', { class: 'h' }, 'Where it is written'), where));
-  fillWhere(ins, where, mod, model);
+  fillWhere(ins, where, ns, model);
   return body;
 }
 
@@ -125,9 +125,9 @@ function flags(a) {
   return f.length ? h('div', { class: 'badges' }, f) : null;
 }
 
-function resourcesSection(ins, mod, model, outputs) {
+function resourcesSection(ins, ns, model, outputs) {
   const LIMIT = 12;
-  const nodes = mod.nodes.filter((n) => isOut(n) === outputs);
+  const nodes = ns.nodes.filter((n) => isOut(n) === outputs);
   const host = h('ul', { class: 'nav' });
   const draw = (q, all) => {
     host.textContent = '';
@@ -143,35 +143,35 @@ function resourcesSection(ins, mod, model, outputs) {
     if (!all && !q && list.length > LIMIT) host.append(h('li', null, h('button', { class: 'more-btn', type: 'button', on: { click: () => draw('', true) } }, `Show all ${list.length}`)));
   };
   draw('', false);
-  const filter = nodes.length > LIMIT ? h('input', { class: 'filter', type: 'search', placeholder: 'Filter these resources', 'aria-label': 'Filter the resources of the module', on: { input: (ev) => draw(ev.target.value.trim().toLowerCase(), false) } }) : null;
+  const filter = nodes.length > LIMIT ? h('input', { class: 'filter', type: 'search', placeholder: 'Filter these resources', 'aria-label': 'Filter the resources of the namespace', on: { input: (ev) => draw(ev.target.value.trim().toLowerCase(), false) } }) : null;
   return sec(`${outputs ? 'Outputs' : 'Resources'} · ${nodes.length}`, filter, host);
 }
 
-// fillWhere shows the module's own lines: where the instance is written and the definition it comes from. The
-// server serves lines by node address, so it asks for a resource of the module and takes the blocks that
-// belong to the module.
-async function fillWhere(ins, host, mod, model) {
+// fillWhere shows the namespace's own lines: where the instance is written and the definition it comes from. The
+// server serves lines by node address, so it asks for a resource of the namespace and takes the blocks that
+// belong to the namespace.
+async function fillWhere(ins, host, ns, model) {
   const refs = [];
   const ref = (label, r) => r && h('div', { class: 'refline' }, h('span', { class: 'rl' }, label), h('code', null, `${r.file}:${r.line}${r.end_line && r.end_line !== r.line ? '–' + r.end_line : ''}`),
     copyButton(`${r.file}:${r.line}`, { label: `Copy ${r.file}:${r.line}`, tip: `Copy ${r.file}:${r.line}`, announce: ins.cb.announce, done: 'Copied the path and line' }));
-  refs.push(ref('declared', mod.declared), ref('definition', mod.definition));
-  const fallback = () => { host.textContent = ''; const r = refs.filter(Boolean); host.append(...(r.length ? r : [h('p', { class: 'hint' }, 'The specification does not say where this module is written.')])); };
+  refs.push(ref('declared', ns.declared), ref('definition', ns.definition));
+  const fallback = () => { host.textContent = ''; const r = refs.filter(Boolean); host.append(...(r.length ? r : [h('p', { class: 'hint' }, 'The specification does not say where this namespace is written.')])); };
   let rep = null;
-  eachNode(mod, (n) => { if (!rep && n.presence !== 'state' && !isOut(n)) rep = n; });
-  if (!rep || !(mod.declared || mod.definition)) { fallback(); return; }
+  eachNode(ns, (n) => { if (!rep && n.presence !== 'state' && !isOut(n)) rep = n; });
+  if (!rep || !(ns.declared || ns.definition)) { fallback(); return; }
   host.append(h('div', { class: 'cw-skel', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i')));
   let src;
   try { src = await ins.fetch(`source:${rep.addr}:${model.graph.revision}`, () => api.source(rep.addr)); } catch { fallback(); return; }
-  if (ins.mode !== 'module' || ins.modAddr !== mod.path) return;
+  if (ins.mode !== 'namespace' || ins.nsAddr !== ns.path) return;
   host.textContent = '';
   const blocks = src.blocks || [];
-  const inst = blocks.find((b) => b.role === 'instance' && (b.label === mod.path || (b.label || '').startsWith(mod.path + ' of ')));
-  const defn = mod.definition ? blocks.find((b) => b.role === 'definition' && b.file === mod.definition.file) : null;
+  const inst = blocks.find((b) => b.role === 'instance' && (b.label === ns.path || (b.label || '').startsWith(ns.path + ' of ')));
+  const defn = ns.definition ? blocks.find((b) => b.role === 'definition' && b.file === ns.definition.file) : null;
   const opts = { announce: ins.cb.announce };
-  if (inst) { host.append(h('h4', { class: 'src-h' }, 'Declared here'), codeWindow(inst, Object.assign({ title: `Where ${mod.path} is declared` }, opts))); } else if (mod.declared) host.append(ref('declared', mod.declared));
+  if (inst) { host.append(h('h4', { class: 'src-h' }, 'Declared here'), codeWindow(inst, Object.assign({ title: `Where ${ns.path} is declared` }, opts))); } else if (ns.declared) host.append(ref('declared', ns.declared));
   if (defn) {
-    host.append(...[h('h4', { class: 'src-h' }, 'Its definition'), ref('definition', mod.definition),
+    host.append(...[h('h4', { class: 'src-h' }, 'Its definition'), ref('definition', ns.definition),
       h('p', { class: 'hint' }, `One resource that the definition writes: ${defn.label || rep.name}.`), codeWindow(defn, Object.assign({ title: 'Lines of the definition' }, opts))].filter(Boolean));
-  } else if (mod.definition) host.append(ref('definition', mod.definition));
+  } else if (ns.definition) host.append(ref('definition', ns.definition));
   if (!host.childNodes.length) fallback();
 }

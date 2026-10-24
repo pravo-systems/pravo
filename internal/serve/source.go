@@ -64,24 +64,24 @@ func (m *model) sourceFor(mn *mnode, po *planOverlay) *Source {
 		}
 	}
 	// The instances that fill the definition in, the innermost first.
-	var modules []string
+	var namespaces []string
 	if path := splitAddr(mn.Addr); len(path.names) > 1 {
 		for i := len(path.names) - 1; i >= 1; i-- {
-			modules = append(modules, path.prefix(i))
+			namespaces = append(namespaces, path.prefix(i))
 		}
 	}
-	for _, p := range modules {
-		mod := m.modules[p]
-		if mod == nil || mod.Definition == nil || mod.Declared == nil {
+	for _, p := range namespaces {
+		ns := m.namespaces[p]
+		if ns == nil || ns.Definition == nil || ns.Declared == nil {
 			continue
 		}
 		label := p
-		if mod.Definition != nil {
-			if def := reader.line(mod.Definition); def != "" {
+		if ns.Definition != nil {
+			if def := reader.line(ns.Definition); def != "" {
 				label = p + " of " + def
 			}
 		}
-		if b := reader.read("instance", label, mod.Declared, false); b != nil {
+		if b := reader.read("instance", label, ns.Declared, false); b != nil {
 			src.Blocks = append(src.Blocks, *b)
 		}
 	}

@@ -43,7 +43,7 @@ function itemSig(x, ctx) {
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   const pi = plansIn(x, ctx);
-  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.tint, x.h, x.kind === 'module' ? x.mod.kids.length : ''].join('|');
+  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.tint, x.h, x.kind === 'namespace' ? x.ns.kids.length : ''].join('|');
 }
 
 const trunc = (t, n) => (t.length > n ? t.slice(0, Math.max(1, n - 1)) + '…' : t);
@@ -71,7 +71,7 @@ export function authorsOf(n, ctx) {
   return (n.plans || []).map((id) => ({ id, author: (ctx.authors && ctx.authors.get(id)) || '?' }));
 }
 
-// plansIn says which open stored plans change something inside a module or a group of siblings: the authors, one for
+// plansIn says which open stored plans change something inside a namespace or a group of siblings: the authors, one for
 // each plan, in the order that the nodes give them, how many resources are changed, and whether two plans change one.
 // A card has no resource of its own to carry the discs, so it carries those of what it holds.
 export function plansIn(it, ctx) {
@@ -84,7 +84,7 @@ export function plansIn(it, ctx) {
     if (n.overlap) out.overlap = true;
     for (const p of authorsOf(n, ctx)) if (!seen.has(p.id)) { seen.add(p.id); out.list.push(p); }
   };
-  if (it.kind === 'module') eachNode(it.mod, visit); else for (const n of it.members || []) visit(n);
+  if (it.kind === 'namespace') eachNode(it.ns, visit); else for (const n of it.members || []) visit(n);
   return out;
 }
 
@@ -101,7 +101,7 @@ export function describeNode(n, ctx) {
   return bits.join(', ');
 }
 
-// the plan counts of a module, as small coloured chips; the chips end at x
+// the plan counts of a namespace, as small coloured chips; the chips end at x
 function planBadges(agg, x, y, anchorRight, bare) {
   const parts = [];
   if (agg.create) parts.push(['a-create', agg.create]);
@@ -131,8 +131,8 @@ const stateMarks = (agg) => {
 // motion that settles with a little give
 const spring = (t) => { if (t <= 0) return 0; if (t >= 1) return 1; const c = 0.8, u = t - 1; return 1 + (c + 1) * u * u * u + c * u * u; };
 
-const tintOf = (mod) => {
-  let m = mod;
+const tintOf = (ns) => {
+  let m = ns;
   if (!m || m.isRoot) return -1;
   while (m.up && !m.up.isRoot) m = m.up;
   return m.up ? m.up.kids.indexOf(m) : -1;
@@ -228,7 +228,7 @@ export class GraphView {
     for (const it of vis.order) {
       const p = lay.pos.get(it.id);
       seen.add(it.id);
-      it.tint = tintOf(it.kind === 'node' ? it.n.mod : it.mod);
+      it.tint = tintOf(it.kind === 'node' ? it.n.ns : it.ns);
       let r = this.items.get(it.id);
       if (!r) {
         r = this.createItem(it);
@@ -271,19 +271,19 @@ export class GraphView {
     for (const L of lay.lanes) {
       laneSeen.add(L.path);
       let r = this.lanes.get(L.path);
-      const mod = this.cb.moduleOf(L.path);
+      const ns = this.cb.namespaceOf(L.path);
       if (!r) {
-        r = this.createLane(L, mod);
+        r = this.createLane(L, ns);
         this.lanes.set(L.path, r);
         this.laneLayer.append(r.g);
-        const card = animate ? this.cardBox('m:' + L.path, prevVis, prevLay) : null;
+        const card = animate ? this.cardBox('ns:' + L.path, prevVis, prevLay) : null;
         r.box = card || { x: L.x, y: L.y, w: L.w, h: L.h };
         if (animate) { r.g.classList.add('enter'); r.hg.classList.add('enter'); }
       } else {
         r.g.classList.remove('leave');
         r.hg.classList.remove('leave');
         r.leaving = false;
-        this.updateLane(r, L, mod);
+        this.updateLane(r, L, ns);
       }
       r.depth = L.depth;
       for (const el of [r.g, r.hg]) {
@@ -292,7 +292,7 @@ export class GraphView {
         el.style.setProperty('--i', String(li));
       }
       li++;
-      L.tint = ((tintOf(mod) % TINTS) + TINTS) % TINTS;
+      L.tint = ((tintOf(ns) % TINTS) + TINTS) % TINTS;
       r.g.setAttribute('data-tint', String(L.tint));
       r.hg.setAttribute('data-tint', String(L.tint));
       r.from = Object.assign({}, r.box);
@@ -306,7 +306,7 @@ export class GraphView {
       r.g.classList.add('leave');
       r.hg.classList.add('leave');
       r.from = Object.assign({}, r.box);
-      r.to = this.cardBox('m:' + path, vis, lay) || Object.assign({}, r.box);
+      r.to = this.cardBox('ns:' + path, vis, lay) || Object.assign({}, r.box);
       moves.lanes.push(r);
     }
 
@@ -372,7 +372,7 @@ export class GraphView {
     if (!vis || !lay || !it) return null;
     const addrs = [];
     if (it.kind === 'node') addrs.push(it.n.addr);
-    else if (it.kind === 'module') { eachNode(it.mod, (n) => { if (addrs.length < 40) addrs.push(n.addr); }); }
+    else if (it.kind === 'namespace') { eachNode(it.ns, (n) => { if (addrs.length < 40) addrs.push(n.addr); }); }
     else if (it.kind === 'cluster') for (const n of it.members.slice(0, 40)) addrs.push(n.addr);
     else if (it.kind === 'ctl') { const c = vis.items.get(it.cluster); if (c) { const p = lay.pos.get(c.id); if (p) return { x: p.x, y: p.y }; } return null; }
     let sx = 0, sy = 0, n = 0;
@@ -462,7 +462,7 @@ export class GraphView {
     const r = { it, g: null, x: 0, y: 0, base: '', leaving: false };
     let g;
     if (it.kind === 'node') g = this.buildNode(it);
-    else if (it.kind === 'module') g = this.buildCard(it, 'mod-item');
+    else if (it.kind === 'namespace') g = this.buildCard(it, 'ns-item');
     else if (it.kind === 'cluster') g = this.buildCard(it, 'cluster-item');
     else g = this.buildCtl(it);
     g.setAttribute('data-id', it.id);
@@ -479,7 +479,7 @@ export class GraphView {
     if (was === r.sig) return;
     let g;
     if (it.kind === 'node') g = this.buildNode(it);
-    else if (it.kind === 'module') g = this.buildCard(it, 'mod-item');
+    else if (it.kind === 'namespace') g = this.buildCard(it, 'ns-item');
     else if (it.kind === 'cluster') g = this.buildCard(it, 'cluster-item');
     else g = this.buildCtl(it);
     const keep = new Set(['sel', 'up', 'down', 'nomatch', 'rel', 'flash', 'enter', 'leave', 'kf', 'reach', 'hov']);
@@ -581,10 +581,10 @@ export class GraphView {
     return g;
   }
 
-  // the cells of a module or a group: one for each resource, in the colour of what is to become of it
+  // the cells of a namespace or a group: one for each resource, in the colour of what is to become of it
   cells(it, x, y, w) {
     const nodes = [];
-    if (it.kind === 'module') eachNode(it.mod, (n) => { if (!isOut(n)) nodes.push(n); }); else for (const n of it.members) nodes.push(n);
+    if (it.kind === 'namespace') eachNode(it.ns, (n) => { if (!isOut(n)) nodes.push(n); }); else for (const n of it.members) nodes.push(n);
     const list = cellsOf(nodes);
     const g = s('g', { class: 'cells' });
     const pitch = 11, per = Math.max(1, Math.floor((w + 3) / pitch));
@@ -596,12 +596,12 @@ export class GraphView {
 
   buildCard(it, cls) {
     const W = it.w, H = it.h;
-    const isMod = it.kind === 'module';
+    const isNs = it.kind === 'namespace';
     const agg = it.agg;
     const pv = it.tint >= 0 ? ' tn' + (it.tint % TINTS) : '';
     const outs = it.mode === 'output';
     const outsNote = agg.out ? `, ${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
-    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isMod ? `module ${it.mod.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
+    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isNs ? `namespace ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
     const inn = s('g', { class: 'in' });
     inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
     inn.append(s('rect', { class: 'stack s2', x: 10, y: 10, width: W - 20, height: H, rx: 7 }));
@@ -611,8 +611,8 @@ export class GraphView {
     // The wrapper carries the CSS transform of the hover (a nudge to the right):
     // a CSS transform replaces the transform attribute, so it must not sit on the
     // element that is placed and scaled by that attribute.
-    inn.append(s('g', { class: 'cico' }, glyph(isMod ? 'chevR' : 'grid', 14, 12, 18)));
-    const title = isMod ? it.mod.name : outs ? 'outputs' : it.type;
+    inn.append(s('g', { class: 'cico' }, glyph(isNs ? 'chevR' : 'grid', 14, 12, 18)));
+    const title = isNs ? it.ns.name : outs ? 'outputs' : it.type;
     const marks = stateMarks(agg);
     const counts = [agg.create, agg.update + agg.replace, agg.delete].filter(Boolean);
     const pbw = (bare) => counts.reduce((w, n) => w + (bare ? 14 : 17 + String(n).length * 6.4), 0) + (counts.length ? 6 : 0);
@@ -632,14 +632,14 @@ export class GraphView {
     const markW = marks.reduce((w, [, c]) => w + String(c).length * 7 + 23, 0);
     const room = chars(W - 38 - 14 - markW, 12);
     let opts;
-    if (isMod) {
-      const kids = it.mod.kids.length;
+    if (isNs) {
+      const kids = it.ns.kids.length;
       const res = agg.n || !agg.out ? `${agg.n} ${agg.n === 1 ? 'resource' : 'resources'}` : '';
-      const mods = kids ? `${kids} ${kids === 1 ? 'module' : 'modules'}` : '';
+      const nss = kids ? `${kids} ${kids === 1 ? 'namespace' : 'namespaces'}` : '';
       const out = agg.out ? `${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
       const join = (...p) => p.filter(Boolean).join(' · ');
-      opts = [...new Set([join(res, mods, out), join(res, mods), join(res, out), res || out, String(agg.n || agg.out)])];
-    } else opts = it.mod.name ? [`× ${agg.n} in ${it.mod.name}`, `× ${agg.n}`] : [`× ${agg.n}`];
+      opts = [...new Set([join(res, nss, out), join(res, nss), join(res, out), res || out, String(agg.n || agg.out)])];
+    } else opts = it.ns.name ? [`× ${agg.n} in ${it.ns.name}`, `× ${agg.n}`] : [`× ${agg.n}`];
     inn.append(s('text', { class: 'ty', x: 38, y: 45 }, opts.find((o) => o.length <= room) || trunc(opts[opts.length - 1], room)));
     let mx = W - 14;
     for (const [m, count] of marks) {
@@ -684,7 +684,7 @@ export class GraphView {
     return g;
   }
 
-  createLane(L, mod) {
+  createLane(L, ns) {
     const g = s('g', { class: 'lane', 'data-lane': L.path });
     const rect = s('rect', { class: 'band', rx: L.depth > 1 ? 9 : 12 });
     g.append(rect);
@@ -699,14 +699,14 @@ export class GraphView {
     hg.append(hit, head);
     this.headLayer.append(hg);
     const r = { g, hg, rect, hit, head, hs, lbl, cnt, box: null, leaving: false };
-    this.updateLane(r, L, mod);
+    this.updateLane(r, L, ns);
     return r;
   }
 
-  updateLane(r, L, mod) {
+  updateLane(r, L, ns) {
     const label = L.label || '';
     r.lbl.textContent = label;
-    const agg = mod ? mod.agg : null;
+    const agg = ns ? ns.agg : null;
     // a lane that holds outputs only counts them
     const count = agg ? (agg.n || !agg.out ? String(agg.n) : agg.out + ' out') : '';
     r.cnt.textContent = count;
@@ -912,17 +912,17 @@ export class GraphView {
     if (id.startsWith('lane:')) {
       const path = id.slice(5);
       const L = this.lay && this.lay.lanes.find((l) => l.path === path);
-      const mod = this.cb.moduleOf(path);
-      if (!L || !mod) return;
+      const ns = this.cb.namespaceOf(path);
+      if (!L || !ns) return;
       box = { x: L.x, y: L.y, w: L.w, h: Math.min(L.h, G.HEAD) };
-      content = this.tipModule(mod, true);
+      content = this.tipNamespace(ns, true);
     } else {
       const it = this.vis && this.vis.items.get(id);
       const p = this.lay && this.lay.pos.get(id);
       if (!it || !p) return;
       box = p;
       if (it.kind === 'node') content = this.tipNode(it.n);
-      else if (it.kind === 'module') content = this.tipModule(it.mod, false);
+      else if (it.kind === 'namespace') content = this.tipNamespace(it.ns, false);
       else if (it.kind === 'cluster') content = this.tipCluster(it);
       else return;
     }
@@ -968,10 +968,10 @@ export class GraphView {
       h('div', { class: 'dim' }, `${plural(pin.resources, 'resource')} changed by open plans${pin.overlap ? ', two of them by more than one' : ''}`)));
   }
 
-  tipModule(mod, open) {
-    const a = mod.agg;
+  tipNamespace(ns, open) {
+    const a = ns.agg;
     const outs = a.out ? `${a.out} ${a.out === 1 ? 'output' : 'outputs'}` : '';
-    const out = [h('div', { class: 'gtip-addr' }, mod.path), h('div', { class: 'gtip-type' }, [a.n || !outs ? `${a.n} ${a.n === 1 ? 'resource' : 'resources'}` : '', mod.kids.length ? `${mod.kids.length} ${mod.kids.length === 1 ? 'module' : 'modules'}` : '', outs].filter(Boolean).join(' · '))];
+    const out = [h('div', { class: 'gtip-addr' }, ns.path), h('div', { class: 'gtip-type' }, [a.n || !outs ? `${a.n} ${a.n === 1 ? 'resource' : 'resources'}` : '', ns.kids.length ? `${ns.kids.length} ${ns.kids.length === 1 ? 'namespace' : 'namespaces'}` : '', outs].filter(Boolean).join(' · '))];
     const chips = [];
     if (a.create) chips.push(h('span', { class: 'gchip a-create' }, `${a.create} create`));
     if (a.update + a.replace) chips.push(h('span', { class: 'gchip a-update' }, `${a.update + a.replace} change`));
@@ -979,14 +979,14 @@ export class GraphView {
     if (a.sensitive) chips.push(h('span', { class: 'gchip sens' }, `${a.sensitive} sensitive`));
     if (a.drifted + a.gone) chips.push(h('span', { class: 'gchip drift' }, `${a.drifted + a.gone} drifted`));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
-    this.tipPlans(out, plansIn({ kind: 'module', mod }, this.ctx));
+    this.tipPlans(out, plansIn({ kind: 'namespace', ns }, this.ctx));
     out.push(h('div', { class: 'gtip-meta' }, open ? 'click to select, chevron to close' : 'click or press Enter to open'));
     return out;
   }
 
   tipCluster(it) {
     const a = it.agg;
-    const out = [h('div', { class: 'gtip-addr' }, it.mode === 'output' ? 'outputs' : it.type), h('div', { class: 'gtip-type' }, `${a.n} ${it.mode === 'output' ? 'outputs' : 'resources'}` + (it.mod.name ? ` in ${it.mod.name}` : ''))];
+    const out = [h('div', { class: 'gtip-addr' }, it.mode === 'output' ? 'outputs' : it.type), h('div', { class: 'gtip-type' }, `${a.n} ${it.mode === 'output' ? 'outputs' : 'resources'}` + (it.ns.name ? ` in ${it.ns.name}` : ''))];
     const chips = [];
     if (a.create) chips.push(h('span', { class: 'gchip a-create' }, `${a.create} create`));
     if (a.update + a.replace) chips.push(h('span', { class: 'gchip a-update' }, `${a.update + a.replace} change`));
@@ -1241,8 +1241,8 @@ export class GraphView {
       if (performance.now() < this.guardUntil) return;
       const t = ev.target.closest && ev.target.closest('[data-id],[data-lane]');
       if (!t) return;
-      if (t.dataset.id) { const it = this.vis && this.vis.items.get(t.dataset.id); if (it && it.kind === 'module') this.cb.onOpenModule(it.mod.path); }
-      else if (t.dataset.lane) this.cb.onToggleModule(t.dataset.lane);
+      if (t.dataset.id) { const it = this.vis && this.vis.items.get(t.dataset.id); if (it && it.kind === 'namespace') this.cb.onOpenNamespace(it.ns.path); }
+      else if (t.dataset.lane) this.cb.onToggleNamespace(t.dataset.lane);
     });
   }
 
@@ -1258,19 +1258,19 @@ export class GraphView {
       const it = this.vis.items.get(el.dataset.id);
       if (!it) return;
       if (it.kind === 'cluster') { this.cb.onCluster(it.id, 'open'); return; }
-      if (it.kind === 'module') { this.cb.onOpenModule(it.mod.path, ev); return; }
+      if (it.kind === 'namespace') { this.cb.onOpenNamespace(it.ns.path, ev); return; }
       if (it.kind === 'node') { this.cb.onSelectNode(it.n.addr, ev); return; }
       return;
     }
     const lane = target.closest && target.closest('[data-lane]');
     if (lane && target.closest('.hit')) {
-      // a click on the header selects the module; a click on its chevron closes it
+      // a click on the header selects the namespace; a click on its chevron closes it
       const r = this.host.getBoundingClientRect();
       const wx = (ev.clientX - r.left - this.view.x) / this.view.k;
       const L = this.lay.lanes.find((l) => l.path === lane.dataset.lane);
       const ls = Math.min(parseFloat(this.laneLayer.style.getPropertyValue('--ls')) || 1, parseFloat(lane.style.getPropertyValue('--cap')) || 1);
-      if (L && wx < L.x + 14 + 24 * ls) { this.cb.onToggleModule(lane.dataset.lane); return; }
-      this.cb.onSelectModule(lane.dataset.lane, ev);
+      if (L && wx < L.x + 14 + 24 * ls) { this.cb.onToggleNamespace(lane.dataset.lane); return; }
+      this.cb.onSelectNamespace(lane.dataset.lane, ev);
       return;
     }
     this.cb.onClear();
