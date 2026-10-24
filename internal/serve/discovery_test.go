@@ -205,6 +205,28 @@ func TestDiscoveryDocumentSetsTheRunAgainstTheState(t *testing.T) {
 	}
 }
 
+// A discovery with no scope sends an empty list, not a missing field: the page reads
+// its length.
+func TestDiscoveryWithoutAScopeSendsAnEmptyList(t *testing.T) {
+	p := newDiscoveryProject(t)
+	spec, _ := os.ReadFile(filepath.Join(p.dir, "main.cue"))
+	writeSpec(t, p.dir, strings.Replace(string(spec), `{region: "eu"}`, `{}`, 1))
+	p.waitDiscovery("the new scope", func(d Discovery) bool { v := find(d, "vms"); return v != nil && v.Declared && len(v.Scope) == 0 })
+	var doc struct {
+		Discoveries []map[string]json.RawMessage `json:"discoveries"`
+	}
+	if err := json.Unmarshal(p.get("/api/discovery"), &doc); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range doc.Discoveries {
+		for _, field := range []string{"scope", "items", "counts"} {
+			if v, ok := d[field]; !ok || string(v) == "null" {
+				t.Errorf("a discovery has no %q: %s", field, d["name"])
+			}
+		}
+	}
+}
+
 func TestDiscoveryOfAnotherKind(t *testing.T) {
 	p := newDiscoveryProject(t)
 	p.putRun("anything", listedItems())

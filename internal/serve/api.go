@@ -838,7 +838,7 @@ type DiscoveryInfo struct {
 	Problem   string `json:"problem,omitempty"`
 	// Scope is the scope that is written now, or the scope of the last run for a
 	// discovery that is not declared.
-	Scope  []Field `json:"scope,omitempty"`
+	Scope  []Field `json:"scope"`
 	Limit  int64   `json:"limit,omitempty"`
 	Source *Ref    `json:"source,omitempty"`
 	// Run is the last run, nil for a discovery that has not run.

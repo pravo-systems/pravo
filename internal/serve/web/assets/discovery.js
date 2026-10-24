@@ -162,7 +162,7 @@ export class DiscoveryView {
   facts(x) {
     const li = (k, ...v) => h('li', null, h('span', { class: 'k' }, k), ...v);
     return h('ul', { class: 'dv-facts' },
-      x.scope.length || x.limit ? li('scope', h('span', { class: 'dv-scope' }, x.scope.map((f) => h('span', { class: 'sc' }, h('b', null, f.name), '=', f.value)), x.limit ? h('span', { class: 'sc' }, h('b', null, 'limit'), '=', String(x.limit)) : null)) : li('scope', h('span', { class: 'dim' }, 'none: everything the provider can list')),
+      (x.scope || []).length || x.limit ? li('scope', h('span', { class: 'dv-scope' }, (x.scope || []).map((f) => h('span', { class: 'sc' }, h('b', null, f.name), '=', f.value)), x.limit ? h('span', { class: 'sc' }, h('b', null, 'limit'), '=', String(x.limit)) : null)) : li('scope', h('span', { class: 'dim' }, 'none: everything the provider can list')),
       x.run ? li('last run', h('span', { title: stamp(x.run.finished) }, relTime(x.run.finished)), x.run.actor ? h('span', { class: 'dim' }, ' by ' + x.run.actor) : null) : null,
       x.source ? li('written at', h('code', null, `${x.source.file}:${x.source.line}`)) : null);
   }
@@ -186,7 +186,7 @@ export class DiscoveryView {
     const words = this.q.toLowerCase().split(/\s+/).filter(Boolean);
     const out = h('div', { class: 'dv-rows' });
     if (!x.run) return out;
-    const by = (s) => x.items.filter((it) => it.status === s && matches(it, words));
+    const by = (s) => (x.items || []).filter((it) => it.status === s && matches(it, words));
     const groups = [
       ['unmanaged', 'Unmanaged', 'Nothing manages these. Adopt them, or acknowledge them if they are meant to stay as they are.'],
       ['adopting', 'Adopting', 'A resource of the specification names these in $import. The next plan reads them.'],
