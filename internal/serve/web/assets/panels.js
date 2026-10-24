@@ -21,9 +21,6 @@ const kv = (rows) => h('dl', { class: 'meta' }, rows.filter(Boolean).map(([k, v]
 export function projectPanel(ins, model) {
   const g = model.graph, p = g.project;
   const body = [];
-  const plan = g.plan;
-  // a stored plan is named, counted and judged in the strip under the bar, the banner and the status bar: this is for a plan file
-  if (plan && !plan.id) body.push(planSection(ins, plan, model));
 
   if ((p.providers || []).length) {
     // an instance is named by its key and drawn in its colour; a provider with one instance that is named like it needs no list
@@ -46,29 +43,6 @@ export function projectPanel(ins, model) {
 function pathValue(p, ins) {
   if (!p) return null;
   return h('span', { class: 'pv', 'data-tip': p }, pathEl(p), copyButton(p, { label: 'Copy the path', tip: 'Copy the path', announce: ins.cb.announce, done: 'Copied the path' }));
-}
-
-function planSection(ins, plan) {
-  const c = plan.summary || {};
-  const tile = (n, label, cls) => h('div', { class: 'tile ' + cls + (n ? '' : ' zero') }, num(n), h('span', { class: 'tlb' }, label));
-  const notRead = plan.total - plan.planned;
-  return h('section', { class: 'sec plan' },
-    h('h3', { class: 'h' }, 'The plan'),
-    h('div', { class: 'planned' },
-      h('span', { class: 'pl-big' }, num(plan.planned), h('span', { class: 'of' }, ' of '), h('span', { class: 'bn' }, fmt(plan.total))),
-      h('span', { class: 'pl-sub' }, `resources planned${notRead ? ` \u00b7 ${notRead} not read` : ''}`),
-      plan.stale ? h('span', { class: 'b bad' }, 'stale') : null),
-    h('div', { class: 'tiles' },
-      tile(c.add, 'add', 'ok'), tile(c.change, 'change', 'chg'), tile(c.destroy, 'destroy', 'bad'), tile(c.read, 'read', 'lock')),
-    h('div', { class: 'plan-meta' },
-      kv([
-        ['file', h('span', { class: 'mono-s' }, baseName(plan.file))],
-        ['created', stamp(plan.created) + (plan.actor ? ' \u00b7 ' + plan.actor : '')],
-        ['blast radius', plural(c.blast_radius || 0, 'resource')],
-        plan.applied ? ['applied', `${plan.applied} of ${plan.planned}`] : null,
-      ])),
-    plan.stale ? h('p', { class: 'note bad' }, icon('bang'), h('span', null, 'This plan is stale: ' + (plan.reasons || []).join('; '))) : null,
-    (plan.hints || []).map((x) => h('p', { class: 'note' }, icon('bang'), h('span', null, x))));
 }
 
 // ---------------------------------------------------------------------------------------------------------

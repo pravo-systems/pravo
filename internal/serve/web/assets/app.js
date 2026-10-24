@@ -12,7 +12,7 @@ import { Plans, planStrip, avatar, statusLabel } from './plans.js';
 import { AccessView } from './access.js';
 import { Palette, Sheet } from './palette.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
-import { h, s as svgEl, clear, store, relTime, clock, plural, schedule, actionOf, icon, copyText, pathParts, tilde, motionOn, tick } from './util.js';
+import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, pathParts, tilde, motionOn, tick } from './util.js';
 import { initTips } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -327,12 +327,14 @@ function renderPlans() {
   renderPlanLede();
   loadReasons();
   const p = S.plan && S.plans.find((x) => x.id === S.plan);
-  planStrip($('planstrip'), p, {
+  // a plan that was loaded from a file is laid over the graph for good: the strip names it and has no cross
+  const gp = !p && S.graph && S.graph.plan && !S.graph.plan.id ? S.graph.plan : null;
+  planStrip($('planstrip'), p || (gp && { id: baseName(gp.file), status: gp.stale ? 'stale' : '', author: gp.actor || '', created: gp.created, summary: gp.summary }), {
     reason: p && reasons.get(p.id),
     signatures: p && S.graph && S.graph.plan && S.graph.plan.id === p.id ? S.graph.plan.signatures : null,
-    onClear: () => selectPlan(null),
+    onClear: p ? () => selectPlan(null) : null,
   });
-}
+}}
 
 // renderPlanLede is the line at the head of the Plans page: it is there to say that there is none.
 function renderPlanLede() {

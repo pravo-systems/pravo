@@ -261,21 +261,23 @@ export function signedIcon(sg) {
 
 export function planStrip(el, p, cb) {
   // a strip that says the same is left as it is: drawing it again takes the focus from the button that has it
-  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(cb.signatures || null)].join('|') : '';
+  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(cb.signatures || null), !!cb.onClear].join('|') : '';
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
   clear(el);
   if (!p) { el.hidden = true; return; }
   el.hidden = false;
+  const c = counts(p.summary || {});
+  if (p.summary && p.summary.blast_radius) c.title = 'Blast radius: ' + plural(p.summary.blast_radius, 'resource');
   el.append(...[
     h('span', { class: 'ps-eyebrow' }, 'Plan'),
-    avatar(p.author),
+    p.author ? avatar(p.author) : null,
     cb.reason ? h('span', { class: 'ps-title', title: cb.reason }, cb.reason) : null,
     h('code', { class: 'ps-id' }, p.id),
-    statusChip(p.status),
-    counts(p.summary || {}),
-    h('span', { class: 'ps-by dim' }, p.author + ' \u00b7 ' + relTime(p.created)),
+    p.status ? statusChip(p.status) : null,
+    c,
+    h('span', { class: 'ps-by dim' }, (p.author ? p.author + ' \u00b7 ' : '') + relTime(p.created)),
     signedIcon(cb.signatures),
     h('span', { class: 'grow' }),
-    h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' }))].filter(Boolean));
+    cb.onClear ? h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })) : null].filter(Boolean));
 }
