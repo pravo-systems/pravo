@@ -334,7 +334,7 @@ function renderPlans() {
     signatures: p && S.graph && S.graph.plan && S.graph.plan.id === p.id ? S.graph.plan.signatures : null,
     onClear: p ? () => selectPlan(null) : null,
   });
-}}
+}
 
 // renderPlanLede is the line at the head of the Plans page: it is there to say that there is none.
 function renderPlanLede() {
