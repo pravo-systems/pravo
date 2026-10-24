@@ -5,7 +5,7 @@
 import { h, clear, icon, relTime, stamp, copyButton, actionOf, plural, motionOn, splitPath, pathEl, baseName, nodeMark, signatureMark } from './util.js';
 import * as api from './api.js';
 import { isChange, chain, isOut, isEnv } from './model.js';
-import { entityOf, ENTITY_LABEL } from './query.js';
+import { entityOf, ENTITY_LABEL, facetHit } from './query.js';
 import { codeWindow, kindLabel } from './ui.js';
 import { StateView, withheld, unknownEl, timeRow } from './values.js';
 import { projectPanel, namespacePanel } from './panels.js';
@@ -96,8 +96,19 @@ export class Inspector {
     return h('button', { type: 'button', class: cls + ' fx', 'data-col': col, 'data-value': value, title: `Show only ${col} ${value} (shift: hide it)` }, text);
   }
 
+  // markFacets lights the tags of the header that the terms of the filter name
+  markFacets() {
+    const q = this.cb.query ? this.cb.query() : '';
+    for (const b of this.head.querySelectorAll('button.fx')) {
+      const on = facetHit(q, b.dataset.col, b.dataset.value);
+      b.classList.toggle('hit', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
   // queryChanged shows again which values the field terms of the filter are about, when the State tab is open
   queryChanged() {
+    this.markFacets();
     if (this.mode === 'node' && this.state.host && this.state.host.isConnected) this.state.drawKeep();
   }
 
@@ -109,6 +120,7 @@ export class Inspector {
       h('h2', { class: 'ih-title' + (long ? ' long' : '') }, title),
       path,
       tags && tags.length ? h('div', { class: 'ih-tags' }, tags) : null].filter(Boolean));
+    this.markFacets();
   }
 
   copyBtn(text) {

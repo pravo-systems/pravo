@@ -1351,6 +1351,7 @@ function wire() {
     onPlan: (id) => selectPlan(id),
     onFacet: facetFilter,
     fieldMatch: () => fieldMatcher(S.q),
+    query: () => S.q,
     onSelectNode: (a) => selectNode(a, { center: true }),
     onSelectNamespace: (p) => selectNamespace(p, { center: true }),
     onTab: setTab,

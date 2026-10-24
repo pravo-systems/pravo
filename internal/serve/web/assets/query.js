@@ -239,6 +239,13 @@ function test(col, v, n, now) {
   }
 }
 
+// facetHit tells whether a term of the text, not turned round, names this value of the column: what a tag of the value in
+// the inspector is lit for. aws.west is named by provider:aws.west, not by provider:aws, which lights the tag aws alone.
+export function facetHit(text, col, value) {
+  const v = String(value).toLowerCase();
+  return parseQuery(text).terms.some((t) => t.col === col && !t.neg && t.values.some((x) => same(v, x)));
+}
+
 // compileQuery returns a function that tells whether a node matches, or null when the text asks for nothing
 export function compileQuery(text) {
   const { words, terms } = parseQuery(text);

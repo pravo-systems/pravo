@@ -426,6 +426,9 @@
 /* a tag that filters by what it says: a button that looks like the tag */
 .ih button.fx { appearance: none; cursor: pointer; font-family: inherit; }
 .ih button.b.fx:hover, .ih button.b.fx:focus-visible { --c: var(--accent); border-color: var(--accent); }
+/* the tag that the filter names: lit in the accent, as the term of the filter is */
+.ih button.b.fx.hit { --c: var(--accent); border-color: var(--accent); background: var(--accent-wash); color: var(--text); }
+.ih button.kick.fx.hit { color: var(--accent); }
 .ih button.kick.fx { background: none; border: 0; padding: 0; margin: 0; }
 .ih button.kick.fx:hover, .ih button.kick.fx:focus-visible { color: var(--text); text-decoration: underline dotted; text-underline-offset: .25em; }
 .row-fx { position: absolute; right: 2.4rem; top: .45rem; opacity: 0; display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; color: var(--text-3); border: 1px solid transparent; }
