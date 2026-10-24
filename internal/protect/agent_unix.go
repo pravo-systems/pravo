@@ -6,14 +6,13 @@ import (
 	"errors"
 	"io"
 	"net"
-	"os"
 )
 
-// DialAgent connects to the agent named by SSH_AUTH_SOCK.
+// DialAgent connects to the ssh-agent (see AgentAddress).
 func DialAgent() (io.ReadWriteCloser, error) {
-	sock := os.Getenv("SSH_AUTH_SOCK")
+	sock := AgentAddress()
 	if sock == "" {
-		return nil, errors.New("no ssh-agent: SSH_AUTH_SOCK is not set")
+		return nil, errors.New("no ssh-agent: SSH_AUTH_SOCK is not set and ssh_config names no IdentityAgent")
 	}
 	return net.Dial("unix", sock)
 }

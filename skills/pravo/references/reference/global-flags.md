@@ -264,6 +264,7 @@ Copying a recording, or keeping it in version control, does not keep the modes. 
 | `PRAVO_IDENTITY` | The identity that opens a sealed state: the contents of an identity file, when the value starts with `{`, or the path of one. It is read once and removed from the environment, and providers never receive it. For a CI job, see [`pravo id new --ci`](protect.md#id-new). |
 | `PRAVO_IDENTITY_DIR` | The directory that holds identity files, in place of `id` in the configuration directory. Commands that read identities look there, and `pravo id new` writes there, making the directory with mode 0700 when it is missing. |
 | `PRAVO_PASSPHRASE`, `PRAVO_IDENTITY_PASSPHRASE` | The passphrase of a sealed identity, for a command that has no terminal to ask on. It is read once and removed from the environment, and providers never receive it. |
+| `PRAVO_SSH_AUTH_SOCK` | The socket of the ssh-agent that unlocks an identity (`pravo id new --unlock agent`) or signs for one made with `--ssh`, ahead of the `IdentityAgent` of the ssh configuration and `SSH_AUTH_SOCK`. See [Which ssh-agent](protect.md#which-ssh-agent). |
 | `PRAVO_CONFIG_DIR` | The configuration directory, in place of `$XDG_CONFIG_HOME/pravo` or `~/.config/pravo`. Identities are kept in its `id` directory. |
 | `PRAVO_RECORD`, `PRAVO_REPLAY` | A directory to record provider responses to, or to replay them from. |
 | `NO_COLOR` | When set, the output is not coloured. |

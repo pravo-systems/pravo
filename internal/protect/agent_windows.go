@@ -11,7 +11,7 @@ import (
 // a named pipe as a file is the usual way to talk to it without a dependency;
 // agents that only offer Pageant (PuTTY) are not supported.
 func DialAgent() (io.ReadWriteCloser, error) {
-	pipe := os.Getenv("SSH_AUTH_SOCK")
+	pipe := AgentAddress()
 	if pipe == "" {
 		pipe = `\\.\pipe\openssh-ssh-agent`
 	}

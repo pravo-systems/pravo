@@ -157,6 +157,13 @@ func runIDNew(name, sshFile, outFile string, ci bool, unlock, agentKey string) e
 		if err != nil {
 			return err
 		}
+		if len(keys) == 0 {
+			where := ""
+			if a := protect.AgentAddress(); a != "" {
+				where = " at " + tilde(a)
+			}
+			return fmt.Errorf("the ssh-agent%s holds no ssh-ed25519 key (is it locked, or is the key an RSA or ECDSA one?). pravo looks for the agent in $PRAVO_SSH_AUTH_SOCK, then the IdentityAgent of ssh_config, then $SSH_AUTH_SOCK", where)
+		}
 		if unlocker, err = protect.PickAgentKey(keys, agentKey); err != nil {
 			return err
 		}

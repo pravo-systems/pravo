@@ -87,7 +87,7 @@ func TestAgentAgainstOpenSSH(t *testing.T) {
 // challenge the same way every time, which the key derivation depends on.
 func TestAnIdentityUnderAnOpenSSHAgent(t *testing.T) {
 	sock, pub := openSSHAgent(t)
-	t.Setenv("SSH_AUTH_SOCK", sock) // the default way to reach the agent
+	t.Setenv("PRAVO_SSH_AUTH_SOCK", sock) // ahead of the IdentityAgent of the ssh configuration of whoever runs the test
 	id, err := NewIdentity("ada-mac", "")
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestAnIdentityUnderAnOpenSSHAgent(t *testing.T) {
 		t.Fatalf("AgentKeys = %v, %v", keys, err)
 	}
 	// An agent without the key refuses to open it.
-	t.Setenv("SSH_AUTH_SOCK", filepath.Join(t.TempDir(), "gone"))
+	t.Setenv("PRAVO_SSH_AUTH_SOCK", filepath.Join(t.TempDir(), "gone"))
 	if _, err := ParseIdentity(file, nil); err == nil || !strings.Contains(err.Error(), "not reachable") {
 		t.Errorf("no agent: %v", err)
 	}

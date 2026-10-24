@@ -206,7 +206,7 @@ The line is public and safe to paste into a chat or a pull request. Give it to w
 
 An identity is never overwritten. `pravo id new --name ada` for a name that exists stops with `identity ada already exists at PATH` and exit code 1, before it asks for a passphrase.
 
-`--ssh FILE` uses an `ssh-ed25519` public key as the signing key, so that there is no new signing key to manage. pravo reads `FILE.pub`, or `FILE` if that is itself a public key, and never reads a private key. Keys of other types are refused. Such an identity signs through the ssh-agent that `SSH_AUTH_SOCK` names (on Windows the OpenSSH pipe), and the key has to be loaded in it; an agent that asks for a touch asks for it at each signature, which is two for a run.
+`--ssh FILE` uses an `ssh-ed25519` public key as the signing key, so that there is no new signing key to manage. pravo reads `FILE.pub`, or `FILE` if that is itself a public key, and never reads a private key. Keys of other types are refused. Such an identity signs through the ssh-agent, which pravo finds [as ssh does](#which-ssh-agent), and the key has to be loaded in it; an agent that asks for a touch asks for it at each signature, which is two for a run.
 
 ### Unlock with the ssh-agent
 
@@ -220,13 +220,17 @@ The command prints the same lines as one with a passphrase, and the reader line 
 
 The wrapping key is HKDF-SHA256 over the agent's signature of a challenge. The challenge holds the name of the identity, its reader key, the agent key and a random salt of 32 bytes that the file stores, so a signature made for one file opens no other. An Ed25519 signature of one message by one key is the same every time (RFC 8032), so the same signature opens the file each time. The challenge starts with a tag that the signatures of events never start with, so signing an event never yields the key.
 
-`id new` asks the agent for the signature twice and stops with `the ssh-agent signs differently each time` if the two differ, since a file sealed under a key that cannot be derived again could never be opened. Nothing is written then. Keys of other types are not offered, and the agent has to be reachable through `SSH_AUTH_SOCK`.
+`id new` asks the agent for the signature twice and stops with `the ssh-agent signs differently each time` if the two differ, since a file sealed under a key that cannot be derived again could never be opened. Nothing is written then. Keys of other types are not offered.
 
 **The agent decides who can open the file.** Any process that the agent signs for opens it. 1Password asks before it lets an application use a key, and its settings say how long an approval lasts; `ssh-add -c` asks for each use; an agent that signs for every process of the user asks for nothing, and the file is then as open as the agent. The file holds no passphrase to guess, and a copy of it opens nothing without the key.
 
 **The key has to stay.** If the key is removed from the agent, the identity is lost with it. Keep a second reader that does not depend on the key: an identity with a passphrase, under another name. Adding it is the same as adding any reader; see [Seal the state to a list of readers](../how-to/seal-the-state.md#1-make-an-identity).
 
 A pravo that does not know this seal refuses the file with `identity uses kdf "ssh-agent-ed25519", which this pravo does not know`.
+
+### Which ssh-agent
+
+pravo finds the agent as ssh does, which is not always the one that `$SSH_AUTH_SOCK` names. ssh takes the `IdentityAgent` of its configuration first, and 1Password's setup writes its agent there, in `~/.ssh/config`, and leaves the variable to the agent of macOS, which holds no key. pravo looks in this order and uses the first that names one: `$PRAVO_SSH_AUTH_SOCK`, the `IdentityAgent` that `ssh -G` reports for a host with no entry of its own, and `$SSH_AUTH_SOCK`. On Windows, with none of them, it opens the pipe `\\.\pipe\openssh-ssh-agent`. `id new` names the agent it asked when the agent holds no key.
 
 ### For a CI job
 
