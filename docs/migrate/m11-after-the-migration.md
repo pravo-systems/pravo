@@ -404,12 +404,12 @@ pravo plan --policy policy/refactor.cue
 ```text out
 pravo will perform the following actions:
 
-  # ports[0] was moved to port.http (record renamed; no change to the object)
+  # ports[0] will be moved to port.http (record renamed; no change to the object)
 
-  # ports[1] was moved to port.admin (record renamed; no change to the object)
+  # ports[1] will be moved to port.admin (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 · skipped 8 · refreshed 1 · not read 8 · moved 2
+Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
+Graph: planned 0 · skipped 8 · refreshed 1 · not read 8 · to move 2
 
 Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
@@ -418,14 +418,16 @@ Outputs:
 Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
-Both records move, and the objects do not change. The output iterates the list of names, not the struct. The values keep the order you wrote. Apply the plan, so that the moves are final, and plan again:
+Both records will move, and the objects do not change. The plan wrote nothing: the records keep their old addresses until you apply. The output iterates the list of names, not the struct. The values keep the order you wrote. Apply the plan, so that the moves are final, and plan again:
 
 ```sh run
-pravo apply --auto-approve 2>&1 | grep -E '^(No changes|Apply complete)'
+pravo apply --auto-approve 2>&1 | grep '^Apply complete'
+pravo plan 2>&1 | grep '^No changes'
 pravo state list
 ```
 
 ```text out
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
 banner
 hello

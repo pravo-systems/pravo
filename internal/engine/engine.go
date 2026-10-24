@@ -117,9 +117,9 @@ type Change struct {
 	// Applied marks a change of a saved plan that was applied earlier.
 	Applied    bool
 	AppliedTxn string
-	// Imported marks a resource whose record was created from an "import"
-	// declaration during this plan; MovedFrom names the previous address of
-	// a record renamed by a $from declaration.
+	// Imported marks a resource whose object an $import declaration names: the plan
+	// read it and stages the record, and the apply writes it. MovedFrom names the previous
+	// address of a record that a $from declaration renames; the apply moves it.
 	Imported bool
 	// ImportID is what the import named: an id, or the identity written as
 	// name=value pairs, when ImportIdentity is set.
@@ -281,6 +281,8 @@ func (p *Plan) PendingAddrs() []string {
 	return out
 }
 
+// HasChanges reports whether applying the plan would change an object. A move and an
+// import are not changes of an object: HasWrites counts them.
 func (p *Plan) HasChanges() bool {
 	for _, c := range p.Changes {
 		if c.Applied {
@@ -365,6 +367,8 @@ type Engine struct {
 	dataReads map[string]dataRead
 	// imported holds what each import made by this plan named, by address.
 	imported map[string]importMark
+	// touchedAddrs are the records that the apply of the declarations wrote (see declared.go).
+	touchedAddrs map[string]bool
 	// ages holds the refresh ages that were parsed, by their text.
 	ages map[string]parsedAge
 	// now is the clock that records are aged against; nil is the wall clock.
@@ -612,11 +616,11 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		plan.Stats = e.statsNow()
 		return plan, e.txn.Finish("planned", e.summary(plan), false)
 	}
-	if err := e.relabelProviders(); err != nil {
+	if err := e.relabelProviders(true); err != nil {
 		e.finishError("failed", err, true)
 		return nil, err
 	}
-	moves, err := e.applyMoves(ctx)
+	moves, err := e.applyMoves(ctx, true)
 	if err != nil {
 		e.finishError("failed", err, true)
 		return nil, err
@@ -2224,6 +2228,13 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.finishError("failed", err, true)
 		return result, err
 	}
+	// What the specification declares about the state is written first: the plan staged it.
+	if !e.Opts.Destroy {
+		if err := e.commitMoves(plan); err != nil {
+			e.finishError("rejected", err, true)
+			return result, err
+		}
+	}
 	lockStart := time.Now()
 	held, err := e.lockAll(plan)
 	if err != nil {
@@ -2250,6 +2261,11 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	e.held = held
 	defer func() { e.held = nil }()
 	defer e.register(ctx, held)()
+	if !e.Opts.Destroy {
+		if err := e.commitImports(plan); err != nil {
+			return fail(err)
+		}
+	}
 	var skipped []string
 	if !e.Opts.Destroy {
 		defer e.approve(plan)()

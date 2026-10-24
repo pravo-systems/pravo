@@ -31,7 +31,7 @@ keywords: "-target scoped plan saved plan -out stored plan plan id plan list pla
 | | `pravo plan show ID`, `pravo plan pull ID FILE` |
 | | `pravo plan gc [--dry-run] [--older-than DURATION]` |
 | Changes infrastructure | No. |
-| Writes | Refreshed records to the state, a mark on a record whose object differs or is gone, `$from` moves, `$import` adoptions, and with `--reserve` a reservation. With `--store`, the objects of a stored plan, and the removal of a few that nobody needs. Data sources and ephemeral resources run while the plan is made. |
+| Writes | Refreshed records to the state, a mark on a record whose object differs or is gone, and with `--reserve` a reservation. No record for a `$from` move or an `$import`: it lists them, and the apply writes them. With `--store`, the objects of a stored plan, and the removal of a few that nobody needs. Data sources and ephemeral resources run while the plan is made. |
 | Prints | The plan on stdout and one progress line per refreshed resource. With `--json`, the plan document on stdout and the progress on stderr. |
 | Taught in | [B2, Reading a plan](../learn/b02-reading-a-plan.md) and [B7, Changing live infrastructure](../learn/b07-changing-live-infrastructure.md). |
 
@@ -161,9 +161,9 @@ Other lines:
 |---|---|
 | `(known after apply)` | The provider supplies the value. Everything computed from it is unknown too. |
 | `(sensitive)` | The attribute is sensitive. |
-| `# a was moved to b` | The record of `a` is renamed because of `$from`. The object does not change. |
-| `# a was imported from id "..."` | The object was adopted because of `$import`. With an identity in `$import` the header says `from the identity "..."`, followed by the attributes as `name=value`. |
-| `Plan: N to add, N to change, N to destroy.` | A replacement counts once under add and once under destroy. |
+| `# a will be moved to b` | The record of `a` is renamed, because of `$from`, when the plan is applied. The object does not change. |
+| `# a will be imported from id "..."` | The object that `$import` names is read, and the apply adopts it. With an identity in `$import` the header says `from the identity "..."`, followed by the attributes as `name=value`. |
+| `Plan: N to add, N to change, N to destroy.` | A replacement counts once under add and once under destroy. `, N to import` and `, N to move` follow when the plan has `$import` objects and `$from` records for the apply to write. |
 | `Hint: ...` | A resource looks like one that was renamed without `$from`. |
 | `Graph: ...` | How much of the specification the plan reached. See below. |
 | `Outputs:` | The outputs, known or `(known after apply)`. |
@@ -179,7 +179,7 @@ The `Graph:` line lists these parts, in this order, separated by `·`, and leave
 | `drifted N` | A refresh found a difference. |
 | `within refresh age N` | Their refresh was skipped because the record is within its refresh age. |
 | `not read N` | The plan did not read them, and their record is older than its refresh age. |
-| `opened N` (ephemeral resources), `called N` (functions), `imported N`, `moved N` | The count of each. |
+| `opened N` (ephemeral resources), `called N` (functions), `to import N`, `to move N` | The count of each. The last two are written by the apply. |
 
 ### Save a plan
 

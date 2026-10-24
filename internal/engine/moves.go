@@ -14,15 +14,16 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
-// ActionMove marks a record renamed by a "moved" declaration.
+// ActionMove marks a record that a $from declaration renames. A plan stages the move and the
+// apply writes it.
 const ActionMove Action = "move"
 
-// applyMoves carries out the $from declarations against the state, as
-// the first step of the plan's transaction, and returns one change per
-// move performed. A move whose source no longer exists and whose target
-// already does is complete and produces nothing. A prefix move expands to
-// one move per record below the old path.
-func (e *Engine) applyMoves(ctx context.Context) ([]*Change, error) {
+// applyMoves goes through the $from declarations and returns one change per move.
+// A plan stages them (see state.Store.Stage): it does not write the state, but the
+// nodes it plans see the record at its new address. An apply carries them out. A move
+// whose source no longer exists and whose target already does is complete and
+// produces nothing. A prefix move expands to one move per record below the old path.
+func (e *Engine) applyMoves(ctx context.Context, stage bool) ([]*Change, error) {
 	var out []*Change
 	for _, mv := range e.Root.Moves {
 		pairs, err := e.expandMove(mv)
@@ -30,7 +31,7 @@ func (e *Engine) applyMoves(ctx context.Context) ([]*Change, error) {
 			return nil, err
 		}
 		for _, pr := range pairs {
-			ch, err := e.moveNode(pr.from, pr.to, pr.target)
+			ch, err := e.moveNode(pr.from, pr.to, pr.target, stage)
 			if err != nil {
 				return nil, err
 			}
@@ -85,8 +86,9 @@ func hasPrefix(sels, prefix []cue.Selector) bool {
 	return true
 }
 
-// moveNode renames one record. It returns nil when there is nothing to do.
-func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource) (*Change, error) {
+// moveNode renames one record, or with stage only in memory. It returns nil when there
+// is nothing to do.
+func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource, stage bool) (*Change, error) {
 	from, to := e.State.Get(fromAddr), e.State.Get(toAddr)
 	switch {
 	case from == nil && to == nil:
@@ -98,6 +100,9 @@ func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource) (*Ch
 	}
 	if target != nil && (from.Mode != target.Mode || from.Type != target.Type) {
 		return nil, fmt.Errorf("$from %s -> %s: the record is a %s %s but %s is declared as a %s %s; the type must stay the same", fromAddr, toAddr, from.Mode, from.Type, toAddr, target.Mode, target.Type)
+	}
+	if stage {
+		return e.stageMove(from, toAddr, target), nil
 	}
 	var locked []string
 	defer func() {
@@ -137,6 +142,7 @@ func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource) (*Ch
 	if err := e.State.Set(&moved, e.txnID()); err != nil {
 		return nil, err
 	}
+	e.touched(toAddr)
 	for _, d := range deps {
 		other := e.State.Get(d)
 		changed := false
@@ -150,6 +156,7 @@ func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource) (*Ch
 			if err := e.State.Set(other, e.txnID()); err != nil {
 				return nil, err
 			}
+			e.touched(d)
 		}
 	}
 	e.txn.Record(fromAddr, "move-from", before, 0)
@@ -159,10 +166,42 @@ func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource) (*Ch
 	return &Change{Addr: toAddr, Mode: moved.Mode, Type: moved.Type, Name: moved.Name, Action: ActionMove, MovedFrom: fromAddr, ProviderKey: moved.ProviderKey}, nil
 }
 
-// importResource brings an existing object under management from an
-// "import" declaration: the provider reads it by id and the result becomes
-// the resource's record, which the plan then compares with the
-// configuration.
+// stageMove is the move of a plan: the record is at its new address, and gone from the old
+// one, in memory. What the plan says of the change is what an apply checks: the version of the
+// record that moves.
+func (e *Engine) stageMove(from *state.Resource, toAddr string, target *config.Resource) *Change {
+	fromAddr := from.Address()
+	deps := e.State.Dependents(fromAddr)
+	moved := *from
+	moved.Addr = toAddr
+	if target != nil {
+		moved.Name = target.Name
+	}
+	e.State.StageRemove(fromAddr)
+	e.State.Stage(&moved)
+	for _, d := range deps {
+		other := *e.State.Get(d)
+		other.Dependencies = append([]string(nil), other.Dependencies...)
+		changed := false
+		for i, dep := range other.Dependencies {
+			if dep == fromAddr {
+				other.Dependencies[i] = toAddr
+				changed = true
+			}
+		}
+		if changed {
+			e.State.Stage(&other)
+		}
+	}
+	e.count(func(st *Stats) { st.Moved++ })
+	return &Change{Addr: toAddr, Mode: moved.Mode, Type: moved.Type, Name: moved.Name, Action: ActionMove, MovedFrom: fromAddr, ProviderKey: moved.ProviderKey,
+		PriorRevision: from.Revision, PriorGeneration: from.Generation}
+}
+
+// importResource reads the object that an $import names: the provider is asked for it by id
+// or identity, and what it says is the prior state of the resource, which the plan compares
+// with the configuration. The record is staged, in memory: the apply writes it (see
+// commitImport).
 func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *config.Resource, s *schema.Schema, imp *config.Import, ch *Change) (tftypes.Value, []byte, error) {
 	addr := r.Address()
 	ps := e.Schemas[r.LocalProvider()]
@@ -172,9 +211,9 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 	}
 	label := imp.Label()
 	if imp.Identity != nil {
-		e.Opts.Progress("%s: Importing from the identity %q...", addr, label)
+		e.Opts.Progress("%s: Reading the object of the identity %q...", addr, label)
 	} else {
-		e.Opts.Progress("%s: Importing from id %q...", addr, label)
+		e.Opts.Progress("%s: Reading the object of id %q...", addr, label)
 	}
 	imported, diags, err := prov.ImportResourceState(ctx, r.Type, importTarget(imp), types)
 	if err != nil {
@@ -203,27 +242,11 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 	if st.IsNull() {
 		return tftypes.Value{}, nil, fmt.Errorf("%s: no object %q exists", addr, label)
 	}
-	attrs, err := convert.ToJSON(st)
+	n, err := e.importedRecord(r, s, st, private)
 	if err != nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: imported state: %w", addr, err)
-	}
-	if ok, _ := e.State.TryLock(addr, e.Opts.Command+" (import)", e.txnID()); !ok {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: cannot import while another command holds its lock", addr)
-	}
-	defer e.State.Unlock(addr)
-	if err := e.State.Verify(addr); err != nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: cannot import: %w", addr, err)
-	}
-	n := &state.Resource{
-		Addr: addr, Mode: "managed", Type: r.Type, Name: r.Name, Provider: e.providerSource(r.ProviderKey), ProviderKey: r.ProviderKey,
-		ProviderProtocol: e.providerProtocol(r.ProviderKey),
-		ProviderVersion:  e.providerVersion(r.ProviderKey), SchemaVersion: s.Version, Attributes: attrs, Private: private,
-		ProviderConfig: e.stamp(r.ProviderKey, ""), RefreshedAt: state.Now(),
-	}
-	if err := e.State.Set(n, e.txnID()); err != nil {
 		return tftypes.Value{}, nil, err
 	}
-	e.txn.Record(addr, "import", 0, n.Revision)
+	e.State.Stage(n)
 	ch.Imported, ch.ImportID, ch.ImportIdentity = true, label, imp.Identity != nil
 	e.mu.Lock()
 	if e.imported == nil {
@@ -235,11 +258,26 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 	return st, private, nil
 }
 
+// importedRecord is the record of an object that an $import brought in: what the provider read.
+func (e *Engine) importedRecord(r *config.Resource, s *schema.Schema, st tftypes.Value, private []byte) (*state.Resource, error) {
+	attrs, err := convert.ToJSON(st)
+	if err != nil {
+		return nil, fmt.Errorf("%s: imported state: %w", r.Address(), err)
+	}
+	return &state.Resource{
+		Addr: r.Address(), Mode: "managed", Type: r.Type, Name: r.Name, Provider: e.providerSource(r.ProviderKey), ProviderKey: r.ProviderKey,
+		ProviderProtocol: e.providerProtocol(r.ProviderKey),
+		ProviderVersion:  e.providerVersion(r.ProviderKey), SchemaVersion: s.Version, Attributes: attrs, Private: private,
+		ProviderConfig: e.stamp(r.ProviderKey, ""), RefreshedAt: state.Now(),
+	}, nil
+}
+
 // relabelProviders carries out the provider $from declarations: a record
 // written under an address the provider used to have is relabelled with its
 // current address. A record under some other address than the provider's own
-// is an error that says how to declare the change.
-func (e *Engine) relabelProviders() error {
+// is an error that says how to declare the change. A plan stages the new label: only an
+// apply writes it.
+func (e *Engine) relabelProviders(stage bool) error {
 	for _, n := range e.State.List() {
 		if n.Provider == "" {
 			continue
@@ -256,6 +294,12 @@ func (e *Engine) relabelProviders() error {
 			return fmt.Errorf("%s was written by provider %s, but the provider is now %s; add $from: %q to the provider", n.Address(), n.Provider, req.Source.String(), n.Provider)
 		}
 		addr := n.Address()
+		if stage {
+			moved := *n
+			moved.Provider = req.Source.String()
+			e.State.Stage(&moved)
+			continue
+		}
 		if err := e.State.Lock(addr, e.Opts.Command+" (provider moved)", e.txnID()); err != nil {
 			return fmt.Errorf("provider $from %s: %w", n.Provider, err)
 		}

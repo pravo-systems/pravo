@@ -197,9 +197,7 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 		}
 		sc.PriorRevision, sc.PriorGeneration = ch.PriorRevision, ch.PriorGeneration
 		if ch.Action == ActionMove {
-			if n := e.State.Get(ch.Addr); n != nil {
-				sc.PriorRevision, sc.PriorGeneration = n.Revision, n.Generation
-			}
+			// The version is that of the record that moves, which is at its old address.
 			pf.Changes = append(pf.Changes, sc)
 			continue
 		}
@@ -368,6 +366,13 @@ func (e *Engine) LoadPlanFor(pf *PlanFile, only []string) (*Plan, error) {
 	inputs, generations := pf.Inputs, pf.InputGenerations
 	selected := stringSet(only)
 	for _, sc := range pf.Changes {
+		if sc.Action == ActionMove && !sc.Applied {
+			// The record to move is at the old address as the plan saw it, or it was moved already.
+			if reason := e.moveReason(sc); reason != "" {
+				reasons = append(reasons, reason)
+			}
+			continue
+		}
 		if sc.Applied || sc.Skipped || sc.Kept || sc.Action == ActionMove || (selected != nil && !selected[sc.Addr]) {
 			continue
 		}
@@ -770,7 +775,7 @@ func (p *Plan) Subset(addrs []string) (*Plan, error) {
 // to mark, and an apply that failed after it applied the other changes marked
 // them and did not record the outputs.
 func (pf *PlanFile) LeftToApply(remaining *Plan) bool {
-	if remaining.HasChanges() {
+	if remaining.HasWrites() {
 		return true
 	}
 	return !remaining.Destroy && remaining.NeedsApply() && pf.ApplyTxn == ""

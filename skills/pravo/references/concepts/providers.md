@@ -458,7 +458,7 @@ Identity follows the source. A record names the provider that wrote it, and a pl
 Error: server was written by provider registry.opentofu.org/hashicorp/random, but the provider is now oci://localhost:5001/acme/providers/random; add $from: "registry.opentofu.org/hashicorp/random" to the provider
 ```
 
-`$from` on the provider declares the address that it had before, as `$from` on a resource declares an earlier address. The next plan relabels the records first, and the resources are refreshed through the new source. Nothing is replaced.
+`$from` on the provider declares the address that it had before, as `$from` on a resource declares an earlier address. The plan relabels the records in memory, so the resources are refreshed through the new source, and lists nothing to replace. The apply writes the new label. Nothing is replaced.
 
 ```cue
 $random: rnd.#Provider & {

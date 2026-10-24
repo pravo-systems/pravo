@@ -112,25 +112,28 @@ pravo plan
 Output:
 
 ```text
-server: moved to primary
-
 pravo will perform the following actions:
 
-  # server was moved to primary (record renamed; no change to the object)
+  # server will be moved to primary (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 · skipped 2 · not read 2 · moved 1
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to move.
+Graph: planned 0 · skipped 2 · not read 2 · to move 1
 ```
 
-The record was renamed and the object was not touched. The move happens as the first step of the plan, so the state already holds `primary`:
+The plan lists the move and writes nothing. The nodes that it plans see the record at `primary`, so `note` is compared with the right record. The state still holds `server` until the apply, which renames the record and does not touch the object:
 
 ```sh
+pravo state list
+pravo apply -auto-approve | grep '^Apply complete'
 pravo state list
 ```
 
 Output:
 
 ```text
+note
+server
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 note
 primary
 ```
@@ -192,19 +195,19 @@ ids: #Naming & {$from: "names"}
 
 ```sh
 pravo plan | grep -E '^(names|  #|Plan)'
+pravo apply -auto-approve | grep '^Apply complete'
 ```
 
 Output:
 
 ```text
-names.first: moved to ids.first
-names.second: moved to ids.second
-  # names.first was moved to ids.first (record renamed; no change to the object)
-  # names.second was moved to ids.second (record renamed; no change to the object)
-Plan: 0 to add, 0 to change, 0 to destroy.
+  # names.first will be moved to ids.first (record renamed; no change to the object)
+  # names.second will be moved to ids.second (record renamed; no change to the object)
+Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
-Every record below `names` moved to the same place below `ids`. This is how to rename a module instance, or to move a resource into a module. The instance carries the old path. pravo refuses a `$from` that cannot be a move.
+Every record below `names` moves to the same place below `ids`. This is how to rename a module instance, or to move a resource into a module. The instance carries the old path. pravo refuses a `$from` that cannot be a move.
 
 | Message | Cause |
 |---|---|
@@ -233,22 +236,23 @@ pravo plan | grep -E '^(dice|  #|Plan)'
 Output:
 
 ```text
-dice: Importing from id "5,1,10"...
-  # dice was imported from id "5,1,10" and matches the specification
-Plan: 0 to add, 0 to change, 0 to destroy.
+dice: Reading the object of id "5,1,10"...
+  # dice will be imported from id "5,1,10" and matches the specification
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to import.
 ```
 
-The provider read the object, and the result became the record for `dice`. The plan compares it with the specification. Here they match, so nothing is left to do. With `max: 20` in the specification, the plan shows the difference and the change it needs. A later plan does not import again, because the record exists. Only managed resources can be imported.
+The provider read the object, and the plan compares it with the specification. Here they match, so there is no change to make to the object. With `max: 20` in the specification, the plan shows the difference and the change it needs. The plan writes no record; the apply writes the record for `dice`, and a later plan does not import again, because the record exists. Only managed resources can be imported.
 
 ```sh
-pravo state show dice
+pravo apply -auto-approve | grep '^Apply complete'
+pravo state show dice | sed '2d'
 ```
 
 Output:
 
 ```text
-// dice (provider registry.opentofu.org/hashicorp/random v3.9.1 as random, schema version 0, revision 1)
-// refreshed 0s ago, applied never, config hash none
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
+// dice (provider registry.opentofu.org/hashicorp/random v3.9.1 as random, schema version 0, revision 2)
 {
 	id:      "5"
 	keepers: null

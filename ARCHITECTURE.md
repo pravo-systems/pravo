@@ -118,7 +118,7 @@ After a node runs, `convert.Fill` computes the provider's values for every part 
 
 1. `checkOutputs` refuses an output that references an ephemeral value. `checkReplace` validates `--replace`. With `--destroy`, `checkDestroy` builds the graph and applies `prevent_destroy`.
 2. `State.Begin("plan", command)` starts the transaction.
-3. `relabelProviders` carries out a provider `$from`. `applyMoves` carries out `$from` declarations by renaming records and rewriting the dependencies of other records (`moveNode`).
+3. `relabelProviders(true)` and `applyMoves(ctx, true)` stage what the specification declares: a provider `$from`, the records that `$from` moves (`stageMove`, which rewrites the dependencies of other records) and the objects that `$import` reads (`importResource`). A staged record lives in the memory of the `Store` (`Stage`, `StageRemove`; `Get` and `Verify` see it, a `Set` of the plan does not write it) and the plan lists it as a `move` or an import. The plan writes nothing of this; `Plan.HasDeclared` is true, `Plan.HasChanges` is not, and `Plan.HasWrites` is either. The apply drops the staged records (`DropStaged`) and writes them: `commitMoves` before `lockAll` (`moveNode`, then `retarget` points the plan at the new revisions) and `commitImports` once the locks are held.
 4. `run(ctx, false)` walks the graph.
 5. `planOrphans` plans a delete for every record whose address the specification does not declare (`planDelete`), ordered with dependents first (`orderForDestroy`). With `--destroy` it plans a delete for every record and nothing else runs.
 6. `renameHints` pairs a create and a delete of the same type and configuration hash.

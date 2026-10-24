@@ -373,9 +373,30 @@ func TestDiscoverAdoptsAnObjectByItsIdentity(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("plan exited %d:\n%s", code, text)
 	}
-	contains(t, text, "shadow_assets was imported from the identity", "bucket=shadow-assets")
+	contains(t, text, "shadow_assets will be imported from the identity", "bucket=shadow-assets", "1 to import")
+	// A plan writes nothing for it: no record, and the object is still being adopted, until an apply.
+	for i := 0; i < 2; i++ {
+		if text, _ := runPravo(t, dir, "state", "list"); strings.TrimSpace(text) != "" {
+			t.Fatalf("a plan wrote a record (plan %d): %q", i+1, text)
+		}
+		if text, _ := runPravo(t, dir, "discover", "show"); !strings.Contains(text, "1 adopting") {
+			t.Fatalf("the discovery does not see the object as adopting after a plan:\n%s", text)
+		}
+		if i == 0 {
+			if _, code := runPravo(t, dir, "plan"); code != 0 {
+				t.Fatal("the second plan")
+			}
+		}
+	}
 	if text, code := runPravo(t, dir, "apply", "-auto-approve"); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
+	}
+	if text, _ := runPravo(t, dir, "state", "list"); strings.TrimSpace(text) != "shadow_assets" {
+		t.Errorf("the apply wrote %q", text)
+	}
+	// And a plan after it has nothing left to do.
+	if text, code := runPravo(t, dir, "plan"); code != 0 || !strings.Contains(text, "No changes.") {
+		t.Errorf("a plan after the apply: %d\n%s", code, text)
 	}
 	text, _ = runPravo(t, dir, "discover", "--all")
 	contains(t, text, "1 managed", "1 unmanaged", "0 adopting")

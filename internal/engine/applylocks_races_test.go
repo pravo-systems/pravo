@@ -342,7 +342,7 @@ func TestMoveWritesDependentsUnderTheirLocks(t *testing.T) {
 		if err := other.Lock("d2", "pravo apply", ""); err != nil {
 			t.Fatal(err)
 		}
-		_, err := e.moveNode("base", "moved", nil)
+		_, err := e.moveNode("base", "moved", nil, false)
 		if err == nil || !strings.Contains(err.Error(), "d2 depends on base") || !strings.Contains(err.Error(), "d2 is locked by pravo apply") {
 			t.Fatalf("moveNode: %v, want the lock of d2", err)
 		}
@@ -359,7 +359,7 @@ func TestMoveWritesDependentsUnderTheirLocks(t *testing.T) {
 		h, e := newMove(t)
 		a := h.engineOn(h.process(), estate("2"), Options{})
 		apply(t, a, plan(t, a)) // writes d1 and d2
-		_, err := e.moveNode("base", "moved", nil)
+		_, err := e.moveNode("base", "moved", nil, false)
 		if err == nil || !strings.Contains(err.Error(), "changed in the state since it was read") {
 			t.Fatalf("moveNode: %v, want the refusal to write from a copy that is older", err)
 		}
@@ -377,7 +377,7 @@ func TestMoveWritesDependentsUnderTheirLocks(t *testing.T) {
 
 	t.Run("nothing in the way", func(t *testing.T) {
 		h, e := newMove(t)
-		ch, err := e.moveNode("base", "moved", nil)
+		ch, err := e.moveNode("base", "moved", nil, false)
 		if err != nil || ch == nil {
 			t.Fatalf("moveNode: %v, %v", ch, err)
 		}

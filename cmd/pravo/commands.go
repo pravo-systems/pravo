@@ -652,7 +652,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 	if err := eng.CheckPolicyView(view); err != nil {
 		return err
 	}
-	if !plan.HasChanges() {
+	if !plan.HasWrites() {
 		// The plan has nothing to change. What it still writes is the record of a
 		// node whose configuration changed and whose object did not, and an output
 		// whose value changed.

@@ -15,12 +15,12 @@ keywords: "moved block import block moved state mv rename"
 
 An address is where a resource sits in the specification. A rename, or a move to another place, gives the resource a new address. A resource keeps its record by naming the old address in `$from`, and it adopts an existing object by naming its id in `$import`.
 
-| Field | Set on | Value | Effect at the next plan |
+| Field | Set on | Value | Effect, when the plan is applied |
 |---|---|---|---|
 | `$from` | a resource or data source | the old address | The record is renamed. The object is not touched. |
 | `$from` | a struct that holds resources | the old path | Every record below the old path moves to the same place below the struct. |
 | `$from` | a provider | the old registry address | Records written under that address are relabelled. |
-| `$import` | a managed resource | the provider's id for the object, or its identity | The provider reads the object, and its state becomes the record. |
+| `$import` | a managed resource | the provider's id for the object, or its identity | The provider reads the object at the plan, and what it read becomes the record. |
 
 `pravo state mv` and `pravo import` do the same for one-off use. See [state](state.md) and [import](import.md).
 
@@ -80,7 +80,7 @@ Plan: 1 to add, 0 to change, 1 to destroy.
 Hint: greeting looks like hello under a new address; to keep the existing object, add $from: "hello" to greeting
 ```
 
-Name the old address in `$from`. The plan renames the record. The type must stay the same.
+Name the old address in `$from`. The plan lists the rename, and the apply carries it out. The type must stay the same.
 
 ```cue file=main.cue
 package demo
@@ -100,24 +100,27 @@ pet:      $random.#Resource.random_pet & {length: 2}
 ```sh run
 pravo plan 2>&1 | grep -v 'Refreshing state'
 pravo state list
+pravo apply --auto-approve | tail -n 1
+pravo state list
 pravo destroy --auto-approve | tail -n 1
 ```
 
 ```text out
-hello: moved to greeting
-
 pravo will perform the following actions:
 
-  # hello was moved to greeting (record renamed; no change to the object)
+  # hello will be moved to greeting (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 · skipped 2 · not read 2 · moved 1
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to move.
+Graph: planned 0 · skipped 2 · not read 2 · to move 1
+hello
+pet
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 greeting
 pet
 Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
 ```
 
-The plan carries out the move first, before it refreshes any record. `$from` is harmless after use. Leave it or remove it in a later change. If the old record is gone and the new one exists, the move is complete and nothing happens. Data sources take `$from` too.
+The plan writes nothing: the state holds `hello` until the apply, which renames the record before it walks any node. The nodes that the plan plans see the record at `greeting`, so it compares the right record with the specification. `$from` is harmless after use. Leave it or remove it in a later change. If the old record is gone and the new one exists, the move is complete and nothing happens. Data sources take `$from` too.
 
 ## $from on a group
 
@@ -175,13 +178,18 @@ ids: #Naming & {$from: "names"}
 ```sh run
 pravo plan 2>/dev/null | grep -E '^  #|^Plan'
 pravo state list
+pravo apply --auto-approve | tail -n 1
+pravo state list
 pravo destroy --auto-approve | tail -n 1
 ```
 
 ```text out
-  # names.codename was moved to ids.codename (record renamed; no change to the object)
-  # names.suffix was moved to ids.suffix (record renamed; no change to the object)
-Plan: 0 to add, 0 to change, 0 to destroy.
+  # names.codename will be moved to ids.codename (record renamed; no change to the object)
+  # names.suffix will be moved to ids.suffix (record renamed; no change to the object)
+Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
+names.codename
+names.suffix
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 ids.codename
 ids.suffix
 Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
@@ -303,28 +311,27 @@ pravo plan
 ```
 
 ```text out
-n: Importing from id "5,1,10"...
+n: Reading the object of id "5,1,10"...
 
 pravo will perform the following actions:
 
-  # n was imported from id "5,1,10" and matches the specification
+  # n will be imported from id "5,1,10" and matches the specification
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 1 · imported 1
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to import.
+Graph: planned 1 · to import 1
 ```
 
-At the plan, the provider reads the object by id and its state becomes the record of `n`. The plan compares the record with the configuration and shows the import with any update the specification implies. When the configuration differs, the header ends `and must be replaced` or `and will be updated`, followed by the changes. After the plan the record exists, so the field is not used again, and the same specification works from an empty state. Leave `$import` or remove it in a later change.
+At the plan, the provider reads the object by id. The plan compares what it read with the configuration and shows the import with any update the specification implies. When the configuration differs, the header ends `and must be replaced` or `and will be updated`, followed by the changes. The plan writes no record: the state is as it was, and a second plan says the same. The apply writes the record of `n`, and carries out the update, if there is one. After the apply the record exists, so the field is not used again, and the same specification works from an empty state. Leave `$import` or remove it in a later change.
 
 ```sh run
-pravo apply --auto-approve
+pravo state list
+pravo apply --auto-approve | grep -E '^  #|^Apply complete'
 pravo state show n | head -n 1
 ```
 
 ```text out
-n: Refreshing state... [id=5]
-
-No changes. Your infrastructure matches the configuration.
-Graph: planned 1 · refreshed 1
+  # n will be imported from id "5,1,10" and matches the specification
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 // n (provider registry.opentofu.org/hashicorp/random v3.9.1 as random, schema version 0, revision 2)
 ```
 
@@ -339,7 +346,7 @@ logs: $aws.#Resource.aws_s3_bucket & {
 }
 ```
 
-pravo asks the provider for the identity schema of the type and sends the attributes as the identity of the import. An attribute that the schema marks optional for import may be left out, and the provider fills it in from its configuration. An attribute that the type does not have, or a required one that is missing, stops the plan and names the attributes the identity is made of. A provider that has no identity for the type cannot import by it, and the plan says so. An id and an identity are alternatives: `$import` is one or the other. The plan header says `imported from the identity "…"` for the second.
+pravo asks the provider for the identity schema of the type and sends the attributes as the identity of the import. An attribute that the schema marks optional for import may be left out, and the provider fills it in from its configuration. An attribute that the type does not have, or a required one that is missing, stops the plan and names the attributes the identity is made of. A provider that has no identity for the type cannot import by it, and the plan says so. An id and an identity are alternatives: `$import` is one or the other. The plan header says `will be imported from the identity "…"` for the second.
 
 Only managed resources can be imported. The generated data definitions do not declare `$import`. An id the provider cannot use stops the plan:
 
@@ -360,14 +367,18 @@ pravo plan
 
 ```text out
 Removed n
-n: Importing from id "zzz"...
+n: Reading the object of id "zzz"...
 
 Error: n: importing "zzz": Import Random Integer Error: Invalid import usage: expecting {result},{min},{max} or {result},{min},{max},{seed}
 ```
 
-## Where the plan writes
+## What the plan writes
 
-A plan is not read-only. It renames records for `$from` and adopts the objects named by `$import` before it prints. The apply that follows finds nothing left to do for them. A saved plan lists the move or the import, and `pravo show <planfile>` prints it again.
+A plan writes no record for what the specification declares: not for a move, not for an import, and not for a provider that `$from` renames. It reads the object of an `$import`, lists what the apply will do, and holds the new records in memory, so that the nodes it plans see the record at its new address and the object that was read. A move and an import are not changes to an object: a plan that has nothing but these exits with 0 under `--detailed-exitcode`, as it did when it wrote them, so a migration that must show only moves can still be checked by the exit code. `pravo apply` asks before it writes them.
+
+The apply writes them first, before it locks and walks any node, from what the plan says. A saved plan lists the move or the import, and `pravo show <planfile>` prints it again. A move is checked when the plan is applied: when the record at the old address changed since the plan, or is gone, the plan is stale, and nothing is written.
+
+A plan still refreshes the records it reads and marks a record whose object differs or is gone. The moves and imports are the part that the specification asks for, and they wait for an apply.
 
 ## See also
 

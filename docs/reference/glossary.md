@@ -349,7 +349,7 @@ Taught in [B6](../learn/b06-modules-providers-credentials.md). See [Modules](spe
 
 ### move
 
-Keeping the record of a resource when its address changes, by writing the old address in `$from`. The plan renames the record and leaves the object alone.
+Keeping the record of a resource when its address changes, by writing the old address in `$from`. The plan lists the rename, the apply makes it, and the object is left alone.
 
 Taught in [B8](../learn/b08-renames-moves-imports.md). See [Moves and imports](spec-moves-and-imports.md).
 

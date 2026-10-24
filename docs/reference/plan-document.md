@@ -149,7 +149,7 @@ pravo plan --json 2>/dev/null | jq 'del(.changes)'
 | `drifted` | Refreshed records that had changed. |
 | `opened` | Ephemeral resources opened. |
 | `called` | Function calls made. |
-| `imported`, `moved` | Imports and moves carried out by the plan. |
+| `imported`, `moved` | Imports and moves that the plan declares and the apply carries out. The plan holds them in memory and writes none of them. |
 
 Under `-refresh=false` no record is compared with its age, so none is counted in `fresh`. Under `-refresh=all` every record is read and counted in `refreshed`.
 
@@ -359,7 +359,7 @@ pravo plan --json 2>/dev/null | jq -c '.hints, .summary'
 {"add":2,"change":0,"destroy":2,"read":1,"blast_radius":3}
 ```
 
-Name the old address in `$from`, and the plan renames the record. The entry has the action `move`, followed by the ordinary entry for the new address:
+Name the old address in `$from`, and the plan lists the rename. The entry has the action `move`, followed by the ordinary entry for the new address:
 
 ```sh run
 sed -i.bak 's/random_pet & {/random_pet \& {$from: "pet",/' main.cue
