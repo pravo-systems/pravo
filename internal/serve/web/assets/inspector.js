@@ -92,8 +92,8 @@ export class Inspector {
   // ---- the header: a title, the place of the thing in its namespaces, tags ----
 
   // facetPill is a tag that filters by what it says: a click shows only that, shift hides it
-  facetPill(cls, col, value, text) {
-    return h('button', { type: 'button', class: cls + ' fx', 'data-col': col, 'data-value': value, title: `Show only ${col} ${value} (shift: hide it)` }, text);
+  facetPill(cls, col, value, text, what) {
+    return h('button', { type: 'button', class: cls + ' fx', 'data-col': col, 'data-value': value, title: `Show only ${what || col} ${value} (shift: hide it)` }, text);
   }
 
   // markFacets lights the tags of the header that the terms of the filter name
@@ -226,15 +226,15 @@ export class Inspector {
     const out = isOut(n);
     // an output and a plain variable are what the kicker says: the type would only repeat it
     if (!out && n.type !== 'env') tags.push(this.facetPill('b ty', 'type', n.type, n.type));
-    // the provider key is the provider and its instance (aws.west): three chips with the version, the first two facets of the filter
-    // (provider:aws is every instance, provider:aws.west is that one); the version is not a column
+    // the provider key is the provider type and its instance (aws.west): three chips with the version, the first two facets of
+    // the filter (provider:aws is the type, instance:west the instance); the version is not a column
     const pkey = node.provider || (prov && prov.key) || '';
     const dot = pkey.indexOf('.');
     const pname = dot < 0 ? pkey : pkey.slice(0, dot);
     const pinst = dot < 0 ? '' : pkey.slice(dot + 1);
-    const pchip = (value, text) => (node.provider ? this.facetPill('b pv', 'provider', value, text) : h('span', { class: 'b pv' }, text));
-    if (pname) tags.push(pchip(pname, pname));
-    if (pinst) tags.push(pchip(pkey, pinst));
+    const pchip = (col, value, text, what) => (node.provider ? this.facetPill('b pv', col, value, text, what) : h('span', { class: 'b pv' }, text));
+    if (pname) tags.push(pchip('provider', pname, pname, 'provider type'));
+    if (pinst) tags.push(pchip('instance', pinst, pinst, 'provider instance'));
     if (prov && prov.version) tags.push(h('span', { class: 'b pv', title: 'Provider version' }, prov.version));
     if (n.sealed) tags.push(h('span', { class: 'b lock' }, icon('lock'), 'sealed'));
     if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), out ? 'sensitive' : `${n.sensitive} sensitive`));

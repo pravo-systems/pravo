@@ -4,13 +4,19 @@
 // of one term (`mode:data,ephemeral`), and a minus before the column turns it round (`-mode:managed`). Terms are ANDed
 // with each other and with the words. A word with a colon that names no column is a word, and a term without a value
 // (what is being typed) is left out. A type, a provider or an address is matched whole, and * stands for any run of
-// characters: `type:aws_s3*`. A field term looks into the values of the records, which the server searches: `field:settings.region=eu`, and `value:vpc-0abc` looks for a value in any field. The provider aws is every instance of aws, and aws.west is that one.
+// characters: `type:aws_s3*`. A field term looks into the values of the records, which the server searches: `field:settings.region=eu`, and `value:vpc-0abc` looks for a value in any field. provider:aws is the provider type, whatever its instance, and instance:west is the instance of that name.
 
 import { isOut, isEnv } from './model.js';
 import { h, clear } from './util.js';
 
 const ALIAS = { address: 'addr', name: 'addr', namespace: 'ns', module: 'ns', action: 'plan', changes: 'plan', age: 'refreshed', fields: 'field', attr: 'field', attribute: 'field', values: 'value' };
-export const COLUMNS = ['entity', 'type', 'provider', 'mode', 'status', 'plan', 'ns', 'addr', 'field', 'value', 'refreshed'];
+export const COLUMNS = ['entity', 'type', 'provider', 'instance', 'mode', 'status', 'plan', 'ns', 'addr', 'field', 'value', 'refreshed'];
+
+// The key of a provider instance is the provider type, and after a dot the name of the instance when the type has several:
+// "aws" and "aws.$west". providerType is the first, instanceName the second; an instance that the type has alone has the
+// name of its key, as the viewer shows it.
+export const providerType = (key) => (key || '').split('.')[0];
+export const instanceName = (key) => { const i = (key || '').indexOf('.'); return i < 0 ? key || '' : key.slice(i + 1); };
 
 // entityOf says what kind of thing a node is: a resource, a data source, an ephemeral resource, an output or an
 // environment variable. The mode of the node says less: an output and a variable have one of their own, or none.
@@ -27,7 +33,8 @@ export const ENTITIES = ['resource', 'data', 'ephemeral', 'output', 'env'];
 const HINTS = {
   entity: 'resource, data (a data source), ephemeral, output, env (an environment variable)',
   type: 'The resource type: aws_s3_bucket, or aws_s3* for a run of them',
-  provider: 'A provider and all its instances, or one instance',
+  provider: 'The provider type, as in provider:aws: every instance of it',
+  instance: 'The name of a provider instance, as in instance:$west; aws.$west is the instance $west of the provider aws',
   mode: 'The mode of the block: managed, data, ephemeral, output',
   status: 'drifted, gone, orphan, declared, locked, sensitive',
   plan: 'What the plan does: any, create, update, replace, delete',
@@ -218,8 +225,10 @@ function same(value, v) {
 function test(col, v, n, now) {
   switch (col) {
     case 'type': return same(n.type, v);
-    // aws is every instance of the provider, aws.west is that one
-    case 'provider': return !!n.provider && (same(n.provider, v) || same(n.provider.split('.')[0], v));
+    // aws is the provider type, whatever instance; a value with a dot is the whole key of an instance, as an old link wrote it
+    case 'provider': return !!n.provider && (same(providerType(n.provider), v) || (v.includes('.') && same(n.provider, v)));
+    // $west is the instance of that name, or the key of an instance that its type has alone
+    case 'instance': return !!n.provider && (same(instanceName(n.provider), v) || same(n.provider, v));
     case 'entity': return entityOf(n) === (ENTITY_ALIAS[v] || v);
     case 'mode': return n.mode === v;
     case 'addr': return same(n.addr, v);
@@ -269,14 +278,8 @@ function valuesOf(model, col, pool) {
   const add = (v) => { if (v) c.set(v, (c.get(v) || 0) + 1); };
   switch (col) {
     case 'type': for (const n of pool) if (!isOut(n)) add(n.type); break;
-    case 'provider':
-      for (const n of pool) {
-        add(n.provider);
-        // the provider itself, when it has instances: aws beside aws.west
-        const base = n.provider && n.provider.split('.')[0];
-        if (base && base !== n.provider) add(base);
-      }
-      break;
+    case 'provider': for (const n of pool) add(providerType(n.provider)); break;
+    case 'instance': for (const n of pool) add(instanceName(n.provider)); break;
     case 'entity':
       for (const n of pool) add(entityOf(n));
       return [...ENTITIES, ...[...c.keys()].filter((k) => !ENTITIES.includes(k))].filter((k) => c.has(k)).map((k) => [k, c.get(k)]);
@@ -311,7 +314,7 @@ const VALUE_HINTS = {
   'status:declared': 'In the specification, not created yet',
   'status:locked': 'Held by a lock',
 };
-const QUICK_COLUMNS = ['entity', 'type', 'provider', 'status', 'plan', 'ns', 'field', 'value', 'refreshed'];
+const QUICK_COLUMNS = ['entity', 'type', 'provider', 'instance', 'status', 'plan', 'ns', 'field', 'value', 'refreshed'];
 
 // quick is what a word with nothing in it can become: the filters that this estate has something for, with how many nodes
 // each leaves, then the columns

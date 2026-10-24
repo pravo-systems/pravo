@@ -6,7 +6,7 @@ import { h, clear, relTime, stamp, actionOf, store, icon } from './util.js';
 import { natural, isOut, isEnv } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { avatar } from './plans.js';
-import { compileQuery } from './query.js';
+import { compileQuery, instanceName } from './query.js';
 
 const ROW = 30;
 const COLS = [
@@ -230,7 +230,7 @@ export class ListView {
     return h('div', { class: 'tv-row leaf' + (on ? ' sel' : ''), role: 'row', 'aria-rowindex': String(i + 2), 'aria-selected': on ? 'true' : 'false', 'aria-level': this.grouped ? String(r.depth + 1) : null, data: { key, addr: n.addr }, style: `--lvl:${r.depth}` },
       h('div', { class: 'c-addr' + (isOut(n) ? ' out' : ''), role: 'gridcell', title: n.addr }, name),
       h('div', { class: 'c-type', role: 'gridcell', title: n.type }, n.type, isOut(n) ? null : facet('type', n.type)),
-      h('div', { class: 'c-prov', role: 'gridcell', title: n.provider ? 'The provider instance: ' + n.provider : '' }, n.provider ? [h('span', { class: 'pvdot ' + pvClass(providerOf(n.type, n.provider)), 'aria-hidden': 'true' }), n.provider, facet('provider', n.provider)] : h('span', { class: 'dim' }, '—')),
+      h('div', { class: 'c-prov', role: 'gridcell', title: n.provider ? 'The provider instance: ' + n.provider : '' }, n.provider ? [h('span', { class: 'pvdot ' + pvClass(providerOf(n.type, n.provider)), 'aria-hidden': 'true' }), n.provider, facet('instance', instanceName(n.provider))] : h('span', { class: 'dim' }, '—')),
       h('div', { class: 'c-mode' + (n.mode === 'managed' ? ' plain' : ''), role: 'gridcell' }, n.mode, facet('mode', n.mode)),
       h('div', { class: 'c-status', role: 'gridcell' }, stat),
       h('div', { class: 'c-action', role: 'gridcell' }, act, who.length ? h('span', { class: 'who' }, who) : null, a ? facet('plan', n.action) : null),
