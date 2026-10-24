@@ -12,7 +12,7 @@ import { G, FIT, fitScale, pathOf, midOf, lengthOf } from './layout.js';
 import { eachNode, cellsOf, isOut, isEnv } from './model.js';
 import { initials, hueOf } from './plans.js';
 import { providerOf, pvClass } from './provider.js';
-import { ENTITY_LABEL, instanceName } from './query.js';
+import { ENTITY_LABEL } from './query.js';
 
 // glyphs on a 16 by 16 grid
 const GLYPH = {
@@ -585,7 +585,7 @@ export class GraphView {
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
     tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: n.mode === 'data' ? 13 : 6 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
-    if (n.provider && !isEnv(n)) facet(tile, 'instance', instanceName(n.provider), `Show only the provider instance ${n.provider} (shift: hide it)`);
+    if (n.provider && !isEnv(n)) facet(tile, 'instance', n.provider, `Show only the provider instance ${n.provider} (shift: hide it)`);
     inn.append(tile);
     const nameRoom = W - 52 - (badge ? 34 : 14);
     // an environment variable has the kind in its badge and no type to show

@@ -32,7 +32,7 @@ check(count('type:*bucket') === model.list.filter((n) => n.type.endsWith('bucket
 check(count('type:aws') === 0, 'a part of a type is not a type');
 check(count('provider:aws') === model.list.filter((n) => n.provider === 'aws').length, 'provider: aws');
 check(count('provider:aws.west') === 0, 'an instance that is not there');
-check(count('instance:west') === 0, 'an instance name that is not there');
+check(count('instance:aws.west') === 0, 'an instance that is not there');
 check(count('ns:api') === model.list.filter((n) => n.namespace === 'api' || (n.namespace || '').startsWith('api.')).length, 'ns: is a namespace and what is below it');
 check(count('ns:ap') === 0, 'ns: is not a part of a name');
 check(count('plan:create') === model.list.filter((n) => n.action === 'create').length && count('plan:create') > 0, 'plan:create');
@@ -87,7 +87,7 @@ check(at('en').items[0].insert === 'entity:', 'en offers entity:');
 const inst = { addr: 'a', type: 'aws_lb', mode: 'managed', provider: 'aws.$awsPlatform', namespace: '' };
 check(compileQuery('provider:aws')(inst) && !compileQuery('provider:aws.west')(inst) && !compileQuery('provider:platform')(inst) && !compileQuery('provider:$awsplatform')(inst), 'provider: is the provider type, whatever the instance');
 check(compileQuery('provider:aws.$awsplatform')(inst), 'a key with a dot, as an old link wrote it, is that instance');
-check(compileQuery('instance:$awsplatform')(inst) && compileQuery('provider:aws instance:$awsplatform')(inst) && !compileQuery('instance:$awsedge')(inst) && !compileQuery('instance:aws')(inst) && !compileQuery('provider:random instance:$awsplatform')(inst), 'instance: is the name of the instance');
+check(compileQuery('instance:aws.$awsplatform')(inst) && compileQuery('provider:aws instance:aws.$awsplatform')(inst) && compileQuery('instance:*.$awsplatform')(inst) && !compileQuery('instance:$awsplatform')(inst) && !compileQuery('instance:aws')(inst) && !compileQuery('instance:aws.$awsedge')(inst), 'instance: is the whole key of the instance');
 check(compileQuery('instance:aws')({ addr: 'a', type: 'aws_lb', mode: 'managed', provider: 'aws', namespace: '' }), 'the instance of a type that has one is named by its key');
 
 // a field term is answered by the server: what it has not answered matches nothing, and the answer decides after it

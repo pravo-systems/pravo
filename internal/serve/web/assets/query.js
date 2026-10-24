@@ -4,7 +4,7 @@
 // of one term (`mode:data,ephemeral`), and a minus before the column turns it round (`-mode:managed`). Terms are ANDed
 // with each other and with the words. A word with a colon that names no column is a word, and a term without a value
 // (what is being typed) is left out. A type, a provider or an address is matched whole, and * stands for any run of
-// characters: `type:aws_s3*`. A field term looks into the values of the records, which the server searches: `field:settings.region=eu`, and `value:vpc-0abc` looks for a value in any field. provider:aws is the provider type, whatever its instance, and instance:west is the instance of that name.
+// characters: `type:aws_s3*`. A field term looks into the values of the records, which the server searches: `field:settings.region=eu`, and `value:vpc-0abc` looks for a value in any field. provider:aws is the provider type, whatever its instance, and instance:aws.west is that instance of it.
 
 import { isOut, isEnv } from './model.js';
 import { h, clear } from './util.js';
@@ -13,10 +13,8 @@ const ALIAS = { address: 'addr', name: 'addr', namespace: 'ns', module: 'ns', ac
 export const COLUMNS = ['entity', 'type', 'provider', 'instance', 'mode', 'status', 'plan', 'ns', 'addr', 'field', 'value', 'refreshed'];
 
 // The key of a provider instance is the provider type, and after a dot the name of the instance when the type has several:
-// "aws" and "aws.$west". providerType is the first, instanceName the second; an instance that the type has alone has the
-// name of its key, as the viewer shows it.
+// "aws" and "aws.$west". providerType is the type of a key; the instance is named by the whole key.
 export const providerType = (key) => (key || '').split('.')[0];
-export const instanceName = (key) => { const i = (key || '').indexOf('.'); return i < 0 ? key || '' : key.slice(i + 1); };
 
 // entityOf says what kind of thing a node is: a resource, a data source, an ephemeral resource, an output or an
 // environment variable. The mode of the node says less: an output and a variable have one of their own, or none.
@@ -34,7 +32,7 @@ const HINTS = {
   entity: 'resource, data (a data source), ephemeral, output, env (an environment variable)',
   type: 'The resource type: aws_s3_bucket, or aws_s3* for a run of them',
   provider: 'The provider type, as in provider:aws: every instance of it',
-  instance: 'The name of a provider instance, as in instance:$west; aws.$west is the instance $west of the provider aws',
+  instance: 'A provider instance, by its whole key: aws.$west, or aws for a provider that has one',
   mode: 'The mode of the block: managed, data, ephemeral, output',
   status: 'drifted, gone, orphan, declared, locked, sensitive',
   plan: 'What the plan does: any, create, update, replace, delete',
@@ -227,8 +225,8 @@ function test(col, v, n, now) {
     case 'type': return same(n.type, v);
     // aws is the provider type, whatever instance; a value with a dot is the whole key of an instance, as an old link wrote it
     case 'provider': return !!n.provider && (same(providerType(n.provider), v) || (v.includes('.') && same(n.provider, v)));
-    // $west is the instance of that name, or the key of an instance that its type has alone
-    case 'instance': return !!n.provider && (same(instanceName(n.provider), v) || same(n.provider, v));
+    // the instance is its whole key: aws.$west, or aws for a type that has one instance
+    case 'instance': return !!n.provider && same(n.provider, v);
     case 'entity': return entityOf(n) === (ENTITY_ALIAS[v] || v);
     case 'mode': return n.mode === v;
     case 'addr': return same(n.addr, v);
@@ -279,7 +277,7 @@ function valuesOf(model, col, pool) {
   switch (col) {
     case 'type': for (const n of pool) if (!isOut(n)) add(n.type); break;
     case 'provider': for (const n of pool) add(providerType(n.provider)); break;
-    case 'instance': for (const n of pool) add(instanceName(n.provider)); break;
+    case 'instance': for (const n of pool) add(n.provider); break;
     case 'entity':
       for (const n of pool) add(entityOf(n));
       return [...ENTITIES, ...[...c.keys()].filter((k) => !ENTITIES.includes(k))].filter((k) => c.has(k)).map((k) => [k, c.get(k)]);
