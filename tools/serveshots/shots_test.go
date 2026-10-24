@@ -24,8 +24,8 @@ func TestFragmentString(t *testing.T) {
 		{"the plan of an actor", Fragment{Plan: "@ana"}, "/?plan=%40ana"},
 		{"all", Fragment{
 			Sel: "a", Tab: "change", Collapse: []string{"x"}, Expand: []string{"y"}, Theme: "light",
-			Q: "k", Filter: "plan", Plan: "plan-2f9c1a4e", View: "table", Motion: "off", Zoom: "fit",
-		}, "/?sel=a&tab=change&collapse=x&expand=y&theme=light&q=k&filter=plan&plan=plan-2f9c1a4e&view=table&motion=off&zoom=fit"},
+			Q: "k", Filter: "plan", Plan: "plan-2f9c1a4e", View: "list", Motion: "off", Zoom: "fit",
+		}, "/?sel=a&tab=change&collapse=x&expand=y&theme=light&q=k&filter=plan&plan=plan-2f9c1a4e&view=list&motion=off&zoom=fit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -37,14 +37,14 @@ func TestFragmentString(t *testing.T) {
 }
 
 func TestFragmentValidate(t *testing.T) {
-	ok := []Fragment{{}, {Tab: "state", Theme: "dark", Filter: "drifted", View: "table", Zoom: "fit", Motion: "off"},
+	ok := []Fragment{{}, {Tab: "state", Theme: "dark", Filter: "drifted", View: "list", Zoom: "fit", Motion: "off"},
 		{Plan: "plan-2f9c1a4e"}, {Plan: "none"}, {Plan: "@ana"}}
 	for _, f := range ok {
 		if err := f.validate(); err != nil {
 			t.Errorf("%+v: %v", f, err)
 		}
 	}
-	bad := []Fragment{{Tab: "files"}, {Theme: "sepia"}, {Filter: "all"}, {View: "list"}, {Zoom: "100"}, {Motion: "on"},
+	bad := []Fragment{{Tab: "files"}, {Theme: "sepia"}, {Filter: "all"}, {View: "tree"}, {Zoom: "100"}, {Motion: "on"},
 		{Plan: "2f9c1a4e"}, {Plan: "plan-xyz"}, {Plan: "@"}, {Plan: "@Ana"}}
 	for _, f := range bad {
 		if err := f.validate(); err == nil {
@@ -68,7 +68,7 @@ var wantShots = []string{
 	"drift-dark",
 	"sensitive-dark",
 	"palette-dark",
-	"table-dark",
+	"list-dark",
 	"narrow-dark",
 }
 

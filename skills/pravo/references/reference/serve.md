@@ -63,15 +63,16 @@ The viewer follows the project. It watches the state, the files that the evaluat
 
 ## The page
 
-The viewer is one page with a bar, a sidebar, a graph with its toolbar, an inspector and a status bar. It follows the system theme until you choose one.
+The viewer is one page with a bar, a toolbar, the filter chips, a graph or a list, an inspector that comes in with a selection, and a status bar. It follows the system theme until you choose one.
 
 | Part | Holds |
 |---|---|
 | Bar | The project directory and the state location, each a button that copies the path. The three sections, Resources, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
-| Sidebar | Under the heading Show, the filter chips. Under Explore, the project and the tree of namespaces with their resources. |
-| Toolbar | Of the Resources section: the switch Graph and Table, then Collapse and Expand. The filter box, Filter by address or type, with the number of matches. The zoom buttons, minus, Fit and plus, and the button Hide the sidebars. |
+| Chips | Under the toolbar, the filter chips, each with the number that it matches. |
+| Toolbar | Of the Resources section: the switch Graph and List, the switch Grouped and Flat of the list, then Collapse and Expand. The filter box, Filter by address or type, with the number of matches. The zoom buttons, minus, Fit and plus, and the button that shows the project. |
 | Graph | The lanes of open namespaces, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks that the graph shows and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a namespace. |
-| Inspector | The project, a namespace or a resource. A resource has a strip of cells and the tabs. |
+| List | One row for each namespace and each resource, grouped by namespace or flat, with the columns Name (Address when flat), Type, Provider, Mode, Status, Plan, Rev and Refreshed. |
+| Inspector | It comes in at the right when a resource or a namespace is selected, or when the project is asked for with `i`. It shows the project, a namespace or a resource. A resource has a strip of cells and the tabs. |
 | Status bar | In Resources: `no plan loaded`, or the id of a stored plan, `planned N of M` and the number `not read`. The revision. When the data was read. `live`, `reconnecting`, `offline` or `connecting`. `read-only · localhost only`. |
 
 ### Filters
@@ -130,13 +131,13 @@ A plan whose objects cannot be read, because they are damaged or a newer pravo w
 
 The status is judged against the state alone, as `pravo plan list` judges it, change by change: the lineage, and the revision and the generation of the nodes that the plan changes. The configuration and the providers belong to one checkout. `pravo apply` and `pravo plan show` compare them, and the viewer does not, so a plan that is `pending` here can still be refused in a checkout whose files differ.
 
-A resource that a plan which can be applied still has a change to apply on carries a disc with the initial of the author, one for each plan, the newest at the right. A plan that has applied its change on a resource has no disc there. Three discs show, and a number counts the rest. A click on a disc goes to the Plans page and opens its plan under its row. Two plans that each have a change left on one resource draw a solid ring in the colour of overlap: applying one makes the other stale. The relation is the same for both plans. A change that a partly stale plan cannot apply does not count: the resource keeps the disc of the plan, no ring is drawn for it, and the Plans cell of the inspector says that the plan cannot apply the change and marks that plan with `conflict`. The Change tab of that resource gives the reason. The legend names `plan author` and `overlap` when the graph has them. The card of a closed namespace or of a group carries the discs of the plans that change something inside it, one for each plan, with the ring when two plans change one resource in it, and its hover names the plans and counts the resources. The Table view shows no badges. In the sidebar, a resource shows the mark of overlap and the first two discs. The Plans cell of the strip has a disc for each plan that changes the resource, four at most, and a click on a disc lays that plan over the graph.
+A resource that a plan which can be applied still has a change to apply on carries a disc with the initial of the author, one for each plan, the newest at the right. A plan that has applied its change on a resource has no disc there. Three discs show, and a number counts the rest. A click on a disc goes to the Plans page and opens its plan under its row. Two plans that each have a change left on one resource draw a solid ring in the colour of overlap: applying one makes the other stale. The relation is the same for both plans. A change that a partly stale plan cannot apply does not count: the resource keeps the disc of the plan, no ring is drawn for it, and the Plans cell of the inspector says that the plan cannot apply the change and marks that plan with `conflict`. The Change tab of that resource gives the reason. The legend names `plan author` and `overlap` when the graph has them. The card of a closed namespace or of a group carries the discs of the plans that change something inside it, one for each plan, with the ring when two plans change one resource in it, and its hover names the plans and counts the resources. In the list, a resource shows its first two discs in the Plan column. The Plans cell of the strip has a disc for each plan that changes the resource, four at most, and a click on a disc lays that plan over the graph.
 
 The viewer never applies, approves or removes a plan. It shows the command that applies a plan, and the button copies it.
 
 ## The State section
 
-The State section says where the state is kept, how it is protected and who can read it. It is the last section of the page, after Resources and Plans, which holds the graph and the table, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no sidebar or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
+The State section says where the state is kept, how it is protected and who can read it. It is the last section of the page, after Resources and Plans, which holds the graph and the list, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no chips or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
 
 | Part | Holds |
 |---|---|
@@ -153,7 +154,7 @@ The view is made for the keyboard and for a screen reader. Tab visits, in the or
 
 The suggestions are: `seal` (for a state that is not sealed), `check why the state is not sealed` (the verdict `state not sealed`: `pravo protect status`, then `pravo protect init --encrypt` or removing the readers file, whichever was meant), `finish` (a seal that did not finish, or an unseal: its command is `pravo protect unseal`), `identity` (the viewer is not reading as a reader; when the state has a recovery, one more step says how to open it with `pravo protect recover` if no reader can), `rewrap` (the file and the store differ), `set a recovery key` (a sealed state with no recovery recipient; `pravo protect rewrap --recovery <K>/<N>`), `bring the recovery in line` (the recovery warning above), `add a reader`, `remove` for each reader of the file, when the file lists at least two (the only reader is not offered for removal, since the state would have none; the card of the reader who is looking says that it removes them), `seal every record again` (records are under an old group), `drop the groups nothing is sealed in` (the state has more than one group), and `check the state`. A part that you fill in is written in angle brackets and is never quoted, so a command that was pasted without being filled in fails and does nothing. A reader that is removed from the file is removed by editing the file; the page offers no command that edits it. A state that is a local directory gets a note and then the seal command with `--allow-local` (the `finish` step carries the flag too), since `pravo protect` refuses a directory that two people could share unless that flag is given.
 
-The Table and the inspector mark a record that cannot be opened with the chip `sealed`. The inspector shows its address, type, dependencies and revision, and a note, and no attribute. The outputs of a state that cannot be opened show `sealed` and no value. A count that depends on what a record says, the drifted and the sensitive resources of the filter chips and of the project card, shows a dash with the title `sealed` where it would be zero, since a record that cannot be opened is not counted. A stored plan that cannot be opened is laid over the graph from its summary, which gives the address, the type and the action of each change, with the warning "The values of this plan are sealed." and no attribute change.
+The list and the inspector mark a record that cannot be opened with the chip `sealed`. The inspector shows its address, type, dependencies and revision, and a note, and no attribute. The outputs of a state that cannot be opened show `sealed` and no value. A count that depends on what a record says, the drifted and the sensitive resources of the filter chips and of the project card, shows a dash with the title `sealed` where it would be zero, since a record that cannot be opened is not counted. A stored plan that cannot be opened is laid over the graph from its summary, which gives the address, the type and the action of each change, with the warning "The values of this plan are sealed." and no attribute change.
 
 ## What it never does
 
@@ -209,7 +210,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `q` | Text | The filter box above the graph. |
 | `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | Only the nodes that match. `outputs` shows the outputs of the root, `sensitive` shows the resources and the outputs with withheld values, and every other value shows resources only. |
-| `view` | `graph`, `table`, `plans`, `state` or `access` | The graph, the table, the Plans section, or the State section (`access` is the old name of it). |
+| `view` | `graph`, `list`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Plans section, or the State section (`access` is the old name of it). |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
 | `palette` | `1` | The search palette open. |
@@ -226,7 +227,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `/`, Ctrl-K, Cmd-K | Open the palette to find a resource, a type or a namespace. |
 | `?` | Open the sheet of shortcuts. |
 | `t` | Switch the theme. |
-| `g` | Switch the resources between the graph and the table. |
+| `g` | Switch the resources between the graph and the list. |
 | `a` | Switch between the Resources and the State sections. |
 | `p` | Switch between the Resources and the Plans sections. |
 | Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the namespace that a click opened, then clear the selection. |
@@ -240,7 +241,7 @@ In the graph:
 | Up arrow, Down arrow | Move to the sibling above or below. |
 | Enter | Open the selected card or cluster. On an open namespace or one of its resources, close the namespace. |
 | `f` | Fit the graph to the window. |
-| `w` | Hide or show the sidebars of the graph: the filter sidebar goes and the inspector shows only while something is selected. The bar and the status bar stay. Escape shows them again. The button next to the zoom buttons does the same. |
+| `i` | Show the project in the inspector, or take it away. Escape takes it away too. The button at the right of the toolbar does the same. |
 | `0` | Go back to the first view: the namespaces that were open when the page loaded, no cluster open and the whole graph in the window. The selection stays when it still shows, and the filter stays. |
 | `+`, `-` | Zoom in or out. |
 | `[` and `]` | Close or open every namespace. |
@@ -259,18 +260,17 @@ In the list of stored plans:
 | Enter, Space | Lay the plan of the row over the graph, or take it off when it is laid. |
 | Esc | Take the plan off the graph. |
 
-In the tree of namespaces in the sidebar:
+In the list, with the focus in it:
 
 | Key | Action |
 |---|---|
-| Up arrow, Down arrow, Home, End | Move between rows. |
-| Left arrow | Close an open namespace, or move to the parent row. |
-| Right arrow | Open a closed namespace, or move to the next row. |
-| Enter, Space | Select the row. |
+| Up arrow, Down arrow, Page Up, Page Down, Home, End | Select the row above or below, or the first or last. |
+| Left arrow | Close an open namespace, or go to the row of the namespace that holds it. |
+| Right arrow | Open a closed namespace, or go to the next row. |
+| Enter, Space | Close or open the namespace. |
 | `*` | Open every namespace of this level. |
-| A letter | Jump to the next row that starts with it. In the tree, a letter is not a shortcut of the page. |
 
-In the table, the up and down arrows, Page Up, Page Down, Home and End move the selection. In the palette, the arrows and Page Up and Page Down move, Enter goes to the result and Esc closes it.
+In the palette, the arrows and Page Up and Page Down move, Enter goes to the result and Esc closes it.
 
 ## Endpoints
 

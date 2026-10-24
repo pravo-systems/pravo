@@ -287,6 +287,6 @@ func TestReferenceNamesTheChipsAndTabsOfTheInterface(t *testing.T) {
 			}
 		}
 	}
-	check("rail.js", chipRe, "filter", "chip")
+	check("chips.js", chipRe, "filter", "chip")
 	check("inspector.js", tabRe, "tab", "tab")
 }

@@ -96,7 +96,7 @@ pravo apply
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/serve/overview-dark.png">
-  <img src="docs/img/serve/overview-light.png" alt="The pravo viewer as it opens. The sidebar lists the filters and the namespaces network, api and edge. The graph draws the namespaces that fit as lanes and the others as cards, joined by arrows, and the inspector shows the project: its resources, namespaces, state, providers and outputs." width="1440" height="900">
+  <img src="docs/img/serve/overview-light.png" alt="The pravo viewer as it opens. Under the toolbar a row of chips filters the nodes. The graph fills the window and draws the namespaces that fit as lanes and the others as cards, joined by arrows. The inspector comes in when something is selected." width="1440" height="900">
 </picture>
 
 ```sh

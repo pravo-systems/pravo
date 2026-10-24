@@ -19,7 +19,6 @@
 <a class="skiplink" href="#canvas">Skip to the graph</a>
 
 <header class="top" role="banner">
-  <button class="iconbtn only-narrow" id="menu-btn" type="button" aria-label="Show the filters and namespaces" aria-controls="rail" aria-expanded="false"><span class="i i-menu" aria-hidden="true"></span></button>
   <a class="brand" href="#/" aria-label="pravo serve">
     <svg class="mark" viewBox="0 0 64 64" width="26" height="26" aria-hidden="true" focusable="false"><path class="e" d="M32.00 58.40L12.20 41.90M32.00 58.40L32.00 41.90M32.00 58.40L51.80 41.90M12.20 41.90L12.20 22.10M12.20 41.90L32.00 22.10M32.00 41.90L12.20 22.10M32.00 41.90L51.80 22.10M51.80 41.90L32.00 22.10M51.80 41.90L51.80 22.10M12.20 22.10L32.00 5.60M32.00 22.10L32.00 5.60M51.80 22.10L32.00 5.60" fill="none" stroke-opacity="0.72" stroke-width="2.6" stroke-linecap="square"/><path class="n" d="M28.50 54.90h7v7h-7zM8.70 38.40h7v7h-7zM28.50 38.40h7v7h-7zM48.30 38.40h7v7h-7zM8.70 18.60h7v7h-7zM28.50 18.60h7v7h-7zM48.30 18.60h7v7h-7zM27.50 1.10h9v9h-9z"/></svg>
     <span class="word">pravo</span><small>serve</small>
@@ -48,23 +47,18 @@
 </div>
 
 <div class="app" id="app">
-  <nav class="rail" id="rail" aria-label="Filters and namespaces">
-    <div class="rail-head">
-      <h2 class="h">Show</h2>
-      <div class="chips" role="group" aria-label="Filters"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
-      <div class="rail-title"><h2 class="h">Explore</h2><button class="rail-project" id="rail-root" type="button" aria-label="Show the project"><span></span><em></em></button></div>
-    </div>
-    <div class="tree" role="tree" aria-label="Namespaces and resources"><div class="rail-sk" aria-hidden="true"><i style="--w:55%"></i><i style="--w:70%"></i><i style="--w:48%"></i><i style="--w:62%"></i><i style="--w:40%"></i><i style="--w:66%"></i><i style="--w:52%"></i></div></div>
-  </nav>
-
   <main class="stage" id="main">
     <h1 class="sr-only" id="page-title">pravo serve: the specification, the state and the plan as a graph</h1>
     <div class="toolbar" id="toolbar">
       <div class="seg viewsw" role="group" aria-label="Show the resources as" id="viewsw">
         <button type="button" id="view-graph" aria-pressed="true" aria-keyshortcuts="g">Graph</button>
-        <button type="button" id="view-table" aria-pressed="false" aria-keyshortcuts="g">Table</button>
+        <button type="button" id="view-list" aria-pressed="false" aria-keyshortcuts="g">List</button>
       </div>
-      <div class="seg graph-only" role="group" aria-label="Namespaces">
+      <div class="seg list-only" role="group" aria-label="Rows of the list">
+        <button type="button" id="btn-grouped" aria-pressed="true" title="Group the rows by namespace">Grouped</button>
+        <button type="button" id="btn-flat" aria-pressed="false" title="List every resource with its whole address">Flat</button>
+      </div>
+      <div class="seg ns-only" role="group" aria-label="Namespaces">
         <button type="button" id="btn-collapse" title="Collapse every namespace ( [ )">Collapse</button>
         <button type="button" id="btn-expand" title="Expand every namespace ( ] )">Expand</button>
       </div>
@@ -79,9 +73,11 @@
         <button type="button" id="btn-fit" title="Fit the graph ( f )">Fit</button>
         <button type="button" id="btn-zin" aria-label="Zoom in" title="Zoom in ( + )"><span class="i i-plus" aria-hidden="true"></span></button>
       </div>
-      <button class="iconbtn graph-only" id="full-btn" type="button" aria-label="Hide the sidebars" aria-pressed="false" aria-keyshortcuts="w" data-tip="Hide the sidebars" data-key="w"><span class="i i-expand" aria-hidden="true"></span></button>
+      <button class="iconbtn" id="proj-btn" type="button" aria-label="Show the project" aria-pressed="false" aria-keyshortcuts="i" data-tip="Show the project" data-key="i"><span class="i i-info" aria-hidden="true"></span></button>
       <button class="iconbtn only-medium" id="insp-btn" type="button" aria-label="Show the inspector" aria-controls="insp" aria-expanded="false"><span class="i i-panel" aria-hidden="true"></span></button>
     </div>
+
+    <div class="chips" id="chips" role="group" aria-label="Filters"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
 
     <div class="pane graph-pane" id="graph-pane">
       <div class="canvas" id="canvas" tabindex="0" role="application" aria-roledescription="dependency graph" aria-label="Dependency graph. Arrow keys follow dependencies. Enter opens or closes the selected namespace. Press ? for all shortcuts.">
@@ -99,7 +95,7 @@
         </div>
       </div>
     </div>
-    <div class="pane table-pane" id="table-pane" hidden></div>
+    <div class="pane list-pane" id="list-pane" hidden></div>
     <div class="pane plans-pane" id="plans-pane" role="region" aria-label="Plans" tabindex="-1" hidden>
       <div class="pl">
         <h2 class="pl-title">Plans</h2>

@@ -1,12 +1,12 @@
 // pravo serve: the page. It holds the view state, keeps it in the URL fragment, and connects the model, the
-// graph, the rail, the table, the inspector and the palette. It only reads: every request is a GET.
+// graph, the chips, the list, the inspector and the palette. It only reads: every request is a GET.
 
 import * as api from './api.js';
 import { buildModel, buildItems, firstView, touchedNamespaces, reveal, diffModels, FILTERS, CLUSTER_CAP, isChange, chain, isOut, isEnv } from './model.js';
 import { layout } from './layout.js';
 import { GraphView, Minimap } from './graph.js';
-import { Rail } from './rail.js';
-import { TableView } from './table.js';
+import { Chips } from './chips.js';
+import { ListView } from './list.js';
 import { Inspector } from './inspector.js';
 import { Plans, planStrip, avatar, statusLabel } from './plans.js';
 import { AccessView } from './access.js';
@@ -27,9 +27,9 @@ const S = {
   view: 'graph', sel: null, tab: null, filter: null, q: '',
   collapsed: new Set(), auto: new Set(), clusters: new Map(), trail: [],
   theme: null, motion: true, reach: false, zoom: 'fit',
-  live: 'connecting', focus: null, palette: false, help: false,
+  live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
-let gv, minimap, rail, table, insp, palette, sheet, conn, backBtn, plansList, accessView;
+let gv, minimap, chips, list, insp, palette, sheet, conn, backBtn, plansList, accessView;
 let booted = false;
 
 // ---------------------------------------------------------------------------------------------------------
@@ -118,8 +118,8 @@ function readFragment() {
     // a stored plan by id, 'none' for no plan at all, '' for the plan the server laid over the graph (if any)
     plan: p.plan === 'none' || /^plan-[0-9a-f]{6,64}$/.test(p.plan || '') ? p.plan : '',
     q: p.q || '',
-    // an address from before the view was renamed says tree
-    view: p.view === 'table' || p.view === 'tree' ? 'table' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : 'graph',
+    // an address from before the view was renamed says table, or tree
+    view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : 'graph',
     theme: p.theme === 'light' || p.theme === 'dark' ? p.theme : null,
     motion: p.motion !== 'off',
     collapse: listOf(p, 'collapse'),
@@ -395,14 +395,14 @@ function applyPlan() {
   insp.invalidate();
   palette.setModel(S.model);
   relayout({ animate: true });
-  renderRail();
+  renderSide();
   renderBanners();
   renderLegend();
   renderPlans();
   renderStatus();
-  if (S.view === 'table') renderTable();
+  if (S.view === 'list') renderList();
   showInspector();
-  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'ns:' + S.sel, false);
+  if (S.sel) list.setSelected(S.sel, false);
   gv.fit(true);
   syncFragment();
 }
@@ -438,7 +438,7 @@ function relayout(o = {}) {
   S.vis = vis;
   S.lay = lay;
   S.layoutMs = performance.now() - t0;
-  S.shaped = sh.fit.w > 0; // false while the canvas is hidden (the table view): the layout is made again when it shows
+  S.shaped = sh.fit.w > 0; // false while the canvas is hidden (the list view): the layout is made again when it shows
   gv.setScene(vis, lay, { animate: o.animate !== false, intro: !!o.intro, hasPlan: S.model.hasPlan, authors: S.model.authors });
   applyMatch();
   applySelection(false);
@@ -517,7 +517,7 @@ function renderReach() {
 
 function setReach(on, fitIt) {
   S.reach = on;
-  // the reach is drawn in the graph: from the table, go there first
+  // the reach is drawn in the graph: from the list, go there first
   if (on && S.view !== 'graph') setView('graph');
   applySelection(on);
   if (on && fitIt && S.sel) {
@@ -563,13 +563,12 @@ function selectNode(addr, o = {}) {
   const changed = reveal(S.model, addr, S.collapsed, S.clusters);
   if (S.sel !== addr) S.reach = false;
   S.sel = addr;
+  S.proj = false;
   if (!STICKY_TABS.has(S.tab) && !o.keepTab) S.tab = null;
-  if (changed) { relayout({ animate: o.animate !== false }); renderRail(); } else applySelection(o.pulse !== false);
+  if (changed) { relayout({ animate: o.animate !== false }); renderSide(); } else applySelection(o.pulse !== false);
   if (changed) applySelection(o.pulse !== false);
   showInspector();
-  rail.ensureVisible(addr);
-  if (!rail.setSelected('n:' + addr)) { renderRail(); rail.setSelected('n:' + addr); }
-  table.setSelected(addr);
+  list.setSelected(addr);
   openDrawer(); // before the camera moves: on a narrow screen the panel takes room from the graph
   const id = itemOf(addr);
   S.focus = id;
@@ -584,13 +583,12 @@ function selectNamespace(path, o = {}) {
   const ns = S.model.namespaces.get(path);
   if (!ns) return;
   S.sel = path;
+  S.proj = false;
   S.reach = false;
   S.tab = null;
   applySelection(false);
   showInspector();
-  const ok = rail.setSelected('ns:' + path);
-  if (!ok) { renderRail(); rail.setSelected('ns:' + path); }
-  table.setSelected(null);
+  list.setSelected(path);
   openDrawer();
   const id = S.vis.items.has('ns:' + path) ? 'ns:' + path : null;
   S.focus = id;
@@ -603,6 +601,24 @@ function selectNamespace(path, o = {}) {
   announce(`Namespace ${ns.name}, ${plural(ns.agg.n, 'resource')}${ns.agg.out ? ' and ' + plural(ns.agg.out, 'output') : ''}.`);
 }
 
+// setProject shows the project in the inspector, with nothing selected, or takes it away
+function setProject(on) {
+  S.proj = !!on;
+  if (on && S.sel) { S.sel = null; S.reach = false; S.tab = null; applySelection(false); list.setSelected(null); gv.setFocus(null); syncFragment(); }
+  showInspector();
+  if (on) openDrawer(); else closeDrawer();
+  announce(on ? 'The project' : 'The project is hidden');
+}
+
+// setGrouped groups the rows of the list by namespace, or lists them flat
+function setGrouped(on) {
+  list.setGrouped(on);
+  $('app').dataset.group = list.grouped ? '1' : '0';
+  $('btn-grouped').setAttribute('aria-pressed', String(list.grouped));
+  $('btn-flat').setAttribute('aria-pressed', String(!list.grouped));
+  if (S.model && S.view === 'list') renderList();
+}
+
 function clearSelection() {
   if (!S.sel && !S.reach) return;
   S.sel = null;
@@ -610,31 +626,18 @@ function clearSelection() {
   S.tab = null;
   applySelection(false);
   showInspector();
-  rail.setSelected(null);
-  table.setSelected(null);
+  list.setSelected(null);
   gv.setFocus(null);
   syncFragment();
   closeDrawer();
   announce('Selection cleared');
 }
 
-// setFull gives the graph the room of the sidebar: the filter rail goes, and the inspector comes only while something
-// is selected. The bar and the status bar stay.
-function setFull(on) {
-  on = !!on && S.view === 'graph';
-  if (S.full === on) return;
-  S.full = on;
-  document.body.dataset.full = on ? '1' : '';
-  const b = $('full-btn');
-  b.setAttribute('aria-pressed', String(on));
-  b.setAttribute('aria-label', on ? 'Show the sidebars' : 'Hide the sidebars');
-  b.dataset.tip = on ? 'Show the sidebars' : 'Hide the sidebars';
-  announce(on ? 'Sidebars hidden.' : 'Sidebars shown.');
-}
-
 function showInspector() {
   const m = S.model;
-  $('app').dataset.sel = S.sel ? '1' : '';
+  // the inspector is there while something is selected, or the project is asked for
+  $('app').dataset.sel = S.sel || S.proj ? '1' : '';
+  $('proj-btn').setAttribute('aria-pressed', S.proj && !S.sel ? 'true' : 'false');
   if (!S.sel) { insp.showProject(m); return; }
   if (m.nodes.has(S.sel)) {
     const n = m.nodes.get(S.sel);
@@ -671,7 +674,7 @@ function openNamespace(path) {
   S.trail.push({ path, view: Object.assign({}, gv.view), moved: gv.userMoved });
   for (const m of chain(ns)) S.collapsed.delete(m.path);
   relayout({ stable: true });
-  renderRail();
+  renderSide();
   selectNamespace(path, { center: true });
   updateBack();
   announce(`Opened namespace ${ns.name}, ${plural(ns.agg.n, 'resource')}. Escape zooms out.`);
@@ -690,7 +693,7 @@ function backOut() {
   S.reach = false;
   S.tab = null;
   relayout({ stable: true });
-  renderRail();
+  renderSide();
   selectNamespace(t.path, { center: false });
   gv.setView(t.view, true);
   gv.userMoved = t.moved;
@@ -720,9 +723,9 @@ function toggleNamespace(path) {
     for (let m = at; m; m = m.up) if (m.path === path) { S.sel = path; S.reach = false; S.tab = null; showInspector(); break; }
   }
   relayout({ stable: true });
-  renderRail();
-  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'ns:' + S.sel, false);
-  if (!closing) {
+  renderSide();
+  if (S.sel) list.setSelected(S.sel, false);
+  if (!closing && S.view === 'graph') {
     const lane = S.lay.lanes.find((l) => l.path === path);
     if (lane && !boxVisible(lane)) gv.centerOnBox(lane);
   }
@@ -749,8 +752,8 @@ function setAllNamespaces(collapse) {
     if (top) { S.sel = top.path; S.reach = false; S.tab = null; showInspector(); }
   }
   relayout();
-  renderRail();
-  gv.fit(true);
+  renderSide();
+  if (S.view === 'graph') gv.fit(true);
   syncFragment();
   announce(collapse ? 'Every namespace is closed' : 'Every namespace is open');
 }
@@ -771,8 +774,8 @@ function resetView() {
   }
   updateBack();
   relayout();
-  renderRail();
-  if (S.sel) rail.setSelected(S.model.nodes.has(S.sel) ? 'n:' + S.sel : 'ns:' + S.sel, false);
+  renderSide();
+  if (S.sel) list.setSelected(S.sel, false);
   showInspector();
   gv.fit(true);
   syncFragment();
@@ -793,51 +796,50 @@ function clusterAction(cid, act) {
 
 function setFilter(f) {
   S.filter = f || null;
-  renderRail();
+  renderSide();
   applyMatch();
-  if (S.view === 'table') renderTable();
+  if (S.view === 'list') renderList();
   syncFragment();
   announce(f ? `Filter: ${f}` : 'No filter');
 }
 
 function setQuery(q) {
   S.q = q;
-  renderRail();
+  renderSide();
   applyMatch();
-  if (S.view === 'table') renderTable();
+  if (S.view === 'list') renderList();
   syncFragment();
 }
 
 // TITLES is the h1 of the page for each view, which a screen reader gives as the name of the page.
 const TITLES = {
   graph: 'pravo serve: the specification, the state and the plan as a graph',
-  table: 'pravo serve: the resources of the state as a table',
+  list: 'pravo serve: the resources of the state as a list',
   plans: 'pravo serve: the plans stored in the state',
   access: 'pravo serve: where the state is kept, how it is protected and who can read it',
 };
 
 function setView(v) {
-  if (v !== 'graph') setFull(false);
   S.view = v;
   $('page-title').textContent = TITLES[v] || TITLES.graph;
   $('graph-pane').hidden = v !== 'graph';
-  $('table-pane').hidden = v !== 'table';
+  $('list-pane').hidden = v !== 'list';
   $('access-pane').hidden = v !== 'access';
   $('plans-pane').hidden = v !== 'plans';
-  if (v === 'graph' || v === 'table') S.lastResources = v;
+  if (v === 'graph' || v === 'list') S.lastResources = v;
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
-  $('view-table').setAttribute('aria-pressed', v === 'table' ? 'true' : 'false');
-  $('sec-resources').setAttribute('aria-pressed', v === 'graph' || v === 'table' ? 'true' : 'false');
+  $('view-list').setAttribute('aria-pressed', v === 'list' ? 'true' : 'false');
+  $('sec-resources').setAttribute('aria-pressed', v === 'graph' || v === 'list' ? 'true' : 'false');
   $('sec-plans').setAttribute('aria-pressed', v === 'plans' ? 'true' : 'false');
   $('sec-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'table' ? 'Skip to the table' : v === 'plans' ? 'Skip to the plans' : 'Skip to the state';
-  if (v === 'table') renderTable();
+  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'list' ? 'Skip to the list' : v === 'plans' ? 'Skip to the plans' : 'Skip to the state';
+  if (v === 'list') renderList();
   else if (v === 'access') renderAccess();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   syncFragment();
-  announce(v === 'table' ? 'Resources, table view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : 'Resources, graph view');
+  announce(v === 'list' ? 'Resources, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : 'Resources, graph view');
 }
 
 // openPlan goes to the Plans page with the detail of a plan open under its row.
@@ -851,14 +853,16 @@ function renderAccess() {
   accessView.render({ access: S.access, project: S.model && S.model.graph ? S.model.graph.project : null });
 }
 
-function renderTable() {
-  const n = table.render({ model: S.model, filter: S.filter, q: S.q, sel: S.sel && S.model.nodes.has(S.sel) ? S.sel : null });
+function renderList() {
+  const n = list.render({ model: S.model, collapsed: S.collapsed, filter: S.filter, q: S.q, sel: S.sel });
   const c = $('match-count');
   c.textContent = S.q || S.filter ? plural(n, 'match', 'matches') : '';
 }
 
-function renderRail() {
-  rail.render({ model: S.model, collapsed: S.collapsed, filter: S.filter, q: S.q, sel: S.sel });
+// renderSide draws what the resources views share besides the graph: the chips, and the list when it is the view
+function renderSide() {
+  chips.render({ model: S.model, filter: S.filter });
+  if (S.view === 'list') renderList();
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -1011,7 +1015,7 @@ function renderLegend() {
 // ---------------------------------------------------------------------------------------------------------
 // drawers (narrow screens)
 
-// Below 1100px (68.75em) the rail is a drawer over the graph, and the inspector is a panel under it: the graph keeps the
+// Below 1100px (68.75em) the inspector is a panel under the graph: the graph keeps the
 // top of the screen and shrinks, it is never covered. The size button lets the panel take the whole stage.
 // (in em, like the media queries of the style sheets: a larger text size gives the narrow layout earlier)
 const narrow = () => matchMedia('(max-width: 68.75em)').matches;
@@ -1020,34 +1024,21 @@ function openDrawer() {
   if (!narrow()) return;
   const app = $('app');
   app.classList.add('insp-open');
-  app.classList.remove('rail-open');
   $('insp-btn').setAttribute('aria-expanded', 'true');
-  $('menu-btn').setAttribute('aria-expanded', 'false');
   $('scrim').hidden = true;
   if (gv) gv.resize();
 }
 function closeDrawer() {
   const app = $('app');
   const was = app.classList.contains('insp-open');
-  app.classList.remove('insp-open', 'rail-open');
+  app.classList.remove('insp-open');
   $('insp-btn').setAttribute('aria-expanded', 'false');
-  $('menu-btn').setAttribute('aria-expanded', 'false');
   $('scrim').hidden = true;
   if (was && gv) gv.resize();
-}
-function toggleRail() {
-  const on = !$('app').classList.contains('rail-open');
-  $('app').classList.toggle('rail-open', on);
-  $('app').classList.remove('insp-open');
-  $('menu-btn').setAttribute('aria-expanded', on ? 'true' : 'false');
-  $('insp-btn').setAttribute('aria-expanded', 'false');
-  $('scrim').hidden = !on;
-  if (gv) gv.resize();
 }
 function toggleInspector() {
   const on = !$('app').classList.contains('insp-open');
   $('app').classList.toggle('insp-open', on);
-  $('app').classList.remove('rail-open');
   $('insp-btn').setAttribute('aria-expanded', on ? 'true' : 'false');
   $('scrim').hidden = true;
   if (gv) gv.resize();
@@ -1113,17 +1104,17 @@ async function refresh() {
   palette.setModel(nm);
   relayout({ animate: true });
   for (const cid of [...S.clusters.keys()]) if (!S.vis.items.has('x:' + cid)) S.clusters.delete(cid); // a group that no longer exists
-  renderRail();
+  renderSide();
   renderBanners();
   renderHeader();
   renderLegend();
   renderPlans();
-  if (S.view === 'table') renderTable();
+  if (S.view === 'list') renderList();
   if (S.view === 'access') renderAccess();
   const flash = [...d.changed, ...d.added].map((a) => S.vis.rep.get(a)).filter(Boolean);
   gv.flash(new Set(flash));
   showInspector();
-  if (lost) { rail.setSelected(null); table.setSelected(null); gv.setFocus(null); }
+  if (lost) { list.setSelected(null); gv.setFocus(null); }
   const bits = [];
   if (d.changed.length) bits.push(`${d.changed.length} changed`);
   if (d.added.length) bits.push(`${d.added.length} new`);
@@ -1254,8 +1245,8 @@ function onKey(ev) {
   if (ev.altKey || ns) return;
   const typing = isTyping(ev.target);
   if (k === 'Escape') {
-    if (S.full && !S.sel && !S.reach) { setFull(false); return; }
-    if ($('app').classList.contains('insp-open') || $('app').classList.contains('rail-open')) { closeDrawer(); return; }
+    if ($('app').classList.contains('insp-open')) { closeDrawer(); return; }
+    if (S.proj && !S.sel && !typing) { setProject(false); return; }
     if (typing) { ev.target.blur(); return; }
     if (S.reach) { setReach(false); return; }
     // Escape zooms out of a namespace that was opened by drilling in, once nothing else is selected
@@ -1271,11 +1262,11 @@ function onKey(ev) {
   if (k === 'a') { setView(S.view === 'access' ? (S.lastResources || 'graph') : 'access'); return; }
   if (k === 'p') { setView(S.view === 'plans' ? (S.lastResources || 'graph') : 'plans'); return; }
   if (S.view === 'access' || S.view === 'plans') return; // the keys below are for the resources
-  if (k === 'g') { setView(S.view === 'graph' ? 'table' : 'graph'); return; }
+  if (k === 'g') { setView(S.view === 'graph' ? 'list' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
   if (k === 'f') { gv.fit(true); return; }
-  if (k === 'w') { setFull(!S.full); return; }
+  if (k === 'i') { setProject(!S.proj); return; }
   if (k === '0') { resetView(); return; }
   if (k === '[') { setAllNamespaces(true); return; }
   if (k === ']') { setAllNamespaces(false); return; }
@@ -1315,15 +1306,14 @@ function wire() {
   backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, 'aria-label': 'Zoom out of the namespace that was opened (Escape)', on: { click: () => backOut() } },
     svgEl('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('circle', { cx: 7, cy: 7, r: 4.6 }), svgEl('path', { d: 'M5 7h4M10.6 10.6L14 14' })), h('span', { class: 'bl' }, 'Zoom out'), h('kbd', null, 'esc'));
   $('canvas').append(backBtn);
-  rail = new Rail($('rail'), {
-    onFilter: setFilter,
+  chips = new Chips($('chips'), { onFilter: setFilter });
+  list = new ListView($('list-pane'), {
     onToggle: toggleNamespace,
-    onSelectNode: (a) => selectNode(a, { center: true }),
-    onSelectNamespace: (p) => selectNamespace(p, { center: true }),
-    onRoot: () => { if (S.sel) clearSelection(); else if (narrow()) openDrawer(); },
+    onSelectNode: (a) => selectNode(a),
+    onSelectNamespace: (p) => selectNamespace(p),
   });
+  setGrouped(list.grouped);
   plansList = new Plans($('plans-list'), { onView: (id) => selectPlan(id).then(() => setView(S.lastResources || 'graph')) });
-  table = new TableView($('table-pane'), { onSelectNode: (a) => selectNode(a) });
   accessView = new AccessView($('access-pane'));
   insp = new Inspector($('insp'), {
     onPlan: (id) => selectPlan(id),
@@ -1340,12 +1330,11 @@ function wire() {
     announce,
     onPick: (kind, key) => {
       if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); // a resource is found among the resources
-      if (S.view !== 'graph' && kind === 'namespace') setView('graph');
       if (kind === 'namespace') {
         const ns = S.model.namespaces.get(key);
         for (const m of chain(ns)) S.collapsed.delete(m.path);
         relayout();
-        renderRail();
+        renderSide();
         selectNamespace(key, { center: true });
       } else selectNode(key, { center: true });
     },
@@ -1354,19 +1343,20 @@ function wire() {
   sheet = new Sheet($('sheet'), { onOpen: () => {} });
 
   $('view-graph').addEventListener('click', () => setView('graph'));
-  $('view-table').addEventListener('click', () => setView('table'));
+  $('view-list').addEventListener('click', () => setView('list'));
   $('sec-resources').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); });
   $('sec-plans').addEventListener('click', () => setView('plans'));
   $('sec-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
   $('theme-btn').addEventListener('click', toggleTheme);
   $('btn-fit').addEventListener('click', () => gv.fit(true));
-  $('full-btn').addEventListener('click', () => setFull(!S.full));
+  $('proj-btn').addEventListener('click', () => setProject(!S.proj));
+  $('btn-grouped').addEventListener('click', () => { setGrouped(true); });
+  $('btn-flat').addEventListener('click', () => { setGrouped(false); });
   $('btn-zin').addEventListener('click', () => gv.zoomBy(1.3, undefined, undefined, true));
   $('btn-zout').addEventListener('click', () => gv.zoomBy(1 / 1.3, undefined, undefined, true));
   $('btn-collapse').addEventListener('click', () => setAllNamespaces(true));
   $('btn-expand').addEventListener('click', () => setAllNamespaces(false));
-  $('menu-btn').addEventListener('click', toggleRail);
   $('insp-btn').addEventListener('click', toggleInspector);
   $('insp-close').addEventListener('click', () => { closeDrawer(); });
   $('insp-size').addEventListener('click', toggleInspSize);
@@ -1376,9 +1366,9 @@ function wire() {
     if (c) copyText(c.dataset.copy).then((ok) => { c.classList.toggle('done', ok); c.classList.toggle('failed', !ok); const i = c.querySelector('.i'); if (i) i.className = 'i ' + (ok ? 'i-check' : 'i-x'); setTimeout(() => { c.classList.remove('done', 'failed'); if (i) i.className = 'i i-copy'; }, 1400); announce(ok ? copiedWhat(c) : 'Could not copy'); });
   });
   initTips();
-  // the skip link goes to the graph, or to the table in the table view; it must not write #canvas into the address, which is the view
+  // the skip link goes to the graph, or to the list in the list view; it must not write #canvas into the address, which is the view
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else table.scroller.focus(); });
+  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else list.scroller.focus(); });
   // the mark at the top left goes back to the start: nothing selected, no filter, the first view (not the address "#/", which would drop the theme and the motion setting too)
   const brand = document.querySelector('.brand');
   if (brand) brand.addEventListener('click', (ev) => {
@@ -1438,16 +1428,15 @@ function applyView(f) {
   revealSel(f, sel);
   const collapsedAfter = [...S.collapsed].sort().join('|') + '#' + [...S.clusters.keys()].sort().join('|');
   if (collapsedBefore !== collapsedAfter) relayout();
-  renderRail();
+  renderSide();
   applyMatch();
   if (f.view !== S.view) setView(f.view);
   S.sel = sel;
   S.reach = false;
   applySelection(false);
   showInspector();
-  rail.setSelected(sel ? (S.model.nodes.has(sel) ? 'n:' + sel : 'ns:' + sel) : null, false);
-  table.setSelected(S.model.nodes.has(sel) ? sel : null);
-  if (S.view === 'table') renderTable();
+  list.setSelected(sel, false);
+  if (S.view === 'list') renderList();
   // the camera follows the link: a resource is brought into view at a scale that can be read, a link that
   // changes which namespaces are open shows the whole picture, and zoom= is a scale
   if (S.view === 'graph') {
@@ -1531,13 +1520,11 @@ async function load(frag) {
     if (id) { const p = S.lay.pos.get(id); gv.userMoved = true; gv.setView({ x: gv.size.w / 2 - (p.x + p.w / 2) * zoom, y: gv.size.h / 2 - (p.y + p.h / 2) * zoom, k: zoom }, false); } else { gv.fit(false); gv.zoomBy(zoom / gv.view.k); }
   } else gv.fit(false);
   setView(S.view);
-  renderRail();
+  renderSide();
   showInspector();
   if (sel) {
     const isNode = S.model.nodes.has(sel);
-    rail.ensureVisible(sel);
-    rail.setSelected((isNode ? 'n:' : 'ns:') + sel, false);
-    table.setSelected(isNode ? sel : null);
+    list.setSelected(sel, false);
     // a deep link to a resource shows it at a scale that can be read: when the whole picture does not do that, the camera goes to the resource
     if (S.view === 'graph' && isNode && !(zoom > 0) && (gv.view.k < 0.8 || !gv.visible(itemOf(sel), 60))) gv.centerOn(itemOf(sel), 0.95, false);
     openDrawer();
@@ -1547,7 +1534,7 @@ async function load(frag) {
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, rail, plansList, table, accessView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setFilter, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, chips, plansList, list, accessView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setFilter, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

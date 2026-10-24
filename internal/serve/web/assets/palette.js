@@ -182,8 +182,8 @@ export class Palette {
 export const SHORTCUTS = [
   ['Search', [['/', 'or', 'Ctrl K', 'Find a resource, a type or a namespace']]],
   ['Move around', [['←', '', '', 'To a dependency of the selection'], ['→', '', '', 'To a dependent'], ['↑ ↓', '', '', 'To the sibling above or below'], ['Esc', '', '', 'Clear the selection']]],
-  ['View', [['f', '', '', 'Fit the graph'], ['w', '', '', 'Hide or show the sidebars'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every namespace'], ['Enter', '', '', 'Open or close the selected namespace'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or table of the resources'], ['a', '', '', 'Resources or state'], ['p', '', '', 'Resources or plans'], ['?', '', '', 'This sheet']]],
-  ['Namespace tree', [['↑ ↓', '', '', 'Move between rows, Home and End jump'], ['← →', '', '', 'Close or open a namespace'], ['Enter', '', '', 'Select the row'], ['*', '', '', 'Open every namespace of this level'], ['a–z', '', '', 'Jump to the next row that starts with it']]],
+  ['View', [['f', '', '', 'Fit the graph'], ['i', '', '', 'Show or hide the project'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every namespace'], ['Enter', '', '', 'Open or close the selected namespace'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or list of the resources'], ['a', '', '', 'Resources or state'], ['p', '', '', 'Resources or plans'], ['?', '', '', 'This sheet']]],
+  ['The list', [['↑ ↓', '', '', 'Select the row above or below, Home and End jump'], ['← →', '', '', 'Close or open a namespace, or go to its row'], ['Enter', 'or', 'Space', 'Close or open the namespace'], ['*', '', '', 'Open every namespace of this level']]],
   ['Pointer', [['Drag', '', '', 'Pan'], ['Wheel', '', 'Pinch', 'Zoom'], ['Double-click', '', '', 'Open or close a namespace']]],
 ];
 
