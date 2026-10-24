@@ -214,9 +214,15 @@ export class Inspector {
     const out = isOut(n);
     // an output and a plain variable are what the kicker says: the type would only repeat it
     if (!out && n.type !== 'env') tags.push(this.facetPill('b ty', 'type', n.type, n.type));
-    // the provider and its version are two things: the provider is a facet of the filter, the version is not
-    const pv = prov && prov.key || node.provider;
-    if (pv) tags.push(node.provider ? this.facetPill('b pv', 'provider', node.provider, pv) : h('span', { class: 'b pv' }, pv));
+    // the provider key is the provider and its instance (aws.west): three chips with the version, the first two facets of the filter
+    // (provider:aws is every instance, provider:aws.west is that one); the version is not a column
+    const pkey = node.provider || (prov && prov.key) || '';
+    const dot = pkey.indexOf('.');
+    const pname = dot < 0 ? pkey : pkey.slice(0, dot);
+    const pinst = dot < 0 ? '' : pkey.slice(dot + 1);
+    const pchip = (value, text) => (node.provider ? this.facetPill('b pv', 'provider', value, text) : h('span', { class: 'b pv' }, text));
+    if (pname) tags.push(pchip(pname, pname));
+    if (pinst) tags.push(pchip(pkey, pinst));
     if (prov && prov.version) tags.push(h('span', { class: 'b pv', title: 'Provider version' }, prov.version));
     if (n.sealed) tags.push(h('span', { class: 'b lock' }, icon('lock'), 'sealed'));
     if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), out ? 'sensitive' : `${n.sensitive} sensitive`));
