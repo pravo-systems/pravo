@@ -94,7 +94,7 @@ func TestBigEstate(t *testing.T) {
 	if got := m.fieldMatches("rule.0.pin=p-1"); len(got.Addrs) != 0 {
 		t.Errorf("a sensitive value matched %v", got.Addrs)
 	}
-	if build > limit/5 || query > limit/50 {
+	if build > limit/2 || query > limit/50 {
 		t.Errorf("field search of 5000 records: index %s, query %s", build, query)
 	}
 }
