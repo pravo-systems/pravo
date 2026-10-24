@@ -423,16 +423,24 @@ func AdoptSnippet(root *config.Root, d *DiscoveryView, l state.Listed, body stri
 	} else if len(root.ProviderDecls) == 1 {
 		prov = root.ProviderDecls[0].Path.String()
 	}
-	label := d.Type + " " + quoteCUE(l.ID)
-	if l.Name != "" {
-		label += " (" + oneLine(l.Name) + ")"
+	// An identity made of several attributes is no short name for the object: the
+	// display name stands for it, and the identity is written below.
+	label := d.Type
+	switch {
+	case l.Name != "" && l.ID == l.Key:
+		label += " " + quoteCUE(oneLine(l.Name))
+	case l.Name != "":
+		label += " " + quoteCUE(l.ID) + " (" + oneLine(l.Name) + ")"
+	default:
+		label += " " + quoteCUE(oneLine(l.ID))
 	}
 	fmt.Fprintf(&b, "// Adopts the %s that the discovery %s found.\n", label, oneLine(d.Name))
 	fmt.Fprintf(&b, "%s: %s.#Resource.%s & {\n", SnippetName(root, l), prov, fieldPath(d.Type))
 	if l.ImportID != "" {
 		fmt.Fprintf(&b, "\t$import: %s\n", quoteCUE(l.ImportID))
 	} else {
-		fmt.Fprintf(&b, "\t// The provider lists this object by %s, which is not an id that $import takes.\n", oneLine(l.Key))
+		fmt.Fprintf(&b, "\t// The provider lists this object by its identity, which is not an id that $import takes:\n")
+		fmt.Fprintf(&b, "\t//   %s\n", oneLine(l.Key))
 		fmt.Fprintf(&b, "\t// Use the id that the provider's documentation gives for importing a %s.\n", oneLine(d.Type))
 		b.WriteString("\t$import: \"<id>\"\n")
 	}

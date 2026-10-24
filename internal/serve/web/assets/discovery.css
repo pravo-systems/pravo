@@ -102,10 +102,10 @@ body:has(.app[data-view="discovery"]) .planstrip, body:has(.app[data-view="disco
 .dv-more { justify-self: start; margin-top: .3rem; }
 
 /* ---- one object opened ---- */
-.dv-detail { display: grid; gap: .5rem; padding: .3rem .7rem .8rem 1.1rem; border-top: 1px dashed var(--line); }
+.dv-detail { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: .5rem; padding: .3rem .7rem .8rem 1.1rem; border-top: 1px dashed var(--line); }
 .dv-lead { margin: .4rem 0 0; font-size: .78rem; color: var(--text-2); }
-.dv-snip { position: relative; }
-.dv-code { margin: 0; padding: .7rem 2.6rem .7rem .9rem; overflow-x: auto; background: var(--code-bg); color: var(--code-text); border: 1px solid var(--code-edge); font: 400 .76rem/1.5 var(--font-mono); }
+.dv-snip { position: relative; min-width: 0; }
+.dv-code { margin: 0; padding: .7rem 2.6rem .7rem .9rem; overflow-x: auto; background: var(--code-bg); color: var(--code-text); border: 1px solid var(--code-edge); font: 400 .76rem/1.5 var(--font-mono); tab-size: 4; max-width: 100%; }
 .dv-code code { font: inherit; overflow-wrap: normal; white-space: pre; }
 .dv-snip .cpbtn { position: absolute; top: .4rem; right: .4rem; color: var(--code-dim); }
 .dv-snip .cpbtn:hover { color: var(--code-text); }

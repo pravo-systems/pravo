@@ -220,7 +220,7 @@ export class DiscoveryView {
     const opened = this.open.get(k) === true;
     const li = h('li', { class: 'dv-item s-' + it.status + (opened ? ' open' : ''), 'data-key': it.key });
     const id = h('div', { class: 'dv-id' },
-      h('span', { class: 'nm' }, it.name || it.id), it.name && it.name !== it.id ? h('code', { class: 'id', title: it.key }, it.id) : null,
+      h('span', { class: 'nm' }, it.name || it.id), it.name && it.name !== it.id && it.id !== it.key ? h('code', { class: 'id', title: it.key }, it.id) : null,
       it.status === 'adopting' ? h('span', { class: 'by' }, 'adopted by ', h('code', null, it.by)) : null);
     const ident = h('span', { class: 'dv-ident' }, (it.identity || []).filter((f) => f.value !== it.id && f.value !== it.name).map((f) => h('span', { class: 'sc' }, h('b', null, f.name), '=', f.value)));
     let tail = null;
