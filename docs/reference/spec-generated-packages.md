@@ -107,7 +107,7 @@ A provider package declares:
 | `#Provider.#Resource.<type>` | One definition per managed resource type. |
 | `#Provider.#Data.<type>` | One per data source. |
 | `#Provider.#Ephemeral.<type>` | One per ephemeral resource. |
-| `#Provider.#Discovery.<type>` | One per list resource type: the attributes of the list are the scope, and `$limit` bounds a run. A provider that cannot list has none. |
+| `#Provider.#Discovery.<type>` | One per list resource type: the attributes of the list are the scope, `$limit` bounds a run, and `$ack` lists the acknowledged objects. A provider that cannot list has none. |
 | `#Provider.#Function.<name>` | One per provider-defined function: `args` and `result`. |
 | `#Lifecycle` | The shape of `$lifecycle`. A specification does not use it directly. |
 

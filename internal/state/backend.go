@@ -296,7 +296,7 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 			return n, err
 		}
 	}
-	for _, prefix := range []string{"rec", "resources", "txn", "plans", DiscoveryRunDir, DiscoveryAckDir} {
+	for _, prefix := range []string{"rec", "resources", "txn", "plans", DiscoveryRunDir} {
 		keys, err := src.List(ctx, prefix)
 		if err != nil {
 			return n, err
@@ -388,7 +388,7 @@ func checkCopy(ctx context.Context, src *meta, dst Backend) error {
 // holdsNothing reports whether b holds no record, output, stored plan or
 // discovery object, which is what a store that was opened and never written holds.
 func holdsNothing(ctx context.Context, b Backend) (bool, error) {
-	for _, prefix := range []string{"resources", "rec", "plans", DiscoveryRunDir, DiscoveryAckDir} {
+	for _, prefix := range []string{"resources", "rec", "plans", DiscoveryRunDir} {
 		keys, err := b.List(ctx, prefix)
 		if err != nil {
 			return false, err

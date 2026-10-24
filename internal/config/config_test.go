@@ -79,6 +79,7 @@ const defs = `
 		local_file: {
 			$kind: "discovery", $type: "local_file", $source: "hashicorp/local"
 			$limit?: int & >0
+			$ack?: [...{ids?: [...string], names?: [...string], reason?: string}]
 			dir:     string
 			prefix?: string
 			depth?:  int

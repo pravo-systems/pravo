@@ -211,7 +211,7 @@ Taught in [A3](../learn/a03-writing-a-field-twice.md).
 
 ### acknowledgement
 
-A record in the state that says that the objects of a [discovery](#discovery) that match its patterns are known and are meant to stay unmanaged. They are still listed, and they stop asking to be adopted. `pravo discover ack` writes one.
+An entry of the `$ack` list of a [discovery](#discovery), in the specification, that says that the objects that match its patterns are known and are meant to stay unmanaged. They are still listed, and they stop asking to be adopted. `pravo discover ack` prints one.
 
 See [Discovery](../concepts/discovery.md#acknowledging).
 

@@ -120,7 +120,7 @@ body:has(.app[data-view="discovery"]) .planstrip, body:has(.app[data-view="disco
 .dv-ackall { display: grid; gap: .3rem; margin-top: .4rem; }
 .dv-acks { border-top: 1px solid var(--line); padding-top: .6rem; }
 .dv-acks > summary { cursor: pointer; font: 500 .62rem/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
-.dv-acks ul, .dv-orphans ul { display: grid; gap: .6rem; margin: .6rem 0 0; padding: 0; list-style: none; }
+.dv-acks ul { display: grid; gap: .6rem; margin: .6rem 0 0; padding: 0; list-style: none; }
 .dv-ackrec { display: grid; gap: .35rem; padding: .55rem .7rem; border: 1px solid var(--line); background: var(--surface-2); }
 .dv-ackrec .top { display: flex; align-items: baseline; flex-wrap: wrap; gap: .3rem .8rem; font-size: .72rem; }
 .dv-ackrec .nm { font: 500 .8rem/1.2 var(--font-mono); }
@@ -128,7 +128,6 @@ body:has(.app[data-view="discovery"]) .planstrip, body:has(.app[data-view="disco
 .dv-ackrec .pat { display: inline-flex; align-items: baseline; gap: .35rem; }
 .dv-ackrec .pat i { font: 500 .56rem/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); font-style: normal; }
 .dv-ackrec .rs { margin: 0; font-size: .76rem; color: var(--text-2); }
-.dv-orphans { padding-top: .4rem; }
 
 /* ---- the tab ---- */
 .i-radar { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5.6' fill='none' stroke='black' stroke-width='1.5'/%3E%3Ccircle cx='8' cy='8' r='1.4' fill='black'/%3E%3Cpath d='M8 8l3.6-3.6' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E"); }

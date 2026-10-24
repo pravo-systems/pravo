@@ -78,34 +78,52 @@ func TestDiscoverLifecycle(t *testing.T) {
 		t.Errorf("show --exit-code exited %d with objects unmanaged", code)
 	}
 
-	// Acknowledge two of them with one record.
+	// Acknowledge two of them with one entry. The command prints it and writes nothing.
 	text, code = runPravo(t, dir, "--reason", "the nightly jobs", "discover", "ack", "vms", "--name", "batch-*")
 	if code != 0 {
 		t.Fatalf("ack exited %d:\n%s", code, text)
 	}
-	contains(t, text, "Acknowledged vms as ack-", "covers 2 objects")
+	contains(t, text, "names: [\"batch-*\"]", `reason: "the nightly jobs"`, "$ack", "covers 2 objects")
+	if st.Len() != 1 {
+		t.Errorf("ack wrote to the state")
+	}
+	if text, _ := runPravo(t, dir, "discover", "show"); !strings.Contains(text, "3 unmanaged") {
+		t.Errorf("an entry that is not in the specification acknowledges nothing:\n%s", text)
+	}
+
+	// The entry goes into the discovery in the specification. It is not part of
+	// the scope, so the run is still current and the provider is not asked again.
+	spec, _ := os.ReadFile(filepath.Join(dir, "main.cue"))
+	entry := "\n\t{\n\t\tnames: [\"batch-*\"]\n\t\treason: \"the nightly jobs\"\n\t}\n"
+	acked := strings.Replace(string(spec), `{region: "eu"}`, "{region: \"eu\", $ack: ["+entry+"]}", 1)
+	mustWrite(t, dir, "main.cue", acked)
+	calls := p.listCalls()
 	text, _ = runPravo(t, dir, "discover", "show")
-	contains(t, text, "1 unmanaged", "2 acknowledged", "UNMANAGED", "srv-web-old", "ACKNOWLEDGED", "srv-batch-1", "srv-batch-2", "the nightly jobs")
+	contains(t, text, "1 unmanaged", "2 acknowledged", "UNMANAGED", "srv-web-old", "ACKNOWLEDGED", "srv-batch-1", "srv-batch-2", "the nightly jobs", "$ack[0]")
+	lacks(t, text, "scope changed")
 	if i, j := strings.Index(text, "UNMANAGED"), strings.Index(text, "ACKNOWLEDGED"); i < 0 || j < i {
 		t.Errorf("the objects that ask for adoption come first:\n%s", text)
 	}
-
-	acks, code := runPravo(t, dir, "discover", "acks")
-	if code != 0 {
-		t.Fatal(acks)
+	if text, code := runPravo(t, dir, "discover"); code != 0 || !strings.Contains(text, "Every discovery is current") || p.listCalls() != calls {
+		t.Errorf("a changed acknowledgement ran the discovery again (%d calls, was %d): exit %d\n%s", p.listCalls(), calls, code, text)
 	}
-	contains(t, acks, "ack-", "vms", "name  batch-*", "the nightly jobs")
 	var doc struct {
-		Acks []state.Ack `json:"acks"`
+		Discoveries []struct {
+			Acks []struct {
+				Ref    string `json:"ref"`
+				Reason string `json:"reason"`
+				Covers int    `json:"covers"`
+			} `json:"acks"`
+		} `json:"discoveries"`
 	}
-	jtext, _ := runPravo(t, dir, "--json", "discover", "acks")
-	if err := json.Unmarshal([]byte(jtext), &doc); err != nil || len(doc.Acks) != 1 || doc.Acks[0].Reason != "the nightly jobs" || doc.Acks[0].By == "" {
-		t.Fatalf("acks --json: %v\n%s", err, jtext)
+	jtext, _ := runPravo(t, dir, "--json", "discover", "show")
+	if err := json.Unmarshal([]byte(jtext), &doc); err != nil || len(doc.Discoveries) != 1 || len(doc.Discoveries[0].Acks) != 1 ||
+		doc.Discoveries[0].Acks[0].Reason != "the nightly jobs" || doc.Discoveries[0].Acks[0].Covers != 2 {
+		t.Fatalf("show --json: %v\n%s", err, jtext)
 	}
 
 	// The scope changes: the result answers the old one until it runs again.
-	spec, _ := os.ReadFile(filepath.Join(dir, "main.cue"))
-	mustWrite(t, dir, "main.cue", strings.Replace(string(spec), `region: "eu"`, `region: "us"`, 1))
+	mustWrite(t, dir, "main.cue", strings.Replace(acked, `region: "eu"`, `region: "us"`, 1))
 	text, _ = runPravo(t, dir, "discover", "show")
 	contains(t, text, "the scope changed since the last run", "pravo discover vms")
 	before := p.listCalls()
@@ -116,15 +134,10 @@ func TestDiscoverLifecycle(t *testing.T) {
 	contains(t, text, "1 unmanaged", "srv-us-1")
 	lacks(t, text, "srv-web-old", "scope changed")
 
-	// Withdraw the acknowledgement.
-	if text, code := runPravo(t, dir, "discover", "unack", doc.Acks[0].ID); code != 0 || !strings.Contains(text, "Withdrew") {
-		t.Errorf("unack exited %d:\n%s", code, text)
-	}
-	if text, _ := runPravo(t, dir, "discover", "acks"); !strings.Contains(text, "No acknowledgements") {
+	// Taking the entry out of the specification withdraws it.
+	mustWrite(t, dir, "main.cue", strings.Replace(string(spec), `region: "eu"`, `region: "us"`, 1))
+	if text, _ := runPravo(t, dir, "discover", "show"); !strings.Contains(text, "1 unmanaged") || strings.Contains(text, "ACKNOWLEDGED") {
 		t.Errorf("%s", text)
-	}
-	if text, code := runPravo(t, dir, "discover", "unack", doc.Acks[0].ID); code == 0 || !strings.Contains(text, "no acknowledgement") {
-		t.Errorf("a second unack exited %d:\n%s", code, text)
 	}
 }
 
@@ -250,7 +263,6 @@ func TestDiscoverNamesAndMistakes(t *testing.T) {
 		{[]string{"discover", "ack", "vms", "--id", "*"}, int(engine.ExitInvalid), "matches everything"},
 		{[]string{"discover", "adopt", "vms", "x"}, int(engine.ExitInvalid), "has not run"},
 		{[]string{"discover", "--all", "vms"}, 1, "--all runs every discovery"},
-		{[]string{"discover", "unack", "../x"}, int(engine.ExitInvalid), "not the id of an acknowledgement"},
 	} {
 		text, code := runPravo(t, dir, c.args...)
 		if code != c.code || !strings.Contains(text, c.want) {
@@ -263,17 +275,12 @@ func TestDiscoverNamesAndMistakes(t *testing.T) {
 	if text, code := runPravo(t, dir, "discover", "adopt", "vms", "nope"); code != int(engine.ExitInvalid) || !strings.Contains(text, `did not find "nope"`) {
 		t.Errorf("%d\n%s", code, text)
 	}
-	if text, code := runPravo(t, dir, "discover", "ack", "vms", "--unmanaged"); code != 0 || !strings.Contains(text, "covers 3 objects") {
+	text, code := runPravo(t, dir, "discover", "ack", "vms", "--unmanaged")
+	if code != 0 || !strings.Contains(text, "covers 3 objects") || !strings.Contains(text, `"srv-web-old"`) {
 		t.Errorf("ack --unmanaged: %d\n%s", code, text)
 	}
-	if text, _ := runPravo(t, dir, "discover", "show"); !strings.Contains(text, "0 unmanaged") || !strings.Contains(text, "3 acknowledged") {
-		t.Errorf("%s", text)
-	}
-	if _, code := runPravo(t, dir, "discover", "show", "--exit-code"); code != 0 {
-		t.Errorf("nothing is unmanaged, but show --exit-code exited %d", code)
-	}
-	if text, code := runPravo(t, dir, "discover", "ack", "vms", "--unmanaged"); code != 0 || !strings.Contains(text, "no unmanaged objects") {
-		t.Errorf("%d\n%s", code, text)
+	if text, code := runPravo(t, dir, "discover", "acks"); code == 0 {
+		t.Errorf("acks is no command any more: %s", text)
 	}
 }
 

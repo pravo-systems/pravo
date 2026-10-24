@@ -42,6 +42,10 @@ type Discovery struct {
 	// given, or one that reads a resource. A discovery with this error fails when it
 	// runs, and nothing else does.
 	ScopeErr error
+	// Acks are the entries of $ack: objects that are known and meant to stay
+	// unmanaged. They are not part of the scope, and changing them does not make a
+	// run stale.
+	Acks []*Ack
 	// Digest names the scope. A result that was listed with another digest is out
 	// of date: the scope, the limit, the type or the provider was changed since.
 	// It is empty when ScopeErr is set.
@@ -61,6 +65,126 @@ func NewDiscovery(v cue.Value, p cue.Path, typ string, src registry.Source, prov
 	d.ProviderKey = providerKey
 	d.finish()
 	return d
+}
+
+// Ack is one entry of the $ack list of a discovery: the objects that are known,
+// and meant to stay as they are. They are still listed, and they stop asking to be
+// adopted.
+type Ack struct {
+	// Index is the place of the entry in the list.
+	Index int
+	// IDs are patterns for the id of an object or its whole identity, and Names
+	// patterns for the name the provider gave it. In a pattern * stands for any run
+	// of characters and ? for one. An object is covered when any pattern matches.
+	IDs    []string `json:"ids"`
+	Names  []string `json:"names"`
+	Reason string   `json:"reason"`
+}
+
+// Limits of an $ack entry.
+const (
+	MaxAckPatterns = 10000
+	MaxPatternLen  = 512
+	MaxReasonLen   = 2000
+)
+
+// Ref names the entry, as a message or a page says which one covers an object.
+func (a *Ack) Ref() string { return fmt.Sprintf("$ack[%d]", a.Index) }
+
+// Covers reports whether the entry covers an object. id is the id a person calls
+// it, key its whole identity on one line, importID the id $import takes ("" when
+// it gives none) and name the display name ("" when it has none).
+func (a *Ack) Covers(id, key, importID, name string) bool {
+	for _, p := range a.IDs {
+		if Glob(p, id) || Glob(p, key) || (importID != "" && Glob(p, importID)) {
+			return true
+		}
+	}
+	if name != "" {
+		for _, p := range a.Names {
+			if Glob(p, name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Validate says why an entry cannot be used.
+func (a *Ack) Validate() error {
+	n := len(a.IDs) + len(a.Names)
+	if n == 0 {
+		return fmt.Errorf("%s has nothing to match: give ids or names", a.Ref())
+	}
+	if n > MaxAckPatterns {
+		return fmt.Errorf("%s has %d patterns, and at most %d are kept", a.Ref(), n, MaxAckPatterns)
+	}
+	for _, p := range append(append([]string(nil), a.IDs...), a.Names...) {
+		switch {
+		case p == "":
+			return fmt.Errorf("%s has an empty pattern, which matches nothing", a.Ref())
+		case len(p) > MaxPatternLen:
+			return fmt.Errorf("%s has a pattern of %d bytes, and at most %d are kept", a.Ref(), len(p), MaxPatternLen)
+		case strings.Trim(p, "*") == "":
+			return fmt.Errorf("%s: the pattern %q matches everything; write what the objects have in common", a.Ref(), p)
+		}
+	}
+	if len(a.Reason) > MaxReasonLen {
+		return fmt.Errorf("%s has a reason of %d bytes, and at most %d are kept", a.Ref(), len(a.Reason), MaxReasonLen)
+	}
+	return nil
+}
+
+// Glob reports whether s matches the pattern: * for any run of characters
+// (including none), ? for any one character, and every other character itself.
+func Glob(pattern, s string) bool {
+	p, t := []rune(pattern), []rune(s)
+	pi, ti := 0, 0
+	star, mark := -1, 0
+	for ti < len(t) {
+		switch {
+		case pi < len(p) && p[pi] == '*':
+			star, mark = pi, ti
+			pi++
+		case pi < len(p) && (p[pi] == '?' || p[pi] == t[ti]):
+			pi++
+			ti++
+		case star >= 0:
+			mark++
+			pi, ti = star+1, mark
+		default:
+			return false
+		}
+	}
+	for pi < len(p) && p[pi] == '*' {
+		pi++
+	}
+	return pi == len(p)
+}
+
+// parseAcks reads the $ack list of a discovery.
+func parseAcks(v cue.Value, at string) ([]*Ack, error) {
+	f := v.LookupPath(cue.MakePath(cue.Str("$ack")))
+	if !f.Exists() {
+		return nil, nil
+	}
+	list, err := f.List()
+	if err != nil {
+		return nil, fmt.Errorf("%s: $ack: %w", at, err)
+	}
+	var out []*Ack
+	for i := 0; list.Next(); i++ {
+		a := &Ack{Index: i}
+		if err := list.Value().Decode(a); err != nil {
+			return nil, fmt.Errorf("%s: $ack[%d]: %s", at, i, firstLine(err))
+		}
+		a.Index = i
+		if err := a.Validate(); err != nil {
+			return nil, fmt.Errorf("%s: %w", at, err)
+		}
+		out = append(out, a)
+	}
+	return out, nil
 }
 
 func newDiscovery(v cue.Value, p cue.Path, typ string, src registry.Source) *Discovery {

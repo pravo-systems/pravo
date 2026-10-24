@@ -796,7 +796,7 @@ type Event struct {
 	// "discovery". "plan" is the plan file of --plan; "plans" are the plans stored
 	// in the state: one appeared, was collected, was applied from, or passed its
 	// expiry; "access" is the readers file; "discovery" is what the discoveries
-	// found and the acknowledgements of it, which "pravo discover" writes.
+	// found, which "pravo discover" writes.
 	What []string `json:"what"`
 }
 
@@ -813,10 +813,7 @@ type Discovery struct {
 	// Unmanaged counts the objects that ask to be adopted, in every discovery.
 	Unmanaged   int             `json:"unmanaged"`
 	Discoveries []DiscoveryInfo `json:"discoveries"`
-	// OrphanAcks are the acknowledgements of a discovery that the specification
-	// does not have and the state holds no run of.
-	OrphanAcks []AckInfo `json:"orphan_acks,omitempty"`
-	Warnings   []string  `json:"warnings,omitempty"`
+	Warnings    []string        `json:"warnings,omitempty"`
 	// Command runs the discoveries that have not run, or whose scope changed. The
 	// page copies it and runs nothing.
 	Command string `json:"command"`
@@ -855,9 +852,10 @@ type DiscoveryInfo struct {
 	// ItemsOmitted counts the rest.
 	Items        []DiscoveredInfo `json:"items"`
 	ItemsOmitted int              `json:"items_omitted,omitempty"`
-	Acks         []AckInfo        `json:"acks,omitempty"`
-	// Command runs this discovery. AckAll acknowledges the objects that are
-	// unmanaged now, with a reason for the person to give; it is empty when none
+	// Acks are the entries of $ack of the discovery.
+	Acks []AckInfo `json:"acks,omitempty"`
+	// Command runs this discovery. AckAll prints an $ack entry for the objects that
+	// are unmanaged now, with a reason for the person to give; it is empty when none
 	// is unmanaged or the name cannot be put in a command.
 	Command string `json:"command"`
 	AckAll  string `json:"ack_all,omitempty"`
@@ -902,19 +900,16 @@ type DiscoveredInfo struct {
 	Importable bool `json:"importable,omitempty"`
 }
 
-// AckInfo is an acknowledgement.
+// AckInfo is an entry of the $ack list of a discovery, as the specification has it.
 type AckInfo struct {
-	ID        string    `json:"id"`
-	Discovery string    `json:"discovery"`
-	IDs       []string  `json:"ids,omitempty"`
-	Names     []string  `json:"names,omitempty"`
-	Reason    string    `json:"reason,omitempty"`
-	By        string    `json:"by,omitempty"`
-	At        time.Time `json:"at"`
+	// Ref names the entry: "$ack[0]".
+	Ref   string   `json:"ref"`
+	IDs   []string `json:"ids,omitempty"`
+	Names []string `json:"names,omitempty"`
+	// Reason is what the entry says of why the objects are left alone.
+	Reason string `json:"reason,omitempty"`
 	// Covers is how many objects of the last run it covers, -1 when there is none.
 	Covers int `json:"covers"`
-	// Command withdraws it.
-	Command string `json:"command,omitempty"`
 }
 
 // Field is a name and a value as text.

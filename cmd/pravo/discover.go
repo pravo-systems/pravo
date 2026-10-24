@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/user"
 	"sort"
 	"strings"
 
@@ -101,7 +99,7 @@ discover adopt" to write the resource that adopts an object.`,
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "run every discovery, not only the ones that have not run or whose scope changed")
 	addTagFlags(cmd)
-	cmd.AddCommand(discoverShowCmd(), discoverAckCmd(), discoverAcksCmd(), discoverUnackCmd(), discoverAdoptCmd())
+	cmd.AddCommand(discoverShowCmd(), discoverAckCmd(), discoverAdoptCmd())
 	return cmd
 }
 
@@ -155,14 +153,10 @@ func discoveryReport(s *session) (*engine.DiscoveryReport, error) {
 	if err != nil {
 		return nil, err
 	}
-	acks, ackProblems, err := s.state.Acks()
-	if err != nil {
-		return nil, err
-	}
-	for _, p := range append(problems, ackProblems...) {
+	for _, p := range problems {
 		out.Warning("cannot read " + p.Error())
 	}
-	return engine.BuildDiscoveryReport(engine.DiscoveryInputs{Root: s.root, Runs: runs, Acks: acks, Records: s.state.List()}), nil
+	return engine.BuildDiscoveryReport(engine.DiscoveryInputs{Root: s.root, Runs: runs, Records: s.state.List()}), nil
 }
 
 // ---------- pravo discover show ----------
@@ -225,9 +219,6 @@ object, so that a schedule can tell someone.`,
 						out.Println()
 					}
 					printView(v, managed)
-				}
-				if len(args) == 0 && len(rep.OrphanAcks) > 0 {
-					out.Printf("\n%s\n", plural(len(rep.OrphanAcks), "acknowledgement is", "acknowledgements are")+" about a discovery that the specification does not have: pravo discover acks")
 				}
 			}
 			if exitCode && unmanaged > 0 {
@@ -411,6 +402,21 @@ func discoveryJSON(rep *engine.DiscoveryReport, only []string, managed bool) map
 		if v.ScopeErr != "" {
 			doc["scope_error"] = v.ScopeErr
 		}
+		if len(v.Acks) > 0 {
+			acks := []any{}
+			for _, a := range v.Acks {
+				covers := 0
+				if v.Run != nil {
+					for _, l := range v.Run.Items {
+						if a.Covers(l.ID, l.Key, l.ImportID, l.Name) {
+							covers++
+						}
+					}
+				}
+				acks = append(acks, map[string]any{"ref": a.Ref(), "ids": a.IDs, "names": a.Names, "reason": a.Reason, "covers": covers})
+			}
+			doc["acks"] = acks
+		}
 		if r := v.Run; r != nil {
 			doc["last_run"] = map[string]any{"started": r.Started, "finished": r.Finished, "actor": r.Actor, "status": r.Status, "warnings": r.Warnings, "scope_digest": r.Digest}
 		}
@@ -427,30 +433,31 @@ func countsJSON(v *engine.DiscoveryView) map[string]int {
 	return m
 }
 
-// ---------- pravo discover ack, acks, unack ----------
+// ---------- pravo discover ack ----------
 
 func discoverAckCmd() *cobra.Command {
 	var ids, patterns []string
 	var unmanaged bool
 	cmd := &cobra.Command{
 		Use:   "ack <name> [--id <pattern>...] [--name <pattern>...] [--unmanaged]",
-		Short: "Say that objects a discovery found are known, and meant to stay unmanaged",
-		Long: `Writes an acknowledgement into the state: a record that says "yes, I know, leave
-it". The objects it covers are still listed in the discovery, but they stop
-asking to be adopted. One record can cover many objects, and the objects that
-appear later and match it.
+		Short: "Write the $ack entry that says objects a discovery found are known and meant to stay unmanaged",
+		Long: `Prints an entry for the $ack list of a discovery: the CUE that says that
+the objects it matches are known, and meant to stay as they are. Add it to the
+discovery in the specification, as you add the resource that adopts an object.
+The objects are still listed in the discovery, and they stop asking to be adopted.
+One entry can cover many objects, and the objects that appear later and match it.
+Nothing is written to the specification or the state.
 
 --id takes a pattern for the id of the object (or its whole identity), --name one
 for the name the provider gave it. In a pattern * stands for any run of
 characters and ? for one. The flags can be repeated. --unmanaged covers the
 objects that are unmanaged now, one by one, and none that appear later.
 
-The reason is the global --reason flag. The record keeps who wrote it and when.
-"pravo discover acks" lists the records, and "pravo discover unack" withdraws one.`,
+The reason is the global --reason flag.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			s, err := newSession(cmd.Context(), sessionOptions{loadState: true})
+			s, err := newSession(cmd.Context(), sessionOptions{loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}
@@ -463,37 +470,37 @@ The reason is the global --reason flag. The record keeps who wrote it and when.
 			if v == nil {
 				return engine.WithCode(engine.ExitInvalid, unknownDiscovery(s.root, name))
 			}
-			match := state.AckMatch{IDs: append([]string(nil), ids...), Names: append([]string(nil), patterns...)}
+			match := append([]string(nil), ids...)
 			if unmanaged {
 				for _, it := range v.Unmanaged() {
-					match.IDs = append(match.IDs, escapeGlob(it.ID))
+					match = append(match, escapeGlob(it.ID))
 				}
 			}
-			if len(match.IDs)+len(match.Names) == 0 {
+			if len(match)+len(patterns) == 0 {
 				if unmanaged {
 					out.Printf("%s has no unmanaged objects; nothing to acknowledge.\n", name)
 					return nil
 				}
 				return engine.WithCode(engine.ExitInvalid, fmt.Errorf("say what to acknowledge: --id, --name or --unmanaged"))
 			}
-			ack := &state.Ack{Discovery: name, Match: match, Reason: flagReason, By: actorName()}
-			rec, err := s.state.PutAck(ack)
-			if err != nil {
+			entry := &config.Ack{IDs: match, Names: patterns, Reason: flagReason}
+			if err := entry.Validate(); err != nil {
 				return engine.WithCode(engine.ExitInvalid, err)
 			}
-			// What the record covers now, in the last run.
 			covered := 0
 			if v.Run != nil {
 				for _, l := range v.Run.Items {
-					if rec.Covers(l) {
+					if entry.Covers(l.ID, l.Key, l.ImportID, l.Name) {
 						covered++
 					}
 				}
 			}
+			snippet := engine.FormatCUE(engine.AckEntry(name, match, patterns, flagReason))
 			if flagJSON {
-				return emitJSON(map[string]any{"ack": rec, "covers": covered})
+				return emitJSON(map[string]any{"discovery": name, "entry": snippet, "covers": covered})
 			}
-			out.Printf("Acknowledged %s as %s. It covers %s of the last run.\n", name, rec.ID, plural(covered, "object", "objects"))
+			fmt.Print(snippet)
+			out.Printf("// It covers %s of the last run.\n", plural(covered, "object", "objects"))
 			return nil
 		},
 	}
@@ -505,130 +512,14 @@ The reason is the global --reason flag. The record keeps who wrote it and when.
 }
 
 // escapeGlob makes a pattern that matches only s: the ids of the objects come into
-// the record as patterns, and an id may hold * or ?.
+// the entry as patterns, and an id may hold * or ?.
 func escapeGlob(s string) string {
 	if !strings.ContainsAny(s, "*?") {
 		return s
 	}
 	// There is no escape in a pattern; ? matches the character itself, so a *
-	// is the one that cannot be written. Such an id is left to a name or
-	// pattern the person writes.
+	// is the one that cannot be written exactly.
 	return strings.ReplaceAll(s, "*", "?")
-}
-
-func actorName() string {
-	if flagActor != "" {
-		return flagActor
-	}
-	if u, err := user.Current(); err == nil && u.Username != "" {
-		return u.Username
-	}
-	return os.Getenv("USER")
-}
-
-func discoverAcksCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "acks [<name>...]",
-		Short: "List the acknowledgements of the discoveries",
-		Args:  cobra.ArbitraryArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := newSession(cmd.Context(), sessionOptions{loadState: true, readOnlyState: true})
-			if err != nil {
-				return err
-			}
-			defer s.close()
-			acks, problems, err := s.state.Acks()
-			if err != nil {
-				return err
-			}
-			for _, p := range problems {
-				out.Warning("cannot read " + p.Error())
-			}
-			if len(args) > 0 {
-				keep := map[string]bool{}
-				for _, a := range args {
-					keep[a] = true
-				}
-				var kept []*state.Ack
-				for _, a := range acks {
-					if keep[a.Discovery] {
-						kept = append(kept, a)
-					}
-				}
-				acks = kept
-			}
-			if acks == nil {
-				acks = []*state.Ack{}
-			}
-			if flagJSON {
-				return emitJSON(map[string]any{"acks": acks})
-			}
-			if len(acks) == 0 {
-				out.Println("No acknowledgements.")
-				return nil
-			}
-			for _, a := range acks {
-				declared := ""
-				if s.root.DiscoveryByName(a.Discovery) == nil {
-					declared = out.C(ui.Dim, " (not in the specification)")
-				}
-				out.Printf("%s  %s%s  %s\n", a.ID, a.Discovery, declared, out.C(ui.Dim, fmt.Sprintf("by %s, %s", orNone(a.By), a.At.Local().Format("2006-01-02"))))
-				for _, p := range a.Match.IDs {
-					out.Printf("    id    %s\n", engine.PlainText(p))
-				}
-				for _, p := range a.Match.Names {
-					out.Printf("    name  %s\n", engine.PlainText(p))
-				}
-				if a.Reason != "" {
-					out.Printf("    “%s”\n", engine.PlainText(a.Reason))
-				}
-			}
-			return nil
-		},
-	}
-	addTagFlags(cmd)
-	return cmd
-}
-
-func discoverUnackCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "unack <id>...",
-		Short: "Withdraw acknowledgements",
-		Long: `Deletes the acknowledgements with these ids ("pravo discover acks" lists them).
-The objects they covered ask to be adopted again.`,
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := newSession(cmd.Context(), sessionOptions{loadState: true})
-			if err != nil {
-				return err
-			}
-			defer s.close()
-			var gone, missing []string
-			for _, id := range args {
-				ok, err := s.state.DeleteAck(id)
-				if err != nil {
-					return engine.WithCode(engine.ExitInvalid, err)
-				}
-				if ok {
-					gone = append(gone, id)
-				} else {
-					missing = append(missing, id)
-				}
-			}
-			if flagJSON {
-				return emitJSON(map[string]any{"withdrawn": nonNil(gone), "missing": nonNil(missing)})
-			}
-			for _, id := range gone {
-				out.Printf("Withdrew %s.\n", id)
-			}
-			if len(missing) > 0 {
-				return fmt.Errorf("no acknowledgement %s", strings.Join(missing, ", "))
-			}
-			return nil
-		},
-	}
-	addTagFlags(cmd)
-	return cmd
 }
 
 // ---------- pravo discover adopt ----------

@@ -36,6 +36,7 @@ $fake: {
 			$type:   "fake_db"
 			$source: "example.test/x/fake"
 			$limit?: int & >0
+			$ack?: [...{ids?: [...string], names?: [...string], reason?: string}]
 			region?: string
 		}
 	}
@@ -75,6 +76,21 @@ func scopeDigest(t *testing.T, dir, name string) string {
 		t.Fatalf("no discovery %s", name)
 	}
 	return d.Digest
+}
+
+// acknowledge writes $ack entries into the discovery of the specification, as a
+// person would, and leaves the scope as it is.
+func (p *project) acknowledge(entries string) {
+	p.t.Helper()
+	spec, err := os.ReadFile(filepath.Join(p.dir, "main.cue"))
+	if err != nil {
+		p.t.Fatal(err)
+	}
+	next := strings.Replace(string(spec), `{region: "eu"}`, `{region: "eu", $ack: [`+entries+`]}`, 1)
+	if next == string(spec) {
+		p.t.Fatal("the discovery is not in the specification as the test wrote it")
+	}
+	writeSpec(p.t, p.dir, next)
 }
 
 func listedItems() []state.Listed {
@@ -137,10 +153,8 @@ func TestDiscoveryDocumentSetsTheRunAgainstTheState(t *testing.T) {
 		t.Errorf("%+v", v)
 	}
 
-	// The acknowledgement covers by name.
-	if _, err := p.store.PutAck(&state.Ack{Discovery: "vms", Match: state.AckMatch{Names: []string{"batch-*"}}, Reason: "nightly", By: "ana"}); err != nil {
-		t.Fatal(err)
-	}
+	// The acknowledgement is written in the specification and covers by name.
+	p.acknowledge(`{names: ["batch-*"], reason: "nightly"}`)
 	p.putRun(scopeDigest(t, p.dir, "vms"), listedItems())
 	d = p.waitDiscovery("the run", func(d Discovery) bool { v := find(d, "vms"); return v != nil && v.Run != nil })
 	v = find(d, "vms")
@@ -165,7 +179,7 @@ func TestDiscoveryDocumentSetsTheRunAgainstTheState(t *testing.T) {
 	if by["being adopted"].By != "adopting" || !by["being adopted"].Importable || by["stray-1"].Importable {
 		t.Errorf("%+v", by)
 	}
-	if ack := by["batch-1"]; ack.Reason != "nightly" || !strings.HasPrefix(ack.By, "ack-") {
+	if ack := by["batch-1"]; ack.Reason != "nightly" || ack.By != "$ack[0]" {
 		t.Errorf("%+v", ack)
 	}
 	if len(by["stray-1"].Identity) != 2 || by["stray-1"].Identity[0].Name != "name" || by["stray-1"].Identity[0].Value != "stray-1" {
@@ -177,13 +191,13 @@ func TestDiscoveryDocumentSetsTheRunAgainstTheState(t *testing.T) {
 	if g := find(d, "gone"); g != nil && g.AckAll != "" {
 		t.Errorf("a discovery that is not declared cannot be acknowledged: %q", g.AckAll)
 	}
-	if len(v.Acks) != 1 || v.Acks[0].Covers != 1 || v.Acks[0].Names[0] != "batch-*" || v.Acks[0].By != "ana" || v.Acks[0].Command != "pravo discover unack "+v.Acks[0].ID {
+	if len(v.Acks) != 1 || v.Acks[0].Covers != 1 || v.Acks[0].Names[0] != "batch-*" || v.Acks[0].Ref != "$ack[0]" || v.Acks[0].Reason != "nightly" {
 		t.Errorf("%+v", v.Acks)
 	}
 
 	// The scope changes: the run answers the old question.
 	spec, _ := os.ReadFile(filepath.Join(p.dir, "main.cue"))
-	writeSpec(t, p.dir, strings.Replace(string(spec), `{region: "eu"}`, `{region: "us"}`, 1))
+	writeSpec(t, p.dir, strings.Replace(string(spec), `region: "eu"`, `region: "us"`, 1))
 	d = p.waitDiscovery("the changed scope", func(d Discovery) bool { v := find(d, "vms"); return v != nil && v.Freshness == "stale" })
 	v = find(d, "vms")
 	if v.Scope[0].Value != "us" || v.Counts.Unmanaged != 1 || len(v.Items) != 3 {
@@ -194,14 +208,10 @@ func TestDiscoveryDocumentSetsTheRunAgainstTheState(t *testing.T) {
 func TestDiscoveryOfAnotherKind(t *testing.T) {
 	p := newDiscoveryProject(t)
 	p.putRun("anything", listedItems())
-	// A run of a discovery that the specification lacks, an acknowledgement of one
-	// that never existed, and a scope that cannot be listed with.
+	// A run of a discovery that the specification lacks.
 	now := time.Now().UTC()
 	if err := p.store.PutDiscovery(&state.DiscoveryRun{Name: "gone", Type: "fake_db", Provider: "example.test/x/fake", Started: now, Finished: now, Status: state.RunTruncated, Limit: 1,
 		Items: []state.Listed{state.ListedOf(map[string]any{"id": "g1"}, "g1")}}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.store.PutAck(&state.Ack{Discovery: "never", Match: state.AckMatch{IDs: []string{"x"}}}); err != nil {
 		t.Fatal(err)
 	}
 	d := p.waitDiscovery("the runs", func(d Discovery) bool { return find(d, "gone") != nil })
@@ -211,9 +221,6 @@ func TestDiscoveryOfAnotherKind(t *testing.T) {
 	g := find(d, "gone")
 	if g.Declared || g.Freshness != "undeclared" || g.Run.Status != "truncated" || g.Source != nil || g.Counts.Unmanaged != 1 {
 		t.Errorf("%+v", g)
-	}
-	if len(d.OrphanAcks) != 1 || d.OrphanAcks[0].Discovery != "never" || d.OrphanAcks[0].Covers != -1 {
-		t.Errorf("%+v", d.OrphanAcks)
 	}
 	if d.Unmanaged != 3 {
 		t.Errorf("the unmanaged objects of both runs count (two of vms, one of gone): %d", d.Unmanaged)
@@ -243,9 +250,7 @@ func TestDiscoveryTextsAreMaskedAndBounded(t *testing.T) {
 		state.ListedOf(map[string]any{"id": "i-2"}, strings.Repeat("long", 200)),
 	}
 	p.putRun("d", items)
-	if _, err := p.store.PutAck(&state.Ack{Discovery: "vms", Match: state.AckMatch{IDs: []string{"i-1"}}, Reason: "because " + secretBlob}); err != nil {
-		t.Fatal(err)
-	}
+	p.acknowledge(`{ids: ["i-1"], reason: "because ` + secretBlob + `"}`)
 	// secretBlob is a sensitive value of the state only when a record keeps it so.
 	if err := p.store.Set(record("holder", "fake_db", `{"name":"h","blob":"`+secretBlob+`"}`), "txn"); err != nil {
 		t.Fatal(err)
@@ -282,9 +287,7 @@ func TestDiscoveryListIsBounded(t *testing.T) {
 
 func TestAdoptEndpoint(t *testing.T) {
 	p := newDiscoveryProject(t)
-	if _, err := p.store.PutAck(&state.Ack{Discovery: "vms", Match: state.AckMatch{Names: []string{"batch-*"}}}); err != nil {
-		t.Fatal(err)
-	}
+	p.acknowledge(`{names: ["batch-*"], reason: "nightly"}`)
 	items := append(listedItems(), state.ListedOf(map[string]any{"id": "weird id; rm -rf /"}, "ugly"), state.ListedOf(map[string]any{"id": "id\nnewline"}, "newline"))
 	p.putRun(scopeDigest(t, p.dir, "vms"), items)
 	d := p.waitDiscovery("the run", func(d Discovery) bool { v := find(d, "vms"); return v != nil && v.Run != nil })
@@ -375,14 +378,11 @@ func TestAdoptEndpoint(t *testing.T) {
 	}
 }
 
-// The viewer reads the discoveries and writes nothing: not a record, not a run, not
-// an acknowledgement.
+// The viewer reads the discoveries and writes nothing: not a record, not a run.
 func TestDiscoveryViewerWritesNothing(t *testing.T) {
 	p := newDiscoveryProject(t)
 	p.putRun(scopeDigest(t, p.dir, "vms"), listedItems())
-	if _, err := p.store.PutAck(&state.Ack{Discovery: "vms", Match: state.AckMatch{IDs: []string{"xx"}}}); err != nil {
-		t.Fatal(err)
-	}
+	p.acknowledge(`{ids: ["xx"], reason: "x"}`)
 	p.waitDiscovery("the run", func(d Discovery) bool { v := find(d, "vms"); return v != nil && v.Run != nil })
 	before := digestTree(t, p.dir)
 	d := p.discovery()
@@ -443,12 +443,6 @@ func TestWatcherSeesDiscoveries(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 		_ = st.PutDiscovery(&state.DiscoveryRun{Name: "vms", Status: "truncated", Items: []state.Listed{{Key: "k", ID: "k"}}})
 	})
-	var id string
-	expect("an acknowledgement", func() {
-		a, _ := st.PutAck(&state.Ack{Discovery: "vms", Match: state.AckMatch{IDs: []string{"x"}}})
-		id = a.ID
-	})
-	expect("a withdrawn acknowledgement", func() { _, _ = st.DeleteAck(id) })
 	// Nothing written, no change.
 	rev := w.revision()
 	for i := 0; i < 5; i++ {

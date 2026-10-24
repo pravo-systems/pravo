@@ -148,3 +148,71 @@ b: $local2.#Discovery.local_file & {dir: "/"}
 		t.Error("the same scope through two provider instances has one digest")
 	}
 }
+
+func TestDiscoveryReadsItsAcks(t *testing.T) {
+	r, err := loadSpec(t, `d: $local.#Discovery.local_file & {
+	dir: "/srv"
+	$ack: [
+		{names: ["batch-*"], reason: "nightly"},
+		{ids: ["a-1", "b-?"]},
+	]
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := r.DiscoveryByName("d")
+	if len(d.Acks) != 2 || d.Acks[0].Ref() != "$ack[0]" || d.Acks[0].Names[0] != "batch-*" || d.Acks[0].Reason != "nightly" || d.Acks[1].IDs[1] != "b-?" {
+		t.Fatalf("%+v", d.Acks)
+	}
+	if !d.Acks[0].Covers("x", "x", "", "batch-7") || d.Acks[0].Covers("x", "x", "", "web") || d.Acks[0].Covers("batch-7", "batch-7", "", "") {
+		t.Error("a name pattern covers by name alone")
+	}
+	if !d.Acks[1].Covers("b-2", "k", "", "") || !d.Acks[1].Covers("x", "a-1", "", "") || !d.Acks[1].Covers("x", "k", "a-1", "") || d.Acks[1].Covers("b-22", "k", "", "") {
+		t.Error("an id pattern covers by id, key or import id")
+	}
+	// The acknowledgements are not part of the question a run answers.
+	without, err := loadSpec(t, `d: $local.#Discovery.local_file & {dir: "/srv"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if without.DiscoveryByName("d").Digest != d.Digest {
+		t.Error("an $ack changed the digest of the scope")
+	}
+}
+
+func TestDiscoveryRefusesAnAckThatCoversNothingOrEverything(t *testing.T) {
+	long := strings.Repeat("a", MaxPatternLen+1)
+	for name, entry := range map[string]string{
+		"nothing":     `{reason: "x"}`,
+		"an empty id": `{ids: [""]}`,
+		"everything":  `{ids: ["*"]}`,
+		"every name":  `{names: ["**"]}`,
+		"a long one":  `{ids: ["` + long + `"]}`,
+		"no reason":   `{ids: ["a"], reason: 3}`,
+	} {
+		body := `d: $local.#Discovery.local_file & {dir: "/", $ack: [` + entry + `]}`
+		_, err := loadSpec(t, body)
+		if err == nil || !strings.Contains(err.Error(), "$ack") {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if _, err := loadSpec(t, `d: $local.#Discovery.local_file & {dir: "/", $ack: [{ids: ["?"]}]}`); err != nil {
+		t.Errorf("? is one character, not everything: %v", err)
+	}
+}
+
+func TestGlob(t *testing.T) {
+	for _, c := range []struct {
+		pattern, s string
+		want       bool
+	}{
+		{"i-1", "i-1", true}, {"i-1", "i-12", false}, {"i-*", "i-12", true}, {"i-*", "i-", true}, {"*-1", "i-1", true},
+		{"*", "", true}, {"a*b*c", "aXXbYYc", true}, {"a*b*c", "aXXbYY", false}, {"i-?", "i-1", true}, {"i-?", "i-12", false},
+		{"arn:aws:s3:::*/logs", "arn:aws:s3:::b/x/logs", true}, {"[a]", "a", false}, {"[a]", "[a]", true},
+		{"héllo*", "héllo wörld", true}, {"", "", true}, {"", "x", false},
+	} {
+		if got := Glob(c.pattern, c.s); got != c.want {
+			t.Errorf("Glob(%q, %q) = %v", c.pattern, c.s, got)
+		}
+	}
+}

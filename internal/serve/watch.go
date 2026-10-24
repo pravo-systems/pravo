@@ -376,11 +376,10 @@ func remoteStateSignature(b state.Backend) (stateSig, locksSig, plansSig, discov
 	return digest(strings.Join(parts, "\n")), digest(strings.Join(keys, ";")), remotePlansSignature(ctx, b), remoteDiscoverySignature(ctx, b)
 }
 
-// localDiscoverySignature signs the objects of the discoveries in a local state:
-// the runs and the acknowledgements, by name, size and time. A state without any
-// costs two failed directory reads.
+// localDiscoverySignature signs the runs of the discoveries in a local state, by
+// name, size and time. A state without any costs a failed directory read.
 func localDiscoverySignature(location string) string {
-	return digest(dirSignature(filepath.Join(location, "discovery", "runs"), true) + dirSignature(filepath.Join(location, "discovery", "ack"), true))
+	return dirSignature(filepath.Join(location, "discovery", "runs"), true)
 }
 
 // maxDiscoverySigned bounds the objects of the discoveries that a bucket is asked
@@ -393,13 +392,9 @@ const maxDiscoverySigned = 200
 // bucket is looked at every fifth poll, and runs are written when someone runs
 // "pravo discover".
 func remoteDiscoverySignature(ctx context.Context, b state.Backend) string {
-	var keys []string
-	for _, prefix := range []string{state.DiscoveryRunDir, state.DiscoveryAckDir} {
-		list, err := b.List(ctx, prefix)
-		if err != nil {
-			return "!"
-		}
-		keys = append(keys, list...)
+	keys, err := b.List(ctx, state.DiscoveryRunDir)
+	if err != nil {
+		return "!"
 	}
 	if len(keys) > maxDiscoverySigned {
 		keys = keys[:maxDiscoverySigned]

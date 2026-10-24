@@ -116,6 +116,13 @@ func TestGenerateCUEWritesDiscoveries(t *testing.T) {
 	if err := def.Unify(ctx.CompileString(`{owner: "me", $limit: 0}`)).Validate(); err == nil {
 		t.Error("a limit of 0 was accepted")
 	}
+	ack := def.Unify(ctx.CompileString(`{owner: "me", $ack: [{names: ["batch-*"], reason: "nightly"}, {ids: ["i-1"]}]}`))
+	if err := ack.Validate(cue.Concrete(true)); err != nil {
+		t.Fatalf("an $ack that the definition allows: %v", err)
+	}
+	if err := def.Unify(ctx.CompileString(`{owner: "me", $ack: [{name: "x"}]}`)).Validate(); err == nil {
+		t.Error("an $ack entry with a field it does not have was accepted")
+	}
 	if err := def.Validate(cue.Concrete(true)); err == nil {
 		t.Error("a scope without its required attribute was concrete")
 	}

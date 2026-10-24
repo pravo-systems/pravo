@@ -82,7 +82,6 @@ export class DiscoveryView {
       (d.warnings || []).map((w) => h('p', { class: 'dv-warn', role: 'note' }, icon('bang'), h('span', null, w))),
       d.discoveries.length ? this.toolbar() : null,
       d.discoveries.length ? h('div', { class: 'dv-list' }, d.discoveries.map((x) => this.card(x))) : this.none(d),
-      (d.orphan_acks || []).length ? this.orphans(d.orphan_acks) : null,
       h('p', { class: 'dv-foot' }, FOOTER)));
     this.root.scrollTop = top;
     if (focus) {
@@ -293,25 +292,17 @@ export class DiscoveryView {
     return box;
   }
 
-  // acks lists the acknowledgements of a discovery: which objects each covers, why, and who wrote it.
+  // acks lists the $ack entries of a discovery as the specification has them: which objects each covers and why.
   acks(x) {
-    return h('details', { class: 'dv-acks' }, h('summary', null, `Acknowledgements · ${x.acks.length}`),
+    return h('details', { class: 'dv-acks' }, h('summary', null, `Acknowledged in the specification · ${x.acks.length}`),
       h('ul', null, x.acks.map((a) => this.ack(a))));
   }
 
-  ack(a, named) {
+  ack(a) {
     return h('li', { class: 'dv-ackrec' },
-      h('div', { class: 'top' }, named ? h('span', { class: 'nm' }, a.discovery) : null, h('code', null, a.id), h('span', { class: 'dim' }, `${a.by ? 'by ' + a.by + ', ' : ''}${relTime(a.at)}`),
+      h('div', { class: 'top' }, h('code', null, a.ref),
         a.covers >= 0 ? h('span', { class: 'b' }, `covers ${plural(a.covers, 'object')}`) : null),
       h('div', { class: 'pats' }, (a.ids || []).map((p) => h('span', { class: 'pat' }, h('i', null, 'id'), h('code', null, p))), (a.names || []).map((p) => h('span', { class: 'pat' }, h('i', null, 'name'), h('code', null, p)))),
-      a.reason ? h('p', { class: 'rs' }, '“', a.reason, '”') : null,
-      a.command ? command(a.command, false, 'Copy the command that withdraws it', 'unack:' + a.id) : null);
-  }
-
-  orphans(list) {
-    return h('section', { class: 'dv-orphans', 'aria-labelledby': 'dv-h-orph' },
-      h('h3', { id: 'dv-h-orph', class: 'dv-gh' }, 'Acknowledgements of discoveries that are gone', h('span', { class: 'n' }, String(list.length))),
-      h('p', { class: 'dv-note' }, 'The specification has no discovery of these names and the state holds no run of them. Withdraw them if they are not needed.'),
-      h('ul', null, list.map((a) => this.ack(a, true))));
+      a.reason ? h('p', { class: 'rs' }, '“', a.reason, '”') : null);
   }
 }

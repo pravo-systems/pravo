@@ -93,7 +93,7 @@
           "id": "vpc-0e10aa",
           "status": "acknowledged",
           "name": "default",
-          "by": "ack-4f1b9c02",
+          "by": "$ack[0]",
           "reason": "the default VPC of the account; nobody should use it",
           "identity": [
             {
@@ -112,7 +112,7 @@
           "id": "vpc-0b6a13",
           "status": "acknowledged",
           "name": "default (us-east-1 copy)",
-          "by": "ack-4f1b9c02",
+          "by": "$ack[0]",
           "reason": "the default VPC of the account; nobody should use it",
           "identity": [
             {
@@ -129,17 +129,13 @@
       ],
       "acks": [
         {
-          "id": "ack-4f1b9c02",
-          "discovery": "network.vpcs",
+          "ref": "$ack[0]",
           "ids": [
             "vpc-0e10aa",
             "vpc-0b6a13"
           ],
           "reason": "the default VPC of the account; nobody should use it",
-          "by": "dan@acme",
-          "at": "2026-10-18T16:02:11Z",
-          "covers": 2,
-          "command": "pravo discover unack ack-4f1b9c02"
+          "covers": 2
         }
       ],
       "command": "pravo discover network.vpcs",
@@ -294,7 +290,7 @@
           "id": "i-0bb0000",
           "status": "acknowledged",
           "name": "batch-runner-1",
-          "by": "ack-91c7d3aa",
+          "by": "$ack[0]",
           "reason": "nightly jobs; they come and go",
           "identity": [
             {
@@ -313,7 +309,7 @@
           "id": "i-0bb0001",
           "status": "acknowledged",
           "name": "batch-runner-2",
-          "by": "ack-91c7d3aa",
+          "by": "$ack[0]",
           "reason": "nightly jobs; they come and go",
           "identity": [
             {
@@ -332,7 +328,7 @@
           "id": "i-0bb0002",
           "status": "acknowledged",
           "name": "batch-runner-3",
-          "by": "ack-91c7d3aa",
+          "by": "$ack[0]",
           "reason": "nightly jobs; they come and go",
           "identity": [
             {
@@ -349,16 +345,12 @@
       ],
       "acks": [
         {
-          "id": "ack-91c7d3aa",
-          "discovery": "compute.instances",
+          "ref": "$ack[0]",
           "names": [
             "batch-runner-*"
           ],
           "reason": "nightly jobs; they come and go",
-          "by": "ben@acme",
-          "at": "2026-10-16T14:02:11Z",
-          "covers": 3,
-          "command": "pravo discover unack ack-91c7d3aa"
+          "covers": 3
         }
       ],
       "command": "pravo discover compute.instances",
@@ -457,20 +449,6 @@
         }
       ],
       "command": "pravo discover old.dbs"
-    }
-  ],
-  "orphan_acks": [
-    {
-      "id": "ack-c0ffee11",
-      "discovery": "experiments.queues",
-      "names": [
-        "tmp-*"
-      ],
-      "reason": "scratch queues",
-      "by": "eve@acme",
-      "at": "2026-09-30T18:02:11Z",
-      "covers": -1,
-      "command": "pravo discover unack ack-c0ffee11"
     }
   ],
   "warnings": [],

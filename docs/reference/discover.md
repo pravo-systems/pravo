@@ -11,14 +11,14 @@ capture: false
 
 | | |
 |---|---|
-| Synopsis | `pravo discover [NAME...]`, `pravo discover show [NAME...]`, `pravo discover ack NAME`, `pravo discover acks [NAME...]`, `pravo discover unack ID...`, `pravo discover adopt NAME ID` |
+| Synopsis | `pravo discover [NAME...]`, `pravo discover show [NAME...]`, `pravo discover ack NAME`, `pravo discover adopt NAME ID` |
 | Changes infrastructure | No. A discovery lists. |
 | Starts providers | `discover` and `adopt --read`. The other subcommands read the state and start nothing. |
-| Writes | `discover`: one object for each discovery it runs, `discovery/runs/<name>.json`. `ack` and `unack`: one object, `discovery/ack/<id>.json`. No record, no transaction and no lock. |
+| Writes | `discover`: one object for each discovery it runs, `discovery/runs/<name>.json`. Nothing else: no record, no transaction and no lock. |
 | Requires | A discovery in the specification, built from a provider that implements list resources. [Discovery](../concepts/discovery.md) explains what one is. |
 | Taught in | [Find what nothing manages](../how-to/find-what-nothing-manages.md). |
 
-A discovery is written `name: $provider.#Discovery.<type> & {scope...}` and may set `$limit`, the most objects that one run keeps. `NAME` is the address of the struct, such as `servers` or `network.vpcs`. A name that no discovery has is an error that lists the names that exist. A discovery cannot be called `show`, `ack`, `acks`, `unack` or `adopt`: a first argument that is one of them is the subcommand.
+A discovery is written `name: $provider.#Discovery.<type> & {scope...}` and may set `$limit`, the most objects that one run keeps, and `$ack`, the list of what is known and left alone. `NAME` is the address of the struct, such as `servers` or `network.vpcs`. A name that no discovery has is an error that lists the names that exist. A discovery cannot be called `show`, `ack` or `adopt`: a first argument that is one of them is the subcommand.
 
 ## pravo discover
 
@@ -38,7 +38,7 @@ With `--json` it prints one document, the one of `show --json` for the discoveri
 
 Prints what the last run of each discovery found, set against the records of the state and the declarations of the specification. It reads and writes nothing and starts no provider. In a sealed state it needs the identity of a reader, as `state show` does, since it compares attributes of records.
 
-For each discovery it prints the name, the type and the provider instance, the scope, the time of the last run and the counts. A discovery that has not run, whose scope cannot be listed with, whose scope changed since it ran, or that the specification does not declare says so, and `Run: pravo discover NAME` is the command that fixes the first two kinds. Then it lists the objects in groups: `UNMANAGED` with the command that adopts each, `ADOPTING` with the resource that adopts it, `ACKNOWLEDGED` with the record and its reason. A group lists 20 objects, then says how many more there are; `--json` lists them all. The managed objects are counted.
+For each discovery it prints the name, the type and the provider instance, the scope, the time of the last run and the counts. A discovery that has not run, whose scope cannot be listed with, whose scope changed since it ran, or that the specification does not declare says so, and `Run: pravo discover NAME` is the command that fixes the first two kinds. Then it lists the objects in groups: `UNMANAGED` with the command that adopts each, `ADOPTING` with the resource that adopts it, `ACKNOWLEDGED` with the `$ack` entry that covers it and its reason. A group lists 20 objects, then says how many more there are; `--json` lists them all. The managed objects are counted.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -47,15 +47,11 @@ For each discovery it prints the name, the type and the provider instance, the s
 
 ## pravo discover ack
 
-`pravo discover ack NAME [--id PATTERN]... [--name PATTERN]... [--unmanaged]` writes an acknowledgement: a record that the objects it covers are known and are meant to stay as they are. The objects are still listed and stop asking to be adopted.
+`pravo discover ack NAME [--id PATTERN]... [--name PATTERN]... [--unmanaged]` prints an entry for the `$ack` list of the discovery: the CUE that says the objects it covers are known and are meant to stay as they are. You add it to the discovery in the specification. Nothing is written to the specification or the state. The objects stay listed, and stop asking to be adopted once the entry is in.
 
-`--id` is a pattern for the id of an object, or its whole identity, and `--name` one for the name that the provider gave it. Both repeat. In a pattern `*` stands for any run of characters and `?` for one. `--unmanaged` covers the objects that are unmanaged in the last run, each by its id, and none that appear later. The record holds the patterns and the reason, which is the global `--reason`, with who wrote it (`--actor`, else the user) and when. Writing the same patterns again replaces the record, with the new reason. `NAME` may be a discovery that the specification does not declare, when the state holds a run of it.
+`--id` is a pattern for the id of an object, or its whole identity, and `--name` one for the name that the provider gave it. Both repeat. In a pattern `*` stands for any run of characters and `?` for one. `--unmanaged` covers the objects that are unmanaged in the last run, each by its id, and none that appear later. The `reason` of the entry is the global `--reason`. After the entry the command says how many objects of the last run it covers.
 
-A pattern that is empty, longer than 512 bytes or made of `*` alone is refused. So is a record with more than 10000 patterns.
-
-## pravo discover acks, unack
-
-`acks` lists the records, optionally of the named discoveries: the id, the discovery, who and when, the patterns and the reason. A record of a discovery that the specification does not have is marked. `unack ID...` deletes the records with these ids, and exits 1 for an id that no record has.
+A pattern that is empty, longer than 512 bytes or made of `*` alone is refused, and so is an entry with more than 10000 patterns. The specification is held to the same rules when it loads. With `--json` the command prints `discovery`, `entry` and `covers`.
 
 ## pravo discover adopt
 
@@ -70,9 +66,9 @@ An object whose identity is not an id, and is made of more than one attribute, h
 | Code | Meaning |
 |---|---|
 | 0 | The command did what it was asked. |
-| 1 | A discovery failed to run: the provider returned an error, the scope has no value, or the provider cannot list the type. An argument that is wrong. An id that no acknowledgement has. |
+| 1 | A discovery failed to run: the provider returned an error, the scope has no value, or the provider cannot list the type. An argument that is wrong. |
 | 2 | `show --exit-code` found an unmanaged object. |
-| 6 | The specification does not load, or `NAME` is not a discovery, or the object is not in the last run, or the object is managed, or the acknowledgement is refused. |
+| 6 | The specification does not load, or `NAME` is not a discovery, or the object is not in the last run, or the object is managed, or the entry of `ack` is refused, or an `$ack` entry of the specification is not valid. |
 
 The [global flags](global-flags.md) apply.
 
@@ -81,10 +77,9 @@ The [global flags](global-flags.md) apply.
 | Object | Holds |
 |---|---|
 | `discovery/runs/<name>.json` | The last run of one discovery: the type, the provider, the scope and its digest, the limit, when and by whom, `complete` or `truncated`, the warnings, and for each object its key, id, display name, identity and import id. The name is the address, with the characters that a file name cannot hold written as `%XXXX`. |
-| `discovery/ack/<id>.json` | One acknowledgement: `ack-` and eight hex digits of the digest of the discovery and the patterns, the discovery, the patterns, the reason, who and when. |
 
-Neither is sealed. `pravo state pull` and `pravo state push` copy them with the records.
+It is not sealed. `pravo state pull` and `pravo state push` copy it with the records. The acknowledgements are not in the state: they are the `$ack` of the specification.
 
 ## The viewer
 
-[`pravo serve`](serve.md#the-discovery-section) shows the same data in the Discovery section: each discovery as a card, the unmanaged objects first. It reads the two kinds of object and writes none. It offers the commands above as text.
+[`pravo serve`](serve.md#the-discovery-section) shows the same data in the Discovery section: each discovery as a card, the unmanaged objects first. It reads the runs and the specification and writes nothing. It offers the commands above as text.

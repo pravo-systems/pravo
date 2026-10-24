@@ -18,7 +18,7 @@ A provider that can list an object type offers a discovery of it, next to its re
 servers: $demo.#Discovery.demo_server & {region: "eu"}
 ```
 
-`#Discovery.<type>` is built from the list resource type of the provider. Its fields are the scope: the attributes that the provider lets you filter a list by, typed as the provider declares them. `pravo schema --discovery demo/demo_server` prints them. `$limit` is the most objects that one run keeps.
+`#Discovery.<type>` is built from the list resource type of the provider. Its fields are the scope: the attributes that the provider lets you filter a list by, typed as the provider declares them. `pravo schema --discovery demo/demo_server` prints them. `$limit` is the most objects that one run keeps. `$ack` lists what is known and left alone, as [Acknowledging](#acknowledging) says.
 
 The scope is written out in the specification. It cannot read an attribute of a resource, because nothing has been applied when a discovery runs. A scope that has a field without a value, or reads a value that a run would produce, fails when the discovery runs, and nothing else in the specification is affected.
 
@@ -28,7 +28,7 @@ The address of the struct, `servers` above, names the discovery. A discovery in 
 
 `pravo discover` starts the provider of the discovery, asks it to list, and writes what came back as one object in the state, `discovery/runs/<name>.json`. A later run of the same discovery replaces it. The object holds the scope, the digest of the scope, the time, the actor and one entry for each object found: its identity as the provider gave it, its display name and, when the identity gives one, the id that `$import` takes.
 
-It holds no attribute of an object. It is not sealed: it holds the identities and the names that a provider lists and what a person wrote in a reason, and an identity is not a secret. A run that fails keeps nothing and leaves the last run as it was.
+It holds no attribute of an object. It is not sealed: it holds the identities and the names that a provider lists, and an identity is not a secret. It is the only thing a discovery puts in the state. A run that fails keeps nothing and leaves the last run as it was.
 
 ## What each object is
 
@@ -38,7 +38,7 @@ The viewer and `pravo discover show` set the objects of the last run against the
 |---|---|---|
 | Managed | A record of the state is this object. | Counted. Never listed. |
 | Adopting | A resource of the specification names it in `$import`, and no record exists yet. | Listed, quietly, with the address of the resource. |
-| Acknowledged | An acknowledgement covers it. | Listed, quietly, with its reason. |
+| Acknowledged | An entry of `$ack` in the specification covers it. | Listed, quietly, with its reason. |
 | Unmanaged | None of the above. | Listed first, in colour, with the means to adopt it. |
 
 An object is **managed** when a record of the same type has the same value for every attribute of the identity that the record also carries, and at least one of those attributes says which object it is. The attributes `region`, `account_id`, `project`, `zone` and the like say where an object is and not which one, so two objects of a region are never taken for each other. A record that does not carry the attributes of an identity cannot be matched, and the object is listed as unmanaged. A mistake in this direction shows an object that is managed. The other direction would hide one that is not. A record that cannot be opened, in a sealed state, is counted, and the page says that objects it holds may be listed as unmanaged.
@@ -47,11 +47,23 @@ The status of the objects is where the weight of the page falls. The unmanaged o
 
 ## Acknowledging
 
-An acknowledgement says that an object is known and is meant to stay as it is: the default VPC of an account, the instances that a nightly job starts and removes. It is a record in the state, `discovery/ack/<id>.json`, that holds the name of the discovery, patterns, a reason, who wrote it and when.
+An acknowledgement says that an object is known and is meant to stay as it is: the default VPC of an account, the instances that a nightly job starts and removes. It is written in the specification, in the `$ack` list of the discovery, so it is reviewed, versioned and blamed like the rest of the code:
 
-A pattern is matched against the id of an object, or its whole identity, or its display name. `*` stands for any run of characters and `?` for one. One acknowledgement can cover many objects, and the objects that appear later and match it. A pattern that matches everything is refused.
+```cue
+servers: $demo.#Discovery.demo_server & {
+	region: "eu"
+	$ack: [
+		{names: ["batch-*"], reason: "started and removed by the nightly job"},
+		{ids: ["srv-web-old"], reason: "retired in the autumn"},
+	]
+}
+```
 
-An acknowledged object is still listed. It stops asking to be adopted, and it does not count for the number on the tab of the viewer, for `pravo discover show --exit-code` or for the sentence at the head of the page. Withdrawing the acknowledgement brings it back.
+An entry has `ids`, `names` or both, and a `reason`. A pattern in `ids` is matched against the id of an object, or its whole identity, or the id that `$import` takes. A pattern in `names` is matched against the display name the provider gave. `*` stands for any run of characters and `?` for one. One entry can cover many objects, and the objects that appear later and match it. An entry with no pattern, or a pattern that matches everything, is an error when the specification loads.
+
+`pravo discover ack` prints an entry for you to paste in. It writes nothing, and the state holds no acknowledgement.
+
+An acknowledged object is still listed. It stops asking to be adopted, and it does not count for the number on the tab of the viewer, for `pravo discover show --exit-code` or for the sentence at the head of the page. Take the entry out of the specification and it asks again. The entries are not part of the scope: changing them does not make the last run stale, since they change what the objects mean and not what was listed.
 
 ## The scope and when to run again
 

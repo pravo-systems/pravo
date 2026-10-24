@@ -259,6 +259,11 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 	}
 	if mode == "discovery" {
 		d := newDiscovery(v, p, typ, src)
+		acks, err := parseAcks(v, p.String())
+		if err != nil {
+			return err
+		}
+		d.Acks = acks
 		r.Discoveries = append(r.Discoveries, d)
 		// A discovery is not a node of the graph: it finds objects and manages none.
 		// It still names the provider it lists through, which is found as for a

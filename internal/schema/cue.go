@@ -86,6 +86,14 @@ const importMeta = `		// The id of an existing object to bring under management,
 // resource's own schema gives it.
 const discoveryMeta = `		// The most objects one run lists. Leave out for the provider's own bound.
 		$limit?: int & >0
+		// Objects that are known and meant to stay unmanaged. An entry covers the objects whose id
+		// or whole identity matches one of ids, or whose name matches one of names: * stands for
+		// any run of characters and ? for one. They are still listed, and stop asking to be adopted.
+		$ack?: [...{
+			ids?:    [...__string]
+			names?:  [...__string]
+			reason?: __string
+		}]
 `
 
 const resourceMeta = `		// Additional dependencies, as references to other resources.

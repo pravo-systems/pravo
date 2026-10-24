@@ -54,10 +54,10 @@ type DiscoveredItem struct {
 	state.Listed
 	Status DiscoveryStatus
 	// By says what decided the status: the address of the record that is the object
-	// (Managed), of the resource that adopts it (Adopting), or the id of the
-	// acknowledgement that covers it (Acknowledged).
+	// (Managed), of the resource that adopts it (Adopting), or the entry of $ack that
+	// covers it, such as "$ack[0]" (Acknowledged).
 	By string
-	// Reason is the reason of the acknowledgement.
+	// Reason is the reason of the $ack entry.
 	Reason string
 }
 
@@ -83,8 +83,8 @@ type DiscoveryView struct {
 	// Unreadable counts the records of the type that could not be read, so that the
 	// objects they are may be listed as unmanaged.
 	Unreadable int
-	// Acks are the acknowledgements of the discovery.
-	Acks []*state.Ack
+	// Acks are the $ack entries of the discovery, as the specification has them now.
+	Acks []*config.Ack
 }
 
 // Unmanaged returns the items that ask to be adopted.
@@ -101,13 +101,9 @@ func (v *DiscoveryView) WithStatus(s DiscoveryStatus) []DiscoveredItem {
 	return out
 }
 
-// DiscoveryReport is every discovery, and the acknowledgements of discoveries that
-// are not declared.
+// DiscoveryReport is every discovery.
 type DiscoveryReport struct {
 	Views []*DiscoveryView
-	// OrphanAcks are acknowledgements of a discovery that the specification does
-	// not have and the state holds no run of.
-	OrphanAcks []*state.Ack
 }
 
 // View finds a discovery's view by name.
@@ -125,7 +121,6 @@ func (r *DiscoveryReport) View(name string) *DiscoveryView {
 type DiscoveryInputs struct {
 	Root    *config.Root
 	Runs    map[string]*state.DiscoveryRun
-	Acks    []*state.Ack
 	Records []*state.Resource
 }
 
@@ -144,16 +139,12 @@ func BuildDiscoveryReport(in DiscoveryInputs) *DiscoveryReport {
 	}
 	idx := indexRecords(in.Records, listed)
 	adopts := adoptions(in.Root)
-	acksBy := map[string][]*state.Ack{}
-	for _, a := range in.Acks {
-		acksBy[a.Discovery] = append(acksBy[a.Discovery], a)
-	}
 	rep := &DiscoveryReport{}
 	declared := map[string]bool{}
 	for _, d := range in.Root.Discoveries {
 		declared[d.Name] = true
 		v := &DiscoveryView{Name: d.Name, Type: d.Type, Provider: d.Source.String(), ProviderKey: d.ProviderKey, Declared: true,
-			Scope: d.Scope, Limit: d.Limit, Run: in.Runs[d.Name], Acks: acksBy[d.Name]}
+			Scope: d.Scope, Limit: d.Limit, Run: in.Runs[d.Name], Acks: d.Acks}
 		switch {
 		case d.ScopeErr != nil:
 			v.Freshness, v.ScopeErr = FreshBroken, d.ScopeErr.Error()
@@ -177,15 +168,10 @@ func BuildDiscoveryReport(in DiscoveryInputs) *DiscoveryReport {
 	for _, name := range extra {
 		run := in.Runs[name]
 		v := &DiscoveryView{Name: name, Type: run.Type, Provider: run.Provider, ProviderKey: run.ProviderKey, Freshness: FreshUndeclared,
-			Scope: run.Scope, Limit: run.Limit, Run: run, Acks: acksBy[name]}
+			Scope: run.Scope, Limit: run.Limit, Run: run}
 		v.fill(idx, adopts)
 		rep.Views = append(rep.Views, v)
 		declared[name] = true
-	}
-	for _, a := range in.Acks {
-		if !declared[a.Discovery] {
-			rep.OrphanAcks = append(rep.OrphanAcks, a)
-		}
 	}
 	return rep
 }
@@ -209,7 +195,7 @@ func (v *DiscoveryView) fill(idx map[string][]recordIdentity, adopts map[string]
 		} else if addr, ok := adoptedBy(l, adopts[v.Type]); ok {
 			it.Status, it.By = Adopting, addr
 		} else if a := coveredBy(l, v.Acks); a != nil {
-			it.Status, it.By, it.Reason = Acknowledged, a.ID, a.Reason
+			it.Status, it.By, it.Reason = Acknowledged, a.Ref(), a.Reason
 		}
 		v.Counts[it.Status]++
 		v.Items = append(v.Items, it)
@@ -227,9 +213,9 @@ func (v *DiscoveryView) fill(idx map[string][]recordIdentity, adopts map[string]
 	})
 }
 
-func coveredBy(l state.Listed, acks []*state.Ack) *state.Ack {
+func coveredBy(l state.Listed, acks []*config.Ack) *config.Ack {
 	for _, a := range acks {
-		if a.Covers(l) {
+		if a.Covers(l.ID, l.Key, l.ImportID, l.Name) {
 			return a
 		}
 	}
@@ -503,3 +489,29 @@ var bidiEscaper = func() *strings.Replacer {
 	}
 	return strings.NewReplacer(pairs...)
 }()
+
+// AckEntry is the CUE of an entry of the $ack list of a discovery, which says that
+// the objects it matches are known and meant to stay unmanaged. A person adds it to
+// the list of the discovery in the specification: pravo does not edit the files.
+func AckEntry(discovery string, ids, names []string, reason string) string {
+	list := func(patterns []string) string {
+		parts := make([]string, len(patterns))
+		for i, p := range patterns {
+			parts[i] = quoteCUE(p)
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "// An entry of $ack in the discovery %s, which is the list `$ack: [...]` of its struct.\n{\n", oneLine(discovery))
+	if len(ids) > 0 {
+		fmt.Fprintf(&b, "\tids: %s\n", list(ids))
+	}
+	if len(names) > 0 {
+		fmt.Fprintf(&b, "\tnames: %s\n", list(names))
+	}
+	if reason != "" {
+		fmt.Fprintf(&b, "\treason: %s\n", quoteCUE(reason))
+	}
+	b.WriteString("}\n")
+	return b.String()
+}

@@ -44,11 +44,7 @@ func (m *model) buildDiscovery(rev string) {
 	if err != nil {
 		warnings = append(warnings, "The discoveries could not be listed: "+err.Error())
 	}
-	acks, ackProblems, err2 := m.store.Acks()
-	if err2 != nil {
-		warnings = append(warnings, "The acknowledgements could not be listed: "+err2.Error())
-	}
-	for _, p := range append(problems, ackProblems...) {
+	for _, p := range problems {
 		warnings = append(warnings, fmt.Sprintf("%s cannot be read: %s", p.Key, headline(p.Err.Error())))
 	}
 	var records []*state.Resource
@@ -64,15 +60,12 @@ func (m *model) buildDiscovery(rev string) {
 	if root == nil {
 		root = &config.Root{}
 	}
-	report := engine.BuildDiscoveryReport(engine.DiscoveryInputs{Root: root, Runs: runs, Acks: acks, Records: records})
+	report := engine.BuildDiscoveryReport(engine.DiscoveryInputs{Root: root, Runs: runs, Records: records})
 	doc := &Discovery{Version: APIVersion, Revision: rev, SpecOK: specOK, Discoveries: []DiscoveryInfo{}, Command: "pravo discover"}
 	for _, v := range report.Views {
 		info := m.discoveryInfo(v, specOK)
 		doc.Unmanaged += info.Counts.Unmanaged
 		doc.Discoveries = append(doc.Discoveries, info)
-	}
-	for _, a := range report.OrphanAcks {
-		doc.OrphanAcks = append(doc.OrphanAcks, m.ackInfo(a, nil))
 	}
 	for i := range warnings {
 		warnings[i] = m.scrubText(warnings[i])
@@ -168,7 +161,7 @@ func (m *model) discoveryInfo(v *engine.DiscoveryView, specOK bool) DiscoveryInf
 	return info
 }
 
-func (m *model) ackInfo(a *state.Ack, v *engine.DiscoveryView) AckInfo {
+func (m *model) ackInfo(a *config.Ack, v *engine.DiscoveryView) AckInfo {
 	pats := func(in []string) []string {
 		var out []string
 		for i, p := range in {
@@ -180,17 +173,15 @@ func (m *model) ackInfo(a *state.Ack, v *engine.DiscoveryView) AckInfo {
 		}
 		return out
 	}
-	info := AckInfo{ID: a.ID, Discovery: m.clipText(a.Discovery), IDs: pats(a.Match.IDs), Names: pats(a.Match.Names),
-		Reason: m.clipText(a.Reason), By: m.clipText(a.By), At: a.At, Covers: -1}
+	info := AckInfo{Ref: a.Ref(), IDs: pats(a.IDs), Names: pats(a.Names), Reason: m.clipText(a.Reason), Covers: -1}
 	if v != nil && v.Run != nil {
 		info.Covers = 0
 		for _, l := range v.Run.Items {
-			if a.Covers(l) {
+			if a.Covers(l.ID, l.Key, l.ImportID, l.Name) {
 				info.Covers++
 			}
 		}
 	}
-	info.Command = "pravo discover unack " + a.ID
 	return info
 }
 

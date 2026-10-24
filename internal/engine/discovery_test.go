@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/pravo-systems/pravo/internal/config"
@@ -186,8 +187,8 @@ adopt: ` + thing("adopt", `$import: "i-adopt"`),
 	if err != nil {
 		t.Fatal(err)
 	}
-	ack := &state.Ack{ID: "ack-aaaaaaaa", Discovery: "vms", Match: state.AckMatch{Names: []string{"batch-*"}}, Reason: "the nightly jobs"}
-	rep := BuildDiscoveryReport(DiscoveryInputs{Root: e.Root, Runs: map[string]*state.DiscoveryRun{"vms": run}, Acks: []*state.Ack{ack}, Records: h.state.List()})
+	e.Root.DiscoveryByName("vms").Acks = []*config.Ack{{Index: 0, Names: []string{"batch-*"}, Reason: "the nightly jobs"}}
+	rep := BuildDiscoveryReport(DiscoveryInputs{Root: e.Root, Runs: map[string]*state.DiscoveryRun{"vms": run}, Records: h.state.List()})
 
 	v := rep.View("vms")
 	if v == nil || v.Freshness != FreshCurrent || !v.Declared || len(rep.Views) != 1 {
@@ -227,7 +228,7 @@ adopt: ` + thing("adopt", `$import: "i-adopt"`),
 				t.Errorf("the adopter is %q", it.By)
 			}
 		case Acknowledged:
-			if it.By != "ack-aaaaaaaa" || it.Reason != "the nightly jobs" {
+			if it.By != "$ack[0]" || it.Reason != "the nightly jobs" {
 				t.Errorf("%+v", it)
 			}
 		}
@@ -249,8 +250,8 @@ func TestReportFreshness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report := func(e *Engine, runs map[string]*state.DiscoveryRun, acks ...*state.Ack) *DiscoveryReport {
-		return BuildDiscoveryReport(DiscoveryInputs{Root: e.Root, Runs: runs, Acks: acks})
+	report := func(e *Engine, runs map[string]*state.DiscoveryRun) *DiscoveryReport {
+		return BuildDiscoveryReport(DiscoveryInputs{Root: e.Root, Runs: runs})
 	}
 	runs := map[string]*state.DiscoveryRun{"vms": run}
 	if v := report(e, runs).View("vms"); v.Freshness != FreshCurrent {
@@ -274,18 +275,12 @@ func TestReportFreshness(t *testing.T) {
 	if v := report(broken, runs).View("vms"); v.Freshness != FreshBroken || v.ScopeErr == "" {
 		t.Errorf("%+v", v)
 	}
-	// The discovery is gone from the specification but its run is in the state, and
-	// so are acknowledgements of it and of one that never existed.
+	// The discovery is gone from the specification but its run is in the state: with
+	// no $ack to speak for its objects they are unmanaged.
 	gone := h.engine(spec{cue: `other: "x"`}, Options{})
-	ackGone := &state.Ack{ID: "ack-11111111", Discovery: "vms", Match: state.AckMatch{IDs: []string{"i-1"}}}
-	ackNever := &state.Ack{ID: "ack-22222222", Discovery: "never", Match: state.AckMatch{IDs: []string{"x"}}}
-	rep := report(gone, runs, ackGone, ackNever)
-	v = rep.View("vms")
-	if v == nil || v.Freshness != FreshUndeclared || v.Declared || len(v.Items) != 1 || v.Items[0].Status != Acknowledged {
+	v = report(gone, runs).View("vms")
+	if v == nil || v.Freshness != FreshUndeclared || v.Declared || len(v.Items) != 1 || v.Items[0].Status != Unmanaged {
 		t.Errorf("a run that nothing declares: %+v", v)
-	}
-	if len(rep.OrphanAcks) != 1 || rep.OrphanAcks[0].ID != "ack-22222222" {
-		t.Errorf("orphan acknowledgements: %+v", rep.OrphanAcks)
 	}
 }
 
@@ -339,12 +334,43 @@ func TestReportCountsTheRecordsItCannotRead(t *testing.T) {
 	}
 }
 
-func TestAnAcknowledgementOfAnotherDiscoveryCoversNothing(t *testing.T) {
-	run := &state.DiscoveryRun{Name: "d", Type: "t", Items: []state.Listed{state.ListedOf(map[string]any{"id": "i-1"}, "")}}
-	other := &state.Ack{ID: "ack-33333333", Discovery: "e", Match: state.AckMatch{IDs: []string{"i-1"}}}
-	rep := BuildDiscoveryReport(DiscoveryInputs{Root: &config.Root{}, Runs: map[string]*state.DiscoveryRun{"d": run}, Acks: []*state.Ack{other}})
-	if got := rep.View("d").Items[0].Status; got != Unmanaged {
+// An $ack covers the objects of its own discovery and no other.
+func TestAnAckCoversTheObjectsOfItsOwnDiscoveryOnly(t *testing.T) {
+	h := newHarness(t)
+	e := h.engine(spec{cue: "a: {}\nb: {}", discoveries: []string{"a", "b"}}, Options{})
+	e.Root.DiscoveryByName("a").Acks = []*config.Ack{{Index: 0, IDs: []string{"i-1"}, Reason: "x"}}
+	item := []state.Listed{state.ListedOf(map[string]any{"id": "i-1"}, "")}
+	runs := map[string]*state.DiscoveryRun{
+		"a": {Name: "a", Type: "fake_thing", Digest: e.Root.DiscoveryByName("a").Digest, Items: item},
+		"b": {Name: "b", Type: "fake_thing", Digest: e.Root.DiscoveryByName("b").Digest, Items: item},
+	}
+	rep := BuildDiscoveryReport(DiscoveryInputs{Root: e.Root, Runs: runs})
+	if got := rep.View("a").Items[0].Status; got != Acknowledged {
+		t.Errorf("a: %s", got)
+	}
+	if got := rep.View("b").Items[0].Status; got != Unmanaged {
+		t.Errorf("b: %s", got)
+	}
+	// Changing what is acknowledged does not make a run stale.
+	if rep.View("a").Freshness != FreshCurrent {
+		t.Errorf("%s", rep.View("a").Freshness)
+	}
+}
+
+func TestAckEntryIsCUE(t *testing.T) {
+	got := FormatCUE(AckEntry("vms", []string{"i-1", `we"ird`}, []string{"batch-*"}, "the nightly\njob"))
+	for _, want := range []string{`ids:`, `"i-1"`, `"we\"ird"`, `names:`, `"batch-*"`, `reason:`, `"the nightly\njob"`, "$ack: [...]"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the entry lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Count(got, "\n") < 4 || strings.Contains(AckEntry("vms", []string{"a"}, nil, ""), "reason") {
 		t.Errorf("%s", got)
+	}
+	// It is an entry of the list that the definition describes.
+	spec := "x: [" + strings.SplitN(got, "\n", 2)[1] + "]"
+	if v := cuecontext.New().CompileString(spec); v.Err() != nil {
+		t.Errorf("not CUE: %v\n%s", v.Err(), spec)
 	}
 }
 
