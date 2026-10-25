@@ -471,7 +471,7 @@ pravo apply $id --json 2>/dev/null | tail -n 1
 ```
 
 ```text out
-{"added":1,"changed":0,"destroyed":1,"kind":"apply","outputs":{},"phase":"done","plan":"plan-<id>","remaining":0,"txn":"<txn>"}
+{"added":1,"changed":0,"destroyed":1,"kind":"apply","outputs":{},"phase":"done","plan":"plan-<id>","policies":[],"remaining":0,"txn":"<txn>"}
 ```
 
 ### A partly stale plan
@@ -663,7 +663,7 @@ pravo apply --json --auto-approve --replace solo 2>/dev/null | grep -E '"kind":"
 
 ```text out
 {"time":"<time>","kind":"replace","addr":"solo","phase":"done","message":"solo: Replacement complete after 0s [id=93]","id":"93","txn":"<txn>"}
-{"added":1,"changed":0,"destroyed":1,"kind":"apply","outputs":{},"phase":"done","planfile":"","remaining":0,"txn":"<txn>"}
+{"added":1,"changed":0,"destroyed":1,"kind":"apply","outputs":{},"phase":"done","planfile":"","policies":[],"remaining":0,"txn":"<txn>"}
 ```
 
 The last line has `"kind":"apply"`, the counts, the outputs and the name of the plan file when there is one. An apply of a stored plan names the id under `plan` and not `planfile`. The event fields are in [Global flags](global-flags.md#json).

@@ -339,6 +339,7 @@ pravo -C root apply --auto-approve | grep -E '^(Policies|Apply complete)'
 ```text out
 policy tests pass
 Policies: +0 new, ~1 changed, -0 removed.
+Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
@@ -408,6 +409,7 @@ pravo -C root apply --auto-approve | grep -E '^(Policies|Apply complete)'
 ```text out
 {"addr":"port","type":"random_integer","action":"replace"}
 policy tests pass
+Policies: +0 new, ~1 changed, -0 removed.
 Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 ```

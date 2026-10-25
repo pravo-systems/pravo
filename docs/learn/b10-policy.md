@@ -245,6 +245,8 @@ pravo -C root apply --auto-approve | sed -n '/^Policies/,/^Graph/p;/^Apply compl
 Policies: +1 new, ~0 changed, -0 removed.
   + no_delete (sha256:d0fce23004ba)
 Graph: planned 2
+Policies: +1 new, ~0 changed, -0 removed.
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 
@@ -423,6 +425,8 @@ ls root/pravo.state/policy
 Policies: +0 new, ~0 changed, -1 removed.
   - no_delete (version 1)
 Graph: planned 0 · skipped 3 · not read 3
+Policies: +0 new, ~0 changed, -1 removed.
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 no_delete@00000001.json
 no_delete@00000002.json
@@ -577,6 +581,8 @@ sed -i 's/secret/new secret/' root/main.cue
 Policies: +0 new, ~1 changed, -0 removed.
   ~ no_delete (version 2, sha256:5530c1a63699)
 Graph: planned 0 · skipped 2 · not read 2
+Policies: +0 new, ~1 changed, -0 removed.
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 
 ```sh run

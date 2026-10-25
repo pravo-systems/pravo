@@ -2173,6 +2173,18 @@ type ApplyResult struct {
 	// Outputs are not changes: an apply that fails before it records them
 	// leaves them to the next one, whatever Applied holds.
 	Applied []string
+	// Policies lists the policy versions the apply wrote: the new policies, the
+	// new texts and the removals, with the sequence number of each version.
+	Policies []PolicyWritten
+}
+
+// PolicyWritten is a version of a policy that an apply wrote.
+type PolicyWritten struct {
+	Name string `json:"name"`
+	// Seq is the number of the version written.
+	Seq int `json:"seq"`
+	// Change is "new", "changed" or "removed".
+	Change string `json:"change"`
 }
 
 // complete notes that the apply finished and recorded the change at addr.
@@ -2478,6 +2490,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	if len(plan.Policies) > 0 && !plan.Partial {
 		if err := e.writePolicies(ctx, policies, plan); err != nil {
 			return fail(err)
+		}
+		for _, en := range plan.Policies {
+			result.Policies = append(result.Policies, PolicyWritten{Name: en.Name, Seq: en.Base + 1, Change: en.Kind()})
 		}
 	}
 	result.Applied = e.completedAddrs()

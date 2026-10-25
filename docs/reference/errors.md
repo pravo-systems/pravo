@@ -1460,6 +1460,7 @@ pravo apply --auto-approve | grep -E '^(Policies|Apply complete)'
 
 ```text out
 Policies: +1 new, ~0 changed, -0 removed.
+Policies: +1 new, ~0 changed, -0 removed.
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
@@ -1509,6 +1510,7 @@ pravo plan --destroy 2>&1 | sed -n '/^Error/,$p'
 
 ```text out
 Policies: +0 new, ~1 changed, -0 removed.
+Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 Error: the plan violates the policy check@2 (sha256:<digest>):
 changes.0: pet: delete is not allowed:
@@ -1522,6 +1524,7 @@ rm -rf pravo.state .pravo
 ```
 
 ```text out
+Policies: +0 new, ~0 changed, -1 removed.
 Policies: +0 new, ~0 changed, -1 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 ```
