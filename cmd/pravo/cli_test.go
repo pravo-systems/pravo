@@ -419,7 +419,7 @@ func TestSavedPlanOfAnOutputIsApplied(t *testing.T) {
 			t.Fatalf("pravo %s exited %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
-	if text, code := runPravo(t, dir, "plan", "-t", "label=b", "--out", "change.plan"); code != 0 || !strings.Contains(text, `shown: "b"`) {
+	if text, code := runPravo(t, dir, "plan", "-t", "label=b", "--out", "change.plan"); code != 0 || !strings.Contains(text, `shown: "a" → "b"`) {
 		t.Fatalf("plan --out exited %d:\n%s", code, text)
 	}
 	text, code := runPravo(t, dir, "apply", "change.plan")

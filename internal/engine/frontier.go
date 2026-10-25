@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"sort"
 
 	"github.com/pravo-systems/pravo/internal/convert"
@@ -261,6 +262,17 @@ func (e *Engine) frontier(plan *Plan) error {
 	plan.Write = plan.writeAddrs()
 	plan.EvalOutputs = e.outputsToEval(plan)
 	plan.DropOutputs = e.outputsToDrop()
+	recorded := e.State.Outputs()
+	for _, names := range [][]string{plan.EvalOutputs, plan.DropOutputs} {
+		for _, n := range names {
+			if old, ok := recorded[n]; ok {
+				if plan.OldOutputs == nil {
+					plan.OldOutputs = map[string]json.RawMessage{}
+				}
+				plan.OldOutputs[n] = old
+			}
+		}
+	}
 	sc, err := e.scopeFor(plan)
 	if err != nil {
 		return err

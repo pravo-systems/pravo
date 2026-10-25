@@ -175,6 +175,10 @@ type Plan struct {
 	// loaded from a file.
 	SavedOutputs   map[string]json.RawMessage
 	UnknownOutputs []string
+	// OldOutputs holds the recorded value, as the state wraps it, of each
+	// output that EvalOutputs or DropOutputs names and that has one. A plan
+	// shows these outputs, and no others.
+	OldOutputs map[string]json.RawMessage
 	// Actor that made the plan (from the file, when loaded).
 	Actor string
 	// Reservation taken by the plan on its pending nodes, if any.

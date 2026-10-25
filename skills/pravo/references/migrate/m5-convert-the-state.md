@@ -321,10 +321,7 @@ pravo will perform the following actions:
 Plan: 0 to add, 0 to change, 0 to destroy, 9 to move.
 Graph: planned 8 · refreshed 9 · to move 9
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-charmed-buzzard"
+Outputs: 3 outputs unchanged.
 Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
 ```
 
@@ -556,10 +553,7 @@ Output:
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-charmed-buzzard"
+Outputs: 3 outputs unchanged.
 Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
 exit=0
 ```
@@ -599,10 +593,7 @@ pravo will perform the following actions:
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 8 · refreshed 1 · not read 8
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-charmed-buzzard"
+Outputs: 3 outputs unchanged.
 Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
 
 Saved the plan to change.plan. To apply exactly these actions, run:
@@ -650,10 +641,7 @@ Output:
 No changes. The specification matches the state. 9 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 9 · refreshed 1 · not read 9
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-charmed-buzzard"
+Outputs: 3 outputs unchanged.
 ```
 
 ## Recap

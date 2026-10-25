@@ -39,6 +39,7 @@ export function writeFragment(v) {
   put('plan', v.plan);
   put('q', v.q);
   put('dq', v.dq);
+  put('plq', v.plq);
   put('view', v.view === 'list' ? 'list' : v.view === 'access' ? 'state' : v.view === 'plans' ? 'plans' : v.view === 'discovery' ? 'discovery' : v.view === 'traces' ? 'traces' : '');
   put('trace', v.trace);
   put('span', v.span);

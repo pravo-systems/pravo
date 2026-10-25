@@ -136,7 +136,7 @@ export class DiscoveryView {
     const box = h('div', { class: 'filterbox' }, icon('search'), input, this.countEl);
     let t = 0;
     input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => this.setQuery(input.value, true, true), 100); });
-    new QueryMenu(input, box, { model: () => this.doc, suggest: dq.suggest, change: (v) => { clearTimeout(t); this.setQuery(v, true, true); } });
+    new QueryMenu(input, box, { id: 'qsug-dv', model: () => this.doc, suggest: dq.suggest, change: (v) => { clearTimeout(t); this.setQuery(v, true, true); } });
     return h('div', { class: 'dv-tools' }, box, this.pillsEl);
   }
 

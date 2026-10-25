@@ -68,6 +68,7 @@ func TestRenderPlanOutputsKeepMarkupCharacters(t *testing.T) {
 			"link": json.RawMessage(`"<a href=\"/\">home</a> & more"`),
 			"list": json.RawMessage(`["<b>", {"k": "a&b"}]`),
 		},
+		EvalOutputs: []string{"link", "list"},
 	}
 	got := render(plan)
 	if strings.Contains(got, `\u00`) {
@@ -77,6 +78,53 @@ func TestRenderPlanOutputsKeepMarkupCharacters(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("the outputs lack %s:\n%s", want, got)
 		}
+	}
+}
+
+func TestRenderPlanShowsOnlyTheOutputsThatChange(t *testing.T) {
+	plan := &engine.Plan{
+		Changes: []*engine.Change{{Addr: "home", Type: "local_file", Action: engine.ActionCreate, Schema: pageBlock(), Planned: page("x", "y")}},
+		SavedOutputs: map[string]json.RawMessage{
+			"url":    json.RawMessage(`"https://new"`),
+			"steady": json.RawMessage(`"unchanging"`),
+			"token":  json.RawMessage(`"s3cret"`),
+		},
+		UnknownOutputs:   []string{"port"},
+		SensitiveOutputs: map[string]bool{"token": true},
+		EvalOutputs:      []string{"url", "port", "token"},
+		DropOutputs:      []string{"gone"},
+		OldOutputs: map[string]json.RawMessage{
+			"url":  json.RawMessage(`"https://old"`),
+			"gone": json.RawMessage(`7`),
+		},
+	}
+	got := render(plan)
+	for _, want := range []string{`url: "https://old" → "https://new"`, `port: (known after apply)`, `token: (sensitive)`, `gone: 7 → (removed)`, `1 output unchanged.`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the plan lacks %s:\n%s", want, got)
+		}
+	}
+	for _, not := range []string{"unchanging", "s3cret"} {
+		if strings.Contains(got, not) {
+			t.Errorf("the plan shows %s:\n%s", not, got)
+		}
+	}
+}
+
+func TestRenderPlanCountsASensitiveOutputThatKeepsItsValue(t *testing.T) {
+	plan := &engine.Plan{
+		Changes: []*engine.Change{{Addr: "home", Type: "local_file", Action: engine.ActionCreate, Schema: pageBlock(), Planned: page("x", "y")}},
+		SavedOutputs: map[string]json.RawMessage{
+			"ports": json.RawMessage(`[8111, 8974]`),
+		},
+		SensitiveOutputs: map[string]bool{"ports": true},
+		EvalOutputs:      []string{"ports"},
+		// The state lays the value out differently from the plan.
+		OldOutputs: map[string]json.RawMessage{"ports": engine.WrapOutput(json.RawMessage("[\n  8111,\n  8974\n]"), true)},
+	}
+	got := render(plan)
+	if !strings.Contains(got, "Outputs: 1 output unchanged.") || strings.Contains(got, "(sensitive)") {
+		t.Errorf("the plan lists an output that keeps its value:\n%s", got)
 	}
 }
 
