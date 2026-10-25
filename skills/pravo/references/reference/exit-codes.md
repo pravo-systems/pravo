@@ -8,16 +8,16 @@ The exit status of every pravo command, what each code means, and how --json rep
 |---|---|---|
 | 0 | success | The command did what it was asked. For `plan --detailed-exitcode`: no changes. For `drift`: no drift. For `serve`: a signal stopped the viewer. |
 | 1 | error | Any failure that has no code of its own: an unknown flag, a stray argument, a missing output, a provider or state error, an `apply --json` that has changes and no `--auto-approve`, an answer other than `yes`. |
-| 2 | changes | `plan --detailed-exitcode` found changes. `drift` found drift. This is a report and not a failure. |
-| 3 | stale | A saved plan cannot be applied: the configuration, a provider or a node changed after it was made. An apply that finds a resource different from the plan, saved or printed by the same command, stops with this code too. A plan stored in the state is refused with this code when it was not applied and its time to live ended, when a collection is removing it, or when it is [partly stale](apply.md#a-partly-stale-plan) and the apply includes a change that conflicts, as the whole plan does. No other failure to claim a stored plan has this code. |
+| 2 | changes | `plan --detailed-exitcode` found changes, and a new, changed or removed policy counts as one. `drift` found drift. This is a report and not a failure. |
+| 3 | stale | A saved plan cannot be applied: the configuration, a provider or a node changed after it was made. An apply that finds a resource different from the plan, saved or printed by the same command, stops with this code too. A plan that adds, changes or removes a policy is refused with this code when the state holds another version of that policy. A plan stored in the state is refused with this code when it was not applied and its time to live ended, when a collection is removing it, or when it is [partly stale](apply.md#a-partly-stale-plan) and the apply includes a change that conflicts, as the whole plan does. No other failure to claim a stored plan has this code. |
 | 4 | rejected | A node is locked by a running command, or reserved by another actor: before the apply changes anything, or, with `lock lost`, in the middle of an apply that another command took a lock from. The lock on the recorded outputs is held by a command that did not release it in time. A command that writes a sealed state is refused while a seal or an unseal is in progress. |
-| 5 | refused | A plan policy refused the run, a policy file cannot be used, or a module does not match its lock. In a sealed state: you are not a reader, or the readers file is missing for a command that writes the state ([`pravo protect`](protect.md#exit-codes) uses 6 for a missing file). In a repository that has a readers file: the state is not sealed, or does not exist yet, for a command that writes the state. In a sealed state with a recovery recipient: the recovery file and the state name different keys, or the file is missing, for a command that writes the state; and shares that do not rebuild the recovery key, for `pravo protect recover`. |
-| 6 | invalid | A command that loads the specification found that it does not load or evaluate: a syntax error, a conflict, a file outside the package, a setting that is not allowed, resources that depend on each other in a circle. `pravo validate` also exits 6 when a provider cannot be installed. `pravo schema` was asked for a type of a provider that is not declared. In a sealed state, a readers file that is invalid, and for `pravo protect` one that is missing. |
-| 7 | untrusted | The state failed verification: an immutable record does not match its name, a pointer does not match its record, or a sealed value does not open where it is. `pravo protect status` reports it and exits 7. A command that reads a record that fails the same check stops with this code. So do `pravo state log` and `pravo protect status` when the signature of a transaction of a sealed state does not verify. See [7: untrusted](#7-untrusted). |
+| 5 | refused | A policy refused the plan, the root declares a policy and the state is not sealed, or a module does not match its lock. In a sealed state: you are not a reader, or the readers file is missing for a command that writes the state ([`pravo protect`](protect.md#exit-codes) uses 6 for a missing file). In a repository that has a readers file: the state is not sealed, or does not exist yet, for a command that writes the state. In a sealed state with a recovery recipient: the recovery file and the state name different keys, or the file is missing, for a command that writes the state; and shares that do not rebuild the recovery key, for `pravo protect recover`. |
+| 6 | invalid | A command that loads the specification found that it does not load or evaluate: a syntax error, a conflict, a file outside the package, a setting that is not allowed, resources that depend on each other in a circle. A plan that adds or changes a policy found that its rule cannot be used. `pravo validate` also exits 6 when a provider cannot be installed. `pravo schema` was asked for a type of a provider that is not declared. In a sealed state, a readers file that is invalid, and for `pravo protect` one that is missing. |
+| 7 | untrusted | The state failed verification: an immutable record does not match its name, a pointer does not match its record, or a sealed value does not open where it is. A policy version has no signature or one that does not verify, or the numbers of a policy have a gap. `pravo state verify` found a signature, a plan digest or a listed version that does not hold. `pravo protect status` reports it and exits 7. A command that reads a record that fails the same check stops with this code. So do `pravo state log` and `pravo protect status` when the signature of a transaction of a sealed state does not verify. See [7: untrusted](#7-untrusted). |
 
 In `--json` mode an error also prints `{"code":N,"kind":"error","message":"..."}` on standard output. The mismatch report of `pravo mod verify --json` is the exception: it prints `{"ok":false,"problems":[...]}` alone.
 
-Work in an empty directory. The root is `infra`, and the policies are in `policy`.
+Work in an empty directory. The root is `infra`.
 
 File `infra/main.cue`:
 
@@ -29,20 +29,6 @@ import loc "pravo.dev/providers/hashicorp/local"
 $local: loc.#Provider
 
 hello: $local.#Resource.local_file & {filename: "hello.txt", content: "hello\n"}
-```
-
-File `policy/no-destroy.cue`:
-
-```cue
-// A managed resource is neither deleted nor replaced.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && (action == "delete" || action == "replace") {
-		error("\(addr): \(action) is not allowed")
-	}
-}]
 ```
 
 ```sh
@@ -187,23 +173,44 @@ Unlocked hello
 
 ## 5: refused
 
-A plan that violates a policy is refused after it is printed. A policy file that cannot be used is refused before anything else happens.
+A plan that violates a policy is refused after it is printed. A root that declares a policy needs a sealed state, and a state that is not sealed is refused. Work in a second root, `guarded`, with a policy that refuses every change to a resource:
+
+File `guarded/main.cue`:
+
+```cue
+package guarded
+
+import (
+	"pravo.dev/pravo"
+	loc "pravo.dev/providers/hashicorp/local"
+)
+
+$local: loc.#Provider
+
+hello: $local.#Resource.local_file & {filename: "hello.txt", content: "hello\n"}
+
+freeze: pravo.#Policy & {rule: "changes: []"}
+```
 
 ```sh
-pravo -C infra apply --auto-approve > /dev/null 2>&1
-pravo -C infra plan --destroy --policy ../policy/no-destroy.cue > /dev/null 2>&1; echo "violation: $?"
-pravo -C infra plan --policy ../policy/missing.cue 2>&1; echo "unusable policy: $?"
-pravo -C infra apply --policy ../policy/no-destroy.cue > /dev/null 2>&1; echo "apply without a plan file: $?"
+pravo -C guarded init > /dev/null
+pravo -C guarded plan 2>&1; echo "unsealed state: $?"
+mkdir -p guarded/.pravo/access
+pravo -C guarded id new --name ada | grep '^  ada ssh' | sed 's/^  //' > guarded/.pravo/access/readers.txt
+pravo -C guarded protect init --encrypt --yes --allow-local > /dev/null
+pravo -C guarded apply --auto-approve > /dev/null 2>&1
+sed -i 's/hello\\n/changed\\n/' guarded/main.cue
+pravo -C guarded plan > violation.txt 2>&1; echo "violation: $?"
+grep '^Error' violation.txt
 ```
 
 Output:
 
 ```text
+Error: the root declares policies, and a policy version is signed: the state must be sealed (pravo protect init --encrypt)
+unsealed state: 5
 violation: 5
-
-Error: policy ../policy/missing.cue: open ../policy/missing.cue: no such file or directory
-unusable policy: 5
-apply without a plan file: 5
+Error: the plan violates the policy freeze@1 (sha256:cd6fab17493b):
 ```
 
 A module that does not match the lock is exit 5 as well. Add an entry to the lock file for a module that nothing loads:

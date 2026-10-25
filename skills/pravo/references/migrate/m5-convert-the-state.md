@@ -192,7 +192,7 @@ The specification and its `$from` fields are shared. Each state moves its own re
 
 ## Plan before you point
 
-Run the plan now, with the policy that enforces the stop rule. The policy refuses any plan that deletes or replaces a managed resource.
+Run the plan now, and judge it with the stop rule. The rule refuses any plan that deletes or replaces a managed resource. It is a file that `cue vet -c` checks against the plan document. [M6](m6-rewrite-plan-checks.md) puts the rules into the root as policies, where every plan is judged by them.
 
 File `policy/no-destroy.cue`:
 
@@ -213,15 +213,15 @@ The specification does not mention the old addresses yet. pravo cannot tell that
 Status: unintended.
 
 ```sh
-pravo plan --policy policy/no-destroy.cue > plan.txt 2>&1
-echo "exit=$?"
-grep -E '^(  # |Plan:|Error:)' plan.txt
+pravo plan > plan.txt 2>&1
+grep -E '^(  # |Plan:)' plan.txt
+pravo plan --json 2>/dev/null > plan.json
+cue vet -c policy/no-destroy.cue plan.json 2>&1 | grep -E '^changes\.' | sort -V | head -n 3
 ```
 
 Output:
 
 ```text
-exit=5
   # notes.files.alpha (local_file) will be created
   # notes.files.beta (local_file) will be created
   # ports[0] (random_integer) will be created
@@ -240,10 +240,12 @@ exit=5
   # random_pet.server (random_pet) will be destroyed
   # data.local_file.banner (local_file) will be destroyed
 Plan: 8 to add, 0 to change, 9 to destroy.
-Error: the plan violates the policy policy/no-destroy.cue (sha256:5fa3c22880d1):
+changes.9: local_file.hello: delete is not allowed:
+changes.10: local_file.notes_note_alpha: delete is not allowed:
+changes.11: local_file.notes_note_beta: delete is not allowed:
 ```
 
-The plan creates every resource at its new address and deletes every record at its old one. The exit code is 5, the code for a policy refusal. The policy did its work: nothing here may be applied. The plan changed no object. The only effect was a refresh of the records that it plans to delete.
+The plan creates every resource at its new address and deletes every record at its old one. The rule refuses it: nothing here may be applied. The plan changed no object. The only effect was a refresh of the records that it plans to delete.
 
 ## Point each record at its address
 
@@ -292,7 +294,7 @@ server: $random.#Resource.random_pet & {
 `pravo state mv random_pet.server server` does the same once, without a declaration. It does not check the new address against the specification. Use `$from` for a migration, because the next environment needs the same change.
 
 ```sh
-pravo plan --policy policy/no-destroy.cue
+pravo plan
 ```
 
 Output:
@@ -325,10 +327,9 @@ Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
   port_numbers: (sensitive)
   server_name: "acme-dev-charmed-buzzard"
-Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
 ```
 
-Read the plan. Each line says that a record was renamed and that the object did not change. The summary adds nothing and destroys nothing. The `Policy` line confirms that the stop rule held.
+Read the plan. Each line says that a record was renamed and that the object did not change. The summary adds nothing and destroys nothing. The plan deletes and replaces nothing, so the stop rule holds.
 
 The `Graph:` line says `planned 9`. Imported records carry no configuration hash yet, so this plan asks the provider about every one of them, once.
 
@@ -355,7 +356,7 @@ server
 Plan again. This plan has nothing left to do.
 
 ```sh
-pravo plan --detailed-exitcode --policy policy/no-destroy.cue
+pravo plan --detailed-exitcode
 echo "exit=$?"
 ```
 
@@ -369,7 +370,6 @@ Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
   port_numbers: (sensitive)
   server_name: "acme-dev-charmed-buzzard"
-Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
 exit=0
 ```
 
@@ -557,7 +557,7 @@ regions: [...string] | *["eu", "us", "ap"]
 Save the plan to a file and read it before you apply.
 
 ```sh
-pravo plan -out change.plan --policy policy/no-destroy.cue
+pravo plan -out change.plan
 ```
 
 Output:
@@ -580,7 +580,6 @@ Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
   port_numbers: (sensitive)
   server_name: "acme-dev-charmed-buzzard"
-Policy policy/no-destroy.cue (sha256:5fa3c22880d1) is satisfied.
 
 Saved the plan to change.plan. To apply exactly these actions, run:
   pravo apply change.plan

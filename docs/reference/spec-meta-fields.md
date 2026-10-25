@@ -194,7 +194,7 @@ Error: destroy refused: $lifecycle.prevent_destroy is set on pet; remove the set
 Error: destroy refused: $lifecycle.prevent_destroy is set on pet; remove the setting from the specification to destroy the resource
 ```
 
-`prevent_destroy` is read from the specification. A plan that deletes a resource because it left the specification is not stopped by it: the specification does not hold the field. To refuse deletions of any kind, name a plan policy with `--policy`. See [Writing policies](policies-writing.md#prohibit-with-a-guard).
+`prevent_destroy` is read from the specification. A plan that deletes a resource because it left the specification is not stopped by it: the specification does not hold the field. To refuse deletions of any kind, declare a plan policy. See [Writing policies](policies-writing.md#prohibit-with-a-guard).
 
 ### ignore_changes
 

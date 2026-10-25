@@ -83,7 +83,6 @@ These commands have no counterpart in OpenTofu:
 | `-backend-config`, `-reconfigure`, `-migrate-state` | None | `$settings: state:` names the backend. `pravo state push` moves a graph. |
 | `-upgrade` | `--upgrade` | On `init`. |
 | `-state=path` | None | `$settings: state: path`. |
-| — | `--policy file` | On `plan`, `apply`, `destroy` and `mcp`. Repeatable. |
 | — | `--actor`, `--reason` | Labels recorded on transactions and plans. |
 | — | `-v`, `-vv` | Logs what pravo decides to standard error. |
 

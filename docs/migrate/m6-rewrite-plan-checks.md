@@ -5,7 +5,7 @@ order: 6
 group: Runbook
 gate: The policies match the old checks
 minutes: 35
-needs: "Step 5 done: [convert the state](m5-convert-the-state.md)."
+needs: "Step 5 done: [convert the state](m5-convert-the-state.md). `cue` at the version that `pravo version` prints on its second line, and `jq`."
 learn: How does a check over `tofu show -json` become a policy that pravo judges?
 done_when: "Every old check has a policy, and both give the same verdict on the same changes."
 level: intermediate
@@ -24,7 +24,7 @@ normalize:
 
 A check that runs in CI over the output of `tofu show -json` does not carry over as it is. It reads the OpenTofu plan JSON, and pravo prints a plan document of its own. You rewrite each rule once, in CUE, as a plan policy.
 
-A policy is one CUE file that a plan must satisfy. Whoever runs pravo names it with `--policy`. pravo judges the plan before it acts.
+A policy is a rule, CUE text, that a plan must satisfy. It is a `pravo.#Policy` node of the root, and pravo judges every plan that changes a resource with the policies that the state keeps. This page tries each rule as a file against the plan document with `cue vet`, and [Write and roll out policies](../how-to/policies.md) adds it to the root.
 
 ## The check you have
 
@@ -54,10 +54,10 @@ Both exit non-zero when the rule fails, and the job stops. The build of this pag
 | The rule says | It goes in | Checked |
 |---|---|---|
 | An attribute may only take these values. | A constraint on the provider definition. | By `pravo validate`, with no provider started. |
-| An attribute must be set. | A plan policy. | When a plan is made and when it is applied. |
-| A plan may not delete, or may change at most N resources. | A plan policy. | When a plan is made and when it is applied. |
+| An attribute must be set. | A policy. | When a plan is made and when it is applied. |
+| A plan may not delete, or may change at most N resources. | A policy. | When a plan is made and when it is applied. |
 
-A constraint on the provider definition rejects a value that is set and wrong. It cannot require that a value is set. See [Policies](../concepts/policies.md) for the two kinds and [Write and roll out plan policies](../how-to/policies.md) for the full how-to. This page rewrites the second and third kinds, which are the ones that read plan JSON.
+A constraint on the provider definition rejects a value that is set and wrong. It cannot require that a value is set. See [Policies](../concepts/policies.md) for the two kinds and [Write and roll out policies](../how-to/policies.md) for the full how-to. This page rewrites the second and third kinds, which are the ones that read plan JSON.
 
 ## The plan document
 
@@ -100,7 +100,7 @@ pravo -C infra apply --auto-approve 2>&1 | tail -n 1
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 
-A policy lives outside the root directory. The root is `infra`, and the policies sit in `policy` beside it. Add one change to the root and look at the document:
+The rules sit in `policy`, beside the root `infra`, while you try them. Add one change to the root and look at the document:
 
 ```cue file=scenarios/extra.cue title="scenarios/extra.cue"
 package infra
@@ -120,6 +120,7 @@ pravo -C trial plan --json 2>/dev/null | head -n 36
 {
   "format": 1,
   "created": "<time>",
+  "trace_id": "d69ae8803e9908c6dc32f5e92854b806",
   "summary": {
     "add": 1,
     "change": 0,
@@ -152,7 +153,6 @@ pravo -C trial plan --json 2>/dev/null | head -n 36
         "not in the state: a new resource"
       ],
       "after": {
-        "content": "extra\n",
 ```
 
 The fields that checks read correspond like this.
@@ -199,23 +199,19 @@ changes: [...{
 }]
 ```
 
-Rehearse on a copy of the root: delete the file `note.cue` from the copy and plan with the policy.
+Rehearse on a copy of the root: delete the file `note.cue` from the copy, save the plan document and judge it with the rule. `cue vet -c` judges as pravo does: it requires the result to be concrete.
 
 ```sh run
 rm -rf trial && cp -R infra trial && rm trial/note.cue
-pravo -C trial plan --policy ../policy/no-delete.cue > plan.txt 2>&1
+pravo -C trial plan --json 2>/dev/null > plan.json
+cue vet -c policy/no-delete.cue plan.json 2>&1
 echo "exit=$?"
-sed -n '/^Plan:/,$p' plan.txt
 ```
 
 ```text out
-exit=5
-Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: planned 0 · skipped 1 · removed 1 · refreshed 1 · not read 1
-
-Error: the plan violates the policy ../policy/no-delete.cue (sha256:0c23a31e78bd):
-changes.1: note: delete is not allowed:
-    ../policy/no-delete.cue:7:3
+changes.0: note: delete is not allowed:
+    ./policy/no-delete.cue:7:3
+exit=1
 ```
 
 The plan is printed in full, then the refusal. The path `changes.1` is the index of the change in the document. The exit code is 5. No plan file is written and no provider is asked to change anything.
@@ -240,21 +236,17 @@ The new file `extra` sets no permission, so the provider's default applies:
 
 ```sh run
 rm -rf trial && cp -R infra trial && cp scenarios/extra.cue trial/
-pravo -C trial plan --policy ../policy/permission.cue > plan.txt 2>&1
+pravo -C trial plan --json 2>/dev/null > plan.json
+cue vet -c policy/permission.cue plan.json 2>&1
 echo "exit=$?"
-sed -n '/^Plan:/,$p' plan.txt
 ```
 
 ```text out
-exit=5
-Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1 · skipped 2 · not read 2
-
-Error: the plan violates the policy ../policy/permission.cue (sha256:7d3651432df2):
 changes.0.after.file_permission: conflicting values "0600" and "0777":
-    ../policy/permission.cue:6:2
-    ../policy/permission.cue:7:27
-    plan:1:<col>
+    ./plan.json:58:28
+    ./policy/permission.cue:6:2
+    ./policy/permission.cue:7:27
+exit=1
 ```
 
 The plan is refused, and the message names the path, both values and the line of the policy. The guard excludes `delete` and `no-op` because those entries have no `after`. It names `mode == "managed"` because a data source of the same type has a `read` and a different shape.
@@ -307,19 +299,19 @@ extra: $local.#Resource.local_file & {
 
 ```sh run
 rm -rf trial && cp -R infra trial && cp scenarios/unknown.cue trial/
-pravo -C trial plan --policy ../policy/guard.cue 2>&1 | tail -n 1
-pravo -C trial plan --policy ../policy/set.cue > plan.txt 2>&1
-echo "exit=$?"
-grep -E '^(Error:|changes\.)' plan.txt
+pravo -C trial plan --json 2>/dev/null > plan.json
+cue vet -c policy/guard.cue plan.json 2>&1
+echo "guard exit=$?"
+cue vet -c policy/set.cue plan.json 2>&1 | grep -E '^changes\.'
+echo "set exit=$?"
 ```
 
 ```text out
-Policy ../policy/guard.cue (sha256:2cf0a242a1ed) is satisfied.
-exit=5
-Error: the plan violates the policy ../policy/set.cue (sha256:2aeebc9057c0):
+guard exit=0
 changes.1.after.file_permission: 2 errors in empty disjunction:
 changes.1.after.file_permission: conflicting values {$unknown:true} and "0600" (mismatched types struct and string):
 changes.1.after.file_permission: conflicting values {$unknown:true} and "0640" (mismatched types struct and string):
+set exit=0
 ```
 
 The guard lets the plan through. The constraint refuses it, because `{"$unknown": true}` is a struct and matches neither string. Write every prohibition as the allowed set.
@@ -356,54 +348,38 @@ changes: [...{
 
 ```sh run
 rm -rf trial && cp -R infra trial && cp scenarios/extra.cue trial/
-pravo -C trial plan --policy ../policy/keep-wrong.cue > plan.txt 2>&1
-echo "exit=$?"
-grep -E '^(Error:|changes\.)' plan.txt
-pravo -C trial plan --policy ../policy/keep.cue 2>&1 | tail -n 1
+pravo -C trial plan --json 2>/dev/null > plan.json
+cue vet -c policy/keep-wrong.cue plan.json 2>&1 | grep -E '^changes\.'
+cue vet -c policy/keep.cue plan.json
+echo "keep exit=$?"
 ```
 
 ```text out
-exit=5
-Error: the plan violates the policy ../policy/keep-wrong.cue (sha256:59f47414b2ee):
 changes.0: cannot reference optional field: before:
-changes.1: cannot reference optional field: before:
-changes.2: cannot reference optional field: before:
-Policy ../policy/keep.cue (sha256:03288f85999c) is satisfied.
+keep exit=0
 ```
 
 The wrong policy refuses a plan that creates a file. The right one accepts it. Key an exception to the type, the provider and the recorded id (`before.id`). Do not key it to `addr` or `name`: they are your labels and move with `$from`.
 
 ## Try a rule on a saved plan
 
-A saved plan is the fixture. `pravo apply <planfile> --policy` judges the plan before it acts, so a refusal changes nothing.
+A saved plan is the fixture. `pravo show extra.plan --json` prints it as the document, so a test needs no state and no provider.
 
 ```sh run
 rm -rf trial && cp -R infra trial && cp scenarios/extra.cue trial/
 pravo -C trial plan --out extra.plan > /dev/null 2>&1
-pravo -C trial apply extra.plan --policy ../policy/permission.cue > apply.txt 2>&1
-echo "exit=$?"
-grep -E '^Error:' apply.txt
-pravo -C trial state list
+pravo -C trial show extra.plan --json | jq '.plan' > extra.json
+cue vet -c policy/permission.cue extra.json 2>&1 | head -n 1
+cue vet -c policy/no-delete.cue extra.json
+echo "no-delete exit=$?"
 ```
 
 ```text out
-exit=5
-Error: the plan violates the policy ../policy/permission.cue (sha256:7d3651432df2):
-note
-pet
+changes.0.after.file_permission: conflicting values "0600" and "0777":
+no-delete exit=0
 ```
 
-The state still holds two records. A plain `pravo apply --policy` is refused. A plain apply plans again while it runs, and that second pass is not the one that was judged:
-
-```sh run exit=5
-pravo -C trial apply --policy ../policy/permission.cue --auto-approve
-```
-
-```text out
-Error: a policy is judged against a saved plan: run "pravo plan -out <file>", then "pravo apply <file>"
-```
-
-`pravo show extra.plan --json` prints the saved plan as a document, for a test that needs a file.
+Keep one fixture for each rule and each verdict that the rule must give. [Write and roll out policies](../how-to/policies.md#2-test-it-on-fixtures) puts them in a script that runs in CI.
 
 ## Run old and new together
 
@@ -416,7 +392,7 @@ Error: a policy is judged against a saved plan: run "pravo plan -out <file>", th
    - a replacement, which is a list of two actions in OpenTofu and `replace` in pravo;
    - a rule keyed to an address that `$from` moved.
 
-A new rule can start in an advisory file. Run it in a job that is allowed to fail. Move it to the file that `--policy` names once it holds. A policy reports an existing violator only when a change touches it. To list the resources that already break a rule, ask the state:
+A new rule can start as a file that a job tries with `cue vet`, in a job that is allowed to fail. Add it to the root as a policy once it holds. A policy reports an existing violator only when a change touches it. To list the resources that already break a rule, ask the state:
 
 ```sh run
 pravo -C infra state query '[for a, r in resources if r.type == "local_file" if r.attributes.file_permission != "0600" {a}]'
@@ -428,20 +404,23 @@ pravo -C infra state query '[for a, r in resources if r.type == "local_file" if 
 
 ## Wire the pipeline
 
-The pipeline names the policy on both commands:
+A rule that holds goes into the root as a policy. The text of the file becomes the `rule` of a `pravo.#Policy`, and the first apply that carries it writes it to the state:
 
-```sh
-pravo plan --out change.plan --policy ../policy/no-delete.cue
-pravo apply change.plan --policy ../policy/no-delete.cue
+```cue
+no_delete: pravo.#Policy & {
+	rule: #"""
+		changes: [...{ ... }]   // the text of policy/no-delete.cue
+		"""#
+}
 ```
 
-The command that acts gives the verdict. `plan` judges the document it printed. `apply <planfile>` judges the saved plan again, with the policies named at that apply. A policy file may import only the CUE standard library. It must not sit directly in the root directory.
+The pipeline needs no flag. `plan` judges the document it printed. `apply` judges the whole plan again under the locks, and the signed start of its transaction lists the versions that judged it. A rule may import only the CUE standard library, and the state must be sealed, because a version is signed. [Write and roll out policies](../how-to/policies.md) covers both, and a rule that starts as advice.
 
-A policy binds the runs that name it. A run that omits `--policy` is not checked. The reference lists what a policy guarantees and what it does not: [Policies](../reference/policies-overview.md).
+A policy binds every pravo that opens the state. It does not bind a caller that holds the cloud credentials and does not run pravo. The reference lists what a policy guarantees and what it does not: [Policies](../reference/policies-overview.md).
 
 ## Recap
 
-- Rewrite each check once as a plan policy over `changes`. Name the file with `--policy` on `plan` and `apply <planfile>`.
+- Rewrite each check once as a plan policy over `changes`. Try it with `cue vet -c` on the plan document, then declare it as a `pravo.#Policy` in the root.
 - Prohibit with a guard on an identity field. Require with a constraint. Write a prohibition as an allowed set. Test an optional field before you read it.
 - Try a rule on a saved plan. Run the old and new checks on the same changes until their verdicts agree.
 

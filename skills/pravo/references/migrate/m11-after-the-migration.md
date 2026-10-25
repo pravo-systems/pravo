@@ -12,24 +12,37 @@ Rewrite it after the cut over, when the plan is empty and the pipeline runs prav
 
 Let pravo enforce it. This policy refuses any plan that creates, updates, replaces or deletes a managed resource. A plan of no-ops and moves satisfies it.
 
-File `policy/refactor.cue`:
+File `policy.cue`:
 
 ```cue
-// A refactor changes no object. It may move a record.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && action != "no-op" && action != "move" {
-		error("\(addr): \(action) is not part of a refactor")
-	}
-}]
+package estate
+
+import "pravo.dev/pravo"
+
+refactor: pravo.#Policy & {
+	rule: #"""
+		// A refactor changes no object. It may move a record.
+		changes: [...{
+			addr:   string
+			mode:   string
+			action: string
+			if mode == "managed" && action != "no-op" && action != "move" {
+				error("\(addr): \(action) is not part of a refactor")
+			}
+		}]
+		"""#
+}
 ```
+
+A policy version is signed by whoever applies it, so the state is sealed to one reader before the first apply.
 
 The workspace holds the translation of M4. Apply it, so that the estate exists and the commits have objects to leave alone.
 
 ```sh
+mkdir -p .pravo/access
+pravo id new --name ada | grep '^  ada ssh' | sed 's/^  //' > .pravo/access/readers.txt
 pravo init > /dev/null
+pravo protect init --encrypt --yes --allow-local > /dev/null
 pravo apply --auto-approve 2>&1 | grep '^Apply complete'
 ```
 
@@ -77,7 +90,7 @@ import loc "pravo.dev/providers/hashicorp/local"
 ```
 
 ```sh
-pravo plan --policy policy/refactor.cue
+pravo plan
 ```
 
 Output:
@@ -90,10 +103,9 @@ Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
   port_numbers: (sensitive)
   server_name: "acme-dev-<pet>"
-Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
-The plan is empty and the policy holds. A value outside the constraint is refused:
+The plan is empty, so the policy has nothing to judge. A commit that changed an object would be refused. A value outside the constraint is refused:
 
 File `instances.cue`:
 
@@ -189,7 +201,7 @@ if create_extra {
 ```
 
 ```sh
-pravo plan --policy policy/refactor.cue
+pravo plan
 ```
 
 Output:
@@ -202,7 +214,6 @@ Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
   port_numbers: (sensitive)
   server_name: "acme-dev-<pet>"
-Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
 ```sh
@@ -275,7 +286,7 @@ port_numbers: pravo.#Output & {
 ```
 
 ```sh
-pravo plan --policy policy/refactor.cue
+pravo plan
 ```
 
 Output:
@@ -294,7 +305,6 @@ Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
   port_numbers: (sensitive)
   server_name: "acme-dev-<pet>"
-Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
 Both records move, and the objects do not change. The output iterates the list of names, not the struct. The values keep the order you wrote. Apply the plan, so that the moves are final, and plan again:
@@ -354,7 +364,7 @@ if create_extra {
 ```
 
 ```sh
-pravo plan --policy policy/refactor.cue
+pravo plan
 ```
 
 Output:
@@ -367,7 +377,6 @@ Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
   port_numbers: (sensitive)
   server_name: "acme-dev-<pet>"
-Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
 ```sh
@@ -423,7 +432,7 @@ The alias `nt` differs from the field `notes`. A name in a scope refers to the n
 ```sh
 rm notes.cue
 pravo validate
-pravo plan --policy policy/refactor.cue
+pravo plan
 ```
 
 Output:
@@ -438,7 +447,6 @@ Outputs:
   note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
   port_numbers: (sensitive)
   server_name: "acme-dev-<pet>"
-Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
 ```sh

@@ -286,7 +286,7 @@ A transaction records:
 
 A plan that read nothing and changed no record is not recorded. A plan that refreshed or moved records is. An apply that a lock rejected is recorded too, with no changes. An apply that has no record to write and no output to write or remove takes no lock and is not recorded.
 
-The command line is the one that ran. An apply of a saved plan records the `--policy` flags it was given, so the log shows whether a policy was named. The log is evidence. It prevents nothing. It is as writable as the rest of the state, and a refusal by a policy is not recorded in it.
+The command line is the one that ran. An apply that a policy refused is recorded as rejected, with the versions that refused it. The signed start of every apply that judged a plan lists the policy versions that judged it. The log is evidence. It prevents nothing, and it is as writable as the rest of the state.
 
 ## Locks and reservations
 

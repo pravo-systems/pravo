@@ -78,6 +78,7 @@ Run `pravo init` before the first `plan`. Commit `cue.mod/gen` and `pravo.lock.c
 | `#Settings` | `$settings: pravo.#Settings & {...}`. See [Settings](spec-settings.md). |
 | `#StateSettings`, `#LocalState`, `#S3State`, `#StateFields` | The types of the `state` key. |
 | `#Output` | `name: pravo.#Output & {value: ...}`. See [Outputs](spec-outputs.md). |
+| `#Policy` | A rule over plans, kept in the state. See [Policies](policies-overview.md). |
 | `#Env`, `#SecretEnv` | Environment variables. See [Environment and remote outputs](spec-env.md). |
 | `#RemoteOutputs` | The outputs of another root. |
 | `#Movable` | Embedded in a definition so that its instances accept `$from`. See [Moves and imports](spec-moves-and-imports.md#from-on-a-group). |
@@ -91,6 +92,7 @@ Output:
 ```text
 #Movable: {
 #Output: {
+#Policy: {
 #Env: {
 #SecretEnv: {
 #RemoteOutputs: {

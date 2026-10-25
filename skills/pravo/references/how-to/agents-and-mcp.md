@@ -2,14 +2,14 @@
 
 # Let an agent plan and apply
 
-Give a program or an AI agent the schema, a plan file, a reservation and a tool server bound to a policy, and see what that does and does not protect.
+Give a program or an AI agent the schema, a plan file, a reservation and a tool server that the policies of the state bind, and see what that does and does not protect.
 
-pravo gives a program or an agent data, exit codes and plan files. The commands that report a result print it with `--json` ([the list is in global flags](../reference/global-flags.md#json)), the stops that a pipeline must tell apart have their own exit codes, and a plan is a file that someone can review before it runs. This page uses those parts, names a policy for the agent's tool server and states what none of it prevents.
+pravo gives a program or an agent data, exit codes and plan files. The commands that report a result print it with `--json` ([the list is in global flags](../reference/global-flags.md#json)), the stops that a pipeline must tell apart have their own exit codes, and a plan is a file that someone can review before it runs. This page uses those parts, runs the agent's tool server under a policy and states what none of it prevents.
 
 > [!WARNING]
-> pravo does not know who is calling it. `--actor agent` is a label that the caller types, and another caller can type another one. Everything below is a set of checks for a cooperating tool and a record of what happened. It is not a boundary against a caller that holds the policy file, the job definition, the state or the cloud credentials. The last section lists what to use for a boundary.
+> pravo does not know who is calling it. `--actor agent` is a label that the caller types, and another caller can type another one. Everything below is a set of checks for a cooperating tool and a record of what happened. It is not a boundary against a caller that holds the specification, the job definition, the state or the cloud credentials. The last section lists what to use for a boundary.
 
-Work in an empty directory. The root is `root/`, and the policy is `policy/plan.cue`, outside it.
+Work in an empty directory. The root is `root/`. It declares a policy, `no_destroy`, and its state is sealed to one reader so that the policy can be signed.
 
 File `root/main.cue`:
 
@@ -24,22 +24,29 @@ a: $random.#Resource.random_pet & {length: 2}
 b: $random.#Resource.random_pet & {length: 2}
 ```
 
-File `policy/plan.cue`:
+File `root/policy.cue`:
 
 ```cue
-// A managed resource is neither deleted nor replaced.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && (action == "delete" || action == "replace") {
-		error("\(addr): \(action) is not allowed")
-	}
-}]
+package agents
+
+import "pravo.dev/pravo"
+
+no_destroy: pravo.#Policy & {
+	rule: #"""
+		// A managed resource is neither deleted nor replaced.
+		changes: [...{
+			addr:   string
+			mode:   string
+			action: string
+			if mode == "managed" && (action == "delete" || action == "replace") {
+				error("\(addr): \(action) is not allowed")
+			}
+		}]
+		"""#
+}
 ```
 
 ```sh
-pravo -C root init > /dev/null
 pravo -C root apply -auto-approve --actor alice --reason "first apply" | grep '^Apply complete'
 ```
 
@@ -77,29 +84,24 @@ The agent writes a resource by unifying a struct with `$random.#Resource.random_
 
 ## 2. Plan to a file and reserve
 
-The agent changes `length` for `a` and saves a plan. `--actor` and `--reason` label it. `-reserve=15m` claims the nodes that have pending changes for fifteen minutes.
+The agent adds a resource `c` and saves a plan. `--actor` and `--reason` label it. `-reserve=15m` claims the nodes that have pending changes for fifteen minutes.
 
-File `root/main.cue`:
+File `root/c.cue`:
 
 ```cue
 package agents
 
-import rnd "pravo.dev/providers/hashicorp/random"
-
-$random: rnd.#Provider
-
-a: $random.#Resource.random_pet & {length: 3}
-b: $random.#Resource.random_pet & {length: 2}
+c: $random.#Resource.random_pet & {length: 2}
 ```
 
 ```sh
-pravo -C root plan -out change.plan --actor agent --reason "longer name for a" -reserve=15m | grep -E '^(Plan|Reserved|Saved)'
+pravo -C root plan -out change.plan --actor agent --reason "a third name" -reserve=15m | grep -E '^(Plan|Reserved|Saved)'
 ```
 
 Output:
 
 ```text
-Plan: 1 to add, 0 to change, 1 to destroy.
+Plan: 1 to add, 0 to change, 0 to destroy.
 Reserved 1 node until <time>.
 Saved the plan to change.plan. To apply exactly these actions, run:
 ```
@@ -114,8 +116,8 @@ Output:
 
 ```text
 "agent"
-"longer name for a"
-{"addr":"a","action":"replace"}
+"a third name"
+{"addr":"c","action":"create"}
 ```
 
 ## 3. Tell another actor to wait
@@ -129,7 +131,7 @@ pravo -C root plan -refresh=false --actor bob
 Output:
 
 ```text
-Error: plan rejected: a is reserved by agent (pravo -C root plan --out change.plan --actor agent --reason longer name for a --reserve=15m until <time>, since <time>)
+Error: plan rejected: c is reserved by agent (pravo -C root plan --out change.plan --actor <sealed> --reason <sealed> --reserve=15m until <time>, since <time>)
 ```
 
 Exit code 4 means that a node is locked or reserved. Two cooperating agents that work on separate parts of the graph do not collide, and an overlap is reported at plan time instead of halfway through an apply. `pravo state locks` lists the reservations, and `pravo state unlock <address>` releases one.
@@ -142,9 +144,8 @@ pravo -C root state log | grep -E '^ +actor'
 Output:
 
 ```text
-a  reserved by agent until <time>: pravo -C root plan --out change.plan --actor agent --reason longer name for a --reserve=15m
+c  reserved by agent until <time>: pravo -C root plan --out change.plan --actor <sealed> --reason <sealed> --reserve=15m
     actor bob
-    actor agent  longer name for a
     actor alice  first apply
 ```
 
@@ -152,27 +153,30 @@ The refused attempt is recorded too. A reservation is coordination, not protecti
 
 ## 4. Give the agent the tools
 
-`pravo mcp` serves pravo's commands to an agent over the Model Context Protocol on standard input and output. Name the policy in the server's arguments. The path is absolute, because the server reads and compiles the file when it starts.
+`pravo mcp` serves pravo's commands to an agent over the Model Context Protocol on standard input and output. The server needs no policy argument: it runs the same commands, and they judge with the policies of the state.
 
 A client configuration has this shape. The key names differ between clients.
 
 ```json
-{"mcpServers": {"pravo": {"command": "pravo", "args": ["mcp", "--actor", "agent", "--policy", "/srv/policy/plan.cue"], "cwd": "/path/to/root"}}}
+{"mcpServers": {"pravo": {"command": "pravo", "args": ["mcp", "--actor", "agent"], "cwd": "/path/to/root"}}}
 ```
 
-A relative path fails the start, with exit code 5.
+To see what the agent sees, run the server by hand. First the agent edits `a` in a way that forces a replacement.
 
-```sh
-pravo -C root mcp --actor agent --policy ../policy/plan.cue
+File `root/main.cue`:
+
+```cue
+package agents
+
+import rnd "pravo.dev/providers/hashicorp/random"
+
+$random: rnd.#Provider
+
+a: $random.#Resource.random_pet & {length: 3}
+b: $random.#Resource.random_pet & {length: 2}
 ```
 
-Output:
-
-```text
-Error: --policy "../policy/plan.cue": the server needs an absolute path
-```
-
-To see what the agent sees, run the server by hand. The file holds the requests that a client sends: the handshake, a list of the tools, a plan that replaces `a`, and a call whose `planfile` is `-auto-approve`. A command line reads that value as a flag.
+The file holds the requests that a client sends: the handshake, a list of the tools, a plan that replaces `a`, and a call whose `planfile` is `-auto-approve`. A command line reads that value as a flag.
 
 File `calls.jsonl`:
 
@@ -185,7 +189,7 @@ File `calls.jsonl`:
 ```
 
 ```sh
-pravo -C root mcp --actor agent --policy "$PWD/policy/plan.cue" < calls.jsonl > replies.jsonl
+pravo -C root mcp --actor agent < calls.jsonl > replies.jsonl
 jq -c 'select(.id == 2) | [.result.tools[].name]' replies.jsonl
 jq -c 'select(.id == 3 or .id == 4) | {id, isError: .result.isError, exit_code: .result.structuredContent.exit_code}' replies.jsonl
 ```
@@ -208,13 +212,13 @@ jq -r 'select(.id == 4) | .result.content[0].text' replies.jsonl
 Output:
 
 ```text
-Error: the plan violates the policy ./policy/plan.cue (sha256:<digest>):
+Error: the plan violates the policy no_destroy@1 (sha256:<digest>):
 changes.0: a: replace is not allowed:
-    ./policy/plan.cue:7:3
+    no_destroy:7:3
 planfile "-auto-approve" is not a usable value: it is empty or begins with "-"
 ```
 
-The server appends `--policy` to its `pravo_plan` and `pravo_apply_plan` calls and to no other, because no other command takes it. A tool argument cannot remove it. The server applies only from saved plan files, and refuses the id of a plan stored in the state. It refuses an `addr`, `addrs`, `types`, `expression` or `planfile` that is empty or begins with `-`, with or without `--policy`. Its instructions to the agent give the order of work and say to treat a refusal as a decision by the operators.
+No tool argument turns the judging off. The server applies only from saved plan files, and refuses the id of a plan stored in the state. It refuses an `addr`, `addrs`, `types`, `expression` or `planfile` that is empty or begins with `-`. Its instructions to the agent give the order of work and say to treat a refusal as a decision by the operators.
 
 The tools take the options of the commands that a scheduled job uses. `pravo_plan` takes `refresh` (`age`, `expired`, `false` or `all`) and `include_skipped`, which adds the nodes the plan left alone to the document. `pravo_drift` takes `due` and `limit`, the sweep of [CI](ci.md) that reads the oldest records past their refresh age.
 
@@ -266,18 +270,18 @@ This writes `~/.claude/skills/pravo`, or `$CLAUDE_CONFIG_DIR/skills/pravo`, and 
 
 ## What this does not prevent
 
-The policy binds the invocations that name it. A run that leaves out `--policy` is not checked. An agent with a shell can run `pravo apply` without the flag. An agent with the cloud credentials needs no pravo at all. A server that is started without `--policy` checks nothing against a policy.
+A policy binds every pravo that opens the state, because the versions are in the state and the apply judges them. It does not bind a caller that does not run pravo. An agent with the cloud credentials needs no pravo at all. An agent that can edit the specification and apply can change a policy, and the new version is signed with the name of whoever applied it. A pravo that is old enough not to know format 4 refuses the state.
 
 For a boundary, use controls outside pravo:
 
-- **Credentials.** Give the agent credentials that can only read and plan. Keep the ones that change infrastructure in a separate job that applies reviewed plan files and names the policy.
-- **The repository.** Require review for the policy source and for every job or tool configuration that names it. Apply only from the main branch.
+- **Credentials.** Give the agent credentials that can only read and plan. Keep the ones that change infrastructure in a separate job that applies reviewed plan files.
+- **The repository.** Require review for the policy nodes of the specification and for every job or tool configuration. Apply only from the main branch.
 - **The state store.** Limit who can write to the bucket or directory that holds the state. To keep the values in it from an agent that has no need of them, [seal the state](seal-the-state.md) and give the agent no identity: it can list addresses and cannot read an attribute.
-- **Exceptions.** No flag turns a policy off. A privileged job names a narrower policy that the platform team owns, or none, and the recorded command line says which.
+- **Exceptions.** No flag turns a policy off. A change to a policy is a change to the specification, and review sees it.
 
 [Policies](../concepts/policies.md) explains the model, [pravo mcp](../reference/mcp.md) lists every tool and [pravo skill](../reference/skill.md) describes the skill.
 
 ## What next
 
-- [Write and roll out plan policies](policies.md) writes and tests the file that the server names.
+- [Write and roll out policies](policies.md) writes and tests a policy.
 - [Find out why a run fails](debugging.md) reads the log of a run, and telemetry follows an agent's work from the state into a trace.

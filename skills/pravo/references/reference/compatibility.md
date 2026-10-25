@@ -107,14 +107,14 @@ Error: change.plan was written by a newer pravo (plan format 2)
 ```
 
 ```sh
-echo '{"format":4,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
+echo '{"format":5,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
 pravo plan
 ```
 
 Output:
 
 ```text
-Error: state at ./pravo.state was written by a newer pravo (format 4)
+Error: state at ./pravo.state was written by a newer pravo (format 5)
 ```
 
 Restore the store, and try a file that is not a plan file:

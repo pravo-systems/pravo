@@ -427,7 +427,7 @@ Error: saved plan is stale; run "pravo plan" again:
 
 ## The saved plan file
 
-`pravo plan --out FILE` writes the plan as JSON, with mode `0600`. `pravo plan --store` writes the same object into the state, where [State format](state-format.md#plans) describes it, and `pravo plan pull` writes it back to a file. The values of the objects are msgpack inside the JSON, so that unknown values survive. A `--policy` does not enter the file. The file is not signed.
+`pravo plan --out FILE` writes the plan as JSON, with mode `0600`. `pravo plan --store` writes the same object into the state, where [State format](state-format.md#plans) describes it, and `pravo plan pull` writes it back to a file. The values of the objects are msgpack inside the JSON, so that unknown values survive. A policy that is in force is not recorded in the file, except the entries of the policies that the plan adds, changes or removes. The file is not signed.
 
 | Key | Contents |
 |---|---|

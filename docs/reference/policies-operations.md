@@ -493,7 +493,7 @@ Transaction <txn>
 Verified.
 ```
 
-The command finds the plan by the id that the transaction names, or takes it from `--plan FILE`. It exits with 0 when the signatures verify, the plan has the digest that the transaction signed, and every version listed passes on the plan. A bad signature, a plan with another digest or a version whose text is not the listed one is exit code 7. A rule that fails on the plan is exit code 5. Anything else that stops the check, such as a plan that is no longer kept, is exit code 1 with the reason.
+The command finds the plan by the id that the transaction names, or takes it from `--plan FILE`. It exits with 0 when the signatures verify, the plan has the digest that the transaction signed, and every version listed passes on the plan. A bad signature, a plan with another digest or a version whose text is not the listed one is exit code 7. A rule that fails on the plan is exit code 5. Anything else that stops the check, such as a plan that is not kept, is exit code 1 with the reason.
 
 A plan that an apply judged is marked kept: `pravo plan gc` does not remove it, so the receipt can be checked later. A plain `apply` without a plan names the digest of the plan it built, and keeps no plan, so its receipt lists the versions and cannot be run again.
 

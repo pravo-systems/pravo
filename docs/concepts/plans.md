@@ -150,7 +150,7 @@ Graph: planned 2
 
 A change always has `addr`, `mode`, `type`, `name` and `action`. When they apply, it also has `provider`, `reasons`, `requires_replace`, `before`, `after`, `deferred`, `skipped`, `refreshed`, `drifted`, `applied`, `dependencies`, `dependents` and `warnings`. A value that is not known until apply is `{"$unknown": true}`.
 
-The plan ran the nodes it changes, deletes, moves or imports, the ephemeral resources it opens and the functions it calls. A node it left alone has no entry. `pravo plan --json --include-skipped` lists it too, as an entry with `addr`, `mode`, `type`, `name`, the action `no-op` and `skipped`. A policy is judged against a document that has an entry for every node of the specification, in the order of the specification, with these fields for the nodes the plan left alone.
+The plan ran the nodes it changes, deletes, moves or imports, the ephemeral resources it opens and the functions it calls. A node it left alone has no entry. `pravo plan --json --include-skipped` lists it too, as an entry with `addr`, `mode`, `type`, `name`, the action `no-op` and `skipped`. A policy is judged against the document built from the plan file, which has no entry for a node the plan left alone: see [The plan document in a policy](../reference/policies-plan-document.md).
 
 ```sh run
 pravo -C zones plan --json | jq '.changes[1]'
@@ -971,7 +971,7 @@ The first command read the record, found no drift and wrote the digest of the ne
 The file records the change of every node the plan ran, with its configuration, its prior and its planned values, unknown values included. It records the private data of the providers and the refresh and skip decisions. It records the tags of the plan, the provider versions and a fingerprint of every `.cue` file of the root. It records the lineage of the state, the revision of every node that the plan changes and the revision of every record that those changes read. A node that the plan left alone has no entry. Values in it can be secrets. pravo creates the file with owner-only permissions. A plan can also be [stored in the state](#stored-plans).
 
 :::figure What apply does with a saved plan, in order.
-<svg viewBox="0 0 780 346" role="img" aria-label="A saved plan is made by plan with out, held in a file with owner-only permissions, and read by apply with the file. Apply checks four things: the configuration fingerprint, the state lineage, the provider versions and the revision of the nodes it writes and reads. A difference is stale and exits 3. Apply then judges the plan by any policy, plans each change again, compares the result with the saved change, and only then changes the resource." style="min-width:700px">
+<svg viewBox="0 0 780 346" role="img" aria-label="A saved plan is made by plan with out, held in a file with owner-only permissions, and read by apply with the file. Apply checks four things: the configuration fingerprint, the state lineage, the provider versions and the revision of the nodes it writes and reads. A difference is stale and exits 3. Apply then judges the plan by the policies in force, plans each change again, compares the result with the saved change, and only then changes the resource." style="min-width:700px">
 <rect x="0" y="20" width="128" height="54" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.3"/>
 <text x="64.0" y="42" text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:600">plan -out</text>
 <text x="64.0" y="60" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">pravo plan</text>
@@ -983,7 +983,7 @@ The file records the change of every node the plan ran, with its configuration, 
 <text x="380.0" y="60" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">pravo apply</text>
 <rect x="474" y="20" width="128" height="54" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.3" stroke-dasharray="4 3"/>
 <text x="538.0" y="42" text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:600">judge</text>
-<text x="538.0" y="60" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">with --policy</text>
+<text x="538.0" y="60" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">by the policies</text>
 <rect x="632" y="20" width="148" height="54" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.3"/>
 <text x="706.0" y="42" text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:600">plan again</text>
 <text x="706.0" y="60" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">each resource</text>
@@ -1282,7 +1282,7 @@ The apply walks the changes of the plan and the nodes they read, and no others. 
 
 A saved plan is not signed. pravo checks that the file still matches the root, the state and what the providers plan. It does not check who made it.
 
-`pravo apply FILE --policy POLICY` judges the changes that remain in the file, all of them, before any provider is asked to change anything. The file records the command that made it. Nothing reads that line as a requirement. A policy file is not part of the fingerprint. [Policies](policies.md) covers the rest.
+`pravo apply FILE` judges the whole file by the policies in force in the state, under the locks and before any provider is asked to change anything. A plan file that adds, changes or removes a policy records the version it was made from, and it is stale when the state holds another one. [Policies](policies.md) covers the rest.
 
 ## Stored plans
 

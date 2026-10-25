@@ -1486,8 +1486,10 @@ pravo show change.plan; echo "exit=$?"
 Output:
 
 ```text
-Error: state at ./pravo.state was written by a newer pravo (format 4)
-exit=1
+pet: Refreshing state... [id=<pet>]
+
+Error: you are not a reader of this state: the policies of an unsealed state cannot be trusted
+exit=5
 
 Error: not-a-plan.plan is not a pravo plan file
 exit=1
@@ -1591,109 +1593,119 @@ exit=1
 
 ## Policies
 
-File `policy/no-destroy.cue`:
+A policy is a `pravo.#Policy` node of the root, kept in a sealed state. Seal the state of this directory to one reader, ada, and declare a rule that reads a field that may be absent:
+
+File `policy.cue`:
 
 ```cue
-// A managed resource is neither deleted nor replaced.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && (action == "delete" || action == "replace") {
-		error("\(addr): \(action) is not allowed")
-	}
-}]
-```
+package errors
 
-File `policy/bare.cue`:
+import "pravo.dev/pravo"
 
-```cue
-changes: [...{
-	addr:    string
-	before?: {id: string}
-	if before.id == "x" {
-		error(addr)
-	}
-}]
+check: pravo.#Policy & {rule: #"""
+	changes: [...{
+		addr:    string
+		before?: {id: string}
+		if before.id == "x" {
+			error(addr)
+		}
+	}]
+	"""#}
 ```
 
 ```sh
-rm -rf pravo.state
-pravo plan --policy policy/bare.cue; echo "exit=$?"
-pravo apply --auto-approve | grep '^Apply complete'
-pravo plan --destroy --policy policy/no-destroy.cue; echo "exit=$?"
+pravo apply --auto-approve | grep -E '^(Policies|Apply complete)'
 ```
 
 Output:
 
 ```text
-pravo will perform the following actions:
-
-  # pet (random_pet) will be created
-  + pet: {
-  +     id:        (known after apply)
-  +     length:    3
-  +     separator: "-"
-    }
-
-Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1
-
-Error: the plan violates the policy policy/bare.cue (sha256:<digest>):
-changes.0: cannot reference optional field: before:
-    policy/bare.cue:4:5
-
-exit=5
+Policies: +1 new, ~0 changed, -0 removed.
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
-pet: Refreshing state... [id=<pet>]
+```
 
-pravo will perform the following actions:
+A rule that fails on every change refuses every plan that has one. The policy is in force now. Add a second pet:
 
-  # pet (random_pet) will be destroyed
-  - pet: {
-  -     id:        "<pet>"
-  -     length:    3
-  -     separator: "-"
-    }
+File `extra.cue`:
 
-Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: 1 resources in state · refreshed 1
+```cue
+package errors
 
-Error: the plan violates the policy policy/no-destroy.cue (sha256:<digest>):
-changes.0: pet: delete is not allowed:
-    policy/no-destroy.cue:7:3
-
-exit=5
+extra: $random.#Resource.random_pet & {length: 2}
 ```
 
 ```sh
-pravo apply --policy policy/no-destroy.cue; echo "exit=$?"
-pravo plan --policy ""; echo "exit=$?"
-pravo show change.plan --policy policy/no-destroy.cue; echo "exit=$?"
+pravo plan | sed -n '/^Error/,$p'
 ```
 
 Output:
 
 ```text
-Error: a policy is judged against a saved plan: run "pravo plan -out <file>", then "pravo apply <file>"
-exit=5
+Error: the plan violates the policy check@1 (sha256:<digest>):
+changes.0: cannot reference optional field: before:
+    check:4:5
+```
 
-Error: --policy needs a file; the value is empty
-exit=5
+A change to a policy is not judged, so the same rule is replaced by one that works:
 
-Error: unknown flag: --policy
-exit=1
+File `policy.cue`:
+
+```cue
+package errors
+
+import "pravo.dev/pravo"
+
+check: pravo.#Policy & {rule: #"""
+	// A managed resource is neither deleted nor replaced.
+	changes: [...{
+		addr:   string
+		mode:   string
+		action: string
+		if mode == "managed" && (action == "delete" || action == "replace") {
+			error("\(addr): \(action) is not allowed")
+		}
+	}]
+	"""#}
+```
+
+```sh
+rm extra.cue
+pravo apply --auto-approve | grep -E '^(Policies|Apply complete)'
+pravo plan --destroy 2>&1 | sed -n '/^Error/,$p'
+```
+
+Output:
+
+```text
+Policies: +0 new, ~1 changed, -0 removed.
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
+Error: the plan violates the policy check@2 (sha256:<digest>):
+changes.0: pet: delete is not allowed:
+    check:7:3
+```
+
+```sh
+rm policy.cue
+pravo apply --auto-approve | grep -E '^(Policies|Apply complete)'
+rm -rf pravo.state .pravo
+```
+
+Output:
+
+```text
+Policies: +0 new, ~0 changed, -1 removed.
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
 | Message | Cause | Fix |
 |---|---|---|
-| `the plan violates the policy policy/no-destroy.cue (sha256:<digest>):` followed by details | The plan does not satisfy the policy. Exit code 5. | Read the details: the path indexes the plan document, and the message is the one the policy wrote. See [Reading a refusal](policies-overview.md#reading-a-refusal). |
-| `cannot reference optional field: before:` | A policy reads a field that may be absent. | Test its presence first. See [Writing policies](policies-writing.md#read-an-absent-field-only-after-a-presence-test). |
-| `a policy is judged against a saved plan: run "pravo plan -out <file>", then "pravo apply <file>"` | `apply` with `--policy` and no plan file. | Save the plan, then apply the file. |
-| `--policy needs a file; the value is empty` | `--policy ""`. | Name a file. |
-| `unknown flag: --policy` | `show` and the other commands do not take it. | Use it with `plan`, `apply`, `destroy` and `mcp`. |
+| `the plan violates the policy check@2 (sha256:<digest>):` followed by details | The plan does not satisfy a version in force. Exit code 5. | Read the details: the path indexes the plan document, and the message is the one the rule wrote. See [Reading a refusal](policies-overview.md#reading-a-refusal). |
+| `cannot reference optional field: before:` | A rule reads a field that may be absent. | Test its presence first. See [Writing policies](policies-writing.md#read-an-absent-field-only-after-a-presence-test). |
+| `the root declares policies, and a policy version is signed: the state must be sealed (pravo protect init --encrypt)` | A root with a policy on a state that is not sealed. Exit code 5. | Seal the state. |
+| `the policy check changed since the plan was made (the plan is from version 1, the state has 2)` | A plan that adds or changes a policy meets another version of it. Exit code 3. | Run `pravo plan` again. |
+| `policy check does not accept the document of an empty plan:` followed by details | A rule that fails on a plan with no change, such as a bound on a field the document does not have. Exit code 6. | Correct the name of the field. See [The rule](policies-overview.md#the-rule). |
 
-The other refusals of a policy file, before anything runs, are in [Load refusals](policies-overview.md#load-refusals). An MCP server needs absolute paths: `--policy "../p.cue": the server needs an absolute path`.
+The other refusals of a rule, before anything is applied, are in [The rule](policies-overview.md#the-rule).
 
 ## Modules
 

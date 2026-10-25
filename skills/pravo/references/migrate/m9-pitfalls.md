@@ -872,26 +872,34 @@ Cause: no version in the registry satisfies the constraint for this platform and
 
 ### A policy that does not load
 
-File `policy/scope.cue`:
+File `pol/main.cue`:
 
 ```cue
-changes: [...{
-	addr: string
-	if mode == "managed" {
-		error("\(addr): no")
-	}
-}]
+package pol
+
+import "pravo.dev/pravo"
+
+scope: pravo.#Policy & {
+	rule: #"""
+		changes: [...{
+			addr: string
+			if mode == "managed" {
+				error("\(addr): no")
+			}
+		}]
+		"""#
+}
 ```
 
 ```sh
-pravo -C r plan --policy ../policy/scope.cue
+pravo -C pol plan
 ```
 
 Output:
 
 ```text
-Error: policy ../policy/scope.cue does not compile: changes: reference "mode" not found:
-    ../policy/scope.cue:3:5
+Error: policy scope does not compile: changes: reference "mode" not found:
+    scope:3:5
 ```
 
 Cause: CUE resolves a name by scope, and `mode` is not declared in the template. Fix: declare every field the guard reads: `mode: string`. [M6](m6-rewrite-plan-checks.md) shows the four rules, and the refusals for the other mistakes in a rule.

@@ -202,7 +202,7 @@ Every row above 0 is a decision. The table says what each construct becomes and 
 | `count` | A comprehension. Addresses change from `[0]` to `_0` in the converted state. | [M4](m4-translate-the-specification.md), [M5](m5-convert-the-state.md) |
 | `provider-passing` | A module input of type `#Provider`. | [M4](m4-translate-the-specification.md), [modules](../reference/spec-modules.md) |
 | `sensitive-vars`, `tf-var-env` | `pravo.#SecretEnv` for a secret and `pravo.#Env` for the rest. | [M4](m4-translate-the-specification.md), [secrets](../how-to/secrets.md) |
-| `plan-json-checks` | A plan policy, a CUE file named with `--policy`. | [M6](m6-rewrite-plan-checks.md), [policies](../how-to/policies.md) |
+| `plan-json-checks` | A policy: a `pravo.#Policy` node of the root. | [M6](m6-rewrite-plan-checks.md), [policies](../how-to/policies.md) |
 
 The `workspaces` row counts the places where the code reads the workspace name. It cannot see a workspace that a pipeline selects with `tofu workspace select`. The `tofu workspace list` of task 2 does. A root with workspaces converts each state into its own pravo state, as [M5](m5-convert-the-state.md#a-root-with-workspaces) shows.
 

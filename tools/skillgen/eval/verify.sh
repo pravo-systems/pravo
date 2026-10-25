@@ -26,12 +26,13 @@ t2)
   ;;
 t3)
   cd $d || exit 1
-  [ -f policy/plan.cue ] && ok "policy file" || bad "policy file"
-  out=$($P -C root plan --policy ../policy/plan.cue --detailed-exitcode 2>&1); rc=$?
-  [ $rc = 0 ] && ok "plan with policy: no changes, exit 0" || { bad "plan exit $rc"; echo "$out" | tail -5; }
+  grep -q 'pravo.#Policy' root/*.cue && ok "policy node" || bad "policy node"
+  ls root/pravo.state/policy/* >/dev/null 2>&1 && ok "policy version in the state" || bad "policy version in the state"
+  out=$($P -C root plan --detailed-exitcode 2>&1); rc=$?
+  [ $rc = 0 ] && ok "plan: no changes, exit 0" || { bad "plan exit $rc"; echo "$out" | tail -5; }
   grep -q 'moved\|\$from' root/*.cue && ok "uses a move" || bad "no move declaration"
   # the policy must refuse a destroy
-  $P -C root plan --destroy --policy ../policy/plan.cue >/dev/null 2>&1; rc=$?
+  $P -C root plan --destroy >/dev/null 2>&1; rc=$?
   [ $rc = 5 ] && ok "policy refuses a destroy (exit 5)" || bad "destroy plan exit $rc (want 5)"
   ;;
 esac

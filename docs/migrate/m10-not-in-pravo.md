@@ -236,7 +236,7 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
 Plan: 1 to add, 0 to change, 1 to destroy.
 ```
 
-The plan skips `c`. The apply of `a` leaves the change to `b` in the file `part.plan`. A policy named with `--policy` judges the saved plan as a whole, and not the selection.
+The plan skips `c`. The apply of `a` leaves the change to `b` in the file `part.plan`. The policies in force judge the saved plan as a whole, and not the selection.
 
 ## Commands without provisioners
 

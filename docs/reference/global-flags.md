@@ -24,7 +24,7 @@ These flags belong to the command `pravo` and every subcommand accepts them.
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `-C`, `--chdir DIR` | none | Run as if started in `DIR`. Relative paths in other flags, such as `--policy`, are relative to `DIR`. |
+| `-C`, `--chdir DIR` | none | Run as if started in `DIR`. Relative paths in other flags, such as `--out`, are relative to `DIR`. |
 | `--no-color` | off | Do not colour the output. Colour is used only on a terminal. |
 | `-v` | off | Log what pravo decides and does to stderr. See [The debug log](#the-debug-log). |
 | `-vv` | off | Finer detail, and the log of the providers. |
@@ -50,7 +50,6 @@ A command that takes no argument refuses a word, so a misplaced value is an erro
 | `-T`, `--inject-vars` | the same | Inject the system variables of CUE into tags written `@tag(name,var=os)`. Examples are `os`, `arch` and `username`. |
 | `--refresh=age\|expired\|false\|all` | `plan`, `apply`, `destroy`, `why` | When to read real state from the providers. See [`pravo plan`](plan.md#refresh). |
 | `--full` | `plan`, `apply` | Plan every resource with its provider. |
-| `--policy FILE` | `plan`, `apply`, `destroy`, `mcp` | A CUE file the plan must satisfy. Repeatable. |
 | `--access-dir DIR` | `protect`, `serve` | The directory of the readers file of a sealed state, in place of `.pravo/access`. `PRAVO_ACCESS_DIR` sets the same, and the flag wins. A relative directory is relative to the root. See [`pravo id and pravo protect`](protect.md#the-readers-file). |
 
 `pravo show`, `pravo fmt`, `pravo version` and `pravo mod` take no tags. Use the same tags for `plan` and `apply`. Otherwise they evaluate different specifications. A saved plan carries its own.

@@ -9,6 +9,9 @@ needs: "Step 6 done: [rewrite the checks on plans](m6-rewrite-plan-checks.md)."
 learn: In what order do you stop OpenTofu, start the pravo pipeline and retire the old state?
 done_when: "OpenTofu lists no resource for the root, the pipeline runs pravo, and `pravo plan` is still empty."
 level: intermediate
+env:
+  PRAVO_PASSPHRASE: an example passphrase
+  PRAVO_CONFIG_DIR: people/ada
 normalize:
   - pattern: '(?m)^[^\n]*: (Refreshing state\.\.\.|Reading\.\.\.|Read complete)[^\n]*\n'
     replace: ""
@@ -122,16 +125,16 @@ pravo plan --detailed-exitcode
 
 The settings, the bucket and the commands are in [Keep the state in a shared bucket](../how-to/remote-state.md#6-move-a-local-state-into-the-bucket). Keep versioning on for the bucket, as you did for the OpenTofu state.
 
-Each OpenTofu step has a pravo step. The policy is named on `plan` and on `apply <planfile>`.
+Each OpenTofu step has a pravo step. A policy is a node of the root, so the commands name none.
 
 | Step | OpenTofu | pravo |
 |---|---|---|
 | Install providers | `tofu init` | `pravo init` |
 | Check the specification | `tofu validate` | `pravo validate` |
-| Plan and save | `tofu plan -out=change.plan` | `pravo plan --out change.plan --policy policy/rules.cue` |
+| Plan and save | `tofu plan -out=change.plan` | `pravo plan --out change.plan` |
 | Plan, exit 2 on a change | `tofu plan -detailed-exitcode` | `pravo plan --detailed-exitcode` |
 | Machine-readable plan | `tofu show -json change.plan` | `pravo show change.plan --json` |
-| Apply the saved plan | `tofu apply change.plan` | `pravo apply change.plan --policy policy/rules.cue` |
+| Apply the saved plan | `tofu apply change.plan` | `pravo apply change.plan` |
 | Read outputs | `tofu output -json` | `pravo output --json` |
 | Debug log | `TF_LOG=debug` | `PRAVO_LOG=debug`, or `-v` |
 | Provider cache | `TF_PLUGIN_CACHE_DIR` | `PRAVO_HOME` |
@@ -164,27 +167,44 @@ note: $local.#Resource.local_file & {
 }
 ```
 
-```cue file=policy/no-delete.cue title="policy/no-delete.cue"
-// A managed resource is neither deleted nor replaced.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && (action == "delete" || action == "replace") {
-		error("\(addr): \(action) is not allowed")
-	}
-}]
+```cue file=infra/policy.cue title="infra/policy.cue"
+package infra
+
+import "pravo.dev/pravo"
+
+no_delete: pravo.#Policy & {
+	rule: #"""
+		// A managed resource is neither deleted nor replaced.
+		changes: [...{
+			addr:   string
+			mode:   string
+			action: string
+			if mode == "managed" && (action == "delete" || action == "replace") {
+				error("\(addr): \(action) is not allowed")
+			}
+		}]
+		"""#
+}
+```
+
+A policy version is signed by whoever applies it, so the state is sealed to one reader first.
+
+```sh run
+mkdir -p infra/.pravo/access
+pravo -C infra id new --name ada | grep '^  ada ssh' | sed 's/^  //' > infra/.pravo/access/readers.txt
+pravo -C infra init > /dev/null
+pravo -C infra protect init --encrypt --yes --allow-local > /dev/null
 ```
 
 ```sh file=ci.sh title="ci.sh"
 set -eu
 pravo -C infra init
 pravo -C infra validate
-pravo -C infra plan --out change.plan --policy ../policy/no-delete.cue
-pravo -C infra apply change.plan --policy ../policy/no-delete.cue
+pravo -C infra plan --out change.plan
+pravo -C infra apply change.plan
 ```
 
-The script stops at the first failing command. `pravo plan --out` writes the plan only when every named policy holds.
+The script stops at the first failing command. `pravo plan --out` writes the plan only when every policy in force holds.
 
 ```sh run
 sh ci.sh 2>&1 | grep -E '^(Success|Plan:|Policy|Apply complete)'
@@ -193,8 +213,6 @@ sh ci.sh 2>&1 | grep -E '^(Success|Plan:|Policy|Apply complete)'
 ```text out
 Success! 2 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 2 providers.
 Plan: 2 to add, 0 to change, 0 to destroy.
-Policy ../policy/no-delete.cue (sha256:0c23a31e78bd) is satisfied.
-Policy ../policy/no-delete.cue (sha256:0c23a31e78bd) is satisfied.
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 
@@ -249,7 +267,7 @@ A policy refusal is 5, and an invalid specification is 6:
 
 ```sh run
 rm infra/extra.cue
-pravo -C infra plan --policy ../policy/no-delete.cue > /dev/null 2>&1
+pravo -C infra plan > /dev/null 2>&1
 echo "exit=$?"
 printf 'package infra\n\nbroken: nope\n' > infra/broken.cue
 pravo -C infra validate > /dev/null 2>&1
