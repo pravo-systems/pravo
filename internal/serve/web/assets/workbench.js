@@ -11,6 +11,7 @@ import { h, clear, icon, plural, relTime, stamp, debounce, store } from './util.
 import { tokenize } from './cue.js';
 import { attachFolds, foldRanges, hiddenRows } from './fold.js';
 import * as api from './api.js';
+import { picker } from './picker.js';
 
 const DRAFT_KEY = 'pravo.workbench.policies';
 const MAX_PLANS = 100;
@@ -214,27 +215,13 @@ export class WorkbenchView {
 
   paintControls() {
     const d = this.data;
-    const startSel = h('select', { class: 'wb-select', 'aria-label': 'Start from', on: { change: (ev) => this.startFrom(ev.target.value) } });
-    const opt = (value, label, group) => (group || startSel).append(h('option', { value, selected: this.start === value }, label));
-    opt('blank', 'A blank policy');
-    if (d.examples.length) {
-      const g = h('optgroup', { label: 'Examples' });
-      d.examples.forEach((e) => opt('ex:' + e.id, e.title, g));
-      startSel.append(g);
-    }
+    const groups = [{ label: null, items: [{ value: 'blank', label: 'A blank policy' }] }];
+    if (d.examples.length) groups.push({ label: 'Examples', items: d.examples.map((e) => ({ value: 'ex:' + e.id, label: e.title })) });
     const inForce = d.policies.filter((p) => p.in_force), declared = d.policies.filter((p) => p.declared && p.declared !== p.in_force);
-    if (inForce.length) {
-      const g = h('optgroup', { label: 'A policy in force' });
-      inForce.forEach((p) => opt('policy:' + p.name, p.description || p.name, g));
-      startSel.append(g);
-    }
-    if (declared.length) {
-      const g = h('optgroup', { label: 'The specification’s text' });
-      declared.forEach((p) => opt('declared:' + p.name, (p.description || p.name) + ' (declared)', g));
-      startSel.append(g);
-    }
+    if (inForce.length) groups.push({ label: 'Policies in force', items: inForce.map((p) => ({ value: 'policy:' + p.name, label: p.description || p.name, sub: p.description ? p.name : '' })) });
+    if (declared.length) groups.push({ label: 'The specification’s text', items: declared.map((p) => ({ value: 'declared:' + p.name, label: p.description || p.name, sub: (p.description ? p.name + ' · ' : '') + 'declared, not yet stored' })) });
     clear(this.controlsEl);
-    this.controlsEl.append(h('label', { class: 'wb-f' }, h('span', { class: 'k' }, 'start from'), startSel));
+    this.controlsEl.append(h('div', { class: 'wb-f' }, h('span', { class: 'k', id: 'wb-start-k' }, 'start from'), picker(groups, this.start, (v) => this.startFrom(v), 'wb-start-k')));
   }
 
   startFrom(v) {

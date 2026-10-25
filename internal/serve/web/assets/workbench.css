@@ -30,9 +30,20 @@
 
 .wb-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .6rem .8rem; }
 .wb-f { display: grid; grid-template-columns: minmax(0, 1fr); gap: .35rem; min-width: 0; }
-.wb-select { width: 100%; box-sizing: border-box; padding: .45rem .55rem; border: 1px solid var(--line-strong); border-radius: 0; background: var(--surface); color: var(--text); font: 400 .78rem/1.2 var(--font-mono); }
-.wb-select:disabled { color: var(--text-3); }
-.wb-select:focus-visible { outline: 2px solid var(--key); outline-offset: 1px; }
+.pk { position: relative; min-width: 0; }
+.pk-btn { width: 100%; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .45rem .55rem; border: 1px solid var(--line-strong); border-radius: 0; background: var(--surface); color: var(--text); font: 400 .78rem/1.2 var(--font-mono); text-align: left; cursor: pointer; }
+.pk-btn:hover, .pk-btn[aria-expanded="true"] { border-color: var(--text-3); }
+.pk-btn:focus-visible { outline: 2px solid var(--key); outline-offset: 1px; }
+.pk-cur { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-btn .i { flex: none; width: .8rem; height: .8rem; color: var(--text-3); }
+.pk-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% - 1px); max-height: 20rem; overflow: auto; border: 1px solid var(--text-3); border-radius: 0; background: var(--surface); box-shadow: none; }
+.pk-list[hidden] { display: none; }
+.pk-g { padding: .55rem .6rem .25rem; font: 500 .62rem/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); border-top: 1px solid var(--line); }
+.pk-g:first-child { border-top: 0; }
+.pk-i { display: grid; gap: .1rem; padding: .4rem .6rem .4rem 1.1rem; font: 400 .78rem/1.3 var(--font-mono); color: var(--text); cursor: pointer; }
+.pk-i[aria-selected="true"] .pk-l::before { content: "■ "; color: var(--key); font-size: .6rem; margin-left: -.8rem; }
+.pk-i.on { background: var(--surface-2); }
+.pk-s { color: var(--text-3); font-size: .68rem; }
 
 /* the editor: a text area laid over the same text in colour */
 .wb-ed { --wb-lines: 12; --lh: calc(.76rem * 1.55); display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); background: var(--code-bg); border: 1px solid var(--code-edge); color: var(--code-text); height: calc(var(--wb-lines) * var(--lh) + 1.2rem); min-width: 0; }
