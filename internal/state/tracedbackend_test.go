@@ -11,6 +11,9 @@ import (
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/pravo-systems/pravo/internal/env"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // The requests a store sends to its backend are spans under the context the store
@@ -18,6 +21,8 @@ import (
 func TestStoreRequestsAreSpans(t *testing.T) {
 	t.Setenv("PRAVO_TRACES", "on")
 	t.Setenv("OTEL_SDK_DISABLED", "")
+	telemetry.Configure(env.OS())
+	t.Cleanup(func() { telemetry.Configure(env.Env{}) })
 	rec := tracetest.NewSpanRecorder()
 	prev := otel.GetTracerProvider()
 	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec)))
@@ -69,6 +74,8 @@ func TestStoreRequestsAreSpans(t *testing.T) {
 func TestRemoteStoreRequestsAreNetworkSpans(t *testing.T) {
 	t.Setenv("PRAVO_TRACES", "on")
 	t.Setenv("OTEL_SDK_DISABLED", "")
+	telemetry.Configure(env.OS())
+	t.Cleanup(func() { telemetry.Configure(env.Env{}) })
 	rec := tracetest.NewSpanRecorder()
 	prev := otel.GetTracerProvider()
 	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec)))
@@ -122,6 +129,8 @@ func TestRemoteStoreRequestsAreNetworkSpans(t *testing.T) {
 func TestUnsealRecordsTheIdentity(t *testing.T) {
 	t.Setenv("PRAVO_TRACES", "on")
 	t.Setenv("OTEL_SDK_DISABLED", "")
+	telemetry.Configure(env.OS())
+	t.Cleanup(func() { telemetry.Configure(env.Env{}) })
 	ada := testIdentity(t, "ada")
 	b := testBackends()[0].make(t)
 	sealedStore(t, b, ada).Close()
