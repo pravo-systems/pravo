@@ -7,6 +7,7 @@ import { h, s as svgEl, clear, icon, relTime, relUntil, stamp, plural, signature
 import { Pills } from './pills.js';
 import { QueryMenu, addTerm, removeTerm, removeValues } from './query.js';
 import * as pq from './pquery.js';
+import { touchAction, planCounts, countWords } from './plancount.js';
 
 // STATUS says where a plan stands. The word is the carrier; the colour agrees with it, and with the history of the
 // transactions: blue can still be applied (the whole of it or what is left), green was applied, amber moved on,
@@ -77,21 +78,22 @@ export const conflictAt = (p, addr) => !!p && (p.touches || []).some((t) => t.ad
 // conflictCount is how many changes of a partly stale plan cannot be applied now, those that the list leaves out included
 const conflictCount = (p) => (p.conflicts || []).length + (p.conflicts_omitted || 0);
 
-// counts are the adds, changes and destroys of a plan, in the colours of the actions
+// counts are the adds, changes and destroys of a plan, in the colours of the actions, and the imports and the moves that the summary
+// leaves out (see planCounts). A plan is never said to have no changes while it has some.
 export function counts(c, cls = '') {
   const parts = [];
   if (c.add) parts.push(h('b', { class: 'ok' }, '+' + c.add));
   if (c.change) parts.push(h('b', { class: 'chg' }, '~' + c.change));
   if (c.destroy) parts.push(h('b', { class: 'bad' }, '−' + c.destroy));
-  if (!parts.length) parts.push(h('b', { class: 'dim' }, c.read ? plural(c.read, 'read') : 'no changes'));
+  if (c.import) parts.push(h('b', { class: 'dim' }, c.import + ' imported'));
+  if (c.move) parts.push(h('b', { class: 'dim' }, c.move + ' moved'));
+  if (!parts.length) parts.push(h('b', { class: 'dim' }, c.read ? plural(c.read, 'read') : c.planned ? plural(c.planned, 'change') : 'no changes'));
   return h('span', { class: 'pcnt' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, parts);
 }
 
-const countWords = (c) => [c.add && `${c.add} to add`, c.change && `${c.change} to change`, c.destroy && `${c.destroy} to destroy`].filter(Boolean).join(', ') || 'no changes';
-
 // describe is the label of a plan for a screen reader
 export function describe(p, reason) {
-  const bits = [reason || p.id, reason ? p.id : null, statusLabel(p.status), `by ${p.author}`, relTime(p.created), countWords(p.summary || {})];
+  const bits = [reason || p.id, reason ? p.id : null, statusLabel(p.status), `by ${p.author}`, relTime(p.created), countWords(planCounts(p), p.status === 'applied')];
   if (conflictCount(p)) bits.push(plural(conflictCount(p), 'change') + (conflictCount(p) === 1 ? ' conflicts' : ' conflict'));
   if ((p.overlaps || []).length) bits.push('overlaps ' + plural(p.overlaps.length, 'other plan'));
   if (p.applying) bits.push('an apply is running');
@@ -172,10 +174,11 @@ export function detail(p, { onPlan, byId, text, changes } = {}) {
 // changeRow is what a plan does to a resource, as a row of its detail: the action, the address, the type, and whether the change was
 // applied, or cannot be now. A click goes to the resource, with the plan laid over the graph.
 function changeRow(p, c, env, onChange) {
-  const a = actionOf(c.action);
+  const act = touchAction(c);
+  const a = actionOf(act);
   const type = pq.infoOf(c, env).type;
   return h('li', null, h('button', { class: 'rp-chg', type: 'button', data: { addr: c.addr, plan: p.id },
-    'data-tip': 'Show it on the resources, with this plan laid over them', 'aria-label': `${c.addr}, ${a ? a.label : c.action}${c.applied ? ', applied' : ''}${c.conflict ? ', conflicts with the state' : ''}. Show it on the resources`,
+    'data-tip': 'Show it on the resources, with this plan laid over them', 'aria-label': `${c.addr}, ${a ? a.label : act}${c.applied ? ', applied' : ''}${c.conflict ? ', conflicts with the state' : ''}. Show it on the resources`,
     on: { click: () => onChange && onChange(p.id, c.addr) } },
   a ? h('i', { class: 'sq ' + a.cls, 'data-tip': a.label }) : h('i', { class: 'sq' }),
   h('code', null, c.addr),
@@ -280,7 +283,7 @@ export class Plans {
       return h('button', { class: 'rp-facet' + (held ? ' on' : ''), type: 'button', 'aria-pressed': String(held), 'data-tip': `${held ? 'Stop filtering' : 'Filter'} by ${col} ${value}`, data: { fk: `f-${p.id}-${col}-${value}` }, on: { click: () => this.facet(col, value) } },
         mark || null, h('span', null, label || value), h('em', null, String(n)));
     };
-    const acts = count((c) => c.action), nss = count((c) => pq.infoOf(c, env).ns), types = count((c) => pq.infoOf(c, env).type);
+    const acts = count(touchAction), nss = count((c) => pq.infoOf(c, env).ns), types = count((c) => pq.infoOf(c, env).type);
     const chips = [
       ...(acts.length > 1 ? acts.map(([v, n]) => { const a = actionOf(v); return chip('action', v, n, v, a ? h('i', { class: 'sq ' + a.cls }) : null); }) : []),
       ...(nss.length > 1 ? nss.slice(0, 4).map(([v, n]) => chip('ns', v, n)) : []),
@@ -354,9 +357,9 @@ export class Plans {
       avatar(p.author),
       h('span', { class: 'rp-main' },
         h('span', { class: 'rp-l1' }, reason ? h('span', { class: 'rp-title', title: reason }, reason) : h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null),
-        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(p.summary || {}), expiryRing(p)),
+        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), expiryRing(p)),
         hits ? h('span', { class: 'rp-l4', 'aria-hidden': 'true' },
-          hits.slice(0, GLANCE).map((c) => { const a = actionOf(c.action); return h('span', { class: 'rp-ch' }, a ? h('i', { class: 'sq ' + a.cls }) : null, c.addr); }),
+          hits.slice(0, GLANCE).map((c) => { const a = actionOf(touchAction(c)); return h('span', { class: 'rp-ch' }, a ? h('i', { class: 'sq ' + a.cls }) : null, c.addr); }),
           hits.length > GLANCE ? h('span', { class: 'rp-chn' }, `+${hits.length - GLANCE} more`) : null) : null,
         reason ? h('code', { class: 'rp-l3' }, p.id) : null));
     return h('div', { class: 'rp-row' + (shown ? ' sel' : '') }, btn,
@@ -398,14 +401,17 @@ export function signedIcon(sg) {
 
 export function planStrip(el, p, cb) {
   // a strip that says the same is left as it is: drawing it again takes the focus from the button that has it
-  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(cb.signatures || null), !!cb.onClear, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
+  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), p.planned || 0, p.applied || 0, (p.touches || []).length, JSON.stringify(cb.signatures || null), !!cb.onClear, !!cb.onList, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
   clear(el);
   if (!p) { el.hidden = true; return; }
   el.hidden = false;
-  const c = counts(p.summary || {});
+  const n = planCounts(p);
+  let c = counts(n);
   if (p.summary && p.summary.blast_radius) c.title = 'Blast radius: ' + plural(p.summary.blast_radius, 'resource');
+  // the counts of a stored plan lead to the list of what it changes: the changes of a plan that was applied are the point of looking at it
+  if (cb.onList) c = h('button', { class: 'ps-chg', type: 'button', 'aria-label': `${countWords(n, p.status === 'applied')}. List what the plan changes`, 'data-tip': 'List what the plan changes', on: { click: cb.onList } }, c);
   el.append(...[
     h('span', { class: 'ps-eyebrow' }, 'Plan'),
     p.author ? avatar(p.author) : null,
@@ -413,6 +419,7 @@ export function planStrip(el, p, cb) {
     h('code', { class: 'ps-id' }, p.id),
     p.status ? statusChip(p.status) : null,
     c,
+    p.status === 'partial' && p.applied ? h('span', { class: 'ps-prog dim' }, `${p.applied} of ${p.planned} applied`) : null,
     h('span', { class: 'ps-by dim' }, p.author || null, signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
     expiryRing(p),
     h('span', { class: 'grow' }),

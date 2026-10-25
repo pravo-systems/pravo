@@ -204,7 +204,9 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 .planstrip button:hover { color: var(--text); border-color: var(--text-3); }
 .planstrip button .i { width: .7rem; height: .7rem; }
 body:has(.app[data-view="access"]) .planstrip, body:has(.app[data-view="plans"]) .planstrip { display: none; }
-@media (max-width: 47.5em) { .planstrip .pcnt, .planstrip .ps-by, .planstrip .ps-id, .planstrip .ps-eyebrow, .planstrip .ps-x-t { display: none; } }
+.planstrip .ps-chg { padding: .3rem .5rem; }
+.planstrip .ps-prog { font-size: .74rem; white-space: nowrap; }
+@media (max-width: 47.5em) { .planstrip .pcnt, .planstrip .ps-chg, .planstrip .ps-prog, .planstrip .ps-by, .planstrip .ps-id, .planstrip .ps-eyebrow, .planstrip .ps-x-t { display: none; } }
 
 /* ---- the ring of the time that a plan has left ---- */
 .rg { display: inline-flex; align-items: center; gap: .3rem; flex: none; }

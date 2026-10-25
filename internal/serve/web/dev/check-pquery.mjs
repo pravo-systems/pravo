@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseQuery, addTerm, removeTerm } from '../assets/query.js';
 import { compile, rowsOf, suggest, holds, LANG, COLUMNS } from '../assets/pquery.js';
+import { touchAction, planCounts, countWords } from '../assets/plancount.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const read = (n) => JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8'));
@@ -86,6 +87,21 @@ check(suggest(doc, 'foo:', 4) === null, 'an unknown column offers nothing');
 const s = suggest(doc, 'status:open by:', 15);
 check(s && s.from === 12 && s.to === 15, 'the menu says which part of the text it replaces');
 check(COLUMNS.every((c) => LANG.columns.includes(c)), 'the language knows its columns');
+
+// a plan that adopts objects and moves one: its summary counts none of it, its list of changes has all three
+const adopt = { id: 'plan-ac30e3aa', status: 'applied', open: false, author: 'marcinw', created: '2026-10-21T04:00:00Z', expires: '2026-10-28T04:00:00Z', summary: { add: 0, change: 0, destroy: 0, read: 0 }, planned: 3, applied: 3,
+  touches: [{ addr: 'api.db', action: 'no-op', applied: true }, { addr: 'api.cache', action: 'no-op', applied: true }, { addr: 'network.private.nat', action: 'move', applied: true }] };
+check(touchAction({ action: 'no-op' }) === 'import' && touchAction({ action: 'update' }) === 'update' && touchAction({ action: 'move' }) === 'move', 'a change that does nothing but import is an import');
+const ac = planCounts(adopt);
+check(ac.import === 2 && ac.move === 1 && ac.add + ac.change + ac.destroy === 0 && ac.planned === 3, `the counts of a plan that adopts: ${JSON.stringify(ac)}`);
+check(countWords(ac, true) === '2 imported, 1 moved' && countWords(ac) === '2 to import, 1 to move', `the counts in words: ${countWords(ac, true)} / ${countWords(ac)}`);
+check(countWords(planCounts({ summary: {}, planned: 0, touches: [] })) === 'no changes' && countWords(planCounts({ summary: {}, planned: 4, touches: [] })) === '4 changes', 'a plan with changes is never said to have none');
+check(stored.plans.every((p) => { const c = planCounts(p); return c.add === p.summary.add && c.change === p.summary.change && c.import === 0 && c.move === 0; }), 'the plans that the summary counts are counted as it counts them');
+const doc2 = { plans: [...stored.plans, adopt], env };
+const ids2 = (q) => rowsOf(doc2, compile(q)).map((r) => r.p.id.replace('plan-', '')).sort().join();
+check(ids2('action:import') === 'ac30e3aa' && ids2('action:move') === 'ac30e3aa' && ids2('action:no-op') === '', 'action:import finds the plan that adopts, and its changes are not no-ops');
+check(labels2(suggest(doc2, 'action:', 7)).join() === 'create,update,move,import', `the menu offers import: ${labels2(suggest(doc2, 'action:', 7))}`);
+function labels2(s) { return s ? s.items.map((i) => i.label) : []; }
 
 // the text
 check(addTerm('', 'action', 'update', false, LANG) === 'action:update' && addTerm('action:update', 'action', 'delete', false, LANG) === 'action:update,delete', 'a chip adds a term, or a value to the term of its column');

@@ -9,6 +9,7 @@
 // parsing are those of the Inventory (query.js).
 
 import { parseQuery, pieces, unquote, quoted, same, TOKEN, providerType, compare, UNIT } from './query.js';
+import { touchAction } from './plancount.js';
 
 const ALIAS = {
   state: 'status', author: 'by', who: 'by', owner: 'by', plan: 'id', note: 'reason', title: 'reason', age: 'created', expiry: 'expires', lapses: 'expires',
@@ -35,7 +36,7 @@ const HINTS = {
   created: 'How long ago it was made: <1d is newer than a day, >7d older than a week',
   expires: 'How long it has to live: <1d lapses within a day (a plan that can be applied)',
   overlap: 'any, none, or the id of a plan: plans that change a resource that another one changes',
-  action: 'What a change does: create, update, replace, delete, read',
+  action: 'What a change does: create, update, replace, delete, read, move, import',
   resource: 'The address of a resource that the plan changes; * stands for any run',
   ns: 'A namespace and everything below it',
   type: 'The type of a resource that the plan changes: aws_db_instance, or aws_s3* for a run of them',
@@ -98,7 +99,7 @@ function testPlan(col, v, p, env) {
 
 function testChange(col, v, c, env) {
   switch (col) {
-    case 'action': return c.action === (ACTION_ALIAS[v] || v);
+    case 'action': return touchAction(c) === (ACTION_ALIAS[v] || v);
     case 'resource': return same(c.addr, v);
     case 'ns': { const p = infoOf(c, env).ns; return p === v || p.startsWith(v + '.'); }
     case 'type': return same(infoOf(c, env).type, v);
@@ -110,7 +111,7 @@ function testChange(col, v, c, env) {
 
 // planHay is what a plain word is looked for in, for the plan: the id, the author, the status and the reason.
 const planHay = (p, env) => [p.id, p.author, p.status, p.status.replace(/-/g, ' '), env.reasons.get(p.id)].join('\n').toLowerCase();
-const changeHay = (c, env) => [c.addr, infoOf(c, env).type, c.action].join('\n').toLowerCase();
+const changeHay = (c, env) => [c.addr, infoOf(c, env).type, touchAction(c)].join('\n').toLowerCase();
 
 // compile makes the filter of a text: run(p, env) is null when a plan is not shown, and else says which of its changes the text asks
 // for (hits, none when the text asks nothing of the changes). The environment is { reasons, model, now }: the notes that
@@ -169,7 +170,7 @@ function valuesOf(doc, col, pool) {
     case 'by': for (const { p } of pool) add(p.author); break;
     case 'id': for (const { p } of pool) add(p.id); break;
     case 'action': {
-      for (const r of pool) once(r, (x) => x.action);
+      for (const r of pool) once(r, touchAction);
       return ACTIONS.filter((a) => c.has(a)).map((a) => [a, c.get(a)]).concat([...c].filter(([a]) => !ACTIONS.includes(a)));
     }
     case 'resource': for (const r of pool) once(r, (x) => x.addr); break;
@@ -218,7 +219,7 @@ function relevant(doc, pool) {
       case 'created': return plans.length > 1;
       case 'expires': return plans.some((p) => p.open);
       case 'overlap': return plans.some((p) => overlapsOf(p).length);
-      case 'action': return distinct((x) => x.action);
+      case 'action': return distinct(touchAction);
       case 'resource': return pool.some((r) => changesOf(r).length);
       case 'ns': return distinct((x) => infoOf(x, doc.env).ns);
       case 'type': return distinct((x) => infoOf(x, doc.env).type);

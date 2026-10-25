@@ -100,6 +100,32 @@ try {
   await wait(450);
   s = await state();
   check(s.value === '' && s.rows.split(',').length === 4, `the way out of an empty list clears the finder: ${s.value}`);
+
+  // the strip on the canvas says what the plan changes, and leads to the list of its changes
+  await b.load(`${origin}&r=3#/?motion=off&plan=plan-91d5f6b8`);
+  const strip = () => b.eval(`(() => { const e = document.getElementById('planstrip'); const l = e.querySelector('.ps-chg'); return { text: e.querySelector('.pcnt') && e.querySelector('.pcnt').textContent, list: !!l, label: l && l.getAttribute('aria-label'), prog: e.querySelector('.ps-prog') && e.querySelector('.ps-prog').textContent }; })()`);
+  let t = await strip();
+  check(t.text === '+2' && t.list && t.label.startsWith('2 added') && !t.prog, `the strip of an applied plan counts what it made: ${JSON.stringify(t)}`);
+  await b.eval(`document.querySelector('#planstrip .ps-chg').click()`);
+  await wait(500);
+  s = await state();
+  check(await b.eval(`window.__pravo.S.view === 'plans' && document.querySelector('#plans-list .rp[data-id="plan-91d5f6b8"]').getAttribute('aria-expanded') === 'true'`)
+    && s.changes === 'api.cache,api.worker.dlq', `the counts lead to the changes of the plan: ${s.changes}`);
+  await b.load(`${origin}&r=4#/?motion=off&plan=plan-5a2c9e71`);
+  t = await strip();
+  check(t.text === '~2' && t.prog === '1 of 2 applied', `the strip of a partial plan says how much was applied: ${JSON.stringify(t)}`);
+
+  // a plan that adopts objects and moves one has a summary of nothing, and is not said to have no changes
+  const adopt = JSON.stringify({ id: 'plan-ac30e3aa', status: 'applied', open: false, author: 'marcinw', created: new Date(Date.now() - 36e6).toISOString(), expires: new Date(Date.now() + 6e8).toISOString(),
+    summary: { add: 0, change: 0, destroy: 0, read: 0 }, planned: 3, applied: 3,
+    touches: [{ addr: 'api.db', action: 'no-op', applied: true }, { addr: 'api.cache', action: 'no-op', applied: true }, { addr: 'network.private.nat', action: 'move', applied: true }] });
+  const made = await b.eval(`(async () => {
+    const m = await import('./assets/plans.js');
+    const el = document.createElement('div');
+    m.planStrip(el, ${adopt}, {});
+    return { strip: el.querySelector('.pcnt').textContent, row: m.describe(${adopt}, '') };
+  })()`);
+  check(made.strip === '2 imported1 moved' && made.row.includes('2 imported, 1 moved') && !made.strip.includes('no changes'), `a plan that adopts is not a plan with no changes: ${JSON.stringify(made)}`);
   check(b.errors.length === 0, `the page logged errors: ${b.errors.join('; ')}`);
 } finally { await b.close(); srv.close(); }
 if (failed) { console.log(`${failed} failed`); process.exit(1); }

@@ -383,8 +383,9 @@ function renderPlans() {
   const p = S.plan && S.plans.find((x) => x.id === S.plan);
   // a plan that was loaded from a file is laid over the graph for good: the strip names it and has no cross
   const gp = !p && S.graph && S.graph.plan && !S.graph.plan.id ? S.graph.plan : null;
-  planStrip($('planstrip'), p || (gp && { id: baseName(gp.file), status: gp.stale ? 'stale' : '', author: gp.actor || '', created: gp.created, summary: gp.summary }), {
+  planStrip($('planstrip'), p || (gp && { id: baseName(gp.file), status: gp.stale ? 'stale' : '', author: gp.actor || '', created: gp.created, summary: gp.summary, planned: gp.planned }), {
     reason: p && reasons.get(p.id),
+    onList: p ? () => openPlan(p.id) : null,
     signatures: p && S.graph && S.graph.plan && S.graph.plan.id === p.id ? S.graph.plan.signatures : null,
     onClear: p ? () => selectPlan(null) : null,
   });
