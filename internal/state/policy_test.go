@@ -226,3 +226,48 @@ func TestATransactionSignsThePoliciesItJudgedBy(t *testing.T) {
 		t.Errorf("a transaction without policies must still verify")
 	}
 }
+
+func TestPolicyHistoryListsEveryVersionOldestFirst(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	b := testBackends()[0].make(t)
+	ada, dan := testIdentity(t, "ada"), testIdentity(t, "dan")
+	s := sealedStore(t, b, ada, dan)
+	at := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	if h, err := s.PolicyHistory(ctx, readersOf(ada)); err != nil || len(h) != 0 {
+		t.Fatalf("a state without policies: %v %v", h, err)
+	}
+	for i, text := range []string{"a: 1", "a: 2", ""} {
+		if err := s.PutPolicyVersion(ctx, "p", i+1, text, at.Add(time.Duration(i)*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.PutPolicyVersion(ctx, "q", 1, "b: 1", at); err != nil {
+		t.Fatal(err)
+	}
+	h, err := s.PolicyHistory(ctx, readersOf(ada, dan))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h) != 2 || len(h["p"]) != 3 || len(h["q"]) != 1 {
+		t.Fatalf("history: %+v", h)
+	}
+	for i, v := range h["p"] {
+		if v.Seq != i+1 || v.Status != protect.SigVerified {
+			t.Errorf("version %d: %+v", i+1, v)
+		}
+	}
+	if !h["p"][2].Tombstone() || h["p"][1].Text != "a: 2" {
+		t.Errorf("texts: %+v", h["p"])
+	}
+	// A version that does not verify refuses the whole history.
+	data, _ := b.Get(ctx, policyKey("q", 1))
+	var obj map[string]any
+	_ = json.Unmarshal(data, &obj)
+	obj["text"] = "b: 2"
+	forged, _ := json.Marshal(obj)
+	_ = b.Put(ctx, policyKey("q", 1), forged)
+	if _, err := s.PolicyHistory(ctx, readersOf(ada, dan)); !errors.Is(err, ErrUntrusted) {
+		t.Errorf("a forged version: %v", err)
+	}
+}

@@ -89,7 +89,7 @@ const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
 for (const f of files) {
   const v = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
   const kind = f.split('.')[0];
-  const type = { graph: 'Graph', detail: 'Detail', source: 'Source', plans: 'PlanList', plan: 'PlanOverlay', access: 'Access', discovery: 'Discovery', adopt: 'Adopt' }[kind];
+  const type = { graph: 'Graph', detail: 'Detail', source: 'Source', plans: 'PlanList', plan: 'PlanOverlay', access: 'Access', discovery: 'Discovery', policies: 'Policies', adopt: 'Adopt' }[kind];
   if (!type) { fail(f, 'unknown fixture kind'); continue; }
   const before = errors;
   check(v, type, f);

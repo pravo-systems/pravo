@@ -155,6 +155,41 @@ func (s *Store) PolicySet(ctx context.Context, readers []protect.Reader) (*Polic
 	return set, nil
 }
 
+// PolicyHistory reads every version of every policy, oldest first for each name, and
+// checks each signature against the readers, with the same refusals as PolicySet. A
+// state without policies has none.
+func (s *Store) PolicyHistory(ctx context.Context, readers []protect.Reader) (map[string][]PolicyVersion, error) {
+	out := map[string][]PolicyVersion{}
+	if s.Format() < FormatPolicy {
+		return out, nil
+	}
+	if !s.sealedState() {
+		return nil, fmt.Errorf("%w: the policies of an unsealed state cannot be trusted", ErrNotReader)
+	}
+	keys, err := s.b.List(ctx, policyDir)
+	if err != nil {
+		return nil, err
+	}
+	count := map[string]int{}
+	for _, k := range keys {
+		m := policyKeyRe.FindStringSubmatch(k)
+		if m == nil {
+			return nil, fmt.Errorf("%w: %s is not a policy version", ErrUntrusted, k)
+		}
+		count[m[1]]++
+	}
+	for name, n := range count {
+		for seq := 1; seq <= n; seq++ {
+			v, err := s.PolicyVersion(ctx, readers, name, seq)
+			if err != nil {
+				return nil, err
+			}
+			out[name] = append(out[name], v)
+		}
+	}
+	return out, nil
+}
+
 // PolicyVersion reads one version and checks its signature against the readers.
 func (s *Store) PolicyVersion(ctx context.Context, readers []protect.Reader, name string, seq int) (PolicyVersion, error) {
 	key := policyKey(name, seq)

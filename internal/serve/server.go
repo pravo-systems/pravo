@@ -24,6 +24,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -79,6 +80,10 @@ type Options struct {
 	// name the readers file gives the signer. Nil, or an empty status, means that the
 	// signatures are not checked.
 	VerifyTxn func(st *state.Store, t *state.Transaction) (status, signer string)
+	// PolicyReaders gives the readers that the signatures of the policy versions are
+	// checked against, and false when there is no readers file to check them against.
+	// Nil means the same.
+	PolicyReaders func(st *state.Store) ([]protect.Reader, bool)
 	// VerifyPlan checks the signatures of a stored plan against the readers file, given the
 	// digest of the plan file as it was read. The second result is false when there is
 	// nothing to check: the state is not sealed. Nil means the same.
@@ -416,7 +421,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -447,6 +452,8 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusOK, m.accessJSON)
 	case "/api/discovery":
 		writeRaw(w, http.StatusOK, m.disc.json)
+	case "/api/policies":
+		writeRaw(w, http.StatusOK, m.polJSON)
 	case "/api/adopt":
 		s.adopt(w, r, m)
 	case "/api/plan":

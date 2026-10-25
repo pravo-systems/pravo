@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "revision": "r-7c41e9b2",
+  "spec_ok": true,
+  "checked": true,
+  "in_force": 4,
+  "pending": 3,
+  "command": "pravo apply",
+  "policies": [
+    {
+      "name": "cost.max_instances",
+      "status": "in-force",
+      "declared": true,
+      "source": {
+        "file": "policies.cue",
+        "line": 14,
+        "end_line": 22
+      },
+      "head": 1,
+      "judged": 2,
+      "versions": [
+        {
+          "seq": 1,
+          "ref": "cost.max_instances@1:a18cf8eca364473d6e33ff703fad4bd52f9b007c962d58c639e3dbdb73e3ede7",
+          "digest": "a18cf8eca364473d6e33ff703fad4bd52f9b007c962d58c639e3dbdb73e3ede7",
+          "at": "2026-10-12T09:00:00Z",
+          "judged": 2,
+          "text": "changes: [...{\n\taddr: string\n\ttype: string\n\taction: string\n\tif type == \"aws_instance\" && action == \"create\" {\n\t\terror(\"\\(addr): the fleet is capped; ask for a quota\")\n\t}\n}]\n",
+          "signature": "key_not_in_file",
+          "runs": [
+            {
+              "id": "txn-8f31c2a",
+              "kind": "apply",
+              "status": "applied",
+              "time": "2026-10-21T13:10:00Z"
+            },
+            {
+              "id": "txn-71be904",
+              "kind": "apply",
+              "status": "applied",
+              "time": "2026-10-21T11:42:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "encrypt_buckets",
+      "status": "new",
+      "declared": true,
+      "source": {
+        "file": "policies.cue",
+        "line": 40,
+        "end_line": 50
+      },
+      "head": 0,
+      "rule": "changes: [...{\n\taddr: string\n\ttype: string\n\tafter?: {...}\n\tif type == \"aws_s3_bucket\" {\n\t\tafter: server_side_encryption_configuration: _\n\t}\n}]\n",
+      "judged": 0,
+      "versions": []
+    },
+    {
+      "name": "legacy.freeze",
+      "status": "removing",
+      "declared": false,
+      "head": 1,
+      "judged": 0,
+      "versions": [
+        {
+          "seq": 1,
+          "ref": "legacy.freeze@1:900218c8ff84a4755369d1b66740b085e312ea54ce224207505f44863e585f18",
+          "digest": "900218c8ff84a4755369d1b66740b085e312ea54ce224207505f44863e585f18",
+          "at": "2026-09-30T08:30:00Z",
+          "judged": 0,
+          "text": "changes: [...{addr: string, action: string}]\n",
+          "signature": "verified",
+          "signer": "grace"
+        }
+      ]
+    },
+    {
+      "name": "no_destroy",
+      "status": "in-force",
+      "declared": true,
+      "source": {
+        "file": "policies.cue",
+        "line": 1,
+        "end_line": 12
+      },
+      "head": 3,
+      "judged": 5,
+      "versions": [
+        {
+          "seq": 3,
+          "ref": "no_destroy@3:770608ba4db40f2a9026041604dc809b82943161155d1f2ed37aa6a087bd61d7",
+          "digest": "770608ba4db40f2a9026041604dc809b82943161155d1f2ed37aa6a087bd61d7",
+          "at": "2026-10-18T15:05:00Z",
+          "judged": 2,
+          "text": "import \"strings\"\n\nchanges: [...{\n\taddr:   string\n\tmode:   string\n\taction: string\n\tif mode == \"managed\" && !strings.HasPrefix(addr, \"scratch.\") && (action == \"delete\" || action == \"replace\") {\n\t\terror(\"\\(addr): \\(action) is not allowed\")\n\t}\n}]\n",
+          "signature": "verified",
+          "signer": "ada",
+          "runs": [
+            {
+              "id": "txn-8f31c2a",
+              "kind": "apply",
+              "status": "applied",
+              "time": "2026-10-21T13:10:00Z"
+            },
+            {
+              "id": "txn-71be904",
+              "kind": "apply",
+              "status": "applied",
+              "time": "2026-10-21T11:42:00Z"
+            }
+          ]
+        },
+        {
+          "seq": 2,
+          "ref": "no_destroy@2:5530c1a63699eb94d2dd5a4584539bf7ff83b53e779ea12e020fe487a217112b",
+          "digest": "5530c1a63699eb94d2dd5a4584539bf7ff83b53e779ea12e020fe487a217112b",
+          "at": "2026-10-02T10:12:00Z",
+          "judged": 3,
+          "text": "changes: [...{\n\taddr:   string\n\tmode:   string\n\taction: string\n\tif mode == \"managed\" && (action == \"delete\" || action == \"replace\") {\n\t\terror(\"\\(addr): \\(action) is not allowed\")\n\t}\n}]\n",
+          "signature": "verified",
+          "signer": "grace",
+          "runs": [
+            {
+              "id": "txn-5a9d1e3",
+              "kind": "apply",
+              "status": "rejected",
+              "time": "2026-10-20T16:20:00Z"
+            }
+          ]
+        },
+        {
+          "seq": 1,
+          "ref": "no_destroy@1:d0fce23004ba3284e425b8753266ed26f2203fac9f8c06ffe60a7ca1db8c2bc9",
+          "digest": "d0fce23004ba3284e425b8753266ed26f2203fac9f8c06ffe60a7ca1db8c2bc9",
+          "at": "2026-09-14T08:00:00Z",
+          "judged": 0,
+          "text": "changes: [...{\n\taddr:   string\n\tmode:   string\n\taction: string\n\tif mode == \"managed\" && action == \"delete\" {\n\t\terror(\"\\(addr): delete is not allowed\")\n\t}\n}]\n",
+          "signature": "verified",
+          "signer": "ada"
+        }
+      ]
+    },
+    {
+      "name": "region_lock",
+      "status": "removed",
+      "declared": false,
+      "head": 2,
+      "judged": 1,
+      "versions": [
+        {
+          "seq": 2,
+          "ref": "region_lock@2:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "at": "2026-10-05T12:00:00Z",
+          "judged": 0,
+          "removal": true,
+          "signature": "verified",
+          "signer": "grace"
+        },
+        {
+          "seq": 1,
+          "ref": "region_lock@1:901acceff333c3dd55786f294864fa82a6e74b818bcdf77ed1003a286529b98b",
+          "digest": "901acceff333c3dd55786f294864fa82a6e74b818bcdf77ed1003a286529b98b",
+          "at": "2026-09-14T08:05:00Z",
+          "judged": 1,
+          "text": "changes: [...{addr: string, region?: \"eu-west-1\"}]\n",
+          "signature": "verified",
+          "signer": "ada",
+          "runs": [
+            {
+              "id": "txn-3c0e77d",
+              "kind": "apply",
+              "status": "applied",
+              "time": "2026-09-20T10:00:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tag_owner",
+      "status": "pending",
+      "declared": true,
+      "source": {
+        "file": "policies.cue",
+        "line": 26,
+        "end_line": 36
+      },
+      "head": 2,
+      "rule": "changes: [...{\n\taddr: string\n\tmode: string\n\tafter?: {tags?: {...}, ...}\n\tif mode == \"managed\" && after != _|_ && after.tags != _|_ {\n\t\tafter: tags: owner: =~\"^[a-z][a-z0-9-]+$\" & !~\"^(root|admin)$\"\n\t}\n}]\n",
+      "judged": 3,
+      "versions": [
+        {
+          "seq": 2,
+          "ref": "tag_owner@2:256f7a2d37972b648e18eedf0e6f87d34774326435a737c27e3fb92f59debe98",
+          "digest": "256f7a2d37972b648e18eedf0e6f87d34774326435a737c27e3fb92f59debe98",
+          "at": "2026-10-19T09:30:00Z",
+          "judged": 1,
+          "text": "changes: [...{\n\taddr: string\n\tmode: string\n\tafter?: {tags?: {...}, ...}\n\tif mode == \"managed\" && after != _|_ && after.tags != _|_ {\n\t\tafter: tags: owner: =~\"^[a-z][a-z0-9-]+$\"\n\t}\n}]\n",
+          "signature": "verified",
+          "signer": "grace",
+          "runs": [
+            {
+              "id": "txn-8f31c2a",
+              "kind": "apply",
+              "status": "applied",
+              "time": "2026-10-21T13:10:00Z"
+            }
+          ]
+        },
+        {
+          "seq": 1,
+          "ref": "tag_owner@1:f24a8e753c2b8f5fff63a9e68bb28a558ab2324fa368ce33cf2ae96d671979a4",
+          "digest": "f24a8e753c2b8f5fff63a9e68bb28a558ab2324fa368ce33cf2ae96d671979a4",
+          "at": "2026-09-14T08:10:00Z",
+          "judged": 2,
+          "text": "changes: [...{\n\taddr: string\n\tmode: string\n\tafter?: {tags?: {...}, ...}\n\tif mode == \"managed\" && after != _|_ && after.tags != _|_ {\n\t\tafter: tags: owner: string\n\t}\n}]\n",
+          "signature": "verified",
+          "signer": "ada",
+          "runs": [
+            {
+              "id": "txn-5a9d1e3",
+              "kind": "apply",
+              "status": "rejected",
+              "time": "2026-10-20T16:20:00Z"
+            },
+            {
+              "id": "txn-3c0e77d",
+              "kind": "apply",
+              "status": "applied",
+              "time": "2026-09-20T10:00:00Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

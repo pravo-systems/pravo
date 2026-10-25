@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "revision": "r-empty",
+  "spec_ok": true,
+  "checked": false,
+  "in_force": 0,
+  "pending": 0,
+  "policies": [],
+  "command": "pravo apply"
+}

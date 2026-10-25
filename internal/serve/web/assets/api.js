@@ -41,6 +41,8 @@ export const plans = () => get('/api/plans').catch((err) => { if (err && err.sta
 export const access = () => get('/api/access').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', state: 'off', format: 1, location: '', backend: 'local', summary: '', readers: [], file: { verdict: 'none', path: '', text: '', count: 0 }, records: { total: 0, sealed: 0, plain: 0, unreadable: 0 }, groups: [], recovery: { state: 'none', text: '' }, suggestions: [] }; throw err; });
 // discovery is what the discoveries found, set against the state; a server that does not know them has none.
 export const discovery = () => get('/api/discovery').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, unmanaged: 0, discoveries: [], command: 'pravo discover' }; throw err; });
+// policies is the rules that every plan is judged by, with their signed versions, set against the specification; a server that does not know them has none.
+export const policies = () => get('/api/policies').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, checked: false, in_force: 0, pending: 0, policies: [], command: 'pravo apply' }; throw err; });
 // traces lists the runs that pravo recorded in the project; a server that does not know them has none.
 export const traces = () => get('/api/traces').catch((err) => { if (err && err.status === 404) return { version: 1, dir: '.pravo/traces', traces: [] }; throw err; });
 // trace is the spans of one run.
