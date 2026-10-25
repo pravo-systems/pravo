@@ -395,10 +395,10 @@ Rehearse a rule in a copy of the root with its own state, where an apply costs n
 
 ### An advisory file
 
-Start a new rule in an advisory file, evaluated outside pravo on a plan that was already produced, in a pipeline step that is allowed to fail. `pravo eval --json -e NAME.rule` prints the text of a rule as a JSON string, and `jq -r .` makes it a file. `cue vet` reads a plan document with the same CUE version as pravo:
+Start a new rule in an advisory file, evaluated outside pravo on a plan that was already produced, in a pipeline step that is allowed to fail. `pravo eval -e NAME.rule` prints the text of a rule as a CUE string, and `cue export cue: - --out text` makes it a file. `cue vet` reads a plan document with the same CUE version as pravo:
 
 ```text
-pravo eval --json -e no_destroy.rule | jq -r . > rule.cue
+pravo eval -e no_destroy.rule | cue export cue: - --out text > rule.cue
 pravo plan --json > fixture.json
 cue vet -c rule.cue fixture.json
 ```
