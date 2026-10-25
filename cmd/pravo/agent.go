@@ -7,9 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -305,37 +303,9 @@ func whyCmd() *cobra.Command {
 				return err
 			}
 			defer s.close()
-			quiet := engine.Options{Refresh: mode, Progress: func(string, ...any) {}}
-			eng := s.engine(quiet)
-			plan, err := eng.Plan(cmd.Context())
+			all, err := s.ws.Why(cmd.Context(), mode, args...)
 			if err != nil {
 				return err
-			}
-			view := eng.NewView(plan, engine.ViewOptions{Skipped: true, Full: true})
-			byAddr := map[string]engine.ChangeView{}
-			for _, c := range view.Changes {
-				byAddr[c.Addr] = c
-			}
-			type explanation struct {
-				Addr       string   `json:"addr"`
-				Action     string   `json:"action"`
-				Reasons    []string `json:"reasons"`
-				Dependents []string `json:"dependents,omitempty"`
-				Found      bool     `json:"found"`
-			}
-			var all []explanation
-			for _, a := range args {
-				c, ok := byAddr[a]
-				ex := explanation{Addr: a, Found: ok}
-				if ok {
-					ex.Action, ex.Reasons, ex.Dependents = string(c.Action), c.Reasons, c.Dependents
-					if len(ex.Reasons) == 0 {
-						ex.Reasons = []string{"nothing to report"}
-					}
-				} else {
-					ex.Reasons = []string{"not declared in the specification and not in the state"}
-				}
-				all = append(all, ex)
 			}
 			if flagJSON {
 				return emitJSON(all)
@@ -397,40 +367,10 @@ nothing, so a scheduled run costs what it reads.`,
 			if due {
 				return driftDue(cmd, s, limit, webhook)
 			}
-			eng := s.engine(engine.Options{Refresh: engine.RefreshAll, Progress: func(string, ...any) {}})
-			plan, err := eng.Plan(cmd.Context())
+			report, err := s.ws.Drift(cmd.Context())
 			if err != nil {
 				return err
 			}
-			view := eng.NewView(plan, engine.ViewOptions{})
-			type item struct {
-				Addr    string   `json:"addr"`
-				Action  string   `json:"action"`
-				Reasons []string `json:"reasons"`
-				Gone    bool     `json:"gone,omitempty"`
-			}
-			report := struct {
-				Time    time.Time      `json:"time"`
-				Root    string         `json:"root"`
-				Actor   string         `json:"actor,omitempty"`
-				Drifted []item         `json:"drifted"`
-				Pending int            `json:"pending_changes"`
-				Summary engine.Summary `json:"summary"`
-			}{Time: time.Now().UTC(), Root: s.root.Dir, Actor: flagActor, Drifted: []item{}, Summary: view.Summary}
-			for _, c := range view.Changes {
-				if c.Drifted {
-					gone := c.Action == engine.ActionCreate
-					reasons := c.Reasons
-					if reasons == nil {
-						reasons = []string{}
-					}
-					report.Drifted = append(report.Drifted, item{Addr: c.Addr, Action: string(c.Action), Reasons: reasons, Gone: gone})
-				}
-				if c.Action != engine.ActionNoop && c.Action != engine.ActionRead && c.Action != engine.ActionOpen && c.Action != engine.ActionCall {
-					report.Pending++
-				}
-			}
-			sort.Slice(report.Drifted, func(i, j int) bool { return report.Drifted[i].Addr < report.Drifted[j].Addr })
 			if webhook != "" {
 				if err := postJSON(webhook, report); err != nil {
 					return err
@@ -441,9 +381,9 @@ nothing, so a scheduled run costs what it reads.`,
 					return err
 				}
 			} else if len(report.Drifted) == 0 {
-				out.Println(out.C(ui.Bold+ui.Green, "No drift.") + fmt.Sprintf(" %d resources refreshed; %d pending changes from the specification.", view.Stats.Refreshed, report.Pending))
+				out.Println(out.C(ui.Bold+ui.Green, "No drift.") + fmt.Sprintf(" %d resources refreshed; %d pending changes from the specification.", report.Refreshed, report.Pending))
 			} else {
-				out.Printf("%s %d of %d resources changed outside pravo:\n", out.C(ui.Bold+ui.Yellow, "Drift."), len(report.Drifted), view.Stats.Refreshed)
+				out.Printf("%s %d of %d resources changed outside pravo:\n", out.C(ui.Bold+ui.Yellow, "Drift."), len(report.Drifted), report.Refreshed)
 				for _, d := range report.Drifted {
 					out.Printf("  %s: %s\n", out.C(ui.Bold, d.Addr), d.Action)
 					for _, r := range d.Reasons {
@@ -467,17 +407,11 @@ nothing, so a scheduled run costs what it reads.`,
 // driftDue is "pravo drift --due": the records past their refresh age are read
 // and the report lists what differs.
 func driftDue(cmd *cobra.Command, s *session, limit int, webhook string) error {
-	eng := s.engine(engine.Options{Progress: func(string, ...any) {}})
-	rep, err := eng.DriftDue(cmd.Context(), limit)
+	report, err := s.ws.DriftDue(cmd.Context(), limit)
 	if err != nil {
 		return err
 	}
-	report := struct {
-		Time  time.Time `json:"time"`
-		Root  string    `json:"root"`
-		Actor string    `json:"actor,omitempty"`
-		*engine.DueReport
-	}{Time: time.Now().UTC(), Root: s.root.Dir, Actor: flagActor, DueReport: rep}
+	rep := report.DueReport
 	if webhook != "" {
 		if err := postJSON(webhook, report); err != nil {
 			return err

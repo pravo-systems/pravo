@@ -2,16 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"github.com/pravo-systems/pravo/pravo"
 	"os"
 	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
-	"cuelang.org/go/cue/format"
-	cuejson "cuelang.org/go/encoding/json"
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -384,10 +381,11 @@ func stateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if st.Get(args[0]) == nil {
-					return fmt.Errorf("%s is not in state", args[0])
+				reach, err := pravo.Dependents(st, args[0])
+				if err != nil {
+					return err
 				}
-				for _, a := range st.Reach(args[0]) {
+				for _, a := range reach {
 					fmt.Println(a)
 				}
 				return nil
@@ -413,33 +411,19 @@ Examples:
 				if err != nil {
 					return err
 				}
-				data, err := json.Marshal(st.Snapshot())
+				res, err := pravo.QueryState(st, args[0])
 				if err != nil {
-					return err
-				}
-				ctx := cuecontext.New()
-				expr, err := cuejson.Extract("state", data)
-				if err != nil {
-					return err
-				}
-				scope := ctx.BuildExpr(expr)
-				if err := scope.Err(); err != nil {
-					return err
-				}
-				v := ctx.CompileString(args[0], cue.Scope(scope))
-				if err := v.Err(); err != nil {
 					return err
 				}
 				if flagJSON {
-					b, err := v.MarshalJSON()
+					b, err := res.JSON()
 					if err != nil {
 						return err
 					}
 					os.Stdout.Write(append(b, '\n'))
 					return nil
 				}
-				node := v.Syntax(cue.Final(), cue.Concrete(false), cue.Docs(false))
-				b, err := format.Node(node)
+				b, err := res.CUE()
 				if err != nil {
 					return err
 				}

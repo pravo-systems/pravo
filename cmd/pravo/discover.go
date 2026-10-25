@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/pravo-systems/pravo/pravo"
 	"sort"
 	"strings"
 
@@ -58,25 +59,16 @@ discover adopt" to write the resource that adopts an object.`,
 				out.Println("The specification has no discoveries.")
 				return nil
 			}
-			chosen, err := chooseDiscoveries(s, args, all)
-			if err != nil {
-				return engine.WithCode(engine.ExitInvalid, err)
-			}
-			eng := s.engine(engine.Options{Progress: func(format string, a ...any) { out.Printf(format+"\n", a...) }})
-			failed := 0
-			for _, d := range chosen {
-				run, err := eng.Discover(cmd.Context(), d)
-				if err == nil {
-					err = s.state.PutDiscovery(run)
-				}
-				if err != nil {
-					failed++
-					out.Printf("%s %s\n", out.C(ui.Red+ui.Bold, "Error:"), err)
-				}
-			}
-			rep, err := discoveryReport(s)
+			res, err := s.ws.Discover(cmd.Context(), pravo.DiscoverOptions{
+				Names: args, All: all,
+				Error: func(_ string, err error) { out.Printf("%s %s\n", out.C(ui.Red+ui.Bold, "Error:"), err) },
+			})
 			if err != nil {
 				return err
+			}
+			chosen, rep, failed := res.Chosen, res.Report, res.Failed
+			for _, p := range res.Problems {
+				out.Warning("cannot read " + p.Error())
 			}
 			if flagJSON {
 				if err := emitJSON(discoveryJSON(rep, names(chosen), false)); err != nil {
@@ -112,52 +104,21 @@ func names(ds []*config.Discovery) []string {
 	return out
 }
 
-// chooseDiscoveries picks the discoveries to run: the ones named, every one, or
-// the ones that have not run and the ones whose scope changed.
-func chooseDiscoveries(s *session, args []string, all bool) ([]*config.Discovery, error) {
-	var chosen []*config.Discovery
-	if len(args) > 0 {
-		for _, name := range args {
-			d := s.root.DiscoveryByName(name)
-			if d == nil {
-				return nil, unknownDiscovery(s.root, name)
-			}
-			chosen = append(chosen, d)
-		}
-		return chosen, nil
-	}
-	runs, _, err := s.state.Discoveries()
-	if err != nil {
-		return nil, err
-	}
-	for _, d := range s.root.Discoveries {
-		run := runs[d.Name]
-		if all || d.ScopeErr != nil || run == nil || run.Digest != d.Digest {
-			chosen = append(chosen, d)
-		}
-	}
-	return chosen, nil
-}
-
 func unknownDiscovery(root *config.Root, name string) error {
-	known := root.DiscoveryNames()
-	if len(known) == 0 {
-		return fmt.Errorf("there is no discovery %q: the specification has none", name)
-	}
-	return fmt.Errorf("there is no discovery %q in the specification; it has %s", name, strings.Join(known, ", "))
+	return pravo.UnknownDiscovery(root, name)
 }
 
 // discoveryReport reads the runs and the acknowledgements of the state and sets
 // them against its records.
 func discoveryReport(s *session) (*engine.DiscoveryReport, error) {
-	runs, problems, err := s.state.Discoveries()
+	rep, problems, err := s.ws.DiscoveryReport()
 	if err != nil {
 		return nil, err
 	}
 	for _, p := range problems {
 		out.Warning("cannot read " + p.Error())
 	}
-	return engine.BuildDiscoveryReport(engine.DiscoveryInputs{Root: s.root, Runs: runs, Records: s.state.List()}), nil
+	return rep, nil
 }
 
 // ---------- pravo discover show ----------
