@@ -10,7 +10,7 @@ import { h, s as svg, clear, icon, plural, relTime, stamp, clamp, fmt } from './
 import * as api from './api.js';
 import { build, fmtDur, ticks, path as pathOf, matcher, labelOf, LANG } from './trace-model.js';
 import { Pills } from './pills.js';
-import { QueryMenu, removeTerm, addTerm } from './query.js';
+import { QueryMenu, removeTerm, addTerm, removeValues, parseQuery } from './query.js';
 import { suggest, tally, hasKind, hasErrors, toggleKind, toggleErrors } from './tquery.js';
 
 const ROW = 22; // the height of a row of the timeline
@@ -309,6 +309,9 @@ export class TracesView {
     this.chips();
     this.tally();
     if (this.mode === 'table') this.fillTable(); else this.draw();
+    // the detail has buttons that show the filter, and the count of what it keeps
+    const old = this.root.querySelector('.tr-detail');
+    if (old && this.sel) old.replaceWith(this.detail());
     this.cb.onRoute && this.cb.onRoute();
   }
 
@@ -652,13 +655,18 @@ export class TracesView {
         stat('Ended', fmtDur(sp.end), phaseOf(sp) ? 'in ' + phaseOf(sp) : '')),
       h('div', { class: 'tr-cols' },
         attrs.length ? h('section', { 'aria-label': 'Attributes' }, h('h4', null, 'Attributes'),
+          this.match ? h('p', { class: 'tr-af' }, h('b', null, plural(this.model.spans.filter(this.match).length, 'span')), ` of ${fmt(this.model.spans.length)} match the filter `,
+            h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.setQuery('') } }, 'Clear the filter')) : null,
           h('ul', { class: 'tr-attrs' }, attrs.map(([k, v]) => {
             const val = Array.isArray(v) ? v.join(',') : String(v);
-            const term = (neg) => () => this.setQuery(addTerm(this.q || '', 'attr', `${k}=${val}`, neg, LANG));
-            return h('li', null, h('span', { class: 'ak' }, k), h('span', { class: 'av' }, val),
-              h('span', { class: 'af' },
-                h('button', { type: 'button', class: 'tr-f', 'aria-label': `Only spans with ${k} ${val}`, on: { click: term(false) } }, 'Only'),
-                h('button', { type: 'button', class: 'tr-f', 'aria-label': `Hide spans with ${k} ${val}`, on: { click: term(true) } }, 'Hide')));
+            const spec = `${k}=${val}`;
+            const isOn = (neg) => parseQuery(this.q || '', LANG).terms.some((t) => t.col === 'attr' && t.neg === neg && t.values.includes(spec.toLowerCase()));
+            const only = isOn(false), hide = isOn(true);
+            // a button that is on takes the term out again; one that is off puts it in, and takes the other sign out
+            const term = (neg, on) => () => this.setQuery(on ? removeValues(this.q || '', 'attr', [spec], LANG, neg) : addTerm(this.q || '', 'attr', spec, neg, LANG));
+            const btn = (label, neg, on, tip) => h('button', { type: 'button', class: 'tr-f' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', 'aria-label': `${label}: ${k} ${val}`, title: on ? `${tip} (click to remove)` : tip, on: { click: term(neg, on) } }, on ? '\u2713 ' + label : label);
+            return h('li', { class: only ? 'f-only' : hide ? 'f-hide' : '' }, h('span', { class: 'ak' }, k), h('span', { class: 'av' }, val),
+              h('span', { class: 'af' }, btn('Only', false, only, 'Keep only the spans with this'), btn('Hide', true, hide, 'Leave out the spans with this')));
           }))) : null,
         sp.events && sp.events.length ? h('section', { 'aria-label': 'Events' }, h('h4', null, 'Events'),
           h('ol', { class: 'tr-events' }, sp.events.map((e) => h('li', null, h('span', { class: 'at' }, '+' + fmtDur(Math.max(0, e.at_us - sp.start_us))), h('span', { class: 'en' }, e.name),

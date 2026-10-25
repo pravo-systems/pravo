@@ -176,7 +176,7 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1.1rem 2rem; align-items: start; }
 .tr-cols h4 { margin: 0 0 .5rem; padding-bottom: .4rem; border-bottom: 1px solid var(--line-strong); font: 600 .6rem/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); }
 .tr-attrs, .tr-events, .tr-kids { display: grid; margin: 0; padding: 0; list-style: none; font-size: .74rem; }
-.tr-attrs li, .tr-kids li { display: grid; align-items: center; gap: .1rem .9rem; padding: .32rem 0; border-bottom: 1px solid var(--line); }
+.tr-attrs li, .tr-kids li { display: grid; align-items: center; gap: .1rem .9rem; padding: .32rem .5rem; border-bottom: 1px solid var(--line); }
 .tr-attrs li { grid-template-columns: minmax(6rem, 11rem) minmax(0, 1fr) auto; font: 400 .72rem/1.4 var(--font-mono); }
 .tr-attrs .ak { color: var(--text-3); overflow-wrap: anywhere; }
 .tr-attrs .av { overflow-wrap: anywhere; }
@@ -193,3 +193,9 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-kids .kd { position: relative; display: block; padding: .1rem .4rem; text-align: right; font: 400 .72rem/1.4 var(--font-mono); }
 .tr-kids .kb { position: absolute; left: 0; top: 2px; bottom: 2px; width: var(--w); background: var(--key-wash); z-index: -1; }
 .tr-kids .kd { z-index: 0; isolation: isolate; }
+
+/* the attribute filters: a button that is on stays dark with a tick, and its row is tinted, so a click is seen where it was made */
+.tr-f.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.tr-attrs li.f-only { background: var(--key-wash); }
+.tr-attrs li.f-hide { background: var(--conflict-wash); }
+.tr-af { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .5rem; margin: 0 0 .5rem; padding: .4rem .6rem; border: 1px solid var(--key); background: var(--key-wash); font-size: .74rem; }
