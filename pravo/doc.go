@@ -13,6 +13,10 @@
 //	defer ws.Close()
 //	plan, err := ws.Plan(ctx, pravo.PlanOptions{})
 //
+// A plan can be stored in the state (Planned.Store) for someone else to review
+// and apply (Workspace.ApplyStored), which claims the plan while it applies and
+// records what was applied from it.
+//
 // The package takes everything it needs as arguments. It reads no flag and no
 // variable of the environment of the process, it prints nothing, and it asks
 // nobody for a passphrase: what a program shows or asks is a function in Config.

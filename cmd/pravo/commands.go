@@ -254,14 +254,14 @@ func planCmd() *cobra.Command {
 						_ = emitJSON(view)
 						return err
 					}
-					if stored, err = storePlan(cmd.Context(), s, eng, plan, ttl); err != nil {
+					if stored, err = s.ws.StorePlan(cmd.Context(), eng, plan, pravo.StorePlanOptions{TTL: ttl}); err != nil {
 						return err
 					}
 				}
 			}
 			if flagJSON {
 				if stored != nil {
-					err = emitJSON(storedPlanDoc{View: view, Stored: stored.info()})
+					err = emitJSON(storedPlanDoc{View: view, Stored: storedInfoOf(stored)})
 				} else {
 					err = emitJSON(view)
 				}
@@ -300,14 +300,14 @@ func planCmd() *cobra.Command {
 				out.Println()
 				out.Println("Nothing to store: the plan has no changes.")
 			case store && stored == nil:
-				if stored, err = storePlan(cmd.Context(), s, eng, plan, ttl); err != nil {
+				if stored, err = s.ws.StorePlan(cmd.Context(), eng, plan, pravo.StorePlanOptions{TTL: ttl}); err != nil {
 					return err
 				}
 				printStored(stored)
 			case store:
 				printStored(stored)
 			case planWorth(plan):
-				if overlaps := storedOverlapsOf(cmd.Context(), s, eng, plan); len(overlaps) > 0 {
+				if overlaps := s.ws.PlanOverlaps(cmd.Context(), eng, plan); len(overlaps) > 0 {
 					out.Println()
 					warnOverlaps(overlaps)
 				}
@@ -583,22 +583,31 @@ func recordPartial(res *engine.ApplyResult, name, again string, next func() stri
 			n++
 		}
 	}
-	noun, are := "changes were", "are"
-	if n == 1 {
-		noun, are = "change was", "is"
-	}
 	if err := mark(res.Applied, res.Txn, nil, false); err != nil {
-		out.Warning(fmt.Sprintf("%d %s applied before the error and could not be recorded in %s: %v", n, noun, name, err))
+		reportPartial(&pravo.PartialApply{Count: n, RecordErr: err}, name)
 		return
 	}
 	step := fmt.Sprintf("run \"%s\" again to apply the rest; if the resource that failed was changed, the plan is stale and must be made again", again)
 	if next != nil {
 		step = next()
 	}
-	if n == 0 {
+	reportPartial(&pravo.PartialApply{Count: n, Next: step}, name)
+}
+
+// reportPartial says what an apply that failed had applied, and what to do with the rest.
+func reportPartial(p *pravo.PartialApply, name string) {
+	noun, are := "changes were", "are"
+	if p.Count == 1 {
+		noun, are = "change was", "is"
+	}
+	if p.RecordErr != nil {
+		out.Warning(fmt.Sprintf("%d %s applied before the error and could not be recorded in %s: %v", p.Count, noun, name, p.RecordErr))
+		return
+	}
+	if p.Count == 0 {
 		return // only records were written; there is nothing to say about the plan's changes
 	}
-	out.Printf("%d %s applied before the error and %s recorded in %s; %s.\n", n, noun, are, name, step)
+	out.Printf("%d %s applied before the error and %s recorded in %s; %s.\n", p.Count, noun, are, name, p.Next)
 }
 
 func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy bool, replace []string) error {

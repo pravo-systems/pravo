@@ -12,6 +12,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 var storedID = regexp.MustCompile(`plan-[0-9a-f]{8}`)
@@ -532,7 +533,7 @@ func TestTheTTLIsSaidAsItWasWritten(t *testing.T) {
 // What the command line says to do is something that a shell can be given.
 func TestTheTagsOfAStoredPlanAreQuotedForAShell(t *testing.T) {
 	m := &engine.PlanMeta{ID: "plan-12345678", Tags: []string{`msg=it's a "test" $x`}, SysTags: true}
-	err := planTagsMatch(m, "apply")
+	err := pravo.CheckStoredTags(nil, false, m, "apply")
 	if err == nil {
 		t.Fatal("no error")
 	}

@@ -38,6 +38,20 @@ type (
 	Providers = engine.Providers
 	// ProviderSchema is the schema a provider declares.
 	ProviderSchema = schema.ProviderSchema
+	// PlanStore is the stored plans of a state.
+	PlanStore = engine.PlanStore
+	// PlanMeta describes a stored plan: who made it, when, what it changes.
+	PlanMeta = engine.PlanMeta
+	// PlanEntry is a stored plan with its status and what was applied from it.
+	PlanEntry = engine.PlanEntry
+	// PlanFile is a plan as saved: the plan with what is needed to check it before it is applied.
+	PlanFile = engine.PlanFile
+	// SkippedPlan is a stored plan that could not be read.
+	SkippedPlan = engine.SkippedPlan
+	// Overlap is a stored plan that changes the same resources as another plan.
+	Overlap = engine.Overlap
+	// GCItem is a stored plan a collection removed or kept.
+	GCItem = engine.GCItem
 	// Identity is the key of a reader of a sealed state.
 	Identity = protect.Identity
 	// ReaderPublic is the public part of the key of a reader of a sealed state.
