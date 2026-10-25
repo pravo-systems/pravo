@@ -336,8 +336,11 @@ type PlanProgress struct {
 	// StaleSince is when a collector first saw that the plan can no longer be applied.
 	StaleSince *time.Time `json:"stale_since,omitempty"`
 	// DoneAt is when the last change of the plan was applied.
-	DoneAt  *time.Time `json:"done_at,omitempty"`
-	Updated time.Time  `json:"updated"`
+	DoneAt *time.Time `json:"done_at,omitempty"`
+	// Kept is set when an apply judged the plan by policies: the transaction that
+	// signed its digest is the receipt, and no collection removes the plan.
+	Kept    bool      `json:"kept,omitempty"`
+	Updated time.Time `json:"updated"`
 }
 
 // runningApplies returns the claims of the applies that still count as running:
@@ -1040,6 +1043,21 @@ func (ps *PlanStore) updateProgress(ctx context.Context, id string, edit func(p 
 		// The object changed between the read and the write: look again.
 	}
 	return errors.New("the plan is changing too fast to update: try again")
+}
+
+// Keep marks the plan as one that no collection removes.
+func (ps *PlanStore) Keep(ctx context.Context, id string) error {
+	err := ps.updateProgress(ctx, id, func(p *PlanProgress) error {
+		if p.Kept {
+			return errSkip
+		}
+		p.Kept = true
+		return nil
+	})
+	if errors.Is(err, errSkip) {
+		return nil
+	}
+	return err
 }
 
 // BeginApply says that an apply from the plan starts, so that no collector

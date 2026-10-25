@@ -206,6 +206,11 @@ func (e *Engine) Judge(set *state.PolicySet, pf *PlanFile) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return judgeVersions(e, doc, force)
+}
+
+// judgeVersions judges the document by the versions, each on its own: all must hold.
+func judgeVersions(e *Engine, doc cue.Value, force []state.PolicyVersion) ([]string, error) {
 	refs := make([]string, 0, len(force))
 	var failed []string
 	for _, v := range force {
@@ -308,6 +313,9 @@ func (e *Engine) judgeApply(ctx context.Context, plan *Plan, writes bool) (*stat
 		}
 		digest = PlanDigest(data)
 		e.txn.SetPlan(e.planID, digest)
+	}
+	if e.Opts.Judged != nil {
+		e.Opts.Judged()
 	}
 	refs, err := e.Judge(set, pf)
 	e.txn.SetPolicies(refs)

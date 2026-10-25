@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -92,4 +93,35 @@ func TestPolicyCounts(t *testing.T) {
 	if !plan.changesResources() {
 		t.Error("a replace is a resource change")
 	}
+}
+
+// A plan that policies judged is kept: no collection removes it, however old.
+func TestAKeptPlanIsNotCollected(t *testing.T) {
+	eachBackend(t, func(t *testing.T, ps *PlanStore, clock *time.Time) {
+		ctx := context.Background()
+		kept := putPlan(t, ps, t0, "alice", 0, change("a", ActionCreate, 0))
+		plain := putPlan(t, ps, t0, "bob", 0, change("b", ActionCreate, 0))
+		for _, m := range []*PlanMeta{kept, plain} {
+			if err := ps.MarkApplied(ctx, m.ID, []string{m.Changes[0].Addr}, "txn-"+m.ID, []string{m.Changes[0].Addr}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := ps.Keep(ctx, kept.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := ps.Keep(ctx, kept.ID); err != nil {
+			t.Fatalf("keeping twice: %v", err)
+		}
+		*clock = t0.Add(365 * 24 * time.Hour)
+		res, err := ps.GC(ctx, GCOptions{Owner: "collector#1"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ids(res.Removed) != plain.ID {
+			t.Errorf("removed %s, want only %s", ids(res.Removed), plain.ID)
+		}
+		if _, _, err := ps.ReadFile(ctx, kept.ID); err != nil {
+			t.Errorf("the kept plan is gone: %v", err)
+		}
+	})
 }

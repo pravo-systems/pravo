@@ -800,7 +800,8 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	if flagReason == "" {
 		flagReason = meta.Reason
 	}
-	eng := s.engine(engine.Options{Refresh: engine.RefreshNone})
+	// A plan that policies judged is the receipt of the apply, and no collection removes it.
+	eng := s.engine(engine.Options{Refresh: engine.RefreshNone, Judged: func() { _ = ps.Keep(background, id) }})
 	eng.SetPlan(id, pf.Digest)
 	mark := func(applied []string, txn string, pending []string, finished bool) error {
 		var err error

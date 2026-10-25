@@ -103,6 +103,9 @@ func gcJudge(m *PlanMeta, p *PlanProgress, o *GCOptions, now time.Time) gcVerdic
 }
 
 func gcRules(m *PlanMeta, p *PlanProgress, o *GCOptions, now time.Time) gcVerdict {
+	if p.Kept {
+		return gcVerdict{}
+	}
 	status, why := planStatus(m, p, o.Check, now)
 	switch {
 	case status == PlanApplied:

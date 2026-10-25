@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -275,5 +276,51 @@ func TestTheWholeFileIsJudgedWhateverOnlySelects(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(r.dir, "a.txt")); err != nil {
 		t.Errorf("the refused apply destroyed a file: %v", err)
+	}
+}
+
+func TestVerifyChecksTheReceiptOfAStoredPlan(t *testing.T) {
+	rules := map[string]string{"lim": "summary: destroy: <=2"}
+	r := newPolicyRoot(t, rules, "a", "b", "c", "d")
+	// The version is dated well before the apply, as one that has been in force for a while.
+	if err := r.store(t).PutPolicyVersion(context.Background(), "lim", 1, rules["lim"], time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if text, code := r.apply(t); code != 0 {
+		t.Fatalf("exit %d\n%s", code, text)
+	}
+	r.declare(t, rules, "c", "d")
+	id := storePlanAs(t, r.dir, "ci")
+	text, code := runPravo(t, r.dir, "apply", id)
+	if code != 0 {
+		t.Fatalf("apply exit %d\n%s", code, text)
+	}
+	txn := lastTxn(t, r.store(t))
+	if len(txn.Policies) != 1 || txn.PlanID != id {
+		t.Fatalf("receipt %+v", txn)
+	}
+	text, code = runPravo(t, r.dir, "state", "verify", txn.ID)
+	if code != 0 || !strings.Contains(text, "lim@1:") || !strings.Contains(text, "Verified.") {
+		t.Fatalf("verify: exit %d\n%s", code, text)
+	}
+	// An apply that judged the stored plan keeps it: the plan is the other half of the receipt.
+	if prog, err := engine.NewPlanStoreFor(r.store(t)).Progress(context.Background(), id); err != nil || !prog.Kept {
+		t.Errorf("the plan is not kept: %+v %v", prog, err)
+	}
+
+	// A transaction of the same plan that names no policy omits one that was in force.
+	st := r.store(t)
+	forged := st.Begin("apply", "pravo apply "+id)
+	forged.SetPlan(id, txn.PlanDigest)
+	if err := forged.Start(); err != nil {
+		t.Fatal(err)
+	}
+	forged.Record("a", "delete", 1, 2)
+	if err := forged.Finish("applied", "", true); err != nil {
+		t.Fatal(err)
+	}
+	text, code = runPravo(t, r.dir, "state", "verify", forged.ID())
+	if code != 7 || !strings.Contains(text, "does not list it") {
+		t.Errorf("an omission: exit %d\n%s", code, text)
 	}
 }

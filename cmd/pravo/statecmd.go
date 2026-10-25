@@ -83,7 +83,7 @@ func stateCmd() *cobra.Command {
 			},
 		}
 	}
-	cmd.AddCommand(&cobra.Command{
+	cmd.AddCommand(verifyCmd(), &cobra.Command{
 		Use: "list", Short: "List resource addresses in state", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := loadRead()

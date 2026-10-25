@@ -330,7 +330,9 @@ type Options struct {
 	Identity func(readers []protect.ReaderPublic) (*protect.Identity, error)
 	// Readers are the readers of the readers file, against which the signatures of the
 	// policy versions are checked.
-	Readers  []protect.Reader
+	Readers []protect.Reader
+	// Judged is called when an apply judges its plan, before the verdict is known.
+	Judged   func()
 	Progress func(format string, args ...any)
 	// Event receives structured progress; nil disables it.
 	Event func(Event)
