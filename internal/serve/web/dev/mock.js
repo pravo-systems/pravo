@@ -386,7 +386,7 @@ function workbenchTry(q) {
   };
   const bad = /<=\s*$/m.test(text);
   return { version: 1, took_ms: 3, policies: [{ name: 'draft', line: 3 }],
-    check: bad ? { stage: 'parse', message: 'policy.cue: expected operand, found newline', issues: [{ message: 'expected operand, found newline', line: at, column: 1 }] } : undefined,
+    check: !bad && bound && !bound.le && bound.n > 0 ? { stage: 'empty', message: `policy draft does not accept the document of an empty plan:\ndraft.rule.summary.destroy: conflicting values 0 and ${bound.n}:\n    plan:1:250\n    policy.cue:${at}:26`, issues: [{ path: 'summary.destroy', message: `conflicting values 0 and ${bound.n}`, line: at, policy: 'draft' }] } : bad ? { stage: 'parse', message: 'policy.cue: expected operand, found newline', issues: [{ message: 'expected operand, found newline', line: at, column: 1 }] } : undefined,
     plans: q.getAll('ref').map((ref) => { const d = judge(ref); return { ref, state: d.state, note: d.note, changes: d.changes, draft: d.outcome ? { outcome: bad ? 'invalid' : d.outcome, issues: bad ? [] : d.issues } : undefined }; }) };
 }
 

@@ -40,7 +40,7 @@ const STAGE = {
   parse: 'The text is not valid CUE.',
   imports: 'A policy is standalone: it may import the CUE standard library and nothing else.',
   compile: 'The text does not compile.',
-  empty: 'A rule is checked when it is added against the document of a plan that changes nothing, and this one refuses it. A rule that requires a value must require it only of the changes that exist: write it inside a list over changes.',
+  empty: 'Whenever a policy is added, its rule is tried on a plan that changes nothing, and it has to hold there. Yours does not: it demands a value that such a plan does not have, as listed below. Use a limit such as <=1 instead of an exact number, or demand the value only of the changes that exist, inside a list over changes. The plans on the right are judged as they are; this is only about storing the policy.',
   shape: 'The rule does not fit the plan document. It names a field that the document does not have, or a value outside the enum of a field.',
 };
 
@@ -493,9 +493,15 @@ export class WorkbenchView {
   }
 
   checkBox(c) {
+    const issues = (c.issues || []).filter((is) => is.message);
     return h('div', { class: 'wb-check' },
       h('p', { class: 'wb-ct' }, icon('bang'), h('span', null, h('b', null, 'This text cannot be stored as a policy yet. '), STAGE[c.stage] || '')),
-      h('pre', null, c.message));
+      issues.length ? h('ul', { class: 'wb-cissues' }, issues.slice(0, 8).map((is) => h('li', null,
+        is.line ? h('span', { class: 'wb-iline' }, `line ${is.line}`) : null,
+        is.policy && this.policyCount() > 1 ? h('span', { class: 'wb-ipol' }, is.policy) : null,
+        is.path ? h('code', null, is.path) : null,
+        h('span', { class: 'wb-cmsg' }, is.message)))) : null,
+      h('details', { class: 'wb-raw' }, h('summary', null, 'What CUE says, in full'), h('pre', null, c.message)));
   }
 
   planRow(tp, r) {
