@@ -22,6 +22,18 @@
 // nobody for a passphrase: what a program shows or asks is a function in Config.
 // The environment is a value (Env) that the caller builds.
 //
+// # Embedding
+//
+// Workspaces on different directories can run in one process at the same time:
+// nothing changes the working directory of the process, and each workspace has
+// its own environment and state. A relative Config.Dir is made absolute when the
+// workspace is opened. The remote state takes its credentials from Config.Env
+// (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN, AWS_REGION,
+// AWS_PROFILE, PRAVO_STATE_TOKEN) and leaves the rest of the AWS SDK's default
+// chain (shared files, instance role) to the SDK, which reads the process. The
+// debug log goes where SetLogHandler says; spans go to the global OpenTelemetry
+// tracer provider of the host.
+//
 // This package is unstable (v0). Types that are aliases of types in pravo's
 // internal packages (Root, Store, Engine, Plan and the like) are the way to the
 // engine while the interface is settled; they will be replaced by types of this

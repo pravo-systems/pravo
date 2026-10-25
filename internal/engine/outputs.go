@@ -203,11 +203,35 @@ func RemoteBackend(ctx context.Context, st config.StateConfig, e env.Env) (state
 		}
 		return state.NewHTTPBackend(state.HTTPConfig{URL: st.URL, Token: token, Username: st.Username, Password: st.Password})
 	}
-	return state.NewS3Backend(ctx, state.S3Config{
+	return state.NewS3Backend(ctx, s3ConfigFor(st, e))
+}
+
+// s3ConfigFor is the configuration of the S3 backend of the settings. What the
+// settings leave out comes from the environment of the run, not from the process:
+// the access key, the secret key and the session token (AWS_ACCESS_KEY_ID,
+// AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN; the keys only with no profile
+// named, since a profile sets its own), the region (AWS_REGION, AWS_DEFAULT_REGION)
+// and the profile (AWS_PROFILE). The rest of the SDK's default chain (the shared
+// files, the instance role) is its own.
+func s3ConfigFor(st config.StateConfig, e env.Env) state.S3Config {
+	c := state.S3Config{
 		Bucket: st.Bucket, Prefix: st.Prefix, Region: st.Region, Endpoint: st.Endpoint,
 		PathStyle: st.PathStyle, Profile: st.Profile, AccessKey: st.AccessKey, SecretKey: st.SecretKey,
 		SessionToken: e.Get("AWS_SESSION_TOKEN"),
-	})
+	}
+	if c.Region == "" {
+		if c.Region = e.Get("AWS_REGION"); c.Region == "" {
+			c.Region = e.Get("AWS_DEFAULT_REGION")
+		}
+	}
+	if c.Profile == "" && c.AccessKey == "" && c.SecretKey == "" {
+		if id, secret := e.Get("AWS_ACCESS_KEY_ID"), e.Get("AWS_SECRET_ACCESS_KEY"); id != "" && secret != "" {
+			c.AccessKey, c.SecretKey = id, secret
+		} else {
+			c.Profile = e.Get("AWS_PROFILE")
+		}
+	}
+	return c
 }
 
 // remoteOutputsTask reads the outputs another root has recorded and fills

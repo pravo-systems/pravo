@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pravo-systems/pravo/internal/engine"
@@ -127,4 +129,35 @@ func TestAnInvalidSpecificationIsRefusedWithTheCodeOfInvalid(t *testing.T) {
 	if !errors.As(err, &coded) || coded.Code != engine.ExitInvalid {
 		t.Errorf("err = %v; want the code of an invalid specification", err)
 	}
+}
+
+type recorder struct {
+	mu   sync.Mutex
+	msgs []string
+}
+
+func (r *recorder) Enabled(context.Context, slog.Level) bool { return true }
+func (r *recorder) Handle(_ context.Context, rec slog.Record) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.msgs = append(r.msgs, rec.Message)
+	return nil
+}
+func (r *recorder) WithAttrs([]slog.Attr) slog.Handler { return r }
+func (r *recorder) WithGroup(string) slog.Handler      { return r }
+
+// The debug log goes to the handler of the host.
+func TestTheLogGoesToTheHostHandler(t *testing.T) {
+	r := &recorder{}
+	SetLogHandler(r)
+	defer SetLogHandler(nil)
+	open(t, specDir(t, greeting), Env{}, StateRead)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, m := range r.msgs {
+		if m == "state opened" {
+			return
+		}
+	}
+	t.Errorf("the handler got %q", r.msgs)
 }

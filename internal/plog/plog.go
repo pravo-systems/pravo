@@ -27,6 +27,7 @@ var (
 	level           = slog.LevelWarn + 4 // nothing is printed
 	start           = time.Now()
 	log             = slog.New(handler{})
+	sink  slog.Handler
 )
 
 // Level converts a name such as "debug" or "trace" to a level; ok is false for
@@ -62,6 +63,20 @@ func Configure(verbose int, env string) bool {
 	return l < slog.LevelWarn
 }
 
+// SetSink sends the events to a handler of the host process instead of printing
+// them. The events still go to the active span. nil restores printing.
+func SetSink(h slog.Handler) {
+	mu.Lock()
+	sink = h
+	mu.Unlock()
+}
+
+func currentSink() slog.Handler {
+	mu.Lock()
+	defer mu.Unlock()
+	return sink
+}
+
 // SetOutput redirects the log, for tests.
 func SetOutput(w io.Writer) {
 	mu.Lock()
@@ -73,6 +88,9 @@ func SetOutput(w io.Writer) {
 func Enabled(l slog.Level) bool {
 	mu.Lock()
 	defer mu.Unlock()
+	if sink != nil {
+		return sink.Enabled(context.Background(), l)
+	}
 	return l >= level
 }
 
@@ -101,6 +119,12 @@ func (h handler) Handle(ctx context.Context, r slog.Record) error {
 			return true
 		})
 		span.AddEvent(r.Message, trace.WithAttributes(kv...))
+	}
+	if sk := currentSink(); sk != nil {
+		if sk.Enabled(ctx, r.Level) {
+			return sk.Handle(ctx, r)
+		}
+		return nil
 	}
 	if !Enabled(r.Level) {
 		return nil
