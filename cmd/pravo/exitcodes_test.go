@@ -31,7 +31,7 @@ var exitCodeTable = []struct {
 	{2, "changes", []string{"--detailed-exitcode", "drift"}},
 	{3, "stale", []string{"saved plan"}},
 	{4, "rejected", []string{"locked", "reserved"}},
-	{5, "refused", []string{"plan policy", "policy file", "lock"}},
+	{5, "refused", []string{"policy", "lock"}},
 	{6, "invalid", []string{"does not load or evaluate", "circle"}},
 	{7, "untrusted", []string{"does not match", "pravo protect status"}},
 }

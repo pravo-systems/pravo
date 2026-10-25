@@ -46,10 +46,9 @@ keywords: "-target scoped plan saved plan -out stored plan plan id plan list pla
 | `--full` | off | Plan every resource with its provider instead of skipping resources that did not change. |
 | `--destroy` | off | Plan the destruction of every resource in the state. Refused while a declared resource in the state has [`prevent_destroy`](spec-meta-fields.md#prevent-destroy). |
 | `--replace ADDR` | none | Destroy and create `ADDR` again though the specification did not change. Repeatable, or comma-separated. Refused with `--destroy`. |
-| `--detailed-exitcode` | off | Exit with code 2 when the plan has changes. |
+| `--detailed-exitcode` | off | Exit with code 2 when the plan has changes. A new, changed or removed policy counts as a change. |
 | `--include-skipped` | off | With `--json`, list the nodes the plan left alone too, as entries with their address, mode, type and name, the action `no-op` and `skipped`. See [The plan document](plan-document.md). |
 | `--reserve DURATION` | none | Reserve the nodes that have pending changes for `DURATION`, for example `15m`. |
-| `--policy FILE` | none | A CUE file the plan must satisfy. Repeatable. See [Policy](#policy). |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field. Repeatable. The subcommands take it too: the tags select the state. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE into tags written `@tag(name,var=os)`. The subcommands take it too. |
 
@@ -82,7 +81,7 @@ The [global flags](global-flags.md) apply. A single dash works as well: `-refres
 | 1 | An error: a provider failed, `--replace` names a resource that cannot be replaced, an argument was given: `plan` takes none, `--ttl` without `--store`, an id that no stored plan has. |
 | 2 | With `--detailed-exitcode`: the plan has changes. |
 | 4 | Rejected: another actor holds a lock or a reservation on a node. |
-| 5 | A policy refused the plan, a `--policy` file cannot be used, or a module does not match its lock. |
+| 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or a module does not match its lock. |
 | 6 | The specification does not load or evaluate. |
 
 ## Examples
@@ -366,32 +365,11 @@ A reservation is coordination. It does not protect the state from anyone who wri
 
 ### Policy
 
-A policy is one CUE file that the plan document must satisfy. Keep it outside the directory of the specification.
+A policy is a `pravo.#Policy` node of the specification. The plan prints each new, changed or removed policy as `Policies: +N new, ~N changed, -N removed.` followed by one line for each. A plan that carries only policy entries counts as something to apply.
 
-```cue file=policy/keep.cue
-summary: destroy: 0
-```
+When a plan creates, updates, replaces or deletes a resource, it is judged by the policies in force in the state, after it is printed. A refused plan exits with code 5, and `--out` and `--store` write nothing. When every policy holds, one line for each follows the outputs: `Policy NAME@SEQ:SHA-256 is satisfied.` A new policy, and a change to a policy, are not judged. See [Policies](policies-overview.md) for what a policy is, [Operating policies](policies-operations.md) for where each command judges, and [Writing policies](policies-writing.md) for a run.
 
-```sh run exit=5
-pravo plan --destroy --policy policy/keep.cue
-```
-
-```text out
-base: Refreshing state... [id=9]
-port: Refreshing state... [id=20093]
-...
-Plan: 0 to add, 0 to change, 2 to destroy.
-Graph: 2 resources in state · refreshed 2
-
-Error: the plan violates the policy policy/keep.cue (sha256:238d99a0ac31):
-summary.destroy: conflicting values 2 and 0:
-    plan:1:<col>
-    policy/keep.cue:1:19
-```
-
-The plan is printed first and then judged. A refused plan exits with code 5, and `--out` and `--store` write nothing. When every policy holds, one line follows the outputs: `Policy policy/keep.cue (sha256:...) is satisfied.` The 12 hex digits identify the bytes of the file.
-
-`pravo plan --json` prints the document that a policy is judged against. [Policies](policies-overview.md) describes what a policy can say and what it does not bind.
+`pravo plan --json` prints the document with the fields that the judged document leaves out: see [The plan document in a policy](policies-plan-document.md#what-the-judged-document-leaves-out).
 
 ### JSON
 

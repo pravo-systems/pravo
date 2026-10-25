@@ -54,11 +54,11 @@ const (
 	ExitOK        ExitCode = 0
 	ExitError     ExitCode = 1 // any other error
 	ExitChanges   ExitCode = 2 // plan: changes pending (with -detailed-exitcode)
-	ExitStale     ExitCode = 3 // a saved plan no longer applies
+	ExitStale     ExitCode = 3 // a saved plan, or one of its policy entries, no longer applies
 	ExitLocked    ExitCode = 4 // rejected because a resource is locked or reserved
-	ExitRefused   ExitCode = 5 // refused by a plan policy, or by a module that does not match its lock
-	ExitInvalid   ExitCode = 6 // the specification does not evaluate or validate
-	ExitUntrusted ExitCode = 7 // the state failed verification: an object does not match its name
+	ExitRefused   ExitCode = 5 // refused by a policy, by a root with policies on a state that is not sealed, or by a module that does not match its lock
+	ExitInvalid   ExitCode = 6 // the specification does not evaluate or validate, or a new policy rule cannot be used
+	ExitUntrusted ExitCode = 7 // the state failed verification: an object does not match its name, or a policy version or receipt does not hold
 )
 
 // CodedError carries an exit code with an error.
