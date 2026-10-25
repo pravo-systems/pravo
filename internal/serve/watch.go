@@ -20,8 +20,8 @@ import (
 // The components of the signature the watcher keeps, in the order they are
 // named in an event. "plan" is the plan file of --plan, "plans" the plans stored
 // in the state, "access" the readers file, "discovery" what the discoveries
-// found and the acknowledgements of it.
-var components = []string{"state", "spec", "plan", "locks", "plans", "access", "discovery"}
+// found and the acknowledgements of it, "traces" the recorded runs.
+var components = []string{"state", "spec", "plan", "locks", "plans", "access", "discovery", "traces"}
 
 // fullScanEvery is how often, in polls, a state directory of many records is
 // read entry by entry. In between, the directories themselves are looked at:
@@ -53,6 +53,7 @@ type watcher struct {
 	backend  state.Backend
 	plan     string
 	access   string // the readers file, "" for none
+	traces   string // the directory of the recorded runs, "" for none
 	remote   int    // polls since the remote state was looked at
 
 	// The stored plans are signed by what is written: the base. A plan that is
@@ -159,6 +160,10 @@ func (w *watcher) sampleLocked(remote []string) (string, map[string]string) {
 	}
 	next["plans"] = w.plansBase + "#" + strconv.Itoa(w.epoch)
 	next["discovery"] = w.discoveryBase
+	next["traces"] = ""
+	if w.traces != "" {
+		next["traces"] = dirSignature(w.traces, true)
+	}
 	var what []string
 	first := w.rev == ""
 	for _, c := range components {
@@ -210,6 +215,9 @@ func (w *watcher) run(ctx context.Context) {
 func revisionOf(sigs map[string]string) string {
 	h := sha256.New()
 	for _, c := range components {
+		if c == "traces" {
+			continue // the recorded runs are not part of the model: a new one changes no node
+		}
 		fmt.Fprintf(h, "%s=%s\n", c, sigs[c])
 	}
 	return "r-" + hex.EncodeToString(h.Sum(nil))[:10]

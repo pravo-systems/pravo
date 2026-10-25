@@ -3,6 +3,7 @@
 package config
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -24,6 +25,7 @@ import (
 	"cuelang.org/go/cue/load"
 
 	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // refreshAge matches the values of $settings.refresh and $lifecycle.refresh.
@@ -227,6 +229,18 @@ func (s StateConfig) Remote() bool { return s.Backend == "s3" || s.Backend == "h
 type LoadOptions struct {
 	Tags    []string
 	SysTags bool
+	// Context is the trace the stages of loading are spans of; nil means none.
+	Context context.Context
+}
+
+// stage starts the span of a stage of loading.
+func (o LoadOptions) stage(name string) func(error) {
+	ctx := o.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	_, end := telemetry.Span(ctx, "config "+name)
+	return end
 }
 
 // Load evaluates the package in dir.
@@ -269,7 +283,9 @@ func loadPackage(abs string, files []string, opts LoadOptions, overlay map[strin
 	if opts.SysTags {
 		cfg.TagVars = load.DefaultTagVars()
 	}
+	end := opts.stage("load package")
 	insts := load.Instances([]string{"."}, cfg)
+	end(nil)
 	if len(insts) == 0 {
 		return nil, noSpecification(files, fmt.Errorf("no CUE package found in %s", abs))
 	}
@@ -278,16 +294,25 @@ func loadPackage(abs string, files []string, opts LoadOptions, overlay map[strin
 		return nil, noSpecification(files, ModuleNotFoundHint(fmt.Errorf("loading %s:\n%s", abs, cueerrors.Details(inst.Err, nil))))
 	}
 	ctx := cuecontext.New()
+	end = opts.stage("evaluate")
 	v := ctx.BuildInstance(inst)
 	if err := v.Err(); err != nil {
+		end(err)
 		return nil, ModuleNotFoundHint(fmt.Errorf("evaluating %s:\n%s", abs, cueerrors.Details(err, nil)))
 	}
+	end(nil)
+	end = opts.stage("validate")
 	if err := v.Validate(); err != nil {
+		end(err)
 		return nil, fmt.Errorf("invalid configuration:\n%s", cueerrors.Details(err, nil))
 	}
+	end(nil)
 	r := &Root{Dir: abs, PkgName: inst.PkgName, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath}
+	end = opts.stage("extract resources")
 	r.collectTree(inst)
-	if err := r.extract(opts); err != nil {
+	err := r.extract(opts)
+	end(err)
+	if err != nil {
 		return nil, err
 	}
 	return r, nil

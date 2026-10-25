@@ -12,7 +12,7 @@ func rekey(e *Engine, key string) {
 	for _, r := range e.Root.Resources {
 		r.ProviderKey = key
 	}
-	base, err := e.Providers.instance("fake")
+	base, err := e.Providers.instance(context.Background(), "fake")
 	if err != nil {
 		panic(err)
 	}

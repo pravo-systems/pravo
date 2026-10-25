@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -184,9 +185,23 @@ func startCommand(cmd *cobra.Command) {
 		attribute.String("pravo.actor", flagActor),
 		attribute.String("pravo.reason", flagReason),
 		attribute.Bool("pravo.json", flagJSON),
+		attribute.String("pravo.command_line", commandLine(os.Args)),
 	))
 	cmdSpan = span
 	cmd.SetContext(ctx)
+}
+
+// commandLine is the command as it was typed, for the record of the run: the name of the program as "pravo", and the
+// arguments quoted where a shell would need it. The viewer masks the values of tags and of secrets before it shows it.
+func commandLine(argv []string) string {
+	out := []string{"pravo"}
+	for _, a := range argv[1:] {
+		if a == "" || strings.ContainsAny(a, " \t\"'$`\\") {
+			a = strconv.Quote(a)
+		}
+		out = append(out, a)
+	}
+	return strings.Join(out, " ")
 }
 
 // finishCommand ends the command's span and records its duration and, for a

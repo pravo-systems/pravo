@@ -262,6 +262,7 @@ Copying a recording, or keeping it in version control, does not keep the modes. 
 | `TF_PLUGIN_CACHE_DIR` | An OpenTofu plugin cache from which `pravo init` takes a provider before it downloads one. |
 | `TF_REATTACH_PROVIDERS` | The reattach information of a provider that already runs. pravo connects to it and does not start or stop it. |
 | `OTEL_*`, `TRACEPARENT`, `TRACESTATE` | OpenTelemetry settings and the trace to continue. See [Telemetry](telemetry.md). |
+| `PRAVO_TRACES`, `PRAVO_TRACE_DIR` | `PRAVO_TRACES=on` makes a command record its trace in `.pravo/traces` (it records nothing without it), and `PRAVO_TRACE_DIR` moves the directory. `pravo serve` shows the recorded runs. See [The recorded runs](telemetry.md#the-recorded-runs). |
 
 ## Exit codes
 

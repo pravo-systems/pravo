@@ -503,7 +503,7 @@ func Wrap(p Provider, name string) (Provider, error) {
 	default:
 		out = p
 	}
-	if telemetry.Enabled() {
+	if telemetry.Active() {
 		out = NewTraced(out, name)
 	}
 	return out, nil

@@ -194,15 +194,15 @@ export function addTerm(text, col, value, neg, lang = INVENTORY) {
 }
 
 // removeValues takes values of a column out of the terms of the text that include it; a term left with none goes
-export function removeValues(text, col, values, lang = INVENTORY) {
+export function removeValues(text, col, values, lang = INVENTORY, neg = false) {
   const drop = new Set(values.map((v) => v.toLowerCase()));
   const out = [];
   for (const w of wordsOf(text)) {
     const m = /^(-?)([a-z]+):(.*)$/i.exec(w);
     const c = m && (lang.alias[m[2].toLowerCase()] || m[2].toLowerCase());
-    if (!m || c !== col || m[1]) { out.push(w); continue; }
+    if (!m || c !== col || (m[1] === '-') !== neg) { out.push(w); continue; }
     const rest = pieces(m[3]).filter((x) => !drop.has(unquote(x).toLowerCase()));
-    if (rest.length) out.push(m[2] + ':' + rest.join(','));
+    if (rest.length) out.push(m[1] + m[2] + ':' + rest.join(','));
   }
   return out.join(' ');
 }

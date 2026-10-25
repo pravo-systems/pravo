@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"io"
 	"math/rand/v2"
 	"net/http"
@@ -175,7 +176,7 @@ func (b *HTTPBackend) do(ctx context.Context, method, target string, body []byte
 			req.SetBasicAuth(b.user, b.pass)
 		}
 		r.sent++
-		resp, err := b.client.Do(req)
+		resp, err := netcap.Trace(req, b.client.Do)
 		if err != nil {
 			if ctx.Err() != nil {
 				return r, ctx.Err()

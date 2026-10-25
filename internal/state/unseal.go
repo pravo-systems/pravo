@@ -245,7 +245,7 @@ func (s *Store) verifyUnsealed(ctx context.Context) error {
 	} else if key != "" {
 		return fmt.Errorf("%s is sealed again: a command wrote it while the seal was coming off. Nothing was lost; run the command again", key)
 	}
-	raw, err := s.b.Get(s.ctx, "outputs.json")
+	raw, err := s.b.Get(s.cx(), "outputs.json")
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return err
 	}
@@ -288,7 +288,7 @@ func (s *Store) refuseUnopenable(ctx context.Context, o UnsealOptions) error {
 			}
 		}
 	}
-	if raw, err := s.b.Get(s.ctx, "outputs.json"); err == nil {
+	if raw, err := s.b.Get(s.cx(), "outputs.json"); err == nil {
 		if env, sealed := asSealedOutputs(raw); sealed {
 			note(map[string]int{env.Sealed.Group: 1})
 		}
@@ -343,7 +343,7 @@ func (s *Store) unsealOutputs() error {
 		return err
 	}
 	defer unlock()
-	raw, err := s.b.Get(s.ctx, "outputs.json")
+	raw, err := s.b.Get(s.cx(), "outputs.json")
 	if errors.Is(err, ErrNotFound) {
 		return nil
 	}
@@ -364,7 +364,7 @@ func (s *Store) unsealOutputs() error {
 	if err != nil {
 		return err
 	}
-	ok, err := s.b.ReplaceIf(s.ctx, "outputs.json", func(cur []byte) ([]byte, bool) { return data, bytes.Equal(cur, raw) })
+	ok, err := s.b.ReplaceIf(s.cx(), "outputs.json", func(cur []byte) ([]byte, bool) { return data, bytes.Equal(cur, raw) })
 	switch {
 	case err != nil:
 		return Advise(err)

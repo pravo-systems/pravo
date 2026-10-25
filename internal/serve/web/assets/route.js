@@ -1,5 +1,5 @@
 // The view is in the URL fragment: #/?sel=ADDR&tab=state&collapse=A,B&expand=C&theme=dark&q=TEXT
-// &plan=plan-2f9c1a4e&view=graph|list|state&motion=off&zoom=fit. Values are URL-encoded and lists are comma separated.
+// &plan=plan-2f9c1a4e&view=graph|list|state|plans|discovery|traces&trace=ID&span=ID&tv=table&tz=START-END&tq=TEXT&motion=off&zoom=fit. Values are URL-encoded and lists are comma separated.
 
 export function parseFragment(hash) {
   let t = (hash || '').replace(/^#/, '');
@@ -40,7 +40,12 @@ export function writeFragment(v) {
   put('q', v.q);
   put('dq', v.dq);
   put('plq', v.plq);
-  put('view', v.view === 'list' ? 'list' : v.view === 'access' ? 'state' : v.view === 'plans' ? 'plans' : v.view === 'discovery' ? 'discovery' : '');
+  put('view', v.view === 'list' ? 'list' : v.view === 'access' ? 'state' : v.view === 'plans' ? 'plans' : v.view === 'discovery' ? 'discovery' : v.view === 'traces' ? 'traces' : '');
+  put('trace', v.trace);
+  put('span', v.span);
+  put('tv', v.tv);
+  put('tz', v.tz);
+  put('tq', v.tq);
   put('theme', v.theme);
   put('motion', v.motion === 'off' ? 'off' : '');
   put('zoom', v.zoom && v.zoom !== 'fit' ? v.zoom : '');
