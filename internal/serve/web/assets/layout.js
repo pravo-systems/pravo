@@ -446,17 +446,22 @@ function spread(ys, hs, lo, hi) {
 
 // ---- routing ----
 //
-// A route is { m, p }: a mode and a flat list of points. Between two points the path is an S-curve whose
-// tangents point the way the edge goes. Mode "h" leaves the right side of the dependency and enters the left
+// A route is { m, p }: a mode and a flat list of points. Between two points the line runs along the axes, in the
+// way of a wiring diagram (polyOf). Mode "h" leaves the right side of the dependency and enters the left
 // side of the dependent: the plain curve unless that meets an item, in which case it passes through a gap
 // between items (two points that lead the line straight across the gap, found by trying the gaps of the
 // vertical strip in the middle of the edge and keeping the one with the fewest meetings; a half that still
 // meets an item is routed again). Mode "l" goes the other way, left side to right side, and mode "v" leaves
 // the bottom or the top, for items that sit one over the other.
 
+// The channel is the line of the vertical run: in the gutter just before what the wire enters, moved a little
+// by the height of its ends, so that wires that arrive together do not lie on one another.
+const CH = 24;
+const dither = (a, b) => (Math.round(a * 7 + b * 13) % 5 - 2) * 2.5;
+const channelX = (ax, ay, bx, by) => bx - Math.min(CH, Math.max(0, (bx - ax) / 2)) + (bx - ax > 2 * CH ? dither(ay, by) / 2 : 0);
+
 const CELL = 96;
 const FAR = 96;
-const bulgeOf = (x0, y0, x1, y1) => Math.max(x0, x1) + 22 + Math.min(46, Math.abs(y1 - y0) * 0.035);
 function routeAll(E, pos, isBack, heads = []) {
   const boxes = [];
   const grid = new Map();
@@ -478,17 +483,21 @@ function routeAll(E, pos, isBack, heads = []) {
     for (const b of l) if (b.id !== sa && b.id !== sb && px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h) return true;
     return false;
   };
-  // the number of samples of the S-curve from (ax, ay) to (bx, by) that lie inside an item
+  // the number of samples of the wire from (ax, ay) to (bx, by) that lie inside an item
   const hits = (ax, ay, bx, by, sa, sb) => {
     if (bx - ax < 24) return 0;
-    const dx = Math.max(8, (bx - ax) / 2);
+    const cx = channelX(ax, ay, bx, by);
     let n = 0;
-    for (let i = 2; i < 23; i++) {
-      const t = i / 24, u = 1 - t;
-      const px = u * u * u * ax + 3 * u * u * t * (ax + dx) + 3 * u * t * t * (bx - dx) + t * t * t * bx;
-      const py = u * u * u * ay + 3 * u * u * t * ay + 3 * u * t * t * by + t * t * t * by;
-      if (at(px, py, sa, sb)) n++;
-    }
+    const run = (x0, y0, x1, y1) => {
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      for (let d = 6; d < len - 2; d += 8) {
+        const t = d / len;
+        if (at(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, sa, sb)) n++;
+      }
+    };
+    run(ax, ay, cx, ay);
+    run(cx, ay, cx, by);
+    run(cx, by, bx, by);
     return n;
   };
 
@@ -521,6 +530,37 @@ function routeAll(E, pos, isBack, heads = []) {
     return [ax, ay, hx0, wy, hx1, wy, bx, by];
   }
 
+  // a wire that runs against the grain, from the left side of an item to the right side of one that lies to the left
+  // of it: straight along its own height when that is clear, else along the gap between items that has the fewest meetings
+  const polyHits = (q, sa, sb) => {
+    let n = 0;
+    for (let i = 2; i < q.length; i += 2) {
+      const x0 = q[i - 2], y0 = q[i - 1], x1 = q[i], y1 = q[i + 1];
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      for (let d = 6; d < len - 2; d += 8) {
+        const t = d / len;
+        if (at(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, sa, sb)) n++;
+      }
+    }
+    return n;
+  };
+  function refineBack(x0, y0, x1, y1, sa, sb) {
+    const plain = [x0, y0, x1, y1];
+    if (x0 - x1 < G.W + 60) return plain;
+    const cx = x1 + Math.min(CH, (x0 - x1) / 2);
+    const c0 = x0 - CH;
+    const wire = (yy) => [x0, y0, c0, y0, c0, yy, cx, yy, cx, y1, x1, y1];
+    if (polyHits([x0, y0, cx, y0, cx, y1, x1, y1], sa, sb) === 0) return plain;
+    const ys = new Set([y0, y1]);
+    for (const b of boxes) if (b.id !== sa && b.id !== sb && b.x < x0 && b.x + b.w > x1) { ys.add(b.y - 8); ys.add(b.y + b.h + 8); }
+    let best = null, bestCost = Infinity;
+    for (const yy of ys) {
+      const cost = polyHits(wire(yy), sa, sb) * 1000 + Math.abs(yy - y0) * 0.3 + Math.abs(yy - y1) * 0.3;
+      if (cost < bestCost) { bestCost = cost; best = yy; }
+    }
+    return [x0, y0, c0, best, cx, best, x1, y1];
+  }
+
   const routes = new Map();
   let ei = 0;
   for (const e of E) {
@@ -532,7 +572,7 @@ function routeAll(E, pos, isBack, heads = []) {
       const x0 = A.x + A.w, y0 = A.y + A.h / 2, x1 = B.x, y1 = B.y + B.h / 2;
       routes.set(key, { m: 'h', p: isBack(e.a, e.b) ? [x0, y0, x1, y1] : refine(x0, y0, x1, y1, e.a, e.b, 0, ei) });
     } else if (gapL >= 20) {
-      routes.set(key, { m: 'l', p: [A.x, A.y + A.h / 2, B.x + B.w, B.y + B.h / 2] });
+      routes.set(key, { m: 'l', p: refineBack(A.x, A.y + A.h / 2, B.x + B.w, B.y + B.h / 2, e.a, e.b) });
     } else if (B.y >= A.y + A.h + FAR || A.y >= B.y + B.h + FAR) {
       // far apart, one over the other: down the side, where nothing stands, rather than through what is between
       routes.set(key, { m: 'c', p: [A.x + A.w, A.y + A.h / 2, B.x + B.w, B.y + B.h / 2] });
@@ -549,54 +589,89 @@ function routeAll(E, pos, isBack, heads = []) {
 
 const f1 = (n) => Math.round(n * 10) / 10;
 
-// pathOf turns a route into path data: S-curves whose tangents point the way the edge goes.
-export function pathOf(r) {
+// polyOf turns a route into the corners of a wiring diagram: lines that run along the axes and turn at right
+// angles, in the channel that lies just before the thing they enter. Edges that leave or reach the same port
+// share their line, as the wires of a bus do.
+function polyOf(r) {
   const p = r.p;
+  const o = [];
+  const add = (x, y) => {
+    const n = o.length;
+    if (n && Math.abs(o[n - 2] - x) < 0.01 && Math.abs(o[n - 1] - y) < 0.01) return;
+    // a point on the line of the two before it is not a corner
+    if (n >= 4 && ((Math.abs(o[n - 4] - o[n - 2]) < 0.01 && Math.abs(o[n - 2] - x) < 0.01) || (Math.abs(o[n - 3] - o[n - 1]) < 0.01 && Math.abs(o[n - 1] - y) < 0.01))) { o[n - 2] = x; o[n - 1] = y; return; }
+    o.push(x, y);
+  };
   if (r.m === 'c') {
     const [x0, y0, x1, y1] = p;
-    const bx = bulgeOf(x0, y0, x1, y1);
-    return `M${f1(x0)} ${f1(y0)}C${f1(bx)} ${f1(y0)} ${f1(bx)} ${f1(y1)} ${f1(x1)} ${f1(y1)}`;
+    const bx = Math.max(x0, x1) + CH + dither(y0, y1);
+    add(x0, y0); add(bx, y0); add(bx, y1); add(x1, y1);
+    return o;
   }
   if (r.m === 'v') {
     const [x0, y0, x1, y1] = p;
-    const s = y1 >= y0 ? 1 : -1;
-    const dy = Math.max(12, Math.abs(y1 - y0) / 2);
-    return `M${f1(x0)} ${f1(y0)}C${f1(x0)} ${f1(y0 + s * dy)} ${f1(x1)} ${f1(y1 - s * dy)} ${f1(x1)} ${f1(y1)}`;
+    const my = (y0 + y1) / 2 + dither(x0, x1);
+    add(x0, y0); add(x0, my); add(x1, my); add(x1, y1);
+    return o;
+  }
+  if (r.m === 'l' && p.length === 8) {
+    const [x0, y0, c0, yy, cx, , x1, y1] = p;
+    add(x0, y0); add(c0, y0); add(c0, yy); add(cx, yy); add(cx, y1); add(x1, y1);
+    return o;
   }
   if (r.m === 'l') {
     const [x0, y0, x1, y1] = p;
-    const dx = Math.max(12, Math.abs(x0 - x1) / 2);
-    return `M${f1(x0)} ${f1(y0)}C${f1(x0 - dx)} ${f1(y0)} ${f1(x1 + dx)} ${f1(y1)} ${f1(x1)} ${f1(y1)}`;
+    const cx = x1 + Math.min(CH, (x0 - x1) / 2) + dither(y0, y1) / 2;
+    add(x0, y0); add(cx, y0); add(cx, y1); add(x1, y1);
+    return o;
   }
   if (p.length === 4 && p[2] < p[0] + 1) {
-    // a back edge between items that are not side by side: loop out to the right, over and in
+    // a back edge between items that are not side by side: out to the right, over, and in from the left
     const [x0, y0, x1, y1] = p;
     const up = Math.min(y0, y1) - 40;
-    return `M${f1(x0)} ${f1(y0)}C${f1(x0 + 60)} ${f1(y0)} ${f1(x0 + 60)} ${f1(up)} ${f1((x0 + x1) / 2)} ${f1(up)}S${f1(x1 - 60)} ${f1(y1)} ${f1(x1)} ${f1(y1)}`;
+    add(x0, y0); add(x0 + CH, y0); add(x0 + CH, up); add(x1 - CH, up); add(x1 - CH, y1); add(x1, y1);
+    return o;
   }
-  let d = `M${f1(p[0])} ${f1(p[1])}`;
+  add(p[0], p[1]);
   for (let i = 2; i < p.length; i += 2) {
     const ax = p[i - 2], ay = p[i - 1], bx = p[i], by = p[i + 1];
-    const dx = Math.max(8, (bx - ax) / 2);
-    d += `C${f1(ax + dx)} ${f1(ay)} ${f1(bx - dx)} ${f1(by)} ${f1(bx)} ${f1(by)}`;
+    if (Math.abs(ay - by) > 0.5) {
+      const cx = channelX(ax, ay, bx, by);
+      add(cx, ay); add(cx, by);
+    }
+    add(bx, by);
   }
+  return o;
+}
+
+// pathOf is the path data of a route: straight lines, sharp corners.
+export function pathOf(r) {
+  const q = polyOf(r);
+  let d = `M${f1(q[0])} ${f1(q[1])}`;
+  for (let i = 2; i < q.length; i += 2) d += `L${f1(q[i])} ${f1(q[i + 1])}`;
   return d;
 }
 
-// midOf is the midpoint of a route, where the count of a merged edge is written.
+// midOf is the middle of a route by length, where the count of a merged edge is written.
 export function midOf(r) {
-  const p = r.p;
-  if (r.m === 'c') return [(p[0] + 6 * bulgeOf(p[0], p[1], p[2], p[3]) + p[2]) / 8, (p[1] + p[3]) / 2];
-  if (p.length === 4) return [(p[0] + p[2]) / 2, (p[1] + p[3]) / 2];
-  const k = (p.length / 2 - 1) >> 1;
-  const i = k * 2;
-  return [(p[i] + p[i + 2]) / 2, (p[i + 1] + p[i + 3]) / 2];
+  const q = polyOf(r);
+  const total = lenOf(q);
+  let at = total / 2;
+  for (let i = 2; i < q.length; i += 2) {
+    const l = Math.hypot(q[i] - q[i - 2], q[i + 1] - q[i - 1]);
+    if (at <= l || i === q.length - 2) { const t = l ? Math.min(1, at / l) : 0; return [q[i - 2] + (q[i] - q[i - 2]) * t, q[i - 1] + (q[i + 1] - q[i - 1]) * t]; }
+    at -= l;
+  }
+  return [q[0], q[1]];
 }
 
-// lengthOf is the rough length of a route, for the weight of an edge at rest.
-export function lengthOf(r) {
-  const p = r.p;
+function lenOf(q) {
   let n = 0;
-  for (let i = 2; i < p.length; i += 2) n += Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]);
+  for (let i = 2; i < q.length; i += 2) n += Math.hypot(q[i] - q[i - 2], q[i + 1] - q[i - 1]);
   return n;
+}
+
+// lengthOf is the length of a route, for the weight of an edge at rest.
+export function lengthOf(r) {
+  return lenOf(polyOf(r));
 }

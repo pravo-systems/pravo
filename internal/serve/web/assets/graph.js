@@ -205,6 +205,9 @@ export class GraphView {
     for (const [id, cls] of [['ah', 'ah'], ['ah-up', 'ah-up'], ['ah-down', 'ah-down'], ['ah-dim', 'ah-dim']]) {
       defs.append(s('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: 'auto', markerUnits: 'userSpaceOnUse' },
         s('path', { d: 'M1 1.2L9.2 5 1 8.8z', class: cls })));
+      // the dot where a wire leaves its port
+      defs.append(s('marker', { id: 'j' + id, viewBox: '0 0 10 10', refX: 5, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto', markerUnits: 'userSpaceOnUse' },
+        s('circle', { cx: 5, cy: 5, r: 4.2, class: cls })));
     }
     // a card is a shade lighter at the top than at the bottom
     defs.append(s('linearGradient', { id: 'card-fill', x1: 0, y1: 0, x2: 0, y2: 1 }, s('stop', { offset: '0', class: 'cf0' }), s('stop', { offset: '1', class: 'cf1' })));
