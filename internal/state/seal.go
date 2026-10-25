@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/telemetry"
@@ -150,7 +151,10 @@ func (s *Store) openSealed(id *protect.Identity) error {
 	}
 	pub := id.Reader.Public()
 	s.you = You{Name: id.Name, Key: pub.String()}
-	_, end := telemetry.Span(s.cx(), "unseal state keys", attribute.Int("pravo.seal.groups", len(s.meta.Sealed.Groups)))
+	// who opens the state: the name of the identity and its public reader key, never a key that opens anything
+	who := []attribute.KeyValue{attribute.String("pravo.identity", id.Name), attribute.String("pravo.identity.reader", pub.String())}
+	trace.SpanFromContext(s.cx()).SetAttributes(who...)
+	_, end := telemetry.Span(s.cx(), "unseal state keys", append(who, attribute.Int("pravo.seal.groups", len(s.meta.Sealed.Groups)))...)
 	keys, err := s.meta.Sealed.Unlock(s.meta.Lineage, id.Reader)
 	end(unlockFailure(err))
 	switch {

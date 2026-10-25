@@ -116,3 +116,44 @@ func TestRemoteStoreRequestsAreNetworkSpans(t *testing.T) {
 		t.Error("no network span")
 	}
 }
+
+// Opening a sealed state records who opened it: the name of the identity and its public key, in the span of the keys and in
+// the span that was running.
+func TestUnsealRecordsTheIdentity(t *testing.T) {
+	t.Setenv("PRAVO_TRACES", "on")
+	t.Setenv("OTEL_SDK_DISABLED", "")
+	ada := testIdentity(t, "ada")
+	b := testBackends()[0].make(t)
+	sealedStore(t, b, ada).Close()
+
+	rec := tracetest.NewSpanRecorder()
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec)))
+	defer otel.SetTracerProvider(prev)
+	ctx, root := otel.Tracer("test").Start(context.Background(), "setup open state")
+	s, err := OpenBackendWith(ctx, b, Options{Identity: ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	root.End()
+	for _, sp := range rec.Ended() {
+		if sp.Name() != "unseal state keys" {
+			continue
+		}
+		var name, reader string
+		for _, kv := range sp.Attributes() {
+			switch kv.Key {
+			case "pravo.identity":
+				name = kv.Value.AsString()
+			case "pravo.identity.reader":
+				reader = kv.Value.AsString()
+			}
+		}
+		if name != "ada" || reader == "" {
+			t.Errorf("identity %q reader %q", name, reader)
+		}
+		return
+	}
+	t.Error("no unseal span")
+}
