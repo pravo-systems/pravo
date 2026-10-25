@@ -1064,7 +1064,7 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 		if rd.drifted {
 			e.count(func(st *Stats) { st.Drifted++ })
 		}
-		e.persistRefreshed(addr, sr, attrs, newPrivate)
+		e.persistRefreshed(addr, sr, ch.Schema, attrs, newPrivate)
 	}
 	return newState, newPrivate, nil
 }
@@ -1076,13 +1076,13 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 // lock; the record is left alone in that case. The reservation that the actor
 // holds on the node is not touched: only an apply of the node, or expiry, ends
 // it.
-func (e *Engine) persistRefreshed(addr string, sr *state.Resource, attrs, private []byte) {
-	e.persistRead(addr, sr, attrs, private, true)
+func (e *Engine) persistRefreshed(addr string, sr *state.Resource, sch *schema.Schema, attrs, private []byte) {
+	e.persistRead(addr, sr, sch, attrs, private, true)
 }
 
 // persistRead writes the record that a read returned. With markDrift, a read that
 // differs from the record leaves the mark; the read that follows an apply does not.
-func (e *Engine) persistRead(addr string, sr *state.Resource, attrs, private []byte, markDrift bool) {
+func (e *Engine) persistRead(addr string, sr *state.Resource, sch *schema.Schema, attrs, private []byte, markDrift bool) {
 	release, ok, _ := e.State.TryHold(addr, e.Opts.Command+" refresh", e.txnID())
 	if !ok {
 		return
@@ -1100,21 +1100,26 @@ func (e *Engine) persistRead(addr string, sr *state.Resource, attrs, private []b
 		action = "drift"
 	}
 	before := n.Revision
-	e.recordRefresh(addr, action, before, &n)
+	if e.recordRefresh(addr, action, before, &n) && action == "drift" {
+		// What the provider found differs from what the record said: keep how.
+		e.recordDiff(addr, sch, sr.Attributes, attrs)
+	}
 }
 
 // recordRefresh writes the record of a refresh and notes it in the transaction. A
 // record that another command wrote, removed or created since this command read
 // it is left as it is: what the refresh read belongs to the record this command
 // holds, not to the one in the state.
-func (e *Engine) recordRefresh(addr, action string, before int, n *state.Resource) {
+func (e *Engine) recordRefresh(addr, action string, before int, n *state.Resource) bool {
 	err := e.State.Refresh(n, e.txnID())
 	switch {
 	case errors.Is(err, state.ErrChanged):
 		e.Opts.Progress("Warning: %s changed in the state since this command read it; what the refresh read is not recorded", addr)
 	case err == nil && e.txn != nil:
 		e.txn.Record(addr, action, before, n.Revision)
+		return true
 	}
+	return false
 }
 
 // persistGone writes the record of a node whose object a read did not find.

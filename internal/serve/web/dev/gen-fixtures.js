@@ -424,7 +424,8 @@ function detailDrifted(b, g) {
       attrs: [{ path: 'idle_timeout', before: 60, after: 120 }],
     },
     history: [
-      { id: '20261021T093003Z-77d0a1', kind: 'edit', status: 'applied', time: iso(42 * MIN), actor: 'pravo drift', command: 'pravo drift --due', reason: 'found a change at the provider', action: 'refresh', rev_before: 5, rev_after: 6 },
+      { id: '20261021T093003Z-77d0a1', kind: 'plan', status: 'planned', time: iso(42 * MIN), actor: 'pravo drift', command: 'pravo drift --due', reason: 'found a change at the provider', action: 'drift', rev_before: 5, rev_after: 6,
+        attrs: [{ path: 'idle_timeout', before: 120, after: 60 }, { path: 'tags.Owner', after: 'platform' }, { path: 'access_logs', before_redacted: true, after_redacted: true }] },
       { id: '20261014T141200Z-1c9ee2', kind: 'apply', status: 'applied', time: iso(7 * D), user: 'grace', command: 'pravo apply', action: 'update', rev_before: 4, rev_after: 5 },
     ],
     times: { applied_at: iso(7 * D), refreshed_at: iso(40 * MIN), updated_at: iso(40 * MIN), drifted_at: iso(42 * MIN) },

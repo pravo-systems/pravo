@@ -479,3 +479,36 @@ func TestHistoryShowsWhatAChangeAlteredRedacted(t *testing.T) {
 		}
 	}
 }
+
+// A read that found an object changed outside pravo is in the history of its node, with
+// what differed, though it was a plan that made it.
+func TestHistoryShowsADriftThatAPlanFound(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	r := st.Get("services.a.db")
+	next := *r
+	next.Attributes = json.RawMessage(strings.Replace(string(r.Attributes), `"port":5432`, `"port":6543`, 1))
+	txn := st.Begin("plan", "pravo plan")
+	if err := st.Refresh(&next, txn.ID()); err != nil {
+		t.Fatal(err)
+	}
+	txn.Record("services.a.db", "drift", r.Revision, next.Revision)
+	txn.RecordDiff("services.a.db", r.Attributes, next.Attributes, nil)
+	txn.Record("services.b.db", "refresh", 1, 1)
+	if err := txn.Finish("planned", "1 drifted", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{})
+	h := p.detail("services.a.db").History
+	if len(h) != 2 || h[0].Kind != "plan" || h[0].Action != "drift" || len(h[0].Attrs) != 1 || h[0].Attrs[0].Path != "port" || fmt.Sprint(h[0].Attrs[0].After) != "6543" {
+		t.Fatalf("history %+v", h)
+	}
+	if h := p.detail("services.b.db").History; len(h) != 1 {
+		t.Errorf("a refresh that found nothing is in the history: %+v", h)
+	}
+}

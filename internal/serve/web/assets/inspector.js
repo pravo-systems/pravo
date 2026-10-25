@@ -583,7 +583,8 @@ export class Inspector {
     }
     const ol = h('ol', { class: 'timeline' });
     for (const e of list) {
-      const a = actionOf(e.action);
+      // a read that found the object changed outside pravo is a drift: it wrote the record to say so
+      const a = actionOf(e.action) || (e.action === 'drift' ? { cls: 'a-update', label: 'drift' } : null);
       ol.append(h('li', { class: 'tl st-' + e.status },
         h('span', { class: 'tl-mark', 'aria-hidden': 'true' }),
         h('div', { class: 'tl-body' },
