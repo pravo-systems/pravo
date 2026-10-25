@@ -19,13 +19,13 @@ import (
 // s3ProbeAge is how long the verdict on a store holds before pravo asks again.
 const s3ProbeAge = 30 * 24 * time.Hour
 
-// checkS3Store makes sure that the store behind b honours the conditional
+// checkStoreConditions makes sure that the store behind b honours the conditional
 // requests that the locks rest on, before a command that writes the state uses
 // it. A store that passed is remembered under the pravo home for s3ProbeAge,
-// by endpoint and bucket, so that the check costs a few requests once.
+// by endpoint and bucket or by URL, so that the check costs a few requests once.
 // PRAVO_S3_PROBE=off skips it.
-func checkS3Store(ctx context.Context, root *config.Root, b state.Backend) error {
-	sb, ok := b.(*state.S3Backend)
+func checkStoreConditions(ctx context.Context, root *config.Root, b state.Backend) error {
+	sb, ok := b.(state.Prober)
 	if !ok || os.Getenv("PRAVO_S3_PROBE") == "off" {
 		return nil
 	}
@@ -47,7 +47,11 @@ func checkS3Store(ctx context.Context, root *config.Root, b state.Backend) error
 
 // s3ProbeMark is the file whose age is the age of the verdict on the store.
 func s3ProbeMark(root *config.Root) string {
-	sum := sha256.Sum256([]byte(root.State.Endpoint + "|" + root.State.Bucket))
+	id := root.State.Endpoint + "|" + root.State.Bucket
+	if root.State.Backend == "http" {
+		id = "http|" + root.State.URL
+	}
+	sum := sha256.Sum256([]byte(id))
 	return filepath.Join(registry.Home(), "s3-probe", hex.EncodeToString(sum[:8]))
 }
 
@@ -64,14 +68,14 @@ func rememberS3Store(root *config.Root) {
 // each check and remembers a store that passes. It ignores the verdict that is
 // remembered and PRAVO_S3_PROBE.
 func probeS3(ctx context.Context, root *config.Root) error {
-	if root.State.Backend != "s3" {
-		return errors.New("the state is not on an S3 store: $settings.state.backend is not \"s3\"")
+	if !root.State.Remote() {
+		return errors.New("the state is not on a remote store: $settings.state.backend is neither \"s3\" nor \"http\"")
 	}
-	b, err := s3Backend(ctx, root)
+	b, err := remoteBackend(ctx, root)
 	if err != nil {
 		return err
 	}
-	sb := b.(*state.S3Backend)
+	sb := b.(state.Prober)
 	type result struct {
 		Check string `json:"check"`
 		OK    bool   `json:"ok"`

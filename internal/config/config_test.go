@@ -324,15 +324,24 @@ func TestStateBackendFields(t *testing.T) {
 	if r, err := load(`$settings: state: bucket: "b"`); err != nil || r.State.Backend != "s3" {
 		t.Errorf("a bucket alone must mean s3: %+v %v", r, err)
 	}
+	if r, err := load(`$settings: state: {backend: "http", url: "https://state.example.com/app", token: "t"}`); err != nil || r.State.Backend != "http" || r.State.URL != "https://state.example.com/app" || r.State.Token != "t" || !r.State.Remote() {
+		t.Errorf("http: %+v %v", r, err)
+	}
 	if r, err := load(`$settings: state: path: "s"`); err != nil || r.StatePath != "s" || r.State.Backend != "" {
 		t.Errorf("local path: %+v %v", r, err)
 	}
 	for name, bad := range map[string]string{
-		"s3 without a bucket": `$settings: state: backend: "s3"`,
-		"s3 field with local": `$settings: state: {backend: "local", region: "eu"}`,
-		"unknown backend":     `$settings: state: {backend: "gcs", bucket: "b"}`,
-		"local path with s3":  `$settings: state: {backend: "s3", bucket: "b", path: "x"}`,
-		"s3 field without s3": `$settings: state: {path: "s", profile: "p"}`,
+		"s3 without a bucket":  `$settings: state: backend: "s3"`,
+		"s3 field with local":  `$settings: state: {backend: "local", region: "eu"}`,
+		"unknown backend":      `$settings: state: {backend: "gcs", bucket: "b"}`,
+		"local path with s3":   `$settings: state: {backend: "s3", bucket: "b", path: "x"}`,
+		"s3 field without s3":  `$settings: state: {path: "s", profile: "p"}`,
+		"http without a url":   `$settings: state: backend: "http"`,
+		"http field with s3":   `$settings: state: {backend: "s3", bucket: "b", url: "https://x"}`,
+		"s3 field with http":   `$settings: state: {backend: "http", url: "https://x", bucket: "b"}`,
+		"http field without":   `$settings: state: {path: "s", url: "https://x"}`,
+		"local path with http": `$settings: state: {backend: "http", url: "https://x", path: "x"}`,
+		"token and password":   `$settings: state: {backend: "http", url: "https://x", token: "t", username: "u", password: "p"}`,
 	} {
 		if _, err := load(bad); err == nil {
 			t.Errorf("%s: expected an error", name)

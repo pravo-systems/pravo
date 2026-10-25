@@ -13,8 +13,9 @@ normalize:
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `state.path` | string | `pravo.state` | Directory of the local state, relative to the root. |
-| `state.backend` | `"local"` or `"s3"` | `"local"` | Where the state is kept. A `bucket` without a `backend` selects `"s3"`. |
+| `state.backend` | `"local"`, `"s3"` or `"http"` | `"local"` | Where the state is kept. A `bucket` without a `backend` selects `"s3"`. |
 | `state.bucket` and the other S3 keys | string, bool | none | The S3 backend. See [S3 keys](#s3-keys). |
+| `state.url` and the other HTTP keys | string | none | The http backend. See [HTTP keys](#http-keys). |
 | `refresh` | `"always"`, `"never"` or a duration | `"always"` | The default [refresh age](glossary.md#refresh-age) of every resource. |
 
 Write the block as `pravo.#Settings & {...}`. The schema comes from the generated `pravo.dev/pravo` package. It lets editors complete the keys, and CUE rejects a misspelt key or a value of the wrong type. Work in an empty directory.
@@ -100,7 +101,7 @@ prod
 
 `state.path` is the directory of the state. A command that writes the state creates the directory when it does not exist. A command that only reads it, such as `eval`, `output` or `pravo state list`, reads an empty state and creates nothing. A path that names a file is an error, and pravo changes nothing. The layout is in [State format](state-format.md).
 
-The block is typed by backend. `path` belongs to the local backend. The S3 keys belong to `s3`. Mixing them is an error when the root is evaluated.
+The block is typed by backend. `path` belongs to the local backend. The S3 keys belong to `s3`, and the HTTP keys to `http`. Mixing them is an error when the root is evaluated.
 
 ```cue file=main.cue
 package demo
@@ -118,11 +119,18 @@ pravo validate
 
 ```text out
 Error: evaluating .:
-$settings.state: 2 errors in empty disjunction:
+$settings.state: 4 errors in empty disjunction:
+$settings.state.backend: 2 errors in empty disjunction:
+$settings.state.backend: conflicting values "http" and "s3":
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:83:10
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:97:17
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:100:32
+    ./main.cue:5:12
+    ./main.cue:6:19
 $settings.state.backend: conflicting values "local" and "s3":
     ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:83:10
     ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:97:33
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:114:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:118:12
     ./main.cue:5:12
     ./main.cue:6:19
 $settings.state.path: field not allowed:
@@ -143,7 +151,7 @@ pravo validate
 ```
 
 ```text out
-Error: $settings.state.bucket belongs to the s3 backend: set backend: "s3", or remove it for local state
+Error: $settings.state.bucket belongs to the s3 backend: set backend: "s3", or remove it
 ```
 
 ### S3 keys
@@ -189,6 +197,40 @@ Success! 0 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs a
 
 `pravo validate` does not open the state. Commands that read or write it, such as `plan` and `eval`, connect to the bucket.
 
+### HTTP keys
+
+The graph can live on a server that speaks pravo's object protocol over HTTP: one object for each key under a URL, with entity tags and conditional writes. The layout is the same as in a bucket. [HTTP state servers](http-stores.md) describes the protocol.
+
+| Key | Meaning |
+|---|---|
+| `backend` | `"http"`. Required for these keys. |
+| `url` | The base URL of the state, such as `https://state.example.com/team/app`. It must be an `http` or `https` URL with no user name, query or fragment. Required. |
+| `token` | A bearer token. Default: the environment variable `PRAVO_STATE_TOKEN`, when `username` is not set. |
+| `username`, `password` | Basic authentication, used when there is no token. |
+
+A token or password in the specification is stored in the configuration. Prefer `PRAVO_STATE_TOKEN`.
+
+```cue file=main.cue
+package demo
+
+import "pravo.dev/pravo"
+
+$settings: pravo.#Settings & {
+	state: {
+		backend: "http"
+		url:     "https://state.example.com/teams/platform/app"
+	}
+}
+```
+
+```sh run
+pravo validate
+```
+
+```text out
+Success! 0 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 0 providers.
+```
+
 Any other `backend` value is rejected:
 
 ```cue file=main.cue
@@ -202,7 +244,7 @@ pravo validate
 ```
 
 ```text out
-Error: $settings.state.backend: unknown backend "gcs" (want local or s3)
+Error: $settings.state.backend: unknown backend "gcs" (want local, s3 or http)
 ```
 
 ## refresh

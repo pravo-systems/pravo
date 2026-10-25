@@ -262,13 +262,13 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 	openStore = func(id *protect.Identity) (*state.Store, error) {
 		o := state.Options{Identity: id}
 		switch {
-		case root.State.Backend == "s3":
-			b, err := s3Backend(ctx, root)
+		case root.State.Remote():
+			b, err := remoteBackend(ctx, root)
 			if err != nil {
 				return nil, err
 			}
 			if write {
-				if err := checkS3Store(ctx, root, b); err != nil {
+				if err := checkStoreConditions(ctx, root, b); err != nil {
 					return nil, err
 				}
 			} else {
@@ -333,9 +333,9 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 // is not reported as missing; the open says why.
 func stateMissing(ctx context.Context, root *config.Root) bool {
 	var b state.Backend
-	if root.State.Backend == "s3" {
+	if root.State.Remote() {
 		var err error
-		if b, err = s3Backend(ctx, root); err != nil {
+		if b, err = remoteBackend(ctx, root); err != nil {
 			return false
 		}
 	} else {
@@ -360,12 +360,9 @@ func (k *noKey) error(root *config.Root) error {
 	return notReaderError(loadReadersFile(root.Dir, flagAccessDir), k.id, k.err)
 }
 
-func s3Backend(ctx context.Context, root *config.Root) (state.Backend, error) {
-	return state.NewS3Backend(ctx, state.S3Config{
-		Bucket: root.State.Bucket, Prefix: root.State.Prefix, Region: root.State.Region, Endpoint: root.State.Endpoint,
-		PathStyle: root.State.PathStyle, Profile: root.State.Profile, AccessKey: root.State.AccessKey, SecretKey: root.State.SecretKey,
-		SessionToken: os.Getenv("AWS_SESSION_TOKEN"),
-	})
+// remoteBackend opens the bucket or the server that the root keeps its state on.
+func remoteBackend(ctx context.Context, root *config.Root) (state.Backend, error) {
+	return engine.RemoteBackend(ctx, root.State)
 }
 
 // openStateReadOnly opens the state for a command that only looks at it. A

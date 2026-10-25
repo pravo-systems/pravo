@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/fakehttp"
 	"github.com/pravo-systems/pravo/internal/fakes3"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
@@ -30,7 +31,7 @@ func probeRoot(t *testing.T, ignore bool) (*config.Root, state.Backend) {
 	root := &config.Root{}
 	root.State.Backend, root.State.Bucket, root.State.Endpoint, root.State.Region = "s3", "state", srv.URL, "us-east-1"
 	root.State.AccessKey, root.State.SecretKey = "test", "test"
-	b, err := s3Backend(context.Background(), root)
+	b, err := remoteBackend(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestCheckS3Store(t *testing.T) {
 	ctx := context.Background()
 
 	root, b := probeRoot(t, false)
-	if err := checkS3Store(ctx, root, b); err != nil {
+	if err := checkStoreConditions(ctx, root, b); err != nil {
 		t.Fatalf("a store that honours the conditions: %v", err)
 	}
 	marks, _ := filepath.Glob(filepath.Join(home, "s3-probe", "*"))
@@ -53,7 +54,7 @@ func TestCheckS3Store(t *testing.T) {
 	}
 
 	root, b = probeRoot(t, true)
-	err := checkS3Store(ctx, root, b)
+	err := checkStoreConditions(ctx, root, b)
 	if err == nil || !strings.Contains(err.Error(), "If-None-Match is ignored") || !strings.Contains(err.Error(), "PRAVO_S3_PROBE=off") {
 		t.Fatalf("a store that ignores a condition: %v", err)
 	}
@@ -63,11 +64,37 @@ func TestCheckS3Store(t *testing.T) {
 	}
 
 	t.Setenv("PRAVO_S3_PROBE", "off")
-	if err := checkS3Store(ctx, root, b); err != nil {
+	if err := checkStoreConditions(ctx, root, b); err != nil {
 		t.Errorf("PRAVO_S3_PROBE=off still probes: %v", err)
 	}
 	if _, err := os.Stat(home); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCheckHTTPStore(t *testing.T) {
+	t.Setenv("PRAVO_HOME", t.TempDir())
+	t.Setenv("PRAVO_S3_PROBE", "")
+	t.Setenv("PRAVO_STATE_TOKEN", "from-env")
+	ctx := context.Background()
+	f := fakehttp.New()
+	f.Token = "from-env"
+	srv := httptest.NewServer(f)
+	t.Cleanup(srv.Close)
+	root := &config.Root{}
+	root.State.Backend, root.State.URL = "http", srv.URL+"/team"
+	b, err := remoteBackend(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkStoreConditions(ctx, root, b); err != nil {
+		t.Fatalf("a server that honours the conditions: %v", err)
+	}
+	f.IgnoreConditions = true
+	t.Setenv("PRAVO_HOME", t.TempDir())
+	err = checkStoreConditions(ctx, root, b)
+	if err == nil || !strings.Contains(err.Error(), "ignored") {
+		t.Fatalf("a server that ignores a condition: %v", err)
 	}
 }
 

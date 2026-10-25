@@ -15,8 +15,8 @@ import (
 // store otherwise makes the directories and writes its metadata. A caller that
 // has a backend of another kind passes its own function in Options.OpenState.
 func OpenReadOnly(ctx context.Context, root *config.Root) (*state.Store, error) {
-	if root.State.Backend == "s3" {
-		return nil, errors.New("the state is in a bucket: the caller has to open it")
+	if root.State.Remote() {
+		return nil, errors.New("the state is on a remote store: the caller has to open it")
 	}
 	path := root.StateFile()
 	if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
