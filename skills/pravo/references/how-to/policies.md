@@ -348,6 +348,7 @@ Output:
 ```text
 policy tests pass
 Policies: +0 new, ~1 changed, -0 removed.
+Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
@@ -423,6 +424,7 @@ Output:
 ```text
 {"addr":"port","type":"random_integer","action":"replace"}
 policy tests pass
+Policies: +0 new, ~1 changed, -0 removed.
 Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 ```

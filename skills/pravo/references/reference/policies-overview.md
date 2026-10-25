@@ -4,7 +4,7 @@
 
 A policy is a node of the specification whose rule is a CUE struct. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply.
 
-A policy is a node of the specification: `pravo.#Policy`, with a `rule` that is a CUE struct written in the specification. The first apply that carries the policy writes it to the state as a signed, numbered version. From then on every plan that changes a resource is judged by the versions in force, at the apply, and the signed start of the apply lists the versions that judged it. A plan that a policy refuses is not applied, and the refusal is exit code 5.
+A policy is a node of the specification: `pravo.#Policy`, with a `rule` that is a CUE struct written in the specification. The first apply that carries the policy writes it to the state as a signed, numbered version. From then on every plan that changes a resource is judged by the versions in force, at the apply, and the signed start of the apply lists the versions that judged it. A plan that a policy refuses is not applied, and the refusal is exit code 5. An apply that writes versions prints `Policies: +N new, ~N changed, -N removed.` above its result line, and its JSON line has `policies`.
 
 | Item | Fact |
 |---|---|

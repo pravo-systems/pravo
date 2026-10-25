@@ -226,6 +226,8 @@ Output:
 Policies: +1 new, ~0 changed, -0 removed.
   + no_delete (sha256:d0fce23004ba)
 Graph: planned 2
+Policies: +1 new, ~0 changed, -0 removed.
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 
@@ -415,6 +417,8 @@ Output:
 Policies: +0 new, ~0 changed, -1 removed.
   - no_delete (version 1)
 Graph: planned 0 · skipped 3 · not read 3
+Policies: +0 new, ~0 changed, -1 removed.
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 no_delete@00000001.json
 no_delete@00000002.json

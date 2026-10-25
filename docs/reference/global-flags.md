@@ -159,7 +159,7 @@ Error: open missing.plan: no such file or directory
 | `addr`, `message`, `id`, `elapsed_ms`, `trace_id` | The address of the resource, the line a person reads, the provider id, the duration in milliseconds, and the trace id (each if set). |
 | `txn` | The transaction. |
 
-The event of kind `plan` carries the plan document. The last event, of kind `apply`, has `added`, `changed`, `destroyed`, `outputs`, `planfile` and `remaining`. An apply of a plan stored in the state has `plan`, the id, in place of `planfile`. [`pravo apply`](apply.md#json) shows events.
+The event of kind `plan` carries the plan document. The last event, of kind `apply`, has `added`, `changed`, `destroyed`, `policies`, `outputs`, `planfile` and `remaining`. `policies` lists the policy versions the apply wrote, each with `name`, `seq` and `change` (`new`, `changed` or `removed`), and is an empty list when it wrote none. An apply of a plan stored in the state has `plan`, the id, in place of `planfile`. [`pravo apply`](apply.md#json) shows events.
 
 A string is written as it is: `<`, `>` and `&` are not escaped as `\u003c`, `\u003e` and `\u0026`. That holds for the commands above, for `pravo output --json`, for the events of `apply` and `destroy`, and for the messages of [`pravo mcp`](mcp.md). A list with no entries is `[]` and never `null`. The root `text` declares one output and no resource:
 

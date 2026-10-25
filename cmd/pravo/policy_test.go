@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -340,5 +341,36 @@ func TestARuleWrittenAgainstTheSchemaIsStoredWithoutIt(t *testing.T) {
 	r.declare(t, rules, "b") // a is destroyed by the next plan
 	if text, code := runPravo(t, r.dir, "plan"); code != 5 || !strings.Contains(text, "a: ") && !strings.Contains(text, "changes.") {
 		t.Errorf("plan must be refused by the rule: exit %d\n%s", code, text)
+	}
+}
+
+// An apply says which policy versions it wrote, as text and in its JSON line, so that an
+// apply that changes only policies does not read as an apply that did nothing.
+func TestApplyReportsThePolicyVersionsItWrote(t *testing.T) {
+	rules := map[string]string{"few": "summary: destroy: <=1", "lim": "summary: add: <=9"}
+	r := newPolicyRoot(t, rules)
+	text, code := r.apply(t)
+	if code != 0 || !strings.Contains(text, "Policies: +2 new, ~0 changed, -0 removed.") {
+		t.Fatalf("apply: exit %d\n%s", code, text)
+	}
+	r.declare(t, map[string]string{"few": "summary: destroy: <=2"})
+	text, code = runPravo(t, r.dir, "apply", "--auto-approve", "--json")
+	if code != 0 {
+		t.Fatalf("json apply: exit %d\n%s", code, text)
+	}
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	var last struct {
+		Policies []struct {
+			Name   string `json:"name"`
+			Seq    int    `json:"seq"`
+			Change string `json:"change"`
+		} `json:"policies"`
+	}
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &last); err != nil {
+		t.Fatalf("%v\n%s", err, text)
+	}
+	got := fmt.Sprint(last.Policies)
+	if got != "[{few 2 changed} {lim 2 removed}]" {
+		t.Errorf("policies = %s\n%s", got, text)
 	}
 }

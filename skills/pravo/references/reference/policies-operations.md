@@ -458,6 +458,7 @@ Output:
 
 ```text
 Policies: +0 new, ~1 changed, -0 removed.
+Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 Error: the plan violates the policy no_destroy@2 (sha256:a1521d7920e4):
 changes.0: seed: replace is not allowed:

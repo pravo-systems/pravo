@@ -667,13 +667,27 @@ func reportApply(res *engine.ApplyResult, destroy bool, kind, planfile, again st
 			kind = "planfile"
 		}
 		emitLine(map[string]any{"kind": "apply", "phase": "done", "txn": res.Txn, "added": res.Added, "changed": res.Changed,
-			"destroyed": res.Destroyed, "outputs": unwrapAll(res.Outputs), kind: planfile, "remaining": remaining})
+			"destroyed": res.Destroyed, "policies": policiesWritten(res.Policies), "outputs": unwrapAll(res.Outputs), kind: planfile, "remaining": remaining})
 		return
 	}
 	out.Println()
 	verb := "Apply"
 	if destroy {
 		verb = "Destroy"
+	}
+	if len(res.Policies) > 0 {
+		var added, changed, removed int
+		for _, p := range res.Policies {
+			switch p.Change {
+			case "new":
+				added++
+			case "changed":
+				changed++
+			default:
+				removed++
+			}
+		}
+		out.Printf("Policies: +%d new, ~%d changed, -%d removed.\n", added, changed, removed)
 	}
 	out.Printf("%s Resources: %d added, %d changed, %d destroyed. %s\n", out.C(ui.Bold+ui.Green, verb+" complete!"), res.Added, res.Changed, res.Destroyed, out.C(ui.Dim, "[txn "+res.Txn+"]"))
 	if remaining > 0 {
@@ -687,6 +701,15 @@ func reportApply(res *engine.ApplyResult, destroy bool, kind, planfile, again st
 		out.Println()
 		out.Println(outputsSummary(len(res.Outputs), res.ChangedOutputs))
 	}
+}
+
+// policiesWritten is the policy versions of an apply for the JSON line: an empty
+// list, never null, when the apply wrote none.
+func policiesWritten(p []engine.PolicyWritten) []engine.PolicyWritten {
+	if p == nil {
+		return []engine.PolicyWritten{}
+	}
+	return p
 }
 
 // outputsSummary says how many outputs an apply recorded and which of them
