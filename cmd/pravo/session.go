@@ -135,6 +135,7 @@ func (s *session) close() {
 
 func (s *session) engine(opts engine.Options) *engine.Engine {
 	opts.Actor, opts.Reason = flagActor, flagReason
+	opts.Readers = loadReadersFile(s.root.Dir, flagAccessDir).Readers
 	if flagJSON && streamEvents && opts.Event == nil {
 		// Only commands that change things stream events; plan-like
 		// commands print a single document.
