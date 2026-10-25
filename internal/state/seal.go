@@ -38,7 +38,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // recordVersion and outputsVersion are the versions of the sealed record and of
@@ -147,7 +151,12 @@ func (s *Store) openSealed(id *protect.Identity) error {
 	}
 	pub := id.Reader.Public()
 	s.you = You{Name: id.Name, Key: pub.String()}
+	// who opens the state: the name of the identity and its public reader key, never a key that opens anything
+	who := []attribute.KeyValue{attribute.String("pravo.identity", id.Name), attribute.String("pravo.identity.reader", pub.String())}
+	trace.SpanFromContext(s.cx()).SetAttributes(who...)
+	_, end := telemetry.Span(s.cx(), "unseal state keys", append(who, attribute.Int("pravo.seal.groups", len(s.meta.Sealed.Groups)))...)
 	keys, err := s.meta.Sealed.Unlock(s.meta.Lineage, id.Reader)
+	end(unlockFailure(err))
 	switch {
 	case err == nil:
 		s.ring.set(keys)
@@ -233,7 +242,7 @@ func (s *Store) reloadSealed() {
 	s.mu.Lock()
 	id, lineage := s.id, s.meta.Lineage
 	s.mu.Unlock()
-	data, err := s.b.Get(s.ctx, "meta.json")
+	data, err := s.b.Get(s.cx(), "meta.json")
 	if err != nil {
 		return
 	}
@@ -326,7 +335,7 @@ func (s *Store) decodeRecord(data []byte) (*Resource, string, error) {
 		return nil, "", err
 	}
 	var body sealedBody
-	if err := s.ring.openJSON(c, *sr.Sealed, &body); err != nil {
+	if err := s.openJSON(c, *sr.Sealed, &body); err != nil {
 		return nil, "", fmt.Errorf("the sealed part of %s does not open where it is: %w", r.Address(), ErrUntrusted)
 	}
 	r.Attributes, r.Private, r.ConfigHash, r.ProviderConfig = body.Attributes, body.Private, body.ConfigHash, body.ProviderConfig
@@ -352,7 +361,7 @@ func (s *Store) encodeRecord(r *Resource) ([]byte, string, error) {
 		return nil, "", err
 	}
 	defer clear(plain)
-	sealed, ok := s.ring.seal(c, plain)
+	sealed, ok := s.sealBox(c, plain)
 	if !ok {
 		return nil, "", ErrNotReader
 	}
@@ -375,7 +384,7 @@ func (s *Store) recheckSeal() {
 	s.metaRead = time.Now()
 	id, lineage, current := s.id, s.meta.Lineage, s.ring.current()
 	s.mu.Unlock()
-	data, err := s.b.Get(s.ctx, "meta.json")
+	data, err := s.b.Get(s.cx(), "meta.json")
 	if err != nil {
 		return
 	}
@@ -454,7 +463,7 @@ func (s *Store) decodeOutputs(data []byte) (map[string]json.RawMessage, error) {
 				return nil, fmt.Errorf("the outputs are sealed in group %s, which your key cannot open: %w", env.Sealed.Group, ErrNotReader)
 			}
 			var out map[string]json.RawMessage
-			if err := s.ring.openJSON(s.outputsCtx(), env.Sealed, &out); err != nil {
+			if err := s.openJSON(s.outputsCtx(), env.Sealed, &out); err != nil {
 				return nil, fmt.Errorf("the sealed outputs do not open where they are: %w", ErrUntrusted)
 			}
 			return out, nil
@@ -485,11 +494,54 @@ func (s *Store) encodeOutputs(outputs map[string]json.RawMessage) ([]byte, error
 		return nil, err
 	}
 	defer clear(plain)
-	sealed, ok := s.ring.seal(s.outputsCtx(), plain)
+	sealed, ok := s.sealBox(s.outputsCtx(), plain)
 	if !ok {
 		return nil, ErrNotReader
 	}
 	return indentJSON(sealedOutputs{V: outputsVersion, Sealed: sealed})
+}
+
+// unlockFailure is what a failed unlock of the keys adds to its span: a reader that is not one of the state's is an answer,
+// not a failure.
+func unlockFailure(err error) error {
+	if errors.Is(err, protect.ErrNotReader) {
+		return nil
+	}
+	return err
+}
+
+// The spans of the work of the seal: a run shows the time it spent unsealing what it read and sealing what it wrote. They
+// carry the kind of the object and its name (an address or an id), never what is in it.
+func sealAttrs(c protect.Ctx) []attribute.KeyValue {
+	return []attribute.KeyValue{attribute.String("pravo.seal.kind", c.Kind), attribute.String("pravo.seal.name", c.Name)}
+}
+
+func sealName(verb string, c protect.Ctx) string {
+	if c.Name == "" {
+		return verb + " " + c.Kind
+	}
+	return verb + " " + c.Kind + " " + c.Name
+}
+
+func (s *Store) sealBox(c protect.Ctx, plain []byte) (protect.Sealed, bool) {
+	_, end := telemetry.Span(s.cx(), sealName("seal", c), append(sealAttrs(c), attribute.Int("pravo.seal.bytes", len(plain)))...)
+	box, ok := s.ring.seal(c, plain)
+	end(nil)
+	return box, ok
+}
+
+func (s *Store) openBox(c protect.Ctx, box protect.Sealed) ([]byte, error) {
+	_, end := telemetry.Span(s.cx(), sealName("unseal", c), append(sealAttrs(c), attribute.String("pravo.seal.group", box.Group))...)
+	plain, err := s.ring.open(c, box)
+	end(err)
+	return plain, err
+}
+
+func (s *Store) openJSON(c protect.Ctx, box protect.Sealed, v any) error {
+	_, end := telemetry.Span(s.cx(), sealName("unseal", c), append(sealAttrs(c), attribute.String("pravo.seal.group", box.Group))...)
+	err := s.ring.openJSON(c, box, v)
+	end(err)
+	return err
 }
 
 // storeSealer is the Sealer of a store.
@@ -506,7 +558,7 @@ func (s *Store) Sealer() Sealer {
 
 func (z storeSealer) Seal(kind, name string, plain []byte) (protect.Sealed, error) {
 	z.s.recheckSeal()
-	sealed, ok := z.s.ring.seal(protect.Ctx{Lineage: z.s.Lineage(), Kind: kind, Name: name}, plain)
+	sealed, ok := z.s.sealBox(protect.Ctx{Lineage: z.s.Lineage(), Kind: kind, Name: name}, plain)
 	if !ok {
 		return protect.Sealed{}, ErrNotReader
 	}
@@ -521,7 +573,7 @@ func (z storeSealer) Open(kind, name string, sealed protect.Sealed) ([]byte, err
 	if !openable {
 		return nil, fmt.Errorf("sealed in group %s, which your key cannot open: %w", sealed.Group, ErrNotReader)
 	}
-	plain, err := z.s.ring.open(protect.Ctx{Lineage: z.s.Lineage(), Kind: kind, Name: name}, sealed)
+	plain, err := z.s.openBox(protect.Ctx{Lineage: z.s.Lineage(), Kind: kind, Name: name}, sealed)
 	if err != nil {
 		return nil, fmt.Errorf("a sealed %s does not open where it is: %w", kind, ErrUntrusted)
 	}

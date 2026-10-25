@@ -106,7 +106,7 @@ func (s *Store) updateMeta(fn func(m *meta) error) error {
 			next    meta
 			refused error
 		)
-		ok, err := s.b.ReplaceIf(s.ctx, "meta.json", func(cur []byte) ([]byte, bool) {
+		ok, err := s.b.ReplaceIf(s.cx(), "meta.json", func(cur []byte) ([]byte, bool) {
 			var m meta
 			if err := json.Unmarshal(cur, &m); err != nil {
 				refused = fmt.Errorf("reading %s/meta.json: %w", s.b.Name(), err)
@@ -181,7 +181,7 @@ type rewrite struct {
 // someone wrote since it was read is not rewritten and is named in the error; the
 // others are, and the store stays readable and can be upgraded again.
 func (s *Store) convertNodes(ctx context.Context, rw rewrite, progress func(done, total int)) (int, error) {
-	keys, err := s.b.List(s.ctx, "resources")
+	keys, err := s.b.List(s.cx(), "resources")
 	if err != nil {
 		return 0, err
 	}
@@ -264,7 +264,7 @@ func jsonKeysOf(keys []string) []string {
 // did.
 func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, error) {
 	for attempt := 0; attempt < replaceAttempts; attempt++ {
-		raw, err := s.b.Get(s.ctx, key)
+		raw, err := s.b.Get(s.cx(), key)
 		if errors.Is(err, ErrNotFound) {
 			return false, nil
 		}
@@ -303,7 +303,7 @@ func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, 
 			return false, fmt.Errorf("%s: %w", key, err)
 		}
 		rkey := recKey(data)
-		if _, err := s.b.PutIfAbsent(s.ctx, rkey, data); err != nil {
+		if _, err := s.b.PutIfAbsent(s.cx(), rkey, data); err != nil {
 			return false, fmt.Errorf("writing %s: %w", rkey, Advise(err))
 		}
 		ptr, err := indentJSON(pointer{V: pointerVersion, Address: addr, Revision: r.Revision, Generation: r.Generation, Record: rkey})
@@ -311,7 +311,7 @@ func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, 
 			return false, err
 		}
 		refused := false
-		ok, err := s.b.ReplaceIf(s.ctx, key, func(cur []byte) ([]byte, bool) {
+		ok, err := s.b.ReplaceIf(s.cx(), key, func(cur []byte) ([]byte, bool) {
 			if !bytes.Equal(cur, raw) {
 				refused = true
 				return nil, false
@@ -325,7 +325,7 @@ func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, 
 			return false, fmt.Errorf("writing %s: %w", key, Advise(err))
 		case ok:
 			if rw.dropOld && isPtr && p.Record != rkey {
-				_ = s.b.Delete(s.ctx, p.Record)
+				_ = s.b.Delete(s.cx(), p.Record)
 			}
 			s.mu.Lock()
 			if _, in := s.nodes[addr]; in {
@@ -348,7 +348,7 @@ func (s *Store) VerifyAll(ctx context.Context) (VerifyResult, error) {
 	if s.Format() < FormatImmutable {
 		return res, nil
 	}
-	keys, err := s.b.List(s.ctx, "resources")
+	keys, err := s.b.List(s.cx(), "resources")
 	if err != nil {
 		return res, err
 	}
@@ -396,7 +396,7 @@ func (s *Store) VerifyAll(ctx context.Context) (VerifyResult, error) {
 // the record that failed. An object that is a whole record is not checked.
 func (s *Store) verifyNode(ctx context.Context, key string) (checked bool, bad string, err error) {
 	for attempt := 0; attempt < readAttempts; attempt++ {
-		data, err := s.b.Get(s.ctx, key)
+		data, err := s.b.Get(s.cx(), key)
 		if errors.Is(err, ErrNotFound) {
 			return false, "", nil
 		}
@@ -414,7 +414,7 @@ func (s *Store) verifyNode(ctx context.Context, key string) (checked bool, bad s
 		if checkPointer(key, p) != nil {
 			return true, label, nil
 		}
-		rec, err := s.b.Get(s.ctx, p.Record)
+		rec, err := s.b.Get(s.cx(), p.Record)
 		if errors.Is(err, ErrNotFound) {
 			if attempt+1 < readAttempts {
 				time.Sleep(readPause(attempt))

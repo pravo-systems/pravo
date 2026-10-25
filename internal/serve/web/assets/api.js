@@ -41,6 +41,10 @@ export const plans = () => get('/api/plans').catch((err) => { if (err && err.sta
 export const access = () => get('/api/access').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', state: 'off', format: 1, location: '', backend: 'local', summary: '', readers: [], file: { verdict: 'none', path: '', text: '', count: 0 }, records: { total: 0, sealed: 0, plain: 0, unreadable: 0 }, groups: [], recovery: { state: 'none', text: '' }, suggestions: [] }; throw err; });
 // discovery is what the discoveries found, set against the state; a server that does not know them has none.
 export const discovery = () => get('/api/discovery').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, unmanaged: 0, discoveries: [], command: 'pravo discover' }; throw err; });
+// traces lists the runs that pravo recorded in the project; a server that does not know them has none.
+export const traces = () => get('/api/traces').catch((err) => { if (err && err.status === 404) return { version: 1, dir: '.pravo/traces', traces: [] }; throw err; });
+// trace is the spans of one run.
+export const trace = (id) => get('/api/trace?id=' + encodeURIComponent(id));
 // adopt is what to do with one object of a discovery: the resource that adopts it, and commands to copy.
 export const adopt = (discovery, key) => get('/api/adopt?discovery=' + encodeURIComponent(discovery) + '&key=' + encodeURIComponent(key));
 // plan is a stored plan as an overlay of the graph: the plan, and the action of each node it ran.

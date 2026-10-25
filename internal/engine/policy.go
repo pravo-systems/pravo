@@ -15,6 +15,9 @@ import (
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/parser"
 	cuejson "cuelang.org/go/encoding/json"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // Policy is a CUE file that a plan must satisfy. Whoever runs pravo names it
@@ -124,6 +127,13 @@ func (e *Engine) CheckPolicyView(view *View) error {
 	if !e.HasPolicies() {
 		return nil
 	}
+	_, end := telemetry.Span(e.traceCtx(), "engine check policy", attribute.Int("pravo.policies", len(e.policies)))
+	err := e.judge(view)
+	end(err)
+	return err
+}
+
+func (e *Engine) judge(view *View) error {
 	if !view.skipped {
 		judged := *view
 		judged.Changes = e.withSkipped(view.Changes)

@@ -12,11 +12,13 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
@@ -173,7 +175,9 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 			if !install {
 				return fmt.Errorf("provider %s (%s) is not locked; run \"pravo init\"", local, req.Source.Display())
 			}
-			v, err := m.Registry.Resolve(ctx, req.Source, req.Version)
+			rctx, end := setup(ctx, "resolve provider "+local, attribute.String("pravo.provider.source", req.Source.Display()))
+			v, err := m.Registry.Resolve(rctx, req.Source, req.Version)
+			end(err)
 			if err != nil {
 				return err
 			}
@@ -189,7 +193,9 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 			if !install {
 				return fmt.Errorf("provider %s v%s is not installed; run \"pravo init\"", req.Source.Display(), ver)
 			}
-			res, err := m.Registry.Install(ctx, req.Source, ver, m.Log)
+			ictx, end := setup(ctx, "install provider "+local, attribute.String("pravo.provider.source", req.Source.Display()), attribute.String("pravo.provider.version", ver))
+			res, err := m.Registry.Install(ictx, req.Source, ver, m.Log)
+			end(err)
 			if err != nil {
 				return err
 			}
@@ -207,7 +213,10 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 			// the source states for this platform when the lock has no hash.
 			plat := registry.CurrentPlatform()
 			if e, ok := lock.Providers[req.Source.String()]; !ok || e.Version != ver || e.Hashes[plat.String()] == "" {
-				if sum, err := m.Registry.Checksum(ctx, req.Source, ver, plat); err == nil {
+				cctx, end := setup(ctx, "checksum provider "+local)
+				sum, err := m.Registry.Checksum(cctx, req.Source, ver, plat)
+				end(err)
+				if err == nil {
 					rp.Hash = "sha256:" + sum
 				}
 			}
@@ -262,6 +271,13 @@ func (m *Providers) Schema(ctx context.Context, local string) (*schema.ProviderS
 		return s, nil
 	}
 	m.mu.Unlock()
+	ctx, end := setup(ctx, "load schema "+local, attribute.String("pravo.provider", local))
+	s, err := m.loadSchema(ctx, local)
+	end(err)
+	return s, err
+}
+
+func (m *Providers) loadSchema(ctx context.Context, local string) (*schema.ProviderSchema, error) {
 	rp, ok := m.Resolved[local]
 	if !ok {
 		return nil, fmt.Errorf("provider %q is not resolved", local)
@@ -295,7 +311,7 @@ func (m *Providers) Schema(ctx context.Context, local string) (*schema.ProviderS
 			}
 		}
 	}
-	p, err := m.start(local, rp)
+	p, err := m.start(ctx, local, rp)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +348,7 @@ func (m *Providers) Schemas(ctx context.Context) (map[string]*schema.ProviderSch
 
 // instance returns the running process for a provider key, starting it if
 // needed, without configuring it.
-func (m *Providers) instance(key string) (*instance, error) {
+func (m *Providers) instance(ctx context.Context, key string) (*instance, error) {
 	local := config.LocalName(key)
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -344,11 +360,12 @@ func (m *Providers) instance(key string) (*instance, error) {
 	if !ok {
 		return nil, fmt.Errorf("provider %q is not resolved", local)
 	}
-	p, err := m.start(local, rp)
+	p, err := m.start(ctx, local, rp)
 	if err != nil {
 		return nil, err
 	}
-	plog.Debug(context.Background(), "provider started", "provider", key, "version", rp.Version, "path", rp.Path)
+	plugin.SetInstance(p, key)
+	plog.Debug(ctx, "provider started", "provider", key, "version", rp.Version, "path", rp.Path)
 	inst = &instance{p: p, key: key, reattached: rp.Reattached()}
 	m.instances[key] = inst
 	return inst, nil
@@ -356,7 +373,14 @@ func (m *Providers) instance(key string) (*instance, error) {
 
 // start launches a provider binary, or in replay mode serves recordings
 // without one, and applies recording when requested.
-func (m *Providers) start(local string, rp *ResolvedProvider) (plugin.Provider, error) {
+func (m *Providers) start(ctx context.Context, local string, rp *ResolvedProvider) (plugin.Provider, error) {
+	_, end := setup(ctx, "start provider "+local, attribute.String("pravo.provider", local), attribute.String("pravo.provider.version", rp.Version))
+	p, err := m.startProvider(local, rp)
+	end(err)
+	return p, err
+}
+
+func (m *Providers) startProvider(local string, rp *ResolvedProvider) (plugin.Provider, error) {
 	if m.launch != nil {
 		return m.launch(local, rp)
 	}
@@ -365,21 +389,42 @@ func (m *Providers) start(local string, rp *ResolvedProvider) (plugin.Provider, 
 	}
 	var p plugin.Provider
 	var err error
+	var capture *netcap.Capture
 	if rp.Reattached() {
 		p, err = plugin.Reattach(*rp.Reattach, nil)
 	} else {
-		p, err = plugin.Start(rp.Path, nil)
+		var env []string
+		if netcap.Enabled() {
+			// A capture that cannot start is no reason to stop the run: the provider goes without one.
+			if capture, err = netcap.New(); err == nil {
+				env = capture.Env()
+			} else {
+				capture = nil
+			}
+		}
+		p, err = plugin.StartWith(rp.Path, nil, env)
+		if err != nil && capture != nil {
+			capture.Close()
+		}
 	}
 	if err != nil {
 		return nil, err
 	}
-	return plugin.Wrap(p, local)
+	w, err := plugin.Wrap(p, local)
+	if capture != nil {
+		if err != nil {
+			capture.Close()
+		} else {
+			plugin.AttachCapture(w, capture)
+		}
+	}
+	return w, err
 }
 
 // Unconfigured returns a running provider without configuring it, which is
 // all a provider-defined function needs.
 func (m *Providers) Unconfigured(ctx context.Context, key string) (plugin.Provider, error) {
-	inst, err := m.instance(key)
+	inst, err := m.instance(ctx, key)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +435,7 @@ func (m *Providers) Unconfigured(ctx context.Context, key string) (plugin.Provid
 // ("aws" or "aws.west"), starting and configuring it on first use.
 func (m *Providers) Provider(ctx context.Context, key string) (plugin.Provider, error) {
 	local := config.LocalName(key)
-	inst, err := m.instance(key)
+	inst, err := m.instance(ctx, key)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +451,9 @@ func (m *Providers) Provider(ctx context.Context, key string) (plugin.Provider, 
 	}
 	inst.cfg = true
 	plog.Debug(ctx, "configuring provider", "provider", key)
-	err = m.configure(ctx, inst, local)
+	cctx, end := setup(ctx, "configure provider "+key, attribute.String("pravo.provider", local), attribute.String("pravo.provider.instance", key))
+	err = m.configure(cctx, inst, local)
+	end(err)
 	m.mu.Lock()
 	m.configured[key] = err
 	m.mu.Unlock()

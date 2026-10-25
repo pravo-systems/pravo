@@ -94,6 +94,9 @@ type Options struct {
 	Poll time.Duration
 	// KeepAlive is how often /api/events sends a comment line (default 15 s).
 	KeepAlive time.Duration
+	// TraceDir is where the recorded runs are read from. The default is
+	// .pravo/traces of the project directory.
+	TraceDir string
 	// Token is the secret of this run. A random one is made when it is empty.
 	Token string
 }
@@ -130,6 +133,10 @@ type Server struct {
 	stop     chan struct{}
 	stopOnce sync.Once
 
+	// traceMu guards traceSums, the summaries of the recorded runs.
+	traceMu   sync.Mutex
+	traceSums traceCache
+
 	// streams counts the open event streams.
 	streams atomic.Int32
 }
@@ -161,6 +168,7 @@ func New(opts Options) (*Server, error) {
 	}
 	s := &Server{opts: opts, planMeta: engine.NewPlanMetaCache(), token: opts.Token, schemas: newCacheStore(), hosts: map[string]bool{}, stop: make(chan struct{})}
 	s.watch = newWatcher(opts.Poll, opts.Dir, opts.PlanFile)
+	s.watch.traces = s.traceDir()
 	m, err := s.current()
 	if err != nil {
 		return nil, err
@@ -401,6 +409,12 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/api/events":
 		s.events(w, r)
+		return
+	case "/api/traces":
+		s.traces(w, r)
+		return
+	case "/api/trace":
+		s.trace(w, r)
 		return
 	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt":
 	default:

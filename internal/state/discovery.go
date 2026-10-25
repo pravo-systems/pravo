@@ -156,12 +156,12 @@ func (s *Store) PutDiscovery(run *DiscoveryRun) error {
 // Discovery returns what the last run of the discovery found, or nil when it has
 // not been run.
 func (s *Store) Discovery(name string) (*DiscoveryRun, error) {
-	return readRun(s.ctx, s.b, runKey(name))
+	return readRun(s.cx(), s.b, runKey(name))
 }
 
 // DeleteDiscovery forgets what the last run of a discovery found.
 func (s *Store) DeleteDiscovery(name string) error {
-	return s.b.Delete(s.ctx, runKey(name))
+	return s.b.Delete(s.cx(), runKey(name))
 }
 
 // DiscoveryProblem is an object that could not be read.
@@ -175,7 +175,7 @@ func (p DiscoveryProblem) Error() string { return p.Key + ": " + p.Err.Error() }
 // Discoveries returns the last run of every discovery that has one, by name.
 // An object that cannot be read is returned as a problem and the rest are read.
 func (s *Store) Discoveries() (map[string]*DiscoveryRun, []DiscoveryProblem, error) {
-	keys, err := s.b.List(s.ctx, DiscoveryRunDir)
+	keys, err := s.b.List(s.cx(), DiscoveryRunDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -185,7 +185,7 @@ func (s *Store) Discoveries() (map[string]*DiscoveryRun, []DiscoveryProblem, err
 		if !strings.HasSuffix(k, ".json") {
 			continue
 		}
-		run, err := readRun(s.ctx, s.b, k)
+		run, err := readRun(s.cx(), s.b, k)
 		switch {
 		case err != nil:
 			problems = append(problems, DiscoveryProblem{k, err})

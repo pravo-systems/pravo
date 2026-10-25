@@ -59,6 +59,10 @@ func Enabled() bool {
 	return tracesExporter() != "none" || metricsExporter() != "none"
 }
 
+// Active reports whether anything takes the spans: an exporter configured
+// through the environment, or the local record of the run.
+func Active() bool { return Enabled() || recordingEnabled() }
+
 func endpointConfigured() bool {
 	for _, k := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"} {
 		if os.Getenv(k) != "" {
@@ -105,9 +109,11 @@ var errOnce sync.Once
 // export never fail a command; a single warning goes to stderr.
 func Setup(ctx context.Context, version string) (shutdown func(context.Context) error) {
 	noop := func(context.Context) error { return nil }
-	if !Enabled() {
+	record := recordingEnabled()
+	if !Enabled() && !record {
 		return noop
 	}
+	localOnly = tracesExporter() == "none"
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
 		errOnce.Do(func() {
 			fmt.Fprintf(os.Stderr, "pravo: telemetry export problem (further ones are not shown): %v\n", err)
@@ -133,6 +139,7 @@ func Setup(ctx context.Context, version string) (shutdown func(context.Context) 
 
 	var shutdowns []func(context.Context) error
 
+	tpOpts := []sdktrace.TracerProviderOption{sdktrace.WithResource(res)}
 	switch tracesExporter() {
 	case "otlp":
 		var exp sdktrace.SpanExporter
@@ -144,18 +151,25 @@ func Setup(ctx context.Context, version string) (shutdown func(context.Context) 
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "pravo: telemetry traces disabled: %v\n", err)
+			localOnly = true
 		} else {
-			tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exp), sdktrace.WithResource(res))
-			otel.SetTracerProvider(tp)
-			shutdowns = append(shutdowns, tp.Shutdown)
+			tpOpts = append(tpOpts, sdktrace.WithBatcher(exp))
 		}
 	case "console":
 		exp, err := stdouttrace.New(stdouttrace.WithWriter(os.Stderr))
 		if err == nil {
-			tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp), sdktrace.WithResource(res))
-			otel.SetTracerProvider(tp)
-			shutdowns = append(shutdowns, tp.Shutdown)
+			tpOpts = append(tpOpts, sdktrace.WithSyncer(exp))
+		} else {
+			localOnly = true
 		}
+	}
+	if record {
+		tpOpts = append(tpOpts, sdktrace.WithSpanProcessor(&recorder{}))
+	}
+	if len(tpOpts) > 1 {
+		tp := sdktrace.NewTracerProvider(tpOpts...)
+		otel.SetTracerProvider(tp)
+		shutdowns = append(shutdowns, tp.Shutdown)
 	}
 
 	switch metricsExporter() {
@@ -230,13 +244,31 @@ func Environ(ctx context.Context) []string {
 	return out
 }
 
-// TraceID returns the trace id of the span in ctx, or "".
+// localOnly is set when the spans go nowhere but the local record of the run.
+// Such a trace is not named in the state or in the documents of a command: the
+// pravo.txn attribute of its engine span names the transaction instead.
+var localOnly bool
+
+// TraceID returns the trace id of the span in ctx, or "". It is empty when
+// the trace is only recorded locally, so that a command prints the same
+// documents with or without the record.
 func TraceID(ctx context.Context) string {
+	if localOnly {
+		return ""
+	}
 	sc := trace.SpanContextFromContext(ctx)
 	if !sc.IsValid() {
 		return ""
 	}
 	return sc.TraceID().String()
+}
+
+// Span starts a span named name under the span in ctx, and returns the context
+// that nests what runs inside it and the function that ends it with the error
+// the work ended in. A span carries names, counts and kinds, never values.
+func Span(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
+	ctx, span := Tracer().Start(ctx, name, trace.WithAttributes(attrs...))
+	return ctx, func(err error) { End(span, err) }
 }
 
 // End finishes a span, recording err if there is one.
