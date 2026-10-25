@@ -1,14 +1,12 @@
 // Layered left-to-right layout with nested namespace lanes, shaped to the canvas. Pure functions, no DOM.
 //
-// Ranks are the longest path over the visible items. A namespace that is open is a lane: a box that holds a
-// block (its own items, one column for each rank that it uses, the columns closed up) and its sub-lanes.
-// Nothing is placed by a global column any more: every lane is measured bottom-up, and the entries of a
-// lane (its block and its sub-lanes, in the order of the flow) are arranged by whichever of two packings
-// comes closest to the shape that is wanted: rows that wrap (shelves) or columns that fill from the
-// shortest (masonry). A block folds a tall column into several, and wraps its ranks into rows, when that
-// brings it nearer to the shape. The root picks the arrangement that gives the largest fit zoom on the
-// canvas, the others aim for a plain landscape box. Items inside a column are ordered by barycenter
-// sweeps, then pulled towards their neighbours. An edge leaves by the side that faces its target.
+// The layout keeps one rule: if B reads A, B stands to the right of A or below it. A lane (an open namespace) is a
+// box that holds a block of its own items and of its sub-lanes, each sub-lane as one card. The block ranks those
+// nodes by the edges between them (longest path), puts each rank in a column, closes the columns up, and wraps
+// the columns into rows when that brings the block nearer to the shape that is wanted: later ranks to the right,
+// later rows below. Every lane is measured from the inside out. The root picks the wrapping that gives the
+// largest fit zoom on the canvas. Items inside a column are ordered by barycenter sweeps, then pulled towards
+// their neighbours. An edge leaves by the side that faces its target.
 
 export const G = {
   W: 224, H: 52, CW: 224, MH: 80, MH2: 94, CTL: 36,
@@ -30,15 +28,12 @@ const log = Math.log;
 // layout takes { root, items, edges, aspect, fit, route, sweeps }.
 //   root:   a lane { path, label, items: [id], sub: [lane] }; the root lane is virtual (it draws no box)
 //   items:  Map id -> { id, w, h }
-//   edges:  [{ a, b }] from dependency to dependent, between item ids
+//   edges:  [{ a, b }] from dependency to dependent, between item ids; a is left of b or above it
 //   aspect: the width over the height that the picture should have when fit is not given
 //   fit:    { w, h } the canvas; the root then picks the arrangement that fits it at the largest zoom
 //   route:  false leaves the routes out (a trial layout needs the bounds only)
-//   hint:   the arr of an earlier layout. A lane whose entries were arranged then keeps its entries in the rows
-//           (or columns) they were in, when that costs little of the fit: a namespace that opens or closes does not
-//           send every other lane across the canvas.
-// It returns { pos, lanes, routes, back, bounds, rank, maxRank, arr }.
-export function layout({ root, items, edges, aspect = 1.4, fit = null, route = true, sweeps = null, hint = null }) {
+// It returns { pos, lanes, routes, back, bounds, rank, maxRank }.
+export function layout({ root, items, edges, aspect = 1.4, fit = null, route = true, sweeps = null }) {
   const ids = [...items.keys()];
   const succ = new Map(), pred = new Map();
   for (const id of ids) { succ.set(id, []); pred.set(id, []); }
@@ -106,31 +101,130 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
   // ---- lanes ----
   const lanes = [];
   const pos = new Map();
+  const laneOf = new Map();
   function mk(src, parent, depth, top) {
-    const l = { path: src.path, label: src.label || '', parent, depth, top, virtual: !parent, sub: [], cols: new Map(), entries: [], x: 0, y: 0, w: 0, h: 0, ox: 0, minRank: Infinity, sumRank: 0, nItems: 0 };
+    const l = { path: src.path, label: src.label || '', parent, depth, top, virtual: !parent, items: src.items, sub: [], cols: new Map(), entries: [], x: 0, y: 0, w: 0, h: 0, ox: 0, id: 'L:' + src.path, all: null };
     lanes.push(l);
-    for (const id of src.items) {
-      const r = rank.get(id);
-      let c = l.cols.get(r);
-      if (!c) l.cols.set(r, (c = []));
-      c.push(id);
-      l.minRank = Math.min(l.minRank, r);
-      l.sumRank += r;
-      l.nItems++;
-    }
-    src.sub.forEach((s, i) => {
-      const sl = mk(s, l, depth + 1, parent ? top : i);
-      l.sub.push(sl);
-      l.minRank = Math.min(l.minRank, sl.minRank);
-      l.sumRank += sl.sumRank;
-      l.nItems += sl.nItems;
-    });
+    laneOf.set(l.id, l);
+    src.sub.forEach((sb, i) => l.sub.push(mk(sb, l, depth + 1, parent ? top : i)));
     return l;
   }
   const R = mk(root, null, 0, -1);
 
-  const H = (id) => items.get(id).h || G.H;
-  const Wd = (id) => items.get(id).w || G.W;
+  // ---- ranks, level by level ----
+  //
+  // Each lane ranks its own items together with its sub-lanes, a sub-lane counting as one node, by the edges that
+  // run between those nodes. Whatever stands in a node stands in its box, so an edge from one node to another
+  // runs from the box of one to the box of the other, which stands to its right or below it. That holds at every
+  // depth. Only an edge that closes a cycle between the nodes of a level can run the other way.
+  const collect = (l) => { const all = new Set(l.items); for (const sl of l.sub) for (const id of collect(sl)) all.add(id); l.all = all; return all; };
+  collect(R);
+  const lpred = new Map(), lsucc = new Map();
+  for (const l of lanes) {
+    if (l.virtual) continue;
+    const pr = new Set(), su = new Set();
+    for (const e of E) {
+      const ia = l.all.has(e.a), ib = l.all.has(e.b);
+      if (ib && !ia) pr.add(e.a);
+      if (ia && !ib) su.add(e.b);
+    }
+    lpred.set(l.id, [...pr]);
+    lsucc.set(l.id, [...su]);
+  }
+  function prep(l) {
+    const at = new Map();
+    for (const id of l.items) at.set(id, id);
+    for (const sl of l.sub) for (const id of sl.all) at.set(id, sl.id);
+    const nodes = l.items.concat(l.sub.map((sl) => sl.id));
+    const ns = new Map(), np = new Map();
+    for (const n of nodes) { ns.set(n, new Set()); np.set(n, new Set()); }
+    for (const e of E) {
+      const x = at.get(e.a), y = at.get(e.b);
+      if (x === undefined || y === undefined || x === y) continue;
+      ns.get(x).add(y);
+      np.get(y).add(x);
+    }
+    const bk = new Set();
+    {
+      const state = new Map();
+      const starts = nodes.filter((n) => !np.get(n).size).concat(nodes.filter((n) => np.get(n).size));
+      for (const r0 of starts) {
+        if (state.get(r0)) continue;
+        state.set(r0, 1);
+        const stack = [[r0, [...ns.get(r0)], 0]];
+        while (stack.length) {
+          const top = stack[stack.length - 1];
+          if (top[2] < top[1].length) {
+            const w = top[1][top[2]++];
+            const c = state.get(w) || 0;
+            if (c === 0) { state.set(w, 1); stack.push([w, [...ns.get(w)], 0]); } else if (c === 1) bk.add(top[0] + '\u0000' + w);
+          } else { state.set(top[0], 2); stack.pop(); }
+        }
+      }
+    }
+    // a cycle between the nodes: cut it where the fewest edges have to run against the flow (Eades, Lin and Smyth)
+    if (bk.size) {
+      const outd = new Map(), ind = new Map();
+      for (const n of nodes) { outd.set(n, 0); ind.set(n, 0); }
+      for (const [x, ys] of ns) for (const y of ys) { outd.set(x, outd.get(x) + 1); ind.set(y, ind.get(y) + 1); }
+      const live = new Set(nodes), head = [], tail = [];
+      const drop = (n) => { live.delete(n); for (const y of ns.get(n)) if (live.has(y)) ind.set(y, ind.get(y) - 1); for (const x of np.get(n)) if (live.has(x)) outd.set(x, outd.get(x) - 1); };
+      while (live.size) {
+        let moved = true;
+        while (moved) {
+          moved = false;
+          for (const n of live) {
+            if (!outd.get(n)) { tail.push(n); drop(n); moved = true; } else if (!ind.get(n)) { head.push(n); drop(n); moved = true; }
+          }
+        }
+        if (!live.size) break;
+        let pick = null, pv = -Infinity;
+        for (const n of live) { const v = outd.get(n) - ind.get(n); if (v > pv) { pv = v; pick = n; } }
+        head.push(pick);
+        drop(pick);
+      }
+      const at2 = new Map([...head, ...tail.reverse()].map((n, i) => [n, i]));
+      const bk2 = new Set();
+      for (const [x, ys] of ns) for (const y of ys) if (at2.get(y) < at2.get(x)) bk2.add(x + '\u0000' + y);
+      if (bk2.size < bk.size) { bk.clear(); for (const k of bk2) bk.add(k); }
+    }
+    const lr = new Map();
+    const indeg = new Map();
+    for (const n of nodes) { lr.set(n, 0); indeg.set(n, 0); }
+    for (const [x, ys] of ns) for (const y of ys) if (!bk.has(x + '\u0000' + y)) indeg.set(y, indeg.get(y) + 1);
+    const queue = nodes.filter((n) => !indeg.get(n));
+    for (let qi = 0; qi < queue.length; qi++) {
+      const v = queue[qi];
+      for (const w of ns.get(v)) {
+        if (bk.has(v + '\u0000' + w)) continue;
+        if (lr.get(w) < lr.get(v) + 1) lr.set(w, lr.get(v) + 1);
+        indeg.set(w, indeg.get(w) - 1);
+        if (!indeg.get(w)) queue.push(w);
+      }
+    }
+    // what reads nothing stands next to the first that reads it
+    for (const n of nodes) {
+      if ([...np.get(n)].some((x) => !bk.has(x + '\u0000' + n))) continue;
+      let m = Infinity;
+      for (const w of ns.get(n)) if (!bk.has(n + '\u0000' + w)) m = Math.min(m, lr.get(w));
+      if (m !== Infinity && m - 1 > lr.get(n)) lr.set(n, m - 1);
+    }
+    for (const id of l.items) {
+      const w = items.get(id).with;
+      if (w && lr.has(w)) lr.set(id, lr.get(w));
+    }
+    for (const n of nodes) {
+      const r = lr.get(n);
+      let c = l.cols.get(r);
+      if (!c) l.cols.set(r, (c = []));
+      c.push(n);
+    }
+    for (const sl of l.sub) prep(sl);
+  }
+  prep(R);
+
+  const H = (id) => (laneOf.has(id) ? laneOf.get(id).h : items.get(id).h || G.H);
+  const Wd = (id) => (laneOf.has(id) ? laneOf.get(id).w : items.get(id).w || G.W);
   const labelWidth = (l) => l.label.length * 8.4 + 92;
 
   // blockOf measures the items of a lane: columns by rank, closed up, folded and wrapped to the shape.
@@ -150,14 +244,10 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
         // a fold that leaves a column nearly empty (12 items in 11 and 1) is worse than an even one
         let ragged = 0;
         for (const c of cols) { const k = Math.ceil(c.ids.length / rows); if (k > 1) ragged += (k * rows - c.ids.length) / c.ids.length; }
-        const sc = Math.abs(log(b.w / b.h / Math.min(1.7, Math.max(1, aspect)))) + (rows < maxLen ? 0.05 : 0) + (per < cols.length ? 0.14 : 0) + ragged * 0.3 + b.h * 0.00002;
+        const sc = (l.virtual && fit && fit.w > 0 && fit.h > 0 ? -log(Math.min(fit.w / b.w, fit.h / b.h, FIT.maxK)) + 0.05 * Math.abs(log(b.w / b.h / aspect)) : Math.abs(log(b.w / b.h / Math.min(1.7, Math.max(1, aspect))))) + (rows < maxLen ? 0.05 : 0) + (per < cols.length ? 0.14 : 0) + ragged * 0.3 + b.h * 0.00002;
         if (sc < bestScore - 1e-9) { bestScore = sc; best = b; }
       }
     }
-    let sum = 0, n = 0;
-    for (const c of cols) { sum += c.rank * c.ids.length; n += c.ids.length; }
-    best.minRank = cols[0].rank;
-    best.mean = sum / n;
     return best;
   }
   function measure(cols, rowsMax, per) {
@@ -181,186 +271,16 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
       rows.push({ y, h: rh, units });
       y += rh + G.ROWGAP;
     }
-    return { w: wMax, h: y - G.ROWGAP, rows, minRank: 0, mean: 0 };
+    return { w: wMax, h: y - G.ROWGAP, rows };
   }
 
-  // compose arranges the entries of a lane; it sets ox and oy on each and returns the size.
-  const arrOut = new Map();
-  const entryKey = (e) => (e.sub ? 'L:' + e.sub.path : 'B');
-  function compose(entries, root, lanePath) {
-    const n = entries.length;
-    if (!n) return { w: 0, h: 0 };
-    if (n === 1) { entries[0].ox = 0; entries[0].oy = 0; return { w: entries[0].w, h: entries[0].h }; }
-    const gap = G.LANEGAP;
-    let area = 0, maxW = 0;
-    for (const e of entries) { area += e.w * e.h; maxW = Math.max(maxW, e.w); }
-    const useFit = root && fit && fit.w > 0 && fit.h > 0;
-    const T = root ? aspect : Math.min(1.7, Math.max(1, aspect)); // a lane aims for the shape of the canvas, within reason
-    const score = (w, h) => {
-      const asp = Math.abs(log(w / h / T));
-      const waste = log(Math.max(1, (w * h) / area));
-      if (useFit) {
-        const k = Math.min(fit.w / w, fit.h / h);
-        return -log(Math.min(k, FIT.maxK)) + 0.05 * asp + 0.12 * waste;
-      }
-      return asp + 0.35 * waste;
-    };
-    let best = null, bestScore = Infinity;
-    // a score that is not a number (a canvas with no size yet) still leaves an arrangement: the first one is kept
-    const take = (sc, kind, offs, w, h) => { if (!best || sc < bestScore - 1e-9) { bestScore = sc; best = { kind, offs, w, h }; } };
-    // shelves: rows that wrap at a limit
-    const limits = new Set();
-    if (n <= 26) {
-      for (let i = 0; i < n; i++) { let s = 0; for (let j = i; j < n; j++) { s += entries[j].w + (j > i ? gap : 0); limits.add(Math.round(s)); } }
-    } else {
-      let s = 0;
-      for (let j = 0; j < n; j++) { s += entries[j].w + (j ? gap : 0); limits.add(Math.round(s)); }
-      for (let c = 1; c <= 24; c++) limits.add(Math.round(c * (maxW + gap)));
-    }
-    for (const lim of limits) {
-      if (lim < maxW) continue;
-      let x = 0, y = 0, rh = 0, wm = 0;
-      const offs = [];
-      for (const e of entries) {
-        if (x > 0 && x + e.w > lim) { y += rh + gap; x = 0; rh = 0; }
-        offs.push([x, y]);
-        x += e.w + gap;
-        rh = Math.max(rh, e.h);
-        wm = Math.max(wm, x - gap);
-      }
-      take(score(wm, y + rh), 'shelf', offs, wm, y + rh);
-    }
-    // masonry: c columns, each entry on the shortest; in the order of the flow
-    const idx = entries.map((_, i) => i);
-    for (const [kind, seq, bias] of [['masonry', idx, 0.02]]) {
-      for (let c = 2; c <= Math.min(n, 8); c++) {
-        const hs = new Array(c).fill(0), cw = new Array(c).fill(0), at = new Array(n);
-        for (const i of seq) {
-          const e = entries[i];
-          let k = 0;
-          for (let j = 1; j < c; j++) if (hs[j] < hs[k] - 0.5) k = j;
-          at[i] = [k, hs[k]];
-          hs[k] += e.h + gap;
-          cw[k] = Math.max(cw[k], e.w);
-        }
-        const xs = [];
-        let acc = 0;
-        for (let j = 0; j < c; j++) { xs.push(acc); acc += (cw[j] > 0 ? cw[j] + gap : 0); }
-        const w = acc - gap, h = Math.max(...hs) - gap;
-        if (w <= 0 || h <= 0) continue;
-        take(score(w, h) + bias, kind, at.map(([k, y]) => [xs[k], y]), w, h);
-      }
-    }
-    // an arrangement that keeps the entries where they were, when it fits nearly as well as the best one
-    const prev = hint && hint.get(lanePath);
-    if (prev) {
-      const st = stableArrange(entries, prev, gap);
-      if (st && score(st.w, st.h) + (st.kind === 'masonry' ? 0.02 : 0) <= bestScore + (useFit ? 0.13 : 0.25)) best = st;
-    }
-    entries.forEach((e, i) => { e.ox = best.offs[i][0]; e.oy = best.offs[i][1]; });
-    arrOut.set(lanePath, describeArrangement(entries, best));
-    return { w: best.w, h: best.h };
-  }
-
-  // describeArrangement notes which row (a shelf) or column (masonry) each entry is in, and its place in it
-  function describeArrangement(entries, a) {
-    const shelf = a.kind === 'shelf';
-    const ax = (i) => Math.round(a.offs[i][shelf ? 1 : 0]);
-    const bx = (i) => a.offs[i][shelf ? 0 : 1];
-    const groups = [...new Set(entries.map((_, i) => ax(i)))].sort((p, q) => p - q);
-    return { kind: a.kind, keys: entries.map(entryKey), gs: entries.map((_, i) => groups.indexOf(ax(i))), ord: entries.map((_, i) => bx(i)) };
-  }
-
-  // stableArrange lays the entries of a lane out in the rows or columns that they were in, in the same order,
-  // with the entries that are new beside the block (where a namespace that has opened stood as a card). It
-  // gives up (null) when most of the entries are new.
-  function stableArrange(entries, prev, gap) {
-    const at = new Map(prev.keys.map((k, i) => [k, i]));
-    let known = 0;
-    for (const e of entries) if (at.has(entryKey(e))) known++;
-    if (known < Math.ceil(entries.length / 2)) return null;
-    const ng = Math.max(...prev.gs) + 1;
-    const groups = Array.from({ length: ng }, () => []);
-    const blockG = at.has('B') ? prev.gs[at.get('B')] : ng - 1;
-    for (const e of entries) { const i = at.get(entryKey(e)); if (i !== undefined) groups[prev.gs[i]].push({ e, o: prev.ord[i] }); }
-    for (const g of groups) g.sort((p, q) => p.o - q.o);
-    for (const e of entries) {
-      if (at.has(entryKey(e))) continue;
-      const g = groups[blockG], bi = g.findIndex((x) => entryKey(x.e) === 'B');
-      g.splice(bi >= 0 ? bi + 1 : g.length, 0, { e, o: 0 });
-    }
-    const idx = new Map(entries.map((e, i) => [e, i]));
-    const offs = new Array(entries.length);
-    let w = 0, h = 0;
-    const gs = groups.filter((g) => g.length);
-    if (prev.kind === 'shelf') {
-      let y = 0;
-      for (const g of gs) {
-        let x = 0, rh = 0;
-        for (const { e } of g) { offs[idx.get(e)] = [x, y]; x += e.w + gap; rh = Math.max(rh, e.h); }
-        w = Math.max(w, x - gap); y += rh + gap;
-      }
-      h = y - gap;
-    } else {
-      let x = 0;
-      for (const g of gs) {
-        let y = 0, cw = 0;
-        for (const { e } of g) { offs[idx.get(e)] = [x, y]; y += e.h + gap; cw = Math.max(cw, e.w); }
-        h = Math.max(h, y - gap); x += cw + gap;
-      }
-      w = x - gap;
-    }
-    return w > 0 && h > 0 ? { kind: prev.kind, offs, w, h } : null;
-  }
-
-  // inFlowOrder puts the entries of a lane in the order of the data: what feeds another entry comes before it. The
-  // ranks alone cannot say it, since the items of a lane that is open stand in ranks of their own; so the edges
-  // between the entries are counted, and the entry that gives most and takes least goes first (Eades, Lin and
-  // Smyth). The order of the ranks breaks ties.
-  const itemsOf = (l, out = new Set()) => { for (const c of l.cols.values()) for (const id of c) out.add(id); for (const sl of l.sub) itemsOf(sl, out); return out; };
-  function inFlowOrder(entries, l) {
-    const n = entries.length;
-    if (n < 2) return;
-    const at = new Map();
-    entries.forEach((e, i) => {
-      if (e.sub) for (const id of itemsOf(e.sub)) at.set(id, i);
-      else for (const c of l.cols.values()) for (const id of c) at.set(id, i);
-    });
-    const W = Array.from({ length: n }, () => new Array(n).fill(0));
-    let any = false;
-    for (const e of E) {
-      const i = at.get(e.a), j = at.get(e.b);
-      if (i === undefined || j === undefined || i === j) continue;
-      W[i][j]++;
-      any = true;
-    }
-    if (!any) return;
-    const left = new Set(entries.keys());
-    const order = [];
-    while (left.size) {
-      let best = -1, bestV = -Infinity;
-      for (const i of left) {
-        let v = 0;
-        for (const j of left) v += W[i][j] - W[j][i];
-        if (v > bestV + 1e-9) { bestV = v; best = i; }
-      }
-      order.push(best);
-      left.delete(best);
-    }
-    const sorted = order.map((i) => entries[i]);
-    entries.splice(0, n, ...sorted);
-  }
-
+  // size measures a lane from the inside out: its sub-lanes first, then its block, in which each sub-lane stands as a
+  // card of its own size, in the column of its rank.
   function size(l) {
-    for (const s of l.sub) size(s);
-    const entries = [];
+    for (const sl of l.sub) size(sl);
     const blk = blockOf(l);
-    if (blk) entries.push({ block: blk, sub: null, w: blk.w, h: blk.h, minRank: blk.minRank, mean: blk.mean, ox: 0, oy: 0 });
-    for (const s of l.sub) entries.push({ block: null, sub: s, w: s.w, h: s.h, minRank: s.minRank, mean: s.nItems ? s.sumRank / s.nItems : 0, ox: 0, oy: 0 });
-    entries.sort((p, q) => p.minRank - q.minRank || p.mean - q.mean);
-    inFlowOrder(entries, l);
-    const c = compose(entries, l.virtual, l.path);
-    l.entries = entries;
+    const c = blk ? { w: blk.w, h: blk.h } : { w: 0, h: 0 };
+    l.entries = blk ? [{ block: blk, w: blk.w, h: blk.h, ox: 0, oy: 0 }] : [];
     if (l.virtual) { l.w = c.w; l.h = c.h; l.ox = 0; return; }
     const inner = Math.max(c.w, labelWidth(l) - 2 * G.PAD);
     l.w = inner + 2 * G.PAD;
@@ -374,13 +294,14 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
     const cx = ax + (l.virtual ? 0 : G.PAD + l.ox), cy = ay + (l.virtual ? 0 : G.HEAD);
     for (const e of l.entries) {
       const ex = cx + e.ox, ey = cy + e.oy;
-      if (e.sub) { assign(e.sub, ex, ey); continue; }
       for (const row of e.block.rows) {
         const top = ey + row.y;
         for (const u of row.units) {
           let yy = top + (row.h - u.h) / 2;
           u.lo = top; u.hi = top + row.h; u.ax = ex + u.x;
           for (const id of u.ids) {
+            const sl = laneOf.get(id);
+            if (sl) { assign(sl, u.ax + (u.w - sl.w) / 2, yy); yy += sl.h + G.GAPY; continue; }
             const it = items.get(id);
             pos.set(id, { x: u.ax, y: yy, w: it.w || G.W, h: it.h || G.H, rank: rank.get(id) });
             yy += (it.h || G.H) + G.GAPY;
@@ -394,21 +315,24 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
   place();
 
   const cyv = new Map();
-  const loadCy = () => { for (const [id, p] of pos) cyv.set(id, p.y + p.h / 2); };
+  const loadCy = () => {
+    for (const [id, p] of pos) cyv.set(id, p.y + p.h / 2);
+    for (const l of lanes) if (!l.virtual) cyv.set(l.id, l.y + l.h / 2);
+  };
+  const predOf = (id) => (laneOf.has(id) ? lpred.get(id) || [] : pred.get(id));
+  const succOf = (id) => (laneOf.has(id) ? lsucc.get(id) || [] : succ.get(id));
 
   // ---- ordering: barycenter sweeps ----
   function sweepColumns(down) {
-    const rs = [];
-    for (let r = 0; r <= maxRank; r++) rs.push(r);
-    if (!down) rs.reverse();
-    for (const r of rs) {
-      for (const l of lanes) {
+    for (const l of lanes) {
+      const rs = [...l.cols.keys()].sort((p, q) => (down ? p - q : q - p));
+      for (const r of rs) {
         const col = l.cols.get(r);
-        if (!col || col.length < 2) continue;
+        if (col.length < 2) continue;
         const want = col.map((id, i) => {
-          const ns = down ? pred.get(id) : succ.get(id);
+          const ns = down ? predOf(id) : succOf(id);
           let s = 0, n = 0;
-          for (const o of ns) { if (isBack(down ? o : id, down ? id : o)) continue; s += cyv.get(o); n++; }
+          for (const o of ns) { if (!laneOf.has(id) && isBack(down ? o : id, down ? id : o)) continue; s += cyv.get(o); n++; }
           return { id, i, d: n ? s / n : cyv.get(id) };
         });
         want.sort((p, q) => (p.d - q.d) || (p.i - q.i));
@@ -433,6 +357,7 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
   function straighten(down) {
     const order = units.slice().sort((p, q) => (down ? p.rank - q.rank : q.rank - p.rank));
     for (const u of order) {
+      if (u.ids.some((id) => laneOf.has(id))) continue;
       const hs = u.ids.map(H);
       const ys = u.ids.map((id, i) => {
         let s = 0, n = 0;
@@ -463,7 +388,7 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
     bx0 = Math.min(bx0, p.x); by0 = Math.min(by0, p.y); bx1 = Math.max(bx1, p.x + p.w); by1 = Math.max(by1, p.y + p.h);
   }
   if (!isFinite(bx0)) { bx0 = by0 = 0; bx1 = by1 = 100; }
-  return { pos, lanes: out, routes, back, bounds: { x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0 }, rank, maxRank, arr: arrOut };
+  return { pos, lanes: out, routes, back, bounds: { x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0 }, rank, maxRank };
 }
 
 // spread moves ys (tops) as little as it can so that they keep their order, leave at least GAPY between
@@ -490,7 +415,7 @@ function spread(ys, hs, lo, hi) {
 const TRACK = 8;
 function spreadWires(routes, boxes) {
   const list = [];
-  for (const r of routes.values()) { r.q = polyOf({ m: r.m, p: r.p }).slice(); list.push(r); }
+  for (const r of routes.values()) { r.q = polyOf({ m: r.m, p: r.p, my: r.my }).slice(); list.push(r); }
   const segs = (vertical) => {
     const out = [];
     for (const r of list) {
@@ -519,6 +444,13 @@ function spreadWires(routes, boxes) {
         if (bx.y + bx.h <= mean) lo = Math.max(lo, bx.y + bx.h + 4);
         else if (bx.y >= mean) hi = Math.min(hi, bx.y - 4);
       }
+    }
+    // a run between a leg that comes in and a leg that goes on in the same direction stays between the two ends of them
+    for (const v of g) {
+      const q = v.r.q, i = v.i;
+      const before = vertical ? q[i - 4] : q[i - 3], after = vertical ? q[i + 2] : q[i + 3], at = vertical ? q[i - 2] : q[i - 1];
+      if (before === undefined || after === undefined) continue;
+      if ((before < at && at < after) || (before > at && at > after)) { lo = Math.max(lo, Math.min(before, after) + 3); hi = Math.min(hi, Math.max(before, after) - 3); }
     }
     const room = hi - lo;
     const gap = Math.min(TRACK, Number.isFinite(room) ? room / (n + 1) : TRACK);
@@ -657,9 +589,10 @@ function routeAll(E, pos, isBack, heads = []) {
     const cx = x1 - CH;
     const c0 = x0 + CH;
     const wire = (yy) => [x0, y0, c0, y0, c0, yy, cx, yy, cx, y1, x1, y1];
-    const ys = new Set([y0, y1]);
-    for (const b of boxes) if (b.id !== sa && b.id !== sb && b.x < x0 && b.x + b.w > x1) { ys.add(b.y - 8); ys.add(b.y + b.h + 8); }
-    let best = y0, bestCost = Infinity;
+    // the run back runs along a gap above or below an item: never along the height of its own ends, which are items
+    const ys = new Set();
+    for (const b of boxes) if (b.x < x0 && b.x + b.w > x1) { ys.add(b.y - 8); ys.add(b.y + b.h + 8); }
+    let best = y0 + 40, bestCost = Infinity;
     for (const yy of ys) {
       const cost = polyHits(wire(yy), sa, sb) * 1000 + Math.abs(yy - y0) * 0.3 + Math.abs(yy - y1) * 0.3;
       if (cost < bestCost) { bestCost = cost; best = yy; }
@@ -667,15 +600,33 @@ function routeAll(E, pos, isBack, heads = []) {
     return [x0, y0, c0, best, cx, best, x1, y1];
   }
 
+  // the level of the run between a drop and a rise: a gap between items, with the fewest meetings, near the item it enters
+  function refineDrop(x0, y0, x1, y1, sa, sb) {
+    const mid = (y0 + y1) / 2;
+    if (y1 - y0 < 20) return mid;
+    const lo = Math.min(x0, x1) - 4, hi = Math.max(x0, x1) + 4;
+    const ys = new Set([mid]);
+    for (const b of boxes) {
+      if (b.x >= hi || b.x + b.w <= lo) continue;
+      for (const yy of [b.y - 8, b.y + b.h + 8]) if (yy > y0 + 8 && yy < y1 - 8) ys.add(yy);
+    }
+    let best = mid, bestCost = Infinity;
+    for (const yy of ys) {
+      const cost = polyHits([x0, y0, x0, yy, x1, yy, x1, y1], sa, sb) * 1000 + Math.abs(yy - (y1 - 20)) * 0.2;
+      if (cost < bestCost) { bestCost = cost; best = yy; }
+    }
+    return best;
+  }
+
   // the way an edge goes, and the side of each item that it leaves or enters
   // A is what is read and B is what reads it: the wire runs from A to B, with the flow of data, and its arrowhead points right or down
   const modeOf = (A, B) => {
     const gapR = B.x - (A.x + A.w), gapL = A.x - (B.x + B.w);
     if (gapR >= 20) return ['h', 'r', 'l'];
-    if (gapL >= 20) return ['l', 'r', 'l'];
-    if (B.y >= A.y + A.h + FAR || A.y >= B.y + B.h + FAR) return ['c', 'l', 'l'];
+    // B stands below A: down, along a gap between the rows, and down again into the top of B
     if (B.y >= A.y + A.h - 1) return ['v', 'b', 't'];
-    // what it feeds stands above it: in from the left, along the left side, so that no arrow points up
+    // what is left is an edge that closes a cycle: B is level with A or above it, so the wire goes round and enters from the left
+    if (gapL >= 20) return ['l', 'r', 'l'];
     if (A.y >= B.y + B.h - 1) return ['c', 'l', 'l'];
     return ['h2', 'r', 'l'];
   };
@@ -723,7 +674,8 @@ function routeAll(E, pos, isBack, heads = []) {
       // far apart, one over the other: along the left side, where nothing stands, rather than through what is between
       routes.set(key, { m: 'c', p: [A.x, ya, B.x, yb] });
     } else if (m === 'v') {
-      routes.set(key, { m: 'v', p: [A.x + A.w / 2 + oa, A.y + A.h, B.x + B.w / 2 + ob, B.y] });
+      const vx0 = A.x + A.w / 2 + oa, vy0 = A.y + A.h, vx1 = B.x + B.w / 2 + ob, vy1 = B.y;
+      routes.set(key, { m: 'v', p: [vx0, vy0, vx1, vy1], my: refineDrop(vx0, vy0, vx1, vy1, e.a, e.b) });
     } else {
       routes.set(key, { m: 'h', p: [A.x + A.w, ya, B.x, yb] });
     }
@@ -756,7 +708,7 @@ function polyOf(r) {
   }
   if (r.m === 'v') {
     const [x0, y0, x1, y1] = p;
-    const my = (y0 + y1) / 2;
+    const my = r.my !== undefined ? r.my : (y0 + y1) / 2;
     add(x0, y0); add(x0, my); add(x1, my); add(x1, y1);
     return o;
   }

@@ -1352,7 +1352,7 @@ export class GraphView {
   destroy() { this.ro.disconnect(); this.stopTween(); this.cancelCam(); }
 }
 
-function clonePts(r) { return r.q ? { m: r.m, p: r.p.slice(), q: r.q } : { m: r.m, p: r.p.slice() }; }
+function clonePts(r) { const c = { m: r.m, p: r.p.slice() }; if (r.q) c.q = r.q; if (r.my !== undefined) c.my = r.my; return c; }
 
 function mixPts(a, b, e) {
   const n = Math.max(a.p.length, b.p.length);

@@ -458,7 +458,7 @@ function relayout(o = {}) {
   const vis = buildItems(S.model, S.collapsed, S.clusters);
   const sh = gv.shape;
   // a namespace that opens or closes keeps the lanes that it does not touch where they were (o.stable)
-  const lay = layout({ root: vis.root, items: vis.items, edges: vis.edges, aspect: sh.fit.w > 0 ? sh.fit.w / sh.fit.h : 1.4, fit: sh.fit.w > 0 ? sh.fit : null, hint: o.stable && S.lay && S.shaped ? S.lay.arr : null });
+  const lay = layout({ root: vis.root, items: vis.items, edges: vis.edges, aspect: sh.fit.w > 0 ? sh.fit.w / sh.fit.h : 1.4, fit: sh.fit.w > 0 ? sh.fit : null });
   S.vis = vis;
   S.lay = lay;
   S.layoutMs = performance.now() - t0;
