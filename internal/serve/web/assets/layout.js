@@ -617,16 +617,13 @@ function routeAll(E, pos, isBack, heads = []) {
     }
     return n;
   };
-  function refineBack(x0, y0, x1, y1, sa, sb) {
-    const plain = [x0, y0, x1, y1];
-    if (x0 - x1 < G.W + 60) return plain;
-    const cx = x1 + Math.min(CH, (x0 - x1) / 2);
-    const c0 = x0 - CH;
+  function refineLoop(x0, y0, x1, y1, sa, sb) {
+    const cx = x1 - CH;
+    const c0 = x0 + CH;
     const wire = (yy) => [x0, y0, c0, y0, c0, yy, cx, yy, cx, y1, x1, y1];
-    if (polyHits([x0, y0, cx, y0, cx, y1, x1, y1], sa, sb) === 0) return plain;
     const ys = new Set([y0, y1]);
     for (const b of boxes) if (b.id !== sa && b.id !== sb && b.x < x0 && b.x + b.w > x1) { ys.add(b.y - 8); ys.add(b.y + b.h + 8); }
-    let best = null, bestCost = Infinity;
+    let best = y0, bestCost = Infinity;
     for (const yy of ys) {
       const cost = polyHits(wire(yy), sa, sb) * 1000 + Math.abs(yy - y0) * 0.3 + Math.abs(yy - y1) * 0.3;
       if (cost < bestCost) { bestCost = cost; best = yy; }
@@ -635,23 +632,25 @@ function routeAll(E, pos, isBack, heads = []) {
   }
 
   // the way an edge goes, and the side of each item that it leaves or enters
+  // A is what reads and B is what it reads: the wire runs from A to B, and its arrowhead points right
   const modeOf = (A, B) => {
     const gapR = B.x - (A.x + A.w), gapL = A.x - (B.x + B.w);
     if (gapR >= 20) return ['h', 'r', 'l'];
-    if (gapL >= 20) return ['l', 'l', 'r'];
-    if (B.y >= A.y + A.h + FAR || A.y >= B.y + B.h + FAR) return ['c', 'r', 'r'];
+    if (gapL >= 20) return ['l', 'r', 'l'];
+    if (B.y >= A.y + A.h + FAR || A.y >= B.y + B.h + FAR) return ['c', 'l', 'l'];
     if (B.y >= A.y + A.h - 1) return ['v', 'b', 't'];
-    if (A.y >= B.y + B.h - 1) return ['v', 't', 'b'];
+    // what it reads stands above it: in from the left, along the left side, so that no arrow points up
+    if (A.y >= B.y + B.h - 1) return ['c', 'l', 'l'];
     return ['h2', 'r', 'l'];
   };
   // every wire has a pin of its own on the side of an item, in the order of the items at their other ends
   const pins = new Map();
-  const ways = E.map((e) => modeOf(pos.get(e.a), pos.get(e.b)));
+  const ways = E.map((e) => modeOf(pos.get(e.b), pos.get(e.a)));
   {
     const groups = new Map();
     E.forEach((e, i) => {
       for (const end of [0, 1]) {
-        const id = end ? e.b : e.a, other = pos.get(end ? e.a : e.b);
+        const id = end ? e.a : e.b, other = pos.get(end ? e.b : e.a);
         const k = id + '|' + ways[i][1 + end];
         let g = groups.get(k);
         if (!g) groups.set(k, (g = []));
@@ -673,7 +672,7 @@ function routeAll(E, pos, isBack, heads = []) {
   const routes = new Map();
   let ei = 0;
   E.forEach((e, i) => {
-    const A = pos.get(e.a), B = pos.get(e.b);
+    const A = pos.get(e.b), B = pos.get(e.a);
     ei++;
     const key = e.a + '>' + e.b;
     const m = ways[i][0];
@@ -681,15 +680,14 @@ function routeAll(E, pos, isBack, heads = []) {
     const ya = A.y + A.h / 2 + oa, yb = B.y + B.h / 2 + ob;
     if (m === 'h') {
       const x0 = A.x + A.w, x1 = B.x;
-      routes.set(key, { m: 'h', p: isBack(e.a, e.b) ? [x0, ya, x1, yb] : refine(x0, ya, x1, yb, e.a, e.b, 0, ei) });
+      routes.set(key, { m: 'h', p: isBack(e.a, e.b) ? [x0, ya, x1, yb] : refine(x0, ya, x1, yb, e.b, e.a, 0, ei) });
     } else if (m === 'l') {
-      routes.set(key, { m: 'l', p: refineBack(A.x, ya, B.x + B.w, yb, e.a, e.b) });
+      routes.set(key, { m: 'l', p: refineLoop(A.x + A.w, ya, B.x, yb, e.b, e.a) });
     } else if (m === 'c') {
-      // far apart, one over the other: down the side, where nothing stands, rather than through what is between
-      routes.set(key, { m: 'c', p: [A.x + A.w, ya, B.x + B.w, yb] });
+      // far apart, one over the other: along the left side, where nothing stands, rather than through what is between
+      routes.set(key, { m: 'c', p: [A.x, ya, B.x, yb] });
     } else if (m === 'v') {
-      const down = B.y >= A.y + A.h - 1;
-      routes.set(key, { m: 'v', p: [A.x + A.w / 2 + oa, down ? A.y + A.h : A.y, B.x + B.w / 2 + ob, down ? B.y : B.y + B.h] });
+      routes.set(key, { m: 'v', p: [A.x + A.w / 2 + oa, A.y + A.h, B.x + B.w / 2 + ob, B.y] });
     } else {
       routes.set(key, { m: 'h', p: [A.x + A.w, ya, B.x, yb] });
     }
@@ -716,7 +714,7 @@ function polyOf(r) {
   };
   if (r.m === 'c') {
     const [x0, y0, x1, y1] = p;
-    const bx = Math.max(x0, x1) + CH;
+    const bx = Math.min(x0, x1) - CH;
     add(x0, y0); add(bx, y0); add(bx, y1); add(x1, y1);
     return o;
   }
