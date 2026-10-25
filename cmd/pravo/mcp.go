@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -291,8 +290,7 @@ providers. The actor is a label taken from --actor or PRAVO_ACTOR when the
 server starts; it is recorded on every transaction the agent causes and is
 not verified.
 
-With --policy <file> (repeatable, absolute paths) the server adds that policy
-to every plan and apply it runs; a tool argument cannot remove it.
+The policies of the specification judge every apply it runs.
 Reservations apply as they would on the command line. The server applies only
 from saved plan files, and a tool argument that is empty or begins with "-" is
 refused so that it cannot be read as a flag. That narrows what this tool does,
@@ -303,22 +301,9 @@ not what the process around it may do.`,
 			// it runs inherit.
 			identityPrompt = false
 			defer func() { identityPrompt = true }()
-			// Read and compile the files now, so that a bad path fails the start
-			// and not every later call. Paths are absolute so that the file a
-			// policy names does not depend on the directory the server was
-			// started in.
-			for _, p := range flagPolicy {
-				if !filepath.IsAbs(p) {
-					return engine.WithCode(engine.ExitRefused, fmt.Errorf("--policy %q: the server needs an absolute path", p))
-				}
-			}
-			if _, err := engine.LoadPolicyFiles(flagPolicy, "."); err != nil {
-				return err
-			}
 			return serveMCP(cmd.Context(), os.Stdin, os.Stdout)
 		},
 	}
-	addPolicyFlag(cmd)
 	return cmd
 }
 
@@ -419,9 +404,6 @@ func runSelf(ctx context.Context, args []string) (string, int) {
 	if flagIdentity != "" {
 		full = append(full, "--identity", flagIdentity)
 	}
-	// The server's policies bind the runs that can change something, and only
-	// those: the other commands do not take the flag.
-	full = append(full, serverPolicyArgs(args)...)
 	c := exec.CommandContext(ctx, exe, full...)
 	var stdout, stderr bytes.Buffer
 	c.Stdout, c.Stderr = &stdout, &stderr
@@ -441,26 +423,6 @@ func runSelf(ctx context.Context, args []string) (string, int) {
 		text += "\n" + strings.TrimSpace(stderr.String())
 	}
 	return text, code
-}
-
-// serverPolicyArgs are the --policy arguments the server adds to a tool call:
-// to plan and apply, and to nothing else, since no other command takes the
-// flag and a flag that is silently ignored would be implicit.
-func serverPolicyArgs(args []string) []string {
-	if len(args) == 0 || (args[0] != "plan" && args[0] != "apply") {
-		return nil
-	}
-	if args[0] == "plan" && len(args) > 1 {
-		switch args[1] {
-		case "list", "show", "pull", "gc":
-			return nil // they list and read stored plans, and take no policy
-		}
-	}
-	var out []string
-	for _, p := range flagPolicy {
-		out = append(out, "--policy", p)
-	}
-	return out
 }
 
 // positional refuses a tool argument that the command line would read as a

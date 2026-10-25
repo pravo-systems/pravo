@@ -205,6 +205,7 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 		setCommand(s.state, os.Args[1:], &opts)
 	}
 	opts.Actor, opts.Reason, opts.GitRevision = flagActor, flagReason, gitRevision(s.root.Dir)
+	opts.Readers = loadReadersFile(s.root.Dir, flagAccessDir).Readers
 	if opts.Identity == nil {
 		// Looked for only when remote_outputs meets a sealed state, so that a command
 		// that never needs a key never asks for a passphrase.

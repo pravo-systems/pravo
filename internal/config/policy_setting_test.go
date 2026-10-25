@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// Policies are named by whoever runs pravo; the specification has no setting
-// for them.
+// Policies are nodes of the specification, built from pravo.#Policy; the settings have
+// no field for them.
 func TestSettingsHasNoPolicies(t *testing.T) {
 	_, err := loadSpec(t, `$settings: norms: plan: summary: blast_radius: <=5`)
 	if err == nil || !strings.Contains(err.Error(), "is not a setting") || !strings.Contains(err.Error(), "state and refresh") {

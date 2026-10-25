@@ -150,7 +150,6 @@ function platform() {
       version: '0.9.0-dev',
       state: { location: 's3://acme-state/estate', backend: 's3', lineage: '5c8d7e2a-61b4-4f0e-9a3b-0f6f5d1c2e77', format: 3, records: 46, locks: 1 },
       providers: [AWS, RANDOM, LOCAL],
-      policies: ['policy/no-public-db.cue'],
       loaded_at: iso(0),
     },
     outputs: [

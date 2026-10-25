@@ -33,7 +33,6 @@ var (
 	flagDir     string
 	flagNoColor bool
 	flagVerbose int
-	flagPolicy  []string
 	flagTags    []string
 	flagSysTags bool
 	out         *ui.Printer

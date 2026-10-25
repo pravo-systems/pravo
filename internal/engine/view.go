@@ -29,6 +29,8 @@ type View struct {
 	Reservation *ReservationView  `json:"reservation,omitempty"`
 	Hints       []string          `json:"hints,omitempty"`
 	Providers   map[string]string `json:"providers,omitempty"`
+	// Policies are the changes the plan makes to the policies in force.
+	Policies []PolicyEntry `json:"policies,omitempty"`
 
 	// skipped reports that Changes lists the nodes the plan left alone.
 	skipped bool
@@ -138,7 +140,7 @@ func ToData(v tftypes.Value) any {
 func (e *Engine) NewView(plan *Plan, opts ViewOptions) *View {
 	v := &View{Format: ViewFormat, Created: time.Now().UTC(), Actor: e.Opts.Actor, Reason: e.Opts.Reason,
 		GitRevision: e.Opts.GitRevision, TraceID: e.traceID, Destroy: plan.Destroy, Stats: plan.Stats, Outputs: map[string]any{},
-		Providers: map[string]string{}, Hints: plan.Hints, skipped: opts.Skipped}
+		Providers: map[string]string{}, Hints: plan.Hints, Policies: plan.Policies, skipped: opts.Skipped}
 	for local, rp := range e.Providers.Resolved {
 		v.Providers[local] = rp.Version
 	}
@@ -155,38 +157,7 @@ func (e *Engine) NewView(plan *Plan, opts ViewOptions) *View {
 				continue
 			}
 		}
-		cv := ChangeView{Addr: ch.Addr, Mode: ch.Mode, Type: ch.Type, Name: ch.Name, Action: ch.Action, Provider: ch.ProviderKey,
-			Reasons: ch.Reasons, Deferred: ch.Deferred, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Drifted: ch.Drifted,
-			Applied: ch.Applied, Dependencies: ch.Deps}
-		for _, p := range ch.RequiresReplace {
-			if steps := p.Steps(); len(steps) > 0 {
-				if n, ok := steps[0].(tftypes.AttributeName); ok {
-					cv.RequiresReplace = append(cv.RequiresReplace, string(n))
-				}
-			}
-		}
-		for _, w := range ch.Warnings {
-			cv.Warnings = append(cv.Warnings, w.Summary)
-		}
-		switch ch.Action {
-		case ActionCreate:
-			cv.After = ToData(ch.Planned)
-		case ActionUpdate:
-			cv.Before, cv.After = ToData(ch.Prior), ToData(ch.Planned)
-		case ActionReplace:
-			cv.Before = ToData(ch.Prior)
-			if ch.PlannedCreate.Type() != nil {
-				cv.After = ToData(ch.PlannedCreate)
-			} else {
-				cv.After = ToData(ch.Planned)
-			}
-		case ActionDelete:
-			cv.Before = ToData(ch.Prior)
-		case ActionRead:
-			if !ch.Deferred {
-				cv.After = ToData(ch.Planned)
-			}
-		}
+		cv := changeViewOf(ch)
 		if pending(ch) && !ch.Applied {
 			touched[ch.Addr] = true
 			changed = append(changed, ch.Addr)
@@ -206,6 +177,11 @@ func (e *Engine) NewView(plan *Plan, opts ViewOptions) *View {
 	if opts.Skipped {
 		v.Changes = e.withSkipped(v.Changes)
 	}
+	addOutputs(v, plan)
+	return v
+}
+
+func addOutputs(v *View, plan *Plan) {
 	names := make([]string, 0, len(plan.Outputs))
 	for n := range plan.Outputs {
 		names = append(names, n)
@@ -227,7 +203,44 @@ func (e *Engine) NewView(plan *Plan, opts ViewOptions) *View {
 	for _, n := range plan.UnknownOutputs {
 		v.Outputs[n] = Unknown
 	}
-	return v
+}
+
+// changeViewOf is the entry of a change: what the plan decided about it, and nothing
+// that the state adds.
+func changeViewOf(ch *Change) ChangeView {
+	cv := ChangeView{Addr: ch.Addr, Mode: ch.Mode, Type: ch.Type, Name: ch.Name, Action: ch.Action, Provider: ch.ProviderKey,
+		Reasons: ch.Reasons, Deferred: ch.Deferred, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Drifted: ch.Drifted,
+		Applied: ch.Applied, Dependencies: ch.Deps}
+	for _, p := range ch.RequiresReplace {
+		if steps := p.Steps(); len(steps) > 0 {
+			if n, ok := steps[0].(tftypes.AttributeName); ok {
+				cv.RequiresReplace = append(cv.RequiresReplace, string(n))
+			}
+		}
+	}
+	for _, w := range ch.Warnings {
+		cv.Warnings = append(cv.Warnings, w.Summary)
+	}
+	switch ch.Action {
+	case ActionCreate:
+		cv.After = ToData(ch.Planned)
+	case ActionUpdate:
+		cv.Before, cv.After = ToData(ch.Prior), ToData(ch.Planned)
+	case ActionReplace:
+		cv.Before = ToData(ch.Prior)
+		if ch.PlannedCreate.Type() != nil {
+			cv.After = ToData(ch.PlannedCreate)
+		} else {
+			cv.After = ToData(ch.Planned)
+		}
+	case ActionDelete:
+		cv.Before = ToData(ch.Prior)
+	case ActionRead:
+		if !ch.Deferred {
+			cv.After = ToData(ch.Planned)
+		}
+	}
+	return cv
 }
 
 // skippedEntry is the entry of a node that the plan left alone.

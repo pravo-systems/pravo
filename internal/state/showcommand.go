@@ -217,7 +217,7 @@ func RedactTag(t string, tag func(value string) string) string {
 var publicFlags = map[string]bool{
 	"ttl": true, "reserve": true, "refresh": true, "limit": true, "older-than": true,
 	"platforms": true, "port": true, "replace": true, "only": true, "touching": true,
-	"out": true, "policy": true, "plan": true, "store": true, "chdir": true,
+	"out": true, "plan": true, "store": true, "chdir": true,
 }
 
 // valueWord is the value of the flag canon as the history shows it: sealed, unless

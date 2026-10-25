@@ -35,14 +35,7 @@ func storePlanAs(t *testing.T, dir, actor string, extra ...string) string {
 // is not at hand, so that the test runs without a network.
 func localRoot(t *testing.T, spec string) string {
 	t.Helper()
-	c := registry.NewClient()
-	src, _ := registry.ParseSource("hashicorp/local")
-	if _, ok := c.FindInstalled(src, "2.9.1"); !ok {
-		t.Skip("the local provider is not installed")
-	}
-	if !schemaCached(c, src, "2.9.1") {
-		t.Skip("the schema of the local provider is not cached")
-	}
+	requireLocalProvider(t)
 	if spec == "" {
 		spec = "hello: $local.#Resource.local_file & {filename: \"hello.txt\", content: \"hello\\n\"}\n"
 	}
@@ -51,6 +44,19 @@ func localRoot(t *testing.T, spec string) string {
 		t.Skipf("pravo init exited %d: %s", code, text)
 	}
 	return dir
+}
+
+// requireLocalProvider skips the test when the local provider and its schema are not at hand.
+func requireLocalProvider(t *testing.T) {
+	t.Helper()
+	c := registry.NewClient()
+	src, _ := registry.ParseSource("hashicorp/local")
+	if _, ok := c.FindInstalled(src, "2.9.1"); !ok {
+		t.Skip("the local provider is not installed")
+	}
+	if !schemaCached(c, src, "2.9.1") {
+		t.Skip("the schema of the local provider is not cached")
+	}
 }
 
 func planObjects(t *testing.T, dir string) []string {
@@ -397,18 +403,6 @@ func TestApplyOfAStoredPlanRefusesTheFlagsOfAPlanFile(t *testing.T) {
 			t.Errorf("%v exited %d:\n%s", args, code, text)
 		}
 	}
-	// A policy is judged against a stored plan as against a plan file.
-	policy := writePolicy(t, "no-add.cue", "summary: add: 0\n")
-	text, code := runPravo(t, dir, "apply", id, "--policy", policy)
-	if code != int(engine.ExitRefused) {
-		t.Errorf("policy: exit %d:\n%s", code, text)
-	}
-	if text, _ = runPravo(t, dir, "plan", "list"); !strings.Contains(text, id) {
-		t.Errorf("the plan was lost:\n%s", text)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "hello.txt")); err == nil {
-		t.Error("the refused plan was applied")
-	}
 }
 func TestPlanWithAWordThatIsNotACommand(t *testing.T) {
 	dir, _ := pendingDir(t)
@@ -435,12 +429,10 @@ func TestParseSpan(t *testing.T) {
 	}
 }
 
-// A plan that a policy refuses is not stored, with or without --json: a stored plan
-// can be applied by anyone, without the policy.
+// A plan that a policy refuses is not stored, with or without --json.
 func TestAPlanThatAPolicyRefusesIsNotStored(t *testing.T) {
-	dir, _ := pendingDir(t)
-	policy := writePolicy(t, "no-destroy.cue", "summary: destroy: 0\n")
-	for _, args := range [][]string{{"--json", "plan", "--store", "--policy", policy}, {"plan", "--store", "--policy", policy}} {
+	dir := policyInForce(t, "summary: destroy: 0").dir
+	for _, args := range [][]string{{"--json", "plan", "--store"}, {"plan", "--store"}} {
 		text, code := runPravo(t, dir, args...)
 		if code != int(engine.ExitRefused) {
 			t.Errorf("%v exited %d:\n%s", args, code, text)

@@ -34,7 +34,6 @@ export function projectPanel(ins, model) {
       ];
     }))));
   }
-  if ((p.policies || []).length) body.push(sec(`Policies · ${p.policies.length}`, h('ul', { class: 'rows' }, p.policies.map((v) => h('li', null, h('b', { class: 'mono-s' }, v))))));
   if ((g.warnings || []).length) body.push(sec(`Warnings · ${g.warnings.length}`, g.warnings.map((w) => h('p', { class: 'note warn' }, icon('bang'), h('span', null, w)))));
   body.push(h('section', { class: 'sec hintsec' }, h('p', { class: 'hint' }, 'Select a resource or a namespace to see its values, its source and its history. Press ', h('kbd', null, '?'), ' for the shortcuts.')));
   return body;

@@ -120,6 +120,13 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 		}
 		shown = append(shown, c)
 	}
+	if len(shown) == 0 && len(plan.Policies) > 0 {
+		p.Println()
+		p.renderPolicies(plan)
+		p.renderStats(plan)
+		p.renderOutputs(plan)
+		return
+	}
 	if len(shown) == 0 {
 		p.Println()
 		p.Println(p.C(Bold+Green, "No changes.") + " " + noChanges(plan))
@@ -165,11 +172,32 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 	add, change, destroy, _ := plan.Counts()
 	p.Println()
 	p.Printf("%s %s to add, %s to change, %s to destroy.\n", p.C(Bold, "Plan:"), p.C(Green, fmt.Sprint(add)), p.C(Yellow, fmt.Sprint(change)), p.C(Red, fmt.Sprint(destroy)))
+	p.renderPolicies(plan)
 	for _, h := range plan.Hints {
 		p.Println(p.C(Yellow, "Hint: ") + h)
 	}
 	p.renderStats(plan)
 	p.renderOutputs(plan)
+}
+
+// renderPolicies prints what the plan changes in the policies in force: a count, and
+// each policy with the version it was made from and the digest of its new text.
+func (p *Printer) renderPolicies(plan *engine.Plan) {
+	if len(plan.Policies) == 0 {
+		return
+	}
+	added, changed, removed := plan.PolicyCounts()
+	p.Printf("%s %s new, %s changed, %s removed.\n", p.C(Bold, "Policies:"), p.C(Green, fmt.Sprintf("+%d", added)), p.C(Yellow, fmt.Sprintf("~%d", changed)), p.C(Red, fmt.Sprintf("-%d", removed)))
+	for _, en := range plan.Policies {
+		switch {
+		case en.Digest == "":
+			p.Printf("  - %s (version %d)\n", en.Name, en.Base)
+		case en.Base == 0:
+			p.Printf("  + %s (sha256:%s)\n", en.Name, en.Digest[:12])
+		default:
+			p.Printf("  ~ %s (version %d, sha256:%s)\n", en.Name, en.Base, en.Digest[:12])
+		}
+	}
 }
 
 // noChanges is the sentence that follows "No changes." It says that the
