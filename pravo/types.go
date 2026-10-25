@@ -52,6 +52,10 @@ type (
 	Overlap = engine.Overlap
 	// GCItem is a stored plan a collection removed or kept.
 	GCItem = engine.GCItem
+	// Discovery is a discovery rule of the specification.
+	Discovery = config.Discovery
+	// DiscoveryReport sets the runs of the discoveries against the records of the state.
+	DiscoveryReport = engine.DiscoveryReport
 	// Identity is the key of a reader of a sealed state.
 	Identity = protect.Identity
 	// ReaderPublic is the public part of the key of a reader of a sealed state.

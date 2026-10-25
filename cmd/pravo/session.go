@@ -290,19 +290,7 @@ func openStateValues(ctx context.Context, root *config.Root) (*state.Store, erro
 const metaKey = "meta.json"
 
 // parseRefresh maps the -refresh flag to a mode.
-func parseRefresh(v string) (engine.RefreshMode, error) {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "", "age":
-		return engine.RefreshAge, nil
-	case "false", "none", "no", "off":
-		return engine.RefreshNone, nil
-	case "true", "all", "force", "yes":
-		return engine.RefreshAll, nil
-	case "expired":
-		return engine.RefreshExpired, nil
-	}
-	return 0, fmt.Errorf("invalid -refresh value %q: want age, expired, false or all", v)
-}
+func parseRefresh(v string) (engine.RefreshMode, error) { return pravo.ParseRefresh(v) }
 
 // genPackageDir returns the import path and directory for a provider's
 // generated CUE package.
