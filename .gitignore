@@ -1,5 +1,6 @@
 # Built binaries
 /pravo
+!/pravo/
 /bin/
 /capture
 /sitegen

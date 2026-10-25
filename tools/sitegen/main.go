@@ -14,7 +14,7 @@
 //	go run ./tools/sitegen
 //	go run ./tools/sitegen -minify=false
 //	go run ./tools/sitegen -docs tools/sitegen/testdata/docs
-//	go run ./tools/sitegen -pravo-bin ./pravo
+//	go run ./tools/sitegen -pravo-bin ./bin/pravo
 //
 // The sections, the version line, the repository link and the target of the
 // Start button come from site/site.json. tools/sitegen/README.md describes

@@ -17,7 +17,6 @@ import (
 	"github.com/mattn/go-isatty"
 
 	"github.com/pravo-systems/pravo/internal/protect"
-	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // errNoIdentity is returned, wrapped, when no identity file can be found. A
@@ -39,27 +38,6 @@ type identityOptions struct {
 	// state being opened, when it is known. Several identity files and none named
 	// like the user: the one whose reader key is among them is the identity.
 	Readers []protect.ReaderPublic
-}
-
-// currentReaders lists the reader keys with a lock in the current group of a
-// sealed state, which is public: meta.json holds it. It is nil for a state that
-// is not sealed.
-func currentReaders(p state.Protection) []protect.ReaderPublic {
-	if p.Sealed == nil {
-		return nil
-	}
-	var keys []protect.ReaderPublic
-	for _, g := range p.Sealed.Groups {
-		if g.ID != p.Sealed.Current {
-			continue
-		}
-		for _, l := range g.Locks {
-			if !l.Key.IsZero() && !p.Sealed.IsRecoveryLock(l) {
-				keys = append(keys, l.Key)
-			}
-		}
-	}
-	return keys
 }
 
 // flagIdentity is the global --identity flag: the name of a file in the

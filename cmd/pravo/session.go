@@ -1,18 +1,15 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/format"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/pravo-systems/pravo/internal/config"
@@ -23,10 +20,13 @@ import (
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/telemetry"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
-// session bundles everything a command needs after loading the root.
+// session bundles everything a command needs after loading the root. It is a
+// pravo.Workspace with the parts of it that the commands use by name.
 type session struct {
+	ws        *pravo.Workspace
 	root      *config.Root
 	reg       *registry.Client
 	providers *engine.Providers
@@ -82,91 +82,43 @@ func setupSpan(name string, attrs ...attribute.KeyValue) (context.Context, func(
 }
 
 func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
-	root := opts.root
-	var err error
-	began := time.Now()
-	if root == nil {
-		root, err = loadRoot()
-		if err != nil {
-			return nil, err
-		}
+	mode := pravo.StateNone
+	switch {
+	case opts.loadState && opts.readOnlyState:
+		mode = pravo.StateRead
+	case opts.loadState:
+		mode = pravo.StateWrite
 	}
-	loaded := []any{"dir", root.Dir, "managed", countMode(root, "managed"), "data", countMode(root, "data"),
-		"ephemeral", countMode(root, "ephemeral"), "calls", countMode(root, "call"), "outputs", len(root.Outputs),
-		"providers", len(root.Providers), "moves", len(root.Moves), "imports", len(root.Imports)}
-	if root.Pruned {
-		loaded = append(loaded, "pruned", true)
-	}
-	plog.Debug(ctx, "loaded", append(loaded, "took", took(began))...)
-	s := &session{root: root, reg: registry.NewClient(environment())}
-	_, end := telemetry.Span(ctx, "setup read lock file")
-	s.lock, err = engine.ReadLock(root.Dir)
-	end(err)
-	if err != nil {
-		return nil, err
-	}
-	if opts.loadState {
-		octx, end := telemetry.Span(ctx, "setup open state", attribute.String("pravo.state.backend", backendName(root.State.Backend)))
-		if opts.readOnlyState {
-			s.state, err = openStateValues(octx, root)
-		} else {
-			s.state, err = openState(octx, root)
-		}
-		end(err)
-		if err != nil {
-			return nil, err
-		}
-		s.state.SetContext(ctx)
-		// Providers that only exist in state must still be resolvable.
-		for _, sr := range s.state.List() {
-			local := config.LocalName(sr.ProviderKey)
-			if _, ok := root.Providers[local]; !ok && sr.ProviderProtocol == "" {
-				// A provider reached by a non-default protocol cannot be
-				// rediscovered from the state: its address is not recorded.
-				src, err := registry.ParseSource(sr.Provider)
-				if err == nil {
-					root.Providers[local] = &config.ProviderReq{LocalName: local, Source: src, Implied: true, Protocol: config.ProtocolTfplugin}
-				}
+	ws, err := pravo.Open(ctx, pravo.Config{
+		Tags: flagTags, SysTags: flagSysTags, Env: environment(), Root: opts.root,
+		Install: opts.install, Upgrade: opts.upgrade, Schemas: opts.schemas, State: mode, RelockModules: opts.relockModules,
+		Actor: flagActor, Reason: flagReason, Args: os.Args[1:],
+		OpenState: func(ctx context.Context, root *config.Root, mode pravo.StateMode) (*state.Store, error) {
+			if mode == pravo.StateRead {
+				return openStateValues(ctx, root)
 			}
-		}
-	}
-	s.providers = engine.NewProviders(root, s.reg)
-	s.providers.Env = environment()
-	s.providers.Log = func(msg string) { out.Println(msg) }
-	rctx, end := telemetry.Span(ctx, "setup resolve providers", attribute.Int("pravo.providers", len(root.Providers)))
-	err = s.providers.Resolve(rctx, s.lock, opts.upgrade, opts.install)
-	end(err)
+			return openState(ctx, root)
+		},
+		// Looked for only when remote_outputs meets a sealed state, so that a command
+		// that never needs a key never asks for a passphrase.
+		// The readers of the other state are given: with several identity files and
+		// none named like the user, the one whose reader key has a lock in it is
+		// chosen, as it is for the state of this root.
+		Identity: func(readers []protect.ReaderPublic) (*protect.Identity, error) {
+			return resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: readers})
+		},
+		Log:      func(msg string) { out.Println(msg) },
+		Progress: func(format string, args ...any) { out.Printf(format+"\n", args...) },
+	})
 	if err != nil {
 		return nil, err
 	}
-	before := lockString(s.lock)
-	s.providers.UpdateLock(s.lock)
-	var uses []engine.ModuleUse
-	for _, m := range root.Modules {
-		uses = append(uses, engine.ModuleUse{Path: m.Path, Version: m.Version, Hash: m.Hash})
-	}
-	if err := s.lock.UpdateModules(uses, opts.relockModules); err != nil {
-		return nil, engine.WithCode(engine.ExitRefused, err)
-	}
-	if lockString(s.lock) != before {
-		plog.Debug(ctx, "writing the lock file", "file", engine.LockFileName)
-		if err := writeLock(s.lock, root.Dir); err != nil {
-			return nil, err
-		}
+	s := &session{ws: ws, root: ws.Root(), reg: ws.Registry(), providers: ws.Providers(), lock: ws.Lock(), schemas: ws.Schemas(), state: ws.State()}
+	if opts.schemas {
+		s.value = s.root.Value
 	}
 	if !opts.regenerates {
 		s.warnStaleSchemas()
-	}
-	if opts.schemas {
-		began := time.Now()
-		sctx, end := telemetry.Span(ctx, "setup load schemas", attribute.Int("pravo.providers", len(root.Providers)))
-		s.schemas, err = s.providers.Schemas(sctx)
-		end(err)
-		if err != nil {
-			return nil, err
-		}
-		s.value = root.Value
-		plog.Debug(ctx, "schemas ready", "providers", len(s.schemas), "took", took(began))
 	}
 	return s, nil
 }
@@ -174,80 +126,21 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 // took is the time since began, to the millisecond, as the debug log writes it.
 func took(began time.Time) time.Duration { return time.Since(began).Round(time.Millisecond) }
 
-// writeLock writes the lock file in the layout that "pravo fmt" leaves it in,
-// so that formatting it changes nothing.
-func writeLock(l *engine.Lock, dir string) error {
-	if err := l.Write(dir); err != nil {
-		return err
-	}
-	path := filepath.Join(dir, engine.LockFileName)
-	src, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	formatted, err := format.Source(src)
-	if err != nil {
-		return fmt.Errorf("%s: %w", engine.LockFileName, err)
-	}
-	_, err = writeIfChanged(path, formatted)
-	return err
-}
-
-func lockString(l *engine.Lock) string {
-	var b strings.Builder
-	for k, e := range l.Providers {
-		fmt.Fprintf(&b, "%s=%s;%s;%v\n", k, e.Version, e.Constraints, e.Hashes)
-	}
-	var mk []string
-	for k, e := range l.Modules {
-		mk = append(mk, fmt.Sprintf("%s=%s;%s", k, e.Version, e.Hash))
-	}
-	sort.Strings(mk)
-	fmt.Fprintf(&b, "modules:%v", mk)
-	return b.String()
-}
-
 func (s *session) close() {
 	if s == nil {
 		return
 	}
-	if s.providers != nil {
-		s.providers.Close()
-	}
-	if s.state != nil {
-		s.state.Close()
-	}
+	s.ws.Close()
 }
 
 func (s *session) engine(opts engine.Options) *engine.Engine {
-	if opts.Progress == nil {
-		opts.Progress = func(format string, args ...any) { out.Printf(format+"\n", args...) }
-	}
-	if opts.DefaultRefresh == "" {
-		opts.DefaultRefresh = s.root.Refresh
-	}
-	if opts.Command == "" {
-		setCommand(s.state, os.Args[1:], &opts)
-	}
-	opts.Env = environment()
-	opts.Actor, opts.Reason, opts.GitRevision = flagActor, flagReason, gitRevision(s.root.Dir)
-	opts.Readers = loadReadersFile(s.root.Dir, flagAccessDir).Readers
-	if opts.Identity == nil {
-		// Looked for only when remote_outputs meets a sealed state, so that a command
-		// that never needs a key never asks for a passphrase.
-		// The readers of the other state are given: with several identity files and
-		// none named like the user, the one whose reader key has a lock in it is
-		// chosen, as it is for the state of this root.
-		opts.Identity = func(readers []protect.ReaderPublic) (*protect.Identity, error) {
-			return resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: readers})
-		}
-	}
+	opts.Actor, opts.Reason = flagActor, flagReason
 	if flagJSON && streamEvents && opts.Event == nil {
 		// Only commands that change things stream events; plan-like
 		// commands print a single document.
 		opts.Event = func(ev engine.Event) { emitLine(ev) }
 	}
-	return engine.New(s.root, s.state, s.providers, s.schemas, s.value, opts)
+	return s.ws.Engine(opts)
 }
 
 // openState opens the configured state backend.
@@ -255,7 +148,7 @@ func openState(ctx context.Context, root *config.Root) (*state.Store, error) {
 	began := time.Now()
 	st, err := openStateStore(ctx, root)
 	if err == nil {
-		plog.Debug(ctx, "state opened", "backend", backendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
+		plog.Debug(ctx, "state opened", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
 	}
 	return st, err
 }
@@ -277,39 +170,13 @@ func openStateStore(ctx context.Context, root *config.Root) (*state.Store, error
 // allowLocked is set. A command that writes also needs a readers
 // file that matches the state; one that reads only warns.
 func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool) (st *state.Store, why *noKey, err error) {
-	var openStore func(id *protect.Identity) (*state.Store, error)
 	open := func(id *protect.Identity) (*state.Store, error) {
-		st, err := openStore(id)
-		if st != nil {
-			// The end of a transaction that could not be signed is shown, not failed on.
-			st.SetWarn(func(msg string) { out.Warning(msg) })
-		}
-		return st, err
-	}
-	openStore = func(id *protect.Identity) (*state.Store, error) {
-		o := state.Options{Identity: id}
-		switch {
-		case root.State.Remote():
-			b, err := remoteBackend(ctx, root)
-			if err != nil {
-				return nil, err
-			}
-			if write {
-				if err := checkStoreConditions(ctx, root, b); err != nil {
-					return nil, err
-				}
-			} else {
-				b = &readOnlyBackend{Backend: b}
-			}
-			return state.OpenBackendWith(ctx, b, o)
-		case write:
-			return state.OpenWithContext(ctx, root.StateFile(), o)
-		}
-		path := root.StateFile()
-		if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
-			return state.Open(path) // says that the path is a file
-		}
-		return state.OpenBackendWith(ctx, &readOnlyBackend{Backend: &state.LocalBackend{Dir: path}}, o)
+		// The end of a transaction that could not be signed is shown, not failed on.
+		return pravo.OpenStore(ctx, root, pravo.StoreOptions{
+			Write: write, Identity: id, Env: environment(),
+			CheckConditions: func(ctx context.Context, b state.Backend) error { return checkStoreConditions(ctx, root, b) },
+			Warn:            func(msg string) { out.Warning(msg) },
+		})
 	}
 	// A repository that lists readers expects a sealed state, and a state that does
 	// not exist yet is not one. Whether it exists is looked at before the open, which
@@ -333,7 +200,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 		return st, nil, checkReadersFile(root, st, write)
 	}
 	// The state is sealed.
-	id, idErr := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: currentReaders(st.Protection())})
+	id, idErr := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
 	if idErr == nil {
 		keyed, err := open(id)
 		if err != nil && !errors.Is(err, state.ErrNotReader) {
@@ -389,7 +256,7 @@ func (k *noKey) error(root *config.Root) error {
 
 // remoteBackend opens the bucket or the server that the root keeps its state on.
 func remoteBackend(ctx context.Context, root *config.Root) (state.Backend, error) {
-	return engine.RemoteBackend(ctx, root.State, environment())
+	return pravo.RemoteBackend(ctx, root, environment())
 }
 
 // openStateReadOnly opens the state for a command that only looks at it. A
@@ -406,7 +273,7 @@ func openStateReadOnlyWhy(ctx context.Context, root *config.Root) (*state.Store,
 	began := time.Now()
 	st, why, err := openStateAs(ctx, root, false, true)
 	if err == nil {
-		plog.Debug(ctx, "state opened for reading", "backend", backendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
+		plog.Debug(ctx, "state opened for reading", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
 	}
 	return st, why, err
 }
@@ -424,49 +291,7 @@ func openStateValues(ctx context.Context, root *config.Root) (*state.Store, erro
 	return st, nil
 }
 
-// readOnlyBackend refuses every write but one. The store writes its metadata
-// when the location has none; that write is kept in memory, so that an empty
-// location reads as an empty state.
-type readOnlyBackend struct {
-	state.Backend
-	meta []byte
-}
-
 const metaKey = "meta.json"
-
-func (b *readOnlyBackend) Get(ctx context.Context, key string) ([]byte, error) {
-	data, err := b.Backend.Get(ctx, key)
-	if key == metaKey && errors.Is(err, state.ErrNotFound) && b.meta != nil {
-		return b.meta, nil
-	}
-	return data, err
-}
-
-func (b *readOnlyBackend) Put(ctx context.Context, key string, data []byte) error {
-	if key == metaKey {
-		b.meta = data
-		return nil
-	}
-	return b.refuse()
-}
-
-func (b *readOnlyBackend) PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error) {
-	return false, b.refuse()
-}
-
-func (b *readOnlyBackend) Delete(ctx context.Context, key string) error { return b.refuse() }
-
-func (b *readOnlyBackend) DeleteIf(ctx context.Context, key string, match func(current []byte) bool) (bool, error) {
-	return false, b.refuse()
-}
-
-func (b *readOnlyBackend) ReplaceIf(ctx context.Context, key string, update func(current []byte) ([]byte, bool)) (bool, error) {
-	return false, b.refuse()
-}
-
-func (b *readOnlyBackend) refuse() error {
-	return fmt.Errorf("the state at %s is open for reading and is not changed", b.Name())
-}
 
 // parseRefresh maps the -refresh flag to a mode.
 func parseRefresh(v string) (engine.RefreshMode, error) {
@@ -540,7 +365,7 @@ func (s *session) writeGenerated(verbose bool) error {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		changed, err := writeIfChanged(filepath.Join(dir, pkgName+"_gen.cue"), schema.GenerateCUE(ps, pkgName, opts))
+		changed, err := pravo.WriteIfChanged(filepath.Join(dir, pkgName+"_gen.cue"), schema.GenerateCUE(ps, pkgName, opts))
 		if err != nil {
 			return err
 		}
@@ -556,17 +381,8 @@ func (s *session) writeGenerated(verbose bool) error {
 	if err := os.MkdirAll(pdir, 0o755); err != nil {
 		return err
 	}
-	_, err := writeIfChanged(filepath.Join(pdir, "settings_gen.cue"), []byte(schema.SettingsPackage))
+	_, err := pravo.WriteIfChanged(filepath.Join(pdir, "settings_gen.cue"), []byte(schema.SettingsPackage))
 	return err
-}
-
-// writeIfChanged writes data to path unless the file already has exactly that
-// content, and reports whether it wrote.
-func writeIfChanged(path string, data []byte) (bool, error) {
-	if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, data) {
-		return false, nil
-	}
-	return true, os.WriteFile(path, data, 0o644)
 }
 
 func quoteLabel(s string) string {
@@ -602,11 +418,4 @@ func (s *session) warnStaleSchemas() {
 			out.Warning(fmt.Sprintf("the generated schema for provider %s was made from a different version than the selected v%s; run \"pravo init\" to refresh it", local, rp.Version))
 		}
 	}
-}
-
-func backendName(b string) string {
-	if b == "" {
-		return "local"
-	}
-	return b
 }

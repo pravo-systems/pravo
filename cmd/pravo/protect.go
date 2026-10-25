@@ -20,6 +20,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 const accessDirUsage = "directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR"
@@ -148,14 +149,14 @@ func (p *protectRun) open(b state.Backend, write, needKey bool) (st *state.Store
 	mk := func(id *protect.Identity) (*state.Store, error) {
 		bb := b
 		if !write {
-			bb = &readOnlyBackend{Backend: b}
+			bb = pravo.ReadOnlyBackend(b)
 		}
 		return state.OpenBackendWith(p.ctx, bb, state.Options{Identity: id})
 	}
 	if st, err = mk(nil); err != nil || !st.Locked() || !needKey {
 		return st, nil, nil, err
 	}
-	id, idErr = resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: currentReaders(st.Protection())})
+	id, idErr = resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
 	if idErr != nil {
 		return st, nil, idErr, nil
 	}

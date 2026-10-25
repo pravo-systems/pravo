@@ -16,6 +16,7 @@ pravo is one Go binary, built from the module `github.com/pravo-systems/pravo`. 
 
 | Path | Contents |
 |---|---|
+| `pravo/` | The public Go package: `pravo.Open` loads a specification, reads the lock file, opens the state, resolves the providers and fetches the schemas, and returns a `Workspace` that plans (`Workspace.Plan`) and applies. It reads no flag and no variable of the environment, prints nothing and asks nobody for a passphrase: what the caller shows or asks is a function in `pravo.Config`. Unstable (v0). `cmd/pravo` opens its sessions through it. |
 | `cmd/pravo/` | The command line: cobra commands, flags, text and JSON output, the MCP server. |
 | `internal/config/` | Loads a root, finds resources, providers and outputs in the evaluated value, scans for provider requirements, fingerprints a root. |
 | `internal/convert/` | CUE values to provider values (known, unknown, null), provider values back into CUE, reference analysis. |
@@ -45,7 +46,7 @@ Files in `cmd/pravo/`:
 |---|---|
 | `main.go` | `main`, the root command, global flags, `normaliseArgs`, `versionCmd`, command span and exit handling. |
 | `commands.go` | `init`, `gen`, `plan`, `show`, `apply`, `destroy`, `output`, `import`, `providers` (with `schema`, `lock`, `copy`), `validate`, `eval`, `fmt`. |
-| `session.go` | `newSession`: loads the root, reads the lock file, opens the state, resolves providers, fetches schemas; writes the generated packages. |
+| `session.go` | `newSession`: opens a `pravo.Workspace` with the flags, the identity prompt and the printer of the command; `openStateAs`, which holds the rules for sealed states and the readers file; writes the generated packages. |
 | `planstore.go` | `plan --store`, `plan list`, `show`, `pull`, `gc`; the warning about overlapping plans; `showStored` and `applyStored`, and `planTagsMatch`. |
 | `statecmd.go` | `state list`, `show`, `rm`, `mv`, `log`, `locks`, `unlock`, `pull`, `push`, `graph`, `dependents`, `query`, `import-tfstate`. |
 | `agent.go` | `schema`, `why`, `drift`; JSON helpers; `exitCodeOf`. |

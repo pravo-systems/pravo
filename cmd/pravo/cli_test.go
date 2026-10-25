@@ -17,6 +17,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // runPravo runs "pravo -C dir args..." in this process and returns what it
@@ -352,7 +353,7 @@ func TestLockFileIsWrittenFormatted(t *testing.T) {
 		},
 		Modules: map[string]*engine.ModuleEntry{"github.com/acme/vpc@v1": {Version: "v1.2.0", Hash: "sha256:cc"}},
 	}
-	if err := writeLock(lock, dir); err != nil {
+	if err := pravo.WriteLock(lock, dir); err != nil {
 		t.Fatal(err)
 	}
 	src, err := os.ReadFile(filepath.Join(dir, engine.LockFileName))

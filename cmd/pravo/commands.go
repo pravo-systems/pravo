@@ -27,6 +27,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 func sortStrings(s []string) { sort.Strings(s) }
@@ -991,7 +992,7 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 					e.Hashes[p.String()] = sum
 				}
 			}
-			if err := writeLock(s.lock, s.root.Dir); err != nil {
+			if err := pravo.WriteLock(s.lock, s.root.Dir); err != nil {
 				return err
 			}
 			out.Printf("Pinned %d platforms in %s\n", len(list), engine.LockFileName)

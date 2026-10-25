@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
 	"time"
@@ -100,20 +99,6 @@ func emitLine(v any) {
 		return
 	}
 	os.Stdout.Write(b)
-}
-
-// gitRevision returns the root's git revision (with "-dirty" when the tree
-// has changes), or "" when not in a repository.
-func gitRevision(dir string) string {
-	rev, err := exec.Command("git", "-C", dir, "rev-parse", "--short=12", "HEAD").Output()
-	if err != nil {
-		return ""
-	}
-	out := strings.TrimSpace(string(rev))
-	if status, err := exec.Command("git", "-C", dir, "status", "--porcelain").Output(); err == nil && len(strings.TrimSpace(string(status))) > 0 {
-		out += "-dirty"
-	}
-	return out
 }
 
 func exitCodeOf(err error) int {

@@ -65,10 +65,17 @@ var allowed = map[string]string{
 }
 
 // TestNoProcessEnvironment keeps the rule of the package: nothing under
-// internal/ reads or changes the environment of the process. A value of this
+// internal/ or in the public package pravo reads or changes the environment of
+// the process. A value of this
 // package is passed in instead. Tests, tools and cmd are not held to it.
 func TestNoProcessEnvironment(t *testing.T) {
-	root := filepath.Join("..", "..", "internal")
+	for _, dir := range []string{"internal", "pravo"} {
+		checkNoProcessEnvironment(t, filepath.Join("..", "..", dir))
+	}
+}
+
+func checkNoProcessEnvironment(t *testing.T, root string) {
+	t.Helper()
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err

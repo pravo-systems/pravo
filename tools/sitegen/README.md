@@ -4,7 +4,7 @@ Static site generator for the pravo documentation. Go, goldmark and chroma. No J
 
 ```sh
 go run ./tools/sitegen                                   # docs/ and site/ to site/public/
-go run ./tools/sitegen -pravo-bin ./pravo                # footer version from the binary
+go run ./tools/sitegen -pravo-bin ./bin/pravo                # footer version from the binary
 go run ./tools/sitegen -docs tools/sitegen/testdata/docs -lint=false   # design work on the kitchen-sink pages
 go test ./tools/sitegen
 cd site/public && python3 -m http.server 8080            # or open site/public/index.html from the file system
