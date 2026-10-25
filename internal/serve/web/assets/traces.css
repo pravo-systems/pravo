@@ -83,10 +83,11 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-tl { font: 500 10px var(--font-mono); fill: var(--text-3); }
 .tr-tick, .tr-axis { stroke: var(--line-strong); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
 .tr-grid { stroke: var(--line); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
-/* One hue for each kind of span; the process is dark, the calls out of it are green. */
-.tr { --k-command: var(--text); --k-engine: color-mix(in srgb, var(--key) 45%, var(--text)); --k-phase: color-mix(in srgb, var(--key) 38%, var(--surface));
-  --k-resource: var(--key); --k-provider: var(--accent); --k-setup: color-mix(in srgb, var(--change) 52%, var(--surface));
-  --k-state: color-mix(in srgb, var(--overlap) 34%, var(--surface)); --k-seal: color-mix(in srgb, var(--overlap) 80%, var(--text)); }
+/* Three hues and the ink: the structure of the run is the ink and a ramp of the blue, resources are the blue, calls out of the
+   process are green, sealing is amber, and the requests to the state, of which there are thousands, are a quiet neutral. */
+.tr { --k-command: var(--text); --k-engine: color-mix(in srgb, var(--key) 42%, var(--text)); --k-phase: color-mix(in srgb, var(--key) 30%, var(--surface));
+  --k-setup: color-mix(in srgb, var(--key) 13%, var(--surface)); --k-resource: var(--key); --k-provider: var(--accent);
+  --k-state: color-mix(in srgb, var(--text) 17%, var(--surface)); --k-seal: var(--change); }
 .bar { cursor: pointer; shape-rendering: crispEdges; fill: var(--text-3); }
 .bar.k-command, .bar.k-mcp { fill: var(--k-command); }
 .bar.k-engine { fill: var(--k-engine); }
@@ -102,7 +103,7 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-selbox { fill: none; stroke: var(--text); stroke-width: 2; pointer-events: none; }
 .tr-subbox { fill: none; stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; shape-rendering: crispEdges; }
 .tr-bt, .tr-bd { font: 500 11px var(--font-mono); fill: var(--text); pointer-events: none; }
-.tr-bt.k-provider, .tr-bd.k-provider, .tr-bt.k-seal, .tr-bd.k-seal, .tr-bt.k-command, .tr-bd.k-command, .tr-bt.k-mcp, .tr-bd.k-mcp, .tr-bt.k-engine, .tr-bd.k-engine, .tr-bt.k-resource, .tr-bd.k-resource, .tr-bt.err, .tr-bd.err { fill: var(--on-accent, var(--bg)); }
+.tr-bt.k-provider, .tr-bd.k-provider, .tr-bt.k-command, .tr-bd.k-command, .tr-bt.k-mcp, .tr-bd.k-mcp, .tr-bt.k-engine, .tr-bd.k-engine, .tr-bt.k-resource, .tr-bd.k-resource, .tr-bt.err, .tr-bd.err { fill: var(--on-accent, var(--bg)); }
 .tr-bd { opacity: .85; }
 .tr-hint { margin: 0; padding: .35rem .7rem; border-top: 1px solid var(--line); font-size: .68rem; color: var(--text-3); }
 .tr-sw { display: inline-block; flex: none; width: .65rem; height: .65rem; background: var(--text-3); }
@@ -110,8 +111,8 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-sw.k-engine { background: var(--k-engine); }
 .tr-sw.k-phase { background: var(--k-phase); }
 .tr-sw.k-resource { background: var(--k-resource); }
-.tr-sw.k-setup { background: var(--k-setup); }
-.tr-sw.k-state { background: var(--k-state); }
+.tr-sw.k-setup { background: var(--k-setup); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.tr-sw.k-state { background: var(--k-state); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .tr-sw.k-seal { background: var(--k-seal); }
 .tr-sw.k-err { background: var(--conflict); }
 .tr-sw.k-provider { background: var(--k-provider); }
