@@ -555,6 +555,26 @@ export class Inspector {
 
   // ---- History ----
 
+  // historyDiff shows what a transaction altered in the resource's attributes, as it recorded it
+  historyDiff(e) {
+    const attrs = e.attrs || [];
+    const note = e.attrs_sealed ? 'The values this change altered are sealed to the readers of the state. Start the viewer with --identity to read them.'
+      : e.attrs_omitted ? 'This change altered too much to keep the values.' : null;
+    if (!attrs.length) return note ? h('p', { class: 'tl-note' }, icon('lock'), h('span', null, note)) : null;
+    const none = new Set();
+    const n = attrs.length + (e.attrs_more || 0);
+    return h('details', { class: 'tl-diff', open: attrs.length <= 4 },
+      h('summary', null, `${n} ${n === 1 ? 'attribute' : 'attributes'} altered`),
+      attrs.map((ch) => this.diffRow(ch, none)),
+      e.attrs_more ? h('p', { class: 'tl-note' }, icon('info'), h('span', null, `${e.attrs_more} more not shown.`)) : null);
+  }
+
+  // planLink names the plan an apply ran from; it lays the plan over the graph while the state still stores it
+  planLink(id) {
+    if (!this.model.planById.has(id)) return h('span', { title: 'The plan is not stored any more' }, id);
+    return h('button', { class: 'linkbtn', type: 'button', data: { plan: id }, 'aria-label': `Lay ${id} over the graph` }, id);
+  }
+
   historyPane(d) {
     const list = d.history || [];
     if (!list.length) {
@@ -563,7 +583,8 @@ export class Inspector {
     }
     const ol = h('ol', { class: 'timeline' });
     for (const e of list) {
-      const a = actionOf(e.action);
+      // a read that found the object changed outside pravo is a drift: it wrote the record to say so
+      const a = actionOf(e.action) || (e.action === 'drift' ? { cls: 'a-update', label: 'drift' } : null);
       ol.append(h('li', { class: 'tl st-' + e.status },
         h('span', { class: 'tl-mark', 'aria-hidden': 'true' }),
         h('div', { class: 'tl-body' },
@@ -577,8 +598,11 @@ export class Inspector {
           h('div', { class: 'tl-meta' },
             h('span', { title: e.id }, e.id),
             e.user || e.actor ? h('span', null, [e.user, e.actor].filter(Boolean).join(' · ')) : null,
+            e.plan ? this.planLink(e.plan) : null,
+            e.git_revision ? h('span', { title: 'Revision of the specification' }, 'git ' + e.git_revision.slice(0, 8)) : null,
             e.signature ? signatureMark(e.signature, e.signer) : null,
-            e.rev_before || e.rev_after ? h('span', null, `rev ${e.rev_before || 0} → ${e.rev_after || 0}`) : null))));
+            e.rev_before || e.rev_after ? h('span', null, `rev ${e.rev_before || 0} → ${e.rev_after || 0}`) : null),
+          this.historyDiff(e))));
     }
     return h('div', { class: 'pane' }, h('section', { class: 'sec' }, ol));
   }

@@ -417,8 +417,10 @@ A sensitive output is recorded as `{"$sensitive": value}`. `pravo state import-t
 
 Every `plan` that reads providers or moves records, and every `apply`, `destroy`, `import` and state edit, is recorded as a transaction in `txn/`.
 
+Each change of an apply that altered a record also carries a `diff`, left out here because values such as hashes and random names differ from run to run.
+
 ```sh run
-jq . pravo.state/txn/*.json
+jq 'del(.changes[].diff)' pravo.state/txn/*.json
 ```
 
 ```text out
@@ -470,7 +472,8 @@ jq . pravo.state/txn/*.json
 | `status` | `planned`, `applied`, `rejected`, `failed`. `running` while an apply holds its locks; the file of a command that was killed keeps it, and `pravo state log` shows it as `interrupted`. |
 | `summary` | The counts, in words. For a run that failed or was rejected, the text of its error; in a sealed state, a fixed sentence that says the text is sealed, followed by the notes about the changes whose result is unknown. |
 | `summary_sealed` | Only in a sealed state, for a run that failed or was rejected: the full text of the error, sealed under the kind `txn-summary` and bound to the id of the transaction. `pravo state log` shows it in place of `summary` to a reader. |
-| `changes` | Each node the transaction touched: `addr`, `action`, and the revisions before and after. The action `unsettled` marks a node that an apply stopped on while a provider was changing it. |
+| `changes` | Each node the transaction touched: `addr`, `action`, and the revisions before and after. The action `unsettled` marks a node that an apply stopped on while a provider was changing it. A change that altered the attributes of a record also has `diff`: `before` and `after`, each holding the top-level attributes that differ, as the record held them; an attribute that was null or absent is left out of that side. An attribute that is or may hold a secret is not kept: it is named in `withheld`, with the sides that held a value (`before`, `after` or `both`). The schema marks it sensitive or write-only, or anything inside it is; its name, or a key inside it, says secret; it is not in the schema; or it holds a string that a withheld attribute of either record holds. A change that altered more than 64 KiB has `{"omitted": true}` in their place. A read that found the object changed outside pravo (action `drift`, in the transaction of the command that read it) has the diff between the record and what the provider returned. A change that only moves a record has none. |
+| `diff_sealed` | Only in a sealed state: the `diff` of each change, by address, sealed under the kind `txn-diff` and bound to the id of the transaction, in place of the `diff` of the changes. The signatures do not cover it. A rewrap with `--all` seals it again, and an unseal writes it back into the changes. |
 | `actor`, `reason`, `git_revision`, `trace_id` | The labels of the run, when set. |
 | `version` | The version of the pravo that began the transaction. A transaction written by a pravo that did not record it has none. |
 | `plan`, `plan_digest` | For an apply from a plan: the id of the stored plan, empty for a plan file, and the SHA-256 of the plan file in hex. |

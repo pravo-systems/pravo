@@ -1839,6 +1839,9 @@ type Change struct {
 	Action string `json:"action"`
 	Before int    `json:"before_revision,omitempty"`
 	After  int    `json:"after_revision,omitempty"`
+	// Diff is what the change did to the attributes of the record. A sealed state
+	// keeps it in Transaction.DiffSealed and leaves this empty.
+	Diff *Diff `json:"diff,omitempty"`
 }
 
 // Transaction records one plan, apply, destroy or import run.
@@ -1856,7 +1859,10 @@ type Transaction struct {
 	// was rejected, in a sealed state, where Summary says only that the text is
 	// sealed. It is bound to the id of the transaction.
 	SummarySealed *protect.Sealed `json:"summary_sealed,omitempty"`
-	Changes       []Change        `json:"changes"`
+	// DiffSealed holds, in a sealed state, the Diff of each change by address. It is
+	// bound to the id of the transaction and is not covered by the signatures.
+	DiffSealed *protect.Sealed `json:"diff_sealed,omitempty"`
+	Changes    []Change        `json:"changes"`
 	// Actor, Reason and GitRevision attribute the run: who (a person or
 	// an agent), why, and which revision of the specification.
 	Actor       string `json:"actor,omitempty"`
@@ -1964,6 +1970,9 @@ func (t *Txn) FinishError(status, summary, full string, record bool) error {
 		}
 	}
 	sort.Slice(t.t.Changes, func(i, j int) bool { return t.t.Changes[i].Addr < t.t.Changes[j].Addr })
+	if t.store.sealedState() {
+		t.store.sealDiffs(&t.t)
+	}
 	if err := t.store.writable(); err != nil {
 		return err
 	}
@@ -2027,19 +2036,32 @@ func (s *Store) resealSummaries(ctx context.Context, current string) error {
 			return err
 		}
 		var t Transaction
-		if json.Unmarshal(data, &t) != nil || t.SummarySealed == nil || t.SummarySealed.Group == current {
+		if json.Unmarshal(data, &t) != nil {
 			continue
 		}
-		plain, err := sl.Open(protect.KindSummary, t.ID, *t.SummarySealed)
-		if err != nil {
+		changed := false
+		for _, b := range []struct {
+			box  **protect.Sealed
+			kind string
+		}{{&t.SummarySealed, protect.KindSummary}, {&t.DiffSealed, protect.KindDiff}} {
+			if *b.box == nil || (*b.box).Group == current {
+				continue
+			}
+			plain, err := sl.Open(b.kind, t.ID, **b.box)
+			if err != nil {
+				continue
+			}
+			box, err := sl.Seal(b.kind, t.ID, plain)
+			clear(plain)
+			if err != nil {
+				return err
+			}
+			*b.box = &box
+			changed = true
+		}
+		if !changed {
 			continue
 		}
-		box, err := sl.Seal(protect.KindSummary, t.ID, plain)
-		clear(plain)
-		if err != nil {
-			return err
-		}
-		t.SummarySealed = &box
 		next, err := indentJSON(t)
 		if err != nil {
 			return err

@@ -332,6 +332,9 @@ func (s *Store) redactHistory(ctx context.Context) error {
 			if s.sealErrorText(&t) {
 				changed = true
 			}
+			if s.sealDiffs(&t) {
+				changed = true
+			}
 			if !changed {
 				return nil, nil
 			}

@@ -111,7 +111,7 @@ func TestRefreshDoesNotEndTheOwnersReservation(t *testing.T) {
 		before := reservationsOf(t, owner)
 
 		plain := reserveRun(t, dir, actor) // a plain plan: no -reserve
-		plain.persistRefreshed("random_pet.a", owner.State.Get("random_pet.a"), []byte(`{"id":"y"}`), nil)
+		plain.persistRefreshed("random_pet.a", owner.State.Get("random_pet.a"), nil, []byte(`{"id":"y"}`), nil)
 		got := plain.State.Get("random_pet.a")
 		if !jsonEqual(got.Attributes, []byte(`{"id":"y"}`)) {
 			t.Errorf("actor %q: the refreshed record was not written: %s", actor, got.Attributes)
@@ -126,7 +126,7 @@ func TestRefreshDoesNotEndTheOwnersReservation(t *testing.T) {
 
 		// Another actor's refresh of a reserved node writes nothing.
 		bob := reserveRun(t, dir, "bob")
-		bob.persistRefreshed("random_pet.a", plain.State.Get("random_pet.a"), []byte(`{"id":"z"}`), nil)
+		bob.persistRefreshed("random_pet.a", plain.State.Get("random_pet.a"), nil, []byte(`{"id":"z"}`), nil)
 		reread := reserveRun(t, dir, "bob")
 		if got := reread.State.Get("random_pet.a"); !jsonEqual(got.Attributes, []byte(`{"id":"y"}`)) {
 			t.Errorf("a reserved record was refreshed by another actor: %s", got.Attributes)

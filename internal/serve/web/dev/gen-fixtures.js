@@ -349,8 +349,9 @@ function detailDB(b, g) {
     ],
   };
   const history = [
-    { id: '20261019T151044Z-b81c2e', kind: 'apply', status: 'applied', time: iso(2 * D + 1 * H), user: 'ada', command: 'pravo apply', reason: 'raise the backup window', action: 'update', rev_before: 13, rev_after: 14 },
-    { id: '20261012T080319Z-0d4e77', kind: 'apply', status: 'applied', time: iso(9 * D), user: 'ada', command: 'pravo apply', action: 'update', rev_before: 12, rev_after: 13 },
+    { id: '20261019T151044Z-b81c2e', kind: 'apply', status: 'applied', time: iso(2 * D + 1 * H), user: 'ada', command: 'pravo apply', reason: 'raise the backup window', action: 'update', rev_before: 13, rev_after: 14, plan: 'plan-2f9c1a4e', git_revision: '7c41e9b2d0f3',
+      attrs: [{ path: 'backup_retention_period', before: 7, after: 14 }, { path: 'backup_window', before: '02:00-03:00', after: '03:00-04:00' }, { path: 'password', before_redacted: true, after_redacted: true }] },
+    { id: '20261012T080319Z-0d4e77', kind: 'apply', status: 'applied', time: iso(9 * D), user: 'ada', command: 'pravo apply', action: 'update', rev_before: 12, rev_after: 13, attrs_sealed: true },
     { id: '20261002T170455Z-91ac3b', kind: 'apply', status: 'failed', time: iso(19 * D), actor: 'ci@acme', command: 'pravo apply release-39.plan', reason: 'timeout waiting for the instance to become available', action: 'update', rev_before: 11, rev_after: 11 },
     { id: '20260921T101502Z-47be05', kind: 'import', status: 'applied', time: iso(30 * D), user: 'grace', command: 'pravo import api.db estate-db', action: 'import', rev_before: 0, rev_after: 1 },
   ];
@@ -423,7 +424,8 @@ function detailDrifted(b, g) {
       attrs: [{ path: 'idle_timeout', before: 60, after: 120 }],
     },
     history: [
-      { id: '20261021T093003Z-77d0a1', kind: 'edit', status: 'applied', time: iso(42 * MIN), actor: 'pravo drift', command: 'pravo drift --due', reason: 'found a change at the provider', action: 'refresh', rev_before: 5, rev_after: 6 },
+      { id: '20261021T093003Z-77d0a1', kind: 'plan', status: 'planned', time: iso(42 * MIN), actor: 'pravo drift', command: 'pravo drift --due', reason: 'found a change at the provider', action: 'drift', rev_before: 5, rev_after: 6,
+        attrs: [{ path: 'idle_timeout', before: 120, after: 60 }, { path: 'tags.Owner', after: 'platform' }, { path: 'access_logs', before_redacted: true, after_redacted: true }] },
       { id: '20261014T141200Z-1c9ee2', kind: 'apply', status: 'applied', time: iso(7 * D), user: 'grace', command: 'pravo apply', action: 'update', rev_before: 4, rev_after: 5 },
     ],
     times: { applied_at: iso(7 * D), refreshed_at: iso(40 * MIN), updated_at: iso(40 * MIN), drifted_at: iso(42 * MIN) },

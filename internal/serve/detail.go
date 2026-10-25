@@ -95,15 +95,21 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		}
 	}
 	for _, t := range m.transactions() {
-		if t.Kind == "plan" {
-			continue // a plan reads the node, and may refresh its record; it does not write it
-		}
 		for _, c := range t.Changes {
 			if c.Addr != addr {
 				continue
 			}
+			if t.Kind == "plan" && c.Action != "drift" {
+				continue // a plan reads the node, and may refresh its record; it does not write it, but a read that found it changed outside pravo is news
+			}
 			entry := HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: maskWith(sec, t.User), Actor: maskWith(sec, t.Actor),
-				Command: scrubCommand(t.Command, sec), Reason: maskWith(sec, t.Reason), Action: c.Action, RevBefore: c.Before, RevAfter: c.After}
+				Command: scrubCommand(t.Command, sec), Reason: maskWith(sec, t.Reason), Action: c.Action, RevBefore: c.Before, RevAfter: c.After,
+				Plan: maskWith(sec, t.PlanID), GitRevision: maskWith(sec, t.GitRevision)}
+			if diffs, sealed := m.store.TxnDiffs(t); sealed {
+				entry.AttrsSealed = true
+			} else if df, ok := diffs[addr]; ok {
+				historyAttrs(&entry, df, mn.sch, sec)
+			}
 			if verify := m.srv.opts.VerifyTxn; verify != nil {
 				t := t
 				if status, signer := verify(m.store, &t); status != "" {

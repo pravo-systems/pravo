@@ -245,6 +245,22 @@ func TestInputsOfReachedNodesAreReadOnce(t *testing.T) {
 		if m := h.state.Get("c0"); m.DriftedAt == nil || m.Gone || !strings.Contains(string(m.Attributes), "changed") {
 			t.Errorf("the record of c0 after the read: %+v", m)
 		}
+		// The transaction of the plan says how the object differed from the record.
+		var found bool
+		txns, _ := h.state.Transactions()
+		for _, tx := range txns {
+			for _, c := range tx.Changes {
+				if c.Addr == "c0" && c.Action == "drift" {
+					found = true
+					if c.Diff == nil || len(c.Diff.Before)+len(c.Diff.After)+len(c.Diff.Withheld) == 0 || !strings.Contains(string(c.Diff.After["content"]), "changed") && !strings.Contains(fmt.Sprint(c.Diff.After), "changed") {
+						t.Errorf("the drift of c0 has the diff %+v", c.Diff)
+					}
+				}
+			}
+		}
+		if !found {
+			t.Errorf("no transaction records the drift of c0: %+v", txns)
+		}
 	})
 
 	t.Run("gone", func(t *testing.T) {

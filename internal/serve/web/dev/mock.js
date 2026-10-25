@@ -278,7 +278,7 @@ function synthDetail(n) {
   const kinds = ['apply', 'apply', 'edit', 'apply', 'import'];
   for (let i = 0; i < Math.min(n.revision || 0, 5); i++) {
     const rev = (n.revision || 0) - i;
-    hist.push({ id: `20261${(10 - i % 9)}${String(10 + i).padStart(2, '0')}T0${i}1200Z-${hex(n.addr + i, 6)}`, kind: i === (n.revision - 1) ? 'import' : kinds[i % kinds.length], status: i === 3 ? 'failed' : 'applied', time: new Date(Date.now() - (i * 5 + 2) * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), user: i % 2 ? 'grace' : 'ada', command: i === 3 ? 'pravo apply release.plan' : 'pravo apply', action: i === (n.revision - 1) ? 'import' : 'update', rev_before: rev - 1, rev_after: rev });
+    hist.push({ id: `20261${(10 - i % 9)}${String(10 + i).padStart(2, '0')}T0${i}1200Z-${hex(n.addr + i, 6)}`, kind: i === (n.revision - 1) ? 'import' : kinds[i % kinds.length], status: i === 3 ? 'failed' : 'applied', time: new Date(Date.now() - (i * 5 + 2) * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), user: i % 2 ? 'grace' : 'ada', command: i === 3 ? 'pravo apply release.plan' : 'pravo apply', action: i === (n.revision - 1) ? 'import' : 'update', rev_before: rev - 1, rev_after: rev, ...(i === 0 ? { plan: 'plan-2f9c1a4e', git_revision: hex(n.addr, 8) + 'c0ffee' } : {}), ...(i === 0 ? { attrs: [{ path: 'port', before: 5432, after: 5433 }, { path: 'tags.owner', before: 'team', after: 'ops' }, { path: 'password', before_redacted: true, after_redacted: true }] } : i === 1 ? { attrs_sealed: true } : i === 2 ? { attrs_omitted: true } : {}) });
   }
   if (hist.length) d.history = hist;
   // the plan's decision
