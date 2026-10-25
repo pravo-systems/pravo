@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildModel, buildItems, firstView, touchedNamespaces, isChange } from '../assets/model.js';
-import { layout, fitScale, FIT } from '../assets/layout.js';
+import { layout, fitScale, FIT, badges, badgeSize } from '../assets/layout.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const load = (n) => buildModel(JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8')));
@@ -118,10 +118,32 @@ function verify(tag, m, vis, lay) {
       }
     }
   }
+  // the counts of merged edges: each sits on its own wire, no two touch, and none sits on an item unless no run of its wire could hold it
+  const counts = new Map(E.filter((e) => e.n > 1 && routes.get(e.key)).map((e) => [e.key, e.n]));
+  const at = badges(routes, counts, ids.map((id) => pos.get(id)));
+  const boxes = [];
+  for (const [key, [x, y]] of at) {
+    const { w, h } = badgeSize(counts.get(key));
+    const q = routes.get(key).p;
+    let on = false, fits = false;
+    for (let i = 2; i < q.length; i += 2) {
+      const horiz = Math.abs(q[i + 1] - q[i - 1]) < 0.01, vert = Math.abs(q[i] - q[i - 2]) < 0.01;
+      const lo = Math.min(q[i - 2], q[i]), hi = Math.max(q[i - 2], q[i]), lo2 = Math.min(q[i - 1], q[i + 1]), hi2 = Math.max(q[i - 1], q[i + 1]);
+      if (horiz && Math.abs(q[i + 1] - y) < 0.01 && x >= lo - 0.01 && x <= hi + 0.01) on = true;
+      if (vert && Math.abs(q[i] - x) < 0.01 && y >= lo2 - 0.01 && y <= hi2 + 0.01) on = true;
+      if ((horiz && hi - lo >= w + 8) || (vert && hi2 - lo2 >= h + 8)) fits = true;
+    }
+    check(on, `${tag}: the count of ${key} is not on its wire`);
+    const b = { key, x: x - w / 2, y: y - h / 2, w, h, fits };
+    boxes.push(b);
+    if (fits) for (const id of ids) check(!inter(b, pos.get(id), 0), `${tag}: the count of ${key} sits on ${id}`);
+  }
+  boxes.sort((a, b) => a.x - b.x);
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length && boxes[j].x < boxes[i].x + boxes[i].w + 5; j++) check(!inter(boxes[i], boxes[j], -5), `${tag}: the counts of ${boxes[i].key} and ${boxes[j].key} overlap or nearly`);
   return nback;
 }
 
-const sizes = [[1440, 900]];
+const sizes = [[1440, 900], [1440, 762], [1920, 940]];
 for (const name of names) {
   const m = load(`graph.${name}.json`);
   const touched = touchedNamespaces(m, (n) => n.mode !== 'output' && (isChange(n.action) || n.drifted || n.gone || n.presence !== 'both'));

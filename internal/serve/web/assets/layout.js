@@ -126,6 +126,104 @@ export function midOf(r) {
   return [(q[i - 2] + q[i]) / 2, q[i - 1]];
 }
 
+// badgeSize is the box of the count that a merged edge carries: 18 high, and as wide as its digits.
+export const badgeSize = (n) => ({ w: 14 + String(n).length * 6.6, h: 18 });
+
+// badges says where the count of each merged edge is written. A count sits on its own wire, on a run that is long enough
+// to hold it, as near as it can to the middle of the last long run (midOf), and no two counts touch. Where the wires
+// of a bus run close together, a count would cover its neighbours', so a place that covers fewer wires and fewer items
+// is the better one, and a count moves along its wire to find it. routes is a Map key -> route, counts a Map key -> n,
+// and boxes the items that a count should stay off. It returns a Map key -> [x, y], the centre of the count.
+const AIR = 6;       // the least space between two counts
+const EDGE = 4;      // the least run that is left on each side of a count, for the turn of the wire
+const UP = 4;        // what a place on a vertical run costs over one on a horizontal run
+const CELL = 64;
+export function badges(routes, counts, boxes = []) {
+  const out = new Map();
+  const grid = new Map();
+  const segs = [];
+  const put = (item, x0, y0, x1, y1) => {
+    for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) {
+      const k = cx + ',' + cy;
+      let a = grid.get(k);
+      if (!a) grid.set(k, (a = []));
+      a.push(item);
+    }
+  };
+  for (const [key, r] of routes) {
+    const q = polyOf(r);
+    for (let i = 2; i < q.length; i += 2) {
+      const sg = { key, x0: Math.min(q[i - 2], q[i]), x1: Math.max(q[i - 2], q[i]), y0: Math.min(q[i - 1], q[i + 1]), y1: Math.max(q[i - 1], q[i + 1]), wire: true };
+      segs.push(sg);
+      put(sg, sg.x0, sg.y0, sg.x1, sg.y1);
+    }
+  }
+  for (const b of boxes) put({ x0: b.x, x1: b.x + b.w, y0: b.y, y1: b.y + b.h, wire: false }, b.x, b.y, b.x + b.w, b.y + b.h);
+  // what a box would cover: the other wires that run through it, and the items that it overlaps
+  const clutter = (key, x0, y0, x1, y1) => {
+    const seen = new Set();
+    let c = 0;
+    for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) {
+      const a = grid.get(cx + ',' + cy);
+      if (!a) continue;
+      for (const g of a) {
+        if (seen.has(g) || g.key === key) continue;
+        seen.add(g);
+        if (g.x1 > x0 && g.x0 < x1 && g.y1 > y0 && g.y0 < y1 ) c += g.wire ? 10 : 200;
+      }
+    }
+    return c;
+  };
+  // the places on its wire where a count could stand: along every run that is long enough to hold it
+  const list = [];
+  for (const [key, n] of counts) {
+    const r = routes.get(key);
+    if (!r) continue;
+    const q = polyOf(r);
+    const { w, h } = badgeSize(n);
+    const hw = w / 2, hh = h / 2;
+    const [dx, dy] = midOf({ p: q });
+    const cands = [[dx, dy, 0]];
+    for (let i = 2; i < q.length; i += 2) {
+      if (Math.abs(q[i + 1] - q[i - 1]) > 0.01) {
+        // a vertical run: a count sits on it as well, when the horizontal ones are taken
+        if (Math.abs(q[i] - q[i - 2]) > 0.01) continue;
+        const a = Math.min(q[i - 1], q[i + 1]) + hh + EDGE, b = Math.max(q[i - 1], q[i + 1]) - hh - EDGE;
+        if (b < a) continue;
+        const step = Math.max(5, (b - a) / 48);
+        for (let y = a; y <= b + 0.01; y += step) cands.push([q[i], y, UP]);
+        continue;
+      }
+      const a = Math.min(q[i - 2], q[i]) + hw + EDGE, b = Math.max(q[i - 2], q[i]) - hw - EDGE;
+      if (b < a) continue;
+      const step = Math.max(5, (b - a) / 48);
+      for (let x = a; x <= b + 0.01; x += step) cands.push([x, q[i + 1], 0]);
+      cands.push([(a + b) / 2, q[i + 1], 0]);
+    }
+    list.push({ key, n, hw, hh, dx, dy, cands });
+  }
+  // the count with the fewest places chooses first, and the ones with room give way
+  list.sort((p, q) => p.cands.length - q.cands.length || q.n - p.n || (p.key < q.key ? -1 : p.key > q.key ? 1 : 0));
+  const placed = [];
+  const free = (x0, y0, x1, y1) => {
+    for (const p of placed) if (p.x0 - AIR < x1 && p.x1 + AIR > x0 && p.y0 - AIR < y1 && p.y1 + AIR > y0) return false;
+    return true;
+  };
+  for (const e of list) {
+    let best = null, bestAny = null;
+    for (const [cx, cy, extra] of e.cands) {
+      const x0 = cx - e.hw, x1 = cx + e.hw, y0 = cy - e.hh, y1 = cy + e.hh;
+      const cost = clutter(e.key, x0, y0, x1, y1) + Math.hypot(cx - e.dx, cy - e.dy) * 0.15 + extra;
+      if (!bestAny || cost < bestAny.cost) bestAny = { cx, cy, cost, x0, y0, x1, y1 };
+      if ((!best || cost < best.cost) && free(x0, y0, x1, y1)) best = { cx, cy, cost, x0, y0, x1, y1 };
+    }
+    const at = best || bestAny;
+    placed.push(at);
+    out.set(e.key, [at.cx, at.cy]);
+  }
+  return out;
+}
+
 function lenOf(q) {
   let n = 0;
   for (let i = 2; i < q.length; i += 2) n += Math.hypot(q[i] - q[i - 2], q[i + 1] - q[i - 1]);

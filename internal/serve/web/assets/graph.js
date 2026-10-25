@@ -8,7 +8,7 @@
 // stay readable when the picture is small. Nothing in the picture is a bitmap.
 
 import { s, h, clamp, ease, schedule, actionOf, plural } from './util.js';
-import { G, FIT, fitScale, pathOf, midOf, lengthOf, wiring } from './layout.js';
+import { G, FIT, fitScale, pathOf, badges, badgeSize, lengthOf, wiring } from './layout.js';
 import { eachNode, cellsOf, isOut, isEnv } from './model.js';
 import { initials, hueOf } from './plans.js';
 import { providerOf, pvClass } from './provider.js';
@@ -355,6 +355,10 @@ export class GraphView {
     this.adj = new Map();
     const edgeSeen = new Set();
     let calm = 0;
+    // the counts of the merged edges, each on its own wire and none on another
+    const counts = new Map();
+    for (const e of vis.edges) if (e.n > 1 && lay.routes.has(e.key)) counts.set(e.key, e.n);
+    const badgeAt = badges(lay.routes, counts, [...lay.pos.values()]);
     for (const e of vis.edges) {
       const pts = lay.routes.get(e.key);
       if (!pts) continue;
@@ -377,7 +381,9 @@ export class GraphView {
       r.from = clonePts(r.pts);
       r.to = clonePts(pts);
       this.updateEdgeLabel(r, e);
-      if (!animate) { r.pts = clonePts(pts); this.placeEdge(r); } else { moves.edges.push(r); this.placeEdge(r); }
+      r.bto = badgeAt.get(e.key) || null;
+      r.bfrom = r.bat || r.bto;
+      if (!animate) { r.pts = clonePts(pts); this.placeEdge(r); } else { moves.edges.push(r); this.placeEdge(r, 0); }
       calm++;
     }
     // many edges say less each: they are drawn lighter as they grow in number
@@ -444,7 +450,7 @@ export class GraphView {
         r.box = { x: r.from.x + (r.to.x - r.from.x) * e, y: r.from.y + (r.to.y - r.from.y) * e, w: r.from.w + (r.to.w - r.from.w) * e, h: r.from.h + (r.to.h - r.from.h) * e };
         this.placeLane(r);
       }
-      for (const r of moves.edges) { r.pts = mixPts(r.from, r.to, e); this.placeEdge(r); }
+      for (const r of moves.edges) { r.pts = mixPts(r.from, r.to, e); this.placeEdge(r, e); }
       if (t < 1) this.tween = requestAnimationFrame(step);
       else { this.tween = null; this.finish(moves); this.restyleAll(); if (this.cb.onSettled) this.cb.onSettled(); }
     };
@@ -474,13 +480,15 @@ export class GraphView {
     r.hit.setAttribute('x', x); r.hit.setAttribute('y', y); r.hit.setAttribute('width', w);
     r.head.setAttribute('transform', `translate(${(b.x + 14).toFixed(1)} ${(b.y + 10).toFixed(1)})`);
   }
-  placeEdge(r) {
+  // placeEdge draws a wire and its count; t is how far the move to the new picture has gone, from 0 to 1
+  placeEdge(r, t = 1) {
     const d = pathOf(r.pts);
     r.path.setAttribute('d', d);
     if (r.hot) r.hot.setAttribute('d', d);
-    if (r.label) {
-      const [x, y] = midOf(r.pts);
-      r.label.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+    if (r.label && r.bto) {
+      const a = r.bfrom || r.bto;
+      r.bat = [a[0] + (r.bto[0] - a[0]) * t, a[1] + (r.bto[1] - a[1]) * t];
+      r.label.setAttribute('transform', `translate(${r.bat[0].toFixed(1)} ${r.bat[1].toFixed(1)})`);
     }
     // a long edge says little at rest: it is drawn lighter in proportion to its length
     const len = lengthOf(r.pts);
@@ -805,10 +813,10 @@ export class GraphView {
         this.labelLayer.append(r.label);
       }
       r.label.querySelector('text').textContent = e.n;
-      const wd = 14 + String(e.n).length * 6.6;
+      const wd = badgeSize(e.n).w;
       const rc = r.label.querySelector('rect');
       rc.setAttribute('width', wd); rc.setAttribute('x', -wd / 2);
-    } else if (r.label) { r.label.remove(); r.label = null; }
+    } else if (r.label) { r.label.remove(); r.label = null; r.bat = null; }
   }
 
   // ---- state classes ----
