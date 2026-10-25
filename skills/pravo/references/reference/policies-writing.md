@@ -207,20 +207,20 @@ Present:
 ```sh
 ./set-rule.sh policy/owner.cue
 ./with-extra.sh 'keepers: owner: "platform"'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
 
 ```text
-Policy check@N:396a91be1092531ea328cee8ac7015cfecf66f28bb4975e82538005fc80ddd30 is satisfied.
+Policies: 1 satisfied.
 ```
 
 Absent:
 
 ```sh
 ./with-extra.sh 'keepers: team: "storage"'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
@@ -235,7 +235,7 @@ Null:
 
 ```sh
 ./with-extra.sh ''
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
@@ -252,7 +252,7 @@ Unknown:
 
 ```sh
 ./with-extra.sh 'keepers: owner: "platform"' 'keepers: owner: extra1.id'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
@@ -269,7 +269,7 @@ Empty string:
 
 ```sh
 ./with-extra.sh 'keepers: owner: ""'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
@@ -308,7 +308,7 @@ changes: [...{
 ```sh
 ./set-rule.sh policy/prefix.cue
 ./with-extra.sh 'prefix: "App"'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
@@ -371,10 +371,10 @@ With the separator `"."`, both refuse:
 ```sh
 ./set-rule.sh policy/separator-guard.cue
 ./with-extra.sh 'separator: "."'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ./set-rule.sh policy/separator-set.cue
 ./with-extra.sh 'separator: "."'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
@@ -401,16 +401,16 @@ With `extra1.id`, which nobody can read before the apply, the guard lets the pla
 ```sh
 ./set-rule.sh policy/separator-guard.cue
 ./with-extra.sh 'separator: "-"' 'separator: extra1.id'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ./set-rule.sh policy/separator-set.cue
 ./with-extra.sh 'separator: "-"' 'separator: extra1.id'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
 
 ```text
-Policy check@N:492bd73e4d25f07054f8dcf6507a103ee9acb8ae79fa967c59fc2136bbf21422 is satisfied.
+Policies: 1 satisfied.
 Error: the plan violates the policy check@N (sha256:2e2901345a21):
 changes.1.after.separator: 2 errors in empty disjunction:
 changes.1.after.separator: conflicting values {$unknown:true} and "-" (mismatched types struct and string):
@@ -462,10 +462,10 @@ Against a plan whose change is a create, which has no `before`:
 ```sh
 ./set-rule.sh policy/before-bare.cue
 ./with-extra.sh ''
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ./set-rule.sh policy/before-tested.cue
 ./with-extra.sh ''
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
@@ -475,7 +475,7 @@ Error: the plan violates the policy check@N (sha256:29d8e1994ed6):
 changes.0: cannot reference optional field: before:
     check:7:5
 
-Policy check@N:04aa65711d916ee43b2c03513ebcdc55cfbad1b8fe6ca8640115349f3cd488e0 is satisfied.
+Policies: 1 satisfied.
 ```
 
 The first rule refuses every plan that has a change without a `before`, which is nearly every plan. The second reads `before.id` only when `before` exists.
@@ -511,10 +511,10 @@ changes: [...{
 ```sh
 ./set-rule.sh policy/drift-bare.cue
 ./with-extra.sh ''
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ./set-rule.sh policy/drift-default.cue
 ./with-extra.sh ''
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
@@ -524,7 +524,7 @@ Error: the plan violates the policy check@N (sha256:9b3387b6279a):
 changes.0: cannot reference optional field: drifted:
     check:5:5
 
-Policy check@N:f9c436a2933de5611a38ac0e131c17cbd79d9536786fe1b296bec51cc0cd82bf is satisfied.
+Policies: 1 satisfied.
 ```
 
 The default `*false | bool` supplies `false` where the field is omitted and takes the document's `true` where it is there. The same holds for `deferred`, `skipped`, `refreshed`, `drifted` and `applied`.
@@ -543,7 +543,7 @@ summary: add: <=1
 ```sh
 ./set-rule.sh policy/limit.cue
 ./with-extra.sh 'keepers: owner: "a"' 'keepers: owner: "b"'
-pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```
 
 Output:
@@ -595,7 +595,7 @@ summary: destory: 0
 for p in typo-literal typo-template typo-constraint typo-concrete; do
   echo "$p"
   ./set-rule.sh policy/$p.cue > /dev/null
-  pravo -C infra plan --destroy 2>&1 | grep -A2 -E '^(Policy|Error)'
+  pravo -C infra plan --destroy 2>&1 | grep -A2 -E '^(Policies|Error)'
 done
 ```
 
@@ -603,7 +603,7 @@ Output:
 
 ```text
 typo-literal
-Policy check@N:a980c6455beaf1ee26dbfafc027d85c098710150c524b3bcb0134718f62b2d4a is satisfied.
+Policies: 1 satisfied.
 typo-template
 Error: evaluating ./infra:
 check.rule.chnges: field not allowed:

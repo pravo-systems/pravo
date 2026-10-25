@@ -261,7 +261,7 @@ The first run is an apply into an empty state.
 ```sh run
 pravo -v apply -auto-approve 2>&1 \
   | sed -E 's/^\+[0-9.]+s debug //; s/ (dir|path|location|took)=[^ ]+//g; s/ why=.*//' \
-  | grep -E '^(loaded|state opened|plan |graph built|provider started|task |apply |Plan:|Graph:|Policy|Apply complete)'
+  | grep -E '^(loaded|state opened|plan |graph built|provider started|task |apply |Plan:|Graph:|Policies|Apply complete)'
 ```
 
 ```text out
@@ -298,7 +298,7 @@ The second run is a plan. Nothing changed, so every resource is skipped.
 ```sh run
 pravo -v plan 2>&1 \
   | sed -E 's/^\+[0-9.]+s debug //; s/ (dir|path|location|took)=[^ ]+//g; s/ why=.*//' \
-  | grep -E '^(loaded|state opened|plan |graph built|provider started|task |apply |Plan:|Graph:|No changes|Policy|Apply complete)'
+  | grep -E '^(loaded|state opened|plan |graph built|provider started|task |apply |Plan:|Graph:|No changes|Policies|Apply complete)'
 ```
 
 ```text out
@@ -312,7 +312,7 @@ No changes. The specification matches the state. 2 records were not read; run pr
 Graph: planned 0 · skipped 2 · not read 2
 ```
 
-No policy is in force, so stage 5 prints nothing. With one, `plan` prints a `Policy` line for each version after the plan and before any file is saved.
+No policy is in force, so stage 5 prints nothing. With one, `plan` prints one `Policies` line after the plan and before any file is saved.
 
 ## Where each command stops
 

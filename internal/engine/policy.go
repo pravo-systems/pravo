@@ -302,8 +302,8 @@ func (e *Engine) JudgePlan(ctx context.Context, plan *Plan) error {
 	if err != nil {
 		return err
 	}
-	for _, r := range refs {
-		e.Opts.Progress("Policy %s is satisfied.", r)
+	if len(refs) > 0 {
+		e.Opts.Progress("Policies: %d satisfied.", len(refs))
 	}
 	return nil
 }

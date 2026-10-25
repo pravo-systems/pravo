@@ -374,7 +374,7 @@ pravo -C root plan --reserve 15m --actor ana
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 3 · not read 3
 Reserved 1 node until <time>.
-Policy no_delete@1:a1757b6a34e5fdef6f0a38ee1fd2cc1ed043e40432cb209fa571fa3b5ad548fc is satisfied.
+Policies: 1 satisfied.
 ```
 
 `pravo state locks` lists the claim.

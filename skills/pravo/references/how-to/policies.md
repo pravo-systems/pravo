@@ -247,7 +247,7 @@ extra: $random.#Resource.random_pet & {length: 2}
 ```
 
 ```sh
-pravo -C root plan --out change.plan | grep -E '^(Plan|Policy)'
+pravo -C root plan --out change.plan | grep -E '^(Plan|Policies)'
 pravo -C root show change.plan --json | jq .plan | cue vet -c policy/advice.cue json: - 2>&1 | head -n 1
 ```
 
@@ -255,7 +255,7 @@ Output:
 
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
-Policy guard@1:<digest> is satisfied.
+Policies: 1 satisfied.
 changes.0.after.prefix: conflicting values null and string (mismatched types null and string):
 ```
 
@@ -282,7 +282,7 @@ extra: $random.#Resource.random_pet & {length: 2, prefix: "app"}
 ```
 
 ```sh
-pravo -C root plan --out change.plan | grep -E '^(Plan|Policy)'
+pravo -C root plan --out change.plan | grep -E '^(Plan|Policies)'
 pravo -C root show change.plan --json | jq .plan | cue vet -c policy/advice.cue json: -
 echo "exit=$?"
 ```
@@ -291,7 +291,7 @@ Output:
 
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
-Policy guard@1:<digest> is satisfied.
+Policies: 1 satisfied.
 exit=0
 ```
 
@@ -437,15 +437,15 @@ The plan job saves a plan. The apply job applies that file. Both are judged by t
 
 ```sh
 sed -i 's/min: 8000/min: 7000/' root/main.cue
-pravo -C root plan --out change.plan --actor ci --reason "move the port" | grep -E '^(Plan|Policy|Saved)'
-pravo -C root apply change.plan --actor ci | grep -E '^(Policy|Apply)'
+pravo -C root plan --out change.plan --actor ci --reason "move the port" | grep -E '^(Plan|Policies|Saved)'
+pravo -C root apply change.plan --actor ci | grep -E '^(Policies|Apply)'
 ```
 
 Output:
 
 ```text
 Plan: 1 to add, 0 to change, 1 to destroy.
-Policy guard@3:<digest> is satisfied.
+Policies: 1 satisfied.
 Saved the plan to change.plan. To apply exactly these actions, run:
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 ```

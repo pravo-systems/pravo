@@ -286,7 +286,7 @@ pravo -C root plan --out add.plan | sed -n '/^Plan:/,$p'
 ```text out
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 2 · not read 2
-Policy no_delete@1:d0fce23004ba3284e425b8753266ed26f2203fac9f8c06ffe60a7ca1db8c2bc9 is satisfied.
+Policies: 1 satisfied.
 
 Saved the plan to add.plan. To apply exactly these actions, run:
   pravo apply add.plan

@@ -158,14 +158,13 @@ cat >> infra/main.cue <<'CUE'
 
 extra: $random.#Resource.random_pet & {length: 2, keepers: owner: "ops"}
 CUE
-pravo -C infra plan --out third.plan 2>&1 | grep '^Policy'
+pravo -C infra plan --out third.plan 2>&1 | grep '^Policies'
 pravo -C infra apply third.plan | grep '^Apply complete'
 pravo -C infra state log --json | jq -c '.[0] | {kind, status, policies}'
 ```
 
 ```text out
-Policy no_destroy@1:0c23a31e78bda4155de6c4983b382b0041de2fe21627240eca920dfc8a2972dc is satisfied.
-Policy owner@1:396a91be1092531ea328cee8ac7015cfecf66f28bb4975e82538005fc80ddd30 is satisfied.
+Policies: 2 satisfied.
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 {"kind":"apply","status":"applied","policies":["no_destroy@1:0c23a31e78bda4155de6c4983b382b0041de2fe21627240eca920dfc8a2972dc","owner@1:396a91be1092531ea328cee8ac7015cfecf66f28bb4975e82538005fc80ddd30"]}
 ```

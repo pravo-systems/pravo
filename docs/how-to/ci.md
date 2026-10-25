@@ -20,8 +20,6 @@ normalize:
     replace: 'created <time>'
   - pattern: 'sha256:[0-9a-f]{12}'
     replace: 'sha256:<digest>'
-  - pattern: '(?m)^(Policy [a-z_.]+@[0-9]+):[0-9a-f]{64}'
-    replace: '$1:<digest>'
 group: Operate
 keywords: "github actions gitlab ci pipeline exit code"
 ---
@@ -173,12 +171,12 @@ The `addr` of a change is the address of the resource. A pipeline can post the s
 The plan job saves a plan. The apply job applies that file, and the apply judges it with the policies in the state.
 
 ```sh run
-pravo -C app plan -out change.plan --actor ci --reason "build 42" | grep -E '^(Plan|Policy|Saved)'
+pravo -C app plan -out change.plan --actor ci --reason "build 42" | grep -E '^(Plan|Policies|Saved)'
 ```
 
 ```text out
 Plan: 1 to add, 0 to change, 0 to destroy.
-Policy no_destroy@1:<digest> is satisfied.
+Policies: 1 satisfied.
 Saved the plan to change.plan. To apply exactly these actions, run:
 ```
 
