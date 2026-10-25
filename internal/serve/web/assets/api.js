@@ -13,9 +13,9 @@ export class Unreachable extends Error {
 let authHandler = null;
 export function onUnauthorized(fn) { authHandler = fn; }
 
-async function get(path) {
+async function get(path, signal) {
   let r;
-  try { r = await fetch(path, { headers: { Accept: 'application/json' }, cache: 'no-store', credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  try { r = await fetch(path, { headers: { Accept: 'application/json' }, cache: 'no-store', credentials: 'same-origin', signal }); } catch (err) { if (err && err.name === 'AbortError') throw err; throw new Unreachable(); }
   if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
   if (!r.ok) {
     let msg = r.statusText || `status ${r.status}`;
@@ -43,6 +43,19 @@ export const access = () => get('/api/access').catch((err) => { if (err && err.s
 export const discovery = () => get('/api/discovery').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, unmanaged: 0, discoveries: [], command: 'pravo discover' }; throw err; });
 // policies is the rules that every plan is judged by, with their signed versions, set against the specification; a server that does not know them has none.
 export const policies = () => get('/api/policies').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, checked: false, in_force: 0, pending: 0, policies: [], command: 'pravo apply' }; throw err; });
+// workbench is what a rule can be tried on (the stored plans and the plan files of the project), the policies and examples to start from, and the schema of the plan document.
+export const workbench = () => get('/api/workbench');
+// tryRule holds a rule against plans, and the version in force of the policy `base` beside it. Nothing is written: it is a GET, as every request of the page is.
+export const tryRule = ({ rule, name, base, refs }, signal) => {
+  const q = new URLSearchParams();
+  q.set('rule', rule);
+  if (name) q.set('name', name);
+  if (base) q.set('base', base);
+  for (const r of refs) q.append('ref', r);
+  return get('/api/workbench/try?' + q.toString(), signal);
+};
+// workbenchDoc is the document that a plan is judged by: its outline, and the JSON of the change i (or of the document without its changes).
+export const workbenchDoc = (ref, i) => get('/api/workbench/doc?ref=' + encodeURIComponent(ref) + (i === undefined ? '' : '&i=' + i));
 // traces lists the runs that pravo recorded in the project; a server that does not know them has none.
 export const traces = () => get('/api/traces').catch((err) => { if (err && err.status === 404) return { version: 1, dir: '.pravo/traces', traces: [] }; throw err; });
 // trace is the spans of one run.

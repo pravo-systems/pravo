@@ -2,9 +2,7 @@ package serve
 
 import (
 	"encoding/json"
-	"regexp"
 	"sort"
-	"strconv"
 
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -20,19 +18,8 @@ const (
 	maxPlanPolicies = 200
 )
 
-var pctRE = regexp.MustCompile(`%([0-9A-F]{4})`)
-
-// policyDisplay is the name of a policy as its address reads: the state keeps it
-// encoded as an object name.
-func policyDisplay(name string) string {
-	return pctRE.ReplaceAllStringFunc(name, func(s string) string {
-		n, err := strconv.ParseInt(s[1:], 16, 32)
-		if err != nil {
-			return s
-		}
-		return string(rune(n))
-	})
-}
+// policyDisplay is the name of a policy as its address reads.
+func policyDisplay(name string) string { return state.PolicyDisplay(name) }
 
 // buildPolicies reads the versions of every policy and sets them against what the
 // specification declares and the transactions that were judged by them. It reads the
@@ -130,6 +117,14 @@ func (m *model) buildPolicies(rev string) {
 		doc.Policies = append(doc.Policies, info)
 	}
 	m.pol = doc
+	m.polText = map[string]polTexts{}
+	for _, name := range order {
+		pt := polTexts{declared: declared[name]}
+		if vs := history[name]; len(vs) > 0 && !vs[len(vs)-1].Tombstone() {
+			pt.inForce = vs[len(vs)-1].Text
+		}
+		m.polText[m.clipText(policyDisplay(name))] = pt
+	}
 	m.polJSON, _ = json.Marshal(doc)
 }
 

@@ -352,6 +352,46 @@ function synthSource(n) {
     { kind: 'builtin', where: 'pravo.dev/pravo', note: '#Resource and $provider' }], generated: 1 };
 }
 
+// ---- the policy workbench: a stand-in that understands rules of the form `summary: destroy: N` or `<=N` and nothing else ----
+
+function workbenchDoc() {
+  const plans = (stored ? stored.plans : []).map((x) => ({ ref: x.id, kind: 'stored', label: x.id, status: x.status, open: !!x.open, author: x.author, created: x.created, add: x.summary.add, change: x.summary.change, destroy: x.summary.destroy }));
+  plans.push({ ref: 'file:plan.json', kind: 'file', label: 'plan.json', open: true, created: new Date(Date.now() - 36e5).toISOString(), add: 2, change: 1, destroy: 1 });
+  const inForce = policies ? policies.policies.filter((x) => x.versions.length && !x.versions[0].removal).map((x) => ({ name: x.name, status: x.status, in_force: x.versions[0].text, declared: x.rule || '' })) : [];
+  return { version: 1, revision: graph.revision, spec_ok: true, plans, policies: inForce, note: '',
+    schema: '// A rule that every plan is judged by at apply.\n#Policy: {\n\t$kind: "policy"\n\trule: #Plan\n}\n\n#Plan: {\n\tformat: int\n\tsummary: {add: int, change: int, destroy: int, read: int}\n\tchanges: [...#Change]\n}\n',
+    examples: [{ id: 'no-destroy', title: 'Destroy nothing', about: 'A plan may not destroy anything.', rule: 'summary: destroy: 0\n' }, { id: 'small-plans', title: 'Keep plans small', about: 'One plan destroys at most 5.', rule: 'summary: destroy: <=5\n' }] };
+}
+
+function workbenchBound(text) {
+  const m = /destroy:\s*(<=)?\s*(\d+)/.exec(text);
+  return m ? { le: !!m[1], n: Number(m[2]) } : null;
+}
+
+function workbenchTry(q) {
+  const text = q.get('rule') || '';
+  const bound = workbenchBound(text);
+  const results = (rule) => (ref) => {
+    const x = ref.startsWith('file:') ? { summary: { add: 2, change: 1, destroy: 1 } } : stored.plans.find((y) => y.id === ref);
+    if (!x) return { ref, state: 'unknown', note: 'no such plan', changes: 0 };
+    const b = workbenchBound(rule);
+    const d = x.summary.destroy;
+    const ok = !b || (b.le ? d <= b.n : d === b.n);
+    return { ref, state: 'judged', changes: x.summary.add + x.summary.change + x.summary.destroy, outcome: ok ? 'holds' : 'refused',
+      issues: ok ? [] : [{ path: 'summary.destroy', message: `conflicting values ${d} and ${b.n}`, line: 1, column: 1, got: String(d) }] };
+  };
+  const draft = results(text), base = q.get('base') ? results((policies.policies.find((x) => x.name === q.get('base')) || { versions: [{ text: '' }] }).versions[0].text) : null;
+  return { version: 1, base: q.get('base') || undefined, took_ms: 3, check: /<=\s*$/.test(text.trim()) ? { stage: 'parse', message: 'policy draft: expected operand, found EOF', issues: [{ message: 'expected operand, found EOF', line: 1, column: text.length }] } : undefined,
+    plans: q.getAll('ref').map((ref) => { const d = draft(ref); const b = base ? base(ref) : null; return { ref, state: d.state, note: d.note, changes: d.changes, draft: d.outcome ? { outcome: d.outcome, issues: d.issues } : undefined, base: b && b.outcome ? { outcome: b.outcome, issues: b.issues } : undefined }; }) };
+}
+
+function workbenchShow(q) {
+  const ref = q.get('ref') || '';
+  const n = q.get('i');
+  const outline = [{ index: 0, addr: 'api.db', action: 'update', type: 'aws_db_instance' }, { index: 1, addr: 'api.queue', action: 'create', type: 'aws_sqs_queue' }];
+  return json(200, { version: 1, ref, outline, head: '{\n  "format": 1,\n  "summary": {"add": 1, "change": 1, "destroy": 0, "read": 0}\n}', change: n === null ? undefined : JSON.stringify(outline[Number(n)] || {}, null, 2) });
+}
+
 // ---- the shim ----
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -371,6 +411,9 @@ window.fetch = async (input, init) => {
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
   if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
   if (p === '/api/policies') return policies ? json(200, shift(Object.assign({}, policies, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/workbench') return json(200, workbenchDoc());
+  if (p === '/api/workbench/try') return json(200, workbenchTry(url.searchParams));
+  if (p === '/api/workbench/doc') return workbenchShow(url.searchParams);
   if (p === '/api/adopt') {
     const a = adoptOf(url.searchParams.get('discovery') || '', url.searchParams.get('key') || '');
     return a ? json(200, a) : json(404, { error: 'no such object in the last run of that discovery' });

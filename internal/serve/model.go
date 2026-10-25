@@ -62,6 +62,12 @@ type model struct {
 	// pol is the policies of the state and the specification, and its bytes.
 	pol     *Policies
 	polJSON []byte
+	// polText holds the texts of the policies as they are, by the name the page shows: the
+	// workbench tries them. The page gets them masked.
+	polText map[string]polTexts
+
+	// wb holds what the workbench has worked out for this revision.
+	wb workbenchCache
 
 	txOnce sync.Once
 	txns   []state.Transaction
@@ -70,6 +76,9 @@ type model struct {
 	fieldsOnce sync.Once
 	fieldIdx   *fieldIndex
 }
+
+// polTexts are the text of a policy in force and the text the specification declares.
+type polTexts struct{ inForce, declared string }
 
 // mnode is a node with what is needed to answer for it.
 type mnode struct {

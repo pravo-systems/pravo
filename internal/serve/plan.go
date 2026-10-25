@@ -262,9 +262,35 @@ func (s *Server) planDisplay() string {
 // still decoded. With unchecked the plan is decoded and not judged: a stored
 // plan is judged by the listing, against the state.
 func (s *Server) decodePlan(m *model, pf *engine.PlanFile, unchecked bool) (*engine.Plan, *engine.ErrStalePlan, error) {
+	eng, err := s.planEngine(m, pf)
+	if err != nil {
+		return nil, nil, err
+	}
+	if unchecked {
+		plan, err := eng.LoadPlanUnchecked(pf)
+		return plan, nil, err
+	}
+	plan, err := eng.LoadPlanFor(pf, nil)
+	var stale *engine.ErrStalePlan
+	if errors.As(err, &stale) {
+		plan, err = eng.LoadPlanUnchecked(pf)
+		if err != nil {
+			return nil, nil, err
+		}
+		return plan, stale, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return plan, nil, nil
+}
+
+// planEngine makes an engine that has the cached schemas of the providers a plan
+// uses and no provider: it can decode the plan, and starts nothing.
+func (s *Server) planEngine(m *model, pf *engine.PlanFile) (*engine.Engine, error) {
 	root := m.spec.root
 	if root == nil {
-		return nil, nil, errors.New("the specification does not load")
+		return nil, errors.New("the specification does not load")
 	}
 	provs := engine.NewProviders(root, nil)
 	provs.Env = s.opts.Env
@@ -290,15 +316,15 @@ func (s *Server) decodePlan(m *model, pf *engine.PlanFile, unchecked bool) (*eng
 		local := config.LocalName(sc.ProviderKey)
 		req := root.Providers[local]
 		if req == nil {
-			return nil, nil, fmt.Errorf("provider %s of %s is not declared", local, sc.Addr)
+			return nil, fmt.Errorf("provider %s of %s is not declared", local, sc.Addr)
 		}
 		ps, ok := s.lookupSchema(req.Source, pf.Providers[local])
 		if !ok {
-			return nil, nil, fmt.Errorf("the schema of provider %s v%s is not cached", req.Source.Display(), pf.Providers[local])
+			return nil, fmt.Errorf("the schema of provider %s v%s is not cached", req.Source.Display(), pf.Providers[local])
 		}
 		sch := ps.Type(sc.Mode, sc.Type)
 		if sch == nil {
-			return nil, nil, fmt.Errorf("the schema of %s %s is not in the cache of provider %s", sc.Mode, sc.Type, req.Source.Display())
+			return nil, fmt.Errorf("the schema of %s %s is not in the cache of provider %s", sc.Mode, sc.Type, req.Source.Display())
 		}
 		if sch.Block != nil {
 			sch.Block.Type() // see resolveSchema
@@ -315,24 +341,7 @@ func (s *Server) decodePlan(m *model, pf *engine.PlanFile, unchecked bool) (*eng
 			set.Resources[sc.Type] = sch
 		}
 	}
-	eng := engine.New(root, m.store, provs, schemas, root.Value, engine.Options{})
-	if unchecked {
-		plan, err := eng.LoadPlanUnchecked(pf)
-		return plan, nil, err
-	}
-	plan, err := eng.LoadPlanFor(pf, nil)
-	var stale *engine.ErrStalePlan
-	if errors.As(err, &stale) {
-		plan, err = eng.LoadPlanUnchecked(pf)
-		if err != nil {
-			return nil, nil, err
-		}
-		return plan, stale, nil
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-	return plan, nil, nil
+	return engine.New(root, m.store, provs, schemas, root.Value, engine.Options{}), nil
 }
 
 // staleReasons judges a plan whose values cannot be decoded, from the parts that

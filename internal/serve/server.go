@@ -147,6 +147,9 @@ type Server struct {
 	traceMu   sync.Mutex
 	traceSums traceCache
 
+	// files caches the plan files of the project that the workbench reads.
+	files planFileCache
+
 	// streams counts the open event streams.
 	streams atomic.Int32
 }
@@ -426,7 +429,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/workbench", "/api/workbench/try", "/api/workbench/doc":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -459,6 +462,12 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusOK, m.disc.json)
 	case "/api/policies":
 		writeRaw(w, http.StatusOK, m.polJSON)
+	case "/api/workbench":
+		writeJSON(w, http.StatusOK, s.workbench(m))
+	case "/api/workbench/try":
+		s.tryHandler(w, r, m)
+	case "/api/workbench/doc":
+		s.docHandler(w, r, m)
 	case "/api/adopt":
 		s.adopt(w, r, m)
 	case "/api/plan":

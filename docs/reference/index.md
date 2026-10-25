@@ -73,6 +73,7 @@ A plan policy is a CUE file that a plan must satisfy.
 | [The plan document](policies-plan-document.md) | The fields a policy can see. |
 | [Writing a policy](policies-writing.md) | The shapes that work. |
 | [Operating policies](policies-operations.md) | Naming, testing and rolling out policies. |
+| [`pravo policy`](policy.md) | Try a rule against stored plans and plan files before it is stored. |
 
 ## Data and formats
 

@@ -42,6 +42,20 @@ var policyKeyRe = regexp.MustCompile(`^policy/([A-Za-z0-9._%-]+)@([0-9]{8})\.jso
 // name.
 func PolicyName(name string) string { return encodeAddr(name) }
 
+var policyEscapeRe = regexp.MustCompile(`%([0-9A-F]{4})`)
+
+// PolicyDisplay is the name of a policy as its address reads: the state keeps it
+// encoded as an object name.
+func PolicyDisplay(name string) string {
+	return policyEscapeRe.ReplaceAllStringFunc(name, func(s string) string {
+		n, err := strconv.ParseInt(s[1:], 16, 32)
+		if err != nil {
+			return s
+		}
+		return string(rune(n))
+	})
+}
+
 func policyKey(name string, seq int) string {
 	return fmt.Sprintf("%s/%s@%08d.json", policyDir, name, seq)
 }

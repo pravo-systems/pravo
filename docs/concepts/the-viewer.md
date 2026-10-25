@@ -236,6 +236,12 @@ The objects can be filtered with the filter box of the Inventory, with the colum
 
 It does not run a discovery. A run starts a provider, and the viewer starts none. A card says that a run is missing or answers an old scope, with the command to copy, and the page changes when the command has run, as it does for any change of the state.
 
+## The policy workbench
+
+A rule is easier to write when you can see what it does to plans that exist. The workbench, a page of the Policies section, is an editor beside a list of the plans stored in the state and the plan files of the project. As you type, it says for each plan whether the rule holds or would refuse it, and which part of the plan broke it. It explains the plan document that a rule is written against and how a rule is judged, so a first rule does not start from a blank page.
+
+It is a preview, not a step. The server runs the rule in a CUE context of its own and writes nothing, so the state, the plans and the policies are as they were, and a rule that you like still has to go into the specification and be applied. [`pravo policy test`](../reference/policy.md) gives the same verdicts on the command line, with an exit code for a pipeline. [The reference](../reference/serve.md#the-workbench) lists the parts of the page.
+
 ## Why the viewer is read-only
 
 The server writes nothing. It creates no record and no transaction, takes no lock, does not write `pravo.lock.cue` and does not generate a package. The project directory and the state hold the same bytes after a session as before it, a sealed state included.

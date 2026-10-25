@@ -208,6 +208,20 @@ The Policies section shows the rules that every plan is judged by. [Policies](po
 
 A signature is `signed by NAME` when it verifies against a key of the readers file, `signer not in the readers file` when the key is not in the file (a member who has left is still shown), and `signature does not verify` or `unsigned` for a version that is refused: the section then shows no policy and says so. A state that is not sealed holds no policy, so the section lists only what the specification declares, as `new`.
 
+### The workbench
+
+The Policies section has a second page, the workbench, for trying a rule on plans before it is stored. Its link is `view=policies&pw=1` and its key is `w`; the palette lists it as `Open the policy workbench`. The register has a button, Try on plans, that opens the workbench with the text of the policy that is open.
+
+| Part | Holds |
+|---|---|
+| The editor | The rule as CUE, with line numbers. The draft is kept in the browser and is not sent anywhere but to the viewer's own endpoint. A list of examples fills the editor, and so does any policy of the specification or of the state. |
+| The plans | The stored plans of the state and the plan files of the project directory and the directories one level below it. Pick which to try; up to 100 at once. |
+| The verdict | For each plan: `holds`, `would be refused`, or why it is not judged (it changes no resource, it is sealed to this identity, or it cannot be read). A refusal lists the paths of the document that failed, the change each belongs to and the value that the plan has. The verdict follows the editor after a short pause. |
+| Compare | Against the text in force or the text of the specification: the plans that the draft refuses and the base does not, and the reverse. |
+| The document | The plan as a rule sees it, for any plan, with the schema of the plan document and a short explanation of how a rule is judged. |
+
+A rule that does not compile, or that does not unify with the plan document, shows its error on its line. The workbench runs the rule in a CUE context of its own and writes nothing: the state, the plans and the policies are as they were. The rule travels in the address of a `GET`, as every request does, and is limited to 32 KiB. Values in the answers are masked with the secret sets of the plan, as everywhere in the viewer. The same check is `pravo policy test` ([`pravo policy`](policy.md)).
+
 ## The State section
 
 The State section says where the state is kept, how it is protected and who can read it. It is the last section of the page, after Inventory, Discovery, Policies, Traces and Plans, which holds the graph and the list, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no chips or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
@@ -283,6 +297,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `plq` | Text | The finder of the Plans section: words, and terms of the form `column:value`. About the plan: status, by, id, reason, created, expires, overlap. About its changes: action, resource, ns, type, provider, change. |
 | `dq` | Text | The filter box of the Discovery section: words, and terms of the form `column:value` (status, discovery, type, provider, instance, freshness, id, name, by, field, value). |
+| `pw` | `1` | The workbench page of the Policies section. |
 | `pol` | Text | The policy that is open in the Policies section, by its name. |
 | `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, instance, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
 | `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer does not write it any more. |
@@ -313,6 +328,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `p` | Switch between the Inventory and the Plans sections. |
 | `d` | Switch between the Inventory and the Discovery sections. |
 | `o` | Switch between the Inventory and the Policies sections. |
+| `w` | Open the policy workbench, or go back to the register when it is open. |
 | `r` | Switch between the Inventory and the Traces sections. |
 | Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the namespace that a click opened, then clear the selection. |
 
@@ -377,6 +393,9 @@ The interface of the page is a set of read-only endpoints. They are for the page
 | `GET /api/discovery` | The discoveries of the specification and what their last runs found, set against the state: for each its scope, its freshness, its last run, the counts by status, the objects that are not managed (at most 2000), its `$ack` entries and the commands. See [The Discovery section](#the-discovery-section). |
 | `GET /api/adopt?discovery=NAME&key=KEY` | The resource that adopts one object of the last run of a discovery, as CUE, and the commands to copy. `KEY` is the `key` of the object in `/api/discovery`. 404 for an object that is not in the run or is managed, 400 for a name or key that is too long. The server asks no provider. |
 | `GET /api/policies` | The policies of the state and of the specification: for each its status, the file and line that write it, and its versions newest first with the text, the digest, the reference, the time, the signature and signer (when a readers file is there), and the transactions that the version judged (at most 8 each). `in_force` and `pending` count the policies. |
+| `GET /api/workbench` | What the workbench starts from: the plans it can try (stored plans and plan files, each with its `ref`), the policies of the specification and of the state, the schema of the plan document as CUE and the examples. `spec_ok` is false when the specification does not load, and then no rule can be tried. |
+| `GET /api/workbench/try?rule=TEXT&name=NAME&base=TEXT&ref=PLAN...` | The verdict of a rule on each plan named by `ref` (a stored plan id, or `file:PATH` of a file that `/api/workbench` listed), at most 100: `holds`, `refused` with its issues, `not-judged`, `sealed`, `unreadable` or `invalid`, and the problem of a rule that cannot be used. With `base`, the verdict of that text too, to compare. 400 for a rule over 32 KiB. Writes nothing. |
+| `GET /api/workbench/doc?ref=PLAN&i=N` | The document of a plan as a rule sees it, or the change `N` of it, masked. |
 | `GET /api/traces` | The runs that pravo recorded in `.pravo/traces` or `$PRAVO_TRACE_DIR`, newest first, at most 200: for each its `id` (the trace id, a hyphen and the id of its first root span), the command, when it started, how long it took, the exit code, `status` (`ok`, or `error` when a span failed), the counts of spans, failed spans and resources, the transaction it wrote and the actor and reason. `unreadable` counts the files that are not a run of this version. |
 | `GET /api/trace?id=ID` | The spans of one run: for each its id and parent, its name, its `kind` (`command`, `engine`, `resource`, `provider`, `mcp` or `other`), its status and message, when it started and how long it took in microseconds from the start of the run, its attributes and its events. At most 30,000 spans, and `omitted` counts the rest. 400 for an id that is not of that form, 404 for a run that is not there, 422 for a file that is not a run. The id names a file and is never a path. |
 | `GET /api/events` | A stream of server-sent events. Each event `change` carries the revision and what changed: `state`, `spec`, `plan`, `locks`, `plans`, `access`, `discovery` or `traces`. `plan` is the plan file of `--plan`, `plans` are the plans stored in the state, `access` is the readers file, `discovery` is the runs of the discoveries, and `traces` is the directory of the recorded runs: a run that lands changes no node, so its event carries the revision that the page holds. |

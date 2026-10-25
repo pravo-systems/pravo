@@ -147,6 +147,7 @@ function readFragment() {
     trace: /^[0-9a-f]{32}-[0-9a-f]{16}$/.test(p.trace || '') ? p.trace : '',
     span: /^[0-9a-f]{16}$/.test(p.span || '') ? p.span : '',
     pol: (p.pol || '').slice(0, 512),
+    pw: p.pw === '1' ? '1' : '',
     tv: p.tv === 'table' ? 'table' : '',
     tz: p.tz || '',
     tq: p.tq || '',
@@ -1384,6 +1385,7 @@ function paletteActions() {
   if (!res) add('Go to', 'Go to Inventory', [], into(S.lastResources || 'graph'), { icon: 'stack', words: 'resources graph list' });
   if (S.view !== 'discovery') add('Go to', 'Go to Discovery', ['d'], into('discovery'), { icon: 'radar', words: 'findings unmanaged adopt' });
   if (S.view !== 'policies') add('Go to', 'Go to Policies', ['o'], into('policies'), { icon: 'policy', words: 'rules judge plan versions signed' });
+  add('Go to', 'Open the policy workbench', S.view === 'policies' ? ['w'] : [], () => { setView('policies'); policiesView.setMode('bench'); }, { icon: 'policy', words: 'try rule draft playground preview plans refuse policy test' });
   if (S.view !== 'traces') add('Go to', 'Go to Traces', ['r'], into('traces'), { icon: 'trace', words: 'runs recorded timeline spans transactions' });
   if (S.view !== 'plans') add('Go to', 'Go to Plans', ['p'], into('plans'), { icon: 'file', words: 'stored plans' });
   if (S.view !== 'access') add('Go to', 'Go to State', ['a'], into('access'), { icon: 'lock', words: 'access readers sealed' });
@@ -1451,6 +1453,7 @@ function onKey(ev) {
   if (k === 'p') { setView(S.view === 'plans' ? (S.lastResources || 'graph') : 'plans'); return; }
   if (k === 'd') { setView(S.view === 'discovery' ? (S.lastResources || 'graph') : 'discovery'); return; }
   if (k === 'o') { setView(S.view === 'policies' ? (S.lastResources || 'graph') : 'policies'); return; }
+  if (k === 'w' && S.view === 'policies') { policiesView.toggleBench(); return; }
   if (k === 'r') { setView(S.view === 'traces' ? (S.lastResources || 'graph') : 'traces'); return; }
   if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies') return; // the keys below are for the resources
   if (k === 'g') { setView(S.view === 'graph' ? 'list' : 'graph'); return; }

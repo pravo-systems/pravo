@@ -9,6 +9,7 @@
 
 import { h, clear, icon, plural, relTime, stamp, fmt, signatureMark } from './util.js';
 import { tokenize } from './cue.js';
+import { WorkbenchView } from './workbench.js';
 
 // STATUS says what a policy is to the next apply, in words and in the one colour that means a decision is waiting.
 const STATUS = {
@@ -64,9 +65,36 @@ export class PoliciesView {
     this.sel = '';
     this.want = '';
     this.opened = new Map(); // "name@seq" -> the version's text or changes are open, as the person left it
+    this.mode = 'register'; // or 'bench': the workbench, which tries a rule on plans
+    this.bench = new WorkbenchView(root, cb);
   }
 
-  route() { return { pol: this.sel }; }
+  route() { return { pol: this.mode === 'register' ? this.sel : '', pw: this.mode === 'bench' ? '1' : '' }; }
+
+  // setMode switches between the register of policies and the workbench.
+  setMode(mode) {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    if (mode === 'register') this.bench.close();
+    this.render({ policies: this.doc });
+    if (this.cb.onRoute) this.cb.onRoute();
+  }
+
+  toggleBench() { this.setMode(this.mode === 'bench' ? 'register' : 'bench'); }
+
+  // tryPolicy opens the workbench on a rule of the register: the text in force, or the text the specification declares.
+  tryPolicy(name, which) {
+    this.mode = 'bench';
+    this.bench.tryPolicy(name, which);
+    this.render({ policies: this.doc });
+    if (this.cb.onRoute) this.cb.onRoute();
+  }
+
+  // modes is the switch between the two pages of the section.
+  modes() {
+    const b = (mode, label, key) => h('button', { type: 'button', 'aria-pressed': this.mode === mode ? 'true' : 'false', 'data-fk': 'mode:' + mode, 'aria-keyshortcuts': key, on: { click: () => this.setMode(mode) } }, label);
+    return h('div', { class: 'seg po-modes', role: 'group', 'aria-label': 'Page of the section' }, b('register', 'Register', 'w'), b('bench', 'Workbench', 'w'));
+  }
 
   // open selects a policy, for a link from another part of the page; the next render shows it
   open(name) {
@@ -77,11 +105,22 @@ export class PoliciesView {
   setRoute(f) {
     this.want = f.pol || '';
     if (this.want) this.sel = this.want;
+    this.mode = f.pw === '1' ? 'bench' : 'register';
   }
 
   render({ policies }) {
     const focus = document.activeElement && this.root.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
     const top = this.root.scrollTop;
+    if (this.mode === 'bench') {
+      this.doc = policies || this.doc;
+      clear(this.root);
+      this.root.append(h('div', { class: 'po-bar' }, this.modes()));
+      this.root.append(this.bench.mount());
+      this.bench.show(policies);
+      this.root.scrollTop = top;
+      return;
+    }
+    this.bench.close();
     clear(this.root);
     if (!policies) {
       this.doc = null;
@@ -93,6 +132,7 @@ export class PoliciesView {
     if (!list.some((p) => p.name === this.sel)) this.sel = list.length ? (list.find((p) => p.status !== 'removed') || list[0]).name : '';
     const cur = list.find((p) => p.name === this.sel) || null;
     this.root.append(h('div', { class: 'po' },
+      h('div', { class: 'po-bar' }, this.modes()),
       this.head(policies),
       list.length ? h('div', { class: 'po-body' }, this.register(list), cur ? this.dossier(cur) : null) : this.none(policies),
       h('p', { class: 'po-foot' }, FOOTER)));
@@ -186,16 +226,18 @@ export class PoliciesView {
   // pending says what the next apply does to this policy, and shows the change.
   pending(p) {
     const head = p.versions[0];
-    let text = '', diff = null;
+    let text = '', diff = null, tryIt = null;
     switch (p.status) {
       case 'pending':
         text = `The specification declares other text than version ${p.head}. The next apply writes version ${p.head + 1}.`;
         diff = this.diff(head.text, p.rule, `v${p.head}`, 'specification');
+        tryIt = h('button', { type: 'button', class: 'po-try', on: { click: () => this.tryPolicy(p.name, 'declared') } }, 'Try the new text on plans');
         break;
       case 'new':
         text = p.head
           ? `Version ${p.head} removed this policy and the specification declares it again. The next apply writes version ${p.head + 1}.`
           : 'The specification declares this policy and the state has no version of it. The first apply writes version 1.';
+        tryIt = h('button', { type: 'button', class: 'po-try', on: { click: () => this.tryPolicy(p.name, 'declared') } }, 'Try the rule on plans');
         break;
       case 'removing':
         text = `The specification no longer declares this policy. The next apply writes a removal as version ${p.head + 1}, and the rule judges nothing after it.`;
@@ -206,6 +248,7 @@ export class PoliciesView {
     return h('div', { class: 'po-pend' },
       h('p', { class: 'po-pt' }, icon('hold'), h('span', null, text)),
       diff,
+      tryIt,
       h('div', { class: 'cmdline po-cmd' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, this.doc.command),
         h('button', { class: 'cpbtn', type: 'button', 'data-copy': this.doc.command, 'aria-label': `Copy the command: ${this.doc.command}`, 'data-tip': 'Copy the command' }, icon('copy'))));
   }
@@ -219,8 +262,10 @@ export class PoliciesView {
       return h('div', { class: 'po-rulebox' }, h('h4', { class: 'po-h4' }, 'Rule'), h('p', { class: 'po-note' }, 'Nothing is in force: this policy judges no plan.'));
     }
     const lines = text.replace(/\n$/, '').split('\n').map((t, i) => ({ op: ' ', text: t, no: i + 1 }));
+    const declared = !inForce && p.status === 'new';
     return h('div', { class: 'po-rulebox' },
-      h('h4', { class: 'po-h4' }, inForce ? `Rule in force · v${inForce.seq}` : 'Rule declared', h('span', { class: 'po-n' }, plural(lines.length, 'line'))),
+      h('h4', { class: 'po-h4' }, inForce ? `Rule in force · v${inForce.seq}` : 'Rule declared', h('span', { class: 'po-n' }, plural(lines.length, 'line')),
+        h('button', { type: 'button', class: 'po-try', 'data-tip': 'Try this rule on stored plans and plan files', on: { click: () => this.tryPolicy(p.name, declared ? 'declared' : 'policy') } }, 'Try on plans')),
       this.code(lines, { copy: text, label: 'Copy the rule' }));
   }
 

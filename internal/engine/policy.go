@@ -7,17 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
 	cueerrors "cuelang.org/go/cue/errors"
-	"cuelang.org/go/cue/parser"
 	cuejson "cuelang.org/go/encoding/json"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
@@ -122,65 +119,8 @@ func (e *Engine) planPolicies(ctx context.Context) ([]PolicyEntry, error) {
 // only the standard library, and accepts the document of an empty plan. It catches a
 // rule with a misspelt bound, and not one that is too strict.
 func (e *Engine) checkNewPolicy(name, text string) error {
-	file, err := parser.ParseFile(name, text)
-	if err != nil {
-		return WithCode(ExitInvalid, fmt.Errorf("policy %s: %s", name, cueerrors.Details(err, nil)))
-	}
-	for imp := range file.ImportSpecs() {
-		ip, err := strconv.Unquote(imp.Path.Value)
-		if err != nil {
-			return WithCode(ExitInvalid, fmt.Errorf("policy %s: %w", name, err))
-		}
-		if i := strings.IndexByte(ip, ':'); i >= 0 {
-			ip = ip[:i]
-		}
-		if strings.Contains(strings.SplitN(ip, "/", 2)[0], ".") {
-			return WithCode(ExitInvalid, fmt.Errorf("policy %s imports %q; a policy is standalone and may import only the CUE standard library", name, ip))
-		}
-	}
-	doc, err := e.judgedDoc(&PlanFile{Format: PlanFileFormat, Providers: map[string]string{}})
-	if err != nil {
-		return err
-	}
-	rule := e.Root.Ctx.CompileString(text, cue.Filename(name))
-	if err := rule.Err(); err != nil {
-		return WithCode(ExitInvalid, fmt.Errorf("policy %s does not compile: %s", name, cueerrors.Details(err, nil)))
-	}
-	if err := rule.Unify(doc).Validate(cue.Concrete(true)); err != nil {
-		return WithCode(ExitInvalid, fmt.Errorf("policy %s does not accept the document of an empty plan:\n%s", name, cueerrors.Details(err, nil)))
-	}
-	if err := e.checkRuleShape(name, rule); err != nil {
-		return err
-	}
-	return nil
-}
-
-// checkRuleShape unifies a rule with the shape of the plan document and one change
-// that holds no values, only the schema of a change. A rule is judged against a plan
-// that has no changes when it is added, so a field it misspells inside a list
-// template, a value outside the enum of an action and a read of an optional field
-// would pass unseen until the first plan that has such a change. A condition on a
-// value the sample does not hold is not decided, so a guard is not run: only the
-// structure of the rule is.
-func (e *Engine) checkRuleShape(name string, rule cue.Value) error {
-	ctx := e.Root.Ctx
-	pkg := ctx.CompileString(schema.SettingsPackage)
-	if err := pkg.Err(); err != nil {
-		return err
-	}
-	plan := pkg.LookupPath(cue.MakePath(cue.Def("Plan")))
-	// A rule that fixes the length of changes, such as changes: [], refuses a plan
-	// with a change by design; a sample change would only trip it.
-	shaped := plan
-	if _, err := rule.LookupPath(cue.ParsePath("changes")).Len().Int64(); err != nil {
-		one := ctx.CompileString("[#Change]", cue.Scope(pkg), cue.InferBuiltins(true))
-		if err := one.Err(); err != nil {
-			return err
-		}
-		shaped = plan.FillPath(cue.ParsePath("changes"), one)
-	}
-	if err := rule.Unify(shaped).Validate(); err != nil {
-		return WithCode(ExitInvalid, fmt.Errorf("policy %s does not fit the plan document:\n%s", name, cueerrors.Details(err, nil)))
+	if p := CheckRule(e.Root.Ctx, name, text); p != nil {
+		return WithCode(ExitInvalid, errors.New(p.Message))
 	}
 	return nil
 }
@@ -190,10 +130,25 @@ func (e *Engine) checkRuleShape(name string, rule cue.Value) error {
 // gives it no dependents and no blast radius, the clock no time, the invocation no actor
 // or reason, and the marks of an earlier stage are cleared.
 func (e *Engine) judgedDoc(pf *PlanFile) (cue.Value, error) {
-	plan, err := e.newPlan(pf)
+	data, _, err := e.PolicyDocument(pf)
 	if err != nil {
 		return cue.Value{}, err
 	}
+	return buildDoc(e.Root.Ctx, data)
+}
+
+// PolicyDocument is the JSON of the document that policies judge pf by, and the plan
+// it was made from.
+func (e *Engine) PolicyDocument(pf *PlanFile) ([]byte, *Plan, error) {
+	plan, err := e.newPlan(pf)
+	if err != nil {
+		return nil, nil, err
+	}
+	data, err := documentOf(pf, plan)
+	return data, plan, err
+}
+
+func documentOf(pf *PlanFile, plan *Plan) ([]byte, error) {
 	v := &View{Format: ViewFormat, Created: pf.Created, Actor: pf.Actor, Reason: pf.Reason, GitRevision: pf.GitRevision,
 		Destroy: pf.Destroy, Stats: pf.Stats, Changes: []ChangeView{}, Outputs: map[string]any{}, Reservation: pf.Reservation,
 		Providers: map[string]string{}}
@@ -208,26 +163,28 @@ func (e *Engine) judgedDoc(pf *PlanFile) (cue.Value, error) {
 	addOutputs(v, plan)
 	data, err := json.Marshal(v)
 	if err != nil {
-		return cue.Value{}, err
+		return nil, err
 	}
 	// blast_radius is a number that only the state can give.
 	var doc map[string]any
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	if err := dec.Decode(&doc); err != nil {
-		return cue.Value{}, err
+		return nil, err
 	}
 	if sum, ok := doc["summary"].(map[string]any); ok {
 		delete(sum, "blast_radius")
 	}
-	if data, err = json.Marshal(doc); err != nil {
-		return cue.Value{}, err
-	}
+	return json.Marshal(doc)
+}
+
+// buildDoc turns the JSON of a document into a value of ctx.
+func buildDoc(ctx *cue.Context, data []byte) (cue.Value, error) {
 	expr, err := cuejson.Extract("plan", data)
 	if err != nil {
 		return cue.Value{}, err
 	}
-	pv := e.Root.Ctx.BuildExpr(expr)
+	pv := ctx.BuildExpr(expr)
 	return pv, pv.Err()
 }
 
