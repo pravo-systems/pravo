@@ -34,8 +34,13 @@
 // debug log goes where SetLogHandler says; spans go to the global OpenTelemetry
 // tracer provider of the host.
 //
+// # Compatibility
+//
 // This package is unstable (v0). Types that are aliases of types in pravo's
 // internal packages (Root, Store, Engine, Plan and the like) are the way to the
 // engine while the interface is settled; they will be replaced by types of this
-// package, and the methods that return them will change.
+// package, and the methods that return them will change. Until the package is
+// declared stable a release may break its callers; the JSON that the commands
+// print is the stable surface. The callers in this repository (cmd/pravo and
+// examples/embed) always build against it.
 package pravo

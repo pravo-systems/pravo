@@ -114,6 +114,10 @@ pravo serve --plan change.plan       # overlay a saved plan
 
 `pravo skill install` writes a skill for AI agents to `~/.claude/skills/pravo`: a short guide and the documentation as Markdown, built from `docs/` by `go run ./tools/skillgen` and embedded in the binary, so that it matches the version that installs it. `docs/reference/skill.md` describes it. Each release carries it as `pravo-skill.zip`.
 
+## Using pravo as a library
+
+`github.com/pravo-systems/pravo/pravo` is a Go package with what the commands do: open a workspace, plan, apply, store plans, check drift. It is v0 and unstable. `examples/embed` is a small program that uses it; the package documentation (`go doc ./pravo`) has the rest.
+
 ## Documentation
 
 - `docs/` holds the Markdown sources: Learn (CUE from zero, then pravo), Migrate (from OpenTofu or Terraform), How-to, Concepts and Reference. Begin with `docs/how-to/quick-start.md`.
