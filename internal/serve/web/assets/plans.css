@@ -26,7 +26,7 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 /* ---- the status of a plan ---- */
 .b.ps { padding: .16rem .34rem; font-size: .56rem; letter-spacing: .06em; flex: none; }
 .b.ps .i { width: .65rem; height: .65rem; }
-.b.ps-ok { --c: var(--accent); } .b.ps-lock { --c: var(--key); } .b.ps-chg { --c: var(--change); } .b.ps-done { --c: var(--text-2); } .b.ps-gone { --c: var(--text-3); border-style: dashed; }
+.b.ps-open { --c: var(--key); } .b.ps-done { --c: var(--accent); } .b.ps-chg { --c: var(--change); } .b.ps-gone { --c: var(--text-3); border-style: dashed; }
 /* partly stale: the amber of a plan that the state moved on from (the word says that part of it can still be applied) */
 .b.ps-half { --c: var(--change); }
 
@@ -106,6 +106,38 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 .cmdline.live code { max-height: 7.5rem; overflow: auto; }
 .rp-detail > :first-child { margin-top: 0; }
 
+/* ---- the finder of the Plans section, and what a plan changes ---- */
+.rp-tools { display: grid; gap: .5rem; margin: 0 0 .85rem; padding-inline: .15rem; min-width: 0; }
+.rp-tools .filterbox { width: auto; max-width: none; flex: none; }
+.rp-q { width: 100%; }
+.rp-pills { display: flex; flex-wrap: wrap; gap: .35rem; min-width: 0; }
+.rp-pills:empty { display: none; }
+/* what the finder names in a row: the first of the changes that it asked for */
+.rp-l4 { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .7rem; min-width: 0; font: 400 .68rem/1.2 var(--font-mono); color: var(--text-2); }
+.rp-ch { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-ch .sq, .rp-chg .sq, .rp-facet .sq { flex: none; }
+.rp-chn { color: var(--text-3); }
+/* the changes of a plan, in its detail: chips that narrow the finder, then the list */
+.rp-chgs { margin: .75rem 0 0; }
+.rp-ch-h { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .45rem; }
+.rp-ch-h b { font: 600 .6rem/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); }
+.rp-ch-h .cnt { font: 500 .66rem/1 var(--font-mono); color: var(--text-3); }
+.rp-ch-h .linkbtn { margin-left: auto; font-size: .68rem; }
+.rp-facets { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .5rem; }
+.rp-facet { display: inline-flex; align-items: center; gap: .35rem; height: 1.55rem; padding: 0 .5rem; font: 500 .68rem/1 var(--font-mono); color: var(--text-2); border: 1px solid var(--line-strong); background: var(--surface); }
+.rp-facet em { font-style: normal; color: var(--text-3); }
+.rp-facet:hover, .rp-facet:focus-visible { border-color: var(--key); color: var(--text); }
+.rp-facet.on { border-color: var(--key); background: var(--key-wash); color: var(--text); }
+.rp-facet.on em { color: var(--key); }
+.rp-chlist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); background: var(--surface); }
+.rp-chlist li + li { border-top: 1px solid var(--line); }
+.rp-chg { display: flex; align-items: center; gap: .5rem; width: 100%; min-width: 0; padding: .4rem .6rem; text-align: left; font: 400 .72rem/1.25 var(--font-mono); color: var(--text); }
+.rp-chg:hover, .rp-chg:focus-visible { background: var(--accent-wash); }
+.rp-chg code { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; font-weight: 500; }
+.rp-ct { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: .66rem; }
+.rp-chg .b { flex: none; }
+.rp-ch-more { display: inline-block; margin-top: .45rem; font-size: .7rem; }
+
 /* ---- the bar on the canvas: which plan is laid over the graph, and the way back ---- */
 /* ---- on the graph ---- */
 :is(.node, .ns-item, .cluster-item) .aus { pointer-events: none; }
@@ -172,13 +204,15 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 .planstrip button:hover { color: var(--text); border-color: var(--text-3); }
 .planstrip button .i { width: .7rem; height: .7rem; }
 body:has(.app[data-view="access"]) .planstrip, body:has(.app[data-view="plans"]) .planstrip { display: none; }
-@media (max-width: 47.5em) { .planstrip .pcnt, .planstrip .ps-by, .planstrip .ps-id, .planstrip .ps-eyebrow, .planstrip .ps-x-t { display: none; } }
+.planstrip .ps-chg { padding: .3rem .5rem; }
+.planstrip .ps-prog { font-size: .74rem; white-space: nowrap; }
+@media (max-width: 47.5em) { .planstrip .pcnt, .planstrip .ps-chg, .planstrip .ps-prog, .planstrip .ps-by, .planstrip .ps-id, .planstrip .ps-eyebrow, .planstrip .ps-x-t { display: none; } }
 
 /* ---- the ring of the time that a plan has left ---- */
 .rg { display: inline-flex; align-items: center; gap: .3rem; flex: none; }
 .rg svg { display: block; }
 .rg .rg-track { stroke: var(--line-strong); }
-.rg .rg-left { stroke: var(--accent); }
+.rg .rg-left { stroke: var(--key); }
 .rg-chg .rg-left { stroke: var(--change); } .rg-bad .rg-left { stroke: var(--conflict); }
 .rg-t { font: 400 .68rem/1 var(--font-mono); white-space: nowrap; }
 .rg-chg .rg-t { color: var(--change); } .rg-bad .rg-t { color: var(--conflict); }

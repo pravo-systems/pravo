@@ -110,14 +110,15 @@ The strip above the tabs has the cells Action, Record, Lock, Revision and Refres
 
 ### Stored plans
 
-The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first, A row of a plan that can still be applied ends its second line with the same ring: it turns amber under a day and red under three hours, and then says the time that is left in words; its tooltip gives the time of expiry. A click on a row opens its detail. The button View on a row lays that plan over the resources and goes to Inventory, and a strip under the bar says which plan it is while one is. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
+The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first, A row of a plan that can still be applied ends its second line with the same ring: it is blue, turns amber under a day and red under three hours, and then says the time that is left in words; its tooltip gives the time of expiry. A click on a row opens its detail. The button View on a row lays that plan over the resources and goes to Inventory, and a strip under the bar says which plan it is while one is. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
 
 | Part | Holds |
 |---|---|
+| The finder | A filter box over the plans and what they change, with a menu of the columns and the values, and a pill for each term. A row names the changes that the terms asked for. The detail of a plan lists its changes, with chips that narrow the finder. The text is in the address as `plq`. |
 | Pending and All | The filter of the list. Pending lists the plans that can be applied, all of them or a part: `pending`, `partial` and `partly stale`. All lists every plan that no collection has removed. Each shows its number. The list opens on Pending when a plan can be applied. |
-| A row | The badge with the initials of the author, the title (the note of the plan, loaded from its overlay a few plans at a time, or the id when there is none, which then is the line under the title), the status chip, the author, the age, and the counts `+add ~change −destroy`. A mark of two rings says that another plan that can be applied changes a resource of this plan. |
+| A row | The badge with the initials of the author, the title (the note of the plan, loaded from its overlay a few plans at a time, or the id when there is none, which then is the line under the title), the status chip, the author, the age, and the counts `+add ~change −destroy`, followed by `N imported` and `N moved` when the plan has such changes. A mark of two rings says that another plan that can be applied changes a resource of this plan. |
 | The open row | The reason. For a stale plan, the reasons, twenty at most. For a partly stale plan, how many of its unapplied changes conflict with the state, and the reason of each conflict, twenty at most. The other plans that overlap, each a link that lays that plan over the graph. When the plan expires, the command that made it and the revision it was made at. For a plan that can be applied, the command `pravo apply ID` and a button that copies it. For a partly stale plan the command is `pravo apply ID --only ...`, with the changes that can be applied. For the others, a note. The reason, the command and the revision come from the plan itself, which the page reads when the row is chosen, and not from the list. |
-| The plan strip | Under the bar, in Inventory, while a plan is laid over the graph: the badge, the note of the author, the id, the status, the counts, the author and the age, in a sealed state a mark after the author that is a check when the signature verifies against the readers file and a sign of caution when it does not, when its key is not in the file, or when there is none (its tooltip says which), a thin ring for a plan that can still be applied, grey for the time that has gone and coloured for the time that is left, and a button with a cross that stops showing the plan. A plan that `--plan FILE` loaded has the strip too, with the name of the file, whether it is stale, the counts and its age, and no cross, since the page cannot take it off. The blast radius is in the tooltip of the counts. |
+| The plan strip | Under the bar, in Inventory, while a plan is laid over the graph: the badge, the note of the author, the id, the status, the counts, for a partial plan how many of its changes were applied (`1 of 2 applied`), the author and the age, in a sealed state a mark after the author that is a check when the signature verifies against the readers file and a sign of caution when it does not, when its key is not in the file, or when there is none (its tooltip says which), a thin ring for a plan that can still be applied, grey for the time that has gone and coloured for the time that is left, and a button with a cross that stops showing the plan. A plan that `--plan FILE` loaded has the strip too, with the name of the file, whether it is stale, the counts and its age, and no cross, since the page cannot take it off. The blast radius is in the tooltip of the counts. The counts of a stored plan are a button that goes to the Plans page with the detail of that plan open, which lists what it changes, applied or not. |
 
 The button View on a row lays its plan over the graph, as `--plan FILE` lays a plan file: the actions on the nodes are the plan's, the Change tab answers for it, and the first view opens the namespaces that the plan touches first. The cross in the strip takes the plan off. Without `--plan`, the graph shows no plan until a plan is viewed.
 
@@ -247,6 +248,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `collapse` | Namespace paths, or `all` | Namespaces drawn as one card, on top of the first view. |
 | `expand` | Namespace paths, `c:NAMESPACE\|MODE\|TYPE` or `all` | Namespaces drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
+| `plq` | Text | The finder of the Plans section: words, and terms of the form `column:value`. About the plan: status, by, id, reason, created, expires, overlap. About its changes: action, resource, ns, type, provider, change. |
 | `dq` | Text | The filter box of the Discovery section: words, and terms of the form `column:value` (status, discovery, type, provider, instance, freshness, id, name, by, field, value). |
 | `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, instance, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
 | `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer does not write it any more. |
@@ -271,7 +273,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `a` | Switch between the Inventory and the State sections. |
 | `p` | Switch between the Inventory and the Plans sections. |
 | `d` | Switch between the Inventory and the Discovery sections. |
-| Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the namespace that a click opened, then clear the selection. |
+| Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the namespace that a click opened, then clear the selection. |
 
 In the graph:
 
@@ -311,7 +313,7 @@ In the list, with the focus in it:
 | Enter, Space | Close or open the namespace. |
 | `*` | Open every namespace of this level. |
 
-In the palette, the arrows and Page Up and Page Down move, Enter goes to the result and Esc closes it.
+In the palette, the arrows and Page Up and Page Down move, Enter goes to the result and Esc closes it. Each search that moves the picture adds an entry to the history of the browser, which keeps the open namespaces, the selection and the camera of the picture it left: the button Back to where you were, Esc and the browser's Back return to it.
 
 ## Endpoints
 
@@ -470,12 +472,12 @@ Output:
 | `id`, `status`, `open` | The id, `pending`, `partial`, `partly-stale`, `stale`, `applied` or `expired`, and whether the plan can be applied, all of it or a part: `pending`, `partial` and `partly-stale`. |
 | `author`, `created`, `expires` | Who made the plan, cut at 4 KiB, when, and when an unapplied plan is collected. The list holds no reason, command or revision. |
 | `destroy` | `true` for a destroy plan. |
-| `summary` | The counts `add`, `change`, `destroy` and `read`. A replacement counts as an add and a destroy. |
+| `summary` | The counts `add`, `change`, `destroy` and `read`. A replacement counts as an add and a destroy. A move, and an import that has nothing else to change, are in `touches` and in no count: the page counts them from `touches`. |
 | `planned`, `applied`, `applying` | The number of changes, how many were applied already, and whether an apply from the plan runs now. |
 | `reasons`, `reasons_omitted` | Why a stale plan cannot be applied: twenty reasons at most, each cut at 300 characters. `reasons_omitted` counts the others. A partly stale plan has none. |
 | `conflicts`, `conflicts_omitted`, `unapplied` | For a partly stale plan: the changes that cannot be applied now, each with its `addr` and its `reasons`, twenty at most, sorted by address. `conflicts_omitted` counts the others, and `unapplied` is the number of changes the plan has left, the conflicts included. |
 | `apply_only`, `apply_only_omitted`, `apply_live` | For a partly stale plan: the addresses of the part that can be applied, sorted, up to 2000, with `apply_only_omitted` for the rest. The part is a closed selection for `pravo apply --only`. `apply_live` is the command that applies it, `apply` followed by `--only a,b,c`. It is absent when the part has no change, and when the command would be longer than 16 KiB. |
-| `touches`, `truncated` | The resources the plan changes, each with its `addr`, its `action`, `applied` when the plan has applied that change, and `conflict` when a partly stale plan cannot apply it, up to 2000. `truncated` counts the rest. |
+| `touches`, `truncated` | The resources the plan changes, each with its `addr`, its `action` (`no-op` is a change that only imports an object), `applied` when the plan has applied that change, and `conflict` when a partly stale plan cannot apply it, up to 2000. `truncated` counts the rest. |
 | `overlaps` | The other plans that can be applied and have a change left on a resource that this plan has a change left on, in both directions: `id`, `count`, the first twenty addresses in `addrs`, and `truncated` for the rest. A change that a plan has applied does not count, and neither does a change that a partly stale plan cannot apply. |
 | `apply` | The command that applies what is left of the plan, `pravo apply ID`, with `-t key=<value>` for each tag the plan was made with and `-T` when it was made with it. It carries the keys of the tags and never the values, so that a line pasted as it is fails in the shell until the values are put in place of `<value>`. It names no state. A partly stale plan is refused by it: `apply_live` is the command for that plan. |
 

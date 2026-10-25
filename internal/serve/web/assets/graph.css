@@ -273,6 +273,7 @@
 .backbtn svg { width: .95rem; height: .95rem; color: var(--accent); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .backbtn kbd { font: 500 .62rem/1 var(--font-mono); padding: .2rem .32rem; border: 1px solid var(--line-strong); border-radius: 0; color: var(--text-3); }
 .backbtn[hidden] { display: none; }
+.backbtn[data-kind="back"] .bk-zoom, .backbtn:not([data-kind="back"]) .bk-back { display: none; }
 .reachbar { top: .5rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .8rem; padding: .4rem .5rem .4rem .8rem; border: 1px solid var(--change); border-radius: 0; background: var(--surface); font: 400 .76rem/1 var(--font-mono); color: var(--text); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
 .reachbar b { font-weight: 500; }
 .reachbar button { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 0; color: var(--text-2); }

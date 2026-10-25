@@ -44,7 +44,7 @@ The status bar at the foot shows the state that the viewer reads. It says whethe
 
 ## 3. Find a resource
 
-Press `/`, or Ctrl-K or Cmd-K, to open the palette, or choose the search button in the bar. Type a part of an address, a type or the name of a namespace. The palette lists the namespaces, the resources and the outputs that match, in groups of their own, the up and down arrows move, and Enter goes to the one that is highlighted. With no text, it lists the top-level namespaces and, when a plan is loaded, the resources that it changes.
+Press `/`, or Ctrl-K or Cmd-K, to open the palette, or choose the search button in the bar. Type a part of an address, a type or the name of a namespace. The palette lists the namespaces, the resources and the outputs that match, in groups of their own, the up and down arrows move, and Enter goes to the one that is highlighted. With no text, it lists the top-level namespaces and, when a plan is loaded, the resources that it changes. A find opens the namespaces that hide the result, selects it and moves the camera to it, so the picture can change a good deal. The button Back to where you were, at the top left of the graph, returns to the picture from before the find: the namespaces that were open, the selection and the camera. So do Esc, while the result is still selected, and the Back button of the browser. Forward goes to the result again.
 
 *Figure: The palette with the query billing. It lists the namespace api.services.billing and the six resources whose addresses contain the word.*
 
@@ -171,7 +171,9 @@ pravo plan --store --actor ana --reason "move orders to port 9082"
 pravo serve
 ```
 
-The Plans tab of the bar, or `p`, lists the plans of the state. Each row is one plan, newest first: the initials of the author, the note that the author wrote with the plan (`--reason`) as the title, or the id when there is none, the status, the author, the age, the id under a note, and the counts of resources to add, change and destroy. Pending lists the plans that can be applied. A mark of two rings on a row says that another plan changes one of the same resources.
+The Plans tab of the bar, or `p`, lists the plans of the state. Each row is one plan, newest first: the initials of the author, the note that the author wrote with the plan (`--reason`) as the title, or the id when there is none, the status, the author, the age, the id under a note, and the counts of resources to add, change and destroy, with the imports and the moves of the plan. Pending lists the plans that can be applied. A mark of two rings on a row says that another plan changes one of the same resources.
+
+The finder above the list narrows it, by what a plan is and by what it changes. Click in the box and the menu offers filters with the number of plans that each leaves: `status:open`, `by:ana`, `action:delete`, `overlap:any`. Type `ns:network` and the list keeps the plans that change something in the namespace `network`, and each row names the first of those changes. A term about a change, such as `action:delete type:aws_db_instance`, needs one change that has all of them. Click a row to open its detail, which lists every resource that the plan changes with the action, the type and whether it was applied, and has chips for the actions, namespaces and types that add a term to the finder. A click on a change shows that resource on the graph with the plan laid over it. The text of the finder is in the address, so a link shares it.
 
 Click a row to open it. It shows the reason, what overlaps, when the plan expires, the command that made it and the command that applies it, with a button that copies it. A second click, or Esc, closes it. The button View on a row lays the plan over the graph, as a saved plan is in step 6, and goes to Inventory. The graph shows its actions, the Change tab shows its attributes, and a strip under the bar names it. The button with the cross in the strip stops showing the plan.
 

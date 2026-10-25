@@ -3,14 +3,19 @@
 // that anyone who reads the state finds. The page only reads: nothing here applies a plan, approves it or
 // removes it. What it offers is the exact command that applies a plan, to copy and run elsewhere.
 
-import { h, s as svgEl, clear, icon, relTime, relUntil, stamp, plural, signatureMark } from './util.js';
+import { h, s as svgEl, clear, icon, relTime, relUntil, stamp, plural, signatureMark, actionOf } from './util.js';
+import { Pills } from './pills.js';
+import { QueryMenu, addTerm, removeTerm, removeValues } from './query.js';
+import * as pq from './pquery.js';
+import { touchAction, planCounts, countWords } from './plancount.js';
 
-// STATUS says where a plan stands. The word is the carrier; the colour agrees with it: green can be applied,
-// blue is part way, amber moved on, grey is over. A plan that is partly stale is amber: the
-// state moved on under some of its changes, and the rest can be applied.
+// STATUS says where a plan stands. The word is the carrier; the colour agrees with it, and with the history of the
+// transactions: blue can still be applied (the whole of it or what is left), green was applied, amber moved on,
+// grey is over. A plan that is partly stale is amber: the state moved on under some of its changes, and the rest
+// can be applied.
 export const STATUS = {
-  pending: { cls: 'ok', tip: 'It can be applied.' },
-  partial: { cls: 'lock', tip: 'Some of its changes were applied; the rest can be.' },
+  pending: { cls: 'open', tip: 'It can be applied.' },
+  partial: { cls: 'open', tip: 'Some of its changes were applied; the rest can be.' },
   'partly-stale': { cls: 'half', tip: 'The state moved on under some of its changes. The rest can be applied by name.' },
   stale: { cls: 'chg', tip: 'The state moved on, so it can no longer be applied.' },
   applied: { cls: 'done', tip: 'Every change was applied.' },
@@ -49,7 +54,8 @@ export function statusChip(status) {
 }
 
 // expiryRing is the small ring that says how much of the life of a plan that can be applied is left: grey for the time
-// that has gone and the colour of the plan for the time that remains, amber under a day and red under three hours.
+// that has gone and blue, the colour of a plan that can be applied, for the time that remains, amber under a day and
+// red under three hours.
 // The words come with it when the time is short, and the tooltip always has them.
 export function expiryRing(p, now = Date.now()) {
   if (!p.open || !p.created || !p.expires) return null;
@@ -57,7 +63,7 @@ export function expiryRing(p, now = Date.now()) {
   if (!(end > start)) return null;
   const left = Math.max(0, end - now);
   const hours = left / 36e5;
-  const cls = hours < 3 ? 'bad' : hours < 24 ? 'chg' : 'ok';
+  const cls = hours < 3 ? 'bad' : hours < 24 ? 'chg' : 'open';
   const size = 16, r = 6, c = 2 * Math.PI * r, mid = size / 2;
   const svg = svgEl('svg', { width: size, height: size, viewBox: `0 0 ${size} ${size}`, 'aria-hidden': 'true' },
     svgEl('circle', { class: 'rg-track', cx: mid, cy: mid, r, fill: 'none', 'stroke-width': 1.75 }),
@@ -72,21 +78,22 @@ export const conflictAt = (p, addr) => !!p && (p.touches || []).some((t) => t.ad
 // conflictCount is how many changes of a partly stale plan cannot be applied now, those that the list leaves out included
 const conflictCount = (p) => (p.conflicts || []).length + (p.conflicts_omitted || 0);
 
-// counts are the adds, changes and destroys of a plan, in the colours of the actions
+// counts are the adds, changes and destroys of a plan, in the colours of the actions, and the imports and the moves that the summary
+// leaves out (see planCounts). A plan is never said to have no changes while it has some.
 export function counts(c, cls = '') {
   const parts = [];
   if (c.add) parts.push(h('b', { class: 'ok' }, '+' + c.add));
   if (c.change) parts.push(h('b', { class: 'chg' }, '~' + c.change));
   if (c.destroy) parts.push(h('b', { class: 'bad' }, '−' + c.destroy));
-  if (!parts.length) parts.push(h('b', { class: 'dim' }, c.read ? plural(c.read, 'read') : 'no changes'));
+  if (c.import) parts.push(h('b', { class: 'dim' }, c.import + ' imported'));
+  if (c.move) parts.push(h('b', { class: 'dim' }, c.move + ' moved'));
+  if (!parts.length) parts.push(h('b', { class: 'dim' }, c.read ? plural(c.read, 'read') : c.planned ? plural(c.planned, 'change') : 'no changes'));
   return h('span', { class: 'pcnt' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, parts);
 }
 
-const countWords = (c) => [c.add && `${c.add} to add`, c.change && `${c.change} to change`, c.destroy && `${c.destroy} to destroy`].filter(Boolean).join(', ') || 'no changes';
-
 // describe is the label of a plan for a screen reader
 export function describe(p, reason) {
-  const bits = [reason || p.id, reason ? p.id : null, statusLabel(p.status), `by ${p.author}`, relTime(p.created), countWords(p.summary || {})];
+  const bits = [reason || p.id, reason ? p.id : null, statusLabel(p.status), `by ${p.author}`, relTime(p.created), countWords(planCounts(p), p.status === 'applied')];
   if (conflictCount(p)) bits.push(plural(conflictCount(p), 'change') + (conflictCount(p) === 1 ? ' conflicts' : ' conflict'));
   if ((p.overlaps || []).length) bits.push('overlaps ' + plural(p.overlaps.length, 'other plan'));
   if (p.applying) bits.push('an apply is running');
@@ -138,7 +145,7 @@ export function facts(p, text) {
 
 // detail is what the rail shows under the plan that is laid over the graph: the reason, what stops it or crosses
 // it, and the command that applies it.
-export function detail(p, { onPlan, byId, text } = {}) {
+export function detail(p, { onPlan, byId, text, changes } = {}) {
   const body = [];
   text = text || {};
   if (text.reason && text.reason.length > 60) body.push(h('p', { class: 'rp-reason', title: text.reason }, text.reason));
@@ -148,6 +155,7 @@ export function detail(p, { onPlan, byId, text } = {}) {
     body.push(h('div', { class: 'rp-why' }, h('b', null, p.status === 'stale' ? 'Stale: it can no longer be applied.' : 'Why'), h('ul', null, p.reasons.map((r) => h('li', null, r)))));
   }
   if (p.status === 'partly-stale') body.push(conflictsBox(p));
+  if (changes) body.push(changes);
   if ((p.overlaps || []).length) {
     body.push(h('div', { class: 'rp-why ovl' }, h('b', null, 'Overlaps: applying one makes the other stale.'),
       h('ul', null, p.overlaps.map((o) => {
@@ -163,8 +171,28 @@ export function detail(p, { onPlan, byId, text } = {}) {
   return body;
 }
 
-// Plans is the list in the rail: one row for each plan, the filter that keeps the pending ones, and the detail
-// of the plan that is laid over the graph. The rows are toggle buttons with the arrow keys of a list.
+// changeRow is what a plan does to a resource, as a row of its detail: the action, the address, the type, and whether the change was
+// applied, or cannot be now. A click goes to the resource, with the plan laid over the graph.
+function changeRow(p, c, env, onChange) {
+  const act = touchAction(c);
+  const a = actionOf(act);
+  const type = pq.infoOf(c, env).type;
+  return h('li', null, h('button', { class: 'rp-chg', type: 'button', data: { addr: c.addr, plan: p.id },
+    'data-tip': 'Show it on the resources, with this plan laid over them', 'aria-label': `${c.addr}, ${a ? a.label : act}${c.applied ? ', applied' : ''}${c.conflict ? ', conflicts with the state' : ''}. Show it on the resources`,
+    on: { click: () => onChange && onChange(p.id, c.addr) } },
+  a ? h('i', { class: 'sq ' + a.cls, 'data-tip': a.label }) : h('i', { class: 'sq' }),
+  h('code', null, c.addr),
+  type ? h('span', { class: 'rp-ct' }, type) : null,
+  c.applied ? h('span', { class: 'b ok' }, icon('check'), 'applied')
+    : c.conflict ? h('span', { class: 'b chg', 'data-tip': 'The state moved on under this resource, or under one that this change has to be applied with. The plan cannot apply it now.' }, 'conflict') : null));
+}
+
+// Plans is the list in the rail: one row for each plan, the finder that narrows the list by words and column:value terms, the filter that
+// keeps the pending ones, and the detail of the plan that is laid over the graph, with what the plan changes. The rows are toggle buttons
+// with the arrow keys of a list.
+const ROWS = 8; // the changes that a detail lists before it offers the rest
+const GLANCE = 3; // the changes that a row names when the finder asks for them
+
 export class Plans {
   constructor(root, cb) {
     this.root = root;
@@ -172,6 +200,11 @@ export class Plans {
     this.filter = null; // null: pending if any plan is, else all
     this.open = null; // the plan whose detail is shown under its row
     this.s = null;
+    this.q = ''; // the text of the finder, which the fragment carries as plq=
+    this.f = null; // what pq.compile made of it
+    this.env = null;
+    this.whole = new Set(); // the plans whose detail lists every change
+    this.tools = this.toolbar();
     root.addEventListener('click', (ev) => {
       const f = ev.target.closest('button[data-filter]');
       if (f) { this.filter = f.dataset.filter; this.render(this.s); return; }
@@ -185,8 +218,46 @@ export class Plans {
     root.addEventListener('keydown', (ev) => this.onKey(ev));
   }
 
-  // mode is the filter: the one that was chosen, else the pending plans, else all of them; a plan that is not
-  // pending and is laid over the graph (a link names it) shows the whole list around it
+  // toolbar is the filter box of the Inventory over the plans and what they change: words, column:value terms, a menu that offers the
+  // columns and the values that the plans have, and a pill for each term.
+  toolbar() {
+    const input = h('input', { type: 'search', class: 'rp-q', id: 'pl-filter', placeholder: 'Find a plan, or what it changes: status:open ns:network', autocomplete: 'off', spellcheck: 'false', 'data-fk': 'q', value: this.q,
+      'aria-label': 'Filter the plans by words, or by column:value such as status:open, by:ana, action:delete, ns:network or type:aws_db_instance' });
+    this.input = input;
+    this.countEl = h('span', { class: 'count', 'aria-live': 'polite' });
+    this.pillsEl = h('div', { class: 'rp-pills', role: 'group', 'aria-label': 'Active filters' });
+    this.pills = new Pills(this.pillsEl, { onRemoveTerm: (raw) => this.setQuery(removeTerm(this.q, raw), true) }, pq.LANG);
+    const box = h('div', { class: 'filterbox' }, icon('search'), input, this.countEl);
+    let t = 0;
+    input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => this.setQuery(input.value, true, true), 100); });
+    new QueryMenu(input, box, { id: 'qsug-pl', model: () => (this.s && this.env ? { plans: this.s.plans, env: this.env } : null), suggest: pq.suggest, change: (v) => { clearTimeout(t); this.setQuery(v, true, true); } });
+    return h('div', { class: 'rp-tools' }, box, this.pillsEl);
+  }
+
+  // setQuery puts a text in the finder and draws the list for it. notify tells the page, which keeps it in the address; typed says that
+  // the box already holds the text, so that the caret stays where it is.
+  setQuery(q, notify = false, typed = false) {
+    this.q = q;
+    this.f = pq.compile(q);
+    if (this.input && !typed && this.input.value !== q) this.input.value = q;
+    if (this.s) this.render(this.s);
+    if (notify && this.cb.onQuery) this.cb.onQuery(q);
+  }
+
+  // facet is a value on a plan that a click makes a term of the finder, or takes out of it again.
+  facet(col, value) {
+    this.setQuery(pq.holds(this.q, col, value) ? removeValues(this.q, col, [value], pq.LANG) : addTerm(this.q, col, value, false, pq.LANG), true);
+  }
+
+  // mode is the filter: the one that was chosen, else every plan while the finder asks for something, else the pending plans, else all of
+  // them; a plan that is not pending and is laid over the graph (a link names it) shows the whole list around it
+  mode(plans, sel) {
+    if (this.filter) return this.filter;
+    if (this.f) return 'all';
+    const picked = sel && plans.find((p) => p.id === sel);
+    return plans.some((p) => p.open) && !(picked && !picked.open) ? 'pending' : 'all';
+  }
+
   toggle(id) {
     this.open = this.open === id ? null : id;
     this.render(this.s);
@@ -198,61 +269,106 @@ export class Plans {
     if (this.s) this.render(this.s);
   }
 
-  mode(plans, sel) {
-    if (this.filter) return this.filter;
-    const picked = sel && plans.find((p) => p.id === sel);
-    return plans.some((p) => p.open) && !(picked && !picked.open) ? 'pending' : 'all';
+  // changes is what a plan changes, in its detail: the chips that narrow the finder by the actions, the namespaces and the types of the
+  // changes, and the changes themselves, which are the ones that the finder names when it asks for any.
+  changes(p, hits) {
+    const all = p.touches || [];
+    if (!all.length) return null;
+    const env = this.env;
+    const list = (hits || all).slice().sort((a, b) => (a.addr < b.addr ? -1 : a.addr > b.addr ? 1 : 0));
+    const whole = this.whole.has(p.id);
+    const count = (f) => { const m = new Map(); for (const c of list) { const v = f(c); if (v) m.set(v, (m.get(v) || 0) + 1); } return [...m].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1)); };
+    const chip = (col, value, n, label, mark) => {
+      const held = pq.holds(this.q, col, value);
+      return h('button', { class: 'rp-facet' + (held ? ' on' : ''), type: 'button', 'aria-pressed': String(held), 'data-tip': `${held ? 'Stop filtering' : 'Filter'} by ${col} ${value}`, data: { fk: `f-${p.id}-${col}-${value}` }, on: { click: () => this.facet(col, value) } },
+        mark || null, h('span', null, label || value), h('em', null, String(n)));
+    };
+    const acts = count(touchAction), nss = count((c) => pq.infoOf(c, env).ns), types = count((c) => pq.infoOf(c, env).type);
+    const chips = [
+      ...(acts.length > 1 ? acts.map(([v, n]) => { const a = actionOf(v); return chip('action', v, n, v, a ? h('i', { class: 'sq ' + a.cls }) : null); }) : []),
+      ...(nss.length > 1 ? nss.slice(0, 4).map(([v, n]) => chip('ns', v, n)) : []),
+      ...(types.length > 1 ? types.slice(0, 4).map(([v, n]) => chip('type', v, n)) : []),
+    ];
+    const shown = whole ? list : list.slice(0, ROWS);
+    return h('section', { class: 'rp-chgs', 'aria-label': 'What the plan changes' },
+      h('div', { class: 'rp-ch-h' }, h('b', null, 'Changes'), h('span', { class: 'cnt' }, hits ? `${list.length} of ${all.length}` : String(all.length)),
+        hits ? h('button', { class: 'linkbtn', type: 'button', data: { fk: 'all-' + p.id }, on: { click: () => this.setQuery('', true) } }, 'Clear the finder') : null),
+      chips.length ? h('div', { class: 'rp-facets', role: 'group', 'aria-label': 'Narrow the changes' }, chips) : null,
+      h('ul', { class: 'rp-chlist' }, shown.map((c) => changeRow(p, c, env, this.cb.onChange))),
+      list.length > ROWS ? h('button', { class: 'linkbtn rp-ch-more', type: 'button', data: { fk: 'more-' + p.id }, on: { click: () => { if (whole) this.whole.delete(p.id); else this.whole.add(p.id); this.render(this.s); } } }, whole ? 'Show fewer' : `Show all ${list.length}`) : null,
+      p.truncated ? h('p', { class: 'rp-note dim' }, `${plural(p.truncated, 'more change')} ${p.truncated === 1 ? 'is' : 'are'} not listed here. `, h('code', null, `pravo plan show ${p.id}`), ' lists every one.') : null);
   }
 
-  // render draws the section. s: { plans, sel } ; a section with no plan is not there
+  // render draws the section. s: { plans, sel, texts, reasons, model } ; a section with no plan is not there
   render(s) {
     this.s = s;
     const { plans, sel } = s;
-    const open = this.open && plans.some((p) => p.id === this.open) ? this.open : null;
+    const f = this.f;
+    const env = this.env = { reasons: s.reasons || new Map(), model: s.model || null, now: Date.now() };
     const root = this.root;
+    const wasOpen = this.open && plans.some((p) => p.id === this.open) ? this.open : null;
     root.hidden = !plans.length;
     if (!plans.length) { clear(root); return; }
     const mode = this.mode(plans, sel);
     const pending = plans.filter((p) => p.open).length;
-    const shown = plans.filter((p) => mode === 'all' || p.open || p.id === sel || p.id === open);
+    // with a finder, a plan is shown when it passes it, and the changes that it names are what the plan lists
+    const hits = new Map();
+    const passes = (p) => { if (!f) return true; const r = f.run(p, env); if (!r) return false; if (r.hits) hits.set(p.id, r.hits); return true; };
+    const shown = plans.filter((p) => passes(p) && (mode === 'all' || p.open || p.id === sel || p.id === wasOpen));
+    const open = wasOpen && shown.some((p) => p.id === wasOpen) ? wasOpen : null;
     // what has the focus is found again after the section is drawn: a row, a filter, or a control of the detail
     const at = root.contains(document.activeElement) ? document.activeElement.dataset : null;
     const focus = at && (at.id ? ['id', at.id] : at.filter ? ['filter', at.filter] : at.fk ? ['fk', at.fk] : null);
+    const caret = this.input === document.activeElement ? [this.input.selectionStart, this.input.selectionEnd] : null;
     const seg = (key, label, n) => h('button', { type: 'button', 'aria-pressed': String(mode === key), data: { filter: key }, 'data-tip': key === 'pending' ? 'Plans that can still be applied' : 'Every plan in the state, applied and expired too' }, label, h('em', null, String(n)));
-    const rows = shown.map((p, i) => this.row(p, p.id === sel, p.id === open, open ? p.id === open : i === 0, (s.reasons && s.reasons.get(p.id)) || ""));
+    const rows = shown.map((p, i) => this.row(p, p.id === sel, p.id === open, open ? p.id === open : i === 0, (s.reasons && s.reasons.get(p.id)) || '', hits.get(p.id)));
     const list = h('div', { class: 'rp-list', role: 'group', 'aria-label': 'Stored plans' }, rows);
     if (!shown.length) {
-      list.append(h('p', { class: 'rp-none' }, 'No plan can be applied. ', h('button', { class: 'linkbtn', type: 'button', data: { showall: '1' } }, `Show all ${plans.length}`)));
+      list.append(f
+        ? h('p', { class: 'rp-none' }, 'No plan matches the finder. ', h('button', { class: 'linkbtn', type: 'button', data: { fk: 'clear-filter' }, on: { click: () => this.setQuery('', true) } }, 'Clear the finder'))
+        : h('p', { class: 'rp-none' }, 'No plan can be applied. ', h('button', { class: 'linkbtn', type: 'button', data: { showall: '1' } }, `Show all ${plans.length}`)));
     }
     const picked = open && plans.find((p) => p.id === open);
-    const detailEl = picked ? h('div', { class: 'rp-detail', role: 'region', 'aria-label': 'Plan ' + picked.id }, detail(picked, { onPlan: (id) => { this.open = id; this.render(this.s); }, byId: new Map(plans.map((p) => [p.id, p])), text: s.texts && s.texts.get(picked.id) })) : null;
+    const detailEl = picked ? h('div', { class: 'rp-detail', role: 'region', 'aria-label': 'Plan ' + picked.id }, detail(picked, { onPlan: (id) => { this.open = id; this.render(this.s); }, byId: new Map(plans.map((p) => [p.id, p])), text: s.texts && s.texts.get(picked.id), changes: this.changes(picked, hits.get(picked.id)) })) : null;
     // the detail sits under its row
     if (detailEl) rows[shown.findIndex((p) => p.id === open)].after(detailEl);
+    this.countEl.textContent = f ? plural(shown.length, 'match', 'matches') : plural(plans.length, 'plan');
+    this.pills.render(this.q);
     clear(root);
     root.append(
       h('div', { class: 'rp-head' }, h('h2', { class: 'h' }, 'Stored plans'), h('div', { class: 'seg rp-seg', role: 'group', 'aria-label': 'Which plans to list' }, seg('pending', 'Pending', pending), seg('all', 'All', plans.length))),
+      this.tools,
       list);
     // the section scrolls to the plan that is laid over the graph when that changes, and not each time it is drawn
     if (picked && this.shownOpen !== open) { const el = root.querySelector('.rp[aria-expanded="true"]'); if (el) el.scrollIntoView({ block: 'nearest' }); }
     this.shownOpen = open;
-    if (focus) { const el = root.querySelector(`[data-${focus[0]}="${CSS.escape(focus[1])}"]`); if (el) el.focus({ preventScroll: true }); }
+    if (focus) {
+      const el = root.querySelector(`[data-${focus[0]}="${CSS.escape(focus[1])}"]`);
+      if (el) { el.focus({ preventScroll: true }); if (caret && el === this.input) el.setSelectionRange(caret[0], caret[1]); }
+    }
   }
 
   // The title of a row is what the author wrote with the plan, which says more to a person than the id; the id is
-  // the title of a plan that has no note, and the line under the title of one that has.
-  row(p, shown, expanded, tab, reason) {
+  // the title of a plan that has no note, and the line under the title of one that has. When the finder names changes, the row
+  // names the first of them.
+  row(p, shown, expanded, tab, reason, hits) {
     const overlaps = (p.overlaps || []).length;
-    const btn = h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (shown ? ' sel' : ''), type: 'button', 'aria-expanded': String(expanded), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) },
+    const btn = h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (shown ? ' sel' : ''), type: 'button', 'aria-expanded': String(expanded), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) + (hits ? `. Matching changes: ${hits.slice(0, GLANCE).map((c) => c.addr).join(', ')}${hits.length > GLANCE ? ` and ${hits.length - GLANCE} more` : ''}` : '') },
       avatar(p.author),
       h('span', { class: 'rp-main' },
         h('span', { class: 'rp-l1' }, reason ? h('span', { class: 'rp-title', title: reason }, reason) : h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null),
-        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(p.summary || {}), expiryRing(p)),
+        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), expiryRing(p)),
+        hits ? h('span', { class: 'rp-l4', 'aria-hidden': 'true' },
+          hits.slice(0, GLANCE).map((c) => { const a = actionOf(touchAction(c)); return h('span', { class: 'rp-ch' }, a ? h('i', { class: 'sq ' + a.cls }) : null, c.addr); }),
+          hits.length > GLANCE ? h('span', { class: 'rp-chn' }, `+${hits.length - GLANCE} more`) : null) : null,
         reason ? h('code', { class: 'rp-l3' }, p.id) : null));
     return h('div', { class: 'rp-row' + (shown ? ' sel' : '') }, btn,
       h('button', { class: 'rp-view', type: 'button', data: { id: p.id }, 'aria-label': 'View ' + (reason || p.id) + ' on the resources' }, shown ? 'Viewing' : 'View'));
   }
 
   onKey(ev) {
+    // a key in the finder is the finder's: Escape leaves its menu, and the arrows move in it
+    if (ev.target.closest('.rp-tools')) return;
     const row = ev.target.closest('button.rp');
     if (ev.key === 'Escape' && this.open) { ev.preventDefault(); this.open = null; this.render(this.s); return; }
     if (!row) return;
@@ -285,14 +401,17 @@ export function signedIcon(sg) {
 
 export function planStrip(el, p, cb) {
   // a strip that says the same is left as it is: drawing it again takes the focus from the button that has it
-  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(cb.signatures || null), !!cb.onClear, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
+  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), p.planned || 0, p.applied || 0, (p.touches || []).length, JSON.stringify(cb.signatures || null), !!cb.onClear, !!cb.onList, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
   clear(el);
   if (!p) { el.hidden = true; return; }
   el.hidden = false;
-  const c = counts(p.summary || {});
+  const n = planCounts(p);
+  let c = counts(n);
   if (p.summary && p.summary.blast_radius) c.title = 'Blast radius: ' + plural(p.summary.blast_radius, 'resource');
+  // the counts of a stored plan lead to the list of what it changes: the changes of a plan that was applied are the point of looking at it
+  if (cb.onList) c = h('button', { class: 'ps-chg', type: 'button', 'aria-label': `${countWords(n, p.status === 'applied')}. List what the plan changes`, 'data-tip': 'List what the plan changes', on: { click: cb.onList } }, c);
   el.append(...[
     h('span', { class: 'ps-eyebrow' }, 'Plan'),
     p.author ? avatar(p.author) : null,
@@ -300,6 +419,7 @@ export function planStrip(el, p, cb) {
     h('code', { class: 'ps-id' }, p.id),
     p.status ? statusChip(p.status) : null,
     c,
+    p.status === 'partial' && p.applied ? h('span', { class: 'ps-prog dim' }, `${p.applied} of ${p.planned} applied`) : null,
     h('span', { class: 'ps-by dim' }, p.author || null, signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
     expiryRing(p),
     h('span', { class: 'grow' }),
