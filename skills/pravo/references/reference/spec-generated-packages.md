@@ -95,10 +95,11 @@ Output:
 #SecretEnv: {
 #RemoteOutputs: {
 #Settings: {
-#StateSettings: #StateFields & (#LocalState | #S3State)
+#StateSettings: #StateFields & (#LocalState | #S3State | #HTTPState)
 #StateFields: {
 #LocalState: {
 #S3State: {
+#HTTPState: {
 ```
 
 ## The provider package
