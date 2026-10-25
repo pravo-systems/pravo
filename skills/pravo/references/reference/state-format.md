@@ -393,8 +393,10 @@ A sensitive output is recorded as `{"$sensitive": value}`. `pravo state import-t
 
 Every `plan` that reads providers or moves records, and every `apply`, `destroy`, `import` and state edit, is recorded as a transaction in `txn/`.
 
+Each change of an apply that altered a record also carries a `diff`, left out here because values such as hashes and random names differ from run to run.
+
 ```sh
-jq . pravo.state/txn/*.json
+jq 'del(.changes[].diff)' pravo.state/txn/*.json
 ```
 
 Output:
@@ -414,67 +416,22 @@ Output:
     {
       "addr": "hello",
       "action": "create",
-      "after_revision": 1,
-      "diff": {
-        "after": {
-          "content": "Hello, <pet>!",
-          "content_base64sha256": "7F7C6CT4DusQsLGDrcNdDkR85Mz2Xp39oX4hcL1TG8M=",
-          "content_base64sha512": "/sbPhw1we/GlXyJHucjWGS0eDAqw1A9bF0zqU70xLBgE3uSRyQ8F8/QTdJxAWkDziW7ZEl2uaRsMIGoLhqb9Uw==",
-          "content_md5": "375dd2607080392fe3c36342991ba8a1",
-          "content_sha1": "14a81df3630b52609a12da66ef7ffd0d1b9506ef",
-          "content_sha256": "ec5ec2e824f80eeb10b0b183adc35d0e447ce4ccf65e9dfda17e2170bd531bc3",
-          "content_sha512": "fec6cf870d707bf1a55f2247b9c8d6192d1e0c0ab0d40f5b174cea53bd312c1804dee491c90f05f3f413749c405a40f3896ed9125dae691b0c206a0b86a6fd53",
-          "directory_permission": "0777",
-          "file_permission": "0777",
-          "filename": "hello.txt",
-          "id": "14a81df3630b52609a12da66ef7ffd0d1b9506ef"
-        }
-      }
+      "after_revision": 1
     },
     {
       "addr": "pet",
       "action": "create",
-      "after_revision": 1,
-      "diff": {
-        "after": {
-          "id": "<pet>",
-          "length": 2,
-          "separator": "-"
-        }
-      }
+      "after_revision": 1
     },
     {
       "addr": "readme",
       "action": "read",
-      "after_revision": 1,
-      "diff": {
-        "after": {
-          "content": "Hello, <pet>!",
-          "content_base64": "SGVsbG8sIGVuYWJsZWQtbWFzdG9kb24h",
-          "content_base64sha256": "7F7C6CT4DusQsLGDrcNdDkR85Mz2Xp39oX4hcL1TG8M=",
-          "content_base64sha512": "/sbPhw1we/GlXyJHucjWGS0eDAqw1A9bF0zqU70xLBgE3uSRyQ8F8/QTdJxAWkDziW7ZEl2uaRsMIGoLhqb9Uw==",
-          "content_md5": "375dd2607080392fe3c36342991ba8a1",
-          "content_sha1": "14a81df3630b52609a12da66ef7ffd0d1b9506ef",
-          "content_sha256": "ec5ec2e824f80eeb10b0b183adc35d0e447ce4ccf65e9dfda17e2170bd531bc3",
-          "content_sha512": "fec6cf870d707bf1a55f2247b9c8d6192d1e0c0ab0d40f5b174cea53bd312c1804dee491c90f05f3f413749c405a40f3896ed9125dae691b0c206a0b86a6fd53",
-          "filename": "hello.txt",
-          "id": "14a81df3630b52609a12da66ef7ffd0d1b9506ef"
-        }
-      }
+      "after_revision": 1
     },
     {
       "addr": "servers[0]",
       "action": "create",
-      "after_revision": 1,
-      "diff": {
-        "after": {
-          "id": "57",
-          "max": 99,
-          "min": 1,
-          "result": 57,
-          "seed": "fixed"
-        }
-      }
+      "after_revision": 1
     }
   ],
   "actor": "ci",
