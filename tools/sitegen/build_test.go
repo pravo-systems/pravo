@@ -402,9 +402,9 @@ func TestSafeOutDir(t *testing.T) {
 }
 
 func TestDetectVersions(t *testing.T) {
-	bin := "../../pravo"
+	bin := "../../bin/pravo"
 	if _, err := os.Stat(bin); err != nil {
-		t.Skip("no pravo binary built at the module root")
+		t.Skip("no pravo binary built at bin/pravo")
 	}
 	pv, cv, err := detectVersions(bin)
 	if err != nil {

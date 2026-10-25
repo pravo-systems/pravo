@@ -22,6 +22,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/serve"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/telemetry"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 func serveCmd() *cobra.Command {
@@ -277,7 +278,7 @@ func (v *viewerState) open(ctx context.Context, root *config.Root) (*state.Store
 		return nil, err
 	}
 	if !resolved && isProtected(st.Protection()) {
-		if err := v.resolve(currentReaders(st.Protection())...); err != nil {
+		if err := v.resolve(pravo.CurrentReaders(st.Protection())...); err != nil {
 			return nil, err
 		}
 		if id, _, _ = v.identity(); id != nil {
@@ -286,7 +287,7 @@ func (v *viewerState) open(ctx context.Context, root *config.Root) (*state.Store
 			}
 		}
 	}
-	plog.Debug(ctx, "state opened for reading", "backend", backendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
+	plog.Debug(ctx, "state opened for reading", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
 	return st, nil
 }
 
