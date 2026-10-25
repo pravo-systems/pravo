@@ -111,6 +111,23 @@ func TestRenderPlanShowsOnlyTheOutputsThatChange(t *testing.T) {
 	}
 }
 
+func TestRenderPlanCountsASensitiveOutputThatKeepsItsValue(t *testing.T) {
+	plan := &engine.Plan{
+		Changes: []*engine.Change{{Addr: "home", Type: "local_file", Action: engine.ActionCreate, Schema: pageBlock(), Planned: page("x", "y")}},
+		SavedOutputs: map[string]json.RawMessage{
+			"ports": json.RawMessage(`[8111, 8974]`),
+		},
+		SensitiveOutputs: map[string]bool{"ports": true},
+		EvalOutputs:      []string{"ports"},
+		// The state lays the value out differently from the plan.
+		OldOutputs: map[string]json.RawMessage{"ports": engine.WrapOutput(json.RawMessage("[\n  8111,\n  8974\n]"), true)},
+	}
+	got := render(plan)
+	if !strings.Contains(got, "Outputs: 1 output unchanged.") || strings.Contains(got, "(sensitive)") {
+		t.Errorf("the plan lists an output that keeps its value:\n%s", got)
+	}
+}
+
 func TestJSONToCUEKeepsMarkupCharacters(t *testing.T) {
 	got := JSONToCUE([]byte(`{"html":"\u003cb\u003e Tom \u0026 Jerry","list":["\u003c/b\u003e"]}`), "")
 	if strings.Contains(got, `\u00`) || !strings.Contains(got, `"<b> Tom & Jerry"`) || !strings.Contains(got, `"</b>"`) {

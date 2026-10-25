@@ -2,9 +2,11 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -366,28 +368,32 @@ func countOutputs(n int) string {
 // shown as "(sensitive)".
 func (p *Printer) outputChange(plan *engine.Plan, n string) (string, bool) {
 	var old string
+	var oldJSON []byte
 	oldKnown, oldSensitive := false, false
 	if raw, ok := plan.OldOutputs[n]; ok {
-		v, sensitive := engine.UnwrapOutput(raw)
-		oldKnown, oldSensitive = true, sensitive
-		old = JSONToCUE(v, "  ")
+		oldJSON, oldSensitive = engine.UnwrapOutput(raw)
+		oldKnown = true
+		old = JSONToCUE(oldJSON, "  ")
 	}
 	var now string
+	var nowJSON []byte
 	switch v, ok := plan.Outputs[n]; {
 	case ok && convert.IsConcrete(v):
 		now = FormatCUE(convert.Default(v), "  ")
+		nowJSON, _ = convert.Default(v).MarshalJSON()
 	case ok:
 		now = p.C(Dim, "(known after apply)")
 	default:
 		if raw, saved := plan.SavedOutputs[n]; saved {
 			now = JSONToCUE(raw, "  ")
+			nowJSON = raw
 		} else if contains(plan.UnknownOutputs, n) {
 			now = p.C(Dim, "(known after apply)")
 		} else {
 			now = p.C(Dim, "(removed)")
 		}
 	}
-	if oldKnown && old == now {
+	if oldKnown && nowJSON != nil && sameJSON(oldJSON, nowJSON) {
 		return "", false
 	}
 	if plan.SensitiveOutputs[n] || oldSensitive {
@@ -397,6 +403,16 @@ func (p *Printer) outputChange(plan *engine.Plan, n string) (string, bool) {
 		return now, true
 	}
 	return old + " → " + now, true
+}
+
+// sameJSON reports whether two JSON documents hold the same value, whatever
+// their layout.
+func sameJSON(a, b []byte) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return false
+	}
+	return reflect.DeepEqual(x, y)
 }
 
 func contains(list []string, s string) bool {
