@@ -667,7 +667,7 @@ export class TracesView {
             // a button that is on takes the term out again; one that is off puts it in, and takes the other sign out
             const term = (neg, on) => () => this.setQuery(on ? removeValues(this.q || '', 'attr', [spec], LANG, neg) : addTerm(this.q || '', 'attr', spec, neg, LANG));
             const btn = (label, neg, on, tip) => h('button', { type: 'button', class: 'tr-f' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', 'aria-label': `${label}: ${k} ${val}`, title: on ? `${tip} (click to remove)` : tip, on: { click: term(neg, on) } }, on ? '\u2713 ' + label : label);
-            return h('li', { class: only ? 'f-only' : hide ? 'f-hide' : '' }, h('span', { class: 'ak' }, k), h('span', { class: 'av' }, val),
+            return h('li', { class: only ? 'f-only' : hide ? 'f-hide' : '' }, h('span', { class: 'ak' }, k), val === '' ? h('span', { class: 'av none', title: 'The attribute is set and holds an empty string' }, 'empty') : h('span', { class: 'av' }, val),
               h('span', { class: 'af' }, btn('Only', false, only, 'Keep only the spans with this'), btn('Hide', true, hide, 'Leave out the spans with this')));
           }))) : null,
         sp.events && sp.events.length ? h('section', { 'aria-label': 'Events' }, h('h4', null, 'Events'),
