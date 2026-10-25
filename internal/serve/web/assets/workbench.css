@@ -46,7 +46,7 @@
 .pk-s { color: var(--text-3); font-size: .68rem; }
 
 /* the editor: a text area laid over the same text in colour */
-.wb-ed { --wb-lines: 12; --lh: calc(.76rem * 1.55); display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); background: var(--code-bg); border: 1px solid var(--code-edge); color: var(--code-text); height: calc(var(--wb-lines) * var(--lh) + 1.2rem); min-width: 0; }
+.wb-ed { position: relative; --wb-lines: 12; --lh: calc(.76rem * 1.55); display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); background: var(--code-bg); border: 1px solid var(--code-edge); color: var(--code-text); height: calc(var(--wb-lines) * var(--lh) + 1.2rem); min-width: 0; }
 .wb-ed:focus-within { border-color: var(--code-key); }
 .wb-gutwrap { overflow: hidden; padding: .6rem 0; background: var(--code-bar); border-right: 1px solid var(--code-edge); }
 .wb-gut { display: grid; }
@@ -198,3 +198,11 @@
   .wb-rbody { padding-left: 1rem; }
   .wb-tb b { font-size: 1.35rem; }
 }
+
+/* the completion list under the caret */
+.wb-sg { position: absolute; z-index: 30; width: 16rem; max-height: 14rem; overflow: auto; background: var(--code-bar); border: 1px solid var(--code-key); color: var(--code-text); font: 400 .74rem/1.4 var(--font-mono); }
+.wb-sgi { display: flex; justify-content: space-between; gap: .8rem; padding: .22rem .55rem; cursor: pointer; }
+.wb-sgi.on { background: color-mix(in srgb, var(--code-key) 30%, transparent); }
+.wb-sgd { color: var(--code-dim); font-size: .66rem; white-space: nowrap; }
+.wb-sgdoc { position: sticky; bottom: 0; padding: .4rem .55rem; border-top: 1px solid var(--code-edge); background: var(--code-bar); color: var(--code-dim); font: 400 .68rem/1.4 var(--font-ui); white-space: normal; }
+.wb-sgdoc[hidden] { display: none; }

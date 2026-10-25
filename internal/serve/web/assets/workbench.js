@@ -12,6 +12,7 @@ import { tokenize } from './cue.js';
 import { attachFolds, foldRanges, hiddenRows } from './fold.js';
 import * as api from './api.js';
 import { picker } from './picker.js';
+import { complete } from './complete.js';
 
 const DRAFT_KEY = 'pravo.workbench.policies';
 const MAX_PLANS = 100;
@@ -248,7 +249,9 @@ export class WorkbenchView {
     const view = h('div', { class: 'wb-view' }, hl, ta);
     const wrap = h('div', { class: 'wb-ed' }, h('div', { class: 'wb-gutwrap' }, gut), view);
     this.folded = new Set();
-    ta.addEventListener('input', () => { this.text = ta.value; this.persist(); this.start = this.start.startsWith('blank') ? 'blank' : this.start; this.drawText(); this.tryLater(); });
+    ta.addEventListener('input', (ev) => { this.text = ta.value; this.persist(); this.start = this.start.startsWith('blank') ? 'blank' : this.start; this.drawText(); this.tryLater(); this.suggest(ev.inputType); });
+    ta.addEventListener('blur', () => this.closeSuggest());
+    ta.addEventListener('click', () => this.closeSuggest());
     // A text with folds shows less than it holds, so an edit first unfolds everything, and then is made.
     ta.addEventListener('beforeinput', (ev) => {
       if (!this.folded.size) return;
@@ -266,6 +269,7 @@ export class WorkbenchView {
   // Ctrl or Cmd with Shift and [ folds the block at the cursor, and ] unfolds it.
   key(ev) {
     const ta = this.editor.ta;
+    if (this.suggestKey(ev)) return;
     if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && !ev.altKey && (ev.code === 'BracketLeft' || ev.code === 'BracketRight')) {
       ev.preventDefault();
       const line = this.caretLine();
@@ -290,6 +294,87 @@ export class WorkbenchView {
       const opens = /[{[(]\s*$/.test(line);
       this.insert('\n' + indent + (opens ? '\t' : ''));
     }
+  }
+
+  // ---- completion: the names the plan document has at the cursor, offered as the person types ----
+
+  // suggest opens the list after a word is typed or the name of a package is begun; Ctrl+Space asks for it anywhere.
+  suggest(inputType, force = false) {
+    const ta = this.editor.ta;
+    this.closeSuggest();
+    if (this.folded.size || ta.selectionStart !== ta.selectionEnd) return;
+    if (!force && !/^insert(Text|Replacement)/.test(inputType || '')) return;
+    const r = complete((this.data && this.data.fields) || [], ta.value, ta.selectionStart, force);
+    if (!r || !r.items.length) return;
+    this.sg = { r, at: 0, pop: h('div', { class: 'wb-sg', role: 'listbox', 'aria-label': 'Completions' }) };
+    r.items.slice(0, 40).forEach((it, i) => this.sg.pop.append(h('div', { class: 'wb-sgi', role: 'option', on: { mousedown: (ev) => { ev.preventDefault(); this.sg.at = i; this.acceptSuggest(); }, mousemove: () => this.markSuggest(i) } },
+      h('span', { class: 'wb-sgl' }, it.label), it.detail ? h('span', { class: 'wb-sgd' }, it.detail) : null)));
+    this.sg.doc = h('div', { class: 'wb-sgdoc' });
+    this.sg.pop.append(this.sg.doc);
+    this.editor.wrap.append(this.sg.pop);
+    this.placeSuggest();
+    this.markSuggest(0);
+  }
+
+  placeSuggest() {
+    const e = this.editor, ta = e.ta, pop = this.sg.pop;
+    const cs = getComputedStyle(ta);
+    const cv = this.measure || (this.measure = document.createElement('canvas').getContext('2d'));
+    cv.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const cw = cv.measureText('0').width;
+    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.55;
+    const before = ta.value.slice(0, this.sg.r.from).split('\n');
+    const line = before.length - 1;
+    const col = before[line].replace(/\t/g, '    ').length;
+    const w = e.wrap.getBoundingClientRect(), t = ta.getBoundingClientRect();
+    const x = t.left - w.left + parseFloat(cs.paddingLeft) + col * cw - ta.scrollLeft;
+    const y = t.top - w.top + parseFloat(cs.paddingTop) + (line + 1) * lh - ta.scrollTop;
+    pop.style.left = Math.max(0, Math.min(x, w.width - 260)) + 'px';
+    pop.style.top = y + 'px';
+  }
+
+  markSuggest(i) {
+    const sg = this.sg;
+    if (!sg) return;
+    sg.at = i;
+    const rows = sg.pop.querySelectorAll('.wb-sgi');
+    rows.forEach((r, j) => r.classList.toggle('on', j === i));
+    if (rows[i]) rows[i].scrollIntoView({ block: 'nearest' });
+    const it = sg.r.items[i];
+    sg.doc.textContent = (it && it.doc) || '';
+    sg.doc.hidden = !(it && it.doc);
+  }
+
+  closeSuggest() {
+    if (this.sg) { this.sg.pop.remove(); this.sg = null; }
+  }
+
+  acceptSuggest() {
+    const { r, at } = this.sg;
+    const it = r.items[at];
+    const ta = this.editor.ta;
+    this.closeSuggest();
+    ta.setRangeText(it.insert, r.from, r.to, 'end');
+    let caret = r.from + it.insert.length;
+    if (it.cursorAt != null) caret = r.from + it.cursorAt;
+    else if (it.cursorBack) caret -= it.cursorBack;
+    ta.setSelectionRange(caret, caret);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // suggestKey handles the keys of the open list, and Ctrl+Space, which opens it. It tells whether it took the key.
+  suggestKey(ev) {
+    if (ev.key === ' ' && ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); this.suggest('', true); return true; }
+    const sg = this.sg;
+    if (!sg) return false;
+    const n = Math.min(sg.r.items.length, 40);
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return false;
+    if (ev.key === 'ArrowDown') this.markSuggest((sg.at + 1) % n);
+    else if (ev.key === 'ArrowUp') this.markSuggest((sg.at + n - 1) % n);
+    else if (ev.key === 'Enter' || ev.key === 'Tab') this.acceptSuggest();
+    else if (ev.key === 'Escape') { this.closeSuggest(); ev.stopPropagation(); } else return false;
+    ev.preventDefault();
+    return true;
   }
 
   // origOffset is the place in the text of a place in what the editor shows, which leaves out the folded lines.
@@ -418,7 +503,7 @@ export class WorkbenchView {
   }
 
   editorNotes() {
-    return h('p', { class: 'wb-keys', id: 'wb-keys' }, h('kbd', null, 'Tab'), ' indents and ', h('kbd', null, 'Esc'), ' leaves the editor. ', h('kbd', null, 'Ctrl+Shift+['), ' folds the block at the cursor and ', h('kbd', null, 'Ctrl+Shift+]'), ' unfolds it (', h('kbd', null, 'Cmd'), ' on a Mac). A red line is where CUE found a problem with the text; an amber one is where a refusal points into the rule.');
+    return h('p', { class: 'wb-keys', id: 'wb-keys' }, h('kbd', null, 'Ctrl+Space'), ' lists what the plan document has at the cursor; the list also opens as you type. ', h('kbd', null, 'Tab'), ' indents (or takes the choice in the list) and ', h('kbd', null, 'Esc'), ' leaves the editor. ', h('kbd', null, 'Ctrl+Shift+['), ' folds the block at the cursor and ', h('kbd', null, 'Ctrl+Shift+]'), ' unfolds it (', h('kbd', null, 'Cmd'), ' on a Mac). A red line is where CUE found a problem with the text; an amber one is where a refusal points into the rule.');
   }
 
   // ---- the results ----
