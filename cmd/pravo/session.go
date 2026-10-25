@@ -13,6 +13,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
@@ -21,6 +22,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // session bundles everything a command needs after loading the root.
@@ -60,11 +62,23 @@ type sessionOptions struct {
 // error from loading or evaluating it exits with ExitInvalid, in every
 // command.
 func loadRoot() (*config.Root, error) {
-	root, err := config.Load(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags})
+	ctx, end := setupSpan("load specification")
+	root, err := config.Load(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags, Context: ctx})
+	end(err)
 	if err != nil {
 		return nil, engine.WithCode(engine.ExitInvalid, err)
 	}
 	return root, nil
+}
+
+// setupSpan starts the span of a stage of readying a command, under the
+// command's span.
+func setupSpan(name string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
+	ctx := context.Background()
+	if runningCommand != nil && runningCommand.Context() != nil {
+		ctx = runningCommand.Context()
+	}
+	return telemetry.Span(ctx, "setup "+name, attrs...)
 }
 
 func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
@@ -85,19 +99,24 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 	}
 	plog.Debug(ctx, "loaded", append(loaded, "took", took(began))...)
 	s := &session{root: root, reg: registry.NewClient()}
+	_, end := telemetry.Span(ctx, "setup read lock file")
 	s.lock, err = engine.ReadLock(root.Dir)
+	end(err)
 	if err != nil {
 		return nil, err
 	}
 	if opts.loadState {
+		octx, end := telemetry.Span(ctx, "setup open state", attribute.String("pravo.state.backend", backendName(root.State.Backend)))
 		if opts.readOnlyState {
-			s.state, err = openStateValues(ctx, root)
+			s.state, err = openStateValues(octx, root)
 		} else {
-			s.state, err = openState(ctx, root)
+			s.state, err = openState(octx, root)
 		}
+		end(err)
 		if err != nil {
 			return nil, err
 		}
+		s.state.SetContext(ctx)
 		// Providers that only exist in state must still be resolvable.
 		for _, sr := range s.state.List() {
 			local := config.LocalName(sr.ProviderKey)
@@ -113,7 +132,10 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 	}
 	s.providers = engine.NewProviders(root, s.reg)
 	s.providers.Log = func(msg string) { out.Println(msg) }
-	if err := s.providers.Resolve(ctx, s.lock, opts.upgrade, opts.install); err != nil {
+	rctx, end := telemetry.Span(ctx, "setup resolve providers", attribute.Int("pravo.providers", len(root.Providers)))
+	err = s.providers.Resolve(rctx, s.lock, opts.upgrade, opts.install)
+	end(err)
+	if err != nil {
 		return nil, err
 	}
 	before := lockString(s.lock)
@@ -136,7 +158,9 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 	}
 	if opts.schemas {
 		began := time.Now()
-		s.schemas, err = s.providers.Schemas(ctx)
+		sctx, end := telemetry.Span(ctx, "setup load schemas", attribute.Int("pravo.providers", len(root.Providers)))
+		s.schemas, err = s.providers.Schemas(sctx)
+		end(err)
 		if err != nil {
 			return nil, err
 		}
@@ -276,7 +300,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 			}
 			return state.OpenBackendWith(ctx, b, o)
 		case write:
-			return state.OpenWith(root.StateFile(), o)
+			return state.OpenWithContext(ctx, root.StateFile(), o)
 		}
 		path := root.StateFile()
 		if fi, err := os.Stat(path); err == nil && !fi.IsDir() {

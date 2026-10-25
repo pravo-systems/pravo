@@ -357,7 +357,7 @@ Every command can emit OpenTelemetry traces. Exporting them is off by default. `
 
 ```sh
 OTEL_TRACES_EXPORTER=console pravo plan 2> trace.jsonl > /dev/null
-jq -r '.Name' trace.jsonl | sort -u
+jq -r '.Name' trace.jsonl | grep -E '^(pravo|engine|resource|provider)' | sort -u
 ```
 
 Output:
@@ -374,7 +374,7 @@ resource note
 resource server
 ```
 
-One trace per command. The command span is the root, and the run, the resources and the provider calls nest under it. A span records addresses, types, actions, counts and outcomes, and never attribute values.
+One trace per command. The command span is the root, and the run, the resources and the provider calls nest under it, with the setup of the command, the stages of the run and each request to the state (`setup open state`, `phase lock`, `state get resources/server.json`) beside them, which [Telemetry](../reference/telemetry.md#traces) lists. A span records addresses, types, actions, counts and outcomes, and never attribute values.
 
 ```sh
 jq -c 'select(.Name == "resource server") | [.Attributes[] | {(.Key): .Value.Value}] | add' trace.jsonl
@@ -400,7 +400,7 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 32
 ```
 
-Without any of this, a command that ran an engine keeps its trace in `.pravo/traces`, and `pravo serve` shows it as a timeline: the Traces section lists the runs, and a click on a bar shows the span, its error and its parts. That is the quickest way to find the slow resource of an apply or the call that failed. See [The Traces section](../reference/serve.md#the-traces-section).
+Without any of this, a command that did some work keeps its trace in `.pravo/traces`, and `pravo serve` shows it as a timeline: the Traces section lists the runs, and a click on a bar shows the span, its error and its parts. That is the quickest way to find the slow resource of an apply or the call that failed. See [The Traces section](../reference/serve.md#the-traces-section).
 
 A real collector takes the standard `OTEL_EXPORTER_OTLP_ENDPOINT` variable. `TRACEPARENT` in the environment makes the command a child of the caller's span, so a pipeline's trace shows pravo's work inside it.
 

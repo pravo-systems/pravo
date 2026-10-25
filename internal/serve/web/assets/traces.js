@@ -1,6 +1,6 @@
 // The Traces view: the runs that pravo recorded in the project, and one of them as a timeline.
 //
-// A command that ran an engine (a plan, an apply, a drift check) leaves its spans in .pravo/traces, and the page reads
+// A command that did some work (a plan, an apply, a discovery, a read of the state) leaves its spans in .pravo/traces, and the page reads
 // them from /api/traces and /api/trace. The timeline has the time of the run across and the nesting of the spans down:
 // a span that runs at the same time as another sits in a row of its own, so the width of a bar is how long it took and
 // its row says what it was part of. The table lists the same spans by how long they took, which is the question when
@@ -8,7 +8,10 @@
 
 import { h, s as svg, clear, icon, plural, relTime, stamp, clamp, fmt } from './util.js';
 import * as api from './api.js';
-import { build, fmtDur, ticks, path as pathOf, matcher } from './trace-model.js';
+import { build, fmtDur, ticks, path as pathOf, matcher, labelOf, LANG } from './trace-model.js';
+import { Pills } from './pills.js';
+import { QueryMenu, removeTerm } from './query.js';
+import { suggest, tally, hasKind, hasErrors, toggleKind, toggleErrors } from './tquery.js';
 
 const ROW = 22; // the height of a row of the timeline
 const BAR = 18; // and of a bar in it
@@ -16,16 +19,10 @@ const MIN_WINDOW = 20; // the narrowest window, in microseconds
 const PAGE = 300; // rows of the table before the button that shows more
 const CHAR = 6.4; // the width of a character of the label of a bar, in pixels
 
-const KIND = { command: 'command', engine: 'engine', resource: 'resource', provider: 'provider call', mcp: 'tool call', other: 'span' };
+const KIND = { command: 'command', engine: 'engine', phase: 'phase', setup: 'setup', resource: 'resource', provider: 'provider call', state: 'state request', mcp: 'tool call', other: 'span' };
+const CHIP = { engine: 'Engine', phase: 'Phases', setup: 'Setup', resource: 'Resources', provider: 'Providers', state: 'State', mcp: 'Tools' };
 
 export const FOOTER = 'This page reads the runs that pravo recorded. It runs nothing and writes nothing.';
-
-// labelOf is what a bar says: the address of a resource, the RPC of a provider call, the name of anything else.
-function labelOf(sp) {
-  if (sp.kind === 'resource') return sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : sp.name.replace(/^resource /, '');
-  if (sp.kind === 'provider') return sp.name.replace(/^provider /, '');
-  return sp.name;
-}
 
 // subject adds the phase and the action to the label of a resource, for the table and the detail.
 function phaseOf(sp) {
@@ -172,7 +169,7 @@ export class TracesView {
       h('header', { class: 'tr-head' },
         h('div', { class: 'tr-bhead' }, h('h2', { class: 'tr-title', id: 'tr-h-title' }, 'Traces'),
           list && list.traces.length ? h('span', { class: 'b' }, plural(list.traces.length, 'run')) : null),
-        h('p', { class: 'tr-lede' }, 'Every plan, apply and drift check is recorded as a trace: the spans of the command, the engine, each resource and each call to a provider, with the time each took. Open one to see where a run spent its time or where it stopped.')),
+        h('p', { class: 'tr-lede' }, 'Every command that does some work is recorded as a trace: the spans of the command, its setup, the stages of the engine, each resource, each call to a provider and each request to the state, with the time each took. Open one to see where a run spent its time or where it stopped.')),
       this.error ? h('p', { class: 'tr-warn', role: 'alert' }, icon('bang'), h('span', null, this.error)) : null,
       this.notFound ? h('p', { class: 'tr-warn', role: 'note' }, icon('bang'), h('span', null, 'The run in the address is not in the directory any more.')) : null,
       body,
@@ -188,7 +185,7 @@ export class TracesView {
 
   none(list) {
     return h('div', { class: 'tr-none' },
-      h('p', null, 'Nothing is recorded yet. A command that ran an engine leaves its trace here:'),
+      h('p', null, 'Nothing is recorded yet. A command that did some work leaves its trace here:'),
       h('div', { class: 'cmdline' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, 'pravo plan'),
         h('button', { class: 'cpbtn', type: 'button', 'data-copy': 'pravo plan', 'aria-label': 'Copy the command', 'data-tip': 'Copy the command' }, icon('copy'))),
       h('p', { class: 'tr-note' }, 'The runs are read from ', h('code', null, list.dir), '. ', h('code', null, 'PRAVO_TRACES=off'), ' turns the recording off, and ', h('code', null, 'PRAVO_TRACE_DIR'), ' moves it. The newest 100 are kept.'));
@@ -252,21 +249,44 @@ export class TracesView {
 
   toolbar() {
     const input = h('input', { type: 'search', class: 'tr-q', 'data-fk': 'tq', placeholder: 'Filter, e.g. api.db  is:error  kind:provider', autocomplete: 'off', spellcheck: 'false', value: this.q,
-      'aria-label': 'Filter the spans by words in their name, message or attributes; is:error keeps the failed ones and kind:resource, kind:provider or kind:engine one kind' });
+      'aria-label': 'Filter the spans by words in their name, message or attributes, or by column:value such as is:error, kind:resource, kind:state, provider:aws or type:aws_s3*' });
+    this.input = input;
     this.count = h('span', { class: 'count', 'aria-live': 'polite' });
+    this.pillsEl = h('div', { class: 'pills tr-pills', role: 'group', 'aria-label': 'Active filters' });
+    this.pills = new Pills(this.pillsEl, { onRemoveTerm: (raw) => this.setQuery(removeTerm(this.q, raw)) }, LANG);
+    this.chipsEl = h('div', { class: 'tr-kinds', role: 'group', 'aria-label': 'Show only the spans of a kind' });
+    this.chipsEl.addEventListener('click', (ev) => {
+      const b = ev.target.closest('button[data-chip]');
+      if (!b) return;
+      this.setQuery(b.dataset.chip === 'is:error' ? toggleErrors(this.q) : toggleKind(this.q, b.dataset.chip));
+    });
+    const box = h('div', { class: 'filterbox' }, icon('search'), input, this.count);
     let t = 0;
-    input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => this.setQuery(input.value), 120); });
+    input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => this.setQuery(input.value, true), 120); });
+    new QueryMenu(input, box, { model: () => this.model, suggest, change: (v) => { clearTimeout(t); this.setQuery(v, true); } });
     const mode = (m, label, ic) => h('button', { type: 'button', 'aria-pressed': this.mode === m ? 'true' : 'false', 'data-fk': 'mode-' + m, on: { click: () => this.setMode(m) } }, icon(ic), label);
     const bar = h('div', { class: 'tr-bar' },
       h('div', { class: 'seg', role: 'group', 'aria-label': 'Show the spans as' }, mode('flame', 'Timeline', 'trace'), mode('table', 'Slowest', 'stack')),
-      h('div', { class: 'filterbox' }, icon('search'), input, this.count),
-      h('span', { class: 'grow' }),
+      box,
       this.mode === 'flame' ? h('div', { class: 'seg zoom', role: 'group', 'aria-label': 'Zoom the timeline' },
         h('button', { type: 'button', 'aria-label': 'Zoom out', title: 'Zoom out ( - )', 'data-fk': 'zout', on: { click: () => this.zoomBy(2) } }, icon('minus')),
         h('button', { type: 'button', title: 'Show the whole run ( 0 )', 'data-fk': 'fit', on: { click: () => this.fit() } }, 'Fit'),
         h('button', { type: 'button', 'aria-label': 'Zoom in', title: 'Zoom in ( + )', 'data-fk': 'zin', on: { click: () => this.zoomBy(0.5) } }, icon('plus'))) : null);
+    this.pills.render(this.q);
+    this.chips();
     this.tally();
-    return bar;
+    return h('div', { class: 'tr-tools' }, bar, h('div', { class: 'tr-filters' }, this.chipsEl, this.pillsEl));
+  }
+
+  // chips are the kinds of span that the run has, to filter by with a click, and the failed spans when there are any.
+  chips() {
+    if (!this.chipsEl || !this.model) return;
+    clear(this.chipsEl);
+    const chip = (key, kind, label, n, on) => h('button', { type: 'button', class: 'tr-chip', 'aria-pressed': on ? 'true' : 'false', 'data-chip': key, 'data-fk': 'chip-' + key },
+      kind ? h('span', { class: 'tr-sw k-' + kind, 'aria-hidden': 'true' }) : null, label, h('em', null, fmt(n)));
+    for (const [k, n] of tally(this.model, 'kind')) if (CHIP[k]) this.chipsEl.append(chip(k, k, CHIP[k], n, hasKind(this.q, k)));
+    const err = tally(this.model, 'is').find(([v]) => v === 'error');
+    if (err) this.chipsEl.append(chip('is:error', 'err', 'Errors', err[1], hasErrors(this.q)));
   }
 
   tally() {
@@ -276,9 +296,12 @@ export class TracesView {
     this.count.textContent = plural(n, 'match', 'matches');
   }
 
-  setQuery(q) {
+  setQuery(q, typed = false) {
     this.q = q;
     this.match = matcher(q);
+    if (this.input && !typed && this.input.value !== q) this.input.value = q;
+    if (this.pills) this.pills.render(q);
+    this.chips();
     this.tally();
     if (this.mode === 'table') this.fillTable(); else this.draw();
     this.cb.onRoute && this.cb.onRoute();

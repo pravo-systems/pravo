@@ -28,6 +28,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
@@ -459,6 +460,9 @@ type Engine struct {
 	keepOpen bool
 	// traceID is the OpenTelemetry trace of the current run, if any.
 	traceID string
+	// runCtx is the context a plan or an apply was started with, so that what
+	// follows it (the policy, the saved plan) is part of the same trace.
+	runCtx context.Context
 }
 
 // New creates an engine. value must already have provider schemas unified in.
@@ -592,48 +596,54 @@ func (e *Engine) replaceRequested(addr string) bool {
 
 // Plan computes the changes needed to reach the configuration.
 func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
-	if err := e.checkOutputs(); err != nil {
+	_, done := e.phase(ctx, "check specification")
+	err := e.checkSpec()
+	done(err)
+	if err != nil {
 		return nil, err
 	}
-	if err := e.checkReplace(); err != nil {
-		return nil, err
-	}
-	if e.Opts.Destroy {
-		if err := e.checkDestroy(); err != nil {
-			return nil, err
-		}
-	}
+	_, done = e.phase(ctx, "begin transaction")
 	e.txn = e.State.Begin("plan", e.Opts.Command)
 	e.resetRun(false)
 	e.forgetReads()
 	e.loadSuspects()
 	e.warnSuspects()
+	done(nil)
 	plan := &Plan{Outputs: map[string]cue.Value{}, Destroy: e.Opts.Destroy, NoRefresh: e.Opts.Refresh == RefreshNone}
 	if e.Opts.Destroy {
-		changes, err := e.planOrphans(ctx, nil)
+		pctx, done := e.phase(ctx, "plan destroy")
+		changes, err := e.planOrphans(pctx, nil)
+		done(err)
 		if err != nil {
 			e.finishError("failed", err, false)
 			return nil, err
 		}
 		plan.Changes = changes
 		plan.Stats = e.statsNow()
-		return plan, e.txn.Finish("planned", e.summary(plan), false)
+		return plan, e.finishPhase(ctx, "planned", e.summary(plan), false)
 	}
+	_, done = e.phase(ctx, "moves")
 	relabels, err := e.relabelProviders(true)
 	if err != nil {
+		done(err)
 		e.finishError("failed", err, true)
 		return nil, err
 	}
 	plan.Relabels = relabels
 	moves, err := e.applyMoves(ctx, true)
+	done(err)
 	if err != nil {
 		e.finishError("failed", err, true)
 		return nil, err
 	}
 	plan.Changes = append(plan.Changes, moves...)
-	final, err := e.run(ctx, false)
+	pctx, done := e.phase(ctx, "evaluate and refresh", attribute.Int("pravo.tasks", len(e.Root.Resources)))
+	final, err := e.run(pctx, false)
+	done(err)
 	if err == nil && e.Opts.Refresh == RefreshAge {
-		final, err = e.readInputs(ctx, final)
+		rctx, done := e.phase(ctx, "read inputs")
+		final, err = e.readInputs(rctx, final)
+		done(err)
 	}
 	if err != nil {
 		e.finishError("failed", err, false)
@@ -649,7 +659,9 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 	for _, r := range e.Root.Resources {
 		present[r.Address()] = true
 	}
-	orphans, err := e.planOrphans(ctx, present)
+	octx, done := e.phase(ctx, "plan orphans")
+	orphans, err := e.planOrphans(octx, present)
+	done(err)
 	if err != nil {
 		e.finishError("failed", err, false)
 		return nil, err
@@ -665,20 +677,47 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 			plan.SensitiveOutputs[o.Name] = true
 		}
 	}
-	if err := e.frontier(plan); err != nil {
+	_, done = e.phase(ctx, "frontier")
+	err = e.frontier(plan)
+	done(err)
+	if err != nil {
 		e.finishError("failed", err, false)
 		return nil, err
 	}
 	plan.Stats = e.statsNow()
-	if err := e.checkReservations(plan); err != nil {
+	_, done = e.phase(ctx, "reservations")
+	err = e.checkReservations(plan)
+	if err == nil {
+		err = e.reserve(plan)
+	}
+	done(err)
+	if err != nil {
 		e.finishError("rejected", err, true)
 		return nil, err
 	}
-	if err := e.reserve(plan); err != nil {
-		e.finishError("rejected", err, true)
-		return nil, err
+	return plan, e.finishPhase(ctx, "planned", e.summary(plan), false)
+}
+
+// checkSpec runs the checks of the specification that need no provider.
+func (e *Engine) checkSpec() error {
+	if err := e.checkOutputs(); err != nil {
+		return err
 	}
-	return plan, e.txn.Finish("planned", e.summary(plan), false)
+	if err := e.checkReplace(); err != nil {
+		return err
+	}
+	if e.Opts.Destroy {
+		return e.checkDestroy()
+	}
+	return nil
+}
+
+// finishPhase finishes the transaction in a span of its own.
+func (e *Engine) finishPhase(ctx context.Context, status, summary string, record bool) error {
+	_, done := e.phase(ctx, "finish transaction")
+	err := e.txn.Finish(status, summary, record)
+	done(err)
+	return err
 }
 
 // errText is the summary a transaction records for a run that failed or was
@@ -2238,13 +2277,18 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	}
 	// What the specification declares about the state is written first: the plan staged it.
 	if !e.Opts.Destroy {
-		if err := e.commitMoves(plan); err != nil {
+		_, done := e.phase(ctx, "commit moves")
+		err := e.commitMoves(plan)
+		done(err)
+		if err != nil {
 			e.finishError("rejected", err, true)
 			return result, err
 		}
 	}
 	lockStart := time.Now()
+	_, done := e.phase(ctx, "lock")
 	held, err := e.lockAll(plan)
+	done(err)
 	if err != nil {
 		e.finishError("rejected", err, true)
 		return result, err
@@ -2255,7 +2299,10 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	plog.Debug(ctx, fmt.Sprintf("locked %d resources", locked))
 	// With the locks held, the records are read from the backend again: a node
 	// that another process wrote after the plan was made is not applied over.
-	if err := e.checkRevisions(plan, sc.inputsOf(plan)); err != nil {
+	_, done = e.phase(ctx, "check revisions")
+	err = e.checkRevisions(plan, sc.inputsOf(plan))
+	done(err)
+	if err != nil {
 		e.finishError("rejected", err, true)
 		return result, err
 	}
@@ -2280,7 +2327,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.scope = sc
 		defer func() { e.scope = nil }()
 		e.resetRun(true)
-		final, err := e.run(ctx, true)
+		actx, done := e.phase(ctx, "apply changes", attribute.Int("pravo.tasks", len(plan.Changes)))
+		final, err := e.run(actx, true)
+		done(err)
 		if err != nil {
 			return fail(err)
 		}
@@ -2322,14 +2371,19 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		}
 	}
 	// Orphans were planned already; destroy them, dependents first.
-	destroyed, err := e.destroyOrphans(ctx, plan)
+	dctx, done := e.phase(ctx, "destroy orphans")
+	destroyed, err := e.destroyOrphans(dctx, plan)
+	done(err)
 	result.Destroyed += destroyed
 	if err != nil {
 		return fail(err)
 	}
 	if !e.Opts.Destroy {
-		e.readBack(ctx)
+		bctx, done := e.phase(ctx, "read back")
+		e.readBack(bctx)
+		done(nil)
 	}
+	_, outDone := e.phase(ctx, "record outputs")
 	// The outputs are recorded by a read, a merge and a write while their lock is
 	// held: an apply that finished meanwhile has recorded outputs of its own.
 	if e.Opts.Destroy {
@@ -2371,6 +2425,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			}
 		}
 	}
+	outDone(err)
 	if err != nil {
 		return fail(err)
 	}
@@ -2382,7 +2437,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	sort.Strings(result.ChangedOutputs)
 	result.Applied = e.completedAddrs()
 	summary := fmt.Sprintf("%d added, %d changed, %d destroyed", result.Added, result.Changed, result.Destroyed)
-	return result, e.txn.Finish("applied", summary, true)
+	return result, e.finishPhase(ctx, "applied", summary, true)
 }
 
 // sameOutputs reports whether two sets of recorded outputs hold the same values.

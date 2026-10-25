@@ -20,8 +20,11 @@ import (
 // PRAVO_TRACES=off, and it keeps the spans that the other exporters get: the
 // addresses, types, actions and counts of the run, never attribute values.
 //
-// A run is written only if it ran an engine (a plan, an apply, a drift check),
-// to .pravo/traces/<trace id>.json of the directory the command ran in, or to
+// A run is written only if the command did some work, which is to say that it
+// has spans besides its own (a plan, an apply, a discovery, a read of the
+// state, a load of the specification); "pravo version" leaves nothing, and
+// neither does "pravo serve", which runs until it is stopped and would hold the
+// spans of everything that it read. It is written to .pravo/traces/<trace id>.json of the directory the command ran in, or to
 // $PRAVO_TRACE_DIR. The directory keeps the newest KeepTraces runs and
 // ignores itself in git.
 
@@ -32,7 +35,7 @@ const TraceFormat = 1
 const KeepTraces = 100
 
 // maxSpans bounds the spans of a run held in memory. Past it the provider
-// calls are dropped, and counted; the command, engine and resource spans never are.
+// calls and the requests to the state are dropped, and counted; the command, engine and resource spans never are.
 const maxSpans = 20000
 
 // maxSpansHard bounds the rest.
@@ -47,7 +50,7 @@ type RunTrace struct {
 	Start string `json:"start"`
 	// DurationUS is from the start of the earliest span to the end of the last.
 	DurationUS int64 `json:"duration_us"`
-	// Dropped counts the provider calls that were left out of a very large run.
+	// Dropped counts the provider calls and state requests that were left out of a very large run.
 	Dropped int        `json:"dropped,omitempty"`
 	Spans   []SpanData `json:"spans"`
 }
@@ -120,7 +123,7 @@ func (r *recorder) OnEnd(s sdktrace.ReadOnlySpan) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	n := len(r.spans)
-	if n >= maxSpansHard || (n >= maxSpans && strings.HasPrefix(s.Name(), "provider ")) {
+	if n >= maxSpansHard || (n >= maxSpans && (strings.HasPrefix(s.Name(), "provider ") || strings.HasPrefix(s.Name(), "state "))) {
 		r.dropped++
 		return
 	}
@@ -129,7 +132,7 @@ func (r *recorder) OnEnd(s sdktrace.ReadOnlySpan) {
 
 func (r *recorder) ForceFlush(context.Context) error { return nil }
 
-// Shutdown writes the runs that ran an engine.
+// Shutdown writes the runs whose command did some work (see didWork).
 func (r *recorder) Shutdown(context.Context) error {
 	r.mu.Lock()
 	spans, dropped := r.spans, r.dropped
@@ -145,7 +148,7 @@ func (r *recorder) Shutdown(context.Context) error {
 	}
 	dir := TraceDir()
 	for id, list := range by {
-		if !ranEngine(list) {
+		if !didWork(list) {
 			continue
 		}
 		_ = writeTrace(dir, buildTrace(id, list, dropped))
@@ -153,13 +156,22 @@ func (r *recorder) Shutdown(context.Context) error {
 	return nil
 }
 
-func ranEngine(spans []sdktrace.ReadOnlySpan) bool {
+// didWork reports whether the run is of a command that has a span besides its
+// own, and is not the viewer's. A trace without the span of a command, such as
+// the requests that a store made outside of one, is not a run.
+func didWork(spans []sdktrace.ReadOnlySpan) bool {
+	command, other := false, false
 	for _, s := range spans {
-		if strings.HasPrefix(s.Name(), "engine ") {
-			return true
+		switch {
+		case s.Name() == "pravo serve":
+			return false
+		case strings.HasPrefix(s.Name(), "pravo "):
+			command = true
+		default:
+			other = true
 		}
 	}
-	return false
+	return command && other
 }
 
 func buildTrace(id string, spans []sdktrace.ReadOnlySpan, dropped int) *RunTrace {

@@ -520,7 +520,7 @@ window.__mock = {
     this.emit({ revision: g.revision, what: ['plans'] });
     return id;
   },
-  // record adds a run to the Traces view, as a command that ran an engine would, and sends the event for it
+  // record adds a run to the Traces view, as a command that did some work would, and sends the event for it
   record() {
     const base = traces.traces.find((x) => x.command === 'pravo plan') || traces.traces[0];
     const id = 'c0ffee00' + Math.random().toString(16).slice(2, 26).padEnd(24, '0') + '-' + Math.random().toString(16).slice(2, 18).padEnd(16, '0');

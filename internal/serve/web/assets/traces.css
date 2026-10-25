@@ -59,7 +59,17 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-facts .v { display: inline-flex; align-items: center; gap: .15rem; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
 
 .tr-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; }
-.tr-bar .filterbox { flex: 1 1 16rem; max-width: 30rem; width: auto; }
+.tr-bar .filterbox { flex: 1 1 16rem; width: auto; }
+.tr-tools { display: grid; gap: .5rem; min-width: 0; }
+.tr-filters { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .9rem; min-width: 0; }
+.tr-filters:not(:has(.tr-chip, .qpill)) { display: none; }
+.tr-pills { padding: 0; }
+.tr-kinds { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; min-width: 0; }
+.tr-chip { display: inline-flex; align-items: center; gap: .4rem; height: 1.85rem; padding: 0 .65rem; border: 1px solid var(--line-strong); border-radius: 0; background: var(--surface); color: var(--text-2); font: 500 .72rem/1 var(--font-ui); cursor: pointer; }
+.tr-chip em { font: 500 .66rem/1 var(--font-mono); font-style: normal; color: var(--text-3); }
+.tr-chip:hover { color: var(--text); background: var(--surface-2); }
+.tr-chip[aria-pressed="true"] { color: var(--text); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--text-3); }
+.tr-chip:focus-visible { outline: 2px solid var(--key); outline-offset: 1px; }
 
 /* ---- the timeline ---- */
 .tr-chart { border: 1px solid var(--line-strong); background: var(--surface); min-width: 0; }
@@ -77,12 +87,15 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .bar.k-engine { fill: color-mix(in srgb, var(--text) 60%, var(--bg)); }
 .bar.k-resource { fill: var(--key); }
 .bar.k-provider { fill: color-mix(in srgb, var(--key) 36%, var(--surface)); }
+.bar.k-phase { fill: color-mix(in srgb, var(--text) 42%, var(--bg)); }
+.bar.k-setup { fill: color-mix(in srgb, var(--text) 26%, var(--surface)); }
+.bar.k-state { fill: color-mix(in srgb, var(--text) 13%, var(--surface)); }
 .bar.err { fill: var(--conflict); }
 .bar.dim, .tr-bt.dim, .tr-bd.dim { opacity: .2; }
 .bar:hover { filter: brightness(1.12); }
 .tr-selbox { fill: none; stroke: var(--text); stroke-width: 2; pointer-events: none; }
 .tr-bt, .tr-bd { font: 500 11px var(--font-mono); fill: var(--bg); pointer-events: none; }
-.tr-bt.k-provider, .tr-bd.k-provider { fill: var(--text); }
+.tr-bt.k-provider, .tr-bd.k-provider, .tr-bt.k-setup, .tr-bd.k-setup, .tr-bt.k-state, .tr-bd.k-state { fill: var(--text); }
 .tr-bt.err, .tr-bd.err { fill: var(--bg); }
 .tr-bd { opacity: .82; }
 .tr-hint { margin: 0; padding: .35rem .7rem; border-top: 1px solid var(--line); font-size: .68rem; color: var(--text-3); }
@@ -90,6 +103,10 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-sw.k-command, .tr-sw.k-mcp { background: color-mix(in srgb, var(--text) 82%, var(--bg)); }
 .tr-sw.k-engine { background: color-mix(in srgb, var(--text) 60%, var(--bg)); }
 .tr-sw.k-resource { background: var(--key); }
+.tr-sw.k-phase { background: color-mix(in srgb, var(--text) 42%, var(--bg)); }
+.tr-sw.k-setup { background: color-mix(in srgb, var(--text) 26%, var(--surface)); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.tr-sw.k-state { background: color-mix(in srgb, var(--text) 13%, var(--surface)); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.tr-sw.k-err { background: var(--conflict); }
 .tr-sw.k-provider { background: color-mix(in srgb, var(--key) 36%, var(--surface)); box-shadow: inset 0 0 0 1px var(--line-strong); }
 
 .tr-tip { position: fixed; left: 0; top: 0; z-index: 70; display: grid; gap: .12rem; max-width: 26rem; padding: .5rem .65rem; background: var(--code-bg); color: var(--code-text); border: 1px solid var(--code-edge); box-shadow: var(--shadow-1); font-size: .72rem; line-height: 1.4; pointer-events: none; }

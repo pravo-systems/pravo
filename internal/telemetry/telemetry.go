@@ -263,6 +263,14 @@ func TraceID(ctx context.Context) string {
 	return sc.TraceID().String()
 }
 
+// Span starts a span named name under the span in ctx, and returns the context
+// that nests what runs inside it and the function that ends it with the error
+// the work ended in. A span carries names, counts and kinds, never values.
+func Span(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
+	ctx, span := Tracer().Start(ctx, name, trace.WithAttributes(attrs...))
+	return ctx, func(err error) { End(span, err) }
+}
+
 // End finishes a span, recording err if there is one.
 func End(span trace.Span, err error) {
 	if err != nil {

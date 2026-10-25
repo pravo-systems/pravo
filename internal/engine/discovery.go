@@ -6,9 +6,13 @@ import (
 	"sort"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // Discover runs one discovery: it asks the provider to list the objects of the
@@ -17,6 +21,19 @@ import (
 // provider that fails, or a scope that cannot be listed with, is an error, and
 // the caller keeps the run it had.
 func (e *Engine) Discover(ctx context.Context, d *config.Discovery) (*state.DiscoveryRun, error) {
+	e.runCtx = ctx
+	ctx, span := telemetry.Tracer().Start(ctx, "engine discover "+d.Name, trace.WithAttributes(append(e.runAttrs(),
+		attribute.String("pravo.discovery.name", d.Name), attribute.String("pravo.discovery.type", d.Type), attribute.String("pravo.provider", d.ProviderKey))...))
+	e.State.SetContext(ctx)
+	run, err := e.discover(ctx, d)
+	if run != nil {
+		span.SetAttributes(attribute.Int("pravo.discovery.items", len(run.Items)), attribute.String("pravo.discovery.status", string(run.Status)), attribute.Int("pravo.warnings", len(run.Warnings)))
+	}
+	telemetry.End(span, err)
+	return run, err
+}
+
+func (e *Engine) discover(ctx context.Context, d *config.Discovery) (*state.DiscoveryRun, error) {
 	if d.ScopeErr != nil {
 		return nil, fmt.Errorf("discovery %s: %w", d.Name, d.ScopeErr)
 	}

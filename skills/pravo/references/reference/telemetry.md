@@ -4,7 +4,7 @@
 
 OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables.
 
-pravo emits OpenTelemetry traces and metrics. Exporting is off by default: nothing leaves the machine until the standard `OTEL_*` environment variables name where it goes, so any collector, backend or CI system that speaks OTLP works without pravo-specific settings. Apart from that, a command that ran an engine keeps its own trace in the project, for [the viewer](#the-recorded-runs) to show without a collector.
+pravo emits OpenTelemetry traces and metrics. Exporting is off by default: nothing leaves the machine until the standard `OTEL_*` environment variables name where it goes, so any collector, backend or CI system that speaks OTLP works without pravo-specific settings. Apart from that, a command that did some work keeps its own trace in the project, for [the viewer](#the-recorded-runs) to show without a collector.
 
 | Variable | Effect |
 |---|---|
@@ -47,7 +47,7 @@ One trace per command. The command span is the root, and everything else nests u
 
 ```sh
 OTEL_TRACES_EXPORTER=console pravo plan 2> trace.jsonl > /dev/null
-jq -r .Name trace.jsonl
+jq -r .Name trace.jsonl | grep -E '^(pravo|engine|resource|provider)'
 ```
 
 Output:
@@ -62,27 +62,65 @@ engine plan
 pravo plan
 ```
 
-The spans end in this order: the provider calls, the resource, the engine, the command. Their nesting:
+Those are the spans of the command, the engine, the resource and the provider calls. The run has more: the stages of loading and of the engine, and each request to the state. A count of the spans by the first word of their names:
+
+```sh
+jq -r .Name trace.jsonl | cut -d' ' -f1 | sort | uniq -c
+```
+
+Output:
+
+```text
+      4 config
+      1 engine
+      9 phase
+      1 pravo
+      4 provider
+      1 resource
+      8 setup
+      7 state
+```
+
+The spans end in this order: what is under a span ends before it, and the command ends last. Their nesting:
 
 ```text
 pravo apply                         command: actor, reason, exit code, version
+├── setup load specification        loading and evaluating the CUE
+│   └── config evaluate             and its stages: load package, evaluate, validate, extract resources
+├── setup open state                the state is opened
+│   └── state get meta.json         and each request to it is a span
+├── setup resolve providers         choosing, installing and starting the providers
+├── setup load schemas
 └── engine apply                    the run: transaction id, added, changed, destroyed
-    ├── resource pet                one per resource and phase (plan, apply)
-    │   ├── provider ValidateResourceConfig
-    │   ├── provider PlanResourceChange
-    │   └── provider ApplyResourceChange
-    └── resource hello
+    ├── phase lock                  a stage of the run
+    │   └── state create locks/pet.json
+    ├── phase apply changes
+    │   ├── resource pet            one per resource and phase (plan, apply)
+    │   │   ├── provider ValidateResourceConfig
+    │   │   ├── provider PlanResourceChange
+    │   │   ├── provider ApplyResourceChange
+    │   │   └── state replace-if resources/pet.json
+    │   └── resource hello
+    ├── phase record outputs
+    └── phase finish transaction
 ```
 
-The address in `resource <address>` is the CUE path of the resource, such as `pet`, `api.config` or `servers[0]`. `pravo plan` and `pravo drift` have an `engine plan` span in the same position. Commands that start a plan inside them (`apply` without a file, `why`) show both. Under `pravo mcp`, each tool call is a span and the pravo process it runs continues the same trace.
+The address in `resource <address>` is the CUE path of the resource, such as `pet`, `api.config` or `servers[0]`. `pravo plan` and `pravo drift` have an `engine plan` span in the same position, and `pravo discover` an `engine discover <name>` span. Commands that start a plan inside them (`apply` without a file, `why`) show both. A provider that is started, configured or asked for its schema by a resource sits under that resource. Under `pravo mcp`, each tool call is a span and the pravo process it runs continues the same trace.
 
 | Span | Attributes |
 |---|---|
 | command (`pravo plan`, ...) | `pravo.command`, `pravo.version`, `pravo.actor`, `pravo.reason`, `pravo.json`, `pravo.exit_code` |
 | `engine plan`, `engine apply` | `pravo.actor`, `pravo.reason`, `vcs.revision`, `pravo.destroy`, `pravo.txn`. For plan: `pravo.plan.add`, `.change`, `.destroy` and `pravo.nodes.total`, `.planned`, `.skipped`, `.refreshed`, `.fresh`, `.not_read`, `.drifted`, `pravo.ephemeral.opened`, `pravo.function.calls`. For apply: what was added, changed and destroyed. |
+| `phase <stage>` | The stage of a plan or an apply: `check specification`, `begin transaction`, `moves`, `evaluate and refresh`, `read inputs`, `plan orphans`, `frontier`, `reservations`, `commit moves`, `lock`, `check revisions`, `apply changes`, `destroy orphans`, `read back`, `record outputs`, `finish transaction`. `pravo.tasks` on the stages that walk the resources. |
+| `setup <stage>`, `config <stage>` | What readies a command: loading the specification and its stages, reading the lock file, opening the state, resolving, installing, starting and configuring a provider and reading its schema. `pravo.provider`, `pravo.provider.version`, `pravo.provider.source`, `pravo.state.backend`. |
+| `state <operation> <key>` | A request to the state: `get`, `put`, `create` (only if absent), `replace-if`, `delete-if`, `delete`, `list`. `pravo.state.op`, `pravo.state.key`, `pravo.state.backend` (`local`, `s3`, `http`), and where they apply `pravo.state.bytes`, `pravo.state.keys` and `pravo.state.applied` (a conditional write that was made). The key is the name of an object, such as `resources/api.db.json`; a missing object and a refused conditional write are answers, and the span does not fail. |
+| `engine discover <name>` | `pravo.discovery.name`, `pravo.discovery.type`, `pravo.provider`, `pravo.discovery.items`, `pravo.discovery.status`, `pravo.warnings` |
+| `engine check policy` | `pravo.policies` |
 | `resource <address>` | `pravo.resource.address`, `pravo.resource.type`, `pravo.mode`, `pravo.provider`, `pravo.phase`, `pravo.action`, `pravo.skipped`, `pravo.refreshed`, `pravo.drifted`, `pravo.deferred` |
 | `mcp tools/call <tool>` | `mcp.tool`, `pravo.actor`, `pravo.exit_code` |
 | `provider <RPC>` | `rpc.system`, `rpc.service`, `rpc.method`, `pravo.provider`, `pravo.protocol`, `pravo.resource.type`, `pravo.warnings` |
+
+A request to the state is a span of its own, so a run against a store on the network shows where its time went: a long `state list` is the size of the state, and a long `phase lock` is a store that is slow to take a lock. With an exporter on, a large state sends one span for each record that is read. `PRAVO_TRACES=off` keeps them out of the recorded runs only.
 
 ```sh
 jq -c 'select(.Name == "pravo plan") | [.Attributes[] | {(.Key): .Value.Value}] | add' trace.jsonl
@@ -118,27 +156,31 @@ Output:
 
 ### Debug events
 
-The events of the debug log (`-v`) are attached to the spans they belong to. A `task` event sits on its `resource` span, with the action and the reasons. The events `plan`, `tasks run` and `settled` sit on the engine span. The events of loading the specification, opening the state, reading the schemas and choosing the providers sit on the command span. They are recorded whenever traces are on, whether or not `-v` is set.
+The events of the debug log (`-v`) are attached to the span that was running when they were logged. A `task` event sits on its `resource` span, with the action and the reasons. The event `plan` sits on the engine span, and `tasks run` and `settled` on the stage that walked the resources. The events of opening the state, choosing the providers and reading the schemas sit on the `setup` spans for them, and `loaded` and `schemas ready` on the command span. They are recorded whenever traces are on, whether or not `-v` is set.
 
 ```sh
-jq -c '{Name, events: [.Events[]? | .Name]}' trace.jsonl | grep -E 'resource hello|engine plan|pravo plan'
+jq -c 'select((.Events | length) > 0) | {Name, events: [.Events[] | .Name]}' trace.jsonl
 ```
 
 Output:
 
 ```text
-{"Name":"resource hello","events":["configuring provider","task"]}
-{"Name":"engine plan","events":["plan","tasks run","settled"]}
-{"Name":"pravo plan","events":["loaded","state opened","provider version from the lock file","provider found installed","schema from the cache","schemas ready"]}
+{"Name":"setup open state","events":["state opened"]}
+{"Name":"setup resolve providers","events":["provider version from the lock file","provider found installed"]}
+{"Name":"setup load schema local","events":["schema from the cache"]}
+{"Name":"resource hello","events":["provider started","configuring provider","task"]}
+{"Name":"phase evaluate and refresh","events":["tasks run","settled"]}
+{"Name":"engine plan","events":["plan"]}
+{"Name":"pravo plan","events":["loaded","schemas ready"]}
 ```
 
 ## The recorded runs
 
-A command that ran an engine (`plan`, `apply`, `destroy`, `drift` and the commands that plan inside them) writes its trace to `.pravo/traces/<trace id>-<span id>.json` in the directory it ran in, when it ends. This needs no `OTEL_*` variable and no collector. [`pravo serve`](serve.md#the-traces-section) reads the directory and shows each run as a timeline, which is the quickest way to see where a run spent its time or where it stopped.
+A command that did some work (`plan`, `apply`, `destroy`, `drift`, `discover` and the commands that plan inside them, and those that load the specification or read the state) writes its trace to `.pravo/traces/<trace id>-<span id>.json` in the directory it ran in, when it ends. This needs no `OTEL_*` variable and no collector. [`pravo serve`](serve.md#the-traces-section) reads the directory and shows each run as a timeline, which is the quickest way to see where a run spent its time or where it stopped.
 
 - The file holds the spans that the exporters get: the same names, the same attributes and the same debug events, with times counted in microseconds from the start of the run. It holds no attribute value, by the rule [above](#what-spans-never-contain).
 - A command that ran no engine (`pravo version`, `pravo serve`, `pravo state log`) writes nothing. A command that continues the trace of its caller (`TRACEPARENT`) writes its own file, so a CI job that runs several commands in one trace has one file for each.
-- The directory keeps the newest 100 runs and has a `.gitignore` that ignores the whole of it. A run of more than 20,000 spans keeps every command, engine and resource span and leaves out the provider calls that end after that, and says how many.
+- The directory keeps the newest 100 runs and has a `.gitignore` that ignores the whole of it. A run of more than 20,000 spans keeps every command, engine, stage and resource span and leaves out the provider calls and the requests to the state that end after that, and says how many. A command that has no span of work, such as `pravo version`, and `pravo serve`, which runs until it is stopped, write nothing.
 - A failure to write the file never fails the command and prints nothing.
 - The trace id of a run that only the recorded file holds is not written to the state or to the documents of a command: `trace_id` appears there only when an exporter is on. The `pravo.txn` attribute of the `engine` span names the transaction that an apply wrote, which is how the viewer joins the two.
 

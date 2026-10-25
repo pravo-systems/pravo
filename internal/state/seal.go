@@ -233,7 +233,7 @@ func (s *Store) reloadSealed() {
 	s.mu.Lock()
 	id, lineage := s.id, s.meta.Lineage
 	s.mu.Unlock()
-	data, err := s.b.Get(s.ctx, "meta.json")
+	data, err := s.b.Get(s.cx(), "meta.json")
 	if err != nil {
 		return
 	}
@@ -375,7 +375,7 @@ func (s *Store) recheckSeal() {
 	s.metaRead = time.Now()
 	id, lineage, current := s.id, s.meta.Lineage, s.ring.current()
 	s.mu.Unlock()
-	data, err := s.b.Get(s.ctx, "meta.json")
+	data, err := s.b.Get(s.cx(), "meta.json")
 	if err != nil {
 		return
 	}

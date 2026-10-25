@@ -940,7 +940,7 @@ type Adopt struct {
 }
 
 // TraceList is GET /api/traces: the runs that pravo recorded in the project, newest
-// first. A run is recorded when a command ran an engine (a plan, an apply, a drift
+// first. A run is recorded when a command did some work (a plan, an apply, a drift
 // check) and tracing was not turned off with PRAVO_TRACES=off; the file is
 // .pravo/traces/<id>.json of the directory the command ran in (or $PRAVO_TRACE_DIR).
 // The viewer reads the files and writes none.
@@ -984,7 +984,7 @@ type Trace struct {
 	Version int `json:"version"`
 	TraceInfo
 	TraceID string `json:"trace_id"`
-	// Dropped counts the provider calls left out of a very large run when it was recorded.
+	// Dropped counts the provider calls and state requests left out of a very large run when it was recorded.
 	Dropped int `json:"dropped,omitempty"`
 	// Omitted counts the spans left out of this answer because it is bounded.
 	Omitted int         `json:"omitted,omitempty"`
@@ -992,7 +992,7 @@ type Trace struct {
 }
 
 // TraceSpan is one span. Times are microseconds from the start of the run. Kind is
-// "command", "engine", "resource", "provider", "mcp" or "other". A span's
+// "command", "engine", "phase", "setup", "resource", "provider", "state", "mcp" or "other". A span's
 // parent is in the run unless the run continued the trace of its caller.
 type TraceSpan struct {
 	ID      string         `json:"id"`

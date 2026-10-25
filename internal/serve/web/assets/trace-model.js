@@ -5,6 +5,8 @@
 // different rows: the children of one span that run at once (the resources of an apply) are packed into lanes under
 // it, and a lane is as tall as the tallest subtree in it.
 
+import { parseQuery } from './query.js';
+
 // fmtDur writes a duration given in microseconds: 840µs, 12.4ms, 3.20s, 1m 12s.
 export function fmtDur(us) {
   if (!isFinite(us)) return '';
@@ -103,21 +105,51 @@ export function path(sp) {
   return out;
 }
 
+// labelOf is what a bar says: the address of a resource, the RPC of a provider call, the name of anything else.
+export function labelOf(sp) {
+  if (sp.kind === 'resource') return sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : sp.name.replace(/^resource /, '');
+  if (sp.kind === 'provider') return sp.name.replace(/^provider /, '');
+  if (sp.kind === 'phase' || sp.kind === 'setup' || sp.kind === 'state') return sp.name.replace(/^(phase|setup|state) /, '');
+  return sp.name;
+}
+
+// The filter language of the box: words, and column:value terms that the menu offers and the pills show.
+export const COLUMNS = ['kind', 'is', 'provider', 'type'];
+export const ALIAS = { k: 'kind', kinds: 'kind', status: 'is', providers: 'provider', resource_type: 'type' };
+export const LANG = { columns: COLUMNS, alias: ALIAS };
+
 // searchText is what a filter looks in: the name, the message and the values of the attributes.
 export function searchText(sp) {
-  const parts = [sp.name, sp.status === 'error' ? 'is:error' : '', sp.message || ''];
+  const parts = [sp.name, sp.message || ''];
   for (const k in sp.attrs || {}) parts.push(k, String(sp.attrs[k]));
   return parts.join('\n').toLowerCase();
 }
 
-// matcher compiles the text of the filter box. Words must all be found (in any order); `is:error` keeps the spans that
-// failed; `kind:resource` keeps one kind. Nothing matches nothing: an empty filter is null.
+// valueOf is what a span holds for a column: its kind, `error` when it failed, the provider it is for, the resource type.
+export function valueOf(sp, col) {
+  const a = sp.attrs || {};
+  if (col === 'kind') return sp.kind || '';
+  if (col === 'is') return sp.status === 'error' ? 'error' : '';
+  if (col === 'provider') return String(a['pravo.provider'] || '').split('.')[0];
+  if (col === 'type') return String(a['pravo.resource.type'] || '');
+  return '';
+}
+
+const wild = (v) => (v.includes('*') ? new RegExp('^' + v.split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$') : null);
+
+// matcher compiles the text of the filter box. Words must all be found (in any order); a term names a column and what it
+// holds: `is:error` keeps the spans that failed, `kind:resource,provider` the spans of those kinds, `provider:aws`,
+// `type:aws_s3*`; a minus turns a term round. Terms and words are ANDed. An empty filter is null.
 export function matcher(q) {
-  const words = (q || '').toLowerCase().split(/\s+/).filter(Boolean);
-  if (!words.length) return null;
-  const kinds = [], rest = [];
-  for (const w of words) {
-    if (w.startsWith('kind:')) kinds.push(w.slice(5)); else rest.push(w);
-  }
-  return (sp) => (!kinds.length || kinds.includes(sp.kind)) && rest.every((w) => searchText(sp).includes(w));
+  const { words, terms } = parseQuery(q, LANG);
+  if (!words.length && !terms.length) return null;
+  const tests = terms.map((t) => {
+    const res = t.values.map((v) => wild(v));
+    return (sp) => {
+      const have = valueOf(sp, t.col).toLowerCase();
+      const hit = t.values.some((v, i) => (res[i] ? res[i].test(have) : have === v));
+      return t.neg ? !hit : hit;
+    };
+  });
+  return (sp) => tests.every((f) => f(sp)) && words.every((w) => searchText(sp).includes(w));
 }

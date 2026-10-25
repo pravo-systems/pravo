@@ -30,11 +30,41 @@ func (e *Engine) runAttrs() []attribute.KeyValue {
 	return attrs
 }
 
+// phase starts a span for one stage of a plan or an apply and returns the
+// context the stage runs under and the function that ends it. The requests the
+// stage makes to the state are part of the span until it ends.
+func (e *Engine) phase(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
+	parent := ctx
+	ctx, span := telemetry.Tracer().Start(ctx, "phase "+name, trace.WithAttributes(attrs...))
+	e.State.SetContext(ctx)
+	return ctx, func(err error) {
+		telemetry.End(span, err)
+		e.State.SetContext(parent)
+	}
+}
+
+// traceCtx is the context for a span of work that has no context of its own:
+// the one the run was started with, or none.
+func (e *Engine) traceCtx() context.Context {
+	if e.runCtx != nil {
+		return e.runCtx
+	}
+	return context.Background()
+}
+
+// setup starts a span for work that readies the run: resolving and installing
+// providers, starting them, reading their schemas and configuring them.
+func setup(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
+	return telemetry.Span(ctx, "setup "+name, attrs...)
+}
+
 // Plan computes the changes needed to reach the configuration.
 func (e *Engine) Plan(ctx context.Context) (*Plan, error) {
+	e.runCtx = ctx
 	ctx, span := telemetry.Tracer().Start(ctx, "engine plan", trace.WithAttributes(e.runAttrs()...))
 	e.traceID = telemetry.TraceID(ctx)
 	e.State.SetTrace(e.traceID)
+	e.State.SetContext(ctx)
 	plog.Debug(ctx, "plan", "refresh", [...]string{"age", "none", "all", "expired"}[e.Opts.Refresh], "full", e.Opts.Full, "destroy", e.Opts.Destroy, "tasks", len(e.Root.Resources))
 	plan, err := e.planRun(ctx)
 	if plan != nil {
@@ -62,9 +92,11 @@ func (e *Engine) Plan(ctx context.Context) (*Plan, error) {
 // changes and the nodes they read, destroys orphans and records outputs, as one
 // transaction.
 func (e *Engine) Apply(ctx context.Context, plan *Plan) (*ApplyResult, error) {
+	e.runCtx = ctx
 	ctx, span := telemetry.Tracer().Start(ctx, "engine apply", trace.WithAttributes(e.runAttrs()...))
 	e.traceID = telemetry.TraceID(ctx)
 	e.State.SetTrace(e.traceID)
+	e.State.SetContext(ctx)
 	plog.Debug(ctx, "apply", "changes", len(plan.Changes), "destroy", e.Opts.Destroy)
 	res, err := e.applyRun(ctx, plan)
 	if res != nil {

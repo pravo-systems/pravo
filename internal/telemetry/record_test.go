@@ -20,7 +20,7 @@ func clearEnv(t *testing.T) {
 	}
 }
 
-// A run that ran an engine is written to the trace directory, with the nesting,
+// A run that has engine spans is written to the trace directory, with the nesting,
 // the attributes, the events and the failure of its spans; the trace is not
 // named in the documents of a command.
 func TestRecorderWritesARunThatRanAnEngine(t *testing.T) {
@@ -75,7 +75,28 @@ func TestRecorderWritesARunThatRanAnEngine(t *testing.T) {
 	}
 }
 
-// A command that ran no engine leaves nothing behind, and PRAVO_TRACES=off
+// A command that did some work is recorded even when it ran no engine (a read of
+// the state, a load of the specification), and the viewer's own run is not.
+func TestRecorderWritesAnyCommandThatDidWork(t *testing.T) {
+	for name, want := range map[string]int{"pravo state list": 1, "pravo serve": 0} {
+		clearEnv(t)
+		dir := filepath.Join(t.TempDir(), "traces")
+		t.Setenv("PRAVO_TRACE_DIR", dir)
+		shutdown := Setup(context.Background(), "test")
+		ctx, cmd := Tracer().Start(context.Background(), name)
+		_, st := Tracer().Start(ctx, "state get meta.json")
+		End(st, nil)
+		End(cmd, nil)
+		shutdown(context.Background())
+		localOnly = false
+		files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+		if len(files) != want {
+			t.Errorf("%s: %d files, want %d", name, len(files), want)
+		}
+	}
+}
+
+// A command that did nothing leaves nothing behind, and PRAVO_TRACES=off
 // turns the record off.
 func TestRecorderIgnoresOtherRunsAndCanBeOff(t *testing.T) {
 	clearEnv(t)
@@ -86,7 +107,7 @@ func TestRecorderIgnoresOtherRunsAndCanBeOff(t *testing.T) {
 	End(cmd, nil)
 	shutdown(context.Background())
 	if _, err := os.Stat(dir); err == nil {
-		t.Error("a run without an engine was written")
+		t.Error("a run with no work was written")
 	}
 	localOnly = false
 

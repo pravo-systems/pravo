@@ -257,6 +257,12 @@ func spanKind(name string) string {
 		return "resource"
 	case strings.HasPrefix(name, "provider "):
 		return "provider"
+	case strings.HasPrefix(name, "state "):
+		return "state"
+	case strings.HasPrefix(name, "phase "):
+		return "phase"
+	case strings.HasPrefix(name, "setup "), strings.HasPrefix(name, "config "):
+		return "setup"
 	case strings.HasPrefix(name, "mcp "):
 		return "mcp"
 	}
