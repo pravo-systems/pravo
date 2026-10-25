@@ -798,7 +798,7 @@ type SuggestionStep struct {
 type Event struct {
 	Revision string `json:"revision"`
 	// What is any of "state", "spec", "plan", "locks", "plans", "access",
-	// "discovery". "plan" is the plan file of --plan; "plans" are the plans stored
+	// "discovery", "traces". "traces" is the directory of the recorded runs. "plan" is the plan file of --plan; "plans" are the plans stored
 	// in the state: one appeared, was collected, was applied from, or passed its
 	// expiry; "access" is the readers file; "discovery" is what the discoveries
 	// found, which "pravo discover" writes.
@@ -937,4 +937,79 @@ type Adopt struct {
 	// Steps follow the snippet: commands to copy, and notes. A step with
 	// Placeholder has a part, in angle brackets, for the person to fill in.
 	Steps []SuggestionStep `json:"steps"`
+}
+
+// TraceList is GET /api/traces: the runs that pravo recorded in the project, newest
+// first. A run is recorded when a command ran an engine (a plan, an apply, a drift
+// check) and tracing was not turned off with PRAVO_TRACES=off; the file is
+// .pravo/traces/<id>.json of the directory the command ran in (or $PRAVO_TRACE_DIR).
+// The viewer reads the files and writes none.
+type TraceList struct {
+	Version int `json:"version"`
+	// Dir is the directory the runs are read from, as the page shows it.
+	Dir    string      `json:"dir"`
+	Traces []TraceInfo `json:"traces"`
+	// Omitted counts the runs left out of the list because it is bounded.
+	Omitted int `json:"omitted,omitempty"`
+	// Unreadable counts the files that are not runs of this format.
+	Unreadable int `json:"unreadable,omitempty"`
+}
+
+// TraceInfo is one run in the list.
+type TraceInfo struct {
+	// ID names the run: <trace id>-<span id>, 32 and 16 hexadecimal digits.
+	ID string `json:"id"`
+	// Command is the command that ran, such as "pravo apply".
+	Command string `json:"command"`
+	// Start is when the run began, RFC 3339.
+	Start      string `json:"start"`
+	DurationUS int64  `json:"duration_us"`
+	// Exit is the exit code of the command, -1 when the run does not say.
+	Exit int `json:"exit"`
+	// Status is "ok" or "error": error when a span failed.
+	Status string `json:"status"`
+	// SpanCount, Errors and Resources count the spans, the failed spans and the
+	// distinct resources that the run planned or applied.
+	SpanCount int `json:"span_count"`
+	Errors    int `json:"errors"`
+	Resources int `json:"resources"`
+	// Txn is the transaction the run wrote, if it applied.
+	Txn    string `json:"txn,omitempty"`
+	Actor  string `json:"actor,omitempty"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// Trace is GET /api/trace?id=ID: the spans of one run.
+type Trace struct {
+	Version int `json:"version"`
+	TraceInfo
+	TraceID string `json:"trace_id"`
+	// Dropped counts the provider calls left out of a very large run when it was recorded.
+	Dropped int `json:"dropped,omitempty"`
+	// Omitted counts the spans left out of this answer because it is bounded.
+	Omitted int         `json:"omitted,omitempty"`
+	Spans   []TraceSpan `json:"spans"`
+}
+
+// TraceSpan is one span. Times are microseconds from the start of the run. Kind is
+// "command", "engine", "resource", "provider", "mcp" or "other". A span's
+// parent is in the run unless the run continued the trace of its caller.
+type TraceSpan struct {
+	ID      string         `json:"id"`
+	Parent  string         `json:"parent,omitempty"`
+	Name    string         `json:"name"`
+	Kind    string         `json:"kind"`
+	Status  string         `json:"status,omitempty"`
+	Message string         `json:"message,omitempty"`
+	StartUS int64          `json:"start_us"`
+	DurUS   int64          `json:"dur_us"`
+	Attrs   map[string]any `json:"attrs,omitempty"`
+	Events  []TraceEvent   `json:"events,omitempty"`
+}
+
+// TraceEvent is a debug event on a span.
+type TraceEvent struct {
+	Name  string         `json:"name"`
+	AtUS  int64          `json:"at_us"`
+	Attrs map[string]any `json:"attrs,omitempty"`
 }

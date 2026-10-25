@@ -1,0 +1,58 @@
+{
+ "version": 1,
+ "dir": ".pravo/traces",
+ "traces": [
+  {
+   "id": "5a1c0001000000000000000000000000-8899d818977d6aa2",
+   "command": "pravo apply",
+   "start": "2026-10-21T14:01:12.318Z",
+   "duration_us": 8086691,
+   "exit": 0,
+   "status": "ok",
+   "span_count": 258,
+   "errors": 0,
+   "resources": 47,
+   "txn": "20261021T140112Z-b3d977",
+   "actor": "ana@acme",
+   "reason": "raise the database to 15.7"
+  },
+  {
+   "id": "5a1c0002000000000000000000000000-419f20ba8b0e58ba",
+   "command": "pravo plan",
+   "start": "2026-10-21T13:48:40.902Z",
+   "duration_us": 1743228,
+   "exit": 2,
+   "status": "ok",
+   "span_count": 195,
+   "errors": 0,
+   "resources": 47,
+   "actor": "ana@acme"
+  },
+  {
+   "id": "5a1c0003000000000000000000000000-951000158dac4285",
+   "command": "pravo apply",
+   "start": "2026-10-21T11:20:05.115Z",
+   "duration_us": 5737201,
+   "exit": 1,
+   "status": "error",
+   "span_count": 246,
+   "errors": 4,
+   "resources": 47,
+   "txn": "20261021T112005Z-d5fb99",
+   "actor": "ana@acme",
+   "reason": "move the database to 15.9"
+  },
+  {
+   "id": "5a1c0004000000000000000000000000-768536a0ee51c025",
+   "command": "pravo drift",
+   "start": "2026-10-20T22:00:01.470Z",
+   "duration_us": 1918171,
+   "exit": 2,
+   "status": "ok",
+   "span_count": 195,
+   "errors": 0,
+   "resources": 47,
+   "actor": "ana@acme"
+  }
+ ]
+}

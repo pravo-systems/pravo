@@ -7,6 +7,7 @@
 //   &stale=1                              the saved plan is stale, with reasons
 //   &plan=plan-2f9c1a4e                   the server lays that stored plan itself (pravo serve --plan plan-2f9c1a4e)
 //   &discovery=NAME                       the Discovery view answers discovery.NAME.json: platform (five discoveries of every freshness), empty
+//   &traces=NAME                          the Traces view answers traces.NAME.json: platform (an apply, a plan, an apply that failed and a drift check), empty
 //   &access=NAME                          the Access view answers access.NAME.json: platform (sealed, a reader), off, immutable,
 //                                         drift, locked (no identity: every record is sealed), notreader, missing (no readers file), migrating, invalid,
 //                                         downgraded (the repository lists readers and the state is not sealed), solo (sealed to one reader: the warning)
@@ -55,6 +56,10 @@ if (graph) {
   }
 }
 // ---- the Discovery view: discovery.NAME.json, the platform's unless the query says another ----
+// ---- the Traces view: traces.NAME.json lists the runs, and trace.XXXXXXXX.json (the first eight digits of the id) is each one ----
+let tracesName = params.get('traces') || (NAME === 'platform' ? 'platform' : 'empty');
+let traces = (await fixture(`traces.${tracesName}.json`)) || { version: 1, dir: '.pravo/traces', traces: [] };
+const runStart = (iso, by) => new Date(Date.parse(iso) + by).toISOString();
 let discoveryName = params.get('discovery') || (NAME === 'platform' ? 'platform' : 'empty');
 let discovery = await fixture(`discovery.${discoveryName}.json`);
 const adoptExample = await fixture('adopt.example.json');
@@ -365,6 +370,15 @@ window.fetch = async (input, init) => {
     const a = adoptOf(url.searchParams.get('discovery') || '', url.searchParams.get('key') || '');
     return a ? json(200, a) : json(404, { error: 'no such object in the last run of that discovery' });
   }
+  if (p === '/api/traces') return json(200, Object.assign({}, traces, { traces: traces.traces.map((x) => Object.assign({}, x, { start: runStart(x.start, x.live ? 0 : by) })) }));
+  if (p === '/api/trace') {
+    const id = url.searchParams.get('id') || '';
+    if (!/^[0-9a-f]{32}-[0-9a-f]{16}$/.test(id)) return json(400, { error: 'id is not the id of a run' });
+    const row = traces.traces.find((x) => x.id === id);
+    const doc = row ? await fixture(`trace.${(row.from || id).slice(0, 8)}.json`) : null;
+    if (!doc) return json(404, { error: 'no such run' });
+    return json(200, Object.assign({}, doc, row, { start: runStart(row.start, row.live ? 0 : by) }));
+  }
   if (p === '/api/plans') return json(200, Object.assign({}, stored, { revision: graph.revision }));
   if (p === '/api/plan') {
     const id = url.searchParams.get('id') || '';
@@ -504,6 +518,14 @@ window.__mock = {
     g.revision = 'r-plans-' + (++mutations);
     graph = g;
     this.emit({ revision: g.revision, what: ['plans'] });
+    return id;
+  },
+  // record adds a run to the Traces view, as a command that ran an engine would, and sends the event for it
+  record() {
+    const base = traces.traces.find((x) => x.command === 'pravo plan') || traces.traces[0];
+    const id = 'c0ffee00' + Math.random().toString(16).slice(2, 26).padEnd(24, '0') + '-' + Math.random().toString(16).slice(2, 18).padEnd(16, '0');
+    traces = Object.assign({}, traces, { traces: [Object.assign({}, base, { id, from: base.id, live: true, start: new Date().toISOString() })].concat(traces.traces) });
+    this.emit({ revision: graph.revision, what: ['traces'] });
     return id;
   },
   // collectPlan removes a stored plan, as a collection does

@@ -10,7 +10,7 @@ normalize:
     replace: '[txn <id>]'
 ---
 
-pravo emits OpenTelemetry traces and metrics. Both are off by default and cost almost nothing when off. The standard `OTEL_*` environment variables configure them, so any collector, backend or CI system that speaks OTLP works without pravo-specific settings.
+pravo emits OpenTelemetry traces and metrics. Exporting is off by default: nothing leaves the machine until the standard `OTEL_*` environment variables name where it goes, so any collector, backend or CI system that speaks OTLP works without pravo-specific settings. Apart from that, a command that ran an engine keeps its own trace in the project, for [the viewer](#the-recorded-runs) to show without a collector.
 
 | Variable | Effect |
 |---|---|
@@ -19,7 +19,9 @@ pravo emits OpenTelemetry traces and metrics. Both are off by default and cost a
 | `OTEL_EXPORTER_OTLP_HEADERS`, `..._TIMEOUT`, `..._CERTIFICATE` | Passed to the exporters as the OpenTelemetry specification defines. |
 | `OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER` | `otlp`, `console` (JSON on standard error) or `none`. Any other value turns the signal off. |
 | `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | The identity of the resource. The service is `pravo` unless you say otherwise. |
-| `OTEL_SDK_DISABLED=true` | Turns everything off. |
+| `OTEL_SDK_DISABLED=true` | Turns everything off, the recorded runs included. |
+| `PRAVO_TRACES=off` | Turns the recorded runs off and leaves the exporters as they are. |
+| `PRAVO_TRACE_DIR` | Where the recorded runs are kept, in place of `.pravo/traces`. |
 | `TRACEPARENT`, `TRACESTATE` | A trace started by the caller continues in pravo. See [Propagation](#propagation). |
 
 Export never affects a command. A collector that is down costs at most the flush timeout, five seconds, produces one warning on standard error and does not change the exit code. With `--json`, telemetry never writes to standard output.
@@ -126,6 +128,18 @@ jq -c '{Name, events: [.Events[]? | .Name]}' trace.jsonl | grep -E 'resource hel
 {"Name":"pravo plan","events":["loaded","state opened","provider version from the lock file","provider found installed","schema from the cache","schemas ready"]}
 ```
 
+## The recorded runs
+
+A command that ran an engine (`plan`, `apply`, `destroy`, `drift` and the commands that plan inside them) writes its trace to `.pravo/traces/<trace id>-<span id>.json` in the directory it ran in, when it ends. This needs no `OTEL_*` variable and no collector. [`pravo serve`](serve.md#the-traces-section) reads the directory and shows each run as a timeline, which is the quickest way to see where a run spent its time or where it stopped.
+
+- The file holds the spans that the exporters get: the same names, the same attributes and the same debug events, with times counted in microseconds from the start of the run. It holds no attribute value, by the rule [above](#what-spans-never-contain).
+- A command that ran no engine (`pravo version`, `pravo serve`, `pravo state log`) writes nothing. A command that continues the trace of its caller (`TRACEPARENT`) writes its own file, so a CI job that runs several commands in one trace has one file for each.
+- The directory keeps the newest 100 runs and has a `.gitignore` that ignores the whole of it. A run of more than 20,000 spans keeps every command, engine and resource span and leaves out the provider calls that end after that, and says how many.
+- A failure to write the file never fails the command and prints nothing.
+- The trace id of a run that only the recorded file holds is not written to the state or to the documents of a command: `trace_id` appears there only when an exporter is on. The `pravo.txn` attribute of the `engine` span names the transaction that an apply wrote, which is how the viewer joins the two.
+
+Set `PRAVO_TRACES=off` to record nothing, or `PRAVO_TRACE_DIR` to keep the runs elsewhere. `pravo serve` reads the directory that `PRAVO_TRACE_DIR` names, when it is set in its own environment.
+
 ## Metrics
 
 | Instrument | Type | Attributes |
@@ -159,13 +173,13 @@ The counter measures refusals. It cannot measure omission: a run that was not gi
 
 ## Finding a run again
 
-When tracing is on, the trace id is stored where you already look:
+When an exporter is on, the trace id is stored where you already look:
 
 - every transaction in the state has a `trace_id` (`pravo state log --json`);
 - `pravo plan --json` documents carry `trace_id`;
 - apply and destroy events (`--json`) carry `trace_id` on every line.
 
-When tracing is off, the field is omitted. Given a transaction in the log, open its trace. Given a trace, the `pravo.txn` attribute of the `engine` span names the transaction.
+When no exporter is on, the field is omitted. Given a transaction in the log, open its trace. Given a trace, the `pravo.txn` attribute of the `engine` span names the transaction.
 
 ```sh run
 OTEL_TRACES_EXPORTER=console pravo plan --json 2> trace.jsonl | jq -r .trace_id > doc-trace-id.txt
@@ -210,4 +224,5 @@ Logs are not exported as an OpenTelemetry signal. The transaction log and the `-
 ## See also
 
 - [Find out why a run fails](../how-to/debugging.md) follows a command in a trace.
+- [`pravo serve`](serve.md#the-traces-section) shows the recorded runs.
 - [Global flags, environment and exit codes](global-flags.md) lists the other variables.

@@ -10,7 +10,7 @@ Serve a read-only viewer on the loopback interface: a graph of namespaces and re
 |---|---|
 | Synopsis | `pravo serve [flags]` |
 | Changes infrastructure | No. |
-| Reads | The specification, the state, the plans stored in it, the runs of the discoveries stored in it, the provider schemas that are cached already and, with `--plan FILE`, a saved plan. For a state that is sealed, the readers file and the identity of the person who runs the command. |
+| Reads | The specification, the state, the plans stored in it, the runs of the discoveries stored in it, the runs that pravo recorded in `.pravo/traces` (or `$PRAVO_TRACE_DIR`), the provider schemas that are cached already and, with `--plan FILE`, a saved plan. For a state that is sealed, the readers file and the identity of the person who runs the command. |
 | Writes | Nothing: no state record, no transaction, no lock, no `pravo.lock.cue`, no generated package, and nothing of a stored plan: no claim, no progress, no removal. It runs no discovery. It starts no provider and downloads nothing. |
 | Prints | The address of the viewer, with its token. With `--json`, one line of JSON. Then nothing until it stops. |
 | Taught in | [Explore an estate in a browser](../how-to/explore-your-estate.md). |
@@ -67,7 +67,7 @@ The viewer is one page with a bar, a toolbar, a graph or a list, an inspector th
 
 | Part | Holds |
 |---|---|
-| Bar | The project directory and the state location, each a button that copies the path. The four sections, Inventory, Discovery, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. The title of the browser tab names the project and the section, so that tabs of several estates tell apart. |
+| Bar | The project directory and the state location, each a button that copies the path. The five sections, Inventory, Discovery, Traces, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. The title of the browser tab names the project and the section, so that tabs of several estates tell apart. |
 | Toolbar | Of the Inventory section: the switch Graph and List, the switch Grouped and Flat of the list, then Collapse and Expand. The filter box, which takes words and column:value terms such as `type:s3_bucket` and `mode:data`, with the number of matches, or of items. The zoom buttons, minus, Fit and plus, and the button that shows the project. |
 | Pills | Under the toolbar, one pill for each term of the filter box, with a cross that takes it out. The row is not there while the box has no term. |
 | Graph | The lanes of open namespaces, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks that the graph shows and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a namespace. |
@@ -174,6 +174,23 @@ The menu under the box works as it does in the Inventory. While the box is empty
 
 A group lists 100 objects and a button shows more. A discovery lists at most 2000, and says how many it leaves out. The text of every name, identity and reason comes from a provider or a person, is masked as other text of the page is, and has its control and direction characters removed. A command is suggested only for a name and an id that a shell can carry, and it is quoted. The page runs nothing: its footer says `This page suggests commands. It runs nothing and writes nothing.`
 
+## The Traces section
+
+The Traces section shows the runs that pravo recorded in the project: every `plan`, `apply`, `destroy` and `drift` leaves its spans in `.pravo/traces`, and the section reads them, so a slow or failing run can be debugged without a collector. [Telemetry](telemetry.md#the-recorded-runs) says what is recorded and how to turn it off. Its link is `view=traces`, and its key is `r`. It has no toolbar of the Inventory and no inspector.
+
+| Part | Holds |
+|---|---|
+| The runs | The recorded runs, newest first: the command, how long ago, how long it took, how many resources it handled, the reason it was given, and a red square and `failed` for a run in which a span failed. The newest run is open, and a run that lands while the page is open is opened unless you chose another. |
+| The head of a run | The command and whether a span failed, the exit code, when it started, how long it took, how many spans and resources, the transaction an apply wrote (with a button that copies it), the actor and the reason, and the trace id. |
+| The timeline | The time of the run across and the nesting down. A bar is a span: dark for the command and the engine, blue for a resource, light blue for a call to a provider, red for a span that failed. A span that runs at the same time as another sits in a row of its own, so the width of a bar is how long it took and the number of rows is how much ran at once. The ruler marks the time. Click a bar to select it, double click it to fit the timeline to it. Drag to move along the run, and hold Ctrl or Cmd and scroll to zoom. The buttons zoom out, fit the whole run and zoom in. |
+| Slowest | The same spans as a table, longest first. A column heading sorts by it. `In itself` is the time in a span that none of its parts covers: a resource that took four seconds, of which the provider call took 3.9, has little in itself, and a command with a large figure spent its time between its parts. |
+| The filter | Words that must all be in the name, the message or an attribute of a span, `is:error` for the spans that failed and `kind:resource`, `kind:provider`, `kind:engine` or `kind:command` for one kind. The timeline dims the spans that do not match, and the table lists the ones that do. |
+| The span | What the selection did: the path from the command to it, the error text of a failed span, how long it took and how long it spent in itself, when it started and ended, its attributes, its events (the lines of the debug log that were attached to it, with the time since it started) and its slowest parts, each a button that selects it. |
+
+Keys in the timeline: the arrows move the selection (up to the span that holds it, down to its first part, left and right to its neighbours), Shift and the left and right arrows move along the run, `+` and `-` zoom, `0` fits the whole run, Enter fits the selection and Esc clears it.
+
+The values in a trace are the ones that a trace has anywhere: addresses, types, actions, counts, outcomes and error messages, never attribute values. The viewer masks them as it masks every other text that it shows (see [the security model](#security-model)), so an error message that quotes a secret of the state does not show it. A directory that holds a file that is not a run of this version shows its count and not the file.
+
 ## The State section
 
 The State section says where the state is kept, how it is protected and who can read it. It is the last section of the page, after Inventory, Discovery and Plans, which holds the graph and the list, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no chips or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
@@ -201,7 +218,7 @@ The list and the inspector mark a record that cannot be opened with the chip `se
 - It listens on no interface but loopback.
 - It runs no command that the State section suggests, edits no readers file, and sends no key: no secret of an identity and no lock of the state is in a response. Reader keys and signing-key fingerprints are public and are sent.
 - It sends no value that the provider schema marks sensitive or write-only, no value of an attribute that the schema does not know, no value of an attribute that is named like a secret, no value that contains a string that the state keeps in a sensitive attribute, and no value of a sensitive output.
-- It serves no file by path. A request names an address, and the server looks the address up in the specification that it loaded.
+- It serves no file by path. A request names an address, and the server looks the address up in the specification that it loaded. A request for a recorded run names an id of a fixed form, and the server reads the file of that name in the directory of the recorded runs, and nothing else; a link in that directory is not followed.
 
 ## Security model
 
@@ -250,7 +267,12 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `dq` | Text | The filter box of the Discovery section: words, and terms of the form `column:value` (status, discovery, type, provider, instance, freshness, id, name, by, field, value). |
 | `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, instance, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
 | `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer does not write it any more. |
-| `view` | `graph`, `list`, `discovery`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Discovery section, the Plans section, or the State section (`access` is the old name of it). |
+| `view` | `graph`, `list`, `discovery`, `traces`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Discovery section, the Traces section, the Plans section, or the State section (`access` is the old name of it). |
+| `trace` | A run id: 32 hexadecimal digits, a hyphen and 16 more | The recorded run that the Traces section opens. Without it the newest is open. A run that is not in the directory is told in a notice and ignored. |
+| `span` | A span id of 16 hexadecimal digits | The selected span of that run. |
+| `tv` | `table` | The Traces section shows the slowest spans as a table and not as a timeline. |
+| `tz` | `START-END` | The part of the run that the timeline shows, in microseconds from its start. |
+| `tq` | Text | The filter box of the Traces section. |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
 | `palette` | `1` | The search palette open. |
@@ -271,6 +293,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `a` | Switch between the Inventory and the State sections. |
 | `p` | Switch between the Inventory and the Plans sections. |
 | `d` | Switch between the Inventory and the Discovery sections. |
+| `r` | Switch between the Inventory and the Traces sections. |
 | Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the namespace that a click opened, then clear the selection. |
 
 In the graph:
@@ -331,7 +354,9 @@ The interface of the page is a set of read-only endpoints. They are for the page
 | `GET /api/access` | How the state is protected, the readers of the store and of the readers file, the verdict between them, who the viewer is, and the suggested commands. See [The State section](#the-state-section). |
 | `GET /api/discovery` | The discoveries of the specification and what their last runs found, set against the state: for each its scope, its freshness, its last run, the counts by status, the objects that are not managed (at most 2000), its `$ack` entries and the commands. See [The Discovery section](#the-discovery-section). |
 | `GET /api/adopt?discovery=NAME&key=KEY` | The resource that adopts one object of the last run of a discovery, as CUE, and the commands to copy. `KEY` is the `key` of the object in `/api/discovery`. 404 for an object that is not in the run or is managed, 400 for a name or key that is too long. The server asks no provider. |
-| `GET /api/events` | A stream of server-sent events. Each event `change` carries the new revision and what changed: `state`, `spec`, `plan`, `locks`, `plans`, `access` or `discovery`. `plan` is the plan file of `--plan`, `plans` are the plans stored in the state, `access` is the readers file, and `discovery` is the runs of the discoveries. |
+| `GET /api/traces` | The runs that pravo recorded in `.pravo/traces` or `$PRAVO_TRACE_DIR`, newest first, at most 200: for each its `id` (the trace id, a hyphen and the id of its first root span), the command, when it started, how long it took, the exit code, `status` (`ok`, or `error` when a span failed), the counts of spans, failed spans and resources, the transaction it wrote and the actor and reason. `unreadable` counts the files that are not a run of this version. |
+| `GET /api/trace?id=ID` | The spans of one run: for each its id and parent, its name, its `kind` (`command`, `engine`, `resource`, `provider`, `mcp` or `other`), its status and message, when it started and how long it took in microseconds from the start of the run, its attributes and its events. At most 30,000 spans, and `omitted` counts the rest. 400 for an id that is not of that form, 404 for a run that is not there, 422 for a file that is not a run. The id names a file and is never a path. |
+| `GET /api/events` | A stream of server-sent events. Each event `change` carries the revision and what changed: `state`, `spec`, `plan`, `locks`, `plans`, `access`, `discovery` or `traces`. `plan` is the plan file of `--plan`, `plans` are the plans stored in the state, `access` is the readers file, `discovery` is the runs of the discoveries, and `traces` is the directory of the recorded runs: a run that lands changes no node, so its event carries the revision that the page holds. |
 
 `ADDR` is URL-encoded. An address that is not known gets 404 and `{"error":"..."}`. An `id` or `plan` that is not `plan-` and six or more hexadecimal digits gets 400, and an id that no stored plan has gets 404. The server looks an id up among the plans that it lists. It is never a path, and the beginning of an id is not taken for it. The additions are `/api/plans`, `/api/plan`, the `plan` parameter, `Node.plans` and `Node.overlap` in the graph, and `id` and `status` in the plan of the graph. A reader that does not know them reads the rest as before.
 
@@ -614,6 +639,8 @@ Serve a read-only viewer on the loopback interface and open it in the default br
 The viewer shows the specification and the state as a graph of namespaces and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top: a plan file, or the id of a plan stored in the state with "pravo plan --store". The plans stored in the state are listed in the viewer whether or not --plan is given, and any of them can be laid over the graph. It updates when the state, the specification, the plan file or the stored plans change.
 
 A state that is sealed (see "pravo protect") is read with your reader identity, named by --identity or found as the other commands find it, and a sealed identity asks for its passphrase on the terminal before the server starts. Without an identity, or with one that is not a reader, the viewer lists the resources and shows no value; --identity none shows the state as someone with no key sees it. The State page shows who can read the state and suggests commands to copy. It runs none of them.
+
+It also lists the runs that pravo recorded (.pravo/traces, or $PRAVO_TRACE_DIR) as a timeline of spans, so that a slow or failing run can be read without a collector.
 
 The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.
 

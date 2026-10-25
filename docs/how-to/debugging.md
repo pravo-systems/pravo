@@ -330,7 +330,7 @@ Graph: planned 1 · skipped 1 · refreshed 2 · drifted 1
 
 ## 5. Follow a run in a trace
 
-Every command can emit OpenTelemetry traces. They are off by default. `OTEL_TRACES_EXPORTER=console` writes one JSON object per span to standard error, which needs no collector.
+Every command can emit OpenTelemetry traces. Exporting them is off by default. `OTEL_TRACES_EXPORTER=console` writes one JSON object per span to standard error, which needs no collector.
 
 ```sh run
 OTEL_TRACES_EXPORTER=console pravo plan 2> trace.jsonl > /dev/null
@@ -370,6 +370,8 @@ pravo state log --json | jq -r '.[0].trace_id | length'
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 32
 ```
+
+Without any of this, a command that ran an engine keeps its trace in `.pravo/traces`, and `pravo serve` shows it as a timeline: the Traces section lists the runs, and a click on a bar shows the span, its error and its parts. That is the quickest way to find the slow resource of an apply or the call that failed. See [The Traces section](../reference/serve.md#the-traces-section).
 
 A real collector takes the standard `OTEL_EXPORTER_OTLP_ENDPOINT` variable. `TRACEPARENT` in the environment makes the command a child of the caller's span, so a pipeline's trace shows pravo's work inside it.
 
