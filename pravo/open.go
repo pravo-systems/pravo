@@ -155,11 +155,13 @@ func (w *Workspace) open(ctx context.Context) error {
 			open = w.openState
 		}
 		w.state, err = open(octx, root, cfg.State)
+		if err == nil {
+			plog.Debug(octx, "state opened", "backend", BackendName(root.State.Backend), "location", w.state.Dir(), "nodes", w.state.Len(), "took", took(began))
+		}
 		end(err)
 		if err != nil {
 			return err
 		}
-		plog.Debug(ctx, "state opened", "backend", BackendName(root.State.Backend), "location", w.state.Dir(), "nodes", w.state.Len(), "took", took(began))
 		w.state.SetContext(ctx)
 		// Providers that only exist in state must still be resolvable.
 		for _, sr := range w.state.List() {
