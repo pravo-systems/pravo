@@ -2,9 +2,11 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -295,47 +297,131 @@ func (p *Printer) renderStats(plan *engine.Plan) {
 	p.Println(p.C(Dim, "Graph: "+strings.Join(parts, " · ")))
 }
 
+// renderOutputs shows the outputs the plan changes, each with the value it has
+// now and the one it will have. The others are counted: their values are in
+// "pravo output" and "pravo serve", and a plan that lists them all fills a log
+// with values nobody is deciding on.
 func (p *Printer) renderOutputs(plan *engine.Plan) {
-	if len(plan.Outputs) == 0 && (len(plan.SavedOutputs) > 0 || len(plan.UnknownOutputs) > 0) {
-		names := make([]string, 0, len(plan.SavedOutputs)+len(plan.UnknownOutputs))
-		for n := range plan.SavedOutputs {
+	all := map[string]bool{}
+	for n := range plan.Outputs {
+		all[n] = true
+	}
+	for n := range plan.SavedOutputs {
+		all[n] = true
+	}
+	for _, n := range plan.UnknownOutputs {
+		all[n] = true
+	}
+	changing := map[string]bool{}
+	for _, n := range plan.EvalOutputs {
+		changing[n] = true
+	}
+	for _, n := range plan.DropOutputs {
+		changing[n] = true
+	}
+	names := make([]string, 0, len(changing))
+	for n := range changing {
+		if !all[n] {
+			// An output the specification no longer declares.
+			names = append(names, n)
+			continue
+		}
+		if _, ok := p.outputChange(plan, n); ok {
 			names = append(names, n)
 		}
-		names = append(names, plan.UnknownOutputs...)
-		sort.Strings(names)
-		p.Println()
-		p.Println("Outputs:")
-		for _, n := range names {
-			if plan.SensitiveOutputs[n] {
-				p.Printf("  %s: %s\n", convert.FieldLabel(n), p.C(Dim, "(sensitive)"))
-			} else if v, ok := plan.SavedOutputs[n]; ok {
-				p.Printf("  %s: %s\n", convert.FieldLabel(n), JSONToCUE(v, "  "))
-			} else {
-				p.Printf("  %s: %s\n", convert.FieldLabel(n), p.C(Dim, "(known after apply)"))
-			}
-		}
-		return
-	}
-	if len(plan.Outputs) == 0 {
-		return
-	}
-	names := make([]string, 0, len(plan.Outputs))
-	for n := range plan.Outputs {
-		names = append(names, n)
 	}
 	sort.Strings(names)
-	p.Println()
-	p.Println("Outputs:")
+	unchanged := len(all)
 	for _, n := range names {
-		v := plan.Outputs[n]
-		if plan.SensitiveOutputs[n] {
-			p.Printf("  %s: %s\n", convert.FieldLabel(n), p.C(Dim, "(sensitive)"))
-		} else if convert.IsConcrete(v) {
-			p.Printf("  %s: %s\n", convert.FieldLabel(n), FormatCUE(convert.Default(v), "  "))
-		} else {
-			p.Printf("  %s: %s\n", convert.FieldLabel(n), p.C(Dim, "(known after apply)"))
+		if all[n] {
+			unchanged--
 		}
 	}
+	if len(all) == 0 && len(names) == 0 {
+		return
+	}
+	p.Println()
+	if len(names) == 0 {
+		p.Println(p.C(Dim, fmt.Sprintf("Outputs: %s unchanged.", countOutputs(unchanged))))
+		return
+	}
+	p.Println("Outputs:")
+	for _, n := range names {
+		line, _ := p.outputChange(plan, n)
+		p.Printf("  %s: %s\n", convert.FieldLabel(n), line)
+	}
+	if unchanged > 0 {
+		p.Println(p.C(Dim, fmt.Sprintf("  %s unchanged.", countOutputs(unchanged))))
+	}
+}
+
+func countOutputs(n int) string {
+	if n == 1 {
+		return "1 output"
+	}
+	return fmt.Sprintf("%d outputs", n)
+}
+
+// outputChange words what the plan does to output n: "old → new", or just the
+// new value when the output has no recorded one. It reports false for an output
+// whose value stays as it is recorded. A sensitive value is compared and then
+// shown as "(sensitive)".
+func (p *Printer) outputChange(plan *engine.Plan, n string) (string, bool) {
+	var old string
+	var oldJSON []byte
+	oldKnown, oldSensitive := false, false
+	if raw, ok := plan.OldOutputs[n]; ok {
+		oldJSON, oldSensitive = engine.UnwrapOutput(raw)
+		oldKnown = true
+		old = JSONToCUE(oldJSON, "  ")
+	}
+	var now string
+	var nowJSON []byte
+	switch v, ok := plan.Outputs[n]; {
+	case ok && convert.IsConcrete(v):
+		now = FormatCUE(convert.Default(v), "  ")
+		nowJSON, _ = convert.Default(v).MarshalJSON()
+	case ok:
+		now = p.C(Dim, "(known after apply)")
+	default:
+		if raw, saved := plan.SavedOutputs[n]; saved {
+			now = JSONToCUE(raw, "  ")
+			nowJSON = raw
+		} else if contains(plan.UnknownOutputs, n) {
+			now = p.C(Dim, "(known after apply)")
+		} else {
+			now = p.C(Dim, "(removed)")
+		}
+	}
+	if oldKnown && nowJSON != nil && sameJSON(oldJSON, nowJSON) {
+		return "", false
+	}
+	if plan.SensitiveOutputs[n] || oldSensitive {
+		return p.C(Dim, "(sensitive)"), true
+	}
+	if !oldKnown {
+		return now, true
+	}
+	return old + " → " + now, true
+}
+
+// sameJSON reports whether two JSON documents hold the same value, whatever
+// their layout.
+func sameJSON(a, b []byte) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return false
+	}
+	return reflect.DeepEqual(x, y)
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }
 
 // pad right-aligns the symbol in a 3-character column.

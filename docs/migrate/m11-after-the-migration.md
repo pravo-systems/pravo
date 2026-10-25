@@ -227,10 +227,7 @@ pravo plan --policy policy/refactor.cue
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-<pet>"
+Outputs: 3 outputs unchanged.
 Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
@@ -327,10 +324,7 @@ pravo plan --policy policy/refactor.cue
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-<pet>"
+Outputs: 3 outputs unchanged.
 Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
@@ -411,10 +405,7 @@ pravo will perform the following actions:
 Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8 · to move 2
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-<pet>"
+Outputs: 3 outputs unchanged.
 Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
@@ -480,10 +471,7 @@ pravo plan --policy policy/refactor.cue
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-<pet>"
+Outputs: 3 outputs unchanged.
 Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 
@@ -545,10 +533,7 @@ Success! 8 resources, 1 data sources, 0 ephemeral, 0 function calls, 3 outputs a
 No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-<pet>"
+Outputs: 3 outputs unchanged.
 Policy policy/refactor.cue (sha256:884a0d7ff8ef) is satisfied.
 ```
 

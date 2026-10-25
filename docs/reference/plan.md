@@ -166,7 +166,7 @@ Other lines:
 | `Plan: N to add, N to change, N to destroy.` | A replacement counts once under add and once under destroy. `, N to import` and `, N to move` follow when the plan has `$import` objects and `$from` records for the apply to write. |
 | `Hint: ...` | A resource looks like one that was renamed without `$from`. |
 | `Graph: ...` | How much of the specification the plan reached. See below. |
-| `Outputs:` | The outputs, known or `(known after apply)`. |
+| `Outputs:` | The outputs that the plan changes, as `old → new` or just the new value when none is recorded, and `(known after apply)` for a value that is not known yet. Sensitive outputs show `(sensitive)`. The others are counted. |
 
 The `Graph:` line lists these parts, in this order, separated by `·`, and leaves out a part that is zero.
 
@@ -207,8 +207,7 @@ pravo plan
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
 
-Outputs:
-  url: "http://localhost:20093"
+Outputs: 1 output unchanged.
 ```
 
 The four values of `--refresh` differ in what the provider is asked to read.
@@ -310,7 +309,7 @@ Plan: 2 to add, 0 to change, 2 to destroy.
 Graph: planned 2 · refreshed 2
 
 Outputs:
-  url: (known after apply)
+  url: "http://localhost:20093" → (known after apply)
 ```
 
 `# forces replacement` marks `max` on `base` and `min` on `port`. The `Graph:` line shows 2 of 2 planned.

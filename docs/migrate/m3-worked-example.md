@@ -932,7 +932,7 @@ Graph: planned 7 · removed 7 · refreshed 7
 
 Outputs:
   admin_password: (sensitive)
-  endpoints: (known after apply)
+  endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"] → (known after apply)
 ```
 
 The plan is valid. It is not what you meant. Read the summary line first: seven to add and seven to destroy. List the headings to see the pairs.
@@ -1012,9 +1012,7 @@ pravo will perform the following actions:
 Plan: 0 to add, 0 to change, 0 to destroy, 7 to move.
 Graph: planned 7 · refreshed 7 · to move 7
 
-Outputs:
-  admin_password: (sensitive)
-  endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]
+Outputs: 2 outputs unchanged.
 ```
 
 Every change is a move: `record renamed; no change to the object`. The summary has no adds, changes or destroys, and the exit code is 0. This is the plan you wait for.
@@ -1103,9 +1101,7 @@ pravo -C platform state list
 No changes. The specification matches the state. 7 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 7 · not read 7
 
-Outputs:
-  admin_password: (sensitive)
-  endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]
+Outputs: 2 outputs unchanged.
 
 No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
 Graph: planned 0 · skipped 1 · not read 1
