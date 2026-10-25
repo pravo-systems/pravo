@@ -349,6 +349,16 @@ type HistoryEntry struct {
 	// the specification it ran against, as the transaction recorded them.
 	Plan        string `json:"plan,omitempty"`
 	GitRevision string `json:"git_revision,omitempty"`
+	// Attrs are the attributes the change altered, as the transaction recorded
+	// them, redacted as a plan's are. AttrsMore counts those left out for room.
+	// AttrsOmitted says the transaction kept none because the change altered too
+	// much, and AttrsSealed that a sealed state keeps them for readers and this
+	// viewer holds no key. A transaction recorded before diffs were kept says
+	// none of this.
+	Attrs        []AttrChange `json:"attrs,omitempty"`
+	AttrsMore    int          `json:"attrs_more,omitempty"`
+	AttrsOmitted bool         `json:"attrs_omitted,omitempty"`
+	AttrsSealed  bool         `json:"attrs_sealed,omitempty"`
 	// Signature is what the signatures of the transaction come to: "verified",
 	// "key_not_in_file", "invalid" or "unsigned", absent when they are not checked.
 	// Signer is the name the readers file gives the key of a signature that verified.

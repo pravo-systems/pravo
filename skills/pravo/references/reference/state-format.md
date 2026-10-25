@@ -414,22 +414,67 @@ Output:
     {
       "addr": "hello",
       "action": "create",
-      "after_revision": 1
+      "after_revision": 1,
+      "diff": {
+        "after": {
+          "content": "Hello, <pet>!",
+          "content_base64sha256": "7F7C6CT4DusQsLGDrcNdDkR85Mz2Xp39oX4hcL1TG8M=",
+          "content_base64sha512": "/sbPhw1we/GlXyJHucjWGS0eDAqw1A9bF0zqU70xLBgE3uSRyQ8F8/QTdJxAWkDziW7ZEl2uaRsMIGoLhqb9Uw==",
+          "content_md5": "375dd2607080392fe3c36342991ba8a1",
+          "content_sha1": "14a81df3630b52609a12da66ef7ffd0d1b9506ef",
+          "content_sha256": "ec5ec2e824f80eeb10b0b183adc35d0e447ce4ccf65e9dfda17e2170bd531bc3",
+          "content_sha512": "fec6cf870d707bf1a55f2247b9c8d6192d1e0c0ab0d40f5b174cea53bd312c1804dee491c90f05f3f413749c405a40f3896ed9125dae691b0c206a0b86a6fd53",
+          "directory_permission": "0777",
+          "file_permission": "0777",
+          "filename": "hello.txt",
+          "id": "14a81df3630b52609a12da66ef7ffd0d1b9506ef"
+        }
+      }
     },
     {
       "addr": "pet",
       "action": "create",
-      "after_revision": 1
+      "after_revision": 1,
+      "diff": {
+        "after": {
+          "id": "<pet>",
+          "length": 2,
+          "separator": "-"
+        }
+      }
     },
     {
       "addr": "readme",
       "action": "read",
-      "after_revision": 1
+      "after_revision": 1,
+      "diff": {
+        "after": {
+          "content": "Hello, <pet>!",
+          "content_base64": "SGVsbG8sIGVuYWJsZWQtbWFzdG9kb24h",
+          "content_base64sha256": "7F7C6CT4DusQsLGDrcNdDkR85Mz2Xp39oX4hcL1TG8M=",
+          "content_base64sha512": "/sbPhw1we/GlXyJHucjWGS0eDAqw1A9bF0zqU70xLBgE3uSRyQ8F8/QTdJxAWkDziW7ZEl2uaRsMIGoLhqb9Uw==",
+          "content_md5": "375dd2607080392fe3c36342991ba8a1",
+          "content_sha1": "14a81df3630b52609a12da66ef7ffd0d1b9506ef",
+          "content_sha256": "ec5ec2e824f80eeb10b0b183adc35d0e447ce4ccf65e9dfda17e2170bd531bc3",
+          "content_sha512": "fec6cf870d707bf1a55f2247b9c8d6192d1e0c0ab0d40f5b174cea53bd312c1804dee491c90f05f3f413749c405a40f3896ed9125dae691b0c206a0b86a6fd53",
+          "filename": "hello.txt",
+          "id": "14a81df3630b52609a12da66ef7ffd0d1b9506ef"
+        }
+      }
     },
     {
       "addr": "servers[0]",
       "action": "create",
-      "after_revision": 1
+      "after_revision": 1,
+      "diff": {
+        "after": {
+          "id": "57",
+          "max": 99,
+          "min": 1,
+          "result": 57,
+          "seed": "fixed"
+        }
+      }
     }
   ],
   "actor": "ci",
@@ -448,7 +493,8 @@ Output:
 | `status` | `planned`, `applied`, `rejected`, `failed`. `running` while an apply holds its locks; the file of a command that was killed keeps it, and `pravo state log` shows it as `interrupted`. |
 | `summary` | The counts, in words. For a run that failed or was rejected, the text of its error; in a sealed state, a fixed sentence that says the text is sealed, followed by the notes about the changes whose result is unknown. |
 | `summary_sealed` | Only in a sealed state, for a run that failed or was rejected: the full text of the error, sealed under the kind `txn-summary` and bound to the id of the transaction. `pravo state log` shows it in place of `summary` to a reader. |
-| `changes` | Each node the transaction touched: `addr`, `action`, and the revisions before and after. The action `unsettled` marks a node that an apply stopped on while a provider was changing it. |
+| `changes` | Each node the transaction touched: `addr`, `action`, and the revisions before and after. The action `unsettled` marks a node that an apply stopped on while a provider was changing it. A change that altered the attributes of a record also has `diff`: `before` and `after`, each holding the top-level attributes that differ, as the record held them; an attribute that was null or absent is left out of that side. An attribute that is or may hold a secret is not kept: it is named in `withheld`, with the sides that held a value (`before`, `after` or `both`). The schema marks it sensitive or write-only, or anything inside it is; its name, or a key inside it, says secret; it is not in the schema; or it holds a string that a withheld attribute of either record holds. A change that altered more than 64 KiB has `{"omitted": true}` in their place. A change that only moves a record has none. |
+| `diff_sealed` | Only in a sealed state: the `diff` of each change, by address, sealed under the kind `txn-diff` and bound to the id of the transaction, in place of the `diff` of the changes. The signatures do not cover it. A rewrap with `--all` seals it again, and an unseal writes it back into the changes. |
 | `actor`, `reason`, `git_revision`, `trace_id` | The labels of the run, when set. |
 | `version` | The version of the pravo that began the transaction. A transaction written by a pravo that did not record it has none. |
 | `plan`, `plan_digest` | For an apply from a plan: the id of the stored plan, empty for a plan file, and the SHA-256 of the plan file in hex. |

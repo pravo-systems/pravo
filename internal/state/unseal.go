@@ -398,15 +398,32 @@ func (s *Store) unsealSummaries(ctx context.Context) error {
 			return err
 		}
 		var t Transaction
-		if json.Unmarshal(data, &t) != nil || t.SummarySealed == nil {
+		if json.Unmarshal(data, &t) != nil || (t.SummarySealed == nil && t.DiffSealed == nil) {
 			continue
 		}
-		plain, err := sl.Open(protect.KindSummary, t.ID, *t.SummarySealed)
-		if err != nil {
+		changed := false
+		if t.SummarySealed != nil {
+			if plain, err := sl.Open(protect.KindSummary, t.ID, *t.SummarySealed); err == nil {
+				t.Summary, t.SummarySealed = string(plain), nil
+				clear(plain)
+				changed = true
+			}
+		}
+		if t.DiffSealed != nil {
+			if diffs, sealed := s.TxnDiffs(t); !sealed {
+				for i := range t.Changes {
+					if d, ok := diffs[t.Changes[i].Addr]; ok {
+						d := d
+						t.Changes[i].Diff = &d
+					}
+				}
+				t.DiffSealed = nil
+				changed = true
+			}
+		}
+		if !changed {
 			continue
 		}
-		t.Summary, t.SummarySealed = string(plain), nil
-		clear(plain)
 		next, err := indentJSON(t)
 		if err != nil {
 			return err

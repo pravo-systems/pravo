@@ -6,6 +6,7 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -355,3 +356,7 @@ func Unmarshal(data []byte) (*ProviderSchema, error) {
 	}
 	return &p, nil
 }
+
+// NameGuard matches the name of an attribute or a map key that says its value
+// is a secret. A value so named is withheld whatever the schema says.
+var NameGuard = regexp.MustCompile(`(?i)(password|passwd|secret|token|private_key|credential|api_key|access_key)`)

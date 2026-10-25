@@ -378,6 +378,11 @@
 .cmd { display: block; margin: .5rem 0 0; padding: .4rem .55rem; font: 400 .72rem/1.45 var(--font-mono); background: var(--code-bg); color: var(--code-text); border: 1px solid var(--code-edge); overflow-wrap: anywhere; }
 .reason { margin: .45rem 0 0; font-size: .78rem; color: var(--text-2); }
 .tl-meta { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin-top: .45rem; font: 400 .66rem/1.3 var(--font-mono); color: var(--text-3); }
+.tl-diff { margin-top: .6rem; border: 1px solid var(--line); }
+.tl-diff > summary { cursor: pointer; padding: .4rem .6rem; font: 400 .68rem/1.2 var(--font-mono); color: var(--text-2); }
+.tl-diff[open] > summary { border-bottom: 1px solid var(--line); }
+.tl-diff .diff { padding: .55rem .75rem .6rem; }
+.tl-note { display: flex; align-items: flex-start; gap: .45rem; margin: .5rem 0 0; font-size: .72rem; color: var(--text-3); }
 
 /* ---- the Change tab ---- */
 .chg-head { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; margin-bottom: .7rem; font-size: .8rem; }

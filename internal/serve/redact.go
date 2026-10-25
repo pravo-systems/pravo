@@ -20,7 +20,7 @@ import (
 
 // nameGuard is the second guard of README rule 5: a value whose attribute name
 // says it is a secret is withheld whatever the schema says.
-var nameGuard = regexp.MustCompile(`(?i)(password|passwd|secret|token|private_key|credential|api_key|access_key)`)
+var nameGuard = schema.NameGuard
 
 const (
 	// maxChildren bounds the elements of a list, set, map or object that are sent.

@@ -1894,7 +1894,9 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 	before := ch.removedRevision
 	n.Revision = ch.removedRevision
 	rekeyed := false
+	var priorAttrs json.RawMessage
 	if prev := e.State.Get(ch.Addr); prev != nil {
+		priorAttrs = prev.Attributes
 		before = prev.Revision
 		n.Revision = prev.Revision
 		rekeyed = prev.ProviderKey != n.ProviderKey
@@ -1918,6 +1920,7 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 	}
 	if e.txn != nil {
 		e.txn.Record(ch.Addr, action, before, n.Revision)
+		e.recordDiff(ch.Addr, ch.Schema, priorAttrs, n.Attributes)
 	}
 	return nil
 }
