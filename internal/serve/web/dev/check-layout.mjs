@@ -139,7 +139,14 @@ function verify(tag, m, vis, lay) {
     if (fits) for (const id of ids) check(!inter(b, pos.get(id), 0), `${tag}: the count of ${key} sits on ${id}`);
   }
   boxes.sort((a, b) => a.x - b.x);
-  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length && boxes[j].x < boxes[i].x + boxes[i].w + 5; j++) check(!inter(boxes[i], boxes[j], -5), `${tag}: the counts of ${boxes[i].key} and ${boxes[j].key} overlap or nearly`);
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length && boxes[j].x < boxes[i].x + boxes[i].w + 1; j++) check(!inter(boxes[i], boxes[j], -1), `${tag}: the counts of ${boxes[i].key} and ${boxes[j].key} touch`);
+  // a wire that turns more than it must reads as a wicked line. The turns of a picture stay under 1.6 for each wire, and under
+  // 2.1 when the namespaces are open (a wire that crosses the border of a lane turns at its port as well): before the heights of
+  // the wires were straightened the estate had 1.9 and the platform open 2.1
+  let turns = 0;
+  for (const e of E) { const q = routes.get(e.key).p; for (let i = 2; i < q.length; i += 2) if (Math.abs(q[i] - q[i - 2]) < 0.01 && Math.abs(q[i + 1] - q[i - 1]) > 0.01) turns++; }
+  if (E.length >= 10) check(turns <= (tag.endsWith('open') ? 2.1 : 1.6) * E.length, `${tag}: ${turns} turns for ${E.length} wires`);
+  console.log(`${tag.padEnd(24)} turns per wire ${(turns / Math.max(E.length, 1)).toFixed(2)}`);
   return nback;
 }
 

@@ -8,7 +8,9 @@
 //   strands   one wire leaves each item and branches to every item that reads it (a bus). A strand that has to cross
 //             a column passes through it at a free height, as a node of its own that has no width (a dummy).
 //   order     the nodes of a column are ordered by barycenter sweeps, keeping the count of crossings that is least.
-//   heights   Brandes and Koepf: long strands run straight, and every node stands level with its neighbours.
+//   heights   Brandes and Koepf: long strands run straight, and every node stands level with its neighbours. A last pass
+//             moves what stands level to the height of a neighbour where that saves a turn, and a wire leaves and
+//             arrives at the height that it runs at, when that is within the item.
 //   gutters   between two columns, a wire that changes height does so on a line of its own in the gutter. The lines
 //             are taken in an order that crosses the fewest wires; the gutter is as wide as the lines it holds.
 //   ports     a strand that crosses the border of a lane goes in at the left edge or out at the right edge, at a
@@ -235,7 +237,9 @@ function placeY(layers, V) {
     for (const L of layers) { let p = 0; for (let i = 0; i < L.length; i++) { p += L[i].h; if (i) p += sepOf(L[i - 1], L[i]) - (L[i - 1].h + L[i].h) / 2; } packed = Math.max(packed, p); }
     compress(layers, out, packed * CAPF);
   }
+  straighten(layers, V, out);
   gravity(layers, V, out);
+  straighten(layers, V, out);
   return out;
 }
 
@@ -330,6 +334,76 @@ function gravity(layers, V, y) {
   }
   // what stands level stands exactly level
   level();
+  const base = new Map();
+  for (const v of V) { const r = find(v.i); if (!base.has(r)) base.set(r, y[v.i]); }
+  for (const v of V) y[v.i] = base.get(find(v.i));
+}
+
+// straighten takes a run of wire that stands level, with the nodes that stand level with it, and moves it to the height of one
+// of its neighbours when that leaves fewer turns: a wire that steps down in every column goes straight and turns once, where
+// it must. It moves a run only as far as the nodes above and below it let it, and never out of the picture, so the order of
+// the columns and the height of the picture are the ones that the alignment gave. Of the places that leave the fewest turns the
+// nearest wins, and the sum of the lengths of the turns breaks a tie.
+function straighten(layers, V, y) {
+  const n = V.length;
+  if (!n) return;
+  const up = new Int32Array(n);
+  const find = (a) => { while (up[a] !== a) { up[a] = up[up[a]]; a = up[a]; } return a; };
+  const EPS = 0.25;
+  // a wire may leave and arrive anywhere on the side of an item but its corners, so two items stand level enough when they are
+  // not further apart than that
+  const reach = (v) => (v.kind === 'item' ? Math.max(v.h / 2 - 8, 0) : 0);
+  const above = new Array(n), below = new Array(n);
+  for (const L of layers) L.forEach((v, i) => { above[v.i] = i ? L[i - 1] : null; below[v.i] = i + 1 < L.length ? L[i + 1] : null; });
+  let lo = Infinity, hi = -Infinity;
+  for (const v of V) { lo = Math.min(lo, y[v.i] - v.h / 2); hi = Math.max(hi, y[v.i] + v.h / 2); }
+  for (let pass = 0; pass < 24; pass++) {
+    for (let i = 0; i < n; i++) up[i] = i;
+    for (const v of V) for (const w of v.dn) if (Math.abs(y[v.i] - y[w.i]) < EPS) up[find(v.i)] = find(w.i);
+    const members = new Map();
+    for (const v of V) { const r = find(v.i); let a = members.get(r); if (!a) members.set(r, (a = [])); a.push(v); }
+    const gid = new Int32Array(n);
+    const groups = [...members.values()];
+    groups.forEach((g, k) => { for (const v of g) gid[v.i] = k; });
+    groups.sort((p, q) => (pass % 2 ? y[q[0].i] - y[p[0].i] : y[p[0].i] - y[q[0].i]));
+    groups.forEach((g, k) => { for (const v of g) gid[v.i] = k; });
+    let moved = 0;
+    for (let k = 0; k < groups.length; k++) {
+      const g = groups[k];
+      const offs = [];
+      let upRoom = Infinity, downRoom = Infinity, top = Infinity, bot = -Infinity;
+      for (const v of g) {
+        for (const w of v.up) if (gid[w.i] !== k) offs.push([y[w.i] - y[v.i], reach(v) + reach(w)]);
+        for (const w of v.dn) if (gid[w.i] !== k) offs.push([y[w.i] - y[v.i], reach(v) + reach(w)]);
+        const a = above[v.i], b = below[v.i];
+        if (a && gid[a.i] !== k) upRoom = Math.min(upRoom, y[v.i] - y[a.i] - sepOf(a, v));
+        if (b && gid[b.i] !== k) downRoom = Math.min(downRoom, y[b.i] - y[v.i] - sepOf(v, b));
+        top = Math.min(top, y[v.i] - v.h / 2); bot = Math.max(bot, y[v.i] + v.h / 2);
+      }
+      if (!offs.length) continue;
+      upRoom = Math.min(upRoom, top - lo);
+      downRoom = Math.min(downRoom, hi - bot);
+      const cost = (d) => { let c = 0, l = 0; for (const [o, r] of offs) { const t = Math.abs(o - d) - r; if (t > EPS) { c++; l += t; } } return [c, l]; };
+      const [c0, l0] = cost(0);
+      let best = 0, bc = c0, bl = l0;
+      for (const [o, r] of offs) {
+        for (const e of r ? [o - r, o, o + r] : [o]) {
+        const d = Math.max(-upRoom, Math.min(downRoom, e));
+        if (Math.abs(d) < EPS) continue;
+        const [c, l] = cost(d);
+        if (c < bc || (c === bc && l < bl - 1e-9 && c < c0) || (c === bc && c < c0 && l === bl && Math.abs(d) < Math.abs(best))) { best = d; bc = c; bl = l; }
+        }
+      }
+      if (bc < c0 && Math.abs(best) >= EPS) {
+        for (const v of g) y[v.i] += best;
+        moved++;
+      }
+    }
+    if (!moved) break;
+  }
+  // what stands level stands exactly level
+  for (let i = 0; i < n; i++) up[i] = i;
+  for (const v of V) for (const w of v.dn) if (Math.abs(y[v.i] - y[w.i]) < EPS) up[find(v.i)] = find(w.i);
   const base = new Map();
   for (const v of V) { const r = find(v.i); if (!base.has(r)) base.set(r, y[v.i]); }
   for (const v of V) y[v.i] = base.get(find(v.i));
@@ -814,7 +888,26 @@ export function flow(args, G) {
     const topOf = (v) => v.y - v.h / 2;
 
     // ---- where a wire leaves an item and where it arrives ----
-    const srcY = (s) => { const v = s.src.v; return v.kind === 'lane' ? topOf(v) + v.node.lane.outY.get(s.a) : v.y; };
+    // a wire leaves an item at the height of the first run of the wire when that is within the item (so it goes straight out),
+    // and at the middle of the item when it is not: the middle of the heights that its branches go to
+    const MARGIN = 8; // from the top or the bottom of an item to the nearest wire that touches it
+    const within = (v, t) => Math.max(v.y - Math.max(v.h / 2 - MARGIN, 0), Math.min(v.y + Math.max(v.h / 2 - MARGIN, 0), t));
+    const outAt = new Map();
+    const srcY = (s) => {
+      const v = s.src.v;
+      if (v.kind === 'lane') return topOf(v) + v.node.lane.outY.get(s.a);
+      if (v.kind !== 'item' || !s.fw.length) return v.y;
+      let t = outAt.get(s);
+      if (t === undefined) {
+        const ts = [];
+        if (s.rs + 1 < s.rmax) ts.push(s.car[s.rs + 1].y);
+        for (const c of s.fw) if (c.v.layer === s.rs + 1) ts.push(c.v.y);
+        ts.sort((p, q) => p - q);
+        t = ts.length ? Math.round(within(v, ts[(ts.length - 1) >> 1]) * 2) / 2 : v.y;
+        outAt.set(s, t);
+      }
+      return t;
+    };
     // the lines above the nodes for the edges that go back: the longest on the highest
     goes.sort((p, q) => (Math.abs(rankOf(q.c) - rankOf(q.s.src)) - Math.abs(rankOf(p.c) - rankOf(p.s.src))) || p.s.ord - q.s.ord);
     goes.forEach((g, k) => { g.ret = RET0 + RETSTEP * k; });
@@ -835,10 +928,25 @@ export function flow(args, G) {
       list.sort((p, q) => p.from - q.from || p.s.ord - q.s.ord);
       const k = list.length;
       if (v.kind === 'lane') list.forEach((r) => pin.set(r.s.a + '|' + r.c.id, topOf(v) + v.node.lane.inY.get(r.s.a)));
-      else if (v.kind !== 'item' || k === 1) list.forEach((r) => pin.set(r.s.a + '|' + r.c.id, v.y));
+      else if (v.kind !== 'item') list.forEach((r) => pin.set(r.s.a + '|' + r.c.id, v.y));
       else {
-        const sp = Math.min(MAXPIN, Math.max(3, (v.h - 16) / (k - 1)));
-        list.forEach((r, i) => pin.set(r.s.a + '|' + r.c.id, v.y + Math.round((i - (k - 1) / 2) * sp * 2) / 2));
+        // each wire arrives at the height that it comes in at when that is within the item, and the wires that would stand
+        // closer than sp are set apart as little as that takes (the closest fit, in the least squares)
+        const sp = k > 1 ? Math.min(MAXPIN, Math.max(3, (v.h - 16) / (k - 1))) : 0;
+        const blocks = [];
+        list.forEach((r, i) => {
+          blocks.push({ sum: within(v, r.from) - i * sp, n: 1 });
+          while (blocks.length > 1) {
+            const q = blocks[blocks.length - 1], p = blocks[blocks.length - 2];
+            if (p.sum / p.n <= q.sum / q.n) break;
+            p.sum += q.sum; p.n += q.n; blocks.pop();
+          }
+        });
+        const ys = [];
+        for (const b of blocks) for (let j = 0; j < b.n; j++) ys.push(b.sum / b.n + ys.length * sp);
+        // inside the item: the i-th of the wires has i of them above it and k-1-i below, each sp away at the least
+        const room = Math.max(v.h / 2 - MARGIN, 0);
+        list.forEach((r, i) => pin.set(r.s.a + '|' + r.c.id, Math.round(Math.min(Math.max(ys[i], v.y - room + i * sp), v.y + room - (k - 1 - i) * sp) * 2) / 2));
       }
     }
 
