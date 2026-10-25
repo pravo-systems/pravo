@@ -52,6 +52,30 @@ function verify(tag, m, vis, lay) {
     const inside = it.lane === l.path || it.lane.startsWith(l.path + '.') || (l.path === '' );
     if (!inside) check(!inter(l, pos.get(it.id), 0.5), `${tag}: ${it.id} stands in lane ${l.path}`);
   }
+  // an environment variable stands in the first column of its lane, an output in the last
+  const roleOf = (it) => {
+    const x = it.kind === 'node' ? it.n : it;
+    return x.mode === 'output' ? 'output' : x.type === 'env' || x.type === 'secret_env' ? 'env' : '';
+  };
+  const parentOf = (p) => (p.includes('.') ? p.slice(0, p.lastIndexOf('.')) : '');
+  const groups = new Map();
+  const group = (p) => { let g = groups.get(p); if (!g) groups.set(p, (g = { items: [], subs: [] })); return g; };
+  for (const it of vis.items.values()) group(it.lane).items.push(it);
+  for (const l of lanes) group(parentOf(l.path)).subs.push(l);
+  for (const [path, g] of groups) {
+    const xs = g.items.map((it) => pos.get(it.id).x).concat(g.subs.map((l) => l.x));
+    if (!xs.length) continue;
+    const first = Math.min(...xs), last = Math.max(...xs);
+    for (const it of g.items) {
+      const r = roleOf(it), x = pos.get(it.id).x;
+      if (r === 'env') check(Math.abs(x - first) < 0.6, `${tag}: environment variable ${it.id} is not in the first column of lane '${path}' (${x} vs ${first})`);
+      if (r === 'output') {
+        check(Math.abs(x - last) < 0.6 || g.items.some((o) => roleOf(o) === 'output' && pos.get(o.id).x > x), `${tag}: output ${it.id} is not in the last columns of lane '${path}' (${x} vs ${last})`);
+        for (const o of g.items) if (roleOf(o) !== 'output') check(pos.get(o.id).x < x - 0.5, `${tag}: ${o.id} stands in or after the column of output ${it.id}`);
+        for (const l of g.subs) check(l.x < x - 0.5, `${tag}: lane ${l.path} stands in or after the column of output ${it.id}`);
+      }
+    }
+  }
   // wires
   const E = vis.edges;
   let nback = 0;

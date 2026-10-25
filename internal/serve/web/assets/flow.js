@@ -464,6 +464,15 @@ export function flow(args, G) {
     const hasIN = ins.length > 0, hasOUT = outs.length > 0;
 
     // ---- ranks ----
+    // An environment variable stands in the first column of its lane and an output in the last, whatever they read or
+    // are read by: the outputs are ranked among themselves, after all the rest.
+    const roleOf = (n) => {
+      if (!n || n.kind !== 'item') return '';
+      const x = n.it.kind === 'node' ? n.it.n : n.it;
+      return x.mode === 'output' ? 'output' : x.type === 'env' || x.type === 'secret_env' ? 'env' : '';
+    };
+    const isOutR = (r) => roleOf(N.get(r)) === 'output';
+    const isEnvR = (r) => roleOf(N.get(r)) === 'env';
     const rep = new Map();
     const fol = new Map();
     for (const n of real) {
@@ -476,7 +485,11 @@ export function flow(args, G) {
       if (r !== n.id) { let a = fol.get(r); if (!a) fol.set(r, (a = [])); a.push(n); }
     }
     const succ = new Map(), pred = new Map();
-    for (const n of real) if (rep.get(n.id) === n.id) { succ.set(n.id, new Set()); pred.set(n.id, new Set()); }
+    const osucc = new Map(), opred = new Map();
+    for (const n of real) {
+      if (rep.get(n.id) !== n.id) continue;
+      if (isOutR(n.id)) { osucc.set(n.id, new Set()); opred.set(n.id, new Set()); } else { succ.set(n.id, new Set()); pred.set(n.id, new Set()); }
+    }
     const inCnt = new Map(), outCnt = new Map();
     const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
     for (const s of S.values()) {
@@ -484,6 +497,12 @@ export function flow(args, G) {
         if (s.src.kind === 'in') { bump(inCnt, rep.get(c.id)); continue; }
         if (c.kind === 'out') { bump(outCnt, rep.get(s.src.id)); continue; }
         const u = rep.get(s.src.id), v = rep.get(c.id);
+        if (isOutR(v)) {
+          // what feeds an output stands as if it fed the right edge of the lane
+          if (!isOutR(u)) bump(outCnt, u);
+          else if (u !== v) { osucc.get(u).add(v); opred.get(v).add(u); }
+          continue;
+        }
         if (u !== v) { succ.get(u).add(v); pred.get(v).add(u); }
       }
     }
@@ -525,7 +544,7 @@ export function flow(args, G) {
         }
       }
     }
-    const isIso = (r) => !succ.get(r).size && !pred.get(r).size && !inCnt.get(r) && !outCnt.get(r);
+    const isIso = (r) => !isEnvR(r) && !succ.get(r).size && !pred.get(r).size && !inCnt.get(r) && !outCnt.get(r);
     let maxR = -1;
     for (const [r, k] of rank) if (!isIso(r)) maxR = Math.max(maxR, k);
     // a node with more wires in than out stands as near the nodes that feed it as it can; one with more out than in,
@@ -533,7 +552,7 @@ export function flow(args, G) {
     for (let pass = 0; pass < 4; pass++) {
       let moved = false;
       for (const v of pass % 2 ? topo.slice().reverse() : topo) {
-        if (isIso(v)) continue;
+        if (isIso(v) || isEnvR(v)) continue;
         const ind = fp.get(v).length + (inCnt.get(v) || 0), outd = fs.get(v).length + (outCnt.get(v) || 0);
         if (ind === outd) continue;
         let lo = 0, hi = maxR;
@@ -548,14 +567,16 @@ export function flow(args, G) {
     const unitH = (r) => { let h = N.get(r).h + GAPRR; for (const f of fol.get(r) || []) h += f.h + GAPRR; return h; };
     let unit = 0;
     for (const r of succ.keys()) if (!isIso(r)) unit = Math.max(unit, unitH(r) - GAPRR);
+    for (const r of osucc.keys()) unit = Math.max(unit, unitH(r) - GAPRR);
     if (hmax < Infinity) {
       const reps = [...succ.keys()].filter((r) => !isIso(r));
       const passing = (l) => {
         let k = 0;
         for (const s of S.values()) {
+          if (s.src.kind !== 'in' && isOutR(rep.get(s.src.id))) continue;
           const rs = s.src.kind === 'in' ? -1 : rank.get(rep.get(s.src.id));
           let rmax = -1;
-          for (const c of s.cons) rmax = Math.max(rmax, c.kind === 'out' ? maxR + 1 : rank.get(rep.get(c.id)));
+          for (const c of s.cons) rmax = Math.max(rmax, c.kind === 'out' || isOutR(rep.get(c.id)) ? maxR + 1 : rank.get(rep.get(c.id)));
           if (l > rs && l < rmax) k++;
         }
         return k;
@@ -566,7 +587,7 @@ export function flow(args, G) {
         let left = here.length;
         if (h <= hmax || left < 2) continue;
         const slack = (r) => { let m = Infinity; for (const x of fs.get(r)) m = Math.min(m, rank.get(x) - l - 1); return m; };
-        const cand = here.slice().sort((p, q) => slack(q) - slack(p) || N.get(q).ord - N.get(p).ord);
+        const cand = here.filter((r) => !isEnvR(r)).sort((p, q) => slack(q) - slack(p) || N.get(q).ord - N.get(p).ord);
         for (const r of cand) {
           if (h <= hmax || left < 2) break;
           rank.set(r, l + 1);
@@ -584,7 +605,7 @@ export function flow(args, G) {
       const lh = new Array(maxR + 2).fill(0);
       for (const r of reps) lh[rank.get(r)] += unitH(r);
       for (const v of topo) {
-        if (isIso(v) || fp.get(v).length || inCnt.get(v) || !fs.get(v).length) continue;
+        if (isIso(v) || isEnvR(v) || fp.get(v).length || inCnt.get(v) || !fs.get(v).length) continue;
         let to = Infinity;
         for (const x of fs.get(v)) to = Math.min(to, rank.get(x) - 1);
         const from = rank.get(v);
@@ -594,25 +615,47 @@ export function flow(args, G) {
 
     // ---- what stands alone is spread over the columns to the shape that is wanted ----
     const units = [];
-    for (const n of real) if (rep.get(n.id) === n.id && isIso(n.id)) units.push({ n, list: [n].concat(fol.get(n.id) || []) });
+    for (const n of real) if (rep.get(n.id) === n.id && !isOutR(n.id) && isIso(n.id)) units.push({ n, list: [n].concat(fol.get(n.id) || []) });
     const cols0 = maxR + 1;
     const colH = new Array(Math.max(cols0, 1)).fill(0), colW = new Array(Math.max(cols0, 1)).fill(0);
     for (const n of real) {
       const r = rep.get(n.id);
-      if (isIso(r)) continue;
+      if (isOutR(r) || isIso(r)) continue;
       const l = rank.get(r);
       colH[l] += n.h + GAPRR;
       colW[l] = Math.max(colW[l], n.w);
     }
     // the wires that pass a column
     const nOut = new Set();
+    const toEnd = (c) => c.kind === 'out' || isOutR(rep.get(c.id));
     for (const s of S.values()) {
+      if (s.src.kind !== 'in' && isOutR(rep.get(s.src.id))) continue;
       const rs = s.src.kind === 'in' ? -1 : rank.get(rep.get(s.src.id));
       let rmax = -1;
-      for (const c of s.cons) rmax = Math.max(rmax, c.kind === 'out' ? cols0 : rank.get(rep.get(c.id)));
+      for (const c of s.cons) rmax = Math.max(rmax, toEnd(c) ? cols0 : rank.get(rep.get(c.id)));
       for (let l = rs + 1; l < rmax; l++) if (l >= 0 && l < cols0) colH[l] += GAPDD;
-      if (s.cons.some((c) => c.kind === 'out')) nOut.add(s.a);
+      if (s.cons.some(toEnd)) nOut.add(s.a);
     }
+    // the outputs stand after everything else: in one column, or in one more for each output that they read
+    const od = new Map();
+    const depthOf = (r, seen) => {
+      if (od.has(r)) return od.get(r);
+      if (seen.has(r)) return 0;
+      seen.add(r);
+      let d = 0;
+      for (const q of opred.get(r)) d = Math.max(d, depthOf(q, seen) + 1);
+      seen.delete(r);
+      od.set(r, d);
+      return d;
+    };
+    const oH = [], oW = [];
+    for (const r of osucc.keys()) {
+      const d = depthOf(r, new Set());
+      while (oH.length <= d) { oH.push(0); oW.push(0); }
+      oH[d] += unitH(r);
+      oW[d] = Math.max(oW[d], N.get(r).w, ...(fol.get(r) || []).map((f) => f.w));
+    }
+    const ocols = oH.length;
     const isoAt = new Map();
     let cols = cols0;
     if (units.length) {
@@ -629,8 +672,8 @@ export function flow(args, G) {
           h[k] += u.list.reduce((s, m) => s + m.h + GAPRR, 0);
           w[k] = Math.max(w[k], ...u.list.map((m) => m.w));
         }
-        const width = w.reduce((s, x) => s + x, 0) + (c - 1 + (hasIN ? 1 : 0) + (hasOUT ? 1 : 0)) * GUTLITE;
-        const height = Math.max(...h) - GAPRR;
+        const width = w.reduce((s, x) => s + x, 0) + oW.reduce((s, x) => s + x, 0) + (c + ocols - 1 + (hasIN ? 1 : 0) + (hasOUT ? 1 : 0)) * GUTLITE;
+        const height = Math.max(...h, ...oH) - GAPRR;
         const sc = Math.abs(Math.log(width / Math.max(height, 1) / aspect)) + 0.03 * c;
         if (!best || sc < best.sc - 1e-9) best = { sc, c, at2 };
       }
@@ -642,6 +685,18 @@ export function flow(args, G) {
         colH[k] += u.list.reduce((s, m) => s + m.h + GAPRR, 0);
         colW[k] = Math.max(colW[k], ...u.list.map((m) => m.w));
       });
+    }
+    if (ocols) {
+      colH.length = cols; colW.length = cols;
+      for (let l = 0; l < ocols; l++) { colH.push(oH[l]); colW.push(oW[l]); }
+      for (const r of osucc.keys()) rank.set(r, cols + od.get(r));
+      for (const s of S.values()) {
+        const rs = s.src.kind === 'in' ? -1 : rank.get(rep.get(s.src.id));
+        let rmax = -1;
+        for (const c of s.cons) if (isOutR(rep.get(c.id))) rmax = Math.max(rmax, rank.get(rep.get(c.id)));
+        for (let l = Math.max(rs + 1, cols); l < rmax; l++) colH[l] += GAPDD;
+      }
+      cols += ocols;
     }
     const rankOf = (n) => { const r = rep.get(n.id); return isoAt.has(r) ? isoAt.get(r) : rank.get(r); };
     // the edges that go back, and so the columns that they need on either side
