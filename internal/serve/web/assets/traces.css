@@ -87,7 +87,9 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
    process are green, sealing is amber, and the requests to the state, of which there are thousands, are a quiet neutral. */
 .tr { --k-command: var(--text); --k-engine: color-mix(in srgb, var(--key) 42%, var(--text)); --k-phase: color-mix(in srgb, var(--key) 30%, var(--surface));
   --k-setup: color-mix(in srgb, var(--key) 13%, var(--surface)); --k-resource: var(--key); --k-provider: var(--accent);
-  --k-state: color-mix(in srgb, var(--text) 17%, var(--surface)); --k-seal: var(--change); }
+  --k-state: color-mix(in srgb, var(--text) 17%, var(--surface)); --k-seal: var(--change);
+  --kl-command: var(--on-accent, var(--bg)); --kl-engine: var(--kl-command); --kl-resource: var(--kl-command); --kl-provider: var(--kl-command);
+  --kl-phase: var(--text); --kl-setup: var(--text); --kl-state: var(--text); --kl-seal: var(--text); }
 .bar { cursor: pointer; shape-rendering: crispEdges; fill: var(--text-3); }
 .bar.k-command, .bar.k-mcp { fill: var(--k-command); }
 .bar.k-engine { fill: var(--k-engine); }
@@ -103,7 +105,15 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-selbox { fill: none; stroke: var(--text); stroke-width: 2; pointer-events: none; }
 .tr-subbox { fill: none; stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; shape-rendering: crispEdges; }
 .tr-bt, .tr-bd { font: 500 11px var(--font-mono); fill: var(--text); pointer-events: none; }
-.tr-bt.k-provider, .tr-bd.k-provider, .tr-bt.k-command, .tr-bd.k-command, .tr-bt.k-mcp, .tr-bd.k-mcp, .tr-bt.k-engine, .tr-bd.k-engine, .tr-bt.k-resource, .tr-bd.k-resource, .tr-bt.err, .tr-bd.err { fill: var(--on-accent, var(--bg)); }
+.tr-bt.k-command, .tr-bd.k-command, .tr-bt.k-mcp, .tr-bd.k-mcp { fill: var(--kl-command); }
+.tr-bt.k-engine, .tr-bd.k-engine { fill: var(--kl-engine); }
+.tr-bt.k-phase, .tr-bd.k-phase { fill: var(--kl-phase); }
+.tr-bt.k-setup, .tr-bd.k-setup { fill: var(--kl-setup); }
+.tr-bt.k-resource, .tr-bd.k-resource { fill: var(--kl-resource); }
+.tr-bt.k-provider, .tr-bd.k-provider { fill: var(--kl-provider); }
+.tr-bt.k-state, .tr-bd.k-state { fill: var(--kl-state); }
+.tr-bt.k-seal, .tr-bd.k-seal { fill: var(--kl-seal); }
+.tr-bt.err, .tr-bd.err { fill: var(--on-accent, var(--bg)); }
 .tr-bd { opacity: .85; }
 .tr-hint { margin: 0; padding: .35rem .7rem; border-top: 1px solid var(--line); font-size: .68rem; color: var(--text-3); }
 .tr-sw { display: inline-block; flex: none; width: .65rem; height: .65rem; background: var(--text-3); }
@@ -200,3 +210,4 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-attrs li.f-only { background: var(--key-wash); }
 .tr-attrs li.f-hide { background: var(--conflict-wash); }
 .tr-af { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .5rem; margin: 0 0 .5rem; padding: .4rem .6rem; border: 1px solid var(--key); background: var(--key-wash); font-size: .74rem; }
+

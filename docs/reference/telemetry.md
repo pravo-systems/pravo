@@ -112,14 +112,14 @@ The address in `resource <address>` is the CUE path of the resource, such as `pe
 | command (`pravo plan`, ...) | `pravo.command`, `pravo.version`, `pravo.actor`, `pravo.reason`, `pravo.json`, `pravo.command_line` (the command as it was typed, with the values of tags and secrets masked when the viewer shows it), `pravo.exit_code` |
 | `engine plan`, `engine apply` | `pravo.actor`, `pravo.reason`, `vcs.revision`, `pravo.destroy`, `pravo.txn`. For plan: `pravo.plan.add`, `.change`, `.destroy` and `pravo.nodes.total`, `.planned`, `.skipped`, `.refreshed`, `.fresh`, `.not_read`, `.drifted`, `pravo.ephemeral.opened`, `pravo.function.calls`. For apply: what was added, changed and destroyed. |
 | `phase <stage>` | The stage of a plan or an apply: `check specification`, `begin transaction`, `moves`, `evaluate and refresh`, `read inputs`, `plan orphans`, `frontier`, `reservations`, `commit moves`, `lock`, `check revisions`, `apply changes`, `destroy orphans`, `read back`, `record outputs`, `finish transaction`. `pravo.tasks` on the stages that walk the resources. |
-| `setup <stage>`, `config <stage>` | What readies a command: loading the specification and its stages, reading the lock file, opening the state, resolving, installing, starting and configuring a provider and reading its schema. `pravo.provider`, `pravo.provider.version`, `pravo.provider.source`, `pravo.state.backend`. |
+| `setup <stage>`, `config <stage>` | What readies a command: loading the specification and its stages, reading the lock file, opening the state, resolving, installing, starting and configuring a provider and reading its schema. `pravo.provider`, `pravo.provider.instance` (when a provider is configured), `pravo.provider.version`, `pravo.provider.source`, `pravo.state.backend`. |
 | `seal <kind> <name>`, `unseal <kind> <name>`, `unseal state keys` | Work of the seal of a [sealed state](../concepts/sealed-state.md): a value sealed or opened, and the data keys of the state opened with the reader's key. `pravo.seal.kind` (`resource`, `outputs`, a plan or a summary), `pravo.seal.name` (an address or an id), `pravo.seal.group`, `pravo.seal.bytes` and, for the keys, `pravo.seal.groups`. Never the value. |
 | `state <operation> <key>` | A request to the state: `get`, `put`, `create` (only if absent), `replace-if`, `delete-if`, `delete`, `list`. `pravo.state.op`, `pravo.state.key`, `pravo.state.backend` (`local`, `s3`, `http`), and where they apply `pravo.state.bytes`, `pravo.state.keys` and `pravo.state.applied` (a conditional write that was made). The key is the name of an object, such as `resources/api.db.json`; a missing object and a refused conditional write are answers, and the span does not fail. |
 | `engine discover <name>` | `pravo.discovery.name`, `pravo.discovery.type`, `pravo.provider`, `pravo.discovery.items`, `pravo.discovery.status`, `pravo.warnings` |
 | `engine check policy` | `pravo.policies` |
-| `resource <address>` | `pravo.resource.address`, `pravo.resource.type`, `pravo.mode`, `pravo.provider`, `pravo.phase`, `pravo.action`, `pravo.skipped`, `pravo.refreshed`, `pravo.drifted`, `pravo.deferred` |
+| `resource <address>` | `pravo.resource.address`, `pravo.resource.type`, `pravo.mode`, `pravo.provider`, `pravo.provider.instance`, `pravo.phase`, `pravo.action`, `pravo.skipped`, `pravo.refreshed`, `pravo.drifted`, `pravo.deferred` |
 | `mcp tools/call <tool>` | `mcp.tool`, `pravo.actor`, `pravo.exit_code` |
-| `provider <RPC>` | `rpc.system`, `rpc.service`, `rpc.method`, `pravo.provider`, `pravo.protocol`, `pravo.resource.type`, `pravo.warnings` |
+| `provider <RPC>` | `rpc.system`, `rpc.service`, `rpc.method`, `pravo.provider`, `pravo.provider.instance` (the provider block it ran against, such as `aws.west`), `pravo.protocol`, `pravo.resource.type`, `pravo.warnings` |
 
 A request to the state is a span of its own, so a run against a store on the network shows where its time went: a long `state list` is the size of the state, and a long `phase lock` is a store that is slow to take a lock. With an exporter on, a large state sends one span for each record that is read. They are in the recorded runs when `PRAVO_TRACES=on`.
 
@@ -130,7 +130,7 @@ jq -c 'select(.Name == "resource hello") | [.Attributes[] | {(.Key): .Value.Valu
 
 ```text out
 {"pravo.command":"pravo plan","pravo.version":"0.1.0-dev","pravo.actor":"","pravo.reason":"","pravo.json":false,"pravo.command_line":"pravo plan","pravo.exit_code":0}
-{"pravo.resource.address":"hello","pravo.resource.type":"local_file","pravo.mode":"managed","pravo.provider":"local","pravo.phase":"plan","pravo.action":"create","pravo.skipped":false,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
+{"pravo.resource.address":"hello","pravo.resource.type":"local_file","pravo.mode":"managed","pravo.provider":"local","pravo.provider.instance":"local","pravo.phase":"plan","pravo.action":"create","pravo.skipped":false,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
 ```
 
 Failures are recorded on the span that failed, with its error, so the first red span in a trace is where the run stopped.

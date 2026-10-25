@@ -363,6 +363,7 @@ func (m *Providers) instance(ctx context.Context, key string) (*instance, error)
 	if err != nil {
 		return nil, err
 	}
+	plugin.SetInstance(p, key)
 	plog.Debug(ctx, "provider started", "provider", key, "version", rp.Version, "path", rp.Path)
 	inst = &instance{p: p, key: key, reattached: rp.Reattached()}
 	m.instances[key] = inst
@@ -428,7 +429,7 @@ func (m *Providers) Provider(ctx context.Context, key string) (plugin.Provider, 
 	}
 	inst.cfg = true
 	plog.Debug(ctx, "configuring provider", "provider", key)
-	cctx, end := setup(ctx, "configure provider "+key, attribute.String("pravo.provider", key))
+	cctx, end := setup(ctx, "configure provider "+key, attribute.String("pravo.provider", key), attribute.String("pravo.provider.instance", key))
 	err = m.configure(cctx, inst, local)
 	end(err)
 	m.mu.Lock()

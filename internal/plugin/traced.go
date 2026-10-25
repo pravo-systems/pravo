@@ -18,6 +18,16 @@ import (
 type Traced struct {
 	inner Provider
 	name  string
+	// instance is the key of the provider block the process serves, "aws.west" for one of several, "" before it is known.
+	instance string
+}
+
+// SetInstance says which instance of the provider p is, so that its spans name it. It does nothing for a provider that is
+// not traced.
+func SetInstance(p Provider, key string) {
+	if t, ok := p.(*Traced); ok {
+		t.instance = key
+	}
 }
 
 // NewTraced wraps p; name is the provider's local name.
@@ -31,6 +41,9 @@ func (t *Traced) begin(ctx context.Context, method, typ string) (context.Context
 		attribute.String("rpc.method", method),
 		attribute.String("pravo.provider", t.name),
 		attribute.Int("pravo.protocol", t.inner.ProtocolVersion()),
+	}
+	if t.instance != "" {
+		attrs = append(attrs, attribute.String("pravo.provider.instance", t.instance))
 	}
 	if typ != "" {
 		attrs = append(attrs, attribute.String("pravo.resource.type", typ))

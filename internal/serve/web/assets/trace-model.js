@@ -108,7 +108,7 @@ export function path(sp) {
 // labelOf is what a bar says: the address of a resource, the RPC of a provider call, the name of anything else.
 export function labelOf(sp) {
   if (sp.kind === 'resource') return sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : sp.name.replace(/^resource /, '');
-  if (sp.kind === 'provider') return (sp.attrs && sp.attrs['pravo.provider'] ? sp.attrs['pravo.provider'] + ' · ' : '') + sp.name.replace(/^provider /, '');
+  if (sp.kind === 'provider') return (sp.attrs && (sp.attrs['pravo.provider.instance'] || sp.attrs['pravo.provider']) ? (sp.attrs['pravo.provider.instance'] || sp.attrs['pravo.provider']) + ' · ' : '') + sp.name.replace(/^provider /, '');
   if (sp.kind === 'phase' || sp.kind === 'setup' || sp.kind === 'state') return sp.name.replace(/^(phase|setup|state) /, '');
   if (sp.kind === 'seal') return sp.name;
   return sp.name;
