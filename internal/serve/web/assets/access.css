@@ -78,7 +78,7 @@
 /* ---- the suggestions ---- */
 .ac-cards { display: grid; gap: .6rem; margin-top: .7rem; }
 .ac-card { border: 1px solid var(--line-strong); background: var(--surface); }
-.ac-card.primary { border-color: color-mix(in srgb, var(--accent) 60%, var(--line-strong)); box-shadow: inset 3px 0 0 var(--accent); }
+.ac-card.primary { border-color: color-mix(in srgb, var(--accent) 60%, var(--line-strong)); }
 .ac-card > summary { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .7rem; padding: .65rem .9rem; cursor: pointer; list-style: none; }
 .ac-card > summary::-webkit-details-marker { display: none; }
 .ac-card > summary::before { content: ""; width: .5rem; height: .5rem; border-right: 1.5px solid var(--text-2); border-bottom: 1.5px solid var(--text-2); transform: rotate(-45deg); transition: transform var(--t-fast); flex: none; }

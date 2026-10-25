@@ -43,9 +43,9 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 .dv-none p { margin: 0 0 .6rem; }
 
 /* ---- one discovery ---- */
-.dv-card { position: relative; display: grid; gap: .7rem; padding: .95rem 1.1rem 1rem 1.3rem; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-1); min-width: 0; }
+.dv-card { position: relative; display: grid; gap: .7rem; padding: .95rem 1.2rem 1rem; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-1); min-width: 0; }
 .dv-card.loud { --hc: var(--change); }
-.dv-card.loud::before { content: ""; position: absolute; left: 1px; top: .75rem; bottom: .75rem; width: 3px; border-radius: 3px; background: var(--hc); }
+.dv-card.loud { border-color: color-mix(in srgb, var(--hc) 38%, var(--line-strong)); background: linear-gradient(color-mix(in srgb, var(--hc) 5%, transparent), transparent 55%), var(--surface); }
 .dv-card.f-undeclared, .dv-card.f-unknown { background: var(--surface-2); }
 .dv-card.closed { padding-block: .85rem; }
 .dv-body { display: grid; gap: .7rem; min-width: 0; }
@@ -110,7 +110,7 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 .dv-ident .sc b { color: var(--text-3); }
 
 /* what screams: an amber edge, the name in the text colour, and a filled button */
-.s-unmanaged { box-shadow: inset 3px 0 0 var(--change); background: linear-gradient(var(--change-wash), transparent 60%); }
+.s-unmanaged { background: linear-gradient(var(--change-wash), transparent 60%); }
 .s-unmanaged .dv-id .nm { color: var(--text); }
 .dv-acts { display: inline-flex; align-items: center; gap: .4rem; margin-left: auto; }
 .dv-adopt { border-color: var(--change); background: var(--change); color: var(--surface); }

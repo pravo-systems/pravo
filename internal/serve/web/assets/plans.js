@@ -6,7 +6,7 @@
 import { h, s as svgEl, clear, icon, relTime, relUntil, stamp, plural, signatureMark } from './util.js';
 
 // STATUS says where a plan stands. The word is the carrier; the colour agrees with it: green can be applied,
-// blue is part way, amber moved on, grey is over. A plan that is partly stale is amber with a green edge: the
+// blue is part way, amber moved on, grey is over. A plan that is partly stale is amber: the
 // state moved on under some of its changes, and the rest can be applied.
 export const STATUS = {
   pending: { cls: 'ok', tip: 'It can be applied.' },

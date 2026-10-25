@@ -470,8 +470,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 
 
 /* the Plans page, with the heads of Discovery and State: one frame (a card with an edge in the colour of its state) and one title */
-.pghead, .dv-head, .ac-banner, .pl-head { position: relative; padding: 1.1rem 1.3rem 1.15rem 1.5rem; border: 1px solid var(--line-strong); border-radius: var(--rad-l); background: var(--surface); box-shadow: var(--shadow-1); }
-.pghead::before, .dv-head::before, .ac-banner::before, .pl-head::before { content: ""; position: absolute; left: 0; top: 1rem; bottom: 1rem; width: 3px; border-radius: 0 3px 3px 0; background: var(--hc, var(--line-strong)); }
+.pghead, .dv-head, .ac-banner, .pl-head { position: relative; padding: 1.1rem 1.5rem 1.15rem; border: 1px solid color-mix(in srgb, var(--hc, var(--line-strong)) 38%, var(--line-strong)); border-radius: var(--rad-l); background: linear-gradient(color-mix(in srgb, var(--hc, transparent) 7%, transparent), transparent 75%), var(--surface); box-shadow: var(--shadow-1); }
 .pl-title, .dv-title, .ac-title { margin: 0; font: 500 1.7rem/1.1 var(--font-display); letter-spacing: -.015em; }
 .plans-pane { overflow: auto; padding: var(--page-pad); }
 .pl { box-sizing: border-box; display: grid; gap: 1.6rem; width: 100%; max-width: var(--page-w); margin: 0 auto; }

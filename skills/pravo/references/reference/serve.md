@@ -125,7 +125,7 @@ The button View on a row lays its plan over the graph, as `--plan FILE` lays a p
 |---|---|
 | `pending` | The plan can be applied. |
 | `partial` | Some changes were applied. The rest can be. |
-| `partly stale` | The state moved on under some of the changes that are left, and the others can be applied by name. The chip is amber with a green edge. The conflicts say which changes cannot be applied, and why. The interface says `partly stale` where the API says `partly-stale`. |
+| `partly stale` | The state moved on under some of the changes that are left, and the others can be applied by name. The chip is amber. The conflicts say which changes cannot be applied, and why. The interface says `partly stale` where the API says `partly-stale`. |
 | `stale` | The state moved on, so the plan cannot be applied. The reasons say how. |
 | `applied` | Every change was applied. |
 | `expired` | The plan was not applied before it expired. |
