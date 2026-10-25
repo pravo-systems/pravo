@@ -448,7 +448,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 /* The section tabs do not fit the bar of a phone with the word beside the mark: the tab keeps its icon, and its label for a screen reader. */
 @media (max-width: 30em) {
   .brand .word { display: none; }
-  .sec-tab { padding-inline: .6rem; gap: .3rem; }
+  .sec-tab { padding-inline: .42rem; gap: .3rem; } /* five sections fit a phone */
 }
 
 /* ---- a page that nobody sees does not animate: the script sets data-hidden from the Page Visibility API ---- */
