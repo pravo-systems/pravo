@@ -29,6 +29,8 @@ const S = {
   view: 'graph', sel: null, tab: null, q: '', dq: '',
   collapsed: new Set(), auto: new Set(), clusters: new Map(), trail: [],
   theme: null, motion: true, reach: false, zoom: 'fit',
+  // finds is how many searches the history holds the picture before; foundAt is what the last one landed on
+  finds: 0, foundAt: null,
   live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
 let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView;
@@ -148,30 +150,62 @@ function readFragment() {
   };
 }
 
+// currentHash is the fragment that says what the page shows now
+function currentHash() {
+  // a namespace inside a closed one says nothing that anyone can see, and a link cannot say it (expand= opens
+  // what is above): only the namespaces that show are written
+  const nss = S.model.namespaces;
+  const hidden = (p) => { const m = nss.get(p); for (let u = m && m.up; u && !u.isRoot; u = u.up) if (S.collapsed.has(u.path)) return true; return false; };
+  let collapse = [...S.collapsed].filter((x) => !S.auto.has(x) && !hidden(x)).sort();
+  let expand = [...S.auto].filter((x) => !S.collapsed.has(x) && !hidden(x)).sort();
+  // every namespace closed, or every namespace open, has a short name
+  if (collapse.length && S.collapsed.size === S.model.namespaces.size - 1) collapse = ['all'];
+  if (expand.length && S.collapsed.size === 0) expand = ['all'];
+  expand = expand.concat([...S.clusters.keys()].sort());
+  return writeFragment({
+    sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q, dq: S.dq,
+    view: S.view, theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
+    motion: S.motion ? '' : 'off', zoom: S.zoom,
+  });
+}
+
+// writeHash puts the fragment in the address of the entry of the history that is shown, and keeps what the entry holds
+function writeHash(hash) {
+  if (hash !== location.hash && hash !== '#/?') {
+    try { history.replaceState(history.state, '', location.pathname + location.search + hash); } catch { /* a sandboxed frame */ }
+  } else if (hash === '#/?' && location.hash) {
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* a sandboxed frame */ }
+  }
+}
+
 function syncFragment() {
   schedule('fragment', () => {
     if (!S.model) return;
-    // a namespace inside a closed one says nothing that anyone can see, and a link cannot say it (expand= opens
-    // what is above): only the namespaces that show are written
-    const nss = S.model.namespaces;
-    const hidden = (p) => { const m = nss.get(p); for (let u = m && m.up; u && !u.isRoot; u = u.up) if (S.collapsed.has(u.path)) return true; return false; };
-    let collapse = [...S.collapsed].filter((x) => !S.auto.has(x) && !hidden(x)).sort();
-    let expand = [...S.auto].filter((x) => !S.collapsed.has(x) && !hidden(x)).sort();
-    // every namespace closed, or every namespace open, has a short name
-    if (collapse.length && S.collapsed.size === S.model.namespaces.size - 1) collapse = ['all'];
-    if (expand.length && S.collapsed.size === 0) expand = ['all'];
-    expand = expand.concat([...S.clusters.keys()].sort());
-    const hash = writeFragment({
-      sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q, dq: S.dq,
-      view: S.view, theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
-      motion: S.motion ? '' : 'off', zoom: S.zoom,
-    });
-    if (hash !== location.hash && hash !== '#/?') {
-      try { history.replaceState(null, '', location.pathname + location.search + hash); } catch { /* a sandboxed frame */ }
-    } else if (hash === '#/?' && location.hash) {
-      try { history.replaceState(null, '', location.pathname + location.search); } catch { /* a sandboxed frame */ }
-    }
+    writeHash(currentHash());
   });
+}
+
+// pushReturn keeps the picture that a search is about to leave as an entry of the history: the entry that is left
+// holds the camera, and the search goes on in a new one. The browser's Back, the Back control and Escape all return to it.
+function pushReturn() {
+  if (!S.model) return;
+  S.trail = [];
+  try {
+    writeHash(currentHash());
+    // the camera is kept as the point of the picture at the middle of the canvas, and a scale: the canvas is not as wide
+    // when the inspector is open, and the page keeps that middle where it is when the canvas changes
+    const { x, y, k } = gv.view;
+    const cam = gv && S.view === 'graph' ? { cx: (gv.size.w / 2 - x) / k, cy: (gv.size.h / 2 - y) / k, k, moved: gv.userMoved } : null;
+    history.replaceState(Object.assign({}, history.state, { d: S.finds, cam }), '', location.href);
+    history.pushState({ d: S.finds + 1 }, '', location.href);
+    S.finds++;
+  } catch { /* a sandboxed frame keeps no history: the search has no way back */ }
+  updateBack();
+}
+
+// findBack returns to the picture that the last search left
+function findBack() {
+  if (S.finds > 0) history.back();
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -728,8 +762,14 @@ function backOut() {
 function updateBack() {
   if (!backBtn) return;
   const t = S.trail[S.trail.length - 1];
-  backBtn.hidden = !t || S.view !== 'graph';
-  if (t) backBtn.querySelector('.bl').textContent = 'Zoom out';
+  const kind = t ? 'zoom' : S.finds > 0 ? 'back' : '';
+  backBtn.hidden = !kind || S.view !== 'graph';
+  backBtn.dataset.kind = kind;
+  if (!kind) return;
+  backBtn.querySelector('.bl').textContent = kind === 'zoom' ? 'Zoom out' : 'Back to where you were';
+  backBtn.setAttribute('aria-label', kind === 'zoom' ? 'Zoom out of the namespace that was opened (Escape)' : 'Go back to where you were before the search (Escape)');
+  backBtn.removeAttribute('data-tip');
+  backBtn.dataset.tip = kind === 'zoom' ? 'Close the namespace and return to the picture before it' : 'Return to the picture, the selection and the open namespaces from before the search';
 }
 
 function toggleNamespace(path) {
@@ -1330,6 +1370,8 @@ function onKey(ev) {
     if (S.proj && !S.sel && !typing) { setProject(false); return; }
     if (typing) { ev.target.blur(); return; }
     if (S.reach) { setReach(false); return; }
+    // Escape goes back to where a search began, while what the search found is what is selected
+    if (S.finds > 0 && S.foundAt && S.sel === S.foundAt && !S.trail.length) { findBack(); return; }
     // Escape zooms out of a namespace that was opened by drilling in, once nothing else is selected
     const top = S.trail[S.trail.length - 1];
     if (top && (!S.sel || S.sel === top.path) && backOut()) return;
@@ -1386,8 +1428,10 @@ function wire() {
   });
   gv.motion = S.motion; // motion=off in the fragment was read before the graph existed
   minimap = new Minimap($('canvas'), gv);
-  backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, 'aria-label': 'Zoom out of the namespace that was opened (Escape)', on: { click: () => backOut() } },
-    svgEl('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('circle', { cx: 7, cy: 7, r: 4.6 }), svgEl('path', { d: 'M5 7h4M10.6 10.6L14 14' })), h('span', { class: 'bl' }, 'Zoom out'), h('kbd', null, 'esc'));
+  backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, on: { click: () => (S.trail.length ? backOut() : findBack()) } },
+    svgEl('svg', { class: 'bk-zoom', viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('circle', { cx: 7, cy: 7, r: 4.6 }), svgEl('path', { d: 'M5 7h4M10.6 10.6L14 14' })),
+    svgEl('svg', { class: 'bk-back', viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('path', { d: 'M13 8H3.5M7.5 3.5L3 8l4.5 4.5' })),
+    h('span', { class: 'bl' }, 'Zoom out'), h('kbd', null, 'esc'));
   $('canvas').append(backBtn);
   pills = new Pills($('pills'), { onRemoveTerm: (raw) => setQueryText(removeTerm(S.q, raw)) });
   list = new ListView($('list-pane'), {
@@ -1417,6 +1461,10 @@ function wire() {
   palette = new Palette($('palette'), {
     announce,
     onPick: (kind, key) => {
+      const away = S.view !== 'graph' && S.view !== 'list';
+      const there = !away && S.sel === key && (S.view === 'list' || kind === 'namespace' || !!(S.vis && itemOf(key) && gv.visible(itemOf(key), 60)));
+      if (!there) pushReturn();
+      S.foundAt = key;
       if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery') setView(S.lastResources || 'graph'); // a resource is found among the resources
       if (kind === 'namespace') {
         const ns = S.model.namespaces.get(key);
@@ -1479,26 +1527,47 @@ function wire() {
   q.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(() => setQuery(q.value), 120); });
   new QueryMenu(q, q.closest('.filterbox'), { model: () => S.model, change: (v) => { clearTimeout(qt); setQuery(v); } });
   document.addEventListener('keydown', onKey);
-  window.addEventListener('hashchange', () => { if (booted) applyExternal(readFragment()); });
+  // an entry that a search made says its own picture (popstate); a link that someone pasted or typed has no state (hashchange)
+  window.addEventListener('popstate', (ev) => {
+    const st = ev.state || {};
+    const forward = (st.d || 0) > S.finds;
+    S.finds = st.d || 0;
+    S.foundAt = null;
+    if (!booted || !S.model || st.d === undefined) return;
+    applyExternal(readFragment(), st.cam || null);
+    // forward again is the search as it was made: what it found is brought to the middle
+    if (forward && S.view === 'graph' && S.sel && S.model.nodes.has(S.sel) && itemOf(S.sel)) gv.centerOn(itemOf(S.sel), 0.95);
+    // the entry that is reached is where an earlier search landed: Escape goes on back from it, to the one before
+    S.foundAt = S.finds > 0 ? S.sel : null;
+    updateBack();
+    announce(forward ? 'Forward to the search' : S.finds ? 'Back' : 'Back to where the search began');
+  });
+  window.addEventListener('hashchange', () => {
+    if (!booted || (history.state && history.state.d !== undefined)) return;
+    S.finds = 0;
+    S.foundAt = null;
+    applyExternal(readFragment());
+    updateBack();
+  });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(S.theme, false));
   // the ages of the plans move on; a list that has the focus is left alone until the focus goes
   setInterval(() => { if (S.graph) { renderStatus(); if (!$('plans-list').contains(document.activeElement)) renderPlans(); } }, 30000);
 }
 
 // applyExternal brings the view in line with a fragment that someone else wrote (a pasted link).
-function applyExternal(f) {
+function applyExternal(f, cam = null) {
   const want = wantedPlan(f);
   // a link that names a plan that the state does not hold: said, as it is when the page opens with it
   if (f.plan && f.plan !== 'none' && !S.plans.some((p) => p.id === f.plan)) toast(`${f.plan} is not stored`, 'warn', 7000, 'The link names a plan that the state does not hold.');
   if (want !== S.plan) {
     // another plan is laid over the graph first; the rest of the link is applied to that picture
-    selectPlan(want).then(() => applyView(f));
+    selectPlan(want).then(() => applyView(f, cam));
     return;
   }
-  applyView(f);
+  applyView(f, cam);
 }
 
-function applyView(f) {
+function applyView(f, cam = null) {
   if (f.theme && f.theme !== S.theme) applyTheme(f.theme, false);
   applyMotion(f.motion);
   const collapsedBefore = [...S.collapsed].sort().join('|') + '#' + [...S.clusters.keys()].sort().join('|');
@@ -1533,7 +1602,11 @@ function applyView(f) {
   if (S.view === 'graph') {
     const zoom = parseFloat(f.zoom);
     const id = sel && S.model.nodes.has(sel) ? itemOf(sel) : null;
-    if (zoom > 0 && isFinite(zoom)) {
+    // a return from a search puts the camera where the entry kept it
+    if (cam) {
+      gv.setView({ x: gv.size.w / 2 - cam.cx * cam.k, y: gv.size.h / 2 - cam.cy * cam.k, k: cam.k }, true);
+      gv.userMoved = !!cam.moved;
+    } else if (zoom > 0 && isFinite(zoom)) {
       if (id) { const p = S.lay.pos.get(id); gv.userMoved = true; gv.setView({ x: gv.size.w / 2 - (p.x + p.w / 2) * zoom, y: gv.size.h / 2 - (p.y + p.h / 2) * zoom, k: zoom }, true); } else { gv.fit(false); gv.zoomBy(zoom / gv.view.k, undefined, undefined, true); }
     } else if (id) {
       if (gv.view.k < 0.8 || !gv.visible(id, 60)) gv.centerOn(id, 0.95);
@@ -1624,6 +1697,9 @@ async function load(frag) {
     openDrawer();
   }
   minimapDraw();
+  // a page that was reloaded in the middle of a trail of searches still has the entries behind it
+  S.finds = (history.state && history.state.d) || 0;
+  updateBack();
   booted = true;
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);

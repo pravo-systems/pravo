@@ -286,7 +286,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `a` | Switch between the Inventory and the State sections. |
 | `p` | Switch between the Inventory and the Plans sections. |
 | `d` | Switch between the Inventory and the Discovery sections. |
-| Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the namespace that a click opened, then clear the selection. |
+| Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the namespace that a click opened, then clear the selection. |
 
 In the graph:
 
@@ -326,7 +326,7 @@ In the list, with the focus in it:
 | Enter, Space | Close or open the namespace. |
 | `*` | Open every namespace of this level. |
 
-In the palette, the arrows and Page Up and Page Down move, Enter goes to the result and Esc closes it.
+In the palette, the arrows and Page Up and Page Down move, Enter goes to the result and Esc closes it. Each search that moves the picture adds an entry to the history of the browser, which keeps the open namespaces, the selection and the camera of the picture it left: the button Back to where you were, Esc and the browser's Back return to it.
 
 ## Endpoints
 
