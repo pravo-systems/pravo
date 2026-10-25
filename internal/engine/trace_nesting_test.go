@@ -7,6 +7,9 @@ import (
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/pravo-systems/pravo/internal/env"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // A span is inside the time of its parent, and a run is one tree: a request to the
@@ -14,6 +17,8 @@ import (
 func TestSpansNestInTime(t *testing.T) {
 	t.Setenv("PRAVO_TRACES", "on")
 	t.Setenv("OTEL_SDK_DISABLED", "")
+	telemetry.Configure(env.OS())
+	t.Cleanup(func() { telemetry.Configure(env.Env{}) })
 	rec := tracetest.NewSpanRecorder()
 	prev := otel.GetTracerProvider()
 	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec)))

@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/telemetry"
@@ -58,9 +59,9 @@ func main() {
 		plugin.CleanupClients()
 		os.Exit(code)
 	}, interruptGrace)
-	shutdownTelemetry := telemetry.Setup(ctx, Version)
+	shutdownTelemetry := telemetry.Setup(ctx, Version, env.OS())
 	// A trace started by the caller (a CI job, the MCP server) continues here.
-	ctx = telemetry.ParentFromEnv(ctx)
+	ctx = telemetry.ParentFromEnv(ctx, environment())
 	root := newRootCmd()
 	err := root.ExecuteContext(ctx)
 	plugin.CleanupClients()
@@ -256,21 +257,24 @@ func newRootCmd() *cobra.Command {
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			defer startCommand(cmd) // after the flags that the span records are resolved
-			plog.Configure(flagVerbose, os.Getenv("PRAVO_LOG"))
-			if flagVerbose >= 2 && os.Getenv("PRAVO_LOG") == "" {
-				os.Setenv("PRAVO_LOG", "debug") // the providers' own log, too
+			e := env.OS()
+			plog.Configure(flagVerbose, e.Get("PRAVO_LOG"))
+			if flagVerbose >= 2 && e.Get("PRAVO_LOG") == "" {
+				e = e.With("PRAVO_LOG", "debug") // the providers' own log, too
 			}
+			setEnvironment(e)
+			applyProcessSettings(e)
 			if flagJSON {
 				// Human output moves to stderr; stdout carries JSON only.
 				out = ui.NewPrinter(os.Stderr, true)
 			} else {
-				out = ui.NewPrinter(os.Stdout, flagNoColor)
+				out = ui.NewPrinter(os.Stdout, colourOff(flagNoColor))
 			}
 			if flagActor == "" {
-				flagActor = os.Getenv("PRAVO_ACTOR")
+				flagActor = e.Get("PRAVO_ACTOR")
 			}
 			if flagReason == "" {
-				flagReason = os.Getenv("PRAVO_REASON")
+				flagReason = e.Get("PRAVO_REASON")
 			}
 			if flagDir != "" {
 				if err := os.Chdir(flagDir); err != nil {

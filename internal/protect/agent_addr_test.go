@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 func TestAgentAddressOrder(t *testing.T) {
@@ -15,10 +17,12 @@ func TestAgentAddressOrder(t *testing.T) {
 
 	t.Setenv("PRAVO_SSH_AUTH_SOCK", "")
 	t.Setenv("SSH_AUTH_SOCK", "")
+	SetAgentEnv(env.OS())
 	if got := AgentAddress(); got != "" {
 		t.Errorf("nothing names an agent: %q", got)
 	}
 	t.Setenv("SSH_AUTH_SOCK", "/run/system-agent")
+	SetAgentEnv(env.OS())
 	if got := AgentAddress(); got != "/run/system-agent" {
 		t.Errorf("the variable: %q", got)
 	}
@@ -29,6 +33,7 @@ func TestAgentAddressOrder(t *testing.T) {
 		t.Errorf("the configuration: %q", got)
 	}
 	t.Setenv("PRAVO_SSH_AUTH_SOCK", "/run/chosen")
+	SetAgentEnv(env.OS())
 	if got := AgentAddress(); got != "/run/chosen" {
 		t.Errorf("PRAVO_SSH_AUTH_SOCK: %q", got)
 	}

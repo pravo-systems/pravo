@@ -2,7 +2,6 @@ package serve
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -192,7 +191,7 @@ func (m *model) envDetail(mn *mnode, d *Detail, sec *secretSet) {
 		value.Unknown = true
 		d.Notes = append(d.Notes, "The name of the variable depends on something that is not known before a command runs.")
 	default:
-		v, set := os.LookupEnv(name)
+		v, set := m.srv.opts.Env.Lookup(name)
 		fromDefault := false
 		if !set && hasDef {
 			v, set, fromDefault = def, true, true

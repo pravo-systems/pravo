@@ -11,6 +11,7 @@ import (
 	goplugin "github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/tfplugin/tfplugin5"
 	"github.com/pravo-systems/pravo/internal/tfplugin/tfplugin6"
@@ -43,11 +44,12 @@ func (g *grpcPlugin) GRPCClient(ctx context.Context, broker *goplugin.GRPCBroker
 	return nil, fmt.Errorf("unsupported protocol version %d", g.version)
 }
 
-// Logger returns the hclog logger used for plugin processes. PRAVO_LOG
-// selects the level (trace, debug, info, warn, error); by default provider
-// logs are not shown, since diagnostics are reported through the CLI.
-func Logger() hclog.Logger {
-	level := hclog.LevelFromString(os.Getenv("PRAVO_LOG"))
+// Logger returns the hclog logger used for plugin processes. levelName (the
+// command line passes $PRAVO_LOG) selects the level (trace, debug, info, warn,
+// error); by default provider logs are not shown, since diagnostics are
+// reported through the CLI.
+func Logger(levelName string) hclog.Logger {
+	level := hclog.LevelFromString(levelName)
 	if level == hclog.NoLevel {
 		level = hclog.Off
 	}
@@ -64,15 +66,18 @@ func providerEnv(environ []string) []string {
 
 // Start launches the provider binary at path and negotiates the protocol.
 // The returned Provider must be closed with Close.
-func Start(path string, logger hclog.Logger) (Provider, error) { return StartWith(path, logger, nil) }
+func Start(path string, logger hclog.Logger, e env.Env) (Provider, error) {
+	return StartWith(path, logger, e, nil)
+}
 
 // StartWith is Start with extra variables in the environment of the provider, after the ones every provider gets.
-func StartWith(path string, logger hclog.Logger, extraEnv []string) (Provider, error) {
+// The provider is given the environment e, without the variables that hold an identity.
+func StartWith(path string, logger hclog.Logger, e env.Env, extraEnv []string) (Provider, error) {
 	if logger == nil {
-		logger = Logger()
+		logger = Logger(e.Get("PRAVO_LOG"))
 	}
 	cmd := exec.Command(path)
-	cmd.Env = append(providerEnv(os.Environ()), extraEnv...)
+	cmd.Env = append(providerEnv(e.Environ()), extraEnv...)
 	client := goplugin.NewClient(&goplugin.ClientConfig{
 		HandshakeConfig: Handshake,
 		VersionedPlugins: map[int]goplugin.PluginSet{

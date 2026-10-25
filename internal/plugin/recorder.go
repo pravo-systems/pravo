@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
@@ -479,23 +480,42 @@ func integral(v any) any {
 	return v
 }
 
-// Wrap applies PRAVO_RECORD / PRAVO_REPLAY to a freshly started provider
-// (or, in replay mode, to no provider at all). name selects the
-// subdirectory, typically the provider's local name.
-func Wrap(p Provider, name string) (Provider, error) {
+// Recording says whether providers are recorded or replayed, and where. The
+// command line fills it from PRAVO_RECORD and PRAVO_REPLAY.
+type Recording struct {
+	// Record is a directory to record the calls of every provider in, "" for none.
+	Record string
+	// Replay is a directory to replay the calls of every provider from, "" for
+	// none. With it no provider binary is needed or started.
+	Replay string
+}
+
+// RecordingFrom reads PRAVO_RECORD and PRAVO_REPLAY from the environment.
+func RecordingFrom(e env.Env) Recording {
+	return Recording{Record: e.Get("PRAVO_RECORD"), Replay: e.Get("PRAVO_REPLAY")}
+}
+
+// Replaying reports whether the providers are replayed, in which case no
+// provider binary is needed or started.
+func (r Recording) Replaying() bool { return r.Replay != "" }
+
+// Wrap applies the recording to a freshly started provider (or, in replay mode,
+// to no provider at all). name selects the subdirectory, typically the
+// provider's local name.
+func Wrap(p Provider, name string, rec Recording) (Provider, error) {
 	var out Provider
 	switch {
-	case os.Getenv("PRAVO_REPLAY") != "":
+	case rec.Replay != "":
 		if p != nil {
 			p.Close()
 		}
-		r, err := NewReplayer(filepath.Join(os.Getenv("PRAVO_REPLAY"), name))
+		r, err := NewReplayer(filepath.Join(rec.Replay, name))
 		if err != nil {
 			return nil, err
 		}
 		out = r
-	case os.Getenv("PRAVO_RECORD") != "":
-		r, err := NewRecorder(p, filepath.Join(os.Getenv("PRAVO_RECORD"), name))
+	case rec.Record != "":
+		r, err := NewRecorder(p, filepath.Join(rec.Record, name))
 		if err != nil {
 			return nil, err
 		}
@@ -508,7 +528,3 @@ func Wrap(p Provider, name string) (Provider, error) {
 	}
 	return out, nil
 }
-
-// Replaying reports whether PRAVO_REPLAY is set, in which case no provider
-// binary is needed or started.
-func Replaying() bool { return os.Getenv("PRAVO_REPLAY") != "" }

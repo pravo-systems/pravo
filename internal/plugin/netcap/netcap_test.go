@@ -18,6 +18,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/pravo-systems/pravo/internal/env"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 func attrs(kvs []attribute.KeyValue) map[string]attribute.Value {
@@ -44,7 +47,7 @@ func setup(t *testing.T) (*Capture, *tracetest.SpanRecorder, *httptest.Server, c
 		io.WriteString(w, "hello")
 	}))
 	t.Cleanup(up.Close)
-	c, err := New()
+	c, err := New(env.OS())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +171,7 @@ func TestUntrustingClientIsTunnelled(t *testing.T) {
 // Closing removes the file of the authority, and the environment names the proxy, the bundle and the loopback exception.
 func TestEnvAndClose(t *testing.T) {
 	t.Setenv("PRAVO_TRACES", "on")
-	c, err := New()
+	c, err := New(env.OS())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,14 +194,17 @@ func TestEnvAndClose(t *testing.T) {
 func TestEnabled(t *testing.T) {
 	t.Setenv("OTEL_SDK_DISABLED", "")
 	t.Setenv("PRAVO_TRACES", "")
+	telemetry.Configure(env.OS())
 	if Enabled() {
 		t.Error("on without PRAVO_TRACES")
 	}
 	t.Setenv("PRAVO_TRACES", "on")
+	telemetry.Configure(env.OS())
 	if !Enabled() {
 		t.Error("off with PRAVO_TRACES=on")
 	}
 	t.Setenv("PRAVO_TRACES_NET", "off")
+	telemetry.Configure(env.OS())
 	if Enabled() {
 		t.Error("on with PRAVO_TRACES_NET=off")
 	}

@@ -13,6 +13,8 @@ import (
 	colmetrics "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	coltrace "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 type collector struct {
@@ -51,18 +53,22 @@ func TestEnabledFollowsEnvironment(t *testing.T) {
 	for _, k := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_TRACES_EXPORTER", "OTEL_METRICS_EXPORTER", "OTEL_SDK_DISABLED"} {
 		t.Setenv(k, "")
 	}
+	Configure(env.OS())
 	if Enabled() {
 		t.Fatal("telemetry must be off without configuration")
 	}
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
+	Configure(env.OS())
 	if !Enabled() || tracesExporter() != "otlp" || metricsExporter() != "otlp" {
 		t.Fatal("an OTLP endpoint turns traces and metrics on")
 	}
 	t.Setenv("OTEL_METRICS_EXPORTER", "none")
+	Configure(env.OS())
 	if metricsExporter() != "none" || tracesExporter() != "otlp" {
 		t.Fatal("per-signal exporter selection")
 	}
 	t.Setenv("OTEL_SDK_DISABLED", "true")
+	Configure(env.OS())
 	if Enabled() {
 		t.Fatal("OTEL_SDK_DISABLED wins")
 	}
@@ -79,7 +85,7 @@ func TestExportsSpansAndMetricsOverOTLPHTTP(t *testing.T) {
 	t.Setenv("OTEL_SDK_DISABLED", "")
 	t.Setenv("OTEL_SERVICE_NAME", "pravo-test")
 
-	shutdown := Setup(context.Background(), "9.9.9")
+	shutdown := Setup(context.Background(), "9.9.9", env.OS())
 	ctx, parent := Tracer().Start(context.Background(), "pravo plan")
 	_, child := Tracer().Start(ctx, "resource random_pet.a")
 	child.End()
@@ -144,7 +150,7 @@ func TestExportsSpansAndMetricsOverOTLPHTTP(t *testing.T) {
 func TestTraceparentRoundTrip(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	t.Setenv("TRACEPARENT", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
-	ctx := ParentFromEnv(context.Background())
+	ctx := ParentFromEnv(context.Background(), env.OS())
 	// Without a recording tracer the extracted context is remote but valid.
 	env := Environ(ctx)
 	if len(env) == 0 || !strings.HasPrefix(env[0], "TRACEPARENT=00-4bf92f3577b34da6a3ce929d0e0e4736-") {

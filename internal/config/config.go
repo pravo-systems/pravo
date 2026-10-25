@@ -24,6 +24,7 @@ import (
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
@@ -232,6 +233,11 @@ type LoadOptions struct {
 	SysTags bool
 	// Context is the trace the stages of loading are spans of; nil means none.
 	Context context.Context
+	// Env is the environment the specification is read in: the variables its
+	// pravo.#Env nodes in $settings name, PRAVO_NO_PRUNE, and what the CUE module
+	// loader reads (CUE_REGISTRY, CUE_CACHE_DIR, HOME). It is empty unless set;
+	// the environment of the process is never consulted.
+	Env env.Env
 }
 
 // stage starts the span of a stage of loading.
@@ -254,8 +260,8 @@ func Load(dir string, opts LoadOptions) (*Root, error) {
 	if err != nil {
 		return nil, err
 	}
-	ConfigureRegistry(abs)
-	if overlay := pruneOverlay(abs); len(overlay) > 0 {
+	opts.Env = RegistryEnv(opts.Env, abs)
+	if overlay := pruneOverlay(abs, opts.Env); len(overlay) > 0 {
 		if r, err := loadPackage(abs, files, opts, overlay); err == nil {
 			r.Pruned = true
 			return r, nil
@@ -269,18 +275,18 @@ func Load(dir string, opts LoadOptions) (*Root, error) {
 
 // pruneOverlay is the overlay of the generated provider packages without the
 // types that the specification does not use; see prune.go.
-func pruneOverlay(abs string) map[string]load.Source {
+func pruneOverlay(abs string, e env.Env) map[string]load.Source {
 	modRoot := FindModuleRoot(abs)
 	if modRoot == "" {
 		return nil
 	}
-	return prunedOverlay(modRoot, scanTypeUse(modRoot))
+	return prunedOverlay(modRoot, scanTypeUse(modRoot), e.Get("PRAVO_NO_PRUNE") != "")
 }
 
 // loadPackage loads the package in abs, with overlay replacing the files that
 // it names.
 func loadPackage(abs string, files []string, opts LoadOptions, overlay map[string]load.Source) (*Root, error) {
-	cfg := &load.Config{Dir: abs, Tags: opts.Tags, Overlay: overlay}
+	cfg := &load.Config{Dir: abs, Tags: opts.Tags, Overlay: overlay, Env: loaderEnv(opts.Env)}
 	if opts.SysTags {
 		cfg.TagVars = load.DefaultTagVars()
 	}
@@ -476,7 +482,7 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, notes en
 	if len(names) > 0 {
 		// The loader reads the files and injects the tags; the imports stay
 		// unresolved.
-		cfg := &load.Config{Dir: abs, Tags: opts.Tags, SkipImports: true}
+		cfg := &load.Config{Dir: abs, Tags: opts.Tags, SkipImports: true, Env: loaderEnv(opts.Env)}
 		if opts.SysTags {
 			cfg.TagVars = load.DefaultTagVars()
 		}
@@ -544,7 +550,7 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, notes en
 			}
 		}
 	}
-	otherDecls, notes := readableDecls(ctx, others)
+	otherDecls, notes := readableDecls(ctx, others, opts.Env)
 	build := func(decls []ast.Decl) (cue.Value, error) { return compileDecls(ctx, decls) }
 	v, err := build(append(append([]ast.Decl{}, otherDecls...), pravoDecls...))
 	if err != nil {

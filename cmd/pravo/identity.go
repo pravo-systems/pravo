@@ -185,7 +185,7 @@ func findIdentity(o identityOptions) (identitySource, error) {
 		if err != nil {
 			return identitySource{}, err
 		}
-		if _, err := protect.IdentityPath(name); err != nil {
+		if _, err := protect.IdentityPath(environment(), name); err != nil {
 			return identitySource{}, err
 		}
 		p := filepath.Join(dir, name)
@@ -281,7 +281,7 @@ func fileSource(p string) identitySource {
 // identityDir is where the identity files are: $PRAVO_IDENTITY_DIR, or the id
 // directory below the configuration directory.
 func identityDir() (string, error) {
-	d, err := protect.IdentityDir()
+	d, err := protect.IdentityDir(environment())
 	if err != nil {
 		return "", fmt.Errorf("no configuration directory to keep identities in: %w", err)
 	}
@@ -309,7 +309,7 @@ func identityNames(dir string) ([]string, error) {
 }
 
 func validIdentityName(s string) bool {
-	_, err := protect.IdentityPath(s)
+	_, err := protect.IdentityPath(environment(), s)
 	return err == nil
 }
 

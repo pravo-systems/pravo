@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
@@ -52,8 +53,8 @@ type cacheStore struct {
 	packs map[string]*cachePack
 }
 
-func newCacheStore() *cacheStore {
-	return &cacheStore{client: &registry.Client{Home: registry.Home()}, files: map[string]*cacheFile{}, packs: map[string]*cachePack{}}
+func newCacheStore(e env.Env) *cacheStore {
+	return &cacheStore{client: &registry.Client{Home: registry.Home(e), Env: e}, files: map[string]*cacheFile{}, packs: map[string]*cachePack{}}
 }
 
 // cachePack is one cached provider schema in the form that pravo writes now: an

@@ -2,13 +2,14 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/token"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 // settingsWithEnv reads the $settings block again, on its own, with the
@@ -113,7 +114,7 @@ func labelPath(label, field string) cue.Path {
 // and the default of one may be strings or interpolate the value of another, so
 // the values are found in rounds, each reading the declarations that do not
 // depend on a value that is not known yet.
-func readableDecls(ctx *cue.Context, cs candidates) ([]ast.Decl, envNotes) {
+func readableDecls(ctx *cue.Context, cs candidates, e env.Env) ([]ast.Decl, envNotes) {
 	var notes envNotes
 	values := map[string]string{} // label of a pravo.#Env -> its value
 	names := map[string]string{}  // label of a pravo.#Env -> its variable
@@ -142,7 +143,7 @@ func readableDecls(ctx *cue.Context, cs candidates) ([]ast.Decl, envNotes) {
 				hasDef = true
 			}
 			progress = true
-			val, ok := os.LookupEnv(nm)
+			val, ok := e.Lookup(nm)
 			switch {
 			case ok:
 			case hasDef:

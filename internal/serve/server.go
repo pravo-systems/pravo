@@ -24,6 +24,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -57,6 +58,10 @@ func init() {
 type Options struct {
 	// Dir is the project directory, absolute.
 	Dir string
+	// Env is the environment the viewer reads: the variables of the specification's
+	// pravo.#Env nodes, PRAVO_HOME for the schema cache, and what the CUE module
+	// cache is found by. Empty unless set; the environment of the process is not read.
+	Env env.Env
 	// Tags and SysTags are the values the specification is loaded with (-t, -T).
 	Tags    []string
 	SysTags bool
@@ -171,7 +176,7 @@ func New(opts Options) (*Server, error) {
 		}
 		opts.Token = hex.EncodeToString(b[:])
 	}
-	s := &Server{opts: opts, planMeta: engine.NewPlanMetaCache(), token: opts.Token, schemas: newCacheStore(), hosts: map[string]bool{}, stop: make(chan struct{})}
+	s := &Server{opts: opts, planMeta: engine.NewPlanMetaCache(), token: opts.Token, schemas: newCacheStore(opts.Env), hosts: map[string]bool{}, stop: make(chan struct{})}
 	s.watch = newWatcher(opts.Poll, opts.Dir, opts.PlanFile)
 	s.watch.traces = s.traceDir()
 	m, err := s.current()

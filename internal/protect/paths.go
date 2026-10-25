@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 // ConfigDir is where pravo keeps per-user files that are not a cache:
@@ -15,23 +17,23 @@ import (
 //
 // On every Unix, macOS included (os.UserConfigDir would say ~/Library/Application
 // Support there, which the design does not use). On Windows it is %AppData%\pravo.
-func ConfigDir() (string, error) {
-	if d := os.Getenv("PRAVO_CONFIG_DIR"); d != "" {
+func ConfigDir(e env.Env) (string, error) {
+	if d := e.Get("PRAVO_CONFIG_DIR"); d != "" {
 		return d, nil
 	}
 	if runtime.GOOS == "windows" {
-		d, err := os.UserConfigDir()
-		if err != nil {
-			return "", err
+		d, ok := e.UserConfigDir()
+		if !ok {
+			return "", errors.New("%AppData% is not set")
 		}
 		return filepath.Join(d, "pravo"), nil
 	}
-	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" && filepath.IsAbs(d) {
+	if d := e.Get("XDG_CONFIG_HOME"); d != "" && filepath.IsAbs(d) {
 		return filepath.Join(d, "pravo"), nil
 	}
-	h, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	h, ok := e.UserHomeDir()
+	if !ok {
+		return "", errors.New("$HOME is not set")
 	}
 	return filepath.Join(h, ".config", "pravo"), nil
 }
@@ -42,11 +44,11 @@ func ConfigDir() (string, error) {
 //
 // The commands that read identities and the one that makes them use this one
 // directory.
-func IdentityDir() (string, error) {
-	if d := os.Getenv("PRAVO_IDENTITY_DIR"); d != "" {
+func IdentityDir(e env.Env) (string, error) {
+	if d := e.Get("PRAVO_IDENTITY_DIR"); d != "" {
 		return d, nil
 	}
-	c, err := ConfigDir()
+	c, err := ConfigDir(e)
 	if err != nil {
 		return "", err
 	}
@@ -56,11 +58,11 @@ func IdentityDir() (string, error) {
 // IdentityPath is the file NAME in IdentityDir, ~/.config/pravo/id/NAME unless
 // $PRAVO_IDENTITY_DIR or $PRAVO_CONFIG_DIR say otherwise. NAME is checked, so it
 // cannot name a path.
-func IdentityPath(name string) (string, error) {
+func IdentityPath(e env.Env, name string) (string, error) {
 	if !nameRE.MatchString(name) {
 		return "", fmt.Errorf("identity name %q: use letters, digits, . _ - (at most 64)", name)
 	}
-	d, err := IdentityDir()
+	d, err := IdentityDir(e)
 	if err != nil {
 		return "", err
 	}
@@ -180,13 +182,13 @@ func hasPassphraseSeal(data []byte) bool {
 // SaveIdentity writes the file NAME of the identity directory (see IdentityDir).
 // It creates the directory with mode 0700 when it is missing, and, when the
 // directory is the default one, ~/.config/pravo above it the same way.
-func SaveIdentity(name string, data []byte, replace bool) (string, error) {
-	path, err := IdentityPath(name)
+func SaveIdentity(e env.Env, name string, data []byte, replace bool) (string, error) {
+	path, err := IdentityPath(e, name)
 	if err != nil {
 		return "", err
 	}
 	idDir := filepath.Dir(path)
-	if os.Getenv("PRAVO_IDENTITY_DIR") == "" {
+	if e.Get("PRAVO_IDENTITY_DIR") == "" {
 		if err := EnsurePrivateDir(filepath.Dir(idDir)); err != nil {
 			return "", err
 		}

@@ -3,11 +3,13 @@ package protect
 import (
 	"bytes"
 	"context"
-	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 // Where the ssh-agent is. ssh takes the IdentityAgent of its configuration before
@@ -23,16 +25,29 @@ import (
 // process. A test replaces it.
 var agentFromConfig = sync.OnceValue(func() string { return configuredAgent() })
 
+// agentEnv is the environment the address of the agent is read from: the one
+// SetAgentEnv gave. The agent is reached from deep in the signing of a
+// transaction, which carries no environment, so the setting is process-wide.
+var agentEnv atomic.Pointer[env.Env]
+
+// SetAgentEnv sets the environment that PRAVO_SSH_AUTH_SOCK and SSH_AUTH_SOCK are
+// read from. Before it is called no agent is found.
+func SetAgentEnv(e env.Env) { agentEnv.Store(&e) }
+
 // AgentAddress is the socket (on Windows, the pipe) of the ssh-agent, or "" when
 // nothing names one.
 func AgentAddress() string {
-	if v := os.Getenv("PRAVO_SSH_AUTH_SOCK"); v != "" {
+	var e env.Env
+	if p := agentEnv.Load(); p != nil {
+		e = *p
+	}
+	if v := e.Get("PRAVO_SSH_AUTH_SOCK"); v != "" {
 		return v
 	}
 	if v := agentFromConfig(); v != "" {
 		return v
 	}
-	return os.Getenv("SSH_AUTH_SOCK")
+	return e.Get("SSH_AUTH_SOCK")
 }
 
 // configuredAgent asks ssh for its IdentityAgent. args come before the host name

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 func loadSettings(t *testing.T, cue string) (*config.Root, error) {
@@ -92,6 +93,7 @@ func TestEnvironmentReattachOverridesRegistryDeclaration(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := NewProviders(root, nil)
+	m.Env = env.OS()
 	if err := m.Resolve(context.Background(), &Lock{Providers: map[string]*LockEntry{}}, false, true); err != nil {
 		t.Fatal(err)
 	}

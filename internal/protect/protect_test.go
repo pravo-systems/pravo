@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 func mustReader(t *testing.T, name string) (Reader, *ReaderKey) {
@@ -424,7 +426,7 @@ func TestFileModes(t *testing.T) {
 	cfg := filepath.Join(t.TempDir(), ".config", "pravo")
 	t.Setenv("PRAVO_CONFIG_DIR", cfg)
 	t.Setenv("PRAVO_IDENTITY_DIR", "")
-	ip, err := SaveIdentity("dan", []byte("{}"), false)
+	ip, err := SaveIdentity(env.OS(), "dan", []byte("{}"), false)
 	if err != nil || ip != filepath.Join(cfg, "id", "dan") {
 		t.Fatal(ip, err)
 	}
@@ -443,13 +445,13 @@ func TestFileModes(t *testing.T) {
 	cfg2 := filepath.Join(elsewhere, "cfg")
 	t.Setenv("PRAVO_CONFIG_DIR", cfg2)
 	t.Setenv("PRAVO_IDENTITY_DIR", custom)
-	if d, err := IdentityDir(); err != nil || d != custom {
+	if d, err := IdentityDir(env.OS()); err != nil || d != custom {
 		t.Fatalf("IdentityDir = %q, %v; want %q", d, err, custom)
 	}
-	if ip, err := IdentityPath("eve"); err != nil || ip != filepath.Join(custom, "eve") {
+	if ip, err := IdentityPath(env.OS(), "eve"); err != nil || ip != filepath.Join(custom, "eve") {
 		t.Fatalf("IdentityPath = %q, %v", ip, err)
 	}
-	ip, err = SaveIdentity("eve", []byte("{}"), false)
+	ip, err = SaveIdentity(env.OS(), "eve", []byte("{}"), false)
 	if err != nil || ip != filepath.Join(custom, "eve") {
 		t.Fatal(ip, err)
 	}
@@ -459,11 +461,11 @@ func TestFileModes(t *testing.T) {
 	if _, err := os.Stat(cfg2); err == nil {
 		t.Error("the configuration directory was made")
 	}
-	if _, err := SaveIdentity("eve", []byte("{}"), false); err == nil {
+	if _, err := SaveIdentity(env.OS(), "eve", []byte("{}"), false); err == nil {
 		t.Error("an identity that exists was replaced")
 	}
 	t.Setenv("PRAVO_IDENTITY_DIR", "")
-	if d, err := IdentityDir(); err != nil || d != filepath.Join(cfg2, "id") {
+	if d, err := IdentityDir(env.OS()); err != nil || d != filepath.Join(cfg2, "id") {
 		t.Fatalf("IdentityDir without the variable = %q, %v", d, err)
 	}
 	// A loose unsealed identity is refused; a loose sealed one is a warning.
@@ -508,22 +510,22 @@ func TestShort(t *testing.T) {
 
 func TestConfigDir(t *testing.T) {
 	t.Setenv("PRAVO_CONFIG_DIR", "/x/y")
-	if d, _ := ConfigDir(); d != "/x/y" {
+	if d, _ := ConfigDir(env.OS()); d != "/x/y" {
 		t.Error(d)
 	}
 	t.Setenv("PRAVO_CONFIG_DIR", "")
 	if runtime.GOOS != "windows" {
 		t.Setenv("XDG_CONFIG_HOME", "/xdg")
-		if d, _ := ConfigDir(); d != "/xdg/pravo" {
+		if d, _ := ConfigDir(env.OS()); d != "/xdg/pravo" {
 			t.Error(d)
 		}
 		t.Setenv("XDG_CONFIG_HOME", "")
 		t.Setenv("HOME", "/home/u")
-		if d, _ := ConfigDir(); d != "/home/u/.config/pravo" {
+		if d, _ := ConfigDir(env.OS()); d != "/home/u/.config/pravo" {
 			t.Error(d)
 		}
 	}
-	if _, err := IdentityPath("../../etc/passwd"); err == nil {
+	if _, err := IdentityPath(env.OS(), "../../etc/passwd"); err == nil {
 		t.Error("path in identity name")
 	}
 }

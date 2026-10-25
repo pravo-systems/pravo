@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -31,6 +32,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 const scope = "pravo.dev/pravo"
@@ -54,6 +57,23 @@ var (
 	functionCalls, _ = Meter().Int64Counter("pravo.function.calls", metric.WithDescription("Provider function calls"))
 )
 
+// current is the environment telemetry is configured by: the one Setup was given.
+// Telemetry is process-wide, as OpenTelemetry's providers are, so it is set once.
+var current atomic.Pointer[env.Env]
+
+// Configure sets the environment that telemetry is configured by. Setup does it;
+// a test or a host that does not call Setup can call it alone.
+func Configure(e env.Env) { current.Store(&e) }
+
+// environ is the environment telemetry is configured by. Before Configure it is
+// empty: nothing is exported and nothing is recorded.
+func environ() env.Env {
+	if p := current.Load(); p != nil {
+		return *p
+	}
+	return env.Env{}
+}
+
 // Enabled reports whether telemetry is configured through the environment.
 func Enabled() bool {
 	return tracesExporter() != "none" || metricsExporter() != "none"
@@ -65,7 +85,7 @@ func Active() bool { return Enabled() || recordingEnabled() }
 
 func endpointConfigured() bool {
 	for _, k := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"} {
-		if os.Getenv(k) != "" {
+		if environ().Get(k) != "" {
 			return true
 		}
 	}
@@ -73,10 +93,10 @@ func endpointConfigured() bool {
 }
 
 func exporterName(env string) string {
-	if strings.EqualFold(os.Getenv("OTEL_SDK_DISABLED"), "true") {
+	if strings.EqualFold(environ().Get("OTEL_SDK_DISABLED"), "true") {
 		return "none"
 	}
-	v := strings.ToLower(strings.TrimSpace(os.Getenv(env)))
+	v := strings.ToLower(strings.TrimSpace(environ().Get(env)))
 	switch v {
 	case "":
 		if endpointConfigured() {
@@ -95,7 +115,7 @@ func metricsExporter() string { return exporterName("OTEL_METRICS_EXPORTER") }
 
 func protocol(signal string) string {
 	for _, k := range []string{"OTEL_EXPORTER_OTLP_" + signal + "_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"} {
-		if v := strings.ToLower(os.Getenv(k)); v != "" {
+		if v := strings.ToLower(environ().Get(k)); v != "" {
 			return v
 		}
 	}
@@ -107,7 +127,8 @@ var errOnce sync.Once
 // Setup installs the OpenTelemetry providers configured by the environment
 // and returns a function that flushes and shuts them down. Failures to
 // export never fail a command; a single warning goes to stderr.
-func Setup(ctx context.Context, version string) (shutdown func(context.Context) error) {
+func Setup(ctx context.Context, version string, e env.Env) (shutdown func(context.Context) error) {
+	Configure(e)
 	noop := func(context.Context) error { return nil }
 	record := recordingEnabled()
 	if !Enabled() && !record {
@@ -131,7 +152,7 @@ func Setup(ctx context.Context, version string) (shutdown func(context.Context) 
 	// OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES (read by FromEnv) take
 	// precedence over the defaults above because FromEnv is listed first
 	// only for detection; merge explicitly.
-	if n := os.Getenv("OTEL_SERVICE_NAME"); n != "" {
+	if n := environ().Get("OTEL_SERVICE_NAME"); n != "" {
 		if merged, err := resource.Merge(res, resource.NewSchemaless(semconv.ServiceName(n))); err == nil {
 			res = merged
 		}
@@ -215,12 +236,12 @@ func Setup(ctx context.Context, version string) (shutdown func(context.Context) 
 // ParentFromEnv continues a trace started by the caller: the standard
 // TRACEPARENT and TRACESTATE environment variables, as set by CI systems
 // and by the MCP server for its tool calls.
-func ParentFromEnv(ctx context.Context) context.Context {
+func ParentFromEnv(ctx context.Context, e env.Env) context.Context {
 	carrier := propagation.MapCarrier{}
-	if v := os.Getenv("TRACEPARENT"); v != "" {
+	if v := e.Get("TRACEPARENT"); v != "" {
 		carrier["traceparent"] = v
 	}
-	if v := os.Getenv("TRACESTATE"); v != "" {
+	if v := e.Get("TRACESTATE"); v != "" {
 		carrier["tracestate"] = v
 	}
 	if len(carrier) == 0 {

@@ -16,6 +16,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -77,14 +78,14 @@ func loadSpec(opts Options, sig string) *specState {
 		allowed: map[string]bool{}, real: map[string]string{}, namespaces: map[string][2]*Ref{}, byPath: map[string]*config.Resource{},
 		abs: map[string]string{}, typeDefs: map[string]*Ref{}, outputs: map[string]*config.Output{}}
 	dir := opts.Dir
-	lo := config.LoadOptions{Tags: opts.Tags, SysTags: opts.SysTags}
+	lo := config.LoadOptions{Tags: opts.Tags, SysTags: opts.SysTags, Env: opts.Env}
 	ss.lock, _ = engine.ReadLock(dir)
 	if ss.lock == nil {
 		ss.lock = &engine.Lock{Providers: map[string]*engine.LockEntry{}, Modules: map[string]*engine.ModuleEntry{}}
 	}
 	// Loading a package that imports a module fetches the module when the cache
 	// lacks it. The viewer downloads nothing.
-	if missing := uncachedModule(dir); missing != "" {
+	if missing := uncachedModule(dir, opts.Env); missing != "" {
 		ss.err = fmt.Sprintf("the dependency module %s is not in the CUE cache; run \"pravo init\" to fetch it", missing)
 	} else if root, err := config.Load(dir, lo); err != nil {
 		ss.err = errorText(err)
@@ -166,7 +167,7 @@ func errorText(err error) string {
 
 // uncachedModule returns the first dependency module of the project that the
 // CUE module cache does not hold, or "".
-func uncachedModule(dir string) string {
+func uncachedModule(dir string, e env.Env) string {
 	root := config.FindModuleRoot(dir)
 	if root == "" {
 		return ""
@@ -179,10 +180,10 @@ func uncachedModule(dir string) string {
 	if err != nil || len(mf.Deps) == 0 {
 		return ""
 	}
-	cache := os.Getenv("CUE_CACHE_DIR")
+	cache := e.Get("CUE_CACHE_DIR")
 	if cache == "" {
-		base, err := os.UserCacheDir()
-		if err != nil {
+		base, ok := e.UserCacheDir()
+		if !ok {
 			return ""
 		}
 		cache = filepath.Join(base, "cue")

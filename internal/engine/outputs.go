@@ -14,6 +14,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -193,18 +194,19 @@ func (e *Engine) openRemoteOutputs(ctx context.Context, b state.Backend) (map[st
 // RemoteBackend opens the backend that the state settings name, an S3 bucket or an
 // http server. The credentials the settings leave out come from the environment:
 // AWS_SESSION_TOKEN for a bucket and PRAVO_STATE_TOKEN for a server.
-func RemoteBackend(ctx context.Context, st config.StateConfig) (state.Backend, error) {
+// e is the environment those come from.
+func RemoteBackend(ctx context.Context, st config.StateConfig, e env.Env) (state.Backend, error) {
 	if st.Backend == "http" {
 		token := st.Token
 		if token == "" && st.Username == "" {
-			token = os.Getenv("PRAVO_STATE_TOKEN")
+			token = e.Get("PRAVO_STATE_TOKEN")
 		}
 		return state.NewHTTPBackend(state.HTTPConfig{URL: st.URL, Token: token, Username: st.Username, Password: st.Password})
 	}
 	return state.NewS3Backend(ctx, state.S3Config{
 		Bucket: st.Bucket, Prefix: st.Prefix, Region: st.Region, Endpoint: st.Endpoint,
 		PathStyle: st.PathStyle, Profile: st.Profile, AccessKey: st.AccessKey, SecretKey: st.SecretKey,
-		SessionToken: os.Getenv("AWS_SESSION_TOKEN"),
+		SessionToken: e.Get("AWS_SESSION_TOKEN"),
 	})
 }
 
@@ -216,7 +218,7 @@ func (e *Engine) remoteOutputsTask(ctx context.Context, r *config.Resource) erro
 	var b state.Backend
 	if r.Remote.State.Remote() {
 		var err error
-		if b, err = RemoteBackend(ctx, r.Remote.State); err != nil {
+		if b, err = RemoteBackend(ctx, r.Remote.State, e.Opts.Env); err != nil {
 			return fmt.Errorf("%s: %w", r.Address(), err)
 		}
 	} else {
@@ -252,7 +254,7 @@ func (e *Engine) envTask(r *config.Resource, v cue.Value) error {
 	if err != nil {
 		return nil // the name depends on something not known yet
 	}
-	val, ok := os.LookupEnv(name)
+	val, ok := e.Opts.Env.Lookup(name)
 	plog.Debug(context.Background(), "environment variable", "addr", r.Address(), "name", name, "set", ok)
 	if !ok {
 		if derr != nil {
