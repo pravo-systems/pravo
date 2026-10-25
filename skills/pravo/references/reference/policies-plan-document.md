@@ -22,9 +22,27 @@ A rule is unified with the plan document. It is the JSON that `pravo plan --json
 
 A `replace` is its own action. A rule that forbids `delete` alone still allows a resource to be destroyed and created again. In `summary`, a replacement counts as an addition and as a destruction.
 
+## The schema of a rule
+
+`rule` is checked against `pravo.#Plan`, the shape of the judged document, in the specification itself. An editor with CUE support completes `changes`, `summary` and the fields of a change, and a field that is not in the document is refused when the specification loads. `#Plan` has no `blast_radius`, `dependents`, `hints` or `trace_id` for the reason in the table below.
+
+Names are resolved where they are written, so a list template redeclares the fields it reads. Writing them with `pravo.#Change` lets the schema check them:
+
+```cue
+no_replace: pravo.#Policy & {
+	rule: {
+		changes: [...pravo.#Change & {action: string, addr: string
+			if action == "replace" {error("\(addr): replace is not allowed")}
+		}]
+	}
+}
+```
+
+When a policy is added, pravo also unifies the rule with one change that holds no values, only the schema. A field that a template misspells, an action outside `#Action`, and a read of an optional field such as `before` without a test are refused then, and not at the first plan that has such a change. A condition on a value the sample does not hold is not decided, so a guard is not run.
+
 ## What the judged document leaves out
 
-The document that a rule sees is the one `plan --json` prints with these differences. A rule that names an absent field is refused when it is added, or fails the plan.
+The document that a rule sees is the one `plan --json` prints with these differences. A rule that names an absent field is refused when the specification loads.
 
 | Field | In the judged document |
 |---|---|

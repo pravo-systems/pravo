@@ -555,13 +555,13 @@ summary.add: invalid value 2 (out of bound <=1):
     plan:1:N
 ```
 
-A limit binds one plan: twenty plans of five changes each pass `summary: add: <=5`. It is a brake on the size of one change set and not a budget. The document has no `summary.blast_radius`, because the number comes from the state and the document is built from the plan file alone. A rule that names it is refused when it is added.
+A limit binds one plan: twenty plans of five changes each pass `summary: add: <=5`. It is a brake on the size of one change set and not a budget. The document has no `summary.blast_radius`, because the number comes from the state and the document is built from the plan file alone. A rule that names it is refused when the specification loads.
 
 Rules over `action`, `mode`, `type` and the counts are what a policy is for, and so is a rule that an attribute is set, such as the owner above. A rule about the value that an attribute may take can also be written on the provider definition: see [Providers](spec-providers.md#provider-scoped-constraints). A specification constraint cannot require that an attribute is set.
 
 ## Mistakes that forbid nothing
 
-CUE does not know what a rule was meant to say. Four typos, each in a rule that is added and then run against a plan that destroys everything:
+CUE does not know what a rule was meant to say, but the schema of `rule` knows the document. A field that the document does not have is refused when the specification loads, and the message names the path. Four typos, each in a rule that is run against a plan that destroys everything:
 
 File `policy/typo-literal.cue`:
 
@@ -592,13 +592,11 @@ summary: destory: 0
 ```
 
 ```sh
-for p in typo-literal typo-template typo-concrete; do
+for p in typo-literal typo-template typo-constraint typo-concrete; do
   echo "$p"
   ./set-rule.sh policy/$p.cue > /dev/null
-  pravo -C infra plan --destroy 2>&1 | grep -A20 -E '^(Policy|Error)'
+  pravo -C infra plan --destroy 2>&1 | grep -A2 -E '^(Policy|Error)'
 done
-echo typo-constraint
-./set-rule.sh policy/typo-constraint.cue
 ```
 
 Output:
@@ -607,21 +605,23 @@ Output:
 typo-literal
 Policy check@N:a980c6455beaf1ee26dbfafc027d85c098710150c524b3bcb0134718f62b2d4a is satisfied.
 typo-template
-Policy check@N:4a8d09555054343460eb00e8fa492a578c6936e7bb6e495bd0f20c753e6e93b9 is satisfied.
-typo-concrete
-Policy check@N:282214fb06c4a3f69ff8ba68bcad92925adb8b2689a899178d6d6dee3f0a97dc is satisfied.
+Error: evaluating ./infra:
+check.rule.chnges: field not allowed:
+    ./infra/policy.cue:7:2
 typo-constraint
-Error: policy check does not accept the document of an empty plan:
-sumary.blast_radius: incomplete value <=5:
-    check:2:16
+Error: evaluating ./infra:
+check.rule.sumary: field not allowed:
+    ./infra/policy.cue:7:2
+typo-concrete
+Error: evaluating ./infra:
+check.rule.summary.destory: field not allowed:
+    ./infra/policy.cue:7:11
 ```
 
-- A misspelt literal (`"delet"`) forbids nothing, because no change has that action.
-- A misspelt list template (`chnges`) forbids nothing, because the document has no such field and the list is empty.
-- A misspelt field with a concrete value (`destory: 0`) forbids nothing. It adds a field that holds.
-- A misspelt bound, type or pattern (`sumary: blast_radius: <=5`) is refused when the rule is added, because the document of an empty plan has no such field and the bound never becomes a value.
+- A misspelt field (`chnges`, `sumary`, `destory`) is refused, because `rule` is checked against the document: [`pravo.#Plan`](policies-plan-document.md#the-schema-of-a-rule). The same holds for a field of `#Change` that a list template misspells, and for an action outside its list, once the policy is added.
+- A misspelt literal (`"delet"`) forbids nothing, because no change has that action, and CUE has no way to know that the comparison can never hold. This is the one typo that nothing refuses.
 
-Only the last of the four is noticed. Test a rule against a plan it should refuse before relying on it. See [Rolling out and testing](policies-operations.md#rolling-out-and-testing).
+Test a rule against a plan it should refuse before relying on it. See [Rolling out and testing](policies-operations.md#rolling-out-and-testing).
 
 ## See also
 

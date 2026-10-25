@@ -93,6 +93,9 @@ Output:
 #Movable: {
 #Output: {
 #Policy: {
+#Plan: {
+#Action: "create" | "update" | "replace" | "delete" | "read" | "open" | "call" | "move" | "no-op"
+#Change: {
 #Env: {
 #SecretEnv: {
 #RemoteOutputs: {

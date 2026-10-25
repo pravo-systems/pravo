@@ -1132,6 +1132,12 @@ that declares none, so it also serves to try out CUE.
 			opts := []cue.Option{cue.Final(), cue.Definitions(true), cue.Hidden(false), cue.Optional(optional), cue.Docs(false), cue.Attributes(false)}
 			if raw {
 				opts = []cue.Option{cue.Raw(), cue.Docs(true)}
+				// A policy rule prints as the policy stores it: what the author wrote,
+				// without the schema it is unified with.
+				if text, err := config.RuleText(v); err == nil {
+					fmt.Print(text)
+					return nil
+				}
 			}
 			node := v.Syntax(opts...)
 			// A struct prints as the fields of a file, without the outer braces,

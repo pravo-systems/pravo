@@ -324,3 +324,21 @@ func TestVerifyChecksTheReceiptOfAStoredPlan(t *testing.T) {
 		t.Errorf("an omission: exit %d\n%s", code, text)
 	}
 }
+
+// A rule that is written against the schema of pravo is stored without it: the state
+// holds standalone CUE, and the judge compiles it without the module.
+func TestARuleWrittenAgainstTheSchemaIsStoredWithoutIt(t *testing.T) {
+	rules := map[string]string{"nodel": "changes: [...pravo.#Change & {action: string, addr: string\n\tif action == \"delete\" {error(addr)}\n}]"}
+	r := newPolicyRoot(t, rules, "a", "b")
+	if text, code := r.apply(t); code != 0 {
+		t.Fatalf("first apply: exit %d\n%s", code, text)
+	}
+	head, _ := r.policies(t).Head("nodel")
+	if strings.Contains(head.Text, "pravo") || !strings.Contains(head.Text, "if action == \"delete\"") {
+		t.Errorf("stored text: %q", head.Text)
+	}
+	r.declare(t, rules, "b") // a is destroyed by the next plan
+	if text, code := runPravo(t, r.dir, "plan"); code != 5 || !strings.Contains(text, "a: ") && !strings.Contains(text, "changes.") {
+		t.Errorf("plan must be refused by the rule: exit %d\n%s", code, text)
+	}
+}
