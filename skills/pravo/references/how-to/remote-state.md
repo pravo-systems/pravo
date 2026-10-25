@@ -298,14 +298,13 @@ url: pravo.#Output & {value: "http://\(server.id).internal:\(port.result)"}
 ```
 
 ```sh
-pravo apply -auto-approve | grep -A1 '^Outputs'
+pravo apply -auto-approve | tail -n 1
 ```
 
 Output:
 
 ```text
-Outputs:
-  url: "http://<pet>.internal:<port>"
+1 output, 1 changed (url). See them with "pravo output" or "pravo serve".
 ```
 
 In the second root, `pravo.#RemoteOutputs` points at the first root's state. The settings are those of the state itself.
