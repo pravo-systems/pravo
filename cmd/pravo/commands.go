@@ -714,9 +714,27 @@ func reportApply(res *engine.ApplyResult, destroy bool, kind, planfile, again st
 	}
 	if len(res.Outputs) > 0 {
 		out.Println()
-		out.Println("Outputs:")
-		printOutputs(res.Outputs, false, "  ")
+		out.Println(outputsSummary(len(res.Outputs), res.ChangedOutputs))
 	}
+}
+
+// outputsSummary says how many outputs an apply recorded and which of them
+// changed, and where to read them. Apply does not print their values: they
+// reach logs that are kept, and "pravo output" and "pravo serve" show them.
+func outputsSummary(total int, changed []string) string {
+	noun := "outputs"
+	if total == 1 {
+		noun = "output"
+	}
+	what := "none changed"
+	if len(changed) > 0 {
+		names := make([]string, len(changed))
+		for i, n := range changed {
+			names[i] = convert.FieldLabel(n)
+		}
+		what = fmt.Sprintf("%d changed (%s)", len(changed), strings.Join(names, ", "))
+	}
+	return fmt.Sprintf("%d %s, %s. See them with \"pravo output\" or \"pravo serve\".", total, noun, what)
 }
 
 func printOutputs(outputs map[string]json.RawMessage, asJSON bool, indent string) {

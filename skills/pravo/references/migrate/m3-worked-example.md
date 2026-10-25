@@ -675,9 +675,7 @@ Graph: planned 7 · refreshed 7 · to move 7
 ...
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 
-Outputs:
-  admin_password: (sensitive)
-  endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]
+2 outputs, none changed. See them with "pravo output" or "pravo serve".
 ...
 admin_password: (sensitive)
 endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]

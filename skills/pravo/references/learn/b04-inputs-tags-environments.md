@@ -148,8 +148,8 @@ Without a tag, `env` takes its default. With `-t env=prod`, the field is `"prod"
 ## Apply two environments
 
 ```sh
-pravo apply --auto-approve | tail -n 5
-pravo apply --auto-approve -t env=prod | tail -n 5
+pravo apply --auto-approve | tail -n 3
+pravo apply --auto-approve -t env=prod | tail -n 3
 ```
 
 Output:
@@ -157,14 +157,10 @@ Output:
 ```text
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
 
-Outputs:
-  web_file: "dev.conf"
-  web_port: 29712
+2 outputs, 2 changed (web_file, web_port). See them with "pravo output" or "pravo serve".
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
 
-Outputs:
-  web_file: "prod.conf"
-  web_port: 28064
+2 outputs, 2 changed (web_file, web_port). See them with "pravo output" or "pravo serve".
 ```
 
 The two environments share one specification and differ in the values it computes:
@@ -308,7 +304,7 @@ Error: -t and -T cannot be combined with a saved plan; the plan carries its own 
 pravo refuses the tag. The plan was made for prod and can only be applied to prod. [B7](b07-changing-live-infrastructure.md) covers saved plans. Apply it without a tag:
 
 ```sh
-pravo apply prod.plan | tail -n 5
+pravo apply prod.plan | tail -n 3
 cat prod.conf
 ```
 
@@ -317,9 +313,7 @@ Output:
 ```text
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 
-Outputs:
-  web_file: "prod.conf"
-  web_port: 28064
+2 outputs, none changed. See them with "pravo output" or "pravo serve".
 env = prod
 port = 28064
 workers = 4
