@@ -56,3 +56,59 @@ func TestCheckRuleStages(t *testing.T) {
 		t.Errorf("a good rule: %+v", p)
 	}
 }
+
+func TestTryFileJudgesWholePolicies(t *testing.T) {
+	tr := NewTrier()
+	tr.Add("p", Doc{JSON: []byte(tryDoc), Addrs: []string{"a", "b"}})
+	file := func(body string) string { return "import \"pravo.dev/pravo\"\n\n" + body }
+
+	r := tr.TryFile(file("few: pravo.#Policy & {\n\trule: summary: destroy: 0\n}\n\nmany: pravo.#Policy & {\n\trule: summary: add: <=5\n}\n"), []string{"p"})
+	if r.Problem != nil || len(r.Policies) != 2 || r.Policies[0].Name != "few" || r.Policies[0].Line != 3 {
+		t.Fatalf("two policies: %+v", r)
+	}
+	if res := r.Plans[0]; res.Outcome != RuleRefused || len(res.Issues) != 1 || res.Issues[0].Policy != "few" || res.Issues[0].Line != 4 || res.Issues[0].Path != "summary.destroy" {
+		t.Errorf("the refusal names the policy and the line of the file: %+v", res)
+	}
+
+	r = tr.TryFile(file("cost: max: pravo.#Policy & {\n\trule: summary: destroy: 0\n}\n"), []string{"p"})
+	if r.Problem != nil || len(r.Policies) != 1 || r.Policies[0].Name != "cost.max" || r.Plans[0].Outcome != RuleRefused || r.Plans[0].Issues[0].Path != "summary.destroy" {
+		t.Errorf("a policy at a path: %+v", r)
+	}
+
+	r = tr.TryFile(file("ok: pravo.#Policy & {\n\trule: summary: destroy: <=1\n}\n"), []string{"p"})
+	if r.Problem != nil || r.Plans[0].Outcome != RuleHolds {
+		t.Errorf("holds: %+v", r)
+	}
+
+	// The file is type-checked against the pravo package, at the line that holds the mistake.
+	for body, want := range map[string]struct {
+		stage string
+		line  int
+	}{
+		"p: pravo.#Policy & {\n\trule: sumary: destroy: 0\n}\n":      {"compile", 4},
+		"p: pravo.#Policy & {\n\trule: summary: destroy: \"x\"\n}\n": {"compile", 4},
+		"p: pravo.#Policy & {\n\trul: {}\n}\n":                       {"compile", 0},
+		"x: 1\n":                                                     {"policies", 0},
+	} {
+		r = tr.TryFile(file(body), []string{"p"})
+		if r.Problem == nil || r.Problem.Stage != want.stage {
+			t.Errorf("%q: %+v", body, r.Problem)
+			continue
+		}
+		if want.line > 0 {
+			ok := false
+			for _, is := range r.Problem.Issues {
+				ok = ok || is.Line == want.line
+			}
+			if !ok {
+				t.Errorf("%q: no issue at line %d: %+v", body, want.line, r.Problem.Issues)
+			}
+		}
+	}
+	if r = tr.TryFile("import \"example.com/x\"\np: pravo.#Policy & {rule: {}}\n", []string{"p"}); r.Problem == nil || r.Problem.Stage != "imports" {
+		t.Errorf("another import: %+v", r.Problem)
+	}
+	if r = tr.TryFile("p: pravo.#Policy & {rule: summary: destroy: <=\n", []string{"p"}); r.Problem == nil || r.Problem.Stage != "parse" || r.Plans[0].Outcome != RuleInvalid {
+		t.Errorf("parse: %+v", r)
+	}
+}

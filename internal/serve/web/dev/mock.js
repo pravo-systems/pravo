@@ -354,13 +354,17 @@ function synthSource(n) {
 
 // ---- the policy workbench: a stand-in that understands rules of the form `summary: destroy: N` or `<=N` and nothing else ----
 
+function decl(name, rule) {
+  return `import "pravo.dev/pravo"\n\n${name}: pravo.#Policy & {\n\trule: {\n${rule.replace(/\s+$/, '').split('\n').map((l) => '\t\t' + l).join('\n')}\n\t}\n}\n`;
+}
+
 function workbenchDoc() {
   const plans = (stored ? stored.plans : []).map((x) => ({ ref: x.id, kind: 'stored', label: x.id, status: x.status, open: !!x.open, author: x.author, created: x.created, add: x.summary.add, change: x.summary.change, destroy: x.summary.destroy }));
   plans.push({ ref: 'file:plan.json', kind: 'file', label: 'plan.json', open: true, created: new Date(Date.now() - 36e5).toISOString(), add: 2, change: 1, destroy: 1 });
-  const inForce = policies ? policies.policies.filter((x) => x.versions.length && !x.versions[0].removal).map((x) => ({ name: x.name, status: x.status, in_force: x.versions[0].text, declared: x.rule || '' })) : [];
+  const inForce = policies ? policies.policies.filter((x) => x.versions.length && !x.versions[0].removal).map((x) => ({ name: x.name, status: x.status, in_force: decl(x.name, x.versions[0].text), declared: x.rule ? decl(x.name, x.rule) : '' })) : [];
   return { version: 1, revision: graph.revision, spec_ok: true, plans, policies: inForce, note: '',
     schema: '// A rule that every plan is judged by at apply.\n#Policy: {\n\t$kind: "policy"\n\trule: #Plan\n}\n\n#Plan: {\n\tformat: int\n\tsummary: {add: int, change: int, destroy: int, read: int}\n\tchanges: [...#Change]\n}\n',
-    examples: [{ id: 'no-destroy', title: 'Destroy nothing', about: 'A plan may not destroy anything.', rule: 'summary: destroy: 0\n' }, { id: 'small-plans', title: 'Keep plans small', about: 'One plan destroys at most 5.', rule: 'summary: destroy: <=5\n' }] };
+    examples: [{ id: 'no-destroy', title: 'Destroy nothing', about: 'A plan may not destroy anything.', rule: 'summary: destroy: 0\n', policy: decl('no_destroy', 'summary: destroy: 0\n') }, { id: 'small-plans', title: 'Keep plans small', about: 'One plan destroys at most 5.', rule: 'summary: destroy: <=5\n', policy: decl('small_plans', 'summary: destroy: <=5\n') }] };
 }
 
 function workbenchBound(text) {
@@ -371,18 +375,19 @@ function workbenchBound(text) {
 function workbenchTry(q) {
   const text = q.get('rule') || '';
   const bound = workbenchBound(text);
-  const results = (rule) => (ref) => {
+  const at = text.split('\n').findIndex((l) => /destroy/.test(l)) + 1;
+  const judge = (ref) => {
     const x = ref.startsWith('file:') ? { summary: { add: 2, change: 1, destroy: 1 } } : stored.plans.find((y) => y.id === ref);
     if (!x) return { ref, state: 'unknown', note: 'no such plan', changes: 0 };
-    const b = workbenchBound(rule);
     const d = x.summary.destroy;
-    const ok = !b || (b.le ? d <= b.n : d === b.n);
+    const ok = !bound || (bound.le ? d <= bound.n : d === bound.n);
     return { ref, state: 'judged', changes: x.summary.add + x.summary.change + x.summary.destroy, outcome: ok ? 'holds' : 'refused',
-      issues: ok ? [] : [{ path: 'summary.destroy', message: `conflicting values ${d} and ${b.n}`, line: 1, column: 1, got: String(d) }] };
+      issues: ok ? [] : [{ path: 'summary.destroy', message: `conflicting values ${d} and ${bound.n}`, line: at, column: 1, got: String(d), policy: 'draft' }] };
   };
-  const draft = results(text), base = q.get('base') ? results((policies.policies.find((x) => x.name === q.get('base')) || { versions: [{ text: '' }] }).versions[0].text) : null;
-  return { version: 1, base: q.get('base') || undefined, took_ms: 3, check: /<=\s*$/.test(text.trim()) ? { stage: 'parse', message: 'policy draft: expected operand, found EOF', issues: [{ message: 'expected operand, found EOF', line: 1, column: text.length }] } : undefined,
-    plans: q.getAll('ref').map((ref) => { const d = draft(ref); const b = base ? base(ref) : null; return { ref, state: d.state, note: d.note, changes: d.changes, draft: d.outcome ? { outcome: d.outcome, issues: d.issues } : undefined, base: b && b.outcome ? { outcome: b.outcome, issues: b.issues } : undefined }; }) };
+  const bad = /<=\s*$/m.test(text);
+  return { version: 1, took_ms: 3, policies: [{ name: 'draft', line: 3 }],
+    check: bad ? { stage: 'parse', message: 'policy.cue: expected operand, found newline', issues: [{ message: 'expected operand, found newline', line: at, column: 1 }] } : undefined,
+    plans: q.getAll('ref').map((ref) => { const d = judge(ref); return { ref, state: d.state, note: d.note, changes: d.changes, draft: d.outcome ? { outcome: bad ? 'invalid' : d.outcome, issues: bad ? [] : d.issues } : undefined }; }) };
 }
 
 function workbenchShow(q) {

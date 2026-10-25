@@ -1173,20 +1173,22 @@ type WorkbenchExample struct {
 	Title string `json:"title"`
 	About string `json:"about"`
 	Rule  string `json:"rule"`
+	// Policy is the rule as a policy, the text the editor starts from.
+	Policy string `json:"policy"`
 }
 
 // WorkbenchTry is what a rule says of plans.
 type WorkbenchTry struct {
 	Version int `json:"version"`
-	// Check is why the text cannot be stored as a policy, or nil. A rule that does not pass it can still be tried on plans, as far as it compiles.
+	// Check is why the text cannot be stored as it is, or nil. A file that compiles is tried on plans even so.
 	Check *engine.RuleProblem `json:"check,omitempty"`
-	// Base names the policy whose version in force was tried alongside, "" for none.
-	Base  string      `json:"base,omitempty"`
-	Plans []TriedPlan `json:"plans"`
-	Took  int64       `json:"took_ms"`
+	// Policies are the policies that the text declares.
+	Policies []engine.DraftPolicy `json:"policies"`
+	Plans    []TriedPlan          `json:"plans"`
+	Took     int64                `json:"took_ms"`
 }
 
-// TriedPlan is what the rule, and the version in force when one was asked for, say of one plan.
+// TriedPlan is what the policies of the text say of one plan.
 type TriedPlan struct {
 	Ref string `json:"ref"`
 	// State is "judged", "not-judged" (the plan changes no resource, so no policy judges it), "sealed", "unreadable" or "unknown".
@@ -1195,7 +1197,6 @@ type TriedPlan struct {
 	// Changes counts the changes of the plan's document.
 	Changes int                `json:"changes"`
 	Draft   *engine.RuleResult `json:"draft,omitempty"`
-	Base    *engine.RuleResult `json:"base,omitempty"`
 }
 
 // WorkbenchDoc is the document of one plan as a rule sees it.

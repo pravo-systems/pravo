@@ -21,7 +21,8 @@ group: Policies
 Each argument names one rule:
 
 - The name of a policy that the specification declares. Its text is the rule of the specification, that is, the one the next apply would store.
-- A CUE file that holds one rule, the struct that `rule:` would hold. A draft that is not in the specification yet is tried this way.
+- A CUE file of policies, written as a specification declares them: the import of `pravo.dev/pravo` and any number of fields that are a `pravo.#Policy` with a `rule`. A draft that is not in the specification yet is tried this way. The file is checked as CUE against the `pravo` package, so a field that the plan document lacks is an error at its line, and a refusal names its policy.
+- A CUE file that holds one rule, the struct that `rule:` would hold, without the declaration.
 
 With no argument every policy of the specification is tried.
 
@@ -51,7 +52,7 @@ For each rule, one line for each plan: `✓` when the rule holds, `✗` when the
 |---|---|
 | 0 | Every rule holds on every plan that was judged. |
 | 5 | A rule would refuse a plan. |
-| 6 | A rule cannot be used: its text is invalid or it does not name a policy. |
+| 6 | A rule or a file cannot be used: its text does not parse or check, or it does not name a policy. |
 | 1 | Any other error. |
 
 A pipeline can gate a rule on its own plans: `pravo policy test draft.cue --all` fails with 5 while the rule would refuse one of them. See [exit codes](exit-codes.md).

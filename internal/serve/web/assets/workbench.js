@@ -1,8 +1,9 @@
-// The policy workbench: write a rule, see which plans it would refuse and why, before it is stored.
+// The policy workbench: write policies, see which plans they would refuse and why, before they are stored.
 //
-// A rule is CUE that is unified with the document of a plan and has to make it concrete. The page sends the text of a
-// draft with the plans to try it on (GET /api/workbench/try), and the server answers for each plan whether the rule holds,
-// and where in the document it does not. The server runs the rule in a CUE context of its own and writes nothing: the
+// The editor holds the text of a specification: the import of the pravo package and policies, each a pravo.#Policy with its rule.
+// A rule is CUE that is unified with the document of a plan and has to make it concrete. The page sends the text with the
+// plans to try it on (GET /api/workbench/try), and the server checks it as CUE and answers for each plan whether the
+// policies hold, and where in the document they do not. The server runs the rule in a CUE context of its own and writes nothing: the
 // state, the plans and the policies are as they were. The page also explains the plan document, which a rule is written
 // against, and what the apply does with a rule.
 
@@ -11,10 +12,17 @@ import { tokenize } from './cue.js';
 import { attachFolds, foldRanges, hiddenRows } from './fold.js';
 import * as api from './api.js';
 
-const DRAFT_KEY = 'pravo.workbench.draft';
+const DRAFT_KEY = 'pravo.workbench.policies';
 const MAX_PLANS = 100;
 
-const BLANK = '// A rule says what must hold of the document of a plan. This one allows no destroy.\nsummary: destroy: 0\n';
+const BLANK = `import "pravo.dev/pravo"
+
+// A policy is a rule that every plan is judged by. The rule says what must hold of the plan's document.
+// This one allows no destroy.
+draft: pravo.#Policy & {
+\trule: summary: destroy: 0
+}
+`;
 
 // OUTCOME says what a plan is to the rule, in words and in the one colour that means it: green holds, red is refused,
 // grey is not judged.
@@ -36,14 +44,6 @@ const STAGE = {
   shape: 'The rule does not fit the plan document. It names a field that the document does not have, or a value outside the enum of a field.',
 };
 
-const ident = (name) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : JSON.stringify(name));
-
-// asPolicy is the rule as the specification would declare it.
-export function asPolicy(name, text) {
-  const body = text.replace(/\s+$/, '').split('\n').map((l) => (l ? '\t\t' + l : l)).join('\n');
-  return `import "pravo.dev/pravo"\n\n${ident(name || 'my_policy')}: pravo.#Policy & {\n\trule: {\n${body}\n\t}\n}\n`;
-}
-
 // pathChange reads the index of the change that a path of the document leads into, or -1.
 export function pathChange(path) {
   const m = /^changes\.(\d+)(\.|$)/.exec(path || '');
@@ -58,9 +58,7 @@ export class WorkbenchView {
     this.loadedRev = null;
     this.loading = null;
     this.error = '';
-    this.name = 'draft';
     this.text = BLANK;
-    this.base = ''; // the policy whose version in force is tried beside the draft
     this.scope = { open: true, closed: false, files: true };
     this.start = 'blank';
     this.result = null;
@@ -72,7 +70,7 @@ export class WorkbenchView {
     this.filter = 'all';
     try {
       const d = JSON.parse(store.get(DRAFT_KEY) || 'null');
-      if (d && typeof d.text === 'string' && d.text.length < 32768) { this.text = d.text; this.name = d.name || 'draft'; }
+      if (d && typeof d.text === 'string' && d.text.length < 32768) { this.text = d.text; }
     } catch { /* no draft */ }
     this.tryLater = debounce(() => this.run(), 280);
   }
@@ -128,7 +126,7 @@ export class WorkbenchView {
     this.startFrom((w.which === 'declared' && p.declared ? 'declared:' : 'policy:') + p.name);
   }
 
-  persist() { store.set(DRAFT_KEY, JSON.stringify({ name: this.name, text: this.text })); }
+  persist() { store.set(DRAFT_KEY, JSON.stringify({ text: this.text })); }
 
   // ---- the plans a request names ----
 
@@ -150,7 +148,7 @@ export class WorkbenchView {
     const mine = this.ctl;
     this.busy = true;
     this.paintResults();
-    api.tryRule({ rule: this.text, name: this.name, base: this.base, refs }, mine.signal).then((r) => {
+    api.tryRule({ rule: this.text, refs }, mine.signal).then((r) => {
       if (this.ctl !== mine) return;
       this.busy = false;
       this.result = r;
@@ -194,8 +192,8 @@ export class WorkbenchView {
     this.shell.append(this.headEl,
       h('div', { class: 'wb-body' },
         h('section', { class: 'wb-left', 'aria-labelledby': 'wb-eh' },
-          h('h3', { class: 'wb-h3', id: 'wb-eh' }, 'Rule'),
-          this.controlsEl, this.editor.wrap, this.editorNotes(), this.takeAway()),
+          h('h3', { class: 'wb-h3', id: 'wb-eh' }, 'Policies'),
+          this.controlsEl, this.editor.wrap, this.editorNotes()),
         this.resultsEl),
       this.guideEl);
     this.paintGuide();
@@ -208,8 +206,8 @@ export class WorkbenchView {
     clear(this.headEl);
     this.headEl.append(h('div', { class: 'wb-htext' },
       h('h2', { class: 'po-title', id: 'wb-h' }, 'Policy workbench'),
-      h('p', { class: 'po-lede' }, 'Write a rule and see which plans it would refuse, and why, before it is stored. The plans are the ones stored in the state and the plan files of the project; each is judged by the rule exactly as an apply would judge it.')),
-      h('p', { class: 'wb-promise' }, icon('lock'), h('span', null, 'Nothing is applied or stored. The rule is run in a scratch evaluator, and the project, the state and the policies stay as they were.')));
+      h('p', { class: 'po-lede' }, 'Write policies as the specification declares them and see which plans they would refuse, and why, before they are stored. The plans are the ones stored in the state and the plan files of the project; each is judged by the policies exactly as an apply would judge it.')),
+      h('p', { class: 'wb-promise' }, icon('lock'), h('span', null, 'Nothing is applied or stored. The policies are run in a scratch evaluator, and the project, the state and the policies in force stay as they were.')));
   }
 
   // ---- the controls over the editor ----
@@ -218,7 +216,7 @@ export class WorkbenchView {
     const d = this.data;
     const startSel = h('select', { class: 'wb-select', 'aria-label': 'Start from', on: { change: (ev) => this.startFrom(ev.target.value) } });
     const opt = (value, label, group) => (group || startSel).append(h('option', { value, selected: this.start === value }, label));
-    opt('blank', 'A blank rule');
+    opt('blank', 'A blank policy');
     if (d.examples.length) {
       const g = h('optgroup', { label: 'Examples' });
       d.examples.forEach((e) => opt('ex:' + e.id, e.title, g));
@@ -235,16 +233,8 @@ export class WorkbenchView {
       declared.forEach((p) => opt('declared:' + p.name, p.name + ' (declared)', g));
       startSel.append(g);
     }
-    const baseSel = h('select', { class: 'wb-select', 'aria-label': 'Compare with', disabled: !inForce.length, on: { change: (ev) => { this.base = ev.target.value; this.run(); } } },
-      h('option', { value: '' }, inForce.length ? 'nothing' : 'no policy in force'),
-      inForce.map((p) => h('option', { value: p.name, selected: this.base === p.name }, 'in force: ' + p.name)));
-    const nameIn = h('input', { class: 'wb-name', type: 'text', value: this.name, spellcheck: 'false', maxlength: '100', 'aria-label': 'Name of the policy',
-      on: { input: (ev) => { this.name = ev.target.value.trim() || 'draft'; this.persist(); this.paintTakeAway(); this.tryLater(); } } });
     clear(this.controlsEl);
-    this.controlsEl.append(
-      h('label', { class: 'wb-f' }, h('span', { class: 'k' }, 'start from'), startSel),
-      h('label', { class: 'wb-f' }, h('span', { class: 'k' }, 'name'), nameIn),
-      h('label', { class: 'wb-f' }, h('span', { class: 'k' }, 'compare with'), baseSel));
+    this.controlsEl.append(h('label', { class: 'wb-f' }, h('span', { class: 'k' }, 'start from'), startSel));
   }
 
   startFrom(v) {
@@ -252,21 +242,20 @@ export class WorkbenchView {
     const d = this.data;
     const [kind, ...rest] = v.split(':');
     const key = rest.join(':');
-    if (kind === 'blank') { this.text = BLANK; this.name = 'draft'; this.base = ''; }
-    else if (kind === 'ex') { const e = d.examples.find((x) => x.id === key); if (e) { this.text = e.rule; this.name = e.id.replace(/-/g, '_'); this.base = ''; } }
-    else if (kind === 'policy') { const p = d.policies.find((x) => x.name === key); if (p) { this.text = p.in_force; this.name = p.name; this.base = p.name; } }
-    else if (kind === 'declared') { const p = d.policies.find((x) => x.name === key); if (p) { this.text = p.declared; this.name = p.name; this.base = p.in_force ? p.name : ''; } }
+    if (kind === 'blank') this.text = BLANK;
+    else if (kind === 'ex') { const e = d.examples.find((x) => x.id === key); if (e) this.text = e.policy; }
+    else if (kind === 'policy') { const p = d.policies.find((x) => x.name === key); if (p) this.text = p.in_force; }
+    else if (kind === 'declared') { const p = d.policies.find((x) => x.name === key); if (p) this.text = p.declared; }
     this.persist();
     this.paintControls();
     this.syncEditor();
-    this.paintTakeAway();
     this.run();
   }
 
   // ---- the editor: a text area over the same text drawn in colour ----
 
   buildEditor() {
-    const ta = h('textarea', { class: 'wb-ta', spellcheck: 'false', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', wrap: 'off', 'aria-label': 'The rule, in CUE', 'aria-describedby': 'wb-keys' });
+    const ta = h('textarea', { class: 'wb-ta', spellcheck: 'false', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', wrap: 'off', 'aria-label': 'The policies, in CUE', 'aria-describedby': 'wb-keys' });
     const hl = h('pre', { class: 'wb-hl', 'aria-hidden': 'true' });
     const gut = h('div', { class: 'wb-gut', 'aria-hidden': 'true' });
     const view = h('div', { class: 'wb-view' }, hl, ta);
@@ -445,30 +434,6 @@ export class WorkbenchView {
     return h('p', { class: 'wb-keys', id: 'wb-keys' }, h('kbd', null, 'Tab'), ' indents and ', h('kbd', null, 'Esc'), ' leaves the editor. ', h('kbd', null, 'Ctrl+Shift+['), ' folds the block at the cursor and ', h('kbd', null, 'Ctrl+Shift+]'), ' unfolds it (', h('kbd', null, 'Cmd'), ' on a Mac). A red line is where CUE found a problem with the text; an amber one is where a refusal points into the rule.');
   }
 
-  // takeAway is what to do with a rule that works: the policy as the specification declares it, and the command that tries it again.
-  takeAway() {
-    this.takeEl = h('div', { class: 'wb-take' });
-    this.paintTakeAway();
-    return this.takeEl;
-  }
-
-  paintTakeAway() {
-    if (!this.takeEl) return;
-    const spec = asPolicy(this.name, this.text);
-    const plan = (this.data && this.data.plans.find((p) => p.open)) || null;
-    const cmd = `pravo policy test ${this.name.replace(/[^A-Za-z0-9_.-]/g, '_')}.cue` + (plan ? ` --plan ${plan.kind === 'file' ? plan.label : plan.ref}` : '');
-    const copyBtn = (text, label) => h('button', { class: 'cpbtn', type: 'button', 'data-copy': text, 'aria-label': label, 'data-tip': label }, icon('copy'));
-    clear(this.takeEl);
-    this.takeEl.append(
-      h('details', { class: 'wb-det' },
-        h('summary', null, h('span', { class: 'chev', 'aria-hidden': 'true' }, icon('chev')), 'Use this rule'),
-        h('p', { class: 'po-note' }, 'To store the rule, declare it in the specification. The next ', h('code', null, 'pravo apply'), ' writes it to the state as a signed version, and every later plan is judged by it. The plan that adds it is not judged by it.'),
-        h('div', { class: 'wb-snip' }, h('pre', null, spec), copyBtn(spec, 'Copy the declaration')),
-        h('p', { class: 'po-note' }, 'To try it from a terminal or a pipeline, save the text of the rule in a file and run:'),
-        h('div', { class: 'cmdline po-cmd' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, cmd), copyBtn(cmd, 'Copy the command')),
-        h('p', { class: 'po-note' }, h('code', null, 'pravo policy test'), ' exits 5 when a rule would refuse a plan, so it can gate a change before the apply does.')));
-  }
-
   // ---- the results ----
 
   paintResults() {
@@ -540,7 +505,6 @@ export class WorkbenchView {
     const key = res ? res.outcome : tp.state;
     const out = OUTCOME[key] || OUTCOME.unreadable;
     const open = this.opened.has(tp.ref);
-    const delta = this.delta(tp);
     const refusal = res && res.outcome === 'refused';
     const body = h('div', { class: 'wb-rbody', hidden: !open });
     if (open) body.append(...this.rowBody(tp, res, meta));
@@ -549,10 +513,11 @@ export class WorkbenchView {
       h('i', { class: 'po-mark', 'aria-hidden': 'true' }),
       h('span', { class: 'wb-rn' }, h('b', null, label), meta ? h('span', { class: 'wb-rmeta' }, this.metaText(meta)) : null),
       h('span', { class: 'wb-ro ' + out.cls }, out.label, refusal ? ` · ${plural((res.issues || []).length + (res.more || 0), 'reason')}` : ''),
-      delta ? h('span', { class: 'b ' + delta.cls }, delta.text) : null,
       h('span', { class: 'chev' + (open ? ' open' : ''), 'aria-hidden': 'true' }, icon('chev')));
     return h('li', { class: 'wb-item' }, head, body);
   }
+
+  policyCount() { return this.result && this.result.policies ? this.result.policies.length : 1; }
 
   labelOf(ref) { const p = this.data && this.data.plans.find((x) => x.ref === ref); return p ? p.label : ref; }
   metaOf(ref) { return this.data && this.data.plans.find((x) => x.ref === ref); }
@@ -566,24 +531,11 @@ export class WorkbenchView {
     return bits.filter(Boolean).join(' · ');
   }
 
-  // delta compares the draft with the version in force: a plan that the draft refuses and the version holds is the one to look at.
-  delta(tp) {
-    if (!tp.base || !tp.draft) return null;
-    const was = tp.base.outcome === 'holds', is = tp.draft.outcome === 'holds';
-    if (was && !is) return { cls: 'bad', text: 'newly refused' };
-    if (!was && is) return { cls: 'ok', text: 'no longer refused' };
-    return null;
-  }
-
   rowBody(tp, res, meta) {
     const out = [];
     if (tp.note) out.push(h('p', { class: 'po-note' }, tp.note));
-    if (tp.base && this.result && this.result.base) {
-      const b = OUTCOME[tp.base.outcome] || OUTCOME.unreadable;
-      out.push(h('p', { class: 'po-note' }, `The version in force of ${this.result.base} `, h('b', { class: b.cls }, tp.base.outcome === 'holds' ? 'holds' : 'refuses'), ' this plan.'));
-    }
-    if (res && res.outcome === 'holds') out.push(h('p', { class: 'po-note' }, `The rule holds: the plan’s document of ${plural(tp.changes, 'change')} satisfies it and the result is concrete.`));
-    if (res && res.outcome === 'invalid') out.push(h('p', { class: 'po-note' }, 'The text of the rule does not compile, so it says nothing of this plan. The problem is above the plans.'));
+    if (res && res.outcome === 'holds') out.push(h('p', { class: 'po-note' }, `${this.policyCount() > 1 ? 'Every policy holds' : 'The policy holds'}: the plan’s document of ${plural(tp.changes, 'change')} satisfies ${this.policyCount() > 1 ? 'them' : 'it'} and the result is concrete.`));
+    if (res && res.outcome === 'invalid') out.push(h('p', { class: 'po-note' }, 'The text does not check, so it says nothing of this plan. The problem is above the plans.'));
     if (res && res.outcome === 'refused' && (res.issues || []).length) out.push(h('ol', { class: 'wb-issues' }, res.issues.map((is) => this.issue(tp, is))));
     if (res && res.more) out.push(h('p', { class: 'po-note' }, `and ${res.more} more`));
     if (tp.state === 'judged' || tp.state === 'not-judged') out.push(this.docBlock(tp.ref));
@@ -598,7 +550,8 @@ export class WorkbenchView {
     const where = is.change ? h('button', { type: 'button', class: 'wb-link', on: { click: () => this.openDoc(tp.ref, n) } }, is.change) : null;
     return h('li', { class: 'wb-issue' },
       h('div', { class: 'wb-ipath' }, is.path ? h('code', null, is.path) : h('span', { class: 'dim' }, 'the text of the rule'), where ? h('span', { class: 'dim' }, ' in change ') : null, where,
-        is.line ? h('span', { class: 'wb-iline', title: 'Where the rule says it' }, `rule line ${is.line}`) : null),
+        is.policy && this.policyCount() > 1 ? h('span', { class: 'wb-ipol' }, is.policy) : null,
+        is.line ? h('span', { class: 'wb-iline', title: 'Where the policies say it' }, `line ${is.line}`) : null),
       h('p', { class: 'wb-imsg' }, is.message),
       is.got ? h('p', { class: 'wb-igot' }, h('span', { class: 'k' }, 'the plan has'), h('code', null, is.got)) : null);
   }
@@ -689,6 +642,9 @@ export class WorkbenchView {
     const p = (...kids) => h('p', { class: 'wb-gp' }, ...kids);
     clear(this.guideEl);
     this.guideEl.append(h('h3', { class: 'wb-h3', id: 'wb-gh' }, 'How it works'),
+      sec('What you write',
+        p('The editor holds what a specification holds: the import of the ', h('code', null, 'pravo'), ' package and any number of policies, each a field that is a ', h('code', null, 'pravo.#Policy'), ' with its ', h('code', null, 'rule'), '. A policy at a path is written as it is in a specification, such as ', h('code', null, 'cost: max_instances: pravo.#Policy & {…}'), '. The text is checked as CUE against the package: a field that the plan document does not have, a value of the wrong type or a rule that does not compile is an error at its line, before any plan is looked at.'),
+        p('Every policy of the text is tried on every plan, and a refusal names the policy. The policies in force are not touched: a policy of the same name as one in force is a draft of it.')),
       sec('What a rule is, and when it is judged',
         p('A policy is a rule written in CUE. When a plan changes at least one resource, ', h('code', null, 'pravo apply'), ' builds the ', h('b', null, 'plan document'), ', unifies it with the rule of every policy in force, and refuses the plan, with exit code 5, unless the result is concrete. ', h('code', null, 'pravo plan'), ' judges the plan the same way, as feedback. A plan that changes no resource is not judged, and a change to a policy is not judged.'),
         p('Rules are not ordered and do not combine: each policy judges the whole plan on its own, and all of them have to hold. The signed start of the apply lists the versions that judged it.')),
@@ -702,7 +658,7 @@ export class WorkbenchView {
         code('changes: [...{\n\ttype:   string\n\taction: string\n\tif type == "aws_s3_bucket" && action == "create" {\n\t\tafter: tags: ManagedBy: "pravo"\n\t}\n}]\n'),
         p(h('code', null, 'error("…")'), ' inside a guard puts your own words in the refusal. A limit binds one plan: twenty plans of five changes each pass ', h('code', null, 'summary: add: <=5'), '.')),
       sec('What the workbench runs, and what it leaves out',
-        p('For each plan the server builds the document as the apply would: it decodes the values of the plan with the schemas of the providers that are cached, and runs your text, and the version in force if you compare, in a CUE context of its own. It then reports for each plan whether the rule holds and where it does not. It stores nothing and takes no lock.'),
+        p('For each plan the server builds the document as the apply would: it decodes the values of the plan with the schemas of the providers that are cached, and runs your text in a CUE context of its own. It checks the file as CUE against the pravo package, so a misspelt field or a value of the wrong type is an error at its line, and then reports for each plan whether each policy holds and where it does not. It stores nothing and takes no lock.'),
         p('A plan that cannot be decoded is listed and not judged: its provider schema is not cached, the specification does not load, or the plan is sealed to a key this identity does not hold. A refusal quotes the values it names, and a value the viewer withholds elsewhere is withheld here. The document shows the plan as it was made, with the applied marks cleared.'),
         p('The check that a stored rule must pass is stricter than trying it: the text has to compile, import only the standard library, accept the document of an empty plan, and fit the shape of the schema above. The workbench tries a text that fails it and says what failed.')),
       sec('Mistakes that forbid nothing',

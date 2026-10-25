@@ -30,9 +30,9 @@
 
 .wb-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .6rem .8rem; }
 .wb-f { display: grid; grid-template-columns: minmax(0, 1fr); gap: .35rem; min-width: 0; }
-.wb-select, .wb-name { width: 100%; box-sizing: border-box; padding: .45rem .55rem; border: 1px solid var(--line-strong); border-radius: 0; background: var(--surface); color: var(--text); font: 400 .78rem/1.2 var(--font-mono); }
+.wb-select { width: 100%; box-sizing: border-box; padding: .45rem .55rem; border: 1px solid var(--line-strong); border-radius: 0; background: var(--surface); color: var(--text); font: 400 .78rem/1.2 var(--font-mono); }
 .wb-select:disabled { color: var(--text-3); }
-.wb-select:focus-visible, .wb-name:focus-visible { outline: 2px solid var(--key); outline-offset: 1px; }
+.wb-select:focus-visible { outline: 2px solid var(--key); outline-offset: 1px; }
 
 /* the editor: a text area laid over the same text in colour */
 .wb-ed { --wb-lines: 12; --lh: calc(.76rem * 1.55); display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); background: var(--code-bg); border: 1px solid var(--code-edge); color: var(--code-text); height: calc(var(--wb-lines) * var(--lh) + 1.2rem); min-width: 0; }
@@ -65,13 +65,8 @@
 .wb-det[open] > summary .chev .i { transform: rotate(90deg); }
 .wb-det[open] > summary { border-bottom-color: transparent; }
 .wb-det > :not(summary) { margin-left: 0; }
-.wb-take .wb-det[open], .wb-gsec[open] { border: 1px solid var(--line-strong); border-top: 0; background: var(--surface); }
-.wb-take .wb-det[open] > summary, .wb-gsec[open] > summary { border: 0; border-bottom: 1px solid var(--line); }
-.wb-take .wb-det[open] > :not(summary) { margin: .7rem .8rem; }
-.wb-snip { position: relative; background: var(--code-bg); border: 1px solid var(--code-edge); color: var(--code-text); }
-.wb-snip pre { margin: 0; padding: .6rem .8rem; overflow: auto; max-height: 18rem; font: 400 .74rem/1.55 var(--font-mono); tab-size: 4; }
-.wb-snip .cpbtn { position: absolute; top: .35rem; right: .45rem; color: var(--code-dim); background: var(--code-bg); }
-.wb-snip .cpbtn:hover { color: var(--code-text); border-color: var(--code-edge); }
+.wb-gsec[open] { border: 1px solid var(--line-strong); border-top: 0; background: var(--surface); }
+.wb-gsec[open] > summary { border: 0; border-bottom: 1px solid var(--line); }
 
 /* ---- the results ---- */
 .wb-rhead { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .9rem; }
@@ -117,6 +112,7 @@
 .wb-issue { display: grid; grid-template-columns: minmax(0, 1fr); gap: .3rem; padding: .6rem .75rem; border: 1px solid var(--line); border-left: 0; background: var(--conflict-wash); box-shadow: inset 2px 0 0 var(--conflict); min-width: 0; }
 .wb-ipath { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .35rem; font-size: .74rem; }
 .wb-ipath code { color: var(--text); font-weight: 500; }
+.wb-ipol { margin-left: .6rem; font: 600 .66rem/1 var(--font-mono); color: var(--text-2); }
 .wb-iline { margin-left: auto; font: 500 .62rem/1 var(--font-mono); color: var(--change); }
 .wb-imsg { margin: 0; font: 400 .74rem/1.45 var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
 .wb-igot { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; margin: 0; }

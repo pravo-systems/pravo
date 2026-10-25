@@ -10,9 +10,16 @@ import (
 	"github.com/pravo-systems/pravo/internal/engine"
 )
 
+// try tries a rule, declared as the policy draft, on plans.
 func (p *project) try(rule string, refs ...string) WorkbenchTry {
 	p.t.Helper()
-	q := url.Values{"rule": {rule}, "ref": refs}
+	return p.tryFile(policyDeclaration("draft", rule), refs...)
+}
+
+// tryFile tries a file of policies on plans.
+func (p *project) tryFile(text string, refs ...string) WorkbenchTry {
+	p.t.Helper()
+	q := url.Values{"rule": {text}, "ref": refs}
 	var out WorkbenchTry
 	if err := json.Unmarshal(p.get("/api/workbench/try?"+q.Encode()), &out); err != nil {
 		p.t.Fatal(err)
@@ -39,11 +46,14 @@ func TestWorkbenchListsPlansAndExamples(t *testing.T) {
 			t.Errorf("the schema lacks %s", want)
 		}
 	}
-	// A rule offered to start from can be stored.
+	// A policy offered to start from is a whole file that can be stored.
 	tr := engine.NewTrier()
 	for _, ex := range wb.Examples {
-		if prob := tr.Check(ex.ID, ex.Rule); prob != nil {
-			t.Errorf("example %s: %s", ex.ID, prob.Message)
+		if !strings.HasPrefix(ex.Policy, "import \"pravo.dev/pravo\"\n") || !strings.Contains(ex.Policy, ": pravo.#Policy & {") {
+			t.Errorf("example %s is not a policy: %q", ex.ID, ex.Policy)
+		}
+		if res := tr.TryFile(ex.Policy, nil); res.Problem != nil || len(res.Policies) != 1 {
+			t.Errorf("example %s: %+v", ex.ID, res)
 		}
 	}
 }
@@ -61,7 +71,7 @@ func TestWorkbenchTriesARuleOnPlans(t *testing.T) {
 		t.Fatalf("plan: %+v", tp)
 	}
 	is := tp.Draft.Issues[0]
-	if is.Path != "summary.destroy" || is.Got != "1" || is.Line != 1 {
+	if is.Path != "summary.destroy" || is.Got != "1" || is.Line != 5 || is.Policy != "draft" {
 		t.Errorf("issue: %+v", is)
 	}
 
@@ -89,8 +99,13 @@ func TestWorkbenchTriesARuleOnPlans(t *testing.T) {
 	}
 	// A rule that is not storable is still tried: the plan shows what it would do.
 	got = p.try("summary: destroy: 0\nstray: 1\n", "file:plan.pravo")
-	if got.Check == nil || got.Check.Stage != "shape" || got.Plans[0].Draft.Outcome != engine.RuleRefused {
+	if got.Check == nil || got.Check.Stage != "compile" || got.Plans[0].Draft.Outcome != engine.RuleInvalid {
 		t.Errorf("a rule that does not fit: %+v", got)
+	}
+	// Several policies in one file are tried together, and a refusal names the policy.
+	got = p.tryFile("import \"pravo.dev/pravo\"\n\nkeep: pravo.#Policy & {\n\trule: summary: destroy: <=1\n}\n\nnone: pravo.#Policy & {\n\trule: summary: add: 0\n}\n", "file:plan.pravo")
+	if got.Check != nil || len(got.Policies) != 2 || got.Plans[0].Draft.Outcome != engine.RuleRefused || got.Plans[0].Draft.Issues[0].Policy != "none" {
+		t.Errorf("two policies: %+v", got)
 	}
 	if after := digestTree(t, p.dir); after != before {
 		t.Error("the workbench changed the project")
@@ -152,7 +167,6 @@ func TestWorkbenchStoredPlansAndBadRequests(t *testing.T) {
 	}
 	for path, want := range map[string]int{
 		"/api/workbench/try?rule=" + url.QueryEscape(strings.Repeat("a: 1\n", 10000)): http.StatusBadRequest,
-		"/api/workbench/try?base=nope":               http.StatusNotFound,
 		"/api/workbench/doc":                         http.StatusBadRequest,
 		"/api/workbench/doc?ref=plan-ffffffff":       http.StatusNotFound,
 		"/api/workbench/doc?ref=file:plan.pravo&i=x": http.StatusNotFound,

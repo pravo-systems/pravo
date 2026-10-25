@@ -31,6 +31,8 @@ type trialRule struct {
 	Name   string
 	Origin string
 	Text   string
+	// File is set when Text is a file of policies (it declares pravo.#Policy), not a rule.
+	File bool
 }
 
 // trialPlan is a plan that rules are held against, as the document a policy sees.
@@ -74,8 +76,10 @@ without what only the state can give. Use it to see what a rule would do before 
 stored.
 
 A rule is named by one argument: the name of a policy the specification declares, or a
-CUE file that holds one rule (the struct that "rule:" would hold), such as a draft that
-is not in the specification yet. With no argument every policy of the specification is
+CUE file. A file that declares policies, as a specification does (pravo.#Policy with a
+rule), has each of them tried and checked as CUE against the pravo package, such as a
+draft that is not in the specification yet; any other file holds one rule, the struct
+that "rule:" would hold. With no argument every policy of the specification is
 tried. --in-force tries the versions the state holds instead, for the question "what
 do the policies of the state say about this plan".
 
@@ -126,7 +130,23 @@ func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bo
 	for _, r := range rules {
 		rep := trialReport{Policy: r.Name, Origin: r.Origin, Plans: []trialOutcome{}}
 		var results []engine.RuleResult
-		if rep.Problem = trier.Check(r.Name, r.Text); rep.Problem != nil {
+		if r.File {
+			res := trier.TryFile(r.Text, keys)
+			if rep.Problem = res.Problem; rep.Problem != nil {
+				invalid++
+			}
+			if len(res.Policies) > 0 {
+				var names []string
+				for _, p := range res.Policies {
+					names = append(names, p.Name)
+				}
+				rep.Origin = r.Origin + ": " + strings.Join(names, ", ")
+			}
+			// a file that compiles is tried even when it could not be stored as it is
+			if res.Problem == nil || res.Problem.Stage != "parse" && res.Problem.Stage != "imports" && res.Problem.Stage != "policies" && res.Problem.Stage != "compile" {
+				results = res.Plans
+			}
+		} else if rep.Problem = trier.Check(r.Name, r.Text); rep.Problem != nil {
 			invalid++
 		} else {
 			results = trier.Try(r.Name, r.Text, keys)
@@ -220,7 +240,7 @@ func trialRules(ctx context.Context, s *session, args []string, inForce bool) ([
 			return nil, fmt.Errorf("%q is not a rule file, and %s no policy of that name (it has %s)", a, where, strings.Join(names, ", "))
 		}
 		name := strings.TrimSuffix(filepath.Base(a), filepath.Ext(a))
-		rules = append(rules, trialRule{Name: name, Origin: a, Text: string(data)})
+		rules = append(rules, trialRule{Name: name, Origin: a, Text: string(data), File: strings.Contains(string(data), "pravo.#Policy")})
 	}
 	if len(args) == 0 {
 		for _, r := range known {
@@ -337,6 +357,9 @@ func printTrials(reports []trialReport, plans int) {
 				line := is.Message
 				if is.Path != "" {
 					line = is.Path + ": " + line
+				}
+				if is.Policy != "" {
+					line = is.Policy + ": " + line
 				}
 				out.Printf("      %s\n", line)
 				if is.Change != "" || is.Got != "" {

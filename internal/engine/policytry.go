@@ -33,6 +33,8 @@ type RuleIssue struct {
 	// Line and Column place the error in the text of the rule, when CUE knows where.
 	Line   int `json:"line,omitempty"`
 	Column int `json:"column,omitempty"`
+	// Policy names the policy of a file of policies that the issue is about.
+	Policy string `json:"policy,omitempty"`
 	// Change is the address of the change that Path is inside, and Got the value the
 	// document holds at Path (compact JSON, clipped): what the rule was held against.
 	Change string `json:"change,omitempty"`
@@ -74,6 +76,13 @@ func CheckRule(ctx *cue.Context, name, text string) *RuleProblem {
 	if err := rule.Err(); err != nil {
 		return &RuleProblem{Stage: "compile", Message: fmt.Sprintf("policy %s does not compile: %s", name, cueerrors.Details(err, nil)), Issues: issuesOf(err, name)}
 	}
+	return checkRuleValue(ctx, name, name, rule)
+}
+
+// checkRuleValue is the part of CheckRule that needs the rule as a value: it accepts the document of an
+// empty plan and fits the shape of the plan document. label names the policy in the messages, and file is the
+// file that the positions of its errors are in.
+func checkRuleValue(ctx *cue.Context, label, file string, rule cue.Value) *RuleProblem {
 	var nilEngine *Engine
 	data, _, err := nilEngine.PolicyDocument(&PlanFile{Format: PlanFileFormat, Providers: map[string]string{}})
 	if err != nil {
@@ -84,12 +93,9 @@ func CheckRule(ctx *cue.Context, name, text string) *RuleProblem {
 		return &RuleProblem{Stage: "empty", Message: err.Error()}
 	}
 	if err := rule.Unify(doc).Validate(cue.Concrete(true)); err != nil {
-		return &RuleProblem{Stage: "empty", Message: fmt.Sprintf("policy %s does not accept the document of an empty plan:\n%s", name, cueerrors.Details(err, nil)), Issues: issuesOf(err, name)}
+		return &RuleProblem{Stage: "empty", Message: fmt.Sprintf("policy %s does not accept the document of an empty plan:\n%s", label, cueerrors.Details(err, nil)), Issues: issuesOf(err, file)}
 	}
-	if err := checkRuleShape(ctx, name, rule); err != nil {
-		return err
-	}
-	return nil
+	return checkRuleShape(ctx, label, file, rule)
 }
 
 // checkRuleShape unifies a rule with the shape of the plan document and one change
@@ -99,7 +105,7 @@ func CheckRule(ctx *cue.Context, name, text string) *RuleProblem {
 // would pass unseen until the first plan that has such a change. A condition on a
 // value the sample does not hold is not decided, so a guard is not run: only the
 // structure of the rule is.
-func checkRuleShape(ctx *cue.Context, name string, rule cue.Value) *RuleProblem {
+func checkRuleShape(ctx *cue.Context, name, file string, rule cue.Value) *RuleProblem {
 	fail := func(err error) *RuleProblem { return &RuleProblem{Stage: "shape", Message: err.Error()} }
 	pkg := ctx.CompileString(schema.SettingsPackage)
 	if err := pkg.Err(); err != nil {
@@ -117,7 +123,7 @@ func checkRuleShape(ctx *cue.Context, name string, rule cue.Value) *RuleProblem 
 		shaped = plan.FillPath(cue.ParsePath("changes"), one)
 	}
 	if err := rule.Unify(shaped).Validate(); err != nil {
-		return &RuleProblem{Stage: "shape", Message: fmt.Sprintf("policy %s does not fit the plan document:\n%s", name, cueerrors.Details(err, nil)), Issues: issuesOf(err, name)}
+		return &RuleProblem{Stage: "shape", Message: fmt.Sprintf("policy %s does not fit the plan document:\n%s", name, cueerrors.Details(err, nil)), Issues: issuesOf(err, file)}
 	}
 	return nil
 }

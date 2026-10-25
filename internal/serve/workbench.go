@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -83,7 +84,11 @@ type planFileEntry struct {
 // workbench answers GET /api/workbench.
 func (s *Server) workbench(m *model) *Workbench {
 	wb := &Workbench{Version: APIVersion, Revision: m.rev, SpecOK: m.spec.root != nil, Plans: []WorkbenchPlan{}, Policies: []WorkbenchPolicy{},
-		Schema: schema.PlanDocumentSource(), Examples: workbenchExamples}
+		Schema: schema.PlanDocumentSource(), Examples: make([]WorkbenchExample, 0, len(workbenchExamples))}
+	for _, ex := range workbenchExamples {
+		ex.Policy = policyDeclaration(strings.ReplaceAll(ex.ID, "-", "_"), ex.Rule)
+		wb.Examples = append(wb.Examples, ex)
+	}
 	if m.stored != nil {
 		for _, e := range m.stored.entries {
 			meta := e.Meta
@@ -100,7 +105,14 @@ func (s *Server) workbench(m *model) *Workbench {
 			if t.inForce == "" && t.declared == "" {
 				continue
 			}
-			wb.Policies = append(wb.Policies, WorkbenchPolicy{Name: p.Name, Status: p.Status, InForce: m.scrubText(clip(t.inForce, maxPolicyText)), Declared: m.scrubText(clip(t.declared, maxPolicyText))})
+			wp := WorkbenchPolicy{Name: p.Name, Status: p.Status}
+			if t.inForce != "" {
+				wp.InForce = m.scrubText(policyDeclaration(p.Name, clip(t.inForce, maxPolicyText)))
+			}
+			if t.declared != "" {
+				wp.Declared = m.scrubText(policyDeclaration(p.Name, clip(t.declared, maxPolicyText)))
+			}
+			wb.Policies = append(wb.Policies, wp)
 		}
 	}
 	return wb
@@ -299,20 +311,13 @@ func (s *Server) makeDoc(ctx context.Context, m *model, ref string, tr *engine.T
 	return d
 }
 
-// tryHandler answers GET /api/workbench/try?rule=...&name=...&base=...&ref=...
+// tryHandler answers GET /api/workbench/try?rule=...&ref=...: the text is a file of policies, and each policy in it is
+// tried on every plan named by ref.
 func (s *Server) tryHandler(w http.ResponseWriter, r *http.Request, m *model) {
 	q := r.URL.Query()
 	text := q.Get("rule")
 	if len(text) > maxTryRule {
-		writeError(w, http.StatusBadRequest, "the rule is too long to try")
-		return
-	}
-	name := q.Get("name")
-	if name == "" {
-		name = "draft"
-	}
-	if len(name) > 100 || strings.ContainsAny(name, "\x00\n\r") {
-		writeError(w, http.StatusBadRequest, "name is not a policy name")
+		writeError(w, http.StatusBadRequest, "the policies are too long to try")
 		return
 	}
 	refs := q["ref"]
@@ -326,25 +331,9 @@ func (s *Server) tryHandler(w http.ResponseWriter, r *http.Request, m *model) {
 			return
 		}
 	}
-	base := q.Get("base")
-	var baseText string
-	if base != "" {
-		t, ok := m.polText[base]
-		if !ok || t.inForce == "" {
-			writeError(w, http.StatusNotFound, "no policy of that name is in force")
-			return
-		}
-		baseText = t.inForce
-	}
 	began := time.Now()
-	out := &WorkbenchTry{Version: APIVersion, Base: base, Plans: make([]TriedPlan, 0, len(refs))}
+	out := &WorkbenchTry{Version: APIVersion, Plans: make([]TriedPlan, 0, len(refs)), Policies: []engine.DraftPolicy{}}
 	tr := m.wb.tr()
-	if text != "" {
-		if p := tr.Check(name, text); p != nil {
-			p.Message = m.scrubText(clip(p.Message, maxText))
-			out.Check = p
-		}
-	}
 	var docs []*wbDoc
 	var keys []string
 	for _, ref := range refs {
@@ -357,24 +346,21 @@ func (s *Server) tryHandler(w http.ResponseWriter, r *http.Request, m *model) {
 			keys = append(keys, ref)
 		}
 	}
-	var draft, baseRes []engine.RuleResult
-	if text != "" {
-		draft = tr.Try(name, text, keys)
+	res := tr.TryFile(text, keys)
+	if res.Problem != nil {
+		p := *res.Problem
+		p.Message = m.scrubText(clip(p.Message, maxText))
+		out.Check = &p
 	}
-	if baseText != "" {
-		baseRes = tr.Try(base, baseText, keys)
+	if res.Policies != nil {
+		out.Policies = res.Policies
 	}
 	k := 0
 	for i, ref := range refs {
 		d := docs[i]
 		tp := TriedPlan{Ref: ref, State: d.state, Note: m.scrubText(clip(d.note, 300)), Changes: d.changes}
 		if d.state == "judged" {
-			if draft != nil {
-				tp.Draft = s.cleanResult(m, d, draft[k])
-			}
-			if baseRes != nil {
-				tp.Base = s.cleanResult(m, d, baseRes[k])
-			}
+			tp.Draft = s.cleanResult(m, d, res.Plans[k])
 			k++
 		}
 		out.Plans = append(out.Plans, tp)
@@ -382,6 +368,35 @@ func (s *Server) tryHandler(w http.ResponseWriter, r *http.Request, m *model) {
 	out.Took = time.Since(began).Milliseconds()
 	writeJSON(w, http.StatusOK, out)
 }
+
+// policyDeclaration is a rule as a specification would declare it: the import, the name and the policy.
+func policyDeclaration(name, rule string) string {
+	var b strings.Builder
+	b.WriteString("import \"pravo.dev/pravo\"\n\n")
+	labels := strings.Split(name, ".")
+	for i, l := range labels {
+		if i > 0 {
+			b.WriteString(": ")
+		}
+		if cueIdent.MatchString(l) {
+			b.WriteString(l)
+		} else {
+			b.WriteString(strconv.Quote(l))
+		}
+	}
+	b.WriteString(": pravo.#Policy & {\n\trule: {\n")
+	for _, line := range strings.Split(strings.TrimRight(rule, "\n"), "\n") {
+		if strings.TrimSpace(line) == "" {
+			b.WriteString("\n")
+			continue
+		}
+		b.WriteString("\t\t" + line + "\n")
+	}
+	b.WriteString("\t}\n}\n")
+	return b.String()
+}
+
+var cueIdent = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // cleanResult masks what a rule's refusal quotes of a plan: the text of an error holds
 // the values it names.
