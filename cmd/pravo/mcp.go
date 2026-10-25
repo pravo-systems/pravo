@@ -19,7 +19,8 @@ import (
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
-// pravo mcp: a Model Context Protocol server over stdio. Every tool runs the
+// pravo mcp: a Model Context Protocol server over stdio. Every tool but the
+// read-only state queries (mcp_inproc.go, which use the library) runs the
 // pravo binary itself as a subprocess with --json, in the root the server
 // was started in, so an agent gets exactly the documented machine-readable
 // surface and nothing more. Applies are confined to reviewed plan files.
@@ -29,6 +30,8 @@ type mcpTool struct {
 	Description string         `json:"description"`
 	InputSchema map[string]any `json:"inputSchema"`
 	args        func(in map[string]any) ([]string, error)
+	// run, when set, serves the tool inside the server through the library.
+	run func(ctx context.Context, in map[string]any) (string, error)
 }
 
 func strArg(in map[string]any, key string) string {
@@ -202,7 +205,7 @@ func mcpTools() []mcpTool {
 				}
 				return append(append([]string{"why"}, addrs...), tagArgs(in)...), nil
 			}},
-		{Name: "pravo_state_query", Description: "Evaluate a CUE expression over the state: resources (by address), edges and outputs.",
+		{Name: "pravo_state_query", Description: "Evaluate a CUE expression over the state: resources (by address), edges and outputs.", run: runStateQuery,
 			InputSchema: obj(map[string]any{"expression": map[string]any{"type": "string"}, "tags": tagsProp}, "expression"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("expression", strArg(in, "expression")); err != nil {
@@ -218,7 +221,7 @@ func mcpTools() []mcpTool {
 				}
 				return append(append([]string{"state"}, tagArgs(in)...), "show", strArg(in, "addr")), nil
 			}},
-		{Name: "pravo_dependents", Description: "Everything a change to the resource can reach: its blast radius.",
+		{Name: "pravo_dependents", Description: "Everything a change to the resource can reach: its blast radius.", run: runDependents,
 			InputSchema: obj(map[string]any{"addr": map[string]any{"type": "string"}, "tags": tagsProp}, "addr"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("addr", strArg(in, "addr")); err != nil {
@@ -372,7 +375,13 @@ func serveMCP(ctx context.Context, in io.Reader, outW io.Writer) error {
 			}
 			callCtx, span := telemetry.Tracer().Start(ctx, "mcp tools/call "+p.Name, trace.WithSpanKind(trace.SpanKindServer),
 				trace.WithAttributes(attribute.String("mcp.tool", p.Name), attribute.String("pravo.actor", flagActor)))
-			text, code := runSelf(callCtx, cliArgs)
+			var text string
+			var code int
+			if t.run != nil {
+				text, code = inprocess(callCtx, p.Arguments, t.run)
+			} else {
+				text, code = runSelf(callCtx, cliArgs)
+			}
 			span.SetAttributes(attribute.Int("pravo.exit_code", code))
 			var callErr error
 			if code != 0 && code != int(engine.ExitChanges) {
