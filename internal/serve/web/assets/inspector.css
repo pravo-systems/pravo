@@ -14,7 +14,7 @@
 .insp[data-act="read"], .insp[data-act="move"], .insp[data-act="import"] { --ih-c: var(--key); }
 .ih-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 1.6rem; margin-bottom: .25rem; }
 .ih .kick { display: inline-flex; align-items: center; gap: .5rem; font: 600 .62rem/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
-.ih .kick::before { content: ""; width: .45rem; height: .45rem; border-radius: 2px; background: var(--ih-c, var(--accent)); box-shadow: 0 0 10px var(--glow); }
+.ih .kick::before { content: ""; width: .45rem; height: .45rem; border-radius: 0; background: var(--ih-c, var(--accent)); box-shadow: 0 0 10px var(--glow); }
 .insp[data-mode="namespace"] .ih .kick::before { background: var(--key); box-shadow: none; }
 .insp[data-mode="project"] .ih .kick::before { background: var(--text-3); box-shadow: none; }
 .insp[data-mode="project"] .ih::before { background: linear-gradient(90deg, var(--text-3), transparent 70%); opacity: .5; }
@@ -130,7 +130,7 @@
 .bars { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; font: 400 .72rem/1.4 var(--font-mono); }
 .bars li { display: grid; grid-template-columns: minmax(5rem, 11.5rem) minmax(0, 1fr) 2.2rem; align-items: center; gap: .65rem; }
 .bars .bl { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: .45rem; }
-.bars .bt { height: .42rem; border-radius: 999px; overflow: hidden; background: var(--surface-2); position: relative; }
+.bars .bt { height: .42rem; border-radius: 0; overflow: hidden; background: var(--surface-2); position: relative; }
 .bars .bt i { position: absolute; inset: 0 auto 0 0; width: var(--w); background: color-mix(in srgb, var(--key) 75%, transparent); transform-origin: left; animation: ui-grow .8s var(--ease) both; }
 .bars .bv { text-align: right; color: var(--text); }
 .bars.act .k-create .bt i { background: var(--accent); } .bars.act .k-update .bt i, .bars.act .k-replace .bt i { background: var(--change); } .bars.act .k-delete .bt i { background: var(--conflict); } .bars.act .k-read .bt i { background: var(--key); } .bars.act .k-skip .bt i { background: var(--text-3); opacity: .5; }
@@ -178,15 +178,15 @@
 
 /* ---- the State tab ---- */
 .stbar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: .8rem; padding: .6rem 1.1rem; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
-.sfbox { flex: 1; display: flex; align-items: center; gap: .5rem; height: 2.1rem; padding: 0 .7rem; border: 1px solid var(--line-strong); border-radius: calc(var(--rad) + 2px); background: var(--bg); color: var(--text-3); min-width: 0; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+.sfbox { flex: 1; display: flex; align-items: center; gap: .5rem; height: 2.1rem; padding: 0 .7rem; border: 1px solid var(--line-strong); border-radius: 0; background: var(--bg); color: var(--text-3); min-width: 0; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
 .sfbox:focus-within { border-color: var(--key); box-shadow: var(--focus); }
 .sfbox input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: .78rem; color: var(--text); padding: 0; }
 .sfbox input::placeholder { color: var(--text-3); }
 .sfbox input::-webkit-search-cancel-button { appearance: none; }
 .sf-count { font: 500 .62rem/1 var(--font-mono); color: var(--text-3); white-space: nowrap; }
 .switch { display: inline-flex; align-items: center; gap: .5rem; font: 500 .66rem/1 var(--font-mono); letter-spacing: .02em; color: var(--text-2); padding: .3rem 0; flex: none; }
-.switch .knob { position: relative; width: 1.9rem; height: 1.05rem; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface-2); transition: background var(--t-fast), border-color var(--t-fast); }
-.switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.05rem - 6px); height: calc(1.05rem - 6px); border-radius: 50%; background: var(--text-3); transition: transform .28s var(--ease), background var(--t-fast); }
+.switch .knob { position: relative; width: 1.9rem; height: 1.05rem; border-radius: 0; border: 1px solid var(--line-strong); background: var(--surface-2); transition: background var(--t-fast), border-color var(--t-fast); }
+.switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.05rem - 6px); height: calc(1.05rem - 6px); border-radius: 0; background: var(--text-3); transition: transform .28s var(--ease), background var(--t-fast); }
 .switch[aria-checked="true"] .knob { background: var(--accent-wash); border-color: var(--accent); }
 .switch[aria-checked="true"] .knob::after { transform: translateX(.85rem); background: var(--accent); }
 .switch:hover { color: var(--text); }
@@ -211,7 +211,7 @@
 .an.idx { color: var(--text-3); font-weight: 400; }
 .am { display: flex; flex-wrap: wrap; gap: .2rem .4rem; align-items: center; margin-top: .12rem; font-size: .64rem; color: var(--text-3); }
 .am .ty { overflow-wrap: anywhere; }
-.tg { font: 500 .62rem/1 var(--font-ui); font-style: normal; letter-spacing: .02em; padding: .14rem .36rem; border-radius: 999px; background: var(--surface-2); color: var(--text-3); }
+.tg { font: 500 .62rem/1 var(--font-ui); font-style: normal; letter-spacing: .02em; padding: .14rem .36rem; border-radius: 0; background: var(--surface-2); color: var(--text-3); }
 .tg.req { color: var(--accent); background: var(--accent-wash); } .tg.cmp { color: var(--key); background: var(--key-wash); } .tg.dep { color: var(--conflict); background: var(--conflict-wash); }
 .attr.locked { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--key) 5%, transparent) 0 2px, transparent 2px 7px); }
 .attr.locked .an { color: var(--text-2); font-weight: 400; }
@@ -238,7 +238,7 @@
 .v-str { color: var(--text); white-space: pre-wrap; }
 .v-num { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
 .v-bool { display: inline-flex; align-items: center; gap: .4rem; }
-.v-bool i { width: .5rem; height: .5rem; border-radius: 50%; border: 1.5px solid var(--text-3); }
+.v-bool i { width: .5rem; height: .5rem; border-radius: 0; border: 1.5px solid var(--text-3); }
 .v-bool.true { color: var(--accent); } .v-bool.true i { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--glow); }
 .v-bool.false { color: var(--text-2); }
 .v-nul { color: var(--text-3); opacity: .9; }
@@ -366,7 +366,7 @@
 .tl { position: relative; padding: 0 0 1.2rem 1.6rem; }
 .tl::before { content: ""; position: absolute; left: .31rem; top: .8rem; bottom: -.1rem; width: 1px; background: var(--line-strong); }
 .tl:last-child::before { display: none; }
-.tl-mark { position: absolute; left: 0; top: .22rem; width: .65rem; height: .65rem; border-radius: 50%; border: 1.5px solid var(--text-3); background: var(--surface); }
+.tl-mark { position: absolute; left: 0; top: .22rem; width: .65rem; height: .65rem; border-radius: 0; border: 1.5px solid var(--text-3); background: var(--surface); }
 .tl.st-applied .tl-mark { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px var(--glow); }
 .tl.st-failed .tl-mark { background: var(--conflict); border-color: var(--conflict); }
 .tl.st-rejected .tl-mark { background: var(--change); border-color: var(--change); }
@@ -447,4 +447,4 @@
 /* a value that a field or value term of the filter is about: the row is marked, and a group says that one is inside */
 .attr.hit { background: color-mix(in srgb, var(--accent) 11%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
 .attr.hit .av { color: var(--text); }
-.attr.hit-in .an::after { content: ""; display: inline-block; width: .38rem; height: .38rem; margin-left: .4rem; border-radius: 50%; background: var(--accent); vertical-align: middle; }
+.attr.hit-in .an::after { content: ""; display: inline-block; width: .38rem; height: .38rem; margin-left: .4rem; border-radius: 0; background: var(--accent); vertical-align: middle; }
