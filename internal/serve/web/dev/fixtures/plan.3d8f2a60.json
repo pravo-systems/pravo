@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "revision": "r-7c41e9b2",
+  "plan": {
+    "file": "plan-3d8f2a60",
+    "id": "plan-3d8f2a60",
+    "status": "pending",
+    "created": "2026-10-21T13:50:00Z",
+    "actor": "grace@acme",
+    "summary": {
+      "add": 0,
+      "change": 0,
+      "destroy": 0,
+      "read": 0,
+      "blast_radius": 0
+    },
+    "planned": 0,
+    "total": 47,
+    "policies": [
+      {
+        "name": "tag_owner",
+        "change": "changed",
+        "base": 2
+      },
+      {
+        "name": "encrypt_buckets",
+        "change": "new",
+        "base": 0
+      },
+      {
+        "name": "legacy.freeze",
+        "change": "removed",
+        "base": 1
+      }
+    ]
+  },
+  "nodes": [],
+  "reason": "tighten the owner tag rule, require encrypted buckets and retire the freeze",
+  "command": "pravo plan --store",
+  "git_revision": "8e41c07"
+}

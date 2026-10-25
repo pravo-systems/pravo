@@ -66,19 +66,20 @@ func openPlanStore(ctx context.Context, write bool) (*state.Store, *engine.PlanS
 
 // storedPlanJSON is how --json describes a stored plan.
 type storedPlanJSON struct {
-	ID           string             `json:"id"`
-	Status       engine.PlanStatus  `json:"status"`
-	Author       string             `json:"author"`
-	Actor        string             `json:"actor,omitempty"`
-	Reason       string             `json:"reason,omitempty"`
-	Command      string             `json:"command,omitempty"`
-	GitRevision  string             `json:"git_revision,omitempty"`
-	Created      time.Time          `json:"created"`
-	Expires      time.Time          `json:"expires"`
-	Summary      engine.PlanCounts  `json:"summary"`
-	Changes      []engine.PlanTouch `json:"changes"`
-	Applied      int                `json:"applied,omitempty"`
-	StaleReasons []string           `json:"stale_reasons,omitempty"`
+	ID           string               `json:"id"`
+	Status       engine.PlanStatus    `json:"status"`
+	Author       string               `json:"author"`
+	Actor        string               `json:"actor,omitempty"`
+	Reason       string               `json:"reason,omitempty"`
+	Command      string               `json:"command,omitempty"`
+	GitRevision  string               `json:"git_revision,omitempty"`
+	Created      time.Time            `json:"created"`
+	Expires      time.Time            `json:"expires"`
+	Summary      engine.PlanCounts    `json:"summary"`
+	Changes      []engine.PlanTouch   `json:"changes"`
+	Policies     []engine.PolicyEntry `json:"policies,omitempty"`
+	Applied      int                  `json:"applied,omitempty"`
+	StaleReasons []string             `json:"stale_reasons,omitempty"`
 	// Conflicts, ApplyOnly and ApplyOnlyCommand describe a partly-stale plan: the
 	// changes that cannot be applied now, with the reasons; the addresses that
 	// "--only" takes to apply the rest, and the command that does it.
@@ -96,7 +97,7 @@ func storedPlanView(e *engine.PlanEntry) storedPlanJSON {
 	m := e.Meta
 	v := storedPlanJSON{
 		ID: m.ID, Status: e.Status, Author: m.Author, Actor: m.Actor, Reason: m.Reason, Command: m.Command, GitRevision: m.GitRevision,
-		Created: m.Created, Expires: m.Expires, Summary: m.Summary, Changes: m.Changes, Applied: e.AppliedCount(),
+		Created: m.Created, Expires: m.Expires, Summary: m.Summary, Changes: m.Changes, Policies: m.Policies, Applied: e.AppliedCount(),
 		StaleReasons: e.Reasons, Reservation: m.Reservation, BeingCollected: e.Progress.BeingCollected(time.Now()), Size: m.Size, ApplyCommand: m.ApplyCommand(),
 	}
 	if e.Status == engine.PlanPartlyStale {
@@ -106,9 +107,15 @@ func storedPlanView(e *engine.PlanEntry) storedPlanJSON {
 	return v
 }
 
-// counts writes the numbers of a plan as the plan prints its summary: +2 ~1 -0.
-func counts(c engine.PlanCounts) string {
-	return fmt.Sprintf("+%d ~%d -%d", c.Add, c.Change, c.Destroy)
+// counts writes the numbers of a plan as the plan prints its summary: +2 ~1 -0. A plan
+// that changes policies says how many, so that one that changes nothing else is not
+// read as one that does nothing: +0 ~0 -0, 2 policies.
+func counts(m *engine.PlanMeta) string {
+	c := fmt.Sprintf("+%d ~%d -%d", m.Summary.Add, m.Summary.Change, m.Summary.Destroy)
+	if n := len(m.Policies); n > 0 {
+		c += fmt.Sprintf(", %d %s", n, map[bool]string{true: "policy", false: "policies"}[n == 1])
+	}
+	return c
 }
 
 // since writes how long ago t was.
@@ -213,7 +220,7 @@ plan is applied.`,
 				statusWidth = max(statusWidth, len(e.Status))
 				width = max(width, len(e.Meta.Author))
 				ageWidth = max(ageWidth, len(since(e.Meta.Created)))
-				countWidth = max(countWidth, len(counts(e.Meta.Summary)))
+				countWidth = max(countWidth, len(counts(e.Meta)))
 			}
 			for _, e := range shown {
 				m := e.Meta
@@ -231,7 +238,7 @@ plan is applied.`,
 				if r := m.Reservation; r != nil && r.Until.After(time.Now()) && e.Status.Open() {
 					note += "; reserved until " + r.Until.Local().Format("15:04")
 				}
-				out.Printf("%s  %s  %-*s  %-*s  %-*s  %s\n", m.ID, pad(statusText(e.Status), string(e.Status), statusWidth), width, m.Author, ageWidth, since(m.Created), countWidth, counts(m.Summary), out.C(ui.Dim, note))
+				out.Printf("%s  %s  %-*s  %-*s  %-*s  %s\n", m.ID, pad(statusText(e.Status), string(e.Status), statusWidth), width, m.Author, ageWidth, since(m.Created), countWidth, counts(m), out.C(ui.Dim, note))
 			}
 			return nil
 		},

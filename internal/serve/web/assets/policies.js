@@ -68,6 +68,12 @@ export class PoliciesView {
 
   route() { return { pol: this.sel }; }
 
+  // open selects a policy, for a link from another part of the page; the next render shows it
+  open(name) {
+    this.sel = name;
+    if (this.doc) this.render({ policies: this.doc });
+  }
+
   setRoute(f) {
     this.want = f.pol || '';
     if (this.want) this.sel = this.want;

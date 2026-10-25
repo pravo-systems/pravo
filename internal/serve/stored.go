@@ -321,6 +321,7 @@ func (m *model) storedPlan(e *engine.PlanEntry) StoredPlan {
 		Applying: prog.ApplyRunning(time.Now()),
 		Touches:  make([]PlanChange, 0, min(len(meta.Changes), maxTouches)),
 		Apply:    meta.ApplyTemplate(),
+		Policies: m.planPolicies(meta.Policies),
 	}
 	if e.Status == engine.PlanPartlyStale {
 		m.partlyStale(&sp, e)

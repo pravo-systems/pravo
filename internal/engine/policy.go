@@ -46,8 +46,11 @@ type PolicyEntry struct {
 func (p PolicyEntry) removal() bool { return p.Digest == "" }
 
 // PolicyCounts says how many policies a plan adds, changes and removes.
-func (p *Plan) PolicyCounts() (added, changed, removed int) {
-	for _, en := range p.Policies {
+func (p *Plan) PolicyCounts() (added, changed, removed int) { return CountPolicyEntries(p.Policies) }
+
+// CountPolicyEntries says how many of the entries add a policy, change one and remove one.
+func CountPolicyEntries(entries []PolicyEntry) (added, changed, removed int) {
+	for _, en := range entries {
 		switch {
 		case en.removal():
 			removed++
@@ -58,6 +61,17 @@ func (p *Plan) PolicyCounts() (added, changed, removed int) {
 		}
 	}
 	return
+}
+
+// Kind says what the entry does to the policy: "new", "changed" or "removed".
+func (p PolicyEntry) Kind() string {
+	switch {
+	case p.removal():
+		return "removed"
+	case p.Base == 0:
+		return "new"
+	}
+	return "changed"
 }
 
 // policySet reads the policies of the state, checked against the readers file.
