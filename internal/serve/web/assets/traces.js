@@ -89,6 +89,12 @@ export class TracesView {
     this.hideTip();
   }
 
+  // show opens a run by its id once the list is read, and stops following the newest run.
+  show(id) {
+    this.want = id;
+    this.follow = false;
+  }
+
   // changed is the page being told that a run was recorded.
   changed() {
     if (this.active) this.reload();

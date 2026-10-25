@@ -113,8 +113,9 @@ export class Browser {
     const K = {
       Tab: { code: 'Tab', vk: 9 }, Enter: { code: 'Enter', vk: 13, text: '\r' }, ' ': { code: 'Space', vk: 32, text: ' ' }, Escape: { code: 'Escape', vk: 27 },
       ArrowDown: { code: 'ArrowDown', vk: 40 }, ArrowUp: { code: 'ArrowUp', vk: 38 }, ArrowLeft: { code: 'ArrowLeft', vk: 37 }, ArrowRight: { code: 'ArrowRight', vk: 39 },
-      Home: { code: 'Home', vk: 36 }, End: { code: 'End', vk: 35 },
+      Home: { code: 'Home', vk: 36 }, End: { code: 'End', vk: 35 }, '/': { code: 'Slash', vk: 191, text: '/' }, k: { code: 'KeyK', vk: 75, text: 'k' },
     }[key];
+    if (K.text && mods & 6) K.text = undefined; // a key with Ctrl or Alt held types nothing
     const base = { key, code: K.code, windowsVirtualKeyCode: K.vk, nativeVirtualKeyCode: K.vk, modifiers: mods };
     await this.send('Input.dispatchKeyEvent', { type: K.text ? 'keyDown' : 'rawKeyDown', ...base, text: K.text, unmodifiedText: K.text });
     await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });

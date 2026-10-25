@@ -326,6 +326,10 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 .pal-ico { width: 1rem; display: grid; place-items: center; flex: none; color: var(--key); }
 .pal-ico .i { width: .75rem; height: .75rem; }
 .pal-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pal-opt.act { font-family: var(--font-sans); font-size: .85rem; }
+.pal-opt.act .pal-r { font: 400 .7rem/1 var(--font-mono); overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.pal-keys { margin-left: auto; padding-left: .8rem; display: flex; gap: .25rem; flex: none; }
+.pal-keys kbd { font-size: .62rem; }
 .pal-t mark { background: none; color: var(--accent); font-weight: 600; }
 .pal-r { margin-left: auto; color: var(--text-3); font-size: .7rem; white-space: nowrap; padding-left: .8rem; }
 .pal-none { margin: 1.4rem 1rem; color: var(--text-3); font-size: .85rem; text-align: center; }
