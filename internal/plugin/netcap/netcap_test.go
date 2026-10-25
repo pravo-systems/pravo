@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -85,30 +86,34 @@ func TestRequestsAreSpans(t *testing.T) {
 		r.Body.Close()
 	}
 	var found, failed bool
-	for _, sp := range rec.Ended() {
-		if !strings.HasPrefix(sp.Name(), "network ") {
-			continue
-		}
-		a := attrs(sp.Attributes())
-		if !sp.Parent().IsValid() {
-			t.Errorf("%q has no parent", sp.Name())
-		}
-		for k, v := range a {
-			if strings.Contains(v.Emit(), "secret") {
-				t.Errorf("%s holds %q", k, v.Emit())
+	for i := 0; i < 100 && !(found && failed); i++ {
+		found, failed = false, false
+		time.Sleep(10 * time.Millisecond)
+		for _, sp := range rec.Ended() {
+			if !strings.HasPrefix(sp.Name(), "network ") {
+				continue
 			}
-		}
-		switch a["url.path"].AsString() {
-		case "/things/1":
-			found = true
-			if a["http.request.method"].AsString() != "POST" || a["http.response.status_code"].AsInt64() != 200 || !a["pravo.net.decrypted"].AsBool() {
-				t.Errorf("attributes %v", a)
+			a := attrs(sp.Attributes())
+			if !sp.Parent().IsValid() {
+				t.Errorf("%q has no parent", sp.Name())
 			}
-			if a["pravo.net.request_bytes"].AsInt64() != int64(len("body-secret")) || a["pravo.net.response_bytes"].AsInt64() != 5 {
-				t.Errorf("sizes %v", a)
+			for k, v := range a {
+				if strings.Contains(v.Emit(), "secret") {
+					t.Errorf("%s holds %q", k, v.Emit())
+				}
 			}
-		case "/boom":
-			failed = sp.Status().Code != 0
+			switch a["url.path"].AsString() {
+			case "/things/1":
+				found = true
+				if a["http.request.method"].AsString() != "POST" || a["http.response.status_code"].AsInt64() != 200 || !a["pravo.net.decrypted"].AsBool() {
+					t.Errorf("attributes %v", a)
+				}
+				if a["pravo.net.request_bytes"].AsInt64() != int64(len("body-secret")) || a["pravo.net.response_bytes"].AsInt64() != 5 {
+					t.Errorf("sizes %v", a)
+				}
+			case "/boom":
+				failed = sp.Status().Code != 0
+			}
 		}
 	}
 	if !found || !failed {
@@ -173,7 +178,7 @@ func TestEnvAndClose(t *testing.T) {
 			t.Errorf("env lacks %q", want)
 		}
 	}
-	if fi, err := os.Stat(c.caFile); err != nil || fi.Mode().Perm()&0o077 != 0 {
+	if fi, err := os.Stat(c.caFile); err != nil || (runtime.GOOS != "windows" && fi.Mode().Perm()&0o077 != 0) {
 		t.Errorf("bundle %v %v", fi, err)
 	}
 	c.Close()
