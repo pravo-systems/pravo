@@ -177,15 +177,19 @@ func New(opts Options) (*Server, error) {
 func (s *Server) Token() string { return s.token }
 
 // StateDescription names the remote state that the specification points at:
-// "s3://bucket/prefix", with " via ENDPOINT" for an S3-compatible store. It is ""
+// "s3://bucket/prefix", with " via ENDPOINT" for an S3-compatible store, or the
+// URL of an http state. It is ""
 // for a local state or when the specification does not load. The command
 // prints it, since the viewer reads whatever backend the specification names.
 func (s *Server) StateDescription() string {
 	m, err := s.current()
-	if err != nil || m.root == nil || m.root.State.Backend != "s3" {
+	if err != nil || m.root == nil || !m.root.State.Remote() {
 		return ""
 	}
 	st := m.root.State
+	if st.Backend == "http" {
+		return st.URL
+	}
 	d := "s3://" + st.Bucket + "/" + st.Prefix
 	if st.Endpoint != "" {
 		d += " via " + st.Endpoint
@@ -647,7 +651,7 @@ func (s *Server) build() (*model, error) {
 	defer ss.cueMu.Unlock()
 	root := ss.stateRoot(s.opts)
 	local := ""
-	if root.State.Backend != "s3" {
+	if !root.State.Remote() {
 		local = root.StateFile()
 	}
 	s.watch.setState(local, nil)

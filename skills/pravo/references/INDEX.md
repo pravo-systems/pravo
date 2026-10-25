@@ -38,7 +38,7 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/spec-overview.md](reference/spec-overview.md) | What a root is, which constructs pravo reads from it, and the page that describes each one. | 7 KB |
-| [reference/spec-settings.md](reference/spec-settings.md) | The $settings block. It sets where the state lives and the default refresh age, and nothing else. | 10 KB |
+| [reference/spec-settings.md](reference/spec-settings.md) | The $settings block. It sets where the state lives and the default refresh age, and nothing else. | 11 KB |
 | [reference/spec-resources.md](reference/spec-resources.md) | How to declare managed resources, data sources, ephemeral resources and function calls, how pravo finds them, and how they are addressed. | 15 KB |
 | [reference/spec-providers.md](reference/spec-providers.md) | How to declare a provider, the $-fields that tell pravo how to obtain it, instance keys, and rules that bind every resource built through a provider. | 14 KB |
 | [reference/spec-moves-and-imports.md](reference/spec-moves-and-imports.md) | $from renames or moves a record to a new address. $import adopts an existing object. Both are fields of the resource they describe. | 13 KB |
@@ -68,6 +68,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/telemetry.md](reference/telemetry.md) | OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables. | 11 KB |
 | [reference/compatibility.md](reference/compatibility.md) | The versions and formats that pravo reads and writes, the provider protocol it speaks, and what it does with a version it does not know. | 8 KB |
 | [reference/s3-stores.md](reference/s3-stores.md) | The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state. | 8 KB |
+| [reference/http-stores.md](reference/http-stores.md) | The object protocol that the http backend speaks, the conditional requests that the locks need, and how pravo retries and checks a server. | 5 KB |
 
 ### Lookup
 

@@ -91,10 +91,11 @@ grep -E '^#[A-Za-z0-9]+:' cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 #SecretEnv: {
 #RemoteOutputs: {
 #Settings: {
-#StateSettings: #StateFields & (#LocalState | #S3State)
+#StateSettings: #StateFields & (#LocalState | #S3State | #HTTPState)
 #StateFields: {
 #LocalState: {
 #S3State: {
+#HTTPState: {
 ```
 
 ## The provider package

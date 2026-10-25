@@ -233,9 +233,9 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		if err != nil {
 			return err
 		}
-		if st.Backend != "s3" {
+		if !st.Remote() {
 			if dir == "" {
-				return fmt.Errorf("%s.state needs a path (a state directory) or an s3 bucket", p)
+				return fmt.Errorf("%s.state needs a path (a state directory), an s3 bucket or an http url", p)
 			}
 			if !filepath.IsAbs(dir) {
 				dir = filepath.Join(r.Dir, dir)

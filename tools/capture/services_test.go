@@ -507,7 +507,7 @@ func TestMissingServiceExecutable(t *testing.T) {
 
 func TestServiceFrontMatterErrors(t *testing.T) {
 	cases := []struct{ front, want string }{
-		{"services: [nosuch]\n", `unknown service "nosuch" (known: fakeoci, fakes3)`},
+		{"services: [nosuch]\n", `unknown service "nosuch" (known: fakehttp, fakeoci, fakes3)`},
 		{"services: [fakes3:0]\n", `"0" is not a port from 1 to 65535`},
 		{"services: [fakes3:http]\n", `"http" is not a port`},
 		{"services: [fakes3:70000]\n", `"70000" is not a port`},

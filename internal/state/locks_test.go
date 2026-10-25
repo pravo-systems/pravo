@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// testBackends returns a local backend and a bucket, each in a function that
+// testBackends returns a local backend, a bucket and an http server, each in a function that
 // makes an empty one, so that a test runs against both.
 func testBackends() []struct {
 	name string
@@ -33,6 +33,10 @@ func testBackends() []struct {
 		}},
 		{"s3", func(t *testing.T) Backend {
 			_, b := newFakeS3(t)
+			return b
+		}},
+		{"http", func(t *testing.T) Backend {
+			_, b := newFakeHTTP(t)
 			return b
 		}},
 	}

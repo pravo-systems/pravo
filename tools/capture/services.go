@@ -43,8 +43,9 @@ func (d serviceDef) Prefix() string { return strings.ToUpper(d.Name) }
 
 // knownServices are the services a page may name.
 var knownServices = map[string]serviceDef{
-	"fakes3":  {Name: "fakes3", Pkg: "./tools/fakes3"},
-	"fakeoci": {Name: "fakeoci", Pkg: "./tools/fakeoci"},
+	"fakes3":   {Name: "fakes3", Pkg: "./tools/fakes3"},
+	"fakehttp": {Name: "fakehttp", Pkg: "./tools/fakehttp"},
+	"fakeoci":  {Name: "fakeoci", Pkg: "./tools/fakeoci"},
 }
 
 func serviceNames() []string {

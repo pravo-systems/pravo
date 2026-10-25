@@ -48,7 +48,7 @@ type Project struct {
 // StateInfo describes the state that is read.
 type StateInfo struct {
 	Location string `json:"location"`
-	// Backend is "local" or "s3".
+	// Backend is "local", "s3" or "http".
 	Backend string `json:"backend"`
 	Lineage string `json:"lineage,omitempty"`
 	Format  int    `json:"format,omitempty"`
@@ -600,7 +600,7 @@ type Access struct {
 	State    string `json:"state"`
 	Format   int    `json:"format"`
 	Location string `json:"location"`
-	// Backend is "local" or "s3".
+	// Backend is "local", "s3" or "http".
 	Backend string `json:"backend"`
 	// Summary is the sentence for the state.
 	Summary string `json:"summary"`

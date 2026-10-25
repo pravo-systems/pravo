@@ -84,6 +84,7 @@ A plan policy is a CUE file that a plan must satisfy.
 | [Telemetry](telemetry.md) | Traces and metrics. |
 | [Compatibility](compatibility.md) | Which versions work together. |
 | [S3-compatible stores](s3-stores.md) | The conditional requests that locks need, and how to test a store. |
+| [HTTP state servers](http-stores.md) | The object protocol of the http backend, and how pravo checks a server. |
 
 ## Lookup
 

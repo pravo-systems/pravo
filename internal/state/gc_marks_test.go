@@ -280,6 +280,12 @@ func TestGCRacingCollections(t *testing.T) {
 			if ver, err := fresh.VerifyAll(ctx); err != nil || len(ver.Bad) != 0 {
 				t.Errorf("VerifyAll = %+v, %v", ver, err)
 			}
+			// A collection that listed the records before another deleted them writes
+			// their marks back, which the next collection drops: the marks are gone
+			// after one that runs alone.
+			if _, err := openFormat2(t, b).GC(ctx, GCOptions{Now: ahead(48*time.Hour + GCSettle + time.Minute)}); err != nil {
+				t.Fatal(err)
+			}
 			if m := marksOf(t, b); len(m) != 0 {
 				t.Errorf("marks = %v after every record was deleted", m)
 			}

@@ -203,7 +203,7 @@ func (i *Import) Label() string {
 
 // StateConfig is the parsed $settings.state block.
 type StateConfig struct {
-	// Backend is "local" (the default) or "s3".
+	// Backend is "local" (the default), "s3" or "http".
 	Backend   string
 	Bucket    string
 	Prefix    string
@@ -213,7 +213,15 @@ type StateConfig struct {
 	Profile   string
 	AccessKey string
 	SecretKey string
+	// URL, Token, Username and Password belong to the http backend.
+	URL      string
+	Token    string
+	Username string
+	Password string
 }
+
+// Remote reports whether the state is on a server and not in a directory.
+func (s StateConfig) Remote() bool { return s.Backend == "s3" || s.Backend == "http" }
 
 // LoadOptions control CUE loading.
 type LoadOptions struct {
@@ -747,6 +755,7 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 	fields := map[string]*string{
 		"backend": &st.Backend, "bucket": &st.Bucket, "prefix": &st.Prefix, "region": &st.Region,
 		"endpoint": &st.Endpoint, "profile": &st.Profile, "access_key": &st.AccessKey, "secret_key": &st.SecretKey,
+		"url": &st.URL, "token": &st.Token, "username": &st.Username, "password": &st.Password,
 	}
 	for name, dst := range fields {
 		if *dst, err = str(name); err != nil {
@@ -761,9 +770,9 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		st.PathStyle = b
 	}
 	switch st.Backend {
-	case "", "local", "s3":
+	case "", "local", "s3", "http":
 	default:
-		return st, "", fmt.Errorf("%s.backend: unknown backend %q (want local or s3)", label, st.Backend)
+		return st, "", fmt.Errorf("%s.backend: unknown backend %q (want local, s3 or http)", label, st.Backend)
 	}
 	if st.Backend == "" && st.Bucket != "" {
 		// A bucket can only mean the s3 backend.
@@ -772,15 +781,30 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 	if st.Backend != "s3" {
 		for _, f := range []string{"bucket", "prefix", "region", "endpoint", "profile", "access_key", "secret_key", "path_style"} {
 			if sb.LookupPath(cue.ParsePath(f)).Exists() {
-				return st, "", fmt.Errorf("%s.%s belongs to the s3 backend: set backend: \"s3\", or remove it for local state", label, f)
+				return st, "", fmt.Errorf("%s.%s belongs to the s3 backend: set backend: \"s3\", or remove it", label, f)
 			}
 		}
 	}
-	if st.Backend == "s3" && sb.LookupPath(cue.ParsePath("path")).Exists() {
-		return st, "", fmt.Errorf("%s.path belongs to the local backend: remove it, or remove backend: \"s3\"", label)
+	if st.Backend != "http" {
+		for _, f := range []string{"url", "token", "username", "password"} {
+			if sb.LookupPath(cue.ParsePath(f)).Exists() {
+				return st, "", fmt.Errorf("%s.%s belongs to the http backend: set backend: \"http\", or remove it", label, f)
+			}
+		}
+	}
+	if st.Remote() && sb.LookupPath(cue.ParsePath("path")).Exists() {
+		return st, "", fmt.Errorf("%s.path belongs to the local backend: remove it, or remove backend: %q", label, st.Backend)
 	}
 	if st.Backend == "s3" && st.Bucket == "" {
 		return st, "", fmt.Errorf("%s.bucket is required when backend is s3", label)
+	}
+	if st.Backend == "http" {
+		if st.URL == "" {
+			return st, "", fmt.Errorf("%s.url is required when backend is http", label)
+		}
+		if st.Token != "" && (st.Username != "" || st.Password != "") {
+			return st, "", fmt.Errorf("%s: set token, or username and password, not both", label)
+		}
 	}
 	return st, path, nil
 }

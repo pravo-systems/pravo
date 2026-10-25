@@ -251,9 +251,9 @@ func (v *viewerState) resolve(readers ...protect.ReaderPublic) error {
 func (v *viewerState) open(ctx context.Context, root *config.Root) (*state.Store, error) {
 	var b state.Backend
 	switch root.State.Backend {
-	case "s3":
+	case "s3", "http":
 		var err error
-		if b, err = s3Backend(ctx, root); err != nil {
+		if b, err = remoteBackend(ctx, root); err != nil {
 			return nil, err
 		}
 	default:
