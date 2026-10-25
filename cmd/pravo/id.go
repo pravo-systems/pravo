@@ -143,7 +143,7 @@ func runIDNew(name, sshFile, outFile string, ci bool, unlock, agentKey string) e
 		if err != nil {
 			return err
 		}
-		if _, err := protect.IdentityPath(name); err != nil {
+		if _, err := protect.IdentityPath(environment(), name); err != nil {
 			return err
 		}
 		path = filepath.Join(dir, name)
@@ -194,7 +194,7 @@ func runIDNew(name, sshFile, outFile string, ci bool, unlock, agentKey string) e
 	if ci {
 		err = protect.WritePrivateFile(path, data, false)
 	} else {
-		path, err = protect.SaveIdentity(name, data, false)
+		path, err = protect.SaveIdentity(environment(), name, data, false)
 		if err != nil && strings.Contains(err.Error(), "already exists") {
 			return fmt.Errorf("identity %s already exists at %s", name, tilde(path))
 		}

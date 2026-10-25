@@ -11,6 +11,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
 
@@ -199,7 +200,7 @@ m: {n: $p.#Resource.x_alpha & {name: "n"}}
 		t.Error("the package was not pruned")
 	}
 	t.Setenv("PRAVO_NO_PRUNE", "1")
-	whole, err := Load(writeFiles(t, files(spec)), LoadOptions{})
+	whole, err := Load(writeFiles(t, files(spec)), LoadOptions{Env: env.OS()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +221,7 @@ func TestLoadPrunedFailureIsTheFailureOfTheWholePackage(t *testing.T) {
 			"cue.mod/module.cue":                            "module: \"example.com/t\"\nlanguage: version: \"v0.14.0\"\n",
 			"cue.mod/gen/pravo.dev/providers/x/x/x_gen.cue": prunePackage(t),
 			"main.cue": "package t\n\nimport x \"pravo.dev/providers/x/x\"\n\n$p: x.#Provider\n\n" + spec,
-		}), LoadOptions{})
+		}), LoadOptions{Env: env.OS()})
 	}
 	// A value that the schema refuses: the message is the same, and its
 	// position in the generated file is a position in the file on disk.

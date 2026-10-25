@@ -216,8 +216,8 @@ func typeStart(l []byte) (string, bool) {
 // that are large enough to prune, without the types that use does not name, as an
 // overlay for the CUE loader. It returns nothing when the specification uses a
 // catalogue in a way that cannot be read, since any type may be needed then.
-func prunedOverlay(modRoot string, use *typeUse) map[string]load.Source {
-	if use.dynamic || os.Getenv("PRAVO_NO_PRUNE") != "" {
+func prunedOverlay(modRoot string, use *typeUse, noPrune bool) map[string]load.Source {
+	if use.dynamic || noPrune {
 		return nil
 	}
 	dir := filepath.Join(modRoot, "cue.mod", "gen", "pravo.dev", "providers")

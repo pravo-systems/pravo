@@ -28,6 +28,7 @@ pravo is one Go binary, built from the module `github.com/pravo-systems/pravo`. 
 | `internal/tfstate/` | Converts an OpenTofu or Terraform state file (format version 4) to state records. |
 | `internal/ui/` | Plan rendering for the terminal. |
 | `internal/serve/` | The read-only viewer behind `pravo serve`: the HTTP server, the model of the specification, the state and a saved plan, redaction, source lines, and the browser interface in `web/`. |
+| `internal/env/` | The environment as a value, `env.Env`. Nothing under `internal/` reads the environment of the process; `cmd/pravo` reads it once (`environment.go`) and passes the value down, and `TestNoProcessEnvironment` fails if a package reads it anyway. |
 | `internal/plog/` | The debug log behind `-v`, `-vv` and `PRAVO_LOG`. |
 | `internal/telemetry/` | OpenTelemetry setup, spans and metrics. |
 | `internal/fakes3/` | An in-memory S3-compatible server, used by tests and by `tools/fakes3`. |

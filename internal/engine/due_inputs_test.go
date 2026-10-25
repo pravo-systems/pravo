@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 // agedAll makes every record of the state as old as ago.
@@ -27,7 +29,7 @@ func driftDue(t *testing.T, h *harness, s spec) (*DueReport, error) {
 	h.reopen()
 	h.fake.resetCalls()
 	h.fake.configured = nil
-	return h.engine(s, Options{DefaultRefresh: "1m"}).DriftDue(context.Background(), 0)
+	return h.engine(s, Options{DefaultRefresh: "1m", Env: env.OS()}).DriftDue(context.Background(), 0)
 }
 
 // A provider that is set up from the environment, from an ephemeral resource, from

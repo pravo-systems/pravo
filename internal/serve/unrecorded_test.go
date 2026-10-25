@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -107,7 +108,7 @@ func TestDetailOfNodesWithoutRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := start(t, dir, st, Options{Schemas: ephemeralLookup})
+	p := start(t, dir, st, Options{Schemas: ephemeralLookup, Env: env.OS()})
 
 	t.Run("ephemeral resource", func(t *testing.T) {
 		d := p.detail("token")

@@ -261,6 +261,7 @@ func (s *Server) decodePlan(m *model, pf *engine.PlanFile, unchecked bool) (*eng
 		return nil, nil, errors.New("the specification does not load")
 	}
 	provs := engine.NewProviders(root, nil)
+	provs.Env = s.opts.Env
 	schemas := map[string]*schema.ProviderSchema{}
 	for local, ver := range pf.Providers {
 		req := root.Providers[local]

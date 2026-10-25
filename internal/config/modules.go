@@ -13,6 +13,7 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/mod/modfile"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/registry"
 )
 
@@ -202,13 +203,13 @@ func DefaultRegistry(modulePaths ...string) string {
 	return strings.Join(elems, ",")
 }
 
-// ConfigureRegistry sets CUE_REGISTRY for this process when the user has not,
-// so that dependency modules under github.com/<owner> resolve from
-// ghcr.io/<owner>/cue without configuration. extra holds module paths not
-// yet in module.cue (for "pravo mod get").
-func ConfigureRegistry(dir string, extra ...string) {
-	if os.Getenv("CUE_REGISTRY") != "" {
-		return
+// RegistryEnv returns e with CUE_REGISTRY set to the default registry when e does
+// not set one, so that dependency modules under github.com/<owner> resolve from
+// ghcr.io/<owner>/cue without configuration. extra holds module paths not yet in
+// module.cue (for "pravo mod get").
+func RegistryEnv(e env.Env, dir string, extra ...string) env.Env {
+	if e.Get("CUE_REGISTRY") != "" {
+		return e
 	}
 	var paths []string
 	paths = append(paths, extra...)
@@ -223,8 +224,15 @@ func ConfigureRegistry(dir string, extra ...string) {
 		}
 	}
 	if reg := DefaultRegistry(paths...); reg != "" {
-		os.Setenv("CUE_REGISTRY", reg)
+		return e.With("CUE_REGISTRY", reg)
 	}
+	return e
+}
+
+// loaderEnv is the environment the CUE loader is given. It is never nil, which
+// the loader would read as the environment of the process.
+func loaderEnv(e env.Env) []string {
+	return append([]string{}, e.Environ()...)
 }
 
 // Fingerprint digests everything that was loaded for the root: its own

@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 )
 
 // The network calls of a provider go under the RPC that is running, the newest of several, and under none after it ended.
 func TestCaptureParentIsTheRunningRPC(t *testing.T) {
 	t.Setenv("PRAVO_TRACES", "on")
-	c, err := netcap.New()
+	c, err := netcap.New(env.OS())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +36,6 @@ func TestCaptureParentIsTheRunningRPC(t *testing.T) {
 		t.Error("no parent after the last RPC")
 	}
 	// a provider that is not traced closes the capture at once
-	c2, _ := netcap.New()
+	c2, _ := netcap.New(env.OS())
 	AttachCapture(nil, c2)
 }

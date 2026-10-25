@@ -13,6 +13,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 // The recorder keeps the spans of a run in a file of the project, so that
@@ -96,19 +98,32 @@ type EventData struct {
 func Recording() bool { return recordingEnabled() }
 
 func recordingEnabled() bool {
-	if strings.EqualFold(os.Getenv("OTEL_SDK_DISABLED"), "true") {
+	if strings.EqualFold(environ().Get("OTEL_SDK_DISABLED"), "true") {
 		return false
 	}
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("PRAVO_TRACES"))) {
+	switch strings.ToLower(strings.TrimSpace(environ().Get("PRAVO_TRACES"))) {
 	case "on", "true", "1", "yes":
 		return true
 	}
 	return false
 }
 
+// RecordingNet reports whether the calls that providers make over the network are
+// recorded too: the runs are recorded, and PRAVO_TRACES_NET is not off.
+func RecordingNet() bool {
+	if !recordingEnabled() {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(environ().Get("PRAVO_TRACES_NET"))) {
+	case "off", "false", "0", "none":
+		return false
+	}
+	return true
+}
+
 // TraceDir is where the runs of a command started in cwd are kept.
-func TraceDir() string {
-	if d := os.Getenv("PRAVO_TRACE_DIR"); d != "" {
+func TraceDir(e env.Env) string {
+	if d := e.Get("PRAVO_TRACE_DIR"); d != "" {
 		return d
 	}
 	return filepath.Join(".pravo", "traces")
@@ -150,7 +165,7 @@ func (r *recorder) Shutdown(context.Context) error {
 		id := s.SpanContext().TraceID().String()
 		by[id] = append(by[id], s)
 	}
-	dir := TraceDir()
+	dir := TraceDir(environ())
 	for id, list := range by {
 		if !didWork(list) {
 			continue

@@ -31,7 +31,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,20 +38,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // Enabled reports whether provider calls are to be recorded: the runs are recorded, and PRAVO_TRACES_NET is not off.
-func Enabled() bool {
-	if !telemetry.Recording() {
-		return false
-	}
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("PRAVO_TRACES_NET"))) {
-	case "off", "false", "0", "none":
-		return false
-	}
-	return true
-}
+func Enabled() bool { return telemetry.RecordingNet() }
 
 // Capture is the proxy of one provider process.
 type Capture struct {
@@ -69,13 +60,15 @@ type Capture struct {
 	mu      sync.Mutex
 	leaves  map[string]*tls.Certificate
 	blind   map[string]bool // hosts whose clients did not trust the authority
+	environ env.Env         // the environment of the run: the proxy settings the provider would have had
 	closed  atomic.Bool
 	conns   sync.WaitGroup
 	started time.Time
 }
 
 // New makes the authority and starts the proxy on a port of the loopback address.
-func New() (*Capture, error) {
+// e is the environment of the run: its SSL_CERT_FILE and NO_PROXY are kept.
+func New(e env.Env) (*Capture, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
@@ -101,7 +94,7 @@ func New() (*Capture, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &Capture{ca: ca, caKey: key, ln: ln, leaves: map[string]*tls.Certificate{}, blind: map[string]bool{}, Upstream: http.DefaultTransport, started: time.Now()}
+	c := &Capture{environ: e, ca: ca, caKey: key, ln: ln, leaves: map[string]*tls.Certificate{}, blind: map[string]bool{}, Upstream: http.DefaultTransport, started: time.Now()}
 	pemCA := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	f, err := os.CreateTemp("", "pravo-capture-*.pem")
 	if err != nil {
@@ -109,7 +102,7 @@ func New() (*Capture, error) {
 		return nil, err
 	}
 	// what the provider trusts is the roots it would have trusted anyway, and the authority
-	if _, err := f.Write(append(systemRoots(), pemCA...)); err != nil {
+	if _, err := f.Write(append(systemRoots(e), pemCA...)); err != nil {
 		f.Close()
 		os.Remove(f.Name())
 		ln.Close()
@@ -129,8 +122,8 @@ func serial() *big.Int {
 
 // systemRoots is the PEM of the roots that a provider would trust without the authority, when this machine keeps them in a
 // file: SSL_CERT_FILE, or the usual places. Where it finds none the bundle is the authority alone.
-func systemRoots() []byte {
-	files := []string{os.Getenv("SSL_CERT_FILE"), "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/cert.pem", "/etc/ssl/ca-bundle.pem"}
+func systemRoots(e env.Env) []byte {
+	files := []string{e.Get("SSL_CERT_FILE"), "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/cert.pem", "/etc/ssl/ca-bundle.pem"}
 	for _, f := range files {
 		if f == "" {
 			continue
@@ -150,7 +143,7 @@ func systemRoots() []byte {
 func (c *Capture) Env() []string {
 	p := "http://" + c.ln.Addr().String()
 	np := "127.0.0.1,localhost,::1"
-	if v := os.Getenv("NO_PROXY"); v != "" {
+	if v := c.environ.Get("NO_PROXY"); v != "" {
 		np = v + "," + np
 	}
 	return []string{

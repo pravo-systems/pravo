@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 func write(t *testing.T, root, name, content string) {
@@ -45,19 +47,16 @@ func TestDefaultRegistry(t *testing.T) {
 	}
 }
 
-func TestConfigureRegistryRespectsUser(t *testing.T) {
-	t.Setenv("CUE_REGISTRY", "my.registry.example")
+func TestRegistryEnvRespectsUser(t *testing.T) {
 	d := t.TempDir()
 	write(t, d, "cue.mod/module.cue", "module: \"github.com/acme/x@v0\"\nlanguage: version: \"v0.14.0\"\n")
-	ConfigureRegistry(d)
-	if os.Getenv("CUE_REGISTRY") != "my.registry.example" {
-		t.Errorf("an explicit CUE_REGISTRY must not be overridden, got %q", os.Getenv("CUE_REGISTRY"))
+	set := env.New([]string{"CUE_REGISTRY=my.registry.example"})
+	if got := RegistryEnv(set, d).Get("CUE_REGISTRY"); got != "my.registry.example" {
+		t.Errorf("an explicit CUE_REGISTRY must not be overridden, got %q", got)
 	}
-	t.Setenv("CUE_REGISTRY", "")
-	os.Unsetenv("CUE_REGISTRY")
-	ConfigureRegistry(d)
-	if !strings.Contains(os.Getenv("CUE_REGISTRY"), "github.com/acme=ghcr.io/acme/cue") {
-		t.Errorf("default mapping not set: %q", os.Getenv("CUE_REGISTRY"))
+	got := RegistryEnv(env.Env{}, d)
+	if !strings.Contains(got.Get("CUE_REGISTRY"), "github.com/acme=ghcr.io/acme/cue") {
+		t.Errorf("default mapping not set: %q", got.Get("CUE_REGISTRY"))
 	}
 }
 

@@ -32,6 +32,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -347,6 +348,10 @@ type Options struct {
 	// Judged is called when an apply judges its plan, before the verdict is known.
 	Judged   func()
 	Progress func(format string, args ...any)
+	// Env is the environment the specification reads: the variables its
+	// pravo.#Env and pravo.#SecretEnv nodes name, and the credentials of the state of
+	// another root (AWS_SESSION_TOKEN, PRAVO_STATE_TOKEN). It is empty unless set.
+	Env env.Env
 	// Event receives structured progress; nil disables it.
 	Event func(Event)
 	// Actor, Reason and GitRevision are recorded on transactions, locks and

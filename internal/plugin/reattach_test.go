@@ -3,6 +3,8 @@ package plugin
 import (
 	"strings"
 	"testing"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 func TestParseAddress(t *testing.T) {
@@ -39,31 +41,31 @@ func TestReattachFromEnv(t *testing.T) {
 
 	// The key names the registry the provider was built for, which need not
 	// be the one pravo uses; namespace/type is enough to match.
-	r, err := ReattachFromEnv("registry.opentofu.org/hashicorp/random", "hashicorp/random")
+	r, err := ReattachFromEnv(env.OS(), "registry.opentofu.org/hashicorp/random", "hashicorp/random")
 	if err != nil || r == nil || r.Address != "/tmp/x" || r.ProtocolVersion != 6 {
 		t.Fatalf("match by namespace/type: %+v, %v", r, err)
 	}
-	if r, err := ReattachFromEnv("registry.opentofu.org/hashicorp/aws", "hashicorp/aws"); r != nil || err != nil {
+	if r, err := ReattachFromEnv(env.OS(), "registry.opentofu.org/hashicorp/aws", "hashicorp/aws"); r != nil || err != nil {
 		t.Fatalf("another provider must not match: %+v, %v", r, err)
 	}
-	if r, err := ReattachFromEnv("registry.terraform.io/hashicorp/random"); err != nil || r == nil {
+	if r, err := ReattachFromEnv(env.OS(), "registry.terraform.io/hashicorp/random"); err != nil || r == nil {
 		t.Fatalf("exact key: %+v, %v", r, err)
 	}
 
 	t.Setenv("TF_REATTACH_PROVIDERS", `{"hashicorp/random":{"Protocol":"grpc","Addr":{"Network":"tcp","String":"10.1.2.3:99"}}}`)
-	if _, err := ReattachFromEnv("hashicorp/random"); err == nil || !strings.Contains(err.Error(), "loopback") {
+	if _, err := ReattachFromEnv(env.OS(), "hashicorp/random"); err == nil || !strings.Contains(err.Error(), "loopback") {
 		t.Fatalf("non-loopback tcp must be refused: %v", err)
 	}
 	t.Setenv("TF_REATTACH_PROVIDERS", `{"hashicorp/random":{"Protocol":"netrpc","Addr":{"Network":"unix","String":"/x"}}}`)
-	if _, err := ReattachFromEnv("hashicorp/random"); err == nil {
+	if _, err := ReattachFromEnv(env.OS(), "hashicorp/random"); err == nil {
 		t.Fatal("only grpc is supported")
 	}
 	t.Setenv("TF_REATTACH_PROVIDERS", `not json`)
-	if _, err := ReattachFromEnv("hashicorp/random"); err == nil {
+	if _, err := ReattachFromEnv(env.OS(), "hashicorp/random"); err == nil {
 		t.Fatal("invalid JSON must be reported")
 	}
 	t.Setenv("TF_REATTACH_PROVIDERS", "")
-	if r, err := ReattachFromEnv("hashicorp/random"); r != nil || err != nil {
+	if r, err := ReattachFromEnv(env.OS(), "hashicorp/random"); r != nil || err != nil {
 		t.Fatal("unset means no reattachment")
 	}
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/plugin/netcap"
@@ -42,14 +43,14 @@ func (r *ResolvedProvider) Reattached() bool { return r.Protocol == config.Proto
 // either its declaration says so, or TF_REATTACH_PROVIDERS names it (the
 // way debuggers and provider test harnesses hand a running provider over).
 func (m *Providers) resolveReattach(local string, req *config.ProviderReq) (*ResolvedProvider, error) {
-	env, err := plugin.ReattachFromEnv(req.Source.String(), req.Source.Namespace+"/"+req.Source.Type)
+	reattach, err := plugin.ReattachFromEnv(m.Env, req.Source.String(), req.Source.Namespace+"/"+req.Source.Type)
 	if err != nil {
 		return nil, fmt.Errorf("provider %s: %w", local, err)
 	}
 	var ra *plugin.Reattachment
 	switch {
-	case env != nil:
-		ra = env
+	case reattach != nil:
+		ra = reattach
 		m.Log(fmt.Sprintf("provider %s: reattaching to %s (TF_REATTACH_PROVIDERS)", local, ra))
 	case req.Protocol == config.ProtocolReattach:
 		if req.Address == "" {
@@ -72,6 +73,10 @@ type Providers struct {
 	Registry *registry.Client
 	Resolved map[string]*ResolvedProvider // by local name
 	Log      func(string)
+	// Env is the environment the providers run in and are looked for by:
+	// TF_REATTACH_PROVIDERS, PRAVO_RECORD, PRAVO_REPLAY, PRAVO_LOG and the rest of
+	// what a provider process is given. It is empty unless the caller sets it.
+	Env env.Env
 
 	mu         sync.Mutex
 	schemas    map[string]*schema.ProviderSchema // by local name
@@ -96,6 +101,9 @@ type instance struct {
 	mu         sync.Mutex
 	cfg        bool
 }
+
+// recording is how the providers are recorded or replayed, from the environment.
+func (m *Providers) recording() plugin.Recording { return plugin.RecordingFrom(m.Env) }
 
 // NewProviders creates an empty manager.
 func NewProviders(root *config.Root, reg *registry.Client) *Providers {
@@ -128,7 +136,7 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 	sort.Strings(locals)
 	for _, local := range locals {
 		req := m.Root.Providers[local]
-		if plugin.Replaying() {
+		if m.recording().Replaying() {
 			ver := "replay"
 			if e, ok := lock.Providers[req.Source.String()]; ok {
 				ver = e.Version
@@ -285,7 +293,8 @@ func (m *Providers) loadSchema(ctx context.Context, local string) (*schema.Provi
 	packPath, jsonPath := "", ""
 	// Recording and replaying must go through the provider interface: the
 	// on-disk schema cache would hide GetSchema from the recorder.
-	useCache := os.Getenv("PRAVO_RECORD") == "" && !plugin.Replaying()
+	rec := m.recording()
+	useCache := rec.Record == "" && !rec.Replaying()
 	if rp.Req.Path == "" && !rp.Reattached() && useCache {
 		packPath = m.Registry.SchemaPackPath(rp.Req.Source, rp.Version)
 		jsonPath = m.Registry.SchemaCachePath(rp.Req.Source, rp.Version)
@@ -384,25 +393,26 @@ func (m *Providers) startProvider(local string, rp *ResolvedProvider) (plugin.Pr
 	if m.launch != nil {
 		return m.launch(local, rp)
 	}
-	if plugin.Replaying() {
-		return plugin.Wrap(nil, local)
+	rec := m.recording()
+	if rec.Replaying() {
+		return plugin.Wrap(nil, local, rec)
 	}
 	var p plugin.Provider
 	var err error
 	var capture *netcap.Capture
 	if rp.Reattached() {
-		p, err = plugin.Reattach(*rp.Reattach, nil)
+		p, err = plugin.Reattach(*rp.Reattach, plugin.Logger(m.Env.Get("PRAVO_LOG")))
 	} else {
-		var env []string
+		var extra []string
 		if netcap.Enabled() {
 			// A capture that cannot start is no reason to stop the run: the provider goes without one.
-			if capture, err = netcap.New(); err == nil {
-				env = capture.Env()
+			if capture, err = netcap.New(m.Env); err == nil {
+				extra = capture.Env()
 			} else {
 				capture = nil
 			}
 		}
-		p, err = plugin.StartWith(rp.Path, nil, env)
+		p, err = plugin.StartWith(rp.Path, plugin.Logger(m.Env.Get("PRAVO_LOG")), m.Env, extra)
 		if err != nil && capture != nil {
 			capture.Close()
 		}
@@ -410,7 +420,7 @@ func (m *Providers) startProvider(local string, rp *ResolvedProvider) (plugin.Pr
 	if err != nil {
 		return nil, err
 	}
-	w, err := plugin.Wrap(p, local)
+	w, err := plugin.Wrap(p, local, rec)
 	if capture != nil {
 		if err != nil {
 			capture.Close()

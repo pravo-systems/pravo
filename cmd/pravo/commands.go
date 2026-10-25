@@ -89,7 +89,7 @@ func loadOrGenerate(ctx context.Context, upgrade, report bool) (root *config.Roo
 	}
 	var extra []registry.Source
 	for round := 0; loadErr != nil && round < 6; round++ {
-		settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags})
+		settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags, Env: environment()})
 		if err != nil {
 			// The pravo block is the first thing to fix, and its error is
 			// more useful than the load error about missing imports.
@@ -150,7 +150,7 @@ func loadOrGenerate(ctx context.Context, upgrade, report bool) (root *config.Roo
 // initWithoutSpecification initialises a directory that holds no CUE file yet:
 // it creates the module and says what to write next.
 func initWithoutSpecification(ctx context.Context, upgrade bool) error {
-	settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags})
+	settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags, Env: environment()})
 	if err != nil {
 		return engine.WithCode(engine.ExitInvalid, err)
 	}
@@ -1027,7 +1027,7 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 			if err != nil {
 				return err
 			}
-			if err := registry.NewClient().Copy(cmd.Context(), src, dst, args[1], list, func(m string) { out.Println(m) }); err != nil {
+			if err := registry.NewClient(environment()).Copy(cmd.Context(), src, dst, args[1], list, func(m string) { out.Println(m) }); err != nil {
 				return err
 			}
 			ip, _ := genPackage(dst)

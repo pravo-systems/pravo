@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/serve"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -128,7 +129,7 @@ func copyTree(t *testing.T, from, to string) {
 // so that the test can run without a network.
 func providersInstalled(t *testing.T) bool {
 	t.Helper()
-	c := registry.NewClient()
+	c := registry.NewClient(env.OS())
 	for name, ver := range map[string]string{"local": "2.9.1", "null": "3.3.2", "random": "3.9.1"} {
 		src, _ := registry.ParseSource("hashicorp/" + name)
 		if _, ok := c.FindInstalled(src, ver); !ok {

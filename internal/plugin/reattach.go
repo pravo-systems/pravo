@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +16,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 // Reattachment says where an already running provider listens. pravo
@@ -84,13 +85,13 @@ type reattachEntry struct {
 	Addr            struct{ Network, String string }
 }
 
-// ReattachFromEnv looks the provider up in TF_REATTACH_PROVIDERS, the
+// ReattachFromEnv looks the provider up in TF_REATTACH_PROVIDERS of e, the
 // variable debuggers and provider test harnesses print and that OpenTofu
 // honours: a JSON map from provider address to where it listens. The key
 // must match the full source, or its namespace/type (providers print the
 // registry host they were built for, which need not be the one pravo uses).
-func ReattachFromEnv(candidates ...string) (*Reattachment, error) {
-	raw := os.Getenv("TF_REATTACH_PROVIDERS")
+func ReattachFromEnv(e env.Env, candidates ...string) (*Reattachment, error) {
+	raw := e.Get("TF_REATTACH_PROVIDERS")
 	if raw == "" {
 		return nil, nil
 	}
@@ -160,7 +161,7 @@ func (a addr) String() string  { return a.str }
 // connection.
 func Reattach(r Reattachment, logger hclog.Logger) (Provider, error) {
 	if logger == nil {
-		logger = Logger()
+		logger = Logger("")
 	}
 	versions := []int{6, 5}
 	if r.ProtocolVersion != 0 {

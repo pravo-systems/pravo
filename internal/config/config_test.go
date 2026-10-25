@@ -9,6 +9,8 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 func TestFingerprint(t *testing.T) {
@@ -361,7 +363,7 @@ dir:         pravo.#Env & {name: "PRAVO_TEST_SETTINGS_DIR", default: "state/dev"
 stateBucket: pravo.#Env & {name: "PRAVO_TEST_SETTINGS_BUCKET"}
 key:         pravo.#SecretEnv & {name: "PRAVO_TEST_SETTINGS_SECRET"}
 
-` + block}), LoadOptions{})
+` + block}), LoadOptions{Env: env.OS()})
 	}
 	t.Run("the default", func(t *testing.T) {
 		r, err := read(t, `$settings: pravo.#Settings & {state: path: dir.value}`)
@@ -461,7 +463,7 @@ func TestLoadSettingsReadsReferencesAcrossFiles(t *testing.T) {
 func TestSettingsReadAnEnvironmentVariableThatNamesAnother(t *testing.T) {
 	read := func(t *testing.T, body string) (*Root, error) {
 		t.Helper()
-		return LoadSettingsWith(writeFiles(t, map[string]string{"main.cue": "package estate\n\nimport \"pravo.dev/pravo\"\n\n" + body}), LoadOptions{})
+		return LoadSettingsWith(writeFiles(t, map[string]string{"main.cue": "package estate\n\nimport \"pravo.dev/pravo\"\n\n" + body}), LoadOptions{Env: env.OS()})
 	}
 	const chain = `
 _stage: pravo.#Env & {name: "PRAVO_TEST_CHAIN_STAGE", default: "dev"}

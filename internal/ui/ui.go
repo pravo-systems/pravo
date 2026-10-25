@@ -27,9 +27,10 @@ type Printer struct {
 	Color bool
 }
 
-// NewPrinter detects whether colour should be used for w.
+// NewPrinter detects whether colour should be used for w. noColor turns it off:
+// the caller passes it set when NO_COLOR is, as the environment is not read here.
 func NewPrinter(w io.Writer, noColor bool) *Printer {
-	color := !noColor && os.Getenv("NO_COLOR") == ""
+	color := !noColor
 	if f, ok := w.(*os.File); ok && color {
 		color = isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
 	}

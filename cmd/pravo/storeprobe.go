@@ -52,7 +52,7 @@ func s3ProbeMark(root *config.Root) string {
 		id = "http|" + root.State.URL
 	}
 	sum := sha256.Sum256([]byte(id))
-	return filepath.Join(registry.Home(), "s3-probe", hex.EncodeToString(sum[:8]))
+	return filepath.Join(registry.Home(environment()), "s3-probe", hex.EncodeToString(sum[:8]))
 }
 
 // rememberS3Store records that the store passed. A failure to write the file

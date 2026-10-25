@@ -63,7 +63,7 @@ type sessionOptions struct {
 // command.
 func loadRoot() (*config.Root, error) {
 	ctx, end := setupSpan("load specification")
-	root, err := config.Load(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags, Context: ctx})
+	root, err := config.Load(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags, Context: ctx, Env: environment()})
 	end(err)
 	if err != nil {
 		return nil, engine.WithCode(engine.ExitInvalid, err)
@@ -98,7 +98,7 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 		loaded = append(loaded, "pruned", true)
 	}
 	plog.Debug(ctx, "loaded", append(loaded, "took", took(began))...)
-	s := &session{root: root, reg: registry.NewClient()}
+	s := &session{root: root, reg: registry.NewClient(environment())}
 	_, end := telemetry.Span(ctx, "setup read lock file")
 	s.lock, err = engine.ReadLock(root.Dir)
 	end(err)
@@ -131,6 +131,7 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 		}
 	}
 	s.providers = engine.NewProviders(root, s.reg)
+	s.providers.Env = environment()
 	s.providers.Log = func(msg string) { out.Println(msg) }
 	rctx, end := telemetry.Span(ctx, "setup resolve providers", attribute.Int("pravo.providers", len(root.Providers)))
 	err = s.providers.Resolve(rctx, s.lock, opts.upgrade, opts.install)
@@ -228,6 +229,7 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 	if opts.Command == "" {
 		setCommand(s.state, os.Args[1:], &opts)
 	}
+	opts.Env = environment()
 	opts.Actor, opts.Reason, opts.GitRevision = flagActor, flagReason, gitRevision(s.root.Dir)
 	opts.Readers = loadReadersFile(s.root.Dir, flagAccessDir).Readers
 	if opts.Identity == nil {
@@ -387,7 +389,7 @@ func (k *noKey) error(root *config.Root) error {
 
 // remoteBackend opens the bucket or the server that the root keeps its state on.
 func remoteBackend(ctx context.Context, root *config.Root) (state.Backend, error) {
-	return engine.RemoteBackend(ctx, root.State)
+	return engine.RemoteBackend(ctx, root.State, environment())
 }
 
 // openStateReadOnly opens the state for a command that only looks at it. A

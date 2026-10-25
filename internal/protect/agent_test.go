@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 // openSSHAgent starts a private OpenSSH agent for the test, never the user's, and
@@ -88,6 +90,7 @@ func TestAgentAgainstOpenSSH(t *testing.T) {
 func TestAnIdentityUnderAnOpenSSHAgent(t *testing.T) {
 	sock, pub := openSSHAgent(t)
 	t.Setenv("PRAVO_SSH_AUTH_SOCK", sock) // ahead of the IdentityAgent of the ssh configuration of whoever runs the test
+	SetAgentEnv(env.OS())
 	id, err := NewIdentity("ada-mac", "")
 	if err != nil {
 		t.Fatal(err)
@@ -113,6 +116,7 @@ func TestAnIdentityUnderAnOpenSSHAgent(t *testing.T) {
 	}
 	// An agent without the key refuses to open it.
 	t.Setenv("PRAVO_SSH_AUTH_SOCK", filepath.Join(t.TempDir(), "gone"))
+	SetAgentEnv(env.OS())
 	if _, err := ParseIdentity(file, nil); err == nil || !strings.Contains(err.Error(), "not reachable") {
 		t.Errorf("no agent: %v", err)
 	}

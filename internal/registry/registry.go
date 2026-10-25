@@ -23,6 +23,8 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-version"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 // DefaultHost is used when a provider source has no host part: the OpenTofu
@@ -126,23 +128,26 @@ type Client struct {
 	HTTP *http.Client
 	// Home is the pravo home directory ($PRAVO_HOME, default ~/.pravo).
 	Home string
+	// Env is the environment the client reads TF_PLUGIN_CACHE_DIR and the home of the
+	// user from, to find providers that OpenTofu installed. Empty unless set.
+	Env env.Env
 
 	mu        sync.Mutex
 	discovery map[string]string
 }
 
-// NewClient returns a client using the default home directory.
-func NewClient() *Client {
-	return &Client{HTTP: &http.Client{Transport: &retryTransport{}}, Home: Home()}
+// NewClient returns a client using the default home directory of e.
+func NewClient(e env.Env) *Client {
+	return &Client{HTTP: &http.Client{Transport: &retryTransport{}}, Home: Home(e), Env: e}
 }
 
-// Home returns $PRAVO_HOME or ~/.pravo.
-func Home() string {
-	if h := os.Getenv("PRAVO_HOME"); h != "" {
+// Home returns $PRAVO_HOME or ~/.pravo, from the environment e.
+func Home(e env.Env) string {
+	if h := e.Get("PRAVO_HOME"); h != "" {
 		return h
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
+	home, ok := e.UserHomeDir()
+	if !ok {
 		return ".pravo"
 	}
 	return filepath.Join(home, ".pravo")
@@ -382,10 +387,10 @@ func (c *Client) FindInstalled(src Source, ver string) (string, bool) {
 		// nothing for a provider from a container registry.
 		return findIn(dirs, src.Type)
 	}
-	if d := os.Getenv("TF_PLUGIN_CACHE_DIR"); d != "" {
+	if d := c.Env.Get("TF_PLUGIN_CACHE_DIR"); d != "" {
 		caches = append(caches, d)
 	}
-	if home, err := os.UserHomeDir(); err == nil {
+	if home, ok := c.Env.UserHomeDir(); ok {
 		caches = append(caches, filepath.Join(home, ".terraform.d", "plugin-cache"))
 	}
 	for _, cache := range caches {

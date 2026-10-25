@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/registry"
 )
 
@@ -49,7 +50,7 @@ func localRoot(t *testing.T, spec string) string {
 // requireLocalProvider skips the test when the local provider and its schema are not at hand.
 func requireLocalProvider(t *testing.T) {
 	t.Helper()
-	c := registry.NewClient()
+	c := registry.NewClient(env.OS())
 	src, _ := registry.ParseSource("hashicorp/local")
 	if _, ok := c.FindInstalled(src, "2.9.1"); !ok {
 		t.Skip("the local provider is not installed")

@@ -13,7 +13,16 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 )
+
+// cacheDir is the directory the lock files are kept under, the cache directory of
+// the user. Until SetDir is called it is the temporary directory.
+var cacheDir atomic.Pointer[string]
+
+// SetDir sets the directory the lock files of Exclusive are kept under: the
+// cache directory of the user, which the caller reads from its environment.
+func SetDir(dir string) { cacheDir.Store(&dir) }
 
 // Exclusive waits for the exclusive lock that goes with name and returns the
 // function that releases it. The name is a path: a command that takes the lock
@@ -35,9 +44,9 @@ func Exclusive(name string) (unlock func()) {
 		name = strings.ToLower(name)
 	}
 	sum := sha256.Sum256([]byte(name))
-	dir, err := os.UserCacheDir()
-	if err != nil {
-		dir = os.TempDir()
+	dir := os.TempDir()
+	if d := cacheDir.Load(); d != nil {
+		dir = *d
 	}
 	dir = filepath.Join(dir, "pravo", "mutex")
 	if err := os.MkdirAll(dir, 0o700); err != nil {

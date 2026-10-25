@@ -87,7 +87,7 @@ func extractGlobals(args []string) []string {
 	if flagJSON {
 		out = ui.NewPrinter(os.Stderr, true)
 	} else {
-		out = ui.NewPrinter(os.Stdout, flagNoColor)
+		out = ui.NewPrinter(os.Stdout, colourOff(flagNoColor))
 	}
 	return rest
 }
@@ -104,7 +104,10 @@ func runCueMod(ctx context.Context, args []string) error {
 		}
 	}
 	wd, _ := os.Getwd()
-	config.ConfigureRegistry(wd, extra...)
+	// The in-process cue command reads the environment of the process.
+	if reg := config.RegistryEnv(environment(), wd, extra...).Get("CUE_REGISTRY"); reg != "" {
+		os.Setenv("CUE_REGISTRY", reg)
+	}
 	c, err := cuecmd.New(append([]string{"mod"}, args...))
 	if err != nil {
 		return err

@@ -49,13 +49,13 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			if err != nil {
 				return err
 			}
-			traceDir, err := filepath.Abs(telemetry.TraceDir())
+			traceDir, err := filepath.Abs(telemetry.TraceDir(environment()))
 			if err != nil {
 				return err
 			}
 			v := &viewerState{name: flagIdentity, dir: dir, accessDir: loadReadersFile(dir, flagAccessDir).Dir}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, VerifyPlan: v.verifyPlan}
+			opts := serve.Options{Dir: dir, Env: environment(), Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, VerifyPlan: v.verifyPlan}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.

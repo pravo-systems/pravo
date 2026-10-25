@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 func clearEnv(t *testing.T) {
@@ -28,7 +30,7 @@ func TestRecorderWritesARunThatRanAnEngine(t *testing.T) {
 	clearEnv(t)
 	dir := filepath.Join(t.TempDir(), "traces")
 	t.Setenv("PRAVO_TRACE_DIR", dir)
-	shutdown := Setup(context.Background(), "test")
+	shutdown := Setup(context.Background(), "test", env.OS())
 	defer func() { localOnly = false; otel.SetTracerProvider(otel.GetTracerProvider()) }()
 
 	ctx, cmd := Tracer().Start(context.Background(), "pravo apply")
@@ -83,7 +85,7 @@ func TestRecorderWritesAnyCommandThatDidWork(t *testing.T) {
 		clearEnv(t)
 		dir := filepath.Join(t.TempDir(), "traces")
 		t.Setenv("PRAVO_TRACE_DIR", dir)
-		shutdown := Setup(context.Background(), "test")
+		shutdown := Setup(context.Background(), "test", env.OS())
 		ctx, cmd := Tracer().Start(context.Background(), name)
 		_, st := Tracer().Start(ctx, "state get meta.json")
 		End(st, nil)
@@ -103,7 +105,7 @@ func TestRecorderIgnoresOtherRunsAndCanBeOff(t *testing.T) {
 	clearEnv(t)
 	dir := filepath.Join(t.TempDir(), "traces")
 	t.Setenv("PRAVO_TRACE_DIR", dir)
-	shutdown := Setup(context.Background(), "test")
+	shutdown := Setup(context.Background(), "test", env.OS())
 	_, cmd := Tracer().Start(context.Background(), "pravo version")
 	End(cmd, nil)
 	shutdown(context.Background())
@@ -114,15 +116,18 @@ func TestRecorderIgnoresOtherRunsAndCanBeOff(t *testing.T) {
 
 	for _, v := range []string{"", "off", "0", "nonsense"} {
 		t.Setenv("PRAVO_TRACES", v)
+		Configure(env.OS())
 		if recordingEnabled() {
 			t.Errorf("PRAVO_TRACES=%q turns the record on", v)
 		}
 	}
 	t.Setenv("PRAVO_TRACES", "on")
+	Configure(env.OS())
 	if !recordingEnabled() {
 		t.Error("PRAVO_TRACES=on does not turn the record on")
 	}
 	t.Setenv("OTEL_SDK_DISABLED", "true")
+	Configure(env.OS())
 	if recordingEnabled() {
 		t.Error("OTEL_SDK_DISABLED does not turn the record off")
 	}
