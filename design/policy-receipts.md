@@ -1,29 +1,19 @@
 # Policy receipts
 
-Status: proposal. Nothing here exists. The question: for any plan, show at apply time that every policy in force passed.
-Out of scope: access control, rollback of stored state, applies outside pravo, roles, ledgers, admin keys. Statements about
-the code come from reading it, those about CUE from scratch runs with cuelang.org/go v0.17.1; no test suite was run. Two
-changes, in this order: A, one way to save a plan (the state); B, the policies. B assumes A.
+Status: proposal. Nothing here exists. The question: for any plan, show at apply time that every policy in force passed. Code
+statements come from reading it, CUE ones from scratch runs with cuelang.org/go v0.17.1; no test suite was run. In scope: who
+may change policies (one role, admin). Out of scope: other roles, ledgers, applies outside pravo, deletion or rollback of the
+latest policy objects by a writer of the bucket. `--out`, plan files and `apply FILE` stay.
 
 ## The claim
-
-A verifier can run the policies listed in a transaction again, on the plan whose digest D its signed start names, and they
-pass. The applier asserts one thing no verifier can check: that the list is the policies in force. In a sealed state the start
-is signed, so a list that fails the re-run or omits a declared policy names its signer. Where the plan is gone, or the state is
-unsealed (nothing signs), the transaction is an attestation: readable, no proof. The claim covers the changes in the plan:
-"passes on these bytes at that start", not "the applier's pravo ran them".
-
-A policy is a name (its path in the spec) and a text of CUE. The declared set is the policies of the code the plan was made
-from; the recorded set R, those in the state, written by the last apply that finished its plan; the judged set, their union.
+The receipt is the signed start of an apply transaction. It names the policy versions judged, each with the digest of its text,
+and D, the SHA-256 of the exact bytes of the plan file that stage judged (`plan_digest`, signed today). A verifier fetches the
+transaction, the plan and the versions, checks hashes and signatures, and runs the versions on the plan: they pass. The receipt
+is a signed claim of which versions judged D, and can be re-checked only while the plan is retained.
 
 ## The idea
-
-A policy is a node of the specification: `$kind: "policy"` anywhere in the root, in a module instance too, so a company
-baseline is a module. Its `rule` is a string of standalone CUE, as a `--policy` file is today: unified with the judged
-document, it must be concrete. It must compile alone and import only the standard library, or the load fails; so does a policy
-the walk would skip (an optional or required label, deeper than 48). The text judged, hashed, recorded and shown is the
-author's bytes. Every policy judges every plan.
-
+A policy is a node, `$kind: "policy"`, named by its path in the spec; its `rule` is a string of standalone CUE (never empty,
+standard library imports only), unified with the judged document, which it must make concrete. Every policy judges every plan.
 ```cue
 no_destroy: pravo.#Policy & {rule: "summary: destroy: 0"} // a replace counts as a destroy
 encrypted: pravo.#Policy & {rule: #"""
@@ -32,118 +22,127 @@ encrypted: pravo.#Policy & {rule: #"""
 		if type == "aws_db_instance" && action =~ "^(create|update|replace)$" {after: storage_encrypted!: true}
 	}]
 	"""#}
-permanent: pravo.#Policy & {rule: #"policies: permanent: "new" | "kept""#} // refuses its own removal and edit
 ```
-
-`!` makes an absent field fail; a bare `storage_encrypted: true` would supply it. A root that declares a policy stops an older
-binary at the unknown `$kind`. The judged set is taken by name and text:
-
-- Only recorded: the policy is being removed, and the plan that removes it must pass it. Delete `no_destroy` and plan: the
-  recorded copy judges the plan and fails it if it destroys anything. Only declared: it is being added; the plan must pass it.
-  Changed: judged in both versions. The first plan that installs policies has no recorded set. Code that omits a policy
-  removes it once the plan passes it, so R is a one-step guard, not a floor: `plan`, `show` and the prompt print `policies:
-  +1 new, -1 removed, ~0 changed`.
-- The document gives each rule its policy's standing: `policies: NAME` is `"new"`, `"kept"`, `"changed"` or `"removed"`, so a
-  rule that allows only `"new" | "kept"` fails every plan that removes or edits its policy.
+`!` makes an absent field fail; a bare `storage_encrypted: true` would supply it. An admin edits the code and applies; the plan
+prints `policies: +1 new, ~1 changed, -1 removed` and the apply writes the versions last. As in a versioned bucket, a version is
+a new object at the next sequence number, made with `PutIfAbsent` and never replaced or deleted; a removal writes a tombstone,
+a version with an empty text. The set in force is the latest version of each name that is not a tombstone. An object is
+`{text, signature}`: its name holds the policy name and the number, it holds no time, so a resend compares equal. The first
+object raises the state to format 4, which an older pravo refuses: it cannot apply unjudged.
+```
+policy/no_destroy@00000001.json   put        signed by alice
+policy/no_destroy@00000002.json   tombstone  signed by bob     (removed)
+policy/encrypted@00000001.json    put        signed by alice   the set in force is {encrypted@1}
+```
+## Who may change policies
+- `.pravo/access/admins.txt`, found beside `readers.txt` and parsed with its parser. A bare name is an active admin, whose key is
+  that name's line in `readers.txt`. A full readers line is a retired admin: the key is kept, so leaving `readers.txt` (which
+  rewraps the state) does not void the versions signed. Active admins write; active and retired verify. A line that does not
+  resolve to one key is exit 6; a rotated key stays as a retired line under a new name.
+- Each version is signed by its admin: `pravo/v1/policy-version` over the lineage, the encoded name, the sequence number and the
+  SHA-256 of the text. The latest version of a name counts only when `VerifySignature` against the admin lines says verified;
+  an unknown key or a bad signature is exit 7, as for a record in the clear. A writer of the bucket who holds no admin key
+  cannot forge a policy or a tombstone; the lineage stops a transplant from another state.
+- A plan with a policy entry is refused (exit 5), before any lock, unless the applying identity is an active admin
+  (`Protection().You.Key` against the admin lines); other users keep applying resource changes. A root that declares a policy or a
+  state at format 4 needs a sealed state, as an unsealed one signs nothing (exit 5). No admins file is 5, a malformed one 6.
 
 ## The apply
+1. The plan: `apply ID` (stored), `apply FILE` (an `--out` file, marked in place) or a plain `apply`. The command hands the
+   engine the plan file it parsed and its SHA-256 (`PlanFile.Digest`), for a plain apply the bytes the run would write: that is
+   D. After stage one a file's D moves with its marks; it names the bytes that stage read, and judging ignores marks.
+2. Under the locks, after the staleness checks (exit 3) and before the start, read the set in force (a List of `policy/`, the
+   latest version per name). An entry of the plan (none for a destroy) is (name, base seq, text digest; empty text for a
+   removal): the name's latest seq must be the base, or the base plus one with that digest (a retry), else exit 3. Each new
+   version is built and signed here, and must compile alone and accept the empty plan document, or it is not written (exit 6;
+   at plan too). The put is last.
+3. Then, when the stage writes a node and the plan file has a create, update, replace or delete row, `Judge`: compile each text
+   of the set and judge the WHOLE file, applied marks and `--only` ignored, in every stage. A failure is exit 5 and records a
+   rejected transaction naming the versions and D, as a failed revision check does. A judgement at plan or show is feedback only.
+4. The signed start carries D and the versions as sorted lines `NAME@SEQ:SHA-256` (encoded names never hold `@` or `:`): one
+   more part, present only when the list is not empty, so old transactions verify as before and no domain is added.
+5. The writes, as today. The stage that leaves no resource change unapplied then puts the versions, puts and edits before
+   tombstones. A policy-only apply judges nothing and finishes with `record=true`. A put that fails or loses its race fails the
+   apply with its resource changes applied; the entry returns in the next plan (`LeftToApply` asks the state).
 
-1. The plan is a stored plan: `apply ID`, or plain `apply` and `destroy`, which plan, ask, store and apply from the stored copy.
-   Its bytes never change, so every stage (one apply of it: `--only`, a resume) names one D; N stages are N transactions.
-2. Staleness as today, and a fingerprint that also covers the declared policies as loaded, so a `-T` value cannot change the
-   set unseen. A failure to compute it is stale, not fine. Exit 3.
-3. Lock the nodes the plan writes, plus `$policies` when this stage will write R or writes no node (a start with no lock that
-   carries its id reads as interrupted). Under the locks, before the start, one hook, `Judge`: read R (absent only on not found;
-   any other failure refuses); an R whose digest is not the plan's `policy_set` is stale (exit 3, re-plan); judge the whole file
-   against the judged set, applied marks and `--only` ignored (a failure is exit 5: only locks and the apply's claim on the
-   stored plan were written, and no transaction is recorded); mark the plan kept; put the list (name, text, origin: recorded,
-   declared or both) on the transaction. A root with no policy and no R skips all of it.
-4. The signed start, then the writes, as today. No record, output or R is written before the judgement.
-5. A stage that leaves a change of the plan unapplied ends here. The last stage writes R as the declared set when that differs
-   (an empty set removes the object), then the transaction finishes. If that write fails, the apply fails with its changes
-   applied: the old R stays in force and the next apply that writes records the set.
+A plain apply that will judge (a policy in force at plan time) first `Put`s the bytes it judged (which signs them), names that
+plan in the start, applies the plan in hand as today and marks the stored one applied; otherwise it is unchanged, and a policy
+that appears later is judged all the same, its receipt unretained. A stored plan that an apply judged gets `kept` in its
+progress object, which every collection rule respects: kept while a transaction names it, and transactions are never collected.
 
-A plan with nothing to write stores nothing and makes no claim; one that writes only outputs or records is stored and judged
-like any other; a change of the declared set alone is no plan. `plan` and `show ID` run `Judge` for feedback; only the apply's
-judgement is evidence, and `applyRun` refuses a root that declares a policy when no hook is set.
+Policy changes are never judged, nor is a plan with no resource change: the plan that adds a policy is not judged by it, one
+that edits it is not judged by the new version; the resource changes of any plan are judged by the set in the state at the start
+of that apply. Admins are not exempt from judging their resource changes. Removal is gated by admin rights, not by the policy:
+a policy cannot make itself permanent, and one that refuses every plan is retired by a policy-only apply by an admin (no waiver,
+no break-glass). The control is the admins file, reviewed like `readers.txt`, and the signed tombstone that names who removed
+it. The step 2 check catches a misspelt bound (`summary: destory: <=0` is incomplete), not a too-strict rule (`summary: add:
+<=0`). A mixed plan that a broken policy blocks is split in two commits, the policy first.
 
-## The judged document
+The judged document is built from the plan file alone, never from the state, the clock, a provider call or the invocation:
+`created`, `actor`, `reason`, `git_revision`, `reservation` and `providers` are the file's, applied marks are cleared,
+`changes` is an empty list, not null, and `trace_id`, `hints`, `summary.blast_radius` and `changes[].dependents` are absent: a
+rule that names them fails, at plan already (`plan --json` still prints them). A rule sees the plan's rows only, not the nodes
+the plan leaves alone, nor ephemeral resources and function calls, which a plan file does not hold (judged at plan today,
+nowhere after). One builder serves plan and show (feedback), apply and verify.
 
-The `plan` member of `show --json ID`, built from the plan file alone, never from the state, the clock, a provider or the
-invocation: `created`, `actor`, `reason`, `git_revision`, `reservation` and `providers` are the file's (today they describe the
-apply), `trace_id` and `hints` are empty, applied marks are cleared, and `summary.blast_radius` and `changes[].dependents` are
-absent (a bound or a `!` on one fails; a bare value would supply it). Plus `policies`. A rule sees the plan's rows, not the
-nodes it leaves alone, ephemeral resources or functions: installing a policy audits nothing already there. The plan file gains
-one field, `policy_set`: the digest of R as the planner read it, absent when there was none.
-
-## What is stored
-
-| Object | Written when | Kept until |
-|---|---|---|
-| stored plan, progress | `plan --store`; plain apply after "yes"; `kept` in progress, just before the start | today's rules; if an apply judged policies, `KeptFor` (90 days) after it completes or expires |
-| transaction `txn/ID.json` | start (with the list), rewritten at finish | never collected |
-| `policies.json` | last write of an apply that finishes its plan | replaced by the next; an empty set removes it |
-
-## Verify: `pravo state verify TXN` (working name)
-
-1. Read TXN and check both signatures against the readers file. No list: not attested.
-2. Fetch the stored plan by `plan_id`, in a full session (the providers that planned decode it). The SHA-256 of its opened
-   bytes must be D (the 8-digit id is a 32-bit handle).
-3. If TXN finished, each change in its list with action create, update, replace or delete is a row of the plan with that
-   action (refresh, drift, partial, forget, unsettled, move and import are not compared). A tripwire: the list is signed at finish.
-4. Compile the listed texts, derive the document from the plan and the origins, judge (first failure: exit 5). Print the
-   policies, D, the signer, the count of unknown values, and V beside the running version.
-5. With a checkout whose fingerprint is the plan's `config_fingerprint`: the declared entries must equal the tree's policies,
-   text by text. One missing means the applier left it out; one extra, that it invented it.
-
-Exit 0 only when the state is sealed, the signatures verify (a killed apply has the start only: "writes unknown"), the plan is
-present, its digest is D and the re-run passes. Anything else prints `unattested` first and exits 1; a bad signature or digest, 7.
+## Verify: `pravo state verify TXN [--plan FILE]` (working name)
+1. Find TXN in `Store.Transactions()`; check both signatures against the readers file. No list, or unsealed: cannot be checked.
+2. Get the plan, by `plan_id` or from `--plan FILE`; its SHA-256 must be D (the id is a handle). A file that saw later stages
+   matches only if archived at that stage. If TXN finished, its create, update, replace and delete changes are rows of the plan
+   with that action: a tripwire only. The document needs the providers' schemas: a full session.
+3. Fetch each listed version: its text digest must be the listed one (else exit 7, history rewritten) and its signature must
+   verify against the admin lines, active or retired. Compile, build the document from the plan (not `LoadPlanFor`: no
+   staleness check) and judge. Print the versions, D, the signer, the count of unknown values and the pravo version.
+4. Exit 0 only when the state is sealed, the signatures verify (a killed apply has the start only: writes unknown), the plan is
+   present with digest D and the re-run passes. Anything else prints why and exits 1; a failing rule, 5; a bad signature, a
+   digest that differs or an untrusted version, 7. A resource reaches TXN by `record.txn`, which a later write overwrites, so
+   scan finished applies for its address; a deleted one is only in the signed change list (resource tombstones: later, additive).
 
 ## What it proves, and what it does not
-
-For a retained TXN in a sealed state, with step 5: the identity that signed it started an apply of exactly D, under V, and
-named exactly the listed policies as judged; each holds for the document derived from D; the declared ones are the code's; an
-unmodified pravo writes at most the rows of the plan (`checkSaved`). A killed apply keeps its start, which vouches for the
-plan and the set. It does not prove:
-
-- That the applier ran the policies. A binary that signs a start without judging looks the same when the plan passes.
-- The recorded half of the list: it is what the applier read from `policies.json`, a plain object that a writer of the bucket
-  can edit or delete undetected. Only the declared half checks against a tree.
-- That the plan is honest: `before`, row identity and flags, the `prior` of a delete, labels, `stats`, `outputs`, drift flags
-  and data-source answers are the planner's words; apply checks address, action, known values and revisions.
-- That an unknown value is acceptable: `{"$unknown": true}` fails a constraint or typed field but passes `if after.public ==
-  true {error()}`; apply fills it in and nothing judges it again. Write constraints, not conditionals.
-- The evaluator (V pins CUE for release builds; every dev build says `0.1.0-dev`) or every write: a modified binary can write
-  more than it lists, and a killed apply lists none.
-- That the code is the reviewed code, or that a policy exists: a policy never recorded can be dropped unjudged, a policy that
-  forbids nothing passes, and a transaction without a list looks like a root without policies.
-
+For a retained TXN in a sealed state: its signer started an apply of exactly D under the pravo version it names, and named
+exactly these versions; each is the text an admin of the verifier's admins file signed and holds for the document derived from
+D; an unmodified pravo writes at most the plan's rows (`checkSaved`). It does not prove:
+- That the applier ran the policies (a binary that signs without judging looks the same when the plan passes), or that the list
+  is every policy in force: a version has no signed time, so no verifier can say which were latest at that start.
+- That the plan is honest: `before`, flags, the `prior` of a delete, labels, `stats`, `outputs`, drift, data-source answers and
+  the `type`, `name` and `mode` of a row are the planner's words; apply checks address, action, known values and revisions.
+- That an unknown value is acceptable: `{"$unknown": true}` passes `if after.public == true {error("public")}` and fails a
+  constraint, then apply fills it in unjudged. Write constraints, not conditionals.
+- The evaluator (the pravo version pins CUE for release builds; dev builds say `0.1.0-dev`) or every write (a killed apply lists none).
 ## Limits
-
-- A policy takes force when an apply that finishes its plan records it. Until then it judges only plans from code that declares
-  it; a staged or abandoned plan records nothing, and a branch without the policy is not judged by it.
-- `policies.json` is plain, unlike `outputs.json`, which a sealed state seals; sealing it costs a kind and sites in about eight files, and
-  stops forgery, not deletion. Deleting it is the escape from a recorded rule that fails for good (a CUE upgrade, a rename of a
-  permanent policy). Each plan, apply and show pays one more read; `Copy`, `holdsNothing` and the viewer watcher must list it.
-- No lock spans an apply: a policy recorded by an overlapping apply did not judge this one. Two writers of R meet at `$policies`
-  (exit 4). Planning is not read-only (refreshes, moves, imports, reservations); `import`, `state mv` and `rm` are not judged.
-- Older binaries are not refused. One ignores `policies.json` and `policy_set`, reports a transaction with a list as invalid
-  (exit 7 in `state log`), drops the list when it rewraps a failed one, and drops `kept` on a progress write, as does
-  `repairProgress` of an unreadable one.
-- The texts (a few KB) sit in every transaction, readable in a sealed state like addresses, and every listing reads them. Kept
-  plans add to every plan listing, overlap check and `apply ID`: `KeptFor` bounds it.
+- Retirement stops an honest pravo, not a key: `VerifySignature` knows no time, so a retired key held by someone who can write
+  the bucket signs a version or tombstone at the next seq that every reader accepts. `admins.txt` is not pinned to the state,
+  as `readers.txt` is: a reader who lists himself locally weakens a policy in one apply and applies a violating plan in the
+  next (from the rules; not run). The reviewed checkout reads the new head as untrusted (exit 7): detection by lockout.
+- Every fail-closed read (junk at the next seq, a bad signature, an unknown key) stops every apply, a policy-only one included;
+  the repair is deleting the object in the bucket. A writer there can also delete the latest version of a name (an edit rolls
+  back, a removal returns) or all of `policy/`; nothing in the objects shows it, and the difference between code and set shows
+  only as an entry in the next plan. A branch that lacks a policy in force plans `-1 removed`: a non-admin is refused, an admin
+  removes it; CI as admin controls policies, so its policy applies should be a reviewed `apply ID`.
+- Verify needs a reader (stored plans are sealed) and the signer's key in the current `readers.txt`: a signer who has left reads
+  `key_not_in_file`. Policy objects are plain, as the addresses in `txn/` are: rules must hold no secret or account id.
+- `--out` stays: pravo retains no evidence of a file plan (archive it; `verify --plan FILE` takes it), two code paths stay, and
+  in a sealed state a file holds every value in the clear. Dropping it (`--out`, `apply FILE`, `show FILE`, `serve --plan FILE`,
+  MCP `out`, `plan pull`, file marks, `planlock.go`) is an independent cleanup: 42 docs files, 13 to 37 Go test files by
+  pattern, about 233 lines of Go (an estimate). Do it separately.
+- Planning is not read-only; `import`, `state mv`, `rm`, `push` and `import-tfstate` are not judged. A format-4 state or a root
+  with a policy pays a List of `policy/` (S3: a request per 1000 keys, every version) and a Get per name on plan, show, apply
+  and verify, and relies on a listing that sees a new key at once (`protect` probes it).
 
 ## Changes in the code
-
 | | Where | What |
 |---|---|---|
-| A, deleted | plan files | `--out`; `SavePlan`, `ReadPlanFile`, file marking, `planlock.go` (68 lines), the digest that moved with each mark; `apply FILE`, `show FILE`, `serve --plan FILE`, MCP `out`; `plan pull` (no consumer left; `plan push` was never built). `filelock` stays; the plan file format stays, as the payload of a stored plan. |
-| A, changed | cmd | `runApply`: plan, render, prompt, store, apply from the stored copy, on a fresh session (`engine.New` rebinds `ConfigConvert`); `planWorth` becomes `NeedsApply`; JSON key `plan`; `serve --plan` and MCP `planfile` take only an id. |
-| Migration | docs, tests | By grep, 42 docs files use `--out` and 46 `--policy` (62 together, 56 skill copies), 28 Go test files match (a few only through `id new --ci --out`); also `README.md`, `ARCHITECTURE.md` 2.3, `site/`, `tools/serveshots`. A run block is its own shell: pass ids through `plan list --json`. The policy pages are rewritten (`blast_radius` in 12 files, the stubs text, exit-code tables, `SKILL.md`, `state-format.md`: "`txn/` can be pruned at any time"). Rerun `tools/capture -update` and `tools/skillgen`. |
-| B, added | loader, state, engine, cmd | `case "policy"` (reads and compiles `rule`), `Root.Policies`, `#Policy`; declared texts in `Fingerprint`; `policies.json`; `Transaction.Policies`, whose digest is one more start part when present (the message carries its part count: no new domain); `Store.Transaction(id)`; `Judge`; `PlanFile.PolicySet`; `PlanProgress.Kept`; a block in `gcRules`; `state verify`. |
-| B, changed | engine | `plan` builds the file once and judges, renders and stores those bytes (`StorePlan` rebuilds it today); `Judge` builds the document from the file, not `NewView` on the live state; `ConfigChange` fails closed; `applyPlanFile` judges the whole file, not `Remaining()`. |
-| B, deleted | policy | `--policy` on `plan`, `apply`, `destroy`, `mcp`; `Policy`, `LoadPolicyFiles`, `SetPolicies`, `HasPolicies`, `CheckPolicy`, `CheckPolicyView`; the stubs (`withSkipped`) in judging; the refusal "a policy is judged against a saved plan". |
+| Added | config, schema, protect, state | `case "policy"` in `register()` (a concrete, non-empty `rule`), `Root.Policies`, `#Policy` in `internal/schema/settings.go`; a policy the walk would skip (optional or required label, deeper than 48) fails the load; `DomainPolicyVersion`; the admins parser beside `ParseReaders` (`accessDirs` finds the file); `FormatPolicy = 4`, raised by `setFormat` before the first object is written, so an older pravo refuses the state ("written by a newer pravo"; no way back); `Store.PolicySet`, `PutPolicyVersion`; `Transaction.Policies`, `Txn.SetPolicies`, one start part; key `policy/NAME@SEQ.json`, flat as every prefix is; `Copy` and `holdsNothing` list `policy`, or `state push` copies an empty set (fail open) |
+| Added, changed | engine, cmd | `Plan.Policies`, `PlanFile.Policies` (the entry), counted by `NeedsApply`; `Judge` in `applyRun`, after `checkRevisions`; an `Options` hook for the admin lines; the document builder; the sanity check; `PlanProgress.Kept` (set by a callback of `Judge`) and a guard in `gcRules`; `state verify`; the plain apply's `Put`; the refusals. `applyPlanFile` and `runApply` hand the plan file and its digest to the engine, not to `CheckPolicy`; `LeftToApply` takes the policy state; `planWorth`, `--detailed-exitcode`, the prompt (a `NeedsApply` plan without `HasChanges` applies unasked today) and `RenderPlan` count the entry (`site/demos/migrate/derive.go` matches "No changes."); `plan --json` and `show --json` gain a `policies` key beside `plan`; `show` judges for feedback |
+| DELETED | policy, docs, tests | `--policy` on `plan`, `apply`, `destroy`, `mcp`; the type `Policy`; `LoadPolicyFiles`, `SetPolicies`, `HasPolicies`, `CheckPolicy`, `CheckPolicyView`, `ShortDigest`, `label`, `refused`, `loadPolicies`, `addPolicyFlag`; the call of `withSkipped` in judging (`NewView` keeps it); the refusal "a policy is judged against a saved plan"; the invoker's power to name a policy. Migration, by plain grep: 81 `.md` files mention `--policy` (40 skill copies from `tools/skillgen`), also `tools/skillgen/eval/verify.sh`, and 4 Go test files use it; the policy pages are rewritten (`blast_radius`, the stubs, exit-code tables, `state-format.md`: "`txn/` can be pruned at any time"); rerun `tools/capture -update` and `go run ./tools/skillgen` |
 
-Cost, B: +1 each of `$kind`, state object, transaction field, lock address, progress field, plan-file field, document member,
-command, `gcRules` block and constant; no key, flag, signing domain or format number. Removed: `--policy`, six functions, the
-stubs. Cost, A: nothing added; `--out`, `plan pull`, three file arguments and the file lock removed; plain apply writes ~4 objects.
+Cost: +1 each of node kind, object prefix, `admins.txt` (a file of its own: `readers.txt` is pinned to the state), signing
+domain, state format, transaction field, plan-file field, progress field, `gcRules` guard, command; no key, lock or document
+member. Removed: `--policy` on four commands, five functions and a type, the stubs, the invoker's naming. A net addition.
+
+## Open (each with a recommendation)
+1. Retention: `kept` as a bool, no clock; it costs up to two Gets per plan in every plan listing. Else a 90 day constant (receipts
+   lapse), or no mark and no implicit `Put`: `plan pull` before the apply (that its bytes equal D is not run). Recommended: the bool.
+2. Recommended as written: a sealed state is required; the first admin is named by the first reviewed commit of `admins.txt`;
+   a policy-only plan asks "yes" and exits 2 with `--detailed-exitcode`. Later, additive: `sha256(admins.txt)` pinned in
+   `meta.json` (stops the reader bypass for a field and a check), audit mode (record, do not refuse), head pinning.
