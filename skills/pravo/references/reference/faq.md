@@ -14,7 +14,7 @@ Short, factual answers to the questions asked first.
 | [Do I need to split a large estate into several states?](#do-i-need-to-split-a-large-estate-into-several-states) | Not to keep plans short. |
 | [How do I pass a variable?](#how-do-i-pass-a-variable) | `-t name=value`. |
 | [How do I pass a secret?](#how-do-i-pass-a-secret) | `pravo.#SecretEnv`. |
-| [How do I enforce rules on plans?](#how-do-i-enforce-rules-on-plans) | `--policy FILE`. |
+| [How do I enforce rules on plans?](#how-do-i-enforce-rules-on-plans) | A `pravo.#Policy` node. |
 
 ## Does pravo need OpenTofu?
 
@@ -78,7 +78,7 @@ With `pravo.#RemoteOutputs`. Only the other root's `outputs.json` is read, so re
 
 ## How do I enforce rules on plans?
 
-With a plan policy: one CUE file that whoever runs pravo names with `--policy FILE` on `plan`, `apply`, `destroy` or `mcp`. A plan that violates it is printed and refused with exit code 5. A run that omits the flag is not checked. See [Policies overview](policies-overview.md) and [the trust anchor](../concepts/policies.md#the-trust-anchor).
+With a plan policy: a `pravo.#Policy` node in the root, whose rule is CUE text. The first apply writes it to the state, and every later plan that changes a resource is judged by it. A plan that violates it is printed and refused with exit code 5, and the signed start of each apply lists the versions that judged it. See [Policies overview](policies-overview.md) and [the trust anchor](../concepts/policies.md#the-trust-anchor).
 
 ## How do I see what pravo is doing?
 

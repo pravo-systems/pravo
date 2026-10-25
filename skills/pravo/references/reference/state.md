@@ -24,6 +24,7 @@ An address is the CUE path of a resource: `pet`, `api.config`, `servers[0]`. Quo
 | `rm ADDR` | Forgets the node. The real object stays. | yes | no |
 | `mv FROM TO` | Renames a node and updates the edges that point at it. | yes | no |
 | `log` | The recorded transactions, newest first. | no | yes |
+| `verify TXN [--plan FILE]` | Checks the receipt of an apply: its signatures, its plan and the policy versions that judged it. | no | yes |
 | `locks` | The locks and reservations held. | no | yes |
 | `probe` | Checks that the S3 store or http server honours the conditional requests that locks need. One line for each check. See [S3-compatible stores](s3-stores.md#test-a-store) and [HTTP state servers](http-stores.md). | no, it writes and deletes scratch objects | yes |
 | `unlock ADDR`, `unlock --stale` | Releases a lock or a reservation, or every one that may be reclaimed. | yes | no |
@@ -34,7 +35,7 @@ An address is the CUE path of a resource: `pet`, `api.config`, `servers[0]`. Quo
 | `query EXPR` | The value of a CUE expression over the state. | no | yes |
 | `import-tfstate FILE [--force]` | Converts a state file of OpenTofu or legacy Terraform. | yes | no |
 
-`list`, `show`, `log`, `locks`, `graph`, `dependents` and `query` read an empty state when none exists, and create nothing.
+`list`, `show`, `log`, `verify`, `locks`, `graph`, `dependents` and `query` read an empty state when none exists, and create nothing.
 
 ### Flags
 
@@ -44,6 +45,7 @@ An address is the CUE path of a resource: `pet`, `api.config`, `servers[0]`. Quo
 | `-T`, `--inject-vars` | all | Inject the system variables of CUE into tags written `@tag(name,var=os)`. |
 | `--dot` | `graph` | Print Graphviz DOT. |
 | `--force` | `import-tfstate` | Replace a state that is not empty. |
+| `--plan FILE` | `verify` | The plan file the transaction applied, when the state does not hold it. |
 
 The [global flags](global-flags.md) apply.
 
@@ -54,7 +56,9 @@ The [global flags](global-flags.md) apply.
 | 0 | Done. |
 | 1 | The address is not in the state or already exists, or the expression is invalid. |
 | 4 | Another process holds a lock on a node that `rm` or `mv` needs. |
+| 5 | `verify`: a policy listed in the receipt does not hold for the plan. |
 | 6 | The specification does not load or evaluate. |
+| 7 | `verify`: a signature does not verify, the plan has another digest than the transaction signed, a listed version is not the text that was signed, or the list omits a version that was in force. |
 
 ## Examples
 
@@ -176,6 +180,14 @@ Each entry has the identifier, the kind, the outcome, the start time and the dur
 In a sealed state each entry also says whether its signature verifies against the readers file: `signed by NAME (verified)`, `start signed by NAME (verified)` for a run that has not finished, `signed by NAME, whose key is not in the readers file`, `unsigned` or `the signature does not verify: the transaction was changed`. A signature that does not verify makes the command exit with 7, after the listing. With `--json` each entry has a `signature` object: `status` (`verified`, `key_not_in_file`, `unsigned` or `invalid`) and `signer` for a signature that verified, or `claimed` for the name a signature gives itself; the exit code is the same. See [Signatures](protect.md#signatures).
 
 An apply is `running` from the moment it holds its locks. When its command is killed, the record in the state keeps that status, and the log lists the apply as `interrupted` once no lock that is still live carries its transaction.
+
+### verify
+
+`pravo state verify TXN` checks the receipt of an apply in a sealed state. The signed start of the transaction names the digest of the plan it judged and the policy versions that judged it. The command finds the transaction, checks both signatures against the readers file, reads the plan by the id the transaction names (or from `--plan FILE`), and requires the digest of the plan to be the signed one. It then reads each listed version, requires its text to match the listed digest and its signature to verify, requires that the list omits no version that was in force ten minutes before the transaction started, and judges the plan again with the listed versions. A short prefix of the id is enough when it names one transaction.
+
+It prints `Verified.` and exits 0 when all of it holds. A bad signature, a plan with another digest, a version that is not the listed text and a list that omits a version are exit code 7. A rule that fails on the plan is exit code 5. Anything that stops the check, such as a plan that is gone or a state that is not sealed, is exit code 1 with the reason. A stored plan that an apply judged is kept, so `pravo plan gc` leaves it. [Operating policies](policies-operations.md#verify-a-receipt) runs the command.
+
+A receipt proves that the signer started an apply of exactly that plan and named exactly those versions, that each version is text that a key signed, and that the plan satisfies them. It does not prove that the signer ran the policies, that the plan is honest, or that a value which is unknown at plan time is acceptable.
 
 ### mv and rm
 

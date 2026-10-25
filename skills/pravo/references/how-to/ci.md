@@ -6,7 +6,7 @@ Validate without credentials, plan under a policy, apply a saved plan, find drif
 
 A pipeline needs four answers: does the specification evaluate, what changes, what exactly was applied and did anything change outside pravo. Each is a command with an exit code.
 
-Work in an empty directory. It stands for the repository. The root is `app/` and the policy is `policy/plan.cue`, outside the root. Every command uses `-C app`, which runs pravo as if it started in `app/`.
+Work in an empty directory. It stands for the repository. The root is `app/`. It declares a policy, `no_destroy`, in `app/policy.cue`, and its state is sealed to one reader so that the policy can be signed. Every command uses `-C app`, which runs pravo as if it started in `app/`.
 
 File `app/main.cue`:
 
@@ -31,18 +31,26 @@ note: $local.#Resource.local_file & {
 }
 ```
 
-File `policy/plan.cue`:
+File `app/policy.cue`:
 
 ```cue
-// A managed resource is neither deleted nor replaced.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && (action == "delete" || action == "replace") {
-		error("\(addr): \(action) is not allowed")
-	}
-}]
+package ci
+
+import "pravo.dev/pravo"
+
+no_destroy: pravo.#Policy & {
+	rule: #"""
+		// A managed resource is neither deleted nor replaced.
+		changes: [...{
+			addr:   string
+			mode:   string
+			action: string
+			if mode == "managed" && (action == "delete" || action == "replace") {
+				error("\(addr): \(action) is not allowed")
+			}
+		}]
+		"""#
+}
 ```
 
 ## 1. Check without credentials
@@ -152,17 +160,17 @@ The `addr` of a change is the address of the resource. A pipeline can post the s
 
 ## 4. Plan, then apply the file
 
-The plan job saves a plan under the policy. The apply job applies that file and names the policy itself.
+The plan job saves a plan. The apply job applies that file, and the apply judges it with the policies in the state.
 
 ```sh
-pravo -C app plan -out change.plan --actor ci --reason "build 42" --policy ../policy/plan.cue | grep -E '^(Plan|Policy|Saved)'
+pravo -C app plan -out change.plan --actor ci --reason "build 42" | grep -E '^(Plan|Policy|Saved)'
 ```
 
 Output:
 
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
-Policy ../policy/plan.cue (sha256:<digest>) is satisfied.
+Policy no_destroy@1:<digest> is satisfied.
 Saved the plan to change.plan. To apply exactly these actions, run:
 ```
 
@@ -175,7 +183,7 @@ pravo -C app show change.plan | head -n 1
 Output:
 
 ```text
-Saved plan created <time> by "pravo -C app plan --out change.plan --actor ci --reason build 42 --policy ../policy/plan.cue" (actor ci)
+Saved plan created <time> by "pravo -C app plan --out change.plan --actor ci --reason build 42" (actor ci)
 ```
 
 A saved plan is checked against the specification, the provider versions and the state it touches before anything runs. Change the specification after the plan was made.
@@ -189,7 +197,7 @@ extra: $random.#Resource.random_pet & {length: 3}
 ```
 
 ```sh
-pravo -C app apply change.plan --policy ../policy/plan.cue
+pravo -C app apply change.plan
 ```
 
 Output:
@@ -202,28 +210,27 @@ Error: saved plan is stale; run "pravo plan" again:
 Exit code 3 means that the plan is stale. Plan again and apply the new file.
 
 ```sh
-pravo -C app plan -out change.plan --actor ci --reason "build 43" --policy ../policy/plan.cue > /dev/null
-pravo -C app apply change.plan --policy ../policy/plan.cue
+pravo -C app plan -out change.plan --actor ci --reason "build 43" > /dev/null
+pravo -C app apply change.plan
 ```
 
 Output:
 
 ```text
-Policy ../policy/plan.cue (sha256:<digest>) is satisfied.
 extra: Creating...
 extra: Creation complete after 0s [id=<id>]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
-Under a policy an apply is of a saved plan. A plain `pravo apply --policy ...` is refused with exit code 5. The second plan that it makes is not the one that was judged. [Write and roll out plan policies](policies.md) covers the policy.
+The apply judged the file under the locks, and the signed start of its transaction lists the policy versions that judged it. A plain `pravo apply` judges the plan it builds. [Write and roll out policies](policies.md) covers the policy.
 
 A plan file travels between jobs as an artifact. When the jobs share a state in a bucket, the plan job can store the plan in the state, and the apply job can name it by its id. With `--json`, the id is `stored.id` in the one document that the plan job prints. A plan with no changes is not stored and has no `stored` field.
 
 ```text
-plan job       pravo plan --store --json --actor ci --reason "$REV" --policy "$POLICY" > plan.json
+plan job       pravo plan --store --json --actor ci --reason "$REV" > plan.json
                jq -r .stored.id plan.json
-apply job      pravo apply "$PLAN_ID" --policy "$POLICY"
+apply job      pravo apply "$PLAN_ID"
 ```
 
 Both jobs need the same checkout, because the apply compares the files, and the same `-t` and `-T`. A stored plan expires after seven days, or after the `--ttl` of the plan job. [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) follows a stored plan from the plan to the apply.
@@ -258,11 +265,12 @@ A read that finds drift leaves a mark on the record. The next plan, saved plan a
 
 A job that only asks whether a change to the specification still produces the expected plan needs no provider and no credentials. Record the responses once. Replay them in every run.
 
-Record a plan from an empty state in a scratch copy of the root.
+Record a plan from an empty state in a scratch copy of the root. The copy has no sealed state, so it leaves the policy out.
 
 ```sh
 mkdir record
 cp app/*.cue record
+rm record/policy.cue
 pravo -C record init > /dev/null
 PRAVO_RECORD=recordings pravo -C record plan | grep -E '^Plan'
 ls record/recordings
@@ -359,7 +367,7 @@ note: $local.#Resource.local_file & {
 ```
 
 ```sh
-pravo -C app plan -out replace.plan --policy ../policy/plan.cue > plan.txt
+pravo -C app plan -out replace.plan > plan.txt
 echo "exit=$?"
 grep -E '^(Plan|Error|changes)' plan.txt
 test -f app/replace.plan || echo "no plan file"
@@ -370,12 +378,12 @@ Output:
 ```text
 exit=5
 Plan: 2 to add, 0 to change, 1 to destroy.
-Error: the plan violates the policy ../policy/plan.cue (sha256:<digest>):
-changes.1: server: replace is not allowed:
+Error: the plan violates the policy no_destroy@1 (sha256:<digest>):
+changes.0: server: replace is not allowed:
 no plan file
 ```
 
-The plan is printed first and judged afterwards. Exit code 5 means that a policy refused the run, and no plan file was written. With `--json`, standard output carries the plan document and then the error object, so a consumer takes the object whose `kind` is `error`.
+The plan is printed first and judged afterwards. Exit code 5 means that a policy refused the run, and no plan file was written. `apply` judges the same way, under the locks, and applies nothing. With `--json`, standard output carries the plan document and then the error object, so a consumer takes the object whose `kind` is `error`.
 
 ## Exit codes
 
@@ -403,16 +411,16 @@ The commands of this page, in the jobs that run them:
 ```text
 pull request   pravo init; test -z "$(pravo fmt)"; pravo validate
                PRAVO_REPLAY=recordings pravo plan --json > plan.json
-plan job       pravo plan -out change.plan --actor ci --reason "$REV" --policy "$POLICY"
-apply job      pravo apply change.plan --policy "$POLICY"
+plan job       pravo plan -out change.plan --actor ci --reason "$REV"
+apply job      pravo apply change.plan
 schedule       pravo drift --due --limit 500 --actor drift-cron
 ```
 
-`validate`, `plan` and `apply` need the generated packages under `cue.mod/gen`. A job runs `pravo init` first, or the repository commits `cue.mod/gen`. The `$POLICY` file is checked out from a protected branch, and the apply job is defined where the authors of the roots cannot change it unreviewed.
+`validate`, `plan` and `apply` need the generated packages under `cue.mod/gen`. A job runs `pravo init` first, or the repository commits `cue.mod/gen`. A policy is a node of the root, so a change to it is a change that review sees, and the version it writes is signed by whoever applies it. The apply job is defined where the authors of the roots cannot change it unreviewed.
 
 ## What next
 
-- [Write and roll out plan policies](policies.md) writes the policy file and tests it.
+- [Write and roll out policies](policies.md) writes a policy and tests it.
 - [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) stores a plan in the state, where a team can list it and apply it by its id.
 - [Let an agent plan and apply](agents-and-mcp.md) adds reservations and the tool server.
 - [Find out why a run fails](debugging.md) reads the log of a job that failed.

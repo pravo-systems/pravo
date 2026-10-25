@@ -2,7 +2,7 @@
 
 # Policy on providers and on plans
 
-A constraint on a provider binds every resource built through it, and a policy file judges what a plan does.
+A constraint on a provider binds every resource built through it, and a policy node judges what a plan does.
 
 A platform team wants every file that every team creates to have mode `0600`. In OpenTofu a module sets a default, and the value the caller passes replaces it.
 
@@ -25,7 +25,7 @@ module "keys" {
 }
 ```
 
-pravo has two checks of this kind. A **specification policy** is a constraint on a provider definition. It binds every resource built through that provider and is checked when the specification is evaluated. A **plan policy** is a file that a plan must satisfy. It judges what a plan does and is named by whoever runs pravo. They are two moments of one idea: a rule written as a CUE value that something must unify with.
+pravo has two checks of this kind. A **specification policy** is a constraint on a provider definition. It binds every resource built through that provider and is checked when the specification is evaluated. A **plan policy** is a node of the root that a plan must satisfy. It judges what a plan does, and pravo keeps it in the state. They are two moments of one idea: a rule written as a CUE value that something must unify with.
 
 *Figure: A specification policy is checked when the specification is evaluated. A plan policy is checked when the plan is judged.*
 
@@ -133,25 +133,33 @@ A constraint rejects a value that is set and wrong. It does not require an attri
 
 ## Refuse a plan
 
-A plan policy is one CUE file. pravo unifies it with the plan document, the data that `pravo plan --json` prints. The plan satisfies the policy when the result is concrete and has no error. Write it outside the root.
+A plan policy is a node of the root. Its `rule` is CUE text, and pravo unifies it with the plan document, the data that `pravo plan --json` prints. The plan satisfies the policy when the result is concrete and has no error. Write the policy beside the resources:
 
-File `policy/no-delete.cue`:
+File `root/policy.cue`:
 
 ```cue
-// A plan may create and change. It may not delete.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && action == "delete" {
-		error("\(addr): delete is not allowed")
-	}
-}]
+package main
+
+import "pravo.dev/pravo"
+
+no_delete: pravo.#Policy & {
+	description: "A plan may create and change. It may not delete."
+	rule: #"""
+		changes: [...{
+			addr:   string
+			mode:   string
+			action: string
+			if mode == "managed" && action == "delete" {
+				error("\(addr): delete is not allowed")
+			}
+		}]
+		"""#
+}
 ```
 
-`changes` is a list template: every change must have these fields. The `if` is a guard. It adds an error to a managed resource whose action is `delete`, and the message names the address.
+`changes` is a list template: every change must have these fields. The `if` is a guard. It adds an error to a managed resource whose action is `delete`, and the message names the address. The raw string `#"""` keeps the backslash of `\(addr)` as CUE text.
 
-Restore the root and add a second file. Apply it without a policy.
+Restore the root and add a second file.
 
 File `root/main.cue`:
 
@@ -177,21 +185,51 @@ note: $files.#Resource.local_file & {
 }
 ```
 
+A policy version is signed by whoever applies it, so the state must be sealed. Make an identity, list it as a reader, and seal the state:
+
 ```sh
-pravo -C root apply --auto-approve
+mkdir -p root/.pravo/access
+pravo -C root id new --name ada | grep '^  ada ssh' | sed 's/^  //' > root/.pravo/access/readers.txt
+pravo -C root protect init --encrypt --yes --allow-local
 ```
 
 Output:
 
 ```text
-...
-Plan: 2 to add, 0 to change, 0 to destroy.
+Readers  .pravo/access/readers.txt  (ada)
+This will:
+  1  write 0 records as immutable objects  rec/<sha256>
+  2  encrypt their attributes and private data to 1 reader (ada)
+  3  seal outputs.json, stored-plan values and the values in transaction command lines the same way
+  4  set the state to format 3. Earlier versions of pravo will refuse it
+store check passed
+0 records sealed in 0.0 s
+outputs sealed · recipients written to meta.json
+
+The state is sealed to ada.
+
+Commit the readers file. Writers read the list from git:
+  .pravo/access/readers.txt
+No recovery recipient. If every reader loses their key, the state cannot be read.
+Add one with: pravo protect rewrap --recovery 3/5
+```
+
+The first apply creates both files and writes the policy to the state. The plan that adds a policy is not judged by it.
+
+```sh
+pravo -C root apply --auto-approve | sed -n '/^Policies/,/^Graph/p;/^Apply complete/p'
+```
+
+Output:
+
+```text
+Policies: +1 new, ~0 changed, -0 removed.
+  + no_delete (sha256:5ec50aad2f55)
 Graph: planned 2
-...
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 
-Add a third file and plan it under the policy. The plan creates and does not delete. The path of the policy is relative to the root, because `-C root` runs the command there.
+Add a third file and plan it. The plan creates and does not delete, so the policy is satisfied.
 
 File `root/main.cue`:
 
@@ -223,42 +261,35 @@ log: $files.#Resource.local_file & {
 ```
 
 ```sh
-pravo -C root plan --out add.plan --policy ../policy/no-delete.cue
+pravo -C root plan --out add.plan | sed -n '/^Plan:/,$p'
 ```
 
 Output:
 
 ```text
-...
-  # log (local_file) will be created
-  + log: {
-...
-    }
-
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 2 · not read 2
-Policy ../policy/no-delete.cue (sha256:a1757b6a34e5) is satisfied.
+Policy no_delete@1:5ec50aad2f55de60cc2975ee26e07aa0f295d7be0be142f43d3a8f2ed8021051 is satisfied.
 
 Saved the plan to add.plan. To apply exactly these actions, run:
   pravo apply add.plan
 ```
 
-The plan is printed first. The verdict gives the file name, twelve digits of the SHA-256 of its bytes, and `is satisfied`. The digest identifies the bytes that judged the plan.
-
-Under a policy, an apply is of a saved plan.
+The plan is printed first. The verdict names the version of the policy, `no_delete@1`, and the SHA-256 of its text, and says `is satisfied`. The digest identifies the text that judged the plan. The apply judges the plan again, under the locks, and signs the version into the transaction.
 
 ```sh
-pravo -C root apply add.plan --policy ../policy/no-delete.cue
+pravo -C root apply add.plan
+pravo -C root state log --json | jq -c '.[0].policies'
 ```
 
 Output:
 
 ```text
-Policy ../policy/no-delete.cue (sha256:a1757b6a34e5) is satisfied.
 log: Creating...
 log: Creation complete after 0s [id=4508c1b19b8841345afeed30a6d835cca066d5e5]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
+["no_delete@1:5ec50aad2f55de60cc2975ee26e07aa0f295d7be0be142f43d3a8f2ed8021051"]
 ```
 
 ## Break it: a plan that deletes
@@ -290,136 +321,125 @@ log: $files.#Resource.local_file & {
 ```
 
 ```sh
-pravo -C root plan --out delete.plan --policy ../policy/no-delete.cue
+pravo -C root plan --out delete.plan 2>&1 | sed -n '/^Plan:/,$p'
 ```
 
 Output:
 
 ```text
-...
-  # note (local_file) will be destroyed
-  - note: {
-...
-    }
-
 Plan: 0 to add, 0 to change, 1 to destroy.
 Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
-Error: the plan violates the policy ../policy/no-delete.cue (sha256:a1757b6a34e5):
-changes.2: note: delete is not allowed:
-    ../policy/no-delete.cue:7:3
+Error: the plan violates the policy no_delete@1 (sha256:5ec50aad2f55):
+changes.0: note: delete is not allowed:
+    no_delete:6:3
 ```
 
 The plan is printed, then judged, and the run exits with code 5. The error has three parts.
 
-- The policy file and its digest.
+- The version of the policy and the digest of its text.
 - The path `changes.2`. It is a position in the plan document. That list includes unchanged resources, so it is not a count of the blocks above.
-- The message from `error()`, and the line in the policy that wrote it.
+- The message from `error()`, and the line in the rule that wrote it.
 
 A refused plan is not saved.
 
 ```sh
-ls root
+ls root/*.plan
 ```
 
 Output:
 
 ```text
-add.plan
-cue.mod
-key.pem
-log.txt
-main.cue
-note.txt
-pravo.lock.cue
-pravo.state
+root/add.plan
 ```
 
-There is no `delete.plan`. A plain apply makes its own plan as it goes, so a policy refuses it.
+There is no `delete.plan`. An apply judges its plan too, under the locks, and records the refusal:
 
 ```sh
-pravo -C root apply --auto-approve --policy ../policy/no-delete.cue
+pravo -C root apply --auto-approve 2>&1 | sed -n '/^Error/,$p'
+pravo -C root state log --json | jq -c '.[0] | {kind, status}'
 ```
 
 Output:
 
 ```text
-Error: a policy is judged against a saved plan: run "pravo plan -out <file>", then "pravo apply <file>"
+Error: the plan violates the policy no_delete@1 (sha256:5ec50aad2f55):
+changes.0: note: delete is not allowed:
+    no_delete:6:3
+
+{"kind":"apply","status":"rejected"}
 ```
-
-## Rehearse a policy on a fixture
-
-A policy can be tested without a plan run. `pravo plan --json --include-skipped` prints the plan document with an entry for every node, which is data and is what a policy is judged against. Save it as CUE next to the policy, in one package, and unify them. `pravo eval -c` fails when the policy is violated.
-
-```sh
-mkdir fixture
-(echo "package fixture"; pravo -C root plan --json --include-skipped 2>/dev/null) > fixture/plan.cue
-(echo "package fixture"; cat policy/no-delete.cue) > fixture/policy.cue
-pravo -C fixture eval -c
-```
-
-Output:
-
-```text
-Error: evaluating ./fixture:
-changes.2: note: delete is not allowed:
-    ./fixture/policy.cue:8:3
-```
-
-The verdict is the one `--policy` gives. Once saved, the fixture needs no state and no provider. A pipeline can test the policy on every change to the policy file. The line number is one more than in the policy, because the first line of the file is `package fixture`.
 
 ## What a policy does not bind
 
-A policy binds the runs that name it. Save the same deletion without a policy and give it to `apply` in two ways.
+A policy binds the applies of this state. The way to lift a rule is to remove it from the root. A change to a policy is not judged, so the apply that removes it passes, and the state keeps a signed removal. Restore `note`, remove `policy.cue`, and apply:
+
+File `root/main.cue`:
+
+```cue
+package main
+
+import loc "pravo.dev/providers/hashicorp/local"
+
+#Strict: loc.#Provider & {
+	#Resource: local_file: file_permission: "0600"
+}
+
+$files: #Strict
+
+key: $files.#Resource.local_file & {
+	filename: "key.pem"
+	content:  "secret\n"
+}
+
+note: $files.#Resource.local_file & {
+	filename: "note.txt"
+	content:  "note\n"
+}
+
+log: $files.#Resource.local_file & {
+	filename: "log.txt"
+	content:  "log\n"
+}
+```
 
 ```sh
-pravo -C root plan --out delete.plan
+rm root/policy.cue
+pravo -C root apply --auto-approve | sed -n '/^Policies/,/^Graph/p;/^Apply/p'
+ls root/pravo.state/policy
 ```
 
 Output:
 
 ```text
-...
-Plan: 0 to add, 0 to change, 1 to destroy.
-Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
-
-Saved the plan to delete.plan. To apply exactly these actions, run:
-  pravo apply delete.plan
+Policies: +0 new, ~0 changed, -1 removed.
+  - no_delete (version 1)
+Graph: planned 0 · skipped 3 · not read 3
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
+no_delete@00000001.json
+no_delete@00000002.json
 ```
+
+With the rule gone, a plan that deletes `note` is applied:
 
 ```sh
-pravo -C root apply delete.plan --policy ../policy/no-delete.cue
-```
-
-Output:
-
-```text
-Error: the plan violates the policy ../policy/no-delete.cue (sha256:a1757b6a34e5):
-changes.2: note: delete is not allowed:
-    ../policy/no-delete.cue:7:3
-```
-
-Nothing was applied. Now leave the flag out.
-
-```sh
-pravo -C root apply delete.plan
+rm -f delete.plan
+sed -i '/^note:/,/^}/d' root/main.cue
+pravo -C root apply --auto-approve | grep '^Apply complete'
 pravo -C root state list
 ```
 
 Output:
 
 ```text
-note: Destroying... [id=4b61f9110fdc6c1d4ddb0e04f8e31621e755a4f4]
-note: Destruction complete after 0s
-
 Apply complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <txn>]
 key
 log
 ```
 
-The deletion ran. A run that omits `--policy` is not checked. That includes a laptop, a shell that an agent holds, and a pipeline step with the flag missing.
+The log of the removal names who applied it, and every apply names the versions that judged it. A policy does not stop a person who holds the state, who can write a new version or remove the policy, so the files that declare policies are reviewed like the rest of the root.
 
-A specification policy has the same limit. It binds the resources built through its provider. A root can declare another provider from `loc.#Provider` and build a resource through that one.
+A specification policy has its own limit. It binds the resources built through its provider. A root can declare another provider from `loc.#Provider` and build a resource through that one.
 
 File `root/main.cue`:
 
@@ -460,23 +480,49 @@ Success! 3 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs a
 
 The mode `0644` passes, because `$other` carries no pin. The platform decides which provider structs a root is built from, for example by reviewing the files that declare them.
 
+Take `probe` out again:
+
+File `root/main.cue`:
+
+```cue
+package main
+
+import loc "pravo.dev/providers/hashicorp/local"
+
+#Strict: loc.#Provider & {
+	#Resource: local_file: file_permission: "0600"
+}
+
+$files: #Strict
+
+key: $files.#Resource.local_file & {
+	filename: "key.pem"
+	content:  "secret\n"
+}
+
+log: $files.#Resource.local_file & {
+	filename: "log.txt"
+	content:  "log\n"
+}
+```
+
 What a policy guarantees depends on four rights.
 
 | Right | Whoever holds it can |
 |---|---|
-| Write the policy file | Change the policy or empty it. |
-| Write the job that spells `--policy` | Drop the flag or name another file. |
+| Write the files that declare policies | Change a policy or remove it. The signed version names who applied it. |
+| Write the job that runs pravo | Run something other than pravo. |
 | Write the state | Change what pravo believes exists, with `pravo state rm` or `pravo state mv`. No plan is made, so no policy sees it. |
 | Hold the cloud credentials | Change infrastructure without running pravo. |
 
 Give the first two rights to the people who review policies. Nothing in pravo covers the last two.
 
-**The specification cannot name a policy**
+**The specification cannot exempt a resource**
 
-The `$settings` block takes `state` and `refresh`. Naming a policy there is an error. The specification cannot weaken the rule that judges it.
+The `$settings` block takes `state` and `refresh`. Naming a policy there is an error. A policy is a node, and the block holds no rule.
 
 ```sh
-printf 'package main\n\n$settings: policy: "../policy/no-delete.cue"\n' > root/setting.cue
+printf 'package main\n\n$settings: policy: "x"\n' > root/setting.cue
 pravo -C root plan
 ```
 
@@ -494,7 +540,12 @@ rm root/setting.cue
 
 ## Clean up
 
+Destroy needs the policy out of the way, because a destroy deletes. Remove the policy, then destroy:
+
 ```sh
+rm -f root/policy.cue
+sed -i 's/new secret/secret/' root/main.cue
+pravo -C root apply --auto-approve > /dev/null
 pravo -C root destroy --auto-approve | tail -n 1
 ```
 
@@ -507,8 +558,8 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <txn>]
 ## Recap
 
 - A constraint on a provider definition binds every resource built through it. A conflict is an error before any provider starts.
-- A plan policy is a file named with `--policy`, and a saved plan document is a fixture that tests it. A violation exits with code 5, and a refused plan is not saved.
-- A policy binds the runs that name it. Omitting the flag, editing the state and calling the cloud directly are outside it.
+- A plan policy is a `pravo.#Policy` node. The apply writes it to the state as a signed version, and later applies are judged by it. A violation exits with code 5, and a refused plan is not saved.
+- A policy binds the applies of the state. Editing the state, running something other than pravo and calling the cloud directly are outside it.
 
 The how-to pages cover writing and rolling out policies: [Policies](../how-to/policies.md). The reference describes the plan document: [Plan document](../reference/plan-document.md).
 

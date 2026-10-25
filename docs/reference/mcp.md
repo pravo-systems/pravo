@@ -12,7 +12,7 @@ normalize:
 
 | | |
 |---|---|
-| Synopsis | `pravo mcp [--policy FILE]... [--actor LABEL] [--reason TEXT] [-C DIR]` |
+| Synopsis | `pravo mcp [--actor LABEL] [--reason TEXT] [-C DIR]` |
 | Transport | JSON-RPC 2.0 on standard input and output, one message per line. Protocol version `2024-11-05`. |
 | Root | The directory the server was started in, or `-C DIR`. |
 | How a tool runs | The server runs the `pravo` binary itself with `--json --no-color`, in the root, and returns what it printed. |
@@ -22,7 +22,6 @@ normalize:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--policy FILE` | none | A CUE file that every plan and apply the server runs must satisfy. Repeatable. The path must be absolute. |
 | `--actor LABEL` | `$PRAVO_ACTOR` | A label for who is acting. It is recorded on every transaction, lock and plan the agent causes. It is not verified. |
 | `--reason TEXT` | `$PRAVO_REASON` | Why. Recorded with the actor. |
 
@@ -33,7 +32,6 @@ The [global flags](global-flags.md) apply.
 | Code | Meaning |
 |---|---|
 | 0 | The client closed standard input. |
-| 5 | A `--policy` path is relative, missing or unusable. The server does not start. |
 
 A tool call that fails does not end the server. Its exit code is returned in the result.
 
@@ -41,22 +39,22 @@ The server never asks for a passphrase. The commands it runs open a [sealed stat
 
 ## Tools
 
-| Tool | Arguments | Runs | `--policy` added |
-|---|---|---|---|
-| `pravo_validate` | `tags` | `validate` | no |
-| `pravo_plan` | `tags`, `out`, `refresh` (`age`, `expired`, `false`, `all`), `full`, `include_skipped`, `reserve`, `destroy`, `replace`, `store`, `ttl` | `plan` | yes |
-| `pravo_plan_list` | `tags`, `all`, `touching` | `plan list` | no |
-| `pravo_show_plan` | `planfile` (required), `tags` | `show PLAN` | no |
-| `pravo_apply_plan` | `planfile` (required), `tags`, `only` | `apply PLAN --only A,B` | yes |
-| `pravo_schema` | `types` (required), `required` | `schema TYPE... --required` | no |
-| `pravo_why` | `addrs` (required), `tags` | `why ADDR...` | no |
-| `pravo_state_query` | `expression` (required), `tags` | `state query EXPRESSION` | no |
-| `pravo_state_show` | `addr` (required), `tags` | `state show ADDR` | no |
-| `pravo_dependents` | `addr` (required), `tags` | `state dependents ADDR` | no |
-| `pravo_state_log` | `tags` | `state log` | no |
-| `pravo_locks` | `tags` | `state locks` | no |
-| `pravo_drift` | `tags`, `due`, `limit` | `drift --due --limit N` | no |
-| `pravo_providers` | none | `providers` | no |
+| Tool | Arguments | Runs |
+|---|---|---|
+| `pravo_validate` | `tags` | `validate` |
+| `pravo_plan` | `tags`, `out`, `refresh` (`age`, `expired`, `false`, `all`), `full`, `include_skipped`, `reserve`, `destroy`, `replace`, `store`, `ttl` | `plan` |
+| `pravo_plan_list` | `tags`, `all`, `touching` | `plan list` |
+| `pravo_show_plan` | `planfile` (required), `tags` | `show PLAN` |
+| `pravo_apply_plan` | `planfile` (required), `tags`, `only` | `apply PLAN --only A,B` |
+| `pravo_schema` | `types` (required), `required` | `schema TYPE... --required` |
+| `pravo_why` | `addrs` (required), `tags` | `why ADDR...` |
+| `pravo_state_query` | `expression` (required), `tags` | `state query EXPRESSION` |
+| `pravo_state_show` | `addr` (required), `tags` | `state show ADDR` |
+| `pravo_dependents` | `addr` (required), `tags` | `state dependents ADDR` |
+| `pravo_state_log` | `tags` | `state log` |
+| `pravo_locks` | `tags` | `state locks` |
+| `pravo_drift` | `tags`, `due`, `limit` | `drift --due --limit N` |
+| `pravo_providers` | none | `providers` |
 
 `tags` is a list of `key=value` strings. `only`, `replace`, `addrs` and `types` are lists of strings. `due` and `include_skipped` are booleans, and `limit` is a whole number above zero. There is no tool that applies without a saved plan, and none that edits the state.
 
@@ -64,7 +62,7 @@ The plan document that `pravo_plan` returns lists the nodes the plan ran. With `
 
 ### The positional-argument rule
 
-Five arguments reach the command line as a word of their own: `planfile`, `addr`, `addrs`, `types` and `expression`. The server refuses a call in which one of them is empty or begins with `-`, so that the command cannot read it as a flag. The refusal is the same with and without `--policy`.
+Five arguments reach the command line as a word of their own: `planfile`, `addr`, `addrs`, `types` and `expression`. The server refuses a call in which one of them is empty or begins with `-`, so that the command cannot read it as a flag.
 
 It is a tool result with `isError` true. It is made before any `pravo` process runs, so it carries no `structuredContent`. `planfile` set to `-auto-approve` therefore does not make a plain apply, and `addr` set to `-C=/other` does not change the root. A value that passes the check is given to the command as it is. The server does not check that a plan file was reviewed.
 
@@ -72,11 +70,9 @@ It is a tool result with `isError` true. It is made before any `pravo` process r
 
 ### Policies on the server
 
-Each `--policy` is read and compiled when the server starts, so a bad path fails the start and not every later call. The server adds `--policy` to its `pravo_plan` and `pravo_apply_plan` runs, and to no other tool, since no other command takes the flag. A tool argument cannot remove a policy that the server names.
+The server takes no policy. The policies in force in the state judge every `pravo_plan` and `pravo_apply_plan` run, because the commands it runs are the ones on the command line, and a tool argument cannot remove a policy. `pravo_apply_plan` always has a plan, a file or a stored one, so the server never runs a plain apply. The saved plan is judged whole before anything is applied, as on the command line. A refusal reaches the agent as a result with `isError` true and `structuredContent.exit_code` 5. A plan that a policy refuses returns the plan document and then the error object, so the agent sees what was judged.
 
-`pravo_apply_plan` always has a plan, a file or a stored one, so the server never runs a plain apply. The saved plan is judged whole before anything is applied, as on the command line. A refusal reaches the agent as a result with `isError` true and `structuredContent.exit_code` 5. A plan that a policy refuses returns the plan document and then the error object, so the agent sees what was judged.
-
-Without `--policy`, nothing judges the plan: `pravo_apply_plan` applies the plan it is given when the plan is not stale, and a stored plan when it has not expired. A policy binds the tool and not the process around it. An agent with a shell or with credentials of its own does not need the tool. See [Policies](policies-overview.md) and [Agents and MCP](../how-to/agents-and-mcp.md).
+A policy binds the tool and not the process around it. An agent with a shell or with credentials of its own does not need the tool. See [Policies](policies-overview.md) and [Agents and MCP](../how-to/agents-and-mcp.md).
 
 ### Results
 
@@ -175,36 +171,12 @@ printf '%s\n' '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"p
 
 ### A policy
 
-A policy is a CUE file outside the directory of the specification. Start the server with its absolute path. A plan that the policy refuses comes back as an error result with exit code 5, and no plan file is written.
-
-```cue file=policy/keep.cue
-summary: destroy: 0
-```
-
-```sh run
-pravo apply -auto-approve > /dev/null
-printf '%s\n' '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"pravo_plan","arguments":{"destroy":true,"out":"x.plan"}}}' | pravo mcp --policy "$PWD/policy/keep.cue" | grep -o '"isError":[a-z]*\|"exit_code":[0-9]*'
-```
-
-```text out
-"isError":true
-"exit_code":5
-```
-
-A relative path does not start the server:
-
-```sh run exit=5
-pravo mcp --policy policy/keep.cue < /dev/null
-```
-
-```text out
-Error: --policy "policy/keep.cue": the server needs an absolute path
-```
+A plan that a policy in force refuses comes back as an error result with exit code 5, and no plan file is written. The agent needs nothing configured: the server reads the policies from the state. [Operating policies](policies-operations.md#the-mcp-server) runs a session against a root that has a policy.
 
 A client configuration passes the arguments and the working directory:
 
 ```json title="client configuration"
-{"mcpServers": {"pravo": {"command": "pravo", "args": ["mcp", "--actor", "agent", "--policy", "/srv/policies/keep.cue"], "cwd": "/path/to/root"}}}
+{"mcpServers": {"pravo": {"command": "pravo", "args": ["mcp", "--actor", "agent"], "cwd": "/path/to/root"}}}
 ```
 
 ## See also

@@ -22,7 +22,7 @@ pravo has no workspaces. Select the environment with `-t env=prod`. Each row bel
 | `console` | Absent. | `pravo eval -e EXPRESSION` evaluates an expression in the scope of the specification. |
 | `graph` | Absent. | `pravo state graph` prints the edges of the state. `-dot` prints Graphviz. `pravo serve` shows the graph of modules and resources in a browser. |
 | `force-unlock` | Absent. | `pravo state unlock ADDR` removes the lock or the reservation of one node. |
-| `test` | Absent. | `pravo validate` checks the constraints before a provider starts. `pravo plan --policy FILE` judges a plan. |
+| `test` | Absent. | `pravo validate` checks the constraints before a provider starts. A `pravo.#Policy` node judges a plan. |
 | `login`, `logout` | Absent. | Credentials come from the environment and from the files that each provider documents. |
 | `-var`, `-var-file`, `TF_VAR_*` | Absent. | `-t name=value` fills a field tagged `@tag(name)`. `pravo.#Env` and `pravo.#SecretEnv` read environment variables. |
 | `-lock`, `-lock-timeout` | Absent. | Each node has its own lock. A command that needs a node held by another is rejected. |

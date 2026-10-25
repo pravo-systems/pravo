@@ -95,22 +95,6 @@ a { color: inherit; }
 .brand .word { font: 500 1.3rem/1 var(--font-display); letter-spacing: -.01em; }
 .brand small { font: 600 .58rem/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); padding: .27rem .45rem; border: 1px solid var(--line-strong); border-radius: 0; }
 .mark .e { stroke: var(--accent); } .mark .n { fill: var(--accent); }
-.crumbs { display: flex; align-items: center; gap: .25rem; min-width: 0; flex: 0 1 36rem; font: 400 .76rem/1 var(--font-mono); margin-left: .2rem; }
-.crumb { display: inline-flex; align-items: center; gap: .42rem; min-width: 0; overflow: hidden; padding: .4rem .55rem; color: var(--text-2); border: 1px solid transparent; border-radius: var(--rad); transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast); position: relative; }
-.crumb:hover { background: var(--surface-2); border-color: var(--line); color: var(--text); }
-.crumb .i { width: .9rem; height: .9rem; color: var(--text-3); }
-.crumb .cp-head { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
-.crumb .cp-tail { color: var(--text); font-weight: 500; white-space: nowrap; flex: none; }
-.crumb .cp-head:empty { display: none; }
-.crumb .cp-head:not(:empty) + .cp-tail { margin-left: -.42rem; }
-.crumb .cp-tail .mid { color: var(--text-3); font-weight: 400; }
-.crumb-dir { flex: 0 1 auto; min-width: 4rem; }
-.crumb-state { flex: 0 0 auto; max-width: 15rem; }
-.crumb-state .cp-tail { font-weight: 400; color: var(--text-2); flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.crumb .cp-be { font: 600 .56rem/1 var(--font-ui); font-style: normal; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--rad-s); padding: .2rem .32rem; flex: none; }
-.crumb.done { overflow: visible; }
-.crumb.done::after { content: "copied"; position: absolute; right: .4rem; top: 50%; transform: translateY(-50%); font: 500 .62rem/1 var(--font-ui); color: var(--accent); background: var(--surface); padding: .2rem .35rem; border: 1px solid var(--accent); border-radius: var(--rad-s); }
-.crumbs .sep { flex: none; width: 1px; height: .95rem; background: var(--line-strong); transform: skewX(-18deg); margin: 0 .1rem; opacity: .7; }
 /* the controls on the right sit over the inspector and share its width, so that its edge runs up through the bar */
 .topright { flex: none; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: .6rem; box-sizing: border-box; width: 24.5rem; margin-right: -1rem; padding: 0 1rem 0 1.1rem; border-left: 1px solid var(--line-strong); }
 .top .search { flex: 1 0 auto; min-width: 11rem; display: flex; align-items: center; gap: .5rem; height: 2.3rem; box-sizing: border-box; padding: 0 .6rem; border: 1px solid var(--line-strong); border-radius: var(--rad); background: var(--bg); color: var(--text-3); font-size: .82rem; text-align: left; white-space: nowrap; transition: border-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast); }
@@ -119,13 +103,10 @@ a { color: inherit; }
 .viewsw { flex: none; }
 /* The sections of the page: the resources of the state, and who can read it. They are two things, not two views of one,
    so they are tabs of the header and not a switch of the toolbar. */
-.sections { flex: none; display: inline-flex; align-self: stretch; margin-right: .2rem; isolation: isolate; }
-.sec-tab { position: relative; display: inline-flex; align-items: center; gap: .5rem; padding: 0 1.05rem; font: 500 .86rem/1 var(--font-ui); color: var(--text-2); border: 0; background: none; transition: color var(--t-fast); }
-.sec-tab::before { content: ""; position: absolute; inset: .55rem .15rem; border-radius: var(--rad); background: var(--surface-2); opacity: 0; transform: scale(.94); transition: opacity var(--t-fast), transform .3s var(--ease); z-index: -1; }
-.sec-tab:hover { color: var(--text); }
-.sec-tab:hover::before { opacity: 1; transform: none; }
-.sec-tab[aria-pressed="true"] { color: var(--text); font-weight: 600; }
-.sec-tab[aria-pressed="true"]::after { content: ""; position: absolute; left: 1.05rem; right: 1.05rem; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: var(--accent); box-shadow: 0 0 12px var(--glow); }
+.sections { flex: none; display: inline-flex; align-self: stretch; margin-left: .4rem; border-left: 1px solid var(--line); isolation: isolate; }
+.sec-tab { position: relative; display: inline-flex; align-items: center; gap: .5rem; padding: 0 1rem; font: 600 .68rem/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); border: 0; border-right: 1px solid var(--line); background: none; transition: color var(--t-fast), background var(--t-fast); }
+.sec-tab:hover { color: var(--text); background: var(--surface-2); }
+.sec-tab[aria-pressed="true"] { color: var(--text); background: var(--accent-wash); }
 .sec-tab .i { width: .95rem; height: .95rem; color: var(--text-3); }
 .sec-tab[aria-pressed="true"] .i { color: var(--accent); }
 /* the beat of the live dots: a ring that scales and fades, which the compositor draws without the page (an animated box-shadow paints on every frame) */
@@ -405,10 +386,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 .cmdline .cpbtn:focus-visible, .ac-diff .cpbtn:focus-visible { outline-color: var(--code-key); } /* the code blocks are dark in both themes */
 
 /* ---- narrow screens ---- */
-/* below this the bar has no room for the path of the project beside the four sections: the project panel has it */
-@media (max-width: 56em) { .crumbs { display: none; } }
 @media (max-width: 80em) {
-  .crumb-state, .crumbs .sep { display: none; }
   .app { grid-template-columns: minmax(0, 1fr) 22.5rem; }
 }
 @media (max-width: 68.75em) {
@@ -419,18 +397,19 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .app, .app[data-view="access"], .app[data-view="plans"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .stage { grid-row: 1; grid-column: 1; }
   .drawer-scrim { display: block; position: fixed; z-index: 55; inset: 52px 0 30px 0; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(2px); animation: ui-fade .2s ease; }
-  .crumb-dir .cp-head { display: none; }
   .brand small { display: none; }
   .sec-tab { padding-inline: .8rem; }
-  .sec-tab[aria-pressed="true"]::after { left: .8rem; right: .8rem; }
+}
+/* the sections keep their icons, and the label for a screen reader, when the bar has no room for six words */
+@media (max-width: 62em) {
+  .sec-tab .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 @media (max-width: 47.5em) {
-  .sec-tab .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .me .role { display: none; }
   .me b { display: none; }
   .me { padding: 0 .55rem; }
   .top { gap: .6rem; padding: 0 .7rem; }
-  .crumbs, .brand small, .top .search kbd { display: none; }
+  .brand small, .top .search kbd { display: none; }
   .toolbar { flex-wrap: wrap; padding: .5rem .7rem; }
   .filterbox { flex: 1 1 9rem; width: auto; }
   .legend { display: none; }
@@ -453,7 +432,10 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 /* The section tabs do not fit the bar of a phone with the word beside the mark: the tab keeps its icon, and its label for a screen reader. */
 @media (max-width: 30em) {
   .brand .word { display: none; }
-  .sec-tab { padding-inline: .42rem; gap: .3rem; } /* five sections fit a phone */
+  .sec-tab { padding-inline: .3rem; gap: .2rem; } /* six sections fit a phone */
+  .top, .topright { gap: .3rem; }
+  .top { padding: 0 .5rem; }
+  .sections { margin-left: 0; }
 }
 
 /* ---- a page that nobody sees does not animate: the script sets data-hidden from the Page Visibility API ---- */
@@ -475,8 +457,8 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 
 
 /* the Plans page, with the heads of Discovery and State: one frame (a card with an edge in the colour of its state) and one title */
-.pghead, .dv-head, .ac-banner, .pl-head { position: relative; padding: 1.1rem 1.5rem 1.15rem; border: 1px solid color-mix(in srgb, var(--hc, var(--line-strong)) 38%, var(--line-strong)); border-radius: var(--rad-p); background: linear-gradient(color-mix(in srgb, var(--hc, transparent) 7%, transparent), transparent 75%), var(--surface); box-shadow: var(--shadow-1); }
-.pl-title, .dv-title, .ac-title { margin: 0; font: 500 1.7rem/1.1 var(--font-display); letter-spacing: -.015em; }
+.pghead, .dv-head, .ac-banner, .pl-head, .po-head { position: relative; padding: 1.1rem 1.5rem 1.15rem; border: 1px solid color-mix(in srgb, var(--hc, var(--line-strong)) 38%, var(--line-strong)); border-radius: var(--rad-p); background: linear-gradient(color-mix(in srgb, var(--hc, transparent) 7%, transparent), transparent 75%), var(--surface); box-shadow: var(--shadow-1); }
+.pl-title, .dv-title, .ac-title, .po-title { margin: 0; font: 500 1.7rem/1.1 var(--font-display); letter-spacing: -.015em; }
 .plans-pane { overflow: auto; padding: var(--page-pad); }
 .pl { box-sizing: border-box; display: grid; gap: 1.6rem; width: 100%; max-width: var(--page-w); margin: 0 auto; }
 .pl-head { --hc: var(--accent); }
@@ -517,7 +499,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 :is(.btn, .filter, .sfbox, .rp-view, .navrow) { border-radius: var(--rad); }
 :is(.plrow, .dv-ackrec, .dv-notice, .dv-empty, .dv-none, .ac-empty, .ac-youline, .ac-verdict, .ac-warn, .note, .errbox, .rp-why, .dv-items, .dv-code, .ac-diff, .cmd, .cmdline, .tb) { border-radius: var(--rad-p); }
 :is(.tg, .kd, .kindpill, .rows .ver, .v-tag, .v-hash, .v-unk, .wh, .jhead .jl, .plovl, .dv-ack .b, .ac-who, .cw-role, .cw-tag, .hint code, .h .cnt, .itab .tc, .src-h .step, .grp-h .gc, .sf-count, .gtip .gchip) { border-radius: var(--rad-s); }
-:is(.cw, .tile, .tv-grid, .dv-head, .dv-card, .ac-banner, .ac-card, .ac-tablewrap) { border-radius: var(--rad-p); }
+:is(.cw, .tile, .tv-grid, .dv-head, .po-head, .dv-card, .ac-banner, .ac-card, .ac-tablewrap) { border-radius: var(--rad-p); }
 :is(.cpbtn, .row-fx, .tv-row .cf button, .fatal .term, .fatal .fat-msg, .cw-skel, .iconbtn) { border-radius: var(--rad); }
 :is(.fatal .card) { border-radius: 0; }
 .qpill { border-radius: 0; overflow: hidden; }

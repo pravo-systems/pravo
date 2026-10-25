@@ -337,7 +337,7 @@ var testFlags = []struct {
 }{
 	{"tag", "t", true}, {"expression", "e", true}, {"webhook", "", true},
 	{"actor", "", true}, {"reason", "", true}, {"profile", "P", true},
-	{"only", "", true}, {"policy", "", true}, {"chdir", "C", true},
+	{"only", "", true}, {"chdir", "C", true},
 	{"inject-vars", "T", false}, {"auto-approve", "", false}, {"store", "", false},
 	{"json", "", false}, {"verbose", "v", false},
 }
@@ -377,8 +377,8 @@ func TestRedactArgsSealsTheValueOfAFlagThatTakesOneInTheSpaceForm(t *testing.T) 
 		{"a boolean flag with a value", []string{"apply", "--json=false", "ada"}, "pravo apply --json=false ada"},
 		{"a value that looks like a flag", []string{"apply", "--actor", "-t", "x"}, "pravo apply --actor " + tok("actor", "-t") + " x"},
 		{"a flag at the end", []string{"apply", "--actor"}, "pravo apply --actor"},
-		{"public flags keep their value", []string{"apply", "--only", "a.b,c.d", "--policy", "p.cue", "--chdir", "/srv/w", "-C", "/srv/w"},
-			"pravo apply --only a.b,c.d --policy p.cue --chdir /srv/w -C /srv/w"},
+		{"public flags keep their value", []string{"apply", "--only", "a.b,c.d", "--chdir", "/srv/w", "-C", "/srv/w"},
+			"pravo apply --only a.b,c.d --chdir /srv/w -C /srv/w"},
 		{"a short flag, separate", []string{"plan", "-P", "prod-admin", "x"}, "pravo plan -P " + tok("profile", "prod-admin") + " x"},
 		{"a short flag, attached", []string{"plan", "-Pprod-admin"}, "pravo plan -P" + tok("profile", "prod-admin")},
 		{"a short flag, attached with an equals sign", []string{"plan", "-P=prod-admin"}, "pravo plan -P=" + tok("profile", "prod-admin")},

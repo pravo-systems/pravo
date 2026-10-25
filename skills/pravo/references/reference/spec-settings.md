@@ -134,19 +134,19 @@ Error: evaluating .:
 $settings.state: 4 errors in empty disjunction:
 $settings.state.backend: 2 errors in empty disjunction:
 $settings.state.backend: conflicting values "http" and "s3":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:83:10
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:97:17
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:100:32
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:98:10
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:112:17
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:115:32
     ./main.cue:5:12
     ./main.cue:6:19
 $settings.state.backend: conflicting values "local" and "s3":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:83:10
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:97:33
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:118:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:98:10
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:112:33
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:133:12
     ./main.cue:5:12
     ./main.cue:6:19
 $settings.state.path: field not allowed:
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:101:2
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:116:2
     ./main.cue:6:48
 ```
 
@@ -309,16 +309,16 @@ Output:
 Error: evaluating .:
 $settings.refresh: 3 errors in empty disjunction:
 $settings.refresh: conflicting values "always" and "soon":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:87:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:102:12
     ./main.cue:5:12
     ./main.cue:5:40
 $settings.refresh: conflicting values "never" and "soon":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:87:23
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:102:23
     ./main.cue:5:12
     ./main.cue:5:40
 $settings.refresh: invalid value "soon" (out of bound =~"^[0-9]+(ms|s|m|h|d)$"):
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:87:33
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:87:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:102:33
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:102:12
     ./main.cue:5:40
 ```
 
@@ -344,7 +344,7 @@ Error: $settings.refresh: "soon" is not a refresh age; want "always", "never" or
 
 ## Unknown keys
 
-`$settings` takes `state` and `refresh`. A plan policy is named with `--policy` by whoever runs pravo, and `$settings` has no key for it. See [Policies](policies-overview.md#naming-a-policy).
+`$settings` takes `state` and `refresh`. A plan policy is a `pravo.#Policy` node of the root, and `$settings` has no key for it. See [Policies](policies-overview.md#naming-a-policy).
 
 File `main.cue`:
 

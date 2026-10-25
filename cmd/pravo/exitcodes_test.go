@@ -31,7 +31,7 @@ var exitCodeTable = []struct {
 	{2, "changes", []string{"--detailed-exitcode", "drift"}},
 	{3, "stale", []string{"saved plan"}},
 	{4, "rejected", []string{"locked", "reserved"}},
-	{5, "refused", []string{"plan policy", "policy file", "lock"}},
+	{5, "refused", []string{"policy", "lock"}},
 	{6, "invalid", []string{"does not load or evaluate", "circle"}},
 	{7, "untrusted", []string{"does not match", "pravo protect status"}},
 }
@@ -139,15 +139,6 @@ func stdin(t *testing.T, answer string) func() {
 	return func() { os.Stdin = old; r.Close() }
 }
 
-func writePolicy(t *testing.T, name, text string) string {
-	t.Helper()
-	p := filepath.Join(t.TempDir(), name)
-	if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
 type exitScenario struct {
 	name string
 	// run drives the command layer and returns what it printed and the exit
@@ -232,17 +223,15 @@ func exitScenarios() map[int][]exitScenario {
 		},
 		5: {
 			{"a plan that violates a policy", func(t *testing.T) (string, int) {
-				dir, _ := pendingDir(t)
-				return runPravo(t, dir, "plan", "--policy", writePolicy(t, "none.cue", "summary: destroy: 0\n"))
+				return runPravo(t, policyInForce(t, "summary: destroy: 0").dir, "plan")
 			}, "violates the policy"},
-			{"a policy file that does not exist", func(t *testing.T) (string, int) {
-				dir, _ := pendingDir(t)
-				return runPravo(t, dir, "plan", "--policy", filepath.Join(t.TempDir(), "missing.cue"))
-			}, missingFileMessage},
-			{"a policy without a saved plan", func(t *testing.T) (string, int) {
-				dir, _ := pendingDir(t)
-				return runPravo(t, dir, "apply", "--policy", writePolicy(t, "any.cue", "summary: destroy: <=5\n"))
-			}, "a policy is judged against a saved plan"},
+			{"a policy in a state that is not sealed", func(t *testing.T) (string, int) {
+				dir := specDir(t, map[string]string{"main.cue": "package infra\n\nimport \"pravo.dev/pravo\"\n\nno: pravo.#Policy & {rule: \"summary: destroy: 0\"}\n"})
+				if text, code := runPravo(t, dir, "init"); code != 0 {
+					t.Fatalf("init exited %d:\n%s", code, text)
+				}
+				return runPravo(t, dir, "plan")
+			}, "must be sealed"},
 			{"a module that does not match its lock", func(t *testing.T) (string, int) {
 				dir := specDir(t, map[string]string{
 					"main.cue":       "package infra\n\nsize: 3\n",
@@ -348,7 +337,7 @@ func TestProcessExitStatus(t *testing.T) {
 		{good, []string{"validate"}, 0},
 		{good, []string{"output", "nope"}, 1},
 		{pending, []string{"plan", "--detailed-exitcode"}, 2},
-		{pending, []string{"plan", "--detailed-exitcode", "--policy", writePolicy(t, "none.cue", "summary: destroy: 0\n")}, 5},
+		{policyInForce(t, "summary: destroy: 0").dir, []string{"plan", "--detailed-exitcode"}, 5},
 		{bad, []string{"validate"}, 6},
 	}
 	for _, c := range cases {

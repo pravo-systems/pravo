@@ -1877,6 +1877,9 @@ type Transaction struct {
 	// and the SHA-256 of the plan file in hex. They are signed with the rest.
 	PlanID     string `json:"plan,omitempty"`
 	PlanDigest string `json:"plan_digest,omitempty"`
+	// Policies lists the versions of the policies that judged the plan, each as
+	// NAME@SEQ:SHA-256 of its text, sorted. It is signed with the start.
+	Policies []string `json:"policies,omitempty"`
 	// StartSig and FinishSig are the signatures of the identity that ran the command,
 	// in a sealed state (see sign.go). The first covers what the run set out to do, and
 	// the second what it did; a run that is killed leaves the first.

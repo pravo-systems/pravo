@@ -139,7 +139,7 @@ Graph: planned 2
 
 A change always has `addr`, `mode`, `type`, `name` and `action`. When they apply, it also has `provider`, `reasons`, `requires_replace`, `before`, `after`, `deferred`, `skipped`, `refreshed`, `drifted`, `applied`, `dependencies`, `dependents` and `warnings`. A value that is not known until apply is `{"$unknown": true}`.
 
-The plan ran the nodes it changes, deletes, moves or imports, the ephemeral resources it opens and the functions it calls. A node it left alone has no entry. `pravo plan --json --include-skipped` lists it too, as an entry with `addr`, `mode`, `type`, `name`, the action `no-op` and `skipped`. A policy is judged against a document that has an entry for every node of the specification, in the order of the specification, with these fields for the nodes the plan left alone.
+The plan ran the nodes it changes, deletes, moves or imports, the ephemeral resources it opens and the functions it calls. A node it left alone has no entry. `pravo plan --json --include-skipped` lists it too, as an entry with `addr`, `mode`, `type`, `name`, the action `no-op` and `skipped`. A policy is judged against the document built from the plan file, which has no entry for a node the plan left alone: see [The plan document in a policy](../reference/policies-plan-document.md).
 
 ```sh
 pravo -C zones plan --json | jq '.changes[1]'
@@ -1199,7 +1199,7 @@ The apply walks the changes of the plan and the nodes they read, and no others. 
 
 A saved plan is not signed. pravo checks that the file still matches the root, the state and what the providers plan. It does not check who made it.
 
-`pravo apply FILE --policy POLICY` judges the changes that remain in the file, all of them, before any provider is asked to change anything. The file records the command that made it. Nothing reads that line as a requirement. A policy file is not part of the fingerprint. [Policies](policies.md) covers the rest.
+`pravo apply FILE` judges the whole file by the policies in force in the state, under the locks and before any provider is asked to change anything. A plan file that adds, changes or removes a policy records the version it was made from, and it is stale when the state holds another one. [Policies](policies.md) covers the rest.
 
 ## Stored plans
 

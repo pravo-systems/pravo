@@ -8,6 +8,9 @@ needs: B10
 learn: Can you combine modules, saved plans, moves, drift and policy without being told the steps?
 done_when: "`sh check.sh` prints `All outcomes hold.` and exits 0."
 level: advanced
+env:
+  PRAVO_PASSPHRASE: an example passphrase
+  PRAVO_CONFIG_DIR: people/ada
 normalize:
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
@@ -28,7 +31,7 @@ Each outcome is a property of your estate. The number is the number in the scrip
 3. **Retention.** In prod, a bucket keeps data for at least 90 days. A bucket with 30 days is refused in prod and accepted in dev.
 4. **Mode.** Every file has mode `0600`. A resource built through the provider `$files` with another mode is a conflict.
 5. **Credentials.** The token in the variable `ESTATE_TOKEN` reaches a provider and never the state. The root does not run without the variable.
-6. **Policy.** `policy/no-delete.cue` refuses plans that delete. `pravo destroy` of prod under it exits with 5 and removes nothing.
+6. **Policy.** The policy `no_delete` refuses plans that delete. The states are sealed so that a policy can be signed. `pravo destroy` of prod under it exits with 5 and removes nothing.
 7. **Drift.** A file that someone deletes is found by `pravo drift`, which exits with 2. An apply restores it, and `pravo drift` then exits with 0.
 8. **Destroy.** All three environments can be destroyed, and no file remains.
 
@@ -44,7 +47,7 @@ The script runs your commands, so it needs names. These are the names.
 | Name | Value |
 |---|---|
 | Root | The directory `estate`, with its own `cue.mod` and the package name `estate`. |
-| Policy | `policy/no-delete.cue`, beside `estate`. |
+| Policy | A `pravo.#Policy` named `no_delete`, in the file `estate/policy.cue`. |
 | Environment | The tag `env`. |
 | State of an environment | `estate/state/<env>`. |
 | Buckets | A struct `buckets`. An entry of it has `owner` and `retention`. |
@@ -59,12 +62,19 @@ Work in an empty directory. Save the script as `check.sh` and read it before you
 
 ```sh file=check.sh title="check.sh"
 # check.sh: verifies the outcomes of the project. Run it from the directory
-# that holds estate/ and policy/. It applies and destroys all three environments.
+# that holds estate/. It seals, applies and destroys all three environments.
 fail() { echo "FAIL $1: $2"; exit 1; }
 pass() { echo "ok   $1: $2"; }
 P="pravo -C estate"
-POLICY=../policy/no-delete.cue
 export ESTATE_TOKEN=check-secret-value
+export PRAVO_PASSPHRASE="a project passphrase" PRAVO_CONFIG_DIR=$PWD/people/ada
+
+# 0. A policy version is signed, so each state is sealed to one reader.
+mkdir -p estate/.pravo/access
+pravo -C estate id new --name ada | grep '^  ada ssh' | sed 's/^  //' > estate/.pravo/access/readers.txt
+for e in dev staging prod; do
+	$P protect init --encrypt --yes --allow-local -t env=$e >/dev/null 2>&1 || fail 0 "the state of $e is not sealed"
+done
 
 # 1. Three environments, and nothing else.
 for e in dev staging prod; do
@@ -108,10 +118,10 @@ if grep -rq "$ESTATE_TOKEN" estate/state; then fail 5 "the token is in the state
 pass 5 "the token is not in the state, and the root needs it"
 
 # 6. The policy refuses to destroy production and changes nothing.
-$P destroy -t env=prod --policy $POLICY >/dev/null 2>&1
+$P destroy --auto-approve -t env=prod >/dev/null 2>&1
 test $? -eq 5 || fail 6 "destroy under the policy does not exit with 5"
 test -f estate/out/prod/logs.bucket || fail 6 "the refused destroy removed a file"
-$P plan -t env=prod --policy $POLICY >/dev/null 2>&1 || fail 6 "an empty plan is refused by the policy"
+$P plan -t env=prod >/dev/null 2>&1 || fail 6 "a plan without changes is refused by the policy"
 pass 6 "destroy of prod exits with 5, and a plain plan passes"
 
 # 7. Drift is found and reconciled.
@@ -123,8 +133,10 @@ test -f estate/out/prod/logs.bucket || fail 7 "the file is not back"
 $P drift -t env=prod >/dev/null 2>&1 || fail 7 "drift is found after the reconcile"
 pass 7 "drift exits with 2, then with 0 after an apply"
 
-# 8. Everything is destroyed.
+# 8. Everything is destroyed. The policy refuses a destroy, so it goes first.
+mv estate/policy.cue policy.cue.off
 for e in dev staging prod; do
+	$P apply --auto-approve -t env=$e >/dev/null 2>&1 || fail 8 "apply -t env=$e does not remove the policy"
 	$P destroy --auto-approve -t env=$e >/dev/null 2>&1 || fail 8 "destroy -t env=$e does not succeed"
 	test -z "$(find estate/out/$e -type f 2>/dev/null)" || fail 8 "files remain in out/$e"
 done
@@ -245,16 +257,24 @@ buckets: {
 
 The policy refuses deletes.
 
-```cue file=policy/no-delete.cue title="policy/no-delete.cue"
-// A plan may create and change. It may not delete.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && action == "delete" {
-		error("\(addr): delete is not allowed")
-	}
-}]
+```cue file=estate/policy.cue title="estate/policy.cue"
+package estate
+
+import "pravo.dev/pravo"
+
+no_delete: pravo.#Policy & {
+	rule: #"""
+		// A plan may create and change. It may not delete.
+		changes: [...{
+			addr:   string
+			mode:   string
+			action: string
+			if mode == "managed" && action == "delete" {
+				error("\(addr): delete is not allowed")
+			}
+		}]
+		"""#
+}
 ```
 
 ```sh run

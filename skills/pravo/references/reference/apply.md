@@ -9,8 +9,8 @@ Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in 
 | | |
 |---|---|
 | Synopsis | `pravo apply [flags]` |
-| | `pravo apply PLANFILE [--only ADDR,...] [--policy FILE]...` |
-| | `pravo apply ID [--only ADDR,...] [--policy FILE]... [-t KEY=VALUE]...` |
+| | `pravo apply PLANFILE [--only ADDR,...]` |
+| | `pravo apply ID [--only ADDR,...] [-t KEY=VALUE]...` |
 | Changes infrastructure | Yes. |
 | Confirmation | A plain apply prints the plan and asks `Do you want to perform these actions?`. Only `yes` is accepted. A saved plan, from a file or from the state, asks nothing. |
 | Locks | The nodes the plan writes are locked from the start of the apply. An apply whose nodes another process holds is rejected before it changes anything. |
@@ -25,7 +25,6 @@ Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in 
 | `--full` | off | As for `pravo plan`. Refused with a plan file or a plan id. |
 | `--replace ADDR` | none | As for `pravo plan`. Refused with a plan file or a plan id: the replacement is decided when the plan is made. |
 | `--only ADDR,...` | none | With a plan file or a plan id: apply these changes now and leave the rest in the file or in the state. Each name must be a change in the plan: a node that the plan left alone has none. The selection must be closed under dependencies. Repeatable, or comma-separated. For a stored plan that is [partly stale](#a-partly-stale-plan), the set that `pravo plan list` and `pravo plan show` print. |
-| `--policy FILE` | none | A CUE file the saved plan must satisfy before anything is applied. Repeatable. Without a plan file or a plan id the command is refused. |
 | `-t`, `--tag key=value`, `-T` | none | Tags, as for `pravo plan`. Refused with a plan file: the plan carries its own tags. With a plan id they must be the ones the plan was made with: see [The tags of a stored plan](#the-tags-of-a-stored-plan). |
 
 ### Reads after the apply
@@ -46,7 +45,7 @@ The [global flags](global-flags.md) apply. With `--json`, a plain apply needs `-
 | 1 | An error: the prompt was answered with anything but `yes`, a provider failed, the apply was interrupted, a flag does not combine with the form, `--only` names a node that has no change in the plan file, `--json` without `--auto-approve`, an id that no stored plan has, `-t` and `-T` that differ from the ones a stored plan was made with, or a stored plan that cannot be claimed for a reason other than a collection. |
 | 3 | The saved plan is stale, or an apply found that a resource is not what the plan said: a node that another command wrote since, or a provider that plans the resource differently. The reasons follow the error. A stored plan whose time to live ended before it was applied, or that a collection is removing, is refused with this code, and so is a stored plan that is [partly stale](#a-partly-stale-plan) when the apply includes a change that conflicts, as the whole plan does. |
 | 4 | Rejected: a node is locked or reserved by another actor, before anything changes, or a lock was taken over while the apply ran (`lock lost`). |
-| 5 | A policy refused the plan, a `--policy` file cannot be used, `--policy` was given without a plan file, or a module does not match its lock. |
+| 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or a module does not match its lock. |
 | 6 | The specification does not load or evaluate. |
 
 ## Examples
@@ -194,61 +193,21 @@ Output:
 Error: absent is not part of the saved plan
 ```
 
-### Judge a plan before applying it
+### Policies judge the apply
 
-A policy is judged against a saved plan. A plain apply plans again while it runs, and that second plan is not the one that was judged.
-
-File `policy/small.cue`:
-
-```cue
-summary: add: <=1
-```
-
-```sh
-pravo apply --policy policy/small.cue
-```
-
-Output:
-
-```text
-Error: a policy is judged against a saved plan: run "pravo plan -out <file>", then "pravo apply <file>"
-```
-
-The saved plan is judged whole, whatever `--only` selects. `solo` adds one resource, and the plan adds three. A limit on the size of a plan cannot be passed by applying it in stages.
-
-```sh
-pravo apply change.plan --only solo --policy policy/small.cue
-```
-
-Output:
-
-```text
-Error: the plan violates the policy policy/small.cue (sha256:267ca1f7c1b4):
-summary.add: invalid value 3 (out of bound <=1):
-    policy/small.cue:1:15
-    plan:1:<col>
-```
-
-Nothing was applied. See [Policies](policies-overview.md) for what a policy can say.
+The policies in force in the state judge every apply that creates, updates, replaces or deletes a resource. The judging happens under the locks, after the staleness checks and before the transaction starts, and an apply of a saved plan, of a stored plan and a plain apply are judged alike. The saved plan is judged whole, whatever `--only` selects and whatever an earlier stage applied, so a limit on the size of a plan cannot be passed by applying it in stages. A violation is exit code 5. Nothing is applied, and a rejected transaction records the versions that refused. A policy entry in the plan, one that adds, changes or removes a policy, is written after the resources, and the policy it adds does not judge the plan that adds it. See [Policies](policies-overview.md) for what a policy can say and [Operating policies](policies-operations.md) for each case.
 
 ### Apply the closed part
 
-`solo` depends on nothing. A policy that allows three additions holds for the whole plan, and the command names it before the first change.
-
-File `policy/enough.cue`:
-
-```cue
-summary: add: <=3
-```
+`solo` depends on nothing.
 
 ```sh
-pravo apply change.plan --only solo --policy policy/enough.cue
+pravo apply change.plan --only solo
 ```
 
 Output:
 
 ```text
-Policy policy/enough.cue (sha256:6a60ce99537a) is satisfied.
 Applying 1 of 3 remaining changes from change.plan.
 solo: Creating...
 solo: Creation complete after 0s [id=93]
@@ -396,7 +355,7 @@ Apply complete! Resources: 2 added, 0 changed, 2 destroyed. [txn <txn>]
 
 ### Apply a stored plan
 
-`pravo plan --store` writes a plan into the state, and `pravo apply ID` applies it. The checks are those of a plan file: the configuration, the providers, the lineage of the state, and the revision and generation of every record the plan writes or reads. A difference is exit code 3 and changes nothing. A policy named with `--policy` judges the whole plan, and `--only` applies a closed part. `--refresh`, `--full` and `--replace` are refused, as they are with a plan file: the plan decided them. [`pravo plan`](plan.md#store-a-plan) stores a plan, and [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md) follows two people through it.
+`pravo plan --store` writes a plan into the state, and `pravo apply ID` applies it. The checks are those of a plan file: the configuration, the providers, the lineage of the state, and the revision and generation of every record the plan writes or reads. A difference is exit code 3 and changes nothing. The policies in force judge the whole plan, and `--only` applies a closed part. `--refresh`, `--full` and `--replace` are refused, as they are with a plan file: the plan decided them. [`pravo plan`](plan.md#store-a-plan) stores a plan, and [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md) follows two people through it.
 
 The root has no pending change. Store a plan that replaces `solo`, and apply it by its id.
 

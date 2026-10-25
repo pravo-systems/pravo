@@ -157,6 +157,8 @@ func (c *Change) leftAlone() bool {
 // Plan is the result of Engine.Plan.
 type Plan struct {
 	Changes []*Change
+	// Policies are the changes the plan makes to the policies in force.
+	Policies []PolicyEntry
 	// Outputs holds the evaluated output values after planning; non-concrete
 	// values are "known after apply".
 	Outputs map[string]cue.Value
@@ -292,6 +294,11 @@ func (p *Plan) PendingAddrs() []string {
 // HasChanges reports whether applying the plan would change an object. A move and an
 // import are not changes of an object: HasWrites counts them.
 func (p *Plan) HasChanges() bool {
+	return len(p.Policies) > 0 || p.hasProviderChanges()
+}
+
+// hasProviderChanges reports whether applying the plan would act on a provider.
+func (p *Plan) hasProviderChanges() bool {
 	for _, c := range p.Changes {
 		if c.Applied {
 			continue
@@ -334,6 +341,11 @@ type Options struct {
 	// identities and chooses the one that can read it; they are nil when meta.json
 	// could not be read.
 	Identity func(readers []protect.ReaderPublic) (*protect.Identity, error)
+	// Readers are the readers of the readers file, against which the signatures of the
+	// policy versions are checked.
+	Readers []protect.Reader
+	// Judged is called when an apply judges its plan, before the verdict is known.
+	Judged   func()
 	Progress func(format string, args ...any)
 	// Event receives structured progress; nil disables it.
 	Event func(Event)
@@ -359,8 +371,8 @@ type Engine struct {
 	// planID and planDigest name the plan an apply runs from (see SetPlan).
 	planID, planDigest string
 
-	// policies are the plan policies named by the invoker.
-	policies []*Policy
+	// planFile is the whole plan file an apply runs from, when it runs from one.
+	planFile *PlanFile
 
 	mu      sync.Mutex
 	changes map[string]*Change
@@ -689,6 +701,10 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		return nil, err
 	}
 	plan.Stats = e.statsNow()
+	if plan.Policies, err = e.planPolicies(ctx); err != nil {
+		e.finishError("failed", err, false)
+		return nil, err
+	}
 	_, done = e.phase(ctx, "reservations")
 	err = e.checkReservations(plan)
 	if err == nil {
@@ -2318,6 +2334,16 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.finishError("rejected", err, true)
 		return result, err
 	}
+	// The policies in force judge the resource changes of the whole plan file before
+	// the start is signed, which lists the versions that judged.
+	var policies *state.PolicySet
+	if locked > 0 || len(plan.Policies) > 0 {
+		var err error
+		if policies, err = e.judgeApply(ctx, plan, locked > 0); err != nil {
+			e.finishError("rejected", err, true)
+			return result, err
+		}
+	}
 	if locked > 0 {
 		// An apply that is killed from here on leaves a transaction that is still
 		// running, and locks that go stale.
@@ -2447,6 +2473,13 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		}
 	}
 	sort.Strings(result.ChangedOutputs)
+	// The versions of the policies come last, from the stage that leaves no resource change
+	// unapplied.
+	if len(plan.Policies) > 0 && !plan.Partial {
+		if err := e.writePolicies(ctx, policies, plan); err != nil {
+			return fail(err)
+		}
+	}
 	result.Applied = e.completedAddrs()
 	summary := fmt.Sprintf("%d added, %d changed, %d destroyed", result.Added, result.Changed, result.Destroyed)
 	return result, e.finishPhase(ctx, "applied", summary, true)

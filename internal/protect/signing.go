@@ -21,9 +21,10 @@ import (
 // Domains of the signatures. They are part of the message and never change: a
 // signature that was made under one is not valid under another.
 const (
-	DomainTxnStart  = "pravo/v1/txn-start"
-	DomainTxnFinish = "pravo/v1/txn-finish"
-	DomainPlan      = "pravo/v1/plan"
+	DomainTxnStart      = "pravo/v1/txn-start"
+	DomainTxnFinish     = "pravo/v1/txn-finish"
+	DomainPlan          = "pravo/v1/plan"
+	DomainPolicyVersion = "pravo/v1/policy-version"
 )
 
 // Signature is a signature as it is stored beside what it signs. Signer is the

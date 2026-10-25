@@ -59,6 +59,10 @@ type model struct {
 	// disc is what the discoveries found, set against the records of this revision.
 	disc *discoveryState
 
+	// pol is the policies of the state and the specification, and its bytes.
+	pol     *Policies
+	polJSON []byte
+
 	txOnce sync.Once
 	txns   []state.Transaction
 
@@ -232,6 +236,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	m.access = m.accessDoc(accessPath)
 	m.accessJSON, _ = json.Marshal(m.access)
 	m.buildDiscovery(rev)
+	m.buildPolicies(rev)
 	return m
 }
 

@@ -752,10 +752,6 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	if cmd.Flags().Changed("refresh") || full {
 		return fmt.Errorf("-refresh and -full do not apply to a stored plan")
 	}
-	policies, err := loadPolicies()
-	if err != nil {
-		return err
-	}
 	s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true})
 	if err != nil {
 		return err
@@ -804,10 +800,8 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	if flagReason == "" {
 		flagReason = meta.Reason
 	}
-	eng := s.engine(engine.Options{Refresh: engine.RefreshNone})
-	if err := eng.SetPolicies(policies); err != nil {
-		return err
-	}
+	// A plan that policies judged is the receipt of the apply, and no collection removes it.
+	eng := s.engine(engine.Options{Refresh: engine.RefreshNone, Judged: func() { _ = ps.Keep(background, id) }})
 	eng.SetPlan(id, pf.Digest)
 	mark := func(applied []string, txn string, pending []string, finished bool) error {
 		var err error

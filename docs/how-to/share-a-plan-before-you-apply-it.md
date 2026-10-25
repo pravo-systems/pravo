@@ -184,7 +184,7 @@ Bob cannot apply alice's plan from this checkout. Alice can apply it from hers. 
 
 ## 5. Apply by id
 
-Alice applies her plan by its id. The checks are those of a plan file. pravo compares the configuration, the providers, the lineage of the state and the revision of every record the plan uses. A policy named with `--policy` judges the whole plan. `--only` applies a closed part.
+Alice applies her plan by its id. The checks are those of a plan file. pravo compares the configuration, the providers, the lineage of the state and the revision of every record the plan uses. The policies in force judge the whole plan. `--only` applies a closed part.
 
 ```sh run
 pravo -C alice apply $(cat alice.id)

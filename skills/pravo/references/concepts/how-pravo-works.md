@@ -38,9 +38,9 @@ This stage writes only records that it refreshed, moved or imported, and the mar
 
 ### 5. Judge
 
-A policy is a CUE file. The person who runs pravo names it with `--policy`. pravo prints the plan, then unifies each policy with the plan document. A plan that violates a policy ends the run with exit code 5.
+A policy is a `pravo.#Policy` node of the specification. The first apply that carries it writes it to the state as a signed version. For every plan that changes a resource, pravo unifies the rule of each version in force with the plan document. A plan that violates a policy ends the run with exit code 5. `apply` judges under the locks, before the transaction starts, and the signed start of the transaction lists the versions that judged. `plan` judges the same way, for feedback.
 
-Without `--policy`, this stage does nothing. [Policies](policies.md) covers both kinds of rule.
+When no policy is in force, this stage does nothing. [Policies](policies.md) covers both kinds of rule.
 
 ### 6. Apply
 
@@ -56,7 +56,7 @@ pravo writes each node when its change completes, with a new revision. When the 
 
 ## The parts of a run
 
-pravo is one process. It reads the files of the root and, when asked, the files of the policies. It starts one child process for each provider instance. It talks to the process over gRPC, in version 5 or 6 of the plugin protocol. It reads and writes the state through a small storage interface that a directory or an S3 bucket implements.
+pravo is one process. It reads the files of the root and the policies that the state keeps. It starts one child process for each provider instance. It talks to the process over gRPC, in version 5 or 6 of the plugin protocol. It reads and writes the state through a small storage interface that a directory or an S3 bucket implements.
 
 *Figure: Three kinds of neighbour. Providers are separate processes. The state is a directory or a bucket. The specification and the policies are read only.*
 
@@ -89,20 +89,6 @@ web: $local.#Resource.local_file & {
 	filename: "web.conf"
 	content:  "port = \(port.result)\n"
 }
-```
-
-File `policy/no-delete.cue`:
-
-```cue
-// Deleting a managed resource needs a human.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && action == "delete" {
-		error("\(addr): delete is not allowed")
-	}
-}]
 ```
 
 ```sh
@@ -158,10 +144,10 @@ Read the lines in order.
 | `apply` | 6. The graph runs again over the nodes the plan changes and the nodes they read, now with the values of the resources applied before. |
 | `Apply complete!` | 7. The transaction id is the record of the run. |
 
-The second run is a plan with a policy. Nothing changed, so every resource is skipped, and the policy is satisfied.
+The second run is a plan. Nothing changed, so every resource is skipped.
 
 ```sh
-pravo -v plan --policy policy/no-delete.cue 2>&1 \
+pravo -v plan 2>&1 \
   | sed -E 's/^\+[0-9.]+s debug //; s/ (dir|path|location|took)=[^ ]+//g; s/ why=.*//' \
   | grep -E '^(loaded|state opened|plan |graph built|provider started|task |apply |Plan:|Graph:|No changes|Policy|Apply complete)'
 ```
@@ -177,10 +163,9 @@ task addr=port phase=plan outcome=ok action=no-op skipped=true unread=true
 task addr=web phase=plan outcome=ok action=no-op skipped=true unread=true
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
-Policy policy/no-delete.cue (sha256:a66a4e4c547d) is satisfied.
 ```
 
-The `Policy` line is stage 5. It appears after the plan and before any file is saved.
+No policy is in force, so stage 5 prints nothing. With one, `plan` prints a `Policy` line for each version after the plan and before any file is saved.
 
 ## Where each command stops
 
@@ -190,7 +175,7 @@ The `Policy` line is stage 5. It appears after the plan and before any file is s
 | `pravo eval` | 1 and 2 | Opens the state and fills the recorded attributes of each resource into the value. |
 | `pravo plan` | 1 to 5 | `-out` saves the plan after the policies are satisfied. |
 | `pravo drift`, `pravo why` | 1 to 4 | `drift` reads every record, or with `--due` the records past their refresh age. `why` prints the reasons of each change. |
-| `pravo apply` | 1 to 4, then 6 and 7 | Prints the plan and asks for `yes`. With `--policy` it is refused. |
+| `pravo apply` | 1 to 4, then 6 and 7 | Prints the plan and asks for `yes`. Stage 5 judges the plan it built. |
 | `pravo apply FILE` | 1 and 2, then 5 to 7 | Reads the saved plan in place of stages 3 and 4 and checks that it is current. Stage 6 builds the graph and plans each resource of the plan again. |
 | `pravo destroy` | 1 and 2, then 4 to 7 | The plan is the list of records in the state, with no graph built from the specification. It is judged before the prompt. |
 
@@ -202,7 +187,7 @@ The `Policy` line is stage 5. It appears after the plan and before any file is s
 | 2 Discover | The value | Nothing |
 | 3 Graph | The value | Nothing |
 | 4 Plan | Records, providers for the records it looks at, ephemeral resources, data sources | Refreshed, moved and imported records, marks, a plan transaction when it wrote anything, reservations |
-| 5 Judge | The policy files | Nothing |
+| 5 Judge | The policy versions in the state | Nothing |
 | 6 Apply | Records, providers | Locks, the objects that providers manage |
 | 7 Record | Nothing | Nodes, outputs, the transaction |
 

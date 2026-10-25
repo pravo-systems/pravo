@@ -229,9 +229,9 @@ pravo.resource.operations
 pravo.run.duration
 ```
 
-A `policy` rejection is a run that exited with code 5: a plan that violated a policy named with `--policy`, a plain `apply` under a policy, or a policy file that could not be used. A module that does not match its lock also exits with code 5 and is counted under the same reason. A `locked` rejection is exit code 4, a lock or a reservation held by another actor. A `stale` rejection is exit code 3.
+A `policy` rejection is a run that exited with code 5: a plan that violated a policy in force, or a root that declares a policy on a state that is not sealed. A module that does not match its lock also exits with code 5 and is counted under the same reason. A `locked` rejection is exit code 4, a lock or a reservation held by another actor. A `stale` rejection is exit code 3.
 
-The counter measures refusals. It cannot measure omission: a run that was not given `--policy` is not checked, and nothing is counted for it. Whether a run was given `--policy` can be read afterwards from the command line recorded on its transaction (`pravo state log`). That record is evidence and not a control.
+The counter measures refusals. It cannot measure a bypass: a run that does not use pravo is not checked, and nothing is counted for it. The versions that judged each apply are on its transaction (`pravo state log`). That record is evidence and not a control.
 
 ## Finding a run again
 

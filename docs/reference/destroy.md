@@ -33,7 +33,6 @@ normalize:
 |---|---|---|
 | `--auto-approve` | off | Destroy without asking. |
 | `--refresh=age\|expired\|false\|all` | `age` | When to read real state before the plan. See [`pravo plan`](plan.md#refresh). |
-| `--policy FILE` | none | A CUE file the plan of deletions must satisfy. Repeatable. |
 | `-t`, `--tag key=value`, `-T` | none | Tags, as for [`pravo plan`](plan.md). |
 
 `destroy` takes no `--out`, `--only` or `--replace`. To destroy in parts, save the plan with `pravo plan --destroy --out FILE` and apply it with `pravo apply FILE --only ADDR,...`. [Outputs of a partial destroy](apply.md#outputs-of-a-partial-destroy) says which outputs a part removes. The [global flags](global-flags.md) apply.
@@ -45,7 +44,7 @@ normalize:
 | 0 | Everything in the state was destroyed, or the state was empty. |
 | 1 | An error: the prompt was answered with anything but `yes`, a provider failed, `--json` without `--auto-approve`, a resource has `prevent_destroy`. |
 | 4 | Rejected: a node is locked or reserved by another actor. |
-| 5 | A policy refused the plan, or a `--policy` file cannot be used. |
+| 5 | A policy refused the plan, or the root declares a policy and the state is not sealed. |
 | 6 | The specification does not load or evaluate. |
 
 ## Examples
@@ -117,41 +116,7 @@ The `Graph:` line counts the nodes in the state. `port` comes first, because it 
 
 ### Refuse deletions with a policy
 
-A plan policy that allows no destroy action refuses the command before anything is deleted. The state is untouched.
-
-```cue file=policy/keep.cue
-summary: destroy: 0
-```
-
-```sh run exit=5
-pravo destroy --policy policy/keep.cue
-```
-
-```text out
-base: Refreshing state... [id=9]
-port: Refreshing state... [id=20093]
-...
-Plan: 0 to add, 0 to change, 2 to destroy.
-Graph: 2 resources in state · refreshed 2
-
-Error: the plan violates the policy policy/keep.cue (sha256:238d99a0ac31):
-summary.destroy: conflicting values 2 and 0:
-    plan:1:<col>
-    policy/keep.cue:1:19
-```
-
-The plan is printed first and judged second. The prompt never appears. Both nodes are still in the state:
-
-```sh run
-pravo state list
-```
-
-```text out
-base
-port
-```
-
-See [Policies](policies-overview.md).
+A policy whose rule allows no destroy action, such as `summary: destroy: 0`, refuses the command before anything is deleted. `destroy` prints the plan and asks for the confirmation, and then the policies in force judge the plan, under the locks, before the transaction starts. A violation is exit code 5, and the state is untouched. See [Policies](policies-overview.md) and [Operating policies](policies-operations.md#destroy).
 
 ### Destroy
 
@@ -252,7 +217,7 @@ pravo destroy -auto-approve | grep '^Destroy complete'
 Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <txn>]
 ```
 
-To refuse deletions of every kind, name a plan policy with `--policy`, as above.
+To refuse deletions of every kind, declare a plan policy, as above.
 
 ## See also
 

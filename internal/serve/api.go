@@ -37,8 +37,6 @@ type Project struct {
 	Version   string         `json:"version"`
 	State     StateInfo      `json:"state"`
 	Providers []ProviderInfo `json:"providers,omitempty"`
-	// Policies are the --policy files the viewer was started with.
-	Policies []string `json:"policies,omitempty"`
 	// SpecError is set when the specification does not load. The viewer then
 	// shows the state alone: every node has Presence "state".
 	SpecError string    `json:"spec_error,omitempty"`
@@ -1029,4 +1027,76 @@ type TraceEvent struct {
 	Name  string         `json:"name"`
 	AtUS  int64          `json:"at_us"`
 	Attrs map[string]any `json:"attrs,omitempty"`
+}
+
+// Policies is the answer of GET /api/policies: the policies that the state holds, as
+// versions, and what the specification declares of them. A policy is a rule that every
+// plan is judged by when it is applied; the state keeps its versions, signed, and a
+// transaction lists the versions that judged it. The page reads this and runs nothing.
+type Policies struct {
+	Version  int    `json:"version"`
+	Revision string `json:"revision"`
+	// SpecOK is false when the specification does not load: a policy cannot be compared
+	// with what it declares then.
+	SpecOK bool `json:"spec_ok"`
+	// Checked says whether the signatures of the versions were checked against a readers
+	// file. Without one the versions are shown and no signature is vouched for.
+	Checked bool `json:"checked"`
+	// InForce counts the policies that judge the next apply, and Pending the ones whose
+	// text in the specification differs from the state, or that the specification
+	// removes or adds: what the next apply writes.
+	InForce  int          `json:"in_force"`
+	Pending  int          `json:"pending"`
+	Policies []PolicyInfo `json:"policies"`
+	// Problem is set when the versions could not be read or do not verify.
+	Problem string `json:"problem,omitempty"`
+	// Command is what writes the pending changes: a plan, then an apply.
+	Command string `json:"command"`
+}
+
+// PolicyInfo is one policy.
+type PolicyInfo struct {
+	Name string `json:"name"`
+	// Status is "in-force", "pending" (the specification has other text than the head
+	// version), "new" (declared, with no version in force), "removing" (in force, and
+	// the specification no longer declares it) or "removed" (the head version is a
+	// removal).
+	Status   string `json:"status"`
+	Declared bool   `json:"declared"`
+	// Source is where the specification writes the policy.
+	Source *Ref `json:"source,omitempty"`
+	// Head is the number of the latest version, 0 when the state has none.
+	Head int `json:"head"`
+	// Rule is the text the specification declares, when it differs from the head.
+	Rule string `json:"rule,omitempty"`
+	// Judged counts the transactions that were judged by any version of the policy.
+	Judged int `json:"judged"`
+	// Versions are newest first.
+	Versions []PolicyVersionInfo `json:"versions"`
+}
+
+// PolicyVersionInfo is one version of a policy.
+type PolicyVersionInfo struct {
+	Seq    int       `json:"seq"`
+	Ref    string    `json:"ref"`
+	Digest string    `json:"digest"`
+	Text   string    `json:"text,omitempty"`
+	At     time.Time `json:"at"`
+	// Removal is set when the version removes the policy.
+	Removal bool `json:"removal,omitempty"`
+	// Signature is "verified", "key_not_in_file", "invalid" or "unsigned", or empty when
+	// no readers file was there to check it against.
+	Signature string `json:"signature,omitempty"`
+	Signer    string `json:"signer,omitempty"`
+	// Judged counts the transactions that this version judged, and Runs lists the newest.
+	Judged int         `json:"judged"`
+	Runs   []JudgedRun `json:"runs,omitempty"`
+}
+
+// JudgedRun is a transaction that a version of a policy judged.
+type JudgedRun struct {
+	ID     string    `json:"id"`
+	Kind   string    `json:"kind"`
+	Status string    `json:"status"`
+	Time   time.Time `json:"time"`
 }

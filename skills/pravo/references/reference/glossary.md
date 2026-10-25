@@ -233,7 +233,7 @@ Taught in [B8](../learn/b08-renames-moves-imports.md). See [Moves and imports](s
 
 ### blast radius
 
-The number of distinct nodes that have a pending change, together with every node that depends on one of them. It is `summary.blast_radius` in the plan document, and a policy can bound it.
+The number of distinct nodes that have a pending change, together with every node that depends on one of them. It is `summary.blast_radius` in the output of `plan --json`. A policy does not see it, because the judged document is built from the plan file alone.
 
 See [The plan document](plan-document.md#summary-and-stats).
 
@@ -395,7 +395,7 @@ See [State format](state-format.md#plans).
 
 ### policy
 
-A CUE file that a plan must satisfy, named with `--policy` by whoever runs pravo. A specification cannot name, weaken or exempt it. A refusal is exit code 5.
+A `pravo.#Policy` node of the specification whose rule is CUE text that a plan must satisfy. pravo keeps each version in the state, signed, and the signed start of an apply lists the versions that judged it. A specification cannot exempt a resource from it. A refusal is exit code 5.
 
 Taught in [B10](../learn/b10-policy.md). See [Policies](policies-overview.md).
 
@@ -503,7 +503,7 @@ See [State format](state-format.md#transactions).
 
 ### trust anchor
 
-The rights that decide what a policy guarantees: write access to the policy source, to the job that names it, and to the state store, and the cloud credentials. pravo cannot see who holds them.
+The rights that decide what a policy guarantees: write access to the policy source, to the job definition and environment, and to the state store, and the cloud credentials. pravo cannot see who holds them.
 
 See [Policies](../concepts/policies.md#the-trust-anchor).
 

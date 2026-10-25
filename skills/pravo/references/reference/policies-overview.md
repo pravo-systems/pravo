@@ -2,26 +2,29 @@
 
 # Policies overview
 
-A plan policy is one CUE file that a plan must satisfy. It is named with --policy by whoever runs pravo and never by the specification.
+A policy is a node of the specification whose rule is CUE text. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply.
 
-A plan policy is one CUE file that a plan must satisfy. Whoever runs pravo names it with `--policy <file>`. The specification cannot name a policy, weaken it or exempt a resource from it. A plan that does not satisfy a policy is refused with exit code 5.
+A policy is a node of the specification: `pravo.#Policy`, with a `rule` that is CUE text. The first apply that carries the policy writes it to the state as a signed, numbered version. From then on every plan that changes a resource is judged by the versions in force, at the apply, and the signed start of the apply lists the versions that judged it. A plan that a policy refuses is not applied, and the refusal is exit code 5.
 
 | Item | Fact |
 |---|---|
-| Flag | `--policy FILE`, repeatable. |
-| Commands that take it | `plan`, `apply`, `destroy`, `mcp`. |
-| Judged against | The plan document that `pravo plan --json` prints. See [The plan document](policies-plan-document.md). |
-| Satisfied when | The policy unified with the plan document is concrete and has no error. |
-| Verdict | One line per policy: `Policy FILE (sha256:<12 hex digits>) is satisfied.` |
-| Refusal | Exit code 5. The plan is printed. Nothing is applied, and `plan --out` writes no file. |
-| The file | One CUE file. It may import the CUE standard library and nothing else. It may not sit in the root directory. |
-| Where it is named | The command line of the job. There is no setting, no environment variable and no default location. |
+| Declared | A field of the specification with `$kind: "policy"`. Use `pravo.#Policy & {rule: "…"}`. |
+| Name | The path of the field. `no_destroy` in the root is the policy `no_destroy`. |
+| Rule | CUE text that is never empty. It may import the CUE standard library and nothing else. |
+| Stored | `policy/NAME@SEQ.json` in the state. A version is written once and never replaced or deleted. |
+| In force | For each name, its latest version, unless that version is a removal. |
+| Judges | The changes of every plan that creates, updates, replaces or deletes a resource. |
+| Judged | At `apply`, under the locks, once the staleness checks pass and before the transaction starts. `plan` and `show` judge for feedback. |
+| Not judged | A change to a policy. A plan with no resource change. |
+| Receipt | The signed start of the apply transaction. It lists `NAME@SEQ:SHA-256` for each version that judged. |
+| Needs | A sealed state. A root that declares a policy on an unsealed state is refused with exit code 5. |
+| Refusal | Exit code 5. The plan is printed. Nothing is applied. |
 
-How a policy is written is on [Writing policies](policies-writing.md). Where each command judges it is on [Operating policies](policies-operations.md). The idea is taught in [B10](../learn/b10-policy.md), and a rollout is in [Write and roll out plan policies](../how-to/policies.md).
+How a rule is written is on [Writing policies](policies-writing.md). Where each command judges is on [Operating policies](policies-operations.md), and what the receipt proves is on [What a policy guarantees](policies-operations.md#what-a-policy-guarantees). The idea is taught in [B10](../learn/b10-policy.md), and a rollout is in [Write and roll out policies](../how-to/policies.md).
 
 ## A policy and a plan
 
-Work in an empty directory named for a repository: the root is `infra`, and the policies are in `policy`, outside the root.
+Work in an empty directory. The root is `infra`. The state is local and sealed to one reader, ada, because a policy version is signed and an unsealed state signs nothing.
 
 File `infra/main.cue`:
 
@@ -35,251 +38,168 @@ import (
 
 $random: rnd.#Provider & {$version: "~> 3.6"}
 
-seed: $random.#Resource.random_id & {byte_length: 4}
-
 pet: $random.#Resource.random_pet & {
 	length: 2
 	keepers: owner: "platform"
 }
 
-ticket: $random.#Resource.random_integer & {
-	min: 1
-	max: 99
-	keepers: source: pet.id
-}
-
 name: pravo.#Output & {value: pet.id}
+
+no_destroy: pravo.#Policy & {
+	description: "A managed resource is neither deleted nor replaced."
+	rule: #"""
+		changes: [...{
+			addr:   string
+			mode:   string
+			action: string
+			if mode == "managed" && (action == "delete" || action == "replace") {
+				error("\(addr): \(action) is not allowed")
+			}
+		}]
+		"""#
+}
 ```
 
-File `policy/no-destroy.cue`:
-
-```cue
-// A managed resource is neither deleted nor replaced.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && (action == "delete" || action == "replace") {
-		error("\(addr): \(action) is not allowed")
-	}
-}]
-```
+The plan prints the policy as a change of its own, beside the resource:
 
 ```sh
-pravo -C infra init > /dev/null
-pravo -C infra plan --policy ../policy/no-destroy.cue 2>&1 | sed -n '/^Plan:/,$p'
+pravo -C infra plan | sed -n '/^Plan:/,$p'
 ```
 
 Output:
 
 ```text
-Plan: 3 to add, 0 to change, 0 to destroy.
-Graph: planned 3
+Plan: 1 to add, 0 to change, 0 to destroy.
+Policies: +1 new, ~0 changed, -0 removed.
+  + no_destroy (sha256:ba6301cae91b)
+Graph: planned 1
 
 Outputs:
   name: (known after apply)
-Policy ../policy/no-destroy.cue (sha256:0c23a31e78bd) is satisfied.
 ```
 
-The plan is printed first. The verdict follows. It names the file as it was written on the command line, the first twelve hexadecimal digits of the SHA-256 of its bytes, and the word *satisfied*. The digest identifies the bytes that were used:
+The apply creates the pet and writes the policy. The policy does not judge the plan that adds it:
 
 ```sh
-shasum -a 256 policy/no-destroy.cue
+pravo -C infra apply --auto-approve | grep '^Apply complete'
+ls infra/pravo.state/policy
 ```
 
 Output:
 
 ```text
-0c23a31e78bda4155de6c4983b382b0041de2fe21627240eca920dfc8a2972dc  policy/no-destroy.cue
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
+no_destroy@00000001.json
 ```
 
-Four properties follow.
+The next plan that replaces the pet is judged by `no_destroy@1`:
 
-- The CUE inside the `pravo` binary evaluates the policy against data. A policy is not a program, and it calls no provider.
-- A policy is one file. It may import only the CUE standard library.
-- Several policies may be named. Each is judged on its own, and all of them must hold.
-- A policy judges the plan, which lists what a run does. A change with the action `no-op` carries the identity of a resource and no attributes, so a rule over attributes cannot judge a resource that the plan leaves alone.
+```sh
+sed -i 's/length: 2/length: 3/' infra/main.cue
+pravo -C infra plan 2>&1
+```
+
+Output:
+
+```text
+pet: Refreshing state... [id=<pet>]
+
+pravo will perform the following actions:
+
+  # pet (random_pet) must be replaced
+-/+ pet: {
+  ~     id:        "<pet>" -> (known after apply)
+        keepers:   {
+        owner: "platform"
+    }
+  ~     length:    2 -> 3 # forces replacement
+        separator: "-"
+    }
+
+Plan: 1 to add, 0 to change, 1 to destroy.
+Graph: planned 1 · refreshed 1
+
+Outputs:
+  name: "<pet>" → (known after apply)
+
+Error: the plan violates the policy no_destroy@1 (sha256:ba6301cae91b):
+changes.0: pet: replace is not allowed:
+    no_destroy:6:3
+```
+
+The rule is the text of the policy, so the position `no_destroy:6:3` is a line and a column of that text. The same plan is refused by `apply`, and `apply` records the refusal as a rejected transaction.
 
 ## Naming a policy
 
-```text
-pravo plan    --policy ../policy/no-destroy.cue
-pravo plan    --policy ../policy/no-destroy.cue --policy ../policy/owner.cue --out change.plan
-pravo apply   --policy ../policy/no-destroy.cue change.plan
-pravo destroy --policy ../policy/no-destroy.cue
-pravo mcp     --policy /srv/policy/no-destroy.cue
-```
+The name is the path of the field in the specification. A policy may sit in a struct, such as `rules: no_destroy: pravo.#Policy & {…}`, and its name is then `rules.no_destroy`. A policy may not sit below an optional or a required field, or deeper than 48 levels: the load fails and names the field.
 
-No other command takes `--policy`:
+`description` is free text for the reader of the specification. The state does not keep it.
 
-```sh
-pravo -C infra plan --out first.plan > /dev/null
-pravo -C infra show first.plan --policy ../policy/no-destroy.cue
-```
+## The rule
 
-Output:
+A rule is standalone CUE text. It may import the CUE standard library, such as `strings`, and nothing else: it cannot import `pravo.dev/pravo` or a provider. A definition (`#Limit: 5`) or a hidden field (`_exempt: [...]`) can serve as a helper.
 
-```text
-Error: unknown flag: --policy
-```
-
-A relative path is resolved in the directory pravo runs in, which is the `-C` directory when that flag is given. From the directory that holds `infra` and `policy`, `pravo -C infra plan --policy ../policy/x.cue` reads `policy/x.cue`:
-
-```sh
-pravo -C infra plan --policy policy/no-destroy.cue
-```
-
-Output:
-
-```text
-Error: policy policy/no-destroy.cue: open policy/no-destroy.cue: no such file or directory
-```
-
-The specification has no say. `$settings` takes `state` and `refresh`, and a `policy` key is an error: see [Settings](spec-settings.md#unknown-keys). A file in a repository is a policy only if a command line names it.
-
-### Where the file may sit
-
-A policy may sit anywhere except directly in the root directory, whose `.cue` files are the specification. A file there is part of the specification. A file in a subdirectory of the root is not refused, and it is as writable as the root. Keep policies in a directory with its own review, outside the root.
-
-### What the file may contain
-
-A policy is a single file and may import only the CUE standard library, such as `strings`. A definition (`#Limit: 5`) or a hidden field (`_exempt: [...]`) can serve as a helper: the document has no such fields, and neither has to be concrete.
-
-File `policy/no-iam.cue`:
-
-```cue
-// IAM resources are managed elsewhere.
-import "strings"
-
-changes: [...{
-	addr: string
-	type: string
-	if strings.HasPrefix(type, "aws_iam_") {
-		error("\(addr): IAM resources are managed elsewhere")
-	}
-}]
-```
-
-```sh
-pravo -C infra plan --policy ../policy/no-iam.cue 2>&1 | tail -n 1
-```
-
-Output:
-
-```text
-Policy ../policy/no-iam.cue (sha256:2520599268a9) is satisfied.
-```
-
-## Load refusals
-
-pravo reads and compiles every named file before anything else happens: before a provider is installed, before the lock file is written and before the state is opened. A file that cannot be used refuses the run with exit code 5 and names the policy as the fault.
+A policy that is new or changed is checked when the plan is made, before anything is applied. The check refuses a rule that cannot be used, with exit code 6:
 
 | Cause | Message |
 |---|---|
-| An empty value | `--policy needs a file; the value is empty` |
-| A file that is missing or cannot be read | `policy <file>: <the operating system's error>` |
-| A file directly in the root directory | `policy <file> sits in the root directory, whose .cue files are the specification; keep policies outside it` |
-| An import outside the standard library | `policy <file> imports "<path>"; a policy is a single file and may import only the CUE standard library` |
-| A file that does not parse | `policy <file>: <CUE's error>` |
-| A file that parses and does not compile | `policy <file> does not compile: <CUE's error>` |
+| The text does not parse | `policy NAME: <CUE's error>` |
+| An import outside the standard library | `policy NAME imports "<path>"; a policy is standalone and may import only the CUE standard library` |
+| The text parses and does not compile | `policy NAME does not compile: <CUE's error>` |
+| The rule fails on the document of an empty plan | `policy NAME does not accept the document of an empty plan:` followed by CUE's error |
+| The state is not sealed | `the root declares policies, and a policy version is signed: the state must be sealed (pravo protect init --encrypt)`, exit code 5 |
 
-File `infra/in-root.cue`:
+The last check catches a rule that is misspelt, such as a bound on `sumary` or on `summary.blast_radius`, which the document does not hold. It does not catch a rule that is too strict. [Writing policies](policies-writing.md#mistakes-that-forbid-nothing) shows the misspellings that pass it.
 
-```cue
-package infra
-```
+## Versions in the state
 
-File `policy/foreign.cue`:
-
-```cue
-import "pravo.dev/pravo"
-
-changes: [...{addr: string}]
-```
-
-File `policy/syntax.cue`:
-
-```cue
-changes: [...{
-```
-
-File `policy/scope.cue`:
-
-```cue
-changes: [...{
-	addr: string
-	if mode == "managed" {
-		error(addr)
-	}
-}]
-```
+A version is the object `policy/NAME@SEQ.json`, where `SEQ` has eight digits. It holds the text, the time it was signed (`at`) and the signature of whoever applied it:
 
 ```sh
-pravo -C infra plan --policy nope.cue
-pravo -C infra plan --policy in-root.cue
-pravo -C infra plan --policy ../policy/foreign.cue
-pravo -C infra plan --policy ""
-pravo -C infra plan --policy ../policy/syntax.cue
-pravo -C infra plan --policy ../policy/scope.cue
-pravo -C infra plan --policy ../policy
+sed -n '/"signature"/,$p' infra/pravo.state/policy/no_destroy@00000001.json | sed 's/"sig": ".*"/"sig": "<signature>"/; s/"key": ".*"/"key": "<fingerprint>"/'
 ```
 
 Output:
 
 ```text
-Error: policy nope.cue: open nope.cue: no such file or directory
-
-Error: policy in-root.cue sits in the root directory, whose .cue files are the specification; keep policies outside it
-
-Error: policy ../policy/foreign.cue imports "pravo.dev/pravo"; a policy is a single file and may import only the CUE standard library
-
-Error: --policy needs a file; the value is empty
-
-Error: policy ../policy/syntax.cue: expected '}', found 'EOF':
-    ../policy/syntax.cue:1:16
-
-
-Error: policy ../policy/scope.cue does not compile: changes: reference "mode" not found:
-    ../policy/scope.cue:3:5
-
-
-Error: policy ../policy: read ../policy: is a directory
+  "signature": {
+    "signer": "ada",
+    "key": "<fingerprint>",
+    "sig": "<signature>"
+  }
+}
 ```
 
-`foreign.cue` imports `pravo.dev/pravo`. `syntax.cue` ends in the middle of a struct. `scope.cue` reads a field it did not declare: CUE resolves a name by lexical scope, and the template must declare `mode` before a guard can read it. All seven refusals are exit code 5.
+- A version is written with a put that fails if the object exists. A policy that changes gets the next number. A policy that is removed from the specification gets a version with empty text, a tombstone.
+- The first version raises `meta.json` to format 4. A pravo that does not know format 4 refuses the state.
+- The signature covers the state, the name, the number, the digest of the text and `at`. A version cannot be moved to another state.
+- A reader who can apply can write a version. The signature names who wrote it, and review of the specification is the control.
+- `pravo state pull` and `pravo state push` copy the versions with the rest.
 
 ## How a plan is judged
 
-For each named policy, in the order given, pravo unifies the policy with the plan document and validates the result as concrete. Each policy is judged on its own. One that is satisfied does not excuse another. The first policy that is not satisfied ends the judging: the policies after it are not reported, and the satisfied lines of the policies before it are not printed.
+For each version in force, in the order of the names, pravo unifies the rule with the plan document and validates the result as concrete. Every policy judges every plan, and the policies are independent: a satisfied policy does not excuse a violated one. All violations are reported together.
 
-When every policy is satisfied, there is one line for each, in the order given. Under `plan --json` these lines go to standard error, and standard output holds only the document.
+When every policy is satisfied, `plan` prints one line for each: `Policy no_destroy@1:<sha-256 of the text> is satisfied.` Under `plan --json` these lines go to standard error, and standard output holds only the document.
 
 ### Reading a refusal
 
-A refusal is exit code 5. It names the policy file and its digest, and gives CUE's details:
-
-```text
-Error: the plan violates the policy ../policy/no-destroy.cue (sha256:0c23a31e78bd):
-changes.0: seed: replace is not allowed:
-    ../policy/no-destroy.cue:7:3
-```
-
+- `NAME@SEQ` is the version that refused, and the digest is the first twelve hexadecimal digits of the SHA-256 of its text.
 - The path at the start of a line indexes the plan document: `changes.0` is the first element of `changes`, and `changes.1.after.keepers.owner` is a value inside the second.
-- A message from `error()` is the text the policy wrote, with the address of the change if the policy included it.
-- The lines below a message are positions. They point into the policy file. For a violation of a value they also point into the document, as `plan:1:782`: the line and column in the document as pravo built it. That document was held in memory when it was judged, so the position is not in a file. Use the path to find the value in `pravo plan --json`.
-- The text of a plan leaves out the unchanged resources, and the document does not. The index in `changes.N` is a position in the list of the document, not in the text.
-- A refusal quotes the value that failed. The document is not masked: see [The plan document](policies-plan-document.md#the-document-is-not-masked).
+- A message from `error()` is the text the rule wrote, with the address of the change if the rule included it.
+- The lines below a message are positions. They point into the text of the rule, and for a violation of a value also into the document, as `plan:1:782`. The document is held in memory when it is judged, so the position is not in a file. Use the path to find the value in `pravo plan --json`.
+- A refusal quotes the value that failed. The document is not masked: see [The plan document in a policy](policies-plan-document.md#the-document-is-not-masked).
 
 Under `--json` the error is also printed as an object on standard output, after the document: `{"code":5,"kind":"error","message":"..."}`.
 
 ## Two moments
 
-A specification policy is a constraint on the `#Resource` of a `#Provider` definition. It is checked when the specification evaluates, and the specification names it. A plan policy is a CUE file named with `--policy`. It is checked when the plan is judged, and whoever runs pravo names it, so the specification cannot weaken it.
+A specification policy is a constraint on the `#Resource` of a `#Provider` definition. It is checked when the specification evaluates. A policy node is a rule over the plan. It is checked when a plan is judged, by the versions in the state, so a change of the specification that weakens a rule is itself a change that review sees, and the version it writes is signed.
 
-A specification policy rejects a value that is set and wrong. It does not require that an attribute is set, which is a rule for the plan policy. See [Providers](spec-providers.md#provider-scoped-constraints). [Policies](../concepts/policies.md#two-moments) compares the two.
+A specification policy rejects a value that is set and wrong. It does not require that an attribute is set, which is a rule for a policy node. See [Providers](spec-providers.md#provider-scoped-constraints). [Policies](../concepts/policies.md#two-moments) compares the two.
 
 ## See also
 
-- [Write and roll out plan policies](../how-to/policies.md) takes a policy from a first rule to an apply job.
+- [Write and roll out policies](../how-to/policies.md) takes a rule from a first draft to an apply job.
 - [Policies](../concepts/policies.md) explains the two moments and what a policy binds.
 - [Writing policies](policies-writing.md) lists the shapes that work.

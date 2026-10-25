@@ -55,7 +55,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			}
 			v := &viewerState{name: flagIdentity, dir: dir, accessDir: loadReadersFile(dir, flagAccessDir).Dir}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, VerifyPlan: v.verifyPlan}
+			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, VerifyPlan: v.verifyPlan}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.
@@ -419,6 +419,12 @@ func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, 
 	}
 	verdict := state.VerifyTransaction(st.Lineage(), t, readers)
 	return verdict.Overall().Key(), verdict.Signer
+}
+
+// policyReaders gives the readers that the signatures of the policy versions are checked
+// against, for the policies view. A repository with no readers file has none.
+func (v *viewerState) policyReaders(st *state.Store) ([]protect.Reader, bool) {
+	return attributionReaders(loadReadersFile(v.dir, v.accessDir))
 }
 
 // verifyPlan checks the signatures of a stored plan against the readers file, for the plan

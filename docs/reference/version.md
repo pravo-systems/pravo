@@ -50,7 +50,7 @@ pravo plan --json > fixture.json
 cue vet -c policy/keep.cue fixture.json
 ```
 
-`cue vet -c` reports a conflict at the same path that `pravo plan --policy` reports, and exits with a non-zero code. The plan document is not masked, so scrub a fixture before you commit it. See [Policies](policies-overview.md).
+`cue vet -c` reports a conflict at the same path that `pravo plan` reports for a policy in force, and exits with a non-zero code. The plan document is not masked, so scrub a fixture before you commit it. See [Policies](policies-overview.md).
 
 ## See also
 

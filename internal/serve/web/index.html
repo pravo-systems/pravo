@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="assets/plans.css">
 <link rel="stylesheet" href="assets/access.css">
 <link rel="stylesheet" href="assets/discovery.css">
+<link rel="stylesheet" href="assets/policies.css">
 <link rel="stylesheet" href="assets/traces.css">
 <script type="module" src="assets/app.js"></script>
 </head>
@@ -25,19 +26,15 @@
     <svg class="mark" viewBox="0 0 64 64" width="26" height="26" aria-hidden="true" focusable="false"><path class="e" d="M32.00 58.40L12.20 41.90M32.00 58.40L32.00 41.90M32.00 58.40L51.80 41.90M12.20 41.90L12.20 22.10M12.20 41.90L32.00 22.10M32.00 41.90L12.20 22.10M32.00 41.90L51.80 22.10M51.80 41.90L32.00 22.10M51.80 41.90L51.80 22.10M12.20 22.10L32.00 5.60M32.00 22.10L32.00 5.60M51.80 22.10L32.00 5.60" fill="none" stroke-opacity="0.72" stroke-width="2.6" stroke-linecap="square"/><path class="n" d="M28.50 54.90h7v7h-7zM8.70 38.40h7v7h-7zM28.50 38.40h7v7h-7zM48.30 38.40h7v7h-7zM8.70 18.60h7v7h-7zM28.50 18.60h7v7h-7zM48.30 18.60h7v7h-7zM27.50 1.10h9v9h-9z"/></svg>
     <span class="word">pravo</span><small>serve</small>
   </a>
-  <div class="crumbs" id="crumbs" aria-label="Project" hidden>
-    <button class="crumb crumb-dir" id="crumb-dir" type="button"><span class="i i-folder" aria-hidden="true"></span><span class="cp-head"></span><span class="cp-tail"></span></button>
-    <span class="sep" aria-hidden="true"></span>
-    <button class="crumb crumb-state" id="crumb-state" type="button"><span class="i i-stack" aria-hidden="true"></span><span class="cp-head"></span><span class="cp-tail"></span><em class="cp-be"></em></button>
-  </div>
-  <span class="grow"></span>
   <nav class="sections" aria-label="Section">
-    <button type="button" class="sec-tab" id="sec-inventory" aria-pressed="true" aria-keyshortcuts="a"><span class="i i-stack" aria-hidden="true"></span><span class="lbl">Inventory</span></button>
+    <button type="button" class="sec-tab" id="sec-inventory" aria-pressed="true" aria-keyshortcuts="g"><span class="i i-stack" aria-hidden="true"></span><span class="lbl">Inventory</span></button>
     <button type="button" class="sec-tab" id="sec-discovery" aria-pressed="false" aria-keyshortcuts="d"><span class="i i-radar" aria-hidden="true"></span><span class="lbl">Discovery</span><span class="cnt" id="sec-disc-count" hidden></span></button>
+    <button type="button" class="sec-tab" id="sec-policies" aria-pressed="false" aria-keyshortcuts="o"><span class="i i-policy" aria-hidden="true"></span><span class="lbl">Policies</span><span class="cnt" id="sec-pol-count" hidden></span></button>
     <button type="button" class="sec-tab" id="sec-traces" aria-pressed="false" aria-keyshortcuts="r"><span class="i i-trace" aria-hidden="true"></span><span class="lbl">Traces</span></button>
     <button type="button" class="sec-tab" id="sec-plans" aria-pressed="false" aria-keyshortcuts="p"><span class="i i-file" aria-hidden="true"></span><span class="lbl">Plans</span></button>
     <button type="button" class="sec-tab" id="sec-access" aria-pressed="false" aria-keyshortcuts="a"><span class="i i-lock" aria-hidden="true"></span><span class="lbl">State</span></button>
   </nav>
+  <span class="grow"></span>
   <div class="topright">
     <button class="search" id="search-btn" type="button" aria-label="Search and run actions" aria-keyshortcuts="/ Control+K Meta+K"><span class="i i-search" aria-hidden="true"></span><span class="lbl">Search</span><kbd>/</kbd></button>
     <span class="me" id="me" hidden tabindex="0" role="note"></span>
@@ -110,6 +107,7 @@
       </div>
     </div>
     <div class="pane discovery-pane" id="discovery-pane" role="region" aria-label="Discovery" tabindex="-1" hidden></div>
+    <div class="pane policies-pane" id="policies-pane" role="region" aria-label="Policies" tabindex="-1" hidden></div>
     <div class="pane traces-pane" id="traces-pane" role="region" aria-label="Traces" tabindex="-1" hidden></div>
     <div class="pane access-pane" id="access-pane" role="region" aria-label="State" tabindex="-1" hidden></div>
   </main>

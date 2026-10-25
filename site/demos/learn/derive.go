@@ -57,7 +57,7 @@ var fallback = [][4]string{
 	{"b07-changing-live-infrastructure", "Changing live infrastructure safely", "12", "Save a plan, apply that plan or nothing, and read the refusal when it is stale."},
 	{"b08-renames-moves-imports", "Renames, moves, imports", "12", "The address is the identity of a resource. $from moves a record and $import adopts an object."},
 	{"b09-drift", "Drift", "10", "Change a resource outside pravo, find it with pravo drift, and reconcile it two ways."},
-	{"b10-policy", "Policy on providers and on plans", "15", "A constraint on a provider binds its resources. A policy file judges what a plan does."},
+	{"b10-policy", "Policy on providers and on plans", "15", "A constraint on a provider binds its resources. A policy node judges what a plan does."},
 }
 
 type stop struct {

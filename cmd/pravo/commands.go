@@ -219,19 +219,12 @@ func planCmd() *cobra.Command {
 					return fmt.Errorf("--ttl %s: want a length of time above zero", ttlText)
 				}
 			}
-			policies, err := loadPolicies()
-			if err != nil {
-				return err
-			}
 			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true})
 			if err != nil {
 				return err
 			}
 			defer s.close()
 			eng := s.engine(engine.Options{Refresh: mode, Destroy: destroy, Full: full, Reserve: reserve, Replace: replace})
-			if err := eng.SetPolicies(policies); err != nil {
-				return err
-			}
 			plan, err := eng.Plan(cmd.Context())
 			if err != nil {
 				return err
@@ -252,7 +245,7 @@ func planCmd() *cobra.Command {
 				return eng.SavePlan(outFile, plan, flagTags, flagSysTags)
 			}
 			if store && flagJSON {
-				policyErr, judged = eng.CheckPolicyView(view), true
+				policyErr, judged = eng.JudgePlan(cmd.Context(), plan), true
 				if policyErr == nil && planWorth(plan) {
 					// The file is written before the plan is stored, as it is without
 					// --json: a plan that cannot be saved is not stored either.
@@ -289,7 +282,7 @@ func planCmd() *cobra.Command {
 				}
 			}
 			if !judged {
-				policyErr = eng.CheckPolicyView(view)
+				policyErr = eng.JudgePlan(cmd.Context(), plan)
 			}
 			if policyErr != nil {
 				return policyErr
@@ -333,7 +326,6 @@ func planCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&detailed, "detailed-exitcode", false, "exit 2 when the plan has changes, 0 when it has none")
 	cmd.Flags().BoolVar(&includeSkipped, "include-skipped", false, "with --json, list the nodes the plan left alone too, each as an entry with its address, mode, type and name")
 	cmd.Flags().DurationVar(&reserve, "reserve", 0, "reserve the nodes with pending changes for this long (e.g. 15m), so other actors cannot plan or apply them meanwhile")
-	addPolicyFlag(cmd)
 	// The tags select the state, so the commands that list stored plans take them too.
 	pf := cmd.PersistentFlags()
 	pf.StringArrayVarP(&flagTags, "tag", "t", nil, tagUsage)
@@ -382,6 +374,9 @@ func showCmd() *cobra.Command {
 			}
 			out.Println()
 			out.RenderPlan(plan)
+			if err := eng.JudgeFile(cmd.Context(), pf); err != nil {
+				out.Warning("the policies in force would refuse this plan: " + err.Error())
+			}
 			return nil
 		},
 	}
@@ -423,9 +418,6 @@ func applyCmd() *cobra.Command {
 					}
 				}
 			}
-			if len(args) == 0 && len(flagPolicy) > 0 {
-				return engine.WithCode(engine.ExitRefused, fmt.Errorf("a policy is judged against a saved plan: run \"pravo plan -out <file>\", then \"pravo apply <file>\""))
-			}
 			if len(args) == 1 {
 				if len(replace) > 0 {
 					return fmt.Errorf("-replace is decided when the plan is made: use \"pravo plan -replace <addr> -out <file>\"")
@@ -445,7 +437,6 @@ func applyCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&only, "only", nil, "with a saved plan: apply only these resources (and nothing they depend on is left out); the rest of the plan stays in the file")
 	addRunFlags(cmd, &refresh, &full)
 	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "skip the interactive approval")
-	addPolicyFlag(cmd)
 	addTagFlags(cmd)
 	return cmd
 }
@@ -464,7 +455,6 @@ func destroyCmd() *cobra.Command {
 	cmd.Flags().StringVar(&refresh, "refresh", "age", "when to read real state from providers: age, expired, false or all")
 	cmd.Flags().Lookup("refresh").NoOptDefVal = "all"
 	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "skip the interactive approval")
-	addPolicyFlag(cmd)
 	addTagFlags(cmd)
 	return cmd
 }
@@ -479,10 +469,6 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	}
 	if cmd.Flags().Changed("refresh") || full {
 		return fmt.Errorf("-refresh and -full do not apply to a saved plan")
-	}
-	policies, err := loadPolicies()
-	if err != nil {
-		return err
 	}
 	pf, err := engine.ReadPlanFile(path)
 	if err != nil {
@@ -502,9 +488,6 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 		flagReason = pf.Reason
 	}
 	eng := s.engine(engine.Options{Refresh: engine.RefreshNone})
-	if err := eng.SetPolicies(policies); err != nil {
-		return err
-	}
 	eng.SetPlan("", pf.Digest)
 	mark := func(applied []string, txn string, pending []string, finished bool) error {
 		mark := engine.MarkApplied
@@ -543,9 +526,7 @@ func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, 
 	}
 	// The saved plan is judged whole, whatever -only selects, so that a limit
 	// on the size of a plan cannot be passed by applying it in stages.
-	if err := eng.CheckPolicy(remaining); err != nil {
-		return err
-	}
+	eng.SetPlanFile(pf)
 	selected := remaining
 	if len(only) > 0 {
 		selected, err = plan.Subset(only)
@@ -626,19 +607,12 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 	if err != nil {
 		return err
 	}
-	policies, err := loadPolicies()
-	if err != nil {
-		return err
-	}
 	s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true})
 	if err != nil {
 		return err
 	}
 	defer s.close()
 	eng := s.engine(engine.Options{Refresh: mode, Destroy: destroy, Full: full, Replace: replace})
-	if err := eng.SetPolicies(policies); err != nil {
-		return err
-	}
 	plan, err := eng.Plan(ctx)
 	if err != nil {
 		return err
@@ -648,9 +622,6 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		emitLine(map[string]any{"kind": "plan", "phase": "done", "plan": view})
 	} else {
 		out.RenderPlan(plan)
-	}
-	if err := eng.CheckPolicyView(view); err != nil {
-		return err
 	}
 	if !plan.HasWrites() {
 		// The plan has nothing to change. What it still writes is the record of a
@@ -1228,16 +1199,4 @@ func unwrapAll(outputs map[string]json.RawMessage) map[string]json.RawMessage {
 		out[n], _ = engine.UnwrapOutput(raw)
 	}
 	return out
-}
-
-// addPolicyFlag adds --policy to a command that judges a plan.
-func addPolicyFlag(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVar(&flagPolicy, "policy", nil, "a CUE file the plan must satisfy; repeatable. Named by whoever runs pravo, never by the specification")
-}
-
-// loadPolicies reads the policy files named on the command line. It runs
-// before the root is loaded, so a policy that cannot be used refuses the run
-// before a provider is installed or the state is opened.
-func loadPolicies() ([]*engine.Policy, error) {
-	return engine.LoadPolicyFiles(flagPolicy, ".")
 }

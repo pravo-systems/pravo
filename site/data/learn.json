@@ -241,7 +241,7 @@
         "title": "Policy on providers and on plans",
         "short": "Policy on providers and on plans",
         "minutes": 20,
-        "idea": "A constraint on a provider binds every resource built through it, and a policy file judges what a plan does.",
+        "idea": "A constraint on a provider binds every resource built through it, and a policy node judges what a plan does.",
         "from": "front matter"
       }
     ]

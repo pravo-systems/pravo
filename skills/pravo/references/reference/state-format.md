@@ -8,12 +8,13 @@ pravo records what it manages in a state graph, not a state file. Every resource
 
 | Path | Contents |
 |---|---|
-| `meta.json` | The format number and the lineage of the store, and in format 3 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
+| `meta.json` | The format number and the lineage of the store, and in formats 3 and 4 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
 | `resources/<addr>.json` | One node for each resource or data source, named by its address. In format 1 it holds the whole record. In formats 2 and 3 it is a pointer to a record. |
 | `rec/<sha256>` | In formats 2 and 3, one record, named by the SHA-256 of its bytes. It is written once and never changed. |
 | `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. While the state is sealed, the whole object is sealed. |
 | `gc/marks.json` | In formats 2 and 3, written by `pravo protect gc`: the records that no pointer names and that a collection has seen, with the time. Never sealed. A copy of the state does not carry it. See [Format 2](#format-2-immutable-records). |
 | `txn/<id>.json` | One recorded transaction. |
+| `policy/<name>@<seq>.json` | In format 4, one version of a policy: its text, the time and the signature of whoever applied it. Written once and never changed. See [Format 4](#format-4-policies). |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |
 | `plans/<id>.plan.json`, `plans/<id>.meta.json`, `plans/<id>.progress.json` | A stored plan: the plan, its summary and what was applied from it. See [Plans](#plans). |
 | `discovery/runs/<name>.json` | What the last run of one discovery found. Replaced by the next run. See [Discoveries](#discoveries). |
@@ -97,7 +98,7 @@ Output:
 
 | Field | Meaning |
 |---|---|
-| `format` | The version of the store layout: `1`, `2` or `3`. A new store is `1`. |
+| `format` | The version of the store layout: `1` to `4`. A new store is `1`. |
 | `lineage` | An identifier chosen when the store was created. A saved plan records it. |
 | `created` | When the store was created. |
 
@@ -105,14 +106,14 @@ pravo refuses a store with a higher format number:
 
 ```sh
 cp pravo.state/meta.json meta.json.bak
-echo '{"format":4,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
+echo '{"format":5,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
 pravo plan
 ```
 
 Output:
 
 ```text
-Error: state at ./pravo.state was written by a newer pravo (format 4)
+Error: state at ./pravo.state was written by a newer pravo (format 5)
 ```
 
 ```sh
@@ -123,15 +124,16 @@ A command that writes the state, such as `plan` or `apply`, creates the director
 
 ## Formats
 
-`meta.json` says in which of three formats a store is kept.
+`meta.json` says in which of four formats a store is kept.
 
 | Format | Layout |
 |---|---|
 | 1 | `resources/<addr>.json` holds the whole record. A new store is in format 1, and a store in format 1 is written as the sections above describe. |
 | 2 | Immutable records. Each record is an object `rec/<sha256>` that is never overwritten, and `resources/<addr>.json` is a pointer to the current one. |
 | 3 | Sealed state. Format 2, with the values of each record, the outputs and the stored plans encrypted to a list of readers. |
+| 4 | Policies. Format 3, with `policy/<name>@<seq>.json`, the signed versions of the policies of the root. |
 
-A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all three. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
+A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all four. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
 
 ## Format 2: immutable records
 
@@ -293,7 +295,7 @@ A command that began before a reader was removed looks at `meta.json` again when
 
 A signature is Ed25519 over a fixed prefix, `pravo/v1/signature` and a zero byte, and the SHA-256 of a message. The message is the count of its parts as a little-endian 64-bit number, and then each part framed by its length in the same way: the domain tag, the lineage of the state and the fields. The domains are `pravo/v1/txn-start`, `pravo/v1/txn-finish` and `pravo/v1/plan`, so that a signature made for one kind of event, or in one state, is valid nowhere else. A text field is the text as the log stores it, with each byte that is not valid UTF-8 as U+FFFD. Times are UTC RFC 3339 with nanoseconds, and numbers decimal.
 
-The fields of the start signature are, in this order: `id`, `kind`, `command`, `user`, `host`, `started`, `actor`, `reason`, `git_revision`, `version`, `plan`, `plan_digest`, `trace_id`. The finish signature has those, then `finished`, `status`, the number of changes, and for each change, in the order stored, `addr`, `action`, `before_revision` and `after_revision`. The fields of a plan's signature are the SHA-256 of the plan file in hex, and the time.
+The fields of the start signature are, in this order: `id`, `kind`, `command`, `user`, `host`, `started`, `actor`, `reason`, `git_revision`, `version`, `plan`, `plan_digest`, `trace_id`, and, only when the apply judged a plan, `policies`: the sorted lines `NAME@SEQ:SHA-256`, joined by newlines, as one part. The finish signature has those, then `finished`, `status`, the number of changes, and for each change, in the order stored, `addr`, `action`, `before_revision` and `after_revision`. The fields of a plan's signature are the SHA-256 of the plan file in hex, and the time.
 
 ### What a sealed state does not protect
 
@@ -454,10 +456,11 @@ Output:
 | `diff_sealed` | Only in a sealed state: the `diff` of each change, by address, sealed under the kind `txn-diff` and bound to the id of the transaction, in place of the `diff` of the changes. The signatures do not cover it. A rewrap with `--all` seals it again, and an unseal writes it back into the changes. |
 | `actor`, `reason`, `git_revision`, `trace_id` | The labels of the run, when set. |
 | `version` | The version of the pravo that began the transaction. A transaction written by a pravo that did not record it has none. |
-| `plan`, `plan_digest` | For an apply from a plan: the id of the stored plan, empty for a plan file, and the SHA-256 of the plan file in hex. |
+| `plan`, `plan_digest` | For an apply from a plan: the id of the stored plan, empty for a plan file, and the SHA-256 of the plan file in hex. For a plain apply that judged a plan, the id is empty and the digest is that of the plan it built. |
+| `policies` | Only when the apply judged a plan: the policy versions that judged it, as sorted lines `NAME@SEQ:SHA-256`, where the digest is that of the text. They are part of the start signature. A rejected apply lists them too. |
 | `start_sig`, `finish_sig` | In a sealed state: `{"signer", "key", "sig"}`, the signatures of the identity that ran the command: `key` is the SSH fingerprint of its signing key, and `sig` the 64 bytes of Ed25519 in base64. The first covers what the run set out to do, the second what it did. See [Signatures](protect.md#signatures). |
 
-The command line is evidence of what was run. It is written by the process that ran, in a log that is as writable as the state itself, and it prevents nothing. An apply that left out `--policy` is an entry without it, not a refusal. A plan that touches no record is not recorded. An apply, a rejection and a failure are. The `txn/` directory can be pruned at any time.
+The command line is evidence of what was run. It is written by the process that ran, in a log that is as writable as the state itself, and it prevents nothing. A plan that touches no record is not recorded. An apply, a rejection and a failure are. The `txn/` directory can be pruned at any time. A transaction that is gone cannot be verified: see [`pravo state verify`](state.md#verify).
 
 ## Locks and reservations
 
@@ -673,6 +676,7 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 | `collecting` | `by` and `at` of the collection that is about to remove the plan, in the form of `applying`. An apply that starts meanwhile is refused with exit code 3. A claim older than 10 minutes does not count, unless `committed` is `true`. |
 | `collecting.committed` | Set by a collection in a conditional write, just before it deletes: it succeeds only while the claim is that collection's and no apply runs. An apply is refused from then on, whatever its clock says, and the claim does not lapse for applies. Another collection finishes the removal when the claim has not been renewed for 10 minutes. |
 | `stale_since` | When a collection first saw the plan stale. A collection that runs more than an hour later removes the plan. A collection clears the field when it finds that the plan is not stale any more. |
+| `kept` | `true` once an apply judged the plan against the policies in force. No collection removes a kept plan, so that its receipt can be checked with `pravo state verify`. |
 | `done_at` | When every change that was pending has been applied, by whichever apply finished last. A collection removes the plan 24 hours later. A failed apply does not set it, so the outputs and the records that the plan only writes are left to the apply that finishes. |
 | `updated` | When the object was last written. |
 
@@ -728,9 +732,23 @@ The summary stays readable: the author, the actor, the reason, the times, the co
 
 A command without a key lists the stored plans from their summaries and fails with "you are not a reader of this state" when it is asked for what a plan holds. A plan that was stored before the seal is sealed in place when the state is sealed, unless an apply holds a claim on it; `pravo protect rewrap --all` seals the ones that were left.
 
+## Format 4: policies
+
+A policy is a `pravo.#Policy` node of the root. The first apply that carries one writes it to the state as a version, an object `policy/<name>@<seq>.json` where `<name>` is the address of the node, encoded as in [Addresses in file names](#addresses-in-file-names), and `<seq>` has eight digits. The first version raises `meta.json` to format 4, and a pravo that does not know format 4 refuses the store. A state needs to be sealed to hold one: the version is signed with the identity of whoever applies it.
+
+| Field | Meaning |
+|---|---|
+| `text` | The rule, as CUE text. Empty for a removal, which is a tombstone. |
+| `at` | When the version was signed, by the clock of the signer. Never earlier than the version it follows. |
+| `signature` | `{"signer", "key", "sig"}`, as for a transaction. The signature covers the lineage of the state, the encoded name, the number, the SHA-256 of the text and `at`, under the domain `pravo/v1/policy-version`. |
+
+A version is written with a put that fails when the object exists. A policy that changes gets the next number, and a policy that leaves the root gets a version with empty text. The policies in force are the latest version of each name that is not a tombstone. A pravo that reads the policies lists the keys, and refuses the state with exit code 7 when a key is not of this form, a number is missing, or the latest version of a name has no signature or a signature that does not verify. A signature by a key that the readers file does not list is accepted and shown.
+
+A transaction that judged a plan lists the versions in its signed start: see [Transactions](#transactions).
+
 ## Remote layout
 
-On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 and 3, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
+On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 to 4, `policy/<name>@<seq>.json` in format 4, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions, the policy versions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
 
 ## Discoveries
 

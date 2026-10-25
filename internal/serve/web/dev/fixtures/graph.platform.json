@@ -30,9 +30,6 @@
     "version": "2.5.1"
    }
   ],
-  "policies": [
-   "policy/no-public-db.cue"
-  ],
   "loaded_at": "2026-10-21T14:02:11Z"
  },
  "nodes": [

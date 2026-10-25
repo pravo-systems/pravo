@@ -67,7 +67,7 @@ func (s *syncWriter) Write(p []byte) (int, error) {
 // the directory that holds pravo first on PATH. Variables that change what
 // pravo prints for reasons that are not part of the example are removed.
 func newRunner(cfg config, binDir string) *runner {
-	drop := map[string]bool{"PWD": true, "NO_COLOR": true, "PRAVO_LOG": true, "PRAVO_ACTOR": true, "PRAVO_REASON": true}
+	drop := map[string]bool{"PWD": true, "NO_COLOR": true, "PRAVO_LOG": true, "PRAVO_ACTOR": true, "PRAVO_REASON": true, "TRACEPARENT": true, "TRACESTATE": true}
 	var env []string
 	havePath := false
 	for _, kv := range os.Environ() {

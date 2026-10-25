@@ -79,6 +79,8 @@ type PlanFile struct {
 	GitRevision string `json:"git_revision,omitempty"`
 	// Reservation, when the plan reserved its nodes.
 	Reservation *ReservationView `json:"reservation,omitempty"`
+	// Policies are the changes the plan makes to the policies in force.
+	Policies []PolicyEntry `json:"policies,omitempty"`
 	// ApplyTxn is the transaction of the last apply made from the file.
 	ApplyTxn string `json:"apply_txn,omitempty"`
 }
@@ -168,7 +170,7 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 		Format: PlanFileFormat, Created: time.Now().UTC(), Command: e.commandLine(), Lineage: e.State.Lineage(),
 		Tags: tags, SysTags: sysTags, Providers: map[string]string{}, Destroy: plan.Destroy, NoRefresh: plan.NoRefresh, Stats: plan.Stats,
 		Outputs: map[string]json.RawMessage{}, Actor: e.Opts.Actor, Reason: e.Opts.Reason, GitRevision: e.Opts.GitRevision,
-		Reservation: plan.Reservation, Relabels: plan.Relabels,
+		Reservation: plan.Reservation, Policies: plan.Policies, Relabels: plan.Relabels,
 	}
 	fp, err := e.Root.Fingerprint()
 	if err != nil {
@@ -319,7 +321,7 @@ func (e *ErrStalePlan) Error() string {
 
 // newPlan makes the plan that a file stands for, with the changes it holds.
 func (e *Engine) newPlan(pf *PlanFile) (*Plan, error) {
-	plan := &Plan{Outputs: map[string]cue.Value{}, Destroy: pf.Destroy, NoRefresh: pf.NoRefresh, Stats: pf.Stats, SavedOutputs: pf.Outputs, UnknownOutputs: pf.UnknownOutputs, SensitiveOutputs: stringSet(pf.SensitiveOutputs), Actor: pf.Actor, Reservation: pf.Reservation, Relabels: pf.Relabels,
+	plan := &Plan{Outputs: map[string]cue.Value{}, Destroy: pf.Destroy, NoRefresh: pf.NoRefresh, Stats: pf.Stats, SavedOutputs: pf.Outputs, UnknownOutputs: pf.UnknownOutputs, SensitiveOutputs: stringSet(pf.SensitiveOutputs), Actor: pf.Actor, Reservation: pf.Reservation, Policies: pf.Policies, Relabels: pf.Relabels,
 		Inputs: pf.Inputs, InputGenerations: pf.InputGenerations, EvalOutputs: pf.EvalOutputs, DropOutputs: pf.DropOutputs, OldOutputs: pf.OldOutputs}
 	for _, sc := range pf.Changes {
 		ch, err := e.restoreChange(sc)
@@ -781,7 +783,7 @@ func (p *Plan) Subset(addrs []string) (*Plan, error) {
 // to mark, and an apply that failed after it applied the other changes marked
 // them and did not record the outputs.
 func (pf *PlanFile) LeftToApply(remaining *Plan) bool {
-	if remaining.HasWrites() {
+	if remaining.hasProviderChanges() || remaining.HasDeclared() {
 		return true
 	}
 	return !remaining.Destroy && remaining.NeedsApply() && pf.ApplyTxn == ""

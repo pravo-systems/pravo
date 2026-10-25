@@ -7,6 +7,7 @@
 //   &stale=1                              the saved plan is stale, with reasons
 //   &plan=plan-2f9c1a4e                   the server lays that stored plan itself (pravo serve --plan plan-2f9c1a4e)
 //   &discovery=NAME                       the Discovery view answers discovery.NAME.json: platform (five discoveries of every freshness), empty
+//   &policies=NAME                        the Policies view answers policies.NAME.json: platform (six policies in every status), empty
 //   &traces=NAME                          the Traces view answers traces.NAME.json: platform (an apply, a plan, an apply that failed and a drift check), empty
 //   &access=NAME                          the Access view answers access.NAME.json: platform (sealed, a reader), off, immutable,
 //                                         drift, locked (no identity: every record is sealed), notreader, missing (no readers file), migrating, invalid,
@@ -56,6 +57,9 @@ if (graph) {
   }
 }
 // ---- the Discovery view: discovery.NAME.json, the platform's unless the query says another ----
+// ---- the Policies view: policies.NAME.json, the platform's unless the query says another ----
+let policiesName = params.get('policies') || (NAME === 'platform' ? 'platform' : 'empty');
+let policies = await fixture(`policies.${policiesName}.json`);
 // ---- the Traces view: traces.NAME.json lists the runs, and trace.XXXXXXXX.json (the first eight digits of the id) is each one ----
 let tracesName = params.get('traces') || (NAME === 'platform' ? 'platform' : 'empty');
 let traces = (await fixture(`traces.${tracesName}.json`)) || { version: 1, dir: '.pravo/traces', traces: [] };
@@ -366,6 +370,7 @@ window.fetch = async (input, init) => {
   if (p === '/api/graph') return json(200, graph);
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
   if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/policies') return policies ? json(200, shift(Object.assign({}, policies, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
   if (p === '/api/adopt') {
     const a = adoptOf(url.searchParams.get('discovery') || '', url.searchParams.get('key') || '');
     return a ? json(200, a) : json(404, { error: 'no such object in the last run of that discovery' });

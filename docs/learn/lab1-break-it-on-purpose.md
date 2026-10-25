@@ -8,6 +8,9 @@ needs: B10
 learn: Which stage of a run produces which failure? Which exit code does each one give?
 done_when: "You have caused a failure with each of the exit codes 1 to 6. You can say which stage produced it."
 level: intermediate
+env:
+  PRAVO_PASSPHRASE: an example passphrase
+  PRAVO_CONFIG_DIR: people/ada
 normalize:
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
@@ -15,6 +18,8 @@ normalize:
     replace: "txn <txn>"
   - pattern: "after ([0-9]+m)?[0-9.]+s"
     replace: "after 0s"
+  - pattern: "<sealed:[0-9a-f]+>"
+    replace: "<sealed>"
   - pattern: "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})"
     replace: "<time>"
 ---
@@ -25,7 +30,7 @@ Each fault is declared before it runs. A badge says what to expect. `conflict` m
 
 ## The root that works
 
-Work in an empty directory. The root lives in `root`, a policy lives in `policy`, and every command names the root with `-C`.
+Work in an empty directory. The root lives in `root`, and every command names it with `-C`.
 
 ```cue file=root/main.cue title="root/main.cue"
 package main
@@ -46,18 +51,6 @@ manifest: $local.#Resource.local_file & {
 	filename: "manifest-\(env).txt"
 	content:  "release \(release.result)\n"
 }
-```
-
-```cue file=policy/no-delete.cue title="policy/no-delete.cue"
-// A plan may create and change. It may not delete.
-changes: [...{
-	addr:   string
-	mode:   string
-	action: string
-	if mode == "managed" && action == "delete" {
-		error("\(addr): delete is not allowed")
-	}
-}]
 ```
 
 ```sh run
@@ -281,6 +274,44 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 
 ### Fault 7: a plan that a policy refuses
 
+A policy version is signed by whoever applies it, so the state must be sealed. Make an identity, list it as a reader, and seal the state.
+
+```sh run
+mkdir -p root/.pravo/access
+pravo -C root id new --name ada | grep '^  ada ssh' | sed 's/^  //' > root/.pravo/access/readers.txt
+pravo -C root protect init --encrypt --yes --allow-local > /dev/null
+```
+
+Add a policy to the root and apply it. The policy does not judge the plan that adds it.
+
+```cue file=root/no_delete.cue title="root/no_delete.cue"
+package main
+
+import "pravo.dev/pravo"
+
+no_delete: pravo.#Policy & {
+	rule: #"""
+		// A plan may create and change. It may not delete.
+		changes: [...{
+			addr:   string
+			mode:   string
+			action: string
+			if mode == "managed" && action == "delete" {
+				error("\(addr): delete is not allowed")
+			}
+		}]
+		"""#
+}
+```
+
+```sh run
+pravo -C root apply --auto-approve | tail -n 1
+```
+
+```text out
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
+```
+
 Delete `extra.cue`. The specification is valid, and the plan now deletes `extra`.
 
 ```sh run
@@ -288,7 +319,7 @@ rm root/extra.cue
 ```
 
 ```sh run exit=5
-pravo -C root plan --policy ../policy/no-delete.cue
+pravo -C root plan
 ```
 
 ```text out
@@ -301,9 +332,9 @@ pravo -C root plan --policy ../policy/no-delete.cue
 Plan: 0 to add, 0 to change, 1 to destroy.
 Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
-Error: the plan violates the policy ../policy/no-delete.cue (sha256:a1757b6a34e5):
-changes.2: extra: delete is not allowed:
-    ../policy/no-delete.cue:7:3
+Error: the plan violates the policy no_delete@1 (sha256:df9548301ce9):
+changes.0: extra: delete is not allowed:
+    no_delete:7:3
 ```
 
 Exit code 5 is a policy. Nothing was applied. Revert by writing the file again.
@@ -340,11 +371,10 @@ pravo -C root plan --reserve 15m --actor ana
   + late: {
   +     content:              "late\n"
 ...
-    }
-
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 3 · not read 3
 Reserved 1 node until <time>.
+Policy no_delete@1:df9548301ce91fdcdb29d3497d163b41ecb60c6467ea12f20054c8a88539ab79 is satisfied.
 ```
 
 `pravo state locks` lists the claim.
@@ -354,7 +384,7 @@ pravo -C root state locks
 ```
 
 ```text out
-late  reserved by ana until <time>: pravo -C root plan --reserve 15m --actor ana
+late  reserved by ana until <time>: pravo -C root plan --reserve 15m --actor <sealed>
 ```
 
 Bob tries to apply. The actor label is not verified, and it is how reservations tell people apart.
@@ -365,7 +395,7 @@ pravo -C root apply --auto-approve --actor bob
 
 ```text out
 ...
-Error: plan rejected: late is reserved by ana (pravo -C root plan --reserve 15m --actor ana until <time>, since <time>)
+Error: plan rejected: late is reserved by ana (pravo -C root plan --reserve 15m --actor <sealed> until <time>, since <time>)
 ```
 
 Exit code 4 is a resource that another actor holds. Ana releases the claim, and Bob applies.
@@ -441,13 +471,16 @@ Exit code 1 is any failure that has no code of its own. Examples are a missing o
 
 Faults 1 to 5 stop before any provider starts. Faults 6 to 10 need a plan, a state or a world. The reference lists every exit code: [Exit codes](../reference/exit-codes.md).
 
-Remove what the lab created.
+Remove what the lab created. The policy refuses a destroy, so remove the policy first. A plan that changes no resource is not judged.
 
 ```sh run
+rm root/no_delete.cue
+pravo -C root apply --auto-approve | tail -n 1
 pravo -C root destroy --auto-approve | tail -n 1
 ```
 
 ```text out
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 Destroy complete! Resources: 0 added, 0 changed, 4 destroyed. [txn <txn>]
 ```
 

@@ -37,6 +37,21 @@ package pravo
 	sensitive?: bool
 }
 
+// A rule that every plan is judged by at apply. The apply refuses a plan with
+// resource changes unless the rule holds for it; a rule is kept in the state as
+// a signed version, and the signed start of each apply lists the versions that
+// judged it. The name is the path the policy sits at.
+//
+//	no_destroy: pravo.#Policy & {rule: "summary: destroy: 0"}
+#Policy: {
+	$kind: "policy"
+	// Standalone CUE, using the standard library only, unified with the plan
+	// document, which it must make concrete.
+	rule: string & != ""
+	// What the policy is for.
+	description?: string
+}
+
 // The value of an environment variable, read when the run starts. It is an
 // ordinary value, recorded wherever it is used. Use #SecretEnv for a secret.
 //

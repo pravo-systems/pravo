@@ -6,26 +6,6 @@ import (
 	"testing"
 )
 
-func TestServerPolicyArgs(t *testing.T) {
-	defer func(old []string) { flagPolicy = old }(flagPolicy)
-	flagPolicy = []string{"/etc/pravo/prod.cue", "/etc/pravo/size.cue"}
-	want := []string{"--policy", "/etc/pravo/prod.cue", "--policy", "/etc/pravo/size.cue"}
-	for _, tool := range [][]string{{"plan", "-out", "x"}, {"apply", "x.plan"}, {"apply", "-auto-approve"}} {
-		if got := serverPolicyArgs(tool); !reflect.DeepEqual(got, want) {
-			t.Errorf("%v: got %v, want %v", tool, got, want)
-		}
-	}
-	for _, tool := range [][]string{{"validate"}, {"show", "x.plan"}, {"state", "query"}, {"drift"}, {}} {
-		if got := serverPolicyArgs(tool); got != nil {
-			t.Errorf("%v takes no policy flag, got %v", tool, got)
-		}
-	}
-	flagPolicy = nil
-	if got := serverPolicyArgs([]string{"plan"}); got != nil {
-		t.Errorf("no policies, no arguments: %v", got)
-	}
-}
-
 // A tool argument that the command line would read as a flag is refused, so
 // that a plan file named -auto-approve cannot turn an apply of a saved plan
 // into a plain apply, and an address cannot carry -C=/other.
@@ -86,8 +66,7 @@ func TestToolsTakePlanFilesAndStoredPlanIDs(t *testing.T) {
 	}
 }
 
-// The tools that store and list plans offer what the commands do, and the server adds
-// its policies to the plan and the apply and not to the commands that only list.
+// The tools that store and list plans offer what the commands do.
 func TestToolsStoreAndListPlans(t *testing.T) {
 	byName := map[string]mcpTool{}
 	for _, tool := range mcpTools() {
@@ -103,18 +82,6 @@ func TestToolsStoreAndListPlans(t *testing.T) {
 	}
 	if _, err := byName["pravo_plan_list"].args(map[string]any{"touching": "--json"}); err == nil {
 		t.Error("an address that looks like a flag was accepted")
-	}
-	flagPolicy = []string{"/etc/pravo/prod.cue"}
-	defer func() { flagPolicy = nil }()
-	for _, args := range [][]string{{"plan", "list"}, {"plan", "list", "-all"}, {"plan", "show", "plan-2f9c1a4e"}, {"plan", "gc"}} {
-		if p := serverPolicyArgs(args); p != nil {
-			t.Errorf("%v takes no policy, got %v", args, p)
-		}
-	}
-	for _, args := range [][]string{{"plan", "-store"}, {"plan", "-t", "a=b"}, {"apply", "plan-2f9c1a4e"}} {
-		if p := serverPolicyArgs(args); len(p) != 2 {
-			t.Errorf("%v takes the policy, got %v", args, p)
-		}
 	}
 }
 
