@@ -110,7 +110,7 @@ The strip above the tabs has the cells Action, Record, Lock, Revision and Refres
 
 ### Stored plans
 
-The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first, A row of a plan that can still be applied ends its second line with the same ring: it turns amber under a day and red under three hours, and then says the time that is left in words; its tooltip gives the time of expiry. A click on a row opens its detail. The button View on a row lays that plan over the resources and goes to Inventory, and a strip under the bar says which plan it is while one is. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
+The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first, A row of a plan that can still be applied ends its second line with the same ring: it is blue, turns amber under a day and red under three hours, and then says the time that is left in words; its tooltip gives the time of expiry. A click on a row opens its detail. The button View on a row lays that plan over the resources and goes to Inventory, and a strip under the bar says which plan it is while one is. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
 
 | Part | Holds |
 |---|---|

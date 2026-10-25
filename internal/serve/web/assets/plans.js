@@ -5,12 +5,13 @@
 
 import { h, s as svgEl, clear, icon, relTime, relUntil, stamp, plural, signatureMark } from './util.js';
 
-// STATUS says where a plan stands. The word is the carrier; the colour agrees with it: green can be applied,
-// blue is part way, amber moved on, grey is over. A plan that is partly stale is amber: the
-// state moved on under some of its changes, and the rest can be applied.
+// STATUS says where a plan stands. The word is the carrier; the colour agrees with it, and with the history of the
+// transactions: blue can still be applied (the whole of it or what is left), green was applied, amber moved on,
+// grey is over. A plan that is partly stale is amber: the state moved on under some of its changes, and the rest
+// can be applied.
 export const STATUS = {
-  pending: { cls: 'ok', tip: 'It can be applied.' },
-  partial: { cls: 'lock', tip: 'Some of its changes were applied; the rest can be.' },
+  pending: { cls: 'open', tip: 'It can be applied.' },
+  partial: { cls: 'open', tip: 'Some of its changes were applied; the rest can be.' },
   'partly-stale': { cls: 'half', tip: 'The state moved on under some of its changes. The rest can be applied by name.' },
   stale: { cls: 'chg', tip: 'The state moved on, so it can no longer be applied.' },
   applied: { cls: 'done', tip: 'Every change was applied.' },
@@ -49,7 +50,8 @@ export function statusChip(status) {
 }
 
 // expiryRing is the small ring that says how much of the life of a plan that can be applied is left: grey for the time
-// that has gone and the colour of the plan for the time that remains, amber under a day and red under three hours.
+// that has gone and blue, the colour of a plan that can be applied, for the time that remains, amber under a day and
+// red under three hours.
 // The words come with it when the time is short, and the tooltip always has them.
 export function expiryRing(p, now = Date.now()) {
   if (!p.open || !p.created || !p.expires) return null;
@@ -57,7 +59,7 @@ export function expiryRing(p, now = Date.now()) {
   if (!(end > start)) return null;
   const left = Math.max(0, end - now);
   const hours = left / 36e5;
-  const cls = hours < 3 ? 'bad' : hours < 24 ? 'chg' : 'ok';
+  const cls = hours < 3 ? 'bad' : hours < 24 ? 'chg' : 'open';
   const size = 16, r = 6, c = 2 * Math.PI * r, mid = size / 2;
   const svg = svgEl('svg', { width: size, height: size, viewBox: `0 0 ${size} ${size}`, 'aria-hidden': 'true' },
     svgEl('circle', { class: 'rg-track', cx: mid, cy: mid, r, fill: 'none', 'stroke-width': 1.75 }),

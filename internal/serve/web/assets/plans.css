@@ -26,7 +26,7 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: .5rem
 /* ---- the status of a plan ---- */
 .b.ps { padding: .16rem .34rem; font-size: .56rem; letter-spacing: .06em; flex: none; }
 .b.ps .i { width: .65rem; height: .65rem; }
-.b.ps-ok { --c: var(--accent); } .b.ps-lock { --c: var(--key); } .b.ps-chg { --c: var(--change); } .b.ps-done { --c: var(--text-2); } .b.ps-gone { --c: var(--text-3); border-style: dashed; }
+.b.ps-open { --c: var(--key); } .b.ps-done { --c: var(--accent); } .b.ps-chg { --c: var(--change); } .b.ps-gone { --c: var(--text-3); border-style: dashed; }
 /* partly stale: the amber of a plan that the state moved on from (the word says that part of it can still be applied) */
 .b.ps-half { --c: var(--change); }
 
@@ -178,7 +178,7 @@ body:has(.app[data-view="access"]) .planstrip, body:has(.app[data-view="plans"])
 .rg { display: inline-flex; align-items: center; gap: .3rem; flex: none; }
 .rg svg { display: block; }
 .rg .rg-track { stroke: var(--line-strong); }
-.rg .rg-left { stroke: var(--accent); }
+.rg .rg-left { stroke: var(--key); }
 .rg-chg .rg-left { stroke: var(--change); } .rg-bad .rg-left { stroke: var(--conflict); }
 .rg-t { font: 400 .68rem/1 var(--font-mono); white-space: nowrap; }
 .rg-chg .rg-t { color: var(--change); } .rg-bad .rg-t { color: var(--conflict); }
