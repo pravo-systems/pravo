@@ -6,7 +6,7 @@ import { TOKEN, addTerm, removeValues } from './query.js';
 import { LANG, ALIAS, COLUMNS, valueOf, labelOf } from './trace-model.js';
 
 const HINTS = {
-  kind: 'command, engine, phase, setup, resource, provider, state, seal, tool call',
+  kind: 'command, engine, phase, setup, resource, provider, state, seal, network, tool call',
   is: 'error keeps the spans that failed',
   provider: 'The provider a span is for: aws, random',
   type: 'The resource type: aws_s3_bucket, or aws_s3* for a run of them',
@@ -20,10 +20,11 @@ const KIND_HINTS = {
   provider: 'A call to a provider',
   state: 'A request to the state: a read, a write, a lock',
   seal: 'Sealing a value for the state, or unsealing one: the keys, a record, the outputs, a plan',
+  network: 'A request a provider made over the network: method, host, path and status, never headers or bodies',
   command: 'The command itself',
   mcp: 'A call of the tool server',
 };
-export const KIND_ORDER = ['engine', 'phase', 'setup', 'resource', 'provider', 'state', 'seal', 'command', 'mcp'];
+export const KIND_ORDER = ['engine', 'phase', 'setup', 'resource', 'provider', 'state', 'seal', 'network', 'command', 'mcp'];
 const rank = (k) => { const i = KIND_ORDER.indexOf(k); return i < 0 ? 99 : i; };
 
 // tally counts what the spans hold for a column, most first, with the kinds in the order they run in.

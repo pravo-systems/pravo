@@ -19,8 +19,8 @@ const MIN_WINDOW = 20; // the narrowest window, in microseconds
 const PAGE = 300; // rows of the table before the button that shows more
 const CHAR = 6.4; // the width of a character of the label of a bar, in pixels
 
-const KIND = { command: 'command', engine: 'engine', phase: 'phase', setup: 'setup', resource: 'resource', provider: 'provider call', state: 'state request', seal: 'seal', mcp: 'tool call', other: 'span' };
-const CHIP = { engine: 'Engine', phase: 'Phases', setup: 'Setup', resource: 'Resources', provider: 'Providers', state: 'State', seal: 'Sealing', mcp: 'Tools' };
+const KIND = { command: 'command', engine: 'engine', phase: 'phase', setup: 'setup', resource: 'resource', provider: 'provider call', state: 'state request', seal: 'seal', network: 'network call', mcp: 'tool call', other: 'span' };
+const CHIP = { engine: 'Engine', phase: 'Phases', setup: 'Setup', resource: 'Resources', provider: 'Providers', state: 'State', seal: 'Sealing', network: 'Network', mcp: 'Tools' };
 
 export const FOOTER = 'This page reads the runs that pravo recorded. It runs nothing and writes nothing.';
 

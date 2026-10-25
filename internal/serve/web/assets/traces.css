@@ -85,16 +85,16 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-grid { stroke: var(--line); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
 /* The earth palette: a brown ink, rust for resources, sage for the calls out of the process, ochre for sealing. A span is its
    colour as a border over a faint wash of the same colour, which keeps a bar a block and the labels in the text colour. */
-.tr { --k-command: #2b2118; --k-engine: #7a3b1d; --k-phase: #b98a5e; --k-setup: #b9a27a; --k-resource: #b4532a; --k-provider: #3f6b5a; --k-seal: #b8860b;
+.tr { --k-command: #2b2118; --k-engine: #7a3b1d; --k-phase: #b98a5e; --k-setup: #b9a27a; --k-resource: #b4532a; --k-provider: #3f6b5a; --k-seal: #b8860b; --k-network: #46607a;
   --k-state: color-mix(in srgb, #8a7a66 70%, var(--surface)); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .tr { --k-command: #e9dcc7; --k-engine: #e0955f; --k-phase: #c79a68; --k-setup: #9a8560; --k-resource: #e8743a; --k-provider: #6dbb9f; --k-seal: #f0c040;
+  :root:not([data-theme="light"]) .tr { --k-command: #e9dcc7; --k-engine: #e0955f; --k-phase: #c79a68; --k-setup: #9a8560; --k-resource: #e8743a; --k-provider: #6dbb9f; --k-seal: #f0c040; --k-network: #7fa3c7;
     --k-state: color-mix(in srgb, #a89880 55%, var(--surface)); }
 }
-:root[data-theme="dark"] .tr { --k-command: #e9dcc7; --k-engine: #e0955f; --k-phase: #c79a68; --k-setup: #9a8560; --k-resource: #e8743a; --k-provider: #6dbb9f; --k-seal: #f0c040;
+:root[data-theme="dark"] .tr { --k-command: #e9dcc7; --k-engine: #e0955f; --k-phase: #c79a68; --k-setup: #9a8560; --k-resource: #e8743a; --k-provider: #6dbb9f; --k-seal: #f0c040; --k-network: #7fa3c7;
   --k-state: color-mix(in srgb, #a89880 55%, var(--surface)); }
 .k-command, .k-mcp { --k: var(--k-command); } .k-engine { --k: var(--k-engine); } .k-phase { --k: var(--k-phase); } .k-setup { --k: var(--k-setup); }
-.k-resource { --k: var(--k-resource); } .k-provider { --k: var(--k-provider); } .k-state { --k: var(--k-state); } .k-seal { --k: var(--k-seal); }
+.k-resource { --k: var(--k-resource); } .k-provider { --k: var(--k-provider); } .k-state { --k: var(--k-state); } .k-seal { --k: var(--k-seal); } .k-network { --k: var(--k-network); }
 .bar { cursor: pointer; fill: color-mix(in srgb, var(--k, var(--text-3)) 18%, var(--surface)); stroke: var(--k, var(--text-3)); stroke-width: 1; }
 .bar.err { --k: var(--conflict); fill: color-mix(in srgb, var(--conflict) 22%, var(--surface)); }
 .bar.dim, .tr-bt.dim, .tr-bd.dim { opacity: .2; }

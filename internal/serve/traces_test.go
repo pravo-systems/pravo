@@ -201,7 +201,7 @@ func TestSpanKinds(t *testing.T) {
 	for name, want := range map[string]string{
 		"pravo plan": "command", "engine apply": "engine", "engine discover prod": "engine", "phase lock": "phase",
 		"setup load specification": "setup", "config evaluate": "setup", "resource a.b": "resource",
-		"provider ReadResource": "provider", "state get resources/a.json": "state", "mcp tools/call x": "mcp", "unseal resource a.b": "seal", "seal outputs": "seal", "unseal state keys": "seal", "anything": "other",
+		"provider ReadResource": "provider", "state get resources/a.json": "state", "mcp tools/call x": "mcp", "unseal resource a.b": "seal", "seal outputs": "seal", "unseal state keys": "seal", "network GET s3.amazonaws.com": "network", "network tunnel s3.amazonaws.com": "network", "anything": "other",
 	} {
 		if got := spanKind(name); got != want {
 			t.Errorf("%q is %s, want %s", name, got, want)

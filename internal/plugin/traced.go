@@ -2,12 +2,14 @@ package plugin
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
@@ -20,6 +22,50 @@ type Traced struct {
 	name  string
 	// instance is the key of the provider block the process serves, "aws.west" for one of several, "" before it is known.
 	instance string
+
+	mu      sync.Mutex
+	running []context.Context
+	capture *netcap.Capture
+}
+
+// AttachCapture makes the network calls of the provider p spans under the RPC that is running, and closes c with p. It does
+// nothing for a provider that is not traced, and then c is closed at once.
+func AttachCapture(p Provider, c *netcap.Capture) {
+	t, ok := p.(*Traced)
+	if !ok {
+		c.Close()
+		return
+	}
+	t.capture = c
+	c.Parent = t.parent
+}
+
+// parent is the context of the newest RPC still running, which is the best guess for who a request belongs to when several
+// run at once; nil when none does.
+func (t *Traced) parent() context.Context {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if n := len(t.running); n > 0 {
+		return t.running[n-1]
+	}
+	return nil
+}
+
+func (t *Traced) push(ctx context.Context) {
+	t.mu.Lock()
+	t.running = append(t.running, ctx)
+	t.mu.Unlock()
+}
+
+func (t *Traced) pop(ctx context.Context) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for i := len(t.running) - 1; i >= 0; i-- {
+		if t.running[i] == ctx {
+			t.running = append(t.running[:i], t.running[i+1:]...)
+			return
+		}
+	}
 }
 
 // SetInstance says which instance of the provider p is, so that its spans name it. It does nothing for a provider that is
@@ -50,7 +96,13 @@ func (t *Traced) begin(ctx context.Context, method, typ string) (context.Context
 	}
 	ctx, span := telemetry.Tracer().Start(ctx, "provider "+method, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
 	start := time.Now()
+	if t.capture != nil {
+		t.push(ctx)
+	}
 	return ctx, func(err error, diags Diagnostics) {
+		if t.capture != nil {
+			t.pop(ctx)
+		}
 		if err == nil {
 			err = diags.Err()
 		}
@@ -63,7 +115,12 @@ func (t *Traced) begin(ctx context.Context, method, typ string) (context.Context
 }
 
 func (t *Traced) ProtocolVersion() int { return t.inner.ProtocolVersion() }
-func (t *Traced) Close()               { t.inner.Close() }
+func (t *Traced) Close() {
+	t.inner.Close()
+	if t.capture != nil {
+		t.capture.Close()
+	}
+}
 
 // Stop is shutdown housekeeping, run outside any trace; it is not a span.
 func (t *Traced) Stop(ctx context.Context) error { return t.inner.Stop(ctx) }

@@ -92,6 +92,9 @@ type EventData struct {
 	Attrs map[string]any `json:"attrs,omitempty"`
 }
 
+// Recording reports whether the runs are being recorded in the project (PRAVO_TRACES=on).
+func Recording() bool { return recordingEnabled() }
+
 func recordingEnabled() bool {
 	if strings.EqualFold(os.Getenv("OTEL_SDK_DISABLED"), "true") {
 		return false
@@ -124,7 +127,7 @@ func (r *recorder) OnEnd(s sdktrace.ReadOnlySpan) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	n := len(r.spans)
-	if n >= maxSpansHard || (n >= maxSpans && (strings.HasPrefix(s.Name(), "provider ") || strings.HasPrefix(s.Name(), "state ") || strings.HasPrefix(s.Name(), "seal ") || strings.HasPrefix(s.Name(), "unseal "))) {
+	if n >= maxSpansHard || (n >= maxSpans && (strings.HasPrefix(s.Name(), "provider ") || strings.HasPrefix(s.Name(), "network ") || strings.HasPrefix(s.Name(), "state ") || strings.HasPrefix(s.Name(), "seal ") || strings.HasPrefix(s.Name(), "unseal "))) {
 		r.dropped++
 		return
 	}

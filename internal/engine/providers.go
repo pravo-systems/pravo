@@ -18,6 +18,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
@@ -388,15 +389,36 @@ func (m *Providers) startProvider(local string, rp *ResolvedProvider) (plugin.Pr
 	}
 	var p plugin.Provider
 	var err error
+	var capture *netcap.Capture
 	if rp.Reattached() {
 		p, err = plugin.Reattach(*rp.Reattach, nil)
 	} else {
-		p, err = plugin.Start(rp.Path, nil)
+		var env []string
+		if netcap.Enabled() {
+			// A capture that cannot start is no reason to stop the run: the provider goes without one.
+			if capture, err = netcap.New(); err == nil {
+				env = capture.Env()
+			} else {
+				capture = nil
+			}
+		}
+		p, err = plugin.StartWith(rp.Path, nil, env)
+		if err != nil && capture != nil {
+			capture.Close()
+		}
 	}
 	if err != nil {
 		return nil, err
 	}
-	return plugin.Wrap(p, local)
+	w, err := plugin.Wrap(p, local)
+	if capture != nil {
+		if err != nil {
+			capture.Close()
+		} else {
+			plugin.AttachCapture(w, capture)
+		}
+	}
+	return w, err
 }
 
 // Unconfigured returns a running provider without configuring it, which is

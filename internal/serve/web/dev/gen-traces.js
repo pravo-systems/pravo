@@ -36,6 +36,14 @@ function makeRun(opts) {
     spans.push(s);
     return s;
   };
+  // what an AWS provider calls under an RPC: the service by the resource type, a read first, a write when it applies
+  const net = (parent, type, write) => {
+    const svc = ({ aws_s3: 's3', aws_db: 'rds', aws_vpc: 'ec2', aws_subnet: 'ec2', aws_security: 'ec2', aws_iam: 'iam', aws_lambda: 'lambda', aws_sqs: 'sqs', aws_dynamodb: 'dynamodb' })[type.split('_').slice(0, 2).join('_')] || 'ec2';
+    const host = svc + '.eu-west-1.amazonaws.com';
+    const call = (method, path, from, to, status, bytes) => span('network ' + method + ' ' + host, parent, parent.start_us + Math.round(parent.dur_us * from), Math.round(parent.dur_us * (to - from)), { 'http.request.method': method, 'server.address': host, 'url.scheme': 'https', 'url.path': path, 'pravo.net.decrypted': true, 'http.response.status_code': status, 'pravo.net.request_bytes': bytes[0], 'pravo.net.response_bytes': bytes[1] });
+    if (write) { call('POST', '/', 0.05, 0.62, 200, [820, 1460]); call('POST', '/', 0.66, 0.95, 200, [310, 2210]); }
+    else call('POST', '/', 0.1, 0.9, 200, [290, 1980]);
+  };
   const jit = (v, spread = 0.35) => v * (1 + (r() - 0.5) * 2 * spread);
   const cmd = { apply: 'pravo apply', plan: 'pravo plan', drift: 'pravo drift', failed: 'pravo apply' }[kind];
   const root = span(cmd, null, 0, 0, {}, {});
@@ -111,6 +119,7 @@ function makeRun(opts) {
       const rpc = (method, d, extra = {}) => {
         const s = span('provider ' + method, rs, c, d, { 'rpc.system': 'grpc', 'rpc.service': 'tfplugin.Provider', 'rpc.method': method, 'pravo.provider': attrs['pravo.provider'], 'pravo.provider.instance': attrs['pravo.provider'], 'pravo.protocol': 6, 'pravo.resource.type': it.type, ...extra });
         c += s.dur_us;
+        if (attrs['pravo.provider'] === 'aws' && (method === 'ReadResource' || method === 'ApplyResourceChange')) net(s, it.type, method === 'ApplyResourceChange');
         return s;
       };
       ev(rs, 'configuring provider', c, { provider: attrs['pravo.provider'] });

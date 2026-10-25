@@ -64,12 +64,15 @@ func providerEnv(environ []string) []string {
 
 // Start launches the provider binary at path and negotiates the protocol.
 // The returned Provider must be closed with Close.
-func Start(path string, logger hclog.Logger) (Provider, error) {
+func Start(path string, logger hclog.Logger) (Provider, error) { return StartWith(path, logger, nil) }
+
+// StartWith is Start with extra variables in the environment of the provider, after the ones every provider gets.
+func StartWith(path string, logger hclog.Logger, extraEnv []string) (Provider, error) {
 	if logger == nil {
 		logger = Logger()
 	}
 	cmd := exec.Command(path)
-	cmd.Env = providerEnv(os.Environ())
+	cmd.Env = append(providerEnv(os.Environ()), extraEnv...)
 	client := goplugin.NewClient(&goplugin.ClientConfig{
 		HandshakeConfig: Handshake,
 		VersionedPlugins: map[int]goplugin.PluginSet{

@@ -132,7 +132,7 @@ no state directory
 
 ## Does pravo send telemetry?
 
-No. pravo exports OpenTelemetry traces and metrics only when the `OTEL_*` variables configure it. A command that did some work also keeps its own trace in `.pravo/traces` of the project, when you set `PRAVO_TRACES=on`; it stays on the machine and nothing is recorded without it. See [Telemetry](telemetry.md).
+No. pravo exports OpenTelemetry traces and metrics only when the `OTEL_*` variables configure it. A command that did some work also keeps its own trace in `.pravo/traces` of the project, when you set `PRAVO_TRACES=on`; it stays on the machine and nothing is recorded without it. With it, the requests that the providers send over the network are recorded too (method, host, path and status, never a header, a body or a query); `PRAVO_TRACES_NET=off` leaves them out. See [Telemetry](telemetry.md).
 
 ## What is the license?
 

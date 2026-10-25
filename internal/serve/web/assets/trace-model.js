@@ -111,6 +111,11 @@ export function labelOf(sp) {
   if (sp.kind === 'provider') return (sp.attrs && (sp.attrs['pravo.provider.instance'] || sp.attrs['pravo.provider']) ? (sp.attrs['pravo.provider.instance'] || sp.attrs['pravo.provider']) + ' · ' : '') + sp.name.replace(/^provider /, '');
   if (sp.kind === 'phase' || sp.kind === 'setup' || sp.kind === 'state') return sp.name.replace(/^(phase|setup|state) /, '');
   if (sp.kind === 'seal') return sp.name;
+  if (sp.kind === 'network') {
+    const at = sp.attrs || {};
+    if (sp.name.startsWith('network tunnel ')) return 'tunnel ' + sp.name.slice(15);
+    return [at['http.request.method'], at['server.address'], at['url.path']].filter(Boolean).join(' ') || sp.name.replace(/^network /, '');
+  }
   return sp.name;
 }
 
