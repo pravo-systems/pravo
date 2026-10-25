@@ -103,7 +103,8 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 				continue
 			}
 			entry := HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: maskWith(sec, t.User), Actor: maskWith(sec, t.Actor),
-				Command: scrubCommand(t.Command, sec), Reason: maskWith(sec, t.Reason), Action: c.Action, RevBefore: c.Before, RevAfter: c.After}
+				Command: scrubCommand(t.Command, sec), Reason: maskWith(sec, t.Reason), Action: c.Action, RevBefore: c.Before, RevAfter: c.After,
+				Plan: maskWith(sec, t.PlanID), GitRevision: maskWith(sec, t.GitRevision)}
 			if verify := m.srv.opts.VerifyTxn; verify != nil {
 				t := t
 				if status, signer := verify(m.store, &t); status != "" {

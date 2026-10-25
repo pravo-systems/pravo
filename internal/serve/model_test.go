@@ -390,3 +390,32 @@ func TestHistoryShowsTheSignatureOfATransaction(t *testing.T) {
 		t.Errorf("history %+v", h)
 	}
 }
+
+// An apply that ran from a stored plan names the plan, and the revision of the
+// specification it ran against, in the history of the node.
+func TestHistoryNamesThePlanAndTheRevision(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	st.SetActor("", "", "0123456789abcdef")
+	txn := st.Begin("apply", "pravo apply plan-12345678")
+	txn.SetPlan("plan-12345678", "feed")
+	r := st.Get("services.a.db")
+	next := *r
+	if err := st.Set(&next, txn.ID()); err != nil {
+		t.Fatal(err)
+	}
+	txn.Record("services.a.db", "update", r.Revision, next.Revision)
+	if err := txn.Finish("applied", "1 updated", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{})
+	h := p.detail("services.a.db").History
+	if len(h) != 2 || h[0].Plan != "plan-12345678" || h[0].GitRevision != "0123456789abcdef" || h[1].Plan != "" {
+		t.Fatalf("history %+v", h)
+	}
+}

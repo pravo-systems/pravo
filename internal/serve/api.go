@@ -345,6 +345,10 @@ type HistoryEntry struct {
 	Action    string    `json:"action,omitempty"`
 	RevBefore int       `json:"rev_before,omitempty"`
 	RevAfter  int       `json:"rev_after,omitempty"`
+	// Plan is the stored plan an apply ran from, and GitRevision the revision of
+	// the specification it ran against, as the transaction recorded them.
+	Plan        string `json:"plan,omitempty"`
+	GitRevision string `json:"git_revision,omitempty"`
 	// Signature is what the signatures of the transaction come to: "verified",
 	// "key_not_in_file", "invalid" or "unsigned", absent when they are not checked.
 	// Signer is the name the readers file gives the key of a signature that verified.

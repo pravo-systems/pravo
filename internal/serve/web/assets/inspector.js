@@ -555,6 +555,12 @@ export class Inspector {
 
   // ---- History ----
 
+  // planLink names the plan an apply ran from; it lays the plan over the graph while the state still stores it
+  planLink(id) {
+    if (!this.model.planById.has(id)) return h('span', { title: 'The plan is not stored any more' }, id);
+    return h('button', { class: 'linkbtn', type: 'button', data: { plan: id }, 'aria-label': `Lay ${id} over the graph` }, id);
+  }
+
   historyPane(d) {
     const list = d.history || [];
     if (!list.length) {
@@ -577,6 +583,8 @@ export class Inspector {
           h('div', { class: 'tl-meta' },
             h('span', { title: e.id }, e.id),
             e.user || e.actor ? h('span', null, [e.user, e.actor].filter(Boolean).join(' · ')) : null,
+            e.plan ? this.planLink(e.plan) : null,
+            e.git_revision ? h('span', { title: 'Revision of the specification' }, 'git ' + e.git_revision.slice(0, 8)) : null,
             e.signature ? signatureMark(e.signature, e.signer) : null,
             e.rev_before || e.rev_after ? h('span', null, `rev ${e.rev_before || 0} → ${e.rev_after || 0}`) : null))));
     }
