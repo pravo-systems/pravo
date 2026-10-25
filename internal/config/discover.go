@@ -277,7 +277,8 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		if err != nil {
 			return fmt.Errorf("policy %s: %w", p, err)
 		}
-		r.Policies = append(r.Policies, &Policy{Name: p.String(), Path: p, Rule: rule})
+		desc, _ := v.LookupPath(cue.ParsePath("description")).String()
+		r.Policies = append(r.Policies, &Policy{Name: p.String(), Path: p, Description: desc, Rule: rule})
 		return nil
 	case "remote_outputs":
 		if nested := findNested(v, p, 0); nested != "" {

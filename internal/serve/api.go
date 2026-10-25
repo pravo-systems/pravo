@@ -1133,7 +1133,9 @@ type Workbench struct {
 	Plans    []WorkbenchPlan   `json:"plans"`
 	Policies []WorkbenchPolicy `json:"policies"`
 	// Schema is the CUE of #Policy, #Plan, #Action and #Change: the document a rule is judged against.
-	Schema   string             `json:"schema"`
+	Schema string `json:"schema"`
+	// Fields is the same document as a tree, for completing what is typed.
+	Fields   []SchemaField      `json:"fields"`
 	Examples []WorkbenchExample `json:"examples"`
 	// Skipped says which plan files were found and could not be read.
 	Note string `json:"note,omitempty"`
@@ -1162,6 +1164,8 @@ type WorkbenchPlan struct {
 type WorkbenchPolicy struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
+	// Description is what the specification says the policy is for; empty when it says nothing or does not declare the policy.
+	Description string `json:"description,omitempty"`
 	// InForce is the text of the version in force, and Declared the text the specification declares; empty when there is none.
 	InForce  string `json:"in_force,omitempty"`
 	Declared string `json:"declared,omitempty"`

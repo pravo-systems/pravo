@@ -13,7 +13,7 @@ import (
 // try tries a rule, declared as the policy draft, on plans.
 func (p *project) try(rule string, refs ...string) WorkbenchTry {
 	p.t.Helper()
-	return p.tryFile(policyDeclaration("draft", rule), refs...)
+	return p.tryFile(policyDeclaration("draft", "", rule), refs...)
 }
 
 // tryFile tries a file of policies on plans.
@@ -177,5 +177,33 @@ func TestWorkbenchStoredPlansAndBadRequests(t *testing.T) {
 	}
 	if resp, _ := p.do("POST", "/api/workbench/try", nil); resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("POST: %d", resp.StatusCode)
+	}
+}
+
+// The fields of the document are listed for completion, with their docs, the fields of a change, and the values of an action.
+func TestWorkbenchSchemaTree(t *testing.T) {
+	var find func(fs []SchemaField, name string) *SchemaField
+	find = func(fs []SchemaField, name string) *SchemaField {
+		for i := range fs {
+			if fs[i].Name == name {
+				return &fs[i]
+			}
+		}
+		return nil
+	}
+	fs := planSchema()
+	sum := find(fs, "summary")
+	if sum == nil || find(sum.Fields, "destroy") == nil || sum.Doc == "" {
+		t.Fatalf("summary: %+v", sum)
+	}
+	ch := find(fs, "changes")
+	if ch == nil || !ch.List || find(ch.Fields, "addr") == nil {
+		t.Fatalf("changes: %+v", ch)
+	}
+	if act := find(ch.Fields, "action"); act == nil || len(act.Enum) < 8 || act.Enum[0] != "create" {
+		t.Errorf("action: %+v", act)
+	}
+	if af := find(ch.Fields, "after"); af == nil || !af.Optional {
+		t.Errorf("after: %+v", af)
 	}
 }

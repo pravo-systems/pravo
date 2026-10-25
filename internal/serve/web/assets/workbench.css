@@ -141,10 +141,10 @@
 .wb-docbtn .chev { display: inline-grid; }
 .wb-docbtn .chev .i { width: .75rem; height: .75rem; transition: transform var(--t-fast) var(--ease); }
 .wb-docbtn .chev.open .i { transform: rotate(90deg); }
-.wb-docgrid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: .9rem; align-items: start; }
+.wb-docgrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
 .wb-docgrid > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; min-width: 0; align-content: start; }
 .wb-docgrid .po-h4 { padding-bottom: .45rem; border-bottom: 1px solid var(--line-strong); font: 600 .62rem/1 var(--font-ui); }
-.wb-outline { margin: 0; padding: 0; list-style: none; max-height: 22rem; overflow: auto; border: 1px solid var(--line); background: var(--surface); }
+.wb-outline { margin: 0; padding: 0; list-style: none; max-height: 12rem; overflow: auto; border: 1px solid var(--line); background: var(--surface); }
 .wb-outline li + li { border-top: 1px solid var(--line); }
 .wb-outline button { display: grid; grid-template-columns: 1.6rem auto minmax(0, 1fr); align-items: baseline; gap: .5rem; width: 100%; padding: .4rem .55rem; text-align: left; border: 0; border-radius: 0; background: none; color: var(--text); }
 .wb-outline button:hover { background: var(--surface-2); }
@@ -153,7 +153,11 @@
 .wb-act { font: 600 .58rem/1 var(--font-ui); letter-spacing: .07em; text-transform: uppercase; color: var(--text-2); }
 .wb-act.a-create { color: var(--accent); } .wb-act.a-update, .wb-act.a-replace { color: var(--change); } .wb-act.a-delete { color: var(--conflict); }
 .wb-addr { font: 400 .72rem/1.3 var(--font-mono); overflow-wrap: anywhere; }
-.wb-docbody .po-scroll { max-height: 22rem; }
+.wb-docbody .po-scroll { max-height: 28rem; }
+/* the document is read, not scrolled sideways: long lines wrap under their own indent */
+.wb-docbody .po-cbody { min-width: 0; }
+.wb-docbody .po-ln { grid-template-columns: 2.6rem 1.2rem minmax(0, 1fr); }
+.wb-docbody .po-code { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 1rem; }
 
 /* ---- how it works ---- */
 .wb-guide { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; }

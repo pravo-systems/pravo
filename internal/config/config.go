@@ -362,6 +362,8 @@ type Output struct {
 type Policy struct {
 	Name string
 	Path cue.Path
+	// Description is what the policy says it is for; empty when it says nothing.
+	Description string
 	// Rule is the source of the rule struct, formatted, so that the same rule has one text and one digest. It is standalone CUE, unified with the judged plan document.
 	Rule string
 }

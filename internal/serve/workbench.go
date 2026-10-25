@@ -84,9 +84,9 @@ type planFileEntry struct {
 // workbench answers GET /api/workbench.
 func (s *Server) workbench(m *model) *Workbench {
 	wb := &Workbench{Version: APIVersion, Revision: m.rev, SpecOK: m.spec.root != nil, Plans: []WorkbenchPlan{}, Policies: []WorkbenchPolicy{},
-		Schema: schema.PlanDocumentSource(), Examples: make([]WorkbenchExample, 0, len(workbenchExamples))}
+		Schema: schema.PlanDocumentSource(), Fields: planSchema(), Examples: make([]WorkbenchExample, 0, len(workbenchExamples))}
 	for _, ex := range workbenchExamples {
-		ex.Policy = policyDeclaration(strings.ReplaceAll(ex.ID, "-", "_"), ex.Rule)
+		ex.Policy = policyDeclaration(strings.ReplaceAll(ex.ID, "-", "_"), ex.Title, ex.Rule)
 		wb.Examples = append(wb.Examples, ex)
 	}
 	if m.stored != nil {
@@ -100,17 +100,23 @@ func (s *Server) workbench(m *model) *Workbench {
 	wb.Plans = append(wb.Plans, files...)
 	wb.Note = note
 	if m.pol != nil {
+		desc := map[string]string{}
+		if root := m.spec.root; root != nil {
+			for _, p := range root.Policies {
+				desc[p.Name] = p.Description
+			}
+		}
 		for _, p := range m.pol.Policies {
 			t := m.polText[p.Name]
 			if t.inForce == "" && t.declared == "" {
 				continue
 			}
-			wp := WorkbenchPolicy{Name: p.Name, Status: p.Status}
+			wp := WorkbenchPolicy{Name: p.Name, Status: p.Status, Description: m.clipText(desc[p.Name])}
 			if t.inForce != "" {
-				wp.InForce = m.scrubText(policyDeclaration(p.Name, clip(t.inForce, maxPolicyText)))
+				wp.InForce = m.scrubText(policyDeclaration(p.Name, wp.Description, clip(t.inForce, maxPolicyText)))
 			}
 			if t.declared != "" {
-				wp.Declared = m.scrubText(policyDeclaration(p.Name, clip(t.declared, maxPolicyText)))
+				wp.Declared = m.scrubText(policyDeclaration(p.Name, wp.Description, clip(t.declared, maxPolicyText)))
 			}
 			wb.Policies = append(wb.Policies, wp)
 		}
@@ -369,8 +375,8 @@ func (s *Server) tryHandler(w http.ResponseWriter, r *http.Request, m *model) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// policyDeclaration is a rule as a specification would declare it: the import, the name and the policy.
-func policyDeclaration(name, rule string) string {
+// policyDeclaration is a rule as a specification would declare it: the import, the name, the description when there is one, and the policy.
+func policyDeclaration(name, description, rule string) string {
 	var b strings.Builder
 	b.WriteString("import \"pravo.dev/pravo\"\n\n")
 	labels := strings.Split(name, ".")
@@ -384,7 +390,11 @@ func policyDeclaration(name, rule string) string {
 			b.WriteString(strconv.Quote(l))
 		}
 	}
-	b.WriteString(": pravo.#Policy & {\n\trule: {\n")
+	b.WriteString(": pravo.#Policy & {\n")
+	if description != "" {
+		b.WriteString("\tdescription: " + strconv.Quote(description) + "\n")
+	}
+	b.WriteString("\trule: {\n")
 	for _, line := range strings.Split(strings.TrimRight(rule, "\n"), "\n") {
 		if strings.TrimSpace(line) == "" {
 			b.WriteString("\n")

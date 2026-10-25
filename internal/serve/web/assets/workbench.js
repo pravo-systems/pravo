@@ -225,12 +225,12 @@ export class WorkbenchView {
     const inForce = d.policies.filter((p) => p.in_force), declared = d.policies.filter((p) => p.declared && p.declared !== p.in_force);
     if (inForce.length) {
       const g = h('optgroup', { label: 'A policy in force' });
-      inForce.forEach((p) => opt('policy:' + p.name, p.name, g));
+      inForce.forEach((p) => opt('policy:' + p.name, p.description || p.name, g));
       startSel.append(g);
     }
     if (declared.length) {
       const g = h('optgroup', { label: 'The specification’s text' });
-      declared.forEach((p) => opt('declared:' + p.name, p.name + ' (declared)', g));
+      declared.forEach((p) => opt('declared:' + p.name, (p.description || p.name) + ' (declared)', g));
       startSel.append(g);
     }
     clear(this.controlsEl);
