@@ -474,16 +474,19 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 .pghead::before, .dv-head::before, .ac-banner::before, .pl-head::before { content: ""; position: absolute; left: 0; top: 1rem; bottom: 1rem; width: 3px; border-radius: 0 3px 3px 0; background: var(--hc, var(--line-strong)); }
 .pl-title, .dv-title, .ac-title { margin: 0; font: 500 1.7rem/1.1 var(--font-display); letter-spacing: -.015em; }
 .plans-pane { overflow: auto; padding: var(--page-pad); }
-.pl { box-sizing: border-box; display: grid; gap: 1.1rem; width: 100%; max-width: var(--page-w); margin: 0 auto; }
+.pl { box-sizing: border-box; display: grid; gap: 1.6rem; width: 100%; max-width: var(--page-w); margin: 0 auto; }
 .pl-head { --hc: var(--accent); }
 .pl-head.none { --hc: var(--line-strong); }
 .pl-lede { margin: .45rem 0 0; max-width: 46rem; color: var(--text-2); font-size: .9rem; line-height: 1.55; text-wrap: pretty; }
 .pl .rail-plans { max-height: none; overflow: visible; border-top: 0; padding-top: 0; }
 .pl .rp-head { padding-right: 0; justify-content: space-between; }
-.pl .rp-head { margin-bottom: .2rem; }
+.pl .rp-head { margin-bottom: .85rem; padding-inline: .15rem; }
 .pl .rp-head .h { margin: 0; font-size: .7rem; }
 .pl-list-wrap .rp-list { border: 1px solid var(--line-strong); border-radius: var(--rad-l); background: var(--surface); box-shadow: var(--shadow-1); overflow: hidden; }
-.pl .rp { padding: .75rem 1.1rem; }
+.pl .rp { padding: .95rem 1.25rem; gap: .95rem; }
+.pl .rp-main { gap: .5rem; }
+.pl .rp-l1, .pl .rp-l2 { gap: .6rem; }
+.pl .rp-view { margin-right: 1.25rem; }
 .pl .rp-row:first-child { border-top: 0; }
 
 /* The filter terms as pills, under the toolbar, and the pair of buttons that a cell offers on hover */

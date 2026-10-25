@@ -2,7 +2,7 @@
    One colour is loud: the amber of --change marks what asks to be adopted. Everything else is grey or calm. */
 
 .discovery-pane { overflow: auto; padding: var(--page-pad); }
-.dv { display: grid; gap: 1.1rem; width: 100%; max-width: 62rem; margin: 0 auto; }
+.dv { display: grid; gap: 1.5rem; width: 100%; max-width: 62rem; margin: 0 auto; }
 .discovery-pane :is(button, summary, [tabindex], input) { scroll-margin: .5rem; }
 .dv code { font: 400 .74rem/1.4 var(--font-mono); overflow-wrap: anywhere; }
 .dv .dim { color: var(--text-3); }
@@ -47,7 +47,7 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 .dv-card.loud { --hc: var(--change); }
 .dv-card.loud::before { content: ""; position: absolute; left: 1px; top: .75rem; bottom: .75rem; width: 3px; border-radius: 3px; background: var(--hc); }
 .dv-card.f-undeclared, .dv-card.f-unknown { background: var(--surface-2); }
-.dv-card.closed { padding-block: .65rem; }
+.dv-card.closed { padding-block: .85rem; }
 .dv-body { display: grid; gap: .7rem; min-width: 0; }
 .dv-chead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .4rem 1rem; }
 .dv-ctitle { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .6rem; min-width: 0; }
@@ -101,7 +101,7 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 .dv-items { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); min-width: 0; }
 .dv-item { border-bottom: 1px solid var(--line); min-width: 0; }
 .dv-item:last-child { border-bottom: 0; }
-.dv-row { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .9rem; padding: .5rem .7rem; min-width: 0; }
+.dv-row { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .9rem; padding: .65rem .85rem; min-width: 0; }
 .dv-id { display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .6rem; min-width: 0; flex: 1 1 14rem; }
 .dv-id .nm { font: 500 .8rem/1.3 var(--font-mono); overflow-wrap: anywhere; }
 .dv-id .id { color: var(--text-2); }

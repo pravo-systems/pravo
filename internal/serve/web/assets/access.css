@@ -2,8 +2,8 @@
    Tokens only, so that it follows the theme. */
 
 .access-pane { overflow: auto; padding: var(--page-pad); }
-.ac { display: grid; gap: 1.4rem; width: 100%; max-width: 62rem; margin: 0 auto; }
-.ac .h { margin: 0 0 .55rem; }
+.ac { display: grid; gap: 1.9rem; width: 100%; max-width: 62rem; margin: 0 auto; }
+.ac .h { margin: 0 0 .8rem; }
 .ac-sec { min-width: 0; }
 /* a ring is drawn 4 px outside the element: when the pane scrolls to a focused element the ring must stay inside it */
 .access-pane :is(button, summary, [tabindex]) { scroll-margin: .5rem; }
