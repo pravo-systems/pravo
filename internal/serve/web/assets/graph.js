@@ -820,15 +820,12 @@ export class GraphView {
     this.host.classList.toggle('has-sel', has);
     for (const [id, r] of this.items) this.styleItem(id, r, sel);
     for (const [path, r] of this.lanes) { const on = !!(sel && sel.lane === path); r.g.classList.toggle('sel', on); r.hg.classList.toggle('sel', on); }
-    let flowing = 0;
     for (const [key, r] of this.edges) {
       const up = !!(sel && sel.upE.has(key)), down = !!(sel && sel.downE.has(key));
       r.path.classList.toggle('up', up);
       r.path.classList.toggle('down', down);
-      if (up || down) flowing++;
       if (r.label) { r.label.classList.toggle('up', up); r.label.classList.toggle('down', down); }
     }
-    this.svg.classList.toggle('flow-calm', flowing > 60);
     if (this.match) this.applyMatch(this.match);
     if (this.cb.onStyled) this.cb.onStyled();
   }
@@ -850,10 +847,7 @@ export class GraphView {
   setSelection(sel) {
     this.selection = sel;
     this.svg.classList.toggle('reach-mode', !!(sel && sel.reach));
-    // the edges of a selection flow for a while, then stand still (see .flowing in graph.css)
-    this.svg.classList.add('flowing');
-    clearTimeout(this._flowT);
-    this._flowT = setTimeout(() => this.svg.classList.remove('flowing'), 8000);
+    // the lines of a selection stand in their colours; a pulse runs along each of them once (ripple)
     this.restyleAll();
     this.clearFx();
     if (sel && sel.pulse && !this.reduced) this.ripple(sel);
@@ -1358,7 +1352,7 @@ export class GraphView {
   destroy() { this.ro.disconnect(); this.stopTween(); this.cancelCam(); }
 }
 
-function clonePts(r) { return { m: r.m, p: r.p.slice() }; }
+function clonePts(r) { return r.q ? { m: r.m, p: r.p.slice(), q: r.q } : { m: r.m, p: r.p.slice() }; }
 
 function mixPts(a, b, e) {
   const n = Math.max(a.p.length, b.p.length);

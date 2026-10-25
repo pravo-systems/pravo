@@ -102,6 +102,8 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
   }
   let maxRank = 0;
   for (const r of rank.values()) maxRank = Math.max(maxRank, r);
+  // it reads like a page: what an item depends on stands to its right, and what depends on nothing stands furthest right
+  for (const id of ids) rank.set(id, maxRank - rank.get(id));
 
   // ---- lanes ----
   const lanes = [];
@@ -444,6 +446,78 @@ function spread(ys, hs, lo, hi) {
   }
 }
 
+// ---- tracks ----
+//
+// Wires that run side by side each get a track of their own, TRACK apart, and keep inside the gap that they run
+// in: a vertical run between two columns, a horizontal run between two rows. A run that touches a port stays where
+// it is, so that the wires of one port still leave and enter along one line.
+const TRACK = 8;
+function spreadWires(routes, boxes) {
+  const list = [];
+  for (const r of routes.values()) { r.q = polyOf({ m: r.m, p: r.p }).slice(); list.push(r); }
+  const segs = (vertical) => {
+    const out = [];
+    for (const r of list) {
+      const q = r.q;
+      // a run between two corners: not the first or the last of the wire
+      for (let i = 4; i < q.length - 2; i += 2) {
+        const x0 = q[i - 2], y0 = q[i - 1], x1 = q[i], y1 = q[i + 1];
+        if (vertical && Math.abs(x0 - x1) < 0.01 && Math.abs(y0 - y1) > 0.01) out.push({ r, i, c: x0, a: Math.min(y0, y1), b: Math.max(y0, y1), up: y1 < y0, from: y0 });
+        if (!vertical && Math.abs(y0 - y1) < 0.01 && Math.abs(x0 - x1) > 0.01) out.push({ r, i, c: y0, a: Math.min(x0, x1), b: Math.max(x0, x1), up: false, from: x0 });
+      }
+    }
+    return out;
+  };
+  const place = (g, vertical) => {
+    const n = g.length;
+    const mean = g.reduce((t, v) => t + v.c, 0) / n;
+    const a = Math.min(...g.map((v) => v.a)), b = Math.max(...g.map((v) => v.b));
+    let lo = -Infinity, hi = Infinity;
+    for (const bx of boxes) {
+      if (vertical) {
+        if (bx.y >= b || bx.y + bx.h <= a) continue;
+        if (bx.x + bx.w <= mean) lo = Math.max(lo, bx.x + bx.w + 4);
+        else if (bx.x >= mean) hi = Math.min(hi, bx.x - 4);
+      } else {
+        if (bx.x >= b || bx.x + bx.w <= a) continue;
+        if (bx.y + bx.h <= mean) lo = Math.max(lo, bx.y + bx.h + 4);
+        else if (bx.y >= mean) hi = Math.min(hi, bx.y - 4);
+      }
+    }
+    const room = hi - lo;
+    const gap = Math.min(TRACK, Number.isFinite(room) ? room / (n + 1) : TRACK);
+    if (gap < 2.5) return;
+    const half = (n - 1) * gap / 2;
+    const mid = Math.min(Math.max(mean, lo + half + gap / 2), hi - half - gap / 2);
+    g.forEach((v, k) => {
+      const c = mid - half + k * gap;
+      const q = v.r.q;
+      if (vertical) { q[v.i - 2] = c; q[v.i] = c; } else { q[v.i - 1] = c; q[v.i + 1] = c; }
+    });
+  };
+  for (const vertical of [true, false]) {
+    const all = segs(vertical).sort((p, q) => p.c - q.c);
+    const used = new Set();
+    for (let s = 0; s < all.length; s++) {
+      if (used.has(s)) continue;
+      const g = [all[s]];
+      used.add(s);
+      // the run that lie next to each other: close, and over one stretch
+      for (let t = s + 1; t < all.length && all[t].c - all[s].c < 2.2 * TRACK + 6; t++) {
+        if (used.has(t)) continue;
+        if (g.some((v) => v.r === all[t].r)) continue;
+        if (g.some((v) => all[t].a < v.b - 1 && all[t].b > v.a + 1)) { g.push(all[t]); used.add(t); }
+      }
+      if (g.length < 2) continue;
+      // the order that keeps wires from crossing: of the wires that go down, the one that starts lower is on the
+      // outside, and the other way round for the wires that go up
+      if (vertical) g.sort((p, q) => (p.up === q.up ? (p.up ? p.from - q.from : q.from - p.from) : p.up ? -1 : 1));
+      else g.sort((p, q) => p.from - q.from);
+      place(g, vertical);
+    }
+  }
+}
+
 // ---- routing ----
 //
 // A route is { m, p }: a mode and a flat list of points. Between two points the line runs along the axes, in the
@@ -454,11 +528,10 @@ function spread(ys, hs, lo, hi) {
 // meets an item is routed again). Mode "l" goes the other way, left side to right side, and mode "v" leaves
 // the bottom or the top, for items that sit one over the other.
 
-// The channel is the line of the vertical run: in the gutter just before what the wire enters, moved a little
-// by the height of its ends, so that wires that arrive together do not lie on one another.
+// The channel is the line of the vertical run: in the gutter just before what the wire enters. Wires that share a
+// gutter are then given a track each (spreadWires).
 const CH = 24;
-const dither = (a, b) => (Math.round(a * 7 + b * 13) % 5 - 2) * 2.5;
-const channelX = (ax, ay, bx, by) => bx - Math.min(CH, Math.max(0, (bx - ax) / 2)) + (bx - ax > 2 * CH ? dither(ay, by) / 2 : 0);
+const channelX = (ax, ay, bx, by) => bx - Math.min(CH, Math.max(0, (bx - ax) / 2));
 
 const CELL = 96;
 const FAR = 96;
@@ -561,29 +634,67 @@ function routeAll(E, pos, isBack, heads = []) {
     return [x0, y0, c0, best, cx, best, x1, y1];
   }
 
+  // the way an edge goes, and the side of each item that it leaves or enters
+  const modeOf = (A, B) => {
+    const gapR = B.x - (A.x + A.w), gapL = A.x - (B.x + B.w);
+    if (gapR >= 20) return ['h', 'r', 'l'];
+    if (gapL >= 20) return ['l', 'l', 'r'];
+    if (B.y >= A.y + A.h + FAR || A.y >= B.y + B.h + FAR) return ['c', 'r', 'r'];
+    if (B.y >= A.y + A.h - 1) return ['v', 'b', 't'];
+    if (A.y >= B.y + B.h - 1) return ['v', 't', 'b'];
+    return ['h2', 'r', 'l'];
+  };
+  // every wire has a pin of its own on the side of an item, in the order of the items at their other ends
+  const pins = new Map();
+  const ways = E.map((e) => modeOf(pos.get(e.a), pos.get(e.b)));
+  {
+    const groups = new Map();
+    E.forEach((e, i) => {
+      for (const end of [0, 1]) {
+        const id = end ? e.b : e.a, other = pos.get(end ? e.a : e.b);
+        const k = id + '|' + ways[i][1 + end];
+        let g = groups.get(k);
+        if (!g) groups.set(k, (g = []));
+        g.push({ e, end, at: ways[i][1 + end] === 't' || ways[i][1 + end] === 'b' ? other.x + other.w / 2 : other.y + other.h / 2 });
+      }
+    });
+    for (const [k, g] of groups) {
+      const id = k.slice(0, k.lastIndexOf('|')), side = k.slice(-1);
+      const P = pos.get(id);
+      const span = side === 't' || side === 'b' ? P.w - 36 : P.h - 14;
+      const n = g.length;
+      const step = n > 1 ? Math.min(side === 't' || side === 'b' ? 14 : 8, span / (n - 1)) : 0;
+      if (n < 2 || step < 3) continue;
+      g.sort((p, q) => p.at - q.at);
+      g.forEach((v, j) => pins.set(v.e.a + '>' + v.e.b + '|' + v.end, (j - (n - 1) / 2) * step));
+    }
+  }
+
   const routes = new Map();
   let ei = 0;
-  for (const e of E) {
+  E.forEach((e, i) => {
     const A = pos.get(e.a), B = pos.get(e.b);
     ei++;
     const key = e.a + '>' + e.b;
-    const gapR = B.x - (A.x + A.w), gapL = A.x - (B.x + B.w);
-    if (gapR >= 20) {
-      const x0 = A.x + A.w, y0 = A.y + A.h / 2, x1 = B.x, y1 = B.y + B.h / 2;
-      routes.set(key, { m: 'h', p: isBack(e.a, e.b) ? [x0, y0, x1, y1] : refine(x0, y0, x1, y1, e.a, e.b, 0, ei) });
-    } else if (gapL >= 20) {
-      routes.set(key, { m: 'l', p: refineBack(A.x, A.y + A.h / 2, B.x + B.w, B.y + B.h / 2, e.a, e.b) });
-    } else if (B.y >= A.y + A.h + FAR || A.y >= B.y + B.h + FAR) {
+    const m = ways[i][0];
+    const oa = pins.get(key + '|0') || 0, ob = pins.get(key + '|1') || 0;
+    const ya = A.y + A.h / 2 + oa, yb = B.y + B.h / 2 + ob;
+    if (m === 'h') {
+      const x0 = A.x + A.w, x1 = B.x;
+      routes.set(key, { m: 'h', p: isBack(e.a, e.b) ? [x0, ya, x1, yb] : refine(x0, ya, x1, yb, e.a, e.b, 0, ei) });
+    } else if (m === 'l') {
+      routes.set(key, { m: 'l', p: refineBack(A.x, ya, B.x + B.w, yb, e.a, e.b) });
+    } else if (m === 'c') {
       // far apart, one over the other: down the side, where nothing stands, rather than through what is between
-      routes.set(key, { m: 'c', p: [A.x + A.w, A.y + A.h / 2, B.x + B.w, B.y + B.h / 2] });
-    } else if (B.y >= A.y + A.h - 1) {
-      routes.set(key, { m: 'v', p: [A.x + A.w / 2, A.y + A.h, B.x + B.w / 2, B.y] });
-    } else if (A.y >= B.y + B.h - 1) {
-      routes.set(key, { m: 'v', p: [A.x + A.w / 2, A.y, B.x + B.w / 2, B.y + B.h] });
+      routes.set(key, { m: 'c', p: [A.x + A.w, ya, B.x + B.w, yb] });
+    } else if (m === 'v') {
+      const down = B.y >= A.y + A.h - 1;
+      routes.set(key, { m: 'v', p: [A.x + A.w / 2 + oa, down ? A.y + A.h : A.y, B.x + B.w / 2 + ob, down ? B.y : B.y + B.h] });
     } else {
-      routes.set(key, { m: 'h', p: [A.x + A.w, A.y + A.h / 2, B.x, B.y + B.h / 2] });
+      routes.set(key, { m: 'h', p: [A.x + A.w, ya, B.x, yb] });
     }
-  }
+  });
+  spreadWires(routes, boxes);
   return routes;
 }
 
@@ -593,6 +704,7 @@ const f1 = (n) => Math.round(n * 10) / 10;
 // angles, in the channel that lies just before the thing they enter. Edges that leave or reach the same port
 // share their line, as the wires of a bus do.
 function polyOf(r) {
+  if (r.q) return r.q;
   const p = r.p;
   const o = [];
   const add = (x, y) => {
@@ -604,13 +716,13 @@ function polyOf(r) {
   };
   if (r.m === 'c') {
     const [x0, y0, x1, y1] = p;
-    const bx = Math.max(x0, x1) + CH + dither(y0, y1);
+    const bx = Math.max(x0, x1) + CH;
     add(x0, y0); add(bx, y0); add(bx, y1); add(x1, y1);
     return o;
   }
   if (r.m === 'v') {
     const [x0, y0, x1, y1] = p;
-    const my = (y0 + y1) / 2 + dither(x0, x1);
+    const my = (y0 + y1) / 2;
     add(x0, y0); add(x0, my); add(x1, my); add(x1, y1);
     return o;
   }
@@ -621,7 +733,7 @@ function polyOf(r) {
   }
   if (r.m === 'l') {
     const [x0, y0, x1, y1] = p;
-    const cx = x1 + Math.min(CH, (x0 - x1) / 2) + dither(y0, y1) / 2;
+    const cx = x1 + Math.min(CH, (x0 - x1) / 2);
     add(x0, y0); add(cx, y0); add(cx, y1); add(x1, y1);
     return o;
   }

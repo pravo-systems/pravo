@@ -1408,7 +1408,7 @@ function wire() {
     onSelectNode: (a) => selectNode(a, { center: true }),
     onSelectNamespace: (p) => selectNamespace(p, { center: true }),
     onTab: setTab,
-    onReach: (a) => { if (S.sel !== a) selectNode(a, { pulse: false }); setReach(true, true); },
+    onReach: (a) => { if (S.sel !== a) selectNode(a, {}); setReach(true, true); },
     onToggleNamespace: toggleNamespace,
     onFit: (p) => { const lane = S.lay.lanes.find((l) => l.path === p); if (lane) gv.centerOnBox(lane); else { const id = S.vis.items.get('ns:' + p) ? 'ns:' + p : null; if (id) gv.centerOn(id, 0.9); } if (S.view !== 'graph') setView('graph'); },
     onError: (m) => toast(m, 'error', 6000),
