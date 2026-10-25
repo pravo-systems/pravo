@@ -83,49 +83,29 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-tl { font: 500 10px var(--font-mono); fill: var(--text-3); }
 .tr-tick, .tr-axis { stroke: var(--line-strong); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
 .tr-grid { stroke: var(--line); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
-/* Three hues and the ink: the structure of the run is the ink and a ramp of the blue, resources are the blue, calls out of the
-   process are green, sealing is amber, and the requests to the state, of which there are thousands, are a quiet neutral. */
-.tr { --k-command: var(--text); --k-engine: color-mix(in srgb, var(--key) 42%, var(--text)); --k-phase: color-mix(in srgb, var(--key) 30%, var(--surface));
-  --k-setup: color-mix(in srgb, var(--key) 13%, var(--surface)); --k-resource: var(--key); --k-provider: var(--accent);
-  --k-state: color-mix(in srgb, var(--text) 17%, var(--surface)); --k-seal: var(--change);
-  --kl-command: var(--on-accent, var(--bg)); --kl-engine: var(--kl-command); --kl-resource: var(--kl-command); --kl-provider: var(--kl-command);
-  --kl-phase: var(--text); --kl-setup: var(--text); --kl-state: var(--text); --kl-seal: var(--text); }
-.bar { cursor: pointer; shape-rendering: crispEdges; fill: var(--text-3); }
-.bar.k-command, .bar.k-mcp { fill: var(--k-command); }
-.bar.k-engine { fill: var(--k-engine); }
-.bar.k-phase { fill: var(--k-phase); }
-.bar.k-resource { fill: var(--k-resource); }
-.bar.k-provider { fill: var(--k-provider); }
-.bar.k-setup { fill: var(--k-setup); }
-.bar.k-state { fill: var(--k-state); }
-.bar.k-seal { fill: var(--k-seal); }
-.bar.err { fill: var(--conflict); stroke: none; }
+/* The earth palette: a brown ink, rust for resources, sage for the calls out of the process, ochre for sealing. A span is its
+   colour as a border over a faint wash of the same colour, which keeps a bar a block and the labels in the text colour. */
+.tr { --k-command: #2b2118; --k-engine: #7a3b1d; --k-phase: #b98a5e; --k-setup: #b9a27a; --k-resource: #b4532a; --k-provider: #3f6b5a; --k-seal: #b8860b;
+  --k-state: color-mix(in srgb, #8a7a66 70%, var(--surface)); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tr { --k-command: #e9dcc7; --k-engine: #e0955f; --k-phase: #c79a68; --k-setup: #9a8560; --k-resource: #e8743a; --k-provider: #6dbb9f; --k-seal: #f0c040;
+    --k-state: color-mix(in srgb, #a89880 55%, var(--surface)); }
+}
+:root[data-theme="dark"] .tr { --k-command: #e9dcc7; --k-engine: #e0955f; --k-phase: #c79a68; --k-setup: #9a8560; --k-resource: #e8743a; --k-provider: #6dbb9f; --k-seal: #f0c040;
+  --k-state: color-mix(in srgb, #a89880 55%, var(--surface)); }
+.k-command, .k-mcp { --k: var(--k-command); } .k-engine { --k: var(--k-engine); } .k-phase { --k: var(--k-phase); } .k-setup { --k: var(--k-setup); }
+.k-resource { --k: var(--k-resource); } .k-provider { --k: var(--k-provider); } .k-state { --k: var(--k-state); } .k-seal { --k: var(--k-seal); }
+.bar { cursor: pointer; fill: color-mix(in srgb, var(--k, var(--text-3)) 18%, var(--surface)); stroke: var(--k, var(--text-3)); stroke-width: 1; }
+.bar.err { --k: var(--conflict); fill: color-mix(in srgb, var(--conflict) 22%, var(--surface)); }
 .bar.dim, .tr-bt.dim, .tr-bd.dim { opacity: .2; }
-.bar:hover { filter: brightness(1.12); }
+.bar:hover { stroke-width: 2; }
 .tr-selbox { fill: none; stroke: var(--text); stroke-width: 2; pointer-events: none; }
 .tr-subbox { fill: none; stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; shape-rendering: crispEdges; }
 .tr-bt, .tr-bd { font: 500 11px var(--font-mono); fill: var(--text); pointer-events: none; }
-.tr-bt.k-command, .tr-bd.k-command, .tr-bt.k-mcp, .tr-bd.k-mcp { fill: var(--kl-command); }
-.tr-bt.k-engine, .tr-bd.k-engine { fill: var(--kl-engine); }
-.tr-bt.k-phase, .tr-bd.k-phase { fill: var(--kl-phase); }
-.tr-bt.k-setup, .tr-bd.k-setup { fill: var(--kl-setup); }
-.tr-bt.k-resource, .tr-bd.k-resource { fill: var(--kl-resource); }
-.tr-bt.k-provider, .tr-bd.k-provider { fill: var(--kl-provider); }
-.tr-bt.k-state, .tr-bd.k-state { fill: var(--kl-state); }
-.tr-bt.k-seal, .tr-bd.k-seal { fill: var(--kl-seal); }
-.tr-bt.err, .tr-bd.err { fill: var(--on-accent, var(--bg)); }
-.tr-bd { opacity: .85; }
+.tr-bd { opacity: .75; }
 .tr-hint { margin: 0; padding: .35rem .7rem; border-top: 1px solid var(--line); font-size: .68rem; color: var(--text-3); }
-.tr-sw { display: inline-block; flex: none; width: .65rem; height: .65rem; background: var(--text-3); }
-.tr-sw.k-command, .tr-sw.k-mcp { background: var(--k-command); }
-.tr-sw.k-engine { background: var(--k-engine); }
-.tr-sw.k-phase { background: var(--k-phase); }
-.tr-sw.k-resource { background: var(--k-resource); }
-.tr-sw.k-setup { background: var(--k-setup); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.tr-sw.k-state { background: var(--k-state); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.tr-sw.k-seal { background: var(--k-seal); }
-.tr-sw.k-err { background: var(--conflict); }
-.tr-sw.k-provider { background: var(--k-provider); }
+.tr-sw { display: inline-block; flex: none; width: .65rem; height: .65rem; box-sizing: border-box; background: color-mix(in srgb, var(--k, var(--text-3)) 22%, var(--surface)); box-shadow: inset 0 0 0 1px var(--k, var(--text-3)); }
+.tr-sw.k-err { --k: var(--conflict); }
 
 .tr-tip { position: fixed; left: 0; top: 0; z-index: 70; display: grid; gap: .12rem; max-width: 26rem; padding: .5rem .65rem; background: var(--code-bg); color: var(--code-text); border: 1px solid var(--code-edge); box-shadow: var(--shadow-1); font-size: .72rem; line-height: 1.4; pointer-events: none; }
 .tr-tip[hidden] { display: none; }
@@ -167,16 +147,8 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-crumbs [aria-current] { color: var(--text); }
 .tr-err { margin: 0; padding: .6rem .75rem; border: 1px solid var(--conflict); background: var(--conflict-wash); font: 400 .74rem/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
 .tr-where { position: relative; height: .9rem; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
-.tr-wb { position: absolute; top: 0; bottom: 0; background: var(--text-3); }
-.tr-wb.k-command, .tr-wb.k-mcp { background: var(--k-command); }
-.tr-wb.k-engine { background: var(--k-engine); }
-.tr-wb.k-phase { background: var(--k-phase); }
-.tr-wb.k-resource { background: var(--k-resource); }
-.tr-wb.k-setup { background: var(--k-setup); }
-.tr-wb.k-state { background: var(--k-state); }
-.tr-wb.k-seal { background: var(--k-seal); }
-.tr-wb.k-provider { background: var(--k-provider); }
-.tr-wb.err { background: var(--conflict); }
+.tr-wb { position: absolute; top: 0; bottom: 0; box-sizing: border-box; background: color-mix(in srgb, var(--k, var(--text-3)) 22%, var(--surface)); box-shadow: inset 0 0 0 1px var(--k, var(--text-3)); }
+.tr-wb.err { --k: var(--conflict); }
 .tr-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); margin: 0; border: 1px solid var(--line-strong); }
 .tr-stats .st { display: grid; gap: .3rem; padding: .7rem .9rem; border-left: 1px solid var(--line); }
 .tr-stats .st:first-child { border-left: 0; }
@@ -188,7 +160,9 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-cols h4 { margin: 0 0 .5rem; padding-bottom: .4rem; border-bottom: 1px solid var(--line-strong); font: 600 .6rem/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); }
 .tr-attrs, .tr-events, .tr-kids { display: grid; margin: 0; padding: 0; list-style: none; font-size: .74rem; }
 .tr-attrs li, .tr-kids li { display: grid; align-items: center; gap: .1rem .9rem; padding: .32rem .5rem; border-bottom: 1px solid var(--line); }
-.tr-attrs li { grid-template-columns: minmax(6rem, 11rem) minmax(0, 1fr) auto; font: 400 .72rem/1.4 var(--font-mono); }
+.tr-attrs li { grid-template-columns: minmax(0, 1fr) auto; font: 400 .72rem/1.4 var(--font-mono); }
+.tr-attrs .ak, .tr-attrs .av { grid-column: 1; }
+.tr-attrs .af { grid-column: 2; grid-row: 1 / span 2; }
 .tr-attrs .ak { color: var(--text-3); overflow-wrap: anywhere; }
 .tr-attrs .av { overflow-wrap: anywhere; }
 .tr-attrs .af { display: inline-flex; gap: 4px; }

@@ -389,7 +389,8 @@ export class TracesView {
       const dim = match && !match(sp);
       const cls = 'bar k-' + sp.kind + (sp.status === 'error' ? ' err' : '') + (dim ? ' dim' : '') + (match && !dim ? ' hit' : '') + (isSel ? ' sel' : '');
       const y = sp.row * ROW + 5;
-      bars.append(svg('rect', { class: cls, x: cx, y, width: cw, height: BAR, 'data-i': sp.idx }));
+      // the border is drawn inside the span, so that it ends where the span does
+      bars.append(svg('rect', { class: cls, x: cx + 0.5, y: y + 0.5, width: Math.max(cw - 1, 0.5), height: BAR - 1, 'data-i': sp.idx }));
       if (full > 44) {
         let text = labelOf(sp);
         const room = Math.floor((cw - 10) / CHAR);
