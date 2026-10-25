@@ -373,7 +373,7 @@ A reservation is coordination. It does not protect the state from anyone who wri
 
 A policy is a `pravo.#Policy` node of the specification. The plan prints each new, changed or removed policy as `Policies: +N new, ~N changed, -N removed.` followed by one line for each. A plan that carries only policy entries counts as something to apply.
 
-When a plan creates, updates, replaces or deletes a resource, it is judged by the policies in force in the state, after it is printed. A refused plan exits with code 5, and `--out` and `--store` write nothing. When every policy holds, one line follows the outputs: `Policies: 2 satisfied (NAME@SEQ, NAME@SEQ).` The full digests are in the stored plan and in `--json`. A new policy, and a change to a policy, are not judged. See [Policies](policies-overview.md) for what a policy is, [Operating policies](policies-operations.md) for where each command judges, and [Writing policies](policies-writing.md) for a run.
+When a plan creates, updates, replaces or deletes a resource, it is judged by the policies in force in the state, after it is printed. A refused plan exits with code 5, and `--out` and `--store` write nothing. When every policy holds, one line follows the outputs: `Policies: 2 satisfied.` The versions that judged, with their digests, are in the stored plan and in `--json`. A new policy, and a change to a policy, are not judged. See [Policies](policies-overview.md) for what a policy is, [Operating policies](policies-operations.md) for where each command judges, and [Writing policies](policies-writing.md) for a run.
 
 `pravo plan --json` prints the document with the fields that the judged document leaves out: see [The plan document in a policy](policies-plan-document.md#what-the-judged-document-leaves-out).
 

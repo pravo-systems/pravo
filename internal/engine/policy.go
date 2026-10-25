@@ -303,11 +303,7 @@ func (e *Engine) JudgePlan(ctx context.Context, plan *Plan) error {
 		return err
 	}
 	if len(refs) > 0 {
-		names := make([]string, len(refs))
-		for i, r := range refs {
-			names[i], _, _ = strings.Cut(r, ":")
-		}
-		e.Opts.Progress("Policies: %d satisfied (%s).", len(refs), strings.Join(names, ", "))
+		e.Opts.Progress("Policies: %d satisfied.", len(refs))
 	}
 	return nil
 }
