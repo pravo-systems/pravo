@@ -383,7 +383,7 @@ jq -c 'select(.Name == "resource server") | [.Attributes[] | {(.Key): .Value.Val
 Output:
 
 ```text
-{"pravo.resource.address":"server","pravo.resource.type":"random_pet","pravo.mode":"managed","pravo.provider":"random","pravo.phase":"plan","pravo.action":"no-op","pravo.skipped":true,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
+{"pravo.resource.address":"server","pravo.resource.type":"random_pet","pravo.mode":"managed","pravo.provider":"random","pravo.provider.instance":"random","pravo.phase":"plan","pravo.action":"no-op","pravo.skipped":true,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
 ```
 
 When tracing is on, the trace id is stored where you already look. It is on every transaction in the state and on every plan document.
