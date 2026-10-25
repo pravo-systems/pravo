@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
+	"github.com/pravo-systems/pravo/pravo"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,7 +18,7 @@ import (
 )
 
 // opportunisticGC is the most plans that "plan --store" removes on its way.
-const opportunisticGC = 25
+const opportunisticGC = pravo.OpportunisticGC
 
 // planCommands are the subcommands of "pravo plan" that work on stored plans.
 func planCommands() []*cobra.Command {
@@ -409,26 +407,8 @@ small collection of its own.`,
 	return cmd
 }
 
-// processToken tells this process from every other one that has the same actor,
-// host and process id, such as two containers that run pravo as process 1.
-var processToken = func() string {
-	b := make([]byte, 4)
-	if _, err := rand.Read(b); err != nil {
-		return strconv.FormatInt(time.Now().UnixNano(), 36)
-	}
-	return hex.EncodeToString(b)
-}()
-
-// collector names this process in the claims that it makes on plans: who it acts
-// as, where, and which process it is.
-func collector(st *state.Store) string {
-	who := st.Owner()
-	if flagActor != "" {
-		who = flagActor
-	}
-	host, _ := os.Hostname()
-	return who + "@" + host + "#" + strconv.Itoa(os.Getpid()) + "." + processToken
-}
+// collector names this process in the claims that it makes on plans.
+func collector(st *state.Store) string { return pravo.ClaimOwner(st, flagActor) }
 
 func printGC(res *engine.GCResult) {
 	verb, none := "Removed", "No stored plan needs to be removed."
@@ -482,11 +462,7 @@ func plural(n int, one, many string) string {
 }
 
 // storedPlan is what "plan --store" did, for the output.
-type storedPlan struct {
-	Meta     *engine.PlanMeta
-	Overlaps []engine.Overlap
-	Removed  []engine.GCItem
-}
+type storedPlan = pravo.StoredPlan
 
 // storedPlanDoc is the document that "plan --store --json" prints: the plan
 // document, and what was stored.
@@ -512,7 +488,7 @@ type storedOverlapJSON struct {
 	ReadBy  []string `json:"read_by,omitempty"`
 }
 
-func (sp *storedPlan) info() *storedInfo {
+func storedInfoOf(sp *storedPlan) *storedInfo {
 	info := &storedInfo{ID: sp.Meta.ID, Expires: sp.Meta.Expires, ApplyCommand: sp.Meta.ApplyCommand(), Removed: sp.Removed}
 	for _, o := range sp.Overlaps {
 		info.Overlaps = append(info.Overlaps, storedOverlapJSON{ID: o.Plan.ID, Author: o.Plan.Author, Addrs: o.Addrs, Changes: o.Changes, ReadBy: o.ReadBy})
@@ -523,25 +499,6 @@ func (sp *storedPlan) info() *storedInfo {
 // planWorth says whether a plan is worth storing: it has changes to apply. A plan
 // that only records outputs or data sources is applied directly.
 func planWorth(plan *engine.Plan) bool { return plan.HasWrites() }
-
-// storePlan writes the plan into the state, looks for the stored plans that
-// change the same resources, and removes a few that are no longer needed.
-func storePlan(ctx context.Context, s *session, eng *engine.Engine, plan *engine.Plan, ttl time.Duration) (*storedPlan, error) {
-	meta, err := eng.StorePlan(ctx, plan, flagTags, flagSysTags, ttl)
-	if err != nil {
-		return nil, err
-	}
-	sp := &storedPlan{Meta: meta}
-	ps := engine.NewPlanStoreFor(s.state)
-	check := engine.PlanCheckFor(s.state)
-	if entries, err := ps.Entries(ctx, check); err == nil {
-		sp.Overlaps = engine.OverlapsOf(entries, meta)
-	}
-	if res, err := ps.GC(ctx, engine.GCOptions{Owner: collector(s.state), Check: check, Limit: opportunisticGC, Skip: meta.ID}); err == nil {
-		sp.Removed = res.Removed
-	}
-	return sp, nil
-}
 
 // warnOverlaps tells who else has a plan that changes the same resources. It
 // only tells: the plans are not touched.
@@ -583,60 +540,11 @@ func printStored(sp *storedPlan) {
 	}
 }
 
-// storedOverlapsOf looks for the stored plans that change the resources that the
-// plan changes, for a plan that is not stored. It looks quietly: a state that
-// cannot be listed has none.
-func storedOverlapsOf(ctx context.Context, s *session, eng *engine.Engine, plan *engine.Plan) []engine.Overlap {
-	entries, err := engine.NewPlanStoreFor(s.state).Entries(ctx, engine.PlanCheckFor(s.state))
-	if err != nil || len(entries) == 0 {
-		return nil
-	}
-	meta, err := eng.SummarizePlan(plan, flagTags, flagSysTags)
-	if err != nil {
-		return nil
-	}
-	return engine.OverlapsOf(entries, meta)
-}
-
-// planTagsMatch checks that the -t and -T of this command are the ones that the
-// stored plan was made with, which select the state it is in and the
-// specification it applies to.
-func planTagsMatch(m *engine.PlanMeta, verb string) error {
-	have := append([]string(nil), flagTags...)
-	want := append([]string(nil), m.Tags...)
-	sort.Strings(have)
-	sort.Strings(want)
-	if strings.Join(have, "\x00") == strings.Join(want, "\x00") && flagSysTags == m.SysTags {
-		return nil
-	}
-	cmdline := strings.Replace(m.ApplyCommand(), "apply", verb, 1)
-	if len(m.Tags) == 0 && !m.SysTags {
-		return fmt.Errorf("%s was made without -t and -T: run %s without them", m.ID, cmdline)
-	}
-	return fmt.Errorf("%s was made with other -t and -T than these: run %s", m.ID, cmdline)
-}
-
 // readStored resolves a reference to a stored plan, checks that this command
 // has the tags the plan was made with, and reads the plan with what was applied
 // from it. The state must be open: s.
-func readStored(ctx context.Context, s *session, ref, verb string) (*engine.PlanStore, *engine.PlanFile, *engine.PlanEntry, error) {
-	ps := engine.NewPlanStoreFor(s.state)
-	id, err := ps.Resolve(ctx, ref)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	entry, err := ps.Entry(ctx, id, engine.PlanCheckFor(s.state))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if err := planTagsMatch(entry.Meta, verb); err != nil {
-		return nil, nil, nil, err
-	}
-	pf, _, err := ps.ReadFile(ctx, id)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return ps, pf, entry, nil
+func readStored(ctx context.Context, s *session, ref, verb string) (*pravo.StoredPlanRead, error) {
+	return s.ws.ReadStoredPlan(ctx, ref, verb)
 }
 
 // showStored prints a stored plan.
@@ -647,10 +555,11 @@ func showStored(cmd *cobra.Command, ref string) error {
 		return err
 	}
 	defer s.close()
-	_, pf, entry, err := readStored(ctx, s, ref, "plan show")
+	rd, err := readStored(ctx, s, ref, "plan show")
 	if err != nil {
 		return err
 	}
+	pf, entry := rd.File, rd.Entry
 	eng := s.engine(engine.Options{})
 	plan, err := eng.LoadPlan(pf)
 	var stale *engine.ErrStalePlan
@@ -764,81 +673,30 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 		return err
 	}
 	defer s.close()
-	ps := engine.NewPlanStoreFor(s.state)
-	id, err := ps.Resolve(ctx, ref)
-	if err != nil {
-		return err
+	o := pravo.ApplyStoredOptions{
+		Only: only,
+		Selected: func(id string, selected, left int) {
+			out.Printf("Applying %d of %d remaining changes from %s.\n", selected, left, id)
+		},
 	}
-	meta, err := ps.Meta(ctx, id)
-	if err != nil {
-		return err
+	if flagJSON {
+		o.Event = func(ev engine.Event) { emitLine(ev) }
 	}
-	if err := planTagsMatch(meta, "apply"); err != nil {
-		return err
-	}
-	progress, err := ps.Progress(ctx, id)
-	if err != nil {
-		return err
-	}
-	if progress.DoneAt == nil && time.Now().After(meta.Expires) {
-		return engine.WithCode(engine.ExitStale, fmt.Errorf("%s expired %s ago; plans are kept for a limited time: run \"pravo plan --store\" again", id, engine.DurationText(time.Since(meta.Expires))))
-	}
-	// From here no collection removes the plan, until the apply is over. What the
-	// apply did is recorded in the plan when it returns. An apply that fails or is
-	// interrupted records the changes it finished, as one from a plan file does; the
-	// change that failed is not among them.
-	owner := collector(s.state)
-	if err := ps.BeginApply(ctx, id, owner); err != nil {
-		if errors.Is(err, engine.ErrPlanRemoving) {
-			return engine.WithCode(engine.ExitStale, err)
+	res, err := s.ws.ApplyStored(ctx, ref, o)
+	if res != nil {
+		if res.Partial != nil {
+			reportPartial(res.Partial, res.ID)
 		}
-		return err
-	}
-	background := context.WithoutCancel(ctx)
-	defer ps.EndApply(background, id, owner)
-	// An apply may run for longer than a claim lasts: the claim is renewed until it ends.
-	defer ps.KeepApply(background, id, owner)()
-	pf, _, err := ps.ReadFile(ctx, id)
-	if err != nil {
-		return err
-	}
-	// The note that the plan was made with is the reason of the apply, unless the
-	// apply was given its own: the history of the resources says why.
-	if flagReason == "" {
-		flagReason = meta.Reason
-	}
-	// A plan that policies judged is the receipt of the apply, and no collection removes it.
-	eng := s.engine(engine.Options{Refresh: engine.RefreshNone, Judged: func() { _ = ps.Keep(background, id) }})
-	eng.SetPlan(id, pf.Digest)
-	mark := func(applied []string, txn string, pending []string, finished bool) error {
-		var err error
-		if finished {
-			err = ps.MarkApplied(background, id, applied, txn, pending)
-		} else {
-			err = ps.MarkPartlyApplied(background, id, applied, txn)
+		if err == nil {
+			switch {
+			case res.NothingLeft && flagJSON:
+				emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", "plan": res.ID})
+			case res.NothingLeft:
+				out.Println(out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
+			default:
+				reportApply(res.Result, res.Destroy, "plan", res.ID, res.Again, res.Left)
+			}
 		}
-		if err != nil {
-			return fmt.Errorf("the changes were applied (txn %s) but the progress of %s could not be recorded: %w", txn, id, err)
-		}
-		return nil
 	}
-	// After a partial apply the plan is judged again: the records that the apply
-	// changed may have made the rest of it stale, or only a part.
-	again := meta.ApplyCommand()
-	if len(only) > 0 {
-		again += " --only " + engine.ShellWord(strings.Join(only, ","))
-	}
-	next := func() string {
-		e, err := ps.Entry(background, id, engine.PlanCheckFor(s.state))
-		switch {
-		case err != nil:
-			return fmt.Sprintf("run \"%s\" again to apply the rest", again)
-		case e.Status == engine.PlanPartlyStale:
-			return fmt.Sprintf("some of the rest is stale; apply the part that is still valid with \"%s\"", e.ApplyLiveCommand())
-		case e.Status == engine.PlanStale:
-			return "the rest is stale now and must be planned again with \"pravo plan --store\""
-		}
-		return fmt.Sprintf("run \"%s\" again to apply the rest", again)
-	}
-	return applyPlanFile(cmd, eng, pf, id, "plan", meta.ApplyCommand(), next, only, mark)
+	return err
 }

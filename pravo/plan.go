@@ -38,6 +38,7 @@ type PlanOptions struct {
 // Planned is a plan with the engine that computed it, which is the engine that
 // applies it.
 type Planned struct {
+	ws   *Workspace
 	eng  *Engine
 	plan *Plan
 	opts PlanOptions
@@ -58,7 +59,7 @@ func (w *Workspace) Plan(ctx context.Context, o PlanOptions) (*Planned, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Planned{eng: eng, plan: plan, opts: o}, nil
+	return &Planned{ws: w, eng: eng, plan: plan, opts: o}, nil
 }
 
 // Plan is the plan itself.
