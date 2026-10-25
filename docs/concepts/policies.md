@@ -281,7 +281,7 @@ Give the pet an owner. The plan is satisfied, and the apply that follows names t
 
 ```sh run
 sed -i 's/length: 2}/length: 2, keepers: owner: "team-ops"}/' stray.cue
-pravo apply -auto-approve | grep -E '^(Policy|Apply complete)'
+pravo apply -auto-approve | grep -E '^(Policies|Apply complete)'
 pravo state log --json | jq -c '.[0] | {kind, status, policies}'
 ```
 

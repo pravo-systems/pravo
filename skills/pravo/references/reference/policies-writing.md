@@ -595,7 +595,7 @@ summary: destory: 0
 for p in typo-literal typo-template typo-constraint typo-concrete; do
   echo "$p"
   ./set-rule.sh policy/$p.cue > /dev/null
-  pravo -C infra plan --destroy 2>&1 | grep -A2 -E '^(Policy|Error)'
+  pravo -C infra plan --destroy 2>&1 | grep -A2 -E '^(Policies|Error)'
 done
 ```
 

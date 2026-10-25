@@ -163,14 +163,14 @@ The `addr` of a change is the address of the resource. A pipeline can post the s
 The plan job saves a plan. The apply job applies that file, and the apply judges it with the policies in the state.
 
 ```sh
-pravo -C app plan -out change.plan --actor ci --reason "build 42" | grep -E '^(Plan|Policy|Saved)'
+pravo -C app plan -out change.plan --actor ci --reason "build 42" | grep -E '^(Plan|Policies|Saved)'
 ```
 
 Output:
 
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
-Policy no_destroy@1:<digest> is satisfied.
+Policies: 1 satisfied.
 Saved the plan to change.plan. To apply exactly these actions, run:
 ```
 
