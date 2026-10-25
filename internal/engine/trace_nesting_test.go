@@ -69,3 +69,12 @@ func TestSpansNestInTime(t *testing.T) {
 		}
 	}
 }
+
+// The provider of a span is its name, and the instance is the key of the block: aws and aws.$west, random and random.$r1.
+func TestProviderLocalNameOfAnInstance(t *testing.T) {
+	for key, want := range map[string]string{"aws": "aws", "aws.$west": "aws", "random.$r1": "random"} {
+		if got := providerLocal(key); got != want {
+			t.Errorf("providerLocal(%q) = %q, want %q", key, got, want)
+		}
+	}
+}

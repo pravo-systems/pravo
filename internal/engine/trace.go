@@ -120,7 +120,7 @@ func (e *Engine) runTask(ctx context.Context, r *config.Resource, apply bool) er
 		attribute.String("pravo.resource.address", r.Address()),
 		attribute.String("pravo.resource.type", r.Type),
 		attribute.String("pravo.mode", r.Mode),
-		attribute.String("pravo.provider", r.ProviderKey),
+		attribute.String("pravo.provider", providerLocal(r.ProviderKey)),
 		attribute.String("pravo.provider.instance", r.ProviderKey),
 		attribute.String("pravo.phase", phase),
 	))

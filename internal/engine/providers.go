@@ -451,7 +451,7 @@ func (m *Providers) Provider(ctx context.Context, key string) (plugin.Provider, 
 	}
 	inst.cfg = true
 	plog.Debug(ctx, "configuring provider", "provider", key)
-	cctx, end := setup(ctx, "configure provider "+key, attribute.String("pravo.provider", key), attribute.String("pravo.provider.instance", key))
+	cctx, end := setup(ctx, "configure provider "+key, attribute.String("pravo.provider", local), attribute.String("pravo.provider.instance", key))
 	err = m.configure(cctx, inst, local)
 	end(err)
 	m.mu.Lock()
