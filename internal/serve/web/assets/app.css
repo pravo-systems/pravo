@@ -312,9 +312,10 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 .pal { position: relative; width: min(40rem, calc(100vw - 2rem)); max-height: min(38rem, 84vh); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 0; overflow: hidden; box-shadow: var(--shadow-2), 0 0 0 1px color-mix(in srgb, var(--text) 4%, transparent); animation: ui-pal-in .32s var(--ease); }
 .pal::before { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 1px; background: var(--hair); }
 @keyframes ui-pal-in { from { opacity: 0; transform: translateY(-10px) scale(.985); } to { opacity: 1; transform: none; } }
-.pal-in { display: flex; align-items: center; gap: .7rem; padding: 0 1rem; height: 3.3rem; border-bottom: 1px solid var(--line-strong); color: var(--text-3); }
+.pal-wrap > .pal:not(.sheet) { height: min(38rem, 84vh); }
+.pal-in { flex: none; display: flex; align-items: center; gap: .7rem; padding: 0 1rem; height: 3.3rem; border-bottom: 1px solid var(--line-strong); color: var(--text-3); }
 .pal-in .i { width: 1.1rem; height: 1.1rem; }
-.pal-in input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font: 400 1.05rem/1 var(--font-sans); color: var(--text); }
+.pal-in input { flex: 1; min-width: 0; align-self: stretch; border: 0; padding: 0; background: none; outline: none; font: 400 1.05rem/1.5 var(--font-sans); color: var(--text); }
 .pal-in input::placeholder { color: var(--text-3); }
 .pal-list { overflow: auto; padding: .3rem 0 .5rem; min-height: 3rem; }
 .pal-grp { display: flex; align-items: center; gap: .5rem; padding: .7rem 1rem .3rem; font: 600 .62rem/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
