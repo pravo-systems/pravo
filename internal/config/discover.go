@@ -31,9 +31,15 @@ func (r *Root) discover() error {
 		}
 		switch sel.ConstraintType() {
 		case cue.OptionalConstraint:
+			if err := skippedPolicy(it.Value(), []cue.Selector{sel}); err != nil {
+				return err
+			}
 			continue
 		case cue.RequiredConstraint:
 			if err := unsuppliedProvider(it.Value(), nil, sel); err != nil {
+				return err
+			}
+			if err := skippedPolicy(it.Value(), []cue.Selector{sel}); err != nil {
 				return err
 			}
 			continue
@@ -76,7 +82,7 @@ func (r *Root) resolveMoves() error {
 
 func (r *Root) walk(v cue.Value, path []cue.Selector, depth int) error {
 	if depth > 48 {
-		return nil
+		return skippedPolicy(v, path)
 	}
 	switch v.Kind() {
 	case cue.BottomKind:
@@ -102,11 +108,17 @@ func (r *Root) walk(v cue.Value, path []cue.Selector, depth int) error {
 			sel := fields.Selector()
 			switch sel.ConstraintType() {
 			case cue.OptionalConstraint:
+				if err := skippedPolicy(fields.Value(), append(append([]cue.Selector{}, path...), sel)); err != nil {
+					return err
+				}
 				continue
 			case cue.RequiredConstraint:
 				// A required field that nothing filled in. When it is a
 				// provider, a resource built through it cannot be found.
 				if err := unsuppliedProvider(fields.Value(), path, sel); err != nil {
+					return err
+				}
+				if err := skippedPolicy(fields.Value(), append(append([]cue.Selector{}, path...), sel)); err != nil {
 					return err
 				}
 				continue
@@ -126,6 +138,33 @@ func (r *Root) walk(v cue.Value, path []cue.Selector, depth int) error {
 			if err := r.walk(list.Value(), next, depth+1); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// skippedPolicy fails the load for a policy the walk would not visit, one
+// behind an optional or required label or deeper than the walk goes: a policy
+// that is silently not in force would judge nothing.
+func skippedPolicy(v cue.Value, path []cue.Selector) error {
+	return skippedPolicyBelow(v, path, 0)
+}
+
+func skippedPolicyBelow(v cue.Value, path []cue.Selector, depth int) error {
+	if v.Kind() != cue.StructKind || depth > 96 {
+		return nil
+	}
+	if kind, _ := stringField(v, "$kind"); kind == "policy" {
+		return fmt.Errorf("policy %s is not found: it sits behind an optional or required field, or deeper than 48 levels. Declare it at a regular path", cue.MakePath(path...))
+	}
+	fields, err := v.Fields(cue.Optional(true))
+	if err != nil {
+		return nil
+	}
+	for fields.Next() {
+		next := append(append([]cue.Selector{}, path...), fields.Selector())
+		if err := skippedPolicyBelow(fields.Value(), next, depth+1); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -191,6 +230,16 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		out.Sensitive, _ = v.LookupPath(cue.ParsePath("sensitive")).Bool()
 		r.Outputs = append(r.Outputs, out)
 		return nil
+	case "policy":
+		if nested := findNested(v, p, 0); nested != "" {
+			return fmt.Errorf("%s is a policy, so it cannot contain %s, which is a resource", p, nested)
+		}
+		rule, err := v.LookupPath(cue.ParsePath("rule")).String()
+		if err != nil || strings.TrimSpace(rule) == "" {
+			return fmt.Errorf("policy %s: rule must be a non-empty string of CUE", p)
+		}
+		r.Policies = append(r.Policies, &Policy{Name: p.String(), Path: p, Rule: rule})
+		return nil
 	case "remote_outputs":
 		if nested := findNested(v, p, 0); nested != "" {
 			return fmt.Errorf("%s reads another root's outputs, so it cannot contain %s, which is a resource", p, nested)
@@ -228,7 +277,7 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		r.Resources = append(r.Resources, &Resource{Mode: mode, Type: kind, Name: name, Path: p, addr: p.String(), Builtin: true})
 		return nil
 	default:
-		return fmt.Errorf("%s: $kind is %q; want resource, data, ephemeral, call, provider, output, env, secret_env or remote_outputs", p, kind)
+		return fmt.Errorf("%s: $kind is %q; want resource, data, ephemeral, call, provider, output, policy, env, secret_env or remote_outputs", p, kind)
 	}
 	srcText, ok := stringField(v, "$source")
 	if !ok {

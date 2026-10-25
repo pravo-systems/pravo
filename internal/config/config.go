@@ -147,6 +147,7 @@ type Root struct {
 	pending       []pendingResource
 	moves         []pendingMove
 	Outputs       []*Output
+	Policies      []*Policy
 
 	// byAddr finds a resource by address; it is built on first use and again when
 	// the number of resources changes.
@@ -284,6 +285,15 @@ type Output struct {
 	Path cue.Path
 	// Sensitive hides the value where outputs are listed.
 	Sensitive bool
+}
+
+// Policy is a rule every plan is judged by: any struct built from
+// pravo.#Policy. Its name is its address, the path it sits at.
+type Policy struct {
+	Name string
+	Path cue.Path
+	// Rule is standalone CUE, unified with the judged plan document.
+	Rule string
 }
 
 // ValuePath is where the published value sits.

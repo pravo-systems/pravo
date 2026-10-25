@@ -89,6 +89,7 @@ const defs = `
 $local:  #Local
 $random: #Random
 #Output: {$kind: "output", value: _, description?: string, sensitive?: bool}
+#Policy: {$kind: "policy", rule: string & != "", description?: string}
 #Env: {$kind: "env", name: string, default?: string, value: string}
 #SecretEnv: {$kind: "secret_env", name: string, value: string}
 #RemoteOutputs: {$kind: "remote_outputs", state: {path?: string, backend?: string, bucket?: string, prefix?: string}, outputs: {...}}
@@ -669,6 +670,43 @@ c: base & {a: "y"}
 		}
 		if len(got) != 1 || got[0] != want {
 			t.Errorf("%s: paths = %v, want [%s]", field, got, want)
+		}
+	}
+}
+
+func TestPoliciesAreFoundByMarker(t *testing.T) {
+	r, err := loadSpec(t, `
+#Rules: {
+	none: #Policy & {rule: "summary: destroy: 0"}
+}
+team: #Rules
+tidy: #Policy & {rule: "summary: add: >=0"}
+file: $local.#Resource.local_file & {filename: "p"}
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, p := range r.Policies {
+		names = append(names, p.Name)
+	}
+	sort.Strings(names)
+	if strings.Join(names, ",") != "team.none,tidy" {
+		t.Errorf("policies = %v", names)
+	}
+	if len(r.Resources) != 1 {
+		t.Errorf("a policy must not be a resource: %v", r.Resources)
+	}
+	for name, body := range map[string]string{
+		"empty":    `p: #Policy & {rule: ""}`,
+		"unset":    `p: #Policy`,
+		"optional": `p?: #Policy & {rule: "a: 1"}`,
+		"required": `p!: #Policy & {rule: "a: 1"}`,
+		"nested":   `g: {p?: #Policy & {rule: "a: 1"}}`,
+		"too deep": strings.Repeat("a: {", 50) + `p: #Policy & {rule: "a: 1"}` + strings.Repeat("}", 50),
+	} {
+		if _, err := loadSpec(t, body); err == nil {
+			t.Errorf("%s: the load must fail", name)
 		}
 	}
 }
