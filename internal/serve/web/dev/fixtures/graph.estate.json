@@ -1,0 +1,3353 @@
+{
+ "version": 1,
+ "revision": "r-estate-1b7e04aa",
+ "project": {
+  "dir": "/srv/infra/estate",
+  "package": "estate",
+  "version": "0.9.0-dev",
+  "state": {
+   "location": "s3://acme-state/estate",
+   "backend": "s3",
+   "lineage": "5c8d7e2a-61b4-4f0e-9a3b-0f6f5d1c2e77",
+   "format": 3,
+   "records": 141,
+   "locks": 1
+  },
+  "providers": [
+   {
+    "local": "aws",
+    "source": "registry.opentofu.org/hashicorp/aws",
+    "version": "5.61.0"
+   },
+   {
+    "local": "random",
+    "source": "registry.opentofu.org/hashicorp/random",
+    "version": "3.6.2"
+   },
+   {
+    "local": "local",
+    "source": "registry.opentofu.org/hashicorp/local",
+    "version": "2.5.1"
+   }
+  ],
+  "policies": [
+   "policy/no-public-db.cue"
+  ],
+  "loaded_at": "2026-10-21T14:02:11Z"
+ },
+ "nodes": [
+  {
+   "addr": "account",
+   "mode": "output",
+   "type": "output",
+   "name": "account",
+   "namespace": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 13,
+    "col": 2,
+    "end_line": 15
+   }
+  },
+  {
+   "addr": "apiToken",
+   "mode": "ephemeral",
+   "type": "aws_secretsmanager_random_password",
+   "name": "apiToken",
+   "namespace": "",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 16,
+    "col": 2,
+    "end_line": 18
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "apiTokenParam",
+   "mode": "managed",
+   "type": "aws_ssm_parameter",
+   "name": "apiTokenParam",
+   "namespace": "",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 14,
+    "col": 2,
+    "end_line": 16
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws",
+   "sensitive": 2
+  },
+  {
+   "addr": "billingQueue",
+   "mode": "data",
+   "type": "aws_sqs_queue",
+   "name": "billingQueue",
+   "namespace": "",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 20,
+    "col": 2,
+    "end_line": 22
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "bucket",
+   "mode": "managed",
+   "type": "aws_s3_bucket",
+   "name": "bucket",
+   "namespace": "",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 26,
+    "col": 2,
+    "end_line": 28
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "buckets.arn",
+   "mode": "output",
+   "type": "output",
+   "name": "arn",
+   "namespace": "buckets",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 71,
+    "col": 2,
+    "end_line": 73
+   }
+  },
+  {
+   "addr": "buckets.name",
+   "mode": "output",
+   "type": "output",
+   "name": "name",
+   "namespace": "buckets",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 72,
+    "col": 2,
+    "end_line": 74
+   }
+  },
+  {
+   "addr": "buckets.s3_bucket",
+   "mode": "managed",
+   "type": "aws_s3_bucket",
+   "name": "s3_bucket",
+   "namespace": "buckets",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 69,
+    "col": 2,
+    "end_line": 71
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "buckets.s3_bucket_policy",
+   "mode": "managed",
+   "type": "aws_s3_bucket_policy",
+   "name": "s3_bucket_policy",
+   "namespace": "buckets",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 70,
+    "col": 2,
+    "end_line": 72
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "crypto.kms_alias",
+   "mode": "managed",
+   "type": "aws_kms_alias",
+   "name": "kms_alias",
+   "namespace": "crypto",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 51,
+    "col": 2,
+    "end_line": 53
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "crypto.kms_key",
+   "mode": "managed",
+   "type": "aws_kms_key",
+   "name": "kms_key",
+   "namespace": "crypto",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 50,
+    "col": 2,
+    "end_line": 52
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.db_instance_1",
+   "mode": "managed",
+   "type": "aws_db_instance",
+   "name": "db_instance_1",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 74,
+    "col": 2,
+    "end_line": 76
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.db_instance_2",
+   "mode": "managed",
+   "type": "aws_db_instance",
+   "name": "db_instance_2",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 75,
+    "col": 2,
+    "end_line": 77
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.db_subnet_group",
+   "mode": "managed",
+   "type": "aws_db_subnet_group",
+   "name": "db_subnet_group",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 73,
+    "col": 2,
+    "end_line": 75
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.dynamodb_table_1",
+   "mode": "managed",
+   "type": "aws_dynamodb_table",
+   "name": "dynamodb_table_1",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 78,
+    "col": 2,
+    "end_line": 80
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.dynamodb_table_2",
+   "mode": "managed",
+   "type": "aws_dynamodb_table",
+   "name": "dynamodb_table_2",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 79,
+    "col": 2,
+    "end_line": 81
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.dynamodb_table_3",
+   "mode": "managed",
+   "type": "aws_dynamodb_table",
+   "name": "dynamodb_table_3",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 80,
+    "col": 2,
+    "end_line": 82
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.dynamodb_table_4",
+   "mode": "managed",
+   "type": "aws_dynamodb_table",
+   "name": "dynamodb_table_4",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 81,
+    "col": 2,
+    "end_line": 83
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.dynamodb_table_5",
+   "mode": "managed",
+   "type": "aws_dynamodb_table",
+   "name": "dynamodb_table_5",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 82,
+    "col": 2,
+    "end_line": 84
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.dynamodb_table_6",
+   "mode": "managed",
+   "type": "aws_dynamodb_table",
+   "name": "dynamodb_table_6",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 83,
+    "col": 2,
+    "end_line": 85
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.dynamodb_table_7",
+   "mode": "managed",
+   "type": "aws_dynamodb_table",
+   "name": "dynamodb_table_7",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 84,
+    "col": 2,
+    "end_line": 86
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.dynamodb_table_8",
+   "mode": "managed",
+   "type": "aws_dynamodb_table",
+   "name": "dynamodb_table_8",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 85,
+    "col": 2,
+    "end_line": 87
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.elasticache_cluster_1",
+   "mode": "managed",
+   "type": "aws_elasticache_cluster",
+   "name": "elasticache_cluster_1",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 76,
+    "col": 2,
+    "end_line": 78
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.elasticache_cluster_2",
+   "mode": "managed",
+   "type": "aws_elasticache_cluster",
+   "name": "elasticache_cluster_2",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 77,
+    "col": 2,
+    "end_line": 79
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.kinesis_stream_1",
+   "mode": "managed",
+   "type": "aws_kinesis_stream",
+   "name": "kinesis_stream_1",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 91,
+    "col": 2,
+    "end_line": 93
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.kinesis_stream_2",
+   "mode": "managed",
+   "type": "aws_kinesis_stream",
+   "name": "kinesis_stream_2",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 92,
+    "col": 2,
+    "end_line": 94
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.kinesis_stream_3",
+   "mode": "managed",
+   "type": "aws_kinesis_stream",
+   "name": "kinesis_stream_3",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 93,
+    "col": 2,
+    "end_line": 95
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.kinesis_stream_4",
+   "mode": "managed",
+   "type": "aws_kinesis_stream",
+   "name": "kinesis_stream_4",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 94,
+    "col": 2,
+    "end_line": 96
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.s3_bucket_1",
+   "mode": "managed",
+   "type": "aws_s3_bucket",
+   "name": "s3_bucket_1",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 86,
+    "col": 2,
+    "end_line": 88
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.s3_bucket_2",
+   "mode": "managed",
+   "type": "aws_s3_bucket",
+   "name": "s3_bucket_2",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 87,
+    "col": 2,
+    "end_line": 89
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.s3_bucket_3",
+   "mode": "managed",
+   "type": "aws_s3_bucket",
+   "name": "s3_bucket_3",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 88,
+    "col": 2,
+    "end_line": 90
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.s3_bucket_4",
+   "mode": "managed",
+   "type": "aws_s3_bucket",
+   "name": "s3_bucket_4",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 89,
+    "col": 2,
+    "end_line": 91
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "data.s3_bucket_5",
+   "mode": "managed",
+   "type": "aws_s3_bucket",
+   "name": "s3_bucket_5",
+   "namespace": "data",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 90,
+    "col": 2,
+    "end_line": 92
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "dbPassword",
+   "mode": "ephemeral",
+   "type": "random_password",
+   "name": "dbPassword",
+   "namespace": "",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 23,
+    "col": 2,
+    "end_line": 25
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "random"
+  },
+  {
+   "addr": "dbPasswordParam",
+   "mode": "managed",
+   "type": "aws_ssm_parameter",
+   "name": "dbPasswordParam",
+   "namespace": "",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 24,
+    "col": 2,
+    "end_line": 26
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws",
+   "sensitive": 1
+  },
+  {
+   "addr": "edge.acm_certificate",
+   "mode": "managed",
+   "type": "aws_acm_certificate",
+   "name": "acm_certificate",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 103,
+    "col": 2,
+    "end_line": 105
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.cloudfront_distribution",
+   "mode": "managed",
+   "type": "aws_cloudfront_distribution",
+   "name": "cloudfront_distribution",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 108,
+    "col": 2,
+    "end_line": 110
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_1",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb_1",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 95,
+    "col": 2,
+    "end_line": 97
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_2",
+   "mode": "managed",
+   "type": "aws_lb",
+   "name": "lb_2",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 96,
+    "col": 2,
+    "end_line": 98
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_listener_1",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "lb_listener_1",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 97,
+    "col": 2,
+    "end_line": 99
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_listener_2",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "lb_listener_2",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 98,
+    "col": 2,
+    "end_line": 100
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_listener_3",
+   "mode": "managed",
+   "type": "aws_lb_listener",
+   "name": "lb_listener_3",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 99,
+    "col": 2,
+    "end_line": 101
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_listener_rule_1",
+   "mode": "managed",
+   "type": "aws_lb_listener_rule",
+   "name": "lb_listener_rule_1",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 109,
+    "col": 2,
+    "end_line": 111
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_listener_rule_2",
+   "mode": "managed",
+   "type": "aws_lb_listener_rule",
+   "name": "lb_listener_rule_2",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 110,
+    "col": 2,
+    "end_line": 112
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_target_group_1",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "lb_target_group_1",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 100,
+    "col": 2,
+    "end_line": 102
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_target_group_2",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "lb_target_group_2",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 101,
+    "col": 2,
+    "end_line": 103
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.lb_target_group_3",
+   "mode": "managed",
+   "type": "aws_lb_target_group",
+   "name": "lb_target_group_3",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 102,
+    "col": 2,
+    "end_line": 104
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.route53_record_1",
+   "mode": "managed",
+   "type": "aws_route53_record",
+   "name": "route53_record_1",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 104,
+    "col": 2,
+    "end_line": 106
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.route53_record_2",
+   "mode": "managed",
+   "type": "aws_route53_record",
+   "name": "route53_record_2",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 105,
+    "col": 2,
+    "end_line": 107
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.route53_record_3",
+   "mode": "managed",
+   "type": "aws_route53_record",
+   "name": "route53_record_3",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 106,
+    "col": 2,
+    "end_line": 108
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "edge.wafv2_web_acl",
+   "mode": "managed",
+   "type": "aws_wafv2_web_acl",
+   "name": "wafv2_web_acl",
+   "namespace": "edge",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 107,
+    "col": 2,
+    "end_line": 109
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "estate",
+   "mode": "output",
+   "type": "output",
+   "name": "estate",
+   "namespace": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 32,
+    "col": 2,
+    "end_line": 34
+   },
+   "sensitive": 1
+  },
+  {
+   "addr": "feeds.sns_topic",
+   "mode": "managed",
+   "type": "aws_sns_topic",
+   "name": "sns_topic",
+   "namespace": "feeds",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 60,
+    "col": 2,
+    "end_line": 62
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "feeds.sns_topic_subscription",
+   "mode": "managed",
+   "type": "aws_sns_topic_subscription",
+   "name": "sns_topic_subscription",
+   "namespace": "feeds",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 62,
+    "col": 2,
+    "end_line": 64
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "feeds.sqs_queue",
+   "mode": "managed",
+   "type": "aws_sqs_queue",
+   "name": "sqs_queue",
+   "namespace": "feeds",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 61,
+    "col": 2,
+    "end_line": 63
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "hardening.cloudtrail",
+   "mode": "managed",
+   "type": "aws_cloudtrail",
+   "name": "cloudtrail",
+   "namespace": "hardening",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 59,
+    "col": 2,
+    "end_line": 61
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "hardening.config_rule_1",
+   "mode": "managed",
+   "type": "aws_config_rule",
+   "name": "config_rule_1",
+   "namespace": "hardening",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 55,
+    "col": 2,
+    "end_line": 57
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "hardening.config_rule_2",
+   "mode": "managed",
+   "type": "aws_config_rule",
+   "name": "config_rule_2",
+   "namespace": "hardening",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 56,
+    "col": 2,
+    "end_line": 58
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "hardening.guardduty_detector",
+   "mode": "managed",
+   "type": "aws_guardduty_detector",
+   "name": "guardduty_detector",
+   "namespace": "hardening",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 57,
+    "col": 2,
+    "end_line": 59
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "hardening.securityhub_account",
+   "mode": "managed",
+   "type": "aws_securityhub_account",
+   "name": "securityhub_account",
+   "namespace": "hardening",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 58,
+    "col": 2,
+    "end_line": 60
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "hello",
+   "mode": "managed",
+   "type": "aws_s3_object",
+   "name": "hello",
+   "namespace": "",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 27,
+    "col": 2,
+    "end_line": 29
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "here",
+   "mode": "data",
+   "type": "aws_region",
+   "name": "here",
+   "namespace": "",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 11,
+    "col": 2,
+    "end_line": 13
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "iam.iam_policy",
+   "mode": "managed",
+   "type": "aws_iam_policy",
+   "name": "iam_policy",
+   "namespace": "iam",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 53,
+    "col": 2,
+    "end_line": 55
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "iam.iam_role",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "iam_role",
+   "namespace": "iam",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 52,
+    "col": 2,
+    "end_line": 54
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "iam.iam_role_policy_attachment",
+   "mode": "managed",
+   "type": "aws_iam_role_policy_attachment",
+   "name": "iam_role_policy_attachment",
+   "namespace": "iam",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 54,
+    "col": 2,
+    "end_line": 56
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "mainBucket",
+   "mode": "data",
+   "type": "aws_s3_bucket",
+   "name": "mainBucket",
+   "namespace": "",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 32
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "me",
+   "mode": "data",
+   "type": "aws_caller_identity",
+   "name": "me",
+   "namespace": "",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 10,
+    "col": 2,
+    "end_line": 12
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "name",
+   "mode": "output",
+   "type": "output",
+   "name": "name",
+   "namespace": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 28,
+    "col": 2,
+    "end_line": 30
+   }
+  },
+  {
+   "addr": "network.internet_gateway",
+   "mode": "managed",
+   "type": "aws_internet_gateway",
+   "name": "internet_gateway",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 43,
+    "col": 2,
+    "end_line": 45
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.nat_gateway_1",
+   "mode": "managed",
+   "type": "aws_nat_gateway",
+   "name": "nat_gateway_1",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 44,
+    "col": 2,
+    "end_line": 46
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.nat_gateway_2",
+   "mode": "managed",
+   "type": "aws_nat_gateway",
+   "name": "nat_gateway_2",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 45,
+    "col": 2,
+    "end_line": 47
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.route_table_1",
+   "mode": "managed",
+   "type": "aws_route_table",
+   "name": "route_table_1",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 40,
+    "col": 2,
+    "end_line": 42
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.route_table_2",
+   "mode": "managed",
+   "type": "aws_route_table",
+   "name": "route_table_2",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 41,
+    "col": 2,
+    "end_line": 43
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.route_table_3",
+   "mode": "managed",
+   "type": "aws_route_table",
+   "name": "route_table_3",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 42,
+    "col": 2,
+    "end_line": 44
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.security_group_1",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "security_group_1",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 46,
+    "col": 2,
+    "end_line": 48
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.security_group_2",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "security_group_2",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 47,
+    "col": 2,
+    "end_line": 49
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.security_group_3",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "security_group_3",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 48,
+    "col": 2,
+    "end_line": 50
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.security_group_4",
+   "mode": "managed",
+   "type": "aws_security_group",
+   "name": "security_group_4",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 49,
+    "col": 2,
+    "end_line": 51
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.subnet_1",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_1",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 34,
+    "col": 2,
+    "end_line": 36
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.subnet_2",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_2",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 35,
+    "col": 2,
+    "end_line": 37
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.subnet_3",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_3",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 36,
+    "col": 2,
+    "end_line": 38
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.subnet_4",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_4",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 37,
+    "col": 2,
+    "end_line": 39
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.subnet_5",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_5",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 38,
+    "col": 2,
+    "end_line": 40
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.subnet_6",
+   "mode": "managed",
+   "type": "aws_subnet",
+   "name": "subnet_6",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 39,
+    "col": 2,
+    "end_line": 41
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "network.vpc",
+   "mode": "managed",
+   "type": "aws_vpc",
+   "name": "vpc",
+   "namespace": "network",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 33,
+    "col": 2,
+    "end_line": 35
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "partition",
+   "mode": "data",
+   "type": "aws_partition",
+   "name": "partition",
+   "namespace": "",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 12,
+    "col": 2,
+    "end_line": 14
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "pass",
+   "mode": "managed",
+   "type": "random_password",
+   "name": "pass",
+   "namespace": "",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 31,
+    "col": 2,
+    "end_line": 33
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "random",
+   "sensitive": 1
+  },
+  {
+   "addr": "pass2",
+   "mode": "managed",
+   "type": "random_password",
+   "name": "pass2",
+   "namespace": "",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 21,
+    "col": 2,
+    "end_line": 23
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "random",
+   "sensitive": 1
+  },
+  {
+   "addr": "pet",
+   "mode": "managed",
+   "type": "random_pet",
+   "name": "pet",
+   "namespace": "",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 25,
+    "col": 2,
+    "end_line": 27
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "random"
+  },
+  {
+   "addr": "prefix",
+   "mode": "builtin",
+   "type": "env",
+   "name": "prefix",
+   "namespace": "",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 22,
+    "col": 2,
+    "end_line": 24
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z"
+  },
+  {
+   "addr": "queues",
+   "mode": "output",
+   "type": "output",
+   "name": "queues",
+   "namespace": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 18,
+    "col": 2,
+    "end_line": 20
+   }
+  },
+  {
+   "addr": "readOnly",
+   "mode": "data",
+   "type": "aws_iam_policy_document",
+   "name": "readOnly",
+   "namespace": "",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 17,
+    "col": 2,
+    "end_line": 19
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "readPolicy",
+   "mode": "output",
+   "type": "output",
+   "name": "readPolicy",
+   "namespace": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 29,
+    "col": 2,
+    "end_line": 31
+   }
+  },
+  {
+   "addr": "secrets.secretsmanager_secret_1",
+   "mode": "managed",
+   "type": "aws_secretsmanager_secret",
+   "name": "secretsmanager_secret_1",
+   "namespace": "secrets",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 63,
+    "col": 2,
+    "end_line": 65
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "secrets.secretsmanager_secret_2",
+   "mode": "managed",
+   "type": "aws_secretsmanager_secret",
+   "name": "secretsmanager_secret_2",
+   "namespace": "secrets",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 64,
+    "col": 2,
+    "end_line": 66
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "secrets.secretsmanager_secret_3",
+   "mode": "managed",
+   "type": "aws_secretsmanager_secret",
+   "name": "secretsmanager_secret_3",
+   "namespace": "secrets",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 65,
+    "col": 2,
+    "end_line": 67
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "secrets.secretsmanager_secret_version_1",
+   "mode": "managed",
+   "type": "aws_secretsmanager_secret_version",
+   "name": "secretsmanager_secret_version_1",
+   "namespace": "secrets",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 66,
+    "col": 2,
+    "end_line": 68
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "secrets.secretsmanager_secret_version_2",
+   "mode": "managed",
+   "type": "aws_secretsmanager_secret_version",
+   "name": "secretsmanager_secret_version_2",
+   "namespace": "secrets",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 67,
+    "col": 2,
+    "end_line": 69
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "secrets.secretsmanager_secret_version_3",
+   "mode": "managed",
+   "type": "aws_secretsmanager_secret_version",
+   "name": "secretsmanager_secret_version_3",
+   "namespace": "secrets",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 68,
+    "col": 2,
+    "end_line": 70
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.appautoscaling_target_1",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "appautoscaling_target_1",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 144,
+    "col": 2,
+    "end_line": 146
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.appautoscaling_target_2",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "appautoscaling_target_2",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 145,
+    "col": 2,
+    "end_line": 147
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.appautoscaling_target_3",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "appautoscaling_target_3",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 146,
+    "col": 2,
+    "end_line": 148
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.appautoscaling_target_4",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "appautoscaling_target_4",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 147,
+    "col": 2,
+    "end_line": 149
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.appautoscaling_target_5",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "appautoscaling_target_5",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 148,
+    "col": 2,
+    "end_line": 150
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.appautoscaling_target_6",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "appautoscaling_target_6",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 149,
+    "col": 2,
+    "end_line": 151
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.appautoscaling_target_7",
+   "mode": "managed",
+   "type": "aws_appautoscaling_target",
+   "name": "appautoscaling_target_7",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 150,
+    "col": 2,
+    "end_line": 152
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.cloudwatch_log_group_1",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "cloudwatch_log_group_1",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 128,
+    "col": 2,
+    "end_line": 130
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.cloudwatch_log_group_2",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "cloudwatch_log_group_2",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 129,
+    "col": 2,
+    "end_line": 131
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.cloudwatch_log_group_3",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "cloudwatch_log_group_3",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 130,
+    "col": 2,
+    "end_line": 132
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.cloudwatch_log_group_4",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "cloudwatch_log_group_4",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 131,
+    "col": 2,
+    "end_line": 133
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.cloudwatch_log_group_5",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "cloudwatch_log_group_5",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 132,
+    "col": 2,
+    "end_line": 134
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.cloudwatch_log_group_6",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "cloudwatch_log_group_6",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 133,
+    "col": 2,
+    "end_line": 135
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.cloudwatch_log_group_7",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "cloudwatch_log_group_7",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 134,
+    "col": 2,
+    "end_line": 136
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.cloudwatch_log_group_8",
+   "mode": "managed",
+   "type": "aws_cloudwatch_log_group",
+   "name": "cloudwatch_log_group_8",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 135,
+    "col": 2,
+    "end_line": 137
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_cluster",
+   "mode": "managed",
+   "type": "aws_ecs_cluster",
+   "name": "ecs_cluster",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 111,
+    "col": 2,
+    "end_line": 113
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_service_1",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "ecs_service_1",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 4,
+   "source": {
+    "file": "main.cue",
+    "line": 112,
+    "col": 2,
+    "end_line": 114
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_service_2",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "ecs_service_2",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 113,
+    "col": 2,
+    "end_line": 115
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_service_3",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "ecs_service_3",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 114,
+    "col": 2,
+    "end_line": 116
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_service_4",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "ecs_service_4",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 115,
+    "col": 2,
+    "end_line": 117
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_service_5",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "ecs_service_5",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 2,
+   "source": {
+    "file": "main.cue",
+    "line": 116,
+    "col": 2,
+    "end_line": 118
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_service_6",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "ecs_service_6",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 117,
+    "col": 2,
+    "end_line": 119
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_service_7",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "ecs_service_7",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 118,
+    "col": 2,
+    "end_line": 120
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_service_8",
+   "mode": "managed",
+   "type": "aws_ecs_service",
+   "name": "ecs_service_8",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 119,
+    "col": 2,
+    "end_line": 121
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_task_definition_1",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "ecs_task_definition_1",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 120,
+    "col": 2,
+    "end_line": 122
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_task_definition_2",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "ecs_task_definition_2",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 121,
+    "col": 2,
+    "end_line": 123
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_task_definition_3",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "ecs_task_definition_3",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 122,
+    "col": 2,
+    "end_line": 124
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_task_definition_4",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "ecs_task_definition_4",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 123,
+    "col": 2,
+    "end_line": 125
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_task_definition_5",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "ecs_task_definition_5",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 124,
+    "col": 2,
+    "end_line": 126
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_task_definition_6",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "ecs_task_definition_6",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 125,
+    "col": 2,
+    "end_line": 127
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_task_definition_7",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "ecs_task_definition_7",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 126,
+    "col": 2,
+    "end_line": 128
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.ecs_task_definition_8",
+   "mode": "managed",
+   "type": "aws_ecs_task_definition",
+   "name": "ecs_task_definition_8",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 6,
+   "source": {
+    "file": "main.cue",
+    "line": 127,
+    "col": 2,
+    "end_line": 129
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.iam_role_1",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "iam_role_1",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 136,
+    "col": 2,
+    "end_line": 138
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.iam_role_2",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "iam_role_2",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 8,
+   "source": {
+    "file": "main.cue",
+    "line": 137,
+    "col": 2,
+    "end_line": 139
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.iam_role_3",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "iam_role_3",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 138,
+    "col": 2,
+    "end_line": 140
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.iam_role_4",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "iam_role_4",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 139,
+    "col": 2,
+    "end_line": 141
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.iam_role_5",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "iam_role_5",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 5,
+   "source": {
+    "file": "main.cue",
+    "line": 140,
+    "col": 2,
+    "end_line": 142
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.iam_role_6",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "iam_role_6",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 1,
+   "source": {
+    "file": "main.cue",
+    "line": 141,
+    "col": 2,
+    "end_line": 143
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.iam_role_7",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "iam_role_7",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 3,
+   "source": {
+    "file": "main.cue",
+    "line": 142,
+    "col": 2,
+    "end_line": 144
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "services.iam_role_8",
+   "mode": "managed",
+   "type": "aws_iam_role",
+   "name": "iam_role_8",
+   "namespace": "services",
+   "presence": "both",
+   "revision": 7,
+   "source": {
+    "file": "main.cue",
+    "line": 143,
+    "col": 2,
+    "end_line": 145
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "shadow_platform_assets",
+   "mode": "managed",
+   "type": "aws_s3_bucket",
+   "name": "shadow_platform_assets",
+   "namespace": "",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 19,
+    "col": 2,
+    "end_line": 21
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z",
+   "provider": "aws"
+  },
+  {
+   "addr": "stateBucketName",
+   "mode": "builtin",
+   "type": "env",
+   "name": "stateBucketName",
+   "namespace": "",
+   "presence": "both",
+   "revision": 9,
+   "source": {
+    "file": "main.cue",
+    "line": 15,
+    "col": 2,
+    "end_line": 17
+   },
+   "refreshed_at": "2026-10-21T13:58:11Z"
+  }
+ ],
+ "edges": [
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.subnet_1"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.subnet_2"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.subnet_3"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.subnet_4"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.subnet_5"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.subnet_6"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.route_table_1"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.route_table_2"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.route_table_3"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.internet_gateway"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.nat_gateway_1"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.nat_gateway_2"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.security_group_1"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.security_group_2"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.security_group_3"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "network.security_group_4"
+  },
+  {
+   "dependency": "network.internet_gateway",
+   "dependent": "network.route_table_1"
+  },
+  {
+   "dependency": "network.internet_gateway",
+   "dependent": "network.route_table_2"
+  },
+  {
+   "dependency": "network.internet_gateway",
+   "dependent": "network.route_table_3"
+  },
+  {
+   "dependency": "network.subnet_1",
+   "dependent": "network.nat_gateway_1"
+  },
+  {
+   "dependency": "network.subnet_2",
+   "dependent": "network.nat_gateway_2"
+  },
+  {
+   "dependency": "network.subnet_1",
+   "dependent": "network.route_table_1"
+  },
+  {
+   "dependency": "network.subnet_2",
+   "dependent": "network.route_table_2"
+  },
+  {
+   "dependency": "network.subnet_3",
+   "dependent": "network.route_table_3"
+  },
+  {
+   "dependency": "crypto.kms_key",
+   "dependent": "crypto.kms_alias"
+  },
+  {
+   "dependency": "iam.iam_role",
+   "dependent": "iam.iam_role_policy_attachment"
+  },
+  {
+   "dependency": "iam.iam_policy",
+   "dependent": "iam.iam_role_policy_attachment"
+  },
+  {
+   "dependency": "hardening.guardduty_detector",
+   "dependent": "hardening.securityhub_account"
+  },
+  {
+   "dependency": "feeds.sns_topic",
+   "dependent": "feeds.sns_topic_subscription"
+  },
+  {
+   "dependency": "feeds.sqs_queue",
+   "dependent": "feeds.sns_topic_subscription"
+  },
+  {
+   "dependency": "secrets.secretsmanager_secret_1",
+   "dependent": "secrets.secretsmanager_secret_version_1"
+  },
+  {
+   "dependency": "secrets.secretsmanager_secret_2",
+   "dependent": "secrets.secretsmanager_secret_version_2"
+  },
+  {
+   "dependency": "secrets.secretsmanager_secret_3",
+   "dependent": "secrets.secretsmanager_secret_version_3"
+  },
+  {
+   "dependency": "buckets.s3_bucket",
+   "dependent": "buckets.s3_bucket_policy"
+  },
+  {
+   "dependency": "buckets.s3_bucket",
+   "dependent": "buckets.arn"
+  },
+  {
+   "dependency": "buckets.s3_bucket",
+   "dependent": "buckets.name"
+  },
+  {
+   "dependency": "data.db_subnet_group",
+   "dependent": "data.db_instance_1"
+  },
+  {
+   "dependency": "data.db_subnet_group",
+   "dependent": "data.db_instance_2"
+  },
+  {
+   "dependency": "edge.lb_1",
+   "dependent": "edge.lb_listener_1"
+  },
+  {
+   "dependency": "edge.lb_2",
+   "dependent": "edge.lb_listener_2"
+  },
+  {
+   "dependency": "edge.lb_listener_1",
+   "dependent": "edge.lb_listener_rule_1"
+  },
+  {
+   "dependency": "edge.lb_listener_2",
+   "dependent": "edge.lb_listener_rule_2"
+  },
+  {
+   "dependency": "edge.acm_certificate",
+   "dependent": "edge.lb_listener_3"
+  },
+  {
+   "dependency": "edge.acm_certificate",
+   "dependent": "edge.cloudfront_distribution"
+  },
+  {
+   "dependency": "edge.lb_1",
+   "dependent": "edge.route53_record_1"
+  },
+  {
+   "dependency": "edge.lb_2",
+   "dependent": "edge.route53_record_2"
+  },
+  {
+   "dependency": "edge.cloudfront_distribution",
+   "dependent": "edge.route53_record_3"
+  },
+  {
+   "dependency": "edge.wafv2_web_acl",
+   "dependent": "edge.cloudfront_distribution"
+  },
+  {
+   "dependency": "services.ecs_cluster",
+   "dependent": "services.ecs_service_1"
+  },
+  {
+   "dependency": "services.ecs_task_definition_1",
+   "dependent": "services.ecs_service_1"
+  },
+  {
+   "dependency": "services.cloudwatch_log_group_1",
+   "dependent": "services.ecs_task_definition_1"
+  },
+  {
+   "dependency": "services.iam_role_1",
+   "dependent": "services.ecs_task_definition_1"
+  },
+  {
+   "dependency": "services.ecs_service_1",
+   "dependent": "services.appautoscaling_target_1"
+  },
+  {
+   "dependency": "services.ecs_cluster",
+   "dependent": "services.ecs_service_2"
+  },
+  {
+   "dependency": "services.ecs_task_definition_2",
+   "dependent": "services.ecs_service_2"
+  },
+  {
+   "dependency": "services.cloudwatch_log_group_2",
+   "dependent": "services.ecs_task_definition_2"
+  },
+  {
+   "dependency": "services.iam_role_2",
+   "dependent": "services.ecs_task_definition_2"
+  },
+  {
+   "dependency": "services.ecs_service_2",
+   "dependent": "services.appautoscaling_target_2"
+  },
+  {
+   "dependency": "services.ecs_cluster",
+   "dependent": "services.ecs_service_3"
+  },
+  {
+   "dependency": "services.ecs_task_definition_3",
+   "dependent": "services.ecs_service_3"
+  },
+  {
+   "dependency": "services.cloudwatch_log_group_3",
+   "dependent": "services.ecs_task_definition_3"
+  },
+  {
+   "dependency": "services.iam_role_3",
+   "dependent": "services.ecs_task_definition_3"
+  },
+  {
+   "dependency": "services.ecs_service_3",
+   "dependent": "services.appautoscaling_target_3"
+  },
+  {
+   "dependency": "services.ecs_cluster",
+   "dependent": "services.ecs_service_4"
+  },
+  {
+   "dependency": "services.ecs_task_definition_4",
+   "dependent": "services.ecs_service_4"
+  },
+  {
+   "dependency": "services.cloudwatch_log_group_4",
+   "dependent": "services.ecs_task_definition_4"
+  },
+  {
+   "dependency": "services.iam_role_4",
+   "dependent": "services.ecs_task_definition_4"
+  },
+  {
+   "dependency": "services.ecs_service_4",
+   "dependent": "services.appautoscaling_target_4"
+  },
+  {
+   "dependency": "services.ecs_cluster",
+   "dependent": "services.ecs_service_5"
+  },
+  {
+   "dependency": "services.ecs_task_definition_5",
+   "dependent": "services.ecs_service_5"
+  },
+  {
+   "dependency": "services.cloudwatch_log_group_5",
+   "dependent": "services.ecs_task_definition_5"
+  },
+  {
+   "dependency": "services.iam_role_5",
+   "dependent": "services.ecs_task_definition_5"
+  },
+  {
+   "dependency": "services.ecs_service_5",
+   "dependent": "services.appautoscaling_target_5"
+  },
+  {
+   "dependency": "services.ecs_cluster",
+   "dependent": "services.ecs_service_6"
+  },
+  {
+   "dependency": "services.ecs_task_definition_6",
+   "dependent": "services.ecs_service_6"
+  },
+  {
+   "dependency": "services.cloudwatch_log_group_6",
+   "dependent": "services.ecs_task_definition_6"
+  },
+  {
+   "dependency": "services.iam_role_6",
+   "dependent": "services.ecs_task_definition_6"
+  },
+  {
+   "dependency": "services.ecs_service_6",
+   "dependent": "services.appautoscaling_target_6"
+  },
+  {
+   "dependency": "services.ecs_cluster",
+   "dependent": "services.ecs_service_7"
+  },
+  {
+   "dependency": "services.ecs_task_definition_7",
+   "dependent": "services.ecs_service_7"
+  },
+  {
+   "dependency": "services.cloudwatch_log_group_7",
+   "dependent": "services.ecs_task_definition_7"
+  },
+  {
+   "dependency": "services.iam_role_7",
+   "dependent": "services.ecs_task_definition_7"
+  },
+  {
+   "dependency": "services.ecs_service_7",
+   "dependent": "services.appautoscaling_target_7"
+  },
+  {
+   "dependency": "services.ecs_cluster",
+   "dependent": "services.ecs_service_8"
+  },
+  {
+   "dependency": "services.ecs_task_definition_8",
+   "dependent": "services.ecs_service_8"
+  },
+  {
+   "dependency": "services.cloudwatch_log_group_8",
+   "dependent": "services.ecs_task_definition_8"
+  },
+  {
+   "dependency": "services.iam_role_8",
+   "dependent": "services.ecs_task_definition_8"
+  },
+  {
+   "dependency": "me",
+   "dependent": "account"
+  },
+  {
+   "dependency": "here",
+   "dependent": "account"
+  },
+  {
+   "dependency": "here",
+   "dependent": "apiTokenParam"
+  },
+  {
+   "dependency": "apiToken",
+   "dependent": "apiTokenParam"
+  },
+  {
+   "dependency": "partition",
+   "dependent": "shadow_platform_assets"
+  },
+  {
+   "dependency": "partition",
+   "dependent": "readOnly"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "shadow_platform_assets"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "bucket"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "hello"
+  },
+  {
+   "dependency": "stateBucketName",
+   "dependent": "bucket"
+  },
+  {
+   "dependency": "readOnly",
+   "dependent": "readPolicy"
+  },
+  {
+   "dependency": "readOnly",
+   "dependent": "iam.iam_policy"
+  },
+  {
+   "dependency": "billingQueue",
+   "dependent": "queues"
+  },
+  {
+   "dependency": "billingQueue",
+   "dependent": "feeds.sqs_queue"
+  },
+  {
+   "dependency": "pass",
+   "dependent": "secrets.secretsmanager_secret_version_1"
+  },
+  {
+   "dependency": "pass",
+   "dependent": "secrets.secretsmanager_secret_version_2"
+  },
+  {
+   "dependency": "pass2",
+   "dependent": "secrets.secretsmanager_secret_version_3"
+  },
+  {
+   "dependency": "dbPassword",
+   "dependent": "dbPasswordParam"
+  },
+  {
+   "dependency": "dbPasswordParam",
+   "dependent": "data.db_instance_1"
+  },
+  {
+   "dependency": "dbPasswordParam",
+   "dependent": "data.db_instance_2"
+  },
+  {
+   "dependency": "pet",
+   "dependent": "bucket"
+  },
+  {
+   "dependency": "pet",
+   "dependent": "name"
+  },
+  {
+   "dependency": "mainBucket",
+   "dependent": "hello"
+  },
+  {
+   "dependency": "mainBucket",
+   "dependent": "hardening.cloudtrail"
+  },
+  {
+   "dependency": "bucket",
+   "dependent": "hello"
+  },
+  {
+   "dependency": "bucket",
+   "dependent": "buckets.s3_bucket"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "buckets.s3_bucket"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "crypto.kms_key"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "feeds.sns_topic"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "iam.iam_role"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "network.vpc"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "edge.lb_1"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "services.ecs_cluster"
+  },
+  {
+   "dependency": "prefix",
+   "dependent": "data.db_subnet_group"
+  },
+  {
+   "dependency": "me",
+   "dependent": "iam.iam_policy"
+  },
+  {
+   "dependency": "me",
+   "dependent": "crypto.kms_key"
+  },
+  {
+   "dependency": "me",
+   "dependent": "hardening.guardduty_detector"
+  },
+  {
+   "dependency": "here",
+   "dependent": "network.vpc"
+  },
+  {
+   "dependency": "here",
+   "dependent": "edge.acm_certificate"
+  },
+  {
+   "dependency": "crypto.kms_key",
+   "dependent": "secrets.secretsmanager_secret_1"
+  },
+  {
+   "dependency": "crypto.kms_key",
+   "dependent": "secrets.secretsmanager_secret_2"
+  },
+  {
+   "dependency": "crypto.kms_key",
+   "dependent": "secrets.secretsmanager_secret_3"
+  },
+  {
+   "dependency": "crypto.kms_key",
+   "dependent": "data.db_instance_1"
+  },
+  {
+   "dependency": "crypto.kms_key",
+   "dependent": "buckets.s3_bucket_policy"
+  },
+  {
+   "dependency": "crypto.kms_key",
+   "dependent": "feeds.sns_topic"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "edge.lb_1"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "edge.lb_2"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "data.db_subnet_group"
+  },
+  {
+   "dependency": "network.vpc",
+   "dependent": "services.ecs_cluster"
+  },
+  {
+   "dependency": "network.subnet_1",
+   "dependent": "edge.lb_1"
+  },
+  {
+   "dependency": "network.subnet_1",
+   "dependent": "data.db_instance_1"
+  },
+  {
+   "dependency": "network.subnet_2",
+   "dependent": "edge.lb_2"
+  },
+  {
+   "dependency": "network.subnet_2",
+   "dependent": "data.db_instance_2"
+  },
+  {
+   "dependency": "network.security_group_1",
+   "dependent": "edge.lb_1"
+  },
+  {
+   "dependency": "network.security_group_1",
+   "dependent": "edge.lb_2"
+  },
+  {
+   "dependency": "network.security_group_1",
+   "dependent": "services.ecs_service_1"
+  },
+  {
+   "dependency": "network.security_group_1",
+   "dependent": "services.ecs_service_2"
+  },
+  {
+   "dependency": "network.security_group_2",
+   "dependent": "data.db_instance_1"
+  },
+  {
+   "dependency": "network.security_group_2",
+   "dependent": "data.db_instance_2"
+  },
+  {
+   "dependency": "network.security_group_2",
+   "dependent": "data.elasticache_cluster_1"
+  },
+  {
+   "dependency": "iam.iam_role",
+   "dependent": "services.iam_role_1"
+  },
+  {
+   "dependency": "iam.iam_role",
+   "dependent": "services.iam_role_2"
+  },
+  {
+   "dependency": "iam.iam_role",
+   "dependent": "services.iam_role_3"
+  },
+  {
+   "dependency": "iam.iam_role",
+   "dependent": "hardening.config_rule_1"
+  },
+  {
+   "dependency": "secrets.secretsmanager_secret_version_1",
+   "dependent": "services.ecs_task_definition_1"
+  },
+  {
+   "dependency": "secrets.secretsmanager_secret_version_1",
+   "dependent": "services.ecs_task_definition_2"
+  },
+  {
+   "dependency": "secrets.secretsmanager_secret_version_2",
+   "dependent": "services.ecs_task_definition_3"
+  },
+  {
+   "dependency": "secrets.secretsmanager_secret_version_2",
+   "dependent": "data.db_instance_2"
+  },
+  {
+   "dependency": "secrets.secretsmanager_secret_version_3",
+   "dependent": "services.ecs_task_definition_4"
+  },
+  {
+   "dependency": "feeds.sns_topic",
+   "dependent": "services.ecs_service_1"
+  },
+  {
+   "dependency": "feeds.sns_topic",
+   "dependent": "services.ecs_task_definition_5"
+  },
+  {
+   "dependency": "edge.lb_target_group_1",
+   "dependent": "services.ecs_service_1"
+  },
+  {
+   "dependency": "edge.lb_target_group_2",
+   "dependent": "services.ecs_service_2"
+  },
+  {
+   "dependency": "edge.lb_target_group_3",
+   "dependent": "services.ecs_service_3"
+  },
+  {
+   "dependency": "edge.lb_1",
+   "dependent": "edge.lb_target_group_1"
+  },
+  {
+   "dependency": "edge.lb_1",
+   "dependent": "edge.lb_target_group_2"
+  },
+  {
+   "dependency": "edge.lb_2",
+   "dependent": "edge.lb_target_group_3"
+  },
+  {
+   "dependency": "buckets.s3_bucket",
+   "dependent": "data.s3_bucket_1"
+  },
+  {
+   "dependency": "buckets.s3_bucket",
+   "dependent": "services.ecs_task_definition_6"
+  },
+  {
+   "dependency": "data.db_instance_1",
+   "dependent": "services.ecs_task_definition_1"
+  },
+  {
+   "dependency": "data.db_instance_1",
+   "dependent": "services.ecs_task_definition_2"
+  },
+  {
+   "dependency": "data.elasticache_cluster_1",
+   "dependent": "services.ecs_task_definition_3"
+  },
+  {
+   "dependency": "data.dynamodb_table_1",
+   "dependent": "services.ecs_task_definition_7"
+  },
+  {
+   "dependency": "data.dynamodb_table_1",
+   "dependent": "estate"
+  },
+  {
+   "dependency": "data.db_instance_2",
+   "dependent": "name"
+  },
+  {
+   "dependency": "data.db_instance_2",
+   "dependent": "estate"
+  },
+  {
+   "dependency": "data.s3_bucket_1",
+   "dependent": "estate"
+  },
+  {
+   "dependency": "mainBucket",
+   "dependent": "data.s3_bucket_2"
+  },
+  {
+   "dependency": "hardening.config_rule_2",
+   "dependent": "hardening.cloudtrail"
+  },
+  {
+   "dependency": "billingQueue",
+   "dependent": "services.ecs_task_definition_8"
+  }
+ ],
+ "namespaces": [
+  {
+   "path": "buckets",
+   "parent": "",
+   "name": "buckets",
+   "resources": 2,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/buckets/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   },
+   "outputs": 2
+  },
+  {
+   "path": "crypto",
+   "parent": "",
+   "name": "crypto",
+   "resources": 2,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/crypto/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "data",
+   "parent": "",
+   "name": "data",
+   "resources": 22,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/data/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "edge",
+   "parent": "",
+   "name": "edge",
+   "resources": 16,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/edge/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "feeds",
+   "parent": "",
+   "name": "feeds",
+   "resources": 3,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/feeds/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "hardening",
+   "parent": "",
+   "name": "hardening",
+   "resources": 5,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/hardening/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "iam",
+   "parent": "",
+   "name": "iam",
+   "resources": 3,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/iam/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "network",
+   "parent": "",
+   "name": "network",
+   "resources": 17,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/network/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "secrets",
+   "parent": "",
+   "name": "secrets",
+   "resources": 6,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/secrets/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  },
+  {
+   "path": "services",
+   "parent": "",
+   "name": "services",
+   "resources": 40,
+   "depth": 0,
+   "declared": {
+    "file": "main.cue",
+    "line": 30,
+    "col": 2,
+    "end_line": 33
+   },
+   "definition": {
+    "file": "modules/services/main.cue",
+    "line": 1,
+    "col": 2,
+    "end_line": 60
+   }
+  }
+ ],
+ "outputs": [
+  {
+   "name": "account",
+   "value": "x"
+  },
+  {
+   "name": "queues",
+   "value": "x"
+  },
+  {
+   "name": "name",
+   "value": "x"
+  },
+  {
+   "name": "readPolicy",
+   "value": "x"
+  },
+  {
+   "name": "estate",
+   "value": "x",
+   "sensitive": true
+  },
+  {
+   "name": "buckets.arn",
+   "value": "x"
+  },
+  {
+   "name": "buckets.name",
+   "value": "x"
+  }
+ ]
+}
