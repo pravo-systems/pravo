@@ -23,7 +23,7 @@ Each part of a printed plan answers one question.
 | `Plan: N to add, N to change, N to destroy.` | The counts. A replacement counts as one add and one destroy. |
 | `Hint:` | A create and a delete that look like one object under two addresses. |
 | `Graph:` | How much of the graph the plan walked. |
-| `Outputs:` | The outputs, with `(known after apply)` for the ones that are not known yet. |
+| `Outputs:` | The outputs that the plan changes, as `old → new`, with `(known after apply)` for a value that is not known yet. The others are counted. |
 
 The action of a change is one of these.
 

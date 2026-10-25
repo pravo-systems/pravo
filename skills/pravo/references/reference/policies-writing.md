@@ -98,7 +98,7 @@ Plan: 3 to add, 0 to change, 3 to destroy.
 Graph: planned 3 · refreshed 3
 
 Outputs:
-  name: (known after apply)
+  name: "<pet>" → (known after apply)
 
 Error: the plan violates the policy ../policy/no-destroy.cue (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:

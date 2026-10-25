@@ -4,6 +4,8 @@ description: The four rules for writing a plan policy, each with a captured run,
 order: 42
 group: Policies
 normalize:
+  - pattern: 'name: "[a-z]+-[a-z]+" →'
+    replace: 'name: "<pet>" →'
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
   - pattern: '\[id=[a-z]+-[a-z]+\]'
@@ -102,7 +104,7 @@ Plan: 3 to add, 0 to change, 3 to destroy.
 Graph: planned 3 · refreshed 3
 
 Outputs:
-  name: (known after apply)
+  name: "<pet>" → (known after apply)
 
 Error: the plan violates the policy ../policy/no-destroy.cue (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:

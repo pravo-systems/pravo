@@ -68,6 +68,7 @@ func TestRenderPlanOutputsKeepMarkupCharacters(t *testing.T) {
 			"link": json.RawMessage(`"<a href=\"/\">home</a> & more"`),
 			"list": json.RawMessage(`["<b>", {"k": "a&b"}]`),
 		},
+		EvalOutputs: []string{"link", "list"},
 	}
 	got := render(plan)
 	if strings.Contains(got, `\u00`) {
@@ -76,6 +77,36 @@ func TestRenderPlanOutputsKeepMarkupCharacters(t *testing.T) {
 	for _, want := range []string{`link: "<a href=\"/\">home</a> & more"`, `"<b>"`, `"a&b"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the outputs lack %s:\n%s", want, got)
+		}
+	}
+}
+
+func TestRenderPlanShowsOnlyTheOutputsThatChange(t *testing.T) {
+	plan := &engine.Plan{
+		Changes: []*engine.Change{{Addr: "home", Type: "local_file", Action: engine.ActionCreate, Schema: pageBlock(), Planned: page("x", "y")}},
+		SavedOutputs: map[string]json.RawMessage{
+			"url":    json.RawMessage(`"https://new"`),
+			"steady": json.RawMessage(`"unchanging"`),
+			"token":  json.RawMessage(`"s3cret"`),
+		},
+		UnknownOutputs:   []string{"port"},
+		SensitiveOutputs: map[string]bool{"token": true},
+		EvalOutputs:      []string{"url", "port", "token"},
+		DropOutputs:      []string{"gone"},
+		OldOutputs: map[string]json.RawMessage{
+			"url":  json.RawMessage(`"https://old"`),
+			"gone": json.RawMessage(`7`),
+		},
+	}
+	got := render(plan)
+	for _, want := range []string{`url: "https://old" → "https://new"`, `port: (known after apply)`, `token: (sensitive)`, `gone: 7 → (removed)`, `1 output unchanged.`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the plan lacks %s:\n%s", want, got)
+		}
+	}
+	for _, not := range []string{"unchanging", "s3cret"} {
+		if strings.Contains(got, not) {
+			t.Errorf("the plan shows %s:\n%s", not, got)
 		}
 	}
 }

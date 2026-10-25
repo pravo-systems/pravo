@@ -64,6 +64,9 @@ type PlanFile struct {
 	EvalOutputs []string `json:"eval_outputs,omitempty"`
 	// DropOutputs names the recorded outputs that the apply removes.
 	DropOutputs []string `json:"drop_outputs,omitempty"`
+	// OldOutputs holds the recorded value of each output that the apply evaluates
+	// or removes.
+	OldOutputs map[string]json.RawMessage `json:"old_outputs,omitempty"`
 	// Outputs holds the outputs that were known after planning.
 	Outputs map[string]json.RawMessage `json:"outputs,omitempty"`
 	// UnknownOutputs lists outputs that are known only after apply.
@@ -179,6 +182,7 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 		pf.Providers[local] = rp.Version
 	}
 	pf.Inputs, pf.InputGenerations, pf.EvalOutputs, pf.DropOutputs = plan.Inputs, plan.InputGenerations, plan.EvalOutputs, plan.DropOutputs
+	pf.OldOutputs = plan.OldOutputs
 	for _, ch := range plan.Changes {
 		if ch.Action == ActionOpen || ch.Action == ActionCall {
 			// Ephemeral results and function results are never written
@@ -316,7 +320,7 @@ func (e *ErrStalePlan) Error() string {
 // newPlan makes the plan that a file stands for, with the changes it holds.
 func (e *Engine) newPlan(pf *PlanFile) (*Plan, error) {
 	plan := &Plan{Outputs: map[string]cue.Value{}, Destroy: pf.Destroy, NoRefresh: pf.NoRefresh, Stats: pf.Stats, SavedOutputs: pf.Outputs, UnknownOutputs: pf.UnknownOutputs, SensitiveOutputs: stringSet(pf.SensitiveOutputs), Actor: pf.Actor, Reservation: pf.Reservation, Relabels: pf.Relabels,
-		Inputs: pf.Inputs, InputGenerations: pf.InputGenerations, EvalOutputs: pf.EvalOutputs, DropOutputs: pf.DropOutputs}
+		Inputs: pf.Inputs, InputGenerations: pf.InputGenerations, EvalOutputs: pf.EvalOutputs, DropOutputs: pf.DropOutputs, OldOutputs: pf.OldOutputs}
 	for _, sc := range pf.Changes {
 		ch, err := e.restoreChange(sc)
 		if err != nil {
