@@ -37,8 +37,6 @@ type Project struct {
 	Version   string         `json:"version"`
 	State     StateInfo      `json:"state"`
 	Providers []ProviderInfo `json:"providers,omitempty"`
-	// Policies names the policies the viewer shows in the project panel.
-	Policies []string `json:"policies,omitempty"`
 	// SpecError is set when the specification does not load. The viewer then
 	// shows the state alone: every node has Presence "state".
 	SpecError string    `json:"spec_error,omitempty"`

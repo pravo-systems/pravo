@@ -15,8 +15,10 @@ import (
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/parser"
 	cuejson "cuelang.org/go/encoding/json"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // Policies. A policy is a node of the specification, built from pravo.#Policy, that
@@ -210,8 +212,10 @@ func (e *Engine) Judge(set *state.PolicySet, pf *PlanFile) ([]string, error) {
 }
 
 // judgeVersions judges the document by the versions, each on its own: all must hold.
-func judgeVersions(e *Engine, doc cue.Value, force []state.PolicyVersion) ([]string, error) {
-	refs := make([]string, 0, len(force))
+func judgeVersions(e *Engine, doc cue.Value, force []state.PolicyVersion) (refs []string, err error) {
+	_, end := telemetry.Span(e.traceCtx(), "engine check policy", attribute.Int("pravo.policies", len(force)))
+	defer func() { end(err) }()
+	refs = make([]string, 0, len(force))
 	var failed []string
 	for _, v := range force {
 		rule := e.Root.Ctx.CompileString(v.Text, cue.Filename(v.Name))
