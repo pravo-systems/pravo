@@ -26,11 +26,13 @@ import (
 // and writes, and stays the default for a new store. Format 2 keeps each record
 // as an immutable object, rec/<sha256>, and resources/<address>.json as a small
 // pointer to it. Format 3 is format 2 with the records, the outputs, the stored
-// plans and the values of command lines sealed to a list of readers.
+// plans and the values of command lines sealed to a list of readers. Format 4 is
+// format 3 with policies (policy.go).
 const (
 	FormatImmutable = 2
 	FormatSealed    = 3
-	MaxFormat       = FormatSealed
+	FormatPolicy    = 4
+	MaxFormat       = FormatPolicy
 )
 
 var (

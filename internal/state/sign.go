@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -38,12 +39,18 @@ func text(s string) []byte {
 
 // txnStartParts are the fields the first signature covers.
 func txnStartParts(t *Transaction) [][]byte {
-	return [][]byte{
+	parts := [][]byte{
 		text(t.ID), text(t.Kind), text(t.Command), text(t.User), text(t.Host),
 		[]byte(t.Started.UTC().Format(time.RFC3339Nano)),
 		text(t.Actor), text(t.Reason), text(t.GitRevision), text(t.Version),
 		text(t.PlanID), text(t.PlanDigest), text(t.TraceID),
 	}
+	// The policies the run judged by, one part present only when there are any: the
+	// message frames its part count, so a transaction without them verifies as before.
+	if len(t.Policies) > 0 {
+		parts = append(parts, policyList(t.Policies))
+	}
+	return parts
 }
 
 // txnFinishParts are the fields the second signature covers: the first's, and the
@@ -78,6 +85,15 @@ func (t *Txn) SetPlan(id, digest string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.t.PlanID, t.t.PlanDigest = id, digest
+}
+
+// SetPolicies records the policies the run judged by, as NAME@SEQ:SHA-256 refs. It is
+// called before Start.
+func (t *Txn) SetPolicies(refs []string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.t.Policies = append([]string(nil), refs...)
+	sort.Strings(t.t.Policies)
 }
 
 // signStart signs the start of the transaction, in a sealed state.

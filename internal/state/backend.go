@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -310,12 +311,60 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 			}
 		}
 	}
+	copied, err := copyPolicies(ctx, src, dst)
+	n += copied
+	if err != nil {
+		return n, err
+	}
 	for _, k := range []string{"meta.json", "outputs.json"} {
 		if k == "meta.json" && srcMeta != nil && srcMeta.Format > Format {
 			continue
 		}
 		if err := copyKey(k, true); err != nil {
 			return n, err
+		}
+	}
+	return n, nil
+}
+
+// copyPolicies puts the policy versions of src into dst without replacing any: a version
+// that dst holds with other bytes, and a version of dst that src lacks, would rewrite
+// the history of a policy, and are refused. A copy that skipped the prefix would
+// leave the destination without its policies, which judges nothing.
+func copyPolicies(ctx context.Context, src, dst Backend) (int, error) {
+	have, err := src.List(ctx, policyDir)
+	if err != nil {
+		return 0, err
+	}
+	held, err := dst.List(ctx, policyDir)
+	if err != nil {
+		return 0, err
+	}
+	for _, k := range held {
+		if !slices.Contains(have, k) {
+			return 0, fmt.Errorf("%w: %s holds the policy version %s, which the source lacks", ErrCopyRefused, dst.Name(), k)
+		}
+	}
+	n := 0
+	for _, k := range have {
+		data, err := src.Get(ctx, k)
+		if err != nil {
+			return n, fmt.Errorf("%s: %w", k, err)
+		}
+		created, err := dst.PutIfAbsent(ctx, k, data)
+		if err != nil {
+			return n, fmt.Errorf("%s: %w", k, Advise(err))
+		}
+		if created {
+			n++
+			continue
+		}
+		cur, err := dst.Get(ctx, k)
+		if err != nil {
+			return n, fmt.Errorf("%s: %w", k, err)
+		}
+		if !bytes.Equal(cur, data) {
+			return n, fmt.Errorf("%w: %s holds another version at %s", ErrCopyRefused, dst.Name(), k)
 		}
 	}
 	return n, nil
@@ -387,7 +436,7 @@ func checkCopy(ctx context.Context, src *meta, dst Backend) error {
 // holdsNothing reports whether b holds no record, output or stored plan, which is
 // what a store that was opened and never written holds.
 func holdsNothing(ctx context.Context, b Backend) (bool, error) {
-	for _, prefix := range []string{"resources", "rec", "plans"} {
+	for _, prefix := range []string{"resources", "rec", "plans", policyDir} {
 		keys, err := b.List(ctx, prefix)
 		if err != nil {
 			return false, err
