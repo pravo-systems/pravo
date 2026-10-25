@@ -213,7 +213,9 @@ type PlanInfo struct {
 	// that an apply from the plan file has made already.
 	Planned int `json:"planned"`
 	Total   int `json:"total"`
-	Applied int `json:"applied,omitempty"`
+	// Policies are the changes the plan makes to the policies (see StoredPlan.Policies).
+	Policies []PlanPolicy `json:"policies,omitempty"`
+	Applied  int          `json:"applied,omitempty"`
 	// Hints are the hints of the plan, such as a create and a delete that look
 	// like one resource under a new address, worked out as the engine does.
 	Hints []string `json:"hints,omitempty"`
@@ -471,6 +473,17 @@ type PlanCounts struct {
 	Read    int `json:"read"`
 }
 
+// PlanPolicy is a change that a plan makes to a policy: the version it writes. It is a
+// change of the plan like a resource's, and the page counts it with them; it is not a
+// node of the graph, and Name is the name that the Policies section lists.
+type PlanPolicy struct {
+	Name string `json:"name"`
+	// Change is "new", "changed" or "removed".
+	Change string `json:"change"`
+	// Base is the number of the version in force when the plan was made, 0 for none.
+	Base int `json:"base"`
+}
+
 // PlanChange is a resource that a stored plan changes.
 type PlanChange struct {
 	Addr string `json:"addr"`
@@ -535,6 +548,9 @@ type StoredPlan struct {
 	Planned  int  `json:"planned"`
 	Applied  int  `json:"applied,omitempty"`
 	Applying bool `json:"applying,omitempty"`
+	// Policies are the changes the plan makes to the policies, which a plan can make
+	// without changing a resource.
+	Policies []PlanPolicy `json:"policies,omitempty"`
 	// Reasons say why a stale plan can no longer be applied: the first 20, each
 	// clipped to 300 characters; ReasonsOmitted counts the others. A partly stale
 	// plan has none: its reasons are those of Conflicts.

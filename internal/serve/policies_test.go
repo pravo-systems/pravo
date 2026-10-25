@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -13,7 +14,7 @@ const policySpecCUE = `package demo
 
 no_destroy: {
 	$kind: "policy"
-	rule:  "changes: [...]\n"
+	rule: changes: [...]
 }
 `
 
@@ -64,5 +65,14 @@ func TestPoliciesDocumentIsEmptyWithoutPolicies(t *testing.T) {
 	}
 	if len(d.Policies) != 0 || d.Pending != 0 || d.InForce != 0 || d.Problem != "" {
 		t.Errorf("document: %+v", d)
+	}
+}
+
+func TestPlanPoliciesUseTheNamesOfThePoliciesSection(t *testing.T) {
+	m := &model{secrets: newSecretSet(), srv: &Server{}}
+	got := m.planPolicies([]engine.PolicyEntry{{Name: "rules%002Fx", Digest: "d"}, {Name: "b", Base: 2, Digest: "d"}, {Name: "c", Base: 1}})
+	want := []PlanPolicy{{Name: "rules/x", Change: "new"}, {Name: "b", Change: "changed", Base: 2}, {Name: "c", Change: "removed", Base: 1}}
+	if len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Errorf("got %+v", got)
 	}
 }

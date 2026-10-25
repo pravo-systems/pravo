@@ -89,6 +89,9 @@ grep -E '^#[A-Za-z0-9]+:' cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 #Movable: {
 #Output: {
 #Policy: {
+#Plan: {
+#Action: "create" | "update" | "replace" | "delete" | "read" | "open" | "call" | "move" | "no-op"
+#Change: {
 #Env: {
 #SecretEnv: {
 #RemoteOutputs: {

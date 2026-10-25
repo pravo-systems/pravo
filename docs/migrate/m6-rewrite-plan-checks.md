@@ -408,9 +408,9 @@ A rule that holds goes into the root as a policy. The text of the file becomes t
 
 ```cue
 no_delete: pravo.#Policy & {
-	rule: #"""
+	rule: {
 		changes: [...{ ... }]   // the text of policy/no-delete.cue
-		"""#
+	}
 }
 ```
 

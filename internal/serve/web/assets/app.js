@@ -1511,6 +1511,8 @@ function wire() {
   plansList = new Plans($('plans-list'), {
     onView: (id) => selectPlan(id).then(() => setView(S.lastResources || 'graph')),
     onQuery: (q) => { S.plq = q; syncFragment(); },
+    // a policy in the detail of a plan: the Policies section opens on it
+    onPolicy: (name) => { policiesView.open(name); setView('policies'); },
     // a change in the detail of a plan: the plan is laid over the resources, and the resource is selected
     onChange: (id, addr) => selectPlan(id).then(() => { setView(S.lastResources || 'graph'); selectNode(addr, { center: true }); }),
   });

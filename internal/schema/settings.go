@@ -40,16 +40,104 @@ package pravo
 // A rule that every plan is judged by at apply. The apply refuses a plan with
 // resource changes unless the rule holds for it; a rule is kept in the state as
 // a signed version, and the signed start of each apply lists the versions that
-// judged it. The name is the path the policy sits at.
+// judged it. The name is the path the policy sits at. The rule is a CUE struct
+// written here, in the specification, and is checked against #Plan, the
+// document it is judged against, so that a misspelt field fails at once.
 //
-//	no_destroy: pravo.#Policy & {rule: "summary: destroy: 0"}
+//	no_destroy: pravo.#Policy & {rule: summary: destroy: 0}
 #Policy: {
 	$kind: "policy"
 	// Standalone CUE, using the standard library only, unified with the plan
 	// document, which it must make concrete.
-	rule: string & != ""
+	rule: #Plan
 	// What the policy is for.
 	description?: string
+}
+
+// The document that a policy rule is judged against: the JSON of "pravo plan
+// --json" without what only the state, the clock or the invocation can give
+// (the blast radius, dependents, hints and the trace). A field that is not here
+// cannot be read by a rule. Inside a list template, redeclare the fields the
+// rule reads, with their schema:
+//
+//	changes: [...pravo.#Change & {addr: string, action: string, if action == "delete" {error(addr)}}]
+#Plan: {
+	// The layout version of the document.
+	format: int
+	// When the plan was made, RFC 3339.
+	created: string
+	// The labels of --actor and --reason, and the revision of the repository.
+	actor?:        string
+	reason?:       string
+	git_revision?: string
+	// True for "plan --destroy" and "destroy".
+	destroy?: bool
+	// Counts of actions. A replacement counts as an addition and a destruction.
+	summary: {
+		add:     int
+		change:  int
+		destroy: int
+		read:    int
+	}
+	// How much of the graph the plan walked.
+	stats: {
+		total:     int
+		reached:   int
+		skipped:   int
+		removed?:  int
+		refreshed: int
+		fresh:     int
+		not_read:  int
+		drifted:   int
+		opened:    int
+		called:    int
+		imported:  int
+		moved:     int
+	}
+	// One entry for each node the plan ran. A list with no entry is empty,
+	// never null.
+	changes: [...#Change]
+	// The outputs by name; a value unknown until apply is {"$unknown": true}.
+	outputs: [string]: _
+	// The nodes and the end of a reservation made with --reserve.
+	reservation?: {
+		until: string
+		addrs: [...string]
+	}
+	// The resolved version of each provider, by local name.
+	providers: [string]: string
+}
+
+// What a plan does to a node. A replacement is an action
+// of its own: it is not a delete followed by a create.
+#Action: "create" | "update" | "replace" | "delete" | "read" | "open" | "call" | "move" | "no-op"
+
+// One entry of changes in #Plan.
+#Change: {
+	// The CUE path of the declaration, such as pet or servers[0].
+	addr: string
+	mode: "managed" | "data" | "ephemeral" | "call"
+	// The provider's type of the resource, or the name of the function.
+	type: string
+	// The last element of the path.
+	name:   string
+	action: #Action
+	// The provider instance key, such as random or local.$primary.
+	provider?: string
+	reasons?: [...string]
+	// The attributes that force a replacement.
+	requires_replace?: [...string]
+	// The recorded state of the object. Absent for a create.
+	before?: {...}
+	// The planned state of the object. Absent for a delete. A value the provider
+	// computes at apply is {"$unknown": true}; an attribute that is not set is null.
+	after?:      {...}
+	deferred?:   bool
+	skipped?:    bool
+	refreshed?:  bool
+	drifted?:    bool
+	dependencies?: [...string]
+	warnings?: [...string]
 }
 
 // The value of an environment variable, read when the run starts. It is an

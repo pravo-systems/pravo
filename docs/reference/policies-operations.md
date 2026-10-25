@@ -79,9 +79,9 @@ name: pravo.#Output & {value: pet.id}
 #!/bin/sh
 # set-rule.sh NAME FILE: make the contents of FILE the rule of the policy NAME of the root.
 {
-	printf 'package infra\n\nimport "pravo.dev/pravo"\n\n%s: pravo.#Policy & {rule: #"""\n' "$1"
+	printf 'package infra\n\nimport "pravo.dev/pravo"\n\n%s: pravo.#Policy & {rule: {\n' "$1"
 	sed 's/^\(.\)/\t\1/' "$2"
-	printf '\t"""#}\n'
+	printf '\t}}\n'
 } > "infra/policy-$1.cue"
 ```
 
@@ -130,7 +130,7 @@ ls infra/pravo.state/policy
 ```text out
 Plan: 3 to add, 0 to change, 0 to destroy.
 Policies: +1 new, ~0 changed, -0 removed.
-  + no_destroy (sha256:20bbfeca6bff)
+  + no_destroy (sha256:0c23a31e78bd)
 Graph: planned 3
 Apply complete! Resources: 3 added, 0 changed, 0 destroyed. [txn <id>]
 no_destroy@00000001.json
@@ -146,7 +146,7 @@ pravo -C infra apply second.plan | grep '^Apply complete'
 
 ```text out
 Policies: +1 new, ~0 changed, -0 removed.
-  + owner (sha256:4578c4749e3b)
+  + owner (sha256:396a91be1092)
 Graph: planned 0 · skipped 3 · not read 3
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 ```
@@ -164,10 +164,10 @@ pravo -C infra state log --json | jq -c '.[0] | {kind, status, policies}'
 ```
 
 ```text out
-Policy no_destroy@1:20bbfeca6bfffdca459eb1853d15500bead5e387401ebf065f237194c2ac3af6 is satisfied.
-Policy owner@1:4578c4749e3b453c66a554d4583f947134be34d4b8eae59c17ae179badf17671 is satisfied.
+Policy no_destroy@1:0c23a31e78bda4155de6c4983b382b0041de2fe21627240eca920dfc8a2972dc is satisfied.
+Policy owner@1:396a91be1092531ea328cee8ac7015cfecf66f28bb4975e82538005fc80ddd30 is satisfied.
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
-{"kind":"apply","status":"applied","policies":["no_destroy@1:20bbfeca6bfffdca459eb1853d15500bead5e387401ebf065f237194c2ac3af6","owner@1:4578c4749e3b453c66a554d4583f947134be34d4b8eae59c17ae179badf17671"]}
+{"kind":"apply","status":"applied","policies":["no_destroy@1:0c23a31e78bda4155de6c4983b382b0041de2fe21627240eca920dfc8a2972dc","owner@1:396a91be1092531ea328cee8ac7015cfecf66f28bb4975e82538005fc80ddd30"]}
 ```
 
 The list is part of what the signed start of the transaction covers. [What a policy guarantees](#what-a-policy-guarantees) says what that proves.
@@ -184,7 +184,7 @@ test -e change.plan || echo "change.plan does not exist"
 ```
 
 ```text out
-Error: the plan violates the policy no_destroy@1 (sha256:20bbfeca6bff):
+Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:
     no_destroy:7:3
 changes.1: pet: replace is not allowed:
@@ -206,7 +206,7 @@ pravo -C infra state query 'resources.seed.revision'
 ```
 
 ```text out
-Error: the plan violates the policy no_destroy@1 (sha256:20bbfeca6bff):
+Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:
     no_destroy:7:3
 changes.1: pet: replace is not allowed:
@@ -216,7 +216,7 @@ changes.2: ticket: replace is not allowed:
 changes.3: extra: replace is not allowed:
     no_destroy:7:3
 
-{"kind":"apply","status":"rejected","policies":["no_destroy@1:20bbfeca6bfffdca459eb1853d15500bead5e387401ebf065f237194c2ac3af6","owner@1:4578c4749e3b453c66a554d4583f947134be34d4b8eae59c17ae179badf17671"]}
+{"kind":"apply","status":"rejected","policies":["no_destroy@1:0c23a31e78bda4155de6c4983b382b0041de2fe21627240eca920dfc8a2972dc","owner@1:396a91be1092531ea328cee8ac7015cfecf66f28bb4975e82538005fc80ddd30"]}
 1
 ```
 
@@ -240,7 +240,7 @@ pravo -C infra plan 2>&1 | sed -n '/^Error/,$p'
 
 ```text out
 Policies: +1 new, ~0 changed, -0 removed.
-Error: the plan violates the policy no_destroy@1 (sha256:20bbfeca6bff):
+Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:
     no_destroy:7:3
 changes.1: pet: replace is not allowed:
@@ -280,7 +280,7 @@ pravo -C infra destroy --auto-approve 2>&1 | sed -n '/^Plan:/,$p'
 Plan: 0 to add, 0 to change, 4 to destroy.
 Graph: 4 resources in state · refreshed 4
 
-Error: the plan violates the policy no_destroy@1 (sha256:20bbfeca6bff):
+Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
 changes.0: extra: delete is not allowed:
     no_destroy:7:3
 changes.1: seed: delete is not allowed:
@@ -349,7 +349,7 @@ pravo -C infra state locks
 
 ```text out
 Reserved 3 nodes until <time>.
-Error: the plan violates the policy no_destroy@1 (sha256:20bbfeca6bff):
+Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
 extra  reserved by ci until <time> pravo -C infra plan --reserve 15m --actor <sealed>
 pet  reserved by ci until <time> pravo -C infra plan --reserve 15m --actor <sealed>
 ticket  reserved by ci until <time> pravo -C infra plan --reserve 15m --actor <sealed>
@@ -394,10 +394,10 @@ Rehearse a rule in a copy of the root with its own state, where an apply costs n
 
 ### An advisory file
 
-Start a new rule in an advisory file, evaluated outside pravo on a plan that was already produced, in a pipeline step that is allowed to fail. `pravo eval -e NAME.rule` prints the text of a rule as a CUE string, and `cue export cue: - --out text` makes it a file. `cue vet` reads a plan document with the same CUE version as pravo:
+Start a new rule in an advisory file, evaluated outside pravo on a plan that was already produced, in a pipeline step that is allowed to fail. `pravo eval -e NAME.rule --raw` prints a rule as written, which makes it a file. `cue vet` reads a plan document with the same CUE version as pravo:
 
 ```text
-pravo eval -e no_destroy.rule | cue export cue: - --out text > rule.cue
+pravo eval -e no_destroy.rule --raw > rule.cue
 pravo plan --json > fixture.json
 cue vet -c rule.cue fixture.json
 ```
@@ -454,13 +454,13 @@ pravo -C infra plan 2>&1 | sed -n '/^Error/,$p'
 ```text out
 Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
-Error: the plan violates the policy no_destroy@2 (sha256:8668bf62afac):
+Error: the plan violates the policy no_destroy@2 (sha256:a1521d7920e4):
 changes.0: seed: replace is not allowed:
-    no_destroy:21:3
+    no_destroy:23:3
 changes.1: pet: replace is not allowed:
-    no_destroy:21:3
+    no_destroy:23:3
 changes.3: extra: replace is not allowed:
-    no_destroy:21:3
+    no_destroy:23:3
 ```
 
 ## Verify a receipt
@@ -487,8 +487,8 @@ Transaction <txn>
   signed by ada, pravo 0.1.0-dev
   plan      sha256:<digest>
   judged by 2 policy versions:
-    no_destroy@2:8668bf62afac32fd114f34a1af6ff2fcdae2b85ce1e83bc6804c54774a62d77a
-    owner@1:4578c4749e3b453c66a554d4583f947134be34d4b8eae59c17ae179badf17671
+    no_destroy@2:a1521d7920e4b11b9553a88cb2a7552e62d4415729c3e21a86233288ab3592ac
+    owner@1:396a91be1092531ea328cee8ac7015cfecf66f28bb4975e82538005fc80ddd30
 Verified.
 ```
 

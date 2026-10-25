@@ -87,6 +87,7 @@ export function counts(c, cls = '') {
   if (c.destroy) parts.push(h('b', { class: 'bad' }, '−' + c.destroy));
   if (c.import) parts.push(h('b', { class: 'dim' }, c.import + ' imported'));
   if (c.move) parts.push(h('b', { class: 'dim' }, c.move + ' moved'));
+  if (c.policies) parts.push(h('b', { class: 'chg' }, plural(c.policies, 'policy', 'policies')));
   if (!parts.length) parts.push(h('b', { class: 'dim' }, c.read ? plural(c.read, 'read') : c.planned ? plural(c.planned, 'change') : 'no changes'));
   return h('span', { class: 'pcnt' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, parts);
 }
@@ -145,7 +146,7 @@ export function facts(p, text) {
 
 // detail is what the rail shows under the plan that is laid over the graph: the reason, what stops it or crosses
 // it, and the command that applies it.
-export function detail(p, { onPlan, byId, text, changes } = {}) {
+export function detail(p, { onPlan, byId, text, changes, policies } = {}) {
   const body = [];
   text = text || {};
   if (text.reason && text.reason.length > 60) body.push(h('p', { class: 'rp-reason', title: text.reason }, text.reason));
@@ -156,6 +157,7 @@ export function detail(p, { onPlan, byId, text, changes } = {}) {
   }
   if (p.status === 'partly-stale') body.push(conflictsBox(p));
   if (changes) body.push(changes);
+  if (policies) body.push(policies);
   if ((p.overlaps || []).length) {
     body.push(h('div', { class: 'rp-why ovl' }, h('b', null, 'Overlaps: applying one makes the other stale.'),
       h('ul', null, p.overlaps.map((o) => {
@@ -299,6 +301,19 @@ export class Plans {
       p.truncated ? h('p', { class: 'rp-note dim' }, `${plural(p.truncated, 'more change')} ${p.truncated === 1 ? 'is' : 'are'} not listed here. `, h('code', null, `pravo plan show ${p.id}`), ' lists every one.') : null);
   }
 
+  // policies is what a plan does to the policies, in its detail: a change of the plan that is not a resource, with a link to the policy.
+  policies(p) {
+    const all = p.policies || [];
+    if (!all.length) return null;
+    const WORD = { new: 'new', changed: 'new version', removed: 'removal' };
+    return h('section', { class: 'rp-chgs rp-pol', 'aria-label': 'What the plan changes in the policies' },
+      h('div', { class: 'rp-ch-h' }, h('b', null, 'Policies'), h('span', { class: 'cnt' }, String(all.length))),
+      h('ul', { class: 'rp-chlist' }, all.map((c) => h('li', { class: 'rp-pc' },
+        h('i', { class: 'sq ' + (c.change === 'removed' ? 'a-delete' : c.change === 'new' ? 'a-create' : 'a-update'), 'aria-hidden': 'true' }),
+        h('button', { class: 'linkbtn', type: 'button', data: { fk: `pol-${p.id}-${c.name}` }, 'data-tip': 'Show the policy', on: { click: () => this.cb.onPolicy && this.cb.onPolicy(c.name) } }, c.name),
+        h('span', { class: 'dim' }, WORD[c.change] || c.change)))));
+  }
+
   // render draws the section. s: { plans, sel, texts, reasons, model } ; a section with no plan is not there
   render(s) {
     this.s = s;
@@ -329,7 +344,7 @@ export class Plans {
         : h('p', { class: 'rp-none' }, 'No plan can be applied. ', h('button', { class: 'linkbtn', type: 'button', data: { showall: '1' } }, `Show all ${plans.length}`)));
     }
     const picked = open && plans.find((p) => p.id === open);
-    const detailEl = picked ? h('div', { class: 'rp-detail', role: 'region', 'aria-label': 'Plan ' + picked.id }, detail(picked, { onPlan: (id) => { this.open = id; this.render(this.s); }, byId: new Map(plans.map((p) => [p.id, p])), text: s.texts && s.texts.get(picked.id), changes: this.changes(picked, hits.get(picked.id)) })) : null;
+    const detailEl = picked ? h('div', { class: 'rp-detail', role: 'region', 'aria-label': 'Plan ' + picked.id }, detail(picked, { onPlan: (id) => { this.open = id; this.render(this.s); }, byId: new Map(plans.map((p) => [p.id, p])), text: s.texts && s.texts.get(picked.id), changes: this.changes(picked, hits.get(picked.id)), policies: this.policies(picked) })) : null;
     // the detail sits under its row
     if (detailEl) rows[shown.findIndex((p) => p.id === open)].after(detailEl);
     this.countEl.textContent = f ? plural(shown.length, 'match', 'matches') : plural(plans.length, 'plan');
@@ -401,7 +416,7 @@ export function signedIcon(sg) {
 
 export function planStrip(el, p, cb) {
   // a strip that says the same is left as it is: drawing it again takes the focus from the button that has it
-  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), p.planned || 0, p.applied || 0, (p.touches || []).length, JSON.stringify(cb.signatures || null), !!cb.onClear, !!cb.onList, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
+  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(p.policies || []), p.planned || 0, p.applied || 0, (p.touches || []).length, JSON.stringify(cb.signatures || null), !!cb.onClear, !!cb.onList, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
   clear(el);

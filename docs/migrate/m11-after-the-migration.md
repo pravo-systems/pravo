@@ -39,7 +39,7 @@ package estate
 import "pravo.dev/pravo"
 
 refactor: pravo.#Policy & {
-	rule: #"""
+	rule: {
 		// A refactor changes no object. It may move a record.
 		changes: [...{
 			addr:   string
@@ -49,7 +49,7 @@ refactor: pravo.#Policy & {
 				error("\(addr): \(action) is not part of a refactor")
 			}
 		}]
-		"""#
+	}
 }
 ```
 

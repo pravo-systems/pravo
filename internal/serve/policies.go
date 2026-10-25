@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -15,6 +16,8 @@ const (
 	maxPolicyText = 64 << 10
 	// maxJudgedRuns bounds the transactions listed under a version.
 	maxJudgedRuns = 8
+	// maxPlanPolicies bounds the policy changes listed for a plan.
+	maxPlanPolicies = 200
 )
 
 var pctRE = regexp.MustCompile(`%([0-9A-F]{4})`)
@@ -128,4 +131,16 @@ func (m *model) buildPolicies(rev string) {
 	}
 	m.pol = doc
 	m.polJSON, _ = json.Marshal(doc)
+}
+
+// planPolicies lists what a plan does to the policies, by the names of the Policies section.
+func (m *model) planPolicies(entries []engine.PolicyEntry) []PlanPolicy {
+	var out []PlanPolicy
+	for _, en := range entries {
+		if len(out) == maxPlanPolicies {
+			break
+		}
+		out = append(out, PlanPolicy{Name: m.clipText(policyDisplay(en.Name)), Change: en.Kind(), Base: en.Base})
+	}
+	return out
 }

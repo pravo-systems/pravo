@@ -9,16 +9,16 @@ SHA-256 of the exact bytes of the plan file that stage judged (`plan_digest`, si
 plan and the versions, checks hashes, signatures and that the list omits no version in force at the start less a margin, and runs the
 versions on the plan: they pass. It is a signed claim of which versions judged D, re-checkable only while the plan is kept.
 ## The idea
-A policy is a node, `$kind: "policy"`, named by its path in the spec; its `rule` is a string of standalone CUE (never empty, standard
+A policy is a node, `$kind: "policy"`, named by its path in the spec; its `rule` is a CUE struct, standalone (never empty, standard
 library imports only), unified with the judged document, which it must make concrete. Every policy judges every plan.
 ```cue
-no_destroy: pravo.#Policy & {rule: "summary: destroy: 0"} // a replace counts as a destroy
-encrypted: pravo.#Policy & {rule: #"""
+no_destroy: pravo.#Policy & {rule: summary: destroy: 0} // a replace counts as a destroy
+encrypted: pravo.#Policy & {rule: {
 	changes: [...{
 		type: string, action: string
 		if type == "aws_db_instance" && action =~ "^(create|update|replace)$" {after: storage_encrypted!: true}
 	}]
-	"""#}
+}}
 ```
 `!` makes an absent field fail; a bare `storage_encrypted: true` would supply it. The plan prints `policies: +1 new, ~1 changed, -1
 removed`; the apply writes the versions last. A version is a new object at the next sequence number, made with `PutIfAbsent`, never

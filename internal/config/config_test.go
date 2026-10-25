@@ -99,7 +99,7 @@ const defs = `
 $local:  #Local
 $random: #Random
 #Output: {$kind: "output", value: _, description?: string, sensitive?: bool}
-#Policy: {$kind: "policy", rule: string & != "", description?: string}
+#Policy: {$kind: "policy", rule: {...}, description?: string}
 #Env: {$kind: "env", name: string, default?: string, value: string}
 #SecretEnv: {$kind: "secret_env", name: string, value: string}
 #RemoteOutputs: {$kind: "remote_outputs", state: {path?: string, backend?: string, bucket?: string, prefix?: string}, outputs: {...}}
@@ -728,10 +728,10 @@ none:  $local.#Resource.local_file & {filename: "c"}
 func TestPoliciesAreFoundByMarker(t *testing.T) {
 	r, err := loadSpec(t, `
 #Rules: {
-	none: #Policy & {rule: "summary: destroy: 0"}
+	none: #Policy & {rule: summary: destroy: 0}
 }
 team: #Rules
-tidy: #Policy & {rule: "summary: add: >=0"}
+tidy: #Policy & {rule: summary: add: >=0}
 file: $local.#Resource.local_file & {filename: "p"}
 `)
 	if err != nil {
@@ -749,15 +749,62 @@ file: $local.#Resource.local_file & {filename: "p"}
 		t.Errorf("a policy must not be a resource: %v", r.Resources)
 	}
 	for name, body := range map[string]string{
-		"empty":    `p: #Policy & {rule: ""}`,
+		"empty":    `p: #Policy & {rule: {}}`,
 		"unset":    `p: #Policy`,
-		"optional": `p?: #Policy & {rule: "a: 1"}`,
-		"required": `p!: #Policy & {rule: "a: 1"}`,
-		"nested":   `g: {p?: #Policy & {rule: "a: 1"}}`,
-		"too deep": strings.Repeat("a: {", 50) + `p: #Policy & {rule: "a: 1"}` + strings.Repeat("}", 50),
+		"optional": `p?: #Policy & {rule: a: 1}`,
+		"required": `p!: #Policy & {rule: a: 1}`,
+		"nested":   `g: {p?: #Policy & {rule: a: 1}}`,
+		"too deep": strings.Repeat("a: {", 50) + `p: #Policy & {rule: a: 1}` + strings.Repeat("}", 50),
 	} {
 		if _, err := loadSpec(t, body); err == nil {
 			t.Errorf("%s: the load must fail", name)
 		}
+	}
+}
+
+func TestAPolicyRuleIsCUENotAStringOfCUE(t *testing.T) {
+	r, err := loadSpec(t, `
+p: #Policy & {
+	rule: {
+		// no deletes
+		changes: [...{
+			addr:   string
+			action: string
+			if action == "delete" {error("\(addr)")}
+		}]
+	}
+}
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "// no deletes\nchanges: [...{\n\taddr:   string\n\taction: string\n\tif action == \"delete\" {\n\t\terror(\"\\(addr)\")\n\t}\n}]\n"
+	if got := r.Policies[0].Rule; got != want {
+		t.Errorf("rule text = %q, want %q", got, want)
+	}
+	if _, err := loadSpec(t, `p: #Policy & {rule: "summary: destroy: 0"}`); err == nil {
+		t.Error("a string rule must be refused")
+	}
+}
+
+func TestAPolicyRuleKeepsTheImportsItUses(t *testing.T) {
+	dir := t.TempDir()
+	src := "package x\n\nimport \"strings\"\n" + defs + `
+p: #Policy & {rule: {
+	changes: [...{
+		addr: string
+		if strings.HasPrefix(addr, "x") {error(addr)}
+	}]
+}}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.cue"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Load(dir, LoadOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Policies[0].Rule; !strings.HasPrefix(got, "import \"strings\"\n") || strings.HasSuffix(got, "\n...\n") {
+		t.Errorf("rule text = %q", got)
 	}
 }

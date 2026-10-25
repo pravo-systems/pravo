@@ -10,7 +10,9 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 
+	cueerrors "cuelang.org/go/cue/errors"
 	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 func policyEngine() *Engine {
@@ -54,20 +56,27 @@ func TestTheJudgedDocumentComesFromThePlanFileAlone(t *testing.T) {
 func TestANewPolicyIsCheckedAgainstTheEmptyPlan(t *testing.T) {
 	e := policyEngine()
 	for name, text := range map[string]string{
-		"a bound":       "summary: destroy: <=2",
-		"a constraint":  "changes: [...{type: string, if type == \"x\" {after: encrypted!: true}}]",
-		"the stdlib":    "import \"strings\"\nsummary: destroy: 0\nsame: strings.ToLower(\"A\") & \"a\"",
-		"a strict rule": "summary: add: <=0",
+		"a bound":                          "summary: destroy: <=2",
+		"a rule that refuses every change": "changes: []",
+		"a hidden helper":                  "_limit: 2\nsummary: destroy: <=_limit",
+		"a constraint":                     "changes: [...{type: string, if type == \"x\" {after: encrypted!: true}}]",
+		"the stdlib":                       "import \"strings\"\nsummary: destroy: 0\n_same: strings.ToLower(\"A\") & \"a\"",
+		"a strict rule":                    "summary: add: <=0",
 	} {
 		if err := e.checkNewPolicy("p", text); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
 	for name, text := range map[string]string{
-		"a misspelt bound":        "summary: destory: <=0",
-		"a rule that is no CUE":   "summary: {",
-		"a module import":         "import \"example.com/x/y\"\nsummary: destroy: 0",
-		"a rule that cannot hold": "summary: destroy: <0",
+		"a misspelt bound":                       "summary: destory: <=0",
+		"a rule that is no CUE":                  "summary: {",
+		"a module import":                        "import \"example.com/x/y\"\nsummary: destroy: 0",
+		"a rule that cannot hold":                "summary: destroy: <0",
+		"a misspelt field in a list template":    "changes: [...{adr: string}]",
+		"a value outside the enum of an action":  "changes: [...{action: \"delte\"}]",
+		"a field the judged document leaves out": "changes: [...{dependents: [...string]}]",
+		"a field that is not in the document":    "extra: 1",
+		"an optional field read without a test":  "changes: [...{type: string, action: string, name: before.id}]",
 	} {
 		err := e.checkNewPolicy("p", text)
 		var coded *CodedError
@@ -124,4 +133,19 @@ func TestAKeptPlanIsNotCollected(t *testing.T) {
 			t.Errorf("the kept plan is gone: %v", err)
 		}
 	})
+}
+
+// The schema that a rule is written against is the shape of the judged document: a
+// field the document gains must be added to #Plan, or every rule that reads it fails.
+func TestThePlanSchemaFitsTheJudgedDocument(t *testing.T) {
+	e := policyEngine()
+	doc, err := e.judgedDoc(&PlanFile{Format: PlanFileFormat, Created: time.Now(), Actor: "ci", Reason: "r", GitRevision: "abc", Providers: map[string]string{"local": "2.9.1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg := e.Root.Ctx.CompileString(schema.SettingsPackage)
+	plan := pkg.LookupPath(cue.MakePath(cue.Def("Plan")))
+	if err := plan.Unify(doc).Validate(cue.Concrete(true)); err != nil {
+		t.Fatalf("#Plan does not fit the judged document: %v", cueerrors.Details(err, nil))
+	}
 }

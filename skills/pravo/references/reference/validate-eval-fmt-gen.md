@@ -22,6 +22,7 @@ Check a specification without planning it, print its evaluated value, format the
 | `-e`, `--expression EXPR` | `eval` | none | Evaluate `EXPR` in the scope of the specification: a path such as `logs.tags`, or any CUE expression. |
 | `-c`, `--concrete` | `eval` | off | Fail unless every value is concrete. |
 | `-O`, `--optional` | `eval` | off | Print optional fields too. |
+| `--raw` | `eval` | off | Print the value at the path of `-e` as it is written, comprehensions included. A policy rule becomes a file for `cue vet`. |
 | `-t`, `--tag key=value` | `validate`, `eval`, `gen` | none | Inject a value for an `@tag()` field. Repeatable. |
 | `-T`, `--inject-vars` | `validate`, `eval`, `gen` | off | Inject the system variables of CUE into tags written `@tag(name,var=os)`. |
 

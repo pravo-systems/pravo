@@ -78,7 +78,7 @@ func (r *policyRoot) declare(t *testing.T, rules map[string]string, files ...str
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		fmt.Fprintf(&b, "%s: pravo.#Policy & {rule: %q}\n", name, rules[name])
+		fmt.Fprintf(&b, "%s: pravo.#Policy & {rule: {\n%s\n}}\n", name, rules[name])
 	}
 	for _, f := range files {
 		fmt.Fprintf(&b, "%s: $local.#Resource.local_file & {filename: \"%s.txt\", content: \"x\"}\n", f, f)
@@ -218,7 +218,7 @@ func TestAChangedPolicyIsJudgedByTheVersionInForce(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	head, _ := r.policies(t).Head("p")
-	if head.Seq != 2 || head.Text != "summary: destroy: 0" {
+	if head.Seq != 2 || head.Text != "summary: {\n\tdestroy: 0\n}\n" {
 		t.Errorf("head %+v", head)
 	}
 }
@@ -280,7 +280,7 @@ func TestTheWholeFileIsJudgedWhateverOnlySelects(t *testing.T) {
 }
 
 func TestVerifyChecksTheReceiptOfAStoredPlan(t *testing.T) {
-	rules := map[string]string{"lim": "summary: destroy: <=2"}
+	rules := map[string]string{"lim": "summary: {\n\tdestroy: <=2\n}\n"}
 	r := newPolicyRoot(t, rules, "a", "b", "c", "d")
 	// The version is dated well before the apply, as one that has been in force for a while.
 	if err := r.store(t).PutPolicyVersion(context.Background(), "lim", 1, rules["lim"], time.Now().Add(-time.Hour)); err != nil {
@@ -322,5 +322,23 @@ func TestVerifyChecksTheReceiptOfAStoredPlan(t *testing.T) {
 	text, code = runPravo(t, r.dir, "state", "verify", forged.ID())
 	if code != 7 || !strings.Contains(text, "does not list it") {
 		t.Errorf("an omission: exit %d\n%s", code, text)
+	}
+}
+
+// A rule that is written against the schema of pravo is stored without it: the state
+// holds standalone CUE, and the judge compiles it without the module.
+func TestARuleWrittenAgainstTheSchemaIsStoredWithoutIt(t *testing.T) {
+	rules := map[string]string{"nodel": "changes: [...pravo.#Change & {action: string, addr: string\n\tif action == \"delete\" {error(addr)}\n}]"}
+	r := newPolicyRoot(t, rules, "a", "b")
+	if text, code := r.apply(t); code != 0 {
+		t.Fatalf("first apply: exit %d\n%s", code, text)
+	}
+	head, _ := r.policies(t).Head("nodel")
+	if strings.Contains(head.Text, "pravo") || !strings.Contains(head.Text, "if action == \"delete\"") {
+		t.Errorf("stored text: %q", head.Text)
+	}
+	r.declare(t, rules, "b") // a is destroyed by the next plan
+	if text, code := runPravo(t, r.dir, "plan"); code != 5 || !strings.Contains(text, "a: ") && !strings.Contains(text, "changes.") {
+		t.Errorf("plan must be refused by the rule: exit %d\n%s", code, text)
 	}
 }

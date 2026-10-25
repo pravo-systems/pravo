@@ -173,6 +173,7 @@ func (s *Server) overlay(ctx context.Context, m *model, pf *engine.PlanFile, dis
 			po.info.Reasons = stored.Reasons
 		}
 	}
+	po.info.Policies = m.planPolicies(pf.Policies)
 	if plan != nil {
 		po.changes = map[string]*engine.Change{}
 		for _, ch := range plan.Changes {

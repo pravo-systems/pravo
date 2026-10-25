@@ -1134,22 +1134,25 @@ package pol
 import "pravo.dev/pravo"
 
 scope: pravo.#Policy & {
-	rule: #"""
+	rule: {
 		changes: [...{
 			addr: string
 			if mode == "managed" {
 				error("\(addr): no")
 			}
 		}]
-		"""#
+	}
 }
 ```
 
 ```sh run hidden
 mkdir -p pol/.pravo/access
 pravo -C pol id new --name ada | grep '^  ada ssh' | sed 's/^  //' > pol/.pravo/access/readers.txt
+mv pol/main.cue pol/main.cue.bad
+printf 'package pol\n' > pol/main.cue
 pravo -C pol init > /dev/null
 pravo -C pol protect init --encrypt --yes --allow-local > /dev/null
+mv pol/main.cue.bad pol/main.cue
 ```
 
 ```sh run exit=6
@@ -1157,8 +1160,9 @@ pravo -C pol plan
 ```
 
 ```text out
-Error: policy scope does not compile: changes: reference "mode" not found:
-    scope:3:5
+Error: evaluating ./pol:
+scope.rule.changes: reference "mode" not found:
+    ./pol/main.cue:9:7
 ```
 
 Cause: CUE resolves a name by scope, and `mode` is not declared in the template. Fix: declare every field the guard reads: `mode: string`. [M6](m6-rewrite-plan-checks.md) shows the four rules, and the refusals for the other mistakes in a rule.

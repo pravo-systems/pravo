@@ -1602,7 +1602,7 @@ package errors
 
 import "pravo.dev/pravo"
 
-check: pravo.#Policy & {rule: #"""
+check: pravo.#Policy & {rule: {
 	changes: [...{
 		addr:    string
 		before?: {id: string}
@@ -1610,7 +1610,7 @@ check: pravo.#Policy & {rule: #"""
 			error(addr)
 		}
 	}]
-	"""#}
+}}
 ```
 
 ```sh
@@ -1643,7 +1643,7 @@ Output:
 ```text
 Error: the plan violates the policy check@1 (sha256:<digest>):
 changes.0: cannot reference optional field: before:
-    check:4:5
+    check:6:5
 ```
 
 A change to a policy is not judged, so the same rule is replaced by one that works:
@@ -1655,7 +1655,7 @@ package errors
 
 import "pravo.dev/pravo"
 
-check: pravo.#Policy & {rule: #"""
+check: pravo.#Policy & {rule: {
 	// A managed resource is neither deleted nor replaced.
 	changes: [...{
 		addr:   string
@@ -1665,7 +1665,7 @@ check: pravo.#Policy & {rule: #"""
 			error("\(addr): \(action) is not allowed")
 		}
 	}]
-	"""#}
+}}
 ```
 
 ```sh

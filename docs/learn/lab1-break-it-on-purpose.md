@@ -290,7 +290,7 @@ package main
 import "pravo.dev/pravo"
 
 no_delete: pravo.#Policy & {
-	rule: #"""
+	rule: {
 		// A plan may create and change. It may not delete.
 		changes: [...{
 			addr:   string
@@ -300,7 +300,7 @@ no_delete: pravo.#Policy & {
 				error("\(addr): delete is not allowed")
 			}
 		}]
-		"""#
+	}
 }
 ```
 
@@ -332,7 +332,7 @@ pravo -C root plan
 Plan: 0 to add, 0 to change, 1 to destroy.
 Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
-Error: the plan violates the policy no_delete@1 (sha256:df9548301ce9):
+Error: the plan violates the policy no_delete@1 (sha256:a1757b6a34e5):
 changes.0: extra: delete is not allowed:
     no_delete:7:3
 ```
@@ -374,7 +374,7 @@ pravo -C root plan --reserve 15m --actor ana
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 3 · not read 3
 Reserved 1 node until <time>.
-Policy no_delete@1:df9548301ce91fdcdb29d3497d163b41ecb60c6467ea12f20054c8a88539ab79 is satisfied.
+Policy no_delete@1:a1757b6a34e5fdef6f0a38ee1fd2cc1ed043e40432cb209fa571fa3b5ad548fc is satisfied.
 ```
 
 `pravo state locks` lists the claim.

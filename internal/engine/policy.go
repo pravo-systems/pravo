@@ -17,6 +17,7 @@ import (
 	cuejson "cuelang.org/go/encoding/json"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
@@ -46,8 +47,11 @@ type PolicyEntry struct {
 func (p PolicyEntry) removal() bool { return p.Digest == "" }
 
 // PolicyCounts says how many policies a plan adds, changes and removes.
-func (p *Plan) PolicyCounts() (added, changed, removed int) {
-	for _, en := range p.Policies {
+func (p *Plan) PolicyCounts() (added, changed, removed int) { return CountPolicyEntries(p.Policies) }
+
+// CountPolicyEntries says how many of the entries add a policy, change one and remove one.
+func CountPolicyEntries(entries []PolicyEntry) (added, changed, removed int) {
+	for _, en := range entries {
 		switch {
 		case en.removal():
 			removed++
@@ -58,6 +62,17 @@ func (p *Plan) PolicyCounts() (added, changed, removed int) {
 		}
 	}
 	return
+}
+
+// Kind says what the entry does to the policy: "new", "changed" or "removed".
+func (p PolicyEntry) Kind() string {
+	switch {
+	case p.removal():
+		return "removed"
+	case p.Base == 0:
+		return "new"
+	}
+	return "changed"
 }
 
 // policySet reads the policies of the state, checked against the readers file.
@@ -133,6 +148,39 @@ func (e *Engine) checkNewPolicy(name, text string) error {
 	}
 	if err := rule.Unify(doc).Validate(cue.Concrete(true)); err != nil {
 		return WithCode(ExitInvalid, fmt.Errorf("policy %s does not accept the document of an empty plan:\n%s", name, cueerrors.Details(err, nil)))
+	}
+	if err := e.checkRuleShape(name, rule); err != nil {
+		return err
+	}
+	return nil
+}
+
+// checkRuleShape unifies a rule with the shape of the plan document and one change
+// that holds no values, only the schema of a change. A rule is judged against a plan
+// that has no changes when it is added, so a field it misspells inside a list
+// template, a value outside the enum of an action and a read of an optional field
+// would pass unseen until the first plan that has such a change. A condition on a
+// value the sample does not hold is not decided, so a guard is not run: only the
+// structure of the rule is.
+func (e *Engine) checkRuleShape(name string, rule cue.Value) error {
+	ctx := e.Root.Ctx
+	pkg := ctx.CompileString(schema.SettingsPackage)
+	if err := pkg.Err(); err != nil {
+		return err
+	}
+	plan := pkg.LookupPath(cue.MakePath(cue.Def("Plan")))
+	// A rule that fixes the length of changes, such as changes: [], refuses a plan
+	// with a change by design; a sample change would only trip it.
+	shaped := plan
+	if _, err := rule.LookupPath(cue.ParsePath("changes")).Len().Int64(); err != nil {
+		one := ctx.CompileString("[#Change]", cue.Scope(pkg), cue.InferBuiltins(true))
+		if err := one.Err(); err != nil {
+			return err
+		}
+		shaped = plan.FillPath(cue.ParsePath("changes"), one)
+	}
+	if err := rule.Unify(shaped).Validate(); err != nil {
+		return WithCode(ExitInvalid, fmt.Errorf("policy %s does not fit the plan document:\n%s", name, cueerrors.Details(err, nil)))
 	}
 	return nil
 }

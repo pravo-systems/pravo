@@ -538,3 +538,23 @@ func TestStoredPlanFormatsAreReadableJSON(t *testing.T) {
 		}
 	})
 }
+
+// A plan that only changes policies keeps them in its summary, so that a listing does not
+// read it as a plan that does nothing.
+func TestSummaryOfAPlanKeepsItsPolicyChanges(t *testing.T) {
+	pf := &PlanFile{Created: t0, Policies: []PolicyEntry{{Name: "a", Digest: "d1"}, {Name: "b", Base: 2, Digest: "d2"}, {Name: "c", Base: 1}}}
+	m := newPlanMeta(pf, "alice", 0, 10)
+	if len(m.Changes) != 0 || m.Summary != (PlanCounts{}) || len(m.Policies) != 3 {
+		t.Fatalf("summary %+v", m)
+	}
+	var kinds []string
+	for _, p := range m.Policies {
+		kinds = append(kinds, p.Kind())
+	}
+	if strings.Join(kinds, ",") != "new,changed,removed" {
+		t.Errorf("kinds %v", kinds)
+	}
+	if a, c, r := CountPolicyEntries(m.Policies); a != 1 || c != 1 || r != 1 {
+		t.Errorf("counts %d %d %d", a, c, r)
+	}
+}

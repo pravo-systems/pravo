@@ -3,9 +3,14 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/ast/astutil"
+	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/token"
 
 	"github.com/pravo-systems/pravo/internal/registry"
 )
@@ -268,9 +273,9 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		if nested := findNested(v, p, 0); nested != "" {
 			return fmt.Errorf("%s is a policy, so it cannot contain %s, which is a resource", p, nested)
 		}
-		rule, err := v.LookupPath(cue.ParsePath("rule")).String()
-		if err != nil || strings.TrimSpace(rule) == "" {
-			return fmt.Errorf("policy %s: rule must be a non-empty string of CUE", p)
+		rule, err := RuleText(v.LookupPath(cue.ParsePath("rule")))
+		if err != nil {
+			return fmt.Errorf("policy %s: %w", p, err)
 		}
 		r.Policies = append(r.Policies, &Policy{Name: p.String(), Path: p, Rule: rule})
 		return nil
@@ -411,4 +416,147 @@ func findNested(v cue.Value, at cue.Path, depth int) string {
 		}
 	}
 	return ""
+}
+
+// RuleText turns the rule of a policy, a CUE struct written in the spec itself,
+// into the canonical source the engine stores, signs and judges. The rule is
+// parsed code, not a string holding code: the text here is the formatted syntax
+// tree of the struct, so the same rule always has the same text and digest.
+func RuleText(v cue.Value) (string, error) {
+	if !v.Exists() {
+		return "", fmt.Errorf("rule is missing: write the rule as a CUE struct, such as rule: {summary: destroy: 0}")
+	}
+	if v.Kind() != cue.StructKind {
+		return "", fmt.Errorf("rule must be a CUE struct, not a string of CUE: write rule: {summary: destroy: 0}")
+	}
+	// A rule that uses the standard library comes out as a file with its
+	// imports; any other as a struct. The imports stay in the text, which is
+	// standalone CUE.
+	var decls []ast.Decl
+	switch n := v.Syntax(cue.Raw(), cue.Docs(true)).(type) {
+	case *ast.File:
+		for _, d := range n.Decls {
+			if em, ok := d.(*ast.EmbedDecl); ok {
+				decls = append(decls, structsOf(em.Expr)...)
+			} else {
+				decls = append(decls, d)
+			}
+		}
+	default:
+		decls = structsOf(n.(ast.Expr))
+	}
+	if decls == nil {
+		return "", fmt.Errorf("rule must be a CUE struct")
+	}
+	// The schema leaves the struct open so that any rule fits; that trailing
+	// "..." is the schema's, not the author's.
+	elts := decls[:0:0]
+	for _, e := range decls {
+		switch e.(type) {
+		case *ast.Ellipsis, *ast.Package:
+		default:
+			elts = append(elts, e)
+		}
+	}
+	elts = withoutPravoSchema(elts)
+	empty := true
+	for _, e := range elts {
+		if _, imp := e.(*ast.ImportDecl); !imp {
+			empty = false
+		}
+	}
+	if empty {
+		return "", fmt.Errorf("rule is empty: a policy with no rule judges nothing")
+	}
+	var text strings.Builder
+	for _, e := range elts {
+		b, err := format.Node(e)
+		if err != nil {
+			return "", fmt.Errorf("rule cannot be written out: %w", err)
+		}
+		text.Write(b)
+		text.WriteByte('\n')
+	}
+	return text.String(), nil
+
+}
+
+// structsOf returns the fields of the structs written in an expression: of the
+// struct itself, or of each struct in a unification such as pravo.#Plan & {...},
+// where the schema is a reference and not part of what the author wrote.
+func structsOf(e ast.Expr) []ast.Decl {
+	switch n := e.(type) {
+	case *ast.StructLit:
+		return append([]ast.Decl{}, n.Elts...)
+	case *ast.BinaryExpr:
+		if n.Op == token.AND {
+			return append(structsOf(n.X), structsOf(n.Y)...)
+		}
+	case *ast.ParenExpr:
+		return structsOf(n.X)
+	}
+	return nil
+}
+
+// withoutPravoSchema takes the references to the schema of pravo, such as
+// pravo.#Change & {...}, out of a rule and drops the import they needed. A rule is
+// stored and judged without the module, and the schema adds nothing to it.
+func withoutPravoSchema(decls []ast.Decl) []ast.Decl {
+	alias := ""
+	for _, d := range decls {
+		imp, ok := d.(*ast.ImportDecl)
+		if !ok {
+			continue
+		}
+		for _, sp := range imp.Specs {
+			if p, err := strconv.Unquote(sp.Path.Value); err == nil && p == "pravo.dev/pravo" {
+				alias = "pravo"
+				if sp.Name != nil {
+					alias = sp.Name.Name
+				}
+			}
+		}
+	}
+	if alias == "" {
+		return decls
+	}
+	isSchema := func(e ast.Expr) bool {
+		sel, ok := e.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+		id, ok := sel.X.(*ast.Ident)
+		name, _ := sel.Sel.(*ast.Ident)
+		return ok && id.Name == alias && name != nil && strings.HasPrefix(name.Name, "#")
+	}
+	var out []ast.Decl
+	for _, d := range decls {
+		if imp, ok := d.(*ast.ImportDecl); ok {
+			var keep []*ast.ImportSpec
+			for _, sp := range imp.Specs {
+				if p, err := strconv.Unquote(sp.Path.Value); err != nil || p != "pravo.dev/pravo" {
+					keep = append(keep, sp)
+				}
+			}
+			if len(keep) == 0 {
+				continue
+			}
+			imp.Specs = keep
+			out = append(out, imp)
+			continue
+		}
+		astutil.Apply(d, func(c astutil.Cursor) bool {
+			if b, ok := c.Node().(*ast.BinaryExpr); ok && b.Op == token.AND {
+				switch {
+				case isSchema(b.X):
+					c.Replace(b.Y)
+				case isSchema(b.Y):
+					c.Replace(b.X)
+				}
+			}
+			return true
+		}, nil)
+		out = append(out, d)
+	}
+	return out
 }
