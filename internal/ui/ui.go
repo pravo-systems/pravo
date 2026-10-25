@@ -362,23 +362,18 @@ func countOutputs(n int) string {
 
 // outputChange words what the plan does to output n: "old → new", or just the
 // new value when the output has no recorded one. It reports false for an output
-// whose value stays as it is recorded.
+// whose value stays as it is recorded. A sensitive value is compared and then
+// shown as "(sensitive)".
 func (p *Printer) outputChange(plan *engine.Plan, n string) (string, bool) {
 	var old string
 	oldKnown, oldSensitive := false, false
 	if raw, ok := plan.OldOutputs[n]; ok {
 		v, sensitive := engine.UnwrapOutput(raw)
 		oldKnown, oldSensitive = true, sensitive
-		if sensitive {
-			old = p.C(Dim, "(sensitive)")
-		} else {
-			old = JSONToCUE(v, "  ")
-		}
+		old = JSONToCUE(v, "  ")
 	}
 	var now string
 	switch v, ok := plan.Outputs[n]; {
-	case plan.SensitiveOutputs[n] || oldSensitive:
-		return p.C(Dim, "(sensitive)"), true
 	case ok && convert.IsConcrete(v):
 		now = FormatCUE(convert.Default(v), "  ")
 	case ok:
@@ -392,11 +387,14 @@ func (p *Printer) outputChange(plan *engine.Plan, n string) (string, bool) {
 			now = p.C(Dim, "(removed)")
 		}
 	}
+	if oldKnown && old == now {
+		return "", false
+	}
+	if plan.SensitiveOutputs[n] || oldSensitive {
+		return p.C(Dim, "(sensitive)"), true
+	}
 	if !oldKnown {
 		return now, true
-	}
-	if old == now {
-		return "", false
 	}
 	return old + " → " + now, true
 }
