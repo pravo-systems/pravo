@@ -85,10 +85,23 @@ function applyTheme(t, persist) {
   if (minimap) { minimap.refreshColors(); minimap.draw(); }
 }
 
-function toggleTheme() {
-  applyTheme(effectiveTheme() === 'dark' ? 'light' : 'dark', true);
-  syncFragment();
-  announce(effectiveTheme() === 'dark' ? 'Dark theme' : 'Light theme');
+// The other theme spreads from the button (or from the middle of the window, for the key), as a circle that the browser
+// draws between the two pictures. Where the browser cannot, or motion is off, the theme just changes.
+function toggleTheme(ev) {
+  const swap = () => {
+    applyTheme(effectiveTheme() === 'dark' ? 'light' : 'dark', true);
+    syncFragment();
+    announce(effectiveTheme() === 'dark' ? 'Dark theme' : 'Light theme');
+  };
+  if (!document.startViewTransition || !motionOn()) { swap(); return; }
+  const box = ev && ev.currentTarget && ev.currentTarget.getBoundingClientRect ? ev.currentTarget.getBoundingClientRect() : null;
+  const x = box ? box.left + box.width / 2 : innerWidth / 2, y = box ? box.top + box.height / 2 : innerHeight / 2;
+  root.style.setProperty('--vt-x', x + 'px');
+  root.style.setProperty('--vt-y', y + 'px');
+  root.style.setProperty('--vt-r', Math.ceil(Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))) + 'px');
+  root.setAttribute('data-vt', '');
+  const done = () => root.removeAttribute('data-vt');
+  document.startViewTransition(swap).finished.then(done, done);
 }
 
 // beat makes the live dots beat for a few cycles: when the page opens and when something changes. At rest
@@ -341,11 +354,14 @@ function renderPlans() {
   });
 }
 
-// renderPlanLede is the line at the head of the Plans page: it is there to say that there is none.
+// renderPlanLede is the line at the head of the Plans page: how many of the stored plans can still be applied, or that there is none.
 function renderPlanLede() {
   const lede = $('pl-lede');
-  lede.textContent = S.plans.length ? '' : 'The state holds no plan. Make one with pravo plan --store.';
-  lede.hidden = !!S.plans.length;
+  const open = S.plans.filter((p) => p.open).length;
+  lede.textContent = !S.plans.length ? 'The state holds no plan. Make one with pravo plan --store.'
+    : open ? `${plural(open, 'stored plan')} can still be applied, of ${S.plans.length} in the state.`
+      : `No stored plan can be applied. The state holds ${plural(S.plans.length, 'plan')}, applied or expired.`;
+  $('pl-head').classList.toggle('none', !open);
 }
 
 // selectPlan lays a stored plan over the graph, or, with null, takes it off. The first view is made again for
@@ -442,7 +458,7 @@ function relayout(o = {}) {
   const vis = buildItems(S.model, S.collapsed, S.clusters);
   const sh = gv.shape;
   // a namespace that opens or closes keeps the lanes that it does not touch where they were (o.stable)
-  const lay = layout({ root: vis.root, items: vis.items, edges: vis.edges, aspect: sh.fit.w > 0 ? sh.fit.w / sh.fit.h : 1.4, fit: sh.fit.w > 0 ? sh.fit : null, hint: o.stable && S.lay && S.shaped ? S.lay.arr : null });
+  const lay = layout({ root: vis.root, items: vis.items, edges: vis.edges, aspect: sh.fit.w > 0 ? sh.fit.w / sh.fit.h : 1.4, fit: sh.fit.w > 0 ? sh.fit : null });
   S.vis = vis;
   S.lay = lay;
   S.layoutMs = performance.now() - t0;
@@ -876,6 +892,7 @@ function setView(v) {
   else if (v === 'access') renderAccess();
   else if (v === 'discovery') renderDiscovery();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
+  setDocTitle();
   syncFragment();
   announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : 'Inventory, graph view');
 }
@@ -1000,6 +1017,14 @@ function renderHeader() {
     cs.querySelector('.cp-be').hidden = !st.backend;
   }
   renderWho();
+  setDocTitle();
+}
+
+// the tab says where the page is: the project, then the section, so that several estates in several tabs tell apart
+const SECTION = { graph: 'Inventory', list: 'Inventory', plans: 'Plans', discovery: 'Discovery', access: 'State' };
+function setDocTitle() {
+  const dir = S.graph && S.graph.project && S.graph.project.dir;
+  document.title = dir ? `${baseName(dir)} \u00b7 ${SECTION[S.view] || 'Inventory'} \u00b7 pravo serve` : 'pravo serve';
 }
 
 // renderWho names the identity that the page is read as. An unsealed state has none to name.
@@ -1383,7 +1408,7 @@ function wire() {
     onSelectNode: (a) => selectNode(a, { center: true }),
     onSelectNamespace: (p) => selectNamespace(p, { center: true }),
     onTab: setTab,
-    onReach: (a) => { if (S.sel !== a) selectNode(a, { pulse: false }); setReach(true, true); },
+    onReach: (a) => { if (S.sel !== a) selectNode(a, {}); setReach(true, true); },
     onToggleNamespace: toggleNamespace,
     onFit: (p) => { const lane = S.lay.lanes.find((l) => l.path === p); if (lane) gv.centerOnBox(lane); else { const id = S.vis.items.get('ns:' + p) ? 'ns:' + p : null; if (id) gv.centerOn(id, 0.9); } if (S.view !== 'graph') setView('graph'); },
     onError: (m) => toast(m, 'error', 6000),

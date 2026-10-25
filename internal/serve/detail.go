@@ -66,6 +66,9 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 			d.Notes = append(d.Notes, "The schema of this type is not cached, so every value is withheld. Run \"pravo init\" to fetch it.")
 		}
 	}
+	if rec == nil {
+		m.unrecorded(mn, d, sec)
+	}
 	if mn.schNote != "" {
 		d.Notes = append(d.Notes, mn.schNote)
 	}
@@ -132,7 +135,11 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 	case mn.Presence == "spec":
 		d.Notes = append(d.Notes, "Declared in the specification and not created yet.")
 	case transient(mn.Mode):
-		d.Notes = append(d.Notes, "A "+modeNoun(mn.Mode)+" is evaluated when a command runs and is never recorded in the state.")
+		noun := modeNoun(mn.Mode)
+		if mn.res != nil && mn.res.Builtin {
+			noun = "built-in value"
+		}
+		d.Notes = append(d.Notes, strings.ToUpper(article(noun)[:1])+article(noun)[1:]+" is evaluated when a command runs and is never recorded in the state.")
 	}
 	if mn.Gone {
 		d.Notes = append(d.Notes, "A read found that the object no longer exists; the record keeps the attributes of the last state that was read.")
@@ -278,6 +285,14 @@ func configLocal(key string) string {
 
 // withholdAll lists the attributes of a record whose schema is not known, with
 // every value withheld.
+// article puts "a" or "an" before a noun.
+func article(noun string) string {
+	if strings.ContainsRune("aeiou", rune(noun[0])) {
+		return "an " + noun
+	}
+	return "a " + noun
+}
+
 func withholdAll(attrs map[string]any) []Attr {
 	names := make([]string, 0, len(attrs))
 	for k := range attrs {

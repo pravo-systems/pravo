@@ -74,19 +74,17 @@
 .lod-far .lane-head.deep .head { opacity: 0; }
 
 /* ---- edges: quiet at rest, loud when they matter ---- */
-.ge { fill: none; stroke: var(--edge); stroke-opacity: calc(.62 * var(--el, 1) * var(--ed, 1)); stroke-width: 1.25; vector-effect: non-scaling-stroke; marker-end: url(#ah); pointer-events: none; transition: stroke-opacity .25s, stroke var(--t-fast), stroke-width var(--t-fast); }
+.ge { fill: none; stroke: var(--edge); stroke-opacity: calc(.62 * var(--el, 1) * var(--ed, 1)); stroke-width: 1.25; vector-effect: non-scaling-stroke; marker-start: url(#jah); marker-end: url(#ah); stroke-linejoin: miter; stroke-linecap: butt; pointer-events: none; transition: stroke-opacity .25s, stroke var(--t-fast), stroke-width var(--t-fast); }
 .hovering .ge:not(.hl):not(.up):not(.down) { stroke-opacity: calc(.3 * var(--el, 1)); }
-.ge.hl { stroke: var(--text); stroke-opacity: .9; stroke-width: 1.9; marker-end: url(#ah-up); stroke-dasharray: 7 6; animation: flow .8s linear infinite; }
-.ge.up { stroke: var(--key); stroke-opacity: 1; stroke-width: 2.1; marker-end: url(#ah-up); }
-.ge.down { stroke: var(--change); stroke-opacity: 1; stroke-width: 2.1; marker-end: url(#ah-down); }
-.ge.up, .ge.down { stroke-dasharray: 7 6; animation: flow .8s linear infinite; }
-.flow-calm .ge.up, .flow-calm .ge.down { animation: none; stroke-dasharray: none; }
-/* the flow of a selection runs for a while after it is made and then stands still: dashes that move for ever keep the page painting while nobody does anything. The edges of what the pointer is on keep moving. */
-.graph:not(.flowing) .ge.up, .graph:not(.flowing) .ge.down { animation-play-state: paused; }
-.graph:not(.flowing) .ge.hl { animation-play-state: running; }
-.has-sel .ge:not(.up):not(.down):not(.hl) { stroke-opacity: .1; marker-end: url(#ah-dim); }
+.ge.hl { stroke: var(--text); stroke-opacity: .9; stroke-width: 1.9; marker-end: url(#ah-up); }
+.ge.up { stroke: var(--key); stroke-opacity: 1; stroke-width: 2.1; marker-start: url(#jah-up); marker-end: url(#ah-up); }
+.ge.down { stroke: var(--change); stroke-opacity: 1; stroke-width: 2.1; marker-start: url(#jah-down); marker-end: url(#ah-down); }
+.has-sel .ge:not(.up):not(.down):not(.hl) { stroke-opacity: .1; marker-start: url(#jah-dim); marker-end: url(#ah-dim); }
 .has-sel .ge.hl:not(.up):not(.down) { stroke-opacity: .7; }
 .reach-mode .ge:not(.down) { stroke-opacity: .05; }
+.jn circle { fill: var(--edge); pointer-events: none; transition: opacity .25s; }
+.has-sel .jn, .reach-mode .jn { opacity: .15; }
+.lod-far .jn { display: none; }
 .ah { fill: var(--edge); } .ah-up { fill: var(--key); } .ah-down { fill: var(--change); } .ah-dim { fill: var(--edge); fill-opacity: .2; }
 .ge.hl:not(.up):not(.down) { marker-end: url(#ah); }
 .ec { transition: opacity .25s; pointer-events: none; }
@@ -95,7 +93,7 @@
 .ec.up rect { stroke: var(--key); } .ec.down rect { stroke: var(--change); }
 .has-sel .ec:not(.up):not(.down) { opacity: .2; }
 .lod-low .ec { opacity: 0; }
-.lod-far .ge { marker-end: none; }
+.lod-far .ge { marker-end: none; marker-start: none; }
 /* far out the text is gone (opacity 0 already): taking it out of the tree makes a heavy picture cheap to zoom */
 .lod-far .node :is(.nm, .ty, .tile, .mk, .act, .kb), .lod-far .ns-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .cluster-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .ec { display: none; }
 .lod-far .node .ring { animation: none; }
@@ -125,7 +123,7 @@
 .pvl { --th: var(--pvh); }
 /* a second look for a provider instance: the hue moves on and the lightness steps away from the base, deeper on both themes */
 :is(.node, .pvdot, .pvl).pvx { --pvh: calc(var(--pvb) + 16); --pv-l: var(--pv-lx); }
-.pvdot { display: inline-block; width: .6em; height: .6em; border-radius: 50%; margin-right: .5em; vertical-align: baseline; background: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .85); }
+.pvdot { display: inline-block; width: .6em; height: .6em; border-radius: 0; margin-right: .5em; vertical-align: baseline; background: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .85); }
 .node .bar, .ns-item .bar, .cluster-item .bar { fill: hsl(var(--pvh, var(--th)) var(--pv-s) var(--pv-l) / .75); }
 .node .tb { fill: hsl(var(--pvh) var(--pv-s) var(--pv-l) / var(--pv-a)); stroke: hsl(var(--pvh) var(--pv-s) var(--pv-l) / .28); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .node .tm { font: 600 10px var(--font-mono); text-anchor: middle; fill: hsl(var(--pvh) var(--pv-s) var(--pv-l)); letter-spacing: .02em; opacity: var(--sub); }
@@ -216,9 +214,7 @@
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ring { 0% { opacity: .8; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.09, 1.3); } }
 @keyframes flash { 0% { opacity: 1; stroke-width: 3; } 100% { opacity: 0; stroke-width: 1; } }
-@keyframes flow { to { stroke-dashoffset: -13; } }
 @keyframes travel { from { stroke-dashoffset: 0; opacity: 1; } to { stroke-dashoffset: -1.14; opacity: .2; } }
-@keyframes travelRev { from { stroke-dashoffset: -1.14; opacity: .2; } to { stroke-dashoffset: 0; opacity: 1; } }
 @keyframes halo { from { opacity: .95; transform: scale(1); } to { opacity: 0; transform: scale(1.14, 1.4); } }
 .intro .lane, .intro .lane-head { animation: laneIn .8s var(--ease) calc(var(--i, 0) * 90ms) backwards; }
 .intro .node .in, .intro .ns-item .in, .intro .cluster-item .in, .intro .ctl-item .in { animation: rise .75s var(--ease) calc(160ms + var(--i, 0) * 16ms) backwards; }
@@ -232,19 +228,17 @@
 .ge.enter { animation: fadein .5s ease .2s backwards; }
 .node.leave, .ns-item.leave, .cluster-item.leave, .ctl-item.leave, .lane.leave, .lane-head.leave, .ge.leave, .ec.leave { opacity: 0 !important; transition: opacity .28s ease; pointer-events: none; }
 .pulse { fill: none; stroke-width: 3.2; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: .14 1; pointer-events: none; animation: travel .95s var(--ease) both; }
-.pulse.up { stroke: var(--key); animation-name: travelRev; }
+.pulse.up { stroke: var(--key); }
 .pulse.down { stroke: var(--change); }
 .halo-ripple { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; transform-box: fill-box; transform-origin: center; animation: halo 1.1s var(--ease) both; }
-:root[data-motion="off"] .ge.up, :root[data-motion="off"] .ge.down, :root[data-motion="off"] .ge.hl { stroke-dasharray: none; }
-@media (prefers-reduced-motion: reduce) { .ge.up, .ge.down, .ge.hl { stroke-dasharray: none; } }
 
 /* the card that a hover opens */
-.gtip { left: 0; top: 0; min-width: 12rem; max-width: 19rem; padding: .6rem .75rem .65rem; background: var(--surface); border: 1px solid var(--g-edge-hi); border-radius: 8px; box-shadow: 0 12px 34px rgba(0, 0, 0, .3), 0 2px 6px rgba(0, 0, 0, .18); pointer-events: none; opacity: 0; transition: opacity .16s ease; z-index: 6; }
+.gtip { left: 0; top: 0; min-width: 12rem; max-width: 19rem; padding: .6rem .75rem .65rem; background: var(--surface); border: 1px solid var(--g-edge-hi); border-radius: 0; box-shadow: 0 12px 34px rgba(0, 0, 0, .3), 0 2px 6px rgba(0, 0, 0, .18); pointer-events: none; opacity: 0; transition: opacity .16s ease; z-index: 6; }
 .gtip.in { opacity: 1; }
 .gtip-addr { font: 600 .78rem/1.3 var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
 .gtip-type { margin-top: .12rem; font: 400 .72rem/1.3 var(--font-mono); color: var(--text-3); }
 .gtip-row { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; }
-.gtip .gchip { font: 600 .66rem/1 var(--font-mono); padding: .22rem .42rem; border-radius: 4px; border: 1px solid var(--line-strong); color: var(--text-2); background: var(--surface-2); }
+.gtip .gchip { font: 600 .66rem/1 var(--font-mono); padding: .22rem .42rem; border-radius: 0; border: 1px solid var(--line-strong); color: var(--text-2); background: var(--surface-2); }
 .gtip .gchip.a-create { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-wash); }
 .gtip .gchip.a-update, .gtip .gchip.a-replace, .gtip .gchip.drift, .gtip .gchip.hold { color: var(--change); border-color: color-mix(in srgb, var(--change) 45%, transparent); background: var(--change-wash); }
 .gtip .gchip.a-delete, .gtip .gchip.gone { color: var(--conflict); border-color: color-mix(in srgb, var(--conflict) 45%, transparent); background: var(--conflict-wash); }
@@ -254,7 +248,7 @@
 
 /* overlays on the canvas */
 .overlay { position: absolute; z-index: 4; }
-.legend { right: 1rem; bottom: .8rem; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem .9rem; padding: .45rem .75rem; font: 400 .66rem/1 var(--font-mono); color: var(--text-2); pointer-events: none; border-radius: 14px; background: color-mix(in srgb, var(--bg) 72%, transparent); border: 1px solid var(--line); backdrop-filter: blur(6px); }
+.legend { right: 1rem; bottom: .8rem; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem .9rem; padding: .45rem .75rem; font: 400 .66rem/1 var(--font-mono); color: var(--text-2); pointer-events: none; border-radius: 0; background: color-mix(in srgb, var(--bg) 72%, transparent); border: 1px solid var(--line); backdrop-filter: blur(6px); }
 /* a small screen has no room for the key (graph.css comes after app.css, so its own rule has to say so) */
 @media (max-width: 47.5em) { .legend { display: none; } }
 /* where the minimap stands at the other corner, the key leaves it room and wraps */
@@ -263,7 +257,7 @@
 .legend .lg { display: inline-flex; align-items: center; gap: .4rem; }
 .legend .lg-toggle { pointer-events: auto; display: inline-flex; align-items: center; gap: .4rem; padding: 0; font: inherit; color: var(--text-2); }
 .legend .lg-toggle:hover { color: var(--text); }
-.legend:not(.open) { border-radius: 999px; gap: 0; }
+.legend:not(.open) { border-radius: 0; gap: 0; }
 .legend.open { justify-content: flex-start; max-width: min(34rem, calc(100% - 2rem)); }
 .legend.open .lg-toggle { flex-basis: 100%; margin-bottom: .1rem; }
 .legend:not(.open) .lg, .canvas.has-sel .legend:not(.open) .lg-sel { display: none; }
@@ -271,17 +265,17 @@
 .canvas.has-sel .legend .lg-sel { display: inline-flex; }
 .legend .ln { display: inline-block; width: 1.4rem; height: 0; border-top: 2px solid var(--key); } .legend .ln.down { border-color: var(--change); }
 .legend .i { width: .8rem; height: .8rem; }
-.minimap { left: 1rem; bottom: .8rem; width: 184px; height: 120px; border: 1px solid var(--g-edge); border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .22); z-index: 5; transition: opacity .3s ease, transform .3s var(--ease); }
+.minimap { left: 1rem; bottom: .8rem; width: 184px; height: 120px; border: 1px solid var(--g-edge); border-radius: 0; overflow: hidden; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .22); z-index: 5; transition: opacity .3s ease, transform .3s var(--ease); }
 .minimap.off { opacity: 0; transform: translateY(8px); pointer-events: none; }
 .minimap canvas { display: block; cursor: crosshair; }
-.backbtn { top: .8rem; left: 1rem; display: inline-flex; align-items: center; gap: .5rem; height: 2rem; padding: 0 .55rem 0 .65rem; border: 1px solid var(--g-edge-hi); border-radius: 999px; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); color: var(--text); font: 500 .74rem/1 var(--font-mono); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .2); animation: fadein .3s ease; }
+.backbtn { top: .8rem; left: 1rem; display: inline-flex; align-items: center; gap: .5rem; height: 2rem; padding: 0 .55rem 0 .65rem; border: 1px solid var(--g-edge-hi); border-radius: 0; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); color: var(--text); font: 500 .74rem/1 var(--font-mono); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .2); animation: fadein .3s ease; }
 .backbtn:hover { border-color: var(--accent); }
 .backbtn svg { width: .95rem; height: .95rem; color: var(--accent); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.backbtn kbd { font: 500 .62rem/1 var(--font-mono); padding: .2rem .32rem; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--text-3); }
+.backbtn kbd { font: 500 .62rem/1 var(--font-mono); padding: .2rem .32rem; border: 1px solid var(--line-strong); border-radius: 0; color: var(--text-3); }
 .backbtn[hidden] { display: none; }
-.reachbar { top: .5rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .8rem; padding: .4rem .5rem .4rem .8rem; border: 1px solid var(--change); border-radius: 999px; background: var(--surface); font: 400 .76rem/1 var(--font-mono); color: var(--text); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.reachbar { top: .5rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .8rem; padding: .4rem .5rem .4rem .8rem; border: 1px solid var(--change); border-radius: 0; background: var(--surface); font: 400 .76rem/1 var(--font-mono); color: var(--text); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
 .reachbar b { font-weight: 500; }
-.reachbar button { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-2); }
+.reachbar button { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 0; color: var(--text-2); }
 
 /* the kind and the provider of a card filter the graph */
 .node .fx { cursor: pointer; pointer-events: all; }

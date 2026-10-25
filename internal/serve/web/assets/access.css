@@ -1,9 +1,9 @@
 /* The Access view: the state of the protection, the readers, the readers file, and commands to copy.
    Tokens only, so that it follows the theme. */
 
-.access-pane { overflow: auto; padding: 1rem 1.25rem 2.5rem; }
-.ac { display: grid; gap: 1.4rem; width: 100%; max-width: 62rem; margin: 0 auto; }
-.ac .h { margin: 0 0 .55rem; }
+.access-pane { overflow: auto; padding: var(--page-pad); }
+.ac { display: grid; gap: 1.9rem; width: 100%; max-width: 62rem; margin: 0 auto; }
+.ac .h { margin: 0 0 .8rem; }
 .ac-sec { min-width: 0; }
 /* a ring is drawn 4 px outside the element: when the pane scrolls to a focused element the ring must stay inside it */
 .access-pane :is(button, summary, [tabindex]) { scroll-margin: .5rem; }
@@ -13,17 +13,15 @@
 .ac-empty { margin: 0; padding: .8rem 1rem; border: 1px dashed var(--line-strong); color: var(--text-2); font-size: .78rem; }
 
 /* ---- the state ---- */
-.ac-banner { padding: 1rem 1.1rem; border: 1px solid var(--line-strong); border-left-width: 4px; background: var(--surface); box-shadow: var(--shadow-1); }
-.ac-banner.st-sealed { border-left-color: var(--accent); background: linear-gradient(var(--accent-wash), var(--accent-wash)), var(--surface); }
-.ac-banner.st-off, .ac-banner.st-migrating { border-left-color: var(--change); background: linear-gradient(var(--change-wash), var(--change-wash)), var(--surface); }
-.ac-banner.st-immutable { border-left-color: var(--key); background: linear-gradient(var(--key-wash), var(--key-wash)), var(--surface); }
+.ac-banner.st-sealed { --hc: var(--accent); background: linear-gradient(var(--accent-wash), var(--accent-wash)), var(--surface); }
+.ac-banner.st-off, .ac-banner.st-migrating { --hc: var(--change); background: linear-gradient(var(--change-wash), var(--change-wash)), var(--surface); }
+.ac-banner.st-immutable { --hc: var(--key); background: linear-gradient(var(--key-wash), var(--key-wash)), var(--surface); }
 .ac-bhead { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .8rem; margin-bottom: .55rem; }
-.ac-title { margin: 0; font: 500 1.5rem/1.15 var(--font-display); letter-spacing: -.01em; }
 .ac-sentence { margin: 0; max-width: 46rem; font-size: .9rem; line-height: 1.55; text-wrap: pretty; }
 .ac-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem 1.4rem; margin: 1rem 0 0; padding: 1rem 0 0; border-top: 1px solid var(--line); list-style: none; font-size: .78rem; color: var(--text-2); }
 .ac-facts li { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
 .ac-facts .wide { grid-column: span 2; }
-.ac-facts .k { font: 500 .58rem/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+.ac-facts .k { font: 600 .58rem/1 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
 .ac-facts b, .ac-facts code { font-weight: 500; font-family: var(--font-mono); font-size: .78rem; color: var(--text); overflow-wrap: anywhere; }
 @media (max-width: 44em) { .ac-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .ac-problem { display: flex; gap: .45rem; margin: .6rem 0 0; font-size: .74rem; color: var(--change); }
@@ -39,7 +37,7 @@
 .ac-tablewrap { overflow-x: auto; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-1); }
 .ac-table { width: 100%; border-collapse: collapse; font-size: .76rem; }
 .ac-table th, .ac-table td { padding: .5rem .8rem; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); }
-.ac-table thead th { font: 500 .58rem/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); background: var(--surface-2); white-space: nowrap; }
+.ac-table thead th { font: 600 .58rem/1 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); background: var(--surface-2); white-space: nowrap; }
 .ac-table tbody tr:last-child > * { border-bottom: 0; }
 .ac-table .c { text-align: center; }
 .ac-table tbody th { font-weight: 500; min-width: 4rem; } /* a name may break anywhere, but not into single letters beside the other columns */
@@ -80,7 +78,7 @@
 /* ---- the suggestions ---- */
 .ac-cards { display: grid; gap: .6rem; margin-top: .7rem; }
 .ac-card { border: 1px solid var(--line-strong); background: var(--surface); }
-.ac-card.primary { border-color: color-mix(in srgb, var(--accent) 60%, var(--line-strong)); box-shadow: inset 3px 0 0 var(--accent); }
+.ac-card.primary { border-color: color-mix(in srgb, var(--accent) 60%, var(--line-strong)); }
 .ac-card > summary { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .7rem; padding: .65rem .9rem; cursor: pointer; list-style: none; }
 .ac-card > summary::-webkit-details-marker { display: none; }
 .ac-card > summary::before { content: ""; width: .5rem; height: .5rem; border-right: 1.5px solid var(--text-2); border-bottom: 1.5px solid var(--text-2); transform: rotate(-45deg); transition: transform var(--t-fast); flex: none; }
@@ -122,7 +120,7 @@
   .ac-table:not(.small) tr { padding: .5rem .2rem; border-bottom: 1px solid var(--line); }
   .ac-table:not(.small) tbody tr:last-child { border-bottom: 0; }
   .ac-table:not(.small) th, .ac-table:not(.small) td { border: 0; padding: .2rem .7rem; text-align: left; }
-  .ac-table:not(.small) td[data-label]::before { content: attr(data-label); content: attr(data-label) / ""; display: inline-block; min-width: 6.5rem; font: 500 .58rem/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+  .ac-table:not(.small) td[data-label]::before { content: attr(data-label); content: attr(data-label) / ""; display: inline-block; min-width: 6.5rem; font: 600 .58rem/1 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
   .ac-table:not(.small) .c { text-align: left; }
 }
 @media (max-width: 47.5em) {

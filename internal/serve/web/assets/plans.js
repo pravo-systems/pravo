@@ -6,7 +6,7 @@
 import { h, s as svgEl, clear, icon, relTime, relUntil, stamp, plural, signatureMark } from './util.js';
 
 // STATUS says where a plan stands. The word is the carrier; the colour agrees with it: green can be applied,
-// blue is part way, amber moved on, grey is over. A plan that is partly stale is amber with a green edge: the
+// blue is part way, amber moved on, grey is over. A plan that is partly stale is amber: the
 // state moved on under some of its changes, and the rest can be applied.
 export const STATUS = {
   pending: { cls: 'ok', tip: 'It can be applied.' },
@@ -230,7 +230,7 @@ export class Plans {
     if (detailEl) rows[shown.findIndex((p) => p.id === open)].after(detailEl);
     clear(root);
     root.append(
-      h('div', { class: 'rp-head' }, h('h2', { class: 'h' }, 'Plans'), h('div', { class: 'seg rp-seg', role: 'group', 'aria-label': 'Which plans to list' }, seg('pending', 'Pending', pending), seg('all', 'All', plans.length))),
+      h('div', { class: 'rp-head' }, h('h2', { class: 'h' }, 'Stored plans'), h('div', { class: 'seg rp-seg', role: 'group', 'aria-label': 'Which plans to list' }, seg('pending', 'Pending', pending), seg('all', 'All', plans.length))),
       list);
     // the section scrolls to the plan that is laid over the graph when that changes, and not each time it is drawn
     if (picked && this.shownOpen !== open) { const el = root.querySelector('.rp[aria-expanded="true"]'); if (el) el.scrollIntoView({ block: 'nearest' }); }
