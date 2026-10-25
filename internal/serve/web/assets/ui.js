@@ -2,6 +2,7 @@
 
 import { h, icon, copyButton, splitPath, motionOn } from './util.js';
 import { tokenize, jsonTokens } from './cue.js';
+import { attachFolds } from './fold.js';
 
 // ---------------------------------------------------------------------------------------------------------
 // the tooltip: one element, any element with data-tip gets it on hover (after a pause) or keyboard focus
@@ -97,17 +98,21 @@ export function codeWindow(b, opts = {}) {
 
   const scroll = h('div', { class: 'cw-scroll', role: 'region', tabIndex: 0, 'aria-label': opts.title || `Source of ${b.file}, lines ${range}` });
   const body = h('div', { class: 'cw-body' + (focused ? ' has-marks' : '') });
+  const parts = [];
   lines.forEach((l, i) => {
     const code = h('span', { class: 'cw-code' });
     for (const t of toks[i]) code.append(t.t ? h('span', { class: 'tk-' + t.t }, t.text) : t.text);
     if (!l.text) code.append('​');
     const mark = l.mark || '';
+    const no = h('i', { class: 'cw-no' }, String(l.no));
     const row = h('div', { class: 'cw-ln' + (mark ? ' m-' + mark : '') + (l.dim ? ' dim' : '') },
-      h('i', { class: 'cw-no' }, String(l.no)), code,
+      no, code,
       MARK_LABEL[mark] ? h('span', { class: 'cw-tag t-' + mark, 'aria-hidden': 'true' }, mark === 'sensitive' ? [icon('lock'), 'masked'] : 'changed by the plan') : null,
       MARK_LABEL[mark] ? h('span', { class: 'sr-only' }, mark === 'changed' ? ' (changed by the plan)' : ' (sensitive, masked)') : null);
     body.append(row);
+    parts.push({ row, host: no, code });
   });
+  attachFolds(parts, toks);
   scroll.append(body);
   const wrap = h('div', { class: 'cw-wrap' }, scroll);
   // the fade at the right edge tells that a long line goes on; the gutter gets a shadow once the code scrolls under it

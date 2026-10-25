@@ -8,6 +8,7 @@
 
 import { h, clear, icon, plural, relTime, stamp, debounce, store } from './util.js';
 import { tokenize } from './cue.js';
+import { attachFolds, foldRanges, hiddenRows } from './fold.js';
 import * as api from './api.js';
 
 const DRAFT_KEY = 'pravo.workbench.draft';
@@ -270,55 +271,134 @@ export class WorkbenchView {
     const gut = h('div', { class: 'wb-gut', 'aria-hidden': 'true' });
     const view = h('div', { class: 'wb-view' }, hl, ta);
     const wrap = h('div', { class: 'wb-ed' }, h('div', { class: 'wb-gutwrap' }, gut), view);
+    this.folded = new Set();
     ta.addEventListener('input', () => { this.text = ta.value; this.persist(); this.start = this.start.startsWith('blank') ? 'blank' : this.start; this.drawText(); this.tryLater(); });
+    // A text with folds shows less than it holds, so an edit first unfolds everything, and then is made.
+    ta.addEventListener('beforeinput', (ev) => {
+      if (!this.folded.size) return;
+      ev.preventDefault();
+      this.unfoldKeepCaret();
+      if (ev.inputType === 'insertText' && ev.data) this.insert(ev.data);
+      else if (ev.inputType === 'insertLineBreak' || ev.inputType === 'insertParagraph') this.insert('\n');
+    });
     ta.addEventListener('scroll', () => this.sync());
     ta.addEventListener('keydown', (ev) => this.key(ev));
-    return { ta, hl, gut, wrap, view, marks: new Map() };
+    return { ta, hl, gut, wrap, view, marks: new Map(), ends: new Map(), vis: [], lines: [] };
   }
 
   // key makes a few keys useful in a rule: Tab indents and Enter keeps the indent. Escape leaves the editor, as it leaves any field of the page.
+  // Ctrl or Cmd with Shift and [ folds the block at the cursor, and ] unfolds it.
   key(ev) {
     const ta = this.editor.ta;
+    if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && !ev.altKey && (ev.code === 'BracketLeft' || ev.code === 'BracketRight')) {
+      ev.preventDefault();
+      const line = this.caretLine();
+      if (ev.code === 'BracketRight') {
+        for (const [i, e] of this.editor.ends) if (this.folded.has(i) && i <= line && line <= e) { this.toggleFold(i); break; }
+      } else {
+        let at = -1;
+        for (const [i, e] of this.editor.ends) if (i <= line && line <= e && !this.folded.has(i) && i > at && !this.editor.hidden[i]) at = i;
+        if (at >= 0) this.toggleFold(at);
+      }
+      return;
+    }
     if (ev.key === 'Tab' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
       ev.preventDefault();
       this.insert('\t');
     } else if (ev.key === 'Enter' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+      ev.preventDefault();
+      this.unfoldKeepCaret();
       const before = ta.value.slice(0, ta.selectionStart);
       const line = before.slice(before.lastIndexOf('\n') + 1);
       const indent = /^[\t ]*/.exec(line)[0];
       const opens = /[{[(]\s*$/.test(line);
-      ev.preventDefault();
       this.insert('\n' + indent + (opens ? '\t' : ''));
     }
   }
 
+  // origOffset is the place in the text of a place in what the editor shows, which leaves out the folded lines.
+  origOffset(v) {
+    const e = this.editor;
+    const starts = [];
+    let n = 0;
+    for (const l of e.lines) { starts.push(n); n += l.length + 1; }
+    let pos = 0;
+    for (let k = 0; k < e.vis.length; k++) {
+      const len = e.vis[k].text.length;
+      if (v <= pos + len || k === e.vis.length - 1) return starts[e.vis[k].i] + Math.min(Math.max(0, v - pos), e.lines[e.vis[k].i].length);
+      pos += len + 1;
+    }
+    return 0;
+  }
+
+  // caretLine is the index of the line of the text that the cursor is on.
+  caretLine() {
+    const at = this.folded.size ? this.origOffset(this.editor.ta.selectionStart) : this.editor.ta.selectionStart;
+    let n = 0;
+    for (let i = 0; i < at; i++) if (this.text.charCodeAt(i) === 10) n++;
+    return n;
+  }
+
+  unfoldKeepCaret() {
+    if (!this.folded.size) return;
+    const ta = this.editor.ta;
+    const at = this.origOffset(ta.selectionStart), to = this.origOffset(ta.selectionEnd);
+    this.folded.clear();
+    this.drawText();
+    ta.setSelectionRange(at, to);
+  }
+
+  toggleFold(i) {
+    const ta = this.editor.ta;
+    if (this.folded.has(i)) this.folded.delete(i); else this.folded.add(i);
+    this.drawText();
+    const k = this.editor.vis.findIndex((v) => v.i === i);
+    let at = 0;
+    for (let j = 0; j < k; j++) at += this.editor.vis[j].text.length + 1;
+    ta.setSelectionRange(at, at + (k >= 0 ? this.editor.lines[i].length : 0));
+    ta.focus({ preventScroll: true });
+  }
+
   insert(s) {
     const ta = this.editor.ta;
+    this.unfoldKeepCaret();
     ta.setRangeText(s, ta.selectionStart, ta.selectionEnd, 'end');
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   syncEditor() {
-    const e = this.editor;
-    if (e.ta.value !== this.text) e.ta.value = this.text;
+    this.folded.clear();
     this.drawText();
   }
 
-  // drawText colours the text and sizes the window to it.
+  // drawText colours the text and sizes the window to it. The lines inside a folded block are left out, and the line that opens it ends in a mark.
   drawText() {
     const e = this.editor;
     const lines = this.text.replace(/\n$/, '').split('\n');
     const toks = tokenize(lines);
+    const ends = foldRanges(toks);
+    for (const i of Array.from(this.folded)) if (!ends.has(i)) this.folded.delete(i);
+    const hidden = hiddenRows(lines.length, ends, this.folded);
+    Object.assign(e, { ends, lines, hidden, vis: [] });
     clear(e.hl);
     clear(e.gut);
     lines.forEach((l, i) => {
+      if (hidden[i]) return;
+      const folded = this.folded.has(i);
+      const mark = folded ? ` ⋯ ${plural(ends.get(i) - i, 'line')}` : '';
+      e.vis.push({ i, text: l + mark });
       const row = h('div', { class: 'wb-ln', 'data-no': String(i + 1) });
       for (const t of toks[i]) row.append(t.t ? h('span', { class: 'tk-' + t.t }, t.text) : t.text);
-      if (!toks[i].length) row.append('​');
+      if (!toks[i].length && !mark) row.append('\u200b');
+      if (mark) row.append(h('span', { class: 'tk-fold' }, mark));
       e.hl.append(row);
-      e.gut.append(h('i', { class: 'wb-no', 'data-no': String(i + 1) }, String(i + 1)));
+      const no = h('i', { class: 'wb-no', 'data-no': String(i + 1) }, String(i + 1));
+      if (ends.has(i)) no.append(h('button', { type: 'button', class: 'fold', tabindex: '-1', 'aria-expanded': folded ? 'false' : 'true', 'data-tip': folded ? 'Unfold' : 'Fold', on: { click: () => this.toggleFold(i) } }, icon('chev')));
+      e.gut.append(no);
     });
-    e.wrap.style.setProperty('--wb-lines', String(Math.min(30, Math.max(12, lines.length + 1))));
+    const shown = this.folded.size ? e.vis.map((v) => v.text).join('\n') : this.text;
+    if (e.ta.value !== shown) e.ta.value = shown;
+    e.wrap.style.setProperty('--wb-lines', String(Math.min(30, Math.max(12, e.vis.length + 1))));
     this.markEditor();
     this.sync();
   }
@@ -338,13 +418,21 @@ export class WorkbenchView {
     if (r) for (const p of r.plans) if (p.draft && p.draft.outcome === 'invalid') for (const is of p.draft.issues || []) if (is.line && !bad.has(is.line)) bad.set(is.line, is.message);
     this.hot = new Map();
     if (r) for (const p of r.plans) if (p.draft && p.draft.outcome === 'refused') for (const is of p.draft.issues || []) if (is.line) this.hot.set(is.line, (this.hot.get(is.line) || 0) + 1);
-    Array.from(e.hl.children).forEach((row, i) => {
-      const n = i + 1;
+    // a mark on a line that a fold hides is shown on the line that opens the fold
+    for (const [i, end] of e.ends) {
+      if (!this.folded.has(i) || e.hidden[i]) continue;
+      for (let j = i + 2; j <= end + 1; j++) {
+        if (bad.has(j) && !bad.has(i + 1)) bad.set(i + 1, bad.get(j));
+        if (this.hot.has(j)) this.hot.set(i + 1, (this.hot.get(i + 1) || 0) + this.hot.get(j));
+      }
+    }
+    Array.from(e.hl.children).forEach((row) => {
+      const n = Number(row.dataset.no);
       row.classList.toggle('bad', bad.has(n));
       row.classList.toggle('hot', !bad.has(n) && this.hot.has(n));
     });
-    Array.from(e.gut.children).forEach((g, i) => {
-      const n = i + 1;
+    Array.from(e.gut.children).forEach((g) => {
+      const n = Number(g.dataset.no);
       g.classList.toggle('bad', bad.has(n));
       g.classList.toggle('hot', !bad.has(n) && this.hot.has(n));
       if (bad.has(n)) g.title = bad.get(n);
@@ -354,7 +442,7 @@ export class WorkbenchView {
   }
 
   editorNotes() {
-    return h('p', { class: 'wb-keys', id: 'wb-keys' }, h('kbd', null, 'Tab'), ' indents and ', h('kbd', null, 'Esc'), ' leaves the editor. A red line is where CUE found a problem with the text; an amber one is where a refusal points into the rule.');
+    return h('p', { class: 'wb-keys', id: 'wb-keys' }, h('kbd', null, 'Tab'), ' indents and ', h('kbd', null, 'Esc'), ' leaves the editor. ', h('kbd', null, 'Ctrl+Shift+['), ' folds the block at the cursor and ', h('kbd', null, 'Ctrl+Shift+]'), ' unfolds it (', h('kbd', null, 'Cmd'), ' on a Mac). A red line is where CUE found a problem with the text; an amber one is where a refusal points into the rule.');
   }
 
   // takeAway is what to do with a rule that works: the policy as the specification declares it, and the command that tries it again.
@@ -578,12 +666,17 @@ export class WorkbenchView {
     const lines = text.replace(/\n$/, '').split('\n');
     const toks = tokenize(lines);
     const body = h('div', { class: 'po-cbody' });
+    const parts = [];
     lines.forEach((l, i) => {
       const code = h('span', { class: 'po-code' });
       for (const t of toks[i]) code.append(t.t ? h('span', { class: 'tk-' + t.t }, t.text) : t.text);
-      if (!toks[i].length) code.append('​');
-      body.append(h('div', { class: 'po-ln' }, h('i', { class: 'po-no' }, String(i + 1)), h('span', { class: 'po-sg', 'aria-hidden': 'true' }), code));
+      if (!toks[i].length) code.append('\u200b');
+      const sg = h('span', { class: 'po-sg' });
+      const row = h('div', { class: 'po-ln' }, h('i', { class: 'po-no' }, String(i + 1)), sg, code);
+      body.append(row);
+      parts.push({ row, host: sg, code });
     });
+    attachFolds(parts, toks);
     return h('div', { class: 'po-cw' }, h('div', { class: 'po-scroll', role: 'region', tabIndex: 0, 'aria-label': label || 'Document' }, body));
   }
 
@@ -591,18 +684,7 @@ export class WorkbenchView {
 
   paintGuide() {
     const d = this.data;
-    const code = (text) => {
-      const lines = text.replace(/\n$/, '').split('\n');
-      const toks = tokenize(lines);
-      const body = h('div', { class: 'po-cbody' });
-      lines.forEach((l, i) => {
-        const c = h('span', { class: 'po-code' });
-        for (const t of toks[i]) c.append(t.t ? h('span', { class: 'tk-' + t.t }, t.text) : t.text);
-        if (!toks[i].length) c.append('​');
-        body.append(h('div', { class: 'po-ln' }, h('i', { class: 'po-no' }, String(i + 1)), h('span', { class: 'po-sg', 'aria-hidden': 'true' }), c));
-      });
-      return h('div', { class: 'po-cw' }, h('div', { class: 'po-scroll', role: 'region', tabIndex: 0, 'aria-label': 'Example' }, body));
-    };
+    const code = (text) => this.json(text, 'Example');
     const sec = (title, ...kids) => h('details', { class: 'wb-det wb-gsec' }, h('summary', null, h('span', { class: 'chev', 'aria-hidden': 'true' }, icon('chev')), title), h('div', { class: 'wb-gbody' }, kids));
     const p = (...kids) => h('p', { class: 'wb-gp' }, ...kids);
     clear(this.guideEl);

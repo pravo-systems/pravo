@@ -9,6 +9,7 @@
 
 import { h, clear, icon, plural, relTime, stamp, fmt, signatureMark } from './util.js';
 import { tokenize } from './cue.js';
+import { attachFolds } from './fold.js';
 import { WorkbenchView } from './workbench.js';
 
 // STATUS says what a policy is to the next apply, in words and in the one colour that means a decision is waiting.
@@ -334,16 +335,23 @@ export class PoliciesView {
   code(lines, o) {
     const toks = lines.some((l) => l.text !== undefined) ? tokenize(lines.map((l) => (l.text === undefined ? '' : l.text))) : null;
     const body = h('div', { class: 'po-cbody' });
+    const parts = [];
     lines.forEach((l, i) => {
       if (l.op === '…') { body.append(h('div', { class: 'po-ln gap' }, h('i', { class: 'po-no' }), h('span', { class: 'po-sg' }), h('span', { class: 'po-code' }, `${plural(l.n, 'unchanged line')}`))); return; }
       const code = h('span', { class: 'po-code' });
       const tk = l.toks || (toks && toks[i]) || [];
       for (const t of tk) code.append(t.t ? h('span', { class: 'tk-' + t.t }, t.text) : t.text);
       if (!tk.length) code.append('​');
-      body.append(h('div', { class: 'po-ln' + (l.op === '+' ? ' add' : l.op === '-' ? ' del' : '') },
-        h('i', { class: 'po-no' }, l.no ? String(l.no) : ''), h('span', { class: 'po-sg', 'aria-hidden': 'true' }, l.op === ' ' ? '' : l.op === '-' ? '−' : '+'), code,
-        l.op === '+' || l.op === '-' ? h('span', { class: 'sr-only' }, l.op === '+' ? ' (added)' : ' (removed)') : null));
+      const sg = h('span', { class: 'po-sg' }, l.op === ' ' ? '' : l.op === '-' ? '−' : '+');
+      if (l.op !== ' ') sg.setAttribute('aria-hidden', 'true');
+      const row = h('div', { class: 'po-ln' + (l.op === '+' ? ' add' : l.op === '-' ? ' del' : '') },
+        h('i', { class: 'po-no' }, l.no ? String(l.no) : ''), sg, code,
+        l.op === '+' || l.op === '-' ? h('span', { class: 'sr-only' }, l.op === '+' ? ' (added)' : ' (removed)') : null);
+      body.append(row);
+      parts.push({ row, host: sg, code });
     });
+    // a text that is shown whole, not as a change, can be folded
+    if (toks && lines.every((l) => l.op === ' ')) attachFolds(parts, toks);
     const wrap = h('div', { class: 'po-cw' });
     const scroll = h('div', { class: 'po-scroll', role: 'region', tabIndex: 0, 'aria-label': o.label || 'Rule text' }, body);
     wrap.append(scroll);

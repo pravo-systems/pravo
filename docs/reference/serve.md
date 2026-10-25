@@ -229,7 +229,7 @@ The Policies section has a second page, the workbench, for trying a rule on plan
 
 | Part | Holds |
 |---|---|
-| The editor | The rule as CUE, with line numbers. The draft is kept in the browser and is not sent anywhere but to the viewer's own endpoint. A list of examples fills the editor, and so does any policy of the specification or of the state. |
+| The editor | The rule as CUE, with line numbers. A block that a line opens with a bracket folds from the gutter or with `Ctrl+Shift+[` (`Cmd` on a Mac), and `Ctrl+Shift+]` unfolds it; typing in a folded text unfolds it first. The code windows of the other sections fold in the same way. The draft is kept in the browser and is not sent anywhere but to the viewer's own endpoint. A list of examples fills the editor, and so does any policy of the specification or of the state. |
 | The plans | The stored plans of the state and the plan files of the project directory and the directories one level below it. Pick which to try; up to 100 at once. |
 | The verdict | For each plan: `holds`, `would be refused`, or why it is not judged (it changes no resource, it is sealed to this identity, or it cannot be read). A refusal lists the paths of the document that failed, the change each belongs to and the value that the plan has. The verdict follows the editor after a short pause. |
 | Compare | Against the text in force or the text of the specification: the plans that the draft refuses and the base does not, and the reverse. |
