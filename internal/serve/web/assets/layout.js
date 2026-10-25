@@ -102,8 +102,6 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
   }
   let maxRank = 0;
   for (const r of rank.values()) maxRank = Math.max(maxRank, r);
-  // it reads like a page: what an item depends on stands to its right, and what depends on nothing stands furthest right
-  for (const id of ids) rank.set(id, maxRank - rank.get(id));
 
   // ---- lanes ----
   const lanes = [];
@@ -232,10 +230,9 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
       }
       take(score(wm, y + rh), 'shelf', offs, wm, y + rh);
     }
-    // masonry: c columns, each entry on the shortest; in the order of the flow, and, tighter, tallest first
+    // masonry: c columns, each entry on the shortest; in the order of the flow
     const idx = entries.map((_, i) => i);
-    const tallest = idx.slice().sort((p, q) => entries[q].h - entries[p].h || p - q);
-    for (const [kind, seq, bias] of [['masonry', idx, 0.02], ['masonry', tallest, 0.04]]) {
+    for (const [kind, seq, bias] of [['masonry', idx, 0.02]]) {
       for (let c = 2; c <= Math.min(n, 8); c++) {
         const hs = new Array(c).fill(0), cw = new Array(c).fill(0), at = new Array(n);
         for (const i of seq) {
@@ -316,6 +313,44 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
     return w > 0 && h > 0 ? { kind: prev.kind, offs, w, h } : null;
   }
 
+  // inFlowOrder puts the entries of a lane in the order of the data: what feeds another entry comes before it. The
+  // ranks alone cannot say it, since the items of a lane that is open stand in ranks of their own; so the edges
+  // between the entries are counted, and the entry that gives most and takes least goes first (Eades, Lin and
+  // Smyth). The order of the ranks breaks ties.
+  const itemsOf = (l, out = new Set()) => { for (const c of l.cols.values()) for (const id of c) out.add(id); for (const sl of l.sub) itemsOf(sl, out); return out; };
+  function inFlowOrder(entries, l) {
+    const n = entries.length;
+    if (n < 2) return;
+    const at = new Map();
+    entries.forEach((e, i) => {
+      if (e.sub) for (const id of itemsOf(e.sub)) at.set(id, i);
+      else for (const c of l.cols.values()) for (const id of c) at.set(id, i);
+    });
+    const W = Array.from({ length: n }, () => new Array(n).fill(0));
+    let any = false;
+    for (const e of E) {
+      const i = at.get(e.a), j = at.get(e.b);
+      if (i === undefined || j === undefined || i === j) continue;
+      W[i][j]++;
+      any = true;
+    }
+    if (!any) return;
+    const left = new Set(entries.keys());
+    const order = [];
+    while (left.size) {
+      let best = -1, bestV = -Infinity;
+      for (const i of left) {
+        let v = 0;
+        for (const j of left) v += W[i][j] - W[j][i];
+        if (v > bestV + 1e-9) { bestV = v; best = i; }
+      }
+      order.push(best);
+      left.delete(best);
+    }
+    const sorted = order.map((i) => entries[i]);
+    entries.splice(0, n, ...sorted);
+  }
+
   function size(l) {
     for (const s of l.sub) size(s);
     const entries = [];
@@ -323,6 +358,7 @@ export function layout({ root, items, edges, aspect = 1.4, fit = null, route = t
     if (blk) entries.push({ block: blk, sub: null, w: blk.w, h: blk.h, minRank: blk.minRank, mean: blk.mean, ox: 0, oy: 0 });
     for (const s of l.sub) entries.push({ block: null, sub: s, w: s.w, h: s.h, minRank: s.minRank, mean: s.nItems ? s.sumRank / s.nItems : 0, ox: 0, oy: 0 });
     entries.sort((p, q) => p.minRank - q.minRank || p.mean - q.mean);
+    inFlowOrder(entries, l);
     const c = compose(entries, l.virtual, l.path);
     l.entries = entries;
     if (l.virtual) { l.w = c.w; l.h = c.h; l.ox = 0; return; }
@@ -632,25 +668,25 @@ function routeAll(E, pos, isBack, heads = []) {
   }
 
   // the way an edge goes, and the side of each item that it leaves or enters
-  // A is what reads and B is what it reads: the wire runs from A to B, and its arrowhead points right
+  // A is what is read and B is what reads it: the wire runs from A to B, with the flow of data, and its arrowhead points right or down
   const modeOf = (A, B) => {
     const gapR = B.x - (A.x + A.w), gapL = A.x - (B.x + B.w);
     if (gapR >= 20) return ['h', 'r', 'l'];
     if (gapL >= 20) return ['l', 'r', 'l'];
     if (B.y >= A.y + A.h + FAR || A.y >= B.y + B.h + FAR) return ['c', 'l', 'l'];
     if (B.y >= A.y + A.h - 1) return ['v', 'b', 't'];
-    // what it reads stands above it: in from the left, along the left side, so that no arrow points up
+    // what it feeds stands above it: in from the left, along the left side, so that no arrow points up
     if (A.y >= B.y + B.h - 1) return ['c', 'l', 'l'];
     return ['h2', 'r', 'l'];
   };
   // every wire has a pin of its own on the side of an item, in the order of the items at their other ends
   const pins = new Map();
-  const ways = E.map((e) => modeOf(pos.get(e.b), pos.get(e.a)));
+  const ways = E.map((e) => modeOf(pos.get(e.a), pos.get(e.b)));
   {
     const groups = new Map();
     E.forEach((e, i) => {
       for (const end of [0, 1]) {
-        const id = end ? e.a : e.b, other = pos.get(end ? e.b : e.a);
+        const id = end ? e.b : e.a, other = pos.get(end ? e.a : e.b);
         const k = id + '|' + ways[i][1 + end];
         let g = groups.get(k);
         if (!g) groups.set(k, (g = []));
@@ -672,7 +708,7 @@ function routeAll(E, pos, isBack, heads = []) {
   const routes = new Map();
   let ei = 0;
   E.forEach((e, i) => {
-    const A = pos.get(e.b), B = pos.get(e.a);
+    const A = pos.get(e.a), B = pos.get(e.b);
     ei++;
     const key = e.a + '>' + e.b;
     const m = ways[i][0];
@@ -680,9 +716,9 @@ function routeAll(E, pos, isBack, heads = []) {
     const ya = A.y + A.h / 2 + oa, yb = B.y + B.h / 2 + ob;
     if (m === 'h') {
       const x0 = A.x + A.w, x1 = B.x;
-      routes.set(key, { m: 'h', p: isBack(e.a, e.b) ? [x0, ya, x1, yb] : refine(x0, ya, x1, yb, e.b, e.a, 0, ei) });
+      routes.set(key, { m: 'h', p: isBack(e.a, e.b) ? [x0, ya, x1, yb] : refine(x0, ya, x1, yb, e.a, e.b, 0, ei) });
     } else if (m === 'l') {
-      routes.set(key, { m: 'l', p: refineLoop(A.x + A.w, ya, B.x, yb, e.b, e.a) });
+      routes.set(key, { m: 'l', p: refineLoop(A.x + A.w, ya, B.x, yb, e.a, e.b) });
     } else if (m === 'c') {
       // far apart, one over the other: along the left side, where nothing stands, rather than through what is between
       routes.set(key, { m: 'c', p: [A.x, ya, B.x, yb] });
