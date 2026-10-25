@@ -3,6 +3,8 @@ title: HTTP state servers
 description: The object protocol that the http backend speaks, the conditional requests that the locks need, and how pravo retries and checks a server.
 order: 56
 group: Data and formats
+services:
+  - fakehttp:9000
 ---
 
 The http backend keeps the same objects as the S3 backend: one for each record, one for each lock and the transactions, outputs and stored plans. It reaches them through a small HTTP protocol under the `url` of `$settings.state`, so that a team can keep a state on a server of its own. [Settings](spec-settings.md#http-keys) lists the keys.
@@ -43,12 +45,51 @@ Before a command that writes the state first uses a server, pravo probes it. It 
 
 ## Try the protocol
 
-`tools/fakehttp` in pravo's source is an in-memory server for the protocol. It forgets everything when it stops.
+`tools/fakehttp` in pravo's source is an in-memory server for the protocol. It forgets everything when it stops. The examples on this page run against it on port 9000. Start it in a second terminal to follow along:
 
 ```sh
 go run ./tools/fakehttp -addr 127.0.0.1:9000
 ```
 
-```cue
-$settings: state: {backend: "http", url: "http://127.0.0.1:9000/demo"}
+Point a root at it. A directory that holds only this block is enough to try a server:
+
+```cue file=main.cue
+package probe
+
+import "pravo.dev/pravo"
+
+$settings: pravo.#Settings & {
+	state: pravo.#HTTPState & {backend: "http", url: "http://127.0.0.1:9000/demo"}
+}
+```
+
+`pravo init` makes the module, and `pravo state probe` runs the checks against the server:
+
+```sh run
+pravo init
+pravo state probe
+```
+
+```text out
+Configuration does not load yet; generating schemas for the declared providers first.
+Created cue.mod/module.cue
+Providers:
+
+pravo has been initialised. Run "pravo plan" to see what it would do.
+create only (If-None-Match)      ok
+replace (If-Match on a put)      ok
+delete (If-Match on a delete)    ok
+concurrent creates               ok
+http://127.0.0.1:9000/demo honours the conditional requests that the locks need.
+```
+
+A command that writes the state creates `meta.json` and the other objects under the URL. A root with no resources has none to list, and every checkout with the same `url` reads the same state:
+
+```sh run
+pravo apply --auto-approve
+pravo state list
+```
+
+```text out
+No changes. Your infrastructure matches the configuration.
 ```
