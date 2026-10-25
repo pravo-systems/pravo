@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"io"
 	"math/rand/v2"
 	"net/http"
@@ -98,6 +99,11 @@ func newRetryer() aws.Retryer {
 	})
 }
 
+// tracedHTTP records each request of the client as a network span, under the state request that sent it.
+type tracedHTTP struct{ inner aws.HTTPClient }
+
+func (t tracedHTTP) Do(r *http.Request) (*http.Response, error) { return netcap.Trace(r, t.inner.Do) }
+
 // attempts counts the requests that a call sends: one, unless the client sent a
 // request again.
 type attempts struct {
@@ -112,7 +118,7 @@ func (a *attempts) Do(r *http.Request) (*http.Response, error) {
 
 // counting returns the option that makes a call go through a counter.
 func (b *S3Backend) counting() (*attempts, func(*s3.Options)) {
-	a := &attempts{inner: b.http}
+	a := &attempts{inner: tracedHTTP{b.http}}
 	return a, func(o *s3.Options) { o.HTTPClient = a }
 }
 
@@ -190,6 +196,7 @@ func NewS3Backend(ctx context.Context, cfg S3Config) (*S3Backend, error) {
 		ac.Region = "us-east-1"
 	}
 	client := s3.NewFromConfig(ac, func(o *s3.Options) {
+		o.HTTPClient = tracedHTTP{ac.HTTPClient}
 		if cfg.Endpoint != "" {
 			o.BaseEndpoint = aws.String(cfg.Endpoint)
 		}

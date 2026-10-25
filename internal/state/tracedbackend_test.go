@@ -2,6 +2,9 @@ package state
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -58,5 +61,58 @@ func TestStoreRequestsAreSpans(t *testing.T) {
 			names = append(names, s.Name())
 		}
 		t.Fatalf("no span for the request among %s", strings.Join(names, ", "))
+	}
+}
+
+// The requests of a remote store are network spans under the state request that sent them, with the status and the sizes and
+// not the query, the token or the body.
+func TestRemoteStoreRequestsAreNetworkSpans(t *testing.T) {
+	t.Setenv("PRAVO_TRACES", "on")
+	t.Setenv("OTEL_SDK_DISABLED", "")
+	rec := tracetest.NewSpanRecorder()
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec)))
+	defer otel.SetTracerProvider(prev)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+	hb, err := NewHTTPBackend(HTTPConfig{URL: srv.URL + "/team", Token: "tok-secret"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := &tracedBackend{Backend: hb}
+	ctx, root := otel.Tracer("test").Start(context.Background(), "phase test")
+	if _, err := b.Get(ctx, "missing.json"); err != ErrNotFound {
+		t.Fatalf("get: %v", err)
+	}
+	root.End()
+
+	ids := map[string]string{}
+	for _, s := range rec.Ended() {
+		ids[s.Name()] = s.SpanContext().SpanID().String()
+	}
+	var found bool
+	for _, s := range rec.Ended() {
+		if !strings.HasPrefix(s.Name(), "network GET ") {
+			continue
+		}
+		found = true
+		if s.Parent().SpanID().String() != ids["state get missing.json"] {
+			t.Errorf("parent of %q is not the state request", s.Name())
+		}
+		for _, kv := range s.Attributes() {
+			if strings.Contains(kv.Value.Emit(), "secret") {
+				t.Errorf("%s holds %q", kv.Key, kv.Value.Emit())
+			}
+			if kv.Key == "http.response.status_code" && kv.Value.AsInt64() != 404 {
+				t.Errorf("status %v", kv.Value.AsInt64())
+			}
+		}
+	}
+	if !found {
+		t.Error("no network span")
 	}
 }

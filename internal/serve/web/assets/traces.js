@@ -15,6 +15,7 @@ import { suggest, tally, hasKind, hasErrors, toggleKind, toggleErrors } from './
 
 const ROW = 22; // the height of a row of the timeline
 const BAR = 18; // and of a bar in it
+const PADX = 10; // the room at each side of the timeline, so that a span that fills the run stays inside its frame
 const MIN_WINDOW = 20; // the narrowest window, in microseconds
 const PAGE = 300; // rows of the table before the button that shows more
 const CHAR = 6.4; // the width of a character of the label of a bar, in pixels
@@ -357,9 +358,9 @@ export class TracesView {
 
   paint() {
     const m = this.model, W = this.width(), v0 = this.v0, v1 = this.v1;
-    const k = W / (v1 - v0);
+    const k = (W - 2 * PADX) / (v1 - v0);
     const H = m.rows * ROW + 10;
-    const x = (t) => (t - v0) * k;
+    const x = (t) => PADX + (t - v0) * k;
     // the ruler and the grid
     const ts = ticks(v0, v1, Math.max(3, Math.floor(W / 110)));
     clear(this.ruler);
@@ -432,7 +433,7 @@ export class TracesView {
         const dx = ev.clientX - drag.x;
         if (!drag.moved && Math.abs(dx) > 3) { drag.moved = true; p.setPointerCapture(drag.id); p.classList.add('grab'); this.hideTip(); }
         if (drag.moved) {
-          const dt = -dx / (this.width() / (drag.v1 - drag.v0));
+          const dt = -dx / ((this.width() - 2 * PADX) / (drag.v1 - drag.v0));
           this.setWindow(drag.v0 + dt, drag.v1 + dt, true);
           return;
         }
@@ -461,11 +462,11 @@ export class TracesView {
       if (ev.ctrlKey || ev.metaKey) {
         ev.preventDefault();
         const r = this.canvas.getBoundingClientRect();
-        const at = this.v0 + ((ev.clientX - r.left) / r.width) * (this.v1 - this.v0);
+        const at = this.v0 + clamp((ev.clientX - r.left - PADX) / Math.max(r.width - 2 * PADX, 1), 0, 1) * (this.v1 - this.v0);
         this.zoomAt(at, Math.exp(ev.deltaY * 0.004), true);
       } else if (ev.shiftKey || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) {
         ev.preventDefault();
-        const dt = ((ev.deltaX || ev.deltaY) / this.width()) * (this.v1 - this.v0);
+        const dt = ((ev.deltaX || ev.deltaY) / Math.max(this.width() - 2 * PADX, 1)) * (this.v1 - this.v0);
         this.setWindow(this.v0 + dt, this.v1 + dt, true);
       }
     }, { passive: false });
