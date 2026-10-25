@@ -44,8 +44,13 @@ export class Browser {
       proc.stderr.on('data', (d) => { buf += d; const m = /DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//.exec(buf); if (m) { clearTimeout(t); resolve(m[1]); } });
       proc.on('exit', () => reject(new Error('chrome exited before it listened')));
     });
-    const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-    const page = list.find((x) => x.type === 'page');
+    // the page of about:blank is not always listed the moment that the browser listens, least of all when several start at once
+    let page;
+    for (let i = 0; i < 100 && !page; i++) {
+      page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((x) => x.type === 'page');
+      if (!page) await new Promise((r) => setTimeout(r, 50));
+    }
+    if (!page) throw new Error('chrome listed no page');
     const b = new Browser(proc, dir, page.webSocketDebuggerUrl);
     await b.open();
     return b;

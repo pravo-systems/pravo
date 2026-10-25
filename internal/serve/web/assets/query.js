@@ -110,7 +110,7 @@ export function fieldMatcher(text) {
   return (path, value) => list.some((s) => pathOk(s, String(path).toLowerCase()) && (s.value === null || same(String(value), s.value)));
 }
 
-const UNIT = { m: 60e3, h: 3600e3, d: 86400e3, w: 7 * 86400e3 };
+export const UNIT = { m: 60e3, h: 3600e3, d: 86400e3, w: 7 * 86400e3 };
 
 // A double quote keeps what is inside it together: `field:tags.team="platform core"` is one term, and the comma of
 // `field:tags.note="a,b"` is not a separator. The quotes themselves are not part of a value. A quote that is not closed
@@ -207,7 +207,7 @@ export function removeValues(text, col, values, lang = INVENTORY) {
   return out.join(' ');
 }
 
-function compare(op, a, b) {
+export function compare(op, a, b) {
   switch (op) {
     case '>': return a > b;
     case '>=': return a >= b;
@@ -378,13 +378,15 @@ export class QueryMenu {
   constructor(input, host, cb) {
     this.input = input;
     this.cb = cb; // { model(), change(text) }
-    this.list = h('ul', { class: 'qsug', id: 'qsug', role: 'listbox', 'aria-label': 'Suggestions for the filter', hidden: true });
+    // each box has an id of its own for its menu: the Inventory, the Discovery section and the Plans section have one each
+    this.id = cb.id || 'qsug';
+    this.list = h('ul', { class: 'qsug', id: this.id, role: 'listbox', 'aria-label': 'Suggestions for the filter', hidden: true });
     host.append(this.list);
     this.items = [];
     this.at = -1;
     this.span = null;
     input.setAttribute('aria-autocomplete', 'list');
-    input.setAttribute('aria-controls', 'qsug');
+    input.setAttribute('aria-controls', this.id);
     input.setAttribute('aria-expanded', 'false');
     input.addEventListener('input', () => this.refresh());
     // an empty box that is entered offers what there is to filter by
@@ -413,7 +415,7 @@ export class QueryMenu {
     r.items.forEach((it, i) => {
       if (it.group && it.group !== group) this.list.append(h('li', { class: 'grp', role: 'presentation' }, it.group));
       group = it.group || group;
-      this.list.append(h('li', { id: 'qsug-' + i, role: 'option', 'aria-selected': 'false', data: { i: String(i) } },
+      this.list.append(h('li', { id: this.id + '-' + i, role: 'option', 'aria-selected': 'false', data: { i: String(i) } },
         h('span', { class: 'v' }, it.label),
         h('em', null, it.count != null && it.count > 0 ? String(it.count) : ''),
         h('span', { class: 'hint' }, it.hint || '')));
@@ -435,7 +437,7 @@ export class QueryMenu {
     this.at = (this.at + d + n + (this.at < 0 && d < 0 ? 1 : 0)) % n;
     const opts = this.list.querySelectorAll('li[role="option"]');
     opts.forEach((li, i) => li.setAttribute('aria-selected', String(i === this.at)));
-    this.input.setAttribute('aria-activedescendant', 'qsug-' + this.at);
+    this.input.setAttribute('aria-activedescendant', this.id + '-' + this.at);
     opts[this.at].scrollIntoView({ block: 'nearest' });
   }
 

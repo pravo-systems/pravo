@@ -26,7 +26,7 @@ const S = {
   // graph is what the page draws; raw is what the server sent, and the stored plan that is laid over it (plan, with
   // its overlay when the server did not lay it itself) makes the difference
   graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null, access: null, discovery: null,
-  view: 'graph', sel: null, tab: null, q: '', dq: '',
+  view: 'graph', sel: null, tab: null, q: '', dq: '', plq: '',
   collapsed: new Set(), auto: new Set(), clusters: new Map(), trail: [],
   theme: null, motion: true, reach: false, zoom: 'fit',
   // finds is how many searches the history holds the picture before; foundAt is what the last one landed on
@@ -136,6 +136,8 @@ function readFragment() {
     // the old filter= is the chip of that name: its term goes in the text
     // the filter box of the Discovery section has its own text
     dq: p.dq || '',
+    // the finder of the Plans section has its own text
+    plq: p.plq || '',
     q: Object.hasOwn(LEGACY_FILTERS, p.filter) ? addTerm(p.q || '', LEGACY_FILTERS[p.filter].col, LEGACY_FILTERS[p.filter].value, false) : p.q || '',
     // an address from before the view was renamed says table, or tree
     view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : 'graph',
@@ -163,7 +165,7 @@ function currentHash() {
   if (expand.length && S.collapsed.size === 0) expand = ['all'];
   expand = expand.concat([...S.clusters.keys()].sort());
   return writeFragment({
-    sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q, dq: S.dq,
+    sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q, dq: S.dq, plq: S.plq,
     view: S.view, theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
     motion: S.motion ? '' : 'off', zoom: S.zoom,
   });
@@ -375,7 +377,7 @@ function renderPlans() {
   const text = planText();
   if (text) texts.set(text.plan.id, text);
   if (text && text.reason) reasons.set(text.plan.id, String(text.reason).replace(/\s+/g, ' ').trim());
-  plansList.render({ plans: S.plans, sel: S.plan, texts, reasons });
+  plansList.render({ plans: S.plans, sel: S.plan, texts, reasons, model: S.model });
   renderPlanLede();
   loadReasons();
   const p = S.plan && S.plans.find((x) => x.id === S.plan);
@@ -1441,7 +1443,12 @@ function wire() {
     onSelectNamespace: (p) => selectNamespace(p),
   });
   setGrouped(list.grouped);
-  plansList = new Plans($('plans-list'), { onView: (id) => selectPlan(id).then(() => setView(S.lastResources || 'graph')) });
+  plansList = new Plans($('plans-list'), {
+    onView: (id) => selectPlan(id).then(() => setView(S.lastResources || 'graph')),
+    onQuery: (q) => { S.plq = q; syncFragment(); },
+    // a change in the detail of a plan: the plan is laid over the resources, and the resource is selected
+    onChange: (id, addr) => selectPlan(id).then(() => { setView(S.lastResources || 'graph'); selectNode(addr, { center: true }); }),
+  });
   accessView = new AccessView($('access-pane'));
   discoveryView = new DiscoveryView($('discovery-pane'), { onQuery: (dq) => { S.dq = dq; syncFragment(); } });
   insp = new Inspector($('insp'), {
@@ -1511,7 +1518,7 @@ function wire() {
   if (brand) brand.addEventListener('click', (ev) => {
     ev.preventDefault();
     if (!S.model) return;
-    applyExternal(Object.assign(readFragment(), { sel: null, tab: null, q: '', dq: '', collapse: [], expand: [], zoom: 'fit', palette: false, help: false }));
+    applyExternal(Object.assign(readFragment(), { sel: null, tab: null, q: '', dq: '', plq: '', collapse: [], expand: [], zoom: 'fit', palette: false, help: false }));
     gv.fit(true);
     syncFragment();
   });
@@ -1582,6 +1589,8 @@ function applyView(f, cam = null) {
   S.q = f.q;
   S.dq = f.dq;
   discoveryView.setQuery(f.dq);
+  S.plq = f.plq;
+  plansList.setQuery(f.plq);
   $('filter-q').value = f.q;
   S.tab = f.tab;
   const sel = f.sel && (S.model.nodes.has(f.sel) || nss.has(f.sel)) ? f.sel : null;
@@ -1662,6 +1671,8 @@ async function load(frag) {
   S.q = frag.q;
   S.dq = frag.dq;
   discoveryView.setQuery(frag.dq);
+  S.plq = frag.plq;
+  plansList.setQuery(frag.plq);
   S.tab = frag.tab;
   S.zoom = frag.zoom;
   const sel = frag.sel && (S.model.nodes.has(frag.sel) || S.model.namespaces.has(frag.sel)) ? frag.sel : null;
