@@ -82,7 +82,7 @@ The viewer is one page with a bar, a toolbar, a graph or a list, an inspector th
 
 | Part | Holds |
 |---|---|
-| Bar | The project directory and the state location, each a button that copies the path. The five sections, Inventory, Discovery, Traces, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. The title of the browser tab names the project and the section, so that tabs of several estates tell apart. |
+| Bar | The project directory and the state location, each a button that copies the path. The five sections, Inventory, Discovery, Traces, Plans and State. The search button, which opens the command palette. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. The title of the browser tab names the project and the section, so that tabs of several estates tell apart. |
 | Toolbar | Of the Inventory section: the switch Graph and List, the switch Grouped and Flat of the list, then Collapse and Expand. The filter box, which takes words and column:value terms such as `type:s3_bucket` and `mode:data`, with the number of matches, or of items. The zoom buttons, minus, Fit and plus, and the button that shows the project. |
 | Pills | Under the toolbar, one pill for each term of the filter box, with a cross that takes it out. The row is not there while the box has no term. |
 | Graph | The lanes of open namespaces, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks that the graph shows and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a namespace. |
@@ -304,7 +304,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 
 | Key | Action |
 |---|---|
-| `/`, Ctrl-K, Cmd-K | Open the palette to find a resource, a type or a namespace. |
+| `/`, Ctrl-K, Cmd-K | Open the command palette: search the resources, plans, transactions, runs and discovered objects, or run an action. |
 | `?` | Open the sheet of shortcuts. |
 | `t` | Switch the theme. |
 | `g` | Switch the resources between the graph and the list. |
@@ -352,7 +352,9 @@ In the list, with the focus in it:
 | Enter, Space | Close or open the namespace. |
 | `*` | Open every namespace of this level. |
 
-In the palette, the arrows and Page Up and Page Down move, Enter goes to the result and Esc closes it. Each search that moves the picture adds an entry to the history of the browser, which keeps the open namespaces, the selection and the camera of the picture it left: the button Back to where you were, Esc and the browser's Back return to it.
+In the palette, the arrows and Page Up and Page Down move, Enter goes to the result or runs the action, and Esc closes it.
+
+The palette searches in groups, and the resources come first: namespaces, items and outputs, as before. After them come the stored plans (by id, author or status), the transactions and the runs that pravo recorded (by command line, reason, actor or transaction id), the objects that discoveries found (by id, name, status or discovery), and the actions of the page. A plan opens in the Plans section, a run or a transaction in the Traces section with that run open, and an object in the Discovery section with the filter on it. An action runs at once and shows its shortcut, so that the key is learned: go to a section, switch between the graph and the list, fit the graph, zoom, collapse or expand the namespaces, switch the theme, open the sheet of shortcuts, clear the selection or the filter, and copy a command, the address of the selection or a link to the view. A leading `>` lists the actions alone, in groups. With no text the palette offers the sections first, then the namespaces and the resources that the plan changes. An action appears only where it applies: the graph actions are not offered in the Plans section. Each search that moves the picture of the resources adds an entry to the history of the browser, which keeps the open namespaces, the selection and the camera of the picture it left: the button Back to where you were, Esc and the browser's Back return to it.
 
 ## Endpoints
 

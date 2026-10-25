@@ -13,7 +13,7 @@ import { AccessView } from './access.js';
 import { DiscoveryView } from './discovery.js';
 import { TracesView } from './traces.js';
 import { Palette, Sheet } from './palette.js';
-import { compileQuery, QueryMenu, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
+import { compileQuery, QueryMenu, quoted, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
 import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, pathParts, tilde, motionOn, tick } from './util.js';
 import { initTips } from './ui.js';
@@ -32,6 +32,7 @@ const S = {
   theme: null, motion: true, reach: false, zoom: 'fit',
   // finds is how many searches the history holds the picture before; foundAt is what the last one landed on
   finds: 0, foundAt: null,
+  runs: [], // the runs that pravo recorded, read when the palette opens
   live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
 let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView;
@@ -1371,6 +1372,79 @@ function navigate(dir) {
   if (best) goItem(best);
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// the command palette: what it searches besides the resources, and what it can do
+
+// openRun goes to the Traces section with one run open.
+function openRun(id) {
+  tracesView.show(id);
+  setView('traces');
+}
+
+// openFinding goes to the Discovery section with the filter on one object that a discovery found.
+function openFinding(r) {
+  setView('discovery');
+  discoveryView.setQuery(`discovery:${quoted('discovery', r.d.name)} id:${quoted('id', r.it.id)}`, true);
+}
+
+// refreshRuns reads the list of the recorded runs for the palette; a server that has none, or does not answer, leaves it empty.
+function refreshRuns() {
+  api.traces().then((l) => { S.runs = l.traces || []; palette.refresh(); }, () => {});
+}
+
+// applyCommandOf is the command that applies the plan, as the Plans section words it; null for a plan that cannot be applied.
+function applyCommandOf(p) {
+  if (!p || !p.open) return null;
+  return p.status === 'partly-stale' ? p.apply_live || null : p.apply || 'pravo apply ' + p.id;
+}
+
+// paletteActions lists what the palette can do now; an action that does not apply to the view is not listed.
+function paletteActions() {
+  const A = [];
+  const res = S.view === 'graph' || S.view === 'list';
+  const add = (group, title, keys, run, o = {}) => A.push(Object.assign({ group, title, keys, run }, o));
+  const copy = (text, what) => () => copyText(text).then((ok) => { announce(ok ? 'Copied ' + what : 'Could not copy'); toast(ok ? 'Copied ' + what : 'Could not copy', ok ? 'info' : 'error', 2400); });
+  const into = (v) => () => setView(v);
+  if (!res) add('Go to', 'Go to Inventory', [], into(S.lastResources || 'graph'), { icon: 'stack', words: 'resources graph list' });
+  if (S.view !== 'discovery') add('Go to', 'Go to Discovery', ['d'], into('discovery'), { icon: 'radar', words: 'findings unmanaged adopt' });
+  if (S.view !== 'traces') add('Go to', 'Go to Traces', ['r'], into('traces'), { icon: 'trace', words: 'runs recorded timeline spans transactions' });
+  if (S.view !== 'plans') add('Go to', 'Go to Plans', ['p'], into('plans'), { icon: 'file', words: 'stored plans' });
+  if (S.view !== 'access') add('Go to', 'Go to State', ['a'], into('access'), { icon: 'lock', words: 'access readers sealed' });
+  if (res) {
+    if (S.view === 'list') add('View', 'Show the graph', ['g'], into('graph'), { words: 'view' });
+    else add('View', 'Show the list', ['g'], into('list'), { words: 'view' });
+  }
+  if (S.view === 'graph') {
+    add('View', 'Fit the graph', ['f'], () => gv.fit(true), { words: 'zoom' });
+    add('View', 'Zoom in', ['+'], () => gv.zoomBy(1.25, undefined, undefined, true));
+    add('View', 'Zoom out', ['-'], () => gv.zoomBy(0.8, undefined, undefined, true));
+    add('View', 'Collapse every namespace', ['['], () => setAllNamespaces(true), { words: 'close all' });
+    add('View', 'Expand every namespace', [']'], () => setAllNamespaces(false), { words: 'open all' });
+    add('View', S.proj ? 'Hide the project' : 'Show the project', ['i'], () => setProject(!S.proj), { words: 'info directory state' });
+    add('View', 'Reset the view', ['0'], resetView, { words: 'first view' });
+  }
+  if (S.finds > 0 && !S.trail.length) add('View', 'Back to where the search began', ['esc'], findBack, { words: 'return undo' });
+  if (res && S.sel) add('View', 'Clear the selection', ['esc'], clearSelection, { words: 'deselect' });
+  if (res && S.q) add('View', 'Clear the filter', [], () => { $('filter-q').value = ''; setQuery(''); }, { words: 'reset query' });
+  add('View', effectiveTheme() === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme', ['t'], toggleTheme, { words: 'theme dark light mode' });
+  add('View', 'Keyboard shortcuts', ['?'], () => sheet.open(), { words: 'help keys' });
+  if (S.plan) {
+    const p = S.plans.find((x) => x.id === S.plan);
+    add('Plans', `Take ${S.plan} off the graph`, [], () => selectPlan(null), { words: 'plan overlay' });
+    const cmd = applyCommandOf(p);
+    if (cmd) add('Copy', 'Copy the command that applies ' + S.plan, [], copy(cmd, 'the command'), { hint: cmd, words: 'apply plan' });
+  }
+  if (res && S.sel) add('Copy', 'Copy the address of the selection', [], copy(S.sel, S.sel), { hint: S.sel, words: 'path name' });
+  add('Copy', 'Copy pravo plan', [], copy('pravo plan', 'pravo plan'), { hint: 'pravo plan', words: 'command' });
+  if (S.discovery && S.discovery.command) add('Copy', 'Copy the discovery command', [], copy(S.discovery.command, 'the discovery command'), { hint: S.discovery.command, words: 'pravo discover run' });
+  add('Copy', 'Copy a link to this view', [], () => { syncFragment(); copy(location.href, 'the link')(); }, { words: 'url address share' });
+  return A;
+}
+
+function paletteSources() {
+  return { plans: S.plans, runs: S.runs, discovery: S.discovery, actions: paletteActions() };
+}
+
 function onKey(ev) {
   if (ev.defaultPrevented) return;
   const k = ev.key;
@@ -1496,7 +1570,9 @@ function wire() {
         selectNamespace(key, { center: true });
       } else selectNode(key, { center: true });
     },
-    onOpen: (on) => { S.palette = on; },
+    onGo: (kind, v) => { if (kind === 'plan') openPlan(v); else if (kind === 'run') openRun(v); else openFinding(v); },
+    sources: paletteSources,
+    onOpen: (on) => { S.palette = on; if (on) refreshRuns(); },
   });
   sheet = new Sheet($('sheet'), { onOpen: () => {} });
 
