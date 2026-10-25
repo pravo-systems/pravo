@@ -77,9 +77,9 @@ pravo apply -auto-approve | tail -4
 ```
 
 ```text out
-Outputs:
-  digest: (sensitive)
-  url: "http://localhost:26720"
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
+
+2 outputs, 2 changed (digest, url). See them with "pravo output" or "pravo serve".
 ```
 
 ```sh run

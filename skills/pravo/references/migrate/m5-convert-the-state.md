@@ -624,10 +624,7 @@ region.ap: Creation complete after 0s [id=<id>]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 
-Outputs:
-  note_paths: ["out/notes/alpha.txt", "out/notes/beta.txt"]
-  port_numbers: (sensitive)
-  server_name: "acme-dev-charmed-buzzard"
+3 outputs, none changed. See them with "pravo output" or "pravo serve".
 banner
 hello
 notes.files.alpha

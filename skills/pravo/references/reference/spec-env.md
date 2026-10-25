@@ -257,10 +257,7 @@ subnet: Creation complete after 0s [id=<pet>]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 
-Outputs:
-  admin_key: (sensitive)
-  "api.url": "https://api.example.com"
-  subnet_id: "<pet>"
+3 outputs, 3 changed (admin_key, "api.url", subnet_id). See them with "pravo output" or "pravo serve".
   +     content:              "subnet <pet> at https://api.example.com"
 Plan: 1 to add, 0 to change, 0 to destroy.
 ```

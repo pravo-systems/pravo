@@ -2093,7 +2093,10 @@ func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Chan
 type ApplyResult struct {
 	Added, Changed, Destroyed int
 	Outputs                   map[string]json.RawMessage
-	Txn                       string
+	// ChangedOutputs lists, sorted, the outputs whose recorded value is new or
+	// differs from the one recorded when the apply began.
+	ChangedOutputs []string
+	Txn            string
 	// Applied lists, sorted, the addresses of the plan's changes that the apply
 	// finished and recorded in the state: the creates, updates, replacements and
 	// deletes whose provider call returned and whose record was written, and the
@@ -2371,6 +2374,12 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	if err != nil {
 		return fail(err)
 	}
+	for name, raw := range result.Outputs {
+		if prev, ok := baseline[name]; !ok || !jsonEqual(prev, raw) {
+			result.ChangedOutputs = append(result.ChangedOutputs, name)
+		}
+	}
+	sort.Strings(result.ChangedOutputs)
 	result.Applied = e.completedAddrs()
 	summary := fmt.Sprintf("%d added, %d changed, %d destroyed", result.Added, result.Changed, result.Destroyed)
 	return result, e.txn.Finish("applied", summary, true)

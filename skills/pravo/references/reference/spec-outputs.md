@@ -88,20 +88,12 @@ hello: Creation complete after 0s [id=<sha1>]
 
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
 
-Outputs:
-  "api.url": "https://pet.example.com"
-  greeting: "Hello, pet!"
-  name: "pet"
-  summary: {
-  	file:   "hello.txt"
-  	server: "pet"
-  }
-  token: (sensitive)
+5 outputs, 5 changed ("api.url", greeting, name, summary, token). See them with "pravo output" or "pravo serve".
 ```
 
 ## Reading outputs
 
-Outputs are evaluated after the apply and recorded in state under their path. `pravo output` prints all of them. `pravo output <name>` prints one value. `--json` prints a JSON object. A struct value is recorded, printed by a plan and printed by `pravo output` with its keys in sorted order, whatever order the specification wrote them in.
+Outputs are evaluated after the apply and recorded in state under their path. An apply does not print their values, because the log of an apply is often kept. It prints how many outputs there are and the names of those that changed. `pravo output` prints all of them, and `pravo serve` shows them. `pravo output <name>` prints one value. `--json` prints a JSON object. A struct value is recorded, printed by a plan and printed by `pravo output` with its keys in sorted order, whatever order the specification wrote them in.
 
 ```sh
 pravo output
