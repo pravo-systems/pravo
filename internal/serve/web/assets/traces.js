@@ -329,7 +329,7 @@ export class TracesView {
     this.bindPlot();
     return h('div', { class: 'tr-chart' },
       this.plot,
-      h('p', { class: 'tr-hint' }, 'Ctrl or ⌘ and scroll zoom. Drag moves along the run. Double click a span to fit it. Plus and minus beside an attribute filter by it.'));
+      h('p', { class: 'tr-hint' }, 'Ctrl or ⌘ and scroll zoom. Drag moves along the run. Double click a span to fit it. Beside each attribute, Only and Hide filter by it.'));
   }
 
   layoutPlot() {
@@ -373,10 +373,6 @@ export class TracesView {
     this.ruler.append(svg('path', { class: 'tr-axis', d: `M0 25.5H${W}` }));
     const match = this.match, sel = this.sel;
     const dense = m.spans.length > 4000;
-    // providers are hatched, so that they read as calls out of the process whatever the colours around them
-    const defs = svg('defs', null, svg('pattern', { id: 'tr-hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' },
-      svg('rect', { class: 'hp-bg', width: 6, height: 6 }), svg('rect', { class: 'hp-ln', width: 2, height: 6 })));
-    this.canvas.append(defs);
     const bars = svg('g', { class: 'tr-bars' });
     const labels = svg('g', { class: 'tr-labels' });
     for (const sp of m.spans) {
@@ -661,8 +657,8 @@ export class TracesView {
             const term = (neg) => () => this.setQuery(addTerm(this.q || '', 'attr', `${k}=${val}`, neg, LANG));
             return h('li', null, h('span', { class: 'ak' }, k), h('span', { class: 'av' }, val),
               h('span', { class: 'af' },
-                h('button', { type: 'button', class: 'tr-f', 'aria-label': `Only spans with ${k} ${val}`, 'data-tip': 'Only these', on: { click: term(false) } }, '+'),
-                h('button', { type: 'button', class: 'tr-f', 'aria-label': `Hide spans with ${k} ${val}`, 'data-tip': 'Hide these', on: { click: term(true) } }, '\u2212')));
+                h('button', { type: 'button', class: 'tr-f', 'aria-label': `Only spans with ${k} ${val}`, on: { click: term(false) } }, 'Only'),
+                h('button', { type: 'button', class: 'tr-f', 'aria-label': `Hide spans with ${k} ${val}`, on: { click: term(true) } }, 'Hide')));
           }))) : null,
         sp.events && sp.events.length ? h('section', { 'aria-label': 'Events' }, h('h4', null, 'Events'),
           h('ol', { class: 'tr-events' }, sp.events.map((e) => h('li', null, h('span', { class: 'at' }, '+' + fmtDur(Math.max(0, e.at_us - sp.start_us))), h('span', { class: 'en' }, e.name),

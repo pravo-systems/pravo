@@ -83,7 +83,7 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-tl { font: 500 10px var(--font-mono); fill: var(--text-3); }
 .tr-tick, .tr-axis { stroke: var(--line-strong); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
 .tr-grid { stroke: var(--line); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
-/* One hue for each kind of span; the process is dark, the calls out of it are hatched. */
+/* One hue for each kind of span; the process is dark, the calls out of it are green. */
 .tr { --k-command: var(--text); --k-engine: color-mix(in srgb, var(--key) 45%, var(--text)); --k-phase: color-mix(in srgb, var(--key) 38%, var(--surface));
   --k-resource: var(--key); --k-provider: var(--accent); --k-setup: color-mix(in srgb, var(--change) 52%, var(--surface));
   --k-state: color-mix(in srgb, var(--overlap) 34%, var(--surface)); --k-seal: color-mix(in srgb, var(--overlap) 80%, var(--text)); }
@@ -92,20 +92,17 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .bar.k-engine { fill: var(--k-engine); }
 .bar.k-phase { fill: var(--k-phase); }
 .bar.k-resource { fill: var(--k-resource); }
-.bar.k-provider { fill: url(#tr-hatch); stroke: var(--k-provider); stroke-width: 1; }
+.bar.k-provider { fill: var(--k-provider); }
 .bar.k-setup { fill: var(--k-setup); }
 .bar.k-state { fill: var(--k-state); }
 .bar.k-seal { fill: var(--k-seal); }
 .bar.err { fill: var(--conflict); stroke: none; }
-.hp-bg { fill: color-mix(in srgb, var(--accent) 30%, var(--surface)); }
-.hp-ln { fill: var(--k-provider); }
 .bar.dim, .tr-bt.dim, .tr-bd.dim { opacity: .2; }
 .bar:hover { filter: brightness(1.12); }
 .tr-selbox { fill: none; stroke: var(--text); stroke-width: 2; pointer-events: none; }
 .tr-subbox { fill: none; stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; shape-rendering: crispEdges; }
 .tr-bt, .tr-bd { font: 500 11px var(--font-mono); fill: var(--text); pointer-events: none; }
-.tr-bt.k-seal, .tr-bd.k-seal, .tr-bt.k-command, .tr-bd.k-command, .tr-bt.k-mcp, .tr-bd.k-mcp, .tr-bt.k-engine, .tr-bd.k-engine, .tr-bt.k-resource, .tr-bd.k-resource, .tr-bt.err, .tr-bd.err { fill: var(--on-accent, var(--bg)); }
-.tr-bt.k-provider, .tr-bd.k-provider { stroke: color-mix(in srgb, var(--accent) 30%, var(--surface)); stroke-width: 4px; paint-order: stroke; stroke-linejoin: miter; font-weight: 600; }
+.tr-bt.k-provider, .tr-bd.k-provider, .tr-bt.k-seal, .tr-bd.k-seal, .tr-bt.k-command, .tr-bd.k-command, .tr-bt.k-mcp, .tr-bd.k-mcp, .tr-bt.k-engine, .tr-bd.k-engine, .tr-bt.k-resource, .tr-bd.k-resource, .tr-bt.err, .tr-bd.err { fill: var(--on-accent, var(--bg)); }
 .tr-bd { opacity: .85; }
 .tr-hint { margin: 0; padding: .35rem .7rem; border-top: 1px solid var(--line); font-size: .68rem; color: var(--text-3); }
 .tr-sw { display: inline-block; flex: none; width: .65rem; height: .65rem; background: var(--text-3); }
@@ -117,7 +114,7 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-sw.k-state { background: var(--k-state); }
 .tr-sw.k-seal { background: var(--k-seal); }
 .tr-sw.k-err { background: var(--conflict); }
-.tr-sw.k-provider { background: repeating-linear-gradient(135deg, var(--k-provider) 0 2px, color-mix(in srgb, var(--accent) 30%, var(--surface)) 2px 4px); box-shadow: inset 0 0 0 1px var(--k-provider); }
+.tr-sw.k-provider { background: var(--k-provider); }
 
 .tr-tip { position: fixed; left: 0; top: 0; z-index: 70; display: grid; gap: .12rem; max-width: 26rem; padding: .5rem .65rem; background: var(--code-bg); color: var(--code-text); border: 1px solid var(--code-edge); box-shadow: var(--shadow-1); font-size: .72rem; line-height: 1.4; pointer-events: none; }
 .tr-tip[hidden] { display: none; }
@@ -167,7 +164,7 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-wb.k-setup { background: var(--k-setup); }
 .tr-wb.k-state { background: var(--k-state); }
 .tr-wb.k-seal { background: var(--k-seal); }
-.tr-wb.k-provider { background: repeating-linear-gradient(135deg, var(--k-provider) 0 2px, color-mix(in srgb, var(--accent) 30%, var(--surface)) 2px 4px); }
+.tr-wb.k-provider { background: var(--k-provider); }
 .tr-wb.err { background: var(--conflict); }
 .tr-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); margin: 0; border: 1px solid var(--line-strong); }
 .tr-stats .st { display: grid; gap: .3rem; padding: .7rem .9rem; border-left: 1px solid var(--line); }
@@ -183,9 +180,8 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-attrs li { grid-template-columns: minmax(6rem, 11rem) minmax(0, 1fr) auto; font: 400 .72rem/1.4 var(--font-mono); }
 .tr-attrs .ak { color: var(--text-3); overflow-wrap: anywhere; }
 .tr-attrs .av { overflow-wrap: anywhere; }
-.tr-attrs .af { display: inline-flex; gap: 2px; opacity: .35; transition: opacity .1s; }
-.tr-attrs li:hover .af, .tr-attrs li:focus-within .af { opacity: 1; }
-.tr-f { width: 1.35rem; height: 1.35rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: 500 .85rem/1 var(--font-mono); cursor: pointer; }
+.tr-attrs .af { display: inline-flex; gap: 4px; }
+.tr-f { height: 1.5rem; padding: 0 .55rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-2); font: 600 .6rem/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .tr-f:hover { background: var(--text); color: var(--bg); }
 .tr-f:focus-visible { outline: 2px solid var(--key); outline-offset: 1px; }
 .tr-events li { display: flex; flex-wrap: wrap; gap: .1rem .7rem; align-items: baseline; padding: .32rem 0; border-bottom: 1px solid var(--line); }
