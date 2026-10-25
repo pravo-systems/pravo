@@ -5,6 +5,7 @@
 
 import { h, icon, plural, store, copyButton, relTime, stamp, softBreaks } from './util.js';
 import { textBlock } from './ui.js';
+import { isEnv } from './model.js';
 
 export const REDACTED = {
   sensitive: ['withheld', 'The provider schema marks this attribute sensitive.'],
@@ -38,10 +39,11 @@ function parseJSON(v) {
   try { const o = JSON.parse(t); return o && typeof o === 'object' ? o : null; } catch { return null; }
 }
 
-const bucketOf = (a) => {
+// plain: an environment variable has no provider to fill anything in, so its attributes are all the page and none is computed
+const bucketOf = (a, plain) => {
   if (a.redacted || a.sensitive) return 'sensitive';
   const k = (a.kind || '').split(',');
-  if (k.includes('computed') && !k.includes('optional') && !k.includes('required')) return 'computed';
+  if (!plain && k.includes('computed') && !k.includes('optional') && !k.includes('required')) return 'computed';
   return 'configured';
 };
 
@@ -68,7 +70,8 @@ export class StateView {
     this.changed = changed;
     const attrs = d.attrs || [];
     this.buckets = { configured: [], sensitive: [], computed: [] };
-    for (const a of attrs) this.buckets[bucketOf(a)].push(a);
+    const plain = !!d.node && isEnv(d.node);
+    for (const a of attrs) this.buckets[bucketOf(a, plain)].push(a);
     const wrap = h('div', { class: 'state' });
     if (!d.schema_known) wrap.append(h('p', { class: 'note warn' }, icon('bang'), h('span', null, 'The provider schema could not be read, so no one can say which values are sensitive. Every value is withheld.')));
     if (attrs.length && !d.bare) {
@@ -83,7 +86,7 @@ export class StateView {
         this.draw();
       });
       this.count = h('span', { class: 'sf-count', 'aria-hidden': 'true' });
-      wrap.append(h('div', { class: 'stbar' }, h('label', { class: 'sfbox' }, icon('search'), input, this.count), sw));
+      wrap.append(h('div', { class: 'stbar' }, h('label', { class: 'sfbox' }, icon('search'), input, this.count), plain ? null : sw));
     }
     this.host = h('div', { class: 'groups' });
     wrap.append(this.host);
@@ -106,17 +109,25 @@ export class StateView {
         host.append(h('div', { class: 'blank' }, icon('lock'), h('p', null, 'The attributes of this record are sealed.'), h('small', null, 'This viewer cannot open them. The State page says who can read the state.')));
         return;
       }
-      if (this.d.node && this.d.node.mode === 'ephemeral') {
-        host.append(h('div', { class: 'blank' }, icon('stack'), h('p', null, 'An ephemeral resource is never recorded.'), h('small', null, 'It is opened for each run and kept out of the state, so there is nothing to show here.')));
+      const mode = this.d.node && this.d.node.mode;
+      const tab = (this.d.schema || []).length ? ' The Schema tab lists the attributes of its type.' : '';
+      if (mode === 'ephemeral') {
+        host.append(h('div', { class: 'blank' }, icon('stack'), h('p', null, 'An ephemeral resource is never recorded.'), h('small', null, 'It is opened for each run and kept out of the state. The specification sets no value on it.' + tab)));
         return;
       }
-      host.append(h('div', { class: 'blank' }, icon('stack'), h('p', null, 'No attributes are recorded for this resource.'), h('small', null, 'It exists in the state without values, or it is declared and not created yet.')));
+      if (mode === 'call' || mode === 'builtin') {
+        host.append(h('div', { class: 'blank' }, icon('stack'), h('p', null, 'There is no state to show.'), h('small', null, 'It is evaluated when a command runs and never recorded.')));
+        return;
+      }
+      host.append(h('div', { class: 'blank' }, icon('stack'), h('p', null, 'No attributes are recorded for this resource.'), h('small', null, 'It exists in the state without values, or it is declared and not created yet.' + tab)));
       return;
     }
     let shown = 0;
     const order = this.d.bare
       ? [['configured', 'Value', 'What the root publishes'], ['sensitive', 'Value', 'Withheld by the server'], ['computed', 'Value', '']]
-      : [['configured', 'Configured', 'Set by the specification'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Computed', 'Filled in by the provider']];
+      : this.d.node && isEnv(this.d.node)
+        ? [['configured', 'Variable', 'Read from the environment'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Value', '']]
+        : [['configured', 'Configured', 'Set by the specification'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Computed', 'Filled in by the provider']];
     for (const [key, title, hint] of order) {
       const list = this.buckets[key];
       if (!list.length) continue;

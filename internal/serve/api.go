@@ -254,9 +254,14 @@ type Detail struct {
 	Attrs    []Attr      `json:"attrs"`
 	// SchemaKnown is false when the provider schema could not be read. Every
 	// value is then withheld, since nothing says which are sensitive.
-	SchemaKnown bool     `json:"schema_known"`
-	DependsOn   []string `json:"depends_on"`
-	UsedBy      []string `json:"used_by"`
+	SchemaKnown bool `json:"schema_known"`
+	// Schema lists the attributes of the type of a node that has no record to
+	// take them from, with no values: an ephemeral resource, a built-in
+	// environment variable, a node that is declared and not created yet. A node
+	// with a record has none: its Attrs follow the schema already.
+	Schema    []Attr   `json:"schema,omitempty"`
+	DependsOn []string `json:"depends_on"`
+	UsedBy    []string `json:"used_by"`
 	// Reach lists everything a change to the node can reach: the transitive
 	// dependents recorded in the state.
 	Reach   []string       `json:"reach,omitempty"`

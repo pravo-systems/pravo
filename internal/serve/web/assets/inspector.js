@@ -280,12 +280,15 @@ export class Inspector {
       else cells.push(cell('Plan', 'not read', 'dimv', 'The loaded plan did not run this resource'));
     }
     let sync, scls, stip;
-    if (n.gone) { sync = [icon('gone'), 'gone']; scls = 'bad'; stip = 'A read found that the real object is absent'; } else if (n.drifted) { sync = [icon('drift'), 'drifted']; scls = 'chg'; stip = 'A read found that the real object differs from the record'; } else if (n.presence === 'spec') { sync = 'declared only'; scls = 'dimv'; stip = 'Declared in the specification, not created yet'; } else if (n.presence === 'state') { sync = 'orphan'; scls = 'bad'; stip = 'Recorded in the state, no longer declared: the next apply would destroy it'; } else if (n.sealed) { sync = [icon('lock'), 'sealed']; scls = 'dimv'; stip = 'The record is sealed and this viewer cannot open it, so whether it drifted is not known'; } else { sync = [icon('check'), 'in sync']; scls = 'ok'; stip = 'Declared and recorded, with no drift found'; }
+    const never = ['ephemeral', 'call', 'builtin'].includes(n.mode);
+    if (never) { sync = 'not recorded'; scls = 'dimv'; stip = 'Evaluated when a command runs and never written to the state'; } else if (n.gone) { sync = [icon('gone'), 'gone']; scls = 'bad'; stip = 'A read found that the real object is absent'; } else if (n.drifted) { sync = [icon('drift'), 'drifted']; scls = 'chg'; stip = 'A read found that the real object differs from the record'; } else if (n.presence === 'spec') { sync = 'declared only'; scls = 'dimv'; stip = 'Declared in the specification, not created yet'; } else if (n.presence === 'state') { sync = 'orphan'; scls = 'bad'; stip = 'Recorded in the state, no longer declared: the next apply would destroy it'; } else if (n.sealed) { sync = [icon('lock'), 'sealed']; scls = 'dimv'; stip = 'The record is sealed and this viewer cannot open it, so whether it drifted is not known'; } else { sync = [icon('check'), 'in sync']; scls = 'ok'; stip = 'Declared and recorded, with no drift found'; }
     cells.push(cell('Record', sync, scls, stip));
     if (n.locked) cells.push(cell('Lock', [icon('hold'), 'held'], 'lock', 'A lock or reservation holds this resource'));
-    cells.push(cell('Revision', n.revision ? String(n.revision) : '—', n.revision ? '' : 'dimv', 'The revision of the record'));
-    const when = n.refreshed_at || (detail && detail.times && detail.times.refreshed_at);
-    cells.push(cell('Refreshed', when ? relTime(when) : '—', when ? '' : 'dimv', when ? 'Last read from the provider: ' + stamp(when) : 'Never read'));
+    if (!never) {
+      cells.push(cell('Revision', n.revision ? String(n.revision) : '—', n.revision ? '' : 'dimv', 'The revision of the record'));
+      const when = n.refreshed_at || (detail && detail.times && detail.times.refreshed_at);
+      cells.push(cell('Refreshed', when ? relTime(when) : '—', when ? '' : 'dimv', when ? 'Last read from the provider: ' + stamp(when) : 'Never read'));
+    }
     const open = n.plans || [];
     if (open.length) {
       // the stored plans that can still be applied and change this resource, on a row of their own: each is a way to lay it over the graph
@@ -465,7 +468,7 @@ export class Inspector {
     if (t.drifted_at) add('drifted', timeRow(t.drifted_at));
     add('provider', [d.provider.key, d.provider.source, d.provider.version && 'v' + d.provider.version, d.provider.protocol && 'protocol ' + d.provider.protocol].filter(Boolean).join(' · '));
     if (d.node.source) add('declared at', h('span', { class: 'ref-file' }, `${d.node.source.file}:${d.node.source.line}`));
-    wrap.append(h('section', { class: 'sec' }, h('h3', { class: 'h' }, 'The record'), h('dl', { class: 'meta' }, rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)]))));
+    wrap.append(h('section', { class: 'sec' }, h('h3', { class: 'h' }, ['ephemeral', 'call', 'builtin'].includes(node.mode) ? 'The declaration' : 'The record'), h('dl', { class: 'meta' }, rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)]))));
     if (d.lock) wrap.append(this.lockSection(d.lock));
     for (const note of d.notes || []) wrap.append(h('p', { class: 'note' }, icon('info'), h('span', null, note)));
     wrap.append(h('p', { class: 'note quiet' }, icon('lock'), h('span', null, 'A value marked sensitive is withheld by the server. This page receives its name and its type, never its content.')));
@@ -514,7 +517,8 @@ export class Inspector {
         else if (kids.length && /^(list|set)\(/.test(t) && kids[0].children && kids[0].children.length && /^object/.test(kids[0].type || '')) walk(kids[0].children, depth + 1, '');
       }
     };
-    walk(d.attrs || [], 0, '');
+    // a node with a record reads its attributes from it; one without (an ephemeral resource, a variable, a resource not yet created) has the schema listed apart
+    walk(d.schema && d.schema.length ? d.schema : d.attrs || [], 0, '');
     const input = h('input', { class: 'sfilter', type: 'search', placeholder: 'Filter attributes, types, descriptions', 'aria-label': 'Filter the attributes', autocomplete: 'off', spellcheck: 'false' });
     const count = h('span', { class: 'sf-count', 'aria-hidden': 'true' });
     const body = h('div', { class: 'schema', role: 'table', 'aria-label': 'Attributes' });
@@ -546,14 +550,17 @@ export class Inspector {
     return h('div', { class: 'pane' },
       h('div', { class: 'stbar' }, h('label', { class: 'sfbox' }, icon('search'), input, count)),
       h('section', { class: 'sec flush' }, body),
-      h('p', { class: 'note quiet' }, icon('info'), h('span', null, 'Types, kinds and descriptions come from the provider schema. Descriptions are shown when the server has them.')));
+      h('p', { class: 'note quiet' }, icon('info'), h('span', null, d.node && isEnv(d.node) ? 'Names, types and descriptions come from the declaration in the built-in package.' : 'Types, kinds and descriptions come from the provider schema. Descriptions are shown when the server has them.')));
   }
 
   // ---- History ----
 
   historyPane(d) {
     const list = d.history || [];
-    if (!list.length) return h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('stack'), h('p', null, 'No transaction wrote this resource.')));
+    if (!list.length) {
+      const never = ['ephemeral', 'call', 'builtin'].includes(d.node && d.node.mode);
+      return h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('stack'), h('p', null, never ? 'No transaction can write this.' : 'No transaction wrote this resource.'), never ? h('small', null, 'It is evaluated when a command runs and never recorded in the state, so it has no history.') : null));
+    }
     const ol = h('ol', { class: 'timeline' });
     for (const e of list) {
       const a = actionOf(e.action);

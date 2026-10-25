@@ -448,7 +448,7 @@ func (m *model) namespaceList() []Namespace {
 // resolveSchema finds the schema of the type of a node in the cache: the one of
 // the provider version that wrote the record, else the one the lock file pins.
 func (m *model) resolveSchema(mn *mnode) {
-	if mn.Mode == "" || transient(mn.Mode) {
+	if mn.Mode == "" || mn.Mode == "call" || mn.Mode == "builtin" || (mn.res != nil && mn.res.Builtin) {
 		return
 	}
 	type cand struct {

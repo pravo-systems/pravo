@@ -143,10 +143,14 @@ const TPL = {
   aws_cloudwatch_log_group: [['name', 'string', 'optional,computed', '/estate/{name}'], ['retention_in_days', 'number', 'optional', 30]],
   aws_cloudwatch_metric_alarm: [['comparison_operator', 'string', 'required', 'GreaterThanThreshold'], ['evaluation_periods', 'number', 'required', 3], ['metric_name', 'string', 'optional', 'CPUUtilization'], ['threshold', 'number', 'optional', 80]],
   random_password: [['length', 'number', 'required', 24], ['special', 'bool', 'optional', true], ['upper', 'bool', 'optional', true]],
+  aws_secretsmanager_random_password: [['password_length', 'number', 'optional', 32], ['exclude_punctuation', 'bool', 'optional', true]],
   random_id: [['byte_length', 'number', 'required', 4], ['hex', 'string', 'computed', '{id}']],
   local_file: [['content', 'string', 'optional', 'release 42\n'], ['filename', 'string', 'required', './release.txt'], ['file_permission', 'string', 'optional', '0644']],
 };
 const GENERIC = [['name', 'string', 'optional,computed', '{name}']];
+// what the provider schema says about an attribute, for the Schema tab of a node that has no record
+const DESC = { length: 'The length of the string desired.', special: 'Include special characters in the result.', upper: 'Include uppercase alphabet characters in the result.', result: 'The generated random string.',
+  password_length: 'The length of the password. The default is 32.', exclude_punctuation: 'Do not include punctuation in the password.', random_password: 'The generated password.' };
 
 const fill = (v, n, ctx) => (typeof v !== 'string' ? v : v.replace(/\{name\}/g, n.name).replace(/\{ns\}/g, n.namespace).replace(/\{id\}/g, hex(n.addr, 17))
   .replace(/\{rev\}/g, String(n.revision || 1)).replace(/\{n\}/g, String(10 + (ctx.h % 20))).replace(/\{m\}/g, String((ctx.h >> 5) % 250)).replace(/\{k\}/g, String(4 + ((ctx.h >> 9) % 240))));
@@ -199,6 +203,47 @@ function synthOutput(n) {
     depends_on: g.edges.filter((e) => e.dependent === n.addr).map((e) => e.dependency).sort(), used_by: g.edges.filter((e) => e.dependency === n.addr).map((e) => e.dependent).sort(), times: {}, notes };
 }
 
+// what the server sends for a node that is never recorded: the schema of its type, and for an ephemeral resource what the specification sets,
+// for an environment variable its declaration and the value in the environment of the process
+function synthTransient(n, d, deps) {
+  const env = n.type === 'env' || n.type === 'secret_env';
+  if (env) {
+    const secret = n.type === 'secret_env';
+    const name = n.name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();
+    const def = n.name === 'prefix' ? 'acme' : null;
+    d.provider = { key: '' };
+    d.schema = [{ name: 'name', type: 'string', kind: 'required', description: 'The name of the environment variable.' },
+      ...(secret ? [] : [{ name: 'default', type: 'string', kind: 'optional', description: 'Used when the variable is not set. Without it, an unset variable is an error.' }]),
+      { name: 'value', type: 'string', kind: 'computed', description: 'What the variable holds.', ...(secret ? { sensitive: true } : {}) }];
+    d.attrs = [{ name: 'name', type: 'string', kind: 'required', value: name }];
+    if (!secret) d.attrs.push({ name: 'default', type: 'string', kind: 'optional', ...(def ? { value: def } : { null: true }) });
+    const value = { name: 'value', type: 'string', kind: 'computed' };
+    if (secret) Object.assign(value, { sensitive: true, redacted: 'sensitive' });
+    else if (def) value.value = def;
+    else value.value = 'acme-' + n.name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    d.attrs.push(value);
+    d.notes = (d.notes || []).concat(secret
+      ? ['A secret variable shows no value. Its value is ephemeral: it is kept out of the state and out of a saved plan, and out of this page.']
+      : def ? ['The variable ' + name + ' is not set in the environment of pravo serve, so the value is the default.'] : ['The value is that of the variable in the environment of pravo serve. A command reads the variable from its own environment.']);
+    d.notes.push('A built-in value is evaluated when a command runs and is never recorded in the state.');
+    return;
+  }
+  const t = TPL[n.type] || GENERIC;
+  const ctx = { h: hash(n.addr) };
+  d.schema = [...t.map(([name, type, kind]) => ({ name, type, kind, description: DESC[name] })),
+    ...(n.mode === 'ephemeral' ? [{ name: 'result', type: 'string', kind: 'computed', sensitive: true, description: DESC.result }] : [])].sort((a, b) => (a.name < b.name ? -1 : 1));
+  if (n.mode === 'ephemeral') {
+    // the values that the specification sets; one that reads another node is not known before a command runs
+    d.attrs = t.filter(([, , kind]) => !kind.includes('computed') || kind.includes('optional')).map(([name, type, kind, v]) => ({ name, type, kind, value: fill(v, n, ctx) }));
+    if (deps.length && d.attrs.length > 1) { const a = d.attrs[d.attrs.length - 1]; delete a.value; a.unknown = true; }
+    d.notes = (d.notes || []).concat('These are the values that the specification sets. What the provider fills in is known only while a command runs.',
+      'An ephemeral resource is evaluated when a command runs and is never recorded in the state.');
+  } else {
+    d.attrs = [];
+    d.notes = (d.notes || []).concat('A call is evaluated when a command runs and is never recorded in the state.');
+  }
+}
+
 function synthDetail(n) {
   if (n.mode === 'output') return synthOutput(n);
   const g = graph;
@@ -221,6 +266,7 @@ function synthDetail(n) {
   if (!d.schema_known) d.attrs = attrs.map((a) => ({ name: a.name, type: a.type, kind: a.kind, redacted: 'schema' }));
   if (seen.size) d.reach = [...seen].sort();
   if (notes.length) d.notes = notes;
+  if (['ephemeral', 'call', 'builtin'].includes(n.mode)) { synthTransient(n, d, deps); return d; }
   if (n.locked) d.lock = { kind: 'lock', user: 'ci', host: 'runner-07', command: 'pravo apply release-42.plan', actor: 'ci@acme', since: new Date(Date.now() - 6 * 60e3).toISOString().replace(/\.\d{3}Z$/, 'Z') };
   // history from the revision
   const hist = [];

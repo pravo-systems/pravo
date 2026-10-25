@@ -57,14 +57,12 @@
    "name": "apiToken",
    "namespace": "",
    "presence": "both",
-   "revision": 2,
    "source": {
     "file": "main.cue",
     "line": 16,
     "col": 2,
     "end_line": 18
    },
-   "refreshed_at": "2026-10-21T13:58:11Z",
    "provider": "aws"
   },
   {
@@ -596,14 +594,12 @@
    "name": "dbPassword",
    "namespace": "",
    "presence": "both",
-   "revision": 7,
    "source": {
     "file": "main.cue",
     "line": 23,
     "col": 2,
     "end_line": 25
    },
-   "refreshed_at": "2026-10-21T13:58:11Z",
    "provider": "random"
   },
   {
@@ -1546,14 +1542,12 @@
    "name": "prefix",
    "namespace": "",
    "presence": "both",
-   "revision": 2,
    "source": {
     "file": "main.cue",
     "line": 22,
     "col": 2,
     "end_line": 24
-   },
-   "refreshed_at": "2026-10-21T13:58:11Z"
+   }
   },
   {
    "addr": "queues",
@@ -2406,14 +2400,12 @@
    "name": "stateBucketName",
    "namespace": "",
    "presence": "both",
-   "revision": 9,
    "source": {
     "file": "main.cue",
     "line": 15,
     "col": 2,
     "end_line": 17
-   },
-   "refreshed_at": "2026-10-21T13:58:11Z"
+   }
   }
  ],
  "edges": [
