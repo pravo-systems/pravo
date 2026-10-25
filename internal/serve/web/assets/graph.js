@@ -8,7 +8,7 @@
 // stay readable when the picture is small. Nothing in the picture is a bitmap.
 
 import { s, h, clamp, ease, schedule, actionOf, plural } from './util.js';
-import { G, FIT, fitScale, pathOf, midOf, lengthOf } from './layout.js';
+import { G, FIT, fitScale, pathOf, midOf, lengthOf, wiring } from './layout.js';
 import { eachNode, cellsOf, isOut, isEnv } from './model.js';
 import { initials, hueOf } from './plans.js';
 import { providerOf, pvClass } from './provider.js';
@@ -216,11 +216,12 @@ export class GraphView {
     this.vp = s('g', { class: 'vp' });
     this.laneLayer = s('g', { class: 'lanes' });
     this.edgeLayer = s('g', { class: 'edges' });
+    this.junctionLayer = s('g', { class: 'jn' });
     this.labelLayer = s('g', { class: 'elabels' });
     this.headLayer = s('g', { class: 'heads' }); // the titles of the lanes lie above the edges, so that no line runs through a word
     this.nodeLayer = s('g', { class: 'nodes' });
     this.fxLayer = s('g', { class: 'fx' });
-    this.vp.append(this.laneLayer, this.edgeLayer, this.labelLayer, this.headLayer, this.nodeLayer, this.fxLayer);
+    this.vp.append(this.laneLayer, this.edgeLayer, this.junctionLayer, this.labelLayer, this.headLayer, this.nodeLayer, this.fxLayer);
     this.svg.append(this.vp);
     this.grid = h('div', { class: 'grid', 'aria-hidden': 'true' });
     this.tip = h('div', { class: 'gtip overlay', 'aria-hidden': 'true', hidden: true });
@@ -461,6 +462,7 @@ export class GraphView {
     for (const [id, r] of [...this.items]) if (r.leaving) { r.g.remove(); this.items.delete(id); }
     for (const [p, r] of [...this.lanes]) if (r.leaving) { r.g.remove(); r.hg.remove(); this.lanes.delete(p); }
     for (const [k, r] of [...this.edges]) if (r.leaving) { r.path.remove(); if (r.label) r.label.remove(); this.edges.delete(k); }
+    this.rewire();
     if (this.cb.onSettled && !this.tween) schedule('settled', () => this.cb.onSettled());
   }
 
@@ -485,6 +487,21 @@ export class GraphView {
     const f = clamp(520 / Math.max(len, 1), 0.3, 1);
     if (Math.abs(f - (r.lf || 0)) > 0.03) { r.lf = f; r.path.style.setProperty('--el', f.toFixed(2)); }
     r.path.style.setProperty('--dl', String(Math.ceil(len * 1.3)));
+  }
+
+  // rewire draws the settled wires together: hops where they cross, dots where they join
+  rewire() {
+    const routes = new Map();
+    for (const [k, r] of this.edges) if (!r.leaving) routes.set(k, r.pts);
+    const w = wiring(routes);
+    for (const [k, d] of w.d) {
+      const r = this.edges.get(k);
+      r.path.setAttribute('d', d);
+      if (r.hot) r.hot.setAttribute('d', d);
+    }
+    const layer = this.junctionLayer;
+    while (layer.firstChild) layer.removeChild(layer.firstChild);
+    for (const [x, y] of w.dots) layer.append(s('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: 2.4 }));
   }
 
   // ---- element factories ----
@@ -862,7 +879,7 @@ export class GraphView {
         const r = this.edges.get(key);
         if (!r || r.leaving) continue;
         if (++n > 120) break;
-        const p = s('path', { class: 'pulse ' + cls, pathLength: 1, d: pathOf(r.pts) });
+        const p = s('path', { class: 'pulse ' + cls, pathLength: 1, d: r.path.getAttribute('d') });
         p.style.animationDelay = `${(depth - 1) * 120 + 60}ms`;
         this.fxLayer.append(p);
       }

@@ -65,7 +65,7 @@ Presence is separate from the marks that a read leaves on a record. A node is dr
 
 ## Edges
 
-An edge runs from a dependency to its dependent, the direction in which data flows. The graph draws it like a wire in a schematic: it leaves the item with a dot, runs along the axes, turns at right angles in the gap before the item it enters, goes around the items in its way and ends in an arrowhead. The edges come from the references in the specification where it loads, and from the records of the state where it does not. A node lists what it depends on and what uses it, and the inspector also lists everything that a change to the node can reach: its transitive dependents, as the state records them.
+An edge runs from a dependency to its dependent, the direction in which data flows. The graph draws it like a wire in a schematic: it leaves the item with a dot, runs along the axes, turns at right angles in the gap before the item it enters, goes around the items in its way and ends in an arrowhead. Where two wires cross without joining, the horizontal one hops over the other, and a dot marks a wire that joins another. The edges come from the references in the specification where it loads, and from the records of the state where it does not. A node lists what it depends on and what uses it, and the inspector also lists everything that a change to the node can reach: its transitive dependents, as the state records them.
 
 ## The plan overlay
 

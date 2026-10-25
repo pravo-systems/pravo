@@ -87,6 +87,9 @@
 .has-sel .ge:not(.up):not(.down):not(.hl) { stroke-opacity: .1; marker-start: url(#jah-dim); marker-end: url(#ah-dim); }
 .has-sel .ge.hl:not(.up):not(.down) { stroke-opacity: .7; }
 .reach-mode .ge:not(.down) { stroke-opacity: .05; }
+.jn circle { fill: var(--edge); pointer-events: none; transition: opacity .25s; }
+.has-sel .jn, .reach-mode .jn { opacity: .15; }
+.lod-far .jn { display: none; }
 .ah { fill: var(--edge); } .ah-up { fill: var(--key); } .ah-down { fill: var(--change); } .ah-dim { fill: var(--edge); fill-opacity: .2; }
 .ge.hl:not(.up):not(.down) { marker-end: url(#ah); }
 .ec { transition: opacity .25s; pointer-events: none; }
