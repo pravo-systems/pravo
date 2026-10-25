@@ -186,7 +186,7 @@ func (a accessModel) sealedRec(rec *state.Resource) bool {
 type accessInput struct {
 	rev      string
 	location string
-	// backend is "local" or "s3".
+	// backend is "local", "s3" or "http".
 	backend string
 	// format and records are the format and the number of records the store reports.
 	format, records int
@@ -287,7 +287,7 @@ func buildAccess(in accessInput) *Access {
 	for _, r := range f.File.Readers {
 		blobs[r.Key] = r.SSH
 	}
-	a.Suggestions = suggestions(a, in.dir, in.backend != "s3", blobs)
+	a.Suggestions = suggestions(a, in.dir, in.backend == "" || in.backend == "local", blobs)
 	return a
 }
 

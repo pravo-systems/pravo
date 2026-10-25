@@ -1,6 +1,8 @@
 package serve
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -388,5 +390,125 @@ func TestHistoryShowsTheSignatureOfATransaction(t *testing.T) {
 	q := newProject(t)
 	if h := q.detail("services.a.db").History; len(h) != 1 || h[0].Signature != "" || h[0].Signer != "" {
 		t.Errorf("history %+v", h)
+	}
+}
+
+// An apply that ran from a stored plan names the plan, and the revision of the
+// specification it ran against, in the history of the node.
+func TestHistoryNamesThePlanAndTheRevision(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	st.SetActor("", "", "0123456789abcdef")
+	txn := st.Begin("apply", "pravo apply plan-12345678")
+	txn.SetPlan("plan-12345678", "feed")
+	r := st.Get("services.a.db")
+	next := *r
+	if err := st.Set(&next, txn.ID()); err != nil {
+		t.Fatal(err)
+	}
+	txn.Record("services.a.db", "update", r.Revision, next.Revision)
+	if err := txn.Finish("applied", "1 updated", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{})
+	h := p.detail("services.a.db").History
+	if len(h) != 2 || h[0].Plan != "plan-12345678" || h[0].GitRevision != "0123456789abcdef" || h[1].Plan != "" {
+		t.Fatalf("history %+v", h)
+	}
+}
+
+// An apply records what it did to the attributes of a record, and the history of the
+// node shows it redacted again (the transaction here keeps every value, as one written
+// by another program might) as a plan's changes are: a value the schema or its name
+// withholds is reported as changed and not shown.
+func TestHistoryShowsWhatAChangeAlteredRedacted(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	r := st.Get("services.a.db")
+	before := string(r.Attributes)
+	after := strings.NewReplacer(`"port":5432`, `"port":5433`, secretBlob, "rotated-blob-value-9999",
+		`"owner":"team"`, `"owner":"ops"`, secretMapKey, "rotated-map-secret-9999").Replace(before)
+	txn := st.Begin("apply", "pravo apply")
+	next := *r
+	next.Attributes = json.RawMessage(after)
+	if err := st.Set(&next, txn.ID()); err != nil {
+		t.Fatal(err)
+	}
+	txn.Record("services.a.db", "update", r.Revision, next.Revision)
+	txn.RecordDiff("services.a.db", json.RawMessage(before), next.Attributes, nil)
+	if err := txn.Finish("applied", "1 changed", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{})
+	h := p.detail("services.a.db").History
+	if len(h) != 2 || len(h[1].Attrs) != 0 {
+		t.Fatalf("history %+v", h)
+	}
+	got := map[string]AttrChange{}
+	for _, c := range h[0].Attrs {
+		got[c.Path] = c
+	}
+	if c := got["port"]; fmt.Sprint(c.Before) != "5432" || fmt.Sprint(c.After) != "5433" {
+		t.Errorf("port %+v", c)
+	}
+	if c := got["tags.owner"]; c.Before != "team" || c.After != "ops" {
+		t.Errorf("tags.owner %+v", c)
+	}
+	for _, path := range []string{"blob", "tags.db_password"} {
+		if c := got[path]; !c.BeforeRedacted || !c.AfterRedacted || c.Before != nil || c.After != nil {
+			t.Errorf("%s %+v", path, c)
+		}
+	}
+	if len(got) != 4 {
+		t.Errorf("changes %+v", got)
+	}
+	raw, _ := json.Marshal(h)
+	for _, secret := range []string{secretBlob, secretMapKey, "rotated-blob-value-9999", "rotated-map-secret-9999"} {
+		if strings.Contains(string(raw), secret) {
+			t.Errorf("the history shows %q", secret)
+		}
+	}
+}
+
+// A read that found an object changed outside pravo is in the history of its node, with
+// what differed, though it was a plan that made it.
+func TestHistoryShowsADriftThatAPlanFound(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	r := st.Get("services.a.db")
+	next := *r
+	next.Attributes = json.RawMessage(strings.Replace(string(r.Attributes), `"port":5432`, `"port":6543`, 1))
+	txn := st.Begin("plan", "pravo plan")
+	if err := st.Refresh(&next, txn.ID()); err != nil {
+		t.Fatal(err)
+	}
+	txn.Record("services.a.db", "drift", r.Revision, next.Revision)
+	txn.RecordDiff("services.a.db", r.Attributes, next.Attributes, nil)
+	txn.Record("services.b.db", "refresh", 1, 1)
+	if err := txn.Finish("planned", "1 drifted", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{})
+	h := p.detail("services.a.db").History
+	if len(h) != 2 || h[0].Kind != "plan" || h[0].Action != "drift" || len(h[0].Attrs) != 1 || h[0].Attrs[0].Path != "port" || fmt.Sprint(h[0].Attrs[0].After) != "6543" {
+		t.Fatalf("history %+v", h)
+	}
+	if h := p.detail("services.b.db").History; len(h) != 1 {
+		t.Errorf("a refresh that found nothing is in the history: %+v", h)
 	}
 }

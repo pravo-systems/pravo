@@ -98,6 +98,18 @@ func TestApplyLooksAtALockBeforeItGivesUp(t *testing.T) {
 	t.Run("a holder that stays is waited for as long as the patience", func(t *testing.T) {
 		minPatience = 150 * time.Millisecond
 		defer func() { minPatience = patient }()
+		// The patience is several times the time that one try took, so the
+		// longest wait that is right follows the speed of the machine: a try on a
+		// slow runner takes tens of milliseconds, and ten of them are a second.
+		free := newLocks(newHarness(t).process())
+		tried := time.Now()
+		if err := free.acquire(addrs, "pravo apply", "free"); err != nil {
+			t.Fatal(err)
+		}
+		try := time.Since(tried)
+		free.release()
+		longest := min(time.Second+patienceTries*3*try, maxPatience+time.Second)
+
 		h := newHarness(t)
 		other := h.process()
 		if err := other.Lock("b", "pravo apply", "taking"); err != nil {
@@ -111,8 +123,8 @@ func TestApplyLooksAtALockBeforeItGivesUp(t *testing.T) {
 		if exitCodeOf(err) != ExitLocked {
 			t.Fatalf("acquire: %v, want exit code 4", err)
 		}
-		if took := time.Since(begun); took < 100*time.Millisecond || took > time.Second {
-			t.Errorf("the rejection took %s, want about the patience of %s", took, minPatience)
+		if took := time.Since(begun); took < 100*time.Millisecond || took > longest {
+			t.Errorf("the rejection took %s, want about the patience of %s (at most %s)", took, minPatience, longest)
 		}
 		if got := h.backend.Count("PutIfAbsent", "locks"); got != 3 {
 			t.Errorf("%d locks were tried, want the 3 of one try: nothing is tried again while the lock on b is held", got)
@@ -330,7 +342,7 @@ func TestMoveWritesDependentsUnderTheirLocks(t *testing.T) {
 		if err := other.Lock("d2", "pravo apply", ""); err != nil {
 			t.Fatal(err)
 		}
-		_, err := e.moveNode("base", "moved", nil)
+		_, err := e.moveNode("base", "moved", nil, false)
 		if err == nil || !strings.Contains(err.Error(), "d2 depends on base") || !strings.Contains(err.Error(), "d2 is locked by pravo apply") {
 			t.Fatalf("moveNode: %v, want the lock of d2", err)
 		}
@@ -347,7 +359,7 @@ func TestMoveWritesDependentsUnderTheirLocks(t *testing.T) {
 		h, e := newMove(t)
 		a := h.engineOn(h.process(), estate("2"), Options{})
 		apply(t, a, plan(t, a)) // writes d1 and d2
-		_, err := e.moveNode("base", "moved", nil)
+		_, err := e.moveNode("base", "moved", nil, false)
 		if err == nil || !strings.Contains(err.Error(), "changed in the state since it was read") {
 			t.Fatalf("moveNode: %v, want the refusal to write from a copy that is older", err)
 		}
@@ -365,7 +377,7 @@ func TestMoveWritesDependentsUnderTheirLocks(t *testing.T) {
 
 	t.Run("nothing in the way", func(t *testing.T) {
 		h, e := newMove(t)
-		ch, err := e.moveNode("base", "moved", nil)
+		ch, err := e.moveNode("base", "moved", nil, false)
 		if err != nil || ch == nil {
 			t.Fatalf("moveNode: %v, %v", ch, err)
 		}

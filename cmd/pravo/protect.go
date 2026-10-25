@@ -79,13 +79,13 @@ func newProtectRun(cmd *cobra.Command) (*protectRun, error) {
 	return &protectRun{ctx: cmd.Context(), root: root, rf: loadReadersFile(root.Dir, flagAccessDir)}, nil
 }
 
-func (p *protectRun) local() bool { return p.root.State.Backend != "s3" }
+func (p *protectRun) local() bool { return !p.root.State.Remote() }
 
 // backend returns the backend of the state. A local directory that does not
 // exist is created only when write is set.
 func (p *protectRun) backend(write bool) (state.Backend, error) {
 	if !p.local() {
-		return s3Backend(p.ctx, p.root)
+		return remoteBackend(p.ctx, p.root)
 	}
 	path := p.root.StateFile()
 	if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
@@ -111,6 +111,9 @@ func (p *protectRun) refuseLocal(allow bool) error {
 // location is where the state is, as the commands print it.
 func (p *protectRun) location() string {
 	if !p.local() {
+		if p.root.State.Backend == "http" {
+			return strings.TrimRight(p.root.State.URL, "/")
+		}
 		return "s3://" + path3(p.root.State.Bucket, p.root.State.Prefix)
 	}
 	loc := displayPath(p.root.StateFile())
@@ -554,10 +557,10 @@ func (p *protectRun) check(allowLocal bool) error {
 	return nil
 }
 
-// probeLines runs the probes of an S3 store and returns the two lines of
+// probeLines runs the probes of an S3 or http store and returns the two lines of
 // "Conditional", and the error of the first check that failed.
 func (p *protectRun) probeLines(b state.Backend) ([2]string, error) {
-	sb, ok := b.(*state.S3Backend)
+	sb, ok := b.(state.Prober)
 	if !ok {
 		return [2]string{"a local directory: compare-and-swap is a lock of one user (--allow-local)"}, nil
 	}
@@ -835,7 +838,7 @@ func (p *protectRun) init(yes, allowLocal bool, recoverySpec string) error {
 	} else if !ok {
 		return errors.New("protect init cancelled; nothing was written")
 	}
-	if sb, ok := b.(*state.S3Backend); ok {
+	if sb, ok := b.(state.Prober); ok {
 		if err := sb.ProbeSteps(p.ctx, nil); err != nil {
 			return err
 		}

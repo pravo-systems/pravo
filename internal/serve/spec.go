@@ -34,8 +34,9 @@ type specState struct {
 
 	// edges maps a node to the nodes it reads, from the specification.
 	edges map[string][]string
-	// refs maps a node to where its struct is written.
-	refs map[string]*Ref
+	// refs maps a node to where its struct is written, and discRefs a discovery.
+	refs     map[string]*Ref
+	discRefs map[string]*Ref
 	// allowed lists the files that Root.Sources names, cleaned.
 	allowed map[string]bool
 	// real maps each of them to the file it resolved to when the specification was
@@ -69,7 +70,7 @@ type specState struct {
 // loadSpec loads the specification of the project. A specification that does
 // not load is not an error: the viewer shows the state alone.
 func loadSpec(opts Options, sig string) *specState {
-	ss := &specState{sig: sig, loaded: time.Now().UTC(), edges: map[string][]string{}, refs: map[string]*Ref{},
+	ss := &specState{sig: sig, loaded: time.Now().UTC(), edges: map[string][]string{}, refs: map[string]*Ref{}, discRefs: map[string]*Ref{},
 		allowed: map[string]bool{}, real: map[string]string{}, namespaces: map[string][2]*Ref{}, byPath: map[string]*config.Resource{},
 		abs: map[string]string{}, typeDefs: map[string]*Ref{}, outputs: map[string]*config.Output{}}
 	dir := opts.Dir
@@ -128,6 +129,11 @@ func loadSpec(opts Options, sig string) *specState {
 		}
 		if ref := ss.refOf(root.Value.LookupPath(r.Path)); ref != nil {
 			ss.refs[r.Address()] = ref
+		}
+	}
+	for _, d := range root.Discoveries {
+		if ref := ss.refOf(root.Value.LookupPath(d.Path)); ref != nil {
+			ss.discRefs[d.Name] = ref
 		}
 	}
 	for _, o := range root.Outputs {

@@ -9,7 +9,7 @@ The CUE packages that pravo init writes under cue.mod/gen, one per provider and 
 | Import path | Contents |
 |---|---|
 | `pravo.dev/pravo` | `#Settings`, `#Output`, `#Env`, `#SecretEnv`, `#RemoteOutputs`, `#Movable` and the types of the `state` setting. |
-| `pravo.dev/providers/<namespace>/<type>` | One provider: `#Provider`, with `#Resource`, `#Data`, `#Ephemeral` and `#Function` as members, and `#Lifecycle`. |
+| `pravo.dev/providers/<namespace>/<type>` | One provider: `#Provider`, with `#Resource`, `#Data`, `#Ephemeral`, `#Discovery` and `#Function` as members, and `#Lifecycle`. |
 | `pravo.dev/providers/<host>/<namespace>/<type>` | A provider from a registry other than the default one. |
 
 Work in an empty directory.
@@ -97,10 +97,11 @@ Output:
 #SecretEnv: {
 #RemoteOutputs: {
 #Settings: {
-#StateSettings: #StateFields & (#LocalState | #S3State)
+#StateSettings: #StateFields & (#LocalState | #S3State | #HTTPState)
 #StateFields: {
 #LocalState: {
 #S3State: {
+#HTTPState: {
 ```
 
 ## The provider package
@@ -109,10 +110,11 @@ A provider package declares:
 
 | Definition | Contents |
 |---|---|
-| `#Provider` | The provider's configuration, the `$` fields and the four members below. |
+| `#Provider` | The provider's configuration, the `$` fields and the members below. |
 | `#Provider.#Resource.<type>` | One definition per managed resource type. |
 | `#Provider.#Data.<type>` | One per data source. |
 | `#Provider.#Ephemeral.<type>` | One per ephemeral resource. |
+| `#Provider.#Discovery.<type>` | One per list resource type: the attributes of the list are the scope, `$limit` bounds a run, and `$ack` lists the acknowledged objects. A provider that cannot list has none. |
 | `#Provider.#Function.<name>` | One per provider-defined function: `args` and `result`. |
 | `#Lifecycle` | The shape of `$lifecycle`. A specification does not use it directly. |
 

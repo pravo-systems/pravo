@@ -34,35 +34,46 @@
       "expect_exit": 0,
       "line": 253,
       "ok": true,
-      "output": "pravo will perform the following actions:\n\n  # random_pet.server was moved to server (record renamed; no change to the object)\n\n  # local_file.motd was moved to motd (record renamed; no change to the object)\n\n  # local_file.note_alpha was moved to note.alpha (record renamed; no change to the object)\n\n  # local_file.note_beta was moved to note.beta (record renamed; no change to the object)\n\nPlan: 0 to add, 0 to change, 0 to destroy.\nGraph: planned 4 · refreshed 4 · moved 4",
+      "output": "pravo will perform the following actions:\n\n  # random_pet.server will be moved to server (record renamed; no change to the object)\n\n  # local_file.motd will be moved to motd (record renamed; no change to the object)\n\n  # local_file.note_alpha will be moved to note.alpha (record renamed; no change to the object)\n\n  # local_file.note_beta will be moved to note.beta (record renamed; no change to the object)\n\nPlan: 0 to add, 0 to change, 0 to destroy, 4 to move.\nGraph: planned 4 · refreshed 4 · to move 4",
       "stage": "main"
     },
     {
-      "block": 12,
+      "block": 11,
+      "command": "pravo apply --auto-approve",
+      "exit": 0,
+      "expect_exit": 0,
+      "hidden": true,
+      "line": 272,
+      "ok": true,
+      "output": "pravo will perform the following actions:\n\n  # random_pet.server will be moved to server (record renamed; no change to the object)\n\n  # local_file.motd will be moved to motd (record renamed; no change to the object)\n\n  # local_file.note_alpha will be moved to note.alpha (record renamed; no change to the object)\n\n  # local_file.note_beta will be moved to note.beta (record renamed; no change to the object)\n\nPlan: 0 to add, 0 to change, 0 to destroy, 4 to move.\nGraph: planned 4 · refreshed 4 · to move 4\nrandom_pet.server: moved to server\nlocal_file.motd: moved to motd\nlocal_file.note_alpha: moved to note.alpha\nlocal_file.note_beta: moved to note.beta\n\nApply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn 20260101T000000Z-0000000000000000]",
+      "stage": "main"
+    },
+    {
+      "block": 13,
       "command": "pravo plan",
       "exit": 0,
       "expect_exit": 0,
-      "line": 272,
+      "line": 278,
       "ok": true,
-      "output": "No changes. Your infrastructure matches the configuration.\nGraph: planned 4 · refreshed 4",
+      "output": "No changes. The specification matches the state. 4 records were not read; run pravo drift to compare them with the infrastructure.\nGraph: planned 0 · skipped 4 · not read 4",
       "stage": "main"
     },
     {
-      "block": 14,
+      "block": 15,
       "command": "pravo validate",
       "exit": 0,
       "expect_exit": 0,
-      "line": 283,
+      "line": 289,
       "ok": true,
       "output": "Success! 4 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 2 providers.",
       "stage": "main"
     },
     {
-      "block": 16,
+      "block": 17,
       "command": "pravo state list",
       "exit": 0,
       "expect_exit": 0,
-      "line": 291,
+      "line": 297,
       "ok": true,
       "output": "motd\nnote.alpha\nnote.beta\nserver",
       "stage": "main"
@@ -186,7 +197,7 @@
           },
           {
             "cls": "out-dim",
-            "t": "  # random_pet.server was moved to server (record renamed; no change to the object)"
+            "t": "  # random_pet.server will be moved to server (record renamed; no change to the object)"
           },
           {
             "cls": "",
@@ -194,7 +205,7 @@
           },
           {
             "cls": "out-dim",
-            "t": "  # local_file.motd was moved to motd (record renamed; no change to the object)"
+            "t": "  # local_file.motd will be moved to motd (record renamed; no change to the object)"
           },
           {
             "cls": "",
@@ -202,7 +213,7 @@
           },
           {
             "cls": "out-dim",
-            "t": "  # local_file.note_alpha was moved to note.alpha (record renamed; no change to the object)"
+            "t": "  # local_file.note_alpha will be moved to note.alpha (record renamed; no change to the object)"
           },
           {
             "cls": "",
@@ -210,7 +221,7 @@
           },
           {
             "cls": "out-dim",
-            "t": "  # local_file.note_beta was moved to note.beta (record renamed; no change to the object)"
+            "t": "  # local_file.note_beta will be moved to note.beta (record renamed; no change to the object)"
           },
           {
             "cls": "",
@@ -218,11 +229,11 @@
           },
           {
             "cls": "",
-            "t": "Plan: 0 to add, 0 to change, 0 to destroy."
+            "t": "Plan: 0 to add, 0 to change, 0 to destroy, 4 to move."
           },
           {
             "cls": "out-dim",
-            "t": "Graph: planned 4 · refreshed 4 · moved 4"
+            "t": "Graph: planned 4 · refreshed 4 · to move 4"
           }
         ]
       },
@@ -232,11 +243,11 @@
         "lines": [
           {
             "cls": "out-add",
-            "t": "No changes. Your infrastructure matches the configuration."
+            "t": "No changes. The specification matches the state. 4 records were not read; run pravo drift to compare them with the infrastructure."
           },
           {
             "cls": "out-dim",
-            "t": "Graph: planned 4 · refreshed 4"
+            "t": "Graph: planned 0 · skipped 4 · not read 4"
           }
         ]
       }
@@ -248,7 +259,7 @@
       "dst": "0 to destroy",
       "m1": ", ",
       "m2": ", ",
-      "post": ".",
+      "post": ", 4 to move.",
       "pre": "Plan: "
     },
     "tofu": "1.13.1"

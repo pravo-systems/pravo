@@ -191,14 +191,18 @@ type Store struct {
 	// ctx is the context of every call to the backend once the store is open. It
 	// carries the values of the context the store was opened with, not its
 	// cancellation.
-	ctx  context.Context
-	meta meta
+	ctx context.Context
+	// ctxMu guards ctx, which SetContext replaces while a command runs.
+	ctxMu sync.RWMutex
+	meta  meta
 
 	// mu guards the maps and meta. It is never held across a call to the
 	// backend, so a slow write does not hold up a read of the graph.
 	mu      sync.Mutex
 	nodes   map[string]*Resource
 	outputs map[string]json.RawMessage
+	// staged holds what the addresses that a plan changed in memory held before (see stage.go).
+	staged map[string]stagedNode
 	// held is what the store read or wrote of the object of each node: the version
 	// and, in format 2, the record the pointer names. A write replaces the object
 	// only if it is still that.
@@ -266,6 +270,7 @@ func OpenBackend(ctx context.Context, b Backend) (*Store, error) {
 
 // openBackend opens the store kept in b.
 func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
+	b = traced(b)
 	s := &Store{b: b, ctx: ctx, nodes: map[string]*Resource{}, held: map[string]nodeRef{}, outputs: map[string]json.RawMessage{}, nonce: newID(8)}
 	if o.Identity == nil {
 		o.Identity = NewStoreIdentity
@@ -314,7 +319,7 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 	if err := s.load(); err != nil {
 		return nil, err
 	}
-	s.ctx = context.WithoutCancel(ctx)
+	s.SetContext(ctx)
 	if sealNew {
 		id := NewStoreIdentity
 		if _, err := s.Upgrade(ctx, UpgradeOptions{To: FormatSealed, Readers: []protect.Reader{id.AsReader()}, Identity: id}); err != nil {
@@ -341,7 +346,7 @@ func (s *Store) rereadMeta(ctx context.Context, first []byte) bool {
 }
 
 func (s *Store) load() error {
-	keys, err := s.b.List(s.ctx, "resources")
+	keys, err := s.b.List(s.cx(), "resources")
 	if err != nil {
 		return err
 	}
@@ -375,7 +380,7 @@ func (s *Store) load() error {
 				if i >= len(jsonKeys) {
 					return
 				}
-				r, h, err := s.readNode(s.ctx, jsonKeys[i])
+				r, h, err := s.readNode(s.cx(), jsonKeys[i])
 				results[i].r, results[i].h, results[i].err = r, h, err
 			}
 		}()
@@ -390,7 +395,7 @@ func (s *Store) load() error {
 			s.held[r.r.Address()] = r.h
 		}
 	}
-	data, err := s.b.Get(s.ctx, "outputs.json")
+	data, err := s.b.Get(s.cx(), "outputs.json")
 	if err == nil {
 		// A locked store lists the records and has no outputs.
 		if out, err := s.decodeOutputs(data); err == nil {
@@ -435,6 +440,26 @@ func (s *Store) SetActor(actor, reason, gitRevision string) {
 	s.actor, s.reason, s.gitRevision = actor, reason, gitRevision
 }
 
+// cx is the context the store's requests to the backend run under.
+func (s *Store) cx() context.Context {
+	s.ctxMu.RLock()
+	defer s.ctxMu.RUnlock()
+	return s.ctx
+}
+
+// SetContext makes the requests the store sends to the backend from now on part
+// of the trace in ctx, under its current span. Like the context the store was
+// opened with, it does not end the requests: a command that is interrupted still
+// records what it did.
+func (s *Store) SetContext(ctx context.Context) {
+	s.ctxMu.Lock()
+	s.ctx = context.WithoutCancel(ctx)
+	s.ctxMu.Unlock()
+}
+
+// Context is the context the store's requests run under (see SetContext).
+func (s *Store) Context() context.Context { return s.cx() }
+
 // SetTrace records the OpenTelemetry trace id stored on new transactions.
 func (s *Store) SetTrace(traceID string) { s.traceID = traceID }
 
@@ -478,7 +503,7 @@ func (s *Store) putJSON(key string, v any) error {
 	if err != nil {
 		return err
 	}
-	return s.b.Put(s.ctx, key, data)
+	return s.b.Put(s.cx(), key, data)
 }
 
 // newTxnID returns the id of a transaction: the UTC time and six hex digits.
@@ -505,6 +530,9 @@ func (s *Store) Get(addr string) *Resource {
 // from the copy it read, verifies it first, or it would write over what another
 // command wrote before the lock was taken.
 func (s *Store) Verify(addr string) error {
+	if s.Staged(addr) {
+		return nil // there is no record in the backend to differ from
+	}
 	cur, found, err := s.head(addr)
 	if err != nil {
 		return err
@@ -533,7 +561,7 @@ type Version struct {
 // head reads the version of the record at addr from the backend. found is false
 // when there is no record.
 func (s *Store) head(addr string) (v Version, found bool, err error) {
-	data, err := s.b.Get(s.ctx, nodeKey(addr))
+	data, err := s.b.Get(s.cx(), nodeKey(addr))
 	switch {
 	case errors.Is(err, ErrNotFound):
 		return Version{}, false, nil
@@ -640,6 +668,9 @@ var ErrChanged = errors.New("the record changed in the state since it was read")
 // would replace what another process wrote with what this one read before.
 func (s *Store) Refresh(r *Resource, txn string) error {
 	addr := r.Address()
+	if s.writeStaged(r, addr, false) {
+		return nil
+	}
 	mu := s.stripe(addr)
 	mu.Lock()
 	defer mu.Unlock()
@@ -670,6 +701,9 @@ func (s *Store) Refresh(r *Resource, txn string) error {
 // Set writes a node, bumping its revision. txn is recorded on the node and
 // may be empty.
 func (s *Store) Set(r *Resource, txn string) error {
+	if s.writeStaged(r, r.Address(), false) {
+		return nil
+	}
 	mu := s.stripe(r.Address())
 	mu.Lock()
 	defer mu.Unlock()
@@ -681,6 +715,18 @@ func (s *Store) Set(r *Resource, txn string) error {
 // write like Set: the revision moves, and a plan made against the node is stale.
 // It returns the revision before and after, and false when there is no node.
 func (s *Store) Invalidate(addr, txn string) (before, after int, found bool, err error) {
+	if s.Staged(addr) {
+		s.mu.Lock()
+		prev, ok := s.nodes[addr]
+		s.mu.Unlock()
+		if !ok {
+			return 0, 0, false, nil
+		}
+		n := *prev
+		n.RefreshedAt = nil
+		s.writeStaged(&n, addr, false)
+		return prev.Revision, prev.Revision, true, nil
+	}
 	mu := s.stripe(addr)
 	mu.Lock()
 	defer mu.Unlock()
@@ -757,6 +803,13 @@ func sameTime(a, b *time.Time) bool {
 
 // Remove deletes the node at addr and reports whether it existed.
 func (s *Store) Remove(addr string) (bool, error) {
+	if s.Staged(addr) {
+		s.mu.Lock()
+		_, ok := s.nodes[addr]
+		s.mu.Unlock()
+		s.writeStaged(nil, addr, true)
+		return ok, nil
+	}
 	mu := s.stripe(addr)
 	mu.Lock()
 	defer mu.Unlock()
@@ -803,7 +856,7 @@ func (s *Store) ReloadOutputs() (map[string]json.RawMessage, error) {
 // object outputs.json at all. A state whose outputs were never written has no
 // such object, and a root that reads these outputs refuses it.
 func (s *Store) LoadOutputs() (outputs map[string]json.RawMessage, present bool, err error) {
-	data, err := s.b.Get(s.ctx, "outputs.json")
+	data, err := s.b.Get(s.cx(), "outputs.json")
 	out := map[string]json.RawMessage{}
 	switch {
 	case err == nil:
@@ -842,7 +895,7 @@ func (s *Store) setOutputs(outputs map[string]json.RawMessage) error {
 	if err != nil {
 		return err
 	}
-	if err := s.b.Put(s.ctx, "outputs.json", data); err != nil {
+	if err := s.b.Put(s.cx(), "outputs.json", data); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -902,7 +955,7 @@ func (s *Store) lockOutputs() (func(), error) {
 	unreadable := false
 	misses := 0
 	for {
-		created, err := s.b.PutIfAbsent(s.ctx, outputsLockKey, data)
+		created, err := s.b.PutIfAbsent(s.cx(), outputsLockKey, data)
 		unknown := errors.Is(err, ErrUnknownOutcome)
 		if err != nil && !unknown {
 			return nil, err
@@ -937,7 +990,7 @@ func (s *Store) lockOutputs() (func(), error) {
 		unreadable = rerr != nil
 		if gone {
 			// Deleted only if it is still the object that was judged.
-			_, _ = s.b.DeleteIf(s.ctx, outputsLockKey, func(current []byte) bool { return bytes.Equal(current, raw) })
+			_, _ = s.b.DeleteIf(s.cx(), outputsLockKey, func(current []byte) bool { return bytes.Equal(current, raw) })
 			unreadable = false
 		}
 		if time.Now().After(deadline) {
@@ -955,7 +1008,7 @@ func (s *Store) lockOutputs() (func(), error) {
 
 // unlockOutputs releases the lock on outputs.json if this process holds it.
 func (s *Store) unlockOutputs() {
-	_, _ = s.b.DeleteIf(s.ctx, outputsLockKey, func(current []byte) bool {
+	_, _ = s.b.DeleteIf(s.cx(), outputsLockKey, func(current []byte) bool {
 		var l Lock
 		return json.Unmarshal(current, &l) == nil && l.Nonce == s.nonce
 	})
@@ -964,7 +1017,7 @@ func (s *Store) unlockOutputs() {
 // readOutputsLock reads the lock on outputs.json with the bytes it was read from.
 func (s *Store) readOutputsLock() ([]byte, Lock, error) {
 	var l Lock
-	data, err := s.b.Get(s.ctx, outputsLockKey)
+	data, err := s.b.Get(s.cx(), outputsLockKey)
 	if err != nil {
 		return nil, l, err
 	}
@@ -1265,7 +1318,7 @@ func (s *Store) Lock(addr, command, txn string) error {
 // taken again since is another object and is left alone: of two processes that
 // judge the same lock gone, one deletes it and the other deletes nothing.
 func (s *Store) deleteLock(addr string, raw []byte) bool {
-	ok, _ := s.b.DeleteIf(s.ctx, lockKey(addr), func(current []byte) bool { return bytes.Equal(current, raw) })
+	ok, _ := s.b.DeleteIf(s.cx(), lockKey(addr), func(current []byte) bool { return bytes.Equal(current, raw) })
 	return ok
 }
 
@@ -1277,7 +1330,7 @@ func (s *Store) lock(addr, command, txn string, keep bool) (bool, error) {
 	l := s.newLock(addr, command, txn)
 	data, _ := indentJSON(l)
 	for attempt := 0; attempt < 3; attempt++ {
-		created, err := s.b.PutIfAbsent(s.ctx, lockKey(addr), data)
+		created, err := s.b.PutIfAbsent(s.cx(), lockKey(addr), data)
 		// A write of unknown outcome is not acquired, as a refusal is not, and the
 		// lock is read: if the store holds the bytes written, this call took it.
 		unknown := errors.Is(err, ErrUnknownOutcome)
@@ -1339,7 +1392,7 @@ func (s *Store) TxnRunning(id string) bool {
 	if id == "" {
 		return false
 	}
-	data, err := s.b.Get(s.ctx, "txn/"+id+".json")
+	data, err := s.b.Get(s.cx(), "txn/"+id+".json")
 	if err != nil {
 		return false
 	}
@@ -1430,7 +1483,7 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 		l.Kind = "reservation"
 		l.Expires = &until
 		data, _ := indentJSON(l)
-		created, err := s.b.PutIfAbsent(s.ctx, lockKey(addr), data)
+		created, err := s.b.PutIfAbsent(s.cx(), lockKey(addr), data)
 		unknown := errors.Is(err, ErrUnknownOutcome)
 		if err != nil && !unknown {
 			return time.Time{}, nil, err
@@ -1466,7 +1519,7 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 			}
 			data, _ = indentJSON(l)
 			// The reservation is replaced only if it is still the one that was read.
-			ok, err := s.b.ReplaceIf(s.ctx, lockKey(addr), func(current []byte) ([]byte, bool) { return data, bytes.Equal(current, raw) })
+			ok, err := s.b.ReplaceIf(s.cx(), lockKey(addr), func(current []byte) ([]byte, bool) { return data, bytes.Equal(current, raw) })
 			switch {
 			case errors.Is(err, ErrNotFound):
 				continue
@@ -1504,7 +1557,7 @@ func (s *Store) undoReserve(addr string, prev *Lock) {
 		return
 	}
 	data, _ := indentJSON(prev)
-	_, _ = s.b.ReplaceIf(s.ctx, lockKey(addr), func(current []byte) ([]byte, bool) {
+	_, _ = s.b.ReplaceIf(s.cx(), lockKey(addr), func(current []byte) ([]byte, bool) {
 		var cur Lock
 		return data, json.Unmarshal(current, &cur) == nil && cur.Nonce == s.nonce
 	})
@@ -1521,12 +1574,12 @@ func (s *Store) Release(addr string, force bool) (bool, error) {
 		return false, err
 	}
 	if force {
-		return true, s.b.Delete(s.ctx, lockKey(addr))
+		return true, s.b.Delete(s.cx(), lockKey(addr))
 	}
 	if !s.OwnsReservation(l) && l.Nonce != s.nonce {
 		return false, &ErrLocked{Lock: l}
 	}
-	ok, err := s.b.DeleteIf(s.ctx, lockKey(addr), func(current []byte) bool { return bytes.Equal(current, raw) })
+	ok, err := s.b.DeleteIf(s.cx(), lockKey(addr), func(current []byte) bool { return bytes.Equal(current, raw) })
 	if errors.Is(err, ErrNotFound) {
 		return false, nil
 	}
@@ -1563,7 +1616,7 @@ func (s *Store) readLock(addr string) (Lock, error) {
 // are returned when the lock cannot be parsed.
 func (s *Store) readLockRaw(addr string) ([]byte, Lock, error) {
 	var l Lock
-	data, err := s.b.Get(s.ctx, lockKey(addr))
+	data, err := s.b.Get(s.cx(), lockKey(addr))
 	if err != nil {
 		return nil, l, err
 	}
@@ -1582,7 +1635,7 @@ func (s *Store) Renew(addr string) error {
 		other  Lock
 		broken error
 	)
-	ok, err := s.b.ReplaceIf(s.ctx, lockKey(addr), func(current []byte) ([]byte, bool) {
+	ok, err := s.b.ReplaceIf(s.cx(), lockKey(addr), func(current []byte) ([]byte, bool) {
 		var l Lock
 		if err := json.Unmarshal(current, &l); err != nil {
 			broken = err
@@ -1617,7 +1670,7 @@ func (s *Store) Unlock(addr string) error {
 		other  Lock
 		broken error
 	)
-	ok, err := s.b.DeleteIf(s.ctx, lockKey(addr), func(current []byte) bool {
+	ok, err := s.b.DeleteIf(s.cx(), lockKey(addr), func(current []byte) bool {
 		var l Lock
 		if err := json.Unmarshal(current, &l); err != nil {
 			broken = err
@@ -1653,7 +1706,7 @@ func (s *Store) ForceUnlock(addr string) (bool, error) {
 	if errors.Is(err, ErrNotFound) {
 		return false, nil
 	}
-	return true, s.b.Delete(s.ctx, lockKey(addr))
+	return true, s.b.Delete(s.cx(), lockKey(addr))
 }
 
 // ReleaseStale releases every lock and reservation that may be reclaimed, and
@@ -1670,7 +1723,7 @@ func (s *Store) ReleaseStale() ([]string, error) {
 		if !l.Stale {
 			continue
 		}
-		ok, err := s.b.DeleteIf(s.ctx, lockKey(l.Addr), func(current []byte) bool {
+		ok, err := s.b.DeleteIf(s.cx(), lockKey(l.Addr), func(current []byte) bool {
 			var cur Lock
 			return json.Unmarshal(current, &cur) == nil && s.stale(cur)
 		})
@@ -1701,7 +1754,7 @@ func (s *Store) TryLock(addr, command, txn string) (bool, error) {
 // that may be reclaimed: its process is gone on this host, it has not been
 // renewed for StaleAfter, or it is a reservation that has expired.
 func (s *Store) Locks() ([]Lock, error) {
-	keys, err := s.b.List(s.ctx, "locks")
+	keys, err := s.b.List(s.cx(), "locks")
 	if err != nil {
 		return nil, err
 	}
@@ -1710,7 +1763,7 @@ func (s *Store) Locks() ([]Lock, error) {
 		if !strings.HasSuffix(k, ".lock") {
 			continue
 		}
-		data, err := s.b.Get(s.ctx, k)
+		data, err := s.b.Get(s.cx(), k)
 		if err != nil {
 			continue
 		}
@@ -1786,6 +1839,9 @@ type Change struct {
 	Action string `json:"action"`
 	Before int    `json:"before_revision,omitempty"`
 	After  int    `json:"after_revision,omitempty"`
+	// Diff is what the change did to the attributes of the record. A sealed state
+	// keeps it in Transaction.DiffSealed and leaves this empty.
+	Diff *Diff `json:"diff,omitempty"`
 }
 
 // Transaction records one plan, apply, destroy or import run.
@@ -1803,7 +1859,10 @@ type Transaction struct {
 	// was rejected, in a sealed state, where Summary says only that the text is
 	// sealed. It is bound to the id of the transaction.
 	SummarySealed *protect.Sealed `json:"summary_sealed,omitempty"`
-	Changes       []Change        `json:"changes"`
+	// DiffSealed holds, in a sealed state, the Diff of each change by address. It is
+	// bound to the id of the transaction and is not covered by the signatures.
+	DiffSealed *protect.Sealed `json:"diff_sealed,omitempty"`
+	Changes    []Change        `json:"changes"`
 	// Actor, Reason and GitRevision attribute the run: who (a person or
 	// an agent), why, and which revision of the specification.
 	Actor       string `json:"actor,omitempty"`
@@ -1914,6 +1973,9 @@ func (t *Txn) FinishError(status, summary, full string, record bool) error {
 		}
 	}
 	sort.Slice(t.t.Changes, func(i, j int) bool { return t.t.Changes[i].Addr < t.t.Changes[j].Addr })
+	if t.store.sealedState() {
+		t.store.sealDiffs(&t.t)
+	}
 	if err := t.store.writable(); err != nil {
 		return err
 	}
@@ -1977,19 +2039,32 @@ func (s *Store) resealSummaries(ctx context.Context, current string) error {
 			return err
 		}
 		var t Transaction
-		if json.Unmarshal(data, &t) != nil || t.SummarySealed == nil || t.SummarySealed.Group == current {
+		if json.Unmarshal(data, &t) != nil {
 			continue
 		}
-		plain, err := sl.Open(protect.KindSummary, t.ID, *t.SummarySealed)
-		if err != nil {
+		changed := false
+		for _, b := range []struct {
+			box  **protect.Sealed
+			kind string
+		}{{&t.SummarySealed, protect.KindSummary}, {&t.DiffSealed, protect.KindDiff}} {
+			if *b.box == nil || (*b.box).Group == current {
+				continue
+			}
+			plain, err := sl.Open(b.kind, t.ID, **b.box)
+			if err != nil {
+				continue
+			}
+			box, err := sl.Seal(b.kind, t.ID, plain)
+			clear(plain)
+			if err != nil {
+				return err
+			}
+			*b.box = &box
+			changed = true
+		}
+		if !changed {
 			continue
 		}
-		box, err := sl.Seal(protect.KindSummary, t.ID, plain)
-		clear(plain)
-		if err != nil {
-			return err
-		}
-		t.SummarySealed = &box
 		next, err := indentJSON(t)
 		if err != nil {
 			return err
@@ -2003,7 +2078,7 @@ func (s *Store) resealSummaries(ctx context.Context, current string) error {
 
 // Transactions lists recorded transactions, newest first.
 func (s *Store) Transactions() ([]Transaction, error) {
-	keys, err := s.b.List(s.ctx, "txn")
+	keys, err := s.b.List(s.cx(), "txn")
 	if err != nil {
 		return nil, err
 	}
@@ -2012,7 +2087,7 @@ func (s *Store) Transactions() ([]Transaction, error) {
 		if !strings.HasSuffix(k, ".json") {
 			continue
 		}
-		data, err := s.b.Get(s.ctx, k)
+		data, err := s.b.Get(s.cx(), k)
 		if err != nil {
 			continue
 		}

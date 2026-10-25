@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"sort"
 
 	"github.com/pravo-systems/pravo/internal/convert"
@@ -147,7 +148,7 @@ func (p *Plan) writeAddrs() []string {
 // NeedsApply reports whether applying the plan writes a record or an output, or
 // removes an output.
 func (p *Plan) NeedsApply() bool {
-	return len(p.Policies) > 0 || len(p.EvalOutputs) > 0 || len(p.DropOutputs) > 0 || len(p.writeAddrs()) > 0
+	return len(p.Policies) > 0 || len(p.EvalOutputs) > 0 || len(p.DropOutputs) > 0 || len(p.writeAddrs()) > 0 || p.HasDeclared()
 }
 
 // scopeFor computes what the apply of the plan walks. The nodes it writes run.
@@ -261,6 +262,17 @@ func (e *Engine) frontier(plan *Plan) error {
 	plan.Write = plan.writeAddrs()
 	plan.EvalOutputs = e.outputsToEval(plan)
 	plan.DropOutputs = e.outputsToDrop()
+	recorded := e.State.Outputs()
+	for _, names := range [][]string{plan.EvalOutputs, plan.DropOutputs} {
+		for _, n := range names {
+			if old, ok := recorded[n]; ok {
+				if plan.OldOutputs == nil {
+					plan.OldOutputs = map[string]json.RawMessage{}
+				}
+				plan.OldOutputs[n] = old
+			}
+		}
+	}
 	sc, err := e.scopeFor(plan)
 	if err != nil {
 		return err

@@ -32,6 +32,7 @@ Every page opens with the synopsis, the flags with their defaults, and the exit 
 | `pravo output` | Prints the outputs the last apply recorded. | [output](output.md) |
 | `pravo state` | Lists, shows, moves and forgets nodes. Reads the log and the locks. Queries, copies and converts the state. | [state](state.md) |
 | `pravo import` | Brings an existing object under management. | [import](import.md) |
+| `pravo discover` | Lists the objects that exist in a scope, shows the ones that nothing manages, shows the ones that are meant to stay apart, and writes the resource that adopts one. | [discover](discover.md) |
 | `pravo providers` | Lists providers, pins hashes, copies a provider to a registry. | [providers](providers.md) |
 | `pravo validate`, `eval`, `fmt`, `gen` | Checks the specification, prints its value, formats the files, regenerates the packages. | [validate, eval, fmt and gen](validate-eval-fmt-gen.md) |
 | `pravo schema` | Prints the definition of one resource type. | [schema](schema.md) |
@@ -83,6 +84,7 @@ A plan policy is a CUE file that a plan must satisfy.
 | [Telemetry](telemetry.md) | Traces and metrics. |
 | [Compatibility](compatibility.md) | Which versions work together. |
 | [S3-compatible stores](s3-stores.md) | The conditional requests that locks need, and how to test a store. |
+| [HTTP state servers](http-stores.md) | The object protocol of the http backend, and how pravo checks a server. |
 
 ## Lookup
 

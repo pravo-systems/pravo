@@ -1,0 +1,611 @@
+package engine
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/state"
+)
+
+// DiscoveryStatus says what a discovered object is to the specification and the
+// state.
+type DiscoveryStatus string
+
+const (
+	// Unmanaged is an object that no record, no $import and no acknowledgement
+	// accounts for. It is the one that is shown as asking to be adopted.
+	Unmanaged DiscoveryStatus = "unmanaged"
+	// Acknowledged is an object that an acknowledgement covers: someone knows it is
+	// unmanaged and means to leave it.
+	Acknowledged DiscoveryStatus = "acknowledged"
+	// Adopting is an object that a resource of the specification names in $import
+	// and that has no record yet: the next apply brings it under management.
+	Adopting DiscoveryStatus = "adopting"
+	// Managed is an object that a record of the state is. It is counted and left
+	// alone.
+	Managed DiscoveryStatus = "managed"
+)
+
+// DiscoveryFreshness says whether the last run of a discovery is the run of the
+// discovery as it is written now.
+type DiscoveryFreshness string
+
+const (
+	// FreshCurrent: the last run listed in the scope that is written now.
+	FreshCurrent DiscoveryFreshness = "current"
+	// FreshStale: the scope, the limit, the type or the provider changed since the
+	// last run, so what it found answers another question. Run the discovery again.
+	FreshStale DiscoveryFreshness = "stale"
+	// FreshNever: the discovery has not been run.
+	FreshNever DiscoveryFreshness = "never"
+	// FreshBroken: the scope cannot be listed with, so no run is possible.
+	FreshBroken DiscoveryFreshness = "broken"
+	// FreshUndeclared: the state holds a run of a discovery that the specification
+	// no longer has.
+	FreshUndeclared DiscoveryFreshness = "undeclared"
+)
+
+// DiscoveredItem is a listed object with what is known of it.
+type DiscoveredItem struct {
+	state.Listed
+	Status DiscoveryStatus
+	// By says what decided the status: the address of the record that is the object
+	// (Managed), of the resource that adopts it (Adopting), or the entry of $ack that
+	// covers it, such as "$ack[0]" (Acknowledged).
+	By string
+	// Reason is the reason of the $ack entry.
+	Reason string
+}
+
+// DiscoveryView is one discovery with the last run of it, seen against the state.
+type DiscoveryView struct {
+	Name        string
+	Type        string
+	Provider    string
+	ProviderKey string
+	Declared    bool
+	Freshness   DiscoveryFreshness
+	// ScopeErr is why a discovery that is Broken cannot run.
+	ScopeErr string
+	// Scope and Limit are the ones in the specification when it is declared, else the
+	// ones of the last run.
+	Scope map[string]any
+	Limit int64
+	Run   *state.DiscoveryRun
+	// Items are the objects of the last run: unmanaged first, then adopting,
+	// acknowledged and managed, each by display name and id.
+	Items  []DiscoveredItem
+	Counts map[DiscoveryStatus]int
+	// Unreadable counts the records of the type that could not be read, so that the
+	// objects they are may be listed as unmanaged.
+	Unreadable int
+	// Acks are the $ack entries of the discovery, as the specification has them now.
+	Acks []*config.Ack
+}
+
+// Unmanaged returns the items that ask to be adopted.
+func (v *DiscoveryView) Unmanaged() []DiscoveredItem { return v.WithStatus(Unmanaged) }
+
+// WithStatus returns the items that have the status, in the order of the view.
+func (v *DiscoveryView) WithStatus(s DiscoveryStatus) []DiscoveredItem {
+	var out []DiscoveredItem
+	for _, it := range v.Items {
+		if it.Status == s {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+// DiscoveryReport is every discovery.
+type DiscoveryReport struct {
+	Views []*DiscoveryView
+}
+
+// View finds a discovery's view by name.
+func (r *DiscoveryReport) View(name string) *DiscoveryView {
+	for _, v := range r.Views {
+		if v.Name == name {
+			return v
+		}
+	}
+	return nil
+}
+
+// DiscoveryInputs is what a report is made from. The caller reads each of them;
+// nothing here reads the state or starts a provider.
+type DiscoveryInputs struct {
+	Root    *config.Root
+	Runs    map[string]*state.DiscoveryRun
+	Records []*state.Resource
+}
+
+// BuildDiscoveryReport sets every discovery against the state. The discoveries of
+// the specification come first, in the order they were found, then the ones that
+// only the state holds a run of, by name.
+func BuildDiscoveryReport(in DiscoveryInputs) *DiscoveryReport {
+	// Only the records of a type that some run listed are read: the attributes of a
+	// large state are decoded for nothing otherwise.
+	listed := map[string]bool{}
+	for _, run := range in.Runs {
+		listed[run.Type] = true
+	}
+	for _, d := range in.Root.Discoveries {
+		listed[d.Type] = true
+	}
+	idx := indexRecords(in.Records, listed)
+	adopts := adoptions(in.Root)
+	rep := &DiscoveryReport{}
+	declared := map[string]bool{}
+	for _, d := range in.Root.Discoveries {
+		declared[d.Name] = true
+		v := &DiscoveryView{Name: d.Name, Type: d.Type, Provider: d.Source.String(), ProviderKey: d.ProviderKey, Declared: true,
+			Scope: d.Scope, Limit: d.Limit, Run: in.Runs[d.Name], Acks: d.Acks}
+		switch {
+		case d.ScopeErr != nil:
+			v.Freshness, v.ScopeErr = FreshBroken, d.ScopeErr.Error()
+		case v.Run == nil:
+			v.Freshness = FreshNever
+		case v.Run.Digest != d.Digest:
+			v.Freshness = FreshStale
+		default:
+			v.Freshness = FreshCurrent
+		}
+		v.fill(idx, adopts)
+		rep.Views = append(rep.Views, v)
+	}
+	var extra []string
+	for name := range in.Runs {
+		if !declared[name] {
+			extra = append(extra, name)
+		}
+	}
+	sort.Strings(extra)
+	for _, name := range extra {
+		run := in.Runs[name]
+		v := &DiscoveryView{Name: name, Type: run.Type, Provider: run.Provider, ProviderKey: run.ProviderKey, Freshness: FreshUndeclared,
+			Scope: run.Scope, Limit: run.Limit, Run: run}
+		v.fill(idx, adopts)
+		rep.Views = append(rep.Views, v)
+		declared[name] = true
+	}
+	return rep
+}
+
+// fill sets the status of every object of the last run.
+func (v *DiscoveryView) fill(idx map[string][]recordIdentity, adopts map[string][]adoption) {
+	v.Counts = map[DiscoveryStatus]int{}
+	recs := idx[v.Type]
+	for _, r := range recs {
+		if r.unreadable {
+			v.Unreadable++
+		}
+	}
+	if v.Run == nil {
+		return
+	}
+	for _, l := range v.Run.Items {
+		it := DiscoveredItem{Listed: l, Status: Unmanaged}
+		if addr, ok := managedBy(l, recs); ok {
+			it.Status, it.By = Managed, addr
+		} else if addr, ok := adoptedBy(l, adopts[v.Type]); ok {
+			it.Status, it.By = Adopting, addr
+		} else if a := coveredBy(l, v.Acks); a != nil {
+			it.Status, it.By, it.Reason = Acknowledged, a.Ref(), a.Reason
+		}
+		v.Counts[it.Status]++
+		v.Items = append(v.Items, it)
+	}
+	rank := map[DiscoveryStatus]int{Unmanaged: 0, Adopting: 1, Acknowledged: 2, Managed: 3}
+	sort.SliceStable(v.Items, func(i, j int) bool {
+		a, b := v.Items[i], v.Items[j]
+		if rank[a.Status] != rank[b.Status] {
+			return rank[a.Status] < rank[b.Status]
+		}
+		if a.Name != b.Name {
+			return a.Name < b.Name
+		}
+		return a.ID < b.ID
+	})
+}
+
+func coveredBy(l state.Listed, acks []*config.Ack) *config.Ack {
+	for _, a := range acks {
+		if a.Covers(l.ID, l.Key, l.Name) {
+			return a
+		}
+	}
+	return nil
+}
+
+// A record of the state, reduced to what an identity is compared with.
+type recordIdentity struct {
+	addr       string
+	attrs      map[string]string
+	unreadable bool
+}
+
+func indexRecords(records []*state.Resource, types map[string]bool) map[string][]recordIdentity {
+	idx := map[string][]recordIdentity{}
+	for _, r := range records {
+		if r.Mode != "managed" || !types[r.Type] {
+			continue
+		}
+		ri := recordIdentity{addr: r.Address(), attrs: map[string]string{}}
+		var attrs map[string]any
+		dec := json.NewDecoder(bytes.NewReader(r.Attributes))
+		dec.UseNumber()
+		if len(r.Attributes) == 0 || dec.Decode(&attrs) != nil {
+			ri.unreadable = true
+		}
+		for k, v := range attrs {
+			switch v.(type) {
+			case string, json.Number, bool:
+				ri.attrs[k] = scalarText(v)
+			}
+		}
+		idx[r.Type] = append(idx[r.Type], ri)
+	}
+	return idx
+}
+
+func scalarText(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case json.Number:
+		return x.String()
+	}
+	return fmt.Sprint(v)
+}
+
+// scoping names the identity attributes that say where an object is, not which one
+// it is: two objects of one type in one region share them. An identity is matched
+// to a record only if an attribute that is not one of these agrees as well.
+var scoping = map[string]bool{
+	"region": true, "account_id": true, "account": true, "project": true, "project_id": true,
+	"subscription_id": true, "location": true, "zone": true, "tenant_id": true,
+	"organization": true, "organization_id": true,
+}
+
+// managedBy finds the record that is the listed object. An identity matches a
+// record of the same type when every attribute of the identity that the record
+// also has is equal, and at least one of those says which object it is. A record
+// that does not carry the attributes of the identity cannot be matched, and the
+// object is then listed as unmanaged: a miss shows an object that is managed, a
+// false match would hide one that is not.
+func managedBy(l state.Listed, recs []recordIdentity) (string, bool) {
+	for _, r := range recs {
+		if r.unreadable {
+			continue
+		}
+		hit, strong := 0, false
+		ok := true
+		for name, v := range l.Identity {
+			if v == nil {
+				continue
+			}
+			rv, has := r.attrs[name]
+			if !has {
+				continue
+			}
+			if rv != identityText(v) {
+				ok = false
+				break
+			}
+			hit++
+			if !scoping[name] {
+				strong = true
+			}
+		}
+		if ok && hit > 0 && strong {
+			return r.addr, true
+		}
+	}
+	return "", false
+}
+
+func identityText(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprint(v)
+	}
+	return string(b)
+}
+
+// adoption is a resource that names an object in $import: by an id, or by an
+// identity.
+type adoption struct {
+	addr, id string
+	identity map[string]any
+}
+
+// adoptions lists, by type, the resources of the specification that name an
+// object in $import.
+func adoptions(root *config.Root) map[string][]adoption {
+	out := map[string][]adoption{}
+	addrs := make([]string, 0, len(root.Imports))
+	for addr := range root.Imports {
+		addrs = append(addrs, addr)
+	}
+	sort.Strings(addrs)
+	for _, addr := range addrs {
+		res := root.Resource(addr)
+		if res == nil {
+			continue
+		}
+		imp := root.Imports[addr]
+		out[res.Type] = append(out[res.Type], adoption{addr: addr, id: imp.ID, identity: imp.Identity})
+	}
+	return out
+}
+
+// namesIdentity says that the identity of an $import is the identity of a listed
+// object: every attribute that the import gives is the object's, and one of them
+// says which object it is, not where it is. An import may leave out an attribute
+// that the provider fills in, such as the region.
+func namesIdentity(imp, listed map[string]any) bool {
+	strong := false
+	for name, v := range imp {
+		lv, ok := listed[name]
+		if !ok || identityText(lv) != identityText(v) {
+			return false
+		}
+		if !scoping[name] {
+			strong = true
+		}
+	}
+	return strong
+}
+
+func adoptedBy(l state.Listed, as []adoption) (string, bool) {
+	for _, a := range as {
+		if a.identity != nil {
+			if namesIdentity(a.identity, l.Identity) {
+				return a.addr, true
+			}
+			continue
+		}
+		if a.id != "" && (a.id == l.ID || a.id == l.Key) {
+			return a.addr, true
+		}
+	}
+	return "", false
+}
+
+// SnippetName suggests the name a resource that adopts the object is given: the
+// display name, else the id, as an identifier, that no resource or provider of the
+// specification has.
+func SnippetName(root *config.Root, l state.Listed) string {
+	base := identifier(l.Name)
+	if base == "" {
+		base = identifier(l.ID)
+	}
+	if base == "" {
+		base = "adopted"
+	}
+	taken := map[string]bool{}
+	for _, r := range root.Resources {
+		taken[r.Address()] = true
+	}
+	for _, d := range root.Discoveries {
+		taken[d.Name] = true
+	}
+	for _, p := range root.ProviderDecls {
+		taken[p.Path.String()] = true
+	}
+	name := base
+	for i := 2; taken[name]; i++ {
+		name = fmt.Sprintf("%s_%d", base, i)
+	}
+	return name
+}
+
+func identifier(s string) string {
+	var b strings.Builder
+	under := false
+	for _, r := range strings.ToLower(s) {
+		switch {
+		case r >= 'a' && r <= 'z' || r >= '0' && r <= '9':
+			b.WriteRune(r)
+			under = false
+		default:
+			if b.Len() > 0 && !under {
+				b.WriteByte('_')
+				under = true
+			}
+		}
+	}
+	out := strings.TrimRight(b.String(), "_")
+	if out == "" {
+		return ""
+	}
+	if out[0] >= '0' && out[0] <= '9' {
+		out = "r_" + out
+	}
+	switch out {
+	case "package", "import", "for", "in", "if", "let", "true", "false", "null":
+		out += "_"
+	}
+	if len(out) > 60 {
+		out = strings.TrimRight(out[:60], "_")
+	}
+	return out
+}
+
+// AdoptSnippet is the CUE that brings a discovered object under management: a
+// resource of the type, built through the provider the discovery lists through,
+// that names the object in $import. body, when it is not empty, is the attributes
+// the object has, as ReadAdoption renders them; without it the resource has only
+// the import, and a plan says what it lacks.
+func AdoptSnippet(root *config.Root, d *DiscoveryView, l state.Listed, body string) string {
+	var b strings.Builder
+	prov := "$provider"
+	if p, ok := root.ProviderPath(d.ProviderKey); ok {
+		prov = p.String()
+	} else if len(root.ProviderDecls) == 1 {
+		prov = root.ProviderDecls[0].Path.String()
+	}
+	// An identity made of several attributes is no short name for the object: the
+	// display name stands for it, and the identity is written below.
+	label := d.Type
+	switch {
+	case l.Name != "" && l.ID == l.Key:
+		label += " " + quoteCUE(oneLine(l.Name))
+	case l.Name != "":
+		label += " " + quoteCUE(l.ID) + " (" + oneLine(l.Name) + ")"
+	default:
+		label += " " + quoteCUE(oneLine(l.ID))
+	}
+	fmt.Fprintf(&b, "// Adopts the %s that the discovery %s found.\n", label, oneLine(d.Name))
+	fmt.Fprintf(&b, "%s: %s.#Resource.%s & {\n", SnippetName(root, l), prov, fieldPath(d.Type))
+	// The identity is what the provider lists the object by, and what it imports it
+	// by: no id has to be told from it.
+	b.WriteString(importIdentity(l.Identity, "\t"))
+	b.WriteString(body)
+	b.WriteString("}\n")
+	return b.String()
+}
+
+// importIdentity writes $import as the identity of a listed object, a struct of
+// its attributes, one to a line. An attribute that is null is left out: the
+// provider fills it in.
+func importIdentity(identity map[string]any, indent string) string {
+	names := make([]string, 0, len(identity))
+	for n, v := range identity {
+		if v != nil {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s$import: {\n", indent)
+	for _, n := range names {
+		fmt.Fprintf(&b, "%s\t%s: %s\n", indent, fieldPath(n), cueLiteral(identity[n]))
+	}
+	fmt.Fprintf(&b, "%s}\n", indent)
+	return b.String()
+}
+
+// cueLiteral writes a value that a provider listed, a string, a number, a boolean,
+// a list or an object, as CUE.
+func cueLiteral(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return "null"
+	case string:
+		return quoteCUE(x)
+	case bool:
+		return fmt.Sprint(x)
+	case int64, int, uint64, float64, json.Number:
+		return fmt.Sprint(x)
+	case []any:
+		parts := make([]string, len(x))
+		for i, e := range x {
+			parts[i] = cueLiteral(e)
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case map[string]any:
+		names := make([]string, 0, len(x))
+		for n := range x {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		parts := make([]string, len(names))
+		for i, n := range names {
+			parts[i] = fieldPath(n) + ": " + cueLiteral(x[n])
+		}
+		return "{" + strings.Join(parts, ", ") + "}"
+	}
+	return quoteCUE(fmt.Sprint(v))
+}
+
+func fieldPath(typ string) string {
+	if identifier(typ) == typ {
+		return typ
+	}
+	return quoteCUE(typ)
+}
+
+// PlainText makes a text that someone else wrote safe to put in a line of output or
+// in a comment: a control character, which could end the line or move the cursor,
+// and a character that changes the direction of the text around it, become a space.
+func PlainText(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0):
+			return ' '
+		case r == '\u200e' || r == '\u200f' || (r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069):
+			return ' '
+		}
+		return r
+	}, s)
+}
+
+func oneLine(s string) string {
+	s = PlainText(s)
+	if len(s) > 80 {
+		s = s[:80] + "..."
+	}
+	return s
+}
+
+// quoteCUE writes s as a CUE string. The characters that change the direction of
+// the text around them are written as escapes, so that a literal reads as it is.
+func quoteCUE(s string) string {
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(s)
+	out := strings.TrimSuffix(b.String(), "\n")
+	return bidiEscaper.Replace(out)
+}
+
+var bidiEscaper = func() *strings.Replacer {
+	var pairs []string
+	for _, r := range []rune{'\u200e', '\u200f', '\u202a', '\u202b', '\u202c', '\u202d', '\u202e', '\u2066', '\u2067', '\u2068', '\u2069'} {
+		pairs = append(pairs, string(r), fmt.Sprintf("\\u%04x", r))
+	}
+	return strings.NewReplacer(pairs...)
+}()
+
+// EscapeGlob makes a pattern that matches only s, for the id of an object that is
+// written into an $ack entry: an id may hold * or ?. A pattern has no escape, and
+// ? matches the character itself, so a * is the one that cannot be written exactly.
+func EscapeGlob(s string) string {
+	return strings.ReplaceAll(s, "*", "?")
+}
+
+// AckEntry is the CUE of an entry of the $ack list of a discovery, which says that
+// the objects it matches are known and meant to stay unmanaged. A person adds it to
+// the list of the discovery in the specification: pravo does not edit the files. The
+// viewer offers it for copying.
+func AckEntry(discovery string, ids, names []string, reason string) string {
+	list := func(patterns []string) string {
+		parts := make([]string, len(patterns))
+		for i, p := range patterns {
+			parts[i] = quoteCUE(p)
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "// An entry of $ack in the discovery %s, which is the list `$ack: [...]` of its struct.\n{\n", oneLine(discovery))
+	if len(ids) > 0 {
+		fmt.Fprintf(&b, "\tids: %s\n", list(ids))
+	}
+	if len(names) > 0 {
+		fmt.Fprintf(&b, "\tnames: %s\n", list(names))
+	}
+	if reason != "" {
+		fmt.Fprintf(&b, "\treason: %s\n", quoteCUE(reason))
+	}
+	b.WriteString("}\n")
+	return b.String()
+}

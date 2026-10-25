@@ -259,8 +259,7 @@ first: Creation complete after 0s [id=7]
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 1 change remains in part.plan; apply with "pravo apply part.plan".
 
-Outputs:
-  first_value: 7
+1 output, 1 changed (first_value). See them with "pravo output" or "pravo serve".
 ```
 
 The second change is still in the plan file. Applying it records the other output:
@@ -277,9 +276,7 @@ second: Creation complete after 0s [id=1]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 
-Outputs:
-  first_value: 7
-  second_value: 1
+2 outputs, 1 changed (second_value). See them with "pravo output" or "pravo serve".
 ```
 
 ### Outputs of a partial destroy
@@ -719,7 +716,7 @@ pravo apply --json --auto-approve --replace solo 2>/dev/null | grep -E '"kind":"
 Output:
 
 ```text
-{"time":"<time>","kind":"replace","addr":"solo","phase":"done","message":"solo: Replacement complete after 0s [id=93]","id":"93","txn":"<txn>","trace_id":"d69ae8803e9908c6dc32f5e92854b806"}
+{"time":"<time>","kind":"replace","addr":"solo","phase":"done","message":"solo: Replacement complete after 0s [id=93]","id":"93","txn":"<txn>"}
 {"added":1,"changed":0,"destroyed":1,"kind":"apply","outputs":{},"phase":"done","planfile":"","remaining":0,"txn":"<txn>"}
 ```
 

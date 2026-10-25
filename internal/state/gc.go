@@ -670,8 +670,8 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 	return nil
 }
 
-// sealedSummaries counts the sealed texts of errors in the transactions, for each
-// group. A transaction that is not valid JSON is a damaged log entry, which
+// sealedSummaries counts the sealed texts of errors and the sealed diffs in the
+// transactions, for each group. A transaction that is not valid JSON is a damaged log entry, which
 // resealSummaries leaves alone as well, and counts for nothing.
 func (s *Store) sealedSummaries(ctx context.Context) (map[string]int, error) {
 	keys, err := s.b.List(ctx, "txn")
@@ -698,13 +698,20 @@ func (s *Store) sealedSummaries(ctx context.Context) (map[string]int, error) {
 			firstErr = errors.Join(firstErr, err)
 			return
 		}
-		var t struct {
-			Sealed *struct {
-				Group string `json:"group"`
-			} `json:"summary_sealed"`
+		type box struct {
+			Group string `json:"group"`
 		}
-		if json.Unmarshal(data, &t) == nil && t.Sealed != nil {
-			counts[t.Sealed.Group]++
+		var t struct {
+			Sealed *box `json:"summary_sealed"`
+			Diff   *box `json:"diff_sealed"`
+		}
+		if json.Unmarshal(data, &t) == nil {
+			if t.Sealed != nil {
+				counts[t.Sealed.Group]++
+			}
+			if t.Diff != nil {
+				counts[t.Diff.Group]++
+			}
 		}
 	})
 	return counts, firstErr

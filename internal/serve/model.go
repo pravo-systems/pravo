@@ -56,6 +56,9 @@ type model struct {
 	access     *Access
 	accessJSON []byte
 
+	// disc is what the discoveries found, set against the records of this revision.
+	disc *discoveryState
+
 	txOnce sync.Once
 	txns   []state.Transaction
 
@@ -228,6 +231,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	m.graphJSON, _ = json.Marshal(&m.graph)
 	m.access = m.accessDoc(accessPath)
 	m.accessJSON, _ = json.Marshal(m.access)
+	m.buildDiscovery(rev)
 	return m
 }
 
@@ -444,7 +448,7 @@ func (m *model) namespaceList() []Namespace {
 // resolveSchema finds the schema of the type of a node in the cache: the one of
 // the provider version that wrote the record, else the one the lock file pins.
 func (m *model) resolveSchema(mn *mnode) {
-	if mn.Mode == "" || transient(mn.Mode) {
+	if mn.Mode == "" || mn.Mode == "call" || mn.Mode == "builtin" || (mn.res != nil && mn.res.Builtin) {
 		return
 	}
 	type cand struct {

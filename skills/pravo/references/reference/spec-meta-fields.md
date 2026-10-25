@@ -11,7 +11,7 @@ Meta fields are not part of the provider schema. They all start with `$`, so the
 | `$depends_on` | list of references | resource, data, ephemeral | Dependencies that have no data flow. |
 | `$lifecycle` | `#Lifecycle` | resource | `create_before_destroy`, `prevent_destroy`, `ignore_changes`, `refresh`. |
 | `$from` | string | resource, data; a group of resources | The address the record had before. See [Moves and imports](spec-moves-and-imports.md). |
-| `$import` | string | resource | The id of an existing object to adopt. See [Moves and imports](spec-moves-and-imports.md#import). |
+| `$import` | string or struct | resource | The id of an existing object to adopt, or its identity. See [Moves and imports](spec-moves-and-imports.md#import). |
 
 ```cue
 #Lifecycle: {

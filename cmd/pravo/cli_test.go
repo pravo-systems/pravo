@@ -419,11 +419,11 @@ func TestSavedPlanOfAnOutputIsApplied(t *testing.T) {
 			t.Fatalf("pravo %s exited %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
-	if text, code := runPravo(t, dir, "plan", "-t", "label=b", "--out", "change.plan"); code != 0 || !strings.Contains(text, `shown: "b"`) {
+	if text, code := runPravo(t, dir, "plan", "-t", "label=b", "--out", "change.plan"); code != 0 || !strings.Contains(text, `shown: "a" → "b"`) {
 		t.Fatalf("plan --out exited %d:\n%s", code, text)
 	}
 	text, code := runPravo(t, dir, "apply", "change.plan")
-	if code != 0 || !strings.Contains(text, "Apply complete!") || !strings.Contains(text, `shown: "b"`) {
+	if code != 0 || !strings.Contains(text, "Apply complete!") || !strings.Contains(text, "1 output, 1 changed (shown).") {
 		t.Fatalf("apply of the file exited %d:\n%s", code, text)
 	}
 	if text, code := runPravo(t, dir, "output", "shown"); code != 0 || strings.TrimSpace(text) != `"b"` {
@@ -431,6 +431,35 @@ func TestSavedPlanOfAnOutputIsApplied(t *testing.T) {
 	}
 	if text, code := runPravo(t, dir, "apply", "change.plan"); code != 0 || !strings.Contains(text, "nothing left to apply") {
 		t.Fatalf("a second apply of the file exited %d:\n%s", code, text)
+	}
+}
+
+// An apply says how many outputs there are and which changed. It does not print
+// their values: the log of an apply is kept.
+func TestApplySummarisesOutputsWithoutTheirValues(t *testing.T) {
+	spec := "package estate\n\nimport \"pravo.dev/pravo\"\n\nlabel: *\"a-value\" | string @tag(label)\n\nshown: pravo.#Output & {value: label}\nsteady: pravo.#Output & {value: \"unchanging\"}\n"
+	dir := specDir(t, map[string]string{"main.cue": spec})
+	if text, code := runPravo(t, dir, "init"); code != 0 {
+		t.Fatalf("init exited %d:\n%s", code, text)
+	}
+	// A plan that only records outputs is applied from a file.
+	if text, code := runPravo(t, dir, "plan", "--out", "first.plan"); code != 0 {
+		t.Fatalf("plan --out exited %d:\n%s", code, text)
+	}
+	text, code := runPravo(t, dir, "apply", "first.plan")
+	if code != 0 || !strings.Contains(text, `2 outputs, 2 changed (shown, steady). See them with "pravo output" or "pravo serve".`) {
+		t.Fatalf("first apply exited %d:\n%s", code, text)
+	}
+	after := text[strings.Index(text, "Apply complete!"):]
+	if strings.Contains(after, "a-value") || strings.Contains(after, "unchanging") || strings.Contains(after, "Outputs:") {
+		t.Errorf("the apply printed output values after it finished:\n%s", after)
+	}
+	if text, code := runPravo(t, dir, "plan", "-t", "label=b-value", "--out", "second.plan"); code != 0 {
+		t.Fatalf("plan --out exited %d:\n%s", code, text)
+	}
+	text, code = runPravo(t, dir, "apply", "second.plan")
+	if code != 0 || !strings.Contains(text, "2 outputs, 1 changed (shown).") {
+		t.Fatalf("second apply exited %d:\n%s", code, text)
 	}
 }
 

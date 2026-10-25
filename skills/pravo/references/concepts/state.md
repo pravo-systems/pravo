@@ -54,9 +54,9 @@ pravo apply -auto-approve | tail -4
 Output:
 
 ```text
-Outputs:
-  digest: (sensitive)
-  url: "http://localhost:26720"
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
+
+2 outputs, 2 changed (digest, url). See them with "pravo output" or "pravo serve".
 ```
 
 ```sh
@@ -245,7 +245,7 @@ Output:
 Apply complete! Resources: 2 added, 0 changed, 2 destroyed. [txn <id>]
 ```
 
-The saved plan replaced `port` and `site`, which reads it. A plan that moves a record writes the move when it runs, so the plan is a transaction of its own.
+The saved plan replaced `port` and `site`, which reads it. The plan also listed the move of `web` to `site`, and wrote nothing: a plan changes a record only to refresh it. The apply wrote the move, in its own transaction, and then replaced `site`.
 
 ```sh
 pravo state log
@@ -258,11 +258,8 @@ Output:
     pravo apply change.plan
     2 added, 0 changed, 2 destroyed
     replace  port  r1 -> r2
-    replace  site  r2 -> r3
-<id>  plan     planned   <time> <took>
-    pravo plan --out change.plan
-    2 to add, 0 to change, 2 to destroy; 2 of 2 reached, 0 skipped, 0 refreshed, 2 within refresh age, 0 not read, 0 ephemeral opened, 0 functions called, 0 imported, 1 moved
     move-to  site  r0 -> r2
+    replace  site  r2 -> r3
     move-from web
 <id>  apply    applied   <time> <took>
     pravo apply --auto-approve
@@ -279,7 +276,7 @@ A transaction records:
 - the outcome: `planned`, `applied`, `rejected` or `failed`. An apply is `running` from the moment it holds its locks until it ends; a running apply whose command was killed is listed by `pravo state log` as `interrupted`;
 - every node that it touched, with the revision before and after.
 
-A plan that read nothing and changed no record is not recorded. A plan that refreshed or moved records is. An apply that a lock rejected is recorded too, with no changes. An apply that has no record to write and no output to write or remove takes no lock and is not recorded.
+A plan that read nothing and changed no record is not recorded. A plan that refreshed records is. An apply that a lock rejected is recorded too, with no changes. An apply that has no record to write and no output to write or remove takes no lock and is not recorded.
 
 The command line is the one that ran. An apply that a policy refused is recorded as rejected, with the versions that refused it. The signed start of every apply that judged a plan lists the policy versions that judged it. The log is evidence. It prevents nothing, and it is as writable as the rest of the state.
 

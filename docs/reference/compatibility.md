@@ -114,7 +114,7 @@ Error: state at ./pravo.state was written by a newer pravo (format 5)
 Restore the store, and try a file that is not a plan file:
 
 ```sh run
-sed -i.bak 's/"format":4/"format":1/' pravo.state/meta.json
+sed -i.bak 's/"format":5/"format":1/' pravo.state/meta.json
 ```
 
 

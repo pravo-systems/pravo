@@ -120,7 +120,7 @@ Plan: 1 to add, 0 to change, 1 to destroy.
 Graph: planned 1 · refreshed 1
 
 Outputs:
-  name: (known after apply)
+  name: "<pet>" → (known after apply)
 
 Error: the plan violates the policy no_destroy@1 (sha256:ba6301cae91b):
 changes.0: pet: replace is not allowed:

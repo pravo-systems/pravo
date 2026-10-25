@@ -42,7 +42,7 @@ Each part of a printed plan answers one question.
 | `Plan: N to add, N to change, N to destroy.` | The counts. A replacement counts as one add and one destroy. |
 | `Hint:` | A create and a delete that look like one object under two addresses. |
 | `Graph:` | How much of the graph the plan walked. |
-| `Outputs:` | The outputs, with `(known after apply)` for the ones that are not known yet. |
+| `Outputs:` | The outputs that the plan changes, as `old → new`, with `(known after apply)` for a value that is not known yet. The others are counted. |
 
 The action of a change is one of these.
 
@@ -54,7 +54,7 @@ The action of a change is one of these.
 | delete | `-` | A record has no address in the specification, or the plan is `-destroy`. |
 | read | `<=` | A data source whose read waits for the apply. |
 | no-op | none | The planned state equals the record. The plan does not print it. |
-| move | none | A `$from` renamed a record. The plan prints `# OLD was moved to NEW`. |
+| move | none | A `$from` renames a record. The plan prints `# OLD will be moved to NEW`, and the apply makes the move. |
 
 Work in an empty directory. The first root has two resources: a number that the provider draws, and a resource that records it.
 

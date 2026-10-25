@@ -17,6 +17,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 | `policy/<name>@<seq>.json` | In format 4, one version of a policy: its text, the time and the signature of whoever applied it. Written once and never changed. See [Format 4](#format-4-policies). |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |
 | `plans/<id>.plan.json`, `plans/<id>.meta.json`, `plans/<id>.progress.json` | A stored plan: the plan, its summary and what was applied from it. See [Plans](#plans). |
+| `discovery/runs/<name>.json` | What the last run of one discovery found. Replaced by the next run. See [Discoveries](#discoveries). |
 
 The graph lives in a directory, `pravo.state` next to the specification by default. [Settings](spec-settings.md#state) sets another directory or an S3 bucket. A state path that names a file is an error, and pravo changes nothing. Keep the directory on storage that every user of the root can reach. Treat nodes as sensitive: provider attributes can include secrets.
 
@@ -394,8 +395,10 @@ A sensitive output is recorded as `{"$sensitive": value}`. `pravo state import-t
 
 Every `plan` that reads providers or moves records, and every `apply`, `destroy`, `import` and state edit, is recorded as a transaction in `txn/`.
 
+Each change of an apply that altered a record also carries a `diff`, left out here because values such as hashes and random names differ from run to run.
+
 ```sh
-jq . pravo.state/txn/*.json
+jq 'del(.changes[].diff)' pravo.state/txn/*.json
 ```
 
 Output:
@@ -435,7 +438,6 @@ Output:
   ],
   "actor": "ci",
   "reason": "example",
-  "trace_id": "d69ae8803e9908c6dc32f5e92854b806",
   "version": "<version>"
 }
 ```
@@ -450,7 +452,8 @@ Output:
 | `status` | `planned`, `applied`, `rejected`, `failed`. `running` while an apply holds its locks; the file of a command that was killed keeps it, and `pravo state log` shows it as `interrupted`. |
 | `summary` | The counts, in words. For a run that failed or was rejected, the text of its error; in a sealed state, a fixed sentence that says the text is sealed, followed by the notes about the changes whose result is unknown. |
 | `summary_sealed` | Only in a sealed state, for a run that failed or was rejected: the full text of the error, sealed under the kind `txn-summary` and bound to the id of the transaction. `pravo state log` shows it in place of `summary` to a reader. |
-| `changes` | Each node the transaction touched: `addr`, `action`, and the revisions before and after. The action `unsettled` marks a node that an apply stopped on while a provider was changing it. |
+| `changes` | Each node the transaction touched: `addr`, `action`, and the revisions before and after. The action `unsettled` marks a node that an apply stopped on while a provider was changing it. A change that altered the attributes of a record also has `diff`: `before` and `after`, each holding the top-level attributes that differ, as the record held them; an attribute that was null or absent is left out of that side. An attribute that is or may hold a secret is not kept: it is named in `withheld`, with the sides that held a value (`before`, `after` or `both`). The schema marks it sensitive or write-only, or anything inside it is; its name, or a key inside it, says secret; it is not in the schema; or it holds a string that a withheld attribute of either record holds. A change that altered more than 64 KiB has `{"omitted": true}` in their place. A read that found the object changed outside pravo (action `drift`, in the transaction of the command that read it) has the diff between the record and what the provider returned. A change that only moves a record has none. |
+| `diff_sealed` | Only in a sealed state: the `diff` of each change, by address, sealed under the kind `txn-diff` and bound to the id of the transaction, in place of the `diff` of the changes. The signatures do not cover it. A rewrap with `--all` seals it again, and an unseal writes it back into the changes. |
 | `actor`, `reason`, `git_revision`, `trace_id` | The labels of the run, when set. |
 | `version` | The version of the pravo that began the transaction. A transaction written by a pravo that did not record it has none. |
 | `plan`, `plan_digest` | For an apply from a plan: the id of the stored plan, empty for a plan file, and the SHA-256 of the plan file in hex. For a plain apply that judged a plan, the id is empty and the digest is that of the plan it built. |
@@ -746,6 +749,16 @@ A transaction that judged a plan lists the versions in its signed start: see [Tr
 ## Remote layout
 
 On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 to 4, `policy/<name>@<seq>.json` in format 4, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions, the policy versions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
+
+## Discoveries
+
+`pravo discover` keeps one kind of object below `discovery/`, apart from the records. It is not a node: no plan or apply reads it, no lock covers it and nothing in it is sealed.
+
+| Object | Holds |
+|---|---|
+| `discovery/runs/<name>.json` | `v` (the layout, 1), `name` (the address of the discovery), `type`, `provider`, `provider_key`, `scope_digest`, `scope`, `limit`, `started`, `finished`, `actor`, `status` (`complete` or `truncated`), `warnings` and `items`. An item has `key` (the whole identity on one line), `id`, `name`, `identity` and `import_id`. At most 100000 items. The file name is the address, encoded as a node's is. |
+
+An object that a newer pravo wrote, with a larger `v`, is not read, and is reported. `pravo state pull` and `pravo state push` copy it, and a store that holds only these objects is not taken for an empty one. What is known and left alone is not in the state: it is the `$ack` of the discovery in the specification. [Discovery](../concepts/discovery.md) explains what the objects mean.
 
 ## See also
 

@@ -562,7 +562,7 @@ Graph: planned 7 · removed 7 · refreshed 7
 
 Outputs:
   admin_password: (sensitive)
-  endpoints: (known after apply)
+  endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"] → (known after apply)
 ```
 
 The plan is valid. It is not what you meant. Read the summary line first: seven to add and seven to destroy. List the headings to see the pairs.
@@ -628,45 +628,36 @@ pravo -C platform plan --detailed-exitcode
 Output:
 
 ```text
-random_password.admin: moved to admin
-random_pet.service_api_host: moved to services.api.host
-local_file.service_api_config: moved to services.api.config
-random_pet.service_web_host: moved to services.web.host
-local_file.service_web_config: moved to services.web.config
-random_pet.service_worker_host: moved to services.worker.host
-local_file.service_worker_config: moved to services.worker.config
 ...
 pravo will perform the following actions:
 
-  # random_password.admin was moved to admin (record renamed; no change to the object)
+  # random_password.admin will be moved to admin (record renamed; no change to the object)
 
-  # random_pet.service_api_host was moved to services.api.host (record renamed; no change to the object)
+  # random_pet.service_api_host will be moved to services.api.host (record renamed; no change to the object)
 
-  # local_file.service_api_config was moved to services.api.config (record renamed; no change to the object)
+  # local_file.service_api_config will be moved to services.api.config (record renamed; no change to the object)
 
-  # random_pet.service_web_host was moved to services.web.host (record renamed; no change to the object)
+  # random_pet.service_web_host will be moved to services.web.host (record renamed; no change to the object)
 
-  # local_file.service_web_config was moved to services.web.config (record renamed; no change to the object)
+  # local_file.service_web_config will be moved to services.web.config (record renamed; no change to the object)
 
-  # random_pet.service_worker_host was moved to services.worker.host (record renamed; no change to the object)
+  # random_pet.service_worker_host will be moved to services.worker.host (record renamed; no change to the object)
 
-  # local_file.service_worker_config was moved to services.worker.config (record renamed; no change to the object)
+  # local_file.service_worker_config will be moved to services.worker.config (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 7 · refreshed 7 · moved 7
+Plan: 0 to add, 0 to change, 0 to destroy, 7 to move.
+Graph: planned 7 · refreshed 7 · to move 7
 
-Outputs:
-  admin_password: (sensitive)
-  endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]
+Outputs: 2 outputs unchanged.
 ```
 
 Every change is a move: `record renamed; no change to the object`. The summary has no adds, changes or destroys, and the exit code is 0. This is the plan you wait for.
 
-The plan renames the records in pravo's state at once. Plan again and the moves are gone. The records have no configuration hash yet, so the plan asked each provider to plan all seven resources: `planned 7`.
+The plan lists the renames and writes none of them: the records keep their OpenTofu addresses until step 7 applies the plan, and then the moves are gone. The records have no configuration hash yet, so the plan asked each provider to plan all seven resources: `planned 7`.
 
 ## Step 7: apply the empty plan
 
-The first apply changes no object. It records a configuration hash and the provider version for every resource. It also records the outputs again, from the specification.
+The first apply changes no object. It renames the records first, then records a configuration hash and the provider version for every resource. It also records the outputs again, from the specification.
 
 ```sh
 pravo -C platform apply --auto-approve
@@ -677,12 +668,12 @@ Output:
 
 ```text
 ...
-No changes. Your infrastructure matches the configuration.
-Graph: planned 7 · refreshed 7
+Plan: 0 to add, 0 to change, 0 to destroy, 7 to move.
+Graph: planned 7 · refreshed 7 · to move 7
+...
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 
-Outputs:
-  admin_password: (sensitive)
-  endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]
+2 outputs, none changed. See them with "pravo output" or "pravo serve".
 ...
 admin_password: (sensitive)
 endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]
@@ -728,19 +719,15 @@ pravo -C gateway apply --auto-approve
 Output:
 
 ```text
+...
+  # local_file.upstreams will be moved to upstreams (record renamed; no change to the object)
+
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to move.
+Graph: planned 1 · refreshed 1 · to move 1
+...
 local_file.upstreams: moved to upstreams
-upstreams: Refreshing state... [id=a80f4be062d20967b1ee08bdcac01ef45725e8cb]
 
-pravo will perform the following actions:
-
-  # local_file.upstreams was moved to upstreams (record renamed; no change to the object)
-
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 1 · refreshed 1 · moved 1
-upstreams: Refreshing state... [id=a80f4be062d20967b1ee08bdcac01ef45725e8cb]
-
-No changes. Your infrastructure matches the configuration.
-Graph: planned 1 · refreshed 1
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 
 ## Step 9: delete the scaffolding
@@ -760,9 +747,7 @@ Output:
 No changes. The specification matches the state. 7 records were not read; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 7 · not read 7
 
-Outputs:
-  admin_password: (sensitive)
-  endpoints: ["api-whole-tarpon:8080", "web-ethical-humpback:8081", "worker-capital-elk:8082"]
+Outputs: 2 outputs unchanged.
 
 No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
 Graph: planned 0 · skipped 1 · not read 1

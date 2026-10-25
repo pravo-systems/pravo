@@ -137,7 +137,7 @@ Plan: 3 to add, 0 to change, 3 to destroy.
 Graph: planned 3 · refreshed 3
 
 Outputs:
-  name: (known after apply)
+  name: "<pet>" → (known after apply)
 
 Error: the plan violates the policy check@N (sha256:20bbfeca6bff):
 changes.0: seed: replace is not allowed:

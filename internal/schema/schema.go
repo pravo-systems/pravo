@@ -6,6 +6,7 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -70,7 +71,7 @@ type Schema struct {
 
 // CacheVersion changes whenever the cached JSON form gains fields that
 // older caches lack; stale caches are refetched from the provider.
-const CacheVersion = 3
+const CacheVersion = 4
 
 // ProviderSchema is everything pravo needs to know about a provider.
 type ProviderSchema struct {
@@ -81,6 +82,10 @@ type ProviderSchema struct {
 	DataSources  map[string]*Schema   `json:"data_sources"`
 	Ephemerals   map[string]*Schema   `json:"ephemerals"`
 	Functions    map[string]*Function `json:"functions"`
+	// ListResources are the list resource types of the provider: what a
+	// discovery asks to list. The schema of one is the scope that a discovery of
+	// it can set.
+	ListResources map[string]*Schema `json:"list_resources,omitempty"`
 
 	// lazy is the pack that the types are read from when the schema was opened
 	// with OpenPack; the maps then hold the types that were asked for. Read the
@@ -254,6 +259,11 @@ func (p *ProviderSchema) SortedEphemeralNames() []string {
 	return p.names(kindEphemeral)
 }
 
+// SortedListNames returns list resource type names in order.
+func (p *ProviderSchema) SortedListNames() []string {
+	return p.names(kindList)
+}
+
 func sortedKeys(m map[string]*Schema) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
@@ -302,6 +312,9 @@ func (p *ProviderSchema) Sort() {
 	for _, s := range p.Ephemerals {
 		s.Block.Sort()
 	}
+	for _, s := range p.ListResources {
+		s.Block.Sort()
+	}
 }
 
 // Marshal encodes the schema for the on-disk cache.
@@ -332,6 +345,9 @@ func Unmarshal(data []byte) (*ProviderSchema, error) {
 	if p.Functions == nil {
 		p.Functions = map[string]*Function{}
 	}
+	if p.ListResources == nil {
+		p.ListResources = map[string]*Schema{}
+	}
 	if p.Resources == nil {
 		p.Resources = map[string]*Schema{}
 	}
@@ -340,3 +356,7 @@ func Unmarshal(data []byte) (*ProviderSchema, error) {
 	}
 	return &p, nil
 }
+
+// NameGuard matches the name of an attribute or a map key that says its value
+// is a secret. A value so named is withheld whatever the schema says.
+var NameGuard = regexp.MustCompile(`(?i)(password|passwd|secret|token|private_key|credential|api_key|access_key)`)

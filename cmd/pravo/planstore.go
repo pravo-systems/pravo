@@ -515,7 +515,7 @@ func (sp *storedPlan) info() *storedInfo {
 
 // planWorth says whether a plan is worth storing: it has changes to apply. A plan
 // that only records outputs or data sources is applied directly.
-func planWorth(plan *engine.Plan) bool { return plan.HasChanges() }
+func planWorth(plan *engine.Plan) bool { return plan.HasWrites() }
 
 // storePlan writes the plan into the state, looks for the stored plans that
 // change the same resources, and removes a few that are no longer needed.

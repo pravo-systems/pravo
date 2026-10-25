@@ -44,8 +44,13 @@ export class Browser {
       proc.stderr.on('data', (d) => { buf += d; const m = /DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//.exec(buf); if (m) { clearTimeout(t); resolve(m[1]); } });
       proc.on('exit', () => reject(new Error('chrome exited before it listened')));
     });
-    const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-    const page = list.find((x) => x.type === 'page');
+    // the page of about:blank is not always listed the moment that the browser listens, least of all when several start at once
+    let page;
+    for (let i = 0; i < 100 && !page; i++) {
+      page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((x) => x.type === 'page');
+      if (!page) await new Promise((r) => setTimeout(r, 50));
+    }
+    if (!page) throw new Error('chrome listed no page');
     const b = new Browser(proc, dir, page.webSocketDebuggerUrl);
     await b.open();
     return b;
@@ -108,8 +113,9 @@ export class Browser {
     const K = {
       Tab: { code: 'Tab', vk: 9 }, Enter: { code: 'Enter', vk: 13, text: '\r' }, ' ': { code: 'Space', vk: 32, text: ' ' }, Escape: { code: 'Escape', vk: 27 },
       ArrowDown: { code: 'ArrowDown', vk: 40 }, ArrowUp: { code: 'ArrowUp', vk: 38 }, ArrowLeft: { code: 'ArrowLeft', vk: 37 }, ArrowRight: { code: 'ArrowRight', vk: 39 },
-      Home: { code: 'Home', vk: 36 }, End: { code: 'End', vk: 35 },
+      Home: { code: 'Home', vk: 36 }, End: { code: 'End', vk: 35 }, '/': { code: 'Slash', vk: 191, text: '/' }, k: { code: 'KeyK', vk: 75, text: 'k' },
     }[key];
+    if (K.text && mods & 6) K.text = undefined; // a key with Ctrl or Alt held types nothing
     const base = { key, code: K.code, windowsVirtualKeyCode: K.vk, nativeVirtualKeyCode: K.vk, modifiers: mods };
     await this.send('Input.dispatchKeyEvent', { type: K.text ? 'keyDown' : 'rawKeyDown', ...base, text: K.text, unmodifiedText: K.text });
     await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });

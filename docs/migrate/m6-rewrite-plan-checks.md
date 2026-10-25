@@ -120,7 +120,6 @@ pravo -C trial plan --json 2>/dev/null | head -n 36
 {
   "format": 1,
   "created": "<time>",
-  "trace_id": "d69ae8803e9908c6dc32f5e92854b806",
   "summary": {
     "add": 1,
     "change": 0,
@@ -153,6 +152,7 @@ pravo -C trial plan --json 2>/dev/null | head -n 36
         "not in the state: a new resource"
       ],
       "after": {
+        "content": "extra\n",
 ```
 
 The fields that checks read correspond like this.
@@ -243,7 +243,7 @@ echo "exit=$?"
 
 ```text out
 changes.0.after.file_permission: conflicting values "0600" and "0777":
-    ./plan.json:58:28
+    ./plan.json:57:28
     ./policy/permission.cue:6:2
     ./policy/permission.cue:7:27
 exit=1

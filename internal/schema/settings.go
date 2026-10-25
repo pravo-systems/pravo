@@ -100,8 +100,8 @@ package pravo
 
 // The shape of the $settings block.
 #Settings: {
-	// Where the state is kept: a local directory (the default) or an
-	// S3-compatible bucket.
+	// Where the state is kept: a local directory (the default), an
+	// S3-compatible bucket or a server that speaks the http protocol.
 	state?: #StateSettings
 
 	// The default refresh age: "always", "never" or a duration such as
@@ -116,10 +116,10 @@ package pravo
 // #StateFields lists every field once so that editors, which do not complete
 // through a disjunction, still offer them; the choice below decides which
 // are valid together.
-#StateSettings: #StateFields & (#LocalState | #S3State)
+#StateSettings: #StateFields & (#LocalState | #S3State | #HTTPState)
 
 #StateFields: {
-	backend?:    "local" | "s3"
+	backend?:    "local" | "s3" | "http"
 	path?:       string
 	bucket?:     string
 	prefix?:     string
@@ -129,6 +129,10 @@ package pravo
 	profile?:    string
 	access_key?: string
 	secret_key?: string
+	url?:        string
+	token?:      string
+	username?:   string
+	password?:   string
 }
 
 #LocalState: {
@@ -157,5 +161,18 @@ package pravo
 	// in the configuration.
 	access_key?: string
 	secret_key?: string
+}
+
+#HTTPState: {
+	backend: "http"
+	// The base URL of the state, such as https://state.example.com/team/app.
+	// The server keeps one object for each key under it.
+	url: string
+	// A bearer token. Prefer PRAVO_STATE_TOKEN: a token here ends up in the
+	// configuration.
+	token?: string
+	// Basic authentication, used when there is no token.
+	username?: string
+	password?: string
 }
 `

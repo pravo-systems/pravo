@@ -209,7 +209,7 @@ func drive(t *testing.T, p Provider) {
 	check("PlanResourceChange")
 	_, diags, err = p.ApplyResourceChange(ctx, "t", null, null, cfg, nil)
 	check("ApplyResourceChange")
-	_, diags, err = p.ImportResourceState(ctx, "t", "id", map[string]tftypes.Type{"t": woType})
+	_, diags, err = p.ImportResourceState(ctx, "t", ImportTarget{ID: "id"}, map[string]tftypes.Type{"t": woType})
 	check("ImportResourceState")
 	diags, err = p.ValidateDataSourceConfig(ctx, "d", cfg)
 	check("ValidateDataSourceConfig")

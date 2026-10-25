@@ -8,7 +8,7 @@
 // stay readable when the picture is small. Nothing in the picture is a bitmap.
 
 import { s, h, clamp, ease, schedule, actionOf, plural } from './util.js';
-import { G, FIT, fitScale, pathOf, midOf, lengthOf } from './layout.js';
+import { G, FIT, fitScale, pathOf, badges, badgeSize, lengthOf, wiring } from './layout.js';
 import { eachNode, cellsOf, isOut, isEnv } from './model.js';
 import { initials, hueOf } from './plans.js';
 import { providerOf, pvClass } from './provider.js';
@@ -126,7 +126,7 @@ function planBadges(agg, x, y, anchorRight, bare) {
   let cx = anchorRight ? x - parts.reduce((w, p) => w + wOf(p[1]), 0) + 8 : x;
   for (const [cls, n] of parts) {
     const bg = s('g', { class: 'pbi ' + cls, transform: `translate(${cx} ${y})` });
-    bg.append(s('rect', { class: 'sq', width: 8, height: 8, rx: 2 }));
+    bg.append(s('rect', { class: 'sq', width: 8, height: 8, rx: 0 }));
     if (!bare) bg.append(s('text', { class: 'pbn', x: 11, y: 8 }, String(n)));
     g.append(bg);
     cx += wOf(n);
@@ -205,6 +205,9 @@ export class GraphView {
     for (const [id, cls] of [['ah', 'ah'], ['ah-up', 'ah-up'], ['ah-down', 'ah-down'], ['ah-dim', 'ah-dim']]) {
       defs.append(s('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: 'auto', markerUnits: 'userSpaceOnUse' },
         s('path', { d: 'M1 1.2L9.2 5 1 8.8z', class: cls })));
+      // the dot where a wire leaves its port
+      defs.append(s('marker', { id: 'j' + id, viewBox: '0 0 10 10', refX: 5, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto', markerUnits: 'userSpaceOnUse' },
+        s('circle', { cx: 5, cy: 5, r: 4.2, class: cls })));
     }
     // a card is a shade lighter at the top than at the bottom
     defs.append(s('linearGradient', { id: 'card-fill', x1: 0, y1: 0, x2: 0, y2: 1 }, s('stop', { offset: '0', class: 'cf0' }), s('stop', { offset: '1', class: 'cf1' })));
@@ -213,11 +216,12 @@ export class GraphView {
     this.vp = s('g', { class: 'vp' });
     this.laneLayer = s('g', { class: 'lanes' });
     this.edgeLayer = s('g', { class: 'edges' });
+    this.junctionLayer = s('g', { class: 'jn' });
     this.labelLayer = s('g', { class: 'elabels' });
     this.headLayer = s('g', { class: 'heads' }); // the titles of the lanes lie above the edges, so that no line runs through a word
     this.nodeLayer = s('g', { class: 'nodes' });
     this.fxLayer = s('g', { class: 'fx' });
-    this.vp.append(this.laneLayer, this.edgeLayer, this.labelLayer, this.headLayer, this.nodeLayer, this.fxLayer);
+    this.vp.append(this.laneLayer, this.edgeLayer, this.junctionLayer, this.labelLayer, this.headLayer, this.nodeLayer, this.fxLayer);
     this.svg.append(this.vp);
     this.grid = h('div', { class: 'grid', 'aria-hidden': 'true' });
     this.tip = h('div', { class: 'gtip overlay', 'aria-hidden': 'true', hidden: true });
@@ -351,6 +355,10 @@ export class GraphView {
     this.adj = new Map();
     const edgeSeen = new Set();
     let calm = 0;
+    // the counts of the merged edges, each on its own wire and none on another
+    const counts = new Map();
+    for (const e of vis.edges) if (e.n > 1 && lay.routes.has(e.key)) counts.set(e.key, e.n);
+    const badgeAt = badges(lay.routes, counts, [...lay.pos.values()]);
     for (const e of vis.edges) {
       const pts = lay.routes.get(e.key);
       if (!pts) continue;
@@ -373,7 +381,9 @@ export class GraphView {
       r.from = clonePts(r.pts);
       r.to = clonePts(pts);
       this.updateEdgeLabel(r, e);
-      if (!animate) { r.pts = clonePts(pts); this.placeEdge(r); } else { moves.edges.push(r); this.placeEdge(r); }
+      r.bto = badgeAt.get(e.key) || null;
+      r.bfrom = r.bat || r.bto;
+      if (!animate) { r.pts = clonePts(pts); this.placeEdge(r); } else { moves.edges.push(r); this.placeEdge(r, 0); }
       calm++;
     }
     // many edges say less each: they are drawn lighter as they grow in number
@@ -440,7 +450,7 @@ export class GraphView {
         r.box = { x: r.from.x + (r.to.x - r.from.x) * e, y: r.from.y + (r.to.y - r.from.y) * e, w: r.from.w + (r.to.w - r.from.w) * e, h: r.from.h + (r.to.h - r.from.h) * e };
         this.placeLane(r);
       }
-      for (const r of moves.edges) { r.pts = mixPts(r.from, r.to, e); this.placeEdge(r); }
+      for (const r of moves.edges) { r.pts = mixPts(r.from, r.to, e); this.placeEdge(r, e); }
       if (t < 1) this.tween = requestAnimationFrame(step);
       else { this.tween = null; this.finish(moves); this.restyleAll(); if (this.cb.onSettled) this.cb.onSettled(); }
     };
@@ -458,6 +468,7 @@ export class GraphView {
     for (const [id, r] of [...this.items]) if (r.leaving) { r.g.remove(); this.items.delete(id); }
     for (const [p, r] of [...this.lanes]) if (r.leaving) { r.g.remove(); r.hg.remove(); this.lanes.delete(p); }
     for (const [k, r] of [...this.edges]) if (r.leaving) { r.path.remove(); if (r.label) r.label.remove(); this.edges.delete(k); }
+    this.rewire();
     if (this.cb.onSettled && !this.tween) schedule('settled', () => this.cb.onSettled());
   }
 
@@ -469,19 +480,36 @@ export class GraphView {
     r.hit.setAttribute('x', x); r.hit.setAttribute('y', y); r.hit.setAttribute('width', w);
     r.head.setAttribute('transform', `translate(${(b.x + 14).toFixed(1)} ${(b.y + 10).toFixed(1)})`);
   }
-  placeEdge(r) {
+  // placeEdge draws a wire and its count; t is how far the move to the new picture has gone, from 0 to 1
+  placeEdge(r, t = 1) {
     const d = pathOf(r.pts);
     r.path.setAttribute('d', d);
     if (r.hot) r.hot.setAttribute('d', d);
-    if (r.label) {
-      const [x, y] = midOf(r.pts);
-      r.label.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+    if (r.label && r.bto) {
+      const a = r.bfrom || r.bto;
+      r.bat = [a[0] + (r.bto[0] - a[0]) * t, a[1] + (r.bto[1] - a[1]) * t];
+      r.label.setAttribute('transform', `translate(${r.bat[0].toFixed(1)} ${r.bat[1].toFixed(1)})`);
     }
     // a long edge says little at rest: it is drawn lighter in proportion to its length
     const len = lengthOf(r.pts);
     const f = clamp(520 / Math.max(len, 1), 0.3, 1);
     if (Math.abs(f - (r.lf || 0)) > 0.03) { r.lf = f; r.path.style.setProperty('--el', f.toFixed(2)); }
     r.path.style.setProperty('--dl', String(Math.ceil(len * 1.3)));
+  }
+
+  // rewire draws the settled wires together: hops where they cross, dots where they join
+  rewire() {
+    const routes = new Map();
+    for (const [k, r] of this.edges) if (!r.leaving) routes.set(k, r.pts);
+    const w = wiring(routes);
+    for (const [k, d] of w.d) {
+      const r = this.edges.get(k);
+      r.path.setAttribute('d', d);
+      if (r.hot) r.hot.setAttribute('d', d);
+    }
+    const layer = this.junctionLayer;
+    while (layer.firstChild) layer.removeChild(layer.firstChild);
+    for (const [x, y] of w.dots) layer.append(s('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: 2.4 }));
   }
 
   // ---- element factories ----
@@ -542,18 +570,18 @@ export class GraphView {
     if (n.presence === 'state') marks.push('orphan');
     const g = s('g', { class: nodeClasses(n, this.ctx) + ' neutral', role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
-    if (this.ctx.hasPlan && n.action && n.action !== 'no-op') inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 9 }));
-    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
-    inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }));
+    if (this.ctx.hasPlan && n.action && n.action !== 'no-op') inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 0 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 0 }));
+    inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 0) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
-    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 6 }), glyph('out', 5, 5, 16, 'mk mk-out'));
+    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 0 }), glyph('out', 5, 5, 16, 'mk mk-out'));
     inn.append(tile);
     const nameRoom = W - 52 - (badge ? 34 : 14);
     inn.append(s('text', { class: 'nm', x: 53, y: H / 2 + 5 }, trunc(n.name, chars(nameRoom, 14))));
     if (badge) {
       const b = s('g', { class: 'act', transform: `translate(${W - 26} 8)` });
-      b.append(s('circle', { class: 'ab', cx: 8, cy: 8, r: 8 }), s('path', { class: 'ag', d: act.glyph, transform: 'translate(2 2)' }));
+      b.append(s('rect', { class: 'ab', width: 16, height: 16 }), s('path', { class: 'ag', d: act.glyph, transform: 'translate(2 2)' }));
       inn.append(b);
     }
     let mx = W - 12 - 13;
@@ -577,14 +605,14 @@ export class GraphView {
     const pv = providerOf(n.type, n.provider);
     const g = s('g', { class: nodeClasses(n, this.ctx) + ' ' + (unowned(n) ? 'neutral' : pvClass(pv)), role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
-    if (n.drifted || n.gone || (this.ctx.hasPlan && n.action && n.action !== 'no-op')) inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 9 }));
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }));
+    if (n.drifted || n.gone || (this.ctx.hasPlan && n.action && n.action !== 'no-op')) inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 0 }));
     // two open plans that change the node: a solid ring outside the dotted one of the action, in a colour of its own
-    if (n.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 10.5 }));
-    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
-    inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
+    if (n.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 0 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 0 }));
+    inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 0) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
-    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: n.mode === 'data' ? 13 : 6 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
+    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 0 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
     if (n.provider && !isEnv(n)) facet(tile, 'instance', n.provider, `Show only the provider instance ${n.provider} (shift: hide it)`);
     inn.append(tile);
     const nameRoom = W - 52 - (badge ? 34 : 14);
@@ -593,7 +621,7 @@ export class GraphView {
     if (!isEnv(n)) inn.append(s('text', { class: 'ty', x: 53, y: 40 }, trunc(n.type, chars(W - 53 - 12 - marks.length * 16, 11))));
     if (badge) {
       const b = s('g', { class: 'act', transform: `translate(${W - 26} 8)` });
-      b.append(s('circle', { class: 'ab', cx: 8, cy: 8, r: 8 }), s('path', { class: 'ag', d: act.glyph, transform: 'translate(2 2)' }));
+      b.append(s('rect', { class: 'ab', width: 16, height: 16 }), s('path', { class: 'ag', d: act.glyph, transform: 'translate(2 2)' }));
       inn.append(b);
     }
     let mx = W - 12 - 13;
@@ -611,7 +639,7 @@ export class GraphView {
     const label = ENTITY_LABEL[mode] || mode;
     const word = mode, w = 24 + word.length * 5.8;
     const g = s('g', { class: 'kb', transform: `translate(15 ${H})` });
-    g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 7 }), glyph({ data: 'eye', ephemeral: 'glass', output: 'out', env: 'env' }[mode], 5, -5.5, 11, 'kbg'), s('text', { class: 'kbt', x: 19, y: 3.4 }, word));
+    g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 0 }), glyph({ data: 'eye', ephemeral: 'glass', output: 'out', env: 'env' }[mode], 5, -5.5, 11, 'kbg'), s('text', { class: 'kbt', x: 19, y: 3.4 }, word));
     return facet(g, 'entity', mode, `Show only ${label.toLowerCase()}s (shift: hide them)`);
   }
 
@@ -623,7 +651,7 @@ export class GraphView {
     const SHOWN = 3, R = 7.5, PITCH = 11;
     list.slice(0, SHOWN).forEach((p, i) => {
       const b = s('g', { class: 'au au' + hueOf(p.author), 'data-plan': p.id, transform: `translate(${W - 15 - i * PITCH} 0)` });
-      b.append(s('circle', { class: 'aur', r: R + 1.6 }), s('circle', { class: 'aub', r: R }), s('text', { y: 2.7 }, initials(p.author).slice(0, 2)));
+      b.append(s('rect', { class: 'aur', x: -(R + 1.6), y: -(R + 1.6), width: 2 * (R + 1.6), height: 2 * (R + 1.6) }), s('rect', { class: 'aub', x: -R, y: -R, width: 2 * R, height: 2 * R }), s('text', { y: 2.7 }, initials(p.author).slice(0, 2)));
       g.append(b);
     });
     if (list.length > SHOWN) g.append(s('text', { class: 'aun', x: W - 15 - SHOWN * PITCH - 1, y: 3.2 }, '+' + (list.length - SHOWN)));
@@ -638,7 +666,7 @@ export class GraphView {
     const g = s('g', { class: 'cells' });
     const pitch = 11, per = Math.max(1, Math.floor((w + 3) / pitch));
     list.forEach((c, i) => {
-      g.append(s('rect', { class: 'c c-' + c, x: x + (i % per) * pitch, y: y + Math.floor(i / per) * 13, width: 8, height: 10, rx: 2 }));
+      g.append(s('rect', { class: 'c c-' + c, x: x + (i % per) * pitch, y: y + Math.floor(i / per) * 13, width: 8, height: 10, rx: 0 }));
     });
     return g;
   }
@@ -652,11 +680,11 @@ export class GraphView {
     const outsNote = agg.out ? `, ${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
     const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isNs ? `namespace ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
-    inn.append(s('rect', { class: 'stack s2', x: 10, y: 10, width: W - 20, height: H, rx: 7 }));
-    inn.append(s('rect', { class: 'stack s1', x: 5, y: 5, width: W - 10, height: H, rx: 7 }));
-    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
-    inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }));
+    inn.append(s('rect', { class: 'stack s2', x: 10, y: 10, width: W - 20, height: H, rx: 0 }));
+    inn.append(s('rect', { class: 'stack s1', x: 5, y: 5, width: W - 10, height: H, rx: 0 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 0 }));
+    inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 0) }));
     // The wrapper carries the CSS transform of the hover (a nudge to the right):
     // a CSS transform replaces the transform attribute, so it must not sit on the
     // element that is placed and scaled by that attribute.
@@ -702,7 +730,7 @@ export class GraphView {
     inn.append(this.cells(it, 14, 57, W - 28));
     // the discs of the plans that change something inside, which the resources would carry if the card were open
     const pin = plansIn(it, this.ctx);
-    if (pin.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 10.5 }));
+    if (pin.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 0 }));
     const aus = this.authorBadges(pin.list, W);
     if (aus) inn.append(aus);
     g.append(inn);
@@ -713,17 +741,17 @@ export class GraphView {
     const W = it.w, H = it.h;
     const g = s('g', { class: 'ctl-item', 'aria-label': `${it.type} group, ${it.shown} of ${it.total} shown` });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 0 }));
     const more = it.total > it.shown;
     const bw = more ? W / 2 : W;
     const b1 = s('g', { class: 'btn', 'data-act': 'collapse', role: 'button', 'aria-label': `Collapse ${it.type} group` });
-    b1.append(s('rect', { class: 'hit', width: bw, height: H, rx: 7 }));
+    b1.append(s('rect', { class: 'hit', width: bw, height: H, rx: 0 }));
     b1.append(glyph('up', 12, 9, 18));
     b1.append(s('text', { x: 36, y: 22.5 }, `group of ${it.total}`));
     inn.append(b1);
     if (more) {
       const b2 = s('g', { class: 'btn', 'data-act': 'all', transform: `translate(${bw} 0)`, role: 'button', 'aria-label': `Show all ${it.total}` });
-      b2.append(s('rect', { class: 'hit', width: bw, height: H, rx: 7 }));
+      b2.append(s('rect', { class: 'hit', width: bw, height: H, rx: 0 }));
       b2.append(glyph('plus', 12, 9, 18));
       b2.append(s('text', { x: 36, y: 22.5 }, `show ${it.total - it.shown} more`));
       b2.append(s('line', { class: 'sep', x1: 0, y1: 8, x2: 0, y2: H - 8 }));
@@ -735,7 +763,7 @@ export class GraphView {
 
   createLane(L, ns) {
     const g = s('g', { class: 'lane', 'data-lane': L.path });
-    const rect = s('rect', { class: 'band', rx: L.depth > 1 ? 9 : 12 });
+    const rect = s('rect', { class: 'band', rx: 0 });
     g.append(rect);
     const hg = s('g', { class: 'lane-head', 'data-lane': L.path });
     const hit = s('rect', { class: 'hit', height: G.HEAD });
@@ -781,14 +809,14 @@ export class GraphView {
     if (e.n > 1) {
       if (!r.label) {
         r.label = s('g', { class: 'ec' });
-        r.label.append(s('rect', { x: -10, y: -9, width: 20, height: 18, rx: 9 }), s('text', { x: 0, y: 3.7, 'text-anchor': 'middle' }));
+        r.label.append(s('rect', { x: -10, y: -9, width: 20, height: 18, rx: 0 }), s('text', { x: 0, y: 3.7, 'text-anchor': 'middle' }));
         this.labelLayer.append(r.label);
       }
       r.label.querySelector('text').textContent = e.n;
-      const wd = 14 + String(e.n).length * 6.6;
+      const wd = badgeSize(e.n).w;
       const rc = r.label.querySelector('rect');
       rc.setAttribute('width', wd); rc.setAttribute('x', -wd / 2);
-    } else if (r.label) { r.label.remove(); r.label = null; }
+    } else if (r.label) { r.label.remove(); r.label = null; r.bat = null; }
   }
 
   // ---- state classes ----
@@ -800,15 +828,12 @@ export class GraphView {
     this.host.classList.toggle('has-sel', has);
     for (const [id, r] of this.items) this.styleItem(id, r, sel);
     for (const [path, r] of this.lanes) { const on = !!(sel && sel.lane === path); r.g.classList.toggle('sel', on); r.hg.classList.toggle('sel', on); }
-    let flowing = 0;
     for (const [key, r] of this.edges) {
       const up = !!(sel && sel.upE.has(key)), down = !!(sel && sel.downE.has(key));
       r.path.classList.toggle('up', up);
       r.path.classList.toggle('down', down);
-      if (up || down) flowing++;
       if (r.label) { r.label.classList.toggle('up', up); r.label.classList.toggle('down', down); }
     }
-    this.svg.classList.toggle('flow-calm', flowing > 60);
     if (this.match) this.applyMatch(this.match);
     if (this.cb.onStyled) this.cb.onStyled();
   }
@@ -830,10 +855,7 @@ export class GraphView {
   setSelection(sel) {
     this.selection = sel;
     this.svg.classList.toggle('reach-mode', !!(sel && sel.reach));
-    // the edges of a selection flow for a while, then stand still (see .flowing in graph.css)
-    this.svg.classList.add('flowing');
-    clearTimeout(this._flowT);
-    this._flowT = setTimeout(() => this.svg.classList.remove('flowing'), 8000);
+    // the lines of a selection stand in their colours; a pulse runs along each of them once (ripple)
     this.restyleAll();
     this.clearFx();
     if (sel && sel.pulse && !this.reduced) this.ripple(sel);
@@ -859,7 +881,7 @@ export class GraphView {
         const r = this.edges.get(key);
         if (!r || r.leaving) continue;
         if (++n > 120) break;
-        const p = s('path', { class: 'pulse ' + cls, pathLength: 1, d: pathOf(r.pts) });
+        const p = s('path', { class: 'pulse ' + cls, pathLength: 1, d: r.path.getAttribute('d') });
         p.style.animationDelay = `${(depth - 1) * 120 + 60}ms`;
         this.fxLayer.append(p);
       }
@@ -870,7 +892,7 @@ export class GraphView {
       const r = this.items.get(id);
       if (!r) continue;
       const w = r.it.w, hh = r.it.h;
-      this.fxLayer.append(s('rect', { class: 'halo-ripple', x: r.x - 3, y: r.y - 3, width: w + 6, height: hh + 6, rx: 10 }));
+      this.fxLayer.append(s('rect', { class: 'halo-ripple', x: r.x - 3, y: r.y - 3, width: w + 6, height: hh + 6, rx: 0 }));
     }
     this._fxT = setTimeout(() => this.clearFx(), 2600);
   }
@@ -1338,7 +1360,7 @@ export class GraphView {
   destroy() { this.ro.disconnect(); this.stopTween(); this.cancelCam(); }
 }
 
-function clonePts(r) { return { m: r.m, p: r.p.slice() }; }
+function clonePts(r) { const c = { m: r.m, p: r.p.slice() }; if (r.q) c.q = r.q; if (r.my !== undefined) c.my = r.my; return c; }
 
 function mixPts(a, b, e) {
   const n = Math.max(a.p.length, b.p.length);

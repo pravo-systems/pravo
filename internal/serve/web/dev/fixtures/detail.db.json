@@ -382,7 +382,26 @@
    "reason": "raise the backup window",
    "action": "update",
    "rev_before": 13,
-   "rev_after": 14
+   "rev_after": 14,
+   "plan": "plan-2f9c1a4e",
+   "git_revision": "7c41e9b2d0f3",
+   "attrs": [
+    {
+     "path": "backup_retention_period",
+     "before": 7,
+     "after": 14
+    },
+    {
+     "path": "backup_window",
+     "before": "02:00-03:00",
+     "after": "03:00-04:00"
+    },
+    {
+     "path": "password",
+     "before_redacted": true,
+     "after_redacted": true
+    }
+   ]
   },
   {
    "id": "20261012T080319Z-0d4e77",
@@ -393,7 +412,8 @@
    "command": "pravo apply",
    "action": "update",
    "rev_before": 12,
-   "rev_after": 13
+   "rev_after": 13,
+   "attrs_sealed": true
   },
   {
    "id": "20261002T170455Z-91ac3b",

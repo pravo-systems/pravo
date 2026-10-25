@@ -8,7 +8,7 @@ import { providerOf, pvClass } from './provider.js';
 import { avatar } from './plans.js';
 import { compileQuery } from './query.js';
 
-const ROW = 30;
+const ROW = 34;
 const COLS = [
   { key: 'addr', label: 'Address', cls: 'c-addr' },
   { key: 'type', label: 'Type', cls: 'c-type' },

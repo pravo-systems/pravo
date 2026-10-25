@@ -161,7 +161,7 @@ func (s *Store) firstSealedRecord(ctx context.Context) (string, error) {
 	if s.Format() < FormatImmutable {
 		return "", nil // a record of format 1 is the whole record, never sealed
 	}
-	keys, err := s.b.List(s.ctx, "resources")
+	keys, err := s.b.List(s.cx(), "resources")
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +193,7 @@ func (s *Store) firstSealedRecord(ctx context.Context) (string, error) {
 				if i >= len(keys) || ctx.Err() != nil {
 					return
 				}
-				raw, err := s.b.Get(s.ctx, keys[i])
+				raw, err := s.b.Get(s.cx(), keys[i])
 				if errors.Is(err, ErrNotFound) {
 					continue
 				}
@@ -205,7 +205,7 @@ func (s *Store) firstSealedRecord(ctx context.Context) (string, error) {
 				if err != nil || !isPtr {
 					continue // convertNode reports it
 				}
-				rec, err := s.b.Get(s.ctx, p.Record)
+				rec, err := s.b.Get(s.cx(), p.Record)
 				if errors.Is(err, ErrNotFound) {
 					continue
 				}
@@ -322,7 +322,7 @@ func (s *Store) sealOutputs() error {
 // current group, if want says so of the bytes that are there. The caller holds the
 // lock on the outputs.
 func (s *Store) rewriteOutputs(want func(raw []byte) (bool, error)) error {
-	raw, err := s.b.Get(s.ctx, "outputs.json")
+	raw, err := s.b.Get(s.cx(), "outputs.json")
 	if errors.Is(err, ErrNotFound) {
 		return nil
 	}
@@ -343,7 +343,7 @@ func (s *Store) rewriteOutputs(want func(raw []byte) (bool, error)) error {
 	if err != nil {
 		return err
 	}
-	ok, err := s.b.ReplaceIf(s.ctx, "outputs.json", func(cur []byte) ([]byte, bool) { return data, bytes.Equal(cur, raw) })
+	ok, err := s.b.ReplaceIf(s.cx(), "outputs.json", func(cur []byte) ([]byte, bool) { return data, bytes.Equal(cur, raw) })
 	switch {
 	case err != nil:
 		return Advise(err)
@@ -359,7 +359,7 @@ func (s *Store) rewriteOutputs(want func(raw []byte) (bool, error)) error {
 // namedRecords returns the keys of the immutable records that the pointers in the
 // backend name, as they are now and not as this store read them.
 func (s *Store) namedRecords() (map[string]bool, error) {
-	keys, err := s.b.List(s.ctx, "resources")
+	keys, err := s.b.List(s.cx(), "resources")
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +384,7 @@ func (s *Store) namedRecords() (map[string]bool, error) {
 				if i >= len(keys) {
 					return
 				}
-				data, err := s.b.Get(s.ctx, keys[i])
+				data, err := s.b.Get(s.cx(), keys[i])
 				mu.Lock()
 				switch {
 				case errors.Is(err, ErrNotFound):
@@ -421,7 +421,7 @@ func (s *Store) sweepRecords(keep func(group string) bool) error {
 // sweepRecordsGrace is sweepRecords with the age below which a sealed record is left
 // alone given: an unseal gives none.
 func (s *Store) sweepRecordsGrace(keep func(group string) bool, grace time.Duration) error {
-	keys, err := s.b.List(s.ctx, "rec")
+	keys, err := s.b.List(s.cx(), "rec")
 	if err != nil {
 		return err
 	}
@@ -433,7 +433,7 @@ func (s *Store) sweepRecordsGrace(keep func(group string) bool, grace time.Durat
 		if named[k] || !validRecKey(k) {
 			continue
 		}
-		data, err := s.b.Get(s.ctx, k)
+		data, err := s.b.Get(s.cx(), k)
 		if errors.Is(err, ErrNotFound) {
 			continue
 		}
@@ -459,7 +459,7 @@ func (s *Store) sweepRecordsGrace(keep func(group string) bool, grace time.Durat
 		if group != "" && time.Since(head.UpdatedAt) < grace {
 			continue
 		}
-		if err := s.b.Delete(s.ctx, k); err != nil {
+		if err := s.b.Delete(s.cx(), k); err != nil {
 			return fmt.Errorf("deleting %s: %w", k, err)
 		}
 	}

@@ -175,16 +175,14 @@ web: Creation complete after 0s [id=d79ddeb22063b83d015e9cd3e32402a02f16849e]
 
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
 
-Outputs:
-  web_file: "web.conf"
-  web_port: 26720
+2 outputs, 2 changed (web_file, web_port). See them with "pravo output" or "pravo serve".
 ```
 
 Three things happened, in this order.
 
 1. pravo printed the plan. The output `web_port` was `(known after apply)`, because `port.result` did not exist yet.
 2. After the confirmation, pravo created `port` and then `web`. It created `port` first because `web` reads it.
-3. pravo printed the outputs again. `web_port` now has a value.
+3. pravo recorded the outputs and printed how many there are and which changed. It does not print their values after an apply, because the log of an apply is often kept. `web_port` now has a value.
 
 The result is a file:
 

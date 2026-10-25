@@ -21,6 +21,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/serve"
 	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 func serveCmd() *cobra.Command {
@@ -36,6 +37,8 @@ The viewer shows the specification and the state as a graph of namespaces and re
 
 A state that is sealed (see "pravo protect") is read with your reader identity, named by --identity or found as the other commands find it, and a sealed identity asks for its passphrase on the terminal before the server starts. Without an identity, or with one that is not a reader, the viewer lists the resources and shows no value; --identity none shows the state as someone with no key sees it. The State page shows who can read the state and suggests commands to copy. It runs none of them.
 
+It also lists the runs that pravo recorded (.pravo/traces, or $PRAVO_TRACE_DIR) as a timeline of spans, so that a slow or failing run can be read without a collector.
+
 The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -46,9 +49,13 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			if err != nil {
 				return err
 			}
+			traceDir, err := filepath.Abs(telemetry.TraceDir())
+			if err != nil {
+				return err
+			}
 			v := &viewerState{name: flagIdentity, dir: dir, accessDir: loadReadersFile(dir, flagAccessDir).Dir}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, VerifyTxn: v.verifyTxn, VerifyPlan: v.verifyPlan}
+			opts := serve.Options{Dir: dir, Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, VerifyPlan: v.verifyPlan}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.
@@ -251,9 +258,9 @@ func (v *viewerState) resolve(readers ...protect.ReaderPublic) error {
 func (v *viewerState) open(ctx context.Context, root *config.Root) (*state.Store, error) {
 	var b state.Backend
 	switch root.State.Backend {
-	case "s3":
+	case "s3", "http":
 		var err error
-		if b, err = s3Backend(ctx, root); err != nil {
+		if b, err = remoteBackend(ctx, root); err != nil {
 			return nil, err
 		}
 	default:

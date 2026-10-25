@@ -248,7 +248,7 @@ Renamed instances (these are the addresses now in the state; point each at its p
 
 ## Plan
 
-The first plan carries out the moves that `$from` declares. The second plan has nothing to do.
+The first plan lists the moves that `$from` declares and writes nothing. An apply carries them out, and then the next plan has nothing to do.
 
 ```sh run
 pravo plan
@@ -257,16 +257,20 @@ pravo plan
 ```text out
 pravo will perform the following actions:
 
-  # random_pet.server was moved to server (record renamed; no change to the object)
+  # random_pet.server will be moved to server (record renamed; no change to the object)
 
-  # local_file.motd was moved to motd (record renamed; no change to the object)
+  # local_file.motd will be moved to motd (record renamed; no change to the object)
 
-  # local_file.note_alpha was moved to note.alpha (record renamed; no change to the object)
+  # local_file.note_alpha will be moved to note.alpha (record renamed; no change to the object)
 
-  # local_file.note_beta was moved to note.beta (record renamed; no change to the object)
+  # local_file.note_beta will be moved to note.beta (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 4 · refreshed 4 · moved 4
+Plan: 0 to add, 0 to change, 0 to destroy, 4 to move.
+Graph: planned 4 · refreshed 4 · to move 4
+```
+
+```sh hidden
+pravo apply --auto-approve
 ```
 
 ```sh run
@@ -274,8 +278,8 @@ pravo plan
 ```
 
 ```text out
-No changes. Your infrastructure matches the configuration.
-Graph: planned 4 · refreshed 4
+No changes. The specification matches the state. 4 records were not read; run pravo drift to compare them with the infrastructure.
+Graph: planned 0 · skipped 4 · not read 4
 ```
 
 ## Facts for the band

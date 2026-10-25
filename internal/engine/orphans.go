@@ -3,6 +3,7 @@ package engine
 import (
 	"container/heap"
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -205,8 +206,10 @@ func (e *Engine) destroyOrphans(ctx context.Context, plan *Plan) (int, error) {
 			return err
 		}
 		before := 0
+		var priorAttrs json.RawMessage
 		if prev := e.State.Get(ch.Addr); prev != nil {
 			before = prev.Revision
+			priorAttrs = prev.Attributes
 		}
 		if _, err := e.State.Remove(ch.Addr); err != nil {
 			// The object is destroyed and its record is not removed.
@@ -214,6 +217,7 @@ func (e *Engine) destroyOrphans(ctx context.Context, plan *Plan) (int, error) {
 			return fmt.Errorf("%s: the record could not be removed: %w", ch.Addr, err)
 		}
 		e.txn.Record(ch.Addr, "delete", before, 0)
+		e.recordDiff(ch.Addr, ch.Schema, priorAttrs, nil)
 		e.complete(ch.Addr)
 		mu.Lock()
 		destroyed++

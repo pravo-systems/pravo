@@ -37,6 +37,8 @@ type Project struct {
 	Version   string         `json:"version"`
 	State     StateInfo      `json:"state"`
 	Providers []ProviderInfo `json:"providers,omitempty"`
+	// Policies names the policies the viewer shows in the project panel.
+	Policies []string `json:"policies,omitempty"`
 	// SpecError is set when the specification does not load. The viewer then
 	// shows the state alone: every node has Presence "state".
 	SpecError string    `json:"spec_error,omitempty"`
@@ -46,7 +48,7 @@ type Project struct {
 // StateInfo describes the state that is read.
 type StateInfo struct {
 	Location string `json:"location"`
-	// Backend is "local" or "s3".
+	// Backend is "local", "s3" or "http".
 	Backend string `json:"backend"`
 	Lineage string `json:"lineage,omitempty"`
 	Format  int    `json:"format,omitempty"`
@@ -252,9 +254,14 @@ type Detail struct {
 	Attrs    []Attr      `json:"attrs"`
 	// SchemaKnown is false when the provider schema could not be read. Every
 	// value is then withheld, since nothing says which are sensitive.
-	SchemaKnown bool     `json:"schema_known"`
-	DependsOn   []string `json:"depends_on"`
-	UsedBy      []string `json:"used_by"`
+	SchemaKnown bool `json:"schema_known"`
+	// Schema lists the attributes of the type of a node that has no record to
+	// take them from, with no values: an ephemeral resource, a built-in
+	// environment variable, a node that is declared and not created yet. A node
+	// with a record has none: its Attrs follow the schema already.
+	Schema    []Attr   `json:"schema,omitempty"`
+	DependsOn []string `json:"depends_on"`
+	UsedBy    []string `json:"used_by"`
 	// Reach lists everything a change to the node can reach: the transitive
 	// dependents recorded in the state.
 	Reach   []string       `json:"reach,omitempty"`
@@ -338,6 +345,20 @@ type HistoryEntry struct {
 	Action    string    `json:"action,omitempty"`
 	RevBefore int       `json:"rev_before,omitempty"`
 	RevAfter  int       `json:"rev_after,omitempty"`
+	// Plan is the stored plan an apply ran from, and GitRevision the revision of
+	// the specification it ran against, as the transaction recorded them.
+	Plan        string `json:"plan,omitempty"`
+	GitRevision string `json:"git_revision,omitempty"`
+	// Attrs are the attributes the change altered, as the transaction recorded
+	// them, redacted as a plan's are. AttrsMore counts those left out for room.
+	// AttrsOmitted says the transaction kept none because the change altered too
+	// much, and AttrsSealed that a sealed state keeps them for readers and this
+	// viewer holds no key. A transaction recorded before diffs were kept says
+	// none of this.
+	Attrs        []AttrChange `json:"attrs,omitempty"`
+	AttrsMore    int          `json:"attrs_more,omitempty"`
+	AttrsOmitted bool         `json:"attrs_omitted,omitempty"`
+	AttrsSealed  bool         `json:"attrs_sealed,omitempty"`
 	// Signature is what the signatures of the transaction come to: "verified",
 	// "key_not_in_file", "invalid" or "unsigned", absent when they are not checked.
 	// Signer is the name the readers file gives the key of a signature that verified.
@@ -598,7 +619,7 @@ type Access struct {
 	State    string `json:"state"`
 	Format   int    `json:"format"`
 	Location string `json:"location"`
-	// Backend is "local" or "s3".
+	// Backend is "local", "s3" or "http".
 	Backend string `json:"backend"`
 	// Summary is the sentence for the state.
 	Summary string `json:"summary"`
@@ -790,9 +811,222 @@ type SuggestionStep struct {
 // Revision differs from the one it holds.
 type Event struct {
 	Revision string `json:"revision"`
-	// What is any of "state", "spec", "plan", "locks", "plans", "access". "plan" is
-	// the plan file of --plan; "plans" are the plans stored in the state: one
-	// appeared, was collected, was applied from, or passed its expiry; "access" is
-	// the readers file.
+	// What is any of "state", "spec", "plan", "locks", "plans", "access",
+	// "discovery", "traces". "traces" is the directory of the recorded runs. "plan" is the plan file of --plan; "plans" are the plans stored
+	// in the state: one appeared, was collected, was applied from, or passed its
+	// expiry; "access" is the readers file; "discovery" is what the discoveries
+	// found, which "pravo discover" writes.
 	What []string `json:"what"`
+}
+
+// Discovery is GET /api/discovery: the discoveries of the specification, what
+// their last runs found, and what each found object is to the state. Objects that
+// a record of the state already is are counted and not listed. The page shows the
+// rest, in a section of its own: nothing of it is in the graph.
+type Discovery struct {
+	Version  int    `json:"version"`
+	Revision string `json:"revision"`
+	// SpecOK is false when the specification does not load. A run cannot be
+	// compared with a scope then: every Freshness is "unknown".
+	SpecOK bool `json:"spec_ok"`
+	// Unmanaged counts the objects that ask to be adopted, in every discovery.
+	Unmanaged   int             `json:"unmanaged"`
+	Discoveries []DiscoveryInfo `json:"discoveries"`
+	Warnings    []string        `json:"warnings,omitempty"`
+	// Command runs the discoveries that have not run, or whose scope changed. The
+	// page copies it and runs nothing.
+	Command string `json:"command"`
+}
+
+// DiscoveryInfo is one discovery.
+type DiscoveryInfo struct {
+	Name string `json:"name"`
+	// Type is the list resource type, Provider the source of its provider and
+	// Instance the provider instance it lists through.
+	Type     string `json:"type"`
+	Provider string `json:"provider"`
+	Instance string `json:"instance,omitempty"`
+	// Declared is false for a discovery that only the state holds a run of.
+	Declared bool `json:"declared"`
+	// Freshness is "current" (the last run listed in the scope that is written
+	// now), "stale" (the scope, the limit or the provider changed since: the run
+	// answers the old question), "never", "broken" (the scope cannot be listed
+	// with: see Problem), "undeclared" or "unknown" (the specification does not
+	// load).
+	Freshness string `json:"freshness"`
+	Problem   string `json:"problem,omitempty"`
+	// Scope is the scope that is written now, or the scope of the last run for a
+	// discovery that is not declared.
+	Scope  []Field `json:"scope"`
+	Limit  int64   `json:"limit,omitempty"`
+	Source *Ref    `json:"source,omitempty"`
+	// Run is the last run, nil for a discovery that has not run.
+	Run    *RunInfo        `json:"run,omitempty"`
+	Counts DiscoveryCounts `json:"counts"`
+	// Unreadable counts the records of the type that could not be opened, so that
+	// objects they are may be listed as unmanaged.
+	Unreadable int `json:"unreadable,omitempty"`
+	// Items are the objects of the last run that are not managed: unmanaged first,
+	// then adopting and acknowledged, each by name. At most 2000 are listed;
+	// ItemsOmitted counts the rest.
+	Items        []DiscoveredInfo `json:"items"`
+	ItemsOmitted int              `json:"items_omitted,omitempty"`
+	// Acks are the entries of $ack of the discovery.
+	Acks []AckInfo `json:"acks,omitempty"`
+	// Command runs this discovery. AckAll is the CUE of an $ack entry for the objects
+	// that are unmanaged now, with a reason for the person to give; it is empty when
+	// none is unmanaged or there are too many to name one by one.
+	Command string `json:"command"`
+	AckAll  string `json:"ack_all,omitempty"`
+}
+
+// RunInfo is a run of a discovery.
+type RunInfo struct {
+	Started  time.Time `json:"started"`
+	Finished time.Time `json:"finished"`
+	Actor    string    `json:"actor,omitempty"`
+	// Status is "complete", or "truncated" when the run stopped at its limit.
+	Status string `json:"status"`
+	// Total is the number of objects the run found, managed ones included.
+	Total    int      `json:"total"`
+	Warnings []string `json:"warnings,omitempty"`
+}
+
+// DiscoveryCounts counts the objects of the last run by what they are.
+type DiscoveryCounts struct {
+	Unmanaged    int `json:"unmanaged"`
+	Adopting     int `json:"adopting"`
+	Acknowledged int `json:"acknowledged"`
+	Managed      int `json:"managed"`
+}
+
+// DiscoveredInfo is an object that a discovery found and that no record is.
+type DiscoveredInfo struct {
+	// Key is the whole identity as one line and names the object; ID is what a
+	// person calls it.
+	Key  string `json:"key"`
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	// Status is "unmanaged" (it asks to be adopted), "adopting" (a resource names it
+	// in $import) or "acknowledged" (an acknowledgement covers it).
+	Status string `json:"status"`
+	// By is the address of the resource that adopts the object, or the ref of the
+	// $ack entry that covers it; Reason is the reason of the acknowledgement.
+	By       string  `json:"by,omitempty"`
+	Reason   string  `json:"reason,omitempty"`
+	Identity []Field `json:"identity,omitempty"`
+}
+
+// AckInfo is an entry of the $ack list of a discovery, as the specification has it.
+type AckInfo struct {
+	// Ref names the entry: "$ack[0]".
+	Ref   string   `json:"ref"`
+	IDs   []string `json:"ids,omitempty"`
+	Names []string `json:"names,omitempty"`
+	// Reason is what the entry says of why the objects are left alone.
+	Reason string `json:"reason,omitempty"`
+	// Covers is how many objects of the last run it covers, -1 when there is none.
+	Covers int `json:"covers"`
+}
+
+// Field is a name and a value as text.
+type Field struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// Adopt is GET /api/adopt?discovery=NAME&key=KEY: what a person does to bring one
+// discovered object under management. The server builds it from the last run and
+// the specification and asks no provider.
+type Adopt struct {
+	Discovery string `json:"discovery"`
+	Key       string `json:"key"`
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	// Snippet is CUE: a resource that names the object in $import.
+	Snippet string `json:"snippet"`
+	// Ack is the CUE of an $ack entry that says the object is known and is meant to
+	// stay as it is, with a reason for the person to give. Only for an unmanaged one.
+	Ack string `json:"ack,omitempty"`
+	// Steps follow the snippet: commands to copy, and notes. A step with
+	// Placeholder has a part, in angle brackets, for the person to fill in.
+	Steps []SuggestionStep `json:"steps"`
+}
+
+// TraceList is GET /api/traces: the runs that pravo recorded in the project, newest
+// first. A run is recorded when a command did some work (a plan, an apply, a drift
+// check) and the record was turned on with PRAVO_TRACES=on; the file is
+// .pravo/traces/<id>.json of the directory the command ran in (or $PRAVO_TRACE_DIR).
+// The viewer reads the files and writes none.
+type TraceList struct {
+	Version int `json:"version"`
+	// Dir is the directory the runs are read from, as the page shows it.
+	Dir    string      `json:"dir"`
+	Traces []TraceInfo `json:"traces"`
+	// Omitted counts the runs left out of the list because it is bounded.
+	Omitted int `json:"omitted,omitempty"`
+	// Unreadable counts the files that are not runs of this format.
+	Unreadable int `json:"unreadable,omitempty"`
+}
+
+// TraceInfo is one run in the list.
+type TraceInfo struct {
+	// ID names the run: <trace id>-<span id>, 32 and 16 hexadecimal digits.
+	ID string `json:"id"`
+	// Command is the command that ran, such as "pravo apply".
+	Command string `json:"command"`
+	// Line is the whole command line, "pravo plan -t env=prod --reason ...", as it was typed, with the values of the tags
+	// and of the flags that carry secrets masked, as in a stored plan. It is absent for a run recorded without one.
+	Line string `json:"line,omitempty"`
+	// Start is when the run began, RFC 3339.
+	Start      string `json:"start"`
+	DurationUS int64  `json:"duration_us"`
+	// Exit is the exit code of the command, -1 when the run does not say.
+	Exit int `json:"exit"`
+	// Status is "ok" or "error": error when a span failed.
+	Status string `json:"status"`
+	// SpanCount, Errors and Resources count the spans, the failed spans and the
+	// distinct resources that the run planned or applied.
+	SpanCount int `json:"span_count"`
+	Errors    int `json:"errors"`
+	Resources int `json:"resources"`
+	// Txn is the transaction the run wrote, if it applied.
+	Txn    string `json:"txn,omitempty"`
+	Actor  string `json:"actor,omitempty"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// Trace is GET /api/trace?id=ID: the spans of one run.
+type Trace struct {
+	Version int `json:"version"`
+	TraceInfo
+	TraceID string `json:"trace_id"`
+	// Dropped counts the provider calls and state requests left out of a very large run when it was recorded.
+	Dropped int `json:"dropped,omitempty"`
+	// Omitted counts the spans left out of this answer because it is bounded.
+	Omitted int         `json:"omitted,omitempty"`
+	Spans   []TraceSpan `json:"spans"`
+}
+
+// TraceSpan is one span. Times are microseconds from the start of the run. Kind is
+// "command", "engine", "phase", "setup", "resource", "provider", "state", "mcp" or "other". A span's
+// parent is in the run unless the run continued the trace of its caller.
+type TraceSpan struct {
+	ID      string         `json:"id"`
+	Parent  string         `json:"parent,omitempty"`
+	Name    string         `json:"name"`
+	Kind    string         `json:"kind"`
+	Status  string         `json:"status,omitempty"`
+	Message string         `json:"message,omitempty"`
+	StartUS int64          `json:"start_us"`
+	DurUS   int64          `json:"dur_us"`
+	Attrs   map[string]any `json:"attrs,omitempty"`
+	Events  []TraceEvent   `json:"events,omitempty"`
+}
+
+// TraceEvent is a debug event on a span.
+type TraceEvent struct {
+	Name  string         `json:"name"`
+	AtUS  int64          `json:"at_us"`
+	Attrs map[string]any `json:"attrs,omitempty"`
 }

@@ -194,7 +194,7 @@ export function buildItems(model, collapsed, clusters) {
           lane.items.push(it.id);
           rep.set(n.addr, it.id);
         }
-        const ctl = put({ id: 'x:' + cid, kind: 'ctl', cluster: cid, type: grp[0].type, total: grp.length, shown, w: G.CW, h: G.CTL, lane: ns.path, with: shown ? 'n:' + grp[0].addr : '' });
+        const ctl = put({ id: 'x:' + cid, kind: 'ctl', cluster: cid, type: grp[0].type, mode: grp[0].mode, total: grp.length, shown, w: G.CW, h: G.CTL, lane: ns.path, with: shown ? 'n:' + grp[0].addr : '' });
         lane.items.push(ctl.id);
         for (let i = shown; i < grp.length; i++) rep.set(grp[i].addr, ctl.id);
         continue;

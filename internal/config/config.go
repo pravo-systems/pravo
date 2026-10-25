@@ -3,8 +3,10 @@
 package config
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -23,6 +25,7 @@ import (
 	"cuelang.org/go/cue/load"
 
 	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // refreshAge matches the values of $settings.refresh and $lifecycle.refresh.
@@ -138,6 +141,9 @@ type Root struct {
 	// Imports are the $import declarations by resource address.
 	Imports   map[string]*Import
 	Resources []*Resource
+	// Discoveries are the discoveries in the specification, in the order they were
+	// found.
+	Discoveries []*Discovery
 	// ProviderKeys lists every provider instance key in use, sorted.
 	ProviderKeys []string
 	// ProviderDecls are the provider structs found in the specification,
@@ -165,15 +171,42 @@ type Move struct {
 	Prefix bool
 }
 
-// Import is one entry of the top-level import field.
+// Import is the $import of a resource: the object that the first plan reads and
+// adopts. It names the object by an id, the string that the provider documents for
+// importing, or by an identity, the attributes of the identity schema of the
+// resource type, which a list of the type gives. It has one of them.
 type Import struct {
-	Addr string
-	ID   string
+	Addr     string
+	ID       string
+	Identity map[string]any
+}
+
+// Label writes what the import names on one line: the id, or the identity as
+// name=value pairs.
+func (i *Import) Label() string {
+	if i.Identity == nil {
+		return i.ID
+	}
+	names := make([]string, 0, len(i.Identity))
+	for n := range i.Identity {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	parts := make([]string, len(names))
+	for k, n := range names {
+		if s, ok := i.Identity[n].(string); ok {
+			parts[k] = n + "=" + s
+		} else {
+			b, _ := json.Marshal(i.Identity[n])
+			parts[k] = n + "=" + string(b)
+		}
+	}
+	return strings.Join(parts, ",")
 }
 
 // StateConfig is the parsed $settings.state block.
 type StateConfig struct {
-	// Backend is "local" (the default) or "s3".
+	// Backend is "local" (the default), "s3" or "http".
 	Backend   string
 	Bucket    string
 	Prefix    string
@@ -183,12 +216,32 @@ type StateConfig struct {
 	Profile   string
 	AccessKey string
 	SecretKey string
+	// URL, Token, Username and Password belong to the http backend.
+	URL      string
+	Token    string
+	Username string
+	Password string
 }
+
+// Remote reports whether the state is on a server and not in a directory.
+func (s StateConfig) Remote() bool { return s.Backend == "s3" || s.Backend == "http" }
 
 // LoadOptions control CUE loading.
 type LoadOptions struct {
 	Tags    []string
 	SysTags bool
+	// Context is the trace the stages of loading are spans of; nil means none.
+	Context context.Context
+}
+
+// stage starts the span of a stage of loading.
+func (o LoadOptions) stage(name string) func(error) {
+	ctx := o.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	_, end := telemetry.Span(ctx, "config "+name)
+	return end
 }
 
 // Load evaluates the package in dir.
@@ -231,7 +284,9 @@ func loadPackage(abs string, files []string, opts LoadOptions, overlay map[strin
 	if opts.SysTags {
 		cfg.TagVars = load.DefaultTagVars()
 	}
+	end := opts.stage("load package")
 	insts := load.Instances([]string{"."}, cfg)
+	end(nil)
 	if len(insts) == 0 {
 		return nil, noSpecification(files, fmt.Errorf("no CUE package found in %s", abs))
 	}
@@ -240,16 +295,25 @@ func loadPackage(abs string, files []string, opts LoadOptions, overlay map[strin
 		return nil, noSpecification(files, ModuleNotFoundHint(fmt.Errorf("loading %s:\n%s", abs, cueerrors.Details(inst.Err, nil))))
 	}
 	ctx := cuecontext.New()
+	end = opts.stage("evaluate")
 	v := ctx.BuildInstance(inst)
 	if err := v.Err(); err != nil {
+		end(err)
 		return nil, ModuleNotFoundHint(fmt.Errorf("evaluating %s:\n%s", abs, cueerrors.Details(err, nil)))
 	}
+	end(nil)
+	end = opts.stage("validate")
 	if err := v.Validate(); err != nil {
+		end(err)
 		return nil, fmt.Errorf("invalid configuration:\n%s", cueerrors.Details(err, nil))
 	}
+	end(nil)
 	r := &Root{Dir: abs, PkgName: inst.PkgName, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath}
+	end = opts.stage("extract resources")
 	r.collectTree(inst)
-	if err := r.extract(opts); err != nil {
+	err := r.extract(opts)
+	end(err)
+	if err != nil {
 		return nil, err
 	}
 	return r, nil
@@ -726,6 +790,7 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 	fields := map[string]*string{
 		"backend": &st.Backend, "bucket": &st.Bucket, "prefix": &st.Prefix, "region": &st.Region,
 		"endpoint": &st.Endpoint, "profile": &st.Profile, "access_key": &st.AccessKey, "secret_key": &st.SecretKey,
+		"url": &st.URL, "token": &st.Token, "username": &st.Username, "password": &st.Password,
 	}
 	for name, dst := range fields {
 		if *dst, err = str(name); err != nil {
@@ -740,9 +805,9 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		st.PathStyle = b
 	}
 	switch st.Backend {
-	case "", "local", "s3":
+	case "", "local", "s3", "http":
 	default:
-		return st, "", fmt.Errorf("%s.backend: unknown backend %q (want local or s3)", label, st.Backend)
+		return st, "", fmt.Errorf("%s.backend: unknown backend %q (want local, s3 or http)", label, st.Backend)
 	}
 	if st.Backend == "" && st.Bucket != "" {
 		// A bucket can only mean the s3 backend.
@@ -751,15 +816,30 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 	if st.Backend != "s3" {
 		for _, f := range []string{"bucket", "prefix", "region", "endpoint", "profile", "access_key", "secret_key", "path_style"} {
 			if sb.LookupPath(cue.ParsePath(f)).Exists() {
-				return st, "", fmt.Errorf("%s.%s belongs to the s3 backend: set backend: \"s3\", or remove it for local state", label, f)
+				return st, "", fmt.Errorf("%s.%s belongs to the s3 backend: set backend: \"s3\", or remove it", label, f)
 			}
 		}
 	}
-	if st.Backend == "s3" && sb.LookupPath(cue.ParsePath("path")).Exists() {
-		return st, "", fmt.Errorf("%s.path belongs to the local backend: remove it, or remove backend: \"s3\"", label)
+	if st.Backend != "http" {
+		for _, f := range []string{"url", "token", "username", "password"} {
+			if sb.LookupPath(cue.ParsePath(f)).Exists() {
+				return st, "", fmt.Errorf("%s.%s belongs to the http backend: set backend: \"http\", or remove it", label, f)
+			}
+		}
+	}
+	if st.Remote() && sb.LookupPath(cue.ParsePath("path")).Exists() {
+		return st, "", fmt.Errorf("%s.path belongs to the local backend: remove it, or remove backend: %q", label, st.Backend)
 	}
 	if st.Backend == "s3" && st.Bucket == "" {
 		return st, "", fmt.Errorf("%s.bucket is required when backend is s3", label)
+	}
+	if st.Backend == "http" {
+		if st.URL == "" {
+			return st, "", fmt.Errorf("%s.url is required when backend is http", label)
+		}
+		if st.Token != "" && (st.Username != "" || st.Password != "") {
+			return st, "", fmt.Errorf("%s: set token, or username and password, not both", label)
+		}
 	}
 	return st, path, nil
 }

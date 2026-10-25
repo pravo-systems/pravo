@@ -22,6 +22,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -622,7 +623,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 	} else {
 		out.RenderPlan(plan)
 	}
-	if !plan.HasChanges() {
+	if !plan.HasWrites() {
 		// The plan has nothing to change. What it still writes is the record of a
 		// node whose configuration changed and whose object did not, and an output
 		// whose value changed.
@@ -684,9 +685,27 @@ func reportApply(res *engine.ApplyResult, destroy bool, kind, planfile, again st
 	}
 	if len(res.Outputs) > 0 {
 		out.Println()
-		out.Println("Outputs:")
-		printOutputs(res.Outputs, false, "  ")
+		out.Println(outputsSummary(len(res.Outputs), res.ChangedOutputs))
 	}
+}
+
+// outputsSummary says how many outputs an apply recorded and which of them
+// changed, and where to read them. Apply does not print their values: they
+// reach logs that are kept, and "pravo output" and "pravo serve" show them.
+func outputsSummary(total int, changed []string) string {
+	noun := "outputs"
+	if total == 1 {
+		noun = "output"
+	}
+	what := "none changed"
+	if len(changed) > 0 {
+		names := make([]string, len(changed))
+		for i, n := range changed {
+			names[i] = convert.FieldLabel(n)
+		}
+		what = fmt.Sprintf("%d changed (%s)", len(changed), strings.Join(names, ", "))
+	}
+	return fmt.Sprintf("%d %s, %s. See them with \"pravo output\" or \"pravo serve\".", total, noun, what)
 }
 
 func printOutputs(outputs map[string]json.RawMessage, asJSON bool, indent string) {
@@ -791,7 +810,7 @@ func importCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			imported, diags, err := prov.ImportResourceState(ctx, res.Type, args[1], typesOf(ps))
+			imported, diags, err := prov.ImportResourceState(ctx, res.Type, plugin.ImportTarget{ID: args[1]}, typesOf(ps))
 			if err != nil {
 				return err
 			}

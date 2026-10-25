@@ -190,21 +190,33 @@ func (e *Engine) openRemoteOutputs(ctx context.Context, b state.Backend) (map[st
 	return nil, notReaderOfOutputs(b.Name(), id, idErr)
 }
 
+// RemoteBackend opens the backend that the state settings name, an S3 bucket or an
+// http server. The credentials the settings leave out come from the environment:
+// AWS_SESSION_TOKEN for a bucket and PRAVO_STATE_TOKEN for a server.
+func RemoteBackend(ctx context.Context, st config.StateConfig) (state.Backend, error) {
+	if st.Backend == "http" {
+		token := st.Token
+		if token == "" && st.Username == "" {
+			token = os.Getenv("PRAVO_STATE_TOKEN")
+		}
+		return state.NewHTTPBackend(state.HTTPConfig{URL: st.URL, Token: token, Username: st.Username, Password: st.Password})
+	}
+	return state.NewS3Backend(ctx, state.S3Config{
+		Bucket: st.Bucket, Prefix: st.Prefix, Region: st.Region, Endpoint: st.Endpoint,
+		PathStyle: st.PathStyle, Profile: st.Profile, AccessKey: st.AccessKey, SecretKey: st.SecretKey,
+		SessionToken: os.Getenv("AWS_SESSION_TOKEN"),
+	})
+}
+
 // remoteOutputsTask reads the outputs another root has recorded and fills
 // them into the configuration. Outputs that root marked sensitive are left
 // out. If that root's state is sealed, they are read with the identity of this
 // process, which has to be one of its readers.
 func (e *Engine) remoteOutputsTask(ctx context.Context, r *config.Resource) error {
 	var b state.Backend
-	if r.Remote.State.Backend == "s3" {
-		st := r.Remote.State
+	if r.Remote.State.Remote() {
 		var err error
-		b, err = state.NewS3Backend(ctx, state.S3Config{
-			Bucket: st.Bucket, Prefix: st.Prefix, Region: st.Region, Endpoint: st.Endpoint,
-			PathStyle: st.PathStyle, Profile: st.Profile, AccessKey: st.AccessKey, SecretKey: st.SecretKey,
-			SessionToken: os.Getenv("AWS_SESSION_TOKEN"),
-		})
-		if err != nil {
+		if b, err = RemoteBackend(ctx, r.Remote.State); err != nil {
 			return fmt.Errorf("%s: %w", r.Address(), err)
 		}
 	} else {

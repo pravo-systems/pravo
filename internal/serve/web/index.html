@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="assets/graph.css">
 <link rel="stylesheet" href="assets/plans.css">
 <link rel="stylesheet" href="assets/access.css">
+<link rel="stylesheet" href="assets/discovery.css">
+<link rel="stylesheet" href="assets/traces.css">
 <script type="module" src="assets/app.js"></script>
 </head>
 <body>
@@ -31,11 +33,13 @@
   <span class="grow"></span>
   <nav class="sections" aria-label="Section">
     <button type="button" class="sec-tab" id="sec-inventory" aria-pressed="true" aria-keyshortcuts="a"><span class="i i-stack" aria-hidden="true"></span><span class="lbl">Inventory</span></button>
+    <button type="button" class="sec-tab" id="sec-discovery" aria-pressed="false" aria-keyshortcuts="d"><span class="i i-radar" aria-hidden="true"></span><span class="lbl">Discovery</span><span class="cnt" id="sec-disc-count" hidden></span></button>
+    <button type="button" class="sec-tab" id="sec-traces" aria-pressed="false" aria-keyshortcuts="r"><span class="i i-trace" aria-hidden="true"></span><span class="lbl">Traces</span></button>
     <button type="button" class="sec-tab" id="sec-plans" aria-pressed="false" aria-keyshortcuts="p"><span class="i i-file" aria-hidden="true"></span><span class="lbl">Plans</span></button>
     <button type="button" class="sec-tab" id="sec-access" aria-pressed="false" aria-keyshortcuts="a"><span class="i i-lock" aria-hidden="true"></span><span class="lbl">State</span></button>
   </nav>
   <div class="topright">
-    <button class="search" id="search-btn" type="button" aria-label="Search" aria-keyshortcuts="/ Control+K Meta+K"><span class="i i-search" aria-hidden="true"></span><span class="lbl">Find a resource</span><kbd>/</kbd></button>
+    <button class="search" id="search-btn" type="button" aria-label="Search and run actions" aria-keyshortcuts="/ Control+K Meta+K"><span class="i i-search" aria-hidden="true"></span><span class="lbl">Search</span><kbd>/</kbd></button>
     <span class="me" id="me" hidden tabindex="0" role="note"></span>
     <button class="iconbtn" id="theme-btn" type="button" aria-label="Switch the theme" data-tip="Switch the theme" data-key="t"><span class="i i-moon" aria-hidden="true"></span></button>
   </div>
@@ -98,11 +102,15 @@
     <div class="pane list-pane" id="list-pane" hidden></div>
     <div class="pane plans-pane" id="plans-pane" role="region" aria-label="Plans" tabindex="-1" hidden>
       <div class="pl">
-        <h2 class="pl-title">Plans</h2>
-        <p class="pl-lede" id="pl-lede"></p>
-        <section class="rail-plans" id="plans-list" aria-label="Stored plans"></section>
+        <header class="pl-head" id="pl-head">
+          <h2 class="pl-title">Plans</h2>
+          <p class="pl-lede" id="pl-lede"></p>
+        </header>
+        <div class="pl-list-wrap"><section class="rail-plans" id="plans-list" aria-label="Stored plans"></section></div>
       </div>
     </div>
+    <div class="pane discovery-pane" id="discovery-pane" role="region" aria-label="Discovery" tabindex="-1" hidden></div>
+    <div class="pane traces-pane" id="traces-pane" role="region" aria-label="Traces" tabindex="-1" hidden></div>
     <div class="pane access-pane" id="access-pane" role="region" aria-label="State" tabindex="-1" hidden></div>
   </main>
 
@@ -136,14 +144,14 @@
 
 <div class="pal-wrap" id="palette" hidden>
   <div class="pal-scrim"></div>
-  <div class="pal" role="dialog" aria-modal="true" aria-label="Search the project">
+  <div class="pal" role="dialog" aria-modal="true" aria-label="Search the project and run actions">
     <div class="pal-in">
       <span class="i i-search" aria-hidden="true"></span>
-      <input type="text" role="combobox" aria-expanded="false" aria-controls="pal-list" aria-autocomplete="list" aria-label="Search" placeholder="Find a resource, a type or a namespace" autocomplete="off" spellcheck="false">
+      <input type="text" role="combobox" aria-expanded="false" aria-controls="pal-list" aria-autocomplete="list" aria-label="Search" placeholder="Search resources, plans, runs and findings, or type &gt; for actions" autocomplete="off" spellcheck="false">
       <kbd>esc</kbd>
     </div>
     <div class="pal-list" id="pal-list" role="listbox" aria-label="Results"></div>
-    <div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> go to it</span><span><kbd>esc</kbd> close</span><span class="pal-count"></span></div>
+    <div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open or run</span><span><kbd>&gt;</kbd> actions</span><span><kbd>esc</kbd> close</span><span class="pal-count"></span></div>
   </div>
 </div>
 

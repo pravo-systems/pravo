@@ -77,6 +77,12 @@ func OpenBackendWith(ctx context.Context, b Backend, o Options) (*Store, error) 
 
 // OpenWith is Open with options, for a local directory.
 func OpenWith(path string, o Options) (*Store, error) {
+	return OpenWithContext(context.Background(), path, o)
+}
+
+// OpenWithContext is OpenWith with the context the store's requests are traced
+// under (see OpenBackend).
+func OpenWithContext(ctx context.Context, path string, o Options) (*Store, error) {
 	if st, err := os.Stat(path); err == nil && !st.IsDir() {
 		return nil, fmt.Errorf("the state path %s is a file; a state path is a directory (set $settings.state.path to a directory such as pravo.state, and read an OpenTofu state file with \"pravo state import-tfstate\")", path)
 	}
@@ -84,7 +90,7 @@ func OpenWith(path string, o Options) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return openBackend(context.Background(), b, o)
+	return openBackend(ctx, b, o)
 }
 
 // Locked reports whether the state is sealed and this store holds no key to
@@ -145,7 +151,7 @@ func (s *Store) CheckCurrent() error {
 	if !due {
 		return nil
 	}
-	data, err := s.b.Get(s.ctx, "meta.json")
+	data, err := s.b.Get(s.cx(), "meta.json")
 	if err != nil {
 		return nil // a bucket that cannot be read refuses the write itself
 	}

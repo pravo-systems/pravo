@@ -6,6 +6,8 @@
 //   &latency=300                          every answer is delayed by that many milliseconds
 //   &stale=1                              the saved plan is stale, with reasons
 //   &plan=plan-2f9c1a4e                   the server lays that stored plan itself (pravo serve --plan plan-2f9c1a4e)
+//   &discovery=NAME                       the Discovery view answers discovery.NAME.json: platform (five discoveries of every freshness), empty
+//   &traces=NAME                          the Traces view answers traces.NAME.json: platform (an apply, a plan, an apply that failed and a drift check), empty
 //   &access=NAME                          the Access view answers access.NAME.json: platform (sealed, a reader), off, immutable,
 //                                         drift, locked (no identity: every record is sealed), notreader, missing (no readers file), migrating, invalid,
 //                                         downgraded (the repository lists readers and the state is not sealed), solo (sealed to one reader: the warning)
@@ -53,6 +55,33 @@ if (graph) {
     graph.plan.reasons = ['the state changed after the plan was made: api.db is at revision 15, the plan read revision 14', 'the provider aws is now version 5.62.0, the plan was made with 5.61.0'];
   }
 }
+// ---- the Discovery view: discovery.NAME.json, the platform's unless the query says another ----
+// ---- the Traces view: traces.NAME.json lists the runs, and trace.XXXXXXXX.json (the first eight digits of the id) is each one ----
+let tracesName = params.get('traces') || (NAME === 'platform' ? 'platform' : 'empty');
+let traces = (await fixture(`traces.${tracesName}.json`)) || { version: 1, dir: '.pravo/traces', traces: [] };
+const runStart = (iso, by) => new Date(Date.parse(iso) + by).toISOString();
+let discoveryName = params.get('discovery') || (NAME === 'platform' ? 'platform' : 'empty');
+let discovery = await fixture(`discovery.${discoveryName}.json`);
+const adoptExample = await fixture('adopt.example.json');
+// adoptOf makes the answer of /api/adopt for an object of the fixture, as the server words it
+function adoptOf(name, key) {
+  const d = discovery && discovery.discoveries.find((x) => x.name === name);
+  const it = d && d.items.find((x) => x.key === key);
+  if (!it) return null;
+  const label = it.name ? ` (${it.name})` : '';
+  const ident = `{\n${(it.identity && it.identity.length ? it.identity : [{ name: 'id', value: it.id }]).map((f) => `\t\t${f.name}: ${JSON.stringify(f.value)}\n`).join('')}\t}`;
+  const res = (it.name || it.id).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'adopted';
+  const snippet = `// Adopts the ${d.type} "${it.id}"${label} that the discovery ${d.name} found.\n${res}: $${d.instance || 'provider'}.#Resource.${d.type} & {\n\t$import: ${ident}\n}\n`;
+  const steps = [];
+  if (it.status === 'adopting') steps.push({ kind: 'note', text: `${it.by} already names this object in $import. The next plan reads it and an apply records it.` });
+  else {
+    steps.push({ kind: 'note', text: 'To write the resource with the attributes the object has, ask the provider for it:' });
+    steps.push({ kind: 'command', text: `pravo discover adopt ${d.name} ${it.id} --read` });
+  }
+  const ack = it.status === 'unmanaged' ? `// An entry of $ack in the discovery ${d.name}, which is the list \`$ack: [...]\` of its struct.\n{\n\tids: ["${it.id}"]\n\treason: "<why>"\n}\n` : undefined;
+  return Object.assign({}, adoptExample, { discovery: name, key, id: it.id, status: it.status, snippet, steps, ack });
+}
+
 // ---- the Access view: access.NAME.json, the sealed platform unless the query says another ----
 let accessName = params.get('access') || (NAME === 'platform' ? 'platform' : 'off');
 let access = await fixture(`access.${accessName}.json`);
@@ -119,10 +148,14 @@ const TPL = {
   aws_cloudwatch_log_group: [['name', 'string', 'optional,computed', '/estate/{name}'], ['retention_in_days', 'number', 'optional', 30]],
   aws_cloudwatch_metric_alarm: [['comparison_operator', 'string', 'required', 'GreaterThanThreshold'], ['evaluation_periods', 'number', 'required', 3], ['metric_name', 'string', 'optional', 'CPUUtilization'], ['threshold', 'number', 'optional', 80]],
   random_password: [['length', 'number', 'required', 24], ['special', 'bool', 'optional', true], ['upper', 'bool', 'optional', true]],
+  aws_secretsmanager_random_password: [['password_length', 'number', 'optional', 32], ['exclude_punctuation', 'bool', 'optional', true]],
   random_id: [['byte_length', 'number', 'required', 4], ['hex', 'string', 'computed', '{id}']],
   local_file: [['content', 'string', 'optional', 'release 42\n'], ['filename', 'string', 'required', './release.txt'], ['file_permission', 'string', 'optional', '0644']],
 };
 const GENERIC = [['name', 'string', 'optional,computed', '{name}']];
+// what the provider schema says about an attribute, for the Schema tab of a node that has no record
+const DESC = { length: 'The length of the string desired.', special: 'Include special characters in the result.', upper: 'Include uppercase alphabet characters in the result.', result: 'The generated random string.',
+  password_length: 'The length of the password. The default is 32.', exclude_punctuation: 'Do not include punctuation in the password.', random_password: 'The generated password.' };
 
 const fill = (v, n, ctx) => (typeof v !== 'string' ? v : v.replace(/\{name\}/g, n.name).replace(/\{ns\}/g, n.namespace).replace(/\{id\}/g, hex(n.addr, 17))
   .replace(/\{rev\}/g, String(n.revision || 1)).replace(/\{n\}/g, String(10 + (ctx.h % 20))).replace(/\{m\}/g, String((ctx.h >> 5) % 250)).replace(/\{k\}/g, String(4 + ((ctx.h >> 9) % 240))));
@@ -175,6 +208,47 @@ function synthOutput(n) {
     depends_on: g.edges.filter((e) => e.dependent === n.addr).map((e) => e.dependency).sort(), used_by: g.edges.filter((e) => e.dependency === n.addr).map((e) => e.dependent).sort(), times: {}, notes };
 }
 
+// what the server sends for a node that is never recorded: the schema of its type, and for an ephemeral resource what the specification sets,
+// for an environment variable its declaration and the value in the environment of the process
+function synthTransient(n, d, deps) {
+  const env = n.type === 'env' || n.type === 'secret_env';
+  if (env) {
+    const secret = n.type === 'secret_env';
+    const name = n.name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();
+    const def = n.name === 'prefix' ? 'acme' : null;
+    d.provider = { key: '' };
+    d.schema = [{ name: 'name', type: 'string', kind: 'required', description: 'The name of the environment variable.' },
+      ...(secret ? [] : [{ name: 'default', type: 'string', kind: 'optional', description: 'Used when the variable is not set. Without it, an unset variable is an error.' }]),
+      { name: 'value', type: 'string', kind: 'computed', description: 'What the variable holds.', ...(secret ? { sensitive: true } : {}) }];
+    d.attrs = [{ name: 'name', type: 'string', kind: 'required', value: name }];
+    if (!secret) d.attrs.push({ name: 'default', type: 'string', kind: 'optional', ...(def ? { value: def } : { null: true }) });
+    const value = { name: 'value', type: 'string', kind: 'computed' };
+    if (secret) Object.assign(value, { sensitive: true, redacted: 'sensitive' });
+    else if (def) value.value = def;
+    else value.value = 'acme-' + n.name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    d.attrs.push(value);
+    d.notes = (d.notes || []).concat(secret
+      ? ['A secret variable shows no value. Its value is ephemeral: it is kept out of the state and out of a saved plan, and out of this page.']
+      : def ? ['The variable ' + name + ' is not set in the environment of pravo serve, so the value is the default.'] : ['The value is that of the variable in the environment of pravo serve. A command reads the variable from its own environment.']);
+    d.notes.push('A built-in value is evaluated when a command runs and is never recorded in the state.');
+    return;
+  }
+  const t = TPL[n.type] || GENERIC;
+  const ctx = { h: hash(n.addr) };
+  d.schema = [...t.map(([name, type, kind]) => ({ name, type, kind, description: DESC[name] })),
+    ...(n.mode === 'ephemeral' ? [{ name: 'result', type: 'string', kind: 'computed', sensitive: true, description: DESC.result }] : [])].sort((a, b) => (a.name < b.name ? -1 : 1));
+  if (n.mode === 'ephemeral') {
+    // the values that the specification sets; one that reads another node is not known before a command runs
+    d.attrs = t.filter(([, , kind]) => !kind.includes('computed') || kind.includes('optional')).map(([name, type, kind, v]) => ({ name, type, kind, value: fill(v, n, ctx) }));
+    if (deps.length && d.attrs.length > 1) { const a = d.attrs[d.attrs.length - 1]; delete a.value; a.unknown = true; }
+    d.notes = (d.notes || []).concat('These are the values that the specification sets. What the provider fills in is known only while a command runs.',
+      'An ephemeral resource is evaluated when a command runs and is never recorded in the state.');
+  } else {
+    d.attrs = [];
+    d.notes = (d.notes || []).concat('A call is evaluated when a command runs and is never recorded in the state.');
+  }
+}
+
 function synthDetail(n) {
   if (n.mode === 'output') return synthOutput(n);
   const g = graph;
@@ -197,13 +271,14 @@ function synthDetail(n) {
   if (!d.schema_known) d.attrs = attrs.map((a) => ({ name: a.name, type: a.type, kind: a.kind, redacted: 'schema' }));
   if (seen.size) d.reach = [...seen].sort();
   if (notes.length) d.notes = notes;
+  if (['ephemeral', 'call', 'builtin'].includes(n.mode)) { synthTransient(n, d, deps); return d; }
   if (n.locked) d.lock = { kind: 'lock', user: 'ci', host: 'runner-07', command: 'pravo apply release-42.plan', actor: 'ci@acme', since: new Date(Date.now() - 6 * 60e3).toISOString().replace(/\.\d{3}Z$/, 'Z') };
   // history from the revision
   const hist = [];
   const kinds = ['apply', 'apply', 'edit', 'apply', 'import'];
   for (let i = 0; i < Math.min(n.revision || 0, 5); i++) {
     const rev = (n.revision || 0) - i;
-    hist.push({ id: `20261${(10 - i % 9)}${String(10 + i).padStart(2, '0')}T0${i}1200Z-${hex(n.addr + i, 6)}`, kind: i === (n.revision - 1) ? 'import' : kinds[i % kinds.length], status: i === 3 ? 'failed' : 'applied', time: new Date(Date.now() - (i * 5 + 2) * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), user: i % 2 ? 'grace' : 'ada', command: i === 3 ? 'pravo apply release.plan' : 'pravo apply', action: i === (n.revision - 1) ? 'import' : 'update', rev_before: rev - 1, rev_after: rev });
+    hist.push({ id: `20261${(10 - i % 9)}${String(10 + i).padStart(2, '0')}T0${i}1200Z-${hex(n.addr + i, 6)}`, kind: i === (n.revision - 1) ? 'import' : kinds[i % kinds.length], status: i === 3 ? 'failed' : 'applied', time: new Date(Date.now() - (i * 5 + 2) * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), user: i % 2 ? 'grace' : 'ada', command: i === 3 ? 'pravo apply release.plan' : 'pravo apply', action: i === (n.revision - 1) ? 'import' : 'update', rev_before: rev - 1, rev_after: rev, ...(i === 0 ? { plan: 'plan-2f9c1a4e', git_revision: hex(n.addr, 8) + 'c0ffee' } : {}), ...(i === 0 ? { attrs: [{ path: 'port', before: 5432, after: 5433 }, { path: 'tags.owner', before: 'team', after: 'ops' }, { path: 'password', before_redacted: true, after_redacted: true }] } : i === 1 ? { attrs_sealed: true } : i === 2 ? { attrs_omitted: true } : {}) });
   }
   if (hist.length) d.history = hist;
   // the plan's decision
@@ -290,6 +365,20 @@ window.fetch = async (input, init) => {
   if (p === '/api/ping') return json(200, { ok: true, version: 1 });
   if (p === '/api/graph') return json(200, graph);
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/adopt') {
+    const a = adoptOf(url.searchParams.get('discovery') || '', url.searchParams.get('key') || '');
+    return a ? json(200, a) : json(404, { error: 'no such object in the last run of that discovery' });
+  }
+  if (p === '/api/traces') return json(200, Object.assign({}, traces, { traces: traces.traces.map((x) => Object.assign({}, x, { start: runStart(x.start, x.live ? 0 : by) })) }));
+  if (p === '/api/trace') {
+    const id = url.searchParams.get('id') || '';
+    if (!/^[0-9a-f]{32}-[0-9a-f]{16}$/.test(id)) return json(400, { error: 'id is not the id of a run' });
+    const row = traces.traces.find((x) => x.id === id);
+    const doc = row ? await fixture(`trace.${(row.from || id).slice(0, 8)}.json`) : null;
+    if (!doc) return json(404, { error: 'no such run' });
+    return json(200, Object.assign({}, doc, row, { start: runStart(row.start, row.live ? 0 : by) }));
+  }
   if (p === '/api/plans') return json(200, Object.assign({}, stored, { revision: graph.revision }));
   if (p === '/api/plan') {
     const id = url.searchParams.get('id') || '';
@@ -431,6 +520,14 @@ window.__mock = {
     this.emit({ revision: g.revision, what: ['plans'] });
     return id;
   },
+  // record adds a run to the Traces view, as a command that did some work would, and sends the event for it
+  record() {
+    const base = traces.traces.find((x) => x.command === 'pravo plan') || traces.traces[0];
+    const id = 'c0ffee00' + Math.random().toString(16).slice(2, 26).padEnd(24, '0') + '-' + Math.random().toString(16).slice(2, 18).padEnd(16, '0');
+    traces = Object.assign({}, traces, { traces: [Object.assign({}, base, { id, from: base.id, live: true, start: new Date().toISOString() })].concat(traces.traces) });
+    this.emit({ revision: graph.revision, what: ['traces'] });
+    return id;
+  },
   // collectPlan removes a stored plan, as a collection does
   collectPlan(id) {
     const g = JSON.parse(JSON.stringify(graph));
@@ -451,6 +548,17 @@ window.__mock = {
     g.revision = 'r-access-' + (++mutations);
     graph = g;
     this.emit({ revision: g.revision, what: ['access'] });
+    return true;
+  },
+  // setDiscovery swaps the Discovery document for another fixture, as a run of "pravo discover" would, and sends the event
+  async setDiscovery(name) {
+    const d = await fixture(`discovery.${name}.json`);
+    if (!d) return false;
+    discovery = d;
+    const g = JSON.parse(JSON.stringify(graph));
+    g.revision = 'r-discovery-' + (++mutations);
+    graph = g;
+    this.emit({ revision: g.revision, what: ['discovery'] });
     return true;
   },
   drop() { for (const s of sources) { s.readyState = 0; s.fire('error', {}); } },

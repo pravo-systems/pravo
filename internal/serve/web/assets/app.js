@@ -10,8 +10,10 @@ import { ListView } from './list.js';
 import { Inspector } from './inspector.js';
 import { Plans, planStrip, avatar, statusLabel } from './plans.js';
 import { AccessView } from './access.js';
+import { DiscoveryView } from './discovery.js';
+import { TracesView } from './traces.js';
 import { Palette, Sheet } from './palette.js';
-import { compileQuery, QueryMenu, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
+import { compileQuery, QueryMenu, quoted, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
 import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, pathParts, tilde, motionOn, tick } from './util.js';
 import { initTips } from './ui.js';
@@ -24,13 +26,16 @@ const root = document.documentElement;
 const S = {
   // graph is what the page draws; raw is what the server sent, and the stored plan that is laid over it (plan, with
   // its overlay when the server did not lay it itself) makes the difference
-  graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null, access: null,
-  view: 'graph', sel: null, tab: null, q: '',
+  graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null, access: null, discovery: null,
+  view: 'graph', sel: null, tab: null, q: '', dq: '', plq: '',
   collapsed: new Set(), auto: new Set(), clusters: new Map(), trail: [],
   theme: null, motion: true, reach: false, zoom: 'fit',
+  // finds is how many searches the history holds the picture before; foundAt is what the last one landed on
+  finds: 0, foundAt: null,
+  runs: [], // the runs that pravo recorded, read when the palette opens
   live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
-let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView;
+let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView;
 let booted = false;
 
 // ---------------------------------------------------------------------------------------------------------
@@ -84,10 +89,23 @@ function applyTheme(t, persist) {
   if (minimap) { minimap.refreshColors(); minimap.draw(); }
 }
 
-function toggleTheme() {
-  applyTheme(effectiveTheme() === 'dark' ? 'light' : 'dark', true);
-  syncFragment();
-  announce(effectiveTheme() === 'dark' ? 'Dark theme' : 'Light theme');
+// The other theme spreads from the button (or from the middle of the window, for the key), as a circle that the browser
+// draws between the two pictures. Where the browser cannot, or motion is off, the theme just changes.
+function toggleTheme(ev) {
+  const swap = () => {
+    applyTheme(effectiveTheme() === 'dark' ? 'light' : 'dark', true);
+    syncFragment();
+    announce(effectiveTheme() === 'dark' ? 'Dark theme' : 'Light theme');
+  };
+  if (!document.startViewTransition || !motionOn()) { swap(); return; }
+  const box = ev && ev.currentTarget && ev.currentTarget.getBoundingClientRect ? ev.currentTarget.getBoundingClientRect() : null;
+  const x = box ? box.left + box.width / 2 : innerWidth / 2, y = box ? box.top + box.height / 2 : innerHeight / 2;
+  root.style.setProperty('--vt-x', x + 'px');
+  root.style.setProperty('--vt-y', y + 'px');
+  root.style.setProperty('--vt-r', Math.ceil(Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))) + 'px');
+  root.setAttribute('data-vt', '');
+  const done = () => root.removeAttribute('data-vt');
+  document.startViewTransition(swap).finished.then(done, done);
 }
 
 // beat makes the live dots beat for a few cycles: when the page opens and when something changes. At rest
@@ -118,9 +136,18 @@ function readFragment() {
     // a stored plan by id, 'none' for no plan at all, '' for the plan the server laid over the graph (if any)
     plan: p.plan === 'none' || /^plan-[0-9a-f]{6,64}$/.test(p.plan || '') ? p.plan : '',
     // the old filter= is the chip of that name: its term goes in the text
+    // the filter box of the Discovery section has its own text
+    dq: p.dq || '',
+    // the finder of the Plans section has its own text
+    plq: p.plq || '',
     q: Object.hasOwn(LEGACY_FILTERS, p.filter) ? addTerm(p.q || '', LEGACY_FILTERS[p.filter].col, LEGACY_FILTERS[p.filter].value, false) : p.q || '',
     // an address from before the view was renamed says table, or tree
-    view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : 'graph',
+    view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'traces' ? 'traces' : 'graph',
+    trace: /^[0-9a-f]{32}-[0-9a-f]{16}$/.test(p.trace || '') ? p.trace : '',
+    span: /^[0-9a-f]{16}$/.test(p.span || '') ? p.span : '',
+    tv: p.tv === 'table' ? 'table' : '',
+    tz: p.tz || '',
+    tq: p.tq || '',
     theme: p.theme === 'light' || p.theme === 'dark' ? p.theme : null,
     motion: p.motion !== 'off',
     collapse: listOf(p, 'collapse'),
@@ -132,30 +159,62 @@ function readFragment() {
   };
 }
 
+// currentHash is the fragment that says what the page shows now
+function currentHash() {
+  // a namespace inside a closed one says nothing that anyone can see, and a link cannot say it (expand= opens
+  // what is above): only the namespaces that show are written
+  const nss = S.model.namespaces;
+  const hidden = (p) => { const m = nss.get(p); for (let u = m && m.up; u && !u.isRoot; u = u.up) if (S.collapsed.has(u.path)) return true; return false; };
+  let collapse = [...S.collapsed].filter((x) => !S.auto.has(x) && !hidden(x)).sort();
+  let expand = [...S.auto].filter((x) => !S.collapsed.has(x) && !hidden(x)).sort();
+  // every namespace closed, or every namespace open, has a short name
+  if (collapse.length && S.collapsed.size === S.model.namespaces.size - 1) collapse = ['all'];
+  if (expand.length && S.collapsed.size === 0) expand = ['all'];
+  expand = expand.concat([...S.clusters.keys()].sort());
+  return writeFragment({
+    sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q, dq: S.dq, plq: S.plq,
+    view: S.view, ...(S.view === 'traces' && tracesView ? tracesView.route() : {}), theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
+    motion: S.motion ? '' : 'off', zoom: S.zoom,
+  });
+}
+
+// writeHash puts the fragment in the address of the entry of the history that is shown, and keeps what the entry holds
+function writeHash(hash) {
+  if (hash !== location.hash && hash !== '#/?') {
+    try { history.replaceState(history.state, '', location.pathname + location.search + hash); } catch { /* a sandboxed frame */ }
+  } else if (hash === '#/?' && location.hash) {
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch { /* a sandboxed frame */ }
+  }
+}
+
 function syncFragment() {
   schedule('fragment', () => {
     if (!S.model) return;
-    // a namespace inside a closed one says nothing that anyone can see, and a link cannot say it (expand= opens
-    // what is above): only the namespaces that show are written
-    const nss = S.model.namespaces;
-    const hidden = (p) => { const m = nss.get(p); for (let u = m && m.up; u && !u.isRoot; u = u.up) if (S.collapsed.has(u.path)) return true; return false; };
-    let collapse = [...S.collapsed].filter((x) => !S.auto.has(x) && !hidden(x)).sort();
-    let expand = [...S.auto].filter((x) => !S.collapsed.has(x) && !hidden(x)).sort();
-    // every namespace closed, or every namespace open, has a short name
-    if (collapse.length && S.collapsed.size === S.model.namespaces.size - 1) collapse = ['all'];
-    if (expand.length && S.collapsed.size === 0) expand = ['all'];
-    expand = expand.concat([...S.clusters.keys()].sort());
-    const hash = writeFragment({
-      sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q,
-      view: S.view, theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
-      motion: S.motion ? '' : 'off', zoom: S.zoom,
-    });
-    if (hash !== location.hash && hash !== '#/?') {
-      try { history.replaceState(null, '', location.pathname + location.search + hash); } catch { /* a sandboxed frame */ }
-    } else if (hash === '#/?' && location.hash) {
-      try { history.replaceState(null, '', location.pathname + location.search); } catch { /* a sandboxed frame */ }
-    }
+    writeHash(currentHash());
   });
+}
+
+// pushReturn keeps the picture that a search is about to leave as an entry of the history: the entry that is left
+// holds the camera, and the search goes on in a new one. The browser's Back, the Back control and Escape all return to it.
+function pushReturn() {
+  if (!S.model) return;
+  S.trail = [];
+  try {
+    writeHash(currentHash());
+    // the camera is kept as the point of the picture at the middle of the canvas, and a scale: the canvas is not as wide
+    // when the inspector is open, and the page keeps that middle where it is when the canvas changes
+    const { x, y, k } = gv.view;
+    const cam = gv && S.view === 'graph' ? { cx: (gv.size.w / 2 - x) / k, cy: (gv.size.h / 2 - y) / k, k, moved: gv.userMoved } : null;
+    history.replaceState(Object.assign({}, history.state, { d: S.finds, cam }), '', location.href);
+    history.pushState({ d: S.finds + 1 }, '', location.href);
+    S.finds++;
+  } catch { /* a sandboxed frame keeps no history: the search has no way back */ }
+  updateBack();
+}
+
+// findBack returns to the picture that the last search left
+function findBack() {
+  if (S.finds > 0) history.back();
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -249,15 +308,16 @@ function wantedPlan(f) {
 // fetchAll reads the graph and the stored plans of one revision and, when the plan to show is a stored plan that
 // the server did not lay itself, its overlay. want is a plan id, 'none', or undefined for the page's own choice.
 async function fetchAll(want) {
-  let raw, list, access;
+  let raw, list, access, discovery;
+  // the Access and Discovery views do not stop the page: a document that cannot be read leaves the view saying so
+  const soft = (err) => {
+    if (err instanceof api.Unauthorized || err instanceof api.Unreachable) throw err;
+    return null;
+  };
   for (let i = 0; ; i++) {
-    // the Access view does not stop the page: a document that cannot be read leaves the view saying so
-    [raw, list, access] = await Promise.all([api.graph(), api.plans(), api.access().catch((err) => {
-      if (err instanceof api.Unauthorized || err instanceof api.Unreachable) throw err;
-      return null;
-    })]);
+    [raw, list, access, discovery] = await Promise.all([api.graph(), api.plans(), api.access().catch(soft), api.discovery().catch(soft)]);
     const same = (x) => !x || !x.revision || x.revision === raw.revision;
-    if ((same(list) && same(access)) || i >= 2) break; // the project changed between the requests
+    if ((same(list) && same(access) && same(discovery)) || i >= 2) break; // the project changed between the requests
   }
   const plans = list.plans || [];
   const own = ownPlan(raw);
@@ -279,7 +339,7 @@ async function fetchAll(want) {
     plan = own;
     overlay = plan ? await read(plan) : null;
   }
-  return { raw, plans, access, plan, overlay, gone, failed };
+  return { raw, plans, access, discovery, plan, overlay, gone, failed };
 }
 
 // the overlay of the plan that is laid over the graph, which has what the author wrote with it
@@ -324,24 +384,28 @@ function renderPlans() {
   const text = planText();
   if (text) texts.set(text.plan.id, text);
   if (text && text.reason) reasons.set(text.plan.id, String(text.reason).replace(/\s+/g, ' ').trim());
-  plansList.render({ plans: S.plans, sel: S.plan, texts, reasons });
+  plansList.render({ plans: S.plans, sel: S.plan, texts, reasons, model: S.model });
   renderPlanLede();
   loadReasons();
   const p = S.plan && S.plans.find((x) => x.id === S.plan);
   // a plan that was loaded from a file is laid over the graph for good: the strip names it and has no cross
   const gp = !p && S.graph && S.graph.plan && !S.graph.plan.id ? S.graph.plan : null;
-  planStrip($('planstrip'), p || (gp && { id: baseName(gp.file), status: gp.stale ? 'stale' : '', author: gp.actor || '', created: gp.created, summary: gp.summary }), {
+  planStrip($('planstrip'), p || (gp && { id: baseName(gp.file), status: gp.stale ? 'stale' : '', author: gp.actor || '', created: gp.created, summary: gp.summary, planned: gp.planned }), {
     reason: p && reasons.get(p.id),
+    onList: p ? () => openPlan(p.id) : null,
     signatures: p && S.graph && S.graph.plan && S.graph.plan.id === p.id ? S.graph.plan.signatures : null,
     onClear: p ? () => selectPlan(null) : null,
   });
 }
 
-// renderPlanLede is the line at the head of the Plans page: it is there to say that there is none.
+// renderPlanLede is the line at the head of the Plans page: how many of the stored plans can still be applied, or that there is none.
 function renderPlanLede() {
   const lede = $('pl-lede');
-  lede.textContent = S.plans.length ? '' : 'The state holds no plan. Make one with pravo plan --store.';
-  lede.hidden = !!S.plans.length;
+  const open = S.plans.filter((p) => p.open).length;
+  lede.textContent = !S.plans.length ? 'The state holds no plan. Make one with pravo plan --store.'
+    : open ? `${plural(open, 'stored plan')} can still be applied, of ${S.plans.length} in the state.`
+      : `No stored plan can be applied. The state holds ${plural(S.plans.length, 'plan')}, applied or expired.`;
+  $('pl-head').classList.toggle('none', !open);
 }
 
 // selectPlan lays a stored plan over the graph, or, with null, takes it off. The first view is made again for
@@ -438,7 +502,7 @@ function relayout(o = {}) {
   const vis = buildItems(S.model, S.collapsed, S.clusters);
   const sh = gv.shape;
   // a namespace that opens or closes keeps the lanes that it does not touch where they were (o.stable)
-  const lay = layout({ root: vis.root, items: vis.items, edges: vis.edges, aspect: sh.fit.w > 0 ? sh.fit.w / sh.fit.h : 1.4, fit: sh.fit.w > 0 ? sh.fit : null, hint: o.stable && S.lay && S.shaped ? S.lay.arr : null });
+  const lay = layout({ root: vis.root, items: vis.items, edges: vis.edges, aspect: sh.fit.w > 0 ? sh.fit.w / sh.fit.h : 1.4, fit: sh.fit.w > 0 ? sh.fit : null });
   S.vis = vis;
   S.lay = lay;
   S.layoutMs = performance.now() - t0;
@@ -708,8 +772,14 @@ function backOut() {
 function updateBack() {
   if (!backBtn) return;
   const t = S.trail[S.trail.length - 1];
-  backBtn.hidden = !t || S.view !== 'graph';
-  if (t) backBtn.querySelector('.bl').textContent = 'Zoom out';
+  const kind = t ? 'zoom' : S.finds > 0 ? 'back' : '';
+  backBtn.hidden = !kind || S.view !== 'graph';
+  backBtn.dataset.kind = kind;
+  if (!kind) return;
+  backBtn.querySelector('.bl').textContent = kind === 'zoom' ? 'Zoom out' : 'Back to where you were';
+  backBtn.setAttribute('aria-label', kind === 'zoom' ? 'Zoom out of the namespace that was opened (Escape)' : 'Go back to where you were before the search (Escape)');
+  backBtn.removeAttribute('data-tip');
+  backBtn.dataset.tip = kind === 'zoom' ? 'Close the namespace and return to the picture before it' : 'Return to the picture, the selection and the open namespaces from before the search';
 }
 
 function toggleNamespace(path) {
@@ -847,6 +917,8 @@ const TITLES = {
   list: 'pravo serve: the resources of the state as a list',
   plans: 'pravo serve: the plans stored in the state',
   access: 'pravo serve: where the state is kept, how it is protected and who can read it',
+  discovery: 'pravo serve: the objects that discoveries found and that nothing manages',
+  traces: 'pravo serve: the recorded runs of pravo, as timelines of spans',
 };
 
 function setView(v) {
@@ -856,20 +928,28 @@ function setView(v) {
   $('list-pane').hidden = v !== 'list';
   $('access-pane').hidden = v !== 'access';
   $('plans-pane').hidden = v !== 'plans';
+  $('discovery-pane').hidden = v !== 'discovery';
+  $('traces-pane').hidden = v !== 'traces';
+  if (v !== 'traces' && tracesView) tracesView.close();
   if (v === 'graph' || v === 'list') S.lastResources = v;
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
   $('view-list').setAttribute('aria-pressed', v === 'list' ? 'true' : 'false');
   $('sec-inventory').setAttribute('aria-pressed', v === 'graph' || v === 'list' ? 'true' : 'false');
   $('sec-plans').setAttribute('aria-pressed', v === 'plans' ? 'true' : 'false');
+  $('sec-discovery').setAttribute('aria-pressed', v === 'discovery' ? 'true' : 'false');
+  $('sec-traces').setAttribute('aria-pressed', v === 'traces' ? 'true' : 'false');
   $('sec-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'list' ? 'Skip to the list' : v === 'plans' ? 'Skip to the plans' : 'Skip to the state';
+  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'list' ? 'Skip to the list' : v === 'plans' ? 'Skip to the plans' : v === 'discovery' ? 'Skip to the discoveries' : v === 'traces' ? 'Skip to the traces' : 'Skip to the state';
   if (v === 'list') renderList();
   else if (v === 'access') renderAccess();
+  else if (v === 'discovery') renderDiscovery();
+  else if (v === 'traces') tracesView.open();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
+  setDocTitle();
   syncFragment();
-  announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : 'Inventory, graph view');
+  announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : v === 'traces' ? 'Traces' : 'Inventory, graph view');
 }
 
 // openPlan goes to the Plans page with the detail of a plan open under its row.
@@ -881,6 +961,21 @@ function openPlan(id) {
 
 function renderAccess() {
   accessView.render({ access: S.access, project: S.model && S.model.graph ? S.model.graph.project : null });
+}
+
+function renderDiscovery() {
+  discoveryView.render({ discovery: S.discovery });
+}
+
+// renderDiscoveryTab shows on the tab how many objects ask to be adopted: the one place outside the section where they
+// are named, and a number only, since the objects are shown in the section and nowhere else.
+function renderDiscoveryTab() {
+  const n = S.discovery ? S.discovery.unmanaged : 0;
+  const el = $('sec-disc-count');
+  el.hidden = !(n > 0);
+  el.textContent = n > 999 ? '999+' : String(n);
+  const tab = $('sec-discovery');
+  tab.setAttribute('aria-label', n > 0 ? `Discovery, ${n} unmanaged` : 'Discovery');
 }
 
 function renderList() {
@@ -977,6 +1072,14 @@ function renderHeader() {
     cs.querySelector('.cp-be').hidden = !st.backend;
   }
   renderWho();
+  setDocTitle();
+}
+
+// the tab says where the page is: the project, then the section, so that several estates in several tabs tell apart
+const SECTION = { graph: 'Inventory', list: 'Inventory', plans: 'Plans', discovery: 'Discovery', traces: 'Traces', access: 'State' };
+function setDocTitle() {
+  const dir = S.graph && S.graph.project && S.graph.project.dir;
+  document.title = dir ? `${baseName(dir)} \u00b7 ${SECTION[S.view] || 'Inventory'} \u00b7 pravo serve` : 'pravo serve';
 }
 
 // renderWho names the identity that the page is read as. An unsealed state has none to name.
@@ -1087,7 +1190,7 @@ function toggleInspSize() {
 // ---------------------------------------------------------------------------------------------------------
 // live updates
 
-const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock', plans: 'the stored plans', access: 'the readers file' };
+const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock', plans: 'the stored plans', access: 'the readers file', discovery: 'the discoveries' };
 let pendingWhat = new Set();
 
 async function refresh() {
@@ -1114,6 +1217,7 @@ async function refresh() {
   S.raw = r.raw;
   S.plans = r.plans;
   S.access = r.access;
+  S.discovery = r.discovery;
   S.plan = r.plan;
   S.overlay = r.overlay;
   const g = shown(r.raw);
@@ -1141,6 +1245,8 @@ async function refresh() {
   renderPlans();
   if (S.view === 'list') renderList();
   if (S.view === 'access') renderAccess();
+  if (S.view === 'discovery') renderDiscovery();
+  renderDiscoveryTab();
   const flash = [...d.changed, ...d.added].map((a) => S.vis.rep.get(a)).filter(Boolean);
   gv.flash(new Set(flash));
   showInspector();
@@ -1164,7 +1270,7 @@ async function refresh() {
 
 let refreshTimer = 0;
 function onChange(ev) {
-  for (const w of (ev && ev.what) || []) pendingWhat.add(w);
+  for (const w of (ev && ev.what) || []) { if (w === 'traces') tracesView.changed(); else pendingWhat.add(w); }
   // an event that carries the revision the page already holds changes nothing
   if (ev && ev.revision && S.graph && ev.revision === S.graph.revision) return;
   clearTimeout(refreshTimer);
@@ -1266,6 +1372,79 @@ function navigate(dir) {
   if (best) goItem(best);
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// the command palette: what it searches besides the resources, and what it can do
+
+// openRun goes to the Traces section with one run open.
+function openRun(id) {
+  tracesView.show(id);
+  setView('traces');
+}
+
+// openFinding goes to the Discovery section with the filter on one object that a discovery found.
+function openFinding(r) {
+  setView('discovery');
+  discoveryView.setQuery(`discovery:${quoted('discovery', r.d.name)} id:${quoted('id', r.it.id)}`, true);
+}
+
+// refreshRuns reads the list of the recorded runs for the palette; a server that has none, or does not answer, leaves it empty.
+function refreshRuns() {
+  api.traces().then((l) => { S.runs = l.traces || []; palette.refresh(); }, () => {});
+}
+
+// applyCommandOf is the command that applies the plan, as the Plans section words it; null for a plan that cannot be applied.
+function applyCommandOf(p) {
+  if (!p || !p.open) return null;
+  return p.status === 'partly-stale' ? p.apply_live || null : p.apply || 'pravo apply ' + p.id;
+}
+
+// paletteActions lists what the palette can do now; an action that does not apply to the view is not listed.
+function paletteActions() {
+  const A = [];
+  const res = S.view === 'graph' || S.view === 'list';
+  const add = (group, title, keys, run, o = {}) => A.push(Object.assign({ group, title, keys, run }, o));
+  const copy = (text, what) => () => copyText(text).then((ok) => { announce(ok ? 'Copied ' + what : 'Could not copy'); toast(ok ? 'Copied ' + what : 'Could not copy', ok ? 'info' : 'error', 2400); });
+  const into = (v) => () => setView(v);
+  if (!res) add('Go to', 'Go to Inventory', [], into(S.lastResources || 'graph'), { icon: 'stack', words: 'resources graph list' });
+  if (S.view !== 'discovery') add('Go to', 'Go to Discovery', ['d'], into('discovery'), { icon: 'radar', words: 'findings unmanaged adopt' });
+  if (S.view !== 'traces') add('Go to', 'Go to Traces', ['r'], into('traces'), { icon: 'trace', words: 'runs recorded timeline spans transactions' });
+  if (S.view !== 'plans') add('Go to', 'Go to Plans', ['p'], into('plans'), { icon: 'file', words: 'stored plans' });
+  if (S.view !== 'access') add('Go to', 'Go to State', ['a'], into('access'), { icon: 'lock', words: 'access readers sealed' });
+  if (res) {
+    if (S.view === 'list') add('View', 'Show the graph', ['g'], into('graph'), { words: 'view' });
+    else add('View', 'Show the list', ['g'], into('list'), { words: 'view' });
+  }
+  if (S.view === 'graph') {
+    add('View', 'Fit the graph', ['f'], () => gv.fit(true), { words: 'zoom' });
+    add('View', 'Zoom in', ['+'], () => gv.zoomBy(1.25, undefined, undefined, true));
+    add('View', 'Zoom out', ['-'], () => gv.zoomBy(0.8, undefined, undefined, true));
+    add('View', 'Collapse every namespace', ['['], () => setAllNamespaces(true), { words: 'close all' });
+    add('View', 'Expand every namespace', [']'], () => setAllNamespaces(false), { words: 'open all' });
+    add('View', S.proj ? 'Hide the project' : 'Show the project', ['i'], () => setProject(!S.proj), { words: 'info directory state' });
+    add('View', 'Reset the view', ['0'], resetView, { words: 'first view' });
+  }
+  if (S.finds > 0 && !S.trail.length) add('View', 'Back to where the search began', ['esc'], findBack, { words: 'return undo' });
+  if (res && S.sel) add('View', 'Clear the selection', ['esc'], clearSelection, { words: 'deselect' });
+  if (res && S.q) add('View', 'Clear the filter', [], () => { $('filter-q').value = ''; setQuery(''); }, { words: 'reset query' });
+  add('View', effectiveTheme() === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme', ['t'], toggleTheme, { words: 'theme dark light mode' });
+  add('View', 'Keyboard shortcuts', ['?'], () => sheet.open(), { words: 'help keys' });
+  if (S.plan) {
+    const p = S.plans.find((x) => x.id === S.plan);
+    add('Plans', `Take ${S.plan} off the graph`, [], () => selectPlan(null), { words: 'plan overlay' });
+    const cmd = applyCommandOf(p);
+    if (cmd) add('Copy', 'Copy the command that applies ' + S.plan, [], copy(cmd, 'the command'), { hint: cmd, words: 'apply plan' });
+  }
+  if (res && S.sel) add('Copy', 'Copy the address of the selection', [], copy(S.sel, S.sel), { hint: S.sel, words: 'path name' });
+  add('Copy', 'Copy pravo plan', [], copy('pravo plan', 'pravo plan'), { hint: 'pravo plan', words: 'command' });
+  if (S.discovery && S.discovery.command) add('Copy', 'Copy the discovery command', [], copy(S.discovery.command, 'the discovery command'), { hint: S.discovery.command, words: 'pravo discover run' });
+  add('Copy', 'Copy a link to this view', [], () => { syncFragment(); copy(location.href, 'the link')(); }, { words: 'url address share' });
+  return A;
+}
+
+function paletteSources() {
+  return { plans: S.plans, runs: S.runs, discovery: S.discovery, actions: paletteActions() };
+}
+
 function onKey(ev) {
   if (ev.defaultPrevented) return;
   const k = ev.key;
@@ -1279,6 +1458,8 @@ function onKey(ev) {
     if (S.proj && !S.sel && !typing) { setProject(false); return; }
     if (typing) { ev.target.blur(); return; }
     if (S.reach) { setReach(false); return; }
+    // Escape goes back to where a search began, while what the search found is what is selected
+    if (S.finds > 0 && S.foundAt && S.sel === S.foundAt && !S.trail.length) { findBack(); return; }
     // Escape zooms out of a namespace that was opened by drilling in, once nothing else is selected
     const top = S.trail[S.trail.length - 1];
     if (top && (!S.sel || S.sel === top.path) && backOut()) return;
@@ -1291,7 +1472,9 @@ function onKey(ev) {
   if (k === 't') { toggleTheme(); return; }
   if (k === 'a') { setView(S.view === 'access' ? (S.lastResources || 'graph') : 'access'); return; }
   if (k === 'p') { setView(S.view === 'plans' ? (S.lastResources || 'graph') : 'plans'); return; }
-  if (S.view === 'access' || S.view === 'plans') return; // the keys below are for the resources
+  if (k === 'd') { setView(S.view === 'discovery' ? (S.lastResources || 'graph') : 'discovery'); return; }
+  if (k === 'r') { setView(S.view === 'traces' ? (S.lastResources || 'graph') : 'traces'); return; }
+  if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces') return; // the keys below are for the resources
   if (k === 'g') { setView(S.view === 'graph' ? 'list' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
@@ -1334,8 +1517,10 @@ function wire() {
   });
   gv.motion = S.motion; // motion=off in the fragment was read before the graph existed
   minimap = new Minimap($('canvas'), gv);
-  backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, 'aria-label': 'Zoom out of the namespace that was opened (Escape)', on: { click: () => backOut() } },
-    svgEl('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('circle', { cx: 7, cy: 7, r: 4.6 }), svgEl('path', { d: 'M5 7h4M10.6 10.6L14 14' })), h('span', { class: 'bl' }, 'Zoom out'), h('kbd', null, 'esc'));
+  backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, on: { click: () => (S.trail.length ? backOut() : findBack()) } },
+    svgEl('svg', { class: 'bk-zoom', viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('circle', { cx: 7, cy: 7, r: 4.6 }), svgEl('path', { d: 'M5 7h4M10.6 10.6L14 14' })),
+    svgEl('svg', { class: 'bk-back', viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('path', { d: 'M13 8H3.5M7.5 3.5L3 8l4.5 4.5' })),
+    h('span', { class: 'bl' }, 'Zoom out'), h('kbd', null, 'esc'));
   $('canvas').append(backBtn);
   pills = new Pills($('pills'), { onRemoveTerm: (raw) => setQueryText(removeTerm(S.q, raw)) });
   list = new ListView($('list-pane'), {
@@ -1345,8 +1530,16 @@ function wire() {
     onSelectNamespace: (p) => selectNamespace(p),
   });
   setGrouped(list.grouped);
-  plansList = new Plans($('plans-list'), { onView: (id) => selectPlan(id).then(() => setView(S.lastResources || 'graph')) });
+  plansList = new Plans($('plans-list'), {
+    onView: (id) => selectPlan(id).then(() => setView(S.lastResources || 'graph')),
+    onQuery: (q) => { S.plq = q; syncFragment(); },
+    // a change in the detail of a plan: the plan is laid over the resources, and the resource is selected
+    onChange: (id, addr) => selectPlan(id).then(() => { setView(S.lastResources || 'graph'); selectNode(addr, { center: true }); }),
+  });
   accessView = new AccessView($('access-pane'));
+  discoveryView = new DiscoveryView($('discovery-pane'), { onQuery: (dq) => { S.dq = dq; syncFragment(); } });
+  tracesView = new TracesView($('traces-pane'), { onRoute: () => syncFragment() });
+  addEventListener('resize', () => tracesView.resize());
   insp = new Inspector($('insp'), {
     onPlan: (id) => selectPlan(id),
     onFacet: facetFilter,
@@ -1355,7 +1548,7 @@ function wire() {
     onSelectNode: (a) => selectNode(a, { center: true }),
     onSelectNamespace: (p) => selectNamespace(p, { center: true }),
     onTab: setTab,
-    onReach: (a) => { if (S.sel !== a) selectNode(a, { pulse: false }); setReach(true, true); },
+    onReach: (a) => { if (S.sel !== a) selectNode(a, {}); setReach(true, true); },
     onToggleNamespace: toggleNamespace,
     onFit: (p) => { const lane = S.lay.lanes.find((l) => l.path === p); if (lane) gv.centerOnBox(lane); else { const id = S.vis.items.get('ns:' + p) ? 'ns:' + p : null; if (id) gv.centerOn(id, 0.9); } if (S.view !== 'graph') setView('graph'); },
     onError: (m) => toast(m, 'error', 6000),
@@ -1364,7 +1557,11 @@ function wire() {
   palette = new Palette($('palette'), {
     announce,
     onPick: (kind, key) => {
-      if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); // a resource is found among the resources
+      const away = S.view !== 'graph' && S.view !== 'list';
+      const there = !away && S.sel === key && (S.view === 'list' || kind === 'namespace' || !!(S.vis && itemOf(key) && gv.visible(itemOf(key), 60)));
+      if (!there) pushReturn();
+      S.foundAt = key;
+      if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces') setView(S.lastResources || 'graph'); // a resource is found among the resources
       if (kind === 'namespace') {
         const ns = S.model.namespaces.get(key);
         for (const m of chain(ns)) S.collapsed.delete(m.path);
@@ -1373,13 +1570,17 @@ function wire() {
         selectNamespace(key, { center: true });
       } else selectNode(key, { center: true });
     },
-    onOpen: (on) => { S.palette = on; },
+    onGo: (kind, v) => { if (kind === 'plan') openPlan(v); else if (kind === 'run') openRun(v); else openFinding(v); },
+    sources: paletteSources,
+    onOpen: (on) => { S.palette = on; if (on) refreshRuns(); },
   });
   sheet = new Sheet($('sheet'), { onOpen: () => {} });
 
   $('view-graph').addEventListener('click', () => setView('graph'));
   $('view-list').addEventListener('click', () => setView('list'));
-  $('sec-inventory').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans') setView(S.lastResources || 'graph'); });
+  $('sec-inventory').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces') setView(S.lastResources || 'graph'); });
+  $('sec-discovery').addEventListener('click', () => setView('discovery'));
+  $('sec-traces').addEventListener('click', () => setView('traces'));
   $('sec-plans').addEventListener('click', () => setView('plans'));
   $('sec-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
@@ -1403,13 +1604,13 @@ function wire() {
   initTips();
   // the skip link goes to the graph, or to the list in the list view; it must not write #canvas into the address, which is the view
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else list.scroller.focus(); });
+  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else if (S.view === 'discovery') $('discovery-pane').focus(); else if (S.view === 'traces') $('traces-pane').focus(); else list.scroller.focus(); });
   // the mark at the top left goes back to the start: nothing selected, no filter, the first view (not the address "#/", which would drop the theme and the motion setting too)
   const brand = document.querySelector('.brand');
   if (brand) brand.addEventListener('click', (ev) => {
     ev.preventDefault();
     if (!S.model) return;
-    applyExternal(Object.assign(readFragment(), { sel: null, tab: null, q: '', collapse: [], expand: [], zoom: 'fit', palette: false, help: false }));
+    applyExternal(Object.assign(readFragment(), { sel: null, tab: null, q: '', dq: '', plq: '', collapse: [], expand: [], zoom: 'fit', palette: false, help: false }));
     gv.fit(true);
     syncFragment();
   });
@@ -1425,26 +1626,47 @@ function wire() {
   q.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(() => setQuery(q.value), 120); });
   new QueryMenu(q, q.closest('.filterbox'), { model: () => S.model, change: (v) => { clearTimeout(qt); setQuery(v); } });
   document.addEventListener('keydown', onKey);
-  window.addEventListener('hashchange', () => { if (booted) applyExternal(readFragment()); });
+  // an entry that a search made says its own picture (popstate); a link that someone pasted or typed has no state (hashchange)
+  window.addEventListener('popstate', (ev) => {
+    const st = ev.state || {};
+    const forward = (st.d || 0) > S.finds;
+    S.finds = st.d || 0;
+    S.foundAt = null;
+    if (!booted || !S.model || st.d === undefined) return;
+    applyExternal(readFragment(), st.cam || null);
+    // forward again is the search as it was made: what it found is brought to the middle
+    if (forward && S.view === 'graph' && S.sel && S.model.nodes.has(S.sel) && itemOf(S.sel)) gv.centerOn(itemOf(S.sel), 0.95);
+    // the entry that is reached is where an earlier search landed: Escape goes on back from it, to the one before
+    S.foundAt = S.finds > 0 ? S.sel : null;
+    updateBack();
+    announce(forward ? 'Forward to the search' : S.finds ? 'Back' : 'Back to where the search began');
+  });
+  window.addEventListener('hashchange', () => {
+    if (!booted || (history.state && history.state.d !== undefined)) return;
+    S.finds = 0;
+    S.foundAt = null;
+    applyExternal(readFragment());
+    updateBack();
+  });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(S.theme, false));
   // the ages of the plans move on; a list that has the focus is left alone until the focus goes
   setInterval(() => { if (S.graph) { renderStatus(); if (!$('plans-list').contains(document.activeElement)) renderPlans(); } }, 30000);
 }
 
 // applyExternal brings the view in line with a fragment that someone else wrote (a pasted link).
-function applyExternal(f) {
+function applyExternal(f, cam = null) {
   const want = wantedPlan(f);
   // a link that names a plan that the state does not hold: said, as it is when the page opens with it
   if (f.plan && f.plan !== 'none' && !S.plans.some((p) => p.id === f.plan)) toast(`${f.plan} is not stored`, 'warn', 7000, 'The link names a plan that the state does not hold.');
   if (want !== S.plan) {
     // another plan is laid over the graph first; the rest of the link is applied to that picture
-    selectPlan(want).then(() => applyView(f));
+    selectPlan(want).then(() => applyView(f, cam));
     return;
   }
-  applyView(f);
+  applyView(f, cam);
 }
 
-function applyView(f) {
+function applyView(f, cam = null) {
   if (f.theme && f.theme !== S.theme) applyTheme(f.theme, false);
   applyMotion(f.motion);
   const collapsedBefore = [...S.collapsed].sort().join('|') + '#' + [...S.clusters.keys()].sort().join('|');
@@ -1457,6 +1679,11 @@ function applyView(f) {
   S.trail = [];
   updateBack();
   S.q = f.q;
+  S.dq = f.dq;
+  discoveryView.setQuery(f.dq);
+  S.plq = f.plq;
+  plansList.setQuery(f.plq);
+  tracesView.setRoute(f);
   $('filter-q').value = f.q;
   S.tab = f.tab;
   const sel = f.sel && (S.model.nodes.has(f.sel) || nss.has(f.sel)) ? f.sel : null;
@@ -1466,6 +1693,7 @@ function applyView(f) {
   renderSide();
   applyMatch();
   if (f.view !== S.view) setView(f.view);
+  else if (S.view === 'traces') tracesView.open();
   S.sel = sel;
   S.reach = false;
   applySelection(false);
@@ -1477,7 +1705,11 @@ function applyView(f) {
   if (S.view === 'graph') {
     const zoom = parseFloat(f.zoom);
     const id = sel && S.model.nodes.has(sel) ? itemOf(sel) : null;
-    if (zoom > 0 && isFinite(zoom)) {
+    // a return from a search puts the camera where the entry kept it
+    if (cam) {
+      gv.setView({ x: gv.size.w / 2 - cam.cx * cam.k, y: gv.size.h / 2 - cam.cy * cam.k, k: cam.k }, true);
+      gv.userMoved = !!cam.moved;
+    } else if (zoom > 0 && isFinite(zoom)) {
       if (id) { const p = S.lay.pos.get(id); gv.userMoved = true; gv.setView({ x: gv.size.w / 2 - (p.x + p.w / 2) * zoom, y: gv.size.h / 2 - (p.y + p.h / 2) * zoom, k: zoom }, true); } else { gv.fit(false); gv.zoomBy(zoom / gv.view.k, undefined, undefined, true); }
     } else if (id) {
       if (gv.view.k < 0.8 || !gv.visible(id, 60)) gv.centerOn(id, 0.95);
@@ -1504,6 +1736,7 @@ async function boot() {
   renderLive();
   $('filter-q').value = frag.q;
   await load(frag);
+  renderDiscoveryTab();
 }
 
 async function load(frag) {
@@ -1524,11 +1757,17 @@ async function load(frag) {
   S.raw = r.raw;
   S.plans = r.plans;
   S.access = r.access;
+  S.discovery = r.discovery;
   S.plan = r.plan;
   S.overlay = r.overlay;
   setModel(shown(r.raw), frag);
   S.view = frag.view;
   S.q = frag.q;
+  S.dq = frag.dq;
+  discoveryView.setQuery(frag.dq);
+  S.plq = frag.plq;
+  plansList.setQuery(frag.plq);
+  tracesView.setRoute(frag);
   S.tab = frag.tab;
   S.zoom = frag.zoom;
   const sel = frag.sel && (S.model.nodes.has(frag.sel) || S.model.namespaces.has(frag.sel)) ? frag.sel : null;
@@ -1564,11 +1803,14 @@ async function load(frag) {
     openDrawer();
   }
   minimapDraw();
+  // a page that was reloaded in the middle of a trail of searches still has the entries behind it
+  S.finds = (history.state && history.state.d) || 0;
+  updateBack();
   booted = true;
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, discoveryView, tracesView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

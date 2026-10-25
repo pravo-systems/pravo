@@ -146,11 +146,11 @@
 <div class="stage-foot" id="mig-foot"><span class="anno anno-ok mig-status" id="mig-status" aria-hidden="true">{{data migrate.view.status}}</span></div>
 </div>
 </div>
-<p class="stage-caption"><span class="fig-n">fig. 5b</span> The state file in format {{data facts.state_format}} that OpenTofu {{data migrate.view.tofu}} wrote for main.tf, converted and planned. The output is a recording of pravo {{data migrate.view.ran}} run on it. After <code>$from</code> moved the {{data migrate.view.moved}} records, the second plan has nothing to do.<span class="sr-only" id="mig-live" role="status" aria-live="polite" aria-atomic="true"></span></p>
+<p class="stage-caption"><span class="fig-n">fig. 5b</span> The state file in format {{data facts.state_format}} that OpenTofu {{data migrate.view.tofu}} wrote for main.tf, converted and planned. The output is a recording of pravo {{data migrate.view.ran}} run on it. The first plan lists the {{data migrate.view.moved}} moves that <code>$from</code> declares. An apply carries them out, and the second plan has nothing to do.<span class="sr-only" id="mig-live" role="status" aria-live="polite" aria-atomic="true"></span></p>
 <script type="application/json" id="mig-beats">[
 {"label":"Convert","say":"pravo state import-tfstate converts the state file into {{data migrate.view.imported}} records and prints the instances it renamed."},
-{"label":"Plan","say":"The first plan moves {{data migrate.view.moved}} records to the addresses that stack.cue names with $from. No object changes."},
-{"label":"Empty","say":"The second plan prints No changes. The state and the specification agree."}
+{"label":"Plan","say":"The first plan lists {{data migrate.view.moved}} records to move to the addresses that stack.cue names with $from. It writes nothing, and no object changes."},
+{"label":"Empty","say":"After an apply renames the records, the second plan prints No changes. The state and the specification agree."}
 ]</script>
 <div class="mig-ledger">
 <div class="mig-led mig-stays">

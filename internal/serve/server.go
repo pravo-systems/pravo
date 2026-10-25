@@ -94,6 +94,9 @@ type Options struct {
 	Poll time.Duration
 	// KeepAlive is how often /api/events sends a comment line (default 15 s).
 	KeepAlive time.Duration
+	// TraceDir is where the recorded runs are read from. The default is
+	// .pravo/traces of the project directory.
+	TraceDir string
 	// Token is the secret of this run. A random one is made when it is empty.
 	Token string
 }
@@ -130,6 +133,10 @@ type Server struct {
 	stop     chan struct{}
 	stopOnce sync.Once
 
+	// traceMu guards traceSums, the summaries of the recorded runs.
+	traceMu   sync.Mutex
+	traceSums traceCache
+
 	// streams counts the open event streams.
 	streams atomic.Int32
 }
@@ -161,6 +168,7 @@ func New(opts Options) (*Server, error) {
 	}
 	s := &Server{opts: opts, planMeta: engine.NewPlanMetaCache(), token: opts.Token, schemas: newCacheStore(), hosts: map[string]bool{}, stop: make(chan struct{})}
 	s.watch = newWatcher(opts.Poll, opts.Dir, opts.PlanFile)
+	s.watch.traces = s.traceDir()
 	m, err := s.current()
 	if err != nil {
 		return nil, err
@@ -177,15 +185,19 @@ func New(opts Options) (*Server, error) {
 func (s *Server) Token() string { return s.token }
 
 // StateDescription names the remote state that the specification points at:
-// "s3://bucket/prefix", with " via ENDPOINT" for an S3-compatible store. It is ""
+// "s3://bucket/prefix", with " via ENDPOINT" for an S3-compatible store, or the
+// URL of an http state. It is ""
 // for a local state or when the specification does not load. The command
 // prints it, since the viewer reads whatever backend the specification names.
 func (s *Server) StateDescription() string {
 	m, err := s.current()
-	if err != nil || m.root == nil || m.root.State.Backend != "s3" {
+	if err != nil || m.root == nil || !m.root.State.Remote() {
 		return ""
 	}
 	st := m.root.State
+	if st.Backend == "http" {
+		return st.URL
+	}
 	d := "s3://" + st.Bucket + "/" + st.Prefix
 	if st.Endpoint != "" {
 		d += " via " + st.Endpoint
@@ -398,7 +410,13 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/events":
 		s.events(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access":
+	case "/api/traces":
+		s.traces(w, r)
+		return
+	case "/api/trace":
+		s.trace(w, r)
+		return
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -427,6 +445,10 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, m.planList())
 	case "/api/access":
 		writeRaw(w, http.StatusOK, m.accessJSON)
+	case "/api/discovery":
+		writeRaw(w, http.StatusOK, m.disc.json)
+	case "/api/adopt":
+		s.adopt(w, r, m)
 	case "/api/plan":
 		id := r.URL.Query().Get("id")
 		if po, ok := s.storedPlan(w, r, m, id); ok {
@@ -643,7 +665,7 @@ func (s *Server) build() (*model, error) {
 	defer ss.cueMu.Unlock()
 	root := ss.stateRoot(s.opts)
 	local := ""
-	if root.State.Backend != "s3" {
+	if !root.State.Remote() {
 		local = root.StateFile()
 	}
 	s.watch.setState(local, nil)

@@ -10,8 +10,8 @@ Serve a read-only viewer on the loopback interface: a graph of namespaces and re
 |---|---|
 | Synopsis | `pravo serve [flags]` |
 | Changes infrastructure | No. |
-| Reads | The specification, the state, the plans stored in it, the provider schemas that are cached already and, with `--plan FILE`, a saved plan. For a state that is sealed, the readers file and the identity of the person who runs the command. |
-| Writes | Nothing: no state record, no transaction, no lock, no `pravo.lock.cue`, no generated package, and nothing of a stored plan: no claim, no progress, no removal. It starts no provider and downloads nothing. |
+| Reads | The specification, the state, the plans stored in it, the runs of the discoveries stored in it, the runs that pravo recorded in `.pravo/traces` (or `$PRAVO_TRACE_DIR`), the provider schemas that are cached already and, with `--plan FILE`, a saved plan. For a state that is sealed, the readers file and the identity of the person who runs the command. |
+| Writes | Nothing: no state record, no transaction, no lock, no `pravo.lock.cue`, no generated package, and nothing of a stored plan: no claim, no progress, no removal. It runs no discovery. It starts no provider and downloads nothing. |
 | Prints | The address of the viewer, with its token. With `--json`, one line of JSON. Then nothing until it stops. |
 | Taught in | [Explore an estate in a browser](../how-to/explore-your-estate.md). |
 
@@ -54,7 +54,7 @@ A state that is sealed is read with an identity (see [`pravo protect`](protect.m
 - **The attributes.** The record of a node in the order of the provider schema, with the type of each attribute and whether it is required, optional or computed. Sensitive values are withheld.
 - **The source.** The lines of the specification that write the node: the definition of the resource and each instance that fills it in. Only files that the evaluation loaded are shown.
 - **The schema.** The attributes of the resource type with their types and the provider's descriptions.
-- **The history.** The transactions that wrote the node, applies and imports among them; a plan only reads the node, so its transactions are not listed: the kind, the time, the user and actor, and the command. The values of `-t` tags, and of flags and `key=value` words that are named like a secret, are withheld from the command. In a sealed state, with a readers file, each entry also says what the signatures of the transaction come to: `signed by NAME`, `signer not in the readers file`, `signature does not verify` or `unsigned`.
+- **The history.** The transactions that wrote the node, applies and imports among them. A plan only reads the node, so its transactions are not listed, except a read that found the object changed outside pravo (`drift`), which shows what differed: the kind, the time, the user and actor, the command, the revision of the specification, and the stored plan an apply ran from, which opens over the graph while the state still stores it. Under each entry, the attributes the transaction altered, with the value before and after, redacted as the changes of a plan are: a sensitive value is reported as changed and not shown. A transaction written before pravo kept them shows none. In a sealed state they are sealed, and the viewer shows them only when it holds a key of a reader (`--identity`). The values of `-t` tags, and of flags and `key=value` words that are named like a secret, are withheld from the command. In a sealed state, with a readers file, each entry also says what the signatures of the transaction come to: `signed by NAME`, `signer not in the readers file`, `signature does not verify` or `unsigned`.
 - **The plan.** With `--plan`, the action of the plan for each node and the attributes that it changes, the numbers of its summary and its hints. A plan that cannot be applied is shown with its reasons.
 - **The stored plans.** The plans in the state, who made each, when, where each stands and what it changes. A plan that the page lays over the graph shows as a plan does. A resource that plans which can be applied change carries the author of each, and a ring when two of them do. See [Stored plans](#stored-plans). In a sealed state the plan view of a stored plan has a `signed` row: who stored it, as the readers file judges the signatures (`signed by NAME`, `signer not in the readers file`, `signature does not verify`), `unsigned` for none, or why they were not checked: the readers file is missing or invalid, or this identity cannot open the plan. The list of plans does not check them, since that opens each plan. The same marks are shown in the history of a node for the transactions. See [Signatures](protect.md#signatures).
 - **The project.** The directory, the package, the state location, lineage and record count, the providers and the policies. The outputs of the root are nodes of the graph, and selecting one shows its value; a sensitive output has no value.
@@ -67,7 +67,7 @@ The viewer is one page with a bar, a toolbar, a graph or a list, an inspector th
 
 | Part | Holds |
 |---|---|
-| Bar | The project directory and the state location, each a button that copies the path. The three sections, Inventory, Plans and State. The search button, Find a resource. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. |
+| Bar | The project directory and the state location, each a button that copies the path. The five sections, Inventory, Discovery, Traces, Plans and State. The search button, which opens the command palette. The identity the page is read as, when the state is sealed: its name, and for a key that is not a reader, `not a reader`, `no identity` or `identity locked` beside it. The theme button. The title of the browser tab names the project and the section, so that tabs of several estates tell apart. |
 | Toolbar | Of the Inventory section: the switch Graph and List, the switch Grouped and Flat of the list, then Collapse and Expand. The filter box, which takes words and column:value terms such as `type:s3_bucket` and `mode:data`, with the number of matches, or of items. The zoom buttons, minus, Fit and plus, and the button that shows the project. |
 | Pills | Under the toolbar, one pill for each term of the filter box, with a cross that takes it out. The row is not there while the box has no term. |
 | Graph | The lanes of open namespaces, the cards of closed ones and the boxes of resources. The legend, a small button at the corner that opens the key to the marks that the graph shows and remembers whether it was left open. A map of the drawing, which shows when the drawing is larger than the window. The Zoom out button, which shows after a click on a card opened a namespace. |
@@ -83,7 +83,8 @@ The filter box sets `q`: words, and terms of the form `column:value`. A word mat
 |---|---|---|
 | `entity` | What the node is. Every node is one of them. | `resource`, `data` (a data source), `ephemeral`, `output`, `env` (an environment variable that the specification reads, `pravo.#Env` and `pravo.#SecretEnv`). `managed`, `datasource` and `environment` are read as `resource`, `data` and `env`. |
 | `type` | The resource type, whole. | A type, such as `aws_s3_bucket`. A `*` stands for any run of characters: `aws_s3*`. |
-| `provider` | The provider of the resource. | A provider (`aws`) is every instance of it, and an instance (`aws.west`) is that one. A `*` works. |
+| `provider` | The provider type of the resource. | A provider type, such as `aws`, whatever its instance. A `*` works. |
+| `instance` | The provider instance of the resource, by its whole key. | `aws.west`: the provider type and the name of the instance, which is only unique within its type. A `*` works. |
 | `mode` | The mode of the block. | `managed`, `data`, `ephemeral`, `output`. |
 | `status` | The marks of the record and of the declaration. | `drifted` (drifted or gone), `gone`, `orphan` (recorded and not declared), `declared` (declared and not recorded), `locked`, `sensitive` (holds withheld values). |
 | `plan` | What the loaded plan does to the resource. | `any` (every change, a no-op not counted), `create`, `update`, `replace`, `delete`, `read`, `none`. |
@@ -105,18 +106,19 @@ The menu under the box offers, while the box is empty, the filters that the esta
 | History | The transactions that wrote the resource. A plan is not one. | `history` |
 | Change | What the loaded plan does to the resource, and the stored plans that can be applied and change it. The tab exists only when a plan is loaded or laid over the graph. | `change` |
 
-The strip above the tabs has the cells Action, Record, Lock, Revision and Refreshed, and Plans when plans that can be applied change the resource. Action is the action of the plan, `no change`, `not read` or `no plan`. Record is `in sync`, `drifted`, `gone`, `declared only` or `orphan`. Lock shows when a lock or a reservation holds the resource.
+The strip above the tabs has the cells Action, Record, Lock, Revision and Refreshed, and Plans when plans that can be applied change the resource. Action is the action of the plan, `no change`, `not read` or `no plan`. Record is `in sync`, `drifted`, `gone`, `declared only`, `orphan` or, for a node that is never recorded, `not recorded`. An ephemeral resource, a function call and an environment variable have no Revision and Refreshed cells. Lock shows when a lock or a reservation holds the resource.
 
 ### Stored plans
 
-The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first, A row of a plan that can still be applied ends its second line with the same ring: it turns amber under a day and red under three hours, and then says the time that is left in words; its tooltip gives the time of expiry. A click on a row opens its detail. The button View on a row lays that plan over the resources and goes to Inventory, and a strip under the bar says which plan it is while one is. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
+The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first, A row of a plan that can still be applied ends its second line with the same ring: it is blue, turns amber under a day and red under three hours, and then says the time that is left in words; its tooltip gives the time of expiry. A click on a row opens its detail. The button View on a row lays that plan over the resources and goes to Inventory, and a strip under the bar says which plan it is while one is. [The viewer](../concepts/the-viewer.md#stored-plans) explains what it shows.
 
 | Part | Holds |
 |---|---|
+| The finder | A filter box over the plans and what they change, with a menu of the columns and the values, and a pill for each term. A row names the changes that the terms asked for. The detail of a plan lists its changes, with chips that narrow the finder. The text is in the address as `plq`. |
 | Pending and All | The filter of the list. Pending lists the plans that can be applied, all of them or a part: `pending`, `partial` and `partly stale`. All lists every plan that no collection has removed. Each shows its number. The list opens on Pending when a plan can be applied. |
-| A row | The badge with the initials of the author, the title (the note of the plan, loaded from its overlay a few plans at a time, or the id when there is none, which then is the line under the title), the status chip, the author, the age, and the counts `+add ~change −destroy`. A mark of two rings says that another plan that can be applied changes a resource of this plan. |
+| A row | The badge with the initials of the author, the title (the note of the plan, loaded from its overlay a few plans at a time, or the id when there is none, which then is the line under the title), the status chip, the author, the age, and the counts `+add ~change −destroy`, followed by `N imported` and `N moved` when the plan has such changes. A mark of two rings says that another plan that can be applied changes a resource of this plan. |
 | The open row | The reason. For a stale plan, the reasons, twenty at most. For a partly stale plan, how many of its unapplied changes conflict with the state, and the reason of each conflict, twenty at most. The other plans that overlap, each a link that lays that plan over the graph. When the plan expires, the command that made it and the revision it was made at. For a plan that can be applied, the command `pravo apply ID` and a button that copies it. For a partly stale plan the command is `pravo apply ID --only ...`, with the changes that can be applied. For the others, a note. The reason, the command and the revision come from the plan itself, which the page reads when the row is chosen, and not from the list. |
-| The plan strip | Under the bar, in Inventory, while a plan is laid over the graph: the badge, the note of the author, the id, the status, the counts, the author and the age, in a sealed state a mark after the author that is a check when the signature verifies against the readers file and a sign of caution when it does not, when its key is not in the file, or when there is none (its tooltip says which), a thin ring for a plan that can still be applied, grey for the time that has gone and coloured for the time that is left, and a button with a cross that stops showing the plan. A plan that `--plan FILE` loaded has the strip too, with the name of the file, whether it is stale, the counts and its age, and no cross, since the page cannot take it off. The blast radius is in the tooltip of the counts. |
+| The plan strip | Under the bar, in Inventory, while a plan is laid over the graph: the badge, the note of the author, the id, the status, the counts, for a partial plan how many of its changes were applied (`1 of 2 applied`), the author and the age, in a sealed state a mark after the author that is a check when the signature verifies against the readers file and a sign of caution when it does not, when its key is not in the file, or when there is none (its tooltip says which), a thin ring for a plan that can still be applied, grey for the time that has gone and coloured for the time that is left, and a button with a cross that stops showing the plan. A plan that `--plan FILE` loaded has the strip too, with the name of the file, whether it is stale, the counts and its age, and no cross, since the page cannot take it off. The blast radius is in the tooltip of the counts. The counts of a stored plan are a button that goes to the Plans page with the detail of that plan open, which lists what it changes, applied or not. |
 
 The button View on a row lays its plan over the graph, as `--plan FILE` lays a plan file: the actions on the nodes are the plan's, the Change tab answers for it, and the first view opens the namespaces that the plan touches first. The cross in the strip takes the plan off. Without `--plan`, the graph shows no plan until a plan is viewed.
 
@@ -124,7 +126,7 @@ The button View on a row lays its plan over the graph, as `--plan FILE` lays a p
 |---|---|
 | `pending` | The plan can be applied. |
 | `partial` | Some changes were applied. The rest can be. |
-| `partly stale` | The state moved on under some of the changes that are left, and the others can be applied by name. The chip is amber with a green edge. The conflicts say which changes cannot be applied, and why. The interface says `partly stale` where the API says `partly-stale`. |
+| `partly stale` | The state moved on under some of the changes that are left, and the others can be applied by name. The chip is amber. The conflicts say which changes cannot be applied, and why. The interface says `partly stale` where the API says `partly-stale`. |
 | `stale` | The state moved on, so the plan cannot be applied. The reasons say how. |
 | `applied` | Every change was applied. |
 | `expired` | The plan was not applied before it expired. |
@@ -137,9 +139,63 @@ A resource that a plan which can be applied still has a change to apply on carri
 
 The viewer never applies, approves or removes a plan. It shows the command that applies a plan, and the button copies it.
 
+## The Discovery section
+
+The Discovery section shows what the discoveries of the specification found, and what each object found is to the state. [Discovery](../concepts/discovery.md) explains the statuses. The objects are shown here and in no other section: they are not in the graph or in the list of the Inventory. Its link is `view=discovery`, and its key is `d`. The tab carries the number of objects that ask to be adopted. It has no toolbar of the Inventory and no inspector, and a box that filters the objects by id, name or identity.
+
+| Part | Holds |
+|---|---|
+| The head | A sentence that says how many objects ask to be adopted, or that none does, in amber when some do, and the command that runs the discoveries that need to run. |
+| A card | One for each discovery. It is closed until you open it, by its name or the chevron before it, unless it is the only one or the filter asks something of the objects. A closed card shows the objects of its last run by status. It has its name, the list resource type, the provider instance and a chip: `current`, `scope changed` (the run answers the scope that was written before: run it again), `not run`, `cannot run` (the scope has no value, with the reason), `not in the specification` (the state holds a run of it) or `not compared` (the specification does not load). The scope, when it ran and who ran it, and where it is written. The notice and the command to run it, for a discovery that needs one. A warning of the provider, a warning that the list was cut off at its limit, and a warning that records of the type could not be opened. |
+| The counts | The objects of the last run by status: unmanaged, adopting, acknowledged and managed. Only unmanaged is in colour. |
+| Unmanaged | The objects that ask to be adopted, each with an amber edge, its name, its id, its identity and an Adopt button and an Acknowledge button. They work as a toggle: one open at a time, and a second press closes it. Adopt opens the resource that adopts the object, with a button that copies it, and the command that writes it with the attributes of the object (`pravo discover adopt NAME ID --read`). Acknowledge opens the `$ack` entry for the object, with a button that copies it and the reason for you to fill in. Beside the heading of the group, Acknowledge all opens the same kind of entry for all of them, when there are no more than 50. |
+| Adopting | The objects that a resource names in `$import`, with the address of the resource. Quiet. |
+| Acknowledged | The objects that an entry of `$ack` covers, in grey, each with its reason. Quiet. Below the list, the `$ack` entries of the discovery as the specification has them: their patterns, their reason and how many objects of the last run each covers. |
+| Managed | Counted. Never listed. |
+
+### Filtering the objects
+
+The filter box above the cards is the filter box of the Inventory over the objects that the discoveries found: words, terms of the form `column:value`, a comma between values for either, a minus before the column for the others, `*` for any run of characters, double quotes around a value that holds a space or a comma. The text is in the address as `dq`. Every term that names a card, the discovery or its type or provider, says which cards are shown. Every term that names an object says which objects a card lists, and a card with none left is not shown. A word matches the id, the name, the status, the adopter or the entry, the reason, or a value of the identity.
+
+| Column | Holds | Value |
+|---|---|---|
+| `status` | What the object is to the state. | `unmanaged`, `adopting` or `acknowledged`. A managed object is counted and is not listed, so it has no value. |
+| `discovery` | The discovery that listed it. | Its address, whole, or a namespace, which takes the discoveries below it: `network` or `network.vpcs`. |
+| `type` | The list resource type of the discovery. | The type, whole: `aws_s3_bucket`. A `*` stands for any run, as in `aws_s3*`. |
+| `provider` | The provider of the discovery. | The provider type, as in `provider:aws`: every instance of it. |
+| `instance` | The provider instance. | Its whole key, as in `instance:aws.west`. |
+| `freshness` | Whether the last run answers the scope that is written now. | `current`, `stale`, `never`, `broken`, `undeclared` or `unknown`. |
+| `id` | The id of the object. | The id, or the whole identity, whole. A `*` works. |
+| `name` | The name that the provider gave it. | The name, whole. A `*` works. |
+| `by` | What adopts or acknowledges it. | The address of the resource that names it in `$import`, or the entry of `$ack`, as `$ack[0]`. |
+| `field` | An attribute of its identity. | `path=value`, as in `region=eu`; a path alone matches the objects that have the attribute. |
+| `value` | A value of its identity, anywhere. | The value, whole: an account, a name, a region. |
+
+The menu under the box works as it does in the Inventory. While the box is empty it offers the statuses with how many objects each leaves, the discoveries and the columns. After a colon it offers the values that the page holds, with the counts of what the rest of the filter leaves, and for `field` the attributes of the identity with the values that few objects share. Each pill takes one term out. The type, the provider, the name of a discovery and the count of a status on a card are buttons that add the term for it. The count at the end of the box is the number of objects that the filter leaves. What a term names is lit in green where the page shows it: the name, the type, the provider and the freshness chip of a card, the count of a status, an attribute of an identity. The menu offers the columns that can tell these objects apart: one that every card shares is not offered.
+
+A group lists 100 objects and a button shows more. A discovery lists at most 2000, and says how many it leaves out. The text of every name, identity and reason comes from a provider or a person, is masked as other text of the page is, and has its control and direction characters removed. A command is suggested only for a name and an id that a shell can carry, and it is quoted. The page runs nothing: its footer says `This page suggests commands. It runs nothing and writes nothing.`
+
+## The Traces section
+
+The Traces section shows the runs that pravo recorded in the project: with `PRAVO_TRACES=on`, every command that did some work, such as `plan`, `apply`, `destroy`, `drift` and `discover`, leaves its spans in `.pravo/traces`, and the section reads them, so a slow or failing run can be debugged without a collector. Nothing is recorded without that variable, and the section says so when it is empty. [Telemetry](telemetry.md#the-recorded-runs) says what is recorded and how to turn it on. Its link is `view=traces`, and its key is `r`. It has no toolbar of the Inventory and no inspector.
+
+| Part | Holds |
+|---|---|
+| The runs | The recorded runs, newest first: the command, how long ago, how long it took, how many resources it handled, the reason it was given, and a red square and `failed` for a run in which a span failed. The newest run is open, and a run that lands while the page is open is opened unless you chose another. |
+| The head of a run | The command and whether a span failed, the exit code, when it started, how long it took, how many spans and resources, the transaction an apply wrote (with a button that copies it), the actor and the reason, and the trace id. |
+| The timeline | The time of the run across and the nesting down. A bar is a span: dark for the command, the engine and the stages of a run, blue for a resource, light blue for a call to a provider, pale grey for the setup of a command and for a request to the state, red for a span that failed. A span that runs at the same time as another sits in a row of its own, so the width of a bar is how long it took and the number of rows is how much ran at once. The ruler marks the time. Click a bar to select it, double click it to fit the timeline to it. Drag to move along the run, and hold Ctrl or Cmd and scroll to zoom. The buttons zoom out, fit the whole run and zoom in. |
+| Slowest | The same spans as a table, longest first. A column heading sorts by it. `In itself` is the time in a span that none of its parts covers: a resource that took four seconds, of which the provider call took 3.9, has little in itself, and a command with a large figure spent its time between its parts. |
+| The filter | The filter box of the Inventory, over the spans: words that must all be in the name, the message or an attribute of a span, and terms of the form `column:value`: `is:error` for the spans that failed, `kind:` for one or more kinds (`engine`, `phase`, `setup`, `resource`, `provider`, `state`, `seal`, `network`, `command`, `mcp`; `kind:state,provider` means either), `provider:aws` for the spans of a provider `type:aws_s3*` for a resource type and `attr:pravo.provider=aws` for a span that has an attribute (the name alone, or the name and a value; the Only and Hide buttons beside an attribute in the detail of a span add the term). A minus before the column leaves the spans out, and `*` stands for any run of characters. The menu under the box offers the kinds, the columns and the values the run holds with how many spans hold each, and, for a word, the spans whose names hold it, the slowest first. A pill for each term takes it out. The timeline dims the spans that do not match, and the table lists the ones that do. |
+| The kinds | Under the box, a button for each kind of span the run has, with the number of its spans, and one for the failed spans when there are any. A press adds the kind to the filter and a second press takes it out. |
+| The span | What the selection did: the path from the command to it, the error text of a failed span, how long it took and how long it spent in itself, when it started and ended, its attributes, its events (the lines of the debug log that were attached to it, with the time since it started) and its slowest parts, each a button that selects it. |
+
+Keys in the timeline: the arrows move the selection (up to the span that holds it, down to its first part, left and right to its neighbours), Shift and the left and right arrows move along the run, `+` and `-` zoom, `0` fits the whole run, Enter fits the selection and Esc clears it.
+
+The values in a trace are the ones that a trace has anywhere: addresses, types, actions, counts, outcomes and error messages, never attribute values. The viewer masks them as it masks every other text that it shows (see [the security model](#security-model)), so an error message that quotes a secret of the state does not show it. A directory that holds a file that is not a run of this version shows its count and not the file.
+
 ## The State section
 
-The State section says where the state is kept, how it is protected and who can read it. It is the last section of the page, after Inventory and Plans, which holds the graph and the list, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no chips or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
+The State section says where the state is kept, how it is protected and who can read it. It is the last section of the page, after Inventory, Discovery and Plans, which holds the graph and the list, and its link is `view=state`; `view=access`, which the section was called before, opens it too. It holds the facts of the state: the location, the backend, the lineage, the format, the number of records and of locks, the version of pravo that read it and when. The project panel does not repeat them. It has no chips or toolbar; the inspector stays and shows the project. It reads and runs nothing but the viewer's own endpoint: the commands it offers are text to copy, and the footer says so: `This page suggests commands. It runs nothing and writes nothing.`
 
 | Part | Holds |
 |---|---|
@@ -164,7 +220,7 @@ The list and the inspector mark a record that cannot be opened with the chip `se
 - It listens on no interface but loopback.
 - It runs no command that the State section suggests, edits no readers file, and sends no key: no secret of an identity and no lock of the state is in a response. Reader keys and signing-key fingerprints are public and are sent.
 - It sends no value that the provider schema marks sensitive or write-only, no value of an attribute that the schema does not know, no value of an attribute that is named like a secret, no value that contains a string that the state keeps in a sensitive attribute, and no value of a sensitive output.
-- It serves no file by path. A request names an address, and the server looks the address up in the specification that it loaded.
+- It serves no file by path. A request names an address, and the server looks the address up in the specification that it loaded. A request for a recorded run names an id of a fixed form, and the server reads the file of that name in the directory of the recorded runs, and nothing else; a link in that directory is not followed.
 
 ## Security model
 
@@ -210,9 +266,16 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `collapse` | Namespace paths, or `all` | Namespaces drawn as one card, on top of the first view. |
 | `expand` | Namespace paths, `c:NAMESPACE\|MODE\|TYPE` or `all` | Namespaces drawn open, on top of the first view, and the clusters that are open. `c:eu.prod.nodes\|managed\|null_resource` is the cluster of the managed resources of that type in `eu.prod.nodes`. |
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
-| `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
-| `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer does not write it. |
-| `view` | `graph`, `list`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Plans section, or the State section (`access` is the old name of it). |
+| `plq` | Text | The finder of the Plans section: words, and terms of the form `column:value`. About the plan: status, by, id, reason, created, expires, overlap. About its changes: action, resource, ns, type, provider, change. |
+| `dq` | Text | The filter box of the Discovery section: words, and terms of the form `column:value` (status, discovery, type, provider, instance, freshness, id, name, by, field, value). |
+| `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, instance, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
+| `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer does not write it any more. |
+| `view` | `graph`, `list`, `discovery`, `traces`, `plans`, `state` or `access` | The graph, the list (`table` is the old name of it), the Discovery section, the Traces section, the Plans section, or the State section (`access` is the old name of it). |
+| `trace` | A run id: 32 hexadecimal digits, a hyphen and 16 more | The recorded run that the Traces section opens. Without it the newest is open. A run that is not in the directory is told in a notice and ignored. |
+| `span` | A span id of 16 hexadecimal digits | The selected span of that run. |
+| `tv` | `table` | The Traces section shows the slowest spans as a table and not as a timeline. |
+| `tz` | `START-END` | The part of the run that the timeline shows, in microseconds from its start. |
+| `tq` | Text | The filter box of the Traces section. |
 | `zoom` | `fit`, or a scale such as `1.2` | `fit`, the default, fits the whole graph in the window. When a link selects a resource and the whole graph would be drawn below 80 percent of full size, the view goes to the resource instead. A scale shows the graph at that size, centred on the selection when there is one. |
 | `motion` | `off` | Every animation and transition off. The system setting for reduced motion has the same effect. |
 | `palette` | `1` | The search palette open. |
@@ -226,13 +289,15 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 
 | Key | Action |
 |---|---|
-| `/`, Ctrl-K, Cmd-K | Open the palette to find a resource, a type or a namespace. |
+| `/`, Ctrl-K, Cmd-K | Open the command palette: search the resources, plans, transactions, runs and discovered objects, or run an action. |
 | `?` | Open the sheet of shortcuts. |
 | `t` | Switch the theme. |
 | `g` | Switch the resources between the graph and the list. |
 | `a` | Switch between the Inventory and the State sections. |
 | `p` | Switch between the Inventory and the Plans sections. |
-| Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then close the namespace that a click opened, then clear the selection. |
+| `d` | Switch between the Inventory and the Discovery sections. |
+| `r` | Switch between the Inventory and the Traces sections. |
+| Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the namespace that a click opened, then clear the selection. |
 
 In the graph:
 
@@ -272,7 +337,9 @@ In the list, with the focus in it:
 | Enter, Space | Close or open the namespace. |
 | `*` | Open every namespace of this level. |
 
-In the palette, the arrows and Page Up and Page Down move, Enter goes to the result and Esc closes it.
+In the palette, the arrows and Page Up and Page Down move, Enter goes to the result or runs the action, and Esc closes it.
+
+The palette searches in groups, and the resources come first: namespaces, items and outputs, as before. After them come the stored plans (by id, author or status), the transactions and the runs that pravo recorded (by command line, reason, actor or transaction id), the objects that discoveries found (by id, name, status or discovery), and the actions of the page. A plan opens in the Plans section, a run or a transaction in the Traces section with that run open, and an object in the Discovery section with the filter on it. An action runs at once and shows its shortcut, so that the key is learned: go to a section, switch between the graph and the list, fit the graph, zoom, collapse or expand the namespaces, switch the theme, open the sheet of shortcuts, clear the selection or the filter, and copy a command, the address of the selection or a link to the view. A leading `>` lists the actions alone, in groups. With no text the palette offers the sections first, then the namespaces and the resources that the plan changes. An action appears only where it applies: the graph actions are not offered in the Plans section. Each search that moves the picture of the resources adds an entry to the history of the browser, which keeps the open namespaces, the selection and the camera of the picture it left: the button Back to where you were, Esc and the browser's Back return to it.
 
 ## Endpoints
 
@@ -283,14 +350,18 @@ The interface of the page is a set of read-only endpoints. They are for the page
 | `GET /` and `/assets/...` | The page, with no data. |
 | `GET /api/ping` | `{"ok":true,"version":1}`. |
 | `GET /api/graph` | The nodes, edges, namespaces, outputs, the project, the plan and the warnings. No attribute values. |
-| `GET /api/detail?addr=ADDR` | One node with its attributes, dependencies, the plan's change, history, lock and times. With `&plan=ID` the plan is that stored plan, and with `&plan=none` there is none. For an output the one attribute is `value`, which is withheld when the output is sensitive or its value contains a sensitive string, and `description` when the output has one. |
+| `GET /api/detail?addr=ADDR` | One node with its attributes, dependencies, the plan's change, history, lock and times. With `&plan=ID` the plan is that stored plan, and with `&plan=none` there is none. For an output the one attribute is `value`, which is withheld when the output is sensitive or its value contains a sensitive string, and `description` when the output has one. For a node with no record, the field `schema` lists the attributes of its type, with their types, kinds and descriptions and no values. An ephemeral resource has the `attrs` that the specification sets, withheld by the same rules as a record, and an attribute that is not known before a command runs has `unknown`. An environment variable has the `attrs` `name`, `default` and `value`: the value is that of the variable in the environment of the `pravo serve` process, or the default, and it is withheld when the name matches the rule of the name and always for `pravo.#SecretEnv`. |
 | `GET /api/source?addr=ADDR` | The lines that write the node, and everything that shapes it. `&plan=ID` marks the lines that stored plan changes. |
 | `GET /api/plans` | The plans stored in the state, newest first, as a list of stored plans. The free text of a plan is not in it. |
 | `GET /api/plan?id=ID` | A stored plan laid over the graph: the plan, the action of each node that it ran, and the `reason`, `command` and `git_revision` that the author wrote with it. In a sealed state `plan.signatures` has `items` (`status` of `verified`, `key_not_in_file` or `invalid`, with `signer` or `claimed`, and `at`) and a `note` when they could not be checked; no item and no note is a plan with none. |
 | `GET /api/search?q=TEXT` | The nodes and namespaces that match. |
 | `GET /api/fields?q=PATH=VALUE` | The addresses of the nodes whose recorded values match, as `{"version":1,"addrs":[...],"indexed":N,"withheld":M}`. `PATH` is dotted (`settings.region`, `rule.0.cidr`), a name alone is a field of that name at any depth, and `*` stands for any run in the path or the value; with no `=VALUE` it matches the nodes that hold the field. Only what `/api/detail` sends is searched, so a withheld value never matches. `indexed` is the number of nodes searched, `withheld` the number whose values are withheld whole. The index is built on the first search and kept for the revision. |
 | `GET /api/access` | How the state is protected, the readers of the store and of the readers file, the verdict between them, who the viewer is, and the suggested commands. See [The State section](#the-state-section). |
-| `GET /api/events` | A stream of server-sent events. Each event `change` carries the new revision and what changed: `state`, `spec`, `plan`, `locks`, `plans` or `access`. `plan` is the plan file of `--plan`, `plans` are the plans stored in the state, and `access` is the readers file. |
+| `GET /api/discovery` | The discoveries of the specification and what their last runs found, set against the state: for each its scope, its freshness, its last run, the counts by status, the objects that are not managed (at most 2000), its `$ack` entries and the commands. See [The Discovery section](#the-discovery-section). |
+| `GET /api/adopt?discovery=NAME&key=KEY` | The resource that adopts one object of the last run of a discovery, as CUE, and the commands to copy. `KEY` is the `key` of the object in `/api/discovery`. 404 for an object that is not in the run or is managed, 400 for a name or key that is too long. The server asks no provider. |
+| `GET /api/traces` | The runs that pravo recorded in `.pravo/traces` or `$PRAVO_TRACE_DIR`, newest first, at most 200: for each its `id` (the trace id, a hyphen and the id of its first root span), the command, when it started, how long it took, the exit code, `status` (`ok`, or `error` when a span failed), the counts of spans, failed spans and resources, the transaction it wrote and the actor and reason. `unreadable` counts the files that are not a run of this version. |
+| `GET /api/trace?id=ID` | The spans of one run: for each its id and parent, its name, its `kind` (`command`, `engine`, `resource`, `provider`, `mcp` or `other`), its status and message, when it started and how long it took in microseconds from the start of the run, its attributes and its events. At most 30,000 spans, and `omitted` counts the rest. 400 for an id that is not of that form, 404 for a run that is not there, 422 for a file that is not a run. The id names a file and is never a path. |
+| `GET /api/events` | A stream of server-sent events. Each event `change` carries the revision and what changed: `state`, `spec`, `plan`, `locks`, `plans`, `access`, `discovery` or `traces`. `plan` is the plan file of `--plan`, `plans` are the plans stored in the state, `access` is the readers file, `discovery` is the runs of the discoveries, and `traces` is the directory of the recorded runs: a run that lands changes no node, so its event carries the revision that the page holds. |
 
 `ADDR` is URL-encoded. An address that is not known gets 404 and `{"error":"..."}`. An `id` or `plan` that is not `plan-` and six or more hexadecimal digits gets 400, and an id that no stored plan has gets 404. The server looks an id up among the plans that it lists. It is never a path, and the beginning of an id is not taken for it. The additions are `/api/plans`, `/api/plan`, the `plan` parameter, `Node.plans` and `Node.overlap` in the graph, and `id` and `status` in the plan of the graph. A reader that does not know them reads the rest as before.
 
@@ -429,12 +500,12 @@ Output:
 | `id`, `status`, `open` | The id, `pending`, `partial`, `partly-stale`, `stale`, `applied` or `expired`, and whether the plan can be applied, all of it or a part: `pending`, `partial` and `partly-stale`. |
 | `author`, `created`, `expires` | Who made the plan, cut at 4 KiB, when, and when an unapplied plan is collected. The list holds no reason, command or revision. |
 | `destroy` | `true` for a destroy plan. |
-| `summary` | The counts `add`, `change`, `destroy` and `read`. A replacement counts as an add and a destroy. |
+| `summary` | The counts `add`, `change`, `destroy` and `read`. A replacement counts as an add and a destroy. A move, and an import that has nothing else to change, are in `touches` and in no count: the page counts them from `touches`. |
 | `planned`, `applied`, `applying` | The number of changes, how many were applied already, and whether an apply from the plan runs now. |
 | `reasons`, `reasons_omitted` | Why a stale plan cannot be applied: twenty reasons at most, each cut at 300 characters. `reasons_omitted` counts the others. A partly stale plan has none. |
 | `conflicts`, `conflicts_omitted`, `unapplied` | For a partly stale plan: the changes that cannot be applied now, each with its `addr` and its `reasons`, twenty at most, sorted by address. `conflicts_omitted` counts the others, and `unapplied` is the number of changes the plan has left, the conflicts included. |
 | `apply_only`, `apply_only_omitted`, `apply_live` | For a partly stale plan: the addresses of the part that can be applied, sorted, up to 2000, with `apply_only_omitted` for the rest. The part is a closed selection for `pravo apply --only`. `apply_live` is the command that applies it, `apply` followed by `--only a,b,c`. It is absent when the part has no change, and when the command would be longer than 16 KiB. |
-| `touches`, `truncated` | The resources the plan changes, each with its `addr`, its `action`, `applied` when the plan has applied that change, and `conflict` when a partly stale plan cannot apply it, up to 2000. `truncated` counts the rest. |
+| `touches`, `truncated` | The resources the plan changes, each with its `addr`, its `action` (`no-op` is a change that only imports an object), `applied` when the plan has applied that change, and `conflict` when a partly stale plan cannot apply it, up to 2000. `truncated` counts the rest. |
 | `overlaps` | The other plans that can be applied and have a change left on a resource that this plan has a change left on, in both directions: `id`, `count`, the first twenty addresses in `addrs`, and `truncated` for the rest. A change that a plan has applied does not count, and neither does a change that a partly stale plan cannot apply. |
 | `apply` | The command that applies what is left of the plan, `pravo apply ID`, with `-t key=<value>` for each tag the plan was made with and `-T` when it was made with it. It carries the keys of the tags and never the values, so that a line pasted as it is fails in the shell until the values are put in place of `<value>`. It names no state. A partly stale plan is refused by it: `apply_live` is the command for that plan. |
 
@@ -573,6 +644,8 @@ Serve a read-only viewer on the loopback interface and open it in the default br
 The viewer shows the specification and the state as a graph of namespaces and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top: a plan file, or the id of a plan stored in the state with "pravo plan --store". The plans stored in the state are listed in the viewer whether or not --plan is given, and any of them can be laid over the graph. It updates when the state, the specification, the plan file or the stored plans change.
 
 A state that is sealed (see "pravo protect") is read with your reader identity, named by --identity or found as the other commands find it, and a sealed identity asks for its passphrase on the terminal before the server starts. Without an identity, or with one that is not a reader, the viewer lists the resources and shows no value; --identity none shows the state as someone with no key sees it. The State page shows who can read the state and suggests commands to copy. It runs none of them.
+
+It also lists the runs that pravo recorded (.pravo/traces, or $PRAVO_TRACE_DIR) as a timeline of spans, so that a slow or failing run can be read without a collector.
 
 The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.
 

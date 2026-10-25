@@ -224,6 +224,9 @@ func TestPartialApplySkipsOutputsThatWaitForTheRestOfThePlan(t *testing.T) {
 	if got := keys(res.Outputs); got != "mine" {
 		t.Errorf("outputs of the partial apply = %s, want mine", got)
 	}
+	if got := strings.Join(res.ChangedOutputs, " "); got != "mine" {
+		t.Errorf("changed outputs of the partial apply = %q, want mine", got)
+	}
 	if got := keys(h.state.Outputs()); got != "mine" {
 		t.Errorf("outputs in the state = %s, want mine", got)
 	}
@@ -248,6 +251,9 @@ func TestPartialApplySkipsOutputsThatWaitForTheRestOfThePlan(t *testing.T) {
 	}
 	if got := keys(res.Outputs); got != "both mine url" {
 		t.Errorf("outputs after the rest = %s, want both mine url", got)
+	}
+	if got := strings.Join(res.ChangedOutputs, " "); got != "both url" {
+		t.Errorf("changed outputs after the rest = %q, want both url (mine was recorded before)", got)
 	}
 	if got := keys(h.state.Outputs()); got != "both mine url" {
 		t.Errorf("outputs in the state = %s", got)

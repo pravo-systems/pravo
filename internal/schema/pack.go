@@ -27,7 +27,7 @@ import (
 //
 // The index gives the offset and the length of each document, from the start of
 // the documents, for the provider block, the provider_meta block and each
-// resource, data source, ephemeral resource and function.
+// resource, data source, ephemeral resource, list resource and function.
 const packMagic = "PRAVO-SCHEMA-PACK 1\n"
 
 // maxPackIndex bounds what a damaged file can make the reader allocate.
@@ -37,13 +37,14 @@ const maxPackIndex = 64 << 20
 type packRange [2]int64
 
 type packIndex struct {
-	CacheVersion int                  `json:"cache_version"`
-	Provider     *packRange           `json:"provider,omitempty"`
-	ProviderMeta *packRange           `json:"provider_meta,omitempty"`
-	Resources    map[string]packRange `json:"resources"`
-	DataSources  map[string]packRange `json:"data_sources"`
-	Ephemerals   map[string]packRange `json:"ephemerals"`
-	Functions    map[string]packRange `json:"functions"`
+	CacheVersion  int                  `json:"cache_version"`
+	Provider      *packRange           `json:"provider,omitempty"`
+	ProviderMeta  *packRange           `json:"provider_meta,omitempty"`
+	Resources     map[string]packRange `json:"resources"`
+	DataSources   map[string]packRange `json:"data_sources"`
+	Ephemerals    map[string]packRange `json:"ephemerals"`
+	Functions     map[string]packRange `json:"functions"`
+	ListResources map[string]packRange `json:"list_resources,omitempty"`
 	// ShadowsBuiltins is what shadowsBuiltins says of the whole schema, which the
 	// generated CUE depends on and which would otherwise need every type.
 	ShadowsBuiltins bool `json:"shadows_builtins,omitempty"`
@@ -57,6 +58,7 @@ const (
 	kindData
 	kindEphemeral
 	kindFunction
+	kindList
 )
 
 // holdPack says whether a pack keeps its file open between reads. On Windows a
@@ -85,6 +87,8 @@ func (l *lazyPack) ranges(k kind) map[string]packRange {
 		return l.index.Ephemerals
 	case kindFunction:
 		return l.index.Functions
+	case kindList:
+		return l.index.ListResources
 	}
 	return l.index.Resources
 }
@@ -135,6 +139,7 @@ func (p *ProviderSchema) MarshalPack() ([]byte, error) {
 		CacheVersion: CacheVersion,
 		Resources:    map[string]packRange{}, DataSources: map[string]packRange{},
 		Ephemerals: map[string]packRange{}, Functions: map[string]packRange{},
+		ListResources: map[string]packRange{},
 	}
 	if p.Provider != nil {
 		r, err := add(p.Provider)
@@ -158,6 +163,7 @@ func (p *ProviderSchema) MarshalPack() ([]byte, error) {
 		{sortedKeys(p.Resources), idx.Resources, func(n string) any { return p.Resources[n] }},
 		{sortedKeys(p.DataSources), idx.DataSources, func(n string) any { return p.DataSources[n] }},
 		{sortedKeys(p.Ephemerals), idx.Ephemerals, func(n string) any { return p.Ephemerals[n] }},
+		{sortedKeys(p.ListResources), idx.ListResources, func(n string) any { return p.ListResources[n] }},
 		{p.SortedFunctionNames(), idx.Functions, func(n string) any { return p.Functions[n] }},
 	} {
 		for _, n := range set.names {
@@ -228,7 +234,8 @@ func OpenPack(path string) (*ProviderSchema, error) {
 		CacheVersion: l.index.CacheVersion,
 		Resources:    map[string]*Schema{}, DataSources: map[string]*Schema{},
 		Ephemerals: map[string]*Schema{}, Functions: map[string]*Function{},
-		lazy: l,
+		ListResources: map[string]*Schema{},
+		lazy:          l,
 	}
 	for _, blk := range []struct {
 		r  *packRange
@@ -262,6 +269,9 @@ func (p *ProviderSchema) DataSource(name string) *Schema { return p.schemaOf(kin
 
 // Ephemeral returns the schema of an ephemeral resource type, or nil.
 func (p *ProviderSchema) Ephemeral(name string) *Schema { return p.schemaOf(kindEphemeral, name) }
+
+// ListResource returns the schema of a list resource type, or nil.
+func (p *ProviderSchema) ListResource(name string) *Schema { return p.schemaOf(kindList, name) }
 
 // Function returns a provider-defined function, or nil.
 func (p *ProviderSchema) Function(name string) *Function {
@@ -326,6 +336,8 @@ func (p *ProviderSchema) setOf(k kind) map[string]*Schema {
 		return p.DataSources
 	case kindEphemeral:
 		return p.Ephemerals
+	case kindList:
+		return p.ListResources
 	}
 	return p.Resources
 }
@@ -392,6 +404,11 @@ func (p *ProviderSchema) Materialize() error {
 	for _, n := range p.names(kindEphemeral) {
 		if p.schemaOf(kindEphemeral, n) == nil {
 			return fmt.Errorf("decoding ephemeral type %s of the schema pack", n)
+		}
+	}
+	for _, n := range p.names(kindList) {
+		if p.schemaOf(kindList, n) == nil {
+			return fmt.Errorf("decoding list resource type %s of the schema pack", n)
 		}
 	}
 	for _, n := range p.names(kindFunction) {

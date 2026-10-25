@@ -351,11 +351,11 @@ func (r *Recorder) ApplyResourceChange(ctx context.Context, typ string, prior, p
 	return res, diags, err
 }
 
-func (r *Recorder) ImportResourceState(ctx context.Context, typ, id string, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
+func (r *Recorder) ImportResourceState(ctx context.Context, typ string, target ImportTarget, types map[string]tftypes.Type) ([]ImportedResource, Diagnostics, error) {
 	if r.replay {
 		return nil, nil, r.replayErr("ImportResourceState")
 	}
-	return r.inner.ImportResourceState(ctx, typ, id, types)
+	return r.inner.ImportResourceState(ctx, typ, target, types)
 }
 
 func (r *Recorder) ReadDataSource(ctx context.Context, typ string, cfg tftypes.Value) (tftypes.Value, Diagnostics, error) {
@@ -388,6 +388,35 @@ func (r *Recorder) OpenEphemeral(ctx context.Context, typ string, cfg tftypes.Va
 		r.save(key, &record{Method: "OpenEphemeral", Request: req, Values: map[string][]byte{"result": packed(res.Result)}, Bytes: map[string][]byte{"private": res.Private}, Diags: diags})
 	}
 	return res, diags, err
+}
+
+func (r *Recorder) ListResource(ctx context.Context, typ string, cfg tftypes.Value, limit int64) ([]ListedResource, Diagnostics, error) {
+	key, req := r.key("ListResource", reqOf(map[string]any{"type": typ, "limit": limit}, cfg))
+	if r.replay {
+		rec, err := r.load(key)
+		if err != nil {
+			return nil, nil, r.replayErr("ListResource " + typ)
+		}
+		var out []ListedResource
+		if len(rec.Extra) > 0 {
+			if err := json.Unmarshal(rec.Extra, &out); err != nil {
+				return nil, nil, err
+			}
+		}
+		for i := range out {
+			// JSON has one kind of number: a whole one is an integer, as MessagePack gives it.
+			if id, ok := integral(out[i].Identity).(map[string]any); ok {
+				out[i].Identity = id
+			}
+		}
+		return out, rec.Diags, nil
+	}
+	out, diags, err := r.inner.ListResource(ctx, typ, cfg, limit)
+	if err == nil {
+		extra, _ := json.Marshal(out)
+		r.save(key, &record{Method: "ListResource", Request: req, Diags: diags, Extra: extra})
+	}
+	return out, diags, err
 }
 
 func (r *Recorder) RenewEphemeral(ctx context.Context, typ string, private []byte) (*EphemeralResult, Diagnostics, error) {
@@ -427,6 +456,29 @@ func (r *Recorder) CallFunction(ctx context.Context, name string, args []tftypes
 	return v, ferr, err
 }
 
+// integral turns the numbers of a decoded JSON value that have no fraction into int64.
+func integral(v any) any {
+	switch x := v.(type) {
+	case float64:
+		if x == float64(int64(x)) {
+			return int64(x)
+		}
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = integral(e)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[k] = integral(e)
+		}
+		return out
+	}
+	return v
+}
+
 // Wrap applies PRAVO_RECORD / PRAVO_REPLAY to a freshly started provider
 // (or, in replay mode, to no provider at all). name selects the
 // subdirectory, typically the provider's local name.
@@ -451,7 +503,7 @@ func Wrap(p Provider, name string) (Provider, error) {
 	default:
 		out = p
 	}
-	if telemetry.Enabled() {
+	if telemetry.Active() {
 		out = NewTraced(out, name)
 	}
 	return out, nil

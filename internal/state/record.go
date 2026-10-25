@@ -259,7 +259,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 		return nodeRef{}, err
 	}
 	rkey := recKey(data)
-	if _, err := s.b.PutIfAbsent(s.ctx, rkey, data); err != nil {
+	if _, err := s.b.PutIfAbsent(s.cx(), rkey, data); err != nil {
 		return nodeRef{}, fmt.Errorf("writing %s: %w", rkey, Advise(err))
 	}
 	ptr, err := indentJSON(pointer{V: pointerVersion, Address: addr, Revision: r.Revision, Generation: r.Generation, Record: rkey})
@@ -271,7 +271,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 	s.mu.Unlock()
 	next := nodeRef{Version: Version{Revision: r.Revision, Generation: r.Generation}, Record: rkey, Group: group}
 	if !had {
-		created, err := s.b.PutIfAbsent(s.ctx, nodeKey(addr), ptr)
+		created, err := s.b.PutIfAbsent(s.cx(), nodeKey(addr), ptr)
 		if err != nil {
 			return nodeRef{}, fmt.Errorf("writing %s: %w", nodeKey(addr), Advise(err))
 		}
@@ -291,7 +291,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 			refused    bool
 			superseded string
 		)
-		ok, err := s.b.ReplaceIf(s.ctx, nodeKey(addr), func(cur []byte) ([]byte, bool) {
+		ok, err := s.b.ReplaceIf(s.cx(), nodeKey(addr), func(cur []byte) ([]byte, bool) {
 			v, rec, parsed := versionOf(cur)
 			if !parsed || v != prev.Version {
 				refused = true
@@ -310,7 +310,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 			// nothing refers to: no stored plan or transaction names a record, only
 			// a revision and a generation.
 			if superseded != "" && superseded != rkey && prev.Version == next.Version {
-				_ = s.b.Delete(s.ctx, superseded)
+				_ = s.b.Delete(s.cx(), superseded)
 			}
 			return next, nil
 		case refused:
@@ -327,11 +327,11 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 // deleted only if it is the one the store holds; the record stays.
 func (s *Store) removeNode(addr string, h nodeRef) error {
 	if s.Format() < FormatImmutable {
-		return s.b.Delete(s.ctx, nodeKey(addr))
+		return s.b.Delete(s.cx(), nodeKey(addr))
 	}
 	for attempt := 0; attempt < replaceAttempts; attempt++ {
 		refused := false
-		ok, err := s.b.DeleteIf(s.ctx, nodeKey(addr), func(cur []byte) bool {
+		ok, err := s.b.DeleteIf(s.cx(), nodeKey(addr), func(cur []byte) bool {
 			if v, _, parsed := versionOf(cur); !parsed || v != h.Version {
 				refused = true
 				return false

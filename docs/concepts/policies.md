@@ -269,7 +269,7 @@ Two rules follow. A guard that tests a field must declare the field, because CUE
 
 A change to a policy is never judged, so a policy that refuses every plan is retired by removing it, with an apply that has no resource change. A plan with no resource change is not judged. [Operating policies](../reference/policies-operations.md) shows each case.
 
-Before the verdict, a plan is not read-only. To compute it, pravo installs providers and updates the lock. It refreshes records, applies `$from` moves and adopts `$import` objects. It runs data sources and ephemeral resources, and it takes the reservations that `--reserve` asks for. A refusal does not release a reservation. It expires.
+Before the verdict, a plan is not read-only. To compute it, pravo installs providers and updates the lock. It refreshes records, and reads the objects that `$import` names. It writes no record for a `$from` move or an `$import`: the apply does. It runs data sources and ephemeral resources, and it takes the reservations that `--reserve` asks for. A refusal does not release a reservation. It expires.
 
 The guarantee concerns changes to infrastructure. `plan --out` writes no refused plan, and `apply` and `destroy` ask no provider to create, update or delete anything unless every policy in force is satisfied.
 

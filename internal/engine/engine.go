@@ -28,6 +28,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
@@ -117,12 +118,15 @@ type Change struct {
 	// Applied marks a change of a saved plan that was applied earlier.
 	Applied    bool
 	AppliedTxn string
-	// Imported marks a resource whose record was created from an "import"
-	// declaration during this plan; MovedFrom names the previous address of
-	// a record renamed by a $from declaration.
-	Imported  bool
-	ImportID  string
-	MovedFrom string
+	// Imported marks a resource whose object an $import declaration names: the plan
+	// read it and stages the record, and the apply writes it. MovedFrom names the previous
+	// address of a record that a $from declaration renames; the apply moves it.
+	Imported bool
+	// ImportID is what the import named: an id, or the identity written as
+	// name=value pairs, when ImportIdentity is set.
+	ImportID       string
+	ImportIdentity bool
+	MovedFrom      string
 	// Reasons explains why the change is planned, for "pravo why".
 	Reasons []string
 
@@ -173,6 +177,10 @@ type Plan struct {
 	// loaded from a file.
 	SavedOutputs   map[string]json.RawMessage
 	UnknownOutputs []string
+	// OldOutputs holds the recorded value, as the state wraps it, of each
+	// output that EvalOutputs or DropOutputs names and that has one. A plan
+	// shows these outputs, and no others.
+	OldOutputs map[string]json.RawMessage
 	// Actor that made the plan (from the file, when loaded).
 	Actor string
 	// Reservation taken by the plan on its pending nodes, if any.
@@ -180,6 +188,9 @@ type Plan struct {
 	// Hints are suggestions that do not change the plan, such as a create
 	// and a delete that look like one resource under a new address.
 	Hints []string
+	// Relabels are the records whose provider a provider $from renames: the plan holds the
+	// new label in memory, and the apply writes it.
+	Relabels []Relabel
 
 	// The apply of a plan walks the nodes the plan changes and the nodes they
 	// read, and no others. Write lists the addresses it writes or removes. Inputs
@@ -280,6 +291,8 @@ func (p *Plan) PendingAddrs() []string {
 	return out
 }
 
+// HasChanges reports whether applying the plan would change an object. A move and an
+// import are not changes of an object: HasWrites counts them.
 func (p *Plan) HasChanges() bool {
 	return len(p.Policies) > 0 || p.hasProviderChanges()
 }
@@ -372,8 +385,10 @@ type Engine struct {
 	// dataReads holds what this plan read from the data sources, by address, with
 	// the hash of the configuration that was read.
 	dataReads map[string]dataRead
-	// imported holds the id of each import made by this plan, by address.
-	imported map[string]string
+	// imported holds what each import made by this plan named, by address.
+	imported map[string]importMark
+	// touchedAddrs are the records that the apply of the declarations wrote (see declared.go).
+	touchedAddrs map[string]bool
 	// ages holds the refresh ages that were parsed, by their text.
 	ages map[string]parsedAge
 	// now is the clock that records are aged against; nil is the wall clock.
@@ -461,6 +476,9 @@ type Engine struct {
 	keepOpen bool
 	// traceID is the OpenTelemetry trace of the current run, if any.
 	traceID string
+	// runCtx is the context a plan or an apply was started with, so that what
+	// follows it (the policy, the saved plan) is part of the same trace.
+	runCtx context.Context
 }
 
 // New creates an engine. value must already have provider schemas unified in.
@@ -594,46 +612,54 @@ func (e *Engine) replaceRequested(addr string) bool {
 
 // Plan computes the changes needed to reach the configuration.
 func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
-	if err := e.checkOutputs(); err != nil {
+	_, done := e.phase(ctx, "check specification")
+	err := e.checkSpec()
+	done(err)
+	if err != nil {
 		return nil, err
 	}
-	if err := e.checkReplace(); err != nil {
-		return nil, err
-	}
-	if e.Opts.Destroy {
-		if err := e.checkDestroy(); err != nil {
-			return nil, err
-		}
-	}
+	_, done = e.phase(ctx, "begin transaction")
 	e.txn = e.State.Begin("plan", e.Opts.Command)
 	e.resetRun(false)
 	e.forgetReads()
 	e.loadSuspects()
 	e.warnSuspects()
+	done(nil)
 	plan := &Plan{Outputs: map[string]cue.Value{}, Destroy: e.Opts.Destroy, NoRefresh: e.Opts.Refresh == RefreshNone}
 	if e.Opts.Destroy {
-		changes, err := e.planOrphans(ctx, nil)
+		pctx, done := e.phase(ctx, "plan destroy")
+		changes, err := e.planOrphans(pctx, nil)
+		done(err)
 		if err != nil {
 			e.finishError("failed", err, false)
 			return nil, err
 		}
 		plan.Changes = changes
 		plan.Stats = e.statsNow()
-		return plan, e.txn.Finish("planned", e.summary(plan), false)
+		return plan, e.finishPhase(ctx, "planned", e.summary(plan), false)
 	}
-	if err := e.relabelProviders(); err != nil {
+	_, done = e.phase(ctx, "moves")
+	relabels, err := e.relabelProviders(true)
+	if err != nil {
+		done(err)
 		e.finishError("failed", err, true)
 		return nil, err
 	}
-	moves, err := e.applyMoves(ctx)
+	plan.Relabels = relabels
+	moves, err := e.applyMoves(ctx, true)
+	done(err)
 	if err != nil {
 		e.finishError("failed", err, true)
 		return nil, err
 	}
 	plan.Changes = append(plan.Changes, moves...)
-	final, err := e.run(ctx, false)
+	pctx, done := e.phase(ctx, "evaluate and refresh", attribute.Int("pravo.tasks", len(e.Root.Resources)))
+	final, err := e.run(pctx, false)
+	done(err)
 	if err == nil && e.Opts.Refresh == RefreshAge {
-		final, err = e.readInputs(ctx, final)
+		rctx, done := e.phase(ctx, "read inputs")
+		final, err = e.readInputs(rctx, final)
+		done(err)
 	}
 	if err != nil {
 		e.finishError("failed", err, false)
@@ -649,7 +675,9 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 	for _, r := range e.Root.Resources {
 		present[r.Address()] = true
 	}
-	orphans, err := e.planOrphans(ctx, present)
+	octx, done := e.phase(ctx, "plan orphans")
+	orphans, err := e.planOrphans(octx, present)
+	done(err)
 	if err != nil {
 		e.finishError("failed", err, false)
 		return nil, err
@@ -665,7 +693,10 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 			plan.SensitiveOutputs[o.Name] = true
 		}
 	}
-	if err := e.frontier(plan); err != nil {
+	_, done = e.phase(ctx, "frontier")
+	err = e.frontier(plan)
+	done(err)
+	if err != nil {
 		e.finishError("failed", err, false)
 		return nil, err
 	}
@@ -674,15 +705,39 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		e.finishError("failed", err, false)
 		return nil, err
 	}
-	if err := e.checkReservations(plan); err != nil {
+	_, done = e.phase(ctx, "reservations")
+	err = e.checkReservations(plan)
+	if err == nil {
+		err = e.reserve(plan)
+	}
+	done(err)
+	if err != nil {
 		e.finishError("rejected", err, true)
 		return nil, err
 	}
-	if err := e.reserve(plan); err != nil {
-		e.finishError("rejected", err, true)
-		return nil, err
+	return plan, e.finishPhase(ctx, "planned", e.summary(plan), false)
+}
+
+// checkSpec runs the checks of the specification that need no provider.
+func (e *Engine) checkSpec() error {
+	if err := e.checkOutputs(); err != nil {
+		return err
 	}
-	return plan, e.txn.Finish("planned", e.summary(plan), false)
+	if err := e.checkReplace(); err != nil {
+		return err
+	}
+	if e.Opts.Destroy {
+		return e.checkDestroy()
+	}
+	return nil
+}
+
+// finishPhase finishes the transaction in a span of its own.
+func (e *Engine) finishPhase(ctx context.Context, status, summary string, record bool) error {
+	_, done := e.phase(ctx, "finish transaction")
+	err := e.txn.Finish(status, summary, record)
+	done(err)
+	return err
 }
 
 // errText is the summary a transaction records for a run that failed or was
@@ -1025,7 +1080,7 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 		if rd.drifted {
 			e.count(func(st *Stats) { st.Drifted++ })
 		}
-		e.persistRefreshed(addr, sr, attrs, newPrivate)
+		e.persistRefreshed(addr, sr, ch.Schema, attrs, newPrivate)
 	}
 	return newState, newPrivate, nil
 }
@@ -1037,13 +1092,13 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 // lock; the record is left alone in that case. The reservation that the actor
 // holds on the node is not touched: only an apply of the node, or expiry, ends
 // it.
-func (e *Engine) persistRefreshed(addr string, sr *state.Resource, attrs, private []byte) {
-	e.persistRead(addr, sr, attrs, private, true)
+func (e *Engine) persistRefreshed(addr string, sr *state.Resource, sch *schema.Schema, attrs, private []byte) {
+	e.persistRead(addr, sr, sch, attrs, private, true)
 }
 
 // persistRead writes the record that a read returned. With markDrift, a read that
 // differs from the record leaves the mark; the read that follows an apply does not.
-func (e *Engine) persistRead(addr string, sr *state.Resource, attrs, private []byte, markDrift bool) {
+func (e *Engine) persistRead(addr string, sr *state.Resource, sch *schema.Schema, attrs, private []byte, markDrift bool) {
 	release, ok, _ := e.State.TryHold(addr, e.Opts.Command+" refresh", e.txnID())
 	if !ok {
 		return
@@ -1061,21 +1116,26 @@ func (e *Engine) persistRead(addr string, sr *state.Resource, attrs, private []b
 		action = "drift"
 	}
 	before := n.Revision
-	e.recordRefresh(addr, action, before, &n)
+	if e.recordRefresh(addr, action, before, &n) && action == "drift" {
+		// What the provider found differs from what the record said: keep how.
+		e.recordDiff(addr, sch, sr.Attributes, attrs)
+	}
 }
 
 // recordRefresh writes the record of a refresh and notes it in the transaction. A
 // record that another command wrote, removed or created since this command read
 // it is left as it is: what the refresh read belongs to the record this command
 // holds, not to the one in the state.
-func (e *Engine) recordRefresh(addr, action string, before int, n *state.Resource) {
+func (e *Engine) recordRefresh(addr, action string, before int, n *state.Resource) bool {
 	err := e.State.Refresh(n, e.txnID())
 	switch {
 	case errors.Is(err, state.ErrChanged):
 		e.Opts.Progress("Warning: %s changed in the state since this command read it; what the refresh read is not recorded", addr)
 	case err == nil && e.txn != nil:
 		e.txn.Record(addr, action, before, n.Revision)
+		return true
 	}
+	return false
 }
 
 // persistGone writes the record of a node whose object a read did not find.
@@ -1570,9 +1630,9 @@ func (e *Engine) planResource(ctx context.Context, r *config.Resource, v cue.Val
 		if err != nil {
 			return nil, err
 		}
-		if id, ok := e.importedID(addr); ok && !strict {
+		if mark, ok := e.importedID(addr); ok && !strict {
 			// The record was written by the import of an earlier walk of this plan.
-			ch.Imported, ch.ImportID = true, id
+			ch.Imported, ch.ImportID, ch.ImportIdentity = true, mark.label, mark.identity
 		}
 	} else if imp, ok := e.Root.Imports[addr]; ok && !strict {
 		prior, private, err = e.importResource(ctx, prov, r, s, imp, ch)
@@ -1894,7 +1954,9 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 	before := ch.removedRevision
 	n.Revision = ch.removedRevision
 	rekeyed := false
+	var priorAttrs json.RawMessage
 	if prev := e.State.Get(ch.Addr); prev != nil {
+		priorAttrs = prev.Attributes
 		before = prev.Revision
 		n.Revision = prev.Revision
 		rekeyed = prev.ProviderKey != n.ProviderKey
@@ -1918,6 +1980,7 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 	}
 	if e.txn != nil {
 		e.txn.Record(ch.Addr, action, before, n.Revision)
+		e.recordDiff(ch.Addr, ch.Schema, priorAttrs, n.Attributes)
 	}
 	return nil
 }
@@ -2097,7 +2160,10 @@ func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Chan
 type ApplyResult struct {
 	Added, Changed, Destroyed int
 	Outputs                   map[string]json.RawMessage
-	Txn                       string
+	// ChangedOutputs lists, sorted, the outputs whose recorded value is new or
+	// differs from the one recorded when the apply began.
+	ChangedOutputs []string
+	Txn            string
 	// Applied lists, sorted, the addresses of the plan's changes that the apply
 	// finished and recorded in the state: the creates, updates, replacements and
 	// deletes whose provider call returned and whose record was written, and the
@@ -2237,8 +2303,20 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.finishError("failed", err, true)
 		return result, err
 	}
+	// What the specification declares about the state is written first: the plan staged it.
+	if !e.Opts.Destroy {
+		_, done := e.phase(ctx, "commit moves")
+		err := e.commitMoves(plan)
+		done(err)
+		if err != nil {
+			e.finishError("rejected", err, true)
+			return result, err
+		}
+	}
 	lockStart := time.Now()
+	_, done := e.phase(ctx, "lock")
 	held, err := e.lockAll(plan)
+	done(err)
 	if err != nil {
 		e.finishError("rejected", err, true)
 		return result, err
@@ -2249,7 +2327,10 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	plog.Debug(ctx, fmt.Sprintf("locked %d resources", locked))
 	// With the locks held, the records are read from the backend again: a node
 	// that another process wrote after the plan was made is not applied over.
-	if err := e.checkRevisions(plan, sc.inputsOf(plan)); err != nil {
+	_, done = e.phase(ctx, "check revisions")
+	err = e.checkRevisions(plan, sc.inputsOf(plan))
+	done(err)
+	if err != nil {
 		e.finishError("rejected", err, true)
 		return result, err
 	}
@@ -2273,13 +2354,20 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	e.held = held
 	defer func() { e.held = nil }()
 	defer e.register(ctx, held)()
+	if !e.Opts.Destroy {
+		if err := e.commitImports(plan); err != nil {
+			return fail(err)
+		}
+	}
 	var skipped []string
 	if !e.Opts.Destroy {
 		defer e.approve(plan)()
 		e.scope = sc
 		defer func() { e.scope = nil }()
 		e.resetRun(true)
-		final, err := e.run(ctx, true)
+		actx, done := e.phase(ctx, "apply changes", attribute.Int("pravo.tasks", len(plan.Changes)))
+		final, err := e.run(actx, true)
+		done(err)
 		if err != nil {
 			return fail(err)
 		}
@@ -2321,14 +2409,19 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		}
 	}
 	// Orphans were planned already; destroy them, dependents first.
-	destroyed, err := e.destroyOrphans(ctx, plan)
+	dctx, done := e.phase(ctx, "destroy orphans")
+	destroyed, err := e.destroyOrphans(dctx, plan)
+	done(err)
 	result.Destroyed += destroyed
 	if err != nil {
 		return fail(err)
 	}
 	if !e.Opts.Destroy {
-		e.readBack(ctx)
+		bctx, done := e.phase(ctx, "read back")
+		e.readBack(bctx)
+		done(nil)
 	}
+	_, outDone := e.phase(ctx, "record outputs")
 	// The outputs are recorded by a read, a merge and a write while their lock is
 	// held: an apply that finished meanwhile has recorded outputs of its own.
 	if e.Opts.Destroy {
@@ -2370,9 +2463,16 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			}
 		}
 	}
+	outDone(err)
 	if err != nil {
 		return fail(err)
 	}
+	for name, raw := range result.Outputs {
+		if prev, ok := baseline[name]; !ok || !jsonEqual(prev, raw) {
+			result.ChangedOutputs = append(result.ChangedOutputs, name)
+		}
+	}
+	sort.Strings(result.ChangedOutputs)
 	// The versions of the policies come last, from the stage that leaves no resource change
 	// unapplied.
 	if len(plan.Policies) > 0 && !plan.Partial {
@@ -2382,7 +2482,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	}
 	result.Applied = e.completedAddrs()
 	summary := fmt.Sprintf("%d added, %d changed, %d destroyed", result.Added, result.Changed, result.Destroyed)
-	return result, e.txn.Finish("applied", summary, true)
+	return result, e.finishPhase(ctx, "applied", summary, true)
 }
 
 // sameOutputs reports whether two sets of recorded outputs hold the same values.

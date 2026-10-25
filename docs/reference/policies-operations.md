@@ -338,8 +338,7 @@ A plan is not read-only. By the time a policy gives its verdict, pravo has:
 
 - installed the providers and updated the lock file;
 - refreshed the records it looked at whose refresh age had run out, writing the refreshed state, and marked a record whose object differs or is gone;
-- applied the `$from` moves, renaming records in the state;
-- adopted the `$import` objects;
+- read the objects that `$import` names, and staged the `$from` moves and the imports in memory, without writing a record: the apply writes them;
 - read data sources and opened ephemeral resources, which runs provider code with the invoker's credentials; and
 - taken the reservation, if `--reserve` was given. A refusal does not release it. It expires.
 

@@ -1,0 +1,18 @@
+{
+  "discovery": "compute.instances",
+  "key": "i-0aa0000",
+  "id": "i-0aa0000",
+  "status": "unmanaged",
+  "snippet": "// Adopts the aws_instance \"i-0aa0000\" (jump-host-old) that the discovery compute.instances found.\njump_host_old: $aws.#Resource.aws_instance & {\n\t$import: \"i-0aa0000\"\n}\n",
+  "steps": [
+    {
+      "kind": "note",
+      "text": "To write the resource with the attributes the object has, ask the provider for it:"
+    },
+    {
+      "kind": "command",
+      "text": "pravo discover adopt compute.instances i-0aa0000 --read"
+    }
+  ],
+  "ack": "// An entry of $ack in the discovery compute.instances, which is the list `$ack: [...]` of its struct.\n{\n\tids: [\"i-0aa0000\"]\n\treason: \"<why>\"\n}\n"
+}

@@ -138,22 +138,22 @@ pravo plan
 Output:
 
 ```text
-server: moved to primary
-...
 pravo will perform the following actions:
 
-  # server was moved to primary (record renamed; no change to the object)
+  # server will be moved to primary (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 · skipped 2 · not read 2 · moved 1
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to move.
+Graph: planned 0 · skipped 2 · not read 2 · to move 1
 ```
 
-The plan renames the record. It changes nothing in the world: `0 to add, 0 to change, 0 to destroy`. The move happens as the first step of the plan, so the state already holds the new address.
+The plan lists the rename. It changes nothing in the world: `0 to add, 0 to change, 0 to destroy`, and it writes nothing to the state, which still holds the old address. The apply renames the record.
 
 > [!NOTE]
-> A plan that carries out a `$from` or an `$import` writes to the state. No object changes, and only the records move.
+> A plan writes no record for a `$from` or an `$import`: it says what the apply will write. The apply writes it first. No object changes, and only the records move.
 
 ```sh
+pravo state list
+pravo apply --auto-approve | grep '^Apply complete'
 pravo state list
 pravo plan
 ```
@@ -161,6 +161,9 @@ pravo plan
 Output:
 
 ```text
+note
+server
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 note
 primary
 ...
@@ -292,20 +295,32 @@ pravo plan
 Output:
 
 ```text
-names.first: moved to ids.first
-names.second: moved to ids.second
-...
 pravo will perform the following actions:
 
-  # names.first was moved to ids.first (record renamed; no change to the object)
+  # names.first will be moved to ids.first (record renamed; no change to the object)
 
-  # names.second was moved to ids.second (record renamed; no change to the object)
+  # names.second will be moved to ids.second (record renamed; no change to the object)
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 0 · skipped 4 · not read 4 · moved 2
+Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
+Graph: planned 0 · skipped 4 · not read 4 · to move 2
 ```
 
-Both records moved. This is how you rename a module instance, or move resources into one.
+Both records move when the plan is applied. This is how you rename a module instance, or move resources into one.
+
+```sh
+pravo apply --auto-approve | grep '^Apply complete'
+pravo state list
+```
+
+Output:
+
+```text
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
+ids.first
+ids.second
+note
+primary
+```
 
 ## Break it: a definition that is closed
 
@@ -386,29 +401,30 @@ Output:
 
 ```text
 ...
-dice: Importing from id "5,1,10"...
+dice: Reading the object of id "5,1,10"...
 ...
 pravo will perform the following actions:
 
-  # dice was imported from id "5,1,10" and matches the specification
+  # dice will be imported from id "5,1,10" and matches the specification
 
-Plan: 0 to add, 0 to change, 0 to destroy.
-Graph: planned 1 · skipped 4 · not read 4 · imported 1
+Plan: 0 to add, 0 to change, 0 to destroy, 1 to import.
+Graph: planned 1 · skipped 4 · not read 4 · to import 1
 ```
 
-The provider read the object, and the result became the record for `dice`. The plan compared the record with the specification. They match, so there is nothing to do. With `max: 20` the plan reports the import and a replacement, because a new `max` forces one.
+The provider read the object, and the plan compared it with the specification. They match, so there is nothing to change. With `max: 20` the plan reports the import and a replacement, because a new `max` forces one.
 
-The record has no application time and no configuration hash. It was never applied by pravo.
+The plan writes no record for `dice`. The apply does, and then the record holds the object as the provider reported it.
 
 ```sh
-pravo state show dice
+pravo apply --auto-approve | grep '^Apply complete'
+pravo state show dice | sed '2d'
 ```
 
 Output:
 
 ```text
-// dice (provider registry.opentofu.org/hashicorp/random v3.9.1 as random, schema version 0, revision 1)
-// refreshed 0s ago, applied never, config hash none
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
+// dice (provider registry.opentofu.org/hashicorp/random v3.9.1 as random, schema version 0, revision 2)
 {
 	id:      "5"
 	keepers: null
