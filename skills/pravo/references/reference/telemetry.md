@@ -4,7 +4,7 @@
 
 OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables.
 
-pravo emits OpenTelemetry traces and metrics. Exporting is off by default: nothing leaves the machine until the standard `OTEL_*` environment variables name where it goes, so any collector, backend or CI system that speaks OTLP works without pravo-specific settings. Apart from that, a command that did some work keeps its own trace in the project, for [the viewer](#the-recorded-runs) to show without a collector.
+pravo emits OpenTelemetry traces and metrics. Exporting is off by default: nothing leaves the machine until the standard `OTEL_*` environment variables name where it goes, so any collector, backend or CI system that speaks OTLP works without pravo-specific settings. Apart from that, `PRAVO_TRACES=on` makes a command that did some work keep its own trace in the project, for [the viewer](#the-recorded-runs) to show without a collector. That is off until you ask for it.
 
 | Variable | Effect |
 |---|---|
@@ -14,7 +14,7 @@ pravo emits OpenTelemetry traces and metrics. Exporting is off by default: nothi
 | `OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER` | `otlp`, `console` (JSON on standard error) or `none`. Any other value turns the signal off. |
 | `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | The identity of the resource. The service is `pravo` unless you say otherwise. |
 | `OTEL_SDK_DISABLED=true` | Turns everything off, the recorded runs included. |
-| `PRAVO_TRACES=off` | Turns the recorded runs off and leaves the exporters as they are. |
+| `PRAVO_TRACES=on` | Turns the recorded runs on. Without it nothing is recorded in the project. It does not change the exporters. |
 | `PRAVO_TRACE_DIR` | Where the recorded runs are kept, in place of `.pravo/traces`. |
 | `TRACEPARENT`, `TRACESTATE` | A trace started by the caller continues in pravo. See [Propagation](#propagation). |
 
@@ -109,10 +109,11 @@ The address in `resource <address>` is the CUE path of the resource, such as `pe
 
 | Span | Attributes |
 |---|---|
-| command (`pravo plan`, ...) | `pravo.command`, `pravo.version`, `pravo.actor`, `pravo.reason`, `pravo.json`, `pravo.exit_code` |
+| command (`pravo plan`, ...) | `pravo.command`, `pravo.version`, `pravo.actor`, `pravo.reason`, `pravo.json`, `pravo.command_line` (the command as it was typed, with the values of tags and secrets masked when the viewer shows it), `pravo.exit_code` |
 | `engine plan`, `engine apply` | `pravo.actor`, `pravo.reason`, `vcs.revision`, `pravo.destroy`, `pravo.txn`. For plan: `pravo.plan.add`, `.change`, `.destroy` and `pravo.nodes.total`, `.planned`, `.skipped`, `.refreshed`, `.fresh`, `.not_read`, `.drifted`, `pravo.ephemeral.opened`, `pravo.function.calls`. For apply: what was added, changed and destroyed. |
 | `phase <stage>` | The stage of a plan or an apply: `check specification`, `begin transaction`, `moves`, `evaluate and refresh`, `read inputs`, `plan orphans`, `frontier`, `reservations`, `commit moves`, `lock`, `check revisions`, `apply changes`, `destroy orphans`, `read back`, `record outputs`, `finish transaction`. `pravo.tasks` on the stages that walk the resources. |
 | `setup <stage>`, `config <stage>` | What readies a command: loading the specification and its stages, reading the lock file, opening the state, resolving, installing, starting and configuring a provider and reading its schema. `pravo.provider`, `pravo.provider.version`, `pravo.provider.source`, `pravo.state.backend`. |
+| `seal <kind> <name>`, `unseal <kind> <name>`, `unseal state keys` | Work of the seal of a [sealed state](../concepts/sealed-state.md): a value sealed or opened, and the data keys of the state opened with the reader's key. `pravo.seal.kind` (`resource`, `outputs`, a plan or a summary), `pravo.seal.name` (an address or an id), `pravo.seal.group`, `pravo.seal.bytes` and, for the keys, `pravo.seal.groups`. Never the value. |
 | `state <operation> <key>` | A request to the state: `get`, `put`, `create` (only if absent), `replace-if`, `delete-if`, `delete`, `list`. `pravo.state.op`, `pravo.state.key`, `pravo.state.backend` (`local`, `s3`, `http`), and where they apply `pravo.state.bytes`, `pravo.state.keys` and `pravo.state.applied` (a conditional write that was made). The key is the name of an object, such as `resources/api.db.json`; a missing object and a refused conditional write are answers, and the span does not fail. |
 | `engine discover <name>` | `pravo.discovery.name`, `pravo.discovery.type`, `pravo.provider`, `pravo.discovery.items`, `pravo.discovery.status`, `pravo.warnings` |
 | `engine check policy` | `pravo.policies` |
@@ -120,7 +121,7 @@ The address in `resource <address>` is the CUE path of the resource, such as `pe
 | `mcp tools/call <tool>` | `mcp.tool`, `pravo.actor`, `pravo.exit_code` |
 | `provider <RPC>` | `rpc.system`, `rpc.service`, `rpc.method`, `pravo.provider`, `pravo.protocol`, `pravo.resource.type`, `pravo.warnings` |
 
-A request to the state is a span of its own, so a run against a store on the network shows where its time went: a long `state list` is the size of the state, and a long `phase lock` is a store that is slow to take a lock. With an exporter on, a large state sends one span for each record that is read. `PRAVO_TRACES=off` keeps them out of the recorded runs only.
+A request to the state is a span of its own, so a run against a store on the network shows where its time went: a long `state list` is the size of the state, and a long `phase lock` is a store that is slow to take a lock. With an exporter on, a large state sends one span for each record that is read. They are in the recorded runs when `PRAVO_TRACES=on`.
 
 ```sh
 jq -c 'select(.Name == "pravo plan") | [.Attributes[] | {(.Key): .Value.Value}] | add' trace.jsonl
@@ -130,7 +131,7 @@ jq -c 'select(.Name == "resource hello") | [.Attributes[] | {(.Key): .Value.Valu
 Output:
 
 ```text
-{"pravo.command":"pravo plan","pravo.version":"0.1.0-dev","pravo.actor":"","pravo.reason":"","pravo.json":false,"pravo.exit_code":0}
+{"pravo.command":"pravo plan","pravo.version":"0.1.0-dev","pravo.actor":"","pravo.reason":"","pravo.json":false,"pravo.command_line":"pravo plan","pravo.exit_code":0}
 {"pravo.resource.address":"hello","pravo.resource.type":"local_file","pravo.mode":"managed","pravo.provider":"local","pravo.phase":"plan","pravo.action":"create","pravo.skipped":false,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
 ```
 
@@ -176,7 +177,7 @@ Output:
 
 ## The recorded runs
 
-A command that did some work (`plan`, `apply`, `destroy`, `drift`, `discover` and the commands that plan inside them, and those that load the specification or read the state) writes its trace to `.pravo/traces/<trace id>-<span id>.json` in the directory it ran in, when it ends. This needs no `OTEL_*` variable and no collector. [`pravo serve`](serve.md#the-traces-section) reads the directory and shows each run as a timeline, which is the quickest way to see where a run spent its time or where it stopped.
+With `PRAVO_TRACES=on`, a command that did some work (`plan`, `apply`, `destroy`, `drift`, `discover` and the commands that plan inside them, and those that load the specification or read the state) writes its trace to `.pravo/traces/<trace id>-<span id>.json` in the directory it ran in, when it ends. This needs no `OTEL_*` variable and no collector. [`pravo serve`](serve.md#the-traces-section) reads the directory and shows each run as a timeline, which is the quickest way to see where a run spent its time or where it stopped.
 
 - The file holds the spans that the exporters get: the same names, the same attributes and the same debug events, with times counted in microseconds from the start of the run. It holds no attribute value, by the rule [above](#what-spans-never-contain).
 - A command that ran no engine (`pravo version`, `pravo serve`, `pravo state log`) writes nothing. A command that continues the trace of its caller (`TRACEPARENT`) writes its own file, so a CI job that runs several commands in one trace has one file for each.
@@ -184,7 +185,7 @@ A command that did some work (`plan`, `apply`, `destroy`, `drift`, `discover` an
 - A failure to write the file never fails the command and prints nothing.
 - The trace id of a run that only the recorded file holds is not written to the state or to the documents of a command: `trace_id` appears there only when an exporter is on. The `pravo.txn` attribute of the `engine` span names the transaction that an apply wrote, which is how the viewer joins the two.
 
-Set `PRAVO_TRACES=off` to record nothing, or `PRAVO_TRACE_DIR` to keep the runs elsewhere. `pravo serve` reads the directory that `PRAVO_TRACE_DIR` names, when it is set in its own environment.
+Recording is off by default, because it writes a file for every command. Set `PRAVO_TRACES=on` in the environment of the command (`PRAVO_TRACES=on pravo plan`, or `export PRAVO_TRACES=on` for a session), and `PRAVO_TRACE_DIR` to keep the runs elsewhere. The Traces section of the viewer says so when it finds nothing. `pravo serve` reads the directory that `PRAVO_TRACE_DIR` names, when it is set in its own environment.
 
 ## Metrics
 

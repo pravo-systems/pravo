@@ -1120,7 +1120,7 @@ services.worker.host
 
 Both plans report no changes. `not read 7` means that pravo trusted the seven records and read none of their objects, so the plan says that the specification matches the state, not the infrastructure. `planned 0` means that nothing in the specification had changed, so it planned none. The addresses in `state list` are now the CUE paths.
 
-Check the promise. The state files and the four objects are the files they were at the start. List what else the directories hold. `.pravo` is where pravo keeps the runs it recorded, and it ignores itself in version control.
+Check the promise. The state files and the four objects are the files they were at the start. List what else the directories hold.
 
 ```sh run
 cksum platform/terraform.tfstate gateway/terraform.tfstate platform/out/* gateway/out/*
@@ -1135,7 +1135,6 @@ ls -A platform gateway
 1286036499 38 platform/out/worker.conf
 402797924 72 gateway/out/upstreams.conf
 gateway:
-.pravo
 cue.mod
 main.cue
 out
@@ -1144,7 +1143,6 @@ pravo.state
 terraform.tfstate
 
 platform:
-.pravo
 cue.mod
 main.cue
 out

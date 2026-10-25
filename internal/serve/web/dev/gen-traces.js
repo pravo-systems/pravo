@@ -53,9 +53,11 @@ function makeRun(opts) {
   t += 300;
   const open = span('setup open state', root, t, 7400, { 'pravo.state.backend': 'local' });
   st(open, 'get', 'meta.json', t + 100, 160, 212);
+  span('unseal state keys', open, t + 280, 180, { 'pravo.seal.groups': 2 });
   st(open, 'list', 'resources', t + 300, 900, null, { 'pravo.state.keys': all.length });
   for (const [i, it] of all.entries()) st(open, 'get', 'resources/' + it.addr + '.json', t + 1300 + i * 22, jit(60, 0.5), 900 + (i * 37) % 2400);
   st(open, 'get', 'outputs.json', t + 6600, 140, 1320);
+  span('unseal outputs', open, t + 6760, 90, { 'pravo.seal.kind': 'outputs', 'pravo.seal.group': 'g1' });
   ev(root, 'state opened', t + 7400);
   t += 7400;
   const res = span('setup resolve providers', root, t, 1700, { 'pravo.providers': 3 });
@@ -180,14 +182,14 @@ function makeRun(opts) {
     end = ap.end;
   }
   root.dur_us = Math.round(end + 2000);
-  Object.assign(root.attrs = root.attrs || {}, { 'pravo.command': cmd, 'pravo.version': '0.9.0-dev', 'pravo.actor': 'ana@acme', 'pravo.reason': opts.reason || '', 'pravo.json': false, 'pravo.exit_code': exit });
+  Object.assign(root.attrs = root.attrs || {}, { 'pravo.command': cmd, 'pravo.version': '0.9.0-dev', 'pravo.actor': 'ana@acme', 'pravo.reason': opts.reason || '', 'pravo.json': false, 'pravo.exit_code': exit, 'pravo.command_line': cmd + (opts.reason ? ' --reason "' + opts.reason + '"' : '') + (kind === 'apply' ? ' -t team=platform' : '') });
   if (exit === 1) { root.status = 'error'; root.message = 'apply failed: api.db'; }
   spans.sort((a, b) => a.start_us - b.start_us || b.dur_us - a.dur_us);
   const errors = spans.filter((x) => x.status === 'error').length;
   const resSet = new Set(spans.filter((x) => x.name.startsWith('resource ')).map((x) => x.attrs['pravo.resource.address']));
   for (const x of spans) x.kind = x.name.startsWith('pravo ') ? 'command' : x.name.startsWith('config ') ? 'setup' : x.name.split(' ')[0];
   const id = traceId + '-' + root.id;
-  const info = { id, command: cmd, start, duration_us: root.dur_us, exit, status: errors ? 'error' : 'ok', span_count: spans.length, errors, resources: resSet.size };
+  const info = { id, command: cmd, line: root.attrs['pravo.command_line'], start, duration_us: root.dur_us, exit, status: errors ? 'error' : 'ok', span_count: spans.length, errors, resources: resSet.size };
   if (txn) info.txn = txn;
   info.actor = 'ana@acme';
   if (opts.reason) info.reason = opts.reason;

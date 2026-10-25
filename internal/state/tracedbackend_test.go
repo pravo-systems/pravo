@@ -13,7 +13,7 @@ import (
 // The requests a store sends to its backend are spans under the context the store
 // was given, with the key and the kind of store, and a missing object is not a failure.
 func TestStoreRequestsAreSpans(t *testing.T) {
-	t.Setenv("PRAVO_TRACES", "")
+	t.Setenv("PRAVO_TRACES", "on")
 	t.Setenv("OTEL_SDK_DISABLED", "")
 	rec := tracetest.NewSpanRecorder()
 	prev := otel.GetTracerProvider()

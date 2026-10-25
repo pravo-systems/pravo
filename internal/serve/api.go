@@ -941,7 +941,7 @@ type Adopt struct {
 
 // TraceList is GET /api/traces: the runs that pravo recorded in the project, newest
 // first. A run is recorded when a command did some work (a plan, an apply, a drift
-// check) and tracing was not turned off with PRAVO_TRACES=off; the file is
+// check) and the record was turned on with PRAVO_TRACES=on; the file is
 // .pravo/traces/<id>.json of the directory the command ran in (or $PRAVO_TRACE_DIR).
 // The viewer reads the files and writes none.
 type TraceList struct {
@@ -961,6 +961,9 @@ type TraceInfo struct {
 	ID string `json:"id"`
 	// Command is the command that ran, such as "pravo apply".
 	Command string `json:"command"`
+	// Line is the whole command line, "pravo plan -t env=prod --reason ...", as it was typed, with the values of the tags
+	// and of the flags that carry secrets masked, as in a stored plan. It is absent for a run recorded without one.
+	Line string `json:"line,omitempty"`
 	// Start is when the run began, RFC 3339.
 	Start      string `json:"start"`
 	DurationUS int64  `json:"duration_us"`

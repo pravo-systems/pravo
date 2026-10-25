@@ -132,6 +132,7 @@ func (s *Server) traces(w http.ResponseWriter, r *http.Request) {
 		t.Reason = traceText(sec, t.Reason, 256)
 		t.Actor = traceText(sec, t.Actor, 128)
 		t.Command = traceText(sec, t.Command, 128)
+		t.Line = maskCommand(sec, t.Line, 600)
 	}
 	sort.SliceStable(list.Traces, func(i, j int) bool { return list.Traces[i].Start > list.Traces[j].Start })
 	writeJSON(w, http.StatusOK, list)
@@ -155,6 +156,7 @@ func (s *Server) trace(w http.ResponseWriter, r *http.Request) {
 	sec := s.traceSecrets()
 	info := summarize(id, rt)
 	info.Reason, info.Actor, info.Command = traceText(sec, info.Reason, 256), traceText(sec, info.Actor, 128), traceText(sec, info.Command, 128)
+	info.Line = maskCommand(sec, info.Line, 600)
 	out := &Trace{Version: APIVersion, TraceInfo: info, TraceID: rt.TraceID, Dropped: rt.Dropped, Spans: make([]TraceSpan, 0, len(rt.Spans))}
 	for _, sp := range rt.Spans {
 		if len(out.Spans) >= maxTraceSpans {
@@ -225,6 +227,7 @@ func summarize(id string, rt *telemetry.RunTrace) TraceInfo {
 			if n, ok := sp.Attrs["pravo.exit_code"].(float64); ok {
 				info.Exit = int(n)
 			}
+			info.Line, _ = sp.Attrs["pravo.command_line"].(string)
 			info.Actor, _ = sp.Attrs["pravo.actor"].(string)
 			info.Reason, _ = sp.Attrs["pravo.reason"].(string)
 		}
@@ -259,6 +262,8 @@ func spanKind(name string) string {
 		return "provider"
 	case strings.HasPrefix(name, "state "):
 		return "state"
+	case strings.HasPrefix(name, "seal "), strings.HasPrefix(name, "unseal "):
+		return "seal"
 	case strings.HasPrefix(name, "phase "):
 		return "phase"
 	case strings.HasPrefix(name, "setup "), strings.HasPrefix(name, "config "):
@@ -301,6 +306,10 @@ func traceAttrs(sec *secretSet, in map[string]any) map[string]any {
 		}
 		switch v := in[k].(type) {
 		case string:
+			if k == "pravo.command_line" {
+				out[k] = maskCommand(sec, v, 600)
+				break
+			}
 			out[traceText(sec, k, 128)] = traceText(sec, v, traceTextMax)
 		case bool, float64:
 			out[traceText(sec, k, 128)] = v

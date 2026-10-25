@@ -6,10 +6,11 @@ import { TOKEN, addTerm, removeValues } from './query.js';
 import { LANG, ALIAS, COLUMNS, valueOf, labelOf } from './trace-model.js';
 
 const HINTS = {
-  kind: 'command, engine, phase, setup, resource, provider, state, tool call',
+  kind: 'command, engine, phase, setup, resource, provider, state, seal, tool call',
   is: 'error keeps the spans that failed',
   provider: 'The provider a span is for: aws, random',
   type: 'The resource type: aws_s3_bucket, or aws_s3* for a run of them',
+  attr: 'An attribute: attr:pravo.provider, or attr:pravo.provider=aws for one value',
 };
 const KIND_HINTS = {
   engine: 'A plan, an apply or a discovery',
@@ -18,10 +19,11 @@ const KIND_HINTS = {
   resource: 'One resource in a plan or an apply',
   provider: 'A call to a provider',
   state: 'A request to the state: a read, a write, a lock',
+  seal: 'Sealing a value for the state, or unsealing one: the keys, a record, the outputs, a plan',
   command: 'The command itself',
   mcp: 'A call of the tool server',
 };
-export const KIND_ORDER = ['engine', 'phase', 'setup', 'resource', 'provider', 'state', 'command', 'mcp'];
+export const KIND_ORDER = ['engine', 'phase', 'setup', 'resource', 'provider', 'state', 'seal', 'command', 'mcp'];
 const rank = (k) => { const i = KIND_ORDER.indexOf(k); return i < 0 ? 99 : i; };
 
 // tally counts what the spans hold for a column, most first, with the kinds in the order they run in.
@@ -35,6 +37,16 @@ export function tally(model, col) {
   if (col === 'kind') out.sort((a, b) => rank(a[0]) - rank(b[0]) || b[1] - a[1]);
   else out.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   return out;
+}
+
+// attrTally counts the attributes that the spans carry: their names, or the values of one name.
+function attrTally(model, key) {
+  const n = new Map();
+  for (const sp of model.spans) for (const k in sp.attrs || {}) {
+    if (key === undefined) n.set(k, (n.get(k) || 0) + 1);
+    else if (k === key) { const v = Array.isArray(sp.attrs[k]) ? sp.attrs[k].join(',') : String(sp.attrs[k]); n.set(v, (n.get(v) || 0) + 1); }
+  }
+  return [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
 const quote = (v) => (/[\s,"]/.test(v) ? '"' + v.replace(/"/g, '') + '"' : v);
@@ -65,7 +77,7 @@ export function suggest(model, text, caret) {
     for (const [v, count] of tally(model, 'kind')) items.push({ label: 'kind:' + v, count, hint: KIND_HINTS[v], group: 'Kinds', insert: 'kind:' + v + ' ' });
     const errs = tally(model, 'is').find(([v]) => v === 'error');
     if (errs) items.push({ label: 'is:error', count: errs[1], hint: 'The spans that failed', group: 'Status', insert: 'is:error ' });
-    for (const c of ['provider', 'type']) if (tally(model, c).length) items.push({ label: c + ':', hint: HINTS[c], group: 'Narrow by', insert: c + ':' });
+    for (const c of ['provider', 'type', 'attr']) if (c === 'attr' ? attrTally(model).length : tally(model, c).length) items.push({ label: c + ':', hint: HINTS[c], group: 'Narrow by', insert: c + ':' });
     return items.length ? { from: start, to: caret, items } : null;
   }
   const neg = m[1];
@@ -82,6 +94,17 @@ export function suggest(model, text, caret) {
   const col = ALIAS[m[2].toLowerCase()] || m[2].toLowerCase();
   if (!COLUMNS.includes(col)) return null;
   const rest = m[4];
+  if (col === 'attr') {
+    // the name first; once the equals sign is typed, the values that the name has
+    const eq = rest.indexOf('=');
+    const head = word.slice(0, word.length - rest.length) + (eq < 0 ? '' : rest.slice(0, eq + 1));
+    const typed = (eq < 0 ? rest : rest.slice(eq + 1)).toLowerCase();
+    const list = eq < 0 ? attrTally(model) : attrTally(model, rest.slice(0, eq));
+    for (const [v, count] of list.filter(([v]) => v.toLowerCase() !== typed && (!typed || v.toLowerCase().includes(typed))).slice(0, 12)) {
+      items.push({ label: v, count, hint: eq < 0 ? 'attribute' : '', insert: head + (eq < 0 ? v : quote(v)) + (eq < 0 ? '=' : ' ') });
+    }
+    return items.length ? { from: start, to: caret, items } : null;
+  }
   const cut = rest.lastIndexOf(',') + 1;
   const have = new Set(rest.slice(0, cut).split(',').map((v) => v.toLowerCase()));
   const typed = rest.slice(cut).toLowerCase();

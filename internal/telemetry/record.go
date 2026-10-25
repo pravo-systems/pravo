@@ -16,8 +16,9 @@ import (
 )
 
 // The recorder keeps the spans of a run in a file of the project, so that
-// "pravo serve" can show the run without a collector. It is on unless
-// PRAVO_TRACES=off, and it keeps the spans that the other exporters get: the
+// "pravo serve" can show the run without a collector. It is off until
+// PRAVO_TRACES=on turns it on: a run that is recorded leaves a file for each command, which is not something to do
+// to a project that did not ask for it. It keeps the spans that the other exporters get: the
 // addresses, types, actions and counts of the run, never attribute values.
 //
 // A run is written only if the command did some work, which is to say that it
@@ -96,10 +97,10 @@ func recordingEnabled() bool {
 		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("PRAVO_TRACES"))) {
-	case "off", "false", "0", "none":
-		return false
+	case "on", "true", "1", "yes":
+		return true
 	}
-	return true
+	return false
 }
 
 // TraceDir is where the runs of a command started in cwd are kept.
@@ -123,7 +124,7 @@ func (r *recorder) OnEnd(s sdktrace.ReadOnlySpan) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	n := len(r.spans)
-	if n >= maxSpansHard || (n >= maxSpans && (strings.HasPrefix(s.Name(), "provider ") || strings.HasPrefix(s.Name(), "state "))) {
+	if n >= maxSpansHard || (n >= maxSpans && (strings.HasPrefix(s.Name(), "provider ") || strings.HasPrefix(s.Name(), "state ") || strings.HasPrefix(s.Name(), "seal ") || strings.HasPrefix(s.Name(), "unseal "))) {
 		r.dropped++
 		return
 	}

@@ -108,14 +108,15 @@ export function path(sp) {
 // labelOf is what a bar says: the address of a resource, the RPC of a provider call, the name of anything else.
 export function labelOf(sp) {
   if (sp.kind === 'resource') return sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : sp.name.replace(/^resource /, '');
-  if (sp.kind === 'provider') return sp.name.replace(/^provider /, '');
+  if (sp.kind === 'provider') return (sp.attrs && sp.attrs['pravo.provider'] ? sp.attrs['pravo.provider'] + ' · ' : '') + sp.name.replace(/^provider /, '');
   if (sp.kind === 'phase' || sp.kind === 'setup' || sp.kind === 'state') return sp.name.replace(/^(phase|setup|state) /, '');
+  if (sp.kind === 'seal') return sp.name;
   return sp.name;
 }
 
 // The filter language of the box: words, and column:value terms that the menu offers and the pills show.
-export const COLUMNS = ['kind', 'is', 'provider', 'type'];
-export const ALIAS = { k: 'kind', kinds: 'kind', status: 'is', providers: 'provider', resource_type: 'type' };
+export const COLUMNS = ['kind', 'is', 'provider', 'type', 'attr'];
+export const ALIAS = { k: 'kind', kinds: 'kind', status: 'is', providers: 'provider', resource_type: 'type', attribute: 'attr', attrs: 'attr', a: 'attr' };
 export const LANG = { columns: COLUMNS, alias: ALIAS };
 
 // searchText is what a filter looks in: the name, the message and the values of the attributes.
@@ -135,6 +136,23 @@ export function valueOf(sp, col) {
   return '';
 }
 
+// attrHit tells whether a span has an attribute that `key` or `key=value` names. A key is a whole attribute name or its end
+// (`provider` finds pravo.provider), and the value is matched whole, with * for any run of characters.
+export function attrHit(sp, spec) {
+  const eq = spec.indexOf('=');
+  const key = (eq < 0 ? spec : spec.slice(0, eq)).toLowerCase();
+  const want = eq < 0 ? null : spec.slice(eq + 1).toLowerCase();
+  const re = want && want.includes('*') ? wild(want) : null;
+  for (const k in sp.attrs || {}) {
+    const lk = k.toLowerCase();
+    if (lk !== key && !lk.endsWith('.' + key)) continue;
+    if (want === null) return true;
+    const v = Array.isArray(sp.attrs[k]) ? sp.attrs[k].join(',') : String(sp.attrs[k]);
+    if (re ? re.test(v.toLowerCase()) : v.toLowerCase() === want) return true;
+  }
+  return false;
+}
+
 const wild = (v) => (v.includes('*') ? new RegExp('^' + v.split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$') : null);
 
 // matcher compiles the text of the filter box. Words must all be found (in any order); a term names a column and what it
@@ -144,6 +162,12 @@ export function matcher(q) {
   const { words, terms } = parseQuery(q, LANG);
   if (!words.length && !terms.length) return null;
   const tests = terms.map((t) => {
+    if (t.col === 'attr') {
+      return (sp) => {
+        const hit = t.values.some((v) => attrHit(sp, v));
+        return t.neg ? !hit : hit;
+      };
+    }
     const res = t.values.map((v) => wild(v));
     return (sp) => {
       const have = valueOf(sp, t.col).toLowerCase();

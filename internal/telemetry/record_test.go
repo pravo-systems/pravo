@@ -18,6 +18,7 @@ func clearEnv(t *testing.T) {
 	for _, k := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_TRACES_EXPORTER", "OTEL_METRICS_EXPORTER", "OTEL_SDK_DISABLED", "PRAVO_TRACES"} {
 		t.Setenv(k, "")
 	}
+	t.Setenv("PRAVO_TRACES", "on") // the record is off until it is asked for
 }
 
 // A run that has engine spans is written to the trace directory, with the nesting,
@@ -96,8 +97,8 @@ func TestRecorderWritesAnyCommandThatDidWork(t *testing.T) {
 	}
 }
 
-// A command that did nothing leaves nothing behind, and PRAVO_TRACES=off
-// turns the record off.
+// A command that did nothing leaves nothing behind, and the record is off unless
+// PRAVO_TRACES=on asks for it.
 func TestRecorderIgnoresOtherRunsAndCanBeOff(t *testing.T) {
 	clearEnv(t)
 	dir := filepath.Join(t.TempDir(), "traces")
@@ -111,11 +112,16 @@ func TestRecorderIgnoresOtherRunsAndCanBeOff(t *testing.T) {
 	}
 	localOnly = false
 
-	t.Setenv("PRAVO_TRACES", "off")
-	if recordingEnabled() {
-		t.Error("PRAVO_TRACES=off does not turn the record off")
+	for _, v := range []string{"", "off", "0", "nonsense"} {
+		t.Setenv("PRAVO_TRACES", v)
+		if recordingEnabled() {
+			t.Errorf("PRAVO_TRACES=%q turns the record on", v)
+		}
 	}
-	t.Setenv("PRAVO_TRACES", "")
+	t.Setenv("PRAVO_TRACES", "on")
+	if !recordingEnabled() {
+		t.Error("PRAVO_TRACES=on does not turn the record on")
+	}
 	t.Setenv("OTEL_SDK_DISABLED", "true")
 	if recordingEnabled() {
 		t.Error("OTEL_SDK_DISABLED does not turn the record off")

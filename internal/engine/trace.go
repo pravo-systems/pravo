@@ -61,6 +61,7 @@ func setup(ctx context.Context, name string, attrs ...attribute.KeyValue) (conte
 // Plan computes the changes needed to reach the configuration.
 func (e *Engine) Plan(ctx context.Context) (*Plan, error) {
 	e.runCtx = ctx
+	defer e.State.SetContext(ctx)
 	ctx, span := telemetry.Tracer().Start(ctx, "engine plan", trace.WithAttributes(e.runAttrs()...))
 	e.traceID = telemetry.TraceID(ctx)
 	e.State.SetTrace(e.traceID)
@@ -93,6 +94,7 @@ func (e *Engine) Plan(ctx context.Context) (*Plan, error) {
 // transaction.
 func (e *Engine) Apply(ctx context.Context, plan *Plan) (*ApplyResult, error) {
 	e.runCtx = ctx
+	defer e.State.SetContext(ctx)
 	ctx, span := telemetry.Tracer().Start(ctx, "engine apply", trace.WithAttributes(e.runAttrs()...))
 	e.traceID = telemetry.TraceID(ctx)
 	e.State.SetTrace(e.traceID)

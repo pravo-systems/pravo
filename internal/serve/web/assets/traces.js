@@ -10,7 +10,7 @@ import { h, s as svg, clear, icon, plural, relTime, stamp, clamp, fmt } from './
 import * as api from './api.js';
 import { build, fmtDur, ticks, path as pathOf, matcher, labelOf, LANG } from './trace-model.js';
 import { Pills } from './pills.js';
-import { QueryMenu, removeTerm } from './query.js';
+import { QueryMenu, removeTerm, addTerm } from './query.js';
 import { suggest, tally, hasKind, hasErrors, toggleKind, toggleErrors } from './tquery.js';
 
 const ROW = 22; // the height of a row of the timeline
@@ -19,8 +19,8 @@ const MIN_WINDOW = 20; // the narrowest window, in microseconds
 const PAGE = 300; // rows of the table before the button that shows more
 const CHAR = 6.4; // the width of a character of the label of a bar, in pixels
 
-const KIND = { command: 'command', engine: 'engine', phase: 'phase', setup: 'setup', resource: 'resource', provider: 'provider call', state: 'state request', mcp: 'tool call', other: 'span' };
-const CHIP = { engine: 'Engine', phase: 'Phases', setup: 'Setup', resource: 'Resources', provider: 'Providers', state: 'State', mcp: 'Tools' };
+const KIND = { command: 'command', engine: 'engine', phase: 'phase', setup: 'setup', resource: 'resource', provider: 'provider call', state: 'state request', seal: 'seal', mcp: 'tool call', other: 'span' };
+const CHIP = { engine: 'Engine', phase: 'Phases', setup: 'Setup', resource: 'Resources', provider: 'Providers', state: 'State', seal: 'Sealing', mcp: 'Tools' };
 
 export const FOOTER = 'This page reads the runs that pravo recorded. It runs nothing and writes nothing.';
 
@@ -169,7 +169,7 @@ export class TracesView {
       h('header', { class: 'tr-head' },
         h('div', { class: 'tr-bhead' }, h('h2', { class: 'tr-title', id: 'tr-h-title' }, 'Traces'),
           list && list.traces.length ? h('span', { class: 'b' }, plural(list.traces.length, 'run')) : null),
-        h('p', { class: 'tr-lede' }, 'Every command that does some work is recorded as a trace: the spans of the command, its setup, the stages of the engine, each resource, each call to a provider and each request to the state, with the time each took. Open one to see where a run spent its time or where it stopped.')),
+        h('p', { class: 'tr-lede' }, 'With PRAVO_TRACES=on, every command that does some work is recorded as a trace: the spans of the command, its setup, the stages of the engine, each resource, each call to a provider and each request to the state, with the time each took. Open one to see where a run spent its time or where it stopped.')),
       this.error ? h('p', { class: 'tr-warn', role: 'alert' }, icon('bang'), h('span', null, this.error)) : null,
       this.notFound ? h('p', { class: 'tr-warn', role: 'note' }, icon('bang'), h('span', null, 'The run in the address is not in the directory any more.')) : null,
       body,
@@ -184,11 +184,16 @@ export class TracesView {
   }
 
   none(list) {
+    const cmd = (text) => h('div', { class: 'cmdline' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, text),
+      h('button', { class: 'cpbtn', type: 'button', 'data-copy': text, 'aria-label': 'Copy the command', 'data-tip': 'Copy the command' }, icon('copy')));
     return h('div', { class: 'tr-none' },
-      h('p', null, 'Nothing is recorded yet. A command that did some work leaves its trace here:'),
-      h('div', { class: 'cmdline' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, 'pravo plan'),
-        h('button', { class: 'cpbtn', type: 'button', 'data-copy': 'pravo plan', 'aria-label': 'Copy the command', 'data-tip': 'Copy the command' }, icon('copy'))),
-      h('p', { class: 'tr-note' }, 'The runs are read from ', h('code', null, list.dir), '. ', h('code', null, 'PRAVO_TRACES=off'), ' turns the recording off, and ', h('code', null, 'PRAVO_TRACE_DIR'), ' moves it. The newest 100 are kept.'));
+      h('h3', { class: 'tr-nh' }, 'Recording is off'),
+      h('p', null, 'pravo records nothing about a run unless you ask it to. Set ', h('code', null, 'PRAVO_TRACES=on'), ' for the command, and its trace is written here when it ends:'),
+      cmd('PRAVO_TRACES=on pravo plan'),
+      h('p', null, 'To record every command of a shell session, export it:'),
+      cmd('export PRAVO_TRACES=on'),
+      h('p', { class: 'tr-note' }, 'Only a command that did some work leaves a trace. The runs are read from ', h('code', null, list.dir), ', and ', h('code', null, 'PRAVO_TRACE_DIR'),
+        ' moves that folder. The newest 100 are kept, and the folder ignores itself in git. A trace holds names, kinds, timings and counts, never the values of attributes.'));
   }
 
   // runs is the list of recorded runs, newest first.
@@ -199,7 +204,7 @@ export class TracesView {
       return h('li', null, h('button', { class: 'tr-run' + (failed ? ' bad' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', 'data-fk': 'run-' + t.id, 'data-id': t.id,
         'aria-label': `${t.command}, ${relTime(t.start)}, ${fmtDur(t.duration_us)}${failed ? ', failed' : ''}`, on: { click: () => this.pick(t.id) } },
       h('span', { class: 'tr-st', 'aria-hidden': 'true' }),
-      h('span', { class: 'tr-r1' }, h('span', { class: 'tr-cmd' }, t.command), h('span', { class: 'tr-dur' }, fmtDur(t.duration_us))),
+      h('span', { class: 'tr-r1' }, h('span', { class: 'tr-cmd' }, t.line || t.command), h('span', { class: 'tr-dur' }, fmtDur(t.duration_us))),
       h('span', { class: 'tr-r2' }, h('span', null, relTime(t.start)), h('span', null, t.resources ? plural(t.resources, 'resource') : plural(t.span_count, 'span')), failed ? h('span', { class: 'tr-bad' }, 'failed') : null),
       t.reason ? h('span', { class: 'tr-r3' }, t.reason) : null));
     });
@@ -226,7 +231,7 @@ export class TracesView {
     const fact = (k, v, copy) => h('li', null, h('span', { class: 'k' }, k), h('span', { class: 'v' }, v, copy ? h('button', { class: 'cpbtn', type: 'button', 'data-copy': copy, 'aria-label': `Copy ${k.toLowerCase()}`, 'data-tip': `Copy ${k.toLowerCase()}` }, icon('copy')) : null));
     return h('div', { class: 'tr-sum' + (failed ? ' bad' : '') },
       h('div', { class: 'tr-sumhead' },
-        h('h3', { class: 'tr-name' }, d.command),
+        h('h3', { class: 'tr-name' }, d.line || d.command),
         failed ? h('span', { class: 'b bad' }, icon('bang'), `${plural(d.errors, 'span')} failed`) : h('span', { class: 'b ok' }, icon('check'), 'no span failed'),
         d.exit >= 0 ? h('span', { class: 'b' }, `exit ${d.exit}`) : null),
       h('ul', { class: 'tr-facts' },
@@ -324,7 +329,7 @@ export class TracesView {
     this.bindPlot();
     return h('div', { class: 'tr-chart' },
       this.plot,
-      h('p', { class: 'tr-hint' }, 'Ctrl or ⌘ and scroll zoom. Drag moves along the run. Double click a span to fit it.'));
+      h('p', { class: 'tr-hint' }, 'Ctrl or ⌘ and scroll zoom. Drag moves along the run. Double click a span to fit it. Plus and minus beside an attribute filter by it.'));
   }
 
   layoutPlot() {
@@ -368,6 +373,10 @@ export class TracesView {
     this.ruler.append(svg('path', { class: 'tr-axis', d: `M0 25.5H${W}` }));
     const match = this.match, sel = this.sel;
     const dense = m.spans.length > 4000;
+    // providers are hatched, so that they read as calls out of the process whatever the colours around them
+    const defs = svg('defs', null, svg('pattern', { id: 'tr-hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' },
+      svg('rect', { class: 'hp-bg', width: 6, height: 6 }), svg('rect', { class: 'hp-ln', width: 2, height: 6 })));
+    this.canvas.append(defs);
     const bars = svg('g', { class: 'tr-bars' });
     const labels = svg('g', { class: 'tr-labels' });
     for (const sp of m.spans) {
@@ -375,12 +384,14 @@ export class TracesView {
       if (x1 < -1 || x0 > W + 1) continue;
       const isSel = sp.id === sel;
       if (w < (dense ? 0.6 : 0.25) && !isSel) continue;
-      const cx = Math.max(x0, -2), cw = Math.max(Math.min(x1, W + 2) - cx, 1);
+      const cx = Math.max(x0, -2), full = Math.max(Math.min(x1, W + 2) - cx, 1);
+      // a bar stops a pixel short, so that two spans that follow each other never read as one
+      const cw = full > 3 ? full - 1 : full;
       const dim = match && !match(sp);
       const cls = 'bar k-' + sp.kind + (sp.status === 'error' ? ' err' : '') + (dim ? ' dim' : '') + (match && !dim ? ' hit' : '') + (isSel ? ' sel' : '');
       const y = sp.row * ROW + 5;
       bars.append(svg('rect', { class: cls, x: cx, y, width: cw, height: BAR, 'data-i': sp.idx }));
-      if (cw > 44) {
+      if (full > 44) {
         let text = labelOf(sp);
         const room = Math.floor((cw - 10) / CHAR);
         const dur = cw > 170 ? fmtDur(sp.dur_us) : '';
@@ -398,6 +409,8 @@ export class TracesView {
       if (sp) {
         // the selected span keeps its outline over its neighbours
         const x0 = Math.max(x(sp.start_us), -2), x1 = Math.min(x(sp.end), W + 2);
+        // the dashed frame is the subtree: the rows that the span and what it called take, over its time
+        if (sp.kids.length) this.canvas.append(svg('rect', { class: 'tr-subbox', x: x0 - 3, y: sp.row * ROW + 2, width: Math.max(x1 - x0, 1) + 6, height: sp.h * ROW }));
         this.canvas.append(svg('rect', { class: 'tr-selbox', x: x0 - 1, y: sp.row * ROW + 4, width: Math.max(x1 - x0, 1) + 2, height: BAR + 2 }));
       }
     }
@@ -405,7 +418,7 @@ export class TracesView {
 
   bindPlot() {
     const p = this.plot;
-    let drag = null;
+    let drag = null, last = null;
     const spanAt = (ev) => {
       const t = ev.target;
       return t && t.dataset && t.dataset.i !== undefined ? this.model.spans[Number(t.dataset.i)] : null;
@@ -433,13 +446,18 @@ export class TracesView {
       drag = null;
       p.classList.remove('grab');
       if (d.moved) { this.cb.onRoute && this.cb.onRoute(); return; }
-      if (ev.type === 'pointerup') this.select(d.span ? d.span.id : null);
+      if (ev.type !== 'pointerup') return;
+      // Selecting redraws the bars under the pointer, and the browser sends no click, and so no double click, to a bar
+      // that is gone: a second press on the same span within the time of a double click is read here.
+      const now = ev.timeStamp;
+      if (d.span && last && last.id === d.span.id && now - last.at < 450 && Math.abs(ev.clientX - last.x) < 6) { last = null; this.zoomTo(d.span); return; }
+      last = d.span ? { id: d.span.id, at: now, x: ev.clientX } : null;
+      this.select(d.span ? d.span.id : null);
     };
     p.addEventListener('pointerup', end);
     p.addEventListener('pointercancel', end);
     p.addEventListener('pointerleave', () => { if (!drag) this.hideTip(); });
-    p.addEventListener('dblclick', (ev) => { const sp = spanAt(ev); if (sp) this.zoomTo(sp); });
-    p.addEventListener('wheel', (ev) => {
+        p.addEventListener('wheel', (ev) => {
       if (ev.ctrlKey || ev.metaKey) {
         ev.preventDefault();
         const r = this.canvas.getBoundingClientRect();
@@ -528,7 +546,9 @@ export class TracesView {
     this.root.querySelectorAll('.tr-table tbody tr').forEach((tr) => tr.classList.toggle('sel', tr.dataset.id === this.sel));
     if (this.sel && this.mode === 'flame') this.revealRow(this.model.byId.get(this.sel));
     const now = this.root.querySelector('.tr-detail');
-    if (this.sel && now && now.scrollIntoView) now.scrollIntoView({ block: 'nearest' });
+    // in the timeline the page stays where it is: moving it would take the bar from under the pointer, and a double click
+    // would hit what is below
+    if (this.sel && now && now.scrollIntoView && this.mode !== 'flame') now.scrollIntoView({ block: 'nearest' });
     this.cb.onRoute && this.cb.onRoute();
   }
 
@@ -613,6 +633,7 @@ export class TracesView {
     chain.forEach((c, i) => crumbs.append(h('li', null, i === chain.length - 1 ? h('span', { 'aria-current': 'true' }, labelOf(c)) : h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, labelOf(c)))));
     const attrs = Object.entries(sp.attrs || {}).sort(([a], [b]) => a.localeCompare(b));
     const slow = sp.kids.slice().sort((a, b) => b.dur_us - a.dur_us).slice(0, 5);
+    const stat = (k, v, sub) => h('div', { class: 'st' }, h('dt', null, k), h('dd', null, h('b', null, v), sub ? h('span', null, sub) : null));
     const copy = sp.kind === 'resource' && sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : '';
     return h('div', { class: 'tr-detail' + (sp.status === 'error' ? ' bad' : ''), 'aria-label': `The span ${labelOf(sp)}`, role: 'region' },
       h('div', { class: 'tr-dhead' },
@@ -626,20 +647,30 @@ export class TracesView {
         h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Close the detail', on: { click: () => this.select(null) } }, icon('x'))),
       crumbs,
       sp.status === 'error' && sp.message ? h('pre', { class: 'tr-err' }, sp.message) : null,
-      h('ul', { class: 'tr-facts' },
-        h('li', null, h('span', { class: 'k' }, 'Took'), h('span', { class: 'v' }, fmtDur(sp.dur_us), h('span', { class: 'dim' }, ` ${(Math.min(100, (sp.dur_us / total) * 100)).toFixed(sp.dur_us / total < 0.1 ? 1 : 0)}% of the run`))),
-        h('li', null, h('span', { class: 'k' }, 'In itself'), h('span', { class: 'v' }, fmtDur(sp.self))),
-        h('li', null, h('span', { class: 'k' }, 'Started'), h('span', { class: 'v' }, fmtDur(sp.start_us), h('span', { class: 'dim' }, ' into the run'))),
-        h('li', null, h('span', { class: 'k' }, 'Ended'), h('span', { class: 'v' }, fmtDur(sp.end))),
-        phaseOf(sp) ? h('li', null, h('span', { class: 'k' }, 'Phase'), h('span', { class: 'v' }, phaseOf(sp))) : null),
+      h('div', { class: 'tr-where', role: 'img', 'aria-label': `From ${fmtDur(sp.start_us)} to ${fmtDur(sp.end)} of ${fmtDur(total)}` },
+        h('span', { class: 'tr-wb k-' + sp.kind + (sp.status === 'error' ? ' err' : ''), style: `left:${Math.min(99.5, (sp.start_us / total) * 100)}%;width:max(3px,${Math.min(100, (sp.dur_us / total) * 100)}%)` })),
+      h('dl', { class: 'tr-stats' },
+        stat('Took', fmtDur(sp.dur_us), `${(Math.min(100, (sp.dur_us / total) * 100)).toFixed(sp.dur_us / total < 0.1 ? 1 : 0)}% of the run`),
+        stat('In itself', fmtDur(sp.self), sp.kids.length ? `${Math.round((sp.self / Math.max(sp.dur_us, 1)) * 100)}% of its time` : 'no parts'),
+        stat('Started', fmtDur(sp.start_us), 'into the run'),
+        stat('Ended', fmtDur(sp.end), phaseOf(sp) ? 'in ' + phaseOf(sp) : '')),
       h('div', { class: 'tr-cols' },
         attrs.length ? h('section', { 'aria-label': 'Attributes' }, h('h4', null, 'Attributes'),
-          h('dl', { class: 'tr-attrs' }, attrs.map(([k, v]) => [h('dt', null, k), h('dd', null, Array.isArray(v) ? v.join(', ') : String(v))]))) : null,
+          h('ul', { class: 'tr-attrs' }, attrs.map(([k, v]) => {
+            const val = Array.isArray(v) ? v.join(',') : String(v);
+            const term = (neg) => () => this.setQuery(addTerm(this.q || '', 'attr', `${k}=${val}`, neg, LANG));
+            return h('li', null, h('span', { class: 'ak' }, k), h('span', { class: 'av' }, val),
+              h('span', { class: 'af' },
+                h('button', { type: 'button', class: 'tr-f', 'aria-label': `Only spans with ${k} ${val}`, 'data-tip': 'Only these', on: { click: term(false) } }, '+'),
+                h('button', { type: 'button', class: 'tr-f', 'aria-label': `Hide spans with ${k} ${val}`, 'data-tip': 'Hide these', on: { click: term(true) } }, '\u2212')));
+          }))) : null,
         sp.events && sp.events.length ? h('section', { 'aria-label': 'Events' }, h('h4', null, 'Events'),
           h('ol', { class: 'tr-events' }, sp.events.map((e) => h('li', null, h('span', { class: 'at' }, '+' + fmtDur(Math.max(0, e.at_us - sp.start_us))), h('span', { class: 'en' }, e.name),
             e.attrs && Object.keys(e.attrs).length ? h('span', { class: 'ea' }, Object.entries(e.attrs).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(',') : v}`).join(' ')) : null)))) : null,
         slow.length ? h('section', { 'aria-label': 'Slowest parts' }, h('h4', null, sp.kids.length > slow.length ? `Slowest of ${sp.kids.length} parts` : 'Parts'),
-          h('ol', { class: 'tr-kids' }, slow.map((c) => h('li', null, h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, labelOf(c)), h('span', { class: 'dim' }, fmtDur(c.dur_us)))))) : null));
+          h('ol', { class: 'tr-kids' }, slow.map((c) => h('li', null,
+            h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, h('span', { class: 'tr-sw k-' + c.kind, 'aria-hidden': 'true' }), labelOf(c)),
+            h('span', { class: 'kd' }, h('span', { class: 'kb', style: `--w:${Math.max(1, Math.min(100, (c.dur_us / Math.max(sp.dur_us, 1)) * 100))}%` }), fmtDur(c.dur_us)))))) : null));
   }
 
   // resize redraws the timeline for a new width.

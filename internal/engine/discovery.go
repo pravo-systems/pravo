@@ -22,6 +22,7 @@ import (
 // the caller keeps the run it had.
 func (e *Engine) Discover(ctx context.Context, d *config.Discovery) (*state.DiscoveryRun, error) {
 	e.runCtx = ctx
+	defer e.State.SetContext(ctx)
 	ctx, span := telemetry.Tracer().Start(ctx, "engine discover "+d.Name, trace.WithAttributes(append(e.runAttrs(),
 		attribute.String("pravo.discovery.name", d.Name), attribute.String("pravo.discovery.type", d.Type), attribute.String("pravo.provider", d.ProviderKey))...))
 	e.State.SetContext(ctx)

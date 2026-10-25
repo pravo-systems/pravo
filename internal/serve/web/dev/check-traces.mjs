@@ -47,6 +47,9 @@ check(fmtDur(840) === '840µs' && fmtDur(12400) === '12.4ms' && fmtDur(3.2e6) ==
   check(m(sp('a', '', 'resource db', 0, 1, { status: 'error', kind: 'resource' })) && !m(sp('a', '', 'resource db', 0, 1, { kind: 'resource' })), 'is:error');
   check(matcher('kind:provider')(sp('a', '', 'provider X', 0, 1, { kind: 'provider' })) && !matcher('kind:provider')(sp('a', '', 'x', 0, 1, { kind: 'resource' })), 'kind:');
   check(matcher('') === null, 'empty filter');
+  const withAttr = sp('a', '', 'resource x', 0, 1, { attrs: { 'pravo.provider': 'aws' } });
+  check(matcher('attr:pravo.provider=aws')(withAttr) && !matcher('attr:pravo.provider=gcp')(withAttr) && matcher('-attr:pravo.provider=gcp')(withAttr), 'attr:key=value');
+  check(matcher('attr:provider')(withAttr) && !matcher('attr:nothing')(withAttr), 'attr:key');
   check(matcher('create')(sp('a', '', 'resource x', 0, 1, { attrs: { 'pravo.action': 'create' } })), 'attribute values are searched');
 }
 // the fixtures
@@ -64,6 +67,7 @@ for (const f of readdirSync(dir).filter((x) => /^trace\..+\.json$/.test(x))) {
   for (const s of t.spans) { if (!byRow.has(s.row)) byRow.set(s.row, []); byRow.get(s.row).push(s); }
   for (const list of byRow.values()) { list.sort((a, b) => a.start_us - b.start_us); for (let i = 1; i < list.length; i++) if (list[i].start_us < list[i - 1].end) overlap++; }
   check(overlap === 0, `${f}: ${overlap} spans overlap on a row`);
+  for (const s of t.spans) if (s.parent && (s.start_us < s.parent.start_us - 1 || s.end > s.parent.end + 1)) check(false, `${f}: ${s.id} is not inside its parent in time`);
   for (const s of t.spans) if (s.parent && s.row <= s.parent.row) check(false, `${f}: ${s.id} is not under its parent`);
   check(ms < 200, `${f}: built ${t.spans.length} spans in ${ms.toFixed(0)} ms`);
   console.log(`${f}: ${t.spans.length} spans, ${t.rows} rows, ${ms.toFixed(1)} ms`);

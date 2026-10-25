@@ -457,6 +457,9 @@ func (s *Store) SetContext(ctx context.Context) {
 	s.ctxMu.Unlock()
 }
 
+// Context is the context the store's requests run under (see SetContext).
+func (s *Store) Context() context.Context { return s.cx() }
+
 // SetTrace records the OpenTelemetry trace id stored on new transactions.
 func (s *Store) SetTrace(traceID string) { s.traceID = traceID }
 
