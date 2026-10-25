@@ -145,12 +145,7 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 
 // openState opens the configured state backend.
 func openState(ctx context.Context, root *config.Root) (*state.Store, error) {
-	began := time.Now()
-	st, err := openStateStore(ctx, root)
-	if err == nil {
-		plog.Debug(ctx, "state opened", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
-	}
-	return st, err
+	return openStateStore(ctx, root)
 }
 
 // openStateStore opens the state of the root for a command that writes it. A
