@@ -92,10 +92,10 @@
   --tick-color: var(--line-strong);
 
   /* ---- the interface of pravo serve (not in the site's tokens) ---- */
-  /* shape: three radii, so that the chrome, the panels and the cards of the canvas (rx 7 and 12 in graph.js) are one family */
+  /* shape: soft corners for what is pressed, near-square corners for what holds things (the cards of the canvas are rx 3 in graph.js) */
   --rad-s: 4px;                               /* chips, keys, tags */
-  --rad: 7px;                                 /* controls, rows of a list, code of a diff */
-  --rad-l: 12px;                              /* cards, panels, windows, popovers */
+  --rad: 6px;                                 /* what is pressed: buttons, switches, inputs */
+  --rad-p: 2px;                               /* what holds things: cards, panels, banners, lists, windows */
   --font-ui: var(--font-sans);                /* the words of the interface; mono is for what is typed or measured */
   --focus: 0 0 0 3px var(--key-wash);
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");   /* a fine paper tooth under the stage; ink has a lighter one */

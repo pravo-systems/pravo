@@ -542,12 +542,12 @@ export class GraphView {
     if (n.presence === 'state') marks.push('orphan');
     const g = s('g', { class: nodeClasses(n, this.ctx) + ' neutral', role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
-    if (this.ctx.hasPlan && n.action && n.action !== 'no-op') inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 9 }));
-    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 6 }));
+    if (this.ctx.hasPlan && n.action && n.action !== 'no-op') inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 5 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 3 }));
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
-    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 6 }), glyph('out', 5, 5, 16, 'mk mk-out'));
+    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 3 }), glyph('out', 5, 5, 16, 'mk mk-out'));
     inn.append(tile);
     const nameRoom = W - 52 - (badge ? 34 : 14);
     inn.append(s('text', { class: 'nm', x: 53, y: H / 2 + 5 }, trunc(n.name, chars(nameRoom, 14))));
@@ -577,11 +577,11 @@ export class GraphView {
     const pv = providerOf(n.type, n.provider);
     const g = s('g', { class: nodeClasses(n, this.ctx) + ' ' + (unowned(n) ? 'neutral' : pvClass(pv)), role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
-    if (n.drifted || n.gone || (this.ctx.hasPlan && n.action && n.action !== 'no-op')) inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 9 }));
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 6 }));
+    if (n.drifted || n.gone || (this.ctx.hasPlan && n.action && n.action !== 'no-op')) inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 5 }));
     // two open plans that change the node: a solid ring outside the dotted one of the action, in a colour of its own
-    if (n.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 10.5 }));
-    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
+    if (n.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 6 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 3 }));
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
     tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: n.mode === 'data' ? 13 : 6 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
@@ -652,10 +652,10 @@ export class GraphView {
     const outsNote = agg.out ? `, ${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
     const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isNs ? `namespace ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 12 }));
-    inn.append(s('rect', { class: 'stack s2', x: 10, y: 10, width: W - 20, height: H, rx: 7 }));
-    inn.append(s('rect', { class: 'stack s1', x: 5, y: 5, width: W - 10, height: H, rx: 7 }));
-    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 6 }));
+    inn.append(s('rect', { class: 'stack s2', x: 10, y: 10, width: W - 20, height: H, rx: 3 }));
+    inn.append(s('rect', { class: 'stack s1', x: 5, y: 5, width: W - 10, height: H, rx: 3 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 3 }));
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 7) }));
     // The wrapper carries the CSS transform of the hover (a nudge to the right):
     // a CSS transform replaces the transform attribute, so it must not sit on the
@@ -702,7 +702,7 @@ export class GraphView {
     inn.append(this.cells(it, 14, 57, W - 28));
     // the discs of the plans that change something inside, which the resources would carry if the card were open
     const pin = plansIn(it, this.ctx);
-    if (pin.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 10.5 }));
+    if (pin.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 6 }));
     const aus = this.authorBadges(pin.list, W);
     if (aus) inn.append(aus);
     g.append(inn);
@@ -713,17 +713,17 @@ export class GraphView {
     const W = it.w, H = it.h;
     const g = s('g', { class: 'ctl-item', 'aria-label': `${it.type} group, ${it.shown} of ${it.total} shown` });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 7 }));
+    inn.append(s('rect', { class: 'box', width: W, height: H, rx: 3 }));
     const more = it.total > it.shown;
     const bw = more ? W / 2 : W;
     const b1 = s('g', { class: 'btn', 'data-act': 'collapse', role: 'button', 'aria-label': `Collapse ${it.type} group` });
-    b1.append(s('rect', { class: 'hit', width: bw, height: H, rx: 7 }));
+    b1.append(s('rect', { class: 'hit', width: bw, height: H, rx: 3 }));
     b1.append(glyph('up', 12, 9, 18));
     b1.append(s('text', { x: 36, y: 22.5 }, `group of ${it.total}`));
     inn.append(b1);
     if (more) {
       const b2 = s('g', { class: 'btn', 'data-act': 'all', transform: `translate(${bw} 0)`, role: 'button', 'aria-label': `Show all ${it.total}` });
-      b2.append(s('rect', { class: 'hit', width: bw, height: H, rx: 7 }));
+      b2.append(s('rect', { class: 'hit', width: bw, height: H, rx: 3 }));
       b2.append(glyph('plus', 12, 9, 18));
       b2.append(s('text', { x: 36, y: 22.5 }, `show ${it.total - it.shown} more`));
       b2.append(s('line', { class: 'sep', x1: 0, y1: 8, x2: 0, y2: H - 8 }));
@@ -735,7 +735,7 @@ export class GraphView {
 
   createLane(L, ns) {
     const g = s('g', { class: 'lane', 'data-lane': L.path });
-    const rect = s('rect', { class: 'band', rx: L.depth > 1 ? 9 : 12 });
+    const rect = s('rect', { class: 'band', rx: L.depth > 1 ? 3 : 4 });
     g.append(rect);
     const hg = s('g', { class: 'lane-head', 'data-lane': L.path });
     const hit = s('rect', { class: 'hit', height: G.HEAD });
@@ -870,7 +870,7 @@ export class GraphView {
       const r = this.items.get(id);
       if (!r) continue;
       const w = r.it.w, hh = r.it.h;
-      this.fxLayer.append(s('rect', { class: 'halo-ripple', x: r.x - 3, y: r.y - 3, width: w + 6, height: hh + 6, rx: 10 }));
+      this.fxLayer.append(s('rect', { class: 'halo-ripple', x: r.x - 3, y: r.y - 3, width: w + 6, height: hh + 6, rx: 6 }));
     }
     this._fxT = setTimeout(() => this.clearFx(), 2600);
   }
