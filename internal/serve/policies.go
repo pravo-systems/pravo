@@ -129,4 +129,3 @@ func (m *model) buildPolicies(rev string) {
 	m.pol = doc
 	m.polJSON, _ = json.Marshal(doc)
 }
-
