@@ -53,7 +53,7 @@ One page for each command and each part of the specification, tables first.
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/policies-overview.md](reference/policies-overview.md) | A policy is a node of the specification whose rule is CUE text. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply. | 10 KB |
+| [reference/policies-overview.md](reference/policies-overview.md) | A policy is a node of the specification whose rule is a CUE struct. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply. | 10 KB |
 | [reference/policies-plan-document.md](reference/policies-plan-document.md) | What a rule is unified with. How absent, null and unknown values behave, and what the judged document leaves out of the one that plan --json prints. | 7 KB |
 | [reference/policies-writing.md](reference/policies-writing.md) | The four rules for writing a policy rule, each with a captured run, plan-wide rules, and the typos that forbid nothing. | 19 KB |
 | [reference/policies-operations.md](reference/policies-operations.md) | Where each command judges a policy, what a stale plan does, how to retire a policy, how to roll a rule out and test it, and what a policy does and does not guarantee. | 22 KB |
@@ -187,7 +187,7 @@ From OpenTofu or Terraform: a runbook with its lookups.
 | [migrate/m3-worked-example.md](migrate/m3-worked-example.md) | One stack with a module, a for_each, a remote output, a sensitive value and a moved history, translated by hand, converted and planned to empty. | 28 KB |
 | [migrate/m4-translate-the-specification.md](migrate/m4-translate-the-specification.md) | Rewrite each OpenTofu construct as CUE in a fixed order, and check every step with pravo validate. | 22 KB |
 | [migrate/m5-convert-the-state.md](migrate/m5-convert-the-state.md) | Convert the OpenTofu state into pravo records, point each record at its address, and plan until nothing changes. | 26 KB |
-| [migrate/m6-rewrite-plan-checks.md](migrate/m6-rewrite-plan-checks.md) | Turn the CI checks that read the OpenTofu plan JSON into plan policies, and run both until they agree. | 16 KB |
+| [migrate/m6-rewrite-plan-checks.md](migrate/m6-rewrite-plan-checks.md) | Turn the CI checks that read the OpenTofu plan JSON into plan policies, and run both until they agree. | 15 KB |
 | [migrate/m7-cut-over.md](migrate/m7-cut-over.md) | Remove OpenTofu's claim on the objects, move the pipeline to pravo, order roots that share outputs, and archive the old state. | 13 KB |
 | [migrate/m8-rollback.md](migrate/m8-rollback.md) | Where the migration can be undone by deleting the pravo files, and what to do after the first apply that changes an object. | 9 KB |
 | [migrate/m9-pitfalls.md](migrate/m9-pitfalls.md) | Symptoms you may meet while you translate, convert and cut over, with the cause, the fix and the message as pravo prints it. | 26 KB |

@@ -78,7 +78,7 @@ func (r *policyRoot) declare(t *testing.T, rules map[string]string, files ...str
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		fmt.Fprintf(&b, "%s: pravo.#Policy & {rule: %q}\n", name, rules[name])
+		fmt.Fprintf(&b, "%s: pravo.#Policy & {rule: {\n%s\n}}\n", name, rules[name])
 	}
 	for _, f := range files {
 		fmt.Fprintf(&b, "%s: $local.#Resource.local_file & {filename: \"%s.txt\", content: \"x\"}\n", f, f)
@@ -218,7 +218,7 @@ func TestAChangedPolicyIsJudgedByTheVersionInForce(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	head, _ := r.policies(t).Head("p")
-	if head.Seq != 2 || head.Text != "summary: destroy: 0" {
+	if head.Seq != 2 || head.Text != "summary: {\n\tdestroy: 0\n}\n" {
 		t.Errorf("head %+v", head)
 	}
 }
@@ -280,7 +280,7 @@ func TestTheWholeFileIsJudgedWhateverOnlySelects(t *testing.T) {
 }
 
 func TestVerifyChecksTheReceiptOfAStoredPlan(t *testing.T) {
-	rules := map[string]string{"lim": "summary: destroy: <=2"}
+	rules := map[string]string{"lim": "summary: {\n\tdestroy: <=2\n}\n"}
 	r := newPolicyRoot(t, rules, "a", "b", "c", "d")
 	// The version is dated well before the apply, as one that has been in force for a while.
 	if err := r.store(t).PutPolicyVersion(context.Background(), "lim", 1, rules["lim"], time.Now().Add(-time.Hour)); err != nil {

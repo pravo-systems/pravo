@@ -27,7 +27,7 @@ The two kinds do not do the same thing, and they bind different people. This pag
 
 | | Specification policy | Plan policy |
 |---|---|---|
-| Written as | A constraint on the nested `#Resource` of a provider definition | A `pravo.#Policy` node whose `rule` is CUE text |
+| Written as | A constraint on the nested `#Resource` of a provider definition | A `pravo.#Policy` node whose `rule` is a CUE struct |
 | Named by | The provider struct that a resource is built through | Its path in the specification, such as `no_destroy` |
 | Kept | In the specification | In the state, as signed numbered versions |
 | Checked | When the specification evaluates: `pravo validate`, `plan`, `apply` and your editor | On every plan that changes a resource: as feedback at `plan`, and at `apply` under the locks |
@@ -169,7 +169,7 @@ A specification policy binds those who build from the platform provider. What ma
 
 ## Plan policy
 
-A plan policy is a node of the specification: `pravo.#Policy`, with a `rule` of CUE text. The first apply that carries it writes it to the state as a signed, numbered version. After that every plan that changes a resource is judged by the versions in force, at the apply, under the locks, and the signed start of the apply lists the versions that judged it. No flag names a policy and no invocation can leave one out.
+A plan policy is a node of the specification: `pravo.#Policy`, with a `rule` that is a CUE struct. The first apply that carries it writes it to the state as a signed, numbered version. After that every plan that changes a resource is judged by the versions in force, at the apply, under the locks, and the signed start of the apply lists the versions that judged it. No flag names a policy and no invocation can leave one out.
 
 The rule is evaluated against the plan document, the data that `pravo plan --json` prints, without the fields that only the state, the clock or the invocation can give. A plan satisfies a policy when the rule unifies with the document and the result is concrete. Every policy judges every plan, and all of them must hold.
 
@@ -199,7 +199,7 @@ import "pravo.dev/pravo"
 
 owner: pravo.#Policy & {
 	description: "Every pet that is created carries an owner."
-	rule: #"""
+	rule: {
 		changes: [...{
 			type:   string
 			action: string
@@ -207,7 +207,7 @@ owner: pravo.#Policy & {
 				after: keepers: owner: =~"^team-"
 			}
 		}]
-		"""#
+	}
 }
 ```
 
@@ -221,7 +221,7 @@ ls pravo.state/policy
 
 ```text out
 Policies: +1 new, ~0 changed, -0 removed.
-  + owner (sha256:a3a16103498e)
+  + owner (sha256:0f1d1ef14fae)
 Graph: planned 0 · skipped 2 · not read 2
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 owner@00000001.json
@@ -243,10 +243,10 @@ sed -n '/^Error/,$p' plan.out
 
 ```text out
 exit 5
-Error: the plan violates the policy owner@1 (sha256:a3a16103498e):
+Error: the plan violates the policy owner@1 (sha256:0f1d1ef14fae):
 changes.0.after.keepers.owner: conflicting values null and =~"^team-" (mismatched types null and string):
     owner:4:2
-    owner:5:26
+    owner:7:12
     plan:1:<col>
 ```
 

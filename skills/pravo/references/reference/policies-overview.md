@@ -2,15 +2,15 @@
 
 # Policies overview
 
-A policy is a node of the specification whose rule is CUE text. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply.
+A policy is a node of the specification whose rule is a CUE struct. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply.
 
-A policy is a node of the specification: `pravo.#Policy`, with a `rule` that is CUE text. The first apply that carries the policy writes it to the state as a signed, numbered version. From then on every plan that changes a resource is judged by the versions in force, at the apply, and the signed start of the apply lists the versions that judged it. A plan that a policy refuses is not applied, and the refusal is exit code 5.
+A policy is a node of the specification: `pravo.#Policy`, with a `rule` that is a CUE struct written in the specification. The first apply that carries the policy writes it to the state as a signed, numbered version. From then on every plan that changes a resource is judged by the versions in force, at the apply, and the signed start of the apply lists the versions that judged it. A plan that a policy refuses is not applied, and the refusal is exit code 5.
 
 | Item | Fact |
 |---|---|
-| Declared | A field of the specification with `$kind: "policy"`. Use `pravo.#Policy & {rule: "…"}`. |
+| Declared | A field of the specification with `$kind: "policy"`. Use `pravo.#Policy & {rule: …}`. |
 | Name | The path of the field. `no_destroy` in the root is the policy `no_destroy`. |
-| Rule | CUE text that is never empty. It may import the CUE standard library and nothing else. |
+| Rule | A CUE struct that is never empty, kept in the state as its formatted source. It may import the CUE standard library and nothing else. |
 | Stored | `policy/NAME@SEQ.json` in the state. A version is written once and never replaced or deleted. |
 | In force | For each name, its latest version, unless that version is a removal. |
 | Judges | The changes of every plan that creates, updates, replaces or deletes a resource. |
@@ -47,7 +47,7 @@ name: pravo.#Output & {value: pet.id}
 
 no_destroy: pravo.#Policy & {
 	description: "A managed resource is neither deleted nor replaced."
-	rule: #"""
+	rule: {
 		changes: [...{
 			addr:   string
 			mode:   string
@@ -56,7 +56,7 @@ no_destroy: pravo.#Policy & {
 				error("\(addr): \(action) is not allowed")
 			}
 		}]
-		"""#
+	}
 }
 ```
 
@@ -71,7 +71,7 @@ Output:
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
 Policies: +1 new, ~0 changed, -0 removed.
-  + no_destroy (sha256:ba6301cae91b)
+  + no_destroy (sha256:5530c1a63699)
 Graph: planned 1
 
 Outputs:
@@ -122,7 +122,7 @@ Graph: planned 1 · refreshed 1
 Outputs:
   name: "<pet>" → (known after apply)
 
-Error: the plan violates the policy no_destroy@1 (sha256:ba6301cae91b):
+Error: the plan violates the policy no_destroy@1 (sha256:5530c1a63699):
 changes.0: pet: replace is not allowed:
     no_destroy:6:3
 ```
@@ -137,7 +137,7 @@ The name is the path of the field in the specification. A policy may sit in a st
 
 ## The rule
 
-A rule is standalone CUE text. It may import the CUE standard library, such as `strings`, and nothing else: it cannot import `pravo.dev/pravo` or a provider. A definition (`#Limit: 5`) or a hidden field (`_exempt: [...]`) can serve as a helper.
+A rule is standalone CUE. It may import the CUE standard library, such as `strings`, and nothing else: it cannot import `pravo.dev/pravo` or a provider. A definition (`#Limit: 5`) or a hidden field (`_exempt: [...]`) can serve as a helper.
 
 A policy that is new or changed is checked when the plan is made, before anything is applied. The check refuses a rule that cannot be used, with exit code 6:
 

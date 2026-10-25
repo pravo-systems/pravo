@@ -127,7 +127,7 @@ export class PoliciesView {
   }
 
   none(d) {
-    const sample = 'no_destroy: pravo.#Policy & {\n\trule: #"""\n\t\tchanges: [...{\n\t\t\taddr:   string\n\t\t\tmode:   string\n\t\t\taction: string\n\t\t\tif mode == "managed" && (action == "delete" || action == "replace") {\n\t\t\t\terror("\\(addr): \\(action) is not allowed")\n\t\t\t}\n\t\t}]\n\t\t"""#\n}\n';
+    const sample = 'no_destroy: pravo.#Policy & {\n\trule: {\n\t\tchanges: [...{\n\t\t\taddr:   string\n\t\t\tmode:   string\n\t\t\taction: string\n\t\t\tif mode == "managed" && (action == "delete" || action == "replace") {\n\t\t\t\terror("\\(addr): \\(action) is not allowed")\n\t\t\t}\n\t\t}]\n\t}\n}\n';
     return h('section', { class: 'po-none' },
       h('p', null, 'Write one in the specification and apply it. It is stored as version 1, signed, and every later plan is judged by it:'),
       this.code(sample.split('\n').slice(0, -1).map((text, i) => ({ op: ' ', text, no: i + 1 })), { copy: sample, label: 'Copy the example' }),

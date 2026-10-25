@@ -184,7 +184,7 @@ $local: loc.#Provider
 
 hello: $local.#Resource.local_file & {filename: "hello.txt", content: "hello\n"}
 
-freeze: pravo.#Policy & {rule: "changes: []"}
+freeze: pravo.#Policy & {rule: changes: []}
 ```
 
 ```sh run
@@ -203,7 +203,7 @@ grep '^Error' violation.txt
 Error: the root declares policies, and a policy version is signed: the state must be sealed (pravo protect init --encrypt)
 unsealed state: 5
 violation: 5
-Error: the plan violates the policy freeze@1 (sha256:cd6fab17493b):
+Error: the plan violates the policy freeze@1 (sha256:7ab038d67def):
 ```
 
 A module that does not match the lock is exit 5 as well. Add an entry to the lock file for a module that nothing loads:

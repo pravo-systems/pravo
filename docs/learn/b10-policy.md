@@ -160,7 +160,7 @@ A constraint rejects a value that is set and wrong. It does not require an attri
 
 ## Refuse a plan
 
-A plan policy is a node of the root. Its `rule` is CUE text, and pravo unifies it with the plan document, the data that `pravo plan --json` prints. The plan satisfies the policy when the result is concrete and has no error. Write the policy beside the resources:
+A plan policy is a node of the root. Its `rule` is a CUE struct, and pravo unifies it with the plan document, the data that `pravo plan --json` prints. The plan satisfies the policy when the result is concrete and has no error. Write the policy beside the resources:
 
 ```cue file=root/policy.cue title="root/policy.cue" hl="7-14"
 package main
@@ -169,7 +169,7 @@ import "pravo.dev/pravo"
 
 no_delete: pravo.#Policy & {
 	description: "A plan may create and change. It may not delete."
-	rule: #"""
+	rule: {
 		changes: [...{
 			addr:   string
 			mode:   string
@@ -178,11 +178,11 @@ no_delete: pravo.#Policy & {
 				error("\(addr): delete is not allowed")
 			}
 		}]
-		"""#
+	}
 }
 ```
 
-`changes` is a list template: every change must have these fields. The `if` is a guard. It adds an error to a managed resource whose action is `delete`, and the message names the address. The raw string `#"""` keeps the backslash of `\(addr)` as CUE text.
+`changes` is a list template: every change must have these fields. The `if` is a guard. It adds an error to a managed resource whose action is `delete`, and the message names the address.
 
 Restore the root and add a second file.
 
@@ -243,7 +243,7 @@ pravo -C root apply --auto-approve | sed -n '/^Policies/,/^Graph/p;/^Apply compl
 
 ```text out
 Policies: +1 new, ~0 changed, -0 removed.
-  + no_delete (sha256:5ec50aad2f55)
+  + no_delete (sha256:d0fce23004ba)
 Graph: planned 2
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
@@ -284,7 +284,7 @@ pravo -C root plan --out add.plan | sed -n '/^Plan:/,$p'
 ```text out
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 2 · not read 2
-Policy no_delete@1:5ec50aad2f55de60cc2975ee26e07aa0f295d7be0be142f43d3a8f2ed8021051 is satisfied.
+Policy no_delete@1:d0fce23004ba3284e425b8753266ed26f2203fac9f8c06ffe60a7ca1db8c2bc9 is satisfied.
 
 Saved the plan to add.plan. To apply exactly these actions, run:
   pravo apply add.plan
@@ -302,7 +302,7 @@ log: Creating...
 log: Creation complete after 0s [id=4508c1b19b8841345afeed30a6d835cca066d5e5]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
-["no_delete@1:5ec50aad2f55de60cc2975ee26e07aa0f295d7be0be142f43d3a8f2ed8021051"]
+["no_delete@1:d0fce23004ba3284e425b8753266ed26f2203fac9f8c06ffe60a7ca1db8c2bc9"]
 ```
 
 ## Break it: a plan that deletes
@@ -346,7 +346,7 @@ pravo -C root plan --out delete.plan 2>&1 | sed -n '/^Plan:/,$p'
 Plan: 0 to add, 0 to change, 1 to destroy.
 Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
-Error: the plan violates the policy no_delete@1 (sha256:5ec50aad2f55):
+Error: the plan violates the policy no_delete@1 (sha256:d0fce23004ba):
 changes.0: note: delete is not allowed:
     no_delete:6:3
 ```
@@ -375,7 +375,7 @@ pravo -C root state log --json | jq -c '.[0] | {kind, status}'
 ```
 
 ```text out
-Error: the plan violates the policy no_delete@1 (sha256:5ec50aad2f55):
+Error: the plan violates the policy no_delete@1 (sha256:d0fce23004ba):
 changes.0: note: delete is not allowed:
     no_delete:6:3
 
@@ -553,7 +553,7 @@ import "pravo.dev/pravo"
 
 no_delete: pravo.#Policy & {
 	description: "A plan may create and change. It may not delete or replace."
-	rule: #"""
+	rule: {
 		changes: [...{
 			addr:   string
 			mode:   string
@@ -562,7 +562,7 @@ no_delete: pravo.#Policy & {
 				error("\(addr): \(action) is not allowed")
 			}
 		}]
-		"""#
+	}
 }
 ```
 
@@ -575,7 +575,7 @@ sed -i 's/secret/new secret/' root/main.cue
 
 ```text out
 Policies: +0 new, ~1 changed, -0 removed.
-  ~ no_delete (version 2, sha256:ba6301cae91b)
+  ~ no_delete (version 2, sha256:5530c1a63699)
 Graph: planned 0 · skipped 2 · not read 2
 ```
 
@@ -584,7 +584,7 @@ pravo -C root plan 2>&1 | sed -n '/^Error/,$p'
 ```
 
 ```text out
-Error: the plan violates the policy no_delete@3 (sha256:ba6301cae91b):
+Error: the plan violates the policy no_delete@3 (sha256:5530c1a63699):
 changes.0: key: replace is not allowed:
     no_delete:6:3
 ```

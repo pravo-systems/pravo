@@ -156,7 +156,7 @@ package infra
 import "pravo.dev/pravo"
 
 no_delete: pravo.#Policy & {
-	rule: #"""
+	rule: {
 		// A managed resource is neither deleted nor replaced.
 		changes: [...{
 			addr:   string
@@ -166,7 +166,7 @@ no_delete: pravo.#Policy & {
 				error("\(addr): \(action) is not allowed")
 			}
 		}]
-		"""#
+	}
 }
 ```
 

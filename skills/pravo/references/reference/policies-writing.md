@@ -61,9 +61,9 @@ File `set-rule.sh`:
 # set-rule.sh FILE: restore base.cue, make FILE the rule of the policy "check" and apply.
 cp base.cue infra/main.cue
 {
-	printf 'package infra\n\nimport "pravo.dev/pravo"\n\ncheck: pravo.#Policy & {rule: #"""\n'
+	printf 'package infra\n\nimport "pravo.dev/pravo"\n\ncheck: pravo.#Policy & {rule: {\n'
 	sed 's/^\(.\)/\t\1/' "$1"
-	printf '\t"""#}\n'
+	printf '\t}}\n'
 } > infra/policy.cue
 pravo -C infra apply --auto-approve 2>&1 | grep -A4 '^Error'
 ```
@@ -139,7 +139,7 @@ Graph: planned 3 · refreshed 3
 Outputs:
   name: "<pet>" → (known after apply)
 
-Error: the plan violates the policy check@N (sha256:20bbfeca6bff):
+Error: the plan violates the policy check@N (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:
     check:7:3
 changes.1: pet: replace is not allowed:
@@ -159,7 +159,7 @@ pravo -C infra plan --json 2>/dev/null | tail -n 1
 Output:
 
 ```text
-{"code":5,"kind":"error","message":"the plan violates the policy check@N (sha256:20bbfeca6bff):\nchanges.0: seed: replace is not allowed:\n    check:7:3\nchanges.1: pet: replace is not allowed:\n    check:7:3\nchanges.2: ticket: replace is not allowed:\n    check:7:3\n"}
+{"code":5,"kind":"error","message":"the plan violates the policy check@N (sha256:0c23a31e78bd):\nchanges.0: seed: replace is not allowed:\n    check:7:3\nchanges.1: pet: replace is not allowed:\n    check:7:3\nchanges.2: ticket: replace is not allowed:\n    check:7:3\n"}
 ```
 
 With `--out`, a refused plan writes no plan file:
@@ -213,7 +213,7 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Policy check@N:4578c4749e3b453c66a554d4583f947134be34d4b8eae59c17ae179badf17671 is satisfied.
+Policy check@N:396a91be1092531ea328cee8ac7015cfecf66f28bb4975e82538005fc80ddd30 is satisfied.
 ```
 
 Absent:
@@ -226,9 +226,9 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:4578c4749e3b):
+Error: the plan violates the policy check@N (sha256:396a91be1092):
 changes.0.after.keepers.owner: incomplete value !="":
-    check:6:35
+    check:8:12
 ```
 
 Null:
@@ -241,10 +241,10 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:4578c4749e3b):
-changes.0.after.keepers: conflicting values null and {owner:(string & !="")} (mismatched types null and struct):
+Error: the plan violates the policy check@N (sha256:396a91be1092):
+changes.0.after.keepers: conflicting values null and {owner:!=""} (mismatched types null and struct):
     check:5:2
-    check:6:19
+    check:7:13
     plan:1:N
 ```
 
@@ -258,10 +258,10 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:4578c4749e3b):
-changes.1.after.keepers.owner: conflicting values {$unknown:true} and string (mismatched types struct and string):
+Error: the plan violates the policy check@N (sha256:396a91be1092):
+changes.1.after.keepers.owner: conflicting values {$unknown:true} and !="" (mismatched types struct and string):
     check:5:2
-    check:6:26
+    check:8:12
     plan:1:N
 ```
 
@@ -275,10 +275,9 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:4578c4749e3b):
+Error: the plan violates the policy check@N (sha256:396a91be1092):
 changes.0.after.keepers.owner: invalid value "" (out of bound !=""):
-    check:6:35
-    check:6:26
+    check:8:12
     plan:1:N
 ```
 
@@ -315,15 +314,15 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:f0b587b826cd):
+Error: the plan violates the policy check@N (sha256:5cbce9a1aaf9):
 changes.0.after.prefix: 2 errors in empty disjunction:
 changes.0.after.prefix: conflicting values "App" and null (mismatched types string and null):
     check:5:2
-    check:6:18
+    check:7:12
     plan:1:N
 changes.0.after.prefix: invalid value "App" (out of bound =~"^[a-z]+$"):
-    check:6:25
-    check:6:18
+    check:7:19
+    check:7:12
     plan:1:N
 ```
 
@@ -381,19 +380,19 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:c11567fc54d1):
+Error: the plan violates the policy check@N (sha256:492bd73e4d25):
 changes.0: extra1: the separator must not be a dot:
-    check:8:4
+    check:11:4
 
-Error: the plan violates the policy check@N (sha256:4b4a82eeb28b):
+Error: the plan violates the policy check@N (sha256:2e2901345a21):
 changes.0.after.separator: 2 errors in empty disjunction:
 changes.0.after.separator: conflicting values "-" and ".":
     check:4:2
-    check:5:22
+    check:6:15
     plan:1:N
 changes.0.after.separator: conflicting values "_" and ".":
     check:4:2
-    check:5:28
+    check:6:21
     plan:1:N
 ```
 
@@ -411,16 +410,16 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Policy check@N:c11567fc54d1fb0bb71afd3a3bcae9d68bfdf031ece4249ff74ef7bddbdd1308 is satisfied.
-Error: the plan violates the policy check@N (sha256:4b4a82eeb28b):
+Policy check@N:492bd73e4d25f07054f8dcf6507a103ee9acb8ae79fa967c59fc2136bbf21422 is satisfied.
+Error: the plan violates the policy check@N (sha256:2e2901345a21):
 changes.1.after.separator: 2 errors in empty disjunction:
 changes.1.after.separator: conflicting values {$unknown:true} and "-" (mismatched types struct and string):
     check:4:2
-    check:5:22
+    check:6:15
     plan:1:N
 changes.1.after.separator: conflicting values {$unknown:true} and "_" (mismatched types struct and string):
     check:4:2
-    check:5:28
+    check:6:21
     plan:1:N
 ```
 
@@ -472,11 +471,11 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:bd8ad62462e6):
+Error: the plan violates the policy check@N (sha256:29d8e1994ed6):
 changes.0: cannot reference optional field: before:
-    check:5:5
+    check:7:5
 
-Policy check@N:23eb1edd2014a7d35a330128bb80702a2c8e5fea3c5215f9d6cfa3889db618b9 is satisfied.
+Policy check@N:04aa65711d916ee43b2c03513ebcdc55cfbad1b8fe6ca8640115349f3cd488e0 is satisfied.
 ```
 
 The first rule refuses every plan that has a change without a `before`, which is nearly every plan. The second reads `before.id` only when `before` exists.
@@ -521,11 +520,11 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:cd2366535577):
+Error: the plan violates the policy check@N (sha256:9b3387b6279a):
 changes.0: cannot reference optional field: drifted:
     check:5:5
 
-Policy check@N:d3801bbdee3118476dd314afdb2076afae1e3cf962eaead97b64e72fa6b65288 is satisfied.
+Policy check@N:f9c436a2933de5611a38ac0e131c17cbd79d9536786fe1b296bec51cc0cd82bf is satisfied.
 ```
 
 The default `*false | bool` supplies `false` where the field is omitted and takes the document's `true` where it is there. The same holds for `deferred`, `skipped`, `refreshed`, `drifted` and `applied`.
@@ -550,9 +549,9 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policy|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:3707bf6d655d):
+Error: the plan violates the policy check@N (sha256:b6a833958875):
 summary.add: invalid value 2 (out of bound <=1):
-    check:2:15
+    check:2:7
     plan:1:N
 ```
 
@@ -606,15 +605,15 @@ Output:
 
 ```text
 typo-literal
-Policy check@N:13103e9ee57fc5805e81059b386c6d14704b4eacf6fb04bfa1652eea5053a080 is satisfied.
+Policy check@N:a980c6455beaf1ee26dbfafc027d85c098710150c524b3bcb0134718f62b2d4a is satisfied.
 typo-template
-Policy check@N:32522cf5f893452a1d942707eb11adae0731cacc614539039d0ecd9a31f2d1a6 is satisfied.
+Policy check@N:4a8d09555054343460eb00e8fa492a578c6936e7bb6e495bd0f20c753e6e93b9 is satisfied.
 typo-concrete
-Policy check@N:d3792fb9010b8e435c3456adbe37ffbf47e9785dba736ffb4a8806fd76a727b5 is satisfied.
+Policy check@N:282214fb06c4a3f69ff8ba68bcad92925adb8b2689a899178d6d6dee3f0a97dc is satisfied.
 typo-constraint
 Error: policy check does not accept the document of an empty plan:
 sumary.blast_radius: incomplete value <=5:
-    check:2:23
+    check:2:16
 ```
 
 - A misspelt literal (`"delet"`) forbids nothing, because no change has that action.

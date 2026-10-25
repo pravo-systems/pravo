@@ -4,7 +4,7 @@
 
 Write a policy rule, test it on fixtures with the matching cue version, roll a new rule out as advice, exempt by type, apply under the policies of the state and retire a policy.
 
-A policy is a node of the root whose rule is CUE text. The first apply that carries it writes it to the state, and from then on every plan that changes a resource is judged by it. This page writes a rule, tests it, adds a rule without blocking anyone, and applies under the policies of the state.
+A policy is a node of the root whose rule is a CUE struct. The first apply that carries it writes it to the state, and from then on every plan that changes a resource is judged by it. This page writes a rule, tests it, adds a rule without blocking anyone, and applies under the policies of the state.
 
 Work in an empty directory. The root is `root/`, and its state is local and sealed to one reader, ada, because a policy version is signed. Every pravo command uses `-C root`.
 
@@ -48,7 +48,7 @@ import "pravo.dev/pravo"
 
 guard: pravo.#Policy & {
 	description: "Rules for every plan."
-	rule: #"""
+	rule: {
 		changes: [...{
 			addr:   string
 			mode:   string
@@ -63,11 +63,11 @@ guard: pravo.#Policy & {
 
 		// One plan adds at most five resources.
 		summary: add: <=5
-		"""#
+	}
 }
 ```
 
-The template declares every field that a guard reads, because CUE resolves names lexically. [B10](../learn/b10-policy.md) walks through the parts, and [Writing policies](../reference/policies-writing.md) lists the shapes that work and the ones that check nothing. The raw string `#"""` keeps `\(addr)` as CUE text.
+The template declares every field that a guard reads, because CUE resolves names lexically. [B10](../learn/b10-policy.md) walks through the parts, and [Writing policies](../reference/policies-writing.md) lists the shapes that work and the ones that check nothing.
 
 ## 2. Test it on fixtures
 
@@ -94,10 +94,10 @@ accept-create.json
 refuse-replace.json
 ```
 
-`pravo eval -e guard.rule` prints the rule as a CUE string, and `cue export --out text` turns it into the file. `cue vet -c` judges a fixture with that file the way pravo judges a plan: it requires the result to be concrete.
+`pravo eval -e guard.rule --raw` prints the rule as it is written, comprehensions included, so the output is the file. `cue vet -c` judges a fixture with that file the way pravo judges a plan: it requires the result to be concrete.
 
 ```sh
-pravo -C root eval -e guard.rule | cue export cue: - --out text > policy/guard.cue
+pravo -C root eval -e guard.rule --raw > policy/guard.cue
 cue vet -c policy/guard.cue policy/fixtures/accept-create.json
 echo "exit=$?"
 cue vet -c policy/guard.cue policy/fixtures/refuse-replace.json
@@ -141,7 +141,7 @@ want=$(pravo version | awk 'NR==2 {print $2}')
 have=$(cue version | awk 'NR==1 {print $3}')
 [ "$want" = "$have" ] || { echo "cue $have does not match the cue $want inside pravo"; exit 1; }
 
-pravo -C root eval -e guard.rule | cue export cue: - --out text > policy/guard.cue
+pravo -C root eval -e guard.rule --raw > policy/guard.cue
 for f in policy/fixtures/accept-*.json; do
 	cue vet -c policy/guard.cue "$f" || { echo "refused, should be accepted: $f"; exit 1; }
 done
@@ -308,7 +308,7 @@ import "pravo.dev/pravo"
 
 guard: pravo.#Policy & {
 	description: "Rules for every plan."
-	rule: #"""
+	rule: {
 		changes: [...{
 			addr:   string
 			mode:   string
@@ -329,7 +329,7 @@ guard: pravo.#Policy & {
 
 		// One plan adds at most five resources.
 		summary: add: <=5
-		"""#
+	}
 }
 ```
 
@@ -363,9 +363,9 @@ Output:
 
 ```text
 Error: the plan violates the policy guard@2 (sha256:<digest>):
-changes.0.after.prefix: conflicting values null and string (mismatched types null and string):
+changes.0.after.prefix: conflicting values null and !="" (mismatched types null and string):
     guard:14:2
-    guard:15:18
+    guard:16:12
     plan:1:115
 ```
 
@@ -384,7 +384,7 @@ import "pravo.dev/pravo"
 
 guard: pravo.#Policy & {
 	description: "Rules for every plan."
-	rule: #"""
+	rule: {
 		changes: [...{
 			addr:   string
 			mode:   string
@@ -404,7 +404,7 @@ guard: pravo.#Policy & {
 
 		// One plan adds at most five resources.
 		summary: add: <=5
-		"""#
+	}
 }
 ```
 

@@ -133,7 +133,7 @@ A constraint rejects a value that is set and wrong. It does not require an attri
 
 ## Refuse a plan
 
-A plan policy is a node of the root. Its `rule` is CUE text, and pravo unifies it with the plan document, the data that `pravo plan --json` prints. The plan satisfies the policy when the result is concrete and has no error. Write the policy beside the resources:
+A plan policy is a node of the root. Its `rule` is a CUE struct, and pravo unifies it with the plan document, the data that `pravo plan --json` prints. The plan satisfies the policy when the result is concrete and has no error. Write the policy beside the resources:
 
 File `root/policy.cue`:
 
@@ -144,7 +144,7 @@ import "pravo.dev/pravo"
 
 no_delete: pravo.#Policy & {
 	description: "A plan may create and change. It may not delete."
-	rule: #"""
+	rule: {
 		changes: [...{
 			addr:   string
 			mode:   string
@@ -153,11 +153,11 @@ no_delete: pravo.#Policy & {
 				error("\(addr): delete is not allowed")
 			}
 		}]
-		"""#
+	}
 }
 ```
 
-`changes` is a list template: every change must have these fields. The `if` is a guard. It adds an error to a managed resource whose action is `delete`, and the message names the address. The raw string `#"""` keeps the backslash of `\(addr)` as CUE text.
+`changes` is a list template: every change must have these fields. The `if` is a guard. It adds an error to a managed resource whose action is `delete`, and the message names the address.
 
 Restore the root and add a second file.
 
@@ -224,7 +224,7 @@ Output:
 
 ```text
 Policies: +1 new, ~0 changed, -0 removed.
-  + no_delete (sha256:5ec50aad2f55)
+  + no_delete (sha256:d0fce23004ba)
 Graph: planned 2
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
@@ -269,7 +269,7 @@ Output:
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 2 · not read 2
-Policy no_delete@1:5ec50aad2f55de60cc2975ee26e07aa0f295d7be0be142f43d3a8f2ed8021051 is satisfied.
+Policy no_delete@1:d0fce23004ba3284e425b8753266ed26f2203fac9f8c06ffe60a7ca1db8c2bc9 is satisfied.
 
 Saved the plan to add.plan. To apply exactly these actions, run:
   pravo apply add.plan
@@ -289,7 +289,7 @@ log: Creating...
 log: Creation complete after 0s [id=4508c1b19b8841345afeed30a6d835cca066d5e5]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
-["no_delete@1:5ec50aad2f55de60cc2975ee26e07aa0f295d7be0be142f43d3a8f2ed8021051"]
+["no_delete@1:d0fce23004ba3284e425b8753266ed26f2203fac9f8c06ffe60a7ca1db8c2bc9"]
 ```
 
 ## Break it: a plan that deletes
@@ -330,7 +330,7 @@ Output:
 Plan: 0 to add, 0 to change, 1 to destroy.
 Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
-Error: the plan violates the policy no_delete@1 (sha256:5ec50aad2f55):
+Error: the plan violates the policy no_delete@1 (sha256:d0fce23004ba):
 changes.0: note: delete is not allowed:
     no_delete:6:3
 ```
@@ -363,7 +363,7 @@ pravo -C root state log --json | jq -c '.[0] | {kind, status}'
 Output:
 
 ```text
-Error: the plan violates the policy no_delete@1 (sha256:5ec50aad2f55):
+Error: the plan violates the policy no_delete@1 (sha256:d0fce23004ba):
 changes.0: note: delete is not allowed:
     no_delete:6:3
 

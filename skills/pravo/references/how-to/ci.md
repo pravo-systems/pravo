@@ -39,7 +39,7 @@ package ci
 import "pravo.dev/pravo"
 
 no_destroy: pravo.#Policy & {
-	rule: #"""
+	rule: {
 		// A managed resource is neither deleted nor replaced.
 		changes: [...{
 			addr:   string
@@ -49,7 +49,7 @@ no_destroy: pravo.#Policy & {
 				error("\(addr): \(action) is not allowed")
 			}
 		}]
-		"""#
+	}
 }
 ```
 

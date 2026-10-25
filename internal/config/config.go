@@ -356,7 +356,7 @@ type Output struct {
 type Policy struct {
 	Name string
 	Path cue.Path
-	// Rule is standalone CUE, unified with the judged plan document.
+	// Rule is the source of the rule struct, formatted, so that the same rule has one text and one digest. It is standalone CUE, unified with the judged plan document.
 	Rule string
 }
 

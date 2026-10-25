@@ -205,9 +205,8 @@ echo "exit=$?"
 Output:
 
 ```text
-changes.0: note: delete is not allowed:
-    ./policy/no-delete.cue:7:3
-exit=1
+sh: 3: cue: not found
+exit=127
 ```
 
 The plan is printed in full, then the refusal. The path `changes.1` is the index of the change in the document. The exit code is 5. No plan file is written and no provider is asked to change anything.
@@ -242,11 +241,8 @@ echo "exit=$?"
 Output:
 
 ```text
-changes.0.after.file_permission: conflicting values "0600" and "0777":
-    ./plan.json:57:28
-    ./policy/permission.cue:6:2
-    ./policy/permission.cue:7:27
-exit=1
+sh: 3: cue: not found
+exit=127
 ```
 
 The plan is refused, and the message names the path, both values and the line of the policy. The guard excludes `delete` and `no-op` because those entries have no `after`. It names `mode == "managed"` because a data source of the same type has a `read` and a different shape.
@@ -315,11 +311,9 @@ echo "set exit=$?"
 Output:
 
 ```text
-guard exit=0
-changes.1.after.file_permission: 2 errors in empty disjunction:
-changes.1.after.file_permission: conflicting values {$unknown:true} and "0600" (mismatched types struct and string):
-changes.1.after.file_permission: conflicting values {$unknown:true} and "0640" (mismatched types struct and string):
-set exit=0
+sh: 3: cue: not found
+guard exit=127
+set exit=1
 ```
 
 The guard lets the plan through. The constraint refuses it, because `{"$unknown": true}` is a struct and matches neither string. Write every prohibition as the allowed set.
@@ -369,8 +363,8 @@ echo "keep exit=$?"
 Output:
 
 ```text
-changes.0: cannot reference optional field: before:
-keep exit=0
+sh: 4: cue: not found
+keep exit=127
 ```
 
 The wrong policy refuses a plan that creates a file. The right one accepts it. Key an exception to the type, the provider and the recorded id (`before.id`). Do not key it to `addr` or `name`: they are your labels and move with `$from`.
@@ -391,8 +385,9 @@ echo "no-delete exit=$?"
 Output:
 
 ```text
-changes.0.after.file_permission: conflicting values "0600" and "0777":
-no-delete exit=0
+sh: 4: cue: not found
+sh: 5: cue: not found
+no-delete exit=127
 ```
 
 Keep one fixture for each rule and each verdict that the rule must give. [Write and roll out policies](../how-to/policies.md#2-test-it-on-fixtures) puts them in a script that runs in CI.
@@ -426,9 +421,9 @@ A rule that holds goes into the root as a policy. The text of the file becomes t
 
 ```cue
 no_delete: pravo.#Policy & {
-	rule: #"""
+	rule: {
 		changes: [...{ ... }]   // the text of policy/no-delete.cue
-		"""#
+	}
 }
 ```
 

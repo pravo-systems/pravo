@@ -226,7 +226,7 @@ func exitScenarios() map[int][]exitScenario {
 				return runPravo(t, policyInForce(t, "summary: destroy: 0").dir, "plan")
 			}, "violates the policy"},
 			{"a policy in a state that is not sealed", func(t *testing.T) (string, int) {
-				dir := specDir(t, map[string]string{"main.cue": "package infra\n\nimport \"pravo.dev/pravo\"\n\nno: pravo.#Policy & {rule: \"summary: destroy: 0\"}\n"})
+				dir := specDir(t, map[string]string{"main.cue": "package infra\n\nimport \"pravo.dev/pravo\"\n\nno: pravo.#Policy & {rule: summary: destroy: 0}\n"})
 				if text, code := runPravo(t, dir, "init"); code != 0 {
 					t.Fatalf("init exited %d:\n%s", code, text)
 				}

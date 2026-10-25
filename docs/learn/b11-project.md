@@ -263,7 +263,7 @@ package estate
 import "pravo.dev/pravo"
 
 no_delete: pravo.#Policy & {
-	rule: #"""
+	rule: {
 		// A plan may create and change. It may not delete.
 		changes: [...{
 			addr:   string
@@ -273,7 +273,7 @@ no_delete: pravo.#Policy & {
 				error("\(addr): delete is not allowed")
 			}
 		}]
-		"""#
+	}
 }
 ```
 

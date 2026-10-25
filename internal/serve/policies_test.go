@@ -14,7 +14,7 @@ const policySpecCUE = `package demo
 
 no_destroy: {
 	$kind: "policy"
-	rule:  "changes: [...]\n"
+	rule: changes: [...]
 }
 `
 

@@ -42,12 +42,12 @@ package pravo
 // a signed version, and the signed start of each apply lists the versions that
 // judged it. The name is the path the policy sits at.
 //
-//	no_destroy: pravo.#Policy & {rule: "summary: destroy: 0"}
+//	no_destroy: pravo.#Policy & {rule: summary: destroy: 0}
 #Policy: {
 	$kind: "policy"
 	// Standalone CUE, using the standard library only, unified with the plan
 	// document, which it must make concrete.
-	rule: string & != ""
+	rule: {...}
 	// What the policy is for.
 	description?: string
 }

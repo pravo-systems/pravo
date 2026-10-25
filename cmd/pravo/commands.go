@@ -1061,7 +1061,7 @@ func countMode(root *config.Root, mode string) int {
 
 func evalCmd() *cobra.Command {
 	var expr string
-	var concrete, optional bool
+	var concrete, optional, raw bool
 	cmd := &cobra.Command{
 		Use:   "eval",
 		Short: "Print the evaluated configuration, with recorded state filled in",
@@ -1073,6 +1073,7 @@ that declares none, so it also serves to try out CUE.
   pravo eval                       the whole evaluated specification
   pravo eval -e logs.tags          one expression: a path or any CUE expression
   pravo eval -c                    fail unless every value is concrete
+  pravo eval -e guard.rule --raw   the value as written, with its comprehensions, as a file
   pravo eval -t env=prod           inject a value for an @tag() field`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1109,6 +1110,14 @@ that declares none, so it also serves to try out CUE.
 				}
 			}
 			v = convert.FillAll(v, fills)
+			if raw {
+				// A path names the value itself, so that its syntax is the
+				// author's; a compiled expression would be a reference to it.
+				if p := cue.ParsePath(expr); expr != "" && p.Err() == nil && v.LookupPath(p).Exists() {
+					v = v.LookupPath(p)
+					expr = ""
+				}
+			}
 			if expr != "" {
 				v = v.Context().CompileString(expr, cue.Scope(v), cue.InferBuiltins(true))
 				if err := v.Err(); err != nil {
@@ -1120,7 +1129,11 @@ that declares none, so it also serves to try out CUE.
 					return fmt.Errorf("the value is not concrete:\n%s", cueerrors.Details(err, nil))
 				}
 			}
-			node := v.Syntax(cue.Final(), cue.Definitions(true), cue.Hidden(false), cue.Optional(optional), cue.Docs(false), cue.Attributes(false))
+			opts := []cue.Option{cue.Final(), cue.Definitions(true), cue.Hidden(false), cue.Optional(optional), cue.Docs(false), cue.Attributes(false)}
+			if raw {
+				opts = []cue.Option{cue.Raw(), cue.Docs(true)}
+			}
+			node := v.Syntax(opts...)
 			// A struct prints as the fields of a file, without the outer braces,
 			// as cue eval does.
 			if st, ok := node.(*ast.StructLit); ok {
@@ -1140,6 +1153,7 @@ that declares none, so it also serves to try out CUE.
 	cmd.Flags().StringVarP(&expr, "expression", "e", "", "evaluate this expression, such as a path (logs.tags) or any CUE expression, in the scope of the specification")
 	cmd.Flags().BoolVarP(&concrete, "concrete", "c", false, "fail unless every value is concrete")
 	cmd.Flags().BoolVarP(&optional, "optional", "O", false, "also print optional fields")
+	cmd.Flags().BoolVar(&raw, "raw", false, "print the value as written, before comprehensions are evaluated: a policy rule as a file for cue vet")
 	addTagFlags(cmd)
 	return cmd
 }
