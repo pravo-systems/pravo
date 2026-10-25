@@ -661,6 +661,9 @@ cue vet -c policy/no-destroy.cue plan.json 2>&1 | grep -E '^changes\.' | sort -V
   # random_pet.server (random_pet) will be destroyed
   # data.local_file.banner (local_file) will be destroyed
 Plan: 8 to add, 0 to change, 9 to destroy.
+changes.9: local_file.hello: delete is not allowed:
+changes.10: local_file.notes_note_alpha: delete is not allowed:
+changes.11: local_file.notes_note_beta: delete is not allowed:
 ```
 
 The plan creates every resource at its new address and deletes every record at its old one. The rule refuses it: nothing here may be applied. The plan changed no object. The only effect was a refresh of the records that it plans to delete.
