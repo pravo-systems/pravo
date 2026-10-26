@@ -260,7 +260,7 @@ export class PoliciesView {
   // written is the policy where the specification writes it, with the line numbers of its file.
   written(p) {
     const b = p.written;
-    if (!b || !b.lines || !b.lines.length) return null;
+    if (!b || !b.lines || !b.lines.length || p.status === 'in-force') return null;
     const lines = b.lines.filter((l) => !l.dim).map((l) => ({ op: ' ', text: l.text, no: l.no }));
     return h('div', { class: 'po-rulebox po-written' },
       h('h4', { class: 'po-h4' }, 'Written in the specification', h('code', { class: 'po-wf' }, `${b.file}:${b.start_line}`), h('span', { class: 'po-n' }, plural(lines.length, 'line'))),
@@ -277,6 +277,16 @@ export class PoliciesView {
     }
     const lines = text.replace(/\n$/, '').split('\n').map((t, i) => ({ op: ' ', text: t, no: i + 1 }));
     const declared = !inForce && p.status === 'new';
+    // What is in force is what the specification declares: one window, the policy as it is written, and the signed text behind a fold.
+    const b = p.written;
+    if (inForce && p.status === 'in-force' && b && b.lines && b.lines.length) {
+      const src = b.lines.filter((l) => !l.dim).map((l) => ({ op: ' ', text: l.text, no: l.no }));
+      return h('div', { class: 'po-rulebox po-written' },
+        h('h4', { class: 'po-h4' }, `Policy in force · v${inForce.seq}`, h('code', { class: 'po-wf', title: 'Where the specification writes this policy' }, `${b.file}:${b.start_line}`), h('span', { class: 'po-n' }, plural(src.length, 'line')),
+          h('button', { type: 'button', class: 'po-try', 'data-tip': 'Try this rule on stored plans and plan files', on: { click: () => this.tryPolicy(p.name, 'policy') } }, 'Try on plans')),
+        this.code(src, { copy: src.map((l) => l.text).join('\n') + '\n', label: 'Copy the policy' }),
+        h('details', { class: 'po-signed' }, h('summary', null, 'The text that version ' + inForce.seq + ' signed'), this.code(lines, { copy: text, label: 'Copy the signed text' })));
+    }
     return h('div', { class: 'po-rulebox' },
       h('h4', { class: 'po-h4' }, inForce ? `Policy in force · v${inForce.seq}` : 'Policy declared', h('span', { class: 'po-n' }, plural(lines.length, 'line')),
         h('button', { type: 'button', class: 'po-try', 'data-tip': 'Try this rule on stored plans and plan files', on: { click: () => this.tryPolicy(p.name, declared ? 'declared' : 'policy') } }, 'Try on plans')),
