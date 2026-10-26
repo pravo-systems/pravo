@@ -24,7 +24,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/validate-eval-fmt-gen.md](reference/validate-eval-fmt-gen.md) | Check a specification without planning it, print its evaluated value, format the CUE files and regenerate the provider packages. | 9 KB |
 | [reference/schema.md](reference/schema.md) | Print the CUE definition of a resource, data source, ephemeral resource or function type, with the provider's documentation. | 9 KB |
 | [reference/why-and-drift.md](reference/why-and-drift.md) | Explain why a plan creates, changes, replaces or skips a resource, and read the records that a plan does not read to report what changed outside pravo. | 13 KB |
-| [reference/serve.md](reference/serve.md) | Serve a read-only viewer on the loopback interface: a graph of namespaces and resources from the specification, the state, a saved plan and the plans stored in the state. | 78 KB |
+| [reference/serve.md](reference/serve.md) | Serve a read-only viewer on the loopback interface: a graph of namespaces and resources from the specification, the state, a saved plan and the plans stored in the state. | 82 KB |
 | [reference/mcp.md](reference/mcp.md) | Serve pravo to an agent over the Model Context Protocol on stdio. Fourteen tools, applies only from saved plans, and plan policies the agent cannot remove. | 10 KB |
 | [reference/skill.md](reference/skill.md) | Install or print the skill that teaches an AI agent to use pravo. It is built from this documentation and is part of the binary, so it matches the version that installed it. | 6 KB |
 | [reference/mod.md](reference/mod.md) | Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file. | 6 KB |
@@ -56,7 +56,8 @@ One page for each command and each part of the specification, tables first.
 | [reference/policies-overview.md](reference/policies-overview.md) | A policy is a node of the specification whose rule is a CUE struct. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply. | 10 KB |
 | [reference/policies-plan-document.md](reference/policies-plan-document.md) | What a rule is unified with. How absent, null and unknown values behave, and what the judged document leaves out of the one that plan --json prints. | 9 KB |
 | [reference/policies-writing.md](reference/policies-writing.md) | The four rules for writing a policy rule, each with a captured run, plan-wide rules, and the typos that forbid nothing. | 19 KB |
-| [reference/policies-operations.md](reference/policies-operations.md) | Where each command judges a policy, what a stale plan does, how to retire a policy, how to roll a rule out and test it, and what a policy does and does not guarantee. | 22 KB |
+| [reference/policies-operations.md](reference/policies-operations.md) | Where each command judges a policy, what a stale plan does, how to retire a policy, how to roll a rule out and test it, and what a policy does and does not guarantee. | 23 KB |
+| [reference/policy.md](reference/policy.md) | Hold a policy rule, or a draft of one, against stored plans and plan files before it is stored, and see which plans it would refuse and why. | 4 KB |
 
 ### Data and formats
 
@@ -94,7 +95,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 22 KB |
 | [concepts/policies.md](concepts/policies.md) | One idea at two moments: a constraint on a provider is checked at evaluation, a policy node against a plan. What each binds and what neither guarantees. | 17 KB |
 | [concepts/secrets-and-ephemeral-values.md](concepts/secrets-and-ephemeral-values.md) | Which values pravo records in state, saved plans and outputs, what an ephemeral value is, where it may go, and what hiding a value does and does not do. | 12 KB |
-| [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a namespace is, what presence means, which values are withheld and why the viewer changes nothing. | 34 KB |
+| [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a namespace is, what presence means, which values are withheld and why the viewer changes nothing. | 35 KB |
 | [concepts/sealed-state.md](concepts/sealed-state.md) | What a sealed state encrypts, who can read it, and what it does not do. It gives confidentiality of values against a copy of the bucket, and nothing else. | 19 KB |
 | [concepts/discovery.md](concepts/discovery.md) | How a discovery lists the objects that exist in a scope, what it keeps in the state, how the unmanaged ones are told from the rest, and when to run it again. | 9 KB |
 
