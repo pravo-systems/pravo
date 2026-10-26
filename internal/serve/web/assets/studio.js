@@ -570,7 +570,7 @@ export class StudioView {
     const n = this.data && this.data.state ? this.data.state.resources : 0;
     const b = (target, label, count, off) => h('button', { type: 'button', 'aria-pressed': this.target === target ? 'true' : 'false', disabled: off, on: { click: () => this.aim(target) } }, label, count ? h('span', { class: 'n' }, String(count)) : null);
     return h('div', { class: 'seg studio-target', role: 'group', id: 'studio-rh', 'aria-label': 'What the rule is tried on' },
-      b('resources', 'Resources', n, !n), b('plan', 'A plan', 0, !(this.data && this.data.plans.length)));
+      b('resources', 'Resources', n, !n), b('plan', 'Plans', this.data ? this.data.plans.length : 0, !(this.data && this.data.plans.length)));
   }
 
   // stateBlock says which resources that already exist would be refused, as if a plan updated each of them.
