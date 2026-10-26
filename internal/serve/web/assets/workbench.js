@@ -16,6 +16,7 @@ import { complete } from './complete.js';
 
 const DRAFT_KEY = 'pravo.workbench.policies';
 const MAX_PLANS = 100;
+const MAX_DROP = 64 << 20; // the largest plan file the server takes
 
 const BLANK = `import "pravo.dev/pravo"
 
@@ -51,6 +52,9 @@ export function pathChange(path) {
   const m = /^changes\.(\d+)(\.|$)/.exec(path || '');
   return m ? Number(m[1]) : -1;
 }
+
+// isFile is a plan that is a file: one of the project, or one that was dropped on the page.
+const isFile = (p) => p.kind === 'file' || p.kind === 'upload';
 
 export class WorkbenchView {
   constructor(root, cb = {}) {
@@ -135,7 +139,7 @@ export class WorkbenchView {
   refs() {
     const out = [];
     for (const p of (this.data && this.data.plans) || []) {
-      const on = p.kind === 'file' ? this.scope.files : p.open ? this.scope.open : this.scope.closed;
+      const on = isFile(p) ? this.scope.files : p.open ? this.scope.open : this.scope.closed;
       if (on) out.push(p.ref);
     }
     return out;
@@ -172,6 +176,7 @@ export class WorkbenchView {
     this.shell = h('div', { class: 'wb' });
     this.editor = this.buildEditor();
     this.resultsEl = h('section', { class: 'wb-results', 'aria-labelledby': 'wb-rh', 'aria-live': 'polite' });
+    this.wireDrop(this.resultsEl);
     this.controlsEl = h('div', { class: 'wb-controls' });
     this.guideEl = h('section', { class: 'wb-guide', 'aria-labelledby': 'wb-gh' });
     this.headEl = h('header', { class: 'wb-head' });
@@ -527,6 +532,7 @@ export class WorkbenchView {
       h('h3', { class: 'wb-h3', id: 'wb-rh' }, 'Plans', h('span', { class: 'po-n' }, String(this.refs().length))),
       this.scopeBar(plans),
       this.busy ? h('span', { class: 'wb-busy' }, 'trying…') : r ? h('span', { class: 'wb-took', title: 'How long the server took' }, `${r.took_ms} ms`) : null));
+    el.append(this.dropBar());
     if (this.error) el.append(h('p', { class: 'po-problem' }, icon('bang'), h('span', null, this.error)));
     if (this.data && !this.data.spec_ok) el.append(h('p', { class: 'po-warn' }, icon('bang'), h('span', null, 'The specification does not load, so the values of a plan cannot be decoded and no rule can be tried on one.')));
     if (this.data && this.data.note) el.append(h('p', { class: 'po-note' }, this.data.note));
@@ -562,16 +568,63 @@ export class WorkbenchView {
       h('span', { class: 'k' }, k), h('b', null, String(n))));
   }
 
+  // ---- plan files dropped on the page ----
+
+  // dropBar says that a file can be dropped, and offers the file chooser for those who do not drag.
+  dropBar() {
+    const input = h('input', { type: 'file', multiple: true, class: 'wb-file', 'aria-label': 'Choose plan files', on: { change: () => { this.take(Array.from(input.files)); input.value = ''; } } });
+    return h('div', { class: 'wb-dropbar' },
+      h('span', null, 'Drop a plan file anywhere on this side to try the rule on it, or '),
+      h('button', { type: 'button', class: 'wb-link', on: { click: () => input.click() } }, 'choose one'),
+      h('span', null, '. The file is held in the server’s memory, and nothing is written.'),
+      input,
+      this.dropNote ? h('p', { class: 'po-problem' }, icon('bang'), h('span', null, this.dropNote)) : null);
+  }
+
+  // wireDrop makes the results side a place to drop plan files on.
+  wireDrop(el) {
+    let depth = 0;
+    const has = (ev) => ev.dataTransfer && Array.from(ev.dataTransfer.types || []).includes('Files');
+    el.addEventListener('dragenter', (ev) => { if (!has(ev)) return; ev.preventDefault(); depth++; el.classList.add('wb-dropping'); });
+    el.addEventListener('dragover', (ev) => { if (has(ev)) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; } });
+    el.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; el.classList.remove('wb-dropping'); } });
+    el.addEventListener('drop', (ev) => {
+      if (!has(ev)) return;
+      ev.preventDefault();
+      depth = 0;
+      el.classList.remove('wb-dropping');
+      this.take(Array.from(ev.dataTransfer.files));
+    });
+  }
+
+  // take sends each file to the server, which reads it and keeps it for the length of the session, and tries the rule on it.
+  async take(files) {
+    if (!files.length || !this.data) return;
+    this.dropNote = '';
+    for (const f of files.slice(0, 8)) {
+      if (f.size > MAX_DROP) { this.dropNote = `${f.name} is larger than ${MAX_DROP >> 20} MiB.`; continue; }
+      try {
+        const pl = await api.uploadPlan(f.name, await f.arrayBuffer());
+        this.data.plans = this.data.plans.filter((p) => p.ref !== pl.ref).concat(pl);
+        this.scope.files = true;
+      } catch (err) {
+        this.dropNote = `${f.name}: ${err && err.message ? err.message : 'the file could not be read'}`;
+      }
+    }
+    this.paintResults();
+    this.run();
+  }
+
   // scopeBar chooses which plans are tried: the ones that can still be applied, the rest of the stored ones, and the plan files.
   scopeBar(plans) {
     const n = { open: 0, closed: 0, files: 0 };
-    for (const p of plans) n[p.kind === 'file' ? 'files' : p.open ? 'open' : 'closed']++;
+    for (const p of plans) n[isFile(p) ? 'files' : p.open ? 'open' : 'closed']++;
     const chip = (key, label, tip) => h('button', { type: 'button', class: 'wb-chip', 'aria-pressed': this.scope[key] ? 'true' : 'false', disabled: !n[key], title: tip,
       on: { click: () => { this.scope[key] = !this.scope[key]; this.paintResults(); this.run(); } } }, label, h('span', { class: 'n' }, String(n[key])));
     return h('div', { class: 'wb-scope', role: 'group', 'aria-label': 'Plans to try' },
       chip('open', 'can be applied', 'Stored plans that are pending, partial or partly stale'),
       chip('closed', 'other stored', 'Stored plans that are applied, stale or expired'),
-      chip('files', 'plan files', 'Plan files in the project directory'));
+      chip('files', 'plan files', 'Plan files of the project directory, and the files that were dropped here'));
   }
 
   checkBox(c) {
@@ -612,7 +665,7 @@ export class WorkbenchView {
 
   metaText(m) {
     const bits = [];
-    if (m.kind === 'file') bits.push('file'); else bits.push(m.status);
+    if (m.kind === 'upload') bits.push('dropped'); else if (m.kind === 'file') bits.push('file'); else bits.push(m.status);
     if (m.author) bits.push(m.author);
     bits.push(relTime(m.created));
     bits.push(`+${m.add}\u00a0~${m.change}\u00a0−${m.destroy}`);

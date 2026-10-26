@@ -314,7 +314,8 @@ func trialPlans(ctx context.Context, s *session, eng *engine.Engine, refs []stri
 			add(id, status, pf, err)
 			continue
 		}
-		pf, err := engine.ReadPlanFile(ref)
+		// A plan file that a sealed state wrote opens with the key of a reader of the state.
+		pf, err := engine.ReadPlanFileWith(ref, s.state.Sealer())
 		add(ref, "file", pf, err)
 	}
 	return out, nil

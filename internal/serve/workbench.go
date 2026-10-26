@@ -3,7 +3,11 @@ package serve
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,6 +20,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // The policy workbench: a rule is held against plans that exist, to see which it would refuse
@@ -98,6 +103,7 @@ func (s *Server) workbench(m *model) *Workbench {
 	}
 	files, note := s.planFileList(m)
 	wb.Plans = append(wb.Plans, files...)
+	wb.Plans = append(wb.Plans, s.uploads.list(m)...)
 	wb.Note = note
 	if m.pol != nil {
 		desc := map[string]string{}
@@ -130,26 +136,13 @@ func (s *Server) planFileList(m *model) ([]WorkbenchPlan, string) {
 	var out []WorkbenchPlan
 	skipped := 0
 	for _, path := range s.planFilePaths() {
-		pf, err := s.readPlanFileAt(path)
+		pf, err := s.readPlanFileAt(path, m)
 		if err != nil {
 			skipped++
 			continue
 		}
 		rel := s.relPath(path)
-		wp := WorkbenchPlan{Ref: "file:" + rel, Kind: "file", Label: m.clipText(rel), Created: pf.Created, Open: true}
-		for _, sc := range pf.Changes {
-			switch sc.Action {
-			case engine.ActionCreate:
-				wp.Add++
-			case engine.ActionUpdate:
-				wp.Change++
-			case engine.ActionReplace:
-				wp.Add++
-				wp.Destroy++
-			case engine.ActionDelete:
-				wp.Destroy++
-			}
-		}
+		wp := wbPlanOf("file:"+rel, "file", m.clipText(rel), pf)
 		out = append(out, wp)
 	}
 	note := ""
@@ -225,8 +218,13 @@ func looksLikePlanFile(path string) bool {
 }
 
 // readPlanFileAt reads a plan file, again only when it changed.
-func (s *Server) readPlanFileAt(path string) (*engine.PlanFile, error) {
-	sig := fileSignature(path)
+func (s *Server) readPlanFileAt(path string, m *model) (*engine.PlanFile, error) {
+	// A plan file that a sealed state wrote opens with the key of a reader, which the state of the model gives.
+	var sl state.Sealer
+	if m.store != nil {
+		sl = m.store.Sealer()
+	}
+	sig := fileSignature(path) + fmt.Sprint(sl != nil)
 	s.files.mu.Lock()
 	defer s.files.mu.Unlock()
 	if e := s.files.files[path]; e != nil && e.sig == sig {
@@ -235,7 +233,7 @@ func (s *Server) readPlanFileAt(path string) (*engine.PlanFile, error) {
 	if s.files.files == nil {
 		s.files.files = map[string]*planFileEntry{}
 	}
-	pf, err := engine.ReadPlanFile(path)
+	pf, err := engine.ReadPlanFileWith(path, sl)
 	s.files.files[path] = &planFileEntry{sig: sig, pf: pf, err: err}
 	return pf, err
 }
@@ -272,8 +270,12 @@ func (s *Server) makeDoc(ctx context.Context, m *model, ref string, tr *engine.T
 			return fail("unknown", "no such plan file")
 		}
 		var err error
-		if pf, err = s.readPlanFileAt(path); err != nil {
+		if pf, err = s.readPlanFileAt(path, m); err != nil {
 			return fail("unreadable", "The file could not be read as a plan: "+headline(err.Error()))
+		}
+	case strings.HasPrefix(ref, "upload:"):
+		if pf = s.uploads.get(ref); pf == nil {
+			return fail("unknown", "This file is not held any more: drop it again.")
 		}
 	case engine.IsPlanID(ref) && m.stored != nil && m.stored.byID[ref] != nil:
 		var sealed bool
@@ -479,4 +481,112 @@ func (s *Server) prettyDoc(m *model, d *wbDoc, v any, into *WorkbenchDoc) string
 		text = text[:maxDocText] + "\n…"
 	}
 	return text
+}
+
+// wbPlanOf describes a plan file for the list of plans: its counts are those of the summary of a plan.
+func wbPlanOf(ref, kind, label string, pf *engine.PlanFile) WorkbenchPlan {
+	wp := WorkbenchPlan{Ref: ref, Kind: kind, Label: label, Created: pf.Created, Open: true}
+	for _, sc := range pf.Changes {
+		switch sc.Action {
+		case engine.ActionCreate:
+			wp.Add++
+		case engine.ActionUpdate:
+			wp.Change++
+		case engine.ActionReplace:
+			wp.Add++
+			wp.Destroy++
+		case engine.ActionDelete:
+			wp.Destroy++
+		}
+	}
+	return wp
+}
+
+// planUploads holds the plan files that a person dropped on the studio. They live in memory only, the newest
+// maxUploads of them, and are not written anywhere: a file is judged and forgotten.
+type planUploads struct {
+	mu    sync.Mutex
+	order []string
+	byRef map[string]*heldPlan
+}
+
+type heldPlan struct {
+	name string
+	pf   *engine.PlanFile
+}
+
+const maxUploads = 8
+
+func (u *planUploads) get(ref string) *engine.PlanFile {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if h := u.byRef[ref]; h != nil {
+		return h.pf
+	}
+	return nil
+}
+
+func (u *planUploads) put(ref, name string, pf *engine.PlanFile) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.byRef == nil {
+		u.byRef = map[string]*heldPlan{}
+	}
+	if _, ok := u.byRef[ref]; !ok {
+		u.order = append(u.order, ref)
+	}
+	u.byRef[ref] = &heldPlan{name: name, pf: pf}
+	for len(u.order) > maxUploads {
+		delete(u.byRef, u.order[0])
+		u.order = u.order[1:]
+	}
+}
+
+func (u *planUploads) list(m *model) []WorkbenchPlan {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	var out []WorkbenchPlan
+	for _, ref := range u.order {
+		h := u.byRef[ref]
+		out = append(out, wbPlanOf(ref, "upload", m.clipText(h.name), h.pf))
+	}
+	return out
+}
+
+// uploadHandler answers POST /api/workbench/plan?name=NAME. The body is a plan file, sealed or not. The server
+// reads it, keeps it in memory under a reference, and answers with its entry for the list of plans. It is the one
+// request that is not a GET, and it writes nothing: no file, no state.
+func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, m *model) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	// A form of another page cannot send this type without a preflight, which the server does not answer.
+	if r.Header.Get("Content-Type") != "application/octet-stream" {
+		writeError(w, http.StatusUnsupportedMediaType, "send the plan file as application/octet-stream")
+		return
+	}
+	name := filepath.Base(strings.TrimSpace(r.URL.Query().Get("name")))
+	if name == "" || name == "." || len(name) > 200 || strings.ContainsAny(name, "\x00\n\r") {
+		name = "plan file"
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxPlanFileSize))
+	if err != nil {
+		writeError(w, http.StatusRequestEntityTooLarge, "the file is too large to try")
+		return
+	}
+	var sl state.Sealer
+	if m.store != nil {
+		sl = m.store.Sealer()
+	}
+	pf, err := engine.ReadPlanBytes(name, data, sl)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, m.scrubText(headline(err.Error())))
+		return
+	}
+	sum := sha256.Sum256(data)
+	ref := "upload:" + hex.EncodeToString(sum[:6])
+	s.uploads.put(ref, name, pf)
+	writeJSON(w, http.StatusOK, wbPlanOf(ref, "upload", m.clipText(name), pf))
 }

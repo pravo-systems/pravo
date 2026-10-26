@@ -206,3 +206,11 @@
 .wb-sgd { color: var(--code-dim); font-size: .66rem; white-space: nowrap; }
 .wb-sgdoc { position: sticky; bottom: 0; padding: .4rem .55rem; border-top: 1px solid var(--code-edge); background: var(--code-bar); color: var(--code-dim); font: 400 .68rem/1.4 var(--font-ui); white-space: normal; }
 .wb-sgdoc[hidden] { display: none; }
+
+/* a plan file dropped on the results */
+.wb-dropbar { padding: .55rem .7rem; border: 1px dashed var(--line-strong); font-size: .78rem; line-height: 1.5; color: var(--text-2); }
+.wb-dropbar .wb-link { display: inline; }
+.wb-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.wb-results { position: relative; }
+.wb-results.wb-dropping { outline: 2px dashed var(--key); outline-offset: 4px; }
+.wb-results.wb-dropping::after { content: "Drop the plan file to try the rule on it"; position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--text); font: 500 .85rem/1.4 var(--font-ui); pointer-events: none; }

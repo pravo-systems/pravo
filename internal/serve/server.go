@@ -150,6 +150,9 @@ type Server struct {
 	// files caches the plan files of the project that the workbench reads.
 	files planFileCache
 
+	// uploads holds the plan files that were dropped on the studio, in memory.
+	uploads planUploads
+
 	// streams counts the open event streams.
 	streams atomic.Int32
 }
@@ -339,6 +342,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
+	// The studio takes a plan file that a person drops on it: the one request that is not a GET. It judges and keeps nothing on disk.
+	if r.Method == http.MethodPost && r.URL.Path == "/api/workbench/plan" {
+		s.api(w, r)
+		return
+	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		h.Set("Allow", "GET, HEAD")
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -429,7 +437,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/workbench", "/api/workbench/try", "/api/workbench/doc":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/workbench", "/api/workbench/try", "/api/workbench/doc", "/api/workbench/plan":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -464,6 +472,8 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusOK, m.polJSON)
 	case "/api/workbench":
 		writeJSON(w, http.StatusOK, s.workbench(m))
+	case "/api/workbench/plan":
+		s.uploadHandler(w, r, m)
 	case "/api/workbench/try":
 		s.tryHandler(w, r, m)
 	case "/api/workbench/doc":

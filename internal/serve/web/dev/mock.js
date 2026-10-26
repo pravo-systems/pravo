@@ -364,7 +364,7 @@ function workbenchDoc() {
   const inForce = policies ? policies.policies.filter((x) => x.versions.length && !x.versions[0].removal).map((x) => ({ name: x.name, status: x.status, in_force: decl(x.name, x.versions[0].text), declared: x.rule ? decl(x.name, x.rule) : '' })) : [];
   const ch = [{ name: 'addr', type: 'string', doc: 'The CUE path of the declaration.' }, { name: 'action', type: 'string', enum: ['create', 'update', 'replace', 'delete'], doc: 'What a plan does to a node.' }, { name: 'type', type: 'string', doc: 'The provider type.' }, { name: 'after', type: 'struct', optional: true, doc: 'The planned state.', fields: [] }];
   const fields = [{ name: 'format', type: 'int', doc: 'The layout version.' }, { name: 'summary', type: 'struct', doc: 'Counts of actions.', fields: ['add', 'change', 'destroy', 'read'].map((n) => ({ name: n, type: 'int', doc: 'Count of ' + n + '.' })) }, { name: 'changes', type: 'list', list: true, doc: 'One entry for each node.', fields: ch }];
-  return { version: 1, revision: graph.revision, spec_ok: true, plans, policies: inForce, fields, note: '',
+  return { version: 1, revision: graph.revision, spec_ok: true, plans: plans.concat(uploads), policies: inForce, fields, note: '',
     schema: '// A rule that every plan is judged by at apply.\n#Policy: {\n\t$kind: "policy"\n\trule: #Plan\n}\n\n#Plan: {\n\tformat: int\n\tsummary: {add: int, change: int, destroy: int, read: int}\n\tchanges: [...#Change]\n}\n',
     examples: [{ id: 'no-destroy', title: 'Destroy nothing', about: 'A plan may not destroy anything.', rule: 'summary: destroy: 0\n', policy: decl('no_destroy', 'summary: destroy: 0\n') }, { id: 'small-plans', title: 'Keep plans small', about: 'One plan destroys at most 5.', rule: 'summary: destroy: <=5\n', policy: decl('small_plans', 'summary: destroy: <=5\n') }] };
 }
@@ -379,7 +379,7 @@ function workbenchTry(q) {
   const bound = workbenchBound(text);
   const at = text.split('\n').findIndex((l) => /destroy/.test(l)) + 1;
   const judge = (ref) => {
-    const x = ref.startsWith('file:') ? { summary: { add: 2, change: 1, destroy: 1 } } : stored.plans.find((y) => y.id === ref);
+    const x = ref.startsWith('file:') || ref.startsWith('upload:') ? { summary: { add: 2, change: 1, destroy: 1 } } : stored.plans.find((y) => y.id === ref);
     if (!x) return { ref, state: 'unknown', note: 'no such plan', changes: 0 };
     const d = x.summary.destroy;
     const ok = !bound || (bound.le ? d <= bound.n : d === bound.n);
@@ -405,6 +405,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const realFetch = window.fetch.bind(window);
 let mutations = 0;
+const uploads = [];
 
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input.url, location.href);
@@ -418,6 +419,13 @@ window.fetch = async (input, init) => {
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
   if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
   if (p === '/api/policies') return policies ? json(200, shift(Object.assign({}, policies, { revision: graph.revision, policies: policies.policies.map((x, k) => Object.assign({}, x, { written: x.source ? { role: 'definition', file: x.source.file, kind: 'file', start_line: x.source.line, end_line: x.source.line + 9, lines: decl(x.name, x.rule || (x.versions[0] && x.versions[0].text) || 'summary: destroy: 0\n').split('\n').slice(2, -1).map((t, i) => ({ no: x.source.line + i, text: t })) } : undefined, rule: x.rule ? decl(x.name, x.rule) : x.rule, versions: x.versions.map((v) => (v.text ? Object.assign({}, v, { text: decl(x.name, v.text) }) : v)) })) }), by)) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/workbench/plan') {
+    if (!init || init.method !== 'POST') return json(405, { error: 'method not allowed' });
+    const name = url.searchParams.get('name') || 'plan file';
+    if (/bad/.test(name)) return json(400, { error: name + ' is not a pravo plan file' });
+    uploads.push({ ref: 'upload:' + String(uploads.length + 1).padStart(12, '0'), kind: 'upload', label: name, open: true, created: new Date().toISOString(), add: 2, change: 1, destroy: 1 });
+    return json(200, uploads[uploads.length - 1]);
+  }
   if (p === '/api/workbench') return json(200, workbenchDoc());
   if (p === '/api/workbench/try') return json(200, workbenchTry(url.searchParams));
   if (p === '/api/workbench/doc') return workbenchShow(url.searchParams);

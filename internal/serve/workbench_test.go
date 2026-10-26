@@ -1,9 +1,12 @@
 package serve
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -205,5 +208,61 @@ func TestWorkbenchSchemaTree(t *testing.T) {
 	}
 	if af := find(ch.Fields, "after"); af == nil || !af.Optional {
 		t.Errorf("after: %+v", af)
+	}
+}
+
+// A plan file that is dropped on the studio is judged like one of the project and is written nowhere.
+func TestWorkbenchTakesADroppedPlanFile(t *testing.T) {
+	p, _ := newPlanProject(t)
+	data, err := os.ReadFile(filepath.Join(p.dir, "plan.pravo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := digestTree(t, p.dir)
+	post := func(path, ctype string, body []byte) (*http.Response, []byte) {
+		req, _ := http.NewRequest("POST", p.base+path, bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+p.srv.Token())
+		if ctype != "" {
+			req.Header.Set("Content-Type", ctype)
+		}
+		return p.send(req)
+	}
+	resp, body := post("/api/workbench/plan?name="+url.QueryEscape("../../saved/dropped.json"), "application/octet-stream", data)
+	var pl WorkbenchPlan
+	if resp.StatusCode != 200 || json.Unmarshal(body, &pl) != nil {
+		t.Fatalf("upload: %d %s", resp.StatusCode, body)
+	}
+	if !strings.HasPrefix(pl.Ref, "upload:") || pl.Kind != "upload" || pl.Label != "dropped.json" || pl.Add != 2 || pl.Change != 1 || pl.Destroy != 1 {
+		t.Errorf("plan: %+v", pl)
+	}
+	var wb Workbench
+	if err := json.Unmarshal(p.get("/api/workbench"), &wb); err != nil {
+		t.Fatal(err)
+	}
+	if len(wb.Plans) != 2 || wb.Plans[1].Ref != pl.Ref {
+		t.Errorf("the list lacks the dropped file: %+v", wb.Plans)
+	}
+	got := p.try("summary: destroy: 0\n", pl.Ref, "file:plan.pravo")
+	if len(got.Plans) != 2 || got.Plans[0].Draft == nil || got.Plans[1].Draft == nil || got.Plans[0].Draft.Outcome != got.Plans[1].Draft.Outcome || got.Plans[0].Draft.Outcome != "refused" {
+		t.Errorf("the dropped file is judged like the file: %+v", got.Plans)
+	}
+	// What is not a plan file, a wrong type and a GET are refused, and a file that was never dropped is not held.
+	if r, b := post("/api/workbench/plan", "application/octet-stream", []byte("{}")); r.StatusCode != 400 {
+		t.Errorf("not a plan: %d %s", r.StatusCode, b)
+	}
+	if r, b := post("/api/workbench/plan", "text/plain", data); r.StatusCode != 415 {
+		t.Errorf("wrong type: %d %s", r.StatusCode, b)
+	}
+	if r, _ := p.do("GET", "/api/workbench/plan", nil); r.StatusCode != 405 {
+		t.Errorf("GET: %d", r.StatusCode)
+	}
+	if r, _ := post("/api/graph", "application/octet-stream", data); r.StatusCode != 405 {
+		t.Errorf("POST elsewhere: %d", r.StatusCode)
+	}
+	if got := p.try("summary: destroy: 0\n", "upload:000000000000"); got.Plans[0].State != "unknown" {
+		t.Errorf("an unknown file: %+v", got.Plans[0])
+	}
+	if after := digestTree(t, p.dir); after != before {
+		t.Error("the dropped file changed the project")
 	}
 }

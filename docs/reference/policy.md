@@ -30,7 +30,7 @@ With no argument every policy of the specification is tried.
 
 | Flag | Meaning |
 |---|---|
-| `--plan ID_OR_FILE` | A stored plan, by id, or a plan file made by `plan --out`. Repeatable. With it, the plans that can be applied are not added. |
+| `--plan ID_OR_FILE` | A stored plan, by id, or a plan file made by `plan --out`. A plan file of a sealed state opens with the key of a reader, so give the tags it was made with (`-t`, `-T`). Repeatable. With it, the plans that can be applied are not added. |
 | `--all` | Every stored plan, including applied, stale and expired ones. |
 | `--in-force` | Try the versions that the state holds instead of the text of the specification. Use it to ask what the policies of the state say about a plan. |
 

@@ -1,4 +1,4 @@
-// The client of the JSON contract in internal/serve/api.go. The page sends nothing but GET requests.
+// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, and one POST: a plan file dropped on the studio, which the server judges and writes nowhere.
 
 export class Unauthorized extends Error {
   constructor() { super('unauthorized'); this.name = 'Unauthorized'; }
@@ -54,6 +54,16 @@ export const tryRule = ({ rule, refs }, signal) => {
 };
 // workbenchDoc is the document that a plan is judged by: its outline, and the JSON of the change i (or of the document without its changes).
 export const workbenchDoc = (ref, i) => get('/api/workbench/doc?ref=' + encodeURIComponent(ref) + (i === undefined ? '' : '&i=' + i));
+// uploadPlan hands the server a plan file that was dropped on the studio; it answers with the entry of the plan for the list of plans. The file is kept in the server's memory only.
+export async function uploadPlan(name, bytes) {
+  let r;
+  try { r = await fetch('/api/workbench/plan?name=' + encodeURIComponent(name), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', Accept: 'application/json' }, body: bytes, credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
+  let j = null;
+  try { j = await r.json(); } catch { /* not JSON */ }
+  if (!r.ok) throw Object.assign(new Error((j && j.error) || r.statusText || `status ${r.status}`), { status: r.status });
+  return j;
+}
 // traces lists the runs that pravo recorded in the project; a server that does not know them has none.
 export const traces = () => get('/api/traces').catch((err) => { if (err && err.status === 404) return { version: 1, dir: '.pravo/traces', traces: [] }; throw err; });
 // trace is the spans of one run.
