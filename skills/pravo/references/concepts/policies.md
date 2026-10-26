@@ -231,6 +231,8 @@ The exit code is 5. The path `changes.0` indexes the `changes` array of the docu
 
 By default, CUE accepts an incomplete value: a field that the data lacks does not conflict with a constraint. A plan policy does not. A plan satisfies it only when the document shows compliance. A value that the rule requires and that is absent, null or unknown until apply is a violation. The pet above sets no `keepers`, so the value is `null`, which is not a string that matches.
 
+A literal is not a constraint on a key that is missing. A rule that names `tags: ManagedBy: "pravo"` adds the key to a map that lacks it, and the plan passes. To require the key, mark it required with `!`, as in `ManagedBy!: "pravo"`, or give it a constraint such as `string & != ""`, which an absent key does not satisfy.
+
 Two rules follow. A guard that tests a field must declare the field, because CUE scoping is lexical. Do not prohibit a value with an `==` guard: an unknown value equals nothing, so the guard is false and the plan passes. Write the allowed set as a constraint. [Writing policies](../reference/policies-writing.md) shows each with a run.
 
 ### Where each command judges

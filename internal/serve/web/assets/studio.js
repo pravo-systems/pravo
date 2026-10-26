@@ -871,6 +871,7 @@ export class StudioView {
         p('A plan that cannot be decoded is listed and not judged: its provider schema is not cached, the specification does not load, or the plan is sealed to a key this identity does not hold. A refusal quotes the values it names, and a value the viewer withholds elsewhere is withheld here. The document shows the plan as it was made, with the applied marks cleared.'),
         p('The check that a stored rule must pass is stricter than trying it: the text has to compile, import only the standard library, accept the document of an empty plan, and fit the shape of the schema above. The studio tries a text that fails it and says what failed.')),
       sec('Mistakes that forbid nothing',
-        p('A misspelt literal forbids nothing. A misspelt list template adds a field and forbids nothing. A misspelt field with a concrete value is a new field that holds. A misspelt field with a constraint is refused when the rule is added. Try the rule on a plan it must refuse, as well as on one it must pass; the tally above is the test.')));
+        p('A literal does not require a key that is missing. ', h('code', null, 'tags: ManagedBy: "pravo"'), ' adds the key to a map that lacks it, and the resource passes. Write ', h('code', null, 'ManagedBy!: "pravo"'), ' to require it, or give it a constraint such as ', h('code', null, 'string & != ""'), '.'),
+        p('A misspelt literal forbids nothing. A misspelt list template adds a field and forbids nothing. A misspelt field with a concrete value is a new field that holds. A misspelt field with a constraint is refused when the rule is added. Try the rule on a resource or a plan it must refuse, as well as on one it must pass; the verdicts above are the test.')));
   }
 }
