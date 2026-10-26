@@ -14,7 +14,7 @@ group: Policies
 | Writes | Nothing. No state, no lock, no plan. |
 | Taught in | [Operating policies](policies-operations.md#rolling-out-and-testing) |
 
-`pravo policy test` judges plans by rules without applying anything. It is the question "what would this rule do to the plans I have?", asked before a rule is stored. The viewer asks the same question in its [policy workbench](serve.md#the-workbench).
+`pravo policy test` judges plans by rules without applying anything. It is the question "what would this rule do to the plans I have?", asked before a rule is stored. The viewer asks the same question in its [policy studio](serve.md#the-studio).
 
 ### Arguments
 

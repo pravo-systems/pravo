@@ -223,9 +223,9 @@ The Policies section shows the rules that every plan is judged by. [Policies](po
 
 A signature is `signed by NAME` when it verifies against a key of the readers file, `signer not in the readers file` when the key is not in the file (a member who has left is still shown), and `signature does not verify` or `unsigned` for a version that is refused: the section then shows no policy and says so. A state that is not sealed holds no policy, so the section lists only what the specification declares, as `new`.
 
-### The workbench
+### The studio
 
-The Policies section has a second page, the workbench, for trying policies on plans before they are stored. Its link is `view=policies&pw=1` and its key is `w`; the palette lists it as `Open the policy workbench`. The register has a button, Try on plans, that opens the workbench with the policy that is open, declared as a specification declares it.
+The Policies section has a second page, the studio, for trying policies on plans before they are stored. Its link is `view=policies&pw=1` and its key is `w`; the palette lists it as `Open the policy studio`. The register has a button, Try on plans, that opens the studio with the policy that is open, declared as a specification declares it.
 
 | Part | Holds |
 |---|---|
@@ -234,7 +234,7 @@ The Policies section has a second page, the workbench, for trying policies on pl
 | The verdict | For each plan: `holds`, `would be refused` (by any policy of the text, and each reason names its policy), or why it is not judged (it changes no resource, it is sealed to this identity, or it cannot be read). A refusal lists the paths of the document that failed, the change each belongs to and the value that the plan has. The verdict follows the editor after a short pause. |
 | The document | The plan as a rule sees it, for any plan, with the schema of the plan document and a short explanation of how a rule is judged. |
 
-A text that does not parse, compile or fit the plan document shows its error on its line. The workbench runs the rule in a CUE context of its own and writes nothing: the state, the plans and the policies are as they were. The text travels in the address of a `GET`, as every request does, and is limited to 32 KiB. Values in the answers are masked with the secret sets of the plan, as everywhere in the viewer. The same check is `pravo policy test` ([`pravo policy`](policy.md)).
+A text that does not parse, compile or fit the plan document shows its error on its line. The studio runs the rule in a CUE context of its own and writes nothing: the state, the plans and the policies are as they were. The text travels in the address of a `GET`, as every request does, and is limited to 32 KiB. Values in the answers are masked with the secret sets of the plan, as everywhere in the viewer. The same check is `pravo policy test` ([`pravo policy`](policy.md)).
 
 ## The State section
 
@@ -311,7 +311,7 @@ The viewer keeps its view in the fragment of the address, so that a link reprodu
 | `theme` | `light` or `dark` | The theme. Without it the viewer follows the system and the last choice made in the page. |
 | `plq` | Text | The finder of the Plans section: words, and terms of the form `column:value`. About the plan: status, by, id, reason, created, expires, overlap. About its changes: action, resource, ns, type, provider, change. |
 | `dq` | Text | The filter box of the Discovery section: words, and terms of the form `column:value` (status, discovery, type, provider, instance, freshness, id, name, by, field, value). |
-| `pw` | `1` | The workbench page of the Policies section. |
+| `pw` | `1` | The studio page of the Policies section. |
 | `pol` | Text | The policy that is open in the Policies section, by its name. |
 | `q` | Text | The filter box above the graph: words, and terms of the form `column:value` (entity, type, provider, instance, mode, status, plan, ns, addr, refreshed). The list cells and the menu write their terms in it. |
 | `filter` | `resources`, `data`, `ephemeral`, `plan`, `drifted`, `sensitive`, `orphans`, `declared`, `outputs` or `env` | The old name of a filter. A link that has it opens with the term of that filter in `q`, so `filter=drifted` is `q=status:drifted` and `filter=data` is `q=entity:data`, and the viewer does not write it any more. |
@@ -342,7 +342,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `p` | Switch between the Inventory and the Plans sections. |
 | `d` | Switch between the Inventory and the Discovery sections. |
 | `o` | Switch between the Inventory and the Policies sections. |
-| `w` | Open the policy workbench, or go back to the register when it is open. |
+| `w` | Open the policy studio, or go back to the register when it is open. |
 | `r` | Switch between the Inventory and the Traces sections. |
 | Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the namespace that a click opened, then clear the selection. |
 
@@ -407,7 +407,7 @@ The interface of the page is a set of read-only endpoints. They are for the page
 | `GET /api/discovery` | The discoveries of the specification and what their last runs found, set against the state: for each its scope, its freshness, its last run, the counts by status, the objects that are not managed (at most 2000), its `$ack` entries and the commands. See [The Discovery section](#the-discovery-section). |
 | `GET /api/adopt?discovery=NAME&key=KEY` | The resource that adopts one object of the last run of a discovery, as CUE, and the commands to copy. `KEY` is the `key` of the object in `/api/discovery`. 404 for an object that is not in the run or is managed, 400 for a name or key that is too long. The server asks no provider. |
 | `GET /api/policies` | The policies of the state and of the specification: for each its status, the file and line that write it, and its versions newest first with the text, the digest, the reference, the time, the signature and signer (when a readers file is there), and the transactions that the version judged (at most 8 each). `in_force` and `pending` count the policies. |
-| `GET /api/workbench` | What the workbench starts from: the plans it can try (stored plans and plan files, each with its `ref`), the policies of the specification and of the state, the schema of the plan document as CUE and the examples, each as a policy to start from. `spec_ok` is false when the specification does not load, and then no rule can be tried. |
+| `GET /api/workbench` | What the studio starts from: the plans it can try (stored plans and plan files, each with its `ref`), the policies of the specification and of the state, the schema of the plan document as CUE and the examples, each as a policy to start from. `spec_ok` is false when the specification does not load, and then no rule can be tried. |
 | `GET /api/workbench/try?rule=TEXT&ref=PLAN...` | The verdict of every policy of a text, in the form of a specification, on each plan named by `ref` (a stored plan id, or `file:PATH` of a file that `/api/workbench` listed), at most 100: `holds`, `refused` with its issues (each with the policy and the line of the text), `not-judged`, `sealed`, `unreadable` or `invalid`. `policies` lists the policies that the text declares, and `check` says why the text cannot be stored as it is: its `stage` is `parse`, `imports`, `policies`, `compile`, `empty` or `shape`. 400 for a text over 32 KiB. Writes nothing. |
 | `GET /api/workbench/doc?ref=PLAN&i=N` | The document of a plan as a rule sees it, or the change `N` of it, masked. |
 | `GET /api/traces` | The runs that pravo recorded in `.pravo/traces` or `$PRAVO_TRACE_DIR`, newest first, at most 200: for each its `id` (the trace id, a hyphen and the id of its first root span), the command, when it started, how long it took, the exit code, `status` (`ok`, or `error` when a span failed), the counts of spans, failed spans and resources, the transaction it wrote and the actor and reason. `unreadable` counts the files that are not a run of this version. |

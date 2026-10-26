@@ -1,4 +1,4 @@
-// The policy workbench: write policies, see which plans they would refuse and why, before they are stored.
+// The policy studio: write policies, see which plans they would refuse and why, before they are stored.
 //
 // The editor holds the text of a specification: the import of the pravo package and policies, each a pravo.#Policy with its rule.
 // A rule is CUE that is unified with the document of a plan and has to make it concrete. The page sends the text with the
@@ -77,13 +77,13 @@ export class WorkbenchView {
     this.tryLater = debounce(() => this.run(), 280);
   }
 
-  // mount is the element the workbench draws in; it is made once and put in the pane each time the page is drawn.
+  // mount is the element the studio draws in; it is made once and put in the pane each time the page is drawn.
   mount() {
     if (!this.shell) this.build();
     return this.shell;
   }
 
-  // show draws the workbench. The policies document says which revision the page is at; when it moved, the plans are read again.
+  // show draws the studio. The policies document says which revision the page is at; when it moved, the plans are read again.
   show(policies) {
     this.policies = policies;
     const rev = policies ? policies.revision : null;
@@ -106,7 +106,7 @@ export class WorkbenchView {
       if (this.want) this.applyWant(); else this.run();
     }, (err) => {
       if (this.loading !== mine) return;
-      this.error = err && err.message ? err.message : 'the workbench could not be read';
+      this.error = err && err.message ? err.message : 'the studio could not be read';
       this.paint();
     });
   }
@@ -187,7 +187,7 @@ export class WorkbenchView {
     clear(this.shell);
     this.paintHead();
     if (!this.data) {
-      this.shell.append(this.headEl, h('p', { class: 'wb-empty' }, this.error ? 'The workbench could not be read: ' + this.error : 'Reading the plans…'));
+      this.shell.append(this.headEl, h('p', { class: 'wb-empty' }, this.error ? 'The studio could not be read: ' + this.error : 'Reading the plans…'));
       return;
     }
     this.paintControls();
@@ -207,7 +207,7 @@ export class WorkbenchView {
   paintHead() {
     clear(this.headEl);
     this.headEl.append(h('div', { class: 'wb-htext' },
-      h('h2', { class: 'po-title', id: 'wb-h' }, 'Policy workbench'),
+      h('h2', { class: 'po-title', id: 'wb-h' }, 'Policy studio'),
       h('p', { class: 'po-lede' }, 'Write policies as the specification declares them and see which plans they would refuse, and why, before they are stored. The plans are the ones stored in the state and the plan files of the project; each is judged by the policies exactly as an apply would judge it.')),
       h('p', { class: 'wb-promise' }, icon('lock'), h('span', null, 'Nothing is applied or stored. The policies are run in a scratch evaluator, and the project, the state and the policies in force stay as they were.')));
   }
@@ -753,10 +753,10 @@ export class WorkbenchView {
         p('A ', h('b', null, 'guard'), ' picks the changes a requirement is for. Declare the fields the guard reads, because CUE scope is lexical, and do not forbid a value with ', h('code', null, '=='), ': an unknown value equals nothing, so the guard is false and the plan passes. Write the allowed set as a constraint instead.'),
         code('changes: [...{\n\ttype:   string\n\taction: string\n\tif type == "aws_s3_bucket" && action == "create" {\n\t\tafter: tags: ManagedBy: "pravo"\n\t}\n}]\n'),
         p(h('code', null, 'error("…")'), ' inside a guard puts your own words in the refusal. A limit binds one plan: twenty plans of five changes each pass ', h('code', null, 'summary: add: <=5'), '.')),
-      sec('What the workbench runs, and what it leaves out',
+      sec('What the studio runs, and what it leaves out',
         p('For each plan the server builds the document as the apply would: it decodes the values of the plan with the schemas of the providers that are cached, and runs your text in a CUE context of its own. It checks the file as CUE against the pravo package, so a misspelt field or a value of the wrong type is an error at its line, and then reports for each plan whether each policy holds and where it does not. It stores nothing and takes no lock.'),
         p('A plan that cannot be decoded is listed and not judged: its provider schema is not cached, the specification does not load, or the plan is sealed to a key this identity does not hold. A refusal quotes the values it names, and a value the viewer withholds elsewhere is withheld here. The document shows the plan as it was made, with the applied marks cleared.'),
-        p('The check that a stored rule must pass is stricter than trying it: the text has to compile, import only the standard library, accept the document of an empty plan, and fit the shape of the schema above. The workbench tries a text that fails it and says what failed.')),
+        p('The check that a stored rule must pass is stricter than trying it: the text has to compile, import only the standard library, accept the document of an empty plan, and fit the shape of the schema above. The studio tries a text that fails it and says what failed.')),
       sec('Mistakes that forbid nothing',
         p('A misspelt literal forbids nothing. A misspelt list template adds a field and forbids nothing. A misspelt field with a concrete value is a new field that holds. A misspelt field with a constraint is refused when the rule is added. Try the rule on a plan it must refuse, as well as on one it must pass; the tally above is the test.')));
   }

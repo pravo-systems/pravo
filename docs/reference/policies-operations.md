@@ -389,7 +389,7 @@ When the list is empty, add the rule. The two `if` clauses are chained so that t
 
 ### Try a rule on plans you have
 
-`pravo policy test` holds a rule, or a draft file of one, against the stored plans and plan files and says which it would refuse and why, without writing anything. The policy workbench of the viewer does the same with an editor and a live verdict. See [`pravo policy`](policy.md) and [the workbench](serve.md#the-workbench).
+`pravo policy test` holds a rule, or a draft file of one, against the stored plans and plan files and says which it would refuse and why, without writing anything. The policy studio of the viewer does the same with an editor and a live verdict. See [`pravo policy`](policy.md) and [the studio](serve.md#the-studio).
 
 ### A scratch root
 

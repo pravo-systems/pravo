@@ -1385,7 +1385,7 @@ function paletteActions() {
   if (!res) add('Go to', 'Go to Inventory', [], into(S.lastResources || 'graph'), { icon: 'stack', words: 'resources graph list' });
   if (S.view !== 'discovery') add('Go to', 'Go to Discovery', ['d'], into('discovery'), { icon: 'radar', words: 'findings unmanaged adopt' });
   if (S.view !== 'policies') add('Go to', 'Go to Policies', ['o'], into('policies'), { icon: 'policy', words: 'rules judge plan versions signed' });
-  add('Go to', 'Open the policy workbench', S.view === 'policies' ? ['w'] : [], () => { setView('policies'); policiesView.setMode('bench'); }, { icon: 'policy', words: 'try rule draft playground preview plans refuse policy test' });
+  add('Go to', 'Open the policy studio', S.view === 'policies' ? ['w'] : [], () => { setView('policies'); policiesView.setMode('bench'); }, { icon: 'policy', words: 'try rule draft playground preview plans refuse policy test' });
   if (S.view !== 'traces') add('Go to', 'Go to Traces', ['r'], into('traces'), { icon: 'trace', words: 'runs recorded timeline spans transactions' });
   if (S.view !== 'plans') add('Go to', 'Go to Plans', ['p'], into('plans'), { icon: 'file', words: 'stored plans' });
   if (S.view !== 'access') add('Go to', 'Go to State', ['a'], into('access'), { icon: 'lock', words: 'access readers sealed' });

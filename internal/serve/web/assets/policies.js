@@ -66,13 +66,13 @@ export class PoliciesView {
     this.sel = '';
     this.want = '';
     this.opened = new Map(); // "name@seq" -> the version's text or changes are open, as the person left it
-    this.mode = 'register'; // or 'bench': the workbench, which tries a rule on plans
+    this.mode = 'register'; // or 'bench': the studio, which tries a rule on plans
     this.bench = new WorkbenchView(root, cb);
   }
 
   route() { return { pol: this.mode === 'register' ? this.sel : '', pw: this.mode === 'bench' ? '1' : '' }; }
 
-  // setMode switches between the register of policies and the workbench.
+  // setMode switches between the register of policies and the studio.
   setMode(mode) {
     if (this.mode === mode) return;
     this.mode = mode;
@@ -83,7 +83,7 @@ export class PoliciesView {
 
   toggleBench() { this.setMode(this.mode === 'bench' ? 'register' : 'bench'); }
 
-  // tryPolicy opens the workbench on a rule of the register: the text in force, or the text the specification declares.
+  // tryPolicy opens the studio on a rule of the register: the text in force, or the text the specification declares.
   tryPolicy(name, which) {
     this.mode = 'bench';
     this.bench.tryPolicy(name, which);
@@ -94,7 +94,7 @@ export class PoliciesView {
   // modes is the switch between the two pages of the section.
   modes() {
     const b = (mode, label, key) => h('button', { type: 'button', 'aria-pressed': this.mode === mode ? 'true' : 'false', 'data-fk': 'mode:' + mode, 'aria-keyshortcuts': key, on: { click: () => this.setMode(mode) } }, label);
-    return h('div', { class: 'seg po-modes', role: 'group', 'aria-label': 'Page of the section' }, b('register', 'Register', 'w'), b('bench', 'Workbench', 'w'));
+    return h('div', { class: 'seg po-modes', role: 'group', 'aria-label': 'Page of the section' }, b('register', 'Register', 'w'), b('bench', 'Studio', 'w'));
   }
 
   // open selects a policy, for a link from another part of the page; the next render shows it
