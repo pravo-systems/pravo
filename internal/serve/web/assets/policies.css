@@ -139,3 +139,5 @@ body:has(.app[data-view="policies"]) .planstrip, body:has(.app[data-view="polici
   .po-htext { padding: 1rem; }
   .po-vj { margin-left: 0; }
 }
+
+.po-wf { margin-left: .8rem; font: 400 .7rem/1 var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--text-3); }

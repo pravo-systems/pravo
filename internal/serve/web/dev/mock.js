@@ -417,7 +417,7 @@ window.fetch = async (input, init) => {
   if (p === '/api/graph') return json(200, graph);
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
   if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
-  if (p === '/api/policies') return policies ? json(200, shift(Object.assign({}, policies, { revision: graph.revision, policies: policies.policies.map((x) => Object.assign({}, x, { rule: x.rule ? decl(x.name, x.rule) : x.rule, versions: x.versions.map((v) => (v.text ? Object.assign({}, v, { text: decl(x.name, v.text) }) : v)) })) }), by)) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/policies') return policies ? json(200, shift(Object.assign({}, policies, { revision: graph.revision, policies: policies.policies.map((x, k) => Object.assign({}, x, { written: x.source ? { role: 'definition', file: x.source.file, kind: 'file', start_line: x.source.line, end_line: x.source.line + 9, lines: decl(x.name, x.rule || (x.versions[0] && x.versions[0].text) || 'summary: destroy: 0\n').split('\n').slice(2, -1).map((t, i) => ({ no: x.source.line + i, text: t })) } : undefined, rule: x.rule ? decl(x.name, x.rule) : x.rule, versions: x.versions.map((v) => (v.text ? Object.assign({}, v, { text: decl(x.name, v.text) }) : v)) })) }), by)) : json(404, { error: 'no such endpoint' });
   if (p === '/api/workbench') return json(200, workbenchDoc());
   if (p === '/api/workbench/try') return json(200, workbenchTry(url.searchParams));
   if (p === '/api/workbench/doc') return workbenchShow(url.searchParams);

@@ -666,6 +666,7 @@ export class WorkbenchView {
     this.docsOpen.add(ref);
     const d = this.docs.get(ref) || {};
     d.sel = n >= 0 ? n : d.sel;
+    if (n >= 0) d.focus = true;
     this.docs.set(ref, d);
     this.paintResults();
   }
@@ -692,13 +693,20 @@ export class WorkbenchView {
     }
     if (d.err) body.append(h('p', { class: 'po-problem' }, icon('bang'), h('span', null, d.err)));
     const list = h('ol', { class: 'wb-outline', 'aria-label': 'Changes of the document, by index' },
-      d.outline.map((c) => h('li', null, h('button', { type: 'button', 'aria-current': d.sel === c.index ? 'true' : 'false', on: { click: () => { d.sel = c.index; this.paintResults(); } } },
+      d.outline.map((c) => h('li', null, h('button', { type: 'button', 'aria-current': d.sel === c.index ? 'true' : 'false', on: { click: () => { d.sel = c.index; d.focus = true; this.paintResults(); } } },
         h('i', { class: 'wb-ix' }, String(c.index)), h('span', { class: 'wb-act a-' + c.action }, c.action), h('span', { class: 'wb-addr' }, c.addr)))));
     const json = d.sel !== undefined && d.sel >= 0 && d.change ? d.change : d.head;
     const label = d.sel !== undefined && d.sel >= 0 && d.change ? `changes.${d.sel}` : 'the document, without its changes';
+    const view = this.json(json || '', '');
+    if (d.focus && d.sel !== undefined && d.sel >= 0 && d.change && d.loadedSel === d.sel) {
+      // a change was picked: the code is what the person came for, so it takes the focus and the view
+      d.focus = false;
+      const scroller = view.querySelector('.po-scroll');
+      requestAnimationFrame(() => { if (!scroller.isConnected) return; scroller.focus({ preventScroll: true }); scroller.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+    }
     body.append(h('div', { class: 'wb-docgrid' },
       h('div', null, h('h4', { class: 'po-h4' }, 'Changes', h('span', { class: 'po-n' }, String(d.outline.length))), d.outline.length ? list : h('p', { class: 'po-note' }, 'The plan has no change.')),
-      h('div', null, h('h4', { class: 'po-h4' }, label), this.json(json || '', ''), d.truncated ? h('p', { class: 'po-note' }, 'The document is cut here.') : null,
+      h('div', null, h('h4', { class: 'po-h4' }, label), view, d.truncated ? h('p', { class: 'po-note' }, 'The document is cut here.') : null,
         d.sel !== undefined && d.sel >= 0 ? h('button', { type: 'button', class: 'wb-link', on: { click: () => { d.sel = -1; this.paintResults(); } } }, 'show the rest of the document') : null)));
   }
 

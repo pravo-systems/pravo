@@ -64,6 +64,7 @@ func (m *model) buildPolicies(rev string) {
 	for _, name := range order {
 		vs := history[name]
 		info := PolicyInfo{Name: m.clipText(policyDisplay(name)), Versions: []PolicyVersionInfo{}, Description: m.clipText(described[name]), Source: m.spec.polRefs[name]}
+		info.Written = m.policySource(info.Source)
 		rule, isDeclared := declared[name]
 		info.Declared = isDeclared
 		var head *state.PolicyVersion
@@ -140,4 +141,23 @@ func (m *model) planPolicies(entries []engine.PolicyEntry) []PlanPolicy {
 		out = append(out, PlanPolicy{Name: m.clipText(policyDisplay(en.Name)), Change: en.Kind(), Base: en.Base})
 	}
 	return out
+}
+
+// policySource reads the lines of the specification that write a policy, masked as every other source is.
+func (m *model) policySource(ref *Ref) *SourceBlock {
+	if ref == nil || m.spec.root == nil {
+		return nil
+	}
+	// The load of a model holds the lock of the CUE values.
+	ss := m.spec
+	var notes []string
+	reader := &blockReader{ss: ss, sens: map[string]bool{}, secrets: m.secrets, notes: &notes}
+	b := reader.read("definition", "", ref, false)
+	if b == nil {
+		return nil
+	}
+	for i := range b.Lines {
+		b.Lines[i].Text = m.scrubText(b.Lines[i].Text)
+	}
+	return b
 }

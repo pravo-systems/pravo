@@ -218,6 +218,7 @@ export class PoliciesView {
         fact('judged', h('b', null, p.judged ? plural(p.judged, 'run') : 'none yet'))),
       this.pending(p),
       this.rule(p),
+      this.written(p),
       this.history(p));
   }
 
@@ -254,6 +255,16 @@ export class PoliciesView {
       tryIt,
       h('div', { class: 'cmdline po-cmd' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, this.doc.command),
         h('button', { class: 'cpbtn', type: 'button', 'data-copy': this.doc.command, 'aria-label': `Copy the command: ${this.doc.command}`, 'data-tip': 'Copy the command' }, icon('copy'))));
+  }
+
+  // written is the policy where the specification writes it, with the line numbers of its file.
+  written(p) {
+    const b = p.written;
+    if (!b || !b.lines || !b.lines.length) return null;
+    const lines = b.lines.filter((l) => !l.dim).map((l) => ({ op: ' ', text: l.text, no: l.no }));
+    return h('div', { class: 'po-rulebox po-written' },
+      h('h4', { class: 'po-h4' }, 'Written in the specification', h('code', { class: 'po-wf' }, `${b.file}:${b.start_line}`), h('span', { class: 'po-n' }, plural(lines.length, 'line'))),
+      this.code(lines, { copy: lines.map((l) => l.text).join('\n') + '\n', label: 'Copy the lines of the specification' }));
   }
 
   // rule is the text in force, or the text the specification declares when nothing is in force yet.

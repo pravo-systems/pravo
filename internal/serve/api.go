@@ -1087,6 +1087,8 @@ type PolicyInfo struct {
 	Description string `json:"description,omitempty"`
 	// Source is where the specification writes the policy.
 	Source *Ref `json:"source,omitempty"`
+	// Written is the policy as the specification writes it, with the lines around it kept out; nil when the specification does not load or the file cannot be read.
+	Written *SourceBlock `json:"written,omitempty"`
 	// Head is the number of the latest version, 0 when the state has none.
 	Head int `json:"head"`
 	// Rule is the text the specification declares, when it differs from the head.
