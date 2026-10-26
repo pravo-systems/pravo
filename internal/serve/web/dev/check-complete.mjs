@@ -46,5 +46,9 @@ check(r === null, 'nothing is offered in a comment');
 r = at(head + 'p: pravo.#Policy & {\n\trule: {\n\t\tchanges: [...{\n\t\t\taction: string\n\t\t\tif action == "delete" {\n\t\t\t\taf|\n\t\t\t}\n\t\t}]\n\t}\n}\n');
 check(labels(r).join() === 'after', 'inside a guard the fields of the element are offered: ' + labels(r));
 
+r = at(head + 'p: pravo.#Policy & {\n\trule: {\n\t\tchan|\n\t}\n}\n');
+const ch = r && r.items.find((x) => x.label === 'changes');
+check(ch && ch.insert === 'changes: [...{\n\t\t\t\n\t\t}]' && ch.insert.slice(0, ch.cursorAt).endsWith('{\n\t\t\t'), 'a block follows the indent of its line: ' + JSON.stringify(ch));
+
 if (failed) { console.log(failed + ' failed'); process.exit(1); }
 console.log('ok');

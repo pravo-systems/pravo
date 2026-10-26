@@ -103,6 +103,7 @@ const scalar = (f) => f.type !== 'struct' && f.type !== 'list' && f.type !== 'an
 // complete returns what can be typed at the offset: { from, to, items } where the text from..to is replaced by the
 // insert of the item chosen, or null. force is true when the person asked for completion with the keyboard.
 export function complete(fields, text, offset, force = false) {
+  pickText = text;
   const { stack, stmt } = scan(text, offset);
   const head = text.slice(stmt, offset);
   const here = stack.length ? stack[stack.length - 1] : { path: null, policy: false };
@@ -152,20 +153,31 @@ export function complete(fields, text, offset, force = false) {
   const inElement = path[path.length - 1] === '[]';
   const items = (node.fields || []).map((f) => {
     let insert = f.name + ': ';
-    if (f.list && f.fields && f.fields.length) insert = f.name + ': [...{\n\t\t\n\t}]';
+    if (f.list && f.fields && f.fields.length) insert = f.name + ': [...{\n\t\n}]';
     else if (inElement && scalar(f)) insert = f.name + ': ' + (f.enum && f.enum.length ? 'string' : f.type);
-    return { label: f.name, insert, cursorAt: f.list && f.fields && f.fields.length ? f.name.length + ': [...{\n\t\t'.length : null, detail: (f.optional ? 'optional ' : '') + f.type, doc: f.doc };
+    return { label: f.name, insert, cursorAt: f.list && f.fields && f.fields.length ? f.name.length + ': [...{\n\t'.length : null, detail: (f.optional ? 'optional ' : '') + f.type, doc: f.doc };
   });
   if (!typed) for (const k of KEYWORDS) items.push(Object.assign({}, k));
   return pick(items, word, from, offset);
 }
 
 // pick keeps the items that the word starts, then those that contain it, and tells where the replacement goes.
+// reindent makes the lines of a multi-line insert follow the indent of the line it is typed on.
+function reindent(it, indent) {
+  if (!indent || !it.insert.includes('\n')) return it;
+  const out = Object.assign({}, it, { insert: it.insert.replace(/\n/g, '\n' + indent) });
+  if (it.cursorAt != null) out.cursorAt = it.cursorAt + indent.length * (it.insert.slice(0, it.cursorAt).split('\n').length - 1);
+  return out;
+}
+
+let pickText = '';
 function pick(items, word, from, to, keepAll) {
   const w = word.toLowerCase();
   const starts = items.filter((x) => x.label.toLowerCase().startsWith(w));
   const has = items.filter((x) => !x.label.toLowerCase().startsWith(w) && x.label.toLowerCase().includes(w));
   const out = starts.concat(has);
   if (!out.length || (!keepAll && out.length === 1 && out[0].label === word)) return null;
-  return { from, to, items: out };
+  const line = (pickText || '').slice((pickText || '').lastIndexOf('\n', from - 1) + 1);
+  const indent = /^[\t ]*/.exec(line)[0];
+  return { from, to, items: out.map((x) => reindent(x, indent)) };
 }
