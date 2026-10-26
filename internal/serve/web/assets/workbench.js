@@ -354,7 +354,7 @@ export class WorkbenchView {
     const it = r.items[at];
     const ta = this.editor.ta;
     this.closeSuggest();
-    ta.setRangeText(it.insert, r.from, r.to, 'end');
+    this.replace(r.from, r.to, it.insert);
     let caret = r.from + it.insert.length;
     if (it.cursorAt != null) caret = r.from + it.cursorAt;
     else if (it.cursorBack) caret -= it.cursorBack;
@@ -423,7 +423,17 @@ export class WorkbenchView {
   insert(s) {
     const ta = this.editor.ta;
     this.unfoldKeepCaret();
-    ta.setRangeText(s, ta.selectionStart, ta.selectionEnd, 'end');
+    this.replace(ta.selectionStart, ta.selectionEnd, s);
+  }
+
+  // replace writes text over a range through the browser's own edit command, so that undo and redo keep working across it. A browser
+  // without the command gets the plain write, which cannot be undone.
+  replace(from, to, s) {
+    const ta = this.editor.ta;
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(from, to);
+    if (document.execCommand && document.execCommand('insertText', false, s)) return;
+    ta.setRangeText(s, from, to, 'end');
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
