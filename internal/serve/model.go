@@ -63,11 +63,11 @@ type model struct {
 	pol     *Policies
 	polJSON []byte
 	// polText holds the texts of the policies as they are, by the name the page shows: the
-	// workbench tries them. The page gets them masked.
+	// studio tries them. The page gets them masked.
 	polText map[string]polTexts
 
-	// wb holds what the workbench has worked out for this revision.
-	wb workbenchCache
+	// studio holds what the studio has worked out for this revision.
+	studio studioCache
 
 	txOnce sync.Once
 	txns   []state.Transaction

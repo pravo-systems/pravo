@@ -23,7 +23,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
-// The policy workbench: a rule is held against plans that exist, to see which it would refuse
+// The policy studio: a rule is held against plans that exist, to see which it would refuse
 // and why, before it is stored. The server answers with a function of what it is
 // sent and of what it can read: the rule is compiled and unified with the documents of
 // the plans in a CUE context of its own, and nothing is written. The rule travels in
@@ -44,18 +44,18 @@ const (
 	maxRefLen = 400
 )
 
-// workbenchCache is what the workbench has worked out for one model: the document of each
+// studioCache is what the studio has worked out for one model: the document of each
 // plan that was asked for, and the CUE context the rules are tried in. A model is
 // not changed after it is built, and this is the memory of the requests it answers.
-type workbenchCache struct {
+type studioCache struct {
 	once  sync.Once
 	mu    sync.Mutex
 	trier *engine.Trier
-	docs  map[string]*wbDoc
+	docs  map[string]*studioDoc
 }
 
-// wbDoc is the document of a plan, or why there is none.
-type wbDoc struct {
+// studioDoc is the document of a plan, or why there is none.
+type studioDoc struct {
 	state   string
 	note    string
 	doc     engine.Doc
@@ -66,10 +66,10 @@ type wbDoc struct {
 	outline []DocChange
 }
 
-func (c *workbenchCache) tr() *engine.Trier {
+func (c *studioCache) tr() *engine.Trier {
 	c.once.Do(func() {
 		c.trier = engine.NewTrier()
-		c.docs = map[string]*wbDoc{}
+		c.docs = map[string]*studioDoc{}
 	})
 	return c.trier
 }
@@ -86,25 +86,25 @@ type planFileEntry struct {
 	err error
 }
 
-// workbench answers GET /api/workbench.
-func (s *Server) workbench(m *model) *Workbench {
-	wb := &Workbench{Version: APIVersion, Revision: m.rev, SpecOK: m.spec.root != nil, Plans: []WorkbenchPlan{}, Policies: []WorkbenchPolicy{},
-		Schema: schema.PlanDocumentSource(), Fields: planSchema(), Examples: make([]WorkbenchExample, 0, len(workbenchExamples))}
-	for _, ex := range workbenchExamples {
+// studio answers GET /api/studio.
+func (s *Server) studio(m *model) *Studio {
+	studio := &Studio{Version: APIVersion, Revision: m.rev, SpecOK: m.spec.root != nil, Plans: []StudioPlan{}, Policies: []StudioPolicy{},
+		Schema: schema.PlanDocumentSource(), Fields: planSchema(), Examples: make([]StudioExample, 0, len(studioExamples))}
+	for _, ex := range studioExamples {
 		ex.Policy = policyDeclaration(strings.ReplaceAll(ex.ID, "-", "_"), ex.Title, ex.Rule)
-		wb.Examples = append(wb.Examples, ex)
+		studio.Examples = append(studio.Examples, ex)
 	}
 	if m.stored != nil {
 		for _, e := range m.stored.entries {
 			meta := e.Meta
-			wb.Plans = append(wb.Plans, WorkbenchPlan{Ref: meta.ID, Kind: "stored", Label: meta.ID, Status: string(e.Status), Open: e.Status.Open(),
+			studio.Plans = append(studio.Plans, StudioPlan{Ref: meta.ID, Kind: "stored", Label: meta.ID, Status: string(e.Status), Open: e.Status.Open(),
 				Author: m.clipText(meta.Author), Created: meta.Created, Add: meta.Summary.Add, Change: meta.Summary.Change, Destroy: meta.Summary.Destroy})
 		}
 	}
 	files, note := s.planFileList(m)
-	wb.Plans = append(wb.Plans, files...)
-	wb.Plans = append(wb.Plans, s.uploads.list(m)...)
-	wb.Note = note
+	studio.Plans = append(studio.Plans, files...)
+	studio.Plans = append(studio.Plans, s.uploads.list(m)...)
+	studio.Note = note
 	if m.pol != nil {
 		desc := map[string]string{}
 		if root := m.spec.root; root != nil {
@@ -117,23 +117,23 @@ func (s *Server) workbench(m *model) *Workbench {
 			if t.inForce == "" && t.declared == "" {
 				continue
 			}
-			wp := WorkbenchPolicy{Name: p.Name, Status: p.Status, Description: m.clipText(desc[p.Name])}
+			wp := StudioPolicy{Name: p.Name, Status: p.Status, Description: m.clipText(desc[p.Name])}
 			if t.inForce != "" {
 				wp.InForce = m.scrubText(policyDeclaration(p.Name, wp.Description, clip(t.inForce, maxPolicyText)))
 			}
 			if t.declared != "" {
 				wp.Declared = m.scrubText(policyDeclaration(p.Name, wp.Description, clip(t.declared, maxPolicyText)))
 			}
-			wb.Policies = append(wb.Policies, wp)
+			studio.Policies = append(studio.Policies, wp)
 		}
 	}
-	return wb
+	return studio
 }
 
 // planFileList finds the plan files of the project: the one the viewer was started with, and the
 // files in the project directory and the directories below it that read as one.
-func (s *Server) planFileList(m *model) ([]WorkbenchPlan, string) {
-	var out []WorkbenchPlan
+func (s *Server) planFileList(m *model) ([]StudioPlan, string) {
+	var out []StudioPlan
 	skipped := 0
 	for _, path := range s.planFilePaths() {
 		pf, err := s.readPlanFileAt(path, m)
@@ -142,7 +142,7 @@ func (s *Server) planFileList(m *model) ([]WorkbenchPlan, string) {
 			continue
 		}
 		rel := s.relPath(path)
-		wp := wbPlanOf("file:"+rel, "file", m.clipText(rel), pf)
+		wp := studioPlanOf("file:"+rel, "file", m.clipText(rel), pf)
 		out = append(out, wp)
 	}
 	note := ""
@@ -239,24 +239,24 @@ func (s *Server) readPlanFileAt(path string, m *model) (*engine.PlanFile, error)
 }
 
 // docFor finds the document that a plan is judged by, working it out the first time.
-func (s *Server) docFor(ctx context.Context, m *model, ref string) *wbDoc {
-	wb := &m.wb
-	wb.mu.Lock()
-	defer wb.mu.Unlock()
-	wb.tr()
-	if d := wb.docs[ref]; d != nil {
+func (s *Server) docFor(ctx context.Context, m *model, ref string) *studioDoc {
+	studio := &m.studio
+	studio.mu.Lock()
+	defer studio.mu.Unlock()
+	studio.tr()
+	if d := studio.docs[ref]; d != nil {
 		return d
 	}
-	d := s.makeDoc(ctx, m, ref, wb.trier)
+	d := s.makeDoc(ctx, m, ref, studio.trier)
 	// An unknown reference is not remembered, and a request that was given up is not either.
 	if d.state != "unknown" && ctx.Err() == nil {
-		wb.docs[ref] = d
+		studio.docs[ref] = d
 	}
 	return d
 }
 
-func (s *Server) makeDoc(ctx context.Context, m *model, ref string, tr *engine.Trier) *wbDoc {
-	fail := func(state, note string) *wbDoc { return &wbDoc{state: state, note: note} }
+func (s *Server) makeDoc(ctx context.Context, m *model, ref string, tr *engine.Trier) *studioDoc {
+	fail := func(state, note string) *studioDoc { return &studioDoc{state: state, note: note} }
 	var pf *engine.PlanFile
 	switch {
 	case strings.HasPrefix(ref, "file:"):
@@ -302,7 +302,7 @@ func (s *Server) makeDoc(ctx context.Context, m *model, ref string, tr *engine.T
 	if err != nil {
 		return fail("unreadable", "The values of the plan cannot be decoded: "+m.scrubText(headline(err.Error()))+".")
 	}
-	d := &wbDoc{state: "judged", doc: engine.DocOf(data, plan), judged: pf.ChangesResources(), changes: len(plan.Changes), secrets: m.secrets.clone()}
+	d := &studioDoc{state: "judged", doc: engine.DocOf(data, plan), judged: pf.ChangesResources(), changes: len(plan.Changes), secrets: m.secrets.clone()}
 	po := &planOverlay{changes: map[string]*engine.Change{}, secrets: d.secrets}
 	for _, ch := range plan.Changes {
 		po.changes[ch.Addr] = ch
@@ -319,7 +319,7 @@ func (s *Server) makeDoc(ctx context.Context, m *model, ref string, tr *engine.T
 	return d
 }
 
-// tryHandler answers GET /api/workbench/try?rule=...&ref=...: the text is a file of policies, and each policy in it is
+// tryHandler answers GET /api/studio/try?rule=...&ref=...: the text is a file of policies, and each policy in it is
 // tried on every plan named by ref.
 func (s *Server) tryHandler(w http.ResponseWriter, r *http.Request, m *model) {
 	q := r.URL.Query()
@@ -340,9 +340,9 @@ func (s *Server) tryHandler(w http.ResponseWriter, r *http.Request, m *model) {
 		}
 	}
 	began := time.Now()
-	out := &WorkbenchTry{Version: APIVersion, Plans: make([]TriedPlan, 0, len(refs)), Policies: []engine.DraftPolicy{}}
-	tr := m.wb.tr()
-	var docs []*wbDoc
+	out := &StudioTry{Version: APIVersion, Plans: make([]TriedPlan, 0, len(refs)), Policies: []engine.DraftPolicy{}}
+	tr := m.studio.tr()
+	var docs []*studioDoc
 	var keys []string
 	for _, ref := range refs {
 		if r.Context().Err() != nil {
@@ -412,7 +412,7 @@ var cueIdent = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // cleanResult masks what a rule's refusal quotes of a plan: the text of an error holds
 // the values it names.
-func (s *Server) cleanResult(m *model, d *wbDoc, res engine.RuleResult) *engine.RuleResult {
+func (s *Server) cleanResult(m *model, d *studioDoc, res engine.RuleResult) *engine.RuleResult {
 	issues := make([]engine.RuleIssue, len(res.Issues))
 	for i, is := range res.Issues {
 		is.Message = clip(stripControl(m.scrubTextWith(d.secrets, is.Message)), maxText)
@@ -425,7 +425,7 @@ func (s *Server) cleanResult(m *model, d *wbDoc, res engine.RuleResult) *engine.
 	return &res
 }
 
-// docHandler answers GET /api/workbench/doc?ref=...&i=N: the document of a plan as a rule sees it,
+// docHandler answers GET /api/studio/doc?ref=...&i=N: the document of a plan as a rule sees it,
 // and the change N of it.
 func (s *Server) docHandler(w http.ResponseWriter, r *http.Request, m *model) {
 	ref := r.URL.Query().Get("ref")
@@ -449,7 +449,7 @@ func (s *Server) docHandler(w http.ResponseWriter, r *http.Request, m *model) {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	resp := &WorkbenchDoc{Version: APIVersion, Ref: ref, Outline: d.outline}
+	resp := &StudioDoc{Version: APIVersion, Ref: ref, Outline: d.outline}
 	if len(resp.Outline) > 2000 {
 		resp.Outline, resp.Truncated = resp.Outline[:2000], true
 	}
@@ -470,7 +470,7 @@ func (s *Server) docHandler(w http.ResponseWriter, r *http.Request, m *model) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (s *Server) prettyDoc(m *model, d *wbDoc, v any, into *WorkbenchDoc) string {
+func (s *Server) prettyDoc(m *model, d *studioDoc, v any, into *StudioDoc) string {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return ""
@@ -483,9 +483,9 @@ func (s *Server) prettyDoc(m *model, d *wbDoc, v any, into *WorkbenchDoc) string
 	return text
 }
 
-// wbPlanOf describes a plan file for the list of plans: its counts are those of the summary of a plan.
-func wbPlanOf(ref, kind, label string, pf *engine.PlanFile) WorkbenchPlan {
-	wp := WorkbenchPlan{Ref: ref, Kind: kind, Label: label, Created: pf.Created, Open: true}
+// studioPlanOf describes a plan file for the list of plans: its counts are those of the summary of a plan.
+func studioPlanOf(ref, kind, label string, pf *engine.PlanFile) StudioPlan {
+	wp := StudioPlan{Ref: ref, Kind: kind, Label: label, Created: pf.Created, Open: true}
 	for _, sc := range pf.Changes {
 		switch sc.Action {
 		case engine.ActionCreate:
@@ -542,18 +542,18 @@ func (u *planUploads) put(ref, name string, pf *engine.PlanFile) {
 	}
 }
 
-func (u *planUploads) list(m *model) []WorkbenchPlan {
+func (u *planUploads) list(m *model) []StudioPlan {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	var out []WorkbenchPlan
+	var out []StudioPlan
 	for _, ref := range u.order {
 		h := u.byRef[ref]
-		out = append(out, wbPlanOf(ref, "upload", m.clipText(h.name), h.pf))
+		out = append(out, studioPlanOf(ref, "upload", m.clipText(h.name), h.pf))
 	}
 	return out
 }
 
-// uploadHandler answers POST /api/workbench/plan?name=NAME. The body is a plan file, sealed or not. The server
+// uploadHandler answers POST /api/studio/plan?name=NAME. The body is a plan file, sealed or not. The server
 // reads it, keeps it in memory under a reference, and answers with its entry for the list of plans. It is the one
 // request that is not a GET, and it writes nothing: no file, no state.
 func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, m *model) {
@@ -588,5 +588,5 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, m *model)
 	sum := sha256.Sum256(data)
 	ref := "upload:" + hex.EncodeToString(sum[:6])
 	s.uploads.put(ref, name, pf)
-	writeJSON(w, http.StatusOK, wbPlanOf(ref, "upload", m.clipText(name), pf))
+	writeJSON(w, http.StatusOK, studioPlanOf(ref, "upload", m.clipText(name), pf))
 }

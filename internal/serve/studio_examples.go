@@ -1,9 +1,9 @@
 package serve
 
-// workbenchExamples are the rules the workbench offers to start from. Each is a complete
+// studioExamples are the rules the studio offers to start from. Each is a complete
 // rule: the text a policy stores, which says what must hold of the document of a plan. A
 // test checks that each one can be stored.
-var workbenchExamples = []WorkbenchExample{
+var studioExamples = []StudioExample{
 	{
 		ID:    "no-destroy",
 		Title: "Destroy nothing",

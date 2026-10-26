@@ -1125,28 +1125,28 @@ type JudgedRun struct {
 	Time   time.Time `json:"time"`
 }
 
-// Workbench is what the policy workbench starts from: the plans a rule can be tried on, the
+// Studio is what the policy studio starts from: the plans a rule can be tried on, the
 // policies that can be started from, the document a rule is written against and some
 // rules to begin with. It is read from the state and the project and runs no rule.
-type Workbench struct {
+type Studio struct {
 	Version  int    `json:"version"`
 	Revision string `json:"revision"`
 	// SpecOK is false when the specification does not load: the values of a plan
 	// cannot be decoded then, so no rule can be tried on one.
-	SpecOK   bool              `json:"spec_ok"`
-	Plans    []WorkbenchPlan   `json:"plans"`
-	Policies []WorkbenchPolicy `json:"policies"`
+	SpecOK   bool           `json:"spec_ok"`
+	Plans    []StudioPlan   `json:"plans"`
+	Policies []StudioPolicy `json:"policies"`
 	// Schema is the CUE of #Policy, #Plan, #Action and #Change: the document a rule is judged against.
 	Schema string `json:"schema"`
 	// Fields is the same document as a tree, for completing what is typed.
-	Fields   []SchemaField      `json:"fields"`
-	Examples []WorkbenchExample `json:"examples"`
+	Fields   []SchemaField   `json:"fields"`
+	Examples []StudioExample `json:"examples"`
 	// Skipped says which plan files were found and could not be read.
 	Note string `json:"note,omitempty"`
 }
 
-// WorkbenchPlan is a plan a rule can be tried on: one stored in the state, or a plan file of the project.
-type WorkbenchPlan struct {
+// StudioPlan is a plan a rule can be tried on: one stored in the state, or a plan file of the project.
+type StudioPlan struct {
 	// Ref names it in a request: the id of a stored plan, or "file:" and the path of a plan file.
 	Ref  string `json:"ref"`
 	Kind string `json:"kind"` // "stored" or "file"
@@ -1164,8 +1164,8 @@ type WorkbenchPlan struct {
 	Sealed bool `json:"sealed,omitempty"`
 }
 
-// WorkbenchPolicy is a policy to start from or to compare with.
-type WorkbenchPolicy struct {
+// StudioPolicy is a policy to start from or to compare with.
+type StudioPolicy struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 	// Description is what the specification says the policy is for; empty when it says nothing or does not declare the policy.
@@ -1175,8 +1175,8 @@ type WorkbenchPolicy struct {
 	Declared string `json:"declared,omitempty"`
 }
 
-// WorkbenchExample is a rule to start from.
-type WorkbenchExample struct {
+// StudioExample is a rule to start from.
+type StudioExample struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	About string `json:"about"`
@@ -1185,8 +1185,8 @@ type WorkbenchExample struct {
 	Policy string `json:"policy"`
 }
 
-// WorkbenchTry is what a rule says of plans.
-type WorkbenchTry struct {
+// StudioTry is what a rule says of plans.
+type StudioTry struct {
 	Version int `json:"version"`
 	// Check is why the text cannot be stored as it is, or nil. A file that compiles is tried on plans even so.
 	Check *engine.RuleProblem `json:"check,omitempty"`
@@ -1207,8 +1207,8 @@ type TriedPlan struct {
 	Draft   *engine.RuleResult `json:"draft,omitempty"`
 }
 
-// WorkbenchDoc is the document of one plan as a rule sees it.
-type WorkbenchDoc struct {
+// StudioDoc is the document of one plan as a rule sees it.
+type StudioDoc struct {
 	Version int    `json:"version"`
 	Ref     string `json:"ref"`
 	// Head is the document without its changes, as JSON.

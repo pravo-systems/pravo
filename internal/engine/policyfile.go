@@ -14,7 +14,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/schema"
 )
 
-// Trying a file of policies. The workbench takes the text a specification would hold: an import of the
+// Trying a file of policies. The studio takes the text a specification would hold: an import of the
 // pravo package and one or more policies, each a field that is a pravo.#Policy with its rule. The file is
 // compiled with the part of the pravo package that describes a policy, so that a misspelt field, a wrong type
 // and an unknown name are errors of the file at the line that holds them, and each rule is tried on the

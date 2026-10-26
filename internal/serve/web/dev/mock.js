@@ -352,13 +352,13 @@ function synthSource(n) {
     { kind: 'builtin', where: 'pravo.dev/pravo', note: '#Resource and $provider' }], generated: 1 };
 }
 
-// ---- the policy workbench: a stand-in that understands rules of the form `summary: destroy: N` or `<=N` and nothing else ----
+// ---- the policy studio: a stand-in that understands rules of the form `summary: destroy: N` or `<=N` and nothing else ----
 
 function decl(name, rule) {
   return `import "pravo.dev/pravo"\n\n${name}: pravo.#Policy & {\n\trule: {\n${rule.replace(/\s+$/, '').split('\n').map((l) => '\t\t' + l).join('\n')}\n\t}\n}\n`;
 }
 
-function workbenchDoc() {
+function studioDoc() {
   const plans = (stored ? stored.plans : []).map((x) => ({ ref: x.id, kind: 'stored', label: x.id, status: x.status, open: !!x.open, author: x.author, created: x.created, add: x.summary.add, change: x.summary.change, destroy: x.summary.destroy }));
   plans.push({ ref: 'file:plan.json', kind: 'file', label: 'plan.json', open: true, created: new Date(Date.now() - 36e5).toISOString(), add: 2, change: 1, destroy: 1 });
   const inForce = policies ? policies.policies.filter((x) => x.versions.length && !x.versions[0].removal).map((x) => ({ name: x.name, status: x.status, in_force: decl(x.name, x.versions[0].text), declared: x.rule ? decl(x.name, x.rule) : '' })) : [];
@@ -369,14 +369,14 @@ function workbenchDoc() {
     examples: [{ id: 'no-destroy', title: 'Destroy nothing', about: 'A plan may not destroy anything.', rule: 'summary: destroy: 0\n', policy: decl('no_destroy', 'summary: destroy: 0\n') }, { id: 'small-plans', title: 'Keep plans small', about: 'One plan destroys at most 5.', rule: 'summary: destroy: <=5\n', policy: decl('small_plans', 'summary: destroy: <=5\n') }] };
 }
 
-function workbenchBound(text) {
+function studioBound(text) {
   const m = /destroy:\s*(<=)?\s*(\d+)/.exec(text);
   return m ? { le: !!m[1], n: Number(m[2]) } : null;
 }
 
-function workbenchTry(q) {
+function studioTry(q) {
   const text = q.get('rule') || '';
-  const bound = workbenchBound(text);
+  const bound = studioBound(text);
   const at = text.split('\n').findIndex((l) => /destroy/.test(l)) + 1;
   const judge = (ref) => {
     const x = ref.startsWith('file:') || ref.startsWith('upload:') ? { summary: { add: 2, change: 1, destroy: 1 } } : stored.plans.find((y) => y.id === ref);
@@ -392,7 +392,7 @@ function workbenchTry(q) {
     plans: q.getAll('ref').map((ref) => { const d = judge(ref); return { ref, state: d.state, note: d.note, changes: d.changes, draft: d.outcome ? { outcome: bad ? 'invalid' : d.outcome, issues: bad ? [] : d.issues } : undefined }; }) };
 }
 
-function workbenchShow(q) {
+function studioShow(q) {
   const ref = q.get('ref') || '';
   const n = q.get('i');
   const outline = [{ index: 0, addr: 'api.db', action: 'update', type: 'aws_db_instance' }, { index: 1, addr: 'api.queue', action: 'create', type: 'aws_sqs_queue' }];
@@ -419,16 +419,16 @@ window.fetch = async (input, init) => {
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
   if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
   if (p === '/api/policies') return policies ? json(200, shift(Object.assign({}, policies, { revision: graph.revision, policies: policies.policies.map((x, k) => Object.assign({}, x, { written: x.source ? { role: 'definition', file: x.source.file, kind: 'file', start_line: x.source.line, end_line: x.source.line + 9, lines: decl(x.name, x.rule || (x.versions[0] && x.versions[0].text) || 'summary: destroy: 0\n').split('\n').slice(2, -1).map((t, i) => ({ no: x.source.line + i, text: t })) } : undefined, rule: x.rule ? decl(x.name, x.rule) : x.rule, versions: x.versions.map((v) => (v.text ? Object.assign({}, v, { text: decl(x.name, v.text) }) : v)) })) }), by)) : json(404, { error: 'no such endpoint' });
-  if (p === '/api/workbench/plan') {
+  if (p === '/api/studio/plan') {
     if (!init || init.method !== 'POST') return json(405, { error: 'method not allowed' });
     const name = url.searchParams.get('name') || 'plan file';
     if (/bad/.test(name)) return json(400, { error: name + ' is not a pravo plan file' });
     uploads.push({ ref: 'upload:' + String(uploads.length + 1).padStart(12, '0'), kind: 'upload', label: name, open: true, created: new Date().toISOString(), add: 2, change: 1, destroy: 1 });
     return json(200, uploads[uploads.length - 1]);
   }
-  if (p === '/api/workbench') return json(200, workbenchDoc());
-  if (p === '/api/workbench/try') return json(200, workbenchTry(url.searchParams));
-  if (p === '/api/workbench/doc') return workbenchShow(url.searchParams);
+  if (p === '/api/studio') return json(200, studioDoc());
+  if (p === '/api/studio/try') return json(200, studioTry(url.searchParams));
+  if (p === '/api/studio/doc') return studioShow(url.searchParams);
   if (p === '/api/adopt') {
     const a = adoptOf(url.searchParams.get('discovery') || '', url.searchParams.get('key') || '');
     return a ? json(200, a) : json(404, { error: 'no such object in the last run of that discovery' });

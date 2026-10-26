@@ -533,11 +533,11 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 @keyframes ui-reveal { from { clip-path: circle(0 at var(--vt-x) var(--vt-y)); } to { clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y)); } }
 
 /* folding in the code windows */
-.po-ln[hidden], .cw-ln[hidden], .wb-ln[hidden], .wb-no[hidden] { display: none; }
+.po-ln[hidden], .cw-ln[hidden], .studio-ln[hidden], .studio-no[hidden] { display: none; }
 .fold { display: inline-grid; place-items: center; width: 1rem; height: 1.2em; padding: 0; vertical-align: top; border: 0; border-radius: 0; background: none; color: var(--code-dim); opacity: .4; cursor: pointer; transition: opacity var(--t-fast); }
 .fold .i { width: .7rem; height: .7rem; transition: transform var(--t-fast) var(--ease); transform: rotate(90deg); }
 .fold[aria-expanded="false"] .i { transform: none; }
-.fold[aria-expanded="false"], .po-ln:hover .fold, .cw-ln:hover .fold, .wb-no:hover .fold, .fold:focus-visible { opacity: 1; color: var(--code-text); }
+.fold[aria-expanded="false"], .po-ln:hover .fold, .cw-ln:hover .fold, .studio-no:hover .fold, .fold:focus-visible { opacity: 1; color: var(--code-text); }
 .fold:focus-visible { outline: 1px solid var(--code-key); outline-offset: -1px; }
 .po-sg .fold { width: 100%; }
 .cw-no .fold { position: absolute; left: .2rem; }

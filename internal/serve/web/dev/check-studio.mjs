@@ -1,9 +1,9 @@
-// Checks the small functions of the policy workbench that need no browser: the declaration that a rule becomes, and the index of
+// Checks the small functions of the policy studio that need no browser: the declaration that a rule becomes, and the index of
 // the change that a path of a refusal points into.
 //
-//   node check-workbench.mjs
+//   node check-studio.mjs
 
-import { pathChange } from '../assets/workbench.js';
+import { pathChange } from '../assets/studio.js';
 import { foldRanges, hiddenRows } from '../assets/fold.js';
 import { tokenize } from '../assets/cue.js';
 

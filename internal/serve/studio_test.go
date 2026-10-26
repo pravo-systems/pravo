@@ -14,44 +14,44 @@ import (
 )
 
 // try tries a rule, declared as the policy draft, on plans.
-func (p *project) try(rule string, refs ...string) WorkbenchTry {
+func (p *project) try(rule string, refs ...string) StudioTry {
 	p.t.Helper()
 	return p.tryFile(policyDeclaration("draft", "", rule), refs...)
 }
 
 // tryFile tries a file of policies on plans.
-func (p *project) tryFile(text string, refs ...string) WorkbenchTry {
+func (p *project) tryFile(text string, refs ...string) StudioTry {
 	p.t.Helper()
 	q := url.Values{"rule": {text}, "ref": refs}
-	var out WorkbenchTry
-	if err := json.Unmarshal(p.get("/api/workbench/try?"+q.Encode()), &out); err != nil {
+	var out StudioTry
+	if err := json.Unmarshal(p.get("/api/studio/try?"+q.Encode()), &out); err != nil {
 		p.t.Fatal(err)
 	}
 	return out
 }
 
-// The workbench lists the plans a rule can be tried on, the schema of the document and the rules to start from.
-func TestWorkbenchListsPlansAndExamples(t *testing.T) {
+// The studio lists the plans a rule can be tried on, the schema of the document and the rules to start from.
+func TestStudioListsPlansAndExamples(t *testing.T) {
 	p, _ := newPlanProject(t)
-	var wb Workbench
-	if err := json.Unmarshal(p.get("/api/workbench"), &wb); err != nil {
+	var studio Studio
+	if err := json.Unmarshal(p.get("/api/studio"), &studio); err != nil {
 		t.Fatal(err)
 	}
-	if !wb.SpecOK || len(wb.Plans) != 1 {
-		t.Fatalf("workbench: %+v", wb)
+	if !studio.SpecOK || len(studio.Plans) != 1 {
+		t.Fatalf("studio: %+v", studio)
 	}
-	pl := wb.Plans[0]
+	pl := studio.Plans[0]
 	if pl.Ref != "file:plan.pravo" || pl.Kind != "file" || pl.Add != 2 || pl.Change != 1 || pl.Destroy != 1 {
 		t.Errorf("plan: %+v", pl)
 	}
 	for _, want := range []string{"#Policy", "#Plan", "#Change", "#Action"} {
-		if !strings.Contains(wb.Schema, want) {
+		if !strings.Contains(studio.Schema, want) {
 			t.Errorf("the schema lacks %s", want)
 		}
 	}
 	// A policy offered to start from is a whole file that can be stored.
 	tr := engine.NewTrier()
-	for _, ex := range wb.Examples {
+	for _, ex := range studio.Examples {
 		if !strings.HasPrefix(ex.Policy, "import \"pravo.dev/pravo\"\n") || !strings.Contains(ex.Policy, ": pravo.#Policy & {") {
 			t.Errorf("example %s is not a policy: %q", ex.ID, ex.Policy)
 		}
@@ -62,7 +62,7 @@ func TestWorkbenchListsPlansAndExamples(t *testing.T) {
 }
 
 // A rule is tried on the plans, and a refusal says where in the document and in which change.
-func TestWorkbenchTriesARuleOnPlans(t *testing.T) {
+func TestStudioTriesARuleOnPlans(t *testing.T) {
 	p, _ := newPlanProject(t)
 	before := digestTree(t, p.dir)
 	got := p.try("summary: destroy: 0\n", "file:plan.pravo")
@@ -111,12 +111,12 @@ func TestWorkbenchTriesARuleOnPlans(t *testing.T) {
 		t.Errorf("two policies: %+v", got)
 	}
 	if after := digestTree(t, p.dir); after != before {
-		t.Error("the workbench changed the project")
+		t.Error("the studio changed the project")
 	}
 }
 
 // A refusal quotes the values it names, and no value that the viewer withholds is among them.
-func TestWorkbenchDoesNotQuoteSecrets(t *testing.T) {
+func TestStudioDoesNotQuoteSecrets(t *testing.T) {
 	p, _ := newPlanProject(t)
 	rule := "changes: [...{after?: {tags?: {db_password: \"nope\", ...}, ...}, ...}]\n"
 	got := p.try(rule, "file:plan.pravo")
@@ -126,17 +126,17 @@ func TestWorkbenchDoesNotQuoteSecrets(t *testing.T) {
 	}
 	noSecrets(t, "try", raw, append(allSecrets, "new-map-secret-5555")...)
 
-	for _, q := range []string{"/api/workbench/doc?ref=file:plan.pravo&i=0", "/api/workbench/doc?ref=file:plan.pravo"} {
+	for _, q := range []string{"/api/studio/doc?ref=file:plan.pravo&i=0", "/api/studio/doc?ref=file:plan.pravo"} {
 		body := p.get(q)
 		noSecrets(t, q, body, append(allSecrets, "new-blob-value-9999", "new-map-secret-5555", "new-nested-key-6666", "new-pin-value-7777")...)
 	}
 }
 
 // The document lists the changes in the order a rule's paths count them.
-func TestWorkbenchDocument(t *testing.T) {
+func TestStudioDocument(t *testing.T) {
 	p, _ := newPlanProject(t)
-	var d WorkbenchDoc
-	if err := json.Unmarshal(p.get("/api/workbench/doc?ref=file:plan.pravo&i=3"), &d); err != nil {
+	var d StudioDoc
+	if err := json.Unmarshal(p.get("/api/studio/doc?ref=file:plan.pravo&i=3"), &d); err != nil {
 		t.Fatal(err)
 	}
 	if len(d.Outline) != 4 || d.Outline[3].Addr != "old.thing" || d.Outline[3].Action != "delete" || d.Outline[3].Index != 3 {
@@ -148,16 +148,16 @@ func TestWorkbenchDocument(t *testing.T) {
 }
 
 // Stored plans are tried like files, and a plan that is not known, or a request that is out of bounds, is refused.
-func TestWorkbenchStoredPlansAndBadRequests(t *testing.T) {
+func TestStudioStoredPlansAndBadRequests(t *testing.T) {
 	p := newProject(t)
 	id := storePlan(t, p, stored{Author: "ana@acme"})
 	waitFor(t, "the stored plan", func() bool { return len(p.plans().Plans) == 1 })
-	var wb Workbench
-	if err := json.Unmarshal(p.get("/api/workbench"), &wb); err != nil {
+	var studio Studio
+	if err := json.Unmarshal(p.get("/api/studio"), &studio); err != nil {
 		t.Fatal(err)
 	}
-	if len(wb.Plans) < 1 || wb.Plans[0].Ref != id || wb.Plans[0].Kind != "stored" || !wb.Plans[0].Open {
-		t.Fatalf("plans: %+v", wb.Plans)
+	if len(studio.Plans) < 1 || studio.Plans[0].Ref != id || studio.Plans[0].Kind != "stored" || !studio.Plans[0].Open {
+		t.Fatalf("plans: %+v", studio.Plans)
 	}
 	got := p.try("summary: destroy: 0\n", id, "plan-ffffffff", "file:../elsewhere", "nonsense")
 	if got.Plans[0].State != "judged" || got.Plans[0].Draft.Outcome != engine.RuleRefused {
@@ -169,22 +169,22 @@ func TestWorkbenchStoredPlansAndBadRequests(t *testing.T) {
 		}
 	}
 	for path, want := range map[string]int{
-		"/api/workbench/try?rule=" + url.QueryEscape(strings.Repeat("a: 1\n", 10000)): http.StatusBadRequest,
-		"/api/workbench/doc":                         http.StatusBadRequest,
-		"/api/workbench/doc?ref=plan-ffffffff":       http.StatusNotFound,
-		"/api/workbench/doc?ref=file:plan.pravo&i=x": http.StatusNotFound,
+		"/api/studio/try?rule=" + url.QueryEscape(strings.Repeat("a: 1\n", 10000)): http.StatusBadRequest,
+		"/api/studio/doc":                         http.StatusBadRequest,
+		"/api/studio/doc?ref=plan-ffffffff":       http.StatusNotFound,
+		"/api/studio/doc?ref=file:plan.pravo&i=x": http.StatusNotFound,
 	} {
 		if resp, body := p.do("GET", path, nil); resp.StatusCode != want {
 			t.Errorf("%s: %d, want %d: %s", path[:min(len(path), 60)], resp.StatusCode, want, body)
 		}
 	}
-	if resp, _ := p.do("POST", "/api/workbench/try", nil); resp.StatusCode != http.StatusMethodNotAllowed {
+	if resp, _ := p.do("POST", "/api/studio/try", nil); resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("POST: %d", resp.StatusCode)
 	}
 }
 
 // The fields of the document are listed for completion, with their docs, the fields of a change, and the values of an action.
-func TestWorkbenchSchemaTree(t *testing.T) {
+func TestStudioSchemaTree(t *testing.T) {
 	var find func(fs []SchemaField, name string) *SchemaField
 	find = func(fs []SchemaField, name string) *SchemaField {
 		for i := range fs {
@@ -212,7 +212,7 @@ func TestWorkbenchSchemaTree(t *testing.T) {
 }
 
 // A plan file that is dropped on the studio is judged like one of the project and is written nowhere.
-func TestWorkbenchTakesADroppedPlanFile(t *testing.T) {
+func TestStudioTakesADroppedPlanFile(t *testing.T) {
 	p, _ := newPlanProject(t)
 	data, err := os.ReadFile(filepath.Join(p.dir, "plan.pravo"))
 	if err != nil {
@@ -227,33 +227,33 @@ func TestWorkbenchTakesADroppedPlanFile(t *testing.T) {
 		}
 		return p.send(req)
 	}
-	resp, body := post("/api/workbench/plan?name="+url.QueryEscape("../../saved/dropped.json"), "application/octet-stream", data)
-	var pl WorkbenchPlan
+	resp, body := post("/api/studio/plan?name="+url.QueryEscape("../../saved/dropped.json"), "application/octet-stream", data)
+	var pl StudioPlan
 	if resp.StatusCode != 200 || json.Unmarshal(body, &pl) != nil {
 		t.Fatalf("upload: %d %s", resp.StatusCode, body)
 	}
 	if !strings.HasPrefix(pl.Ref, "upload:") || pl.Kind != "upload" || pl.Label != "dropped.json" || pl.Add != 2 || pl.Change != 1 || pl.Destroy != 1 {
 		t.Errorf("plan: %+v", pl)
 	}
-	var wb Workbench
-	if err := json.Unmarshal(p.get("/api/workbench"), &wb); err != nil {
+	var studio Studio
+	if err := json.Unmarshal(p.get("/api/studio"), &studio); err != nil {
 		t.Fatal(err)
 	}
-	if len(wb.Plans) != 2 || wb.Plans[1].Ref != pl.Ref {
-		t.Errorf("the list lacks the dropped file: %+v", wb.Plans)
+	if len(studio.Plans) != 2 || studio.Plans[1].Ref != pl.Ref {
+		t.Errorf("the list lacks the dropped file: %+v", studio.Plans)
 	}
 	got := p.try("summary: destroy: 0\n", pl.Ref, "file:plan.pravo")
 	if len(got.Plans) != 2 || got.Plans[0].Draft == nil || got.Plans[1].Draft == nil || got.Plans[0].Draft.Outcome != got.Plans[1].Draft.Outcome || got.Plans[0].Draft.Outcome != "refused" {
 		t.Errorf("the dropped file is judged like the file: %+v", got.Plans)
 	}
 	// What is not a plan file, a wrong type and a GET are refused, and a file that was never dropped is not held.
-	if r, b := post("/api/workbench/plan", "application/octet-stream", []byte("{}")); r.StatusCode != 400 {
+	if r, b := post("/api/studio/plan", "application/octet-stream", []byte("{}")); r.StatusCode != 400 {
 		t.Errorf("not a plan: %d %s", r.StatusCode, b)
 	}
-	if r, b := post("/api/workbench/plan", "text/plain", data); r.StatusCode != 415 {
+	if r, b := post("/api/studio/plan", "text/plain", data); r.StatusCode != 415 {
 		t.Errorf("wrong type: %d %s", r.StatusCode, b)
 	}
-	if r, _ := p.do("GET", "/api/workbench/plan", nil); r.StatusCode != 405 {
+	if r, _ := p.do("GET", "/api/studio/plan", nil); r.StatusCode != 405 {
 		t.Errorf("GET: %d", r.StatusCode)
 	}
 	if r, _ := post("/api/graph", "application/octet-stream", data); r.StatusCode != 405 {

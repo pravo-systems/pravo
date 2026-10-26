@@ -147,7 +147,7 @@ type Server struct {
 	traceMu   sync.Mutex
 	traceSums traceCache
 
-	// files caches the plan files of the project that the workbench reads.
+	// files caches the plan files of the project that the studio reads.
 	files planFileCache
 
 	// uploads holds the plan files that were dropped on the studio, in memory.
@@ -343,7 +343,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The studio takes a plan file that a person drops on it: the one request that is not a GET. It judges and keeps nothing on disk.
-	if r.Method == http.MethodPost && r.URL.Path == "/api/workbench/plan" {
+	if r.Method == http.MethodPost && r.URL.Path == "/api/studio/plan" {
 		s.api(w, r)
 		return
 	}
@@ -437,7 +437,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/workbench", "/api/workbench/try", "/api/workbench/doc", "/api/workbench/plan":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -470,13 +470,13 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusOK, m.disc.json)
 	case "/api/policies":
 		writeRaw(w, http.StatusOK, m.polJSON)
-	case "/api/workbench":
-		writeJSON(w, http.StatusOK, s.workbench(m))
-	case "/api/workbench/plan":
+	case "/api/studio":
+		writeJSON(w, http.StatusOK, s.studio(m))
+	case "/api/studio/plan":
 		s.uploadHandler(w, r, m)
-	case "/api/workbench/try":
+	case "/api/studio/try":
 		s.tryHandler(w, r, m)
-	case "/api/workbench/doc":
+	case "/api/studio/doc":
 		s.docHandler(w, r, m)
 	case "/api/adopt":
 		s.adopt(w, r, m)

@@ -19,7 +19,7 @@ import (
 
 // Trying a rule. A draft rule can be held against plans without being stored: the
 // functions here judge the document of a plan by a text, in a CUE context of their own,
-// and touch no state. They are what the policy workbench ("pravo policy test", and the
+// and touch no state. They are what the policy studio ("pravo policy test", and the
 // viewer's page) is made of, and they decide as the apply does: a rule holds when
 // it unifies with the document and makes it concrete.
 

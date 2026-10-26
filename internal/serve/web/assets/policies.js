@@ -10,7 +10,7 @@
 import { h, clear, icon, plural, relTime, stamp, fmt, signatureMark } from './util.js';
 import { tokenize } from './cue.js';
 import { attachFolds } from './fold.js';
-import { WorkbenchView } from './workbench.js';
+import { StudioView } from './studio.js';
 
 // STATUS says what a policy is to the next apply, in words and in the one colour that means a decision is waiting.
 const STATUS = {
@@ -66,27 +66,27 @@ export class PoliciesView {
     this.sel = '';
     this.want = '';
     this.opened = new Map(); // "name@seq" -> the version's text or changes are open, as the person left it
-    this.mode = 'register'; // or 'bench': the studio, which tries a rule on plans
-    this.bench = new WorkbenchView(root, cb);
+    this.mode = 'register'; // or 'studio': the studio, which tries a rule on plans
+    this.studio = new StudioView(root, cb);
   }
 
-  route() { return { pol: this.mode === 'register' ? this.sel : '', pw: this.mode === 'bench' ? '1' : '' }; }
+  route() { return { pol: this.mode === 'register' ? this.sel : '', ps: this.mode === 'studio' ? '1' : '' }; }
 
   // setMode switches between the register of policies and the studio.
   setMode(mode) {
     if (this.mode === mode) return;
     this.mode = mode;
-    if (mode === 'register') this.bench.close();
+    if (mode === 'register') this.studio.close();
     this.render({ policies: this.doc });
     if (this.cb.onRoute) this.cb.onRoute();
   }
 
-  toggleBench() { this.setMode(this.mode === 'bench' ? 'register' : 'bench'); }
+  toggleStudio() { this.setMode(this.mode === 'studio' ? 'register' : 'studio'); }
 
   // tryPolicy opens the studio on a rule of the register: the text in force, or the text the specification declares.
   tryPolicy(name, which) {
-    this.mode = 'bench';
-    this.bench.tryPolicy(name, which);
+    this.mode = 'studio';
+    this.studio.tryPolicy(name, which);
     this.render({ policies: this.doc });
     if (this.cb.onRoute) this.cb.onRoute();
   }
@@ -94,7 +94,7 @@ export class PoliciesView {
   // modes is the switch between the two pages of the section.
   modes() {
     const b = (mode, label, key) => h('button', { type: 'button', 'aria-pressed': this.mode === mode ? 'true' : 'false', 'data-fk': 'mode:' + mode, 'aria-keyshortcuts': key, on: { click: () => this.setMode(mode) } }, label);
-    return h('div', { class: 'seg po-modes', role: 'group', 'aria-label': 'Page of the section' }, b('register', 'Register', 'w'), b('bench', 'Studio', 'w'));
+    return h('div', { class: 'seg po-modes', role: 'group', 'aria-label': 'Page of the section' }, b('register', 'Register', 's'), b('studio', 'Studio', 's'));
   }
 
   // open selects a policy, for a link from another part of the page; the next render shows it
@@ -106,22 +106,22 @@ export class PoliciesView {
   setRoute(f) {
     this.want = f.pol || '';
     if (this.want) this.sel = this.want;
-    this.mode = f.pw === '1' ? 'bench' : 'register';
+    this.mode = f.ps === '1' ? 'studio' : 'register';
   }
 
   render({ policies }) {
     const focus = document.activeElement && this.root.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
     const top = this.root.scrollTop;
-    if (this.mode === 'bench') {
+    if (this.mode === 'studio') {
       this.doc = policies || this.doc;
       clear(this.root);
       this.root.append(h('div', { class: 'po-bar' }, this.modes()));
-      this.root.append(this.bench.mount());
-      this.bench.show(policies);
+      this.root.append(this.studio.mount());
+      this.studio.show(policies);
       this.root.scrollTop = top;
       return;
     }
-    this.bench.close();
+    this.studio.close();
     clear(this.root);
     if (!policies) {
       this.doc = null;
