@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -387,8 +388,9 @@ func showCmd() *cobra.Command {
 }
 
 // readPlanFile reads a plan file. A sealed one opens with the key of a reader of the
-// state, so the state is opened to find the key; the file names the tags that the
-// session is opened with, so this session is for the key alone.
+// state, so the state is opened to find the key. The tags that select the state are
+// inside the seal, so they are given again, as they are for a stored plan, and must be
+// those the plan was made with.
 func readPlanFile(ctx context.Context, path string) (*engine.PlanFile, error) {
 	sealed, err := engine.PlanFileSealed(path)
 	if err != nil || !sealed {
@@ -399,7 +401,20 @@ func readPlanFile(ctx context.Context, path string) (*engine.PlanFile, error) {
 		return nil, err
 	}
 	defer s.close()
-	return engine.ReadPlanFileWith(path, s.state.Sealer())
+	pf, err := engine.ReadPlanFileWith(path, s.state.Sealer())
+	if err != nil {
+		return nil, err
+	}
+	if !slices.Equal(sortedCopy(pf.Tags), sortedCopy(flagTags)) || pf.SysTags != flagSysTags {
+		return nil, fmt.Errorf("%s was made with other tags than these: a sealed plan file is opened in the state that its tags select, so give the tags it was made with (-t, -T)", path)
+	}
+	return pf, nil
+}
+
+func sortedCopy(list []string) []string {
+	out := slices.Clone(list)
+	slices.Sort(out)
+	return out
 }
 
 // isStoredRef says whether the argument of show and apply names a plan in the
@@ -481,7 +496,7 @@ func destroyCmd() *cobra.Command {
 func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []string) error {
 	ctx := cmd.Context()
 	streamEvents = true
-	if len(flagTags) > 0 || flagSysTags {
+	if sealed, _ := engine.PlanFileSealed(path); !sealed && (len(flagTags) > 0 || flagSysTags) {
 		return fmt.Errorf("-t and -T cannot be combined with a saved plan; the plan carries its own tags")
 	}
 	if cmd.Flags().Changed("refresh") || full {
