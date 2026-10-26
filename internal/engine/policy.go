@@ -161,6 +161,11 @@ func documentOf(pf *PlanFile, plan *Plan) ([]byte, error) {
 		v.Changes = append(v.Changes, changeViewOf(ch))
 	}
 	addOutputs(v, plan)
+	return marshalDoc(v)
+}
+
+// marshalDoc is the JSON of the document of v, without the number that only the state can give.
+func marshalDoc(v *View) ([]byte, error) {
 	data, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
@@ -176,6 +181,27 @@ func documentOf(pf *PlanFile, plan *Plan) ([]byte, error) {
 		delete(sum, "blast_radius")
 	}
 	return json.Marshal(doc)
+}
+
+// StateDoc is the document of a plan that would update every one of the records, each
+// to the state it holds. It is what a policy would see of the state if every resource
+// were in a plan, and answers which records a rule would refuse today. The changes are
+// the ones given, in order.
+func StateDoc(changes []ChangeView) (Doc, error) {
+	v := &View{Format: ViewFormat, Changes: changes, Outputs: map[string]any{}, Providers: map[string]string{}}
+	if v.Changes == nil {
+		v.Changes = []ChangeView{}
+	}
+	v.Summary.Change = len(changes)
+	data, err := marshalDoc(v)
+	if err != nil {
+		return Doc{}, err
+	}
+	d := Doc{JSON: data}
+	for _, c := range changes {
+		d.Addrs = append(d.Addrs, c.Addr)
+	}
+	return d, nil
 }
 
 // buildDoc turns the JSON of a document into a value of ctx.

@@ -105,6 +105,7 @@ func (s *Server) studio(m *model) *Studio {
 	studio.Plans = append(studio.Plans, files...)
 	studio.Plans = append(studio.Plans, s.uploads.list(m)...)
 	studio.Note = note
+	studio.State = &StudioState{Ref: stateRef, Resources: len(stateChanges(m))}
 	if m.pol != nil {
 		desc := map[string]string{}
 		if root := m.spec.root; root != nil {
@@ -257,6 +258,9 @@ func (s *Server) docFor(ctx context.Context, m *model, ref string) *studioDoc {
 
 func (s *Server) makeDoc(ctx context.Context, m *model, ref string, tr *engine.Trier) *studioDoc {
 	fail := func(state, note string) *studioDoc { return &studioDoc{state: state, note: note} }
+	if ref == stateRef {
+		return stateDoc(m, tr)
+	}
 	var pf *engine.PlanFile
 	switch {
 	case strings.HasPrefix(ref, "file:"):
@@ -315,6 +319,47 @@ func (s *Server) makeDoc(ctx context.Context, m *model, ref string, tr *engine.T
 	tr.Add(ref, d.doc)
 	for i, ch := range plan.Changes {
 		d.outline = append(d.outline, DocChange{Index: i, Addr: ch.Addr, Action: string(ch.Action), Type: ch.Type})
+	}
+	return d
+}
+
+// stateRef names the state in a request: a plan that updates every resource of the state to what it holds.
+const stateRef = "state"
+
+// stateChanges are the changes of that plan: one update for each resource that has values to read, each from
+// what the record holds to the same. Data sources and records that are sealed to this identity are left out.
+func stateChanges(m *model) []engine.ChangeView {
+	var out []engine.ChangeView
+	for _, a := range m.order {
+		mn := m.nodes[a]
+		if mn == nil || mn.rec == nil || mn.rec.Mode != "managed" {
+			continue
+		}
+		raw := mn.rec.Attributes
+		if len(raw) == 0 || string(raw) == "null" || jsonDepth(raw) > maxRawDepth {
+			continue
+		}
+		out = append(out, engine.ChangeView{Addr: a, Mode: mn.rec.Mode, Type: mn.rec.Type, Name: mn.rec.Name, Action: engine.ActionUpdate,
+			Provider: mn.rec.ProviderKey, Before: raw, After: raw, Dependencies: mn.rec.Dependencies})
+	}
+	return out
+}
+
+// stateDoc is the document of the state as a plan that updates each resource to what it holds: what a policy would see
+// of every resource if one day a plan touched it.
+func stateDoc(m *model, tr *engine.Trier) *studioDoc {
+	changes := stateChanges(m)
+	if len(changes) == 0 {
+		return &studioDoc{state: "not-judged", note: "The state holds no resource whose values this identity can read."}
+	}
+	doc, err := engine.StateDoc(changes)
+	if err != nil {
+		return &studioDoc{state: "unreadable", note: "The state could not be made into a document: " + m.scrubText(headline(err.Error()))}
+	}
+	d := &studioDoc{state: "judged", doc: doc, judged: true, changes: len(changes), secrets: m.secrets.clone()}
+	tr.Add(stateRef, doc)
+	for i, c := range changes {
+		d.outline = append(d.outline, DocChange{Index: i, Addr: c.Addr, Action: string(c.Action), Type: c.Type})
 	}
 	return d
 }

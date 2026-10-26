@@ -274,3 +274,30 @@ func TestPolicyDeclarationHoistsImports(t *testing.T) {
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+// The state is a plan that updates every resource to what it holds, so a rule can be tried on what exists.
+func TestStudioTriesARuleOnTheState(t *testing.T) {
+	p, _ := newPlanProject(t)
+	var studio Studio
+	if err := json.Unmarshal(p.get("/api/studio"), &studio); err != nil {
+		t.Fatal(err)
+	}
+	if studio.State == nil || studio.State.Ref != "state" || studio.State.Resources == 0 {
+		t.Fatalf("state: %+v", studio.State)
+	}
+	got := p.try("changes: [...{type: \"no_such_type\", ...}]\n", "state")
+	tp := got.Plans[0]
+	if tp.State != "judged" || tp.Changes != studio.State.Resources || tp.Draft == nil || tp.Draft.Outcome != engine.RuleRefused {
+		t.Fatalf("state: %+v", tp)
+	}
+	if is := tp.Draft.Issues[0]; is.Change == "" {
+		t.Errorf("a refusal names the resource: %+v", is)
+	}
+	got = p.try("changes: [...{action: \"update\", ...}]\n", "state")
+	if tp := got.Plans[0]; tp.Draft == nil || tp.Draft.Outcome != engine.RuleHolds {
+		t.Errorf("a rule that holds: %+v", tp)
+	}
+	raw, _ := json.Marshal(p.try("changes: [...{type: \"no_such_type\", ...}]\n", "state"))
+	noSecrets(t, "try state", raw, allSecrets...)
+	noSecrets(t, "doc state", p.get("/api/studio/doc?ref=state"), allSecrets...)
+}

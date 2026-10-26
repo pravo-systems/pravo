@@ -238,7 +238,7 @@ It does not run a discovery. A run starts a provider, and the viewer starts none
 
 ## The policy studio
 
-A rule is easier to write when you can see what it does to plans that exist. The studio, a page of the Policies section, is an editor beside a list of the plans stored in the state and the plan files of the project. As you type, it says for each plan whether the rule holds or would refuse it, and which part of the plan broke it. It explains the plan document that a rule is written against and how a rule is judged, so a first rule does not start from a blank page.
+A rule is easier to write when you can see what it does to plans that exist. The studio, a page of the Policies section, is an editor beside two answers. The first is about the resources that exist: held against each of them as if a plan updated it, the rule says how many would be refused and why, which is what is not consistent with the policy today and will be refused when a plan first touches it. The second is about one plan, which you choose from the stored plans and the plan files of the project, shown in full with the part of it that broke the rule. Both follow the editor as you type. It explains the plan document that a rule is written against and how a rule is judged, so a first rule does not start from a blank page.
 
 It is a preview, not a step. The server runs the rule in a CUE context of its own and writes nothing, so the state, the plans and the policies are as they were, and a rule that you like still has to go into the specification and be applied. [`pravo policy test`](../reference/policy.md) gives the same verdicts on the command line, with an exit code for a pipeline. [The reference](../reference/serve.md#the-studio) lists the parts of the page.
 

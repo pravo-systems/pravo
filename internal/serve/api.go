@@ -1136,6 +1136,8 @@ type Studio struct {
 	SpecOK   bool           `json:"spec_ok"`
 	Plans    []StudioPlan   `json:"plans"`
 	Policies []StudioPolicy `json:"policies"`
+	// State is the state as something a rule can be tried on.
+	State *StudioState `json:"state,omitempty"`
 	// Schema is the CUE of #Policy, #Plan, #Action and #Change: the document a rule is judged against.
 	Schema string `json:"schema"`
 	// Fields is the same document as a tree, for completing what is typed.
@@ -1143,6 +1145,14 @@ type Studio struct {
 	Examples []StudioExample `json:"examples"`
 	// Skipped says which plan files were found and could not be read.
 	Note string `json:"note,omitempty"`
+}
+
+// StudioState is the state as a plan that updates every resource to what it holds. Trying a rule on Ref says which
+// resources would be refused if a plan touched them.
+type StudioState struct {
+	Ref string `json:"ref"`
+	// Resources counts the resources whose values can be read, which the rule is tried on.
+	Resources int `json:"resources"`
 }
 
 // StudioPlan is a plan a rule can be tried on: one stored in the state, or a plan file of the project.
