@@ -624,7 +624,7 @@ export class StudioView {
     return h('div', { class: 'studio-scope', role: 'group', 'aria-label': 'Plans to try' },
       chip('open', 'can be applied', 'Stored plans that are pending, partial or partly stale'),
       chip('closed', 'other stored', 'Stored plans that are applied, stale or expired'),
-      chip('files', 'plan files', 'Plan files of the project directory, and the files that were dropped here'));
+      n.files ? chip('files', 'plan files', 'Plan files of the project directory, and the files that were dropped here') : null);
   }
 
   checkBox(c) {
