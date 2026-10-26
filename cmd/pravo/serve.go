@@ -62,9 +62,17 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 				// looked up when the state is read, with the tags given here.
 				opts.PlanID = planFile
 			} else if planFile != "" {
-				pf, err := engine.ReadPlanFile(planFile)
+				// A sealed plan file opens with the key of a reader, which the viewer has
+				// once it has opened the state: its tags are not read here.
+				sealed, err := engine.PlanFileSealed(planFile)
 				if err != nil {
 					return err
+				}
+				var pf *engine.PlanFile
+				if !sealed {
+					if pf, err = engine.ReadPlanFile(planFile); err != nil {
+						return err
+					}
 				}
 				abs, err := filepath.Abs(planFile)
 				if err != nil {
