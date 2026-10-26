@@ -86,7 +86,7 @@ pass 1 "dev, staging and prod validate, and qa is refused"
 # 2. Three buckets in each environment, each applied from a saved plan.
 for e in dev staging prod; do
 	$P plan -t env=$e --out $e.plan >/dev/null 2>&1 || fail 2 "plan -t env=$e does not succeed"
-	$P apply $e.plan >/dev/null 2>&1 || fail 2 "apply $e.plan does not succeed"
+	$P apply -t env=$e $e.plan >/dev/null 2>&1 || fail 2 "apply $e.plan does not succeed"
 	for b in logs assets backups; do
 		f=estate/out/$e/$b.bucket
 		test -f $f || fail 2 "$f does not exist"

@@ -971,7 +971,7 @@ func (pf *PlanFile) applyProgress(pr *PlanProgress) {
 	}
 }
 
-// Pull writes the plan to a file, as "plan --out" would have.
+// Pull writes the plan to a file, as "plan --out" would have: sealed, in a sealed state.
 func (ps *PlanStore) Pull(ctx context.Context, id, path string) error {
 	pf, _, err := ps.ReadFile(ctx, id)
 	if err != nil {
@@ -980,6 +980,11 @@ func (ps *PlanStore) Pull(ctx context.Context, id, path string) error {
 	data, err := indentJSON(pf)
 	if err != nil {
 		return err
+	}
+	if sl := ps.sealer(); sl != nil {
+		if data, err = sealPlanFile(sl, data); err != nil {
+			return err
+		}
 	}
 	return writeFile0600(path, data)
 }

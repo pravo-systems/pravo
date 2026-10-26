@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -344,7 +345,7 @@ func showCmd() *cobra.Command {
 			if isStoredRef(args[0]) {
 				return showStored(cmd, args[0])
 			}
-			pf, err := engine.ReadPlanFile(args[0])
+			pf, err := readPlanFile(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -384,6 +385,36 @@ func showCmd() *cobra.Command {
 	// A plan in the state is found by the state, which the tags select.
 	addTagFlags(cmd)
 	return cmd
+}
+
+// readPlanFile reads a plan file. A sealed one opens with the key of a reader of the
+// state, so the state is opened to find the key. The tags that select the state are
+// inside the seal, so they are given again, as they are for a stored plan, and must be
+// those the plan was made with.
+func readPlanFile(ctx context.Context, path string) (*engine.PlanFile, error) {
+	sealed, err := engine.PlanFileSealed(path)
+	if err != nil || !sealed {
+		return engine.ReadPlanFile(path)
+	}
+	s, err := newSession(ctx, sessionOptions{loadState: true, readOnlyState: true})
+	if err != nil {
+		return nil, err
+	}
+	defer s.close()
+	pf, err := engine.ReadPlanFileWith(path, s.state.Sealer())
+	if err != nil {
+		return nil, err
+	}
+	if !slices.Equal(sortedCopy(pf.Tags), sortedCopy(flagTags)) || pf.SysTags != flagSysTags {
+		return nil, fmt.Errorf("%s was made with other tags than these: a sealed plan file is opened in the state that its tags select, so give the tags it was made with (-t, -T)", path)
+	}
+	return pf, nil
+}
+
+func sortedCopy(list []string) []string {
+	out := slices.Clone(list)
+	slices.Sort(out)
+	return out
 }
 
 // isStoredRef says whether the argument of show and apply names a plan in the
@@ -465,13 +496,13 @@ func destroyCmd() *cobra.Command {
 func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []string) error {
 	ctx := cmd.Context()
 	streamEvents = true
-	if len(flagTags) > 0 || flagSysTags {
+	if sealed, _ := engine.PlanFileSealed(path); !sealed && (len(flagTags) > 0 || flagSysTags) {
 		return fmt.Errorf("-t and -T cannot be combined with a saved plan; the plan carries its own tags")
 	}
 	if cmd.Flags().Changed("refresh") || full {
 		return fmt.Errorf("-refresh and -full do not apply to a saved plan")
 	}
-	pf, err := engine.ReadPlanFile(path)
+	pf, err := readPlanFile(ctx, path)
 	if err != nil {
 		return err
 	}
@@ -481,6 +512,12 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 		return err
 	}
 	defer s.close()
+	pf.SealWith(s.state.Sealer())
+	if s.state.Sealer() != nil && !pf.Sealed {
+		// Only a reader can seal a plan file, so a plain one in the place of a sealed one
+		// may be anyone's.
+		return fmt.Errorf("%s is not sealed, and the state is: a plan file of a sealed state is sealed. Make the plan again with \"pravo plan --out\"", path)
+	}
 	// The saved plan already refreshed what its refresh ages required; apply
 	// re-plans against the recorded state without refreshing again.
 	// The note that the plan was made with is the reason of the apply, unless the

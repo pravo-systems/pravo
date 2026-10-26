@@ -23,7 +23,7 @@ func verifyCmd() *cobra.Command {
 			var pf *engine.PlanFile
 			if planFile != "" {
 				var err error
-				if pf, err = engine.ReadPlanFile(planFile); err != nil {
+				if pf, err = readPlanFile(ctx, planFile); err != nil {
 					return err
 				}
 				flagTags, flagSysTags = pf.Tags, pf.SysTags

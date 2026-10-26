@@ -13,6 +13,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // maxAttrChanges bounds the attribute changes of one node that are sent.
@@ -62,12 +63,13 @@ type planCache struct {
 }
 
 // readPlan reads the plan file, again only when it changed.
-func (s *Server) readPlan() (*engine.PlanFile, error) {
-	sig := fileSignature(s.opts.PlanFile)
+// A sealed plan file opens with the sealer of the state, when the viewer can read it.
+func (s *Server) readPlan(sl state.Sealer) (*engine.PlanFile, error) {
+	sig := fileSignature(s.opts.PlanFile) + fmt.Sprint(sl != nil)
 	if s.plan != nil && s.plan.sig == sig {
 		return s.plan.pf, s.plan.err
 	}
-	pf, err := engine.ReadPlanFile(s.opts.PlanFile)
+	pf, err := engine.ReadPlanFileWith(s.opts.PlanFile, sl)
 	s.plan = &planCache{sig: sig, pf: pf, err: err}
 	return pf, err
 }
@@ -79,7 +81,11 @@ func (s *Server) loadPlan(ctx context.Context, m *model) *planOverlay {
 	switch {
 	case s.opts.PlanFile != "":
 		po := &planOverlay{entries: map[string]*planEntry{}, secrets: m.secrets}
-		pf, err := s.readPlan()
+		var sl state.Sealer
+		if m.store != nil {
+			sl = m.store.Sealer()
+		}
+		pf, err := s.readPlan(sl)
 		if err != nil {
 			po.failed = true
 			po.warnings = append(po.warnings, "The plan file could not be read: "+err.Error())
