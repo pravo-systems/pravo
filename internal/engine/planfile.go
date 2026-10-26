@@ -1,8 +1,10 @@
 package engine
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -32,6 +35,10 @@ type PlanFile struct {
 	// Unsealed is set by a PlanStore on a plan that was read from a sealed state and
 	// was stored before the state was sealed.
 	Unsealed bool `json:"-"`
+	// Sealed is set by ReadPlanFileWith on a plan file that was sealed.
+	Sealed bool `json:"-"`
+	// sealer is the sealer that opened the file. MarkApplied seals the file again with it.
+	sealer state.Sealer
 	// Digest is the SHA-256 in hex of the bytes that this plan was parsed from, set by
 	// ReadPlanFile and by a PlanStore. An apply records it, so it is the plan that was run.
 	Digest string `json:"-"`
@@ -270,7 +277,19 @@ func (e *Engine) SavePlan(path string, plan *Plan, tags []string, sysTags bool) 
 	if err != nil {
 		return err
 	}
+	// A sealed state seals its plan files: they hold the values that the state seals.
+	if sl := e.State.Sealer(); sl != nil {
+		if data, err = sealPlanFile(sl, data); err != nil {
+			return fmt.Errorf("sealing the plan file: %w", err)
+		}
+	}
 	return writeFile0600(path, data)
+}
+
+// sealPlanFile seals the plan file data in the envelope of a stored plan. The id is
+// the digest of the plan file, as it is for a stored plan.
+func sealPlanFile(sl state.Sealer, data []byte) ([]byte, error) {
+	return sealPlan(sl, digestID(data, planIDHex), data)
 }
 
 // writeFile0600 writes a plan to a file that only its owner can read: it holds
@@ -279,17 +298,68 @@ func writeFile0600(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-// ReadPlanFile parses a plan file without checking it against anything.
+// ReadPlanFile parses a plan file without checking it against anything. A plan
+// file that a sealed state wrote is ErrNotReader here: see ReadPlanFileWith.
 func ReadPlanFile(path string) (*PlanFile, error) {
+	return ReadPlanFileWith(path, nil)
+}
+
+// PlanFileSealed reports whether the file at path is a sealed plan file, which only
+// a reader of the state that wrote it can open.
+func PlanFileSealed(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	head := make([]byte, 64)
+	n, _ := io.ReadFull(f, head)
+	rest, found := bytes.CutPrefix(bytes.TrimLeft(head[:n], " \t\r\n"), []byte("{"))
+	return found && bytes.HasPrefix(bytes.TrimLeft(rest, " \t\r\n"), []byte(`"v"`)), nil
+}
+
+// openPlanFile returns the plan file in data, whether it was sealed, and the
+// bytes it was parsed from: the digest of a sealed plan file is that of the plain one.
+func openPlanFile(name string, data []byte, sl state.Sealer) (plain []byte, sealed bool, err error) {
+	env, ok := asSealedPlan(data)
+	if !ok {
+		return data, false, nil
+	}
+	if env.V > sealedPlanVersion {
+		return nil, true, fmt.Errorf("%s was written by a newer pravo (sealed plan format %d)", name, env.V)
+	}
+	if sl == nil {
+		return nil, true, fmt.Errorf("%s is sealed: %w", name, state.ErrNotReader)
+	}
+	plain, err = sl.Open(protect.KindPlan, env.ID, *env.Sealed)
+	if err != nil {
+		return nil, true, openError("plan file", name, err)
+	}
+	if digestID(plain, len(env.ID)-len("plan-")) != env.ID {
+		return nil, true, fmt.Errorf("%s opens, and is not the plan its name says it is: %w", name, state.ErrUntrusted)
+	}
+	return plain, true, nil
+}
+
+// ReadPlanFileWith is ReadPlanFile for a state that may be sealed: sl is its
+// sealer, or nil. A sealed plan file opens only with the key of a reader.
+func ReadPlanFileWith(path string, sl state.Sealer) (*PlanFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	pf, err := parsePlanFile(path, data)
+	plain, sealed, err := openPlanFile(path, data, sl)
 	if err != nil {
 		return nil, err
 	}
-	pf.Digest = PlanDigest(data)
+	pf, err := parsePlanFile(path, plain)
+	if err != nil {
+		return nil, err
+	}
+	pf.Digest, pf.Sealed = PlanDigest(plain), sealed
+	if sealed {
+		pf.sealer = sl
+	}
 	return pf, nil
 }
 
@@ -808,7 +878,7 @@ func MarkPartlyApplied(path string, pf *PlanFile, addrs []string, txn string) er
 
 func markApplied(path string, pf *PlanFile, addrs []string, txn string, finished bool) error {
 	pf.markApplied(addrs, txn, finished)
-	return updatePlanFile(path, func(cur *PlanFile) error {
+	return updatePlanFile(path, pf.sealer, func(cur *PlanFile) error {
 		if !cur.Created.Equal(pf.Created) || cur.Lineage != pf.Lineage || cur.ConfigFingerprint != pf.ConfigFingerprint {
 			return fmt.Errorf("%s holds another plan now", path)
 		}

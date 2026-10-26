@@ -71,7 +71,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 					return err
 				}
 				opts.PlanFile = abs
-				if len(flagTags) == 0 && !flagSysTags {
+				if pf != nil && len(flagTags) == 0 && !flagSysTags {
 					// The plan was made with these values; the specification is read with them.
 					opts.Tags, opts.SysTags = pf.Tags, pf.SysTags
 				}

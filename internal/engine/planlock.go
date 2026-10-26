@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/pravo-systems/pravo/internal/filelock"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // updatePlanFile reads the plan file under an exclusive lock, lets edit change
@@ -16,7 +17,7 @@ import (
 //
 // The lock is not on the file, which the rename replaces; see filelock.Exclusive.
 // A filesystem that has no file locks gets none.
-func updatePlanFile(path string, edit func(*PlanFile) error) error {
+func updatePlanFile(path string, sl state.Sealer, edit func(*PlanFile) error) error {
 	if real, err := filepath.EvalSymlinks(path); err == nil {
 		path = real
 	}
@@ -25,8 +26,13 @@ func updatePlanFile(path string, edit func(*PlanFile) error) error {
 	if err != nil {
 		return err
 	}
+	// A sealed file is opened and sealed again, with the key that read it.
+	plain, sealed, err := openPlanFile(path, data, sl)
+	if err != nil {
+		return err
+	}
 	var cur PlanFile
-	if err := json.Unmarshal(data, &cur); err != nil {
+	if err := json.Unmarshal(plain, &cur); err != nil {
 		return fmt.Errorf("%s is not a pravo plan file: %w", path, err)
 	}
 	if err := edit(&cur); err != nil {
@@ -35,6 +41,11 @@ func updatePlanFile(path string, edit func(*PlanFile) error) error {
 	out, err := indentJSON(&cur)
 	if err != nil {
 		return err
+	}
+	if sealed {
+		if out, err = sealPlanFile(sl, out); err != nil {
+			return err
+		}
 	}
 	perm := os.FileMode(0o600)
 	if info, err := os.Stat(path); err == nil {

@@ -344,7 +344,7 @@ func showCmd() *cobra.Command {
 			if isStoredRef(args[0]) {
 				return showStored(cmd, args[0])
 			}
-			pf, err := engine.ReadPlanFile(args[0])
+			pf, err := readPlanFile(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -384,6 +384,22 @@ func showCmd() *cobra.Command {
 	// A plan in the state is found by the state, which the tags select.
 	addTagFlags(cmd)
 	return cmd
+}
+
+// readPlanFile reads a plan file. A sealed one opens with the key of a reader of the
+// state, so the state is opened to find the key; the file names the tags that the
+// session is opened with, so this session is for the key alone.
+func readPlanFile(ctx context.Context, path string) (*engine.PlanFile, error) {
+	sealed, err := engine.PlanFileSealed(path)
+	if err != nil || !sealed {
+		return engine.ReadPlanFile(path)
+	}
+	s, err := newSession(ctx, sessionOptions{loadState: true, readOnlyState: true})
+	if err != nil {
+		return nil, err
+	}
+	defer s.close()
+	return engine.ReadPlanFileWith(path, s.state.Sealer())
 }
 
 // isStoredRef says whether the argument of show and apply names a plan in the
@@ -471,7 +487,7 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	if cmd.Flags().Changed("refresh") || full {
 		return fmt.Errorf("-refresh and -full do not apply to a saved plan")
 	}
-	pf, err := engine.ReadPlanFile(path)
+	pf, err := readPlanFile(ctx, path)
 	if err != nil {
 		return err
 	}
@@ -481,6 +497,11 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 		return err
 	}
 	defer s.close()
+	if s.state.Sealer() != nil && !pf.Sealed {
+		// Only a reader can seal a plan file, so a plain one in the place of a sealed one
+		// may be anyone's.
+		return fmt.Errorf("%s is not sealed, and the state is: a plan file of a sealed state is sealed. Make the plan again with \"pravo plan --out\"", path)
+	}
 	// The saved plan already refreshed what its refresh ages required; apply
 	// re-plans against the recorded state without refreshing again.
 	// The note that the plan was made with is the reason of the apply, unless the

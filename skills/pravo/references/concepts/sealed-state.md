@@ -65,7 +65,9 @@ These are limits of the version that exists. Each is a fact to plan around.
 
 **An identity of a job has no passphrase.** `pravo id new --ci` writes both private keys in the clear. Whoever reads the CI secret is the reader. Use one identity for each job.
 
-**Other files hold the same values.** A plan file written with `--out`, the output of `pravo show`, a log and the memory of a provider hold values that the state seals. A provider receives the values it needs to do its work. pravo starts providers without `PRAVO_IDENTITY` and the passphrase variables.
+**A plan file of a sealed state is sealed.** `pravo plan --out` and `pravo plan pull` seal the file with the key of the group, as `--store` seals a stored plan. Only a reader can open it, and `pravo show`, `pravo apply`, `pravo verify` and `pravo serve --plan` open it with the identity that opens the state. `pravo apply` refuses a plan file that is not sealed when the state is: only a reader can seal one, so a plain file may be anyone's. A tool that needs the plan without a key reads the output of `pravo show --json`.
+
+**Other files hold the same values.** The output of `pravo show`, a log and the memory of a provider hold values that the state seals. A provider receives the values it needs to do its work. pravo starts providers without `PRAVO_IDENTITY` and the passphrase variables.
 
 **A secret is sealed in a command line only where pravo knows it is one.** The values of `-t`/`--tag`, `--webhook` and `-e`/`--expression` are replaced in the history, in a lock and in a stored plan, and so is the value of every other flag that takes one, written `--flag=value` or `--flag value`, except the few flags that carry no secret, such as `--limit`, `--ttl` and `--chdir`. A word after a flag that takes no value, such as `--auto-approve`, is a positional argument. A secret given as a positional argument is shown as it was typed. Pass a secret with `-t`.
 
