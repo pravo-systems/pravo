@@ -56,6 +56,13 @@ export function pathChange(path) {
 // isFile is a plan that is a file: one of the project, or one that was dropped on the page.
 const isFile = (p) => p.kind === 'file' || p.kind === 'upload';
 
+// GROUPS are the plans as the list shows them: the ones that can still be applied, the rest of the stored ones, and files.
+const GROUPS = [
+  { title: 'Waiting to be applied', has: (p) => !isFile(p) && p.open },
+  { title: 'Applied or expired', has: (p) => !isFile(p) && !p.open },
+  { title: 'Plan files', has: isFile },
+];
+
 export class StudioView {
   constructor(root, cb = {}) {
     this.root = root;
@@ -65,7 +72,8 @@ export class StudioView {
     this.loading = null;
     this.error = '';
     this.text = BLANK;
-    this.scope = { open: true, closed: false, files: true };
+    this.sel = new Set(); // refs of the plans the rule is tried on
+    this.seen = new Set(); // refs that were offered once, so that a plan the person unticked stays unticked
     this.start = 'blank';
     this.result = null;
     this.busy = false;
@@ -105,6 +113,7 @@ export class StudioView {
     api.studio().then((d) => {
       if (this.loading !== mine) return;
       this.data = d;
+      this.offer();
       this.docs.clear();
       this.paint();
       if (this.want) this.applyWant(); else this.run();
@@ -137,15 +146,28 @@ export class StudioView {
   // ---- the plans a request names ----
 
   refs() {
-    const out = [];
-    for (const p of (this.data && this.data.plans) || []) {
-      const on = isFile(p) ? this.scope.files : p.open ? this.scope.open : this.scope.closed;
-      if (on) out.push(p.ref);
-    }
-    return out;
+    return (((this.data && this.data.plans) || []).filter((p) => this.sel.has(p.ref))).map((p) => p.ref);
   }
 
-  // run tries the draft on the plans that are in scope, and gives up an earlier request that is still out.
+  // offer ticks the plans that were not offered before when they can still be applied or are files; the rest start unticked.
+  offer() {
+    const have = new Set();
+    for (const p of (this.data && this.data.plans) || []) {
+      have.add(p.ref);
+      if (this.seen.has(p.ref)) continue;
+      this.seen.add(p.ref);
+      if (isFile(p) || p.open) this.sel.add(p.ref);
+    }
+    for (const r of Array.from(this.sel)) if (!have.has(r)) this.sel.delete(r);
+  }
+
+  tick(refs, on) {
+    for (const r of refs) { if (on) this.sel.add(r); else this.sel.delete(r); }
+    this.paintResults();
+    this.run();
+  }
+
+  // run tries the draft on the plans that are ticked, and gives up an earlier request that is still out.
   run() {
     if (!this.data) return;
     if (this.ctl) this.ctl.abort();
@@ -529,8 +551,7 @@ export class StudioView {
     const r = this.result;
     const plans = (this.data && this.data.plans) || [];
     el.append(h('div', { class: 'studio-rhead' },
-      h('h3', { class: 'studio-h3', id: 'studio-rh' }, 'Plans', h('span', { class: 'po-n' }, String(this.refs().length))),
-      this.scopeBar(plans),
+      h('h3', { class: 'studio-h3', id: 'studio-rh' }, 'Plans', h('span', { class: 'po-n' }, plans.length ? `${this.refs().length} of ${plans.length} ticked` : '0')),
       this.busy ? h('span', { class: 'studio-busy' }, 'trying…') : r ? h('span', { class: 'studio-took', title: 'How long the server took' }, `${r.took_ms} ms`) : null));
     el.append(this.dropBar());
     if (this.error) el.append(h('p', { class: 'po-problem' }, icon('bang'), h('span', null, this.error)));
@@ -541,26 +562,60 @@ export class StudioView {
       el.append(h('p', { class: 'studio-empty' }, 'There is no plan to try the rule on. Store one with ', h('code', null, 'pravo plan --store'), ', or save one with ', h('code', null, 'pravo plan --out plan.json'), ' in the project directory.'));
       return;
     }
-    if (!r) { if (!this.busy && !this.error) el.append(h('p', { class: 'studio-empty' }, 'Choose which plans to try the rule on.')); return; }
-    const tally = { holds: 0, refused: 0, none: 0 };
-    for (const p of r.plans) {
-      const o = p.draft ? p.draft.outcome : p.state;
-      if (o === 'holds') tally.holds++; else if (o === 'refused') tally.refused++; else tally.none++;
+    const got = new Map();
+    if (r) {
+      const tally = { holds: 0, refused: 0, none: 0 };
+      for (const p of r.plans) {
+        got.set(p.ref, p);
+        const o = p.draft ? p.draft.outcome : p.state;
+        if (o === 'holds') tally.holds++; else if (o === 'refused') tally.refused++; else tally.none++;
+      }
+      el.append(h('ul', { class: 'studio-tally', 'aria-label': 'What the rule says' },
+        this.tallyCell('holds', tally.holds, 'ok', 'holds'),
+        this.tallyCell('refused', tally.refused, tally.refused ? 'bad' : '', 'refused'),
+        this.tallyCell('not judged', tally.none, '', 'none')));
     }
-    el.append(h('ul', { class: 'studio-tally', 'aria-label': 'What the rule says' },
-      this.tallyCell('holds', tally.holds, 'ok', 'holds'),
-      this.tallyCell('refused', tally.refused, tally.refused ? 'bad' : '', 'refused'),
-      this.tallyCell('not judged', tally.none, '', 'none')));
-    const rows = r.plans.filter((p) => {
-      const o = p.draft ? p.draft.outcome : p.state;
+    const shown = (p) => {
+      if (this.filter === 'all') return true;
+      const tp = got.get(p.ref);
+      if (!tp) return false;
+      const o = tp.draft ? tp.draft.outcome : tp.state;
       if (this.filter === 'holds') return o === 'holds';
       if (this.filter === 'refused') return o === 'refused';
-      if (this.filter === 'none') return !(o === 'holds' || o === 'refused');
-      return true;
-    });
-    if (this.refs().length > MAX_PLANS) el.append(h('p', { class: 'po-note' }, `The first ${MAX_PLANS} of ${this.refs().length} plans are tried.`));
-    el.append(h('ul', { class: 'studio-plans' }, rows.map((p) => this.planRow(p, r))));
-    if (!rows.length) el.append(h('p', { class: 'studio-empty' }, 'No plan is in this group.'));
+      return !(o === 'holds' || o === 'refused');
+    };
+    if (this.refs().length > MAX_PLANS) el.append(h('p', { class: 'po-note' }, `The first ${MAX_PLANS} of ${this.refs().length} ticked plans are tried.`));
+    if (!this.refs().length && !this.busy) el.append(h('p', { class: 'studio-empty' }, 'Tick the plans to try the rule on.'));
+    for (const g of GROUPS) {
+      const members = plans.filter(g.has);
+      if (!members.length) continue;
+      const rows = members.filter(shown);
+      if (!rows.length) continue;
+      el.append(this.groupHead(g, members), h('ul', { class: 'studio-plans' }, rows.map((p) => this.planLine(p, got.get(p.ref), r))));
+    }
+  }
+
+  // groupHead names a group of plans and ticks or unticks all of them.
+  groupHead(g, members) {
+    const refs = members.map((p) => p.ref);
+    const n = refs.filter((x) => this.sel.has(x)).length;
+    const state = n === 0 ? 'false' : n === refs.length ? 'true' : 'mixed';
+    return h('div', { class: 'studio-gh' },
+      h('button', { type: 'button', class: 'studio-cb', role: 'checkbox', 'aria-checked': state, 'aria-label': `Try the rule on all of: ${g.title}`, on: { click: () => this.tick(refs, n !== refs.length) } }),
+      h('span', { class: 'studio-gt' }, g.title),
+      h('span', { class: 'studio-gn' }, `${n} of ${refs.length}`));
+  }
+
+  // planLine is one plan with its box: a plan that is ticked shows what the rule says of it, one that is not shows that it was left out.
+  planLine(p, tp, r) {
+    const on = this.sel.has(p.ref);
+    const box = h('button', { type: 'button', class: 'studio-cb', role: 'checkbox', 'aria-checked': on ? 'true' : 'false', 'aria-label': `Try the rule on ${p.label}`, on: { click: () => this.tick([p.ref], !on) } });
+    if (on && tp) return h('li', { class: 'studio-item' }, h('div', { class: 'studio-line' }, box, this.planRow(tp, r, true)), this.rowBodyOf(tp));
+    return h('li', { class: 'studio-item' }, h('div', { class: 'studio-line' }, box,
+      h('button', { type: 'button', class: 'studio-row mk-off' + (on ? '' : ' left-out'), on: { click: () => { if (!on) this.tick([p.ref], true); } } },
+        h('i', { class: 'po-mark', 'aria-hidden': 'true' }),
+        h('span', { class: 'studio-rn' }, h('b', null, p.label), h('span', { class: 'studio-rmeta' }, this.metaText(p))),
+        h('span', { class: 'studio-ro' }, on ? 'trying…' : 'left out'))));
   }
 
   tallyCell(k, n, cls, filter) {
@@ -606,25 +661,14 @@ export class StudioView {
       try {
         const pl = await api.uploadPlan(f.name, await f.arrayBuffer());
         this.data.plans = this.data.plans.filter((p) => p.ref !== pl.ref).concat(pl);
-        this.scope.files = true;
+        this.seen.add(pl.ref);
+        this.sel.add(pl.ref);
       } catch (err) {
         this.dropNote = `${f.name}: ${err && err.message ? err.message : 'the file could not be read'}`;
       }
     }
     this.paintResults();
     this.run();
-  }
-
-  // scopeBar chooses which plans are tried: the ones that can still be applied, the rest of the stored ones, and the plan files.
-  scopeBar(plans) {
-    const n = { open: 0, closed: 0, files: 0 };
-    for (const p of plans) n[isFile(p) ? 'files' : p.open ? 'open' : 'closed']++;
-    const chip = (key, label, tip) => h('button', { type: 'button', class: 'studio-chip', 'aria-pressed': this.scope[key] ? 'true' : 'false', disabled: !n[key], title: tip,
-      on: { click: () => { this.scope[key] = !this.scope[key]; this.paintResults(); this.run(); } } }, label, h('span', { class: 'n' }, String(n[key])));
-    return h('div', { class: 'studio-scope', role: 'group', 'aria-label': 'Plans to try' },
-      chip('open', 'can be applied', 'Stored plans that are pending, partial or partly stale'),
-      chip('closed', 'other stored', 'Stored plans that are applied, stale or expired'),
-      n.files ? chip('files', 'plan files', 'Plan files of the project directory, and the files that were dropped here') : null);
   }
 
   checkBox(c) {
@@ -639,7 +683,7 @@ export class StudioView {
       h('details', { class: 'studio-raw' }, h('summary', null, 'What CUE says, in full'), h('pre', null, c.message)));
   }
 
-  planRow(tp, r) {
+  planRow(tp, r, headOnly) {
     const label = this.labelOf(tp.ref);
     const meta = this.metaOf(tp.ref);
     const res = tp.draft;
@@ -647,15 +691,21 @@ export class StudioView {
     const out = OUTCOME[key] || OUTCOME.unreadable;
     const open = this.opened.has(tp.ref);
     const refusal = res && res.outcome === 'refused';
-    const body = h('div', { class: 'studio-rbody', hidden: !open });
-    if (open) body.append(...this.rowBody(tp, res, meta));
     const head = h('button', { type: 'button', class: 'studio-row mk-' + out.mark, 'aria-expanded': open ? 'true' : 'false', 'data-fk': 'studio:' + tp.ref,
       on: { click: () => { if (this.opened.has(tp.ref)) this.opened.delete(tp.ref); else this.opened.add(tp.ref); this.paintResults(); } } },
       h('i', { class: 'po-mark', 'aria-hidden': 'true' }),
       h('span', { class: 'studio-rn' }, h('b', null, label), meta ? h('span', { class: 'studio-rmeta' }, this.metaText(meta)) : null),
       h('span', { class: 'studio-ro ' + out.cls }, out.label, refusal ? ` · ${plural((res.issues || []).length + (res.more || 0), 'reason')}` : ''),
       h('span', { class: 'chev' + (open ? ' open' : ''), 'aria-hidden': 'true' }, icon('chev')));
-    return h('li', { class: 'studio-item' }, head, body);
+    return head;
+  }
+
+  // rowBodyOf is what a plan shows when its row is open.
+  rowBodyOf(tp) {
+    const open = this.opened.has(tp.ref);
+    const body = h('div', { class: 'studio-rbody', hidden: !open });
+    if (open) body.append(...this.rowBody(tp, tp.draft, this.metaOf(tp.ref)));
+    return body;
   }
 
   policyCount() { return this.result && this.result.policies ? this.result.policies.length : 1; }
