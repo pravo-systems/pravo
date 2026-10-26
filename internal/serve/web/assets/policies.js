@@ -182,7 +182,8 @@ export class PoliciesView {
       return h('li', null, h('button', { type: 'button', class: 'po-row mk-' + st.mark, 'aria-current': p.name === this.sel ? 'true' : 'false', 'data-fk': 'row:' + p.name,
         on: { click: () => this.select(p.name) } },
         h('i', { class: 'po-mark', 'aria-hidden': 'true' }),
-        h('span', { class: 'po-rname' }, p.name),
+        h('span', { class: 'po-rname' }, p.description || p.name),
+        p.description ? h('code', { class: 'po-rkey' }, p.name) : null,
         h('span', { class: 'po-rmeta' },
           h('span', { class: 'po-rstat ' + st.cls }, st.label),
           p.head ? h('span', null, 'v' + p.head) : h('span', null, 'no version'),
@@ -205,8 +206,9 @@ export class PoliciesView {
     const fact = (k, ...v) => h('li', null, h('span', { class: 'k' }, k), ...v);
     return h('section', { class: 'po-doc', 'aria-labelledby': 'po-dn' },
       h('div', { class: 'po-dhead' },
-        h('h3', { class: 'po-dname', id: 'po-dn' }, p.name),
+        h('h3', { class: 'po-dname' + (p.description ? ' described' : ''), id: 'po-dn' }, p.description || p.name),
         h('span', { class: 'b ' + st.cls }, st.label),
+        p.description ? h('code', { class: 'po-key', title: 'The key of the policy in the specification and the state' }, p.name) : null,
         p.source ? h('code', { class: 'po-src', title: 'Where the specification writes this policy' }, `${p.source.file}:${p.source.line}`) : null),
       h('ul', { class: 'po-facts' },
         fact('version', h('b', null, p.head ? 'v' + p.head : 'none')),
@@ -265,9 +267,9 @@ export class PoliciesView {
     const lines = text.replace(/\n$/, '').split('\n').map((t, i) => ({ op: ' ', text: t, no: i + 1 }));
     const declared = !inForce && p.status === 'new';
     return h('div', { class: 'po-rulebox' },
-      h('h4', { class: 'po-h4' }, inForce ? `Rule in force · v${inForce.seq}` : 'Rule declared', h('span', { class: 'po-n' }, plural(lines.length, 'line')),
+      h('h4', { class: 'po-h4' }, inForce ? `Policy in force · v${inForce.seq}` : 'Policy declared', h('span', { class: 'po-n' }, plural(lines.length, 'line')),
         h('button', { type: 'button', class: 'po-try', 'data-tip': 'Try this rule on stored plans and plan files', on: { click: () => this.tryPolicy(p.name, declared ? 'declared' : 'policy') } }, 'Try on plans')),
-      this.code(lines, { copy: text, label: 'Copy the rule' }));
+      this.code(lines, { copy: text, label: 'Copy the policy' }));
   }
 
   // history is the versions as a ledger on a rail, newest first. A version opens to show what it changed, and the transactions it judged.
@@ -309,7 +311,7 @@ export class PoliciesView {
     const out = [];
     if (v.removal) out.push(h('p', { class: 'po-note' }, 'This version removes the policy. It has no text.'));
     else if (prev && !prev.removal) out.push(this.diff(prev.text, v.text, 'v' + prev.seq, 'v' + v.seq));
-    else out.push(this.code(v.text.replace(/\n$/, '').split('\n').map((t, i) => ({ op: ' ', text: t, no: i + 1 })), { copy: v.text, label: 'Copy the rule' }));
+    else out.push(this.code(v.text.replace(/\n$/, '').split('\n').map((t, i) => ({ op: ' ', text: t, no: i + 1 })), { copy: v.text, label: 'Copy the policy' }));
     out.push(h('p', { class: 'po-ref' }, h('span', { class: 'k' }, 'ref'), h('code', null, v.ref),
       h('button', { class: 'cpbtn', type: 'button', 'data-copy': v.ref, 'aria-label': 'Copy the reference of the version', 'data-tip': 'Copy the reference' }, icon('copy'))));
     if (v.runs && v.runs.length) {
@@ -353,7 +355,7 @@ export class PoliciesView {
     // a text that is shown whole, not as a change, can be folded
     if (toks && lines.every((l) => l.op === ' ')) attachFolds(parts, toks);
     const wrap = h('div', { class: 'po-cw' });
-    const scroll = h('div', { class: 'po-scroll', role: 'region', tabIndex: 0, 'aria-label': o.label || 'Rule text' }, body);
+    const scroll = h('div', { class: 'po-scroll', role: 'region', tabIndex: 0, 'aria-label': o.label || 'Policy text' }, body);
     wrap.append(scroll);
     if (o.copy) wrap.append(h('button', { class: 'cpbtn po-cp', type: 'button', 'data-copy': o.copy, 'aria-label': o.label, 'data-tip': o.label }, icon('copy')));
     return wrap;

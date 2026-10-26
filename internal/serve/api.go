@@ -1083,6 +1083,8 @@ type PolicyInfo struct {
 	// removal).
 	Status   string `json:"status"`
 	Declared bool   `json:"declared"`
+	// Description is what the specification says the policy is for; empty when it says nothing or does not declare the policy.
+	Description string `json:"description,omitempty"`
 	// Source is where the specification writes the policy.
 	Source *Ref `json:"source,omitempty"`
 	// Head is the number of the latest version, 0 when the state has none.

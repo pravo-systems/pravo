@@ -42,9 +42,11 @@ func (m *model) buildPolicies(rev string) {
 		}
 	}
 	declared := map[string]string{}
+	described := map[string]string{}
 	if root := m.spec.root; root != nil {
 		for _, p := range root.Policies {
 			declared[state.PolicyName(p.Name)] = p.Rule
+			described[state.PolicyName(p.Name)] = p.Description
 		}
 	}
 	names := map[string]bool{}
@@ -61,7 +63,7 @@ func (m *model) buildPolicies(rev string) {
 	sort.Strings(order)
 	for _, name := range order {
 		vs := history[name]
-		info := PolicyInfo{Name: m.clipText(policyDisplay(name)), Versions: []PolicyVersionInfo{}, Source: m.spec.polRefs[name]}
+		info := PolicyInfo{Name: m.clipText(policyDisplay(name)), Versions: []PolicyVersionInfo{}, Description: m.clipText(described[name]), Source: m.spec.polRefs[name]}
 		rule, isDeclared := declared[name]
 		info.Declared = isDeclared
 		var head *state.PolicyVersion
@@ -85,7 +87,7 @@ func (m *model) buildPolicies(rev string) {
 			info.Status = "removed"
 		}
 		if isDeclared && info.Status != "in-force" {
-			info.Rule = m.scrubText(clip(rule, maxPolicyText))
+			info.Rule = m.scrubText(policyDeclaration(info.Name, "", clip(rule, maxPolicyText)))
 		}
 		if live {
 			doc.InForce++
@@ -97,7 +99,7 @@ func (m *model) buildPolicies(rev string) {
 			v := vs[i]
 			vi := PolicyVersionInfo{Seq: v.Seq, Ref: v.Ref(), Digest: v.Digest(), At: v.At, Removal: v.Tombstone()}
 			if !v.Tombstone() {
-				vi.Text = m.scrubText(clip(v.Text, maxPolicyText))
+				vi.Text = m.scrubText(policyDeclaration(info.Name, "", clip(v.Text, maxPolicyText)))
 			}
 			if doc.Checked {
 				vi.Signature = v.Status.Key()
