@@ -497,6 +497,7 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 		return err
 	}
 	defer s.close()
+	pf.SealWith(s.state.Sealer())
 	if s.state.Sealer() != nil && !pf.Sealed {
 		// Only a reader can seal a plan file, so a plain one in the place of a sealed one
 		// may be anyone's.

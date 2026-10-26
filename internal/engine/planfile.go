@@ -341,6 +341,14 @@ func openPlanFile(name string, data []byte, sl state.Sealer) (plain []byte, seal
 	return plain, true, nil
 }
 
+// SealWith sets the sealer that MarkApplied seals the file again with: the one of the
+// session that applies it, because the key that read the file may be gone.
+func (pf *PlanFile) SealWith(sl state.Sealer) {
+	if pf.Sealed {
+		pf.sealer = sl
+	}
+}
+
 // ReadPlanFileWith is ReadPlanFile for a state that may be sealed: sl is its
 // sealer, or nil. A sealed plan file opens only with the key of a reader.
 func ReadPlanFileWith(path string, sl state.Sealer) (*PlanFile, error) {
