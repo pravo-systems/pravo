@@ -146,9 +146,8 @@ export class PoliciesView {
 
   // head is the title block: what the page is, and four counts that go together.
   head(d) {
-    const versions = d.policies.reduce((n, p) => n + p.versions.length, 0);
     const judged = d.policies.reduce((n, p) => n + p.judged, 0);
-    const cell = (k, v, cls, tip) => h('li', { class: cls || '', title: tip || null }, h('span', { class: 'k' }, k), h('b', null, fmt(v)));
+    const cell = (k, v, cls, tip) => h('li', { class: cls || '' }, h('span', { class: 'k' }, k, h('button', { type: 'button', class: 'po-info', 'data-tip': tip, 'aria-label': `${k}: ${tip}` }, icon('info'))), h('b', null, fmt(v)));
     const notes = [];
     if (d.problem) notes.push(h('p', { class: 'po-problem' }, icon('bang'), h('span', null, 'The versions could not be read as trusted: ' + d.problem)));
     if (!d.spec_ok) notes.push(h('p', { class: 'po-warn' }, icon('bang'), h('span', null, 'The specification does not load, so the policies in the state cannot be compared with it.')));
@@ -162,8 +161,7 @@ export class PoliciesView {
       d.policies.length ? h('ul', { class: 'po-tally', 'aria-label': 'Counts' },
         cell('in force', d.in_force, 'ok', 'Policies whose latest version is a rule'),
         cell('pending', d.pending, d.pending > 0 ? 'chg' : '', 'Policies that the next apply adds, changes or removes'),
-        cell('versions', versions, '', 'Versions in the state, removals included'),
-        cell('judged', judged, '', 'Judgements that these versions made: one for each transaction that lists one')) : null,
+        cell('applies judged', judged, '', 'Applies that were held to these policies: each transaction that lists the versions that judged it, added up over all policies')) : null,
       notes.length ? h('div', { class: 'po-notes' }, notes) : null);
   }
 

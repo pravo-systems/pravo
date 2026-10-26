@@ -39,7 +39,7 @@ a { color: inherit; }
 .i { display: inline-block; width: 1em; height: 1em; flex: none; vertical-align: -.14em; background: currentColor; -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
 .i.tiny { width: .75em; height: .75em; }
 .i-x { --m: var(--i-x); } .i-copy { --m: var(--i-copy); } .i-search { --m: var(--i-search); } .i-sun { --m: var(--i-sun); } .i-moon { --m: var(--i-moon); }
-.i-menu { --m: var(--i-menu); } .i-chev { --m: var(--i-chev); } .i-bang { --m: var(--i-bang); } .i-check { --m: var(--i-check); }
+.i-menu { --m: var(--i-menu); } .i-chev { --m: var(--i-chev); } .i-bang { --m: var(--i-bang); } .i-info { --m: var(--i-info); } .i-check { --m: var(--i-check); }
 .i-file { --m: var(--i-file); } .i-folder { --m: var(--i-folder); } .i-stack { --m: var(--i-stack); } .i-info { --m: var(--i-info); } .i-code { --m: var(--i-code); }
 .i-eye-off { --m: var(--i-eye-off); } .i-tag { --m: var(--i-tag); } .i-expand { --m: var(--i-expand); } .i-shrink { --m: var(--i-shrink); }
 .i-lock { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 7h8v6.5H4z' fill='black'/%3E%3Cpath d='M5.6 7V5.2a2.4 2.4 0 0 1 4.8 0V7' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E"); }
