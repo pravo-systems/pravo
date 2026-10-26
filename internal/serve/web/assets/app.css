@@ -96,7 +96,7 @@ a { color: inherit; }
 .brand small { font: 600 .58rem/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); padding: .27rem .45rem; border: 1px solid var(--line-strong); border-radius: 0; }
 .mark .e { stroke: var(--accent); } .mark .n { fill: var(--accent); }
 /* the controls on the right sit over the inspector and share its width, so that its edge runs up through the bar */
-.topright { flex: none; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: .6rem; box-sizing: border-box; width: 24.5rem; margin-right: -1rem; padding: 0 1rem 0 1.1rem; border-left: 1px solid var(--line-strong); }
+.topright { flex: none; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: .6rem; box-sizing: border-box; width: 24.5rem; margin-left: -.8rem; margin-right: -1rem; padding: 0 1rem 0 1.1rem; border-left: 1px solid var(--line-strong); }
 .top .search { flex: 1 0 auto; min-width: 11rem; display: flex; align-items: center; gap: .5rem; height: 2.3rem; box-sizing: border-box; padding: 0 .6rem; border: 1px solid var(--line-strong); border-radius: var(--rad); background: var(--bg); color: var(--text-3); font-size: .82rem; text-align: left; white-space: nowrap; transition: border-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast); }
 .top .search:hover { border-color: var(--text-3); color: var(--text-2); box-shadow: var(--focus); }
 .top .search kbd { margin-left: auto; }
@@ -390,7 +390,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .app { grid-template-columns: minmax(0, 1fr) 22.5rem; }
 }
 @media (max-width: 68.75em) {
-  .topright { width: auto; margin-right: 0; padding: 0; border-left: 0; }
+  .topright { width: auto; margin-left: 0; margin-right: 0; padding: 0; border-left: 0; }
   .top .search { flex: none; min-width: 0; width: auto; padding: 0 .6rem; }
   .top .search .lbl { display: none; }
   .only-narrow, .only-medium { display: inline-grid; }
