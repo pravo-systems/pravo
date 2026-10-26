@@ -66,6 +66,7 @@ export class StudioView {
     this.error = '';
     this.text = BLANK;
     this.plan = null; // the ref of the plan that is looked at
+    this.target = 'resources'; // what the rule is tried on: 'resources' of the state, or the 'plan'
     this.start = 'blank';
     this.result = null;
     this.busy = false;
@@ -139,8 +140,8 @@ export class StudioView {
   // refs are what a request names: the state, as a plan that updates every resource, and the plan that is looked at.
   refs() {
     const out = [];
-    if (this.data && this.data.state && this.data.state.resources) out.push(this.data.state.ref);
-    if (this.plan) out.push(this.plan);
+    if (this.target === 'resources' && this.data && this.data.state && this.data.state.resources) out.push(this.data.state.ref);
+    if (this.target === 'plan' && this.plan) out.push(this.plan);
     return out;
   }
 
@@ -152,6 +153,14 @@ export class StudioView {
     const pick = newest(plans.filter((p) => !isFile(p) && p.open)) || newest(plans.filter(isFile)) || newest(plans);
     this.plan = pick ? pick.ref : null;
     if (this.plan) this.opened.add(this.plan);
+    if (!(this.data && this.data.state && this.data.state.resources) && this.plan) this.target = 'plan';
+  }
+
+  aim(target) {
+    if (this.target === target) return;
+    this.target = target;
+    this.paintResults();
+    this.run();
   }
 
   choose(ref) {
@@ -547,23 +556,29 @@ export class StudioView {
     const got = new Map();
     if (r) for (const p of r.plans) got.set(p.ref, p);
     el.append(h('div', { class: 'studio-rhead' },
-      h('h3', { class: 'studio-h3', id: 'studio-rh' }, 'What the rule says'),
+      this.targetBar(),
       this.busy ? h('span', { class: 'studio-busy' }, 'trying…') : r ? h('span', { class: 'studio-took', title: 'How long the server took' }, `${r.took_ms} ms`) : null));
     if (this.error) el.append(h('p', { class: 'po-problem' }, icon('bang'), h('span', null, this.error)));
     if (d && !d.spec_ok) el.append(h('p', { class: 'po-warn' }, icon('bang'), h('span', null, 'The specification does not load, so the values of a plan cannot be decoded and no rule can be tried on one.')));
     if (d && d.note) el.append(h('p', { class: 'po-note' }, d.note));
     if (r && r.check) el.append(this.checkBox(r.check));
-    el.append(this.stateBlock(got.get('state')));
-    el.append(this.planBlock(plans, got));
+    el.append(this.target === 'resources' ? this.stateBlock(got.get('state')) : this.planBlock(plans, got));
+  }
+
+  // targetBar chooses what the rule is tried on: the resources that exist, or one plan.
+  targetBar() {
+    const n = this.data && this.data.state ? this.data.state.resources : 0;
+    const b = (target, label, count, off) => h('button', { type: 'button', 'aria-pressed': this.target === target ? 'true' : 'false', disabled: off, on: { click: () => this.aim(target) } }, label, count ? h('span', { class: 'n' }, String(count)) : null);
+    return h('div', { class: 'seg studio-target', role: 'group', id: 'studio-rh', 'aria-label': 'What the rule is tried on' },
+      b('resources', 'Resources', n, !n), b('plan', 'A plan', 0, !(this.data && this.data.plans.length)));
   }
 
   // stateBlock says which resources that already exist would be refused, as if a plan updated each of them.
   stateBlock(tp) {
     const d = this.data;
     const n = d && d.state ? d.state.resources : 0;
-    const box = h('section', { class: 'studio-sec', 'aria-labelledby': 'studio-sh' });
-    box.append(h('h4', { class: 'studio-h4', id: 'studio-sh' }, 'Resources in the state', n ? h('span', { class: 'po-n' }, String(n)) : null),
-      h('p', { class: 'studio-sub' }, 'The rule is held against every resource as if a plan updated it to what it holds now. A resource that fails is not touched today, and a plan that changes it one day will be refused.'));
+    const box = h('section', { class: 'studio-sec', 'aria-labelledby': 'studio-rh' });
+    box.append(h('p', { class: 'studio-sub' }, 'The rule is held against every resource as if a plan updated it to what it holds now. A resource that fails is not touched today, and a plan that changes it one day will be refused.'));
     if (!n) { box.append(h('p', { class: 'studio-empty' }, 'The state holds no resource whose values can be read.')); return box; }
     if (!tp) { box.append(h('p', { class: 'studio-empty' }, this.busy ? 'Trying…' : 'Waiting for the rule.')); return box; }
     const res = tp.draft;
@@ -614,13 +629,12 @@ export class StudioView {
 
   // planBlock shows one plan in full, and lets the person choose which.
   planBlock(plans, got) {
-    const box = h('section', { class: 'studio-sec', 'aria-labelledby': 'studio-ph' });
+    const box = h('section', { class: 'studio-sec', 'aria-labelledby': 'studio-rh' });
     const groups = [
       { label: 'Waiting to be applied', items: plans.filter((p) => !isFile(p) && p.open) },
       { label: 'Applied or expired', items: plans.filter((p) => !isFile(p) && !p.open) },
       { label: 'Plan files', items: plans.filter(isFile) },
     ].filter((g) => g.items.length).map((g) => ({ label: g.label, items: g.items.map((p) => ({ value: p.ref, label: p.label, sub: this.metaText(p) })) }));
-    box.append(h('h4', { class: 'studio-h4', id: 'studio-ph' }, 'A plan'));
     if (!plans.length) {
       box.append(h('p', { class: 'studio-empty' }, 'There is no plan to try the rule on. Store one with ', h('code', null, 'pravo plan --store'), ', or save one with ', h('code', null, 'pravo plan --out plan.json'), ' in the project directory.'), this.dropBar());
       return box;
@@ -672,6 +686,7 @@ export class StudioView {
         const pl = await api.uploadPlan(f.name, await f.arrayBuffer());
         this.data.plans = this.data.plans.filter((p) => p.ref !== pl.ref).concat(pl);
         this.plan = pl.ref;
+        this.target = 'plan';
         this.opened.add(pl.ref);
       } catch (err) {
         this.dropNote = `${f.name}: ${err && err.message ? err.message : 'the file could not be read'}`;

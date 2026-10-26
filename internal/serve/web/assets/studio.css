@@ -84,7 +84,9 @@
 .studio-rhead .studio-h3 { margin-right: auto; }
 .studio-busy, .studio-took { font: 500 .66rem/1 var(--font-mono); color: var(--text-3); }
 .studio-busy { color: var(--change); }
-.studio-sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: .7rem; margin-top: 1.4rem; }
+.studio-target button .n { font: 500 .66rem/1 var(--font-mono); color: var(--text-3); }
+.studio-target button:disabled { opacity: .5; }
+.studio-sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: .7rem; }
 .studio-h4 { display: flex; align-items: baseline; gap: .6rem; margin: 0; padding-bottom: .45rem; border-bottom: 1px solid var(--line-strong); font: 600 .66rem/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); }
 .studio-sub { margin: 0; font-size: .76rem; line-height: 1.5; color: var(--text-2); text-wrap: pretty; }
 .studio-verdict { margin: 0; padding: .7rem .9rem; border: 1px solid var(--line-strong); background: var(--surface); font-size: .82rem; }
