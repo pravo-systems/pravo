@@ -216,9 +216,8 @@ export class StudioView {
       h('div', { class: 'studio-body' },
         h('section', { class: 'studio-left', 'aria-labelledby': 'studio-eh' },
           h('h3', { class: 'studio-h3', id: 'studio-eh' }, 'Policies'),
-          this.controlsEl, this.editor.wrap, this.editorNotes()),
-        this.resultsEl),
-      this.guideEl);
+          this.controlsEl, this.editor.wrap, this.editorNotes(), this.guideEl),
+        this.resultsEl));
     this.paintGuide();
     this.paintResults();
     this.syncEditor();

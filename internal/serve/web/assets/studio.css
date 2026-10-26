@@ -160,7 +160,7 @@
 .studio-docbody .po-code { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 1rem; }
 
 /* ---- how it works ---- */
-.studio-guide { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; }
+.studio-guide { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; margin-top: 1.4rem; }
 .studio-guide > .studio-h3 { padding-bottom: .55rem; border-bottom: 1px solid var(--line-strong); }
 .studio-gsec + .studio-gsec { margin-top: -.6rem; }
 .studio-gbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: .7rem; padding: .9rem 1rem 1.1rem; max-width: 52rem; min-width: 0; }
