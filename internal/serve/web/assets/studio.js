@@ -563,7 +563,7 @@ export class StudioView {
       return;
     }
     const got = new Map();
-    if (r) {
+    if (r && r.plans.length) {
       const tally = { holds: 0, refused: 0, none: 0 };
       for (const p of r.plans) {
         got.set(p.ref, p);
@@ -573,7 +573,7 @@ export class StudioView {
       el.append(h('ul', { class: 'studio-tally', 'aria-label': 'What the rule says' },
         this.tallyCell('holds', tally.holds, 'ok', 'holds'),
         this.tallyCell('refused', tally.refused, tally.refused ? 'bad' : '', 'refused'),
-        this.tallyCell('not judged', tally.none, '', 'none')));
+        this.tallyCell('no verdict', tally.none, '', 'none')));
     }
     const shown = (p) => {
       if (this.filter === 'all') return true;
@@ -613,9 +613,8 @@ export class StudioView {
     if (on && tp) return h('li', { class: 'studio-item' }, h('div', { class: 'studio-line' }, box, this.planRow(tp, r, true)), this.rowBodyOf(tp));
     return h('li', { class: 'studio-item' }, h('div', { class: 'studio-line' }, box,
       h('button', { type: 'button', class: 'studio-row mk-off' + (on ? '' : ' left-out'), on: { click: () => { if (!on) this.tick([p.ref], true); } } },
-        h('i', { class: 'po-mark', 'aria-hidden': 'true' }),
         h('span', { class: 'studio-rn' }, h('b', null, p.label), h('span', { class: 'studio-rmeta' }, this.metaText(p))),
-        h('span', { class: 'studio-ro' }, on ? 'trying…' : 'left out'))));
+        on ? h('span', { class: 'studio-ro' }, 'trying…') : null)));
   }
 
   tallyCell(k, n, cls, filter) {
@@ -693,7 +692,6 @@ export class StudioView {
     const refusal = res && res.outcome === 'refused';
     const head = h('button', { type: 'button', class: 'studio-row mk-' + out.mark, 'aria-expanded': open ? 'true' : 'false', 'data-fk': 'studio:' + tp.ref,
       on: { click: () => { if (this.opened.has(tp.ref)) this.opened.delete(tp.ref); else this.opened.add(tp.ref); this.paintResults(); } } },
-      h('i', { class: 'po-mark', 'aria-hidden': 'true' }),
       h('span', { class: 'studio-rn' }, h('b', null, label), meta ? h('span', { class: 'studio-rmeta' }, this.metaText(meta)) : null),
       h('span', { class: 'studio-ro ' + out.cls }, out.label, refusal ? ` · ${plural((res.issues || []).length + (res.more || 0), 'reason')}` : ''),
       h('span', { class: 'chev' + (open ? ' open' : ''), 'aria-hidden': 'true' }, icon('chev')));
