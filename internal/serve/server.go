@@ -147,6 +147,12 @@ type Server struct {
 	traceMu   sync.Mutex
 	traceSums traceCache
 
+	// files caches the plan files of the project that the studio reads.
+	files planFileCache
+
+	// uploads holds the plan files that were dropped on the studio, in memory.
+	uploads planUploads
+
 	// streams counts the open event streams.
 	streams atomic.Int32
 }
@@ -336,6 +342,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
+	// The studio takes a plan file that a person drops on it: the one request that is not a GET. It judges and keeps nothing on disk.
+	if r.Method == http.MethodPost && r.URL.Path == "/api/studio/plan" {
+		s.api(w, r)
+		return
+	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		h.Set("Allow", "GET, HEAD")
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -426,7 +437,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -459,6 +470,14 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusOK, m.disc.json)
 	case "/api/policies":
 		writeRaw(w, http.StatusOK, m.polJSON)
+	case "/api/studio":
+		writeJSON(w, http.StatusOK, s.studio(m))
+	case "/api/studio/plan":
+		s.uploadHandler(w, r, m)
+	case "/api/studio/try":
+		s.tryHandler(w, r, m)
+	case "/api/studio/doc":
+		s.docHandler(w, r, m)
 	case "/api/adopt":
 		s.adopt(w, r, m)
 	case "/api/plan":

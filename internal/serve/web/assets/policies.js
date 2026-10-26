@@ -9,6 +9,8 @@
 
 import { h, clear, icon, plural, relTime, stamp, fmt, signatureMark } from './util.js';
 import { tokenize } from './cue.js';
+import { attachFolds } from './fold.js';
+import { StudioView } from './studio.js';
 
 // STATUS says what a policy is to the next apply, in words and in the one colour that means a decision is waiting.
 const STATUS = {
@@ -64,9 +66,36 @@ export class PoliciesView {
     this.sel = '';
     this.want = '';
     this.opened = new Map(); // "name@seq" -> the version's text or changes are open, as the person left it
+    this.mode = 'register'; // or 'studio': the studio, which tries a rule on plans
+    this.studio = new StudioView(root, cb);
   }
 
-  route() { return { pol: this.sel }; }
+  route() { return { pol: this.mode === 'register' ? this.sel : '', ps: this.mode === 'studio' ? '1' : '' }; }
+
+  // setMode switches between the register of policies and the studio.
+  setMode(mode) {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    if (mode === 'register') this.studio.close();
+    this.render({ policies: this.doc });
+    if (this.cb.onRoute) this.cb.onRoute();
+  }
+
+  toggleStudio() { this.setMode(this.mode === 'studio' ? 'register' : 'studio'); }
+
+  // tryPolicy opens the studio on a rule of the register: the text in force, or the text the specification declares.
+  tryPolicy(name, which) {
+    this.mode = 'studio';
+    this.studio.tryPolicy(name, which);
+    this.render({ policies: this.doc });
+    if (this.cb.onRoute) this.cb.onRoute();
+  }
+
+  // modes is the switch between the two pages of the section.
+  modes() {
+    const b = (mode, label, key) => h('button', { type: 'button', 'aria-pressed': this.mode === mode ? 'true' : 'false', 'data-fk': 'mode:' + mode, 'aria-keyshortcuts': key, on: { click: () => this.setMode(mode) } }, label);
+    return h('div', { class: 'seg po-modes', role: 'group', 'aria-label': 'Page of the section' }, b('register', 'Register', 's'), b('studio', 'Studio', 's'));
+  }
 
   // open selects a policy, for a link from another part of the page; the next render shows it
   open(name) {
@@ -77,11 +106,22 @@ export class PoliciesView {
   setRoute(f) {
     this.want = f.pol || '';
     if (this.want) this.sel = this.want;
+    this.mode = f.ps === '1' ? 'studio' : 'register';
   }
 
   render({ policies }) {
     const focus = document.activeElement && this.root.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
     const top = this.root.scrollTop;
+    if (this.mode === 'studio') {
+      this.doc = policies || this.doc;
+      clear(this.root);
+      this.root.append(h('div', { class: 'po-bar' }, this.modes()));
+      this.root.append(this.studio.mount());
+      this.studio.show(policies);
+      this.root.scrollTop = top;
+      return;
+    }
+    this.studio.close();
     clear(this.root);
     if (!policies) {
       this.doc = null;
@@ -93,6 +133,7 @@ export class PoliciesView {
     if (!list.some((p) => p.name === this.sel)) this.sel = list.length ? (list.find((p) => p.status !== 'removed') || list[0]).name : '';
     const cur = list.find((p) => p.name === this.sel) || null;
     this.root.append(h('div', { class: 'po' },
+      h('div', { class: 'po-bar' }, this.modes()),
       this.head(policies),
       list.length ? h('div', { class: 'po-body' }, this.register(list), cur ? this.dossier(cur) : null) : this.none(policies),
       h('p', { class: 'po-foot' }, FOOTER)));
@@ -105,9 +146,8 @@ export class PoliciesView {
 
   // head is the title block: what the page is, and four counts that go together.
   head(d) {
-    const versions = d.policies.reduce((n, p) => n + p.versions.length, 0);
     const judged = d.policies.reduce((n, p) => n + p.judged, 0);
-    const cell = (k, v, cls, tip) => h('li', { class: cls || '', title: tip || null }, h('span', { class: 'k' }, k), h('b', null, fmt(v)));
+    const cell = (k, v, cls, tip) => h('li', { class: cls || '' }, h('span', { class: 'k' }, k, h('button', { type: 'button', class: 'po-info', 'data-tip': tip, 'aria-label': `${k}: ${tip}` }, icon('info'))), h('b', null, fmt(v)));
     const notes = [];
     if (d.problem) notes.push(h('p', { class: 'po-problem' }, icon('bang'), h('span', null, 'The versions could not be read as trusted: ' + d.problem)));
     if (!d.spec_ok) notes.push(h('p', { class: 'po-warn' }, icon('bang'), h('span', null, 'The specification does not load, so the policies in the state cannot be compared with it.')));
@@ -121,8 +161,7 @@ export class PoliciesView {
       d.policies.length ? h('ul', { class: 'po-tally', 'aria-label': 'Counts' },
         cell('in force', d.in_force, 'ok', 'Policies whose latest version is a rule'),
         cell('pending', d.pending, d.pending > 0 ? 'chg' : '', 'Policies that the next apply adds, changes or removes'),
-        cell('versions', versions, '', 'Versions in the state, removals included'),
-        cell('judged', judged, '', 'Judgements that these versions made: one for each transaction that lists one')) : null,
+        cell('applies judged', judged, '', 'Applies that were held to these policies: each transaction that lists the versions that judged it, added up over all policies')) : null,
       notes.length ? h('div', { class: 'po-notes' }, notes) : null);
   }
 
@@ -141,7 +180,8 @@ export class PoliciesView {
       return h('li', null, h('button', { type: 'button', class: 'po-row mk-' + st.mark, 'aria-current': p.name === this.sel ? 'true' : 'false', 'data-fk': 'row:' + p.name,
         on: { click: () => this.select(p.name) } },
         h('i', { class: 'po-mark', 'aria-hidden': 'true' }),
-        h('span', { class: 'po-rname' }, p.name),
+        h('span', { class: 'po-rname' }, p.description || p.name),
+        p.description ? h('code', { class: 'po-rkey' }, p.name) : null,
         h('span', { class: 'po-rmeta' },
           h('span', { class: 'po-rstat ' + st.cls }, st.label),
           p.head ? h('span', null, 'v' + p.head) : h('span', null, 'no version'),
@@ -164,8 +204,9 @@ export class PoliciesView {
     const fact = (k, ...v) => h('li', null, h('span', { class: 'k' }, k), ...v);
     return h('section', { class: 'po-doc', 'aria-labelledby': 'po-dn' },
       h('div', { class: 'po-dhead' },
-        h('h3', { class: 'po-dname', id: 'po-dn' }, p.name),
+        h('h3', { class: 'po-dname' + (p.description ? ' described' : ''), id: 'po-dn' }, p.description || p.name),
         h('span', { class: 'b ' + st.cls }, st.label),
+        p.description ? h('code', { class: 'po-key', title: 'The key of the policy in the specification and the state' }, p.name) : null,
         p.source ? h('code', { class: 'po-src', title: 'Where the specification writes this policy' }, `${p.source.file}:${p.source.line}`) : null),
       h('ul', { class: 'po-facts' },
         fact('version', h('b', null, p.head ? 'v' + p.head : 'none')),
@@ -175,6 +216,7 @@ export class PoliciesView {
         fact('judged', h('b', null, p.judged ? plural(p.judged, 'run') : 'none yet'))),
       this.pending(p),
       this.rule(p),
+      this.written(p),
       this.history(p));
   }
 
@@ -186,16 +228,18 @@ export class PoliciesView {
   // pending says what the next apply does to this policy, and shows the change.
   pending(p) {
     const head = p.versions[0];
-    let text = '', diff = null;
+    let text = '', diff = null, tryIt = null;
     switch (p.status) {
       case 'pending':
         text = `The specification declares other text than version ${p.head}. The next apply writes version ${p.head + 1}.`;
         diff = this.diff(head.text, p.rule, `v${p.head}`, 'specification');
+        tryIt = h('button', { type: 'button', class: 'po-try', on: { click: () => this.tryPolicy(p.name, 'declared') } }, 'Try the new text on plans');
         break;
       case 'new':
         text = p.head
           ? `Version ${p.head} removed this policy and the specification declares it again. The next apply writes version ${p.head + 1}.`
           : 'The specification declares this policy and the state has no version of it. The first apply writes version 1.';
+        tryIt = h('button', { type: 'button', class: 'po-try', on: { click: () => this.tryPolicy(p.name, 'declared') } }, 'Try the rule on plans');
         break;
       case 'removing':
         text = `The specification no longer declares this policy. The next apply writes a removal as version ${p.head + 1}, and the rule judges nothing after it.`;
@@ -206,8 +250,19 @@ export class PoliciesView {
     return h('div', { class: 'po-pend' },
       h('p', { class: 'po-pt' }, icon('hold'), h('span', null, text)),
       diff,
+      tryIt,
       h('div', { class: 'cmdline po-cmd' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, this.doc.command),
         h('button', { class: 'cpbtn', type: 'button', 'data-copy': this.doc.command, 'aria-label': `Copy the command: ${this.doc.command}`, 'data-tip': 'Copy the command' }, icon('copy'))));
+  }
+
+  // written is the policy where the specification writes it, with the line numbers of its file.
+  written(p) {
+    const b = p.written;
+    if (!b || !b.lines || !b.lines.length || p.status === 'in-force') return null;
+    const lines = b.lines.filter((l) => !l.dim).map((l) => ({ op: ' ', text: l.text, no: l.no }));
+    return h('div', { class: 'po-rulebox po-written' },
+      h('h4', { class: 'po-h4' }, 'Written in the specification', h('code', { class: 'po-wf' }, `${b.file}:${b.start_line}`), h('span', { class: 'po-n' }, plural(lines.length, 'line'))),
+      this.code(lines, { copy: lines.map((l) => l.text).join('\n') + '\n', label: 'Copy the lines of the specification' }));
   }
 
   // rule is the text in force, or the text the specification declares when nothing is in force yet.
@@ -219,9 +274,21 @@ export class PoliciesView {
       return h('div', { class: 'po-rulebox' }, h('h4', { class: 'po-h4' }, 'Rule'), h('p', { class: 'po-note' }, 'Nothing is in force: this policy judges no plan.'));
     }
     const lines = text.replace(/\n$/, '').split('\n').map((t, i) => ({ op: ' ', text: t, no: i + 1 }));
+    const declared = !inForce && p.status === 'new';
+    // What is in force is what the specification declares: one window, the policy as it is written, and the signed text behind a fold.
+    const b = p.written;
+    if (inForce && p.status === 'in-force' && b && b.lines && b.lines.length) {
+      const src = b.lines.filter((l) => !l.dim).map((l) => ({ op: ' ', text: l.text, no: l.no }));
+      return h('div', { class: 'po-rulebox po-written' },
+        h('h4', { class: 'po-h4' }, `Policy in force · v${inForce.seq}`, h('code', { class: 'po-wf', title: 'Where the specification writes this policy' }, `${b.file}:${b.start_line}`), h('span', { class: 'po-n' }, plural(src.length, 'line')),
+          h('button', { type: 'button', class: 'po-try', 'data-tip': 'Try this rule on stored plans and plan files', on: { click: () => this.tryPolicy(p.name, 'policy') } }, 'Try on plans')),
+        this.code(src, { copy: src.map((l) => l.text).join('\n') + '\n', label: 'Copy the policy' }),
+        h('details', { class: 'po-signed' }, h('summary', null, 'The text that version ' + inForce.seq + ' signed'), this.code(lines, { copy: text, label: 'Copy the signed text' })));
+    }
     return h('div', { class: 'po-rulebox' },
-      h('h4', { class: 'po-h4' }, inForce ? `Rule in force · v${inForce.seq}` : 'Rule declared', h('span', { class: 'po-n' }, plural(lines.length, 'line'))),
-      this.code(lines, { copy: text, label: 'Copy the rule' }));
+      h('h4', { class: 'po-h4' }, inForce ? `Policy in force · v${inForce.seq}` : 'Policy declared', h('span', { class: 'po-n' }, plural(lines.length, 'line')),
+        h('button', { type: 'button', class: 'po-try', 'data-tip': 'Try this rule on stored plans and plan files', on: { click: () => this.tryPolicy(p.name, declared ? 'declared' : 'policy') } }, 'Try on plans')),
+      this.code(lines, { copy: text, label: 'Copy the policy' }));
   }
 
   // history is the versions as a ledger on a rail, newest first. A version opens to show what it changed, and the transactions it judged.
@@ -263,7 +330,7 @@ export class PoliciesView {
     const out = [];
     if (v.removal) out.push(h('p', { class: 'po-note' }, 'This version removes the policy. It has no text.'));
     else if (prev && !prev.removal) out.push(this.diff(prev.text, v.text, 'v' + prev.seq, 'v' + v.seq));
-    else out.push(this.code(v.text.replace(/\n$/, '').split('\n').map((t, i) => ({ op: ' ', text: t, no: i + 1 })), { copy: v.text, label: 'Copy the rule' }));
+    else out.push(this.code(v.text.replace(/\n$/, '').split('\n').map((t, i) => ({ op: ' ', text: t, no: i + 1 })), { copy: v.text, label: 'Copy the policy' }));
     out.push(h('p', { class: 'po-ref' }, h('span', { class: 'k' }, 'ref'), h('code', null, v.ref),
       h('button', { class: 'cpbtn', type: 'button', 'data-copy': v.ref, 'aria-label': 'Copy the reference of the version', 'data-tip': 'Copy the reference' }, icon('copy'))));
     if (v.runs && v.runs.length) {
@@ -289,18 +356,25 @@ export class PoliciesView {
   code(lines, o) {
     const toks = lines.some((l) => l.text !== undefined) ? tokenize(lines.map((l) => (l.text === undefined ? '' : l.text))) : null;
     const body = h('div', { class: 'po-cbody' });
+    const parts = [];
     lines.forEach((l, i) => {
       if (l.op === '…') { body.append(h('div', { class: 'po-ln gap' }, h('i', { class: 'po-no' }), h('span', { class: 'po-sg' }), h('span', { class: 'po-code' }, `${plural(l.n, 'unchanged line')}`))); return; }
       const code = h('span', { class: 'po-code' });
       const tk = l.toks || (toks && toks[i]) || [];
       for (const t of tk) code.append(t.t ? h('span', { class: 'tk-' + t.t }, t.text) : t.text);
       if (!tk.length) code.append('​');
-      body.append(h('div', { class: 'po-ln' + (l.op === '+' ? ' add' : l.op === '-' ? ' del' : '') },
-        h('i', { class: 'po-no' }, l.no ? String(l.no) : ''), h('span', { class: 'po-sg', 'aria-hidden': 'true' }, l.op === ' ' ? '' : l.op === '-' ? '−' : '+'), code,
-        l.op === '+' || l.op === '-' ? h('span', { class: 'sr-only' }, l.op === '+' ? ' (added)' : ' (removed)') : null));
+      const sg = h('span', { class: 'po-sg' }, l.op === ' ' ? '' : l.op === '-' ? '−' : '+');
+      if (l.op !== ' ') sg.setAttribute('aria-hidden', 'true');
+      const row = h('div', { class: 'po-ln' + (l.op === '+' ? ' add' : l.op === '-' ? ' del' : '') },
+        h('i', { class: 'po-no' }, l.no ? String(l.no) : ''), sg, code,
+        l.op === '+' || l.op === '-' ? h('span', { class: 'sr-only' }, l.op === '+' ? ' (added)' : ' (removed)') : null);
+      body.append(row);
+      parts.push({ row, host: sg, code });
     });
+    // a text that is shown whole, not as a change, can be folded
+    if (toks && lines.every((l) => l.op === ' ')) attachFolds(parts, toks);
     const wrap = h('div', { class: 'po-cw' });
-    const scroll = h('div', { class: 'po-scroll', role: 'region', tabIndex: 0, 'aria-label': o.label || 'Rule text' }, body);
+    const scroll = h('div', { class: 'po-scroll', role: 'region', tabIndex: 0, 'aria-label': o.label || 'Policy text' }, body);
     wrap.append(scroll);
     if (o.copy) wrap.append(h('button', { class: 'cpbtn po-cp', type: 'button', 'data-copy': o.copy, 'aria-label': o.label, 'data-tip': o.label }, icon('copy')));
     return wrap;

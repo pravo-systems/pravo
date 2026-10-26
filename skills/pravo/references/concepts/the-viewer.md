@@ -151,11 +151,17 @@ The objects can be filtered with the filter box of the Inventory, with the colum
 
 It does not run a discovery. A run starts a provider, and the viewer starts none. A card says that a run is missing or answers an old scope, with the command to copy, and the page changes when the command has run, as it does for any change of the state.
 
+## The policy studio
+
+A rule is easier to write when you can see what it does to plans that exist. The studio, a page of the Policies section, is an editor beside two answers. The first is about the resources that exist: held against each of them as if a plan updated it, the rule says how many would be refused and why, which is what is not consistent with the policy today and will be refused when a plan first touches it. The second is about one plan, which you choose from the stored plans and the plan files of the project, shown in full with the part of it that broke the rule. Both follow the editor as you type. It explains the plan document that a rule is written against and how a rule is judged, so a first rule does not start from a blank page.
+
+It is a preview, not a step. The server runs the rule in a CUE context of its own and writes nothing, so the state, the plans and the policies are as they were, and a rule that you like still has to go into the specification and be applied. [`pravo policy test`](../reference/policy.md) gives the same verdicts on the command line, with an exit code for a pipeline. [The reference](../reference/serve.md#the-studio) lists the parts of the page.
+
 ## Why the viewer is read-only
 
 The server writes nothing. It creates no record and no transaction, takes no lock, does not write `pravo.lock.cue` and does not generate a package. The project directory and the state hold the same bytes after a session as before it, a sealed state included.
 
-Three consequences follow. You can leave the viewer open while someone else applies: it never contends for a lock, and it shows the locks that the apply holds. You can start it on any root that you can read, because starting it changes no file. And the page has no button that changes anything, since the server has no endpoint that would carry the request.
+Three consequences follow. You can leave the viewer open while someone else applies: it never contends for a lock, and it shows the locks that the apply holds. You can start it on any root that you can read, because starting it changes no file. And the page has no button that changes anything, since the server has no endpoint that would carry the request. One request is not a `GET`: a plan file that you drop on the policy studio is sent to the server, which judges it and holds it in memory. It writes no file and no record.
 
 The viewer stays current without writing. It watches the state, the files that the evaluation loaded, the plan file, the plans stored in the state and the runs of the discoveries. When any of them changes, or the readers file does, it sends one event to the page, and the page fetches the graph, the list of plans and the open node again. The page says what changed, the state, the specification, the plan, the stored plans, the discoveries or a lock, with how many resources changed, are new or are gone, and the resources that changed flash once.
 

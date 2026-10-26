@@ -25,10 +25,14 @@ body:has(.app[data-view="policies"]) .planstrip, body:has(.app[data-view="polici
 .po-head.loud { --hc: var(--change); }
 .po-htext { padding: 1.1rem 1.5rem 1.15rem; min-width: 0; }
 .po-lede { margin: .45rem 0 0; max-width: 40rem; color: var(--text-2); font-size: .9rem; line-height: 1.55; text-wrap: pretty; }
-.po-tally { display: grid; grid-template-columns: repeat(4, 6.6rem); margin: 0; padding: 0; list-style: none; border-left: 1px solid var(--line-strong); }
+.po-tally { display: grid; grid-template-columns: repeat(3, 9.4rem); margin: 0; padding: 0; list-style: none; border-left: 1px solid var(--line-strong); }
 .po-tally li { display: flex; flex-direction: column; justify-content: space-between; gap: 1.2rem; padding: .85rem 1rem; border-left: 1px solid var(--line); }
 .po-tally li:first-child { border-left: 0; }
 .po-tally b { font: 500 1.9rem/1 var(--font-mono); letter-spacing: -.03em; color: var(--text); }
+.po-tally .k { display: flex; align-items: center; gap: .35rem; }
+.po-info { display: inline-grid; place-items: center; width: .85rem; height: .85rem; padding: 0; border: 0; background: none; color: var(--text-3); }
+.po-info:hover, .po-info:focus-visible { color: var(--text); }
+.po-info .i { width: .85rem; height: .85rem; }
 .po-tally .ok b { color: var(--accent); }
 .po-tally .chg b { color: var(--change); }
 .po-notes { grid-column: 1 / -1; display: grid; gap: .4rem; padding: .7rem 1.5rem; border-top: 1px solid var(--line); }
@@ -37,7 +41,7 @@ body:has(.app[data-view="policies"]) .planstrip, body:has(.app[data-view="polici
 .po-warn .i, .po-problem .i { flex: none; margin-top: .1rem; }
 
 /* ---- register and dossier ---- */
-.po-body { display: grid; grid-template-columns: 15.5rem minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.po-body { display: grid; grid-template-columns: 19rem minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 .po-h3, .po-h4 { display: flex; align-items: baseline; margin: 0; font: 600 .64rem/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); }
 .po-reg { border: 1px solid var(--line-strong); background: var(--surface); position: sticky; top: 0; }
 .po-reg .po-h3 { padding: .75rem .9rem; border-bottom: 1px solid var(--line-strong); background: var(--surface-2); }
@@ -46,17 +50,21 @@ body:has(.app[data-view="policies"]) .planstrip, body:has(.app[data-view="polici
 .po-row { display: grid; grid-template-columns: .6rem minmax(0, 1fr); column-gap: .7rem; row-gap: .3rem; width: 100%; padding: .7rem .9rem; text-align: left; background: none; border: 0; color: var(--text); transition: background var(--t-fast); }
 .po-row:hover { background: var(--surface-2); }
 .po-row[aria-current="true"] { background: var(--accent-wash); }
-.po-mark { grid-row: 1 / 3; align-self: start; margin-top: .3rem; width: .6rem; height: .6rem; border: 1px solid var(--text-3); box-sizing: border-box; }
+.po-mark { grid-row: 1 / span 3; align-self: start; margin-top: .3rem; width: .6rem; height: .6rem; border: 1px solid var(--text-3); box-sizing: border-box; }
 .mk-on .po-mark { background: var(--accent); border-color: var(--accent); }
 .mk-wait .po-mark { background: var(--change); border-color: var(--change); }
 .mk-off .po-mark { border-style: dashed; }
 .po-rname { font: 500 .82rem/1.25 var(--font-mono); overflow-wrap: anywhere; }
+.po-rname { font-family: var(--font-ui); font-weight: 500; font-size: .88rem; line-height: 1.35; overflow-wrap: break-word; text-wrap: pretty; }
+.po-rkey { grid-column: 2; font: 400 .66rem/1.3 var(--font-mono); color: var(--text-3); overflow-wrap: anywhere; }
 .po-rmeta { display: flex; flex-wrap: wrap; gap: .1rem .6rem; font: 500 .62rem/1.3 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .po-rstat.ok { color: var(--accent); } .po-rstat.chg { color: var(--change); }
 
 .po-doc { display: grid; gap: 1.1rem; min-width: 0; }
 .po-dhead { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; }
 .po-dname { margin: 0; font: 500 1.35rem/1.15 var(--font-mono); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.po-dname.described { font: 500 1.45rem/1.2 var(--font-display); letter-spacing: -.01em; overflow-wrap: break-word; text-wrap: balance; flex: 1 1 100%; }
+.po-key { font: 400 .74rem/1.3 var(--font-mono); color: var(--text-2); }
 .po-src { color: var(--text-3); }
 .po-facts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; border: 1px solid var(--line-strong); background: var(--surface); }
 .po-facts li { display: flex; flex-direction: column; gap: .5rem; padding: .7rem .9rem; min-width: 0; border-left: 1px solid var(--line); }
@@ -122,7 +130,7 @@ body:has(.app[data-view="policies"]) .planstrip, body:has(.app[data-view="polici
 
 @media (max-width: 62em) {
   .po-head { grid-template-columns: minmax(0, 1fr); }
-  .po-tally { border-left: 0; border-top: 1px solid var(--line-strong); grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .po-tally { border-left: 0; border-top: 1px solid var(--line-strong); grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .po-body { grid-template-columns: minmax(0, 1fr); }
   .po-reg { position: static; }
   .po-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -135,3 +143,8 @@ body:has(.app[data-view="policies"]) .planstrip, body:has(.app[data-view="polici
   .po-htext { padding: 1rem; }
   .po-vj { margin-left: 0; }
 }
+
+.po-wf { margin-left: .8rem; font: 400 .7rem/1 var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--text-3); }
+
+.po-signed { margin-top: .6rem; } .po-signed summary { cursor: pointer; font: 500 .72rem/1.4 var(--font-ui); letter-spacing: .04em; color: var(--text-2); padding: .3rem 0; }
+.po-signed[open] summary { margin-bottom: .4rem; }

@@ -356,11 +356,17 @@ func ReadPlanFileWith(path string, sl state.Sealer) (*PlanFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	plain, sealed, err := openPlanFile(path, data, sl)
+	return ReadPlanBytes(path, data, sl)
+}
+
+// ReadPlanBytes is ReadPlanFileWith for the bytes of a plan file that are already in
+// memory. name is what the plan is called in messages.
+func ReadPlanBytes(name string, data []byte, sl state.Sealer) (*PlanFile, error) {
+	plain, sealed, err := openPlanFile(name, data, sl)
 	if err != nil {
 		return nil, err
 	}
-	pf, err := parsePlanFile(path, plain)
+	pf, err := parsePlanFile(name, plain)
 	if err != nil {
 		return nil, err
 	}

@@ -1,4 +1,4 @@
-// The client of the JSON contract in internal/serve/api.go. The page sends nothing but GET requests.
+// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, and one POST: a plan file dropped on the studio, which the server judges and writes nowhere.
 
 export class Unauthorized extends Error {
   constructor() { super('unauthorized'); this.name = 'Unauthorized'; }
@@ -13,9 +13,9 @@ export class Unreachable extends Error {
 let authHandler = null;
 export function onUnauthorized(fn) { authHandler = fn; }
 
-async function get(path) {
+async function get(path, signal) {
   let r;
-  try { r = await fetch(path, { headers: { Accept: 'application/json' }, cache: 'no-store', credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  try { r = await fetch(path, { headers: { Accept: 'application/json' }, cache: 'no-store', credentials: 'same-origin', signal }); } catch (err) { if (err && err.name === 'AbortError') throw err; throw new Unreachable(); }
   if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
   if (!r.ok) {
     let msg = r.statusText || `status ${r.status}`;
@@ -43,6 +43,27 @@ export const access = () => get('/api/access').catch((err) => { if (err && err.s
 export const discovery = () => get('/api/discovery').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, unmanaged: 0, discoveries: [], command: 'pravo discover' }; throw err; });
 // policies is the rules that every plan is judged by, with their signed versions, set against the specification; a server that does not know them has none.
 export const policies = () => get('/api/policies').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, checked: false, in_force: 0, pending: 0, policies: [], command: 'pravo apply' }; throw err; });
+// studio is what a rule can be tried on (the stored plans and the plan files of the project), the policies and examples to start from, and the schema of the plan document.
+export const studio = () => get('/api/studio');
+// tryRule holds the policies of a text against plans. Nothing is written: it is a GET, as every request of the page is.
+export const tryRule = ({ rule, refs }, signal) => {
+  const q = new URLSearchParams();
+  q.set('rule', rule);
+  for (const r of refs) q.append('ref', r);
+  return get('/api/studio/try?' + q.toString(), signal);
+};
+// studioDoc is the document that a plan is judged by: its outline, and the JSON of the change i (or of the document without its changes).
+export const studioDoc = (ref, i) => get('/api/studio/doc?ref=' + encodeURIComponent(ref) + (i === undefined ? '' : '&i=' + i));
+// uploadPlan hands the server a plan file that was dropped on the studio; it answers with the entry of the plan for the list of plans. The file is kept in the server's memory only.
+export async function uploadPlan(name, bytes) {
+  let r;
+  try { r = await fetch('/api/studio/plan?name=' + encodeURIComponent(name), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', Accept: 'application/json' }, body: bytes, credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
+  let j = null;
+  try { j = await r.json(); } catch { /* not JSON */ }
+  if (!r.ok) throw Object.assign(new Error((j && j.error) || r.statusText || `status ${r.status}`), { status: r.status });
+  return j;
+}
 // traces lists the runs that pravo recorded in the project; a server that does not know them has none.
 export const traces = () => get('/api/traces').catch((err) => { if (err && err.status === 404) return { version: 1, dir: '.pravo/traces', traces: [] }; throw err; });
 // trace is the spans of one run.

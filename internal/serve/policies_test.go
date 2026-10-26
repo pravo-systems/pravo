@@ -48,7 +48,7 @@ func TestPoliciesDocumentSetsTheSpecificationAgainstTheState(t *testing.T) {
 		t.Fatalf("policies: %+v", d)
 	}
 	pi := d.Policies[0]
-	if pi.Name != "no_destroy" || pi.Status != "new" || !pi.Declared || pi.Head != 0 || len(pi.Versions) != 0 || !strings.Contains(pi.Rule, "changes") {
+	if pi.Name != "no_destroy" || pi.Status != "new" || !pi.Declared || pi.Head != 0 || len(pi.Versions) != 0 || !strings.Contains(pi.Rule, "changes") || pi.Written == nil || len(pi.Written.Lines) == 0 || !strings.Contains(pi.Written.Lines[0].Text, "no_destroy") {
 		t.Errorf("policy: %+v", pi)
 	}
 	if pi.Source == nil || !strings.HasSuffix(pi.Source.File, ".cue") {

@@ -2,9 +2,7 @@ package serve
 
 import (
 	"encoding/json"
-	"regexp"
 	"sort"
-	"strconv"
 
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -20,19 +18,8 @@ const (
 	maxPlanPolicies = 200
 )
 
-var pctRE = regexp.MustCompile(`%([0-9A-F]{4})`)
-
-// policyDisplay is the name of a policy as its address reads: the state keeps it
-// encoded as an object name.
-func policyDisplay(name string) string {
-	return pctRE.ReplaceAllStringFunc(name, func(s string) string {
-		n, err := strconv.ParseInt(s[1:], 16, 32)
-		if err != nil {
-			return s
-		}
-		return string(rune(n))
-	})
-}
+// policyDisplay is the name of a policy as its address reads.
+func policyDisplay(name string) string { return state.PolicyDisplay(name) }
 
 // buildPolicies reads the versions of every policy and sets them against what the
 // specification declares and the transactions that were judged by them. It reads the
@@ -55,9 +42,11 @@ func (m *model) buildPolicies(rev string) {
 		}
 	}
 	declared := map[string]string{}
+	described := map[string]string{}
 	if root := m.spec.root; root != nil {
 		for _, p := range root.Policies {
 			declared[state.PolicyName(p.Name)] = p.Rule
+			described[state.PolicyName(p.Name)] = p.Description
 		}
 	}
 	names := map[string]bool{}
@@ -74,7 +63,8 @@ func (m *model) buildPolicies(rev string) {
 	sort.Strings(order)
 	for _, name := range order {
 		vs := history[name]
-		info := PolicyInfo{Name: m.clipText(policyDisplay(name)), Versions: []PolicyVersionInfo{}, Source: m.spec.polRefs[name]}
+		info := PolicyInfo{Name: m.clipText(policyDisplay(name)), Versions: []PolicyVersionInfo{}, Description: m.clipText(described[name]), Source: m.spec.polRefs[name]}
+		info.Written = m.policySource(info.Source)
 		rule, isDeclared := declared[name]
 		info.Declared = isDeclared
 		var head *state.PolicyVersion
@@ -98,7 +88,7 @@ func (m *model) buildPolicies(rev string) {
 			info.Status = "removed"
 		}
 		if isDeclared && info.Status != "in-force" {
-			info.Rule = m.scrubText(clip(rule, maxPolicyText))
+			info.Rule = m.scrubText(policyDeclaration(info.Name, "", clip(rule, maxPolicyText)))
 		}
 		if live {
 			doc.InForce++
@@ -110,7 +100,7 @@ func (m *model) buildPolicies(rev string) {
 			v := vs[i]
 			vi := PolicyVersionInfo{Seq: v.Seq, Ref: v.Ref(), Digest: v.Digest(), At: v.At, Removal: v.Tombstone()}
 			if !v.Tombstone() {
-				vi.Text = m.scrubText(clip(v.Text, maxPolicyText))
+				vi.Text = m.scrubText(policyDeclaration(info.Name, "", clip(v.Text, maxPolicyText)))
 			}
 			if doc.Checked {
 				vi.Signature = v.Status.Key()
@@ -130,6 +120,14 @@ func (m *model) buildPolicies(rev string) {
 		doc.Policies = append(doc.Policies, info)
 	}
 	m.pol = doc
+	m.polText = map[string]polTexts{}
+	for _, name := range order {
+		pt := polTexts{declared: declared[name]}
+		if vs := history[name]; len(vs) > 0 && !vs[len(vs)-1].Tombstone() {
+			pt.inForce = vs[len(vs)-1].Text
+		}
+		m.polText[m.clipText(policyDisplay(name))] = pt
+	}
 	m.polJSON, _ = json.Marshal(doc)
 }
 
@@ -143,4 +141,23 @@ func (m *model) planPolicies(entries []engine.PolicyEntry) []PlanPolicy {
 		out = append(out, PlanPolicy{Name: m.clipText(policyDisplay(en.Name)), Change: en.Kind(), Base: en.Base})
 	}
 	return out
+}
+
+// policySource reads the lines of the specification that write a policy, masked as every other source is.
+func (m *model) policySource(ref *Ref) *SourceBlock {
+	if ref == nil || m.spec.root == nil {
+		return nil
+	}
+	// The load of a model holds the lock of the CUE values.
+	ss := m.spec
+	var notes []string
+	reader := &blockReader{ss: ss, sens: map[string]bool{}, secrets: m.secrets, notes: &notes}
+	b := reader.read("definition", "", ref, false)
+	if b == nil {
+		return nil
+	}
+	for i := range b.Lines {
+		b.Lines[i].Text = m.scrubText(b.Lines[i].Text)
+	}
+	return b
 }

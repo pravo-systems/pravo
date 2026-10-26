@@ -387,6 +387,10 @@ pravo -C infra state query '[for a, r in resources if r.type == "random_pet" if 
 
 When the list is empty, add the rule. The two `if` clauses are chained so that the comparison is read only for pets. Joined with `&&`, the query fails with `undefined field` on the records of other types.
 
+### Try a rule on plans you have
+
+`pravo policy test` holds a rule, or a draft file of one, against the stored plans and plan files and says which it would refuse and why, without writing anything. The policy studio of the viewer does the same with an editor and a live verdict. See [`pravo policy`](policy.md) and [the studio](serve.md#the-studio).
+
 ### A scratch root
 
 Rehearse a rule in a copy of the root with its own state, where an apply costs nothing. Seal the scratch state to your own identity, apply the rule there, and read the verdict of `plan` on the changes you expect it to refuse. [Writing policies](policies-writing.md) does this with `set-rule.sh`. Nothing the scratch state records reaches the real one.

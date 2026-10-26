@@ -6,7 +6,11 @@
 // that the evaluation did not load: see README.md.
 package serve
 
-import "time"
+import (
+	"time"
+
+	"github.com/pravo-systems/pravo/internal/engine"
+)
 
 // APIVersion is the layout version of every response in this file.
 const APIVersion = 1
@@ -1079,8 +1083,12 @@ type PolicyInfo struct {
 	// removal).
 	Status   string `json:"status"`
 	Declared bool   `json:"declared"`
+	// Description is what the specification says the policy is for; empty when it says nothing or does not declare the policy.
+	Description string `json:"description,omitempty"`
 	// Source is where the specification writes the policy.
 	Source *Ref `json:"source,omitempty"`
+	// Written is the policy as the specification writes it, with the lines around it kept out; nil when the specification does not load or the file cannot be read.
+	Written *SourceBlock `json:"written,omitempty"`
 	// Head is the number of the latest version, 0 when the state has none.
 	Head int `json:"head"`
 	// Rule is the text the specification declares, when it differs from the head.
@@ -1115,4 +1123,117 @@ type JudgedRun struct {
 	Kind   string    `json:"kind"`
 	Status string    `json:"status"`
 	Time   time.Time `json:"time"`
+}
+
+// Studio is what the policy studio starts from: the plans a rule can be tried on, the
+// policies that can be started from, the document a rule is written against and some
+// rules to begin with. It is read from the state and the project and runs no rule.
+type Studio struct {
+	Version  int    `json:"version"`
+	Revision string `json:"revision"`
+	// SpecOK is false when the specification does not load: the values of a plan
+	// cannot be decoded then, so no rule can be tried on one.
+	SpecOK   bool           `json:"spec_ok"`
+	Plans    []StudioPlan   `json:"plans"`
+	Policies []StudioPolicy `json:"policies"`
+	// State is the state as something a rule can be tried on.
+	State *StudioState `json:"state,omitempty"`
+	// Schema is the CUE of #Policy, #Plan, #Action and #Change: the document a rule is judged against.
+	Schema string `json:"schema"`
+	// Fields is the same document as a tree, for completing what is typed.
+	Fields   []SchemaField   `json:"fields"`
+	Examples []StudioExample `json:"examples"`
+	// Skipped says which plan files were found and could not be read.
+	Note string `json:"note,omitempty"`
+}
+
+// StudioState is the state as a plan that updates every resource to what it holds. Trying a rule on Ref says which
+// resources would be refused if a plan touched them.
+type StudioState struct {
+	Ref string `json:"ref"`
+	// Resources counts the resources whose values can be read, which the rule is tried on.
+	Resources int `json:"resources"`
+}
+
+// StudioPlan is a plan a rule can be tried on: one stored in the state, or a plan file of the project.
+type StudioPlan struct {
+	// Ref names it in a request: the id of a stored plan, or "file:" and the path of a plan file.
+	Ref  string `json:"ref"`
+	Kind string `json:"kind"` // "stored" or "file"
+	// Label is what a person calls it: the id, or the path relative to the project.
+	Label string `json:"label"`
+	// Status is where a stored plan stands (pending, partial, partly-stale, stale, applied or expired); a file has none.
+	Status  string    `json:"status,omitempty"`
+	Open    bool      `json:"open"`
+	Author  string    `json:"author,omitempty"`
+	Created time.Time `json:"created"`
+	Add     int       `json:"add"`
+	Change  int       `json:"change"`
+	Destroy int       `json:"destroy"`
+	// Sealed is set for a stored plan this identity cannot open.
+	Sealed bool `json:"sealed,omitempty"`
+}
+
+// StudioPolicy is a policy to start from or to compare with.
+type StudioPolicy struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	// Description is what the specification says the policy is for; empty when it says nothing or does not declare the policy.
+	Description string `json:"description,omitempty"`
+	// InForce is the text of the version in force, and Declared the text the specification declares; empty when there is none.
+	InForce  string `json:"in_force,omitempty"`
+	Declared string `json:"declared,omitempty"`
+}
+
+// StudioExample is a rule to start from.
+type StudioExample struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	About string `json:"about"`
+	Rule  string `json:"rule"`
+	// Policy is the rule as a policy, the text the editor starts from.
+	Policy string `json:"policy"`
+}
+
+// StudioTry is what a rule says of plans.
+type StudioTry struct {
+	Version int `json:"version"`
+	// Check is why the text cannot be stored as it is, or nil. A file that compiles is tried on plans even so.
+	Check *engine.RuleProblem `json:"check,omitempty"`
+	// Policies are the policies that the text declares.
+	Policies []engine.DraftPolicy `json:"policies"`
+	Plans    []TriedPlan          `json:"plans"`
+	Took     int64                `json:"took_ms"`
+}
+
+// TriedPlan is what the policies of the text say of one plan.
+type TriedPlan struct {
+	Ref string `json:"ref"`
+	// State is "judged", "not-judged" (the plan changes no resource, so no policy judges it), "sealed", "unreadable" or "unknown".
+	State string `json:"state"`
+	Note  string `json:"note,omitempty"`
+	// Changes counts the changes of the plan's document.
+	Changes int                `json:"changes"`
+	Draft   *engine.RuleResult `json:"draft,omitempty"`
+}
+
+// StudioDoc is the document of one plan as a rule sees it.
+type StudioDoc struct {
+	Version int    `json:"version"`
+	Ref     string `json:"ref"`
+	// Head is the document without its changes, as JSON.
+	Head string `json:"head"`
+	// Outline lists the changes in order: Index is the n of changes.n in an error.
+	Outline []DocChange `json:"outline"`
+	// Change is the JSON of the change that was asked for, if one was.
+	Change    string `json:"change,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+}
+
+// DocChange is one change in the outline of a document.
+type DocChange struct {
+	Index  int    `json:"index"`
+	Addr   string `json:"addr"`
+	Action string `json:"action"`
+	Type   string `json:"type"`
 }

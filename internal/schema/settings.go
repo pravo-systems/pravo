@@ -1,5 +1,7 @@
 package schema
 
+import "strings"
+
 // SettingsPackage is the package "pravo.dev/pravo", written by pravo init. It
 // holds #Settings, the shape of the root's pravo block, so that a root can
 // write $settings: pravo.#Settings & {...} and have editors complete it and a
@@ -264,3 +266,16 @@ package pravo
 	password?: string
 }
 `
+
+// PlanDocumentSource is the part of the pravo package that describes what a policy
+// is and the document it is judged against: #Policy, #Plan, #Action and #Change, with
+// their comments, as CUE.
+func PlanDocumentSource() string {
+	const from, to = "// A rule that every plan is judged by at apply.", "// The value of an environment variable, read when the run starts."
+	i := strings.Index(SettingsPackage, from)
+	j := strings.Index(SettingsPackage, to)
+	if i < 0 || j < i {
+		return ""
+	}
+	return strings.TrimSpace(SettingsPackage[i:j]) + "\n"
+}
