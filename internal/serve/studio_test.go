@@ -266,3 +266,11 @@ func TestStudioTakesADroppedPlanFile(t *testing.T) {
 		t.Error("the dropped file changed the project")
 	}
 }
+
+func TestPolicyDeclarationHoistsImports(t *testing.T) {
+	got := policyDeclaration("tagged", "", "import \"list\"\n\nchanges: []\n")
+	want := "import (\n\t\"pravo.dev/pravo\"\n\t\"list\"\n)\n\ntagged: pravo.#Policy & {\n\trule: {\n\t\tchanges: []\n\t}\n}\n"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

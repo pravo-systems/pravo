@@ -380,7 +380,16 @@ func (s *Server) tryHandler(w http.ResponseWriter, r *http.Request, m *model) {
 // policyDeclaration is a rule as a specification would declare it: the import, the name, the description when there is one, and the policy.
 func policyDeclaration(name, description, rule string) string {
 	var b strings.Builder
-	b.WriteString("import \"pravo.dev/pravo\"\n\n")
+	imports, rule := hoistImports(rule)
+	if len(imports) == 0 {
+		b.WriteString("import \"pravo.dev/pravo\"\n\n")
+	} else {
+		b.WriteString("import (\n\t\"pravo.dev/pravo\"\n")
+		for _, im := range imports {
+			b.WriteString("\t" + im + "\n")
+		}
+		b.WriteString(")\n\n")
+	}
 	labels := strings.Split(name, ".")
 	for i, l := range labels {
 		if i > 0 {
@@ -406,6 +415,45 @@ func policyDeclaration(name, description, rule string) string {
 	}
 	b.WriteString("\t}\n}\n")
 	return b.String()
+}
+
+// hoistImports takes the import declarations off the top of a stored rule, where they sit as written in its file, so
+// that they can go to the top of the policy file, where CUE wants them. It returns each imported package, with its
+// alias if it has one, and what is left of the rule.
+func hoistImports(rule string) ([]string, string) {
+	lines := strings.Split(rule, "\n")
+	var specs []string
+	i := 0
+	for i < len(lines) {
+		t := strings.TrimSpace(lines[i])
+		switch {
+		case t == "":
+			i++
+			continue
+		case strings.HasPrefix(t, "import ("):
+			i++
+			for i < len(lines) && strings.TrimSpace(lines[i]) != ")" {
+				if sp := strings.TrimSpace(lines[i]); sp != "" {
+					specs = append(specs, sp)
+				}
+				i++
+			}
+			i++
+			continue
+		case strings.HasPrefix(t, "import "):
+			specs = append(specs, strings.TrimSpace(strings.TrimPrefix(t, "import ")))
+			i++
+			continue
+		}
+		break
+	}
+	var out []string
+	for _, sp := range specs {
+		if !strings.Contains(sp, "pravo.dev/pravo") {
+			out = append(out, sp)
+		}
+	}
+	return out, strings.Join(lines[i:], "\n")
 }
 
 var cueIdent = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
