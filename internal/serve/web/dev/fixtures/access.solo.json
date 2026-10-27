@@ -5,7 +5,7 @@
  "format": 3,
  "location": "s3://acme-state/estate",
  "backend": "s3",
- "summary": "The state is sealed to 1 reader. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
+ "summary": "This state is sealed: its secret values are locked, and only the 1 member listed below can open them. Names, types and dependencies stay visible, so the graph and the plans keep working.",
  "readers": [
   {
    "name": "ada",
@@ -16,19 +16,21 @@
    "in_store": true,
    "in_file": true,
    "you": true,
-   "line": 1
+   "line": 1,
+   "status": "active",
+   "status_text": "Has access"
   }
  ],
  "file": {
   "verdict": "match",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The readers file matches the store.",
+  "text": "The access list (readers.txt) matches the state.",
   "count": 1
  },
  "you": {
   "state": "reader",
   "name": "ada",
-  "text": "You are ada, a reader."
+  "text": "You are ada and can open this state."
  },
  "records": {
   "total": 46,
@@ -38,8 +40,8 @@
   "text": "All 46 records are sealed."
  },
  "single_reader": {
-  "text": "You are the only reader. If you lose your key or its passphrase, nobody can read this state, and there is no recovery key.",
-  "action": "Add a backup reader",
+  "text": "You are the only member who can open this state. If you lose your key or its passphrase, nobody can, and there is no recovery key.",
+  "action": "Add a backup member",
   "suggestion": "add-reader"
  },
  "last_change": {
@@ -54,13 +56,14 @@
  "suggestions": [
   {
    "id": "add-reader",
-   "title": "Add a backup reader",
-   "why": "With one reader and no recovery key, nobody can read the state again if that reader loses their key or its passphrase. A backup reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
-   "who": "the new reader, then a current reader",
+   "title": "Add a backup member",
+   "why": "With one member and no recovery key, nobody can open the state again if that member loses their key or its passphrase. A backup member makes a key and sends the line it prints. A current member adds the line, commits it and rewraps.",
+   "who": "the new member, then a current member",
+   "kind": "member-add",
    "steps": [
     {
      "kind": "note",
-     "text": "On the machine of the new reader:"
+     "text": "On the machine of the new member:"
     },
     {
      "kind": "command",
@@ -69,7 +72,7 @@
     },
     {
      "kind": "note",
-     "text": "On the machine of a current reader:"
+     "text": "On the machine of a current member:"
     },
     {
      "kind": "add-line",
@@ -83,7 +86,7 @@
     },
     {
      "kind": "command",
-     "text": "git commit -m 'Add a reader'"
+     "text": "git commit -m 'Add a member'"
     },
     {
      "kind": "command",
@@ -98,8 +101,8 @@
   {
    "id": "set-recovery",
    "title": "Set a recovery key",
-   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
-   "who": "a current reader",
+   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can still be opened when every member has lost their key. Give each share to a different person, offline. Whoever holds K shares can open the state, so K is a decision about whom to trust together.",
+   "who": "a current member",
    "steps": [
     {
      "kind": "note",

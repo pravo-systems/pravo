@@ -46,14 +46,14 @@ var (
 // The add-reader suggestion has two titles: a state that one reader can open asks
 // for a backup, and the warning under the readers opens it by its ID.
 const (
-	addReaderTitle = "Add a reader"
-	addBackupTitle = "Add a backup reader"
+	addReaderTitle = "Add a member"
+	addBackupTitle = "Add a backup member"
 )
 
 const (
 	maxAccessReaders = 200 // readers listed
 	maxAccessErrors  = 20  // lines of the readers file listed as not loading
-	maxRemovals      = 50  // "remove a reader" suggestions
+	maxRemovals      = 50  // "remove a member" suggestions
 	maxDisplay       = 64  // runes of a name shown
 	maxLineReason    = 200 // bytes of a reason
 )
@@ -399,12 +399,17 @@ func compareReaders(store, file []ReaderFacts, protected bool, you *YouFacts) (r
 		}
 	}
 	if protected {
-		for _, ar := range rows {
+		for i := range rows {
+			ar := &rows[i]
 			switch {
 			case ar.InFile && !ar.InStore:
 				added = append(added, ar.Name)
+				ar.Status, ar.StatusText = "to-add", "On the list, not let in yet"
 			case ar.InStore && !ar.InFile:
 				removed = append(removed, ar.Name)
+				ar.Status, ar.StatusText = "to-remove", "Off the list, still has a key"
+			default:
+				ar.Status, ar.StatusText = "active", "Has access"
 			}
 		}
 	}
@@ -433,36 +438,36 @@ func fileVerdict(stateName string, f FileFacts, path, dir string, added, removed
 			// The repository says who may read, so a state that is not sealed has not
 			// been sealed yet, or was sealed once and its meta.json was changed.
 			af.Verdict = "expected-sealed"
-			af.Text = "The repository lists readers in " + shortPath(dir, af.Path) + ", but the state is not sealed. It has not been sealed yet, or its meta.json was changed."
+			af.Text = "The repository has an access list (" + shortPath(dir, af.Path) + "), but the state is not sealed. It has not been sealed yet, or someone changed its meta.json."
 		case "invalid":
-			af.Text = "The readers file does not load" + firstError(af.Errors) + "."
+			af.Text = "The access list can't be read" + firstError(af.Errors) + "."
 		default:
-			af.Text = "The state is not sealed, so there is no list of readers to compare."
+			af.Text = "The state is not sealed, so there is no access list to compare."
 		}
 	case f.State == "missing":
 		af.Verdict = "missing"
-		af.Text = "No readers file was found in " + where + ". Writers take the list of readers from the repository, so a sealed state cannot be written from this checkout."
+		af.Text = "No access list (readers.txt) was found in " + where + ". Changes to a sealed state need it, so this checkout can't change the state."
 	case f.State == "invalid":
 		af.Verdict = "invalid"
-		af.Text = "The readers file does not load" + firstError(af.Errors) + "."
+		af.Text = "The access list can't be read" + firstError(af.Errors) + "."
 	case f.State == "ok":
 		if len(added) == 0 && len(removed) == 0 {
 			af.Verdict = "match"
-			af.Text = "The readers file matches the store."
+			af.Text = "The access list (readers.txt) matches the state."
 			break
 		}
 		af.Verdict = "differs"
 		af.Added, af.Removed = added, removed
 		var parts []string
 		if len(added) > 0 {
-			parts = append(parts, nameList(added)+" in the file and not in the store")
+			parts = append(parts, nameList(added)+" on the list and not let in yet")
 		}
 		if len(removed) > 0 {
-			parts = append(parts, nameList(removed)+" in the store and not in the file")
+			parts = append(parts, nameList(removed)+" off the list but still has a key in the state")
 		}
-		af.Text = "The readers file and the store differ: " + strings.Join(parts, "; ") + ". Writers refuse to write until they match."
+		af.Text = "The access list and the state disagree: " + strings.Join(parts, "; ") + ". Changes to the state are refused until they match."
 	default:
-		af.Text = "The readers file was not read."
+		af.Text = "The access list was not read."
 	}
 	return af
 }
@@ -517,24 +522,24 @@ func youOf(y *YouFacts) *AccessYou {
 	switch y.State {
 	case "reader":
 		if you.Name == "" {
-			you.Text = "You are a reader."
+			you.Text = "You can open this state."
 		} else {
-			you.Text = "You are " + you.Name + ", a reader."
+			you.Text = "You are " + you.Name + " and can open this state."
 		}
 	case "not-reader":
-		you.Text = "This key is not a reader of the state. Resources are listed and no value is shown."
+		you.Text = "This key is not on the access list, so secret values are hidden. The resources are still listed."
 	case "locked":
-		you.Text = "The identity is sealed with a passphrase and none was available. Resources are listed and no value is shown."
+		you.Text = "Your key is protected by a passphrase and none was available, so secret values are hidden. The resources are still listed."
 	default:
 		you.State = "no-identity"
-		you.Text = "No identity was given. Resources are listed and no value is shown."
+		you.Text = "No key was given, so secret values are hidden. The resources are still listed."
 	}
 	return you
 }
 
 // groupsText says why a state has more than one group and what sealing the records
 // again does. A group is a data key; a removal of a reader makes a new one.
-const groupsText = "A removal starts a new group, and records stay under the old group until they are written again or resealed with rewrap --all."
+const groupsText = "Removing a member starts a new group of keys. Records stay under the old group until they are written again or resealed with rewrap --all."
 
 // recordsText is the one sentence about the records that the page shows. For a
 // state that is sealed it says that all are sealed, or what keeps a record from
@@ -568,8 +573,8 @@ func summaryOf(a *Access, readers int) string {
 	case "immutable":
 		return "Records are stored as immutable objects. They are not encrypted."
 	case "sealed":
-		return fmt.Sprintf("The state is sealed to %d %s. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
-			readers, plural(readers, "reader", "readers"))
+		return fmt.Sprintf("This state is sealed: its secret values are locked, and only the %d %s listed below can open them. Names, types and dependencies stay visible, so the graph and the plans keep working.",
+			readers, plural(readers, "member", "members"))
 	case "migrating":
 		s := "Sealing started"
 		if mg := a.Migration; mg != nil && mg.Unseal {
@@ -604,7 +609,7 @@ func changeOf(h ChangeFacts) *AccessChange {
 	case "sealed":
 		what = "sealed"
 	case "rewrap":
-		what = "readers rewrapped"
+		what = "members changed"
 	case "rewrap --all":
 		what = "records sealed again"
 	}
@@ -622,7 +627,7 @@ func changeOf(h ChangeFacts) *AccessChange {
 // warning when it does not hold.
 func recoveryOf(r *RecoveryFacts) *AccessRecovery {
 	rec := &AccessRecovery{K: r.K, N: r.N, Key: r.Key, KeyShort: shortKey(r.Key)}
-	rec.Text = fmt.Sprintf("Recovery: any %d of %d shares rebuild the recovery key (%s). If every reader loses their key, the holders of %d shares can open the state.", r.K, r.N, rec.KeyShort, r.K)
+	rec.Text = fmt.Sprintf("If everyone loses their key, any %d of %d shares rebuild the recovery key (%s) and open the state.", r.K, r.N, rec.KeyShort)
 	var w []string
 	if !r.Locked {
 		ids := make([]string, 0, len(r.Groups))
@@ -654,9 +659,9 @@ func recoveryOf(r *RecoveryFacts) *AccessRecovery {
 // is about the reader who looks when that is the identity of this process, and
 // about the reader otherwise, whose name the table above it gives.
 func singleReader(you *AccessYou) *AccessWarning {
-	text := "There is only one reader. If they lose their key or its passphrase, nobody can read this state, and there is no recovery key."
+	text := "Only one member can open this state. If they lose their key or its passphrase, nobody can, and there is no recovery key."
 	if you != nil && you.State == "reader" {
-		text = "You are the only reader. If you lose your key or its passphrase, nobody can read this state, and there is no recovery key."
+		text = "You are the only member who can open this state. If you lose your key or its passphrase, nobody can, and there is no recovery key."
 	}
 	return &AccessWarning{Text: text, Action: addBackupTitle, Suggestion: "add-reader"}
 }
@@ -731,29 +736,29 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	}
 	if a.State == "migrating" && a.Migration != nil && a.Migration.Unseal {
 		add(Suggestion{ID: "finish", Title: "Finish unsealing the state", Why: "Unsealing started and stopped before it finished. Running it again finishes the records that are left.",
-			Who: "a reader", Steps: []SuggestionStep{protectCmd("unseal")}})
+			Who: "a member", Steps: []SuggestionStep{protectCmd("unseal")}})
 	} else if a.State == "migrating" {
 		add(Suggestion{ID: "finish", Title: "Finish sealing the state", Why: "Sealing started and stopped before it finished. Running it again finishes the records that are left.",
-			Who: "a reader", Steps: []SuggestionStep{protectCmd(initCmd)}})
+			Who: "a member", Steps: []SuggestionStep{protectCmd(initCmd)}})
 	}
 	if a.File.Verdict == "expected-sealed" {
 		add(Suggestion{ID: "check-downgrade", Title: "Check why the state is not sealed",
-			Why: "The readers file lists readers, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
-			Who: "a reader",
+			Why: "The access list names members, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
+			Who: "a member",
 			Steps: []SuggestionStep{protectCmd("status"),
-				note("If you did not mean to seal this state, remove the readers file and the recovery file. To seal it: pravo protect " + initCmd),
+				note("If you did not mean to seal this state, remove the access list and the recovery file. To seal it: pravo protect " + initCmd),
 				protectCmd(initCmd)}})
 	}
 	if !protected {
 		s := Suggestion{ID: "seal", Title: "Seal the state",
-			Why: "Sealing encrypts attributes, outputs and stored plans to the readers in the file. It needs the store at rest, so announce a short freeze.",
-			Who: "each reader, then one of them"}
-		s.Steps = append(s.Steps, note("On the machine of each reader:"), fill("pravo id new --name <name>"))
+			Why: "Sealing locks attributes, outputs and stored plans so that only the members on the access list can open them. It needs the store at rest, so announce a short freeze.",
+			Who: "each member, then one of them"}
+		s.Steps = append(s.Steps, note("On the machine of each member:"), fill("pravo id new --name <name>"))
 		if a.File.Count == 0 {
-			s.Steps = append(s.Steps, note("On the machine of the reader who seals, add the line each reader sent, one for each, to the readers file:"),
+			s.Steps = append(s.Steps, note("On the machine of the member who seals, add the line each member sent, one for each, to the access list:"),
 				SuggestionStep{Kind: "add-line", File: file, Text: "<the line pravo id new printed>", Placeholder: true})
 		} else {
-			s.Steps = append(s.Steps, note("The readers file lists "+strconv.Itoa(a.File.Count)+" "+plural(a.File.Count, "reader", "readers")+". A reader who is not listed sends their line, and it is added to "+file+"."))
+			s.Steps = append(s.Steps, note("The access list names "+strconv.Itoa(a.File.Count)+" "+plural(a.File.Count, "member", "members")+". A member who is not listed sends their line, and it is added to "+file+"."))
 		}
 		if local {
 			s.Steps = append(s.Steps, note("This state is a local directory. pravo protect refuses it unless --allow-local is given, because two users on one directory would not be excluded."), protectCmd(initCmd))
@@ -765,7 +770,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	}
 	if protected && notReader {
 		s := Suggestion{ID: "identity", Title: "Read the state with your own key",
-			Why: "This key is not a reader. Print your line and send it to a reader, who adds it as described under " + addTitle + ".",
+			Why: "This key is not on the access list. Print your line and send it to a member, who adds it as described under " + addTitle + ".",
 			Who: "you"}
 		switch a.You.State {
 		case "locked":
@@ -775,43 +780,43 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			s.Steps = append(s.Steps, note("Start the viewer again from a terminal:"), command("pravo serve"))
 		default:
 			if a.You.State == "no-identity" {
-				s.Why = "No identity was given, so there is no key to open the state with. Make one, send its line to a reader, who adds it as described under " + addTitle + "."
+				s.Why = "No identity was given, so there is no key to open the state with. Make one, send its line to a member, who adds it as described under " + addTitle + "."
 				s.Steps = append(s.Steps, fill("pravo id new --name <name>"))
 			}
-			s.Steps = append(s.Steps, command("pravo id show"), note("When a reader has added your line and rewrapped, start the viewer again:"), fill("pravo serve --identity <name>"))
+			s.Steps = append(s.Steps, command("pravo id show"), note("When a member has added your line and rewrapped, start the viewer again:"), fill("pravo serve --identity <name>"))
 		}
 		if a.Recovery != nil {
-			s.Steps = append(s.Steps, note(fmt.Sprintf("If no reader can open the state any more, put your line in the readers file in place of theirs, and open the state with %d of its %d recovery shares:", a.Recovery.K, a.Recovery.N)),
+			s.Steps = append(s.Steps, note(fmt.Sprintf("If no member can open the state any more, put your line in the access list in place of theirs, and open the state with %d of its %d recovery shares:", a.Recovery.K, a.Recovery.N)),
 				fill("pravo protect recover --share <share-file> --share <share-file>"+where))
 		}
 		add(s)
 	}
 	if a.State == "sealed" && a.Roles != nil && (a.Roles.State == "file" || a.Roles.Differs) {
-		title, why := "Pin the roles in the state", "The roles are only in the readers file. An admin stores them in the state as a signed version and adds one line to the readers file that pins the first version. From then on a reader cannot give themselves a role by editing their own copy of the file."
+		title, why := "Lock in the roles", "The roles are only written in the access list, so anyone with a copy of the repository can edit their own role for their own runs. An admin saves them in the state, signed, and adds one line to the list that remembers the first version. From then on editing the list changes nothing until an admin signs it."
 		if a.Roles.State != "file" {
-			title, why = "Store the roles the readers file asks for", "The readers file asks for other roles than the state holds. An admin stores them as the next version, which is signed by an admin of the one before. A key that leaves or is demoted keeps the records it wrote only through the transactions the admin vouches for here."
+			title, why = "Save the new roles", "The access list asks for other roles than the state holds. An admin saves them as the next version, signed by an admin of the one before. When a key leaves or is demoted, the admin also vouches for the changes it already made, so those stay valid."
 		}
 		add(Suggestion{ID: "pin-roles", Title: title, Why: why, Who: "an admin",
 			Steps: append([]SuggestionStep{protectCmd("roles"), note("It lists what changes and asks first.")}, gitSteps(file, "Store the roles")...)})
 	}
 	if a.State == "sealed" && a.File.Verdict == "differs" {
-		add(Suggestion{ID: "rewrap", Title: "Make the store match the readers file",
-			Why: "The file and the store list different readers. Writers refuse to write until they match.", Who: "a current reader",
+		add(Suggestion{ID: "rewrap", Title: "Make the state match the access list",
+			Why: "The list and the state disagree about who has access. Changes to the state are refused until they match.", Who: "a current member",
 			Steps: []SuggestionStep{protectCmd("rewrap"), note("If you did not edit the file, something else changed it. Compare with git:"),
 				command("git log -p -- " + engine.ShellWord(file))}})
 	}
 	if a.State == "sealed" {
-		addWhy := "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps."
+		addWhy := "The new member makes a key and sends the line it prints (a CI job is a member too, with a key of its own). A current member adds the line, commits it and rewraps."
 		if a.SingleReader != nil {
 			// With one reader the card is the answer to the risk the page has just told of, so it leads with it.
-			addWhy = "With one reader and no recovery key, nobody can read the state again if that reader loses their key or its passphrase. A backup reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps."
+			addWhy = "With one member and no recovery key, nobody can open the state again if that member loses their key or its passphrase. A backup member makes a key and sends the line it prints. A current member adds the line, commits it and rewraps."
 		}
 		add(Suggestion{ID: "add-reader", Title: addTitle, Why: addWhy,
-			Who: "the new reader, then a current reader",
-			Steps: append(append([]SuggestionStep{note("On the machine of the new reader:"), fill("pravo id new --name <name>"),
-				note("On the machine of a current reader:"),
+			Who: "the new member, then a current member", Kind: "member-add",
+			Steps: append(append([]SuggestionStep{note("On the machine of the new member:"), fill("pravo id new --name <name>"),
+				note("On the machine of a current member:"),
 				{Kind: "add-line", File: file, Text: "<the line pravo id new printed>", Placeholder: true}},
-				gitSteps(file, "Add a reader")...), protectCmd("rewrap"))})
+				gitSteps(file, "Add a member")...), protectCmd("rewrap"))})
 		// A reader who is the only one cannot be removed: the readers file would list nobody, and
 		// pravo protect rewrap refuses to remove every reader. A second reader is added first.
 		inFile := 0
@@ -838,18 +843,25 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			steps = append(steps, protectCmd("rewrap"))
 			if r.You {
 				// The first rewrap takes away the key of the person who runs it: rewrap --all needs a reader.
-				steps = append(steps, note("You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"))
+				steps = append(steps, note("You can no longer open the state once this has run. A member who is left runs the rest, which seals every existing record again under the new key:"))
 			} else {
 				steps = append(steps, note("rewrap --all seals every existing record again under the new key."))
 			}
 			steps = append(steps, protectCmd("rewrap --all"))
-			why := "Removing the line stops new records being sealed to " + r.Name + ". " + r.Name + " keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets " + r.Name + " could read where they live."
+			why := "Use this when " + r.Name + " no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live."
 			if r.You {
-				why = "This removes you: once it has run you cannot open the state, and another reader has to finish it. " + why
+				why = "This removes you: once it has run you cannot open the state, and another member has to finish it. " + why
 			}
-			add(Suggestion{ID: "remove-reader:" + r.Name, Title: "Remove " + r.Name,
+			add(Suggestion{ID: "remove-reader:" + r.Name, Title: "Remove access for " + r.Name, Kind: "member-remove", Member: r.Name,
 				Why: why,
-				Who: "a current reader", Steps: steps})
+				Who: "a current member", Steps: steps})
+			if a.Roles != nil && a.Roles.State != "off" {
+				add(Suggestion{ID: "change-role:" + r.Name, Title: "Change the role of " + r.Name, Kind: "member-role", Member: r.Name,
+					Why: "A role says what a member may do: an admin manages who has access and the roles, a writer can change the state, a reader can look and plan.",
+					Who: "an admin",
+					Steps: append(append([]SuggestionStep{note("In " + file + ", change the last word of the line that starts with " + r.Name + " to role:admin, role:writer or role:reader.")},
+						gitSteps(file, "Change the role of "+r.Name)...), protectCmd("roles"), note("It lists what changes and asks first."))})
+			}
 		}
 		// Records out of reach of a reader are under a group that an old reader list made; with no key every
 		// record is out of reach, which says nothing about the groups.
@@ -861,18 +873,18 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 		if a.Recovery == nil {
 			// A recovery recipient answers the risk that every reader loses their key.
 			add(Suggestion{ID: "set-recovery", Title: "Set a recovery key",
-				Why: "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
-				Who: "a current reader",
+				Why: "A recovery key is split into shares, any K of which rebuild it, so that the state can still be opened when every member has lost their key. Give each share to a different person, offline. Whoever holds K shares can open the state, so K is a decision about whom to trust together.",
+				Who: "a current member",
 				Steps: append(append([]SuggestionStep{note("Make the key and the shares. This writes recovery-shares/ and " + recoveryFile + ":"), fill("pravo protect rewrap --recovery <K>/<N>" + where)},
 					gitSteps(recoveryFile, "Set a recovery key")...), note("Do not commit recovery-shares/. Give each file to a different person, offline."))})
 		} else if a.Recovery.Warning != "" {
 			add(Suggestion{ID: "fix-recovery", Title: "Bring the recovery in line",
-				Why: a.Recovery.Warning, Who: "a current reader",
+				Why: a.Recovery.Warning, Who: "a current member",
 				Steps: []SuggestionStep{protectCmd("rewrap"), note("The recovery file is " + recoveryFile + ". If it was not committed, commit it:")}})
 		}
 		if underOld || (a.Records.Unreadable > 0 && a.You != nil && a.You.State == "reader") {
 			add(Suggestion{ID: "reseal", Title: "Seal every record again",
-				Why: "Records stay under an old group until they are written again.", Who: "a current reader",
+				Why: "Records stay under an old group until they are written again.", Who: "a current member",
 				Steps: []SuggestionStep{protectCmd("rewrap --all")}})
 		}
 		// A group other than the current one is a data key that a reader who was removed may still hold.
@@ -888,8 +900,8 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			}
 			steps = append(steps, note("Say what would be marked, deleted and dropped, and then do it. gc marks the records that no pointer names and deletes them on a run at least 15 minutes later:"), protectCmd("gc --dry-run"), protectCmd("gc"))
 			add(Suggestion{ID: "prune", Title: "Drop the groups nothing is sealed in",
-				Why: "A reader who was removed keeps the data key of the groups they were in. A group that no record, output or stored plan is sealed in is dropped from meta.json, and the key opens nothing that is left. The same command marks the records that no pointer names once they are a day old, and deletes them on a run at least 15 minutes later.",
-				Who: "a current reader", Steps: steps})
+				Why: "A member who was removed keeps the data key of the groups they were in. A group that no record, output or stored plan is sealed in is dropped from meta.json, and the key opens nothing that is left. The same command marks the records that no pointer names once they are a day old, and deletes them on a run at least 15 minutes later.",
+				Who: "a current member", Steps: steps})
 		}
 		add(Suggestion{ID: "status", Title: "Check the state", Why: "The check hashes every record against its name and prints who can read the state.",
 			Steps: []SuggestionStep{protectCmd("status")}})
@@ -931,23 +943,23 @@ func rolesOf(f *RolesFacts, rows []AccessReader) *AccessRoles {
 	switch {
 	case f.Error != "":
 		r.State = "untrusted"
-		r.Text = "The roles in the state do not verify: " + cleanReason(f.Error) + " Commands that change the state refuse to run until this is resolved."
+		r.Text = "The saved roles fail their check: " + cleanReason(f.Error) + " Commands that change the state refuse to run until this is fixed."
 	case f.Source == "state":
 		r.State = "pinned"
-		r.Text = fmt.Sprintf("The roles are pinned in the state, at version %d. Each version is signed by an admin of the one before it, and the readers file pins the first. Editing a line of the readers file changes nothing until an admin stores the new roles.", f.Version)
+		r.Text = "The roles are locked in. Only an admin can change them, and every change is signed, so editing your own copy of the access list gives nobody extra rights."
 		if f.Differs {
-			r.Text += " The readers file asks for other roles than the state holds."
+			r.Text += " The access list asks for other roles than the ones saved."
 		}
 	case f.Source == "file":
 		r.State = "file"
-		r.Text = "The roles come from the readers file, which anyone with a checkout can edit for their own run."
+		r.Text = "The roles are only written in the access list, which anyone with a copy of the repository can edit for their own runs."
 		if f.Unpinned {
-			r.Text = "The state holds roles that the readers file does not pin, so the readers file still decides, and anyone with a checkout can edit it for their own run."
+			r.Text = "Roles are saved in the state, but the access list does not point to them yet, so it still decides, and anyone with a copy of the repository can edit it for their own runs."
 		}
-		r.Text += " Storing them in the state and pinning them closes that."
+		r.Text += " Locking them in closes that."
 	default:
 		r.State = "off"
-		r.Text = "Roles are off. Every reader may write the state, sign and remove a policy. Give the lines of the readers file a role to turn them on."
+		r.Text = "Roles are off, so every member may change the state, sign, and remove a policy. Give the lines of the access list a role to turn them on."
 	}
 	byFP := map[string]string{}
 	for _, k := range f.Keys {

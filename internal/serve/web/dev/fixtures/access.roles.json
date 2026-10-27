@@ -5,7 +5,7 @@
  "format": 3,
  "location": "s3://acme-state/estate",
  "backend": "s3",
- "summary": "The state is sealed to 4 readers. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
+ "summary": "This state is sealed: its secret values are locked, and only the 4 members listed below can open them. Names, types and dependencies stay visible, so the graph and the plans keep working.",
  "readers": [
   {
    "name": "ada",
@@ -17,7 +17,9 @@
    "in_file": true,
    "you": true,
    "line": 1,
-   "role": "admin"
+   "role": "admin",
+   "status": "active",
+   "status_text": "Has access"
   },
   {
    "name": "dan",
@@ -28,7 +30,9 @@
    "in_store": true,
    "in_file": true,
    "line": 2,
-   "role": "admin"
+   "role": "admin",
+   "status": "active",
+   "status_text": "Has access"
   },
   {
    "name": "eve",
@@ -39,7 +43,9 @@
    "in_store": true,
    "in_file": true,
    "line": 3,
-   "role": "writer"
+   "role": "writer",
+   "status": "active",
+   "status_text": "Has access"
   },
   {
    "name": "fay",
@@ -50,19 +56,21 @@
    "in_store": true,
    "in_file": true,
    "line": 4,
-   "role": "reader"
+   "role": "reader",
+   "status": "active",
+   "status_text": "Has access"
   }
  ],
  "file": {
   "verdict": "match",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The readers file matches the store.",
+  "text": "The access list (readers.txt) matches the state.",
   "count": 4
  },
  "you": {
   "state": "reader",
   "name": "ada",
-  "text": "You are ada, a reader."
+  "text": "You are ada and can open this state."
  },
  "records": {
   "total": 46,
@@ -73,7 +81,7 @@
  },
  "roles": {
   "state": "pinned",
-  "text": "The roles are pinned in the state, at version 3. Each version is signed by an admin of the one before it, and the readers file pins the first. Editing a line of the readers file changes nothing until an admin stores the new roles.",
+  "text": "The roles are locked in. Only an admin can change them, and every change is signed, so editing your own copy of the access list gives nobody extra rights.",
   "version": 3,
   "you": "admin",
   "counts": {
@@ -137,18 +145,19 @@
   "added": [
    "eve"
   ],
-  "text": "2026-10-22 10:41 UTC · readers rewrapped by ada"
+  "text": "2026-10-22 10:41 UTC · members changed by ada"
  },
  "suggestions": [
   {
    "id": "add-reader",
-   "title": "Add a reader",
-   "why": "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
-   "who": "the new reader, then a current reader",
+   "title": "Add a member",
+   "why": "The new member makes a key and sends the line it prints (a CI job is a member too, with a key of its own). A current member adds the line, commits it and rewraps.",
+   "who": "the new member, then a current member",
+   "kind": "member-add",
    "steps": [
     {
      "kind": "note",
-     "text": "On the machine of the new reader:"
+     "text": "On the machine of the new member:"
     },
     {
      "kind": "command",
@@ -157,7 +166,7 @@
     },
     {
      "kind": "note",
-     "text": "On the machine of a current reader:"
+     "text": "On the machine of a current member:"
     },
     {
      "kind": "add-line",
@@ -171,7 +180,7 @@
     },
     {
      "kind": "command",
-     "text": "git commit -m 'Add a reader'"
+     "text": "git commit -m 'Add a member'"
     },
     {
      "kind": "command",
@@ -185,9 +194,11 @@
   },
   {
    "id": "remove-reader:ada",
-   "title": "Remove ada",
-   "why": "This removes you: once it has run you cannot open the state, and another reader has to finish it. Removing the line stops new records being sealed to ada. ada keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets ada could read where they live.",
-   "who": "a current reader",
+   "title": "Remove access for ada",
+   "why": "This removes you: once it has run you cannot open the state, and another member has to finish it. Use this when ada no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
+   "who": "a current member",
+   "kind": "member-remove",
+   "member": "ada",
    "steps": [
     {
      "kind": "remove-line",
@@ -212,7 +223,7 @@
     },
     {
      "kind": "note",
-     "text": "You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"
+     "text": "You can no longer open the state once this has run. A member who is left runs the rest, which seals every existing record again under the new key:"
     },
     {
      "kind": "command",
@@ -221,10 +232,46 @@
    ]
   },
   {
+   "id": "change-role:ada",
+   "title": "Change the role of ada",
+   "why": "A role says what a member may do: an admin manages who has access and the roles, a writer can change the state, a reader can look and plan.",
+   "who": "an admin",
+   "kind": "member-role",
+   "member": "ada",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "In .pravo/access/readers.txt, change the last word of the line that starts with ada to role:admin, role:writer or role:reader."
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Change the role of ada'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect roles"
+    },
+    {
+     "kind": "note",
+     "text": "It lists what changes and asks first."
+    }
+   ]
+  },
+  {
    "id": "remove-reader:dan",
-   "title": "Remove dan",
-   "why": "Removing the line stops new records being sealed to dan. dan keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets dan could read where they live.",
-   "who": "a current reader",
+   "title": "Remove access for dan",
+   "why": "Use this when dan no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
+   "who": "a current member",
+   "kind": "member-remove",
+   "member": "dan",
    "steps": [
     {
      "kind": "remove-line",
@@ -258,10 +305,46 @@
    ]
   },
   {
+   "id": "change-role:dan",
+   "title": "Change the role of dan",
+   "why": "A role says what a member may do: an admin manages who has access and the roles, a writer can change the state, a reader can look and plan.",
+   "who": "an admin",
+   "kind": "member-role",
+   "member": "dan",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "In .pravo/access/readers.txt, change the last word of the line that starts with dan to role:admin, role:writer or role:reader."
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Change the role of dan'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect roles"
+    },
+    {
+     "kind": "note",
+     "text": "It lists what changes and asks first."
+    }
+   ]
+  },
+  {
    "id": "remove-reader:eve",
-   "title": "Remove eve",
-   "why": "Removing the line stops new records being sealed to eve. eve keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets eve could read where they live.",
-   "who": "a current reader",
+   "title": "Remove access for eve",
+   "why": "Use this when eve no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
+   "who": "a current member",
+   "kind": "member-remove",
+   "member": "eve",
    "steps": [
     {
      "kind": "remove-line",
@@ -295,10 +378,46 @@
    ]
   },
   {
+   "id": "change-role:eve",
+   "title": "Change the role of eve",
+   "why": "A role says what a member may do: an admin manages who has access and the roles, a writer can change the state, a reader can look and plan.",
+   "who": "an admin",
+   "kind": "member-role",
+   "member": "eve",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "In .pravo/access/readers.txt, change the last word of the line that starts with eve to role:admin, role:writer or role:reader."
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Change the role of eve'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect roles"
+    },
+    {
+     "kind": "note",
+     "text": "It lists what changes and asks first."
+    }
+   ]
+  },
+  {
    "id": "remove-reader:fay",
-   "title": "Remove fay",
-   "why": "Removing the line stops new records being sealed to fay. fay keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets fay could read where they live.",
-   "who": "a current reader",
+   "title": "Remove access for fay",
+   "why": "Use this when fay no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
+   "who": "a current member",
+   "kind": "member-remove",
+   "member": "fay",
    "steps": [
     {
      "kind": "remove-line",
@@ -332,10 +451,44 @@
    ]
   },
   {
+   "id": "change-role:fay",
+   "title": "Change the role of fay",
+   "why": "A role says what a member may do: an admin manages who has access and the roles, a writer can change the state, a reader can look and plan.",
+   "who": "an admin",
+   "kind": "member-role",
+   "member": "fay",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "In .pravo/access/readers.txt, change the last word of the line that starts with fay to role:admin, role:writer or role:reader."
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Change the role of fay'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect roles"
+    },
+    {
+     "kind": "note",
+     "text": "It lists what changes and asks first."
+    }
+   ]
+  },
+  {
    "id": "set-recovery",
    "title": "Set a recovery key",
-   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
-   "who": "a current reader",
+   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can still be opened when every member has lost their key. Give each share to a different person, offline. Whoever holds K shares can open the state, so K is a decision about whom to trust together.",
+   "who": "a current member",
    "steps": [
     {
      "kind": "note",

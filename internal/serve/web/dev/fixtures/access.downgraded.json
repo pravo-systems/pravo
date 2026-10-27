@@ -41,7 +41,7 @@
  "file": {
   "verdict": "expected-sealed",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed. It has not been sealed yet, or its meta.json was changed.",
+  "text": "The repository has an access list (.pravo/access/readers.txt), but the state is not sealed. It has not been sealed yet, or someone changed its meta.json.",
   "count": 3
  },
  "records": {
@@ -55,8 +55,8 @@
   {
    "id": "check-downgrade",
    "title": "Check why the state is not sealed",
-   "why": "The readers file lists readers, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
-   "who": "a reader",
+   "why": "The access list names members, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
+   "who": "a member",
    "primary": true,
    "steps": [
     {
@@ -65,7 +65,7 @@
     },
     {
      "kind": "note",
-     "text": "If you did not mean to seal this state, remove the readers file and the recovery file. To seal it: pravo protect init --encrypt"
+     "text": "If you did not mean to seal this state, remove the access list and the recovery file. To seal it: pravo protect init --encrypt"
     },
     {
      "kind": "command",
@@ -76,12 +76,12 @@
   {
    "id": "seal",
    "title": "Seal the state",
-   "why": "Sealing encrypts attributes, outputs and stored plans to the readers in the file. It needs the store at rest, so announce a short freeze.",
-   "who": "each reader, then one of them",
+   "why": "Sealing locks attributes, outputs and stored plans so that only the members on the access list can open them. It needs the store at rest, so announce a short freeze.",
+   "who": "each member, then one of them",
    "steps": [
     {
      "kind": "note",
-     "text": "On the machine of each reader:"
+     "text": "On the machine of each member:"
     },
     {
      "kind": "command",
@@ -90,7 +90,7 @@
     },
     {
      "kind": "note",
-     "text": "The readers file lists 3 readers. A reader who is not listed sends their line, and it is added to .pravo/access/readers.txt."
+     "text": "The access list names 3 members. A member who is not listed sends their line, and it is added to .pravo/access/readers.txt."
     },
     {
      "kind": "command",

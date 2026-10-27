@@ -5,7 +5,7 @@
  "format": 3,
  "location": "s3://acme-state/estate",
  "backend": "s3",
- "summary": "The state is sealed to 2 readers. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
+ "summary": "This state is sealed: its secret values are locked, and only the 2 members listed below can open them. Names, types and dependencies stay visible, so the graph and the plans keep working.",
  "readers": [
   {
    "name": "ada",
@@ -16,7 +16,9 @@
    "in_store": true,
    "in_file": true,
    "you": true,
-   "line": 1
+   "line": 1,
+   "status": "active",
+   "status_text": "Has access"
   },
   {
    "name": "dan",
@@ -26,19 +28,21 @@
    "fingerprint": "SHA256:OXONlpNIN4+YAxgAA72tFS273MSP9v31RNyZ2aJwA7g",
    "in_store": true,
    "in_file": true,
-   "line": 2
+   "line": 2,
+   "status": "active",
+   "status_text": "Has access"
   }
  ],
  "file": {
   "verdict": "match",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The readers file matches the store.",
+  "text": "The access list (readers.txt) matches the state.",
   "count": 2
  },
  "you": {
   "state": "reader",
   "name": "ada",
-  "text": "You are ada, a reader."
+  "text": "You are ada and can open this state."
  },
  "records": {
   "total": 46,
@@ -52,7 +56,7 @@
   "n": 5,
   "key": "x25519:7rDj4DEZwDQ7rinUx_3_ba4IXEu7r3ssYUtw9vueKpU",
   "key_short": "x25519:7rDj4D…",
-  "text": "Recovery: any 3 of 5 shares rebuild the recovery key (x25519:7rDj4D…). If every reader loses their key, the holders of 3 shares can open the state.",
+  "text": "If everyone loses their key, any 3 of 5 shares rebuild the recovery key (x25519:7rDj4D…) and open the state.",
   "warning": "The lock of the recovery key is missing from g1. The repository has no recovery file, so a writer cannot tell that the recovery was taken out of the bucket."
  },
  "last_change": {
@@ -62,18 +66,19 @@
   "added": [
    "eve"
   ],
-  "text": "2026-10-22 10:41 UTC · readers rewrapped by ada"
+  "text": "2026-10-22 10:41 UTC · members changed by ada"
  },
  "suggestions": [
   {
    "id": "add-reader",
-   "title": "Add a reader",
-   "why": "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
-   "who": "the new reader, then a current reader",
+   "title": "Add a member",
+   "why": "The new member makes a key and sends the line it prints (a CI job is a member too, with a key of its own). A current member adds the line, commits it and rewraps.",
+   "who": "the new member, then a current member",
+   "kind": "member-add",
    "steps": [
     {
      "kind": "note",
-     "text": "On the machine of the new reader:"
+     "text": "On the machine of the new member:"
     },
     {
      "kind": "command",
@@ -82,7 +87,7 @@
     },
     {
      "kind": "note",
-     "text": "On the machine of a current reader:"
+     "text": "On the machine of a current member:"
     },
     {
      "kind": "add-line",
@@ -96,7 +101,7 @@
     },
     {
      "kind": "command",
-     "text": "git commit -m 'Add a reader'"
+     "text": "git commit -m 'Add a member'"
     },
     {
      "kind": "command",
@@ -110,9 +115,11 @@
   },
   {
    "id": "remove-reader:ada",
-   "title": "Remove ada",
-   "why": "This removes you: once it has run you cannot open the state, and another reader has to finish it. Removing the line stops new records being sealed to ada. ada keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets ada could read where they live.",
-   "who": "a current reader",
+   "title": "Remove access for ada",
+   "why": "This removes you: once it has run you cannot open the state, and another member has to finish it. Use this when ada no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
+   "who": "a current member",
+   "kind": "member-remove",
+   "member": "ada",
    "steps": [
     {
      "kind": "remove-line",
@@ -137,7 +144,7 @@
     },
     {
      "kind": "note",
-     "text": "You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"
+     "text": "You can no longer open the state once this has run. A member who is left runs the rest, which seals every existing record again under the new key:"
     },
     {
      "kind": "command",
@@ -147,9 +154,11 @@
   },
   {
    "id": "remove-reader:dan",
-   "title": "Remove dan",
-   "why": "Removing the line stops new records being sealed to dan. dan keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets dan could read where they live.",
-   "who": "a current reader",
+   "title": "Remove access for dan",
+   "why": "Use this when dan no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
+   "who": "a current member",
+   "kind": "member-remove",
+   "member": "dan",
    "steps": [
     {
      "kind": "remove-line",
@@ -186,7 +195,7 @@
    "id": "fix-recovery",
    "title": "Bring the recovery in line",
    "why": "The lock of the recovery key is missing from g1. The repository has no recovery file, so a writer cannot tell that the recovery was taken out of the bucket.",
-   "who": "a current reader",
+   "who": "a current member",
    "steps": [
     {
      "kind": "command",

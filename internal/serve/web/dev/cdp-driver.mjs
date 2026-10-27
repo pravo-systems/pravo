@@ -217,8 +217,9 @@ export const REACHABLE = `(() => {
     const r = e.getBoundingClientRect();
     if (!r.width && !r.height) return false;
     for (let n = e; n && n !== pane; n = n.parentElement) { const s = getComputedStyle(n); if (s.visibility === 'hidden' || s.display === 'none') return false; }
-    const d = e.closest('details');
-    if (d && !d.open && !(e.tagName === 'SUMMARY' && e.parentElement === d)) return false;
+    for (let d = e.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) {
+      if (!d.open && !(e.tagName === 'SUMMARY' && e.parentElement === d)) return false;
+    }
     return true;
   }).map((e) => ({ tag: e.tagName.toLowerCase(), fk: e.dataset.fk || null, text: (e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80) }));
 })()`;

@@ -199,13 +199,13 @@ func TestAccessSealedReader(t *testing.T) {
 	if a.State != "sealed" || a.Format != 3 {
 		t.Fatalf("state %q format %d", a.State, a.Format)
 	}
-	if want := "The state is sealed to 3 readers. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working."; a.Summary != want {
+	if want := "This state is sealed: its secret values are locked, and only the 3 members listed below can open them. Names, types and dependencies stay visible, so the graph and the plans keep working."; a.Summary != want {
 		t.Errorf("summary %q", a.Summary)
 	}
-	if a.File.Verdict != "match" || a.File.Text != "The readers file matches the store." || a.File.Count != 3 || len(a.File.Added)+len(a.File.Removed) != 0 {
+	if a.File.Verdict != "match" || a.File.Text != "The access list (readers.txt) matches the state." || a.File.Count != 3 || len(a.File.Added)+len(a.File.Removed) != 0 {
 		t.Errorf("file %+v", a.File)
 	}
-	if a.You == nil || a.You.State != "reader" || a.You.Text != "You are ada, a reader." {
+	if a.You == nil || a.You.State != "reader" || a.You.Text != "You are ada and can open this state." {
 		t.Errorf("you %+v", a.You)
 	}
 	if len(a.Readers) != 3 {
@@ -226,7 +226,7 @@ func TestAccessSealedReader(t *testing.T) {
 	if a.Records.Text != "All 5 records are sealed." || a.Records.Total != 5 || a.Records.Sealed != 5 {
 		t.Errorf("records %+v", a.Records)
 	}
-	if a.LastChange == nil || a.LastChange.Text != "2026-10-22 10:41 UTC · readers rewrapped by ada" || a.LastChange.By != "ada" || !equalStrings(a.LastChange.Added, []string{"eve"}) {
+	if a.LastChange == nil || a.LastChange.Text != "2026-10-22 10:41 UTC · members changed by ada" || a.LastChange.By != "ada" || !equalStrings(a.LastChange.Added, []string{"eve"}) {
 		t.Errorf("last change %+v", a.LastChange)
 	}
 	raw := string(p.get("/api/access"))
@@ -249,10 +249,10 @@ func TestAccessSealedReader(t *testing.T) {
 	}
 	file := filepath.ToSlash(filepath.Join(".pravo", "access", "readers.txt"))
 	add := suggestion(a, "add-reader")
-	if add.Title != "Add a reader" || add.Why != "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps." {
+	if add.Title != "Add a member" || add.Why != "The new member makes a key and sends the line it prints (a CI job is a member too, with a key of its own). A current member adds the line, commits it and rewraps." {
 		t.Errorf("add-reader with three readers: %q %q", add.Title, add.Why)
 	}
-	if got, want := stepTexts(add, "command"), []string{"pravo id new --name <name>", "git add " + file, "git commit -m 'Add a reader'", "git push", "pravo protect rewrap"}; !equalStrings(got, want) {
+	if got, want := stepTexts(add, "command"), []string{"pravo id new --name <name>", "git add " + file, "git commit -m 'Add a member'", "git push", "pravo protect rewrap"}; !equalStrings(got, want) {
 		t.Errorf("add-reader commands %q, want %q", got, want)
 	}
 	if !add.Steps[1].Placeholder || add.Steps[1].Kind != "command" || add.Steps[0].Kind != "note" {
@@ -301,7 +301,7 @@ func TestAccessSealedWithoutIdentity(t *testing.T) {
 			facts.Store.Unreadable = 5
 			p := accessProject(t, &fakeProtection{facts: facts})
 			a := p.access()
-			if a.You == nil || a.You.State == "reader" || !strings.HasSuffix(a.You.Text, "Resources are listed and no value is shown.") {
+			if a.You == nil || a.You.State == "reader" || !strings.HasSuffix(a.You.Text, "The resources are still listed.") {
 				t.Fatalf("you %+v", a.You)
 			}
 			if s := suggestion(a, "identity"); s == nil || !s.Primary || a.Suggestions[0].ID != "identity" {
@@ -366,7 +366,7 @@ func TestAccessDiffers(t *testing.T) {
 	if a.File.Verdict != "differs" || !equalStrings(a.File.Added, []string{"dan"}) || !equalStrings(a.File.Removed, []string{"fay"}) {
 		t.Fatalf("file %+v", a.File)
 	}
-	if want := "The readers file and the store differ: dan is in the file and not in the store; fay is in the store and not in the file. Writers refuse to write until they match."; a.File.Text != want {
+	if want := "The access list and the state disagree: dan is on the list and not let in yet; fay is off the list but still has a key in the state. Changes to the state are refused until they match."; a.File.Text != want {
 		t.Errorf("text %q", a.File.Text)
 	}
 	if a.Suggestions[0].ID != "rewrap" || !a.Suggestions[0].Primary {
@@ -402,7 +402,7 @@ func TestAccessMissingFile(t *testing.T) {
 	facts.File = FileFacts{State: "missing"}
 	p := accessProject(t, &fakeProtection{facts: facts})
 	a := p.access()
-	if a.File.Verdict != "missing" || !strings.HasPrefix(a.File.Text, "No readers file was found in .pravo/access. Writers take the list of readers from the repository, so a sealed state cannot be written from this checkout.") {
+	if a.File.Verdict != "missing" || !strings.HasPrefix(a.File.Text, "No access list (readers.txt) was found in .pravo/access. Changes to a sealed state need it, so this checkout can't change the state.") {
 		t.Errorf("file %+v", a.File)
 	}
 	for _, r := range a.Readers {
@@ -425,7 +425,7 @@ func TestAccessInvalidFile(t *testing.T) {
 	}}
 	p := accessProject(t, &fakeProtection{facts: facts})
 	a := p.access()
-	if a.File.Verdict != "invalid" || a.File.Text != "The readers file does not load: line 3: want 4 fields: NAME ssh-ed25519 BASE64 x25519:BASE64URL (got 3)." {
+	if a.File.Verdict != "invalid" || a.File.Text != "The access list can't be read: line 3: want 4 fields: NAME ssh-ed25519 BASE64 x25519:BASE64URL (got 3)." {
 		t.Errorf("file %+v", a.File)
 	}
 	if len(a.File.Errors) != 3 || a.File.Errors[0].Line != 3 {
@@ -887,7 +887,7 @@ func TestAccessCountsWhatNoKeyOpens(t *testing.T) {
 	facts.You = &YouFacts{State: "reader", Key: key('a')}
 	facts.Store.Locked = false
 	a = buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, facts: facts, path: "/p/.pravo/access/readers.txt", dir: "/p"})
-	if a.Records.Unreadable != 0 || a.You.Text != "You are a reader." {
+	if a.Records.Unreadable != 0 || a.You.Text != "You can open this state." {
 		t.Errorf("records %+v you %+v", a.Records, a.You)
 	}
 }
@@ -1009,7 +1009,7 @@ func TestAccessExpectedSealed(t *testing.T) {
 			if a.File.Verdict != "expected-sealed" || a.File.Count != 1 {
 				t.Fatalf("file %+v", a.File)
 			}
-			if want := "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed. It has not been sealed yet, or its meta.json was changed."; a.File.Text != want {
+			if want := "The repository has an access list (.pravo/access/readers.txt), but the state is not sealed. It has not been sealed yet, or someone changed its meta.json."; a.File.Text != want {
 				t.Errorf("text %q", a.File.Text)
 			}
 			if a.State != state || a.You != nil || len(a.File.Added)+len(a.File.Removed) != 0 {
@@ -1023,7 +1023,7 @@ func TestAccessExpectedSealed(t *testing.T) {
 			if got, want := stepTexts(s, "command"), []string{"pravo protect status", "pravo protect init --encrypt --allow-local"}; !equalStrings(got, want) {
 				t.Errorf("commands %q, want %q", got, want)
 			}
-			if got := stepTexts(s, "note"); len(got) != 1 || !strings.HasPrefix(got[0], "If you did not mean to seal this state, remove the readers file and the recovery file. To seal it: pravo protect init --encrypt") {
+			if got := stepTexts(s, "note"); len(got) != 1 || !strings.HasPrefix(got[0], "If you did not mean to seal this state, remove the access list and the recovery file. To seal it: pravo protect init --encrypt") {
 				t.Errorf("notes %q", got)
 			}
 			if suggestion(a, "seal") == nil {
@@ -1090,7 +1090,7 @@ func TestAccessGroupsAppearAfterARemoval(t *testing.T) {
 	if len(two.Groups) != 2 || two.Groups[0] != (AccessGroup{ID: "g1", Locks: 3, Records: 2}) || two.Groups[1] != (AccessGroup{ID: "g2", Current: true, Locks: 2, Records: 3}) {
 		t.Errorf("two groups: %+v", two.Groups)
 	}
-	if want := "A removal starts a new group, and records stay under the old group until they are written again or resealed with rewrap --all."; two.GroupsText != want {
+	if want := "Removing a member starts a new group of keys. Records stay under the old group until they are written again or resealed with rewrap --all."; two.GroupsText != want {
 		t.Errorf("groups text %q", two.GroupsText)
 	}
 	// The suggestions that act on the groups are there, next to which the page shows them.
@@ -1124,10 +1124,10 @@ func TestAccessSingleReader(t *testing.T) {
 	if w == nil {
 		t.Fatal("no warning for a state with one reader")
 	}
-	if want := "You are the only reader. If you lose your key or its passphrase, nobody can read this state, and there is no recovery key."; w.Text != want {
+	if want := "You are the only member who can open this state. If you lose your key or its passphrase, nobody can, and there is no recovery key."; w.Text != want {
 		t.Errorf("warning %q", w.Text)
 	}
-	if w.Action != "Add a backup reader" || w.Suggestion != "add-reader" {
+	if w.Action != "Add a backup member" || w.Suggestion != "add-reader" {
 		t.Errorf("warning action %q suggestion %q", w.Action, w.Suggestion)
 	}
 	add := suggestion(*a, "add-reader")
@@ -1137,11 +1137,11 @@ func TestAccessSingleReader(t *testing.T) {
 	if add.Title != w.Action {
 		t.Errorf("title %q is not the label %q of the button that opens it", add.Title, w.Action)
 	}
-	if !strings.HasPrefix(add.Why, "With one reader and no recovery key, nobody can read the state again if that reader loses their key or its passphrase.") || !strings.Contains(add.Why, "A current reader adds the line, commits it and rewraps.") {
+	if !strings.HasPrefix(add.Why, "With one member and no recovery key, nobody can open the state again if that member loses their key or its passphrase.") || !strings.Contains(add.Why, "A current member adds the line, commits it and rewraps.") {
 		t.Errorf("why %q", add.Why)
 	}
 	// The steps are those of every add-reader card, so the commit says what any addition says.
-	if got, want := stepTexts(add, "command"), []string{"pravo id new --name <name>", "git add .pravo/access/readers.txt", "git commit -m 'Add a reader'", "git push", "pravo protect rewrap"}; !equalStrings(got, want) {
+	if got, want := stepTexts(add, "command"), []string{"pravo id new --name <name>", "git add .pravo/access/readers.txt", "git commit -m 'Add a member'", "git push", "pravo protect rewrap"}; !equalStrings(got, want) {
 		t.Errorf("commands %q, want %q", got, want)
 	}
 	if add.Primary {
@@ -1152,7 +1152,7 @@ func TestAccessSingleReader(t *testing.T) {
 	f := solo()
 	f.You = &YouFacts{State: "not-reader", Name: "gus", Key: key('g')}
 	f.Store.Locked = true
-	if w := build(f).SingleReader; w == nil || w.Text != "There is only one reader. If they lose their key or its passphrase, nobody can read this state, and there is no recovery key." {
+	if w := build(f).SingleReader; w == nil || w.Text != "Only one member can open this state. If they lose their key or its passphrase, nobody can, and there is no recovery key." {
 		t.Errorf("warning for a key that is not the reader: %+v", w)
 	}
 	f.You = nil
@@ -1161,7 +1161,7 @@ func TestAccessSingleReader(t *testing.T) {
 	}
 	// The card they are sent to by "Read the state with your own key" has the title the page shows.
 	f.You = &YouFacts{State: "not-reader", Name: "gus", Key: key('g')}
-	if id := suggestion(*build(f), "identity"); id == nil || !strings.Contains(id.Why, "described under Add a backup reader.") {
+	if id := suggestion(*build(f), "identity"); id == nil || !strings.Contains(id.Why, "described under Add a backup member.") {
 		t.Errorf("identity %+v", id)
 	}
 
@@ -1173,7 +1173,7 @@ func TestAccessSingleReader(t *testing.T) {
 		if a.SingleReader != nil {
 			t.Errorf("%s: a warning: %+v", name, a.SingleReader)
 		}
-		if add := suggestion(*a, "add-reader"); add == nil || add.Title != "Add a reader" || strings.Contains(add.Why, "recovery key") {
+		if add := suggestion(*a, "add-reader"); add == nil || add.Title != "Add a member" || strings.Contains(add.Why, "recovery key") {
 			t.Errorf("%s: add-reader %+v", name, add)
 		}
 	}
@@ -1209,7 +1209,7 @@ func TestAccessLastChange(t *testing.T) {
 		want string
 	}{
 		{ChangeFacts{At: at, By: "marcinw", What: "sealed", Added: []string{"marcinw"}}, "2026-10-23 08:03 UTC · sealed by marcinw"},
-		{ChangeFacts{At: at, By: "ada", What: "rewrap", Removed: []string{"dan"}}, "2026-10-23 08:03 UTC · readers rewrapped by ada"},
+		{ChangeFacts{At: at, By: "ada", What: "rewrap", Removed: []string{"dan"}}, "2026-10-23 08:03 UTC · members changed by ada"},
 		{ChangeFacts{At: at, By: "ada", What: "rewrap --all"}, "2026-10-23 08:03 UTC · records sealed again by ada"},
 		{ChangeFacts{At: at.In(time.FixedZone("x", 2*3600)), By: "ada", What: "something else"}, "2026-10-23 08:03 UTC · changed by ada"},
 		{ChangeFacts{At: at, What: "sealed"}, "2026-10-23 08:03 UTC · sealed"},
@@ -1251,7 +1251,7 @@ func TestAccessRemovingYourselfLeavesRewrapAllToAnother(t *testing.T) {
 		t.Fatalf("no suggestions to compare: %+v %+v", mine, other)
 	}
 	notes := func(sg *Suggestion) string { return strings.Join(stepTexts(sg, "note"), "\n") }
-	if !strings.Contains(notes(mine), "You are not a reader once this has run") {
+	if !strings.Contains(notes(mine), "You can no longer open the state once this has run") {
 		t.Errorf("removing yourself: %q", notes(mine))
 	}
 	if strings.Contains(notes(other), "You are not a reader") {
@@ -1413,5 +1413,47 @@ func TestRolesOfTheAccessDocument(t *testing.T) {
 	}
 	if r := rolesOf(&RolesFacts{Source: "off"}, rows); r.State != "off" || r.Others != nil {
 		t.Errorf("roles off: %+v", r)
+	}
+}
+
+// What is about one member is marked with that member, so that the page shows it with them and not in
+// the list of suggestions, and a member's role can be changed only where roles are on.
+func TestAccessSuggestionsAboutAMemberAreMarked(t *testing.T) {
+	kinds := func(a *Access) map[string]string {
+		m := map[string]string{}
+		for _, s := range a.Suggestions {
+			m[s.ID] = s.Kind + "/" + s.Member
+		}
+		return m
+	}
+	in := func(f Facts) accessInput {
+		return accessInput{rev: "r", location: "x", backend: "s3", format: 3, records: 5, facts: f, path: "/p/.pravo/access/readers.txt", dir: "/p"}
+	}
+	plain := buildAccess(in(sealedFacts()))
+	got := kinds(plain)
+	if got["add-reader"] != "member-add/" || got["remove-reader:dan"] != "member-remove/dan" || got["status"] != "/" || got["set-recovery"] != "/" {
+		t.Errorf("kinds without roles: %v", got)
+	}
+	for id := range got {
+		if strings.HasPrefix(id, "change-role:") {
+			t.Errorf("a role can be changed with roles off: %s", id)
+		}
+	}
+	f := sealedFacts()
+	f.Roles = fixRoles("state")
+	f.Roles.Keys = []RoleKeyFacts{fixRole("ada", "admin", 0), fixRole("dan", "writer", 0), fixRole("eve", "reader", 0)}
+	roled := buildAccess(in(f))
+	got = kinds(roled)
+	if got["change-role:dan"] != "member-role/dan" {
+		t.Errorf("kinds with roles: %v", got)
+	}
+	ch := suggestion(*roled, "change-role:dan")
+	if ch == nil || ch.Who != "an admin" || !strings.Contains(strings.Join(stepTexts(ch, "note"), "\n"), "line that starts with dan") || !equalStrings(stepTexts(ch, "command")[len(stepTexts(ch, "command"))-1:], []string{"pravo protect roles"}) {
+		t.Errorf("change-role: %+v", ch)
+	}
+	for _, r := range roled.Readers {
+		if r.Status != "active" || r.StatusText != "Has access" {
+			t.Errorf("status of %s: %q %q", r.Name, r.Status, r.StatusText)
+		}
 	}
 }

@@ -694,6 +694,11 @@ type AccessReader struct {
 	Line int `json:"line,omitempty"`
 	// Role is what the key may do, "admin", "writer" or "reader", when the roles are on.
 	Role string `json:"role,omitempty"`
+	// Status is "active" (in the list and in the state), "to-add" (in the list, not let in yet) or
+	// "to-remove" (off the list, still holds a key). It is absent when the state is not sealed.
+	// StatusText is the words for it.
+	Status     string `json:"status,omitempty"`
+	StatusText string `json:"status_text,omitempty"`
 }
 
 // AccessRoles are the roles of a sealed state. State is "off", "file" (the readers file decides),
@@ -877,8 +882,13 @@ type Suggestion struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Why   string `json:"why"`
-	// Who says whose machine the steps are for, such as "a current reader".
+	// Who says whose machine the steps are for, such as "a current member".
 	Who string `json:"who,omitempty"`
+	// Kind is set on the steps that are about one member of the state, which the page shows with that
+	// member and not in the list: "member-add", "member-remove" or "member-role". Member is the name
+	// of the member the last two are for.
+	Kind   string `json:"kind,omitempty"`
+	Member string `json:"member,omitempty"`
 	// Primary marks the next step for the state shown.
 	Primary bool             `json:"primary,omitempty"`
 	Steps   []SuggestionStep `json:"steps"`
