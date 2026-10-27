@@ -21,6 +21,7 @@ package tfstate
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -155,7 +156,7 @@ func Convert(data []byte) (*Result, error) {
 				res.Renamed = append(res.Renamed, Rename{From: tfAddr, To: addr})
 			}
 			if inst.Status == "tainted" {
-				res.Notes = append(res.Notes, fmt.Sprintf("%s: tainted in the source state; pravo has no taint, the object is recorded as healthy", tfAddr))
+				res.Notes = append(res.Notes, tfAddr+": tainted in the source state; pravo has no taint, the object is recorded as healthy")
 			}
 			p := &pending{r: sr, inst: inst, module: steps, tfAddr: tfAddr}
 			byConfig[key] = append(byConfig[key], p)
@@ -394,12 +395,12 @@ func splitModulePrefix(addr string) (steps []modStep, rest string, err error) {
 // is quoted as Go quotes it and may hold dots, brackets and escapes.
 func parseModuleKey(s string) (key string, n int, err error) {
 	if len(s) < 3 || s[0] != '[' {
-		return "", 0, fmt.Errorf("unrecognised instance key")
+		return "", 0, errors.New("unrecognised instance key")
 	}
 	if s[1] != '"' {
 		end := strings.IndexByte(s, ']')
 		if end < 0 {
-			return "", 0, fmt.Errorf("unterminated instance key")
+			return "", 0, errors.New("unterminated instance key")
 		}
 		return s[1:end], end + 1, nil
 	}
@@ -411,7 +412,7 @@ func parseModuleKey(s string) (key string, n int, err error) {
 		i++
 	}
 	if i+1 >= len(s) || s[i+1] != ']' {
-		return "", 0, fmt.Errorf("unterminated instance key")
+		return "", 0, errors.New("unterminated instance key")
 	}
 	key, err = strconv.Unquote(s[1 : i+1])
 	if err != nil {

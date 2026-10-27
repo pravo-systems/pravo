@@ -7,9 +7,9 @@
    tools/sitegen/contrast reads the three token blocks below.
    ========================================================================== */
 
-@font-face { font-family: "Newsreader"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/newsreader-400.woff2") format("woff2"); }
-@font-face { font-family: "Newsreader"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/newsreader-500.woff2") format("woff2"); }
-@font-face { font-family: "Newsreader"; font-style: italic; font-weight: 500; font-display: swap; src: url("fonts/newsreader-500-italic.woff2") format("woff2"); }
+@font-face { font-family: Newsreader; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/newsreader-400.woff2") format("woff2"); }
+@font-face { font-family: Newsreader; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/newsreader-500.woff2") format("woff2"); }
+@font-face { font-family: Newsreader; font-style: italic; font-weight: 500; font-display: swap; src: url("fonts/newsreader-500-italic.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/plex-sans-400.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/plex-sans-500.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/plex-sans-600.woff2") format("woff2"); }
@@ -38,7 +38,7 @@
   --change: #7c5000;
   --conflict: #b32917;
   --key: #3347c9;
-  --on-accent: #ffffff;
+  --on-accent: #fff;
   --accent-wash: rgba(10, 115, 90, .10);
   --change-wash: rgba(124, 80, 0, .11);
   --conflict-wash: rgba(179, 41, 23, .09);

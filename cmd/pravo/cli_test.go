@@ -25,7 +25,7 @@ import (
 func runPravo(t *testing.T, dir string, args ...string) (string, int) {
 	t.Helper()
 	wd, _ := os.Getwd()
-	defer os.Chdir(wd)
+	defer os.Chdir(wd) //nolint:usetesting // the directory is put back after each call, so that a relative path in the next call means what it meant in the first
 	r, w, _ := os.Pipe()
 	stdout := os.Stdout
 	os.Stdout = w

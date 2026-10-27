@@ -212,7 +212,7 @@ func planCmd() *cobra.Command {
 			ttl := engine.DefaultPlanTTL
 			if cmd.Flags().Changed("ttl") {
 				if !store {
-					return fmt.Errorf("--ttl applies to --store")
+					return errors.New("--ttl applies to --store")
 				}
 				if ttl, err = parseSpan("ttl", ttlText); err != nil {
 					return err
@@ -452,7 +452,7 @@ func applyCmd() *cobra.Command {
 			}
 			if len(args) == 1 {
 				if len(replace) > 0 {
-					return fmt.Errorf("-replace is decided when the plan is made: use \"pravo plan -replace <addr> -out <file>\"")
+					return errors.New("-replace is decided when the plan is made: use \"pravo plan -replace <addr> -out <file>\"")
 				}
 				if isStoredRef(args[0]) {
 					return applyStored(cmd, args[0], refresh, full, only)
@@ -460,7 +460,7 @@ func applyCmd() *cobra.Command {
 				return applySaved(cmd, args[0], refresh, full, only)
 			}
 			if len(only) > 0 {
-				return fmt.Errorf("-only applies to a saved plan: run \"pravo plan -out <file>\" first, then \"pravo apply <file> -only ...\"")
+				return errors.New("-only applies to a saved plan: run \"pravo plan -out <file>\" first, then \"pravo apply <file> -only ...\"")
 			}
 			return runApply(cmd, refresh, full, autoApprove, false, replace)
 		},
@@ -497,10 +497,10 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	ctx := cmd.Context()
 	streamEvents = true
 	if sealed, _ := engine.PlanFileSealed(path); !sealed && (len(flagTags) > 0 || flagSysTags) {
-		return fmt.Errorf("-t and -T cannot be combined with a saved plan; the plan carries its own tags")
+		return errors.New("-t and -T cannot be combined with a saved plan; the plan carries its own tags")
 	}
 	if cmd.Flags().Changed("refresh") || full {
-		return fmt.Errorf("-refresh and -full do not apply to a saved plan")
+		return errors.New("-refresh and -full do not apply to a saved plan")
 	}
 	pf, err := readPlanFile(ctx, path)
 	if err != nil {
@@ -682,7 +682,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		return nil
 	}
 	if !autoApprove && flagJSON {
-		return fmt.Errorf("apply with --json needs -auto-approve, or apply a reviewed plan file")
+		return errors.New("apply with --json needs -auto-approve, or apply a reviewed plan file")
 	}
 	if !autoApprove {
 		out.Println()
@@ -696,7 +696,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 		out.Println()
 		if strings.TrimSpace(line) != "yes" {
-			return fmt.Errorf("apply cancelled")
+			return errors.New("apply cancelled")
 		}
 	}
 	res, err := eng.Apply(ctx, plan)
@@ -869,7 +869,7 @@ func importCmd() *cobra.Command {
 				return fmt.Errorf("%s is not declared in the configuration; add it before importing", args[0])
 			}
 			if res.Mode != "managed" {
-				return fmt.Errorf("only managed resources can be imported")
+				return errors.New("only managed resources can be imported")
 			}
 			if s.state.Get(args[0]) != nil {
 				return fmt.Errorf("%s is already in state", args[0])

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"io"
 	"math/rand/v2"
 	"net/http"
@@ -24,6 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/logging"
+
+	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 )
 
 // S3Config describes an S3 or S3-compatible bucket holding a state graph.

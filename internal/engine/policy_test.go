@@ -9,8 +9,8 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-
 	cueerrors "cuelang.org/go/cue/errors"
+
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/schema"
 )

@@ -142,7 +142,7 @@ func drawText(img *image.RGBA, text string, x, y, px int, c color.RGBA) {
 			rows = glyphs['?']
 		}
 		for row, bits := range rows {
-			for col := 0; col < 5; col++ {
+			for col := range 5 {
 				if bits[col] == '#' {
 					draw.Draw(img, image.Rect(x+col*px, y+row*px, x+(col+1)*px, y+(row+1)*px), &image.Uniform{c}, image.Point{}, draw.Src)
 				}

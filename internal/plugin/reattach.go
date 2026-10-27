@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -74,7 +75,7 @@ func requireLoopback(host string) error {
 	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
 		return nil
 	}
-	return fmt.Errorf("tcp is accepted on the loopback interface only, because the connection carries configuration, state and secrets in clear; use a unix socket or an encrypted tunnel")
+	return errors.New("tcp is accepted on the loopback interface only, because the connection carries configuration, state and secrets in clear; use a unix socket or an encrypted tunnel")
 }
 
 type reattachEntry struct {
@@ -192,6 +193,7 @@ func (s statusError) Unwrap() error { return s.err }
 
 func unwrapStatus(err error) error {
 	for e := err; e != nil; {
+		//nolint:errorlint // this walks the chain by hand to stop at the first statusError
 		if se, ok := e.(statusError); ok {
 			return se.err
 		}

@@ -3,6 +3,7 @@ package pravo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -34,7 +35,7 @@ func ParseRefresh(v string) (RefreshMode, error) {
 
 func (w *Workspace) needPlanning() error {
 	if w.state == nil || w.schemas == nil {
-		return fmt.Errorf("pravo: this needs the state and the schemas of the providers: open the workspace with Config.State and Config.Schemas set")
+		return errors.New("pravo: this needs the state and the schemas of the providers: open the workspace with Config.State and Config.Schemas set")
 	}
 	return nil
 }
@@ -165,7 +166,7 @@ func (w *Workspace) Why(ctx context.Context, refresh RefreshMode, addrs ...strin
 // Dependents lists everything a change to the resource can reach.
 func (w *Workspace) Dependents(addr string) ([]string, error) {
 	if w.state == nil {
-		return nil, fmt.Errorf("pravo: this needs the state: open the workspace with Config.State set")
+		return nil, errors.New("pravo: this needs the state: open the workspace with Config.State set")
 	}
 	return Dependents(w.state, addr)
 }
@@ -199,7 +200,7 @@ func (q *QueryResult) CUE() ([]byte, error) {
 // The workspace must be opened with the values of the state readable.
 func (w *Workspace) QueryState(expr string) (*QueryResult, error) {
 	if w.state == nil {
-		return nil, fmt.Errorf("pravo: this needs the state: open the workspace with Config.State set")
+		return nil, errors.New("pravo: this needs the state: open the workspace with Config.State set")
 	}
 	return QueryState(w.state, expr)
 }

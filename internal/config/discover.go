@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -53,10 +54,32 @@ func (r *Root) discover() error {
 			return err
 		}
 	}
+	if err := r.checkCaseCollisions(); err != nil {
+		return err
+	}
 	if err := r.resolveMoves(); err != nil {
 		return err
 	}
 	return r.resolveProviders()
+}
+
+// checkCaseCollisions refuses two resources whose addresses differ only in
+// case. A state on a disk that ignores case (macOS and Windows by default) keeps
+// them in one file.
+func (r *Root) checkCaseCollisions() error {
+	seen := make(map[string]string, len(r.Resources))
+	for _, res := range r.Resources {
+		if res.Builtin {
+			continue
+		}
+		a := res.Address()
+		k := strings.ToLower(a)
+		if prev, ok := seen[k]; ok && prev != a {
+			return fmt.Errorf("%s and %s differ only in case: a state on a file system that ignores case would keep both in one file, so rename one of them", prev, a)
+		}
+		seen[k] = a
+	}
+	return nil
 }
 
 type pendingMove struct {
@@ -425,10 +448,10 @@ func findNested(v cue.Value, at cue.Path, depth int) string {
 // tree of the struct, so the same rule always has the same text and digest.
 func RuleText(v cue.Value) (string, error) {
 	if !v.Exists() {
-		return "", fmt.Errorf("rule is missing: write the rule as a CUE struct, such as rule: {summary: destroy: 0}")
+		return "", errors.New("rule is missing: write the rule as a CUE struct, such as rule: {summary: destroy: 0}")
 	}
 	if v.Kind() != cue.StructKind {
-		return "", fmt.Errorf("rule must be a CUE struct, not a string of CUE: write rule: {summary: destroy: 0}")
+		return "", errors.New("rule must be a CUE struct, not a string of CUE: write rule: {summary: destroy: 0}")
 	}
 	// A rule that uses the standard library comes out as a file with its
 	// imports; any other as a struct. The imports stay in the text, which is
@@ -447,7 +470,7 @@ func RuleText(v cue.Value) (string, error) {
 		decls = structsOf(n.(ast.Expr))
 	}
 	if decls == nil {
-		return "", fmt.Errorf("rule must be a CUE struct")
+		return "", errors.New("rule must be a CUE struct")
 	}
 	// The schema leaves the struct open so that any rule fits; that trailing
 	// "..." is the schema's, not the author's.
@@ -467,7 +490,7 @@ func RuleText(v cue.Value) (string, error) {
 		}
 	}
 	if empty {
-		return "", fmt.Errorf("rule is empty: a policy with no rule judges nothing")
+		return "", errors.New("rule is empty: a policy with no rule judges nothing")
 	}
 	var text strings.Builder
 	for _, e := range elts {
@@ -479,7 +502,6 @@ func RuleText(v cue.Value) (string, error) {
 		text.WriteByte('\n')
 	}
 	return text.String(), nil
-
 }
 
 // structsOf returns the fields of the structs written in an expression: of the

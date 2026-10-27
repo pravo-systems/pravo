@@ -7,7 +7,7 @@
 package fakes3
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // S3 defines the ETag of an object as its MD5
 	"encoding/base64"
 	"encoding/xml"
 	"fmt"
@@ -88,7 +88,7 @@ func (f *Server) tag(data []byte) string {
 }
 
 // etag is the entity tag of an object: the digest of its contents.
-func etag(data []byte) string { return fmt.Sprintf(`"%x"`, md5.Sum(data)) }
+func etag(data []byte) string { return fmt.Sprintf(`"%x"`, md5.Sum(data)) } //nolint:gosec // see the import
 
 // ifMatch checks the If-Match header of a PUT or DELETE against the object at
 // key. It answers the request and returns false when the condition is not met:

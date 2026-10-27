@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -108,7 +109,7 @@ func ParseReadersPin(r io.Reader) (rs []Reader, pin string, err error) {
 	}
 	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 	if bytes.IndexByte(data, 0) >= 0 {
-		return nil, "", fmt.Errorf("readers file contains a NUL byte")
+		return nil, "", errors.New("readers file contains a NUL byte")
 	}
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 0, 4096), maxReaderLine+2)

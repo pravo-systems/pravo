@@ -119,7 +119,7 @@ func TestListResourceV5StopsAtTheLimit(t *testing.T) {
 		if req.Limit != 2 {
 			t.Errorf("limit %d", req.Limit)
 		}
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			ev := &pb5.ListResource_Event{
 				Identity:    &pb5.ResourceIdentityData{IdentityData: &pb5.DynamicValue{Msgpack: identityBytes(t, map[string]any{"id": i})}},
 				DisplayName: "n",

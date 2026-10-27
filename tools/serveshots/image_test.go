@@ -30,8 +30,8 @@ func TestCheckImage(t *testing.T) {
 		flat.Pix[i] = 0x20
 	}
 	nearly := image.NewRGBA(image.Rect(0, 0, 100, 100))
-	for y := 0; y < 100; y++ {
-		for x := 0; x < 100; x++ {
+	for y := range 100 {
+		for x := range 100 {
 			nearly.Set(x, y, color.RGBA{0x10, 0x10, 0x10, 0xff})
 		}
 	}
@@ -39,8 +39,8 @@ func TestCheckImage(t *testing.T) {
 	nearly.Set(2, 2, color.RGBA{0, 0xff, 0, 0xff})
 	nearly.Set(3, 3, color.RGBA{0, 0, 0xff, 0xff})
 	busy := image.NewRGBA(image.Rect(0, 0, 40, 30))
-	for y := 0; y < 30; y++ {
-		for x := 0; x < 40; x++ {
+	for y := range 30 {
+		for x := range 40 {
 			busy.Set(x, y, color.RGBA{uint8(x * 6), uint8(y * 8), uint8(x ^ y), 0xff})
 		}
 	}

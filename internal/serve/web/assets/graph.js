@@ -36,6 +36,13 @@ const GLYPH = {
 };
 
 // facet marks an element of a card as a way to filter: a click shows only what holds the value, shift hides it
+// reticle: four corner ticks round a card, drawn at the selection (see .reticle in graph.css)
+function reticle(W, H) {
+  const o = 7, c = 11, x0 = -o, y0 = -o, x1 = W + o, y1 = H + o;
+  const d = `M${x0} ${y0 + c}V${y0}H${x0 + c}M${x1 - c} ${y0}H${x1}V${y0 + c}M${x1} ${y1 - c}V${y1}H${x1 - c}M${x0 + c} ${y1}H${x0}V${y1 - c}`;
+  return s('path', { class: 'reticle', d });
+}
+
 function facet(el, col, value, label) {
   el.dataset.facet = col + ':' + value;
   el.classList.add('fx');
@@ -354,7 +361,6 @@ export class GraphView {
     // edges
     this.adj = new Map();
     const edgeSeen = new Set();
-    let calm = 0;
     // the counts of the merged edges, each on its own wire and none on another
     const counts = new Map();
     for (const e of vis.edges) if (e.n > 1 && lay.routes.has(e.key)) counts.set(e.key, e.n);
@@ -384,7 +390,6 @@ export class GraphView {
       r.bto = badgeAt.get(e.key) || null;
       r.bfrom = r.bat || r.bto;
       if (!animate) { r.pts = clonePts(pts); this.placeEdge(r); } else { moves.edges.push(r); this.placeEdge(r, 0); }
-      calm++;
     }
     // many edges say less each: they are drawn lighter as they grow in number
     this.svg.style.setProperty('--ed', clamp(1.2 - edgeSeen.size / 110, 0.5, 1).toFixed(2));
@@ -570,7 +575,7 @@ export class GraphView {
     if (n.presence === 'state') marks.push('orphan');
     const g = s('g', { class: nodeClasses(n, this.ctx) + ' neutral', role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }));
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }), reticle(W, H));
     if (this.ctx.hasPlan && n.action && n.action !== 'no-op') inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 0 }));
     inn.append(s('rect', { class: 'box', width: W, height: H, rx: 0 }));
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 0) }));
@@ -605,7 +610,7 @@ export class GraphView {
     const pv = providerOf(n.type, n.provider);
     const g = s('g', { class: nodeClasses(n, this.ctx) + ' ' + (unowned(n) ? 'neutral' : pvClass(pv)), role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }));
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }), reticle(W, H));
     if (n.drifted || n.gone || (this.ctx.hasPlan && n.action && n.action !== 'no-op')) inn.append(s('rect', { class: 'ring', x: -3, y: -3, width: W + 6, height: H + 6, rx: 0 }));
     // two open plans that change the node: a solid ring outside the dotted one of the action, in a colour of its own
     if (n.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 0 }));
@@ -680,7 +685,7 @@ export class GraphView {
     const outsNote = agg.out ? `, ${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
     const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isNs ? `namespace ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
     const inn = s('g', { class: 'in' });
-    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }));
+    inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }), reticle(W, H));
     inn.append(s('rect', { class: 'stack s2', x: 10, y: 10, width: W - 20, height: H, rx: 0 }));
     inn.append(s('rect', { class: 'stack s1', x: 5, y: 5, width: W - 10, height: H, rx: 0 }));
     inn.append(s('rect', { class: 'box', width: W, height: H, rx: 0 }));
@@ -695,7 +700,7 @@ export class GraphView {
     const pbw = (bare) => counts.reduce((w, n) => w + (bare ? 14 : 17 + String(n).length * 6.4), 0) + (counts.length ? 6 : 0);
     // the title stands whole beside the plan counts: at 16 px, else at 14.5, else the counts give up their
     // numbers (the cells and the card of a hover still say them) and the title tries both sizes again
-    let bare = false, size = 16;
+    let bare = false, size;
     const fits = (z, b) => title.length * z * MONO <= W - 38 - 14 - pbw(b);
     if (fits(16, false)) size = 16;
     else if (fits(14.5, false)) size = 14.5;

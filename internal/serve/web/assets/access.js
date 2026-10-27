@@ -2,7 +2,7 @@
 // and commands to copy that change it. The page reads /api/access and shows it; nothing here runs a command,
 // writes a file or asks the server to. The text of every command comes from the server and is shown as text.
 
-import { h, clear, icon, plural, relTime, stamp, fmt } from './util.js';
+import { h, clear, icon, relTime, stamp, fmt } from './util.js';
 
 // STATE says what the banner calls each state; the sentence is the server's.
 const STATE = {

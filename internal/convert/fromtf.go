@@ -3,9 +3,11 @@ package convert
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"sort"
+	"strconv"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -15,7 +17,7 @@ import (
 )
 
 // ErrUnknown is returned by ToGo when a value contains unknowns.
-var ErrUnknown = fmt.Errorf("value contains unknowns")
+var ErrUnknown = errors.New("value contains unknowns")
 
 // ToGo converts a fully known tftypes value to plain Go data suitable for
 // filling into CUE (nil for null, string, *big.Int or *big.Float, bool,
@@ -229,12 +231,12 @@ func fillValue(cfg cue.Value, sv tftypes.Value) (any, bool) {
 		// Lists can only be filled element-wise when every element can be
 		// expressed; fill the whole list with configuration values merged in.
 		out := make([]any, len(elems))
-		any := false
+		filled := false
 		for i, e := range elems {
 			x, ok := fillValue(cfgElems[i], e)
 			if ok {
 				out[i] = x
-				any = true
+				filled = true
 			} else {
 				g, err := ToGo(e)
 				if err != nil {
@@ -243,7 +245,7 @@ func fillValue(cfg cue.Value, sv tftypes.Value) (any, bool) {
 				out[i] = g
 			}
 		}
-		return out, any
+		return out, filled
 	}
 	g, err := ToGo(sv)
 	return g, err == nil
@@ -274,7 +276,7 @@ func RenderCUE(v tftypes.Value, indent string, sensitive func(path []string) boo
 	case t.Is(tftypes.Bool):
 		var b bool
 		_ = v.As(&b)
-		return fmt.Sprint(b)
+		return strconv.FormatBool(b)
 	case t.Is(tftypes.Number):
 		var f big.Float
 		_ = v.As(&f)
@@ -288,7 +290,7 @@ func RenderCUE(v tftypes.Value, indent string, sensitive func(path []string) boo
 		var b strings.Builder
 		b.WriteString("[\n")
 		for i, e := range elems {
-			b.WriteString(indent + Indent + RenderCUE(e, indent+Indent, sensitive, append(path, fmt.Sprint(i))) + ",\n")
+			b.WriteString(indent + Indent + RenderCUE(e, indent+Indent, sensitive, append(path, strconv.Itoa(i))) + ",\n")
 		}
 		b.WriteString(indent + "]")
 		return b.String()
@@ -306,7 +308,7 @@ func RenderCUE(v tftypes.Value, indent string, sensitive func(path []string) boo
 		var b strings.Builder
 		b.WriteString("{\n")
 		for _, k := range keys {
-			b.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, Indent, FieldLabel(k), RenderCUE(m[k], indent+Indent, sensitive, append(path, k))))
+			fmt.Fprintf(&b, "%s%s%s: %s\n", indent, Indent, FieldLabel(k), RenderCUE(m[k], indent+Indent, sensitive, append(path, k)))
 		}
 		b.WriteString(indent + "}")
 		return b.String()

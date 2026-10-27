@@ -212,7 +212,7 @@ func tail(s string, n int) string {
 func startService(ctx context.Context, bin string, spec serviceSpec) (*service, error) {
 	var lastErr error
 	inUse := false
-	for attempt := 0; attempt < max(1, servicePortRetries); attempt++ {
+	for range max(1, servicePortRetries) {
 		svc, retry, err := tryStartService(ctx, bin, spec)
 		if err == nil {
 			return svc, nil

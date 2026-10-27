@@ -26,3 +26,6 @@ cue.mod/gen/
 # Local tooling
 /.claude/
 .DS_Store
+
+# Linters for the JavaScript and CSS (tools/_weblint)
+/tools/_weblint/node_modules/

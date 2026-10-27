@@ -127,7 +127,7 @@ func TestCheckCyclesNamesOnlyTheTasksOnCycles(t *testing.T) {
 func TestParallelTasksShareTheirMapsSafely(t *testing.T) {
 	var cueSrc strings.Builder
 	var names []string
-	for i := 0; i < 40; i++ {
+	for i := range 40 {
 		name := fmt.Sprintf("r%02d", i)
 		names = append(names, name)
 		extra := ""
@@ -156,13 +156,13 @@ func TestProviderIsConfiguredOnceUnderConcurrentUse(t *testing.T) {
 	h := newHarness(t)
 	e := h.engine(spec{cue: "a: " + thing("a", ""), resources: []string{"a"}}, Options{})
 	m := e.Providers
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		key := fmt.Sprintf("fake.k%d", i)
 		m.instances[key] = &instance{p: h.fake, key: key}
 	}
 	var wg sync.WaitGroup
-	for rep := 0; rep < 4; rep++ {
-		for i := 0; i < 8; i++ {
+	for range 4 {
+		for i := range 8 {
 			wg.Add(1)
 			go func(key string) {
 				defer wg.Done()
@@ -546,7 +546,8 @@ func TestReplaceContinuesTheRevision(t *testing.T) {
 }
 
 func asStale(err error, target **ErrStalePlan) bool {
-	s, ok := err.(*ErrStalePlan)
+	s := &ErrStalePlan{}
+	ok := errors.As(err, &s)
 	if ok {
 		*target = s
 	}

@@ -375,7 +375,7 @@ func TestDiscoverAdoptsAnObjectByItsIdentity(t *testing.T) {
 	}
 	contains(t, text, "shadow_assets will be imported from the identity", "bucket=shadow-assets", "1 to import")
 	// A plan writes nothing for it: no record, and the object is still being adopted, until an apply.
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if text, _ := runPravo(t, dir, "state", "list"); strings.TrimSpace(text) != "" {
 			t.Fatalf("a plan wrote a record (plan %d): %q", i+1, text)
 		}

@@ -66,7 +66,7 @@ func AgentList(rw io.ReadWriter) ([]AgentKey, error) {
 	n := binary.BigEndian.Uint32(b)
 	b = b[4:]
 	var out []AgentKey
-	for i := uint32(0); i < n; i++ {
+	for range n {
 		blob, rest, ok := sshString(b)
 		if !ok {
 			return nil, errors.New("ssh-agent sent a truncated list")

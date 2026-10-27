@@ -26,7 +26,7 @@
     if (loading) return;
     loading = true;
     if (!window.fetch || location.protocol === "file:") return viaScript();
-    fetch(rootDir + "search-index.json").then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(take).catch(viaScript);
+    fetch(rootDir + "search-index.json").then(function (r) { if (!r.ok) throw new Error("search-index.json: " + r.status); return r.json(); }).then(take).catch(viaScript);
   }
 
   /* ---------- words ---------- */

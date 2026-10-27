@@ -85,7 +85,7 @@ func (b *spanBody) end(readErr error) {
 		var err error
 		if b.status >= 500 {
 			err = errors.New("HTTP " + strconv.Itoa(b.status))
-		} else if readErr != nil && readErr != io.EOF {
+		} else if readErr != nil && !errors.Is(readErr, io.EOF) {
 			err = readErr
 		}
 		telemetry.End(b.span, err)

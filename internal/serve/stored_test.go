@@ -417,7 +417,7 @@ func TestStoredPlanOverlay(t *testing.T) {
 			t.Errorf("GET %s: %d, want %d", path, resp.StatusCode, want)
 		}
 	}
-	if resp, _ := p.do("POST", "/api/plans", nil); resp.StatusCode != 405 {
+	if resp, _ := p.do("POST", "/api/plans", nil); resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("POST /api/plans: %d", resp.StatusCode)
 	}
 }
@@ -550,7 +550,7 @@ func TestServeAStoredPlanThatIsNotThere(t *testing.T) {
 // eventsOf reads the events of /api/events.
 func eventsOf(t *testing.T, p *project) func(within time.Duration) (Event, bool) {
 	t.Helper()
-	req, _ := http.NewRequest("GET", p.base+"/api/events", nil)
+	req, _ := http.NewRequest(http.MethodGet, p.base+"/api/events", nil)
 	req.Header.Set("Authorization", "Bearer "+p.srv.Token())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -638,14 +638,14 @@ func TestStoredPlansAreWatched(t *testing.T) {
 	}
 	waitFor(t, "the node", func() bool { return len(nodeOf(p.graph(), "services.a.db").Plans) == 0 })
 	// The plan is collected: the three objects go.
-	l = expect("the plan is collected", func() {
+	expect("the plan is collected", func() {
 		for _, suffix := range []string{".progress.json", ".meta.json", ".plan.json"} {
 			if err := p.store.Backend().Delete(context.Background(), "plans/"+id+suffix); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}, func(l PlanList) bool { return len(l.Plans) == 0 })
-	if resp, _ := p.do("GET", "/api/plan?id="+id, nil); resp.StatusCode != 404 {
+	if resp, _ := p.do("GET", "/api/plan?id="+id, nil); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("a plan that was collected: %d", resp.StatusCode)
 	}
 }
@@ -690,7 +690,7 @@ func TestWatcherSeesStoredPlans(t *testing.T) {
 	sub, cancel := w.bus.subscribe()
 	defer cancel()
 	first, _ := w.sample()
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if rev, _ := w.sample(); rev != first {
 			t.Fatalf("poll %d: the revision moved with nothing written", i)
 		}
@@ -968,7 +968,7 @@ func TestStoredPlanInfoIsMasked(t *testing.T) {
 	sec := m.secrets.clone()
 	sec.add("plan-only-secret-77")
 	var reasons []string
-	for i := 0; i < maxReasons+5; i++ {
+	for range maxReasons + 5 {
 		reasons = append(reasons, "reason plan-only-secret-77 "+strings.Repeat("x", 2*maxReason))
 	}
 	po := &planOverlay{secrets: sec, info: PlanInfo{Actor: "a plan-only-secret-77", Reasons: reasons, Hints: []string{"hint plan-only-secret-77"}}}
@@ -1055,7 +1055,7 @@ func TestPartialPlanIsNotOnItsAppliedNodes(t *testing.T) {
 func TestStoredListIsBoundedAndWorkedOutOnce(t *testing.T) {
 	p := newProject(t)
 	var addrs []string
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		addrs = append(addrs, fmt.Sprintf("big.r%03d", i))
 	}
 	put := func(author string, created time.Time) string {
@@ -1085,7 +1085,7 @@ func TestStoredListIsBoundedAndWorkedOutOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.planList() != m.planList() {
+	if first, again := m.planList(), m.planList(); first != again {
 		t.Error("the list is worked out again")
 	}
 }

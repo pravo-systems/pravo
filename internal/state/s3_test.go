@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"sync"
@@ -123,7 +124,8 @@ func TestS3Locks(t *testing.T) {
 }
 
 func asLocked(err error, target **ErrLocked) bool {
-	e, ok := err.(*ErrLocked)
+	e := &ErrLocked{}
+	ok := errors.As(err, &e)
 	if ok {
 		*target = e
 	}
@@ -288,7 +290,7 @@ func TestS3UpdateOutputsKeepsBothCommandsChanges(t *testing.T) {
 		}
 		stores[k] = s
 	}
-	for round := 0; round < rounds; round++ {
+	for round := range rounds {
 		var wg sync.WaitGroup
 		for k, s := range stores {
 			wg.Add(1)
@@ -312,7 +314,7 @@ func TestS3UpdateOutputsKeepsBothCommandsChanges(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for k := 0; k < commands; k++ {
+		for k := range commands {
 			if want := fmt.Sprintf("%d", round); string(got[fmt.Sprintf("o%d", k)]) != want {
 				t.Fatalf("round %d: o%d = %s, want %s", round, k, got[fmt.Sprintf("o%d", k)], want)
 			}

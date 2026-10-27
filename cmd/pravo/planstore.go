@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/pravo-systems/pravo/pravo"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // opportunisticGC is the most plans that "plan --store" removes on its way.
@@ -166,7 +166,7 @@ by the state alone; the configuration and the providers are compared when the
 plan is applied.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if pending && all {
-				return fmt.Errorf("--pending and --all exclude each other")
+				return errors.New("--pending and --all exclude each other")
 			}
 			st, ps, err := openPlanStore(cmd.Context(), false)
 			if err != nil {
@@ -666,7 +666,7 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	ctx := cmd.Context()
 	streamEvents = true
 	if cmd.Flags().Changed("refresh") || full {
-		return fmt.Errorf("-refresh and -full do not apply to a stored plan")
+		return errors.New("-refresh and -full do not apply to a stored plan")
 	}
 	s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true})
 	if err != nil {

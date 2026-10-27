@@ -511,7 +511,7 @@ export class TracesView {
 
   setWindow(a, b, soft = false) {
     const dur = this.model.dur;
-    let w = clamp(b - a, Math.min(MIN_WINDOW, dur), dur);
+    const w = clamp(b - a, Math.min(MIN_WINDOW, dur), dur);
     let s = a;
     if (s < 0) s = 0;
     if (s + w > dur) s = dur - w;

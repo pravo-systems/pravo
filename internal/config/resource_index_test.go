@@ -67,7 +67,7 @@ func TestRootResourceLookupIsIndexed(t *testing.T) {
 			t.Fatalf("%s is not found", name)
 		}
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if root.Resource(fmt.Sprintf("orphan.o%d", i)) != nil {
 			t.Fatal("an orphan is found")
 		}

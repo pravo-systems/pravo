@@ -113,7 +113,7 @@ func TestConditionalDeleteAndReplace(t *testing.T) {
 			}
 
 			// Callers that judge the same object: one deletes it.
-			for round := 0; round < 40; round++ {
+			for round := range 40 {
 				if err := b.Put(ctx, "locks/b.lock", []byte("held")); err != nil {
 					t.Fatal(err)
 				}
@@ -123,7 +123,7 @@ func TestConditionalDeleteAndReplace(t *testing.T) {
 					gate     = make(chan struct{})
 					judgedBy atomic.Int32
 				)
-				for i := 0; i < 8; i++ {
+				for range 8 {
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
@@ -163,7 +163,7 @@ func TestLocalLockIsCreatedWhole(t *testing.T) {
 		created atomic.Int32
 		done    = make(chan struct{})
 	)
-	for r := 0; r < 4; r++ {
+	for range 4 {
 		wg.Add(1)
 		go func() { // readers
 			defer wg.Done()
@@ -173,7 +173,7 @@ func TestLocalLockIsCreatedWhole(t *testing.T) {
 					return
 				default:
 				}
-				for i := 0; i < keys; i++ {
+				for i := range keys {
 					got, err := b.Get(ctx, fmt.Sprintf("locks/k%03d.lock", i))
 					if errors.Is(err, ErrNotFound) {
 						continue
@@ -187,11 +187,11 @@ func TestLocalLockIsCreatedWhole(t *testing.T) {
 		}()
 	}
 	var creators sync.WaitGroup
-	for c := 0; c < 4; c++ {
+	for range 4 {
 		creators.Add(1)
 		go func() {
 			defer creators.Done()
-			for i := 0; i < keys; i++ {
+			for i := range keys {
 				ok, err := b.PutIfAbsent(ctx, fmt.Sprintf("locks/k%03d.lock", i), body)
 				if err != nil {
 					t.Error(err)
@@ -229,7 +229,7 @@ func TestReclaimOfAStaleLockHasOneWinner(t *testing.T) {
 			if testing.Short() {
 				rounds = 30
 			}
-			for round := 0; round < rounds; round++ {
+			for round := range rounds {
 				writeDeadLock(t, b, "x")
 				var (
 					wg   sync.WaitGroup

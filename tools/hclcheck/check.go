@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -69,7 +71,8 @@ func (r *runner) run(dir, stdin string, args ...string) (string, int) {
 	if err == nil {
 		return out.String(), 0
 	}
-	if ee, ok := err.(*exec.ExitError); ok && ctx.Err() == nil {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && ctx.Err() == nil {
 		return out.String(), ee.ExitCode()
 	}
 	return out.String() + err.Error(), -1
@@ -134,7 +137,7 @@ func (r *runner) checkPage(base string, blocks []Block) []Result {
 			res.Status, res.Note = statusSkipped, b.Skip
 		case len(b.Files) > 1:
 			res.Status, res.Stage = statusFail, "assemble"
-			res.Note = "the block shows " + fmt.Sprint(len(b.Files)) + " files (" + strings.Join(b.Files, ", ") + "): one block, one file"
+			res.Note = "the block shows " + strconv.Itoa(len(b.Files)) + " files (" + strings.Join(b.Files, ", ") + "): one block, one file"
 		default:
 			r.checkBlock(ws, b, written, &res)
 		}

@@ -58,13 +58,13 @@ if (graph) {
 }
 // ---- the Discovery view: discovery.NAME.json, the platform's unless the query says another ----
 // ---- the Policies view: policies.NAME.json, the platform's unless the query says another ----
-let policiesName = params.get('policies') || (NAME === 'platform' ? 'platform' : 'empty');
-let policies = await fixture(`policies.${policiesName}.json`);
+const policiesName = params.get('policies') || (NAME === 'platform' ? 'platform' : 'empty');
+const policies = await fixture(`policies.${policiesName}.json`);
 // ---- the Traces view: traces.NAME.json lists the runs, and trace.XXXXXXXX.json (the first eight digits of the id) is each one ----
-let tracesName = params.get('traces') || (NAME === 'platform' ? 'platform' : 'empty');
+const tracesName = params.get('traces') || (NAME === 'platform' ? 'platform' : 'empty');
 let traces = (await fixture(`traces.${tracesName}.json`)) || { version: 1, dir: '.pravo/traces', traces: [] };
 const runStart = (iso, by) => new Date(Date.parse(iso) + by).toISOString();
-let discoveryName = params.get('discovery') || (NAME === 'platform' ? 'platform' : 'empty');
+const discoveryName = params.get('discovery') || (NAME === 'platform' ? 'platform' : 'empty');
 let discovery = await fixture(`discovery.${discoveryName}.json`);
 const adoptExample = await fixture('adopt.example.json');
 // adoptOf makes the answer of /api/adopt for an object of the fixture, as the server words it
@@ -87,7 +87,7 @@ function adoptOf(name, key) {
 }
 
 // ---- the Access view: access.NAME.json, the sealed platform unless the query says another ----
-let accessName = params.get('access') || (NAME === 'platform' ? 'platform' : 'off');
+const accessName = params.get('access') || (NAME === 'platform' ? 'platform' : 'off');
 let access = await fixture(`access.${accessName}.json`);
 // a state that is sealed to a process that holds no key lists its records and shows no value
 function lockGraph(g) {
@@ -329,7 +329,7 @@ function synthSource(n) {
   let no = start;
   lines.push({ no: no++, text: `${n.name}: $${n.provider.split('.')[0]}.#Resource.${n.type} & {`, mark: 'focus' });
   const first = t.find((x) => x[3] !== undefined);
-  for (const [name, type, kind, v] of t) {
+  for (const [name, , kind, v] of t) {
     if (kind === 'computed') continue;
     const val = fill(v, n, ctx);
     const text = typeof val === 'string' ? JSON.stringify(val) : String(val);
@@ -382,7 +382,7 @@ function studioTry(q) {
     if (ref === 'state') {
       const fails = /ManagedBy|type:/.test(text);
       return { ref, state: 'judged', changes: 12, outcome: fails ? 'refused' : 'holds',
-        issues: fails ? ['api.db', 'api.queue', 'api.cache'].flatMap((a, i) => [{ path: `changes.${i}.after.tags.ManagedBy`, change: a, message: 'conflicting values \"pravo\" and null', line: at || 5, column: 1, got: 'null', policy: 'draft' }]) : [] };
+        issues: fails ? ['api.db', 'api.queue', 'api.cache'].flatMap((a, i) => [{ path: `changes.${i}.after.tags.ManagedBy`, change: a, message: 'conflicting values "pravo" and null', line: at || 5, column: 1, got: 'null', policy: 'draft' }]) : [] };
     }
     const x = ref.startsWith('file:') || ref.startsWith('upload:') ? { summary: { add: 2, change: 1, destroy: 1 } } : stored.plans.find((y) => y.id === ref);
     if (!x) return { ref, state: 'unknown', note: 'no such plan', changes: 0 };
@@ -423,7 +423,7 @@ window.fetch = async (input, init) => {
   if (p === '/api/graph') return json(200, graph);
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
   if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
-  if (p === '/api/policies') return policies ? json(200, shift(Object.assign({}, policies, { revision: graph.revision, policies: policies.policies.map((x, k) => Object.assign({}, x, { written: x.source ? { role: 'definition', file: x.source.file, kind: 'file', start_line: x.source.line, end_line: x.source.line + 9, lines: decl(x.name, x.rule || (x.versions[0] && x.versions[0].text) || 'summary: destroy: 0\n').split('\n').slice(2, -1).map((t, i) => ({ no: x.source.line + i, text: t })) } : undefined, rule: x.rule ? decl(x.name, x.rule) : x.rule, versions: x.versions.map((v) => (v.text ? Object.assign({}, v, { text: decl(x.name, v.text) }) : v)) })) }), by)) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/policies') return policies ? json(200, shift(Object.assign({}, policies, { revision: graph.revision, policies: policies.policies.map((x) => Object.assign({}, x, { written: x.source ? { role: 'definition', file: x.source.file, kind: 'file', start_line: x.source.line, end_line: x.source.line + 9, lines: decl(x.name, x.rule || (x.versions[0] && x.versions[0].text) || 'summary: destroy: 0\n').split('\n').slice(2, -1).map((t, i) => ({ no: x.source.line + i, text: t })) } : undefined, rule: x.rule ? decl(x.name, x.rule) : x.rule, versions: x.versions.map((v) => (v.text ? Object.assign({}, v, { text: decl(x.name, v.text) }) : v)) })) }), by)) : json(404, { error: 'no such endpoint' });
   if (p === '/api/studio/plan') {
     if (!init || init.method !== 'POST') return json(405, { error: 'method not allowed' });
     const name = url.searchParams.get('name') || 'plan file';

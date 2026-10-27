@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"io"
 	"math/rand/v2"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 )
 
 // HTTPConfig describes a server that keeps a state graph as objects under a URL.
@@ -123,6 +124,15 @@ func (b *HTTPBackend) objectURL(key string) string {
 	return u.String()
 }
 
+// httpRequestTimeout is how long one attempt, from sending the request to reading
+// the whole answer, may take before it is given up and tried again. It is a var
+// for tests.
+var httpRequestTimeout = 2 * time.Minute
+
+// httpMaxBody is the most a server may answer with: a record or a listing is far
+// smaller, and a server that sends more is not one of ours.
+const httpMaxBody = 256 << 20
+
 // reply is the answer to a request, with the number of requests it took.
 type reply struct {
 	status int
@@ -146,7 +156,7 @@ func busy(status int) bool {
 func (b *HTTPBackend) do(ctx context.Context, method, target string, body []byte, header map[string]string) (reply, error) {
 	var r reply
 	var lastErr error
-	for attempt := 0; attempt < httpAttempts; attempt++ {
+	for attempt := range httpAttempts {
 		if attempt > 0 {
 			limit := httpMaxBackoff
 			if attempt < 16 && httpBackoffBase<<attempt < limit {
@@ -162,8 +172,10 @@ func (b *HTTPBackend) do(ctx context.Context, method, target string, body []byte
 		if body != nil {
 			rd = bytes.NewReader(body)
 		}
-		req, err := http.NewRequestWithContext(ctx, method, target, rd)
+		actx, cancel := context.WithTimeout(ctx, httpRequestTimeout)
+		req, err := http.NewRequestWithContext(actx, method, target, rd)
 		if err != nil {
+			cancel()
 			return r, err
 		}
 		for k, v := range header {
@@ -178,19 +190,26 @@ func (b *HTTPBackend) do(ctx context.Context, method, target string, body []byte
 		r.sent++
 		resp, err := netcap.Trace(req, b.client.Do)
 		if err != nil {
+			cancel()
 			if ctx.Err() != nil {
 				return r, ctx.Err()
 			}
 			lastErr = err
 			continue
 		}
-		data, rerr := io.ReadAll(resp.Body)
+		data, rerr := io.ReadAll(io.LimitReader(resp.Body, httpMaxBody+1))
 		resp.Body.Close()
+		cancel()
+		if rerr == nil && len(data) > httpMaxBody {
+			return r, fmt.Errorf("%s %s: the answer is over %d MiB", method, target, httpMaxBody>>20)
+		}
 		if rerr != nil {
+			if ctx.Err() != nil {
+				return r, ctx.Err()
+			}
 			lastErr = rerr
 			continue
 		}
-		lastErr = nil
 		r.status, r.body, r.etag = resp.StatusCode, data, resp.Header.Get("ETag")
 		if busy(r.status) {
 			lastErr = &httpStatusError{status: r.status, body: snippet(data)}

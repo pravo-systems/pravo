@@ -43,13 +43,13 @@ func TestMarkAppliedKeepsTheMarksOfConcurrentApplies(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make(chan error, parts)
 	start := make(chan struct{})
-	for i := 0; i < parts; i++ {
+	for i := range parts {
 		pf, err := ReadPlanFile(file) // every apply read the file before any wrote it
 		if err != nil {
 			t.Fatal(err)
 		}
 		var addrs []string
-		for j := 0; j < per; j++ {
+		for j := range per {
 			addrs = append(addrs, fmt.Sprintf("r%03d", i*per+j))
 		}
 		wg.Add(1)
@@ -71,8 +71,8 @@ func TestMarkAppliedKeepsTheMarksOfConcurrentApplies(t *testing.T) {
 	if len(got) != parts*per {
 		t.Fatalf("%d of %d changes are marked applied", len(got), parts*per)
 	}
-	for i := 0; i < parts; i++ {
-		for j := 0; j < per; j++ {
+	for i := range parts {
+		for j := range per {
 			addr := fmt.Sprintf("r%03d", i*per+j)
 			if want := fmt.Sprintf("txn-%d", i); got[addr] != want {
 				t.Errorf("%s is marked applied by %q, want %q", addr, got[addr], want)

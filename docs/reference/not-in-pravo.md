@@ -26,7 +26,7 @@ pravo has no workspaces. Select the environment with `-t env=prod`. Each row bel
 | `login`, `logout` | Absent. | Credentials come from the environment and from the files that each provider documents. |
 | `-var`, `-var-file`, `TF_VAR_*` | Absent. | `-t name=value` fills a field tagged `@tag(name)`. `pravo.#Env` and `pravo.#SecretEnv` read environment variables. |
 | `-lock`, `-lock-timeout` | Absent. | Each node has its own lock. A command that needs a node held by another is rejected. |
-| `-parallelism` | Absent. | Independent nodes run at the same time. |
+| `-parallelism` | Absent. | Independent nodes run at the same time, ten at once; `PRAVO_PARALLELISM` sets the number. |
 | `-input=false` | Absent. | `apply` and `destroy` ask for approval, and `--auto-approve` skips the question. No other command prompts. |
 | `-backend-config` | Absent. | The state settings are CUE. They can depend on a tag. |
 | `output -raw` | Absent. | `pravo output NAME` prints JSON. `pravo output NAME \| jq -r .` prints the bare string. |

@@ -121,7 +121,7 @@ func TestAPlanWhoseRecordMovedIsAppliedInPart(t *testing.T) {
 	}
 
 	// A collection does not mark it, however often it runs.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if text, code = runPravo(t, dir, "plan", "gc"); code != 0 || !strings.Contains(text, "No stored plan needs to be removed.") {
 			t.Errorf("gc: exit %d:\n%s", code, text)
 		}

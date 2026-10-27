@@ -136,8 +136,8 @@ func TestTracesNeedTheTokenAndWriteNothing(t *testing.T) {
 	p := newProject(t)
 	runFile(t, p.dir, traceA, sampleRun(""))
 	for _, path := range []string{"/api/traces", "/api/trace?id=" + traceA} {
-		req, _ := http.NewRequest("GET", p.base+path, nil)
-		if resp, _ := p.send(req); resp.StatusCode != 401 {
+		req, _ := http.NewRequest(http.MethodGet, p.base+path, nil)
+		if resp, _ := p.send(req); resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("%s without a token: %d", path, resp.StatusCode)
 		}
 	}

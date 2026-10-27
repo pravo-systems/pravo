@@ -116,7 +116,6 @@ function orderLayers(layers, rounds) {
 
 // ---- heights: Brandes and Koepf, "Fast and Simple Horizontal Coordinate Assignment" ----
 
-const thin = (v) => !v.h;
 const sepOf = (u, v) => (u.h + v.h) / 2 + (u.h && v.h ? GAPRR : u.h || v.h ? GAPRD : GAPDD);
 
 function placeY(layers, V) {

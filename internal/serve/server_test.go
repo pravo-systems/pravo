@@ -19,7 +19,7 @@ func TestAuth(t *testing.T) {
 		t.Fatalf("the token has %d characters, want 32 (128 bits in hex)", len(token))
 	}
 	get := func(path string, hdr map[string]string) (*http.Response, string) {
-		req, _ := http.NewRequest("GET", p.base+path, nil)
+		req, _ := http.NewRequest(http.MethodGet, p.base+path, nil)
 		for k, v := range hdr {
 			req.Header.Set(k, v)
 		}
@@ -28,26 +28,26 @@ func TestAuth(t *testing.T) {
 	}
 	for _, api := range []string{"/api/ping", "/api/graph", "/api/detail?addr=shared", "/api/source?addr=shared", "/api/search?q=a", "/api/events", "/api/nothing"} {
 		resp, body := get(api, nil)
-		if resp.StatusCode != 401 {
+		if resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("%s without a token: %d, want 401", api, resp.StatusCode)
 		}
 		if strings.Contains(body, "shared") || strings.Contains(body, "services") || strings.Contains(body, p.dir) {
 			t.Errorf("%s: the 401 names something: %s", api, body)
 		}
 		resp, _ = get(api, map[string]string{"Authorization": "Bearer " + token[:31] + "x"})
-		if resp.StatusCode != 401 {
+		if resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("%s with a wrong token: %d, want 401", api, resp.StatusCode)
 		}
 		resp, _ = get(api, map[string]string{"Authorization": "Basic " + token})
-		if resp.StatusCode != 401 {
+		if resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("%s with the token as Basic: %d, want 401", api, resp.StatusCode)
 		}
 	}
 	// A token in the query of an API call is not accepted: it would end up in logs and history.
-	if resp, _ := get("/api/ping?token="+token, nil); resp.StatusCode != 401 {
+	if resp, _ := get("/api/ping?token="+token, nil); resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("a token in the query of /api/ping: %d, want 401", resp.StatusCode)
 	}
-	if resp, body := get("/api/ping", map[string]string{"Authorization": "bearer " + token}); resp.StatusCode != 200 || !strings.Contains(body, `"ok":true`) {
+	if resp, body := get("/api/ping", map[string]string{"Authorization": "bearer " + token}); resp.StatusCode != http.StatusOK || !strings.Contains(body, `"ok":true`) {
 		t.Errorf("bearer: %d %s", resp.StatusCode, body)
 	}
 
@@ -74,17 +74,17 @@ func TestAuth(t *testing.T) {
 	if !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.Path != "/" || cookie.Value != token {
 		t.Errorf("the cookie is %+v, want HttpOnly, SameSite=Strict, Path=/ and the token", cookie)
 	}
-	if resp, body := get("/api/ping", map[string]string{"Cookie": cookie.Name + "=" + cookie.Value}); resp.StatusCode != 200 {
+	if resp, body := get("/api/ping", map[string]string{"Cookie": cookie.Name + "=" + cookie.Value}); resp.StatusCode != http.StatusOK {
 		t.Errorf("the cookie does not open the API: %d %s", resp.StatusCode, body)
 	}
-	if resp, _ := get("/api/ping", map[string]string{"Cookie": cookie.Name + "=" + cookie.Value[:31] + "z"}); resp.StatusCode != 401 {
+	if resp, _ := get("/api/ping", map[string]string{"Cookie": cookie.Name + "=" + cookie.Value[:31] + "z"}); resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("a wrong cookie: %d, want 401", resp.StatusCode)
 	}
-	if resp, _ := get("/?token=wrong", nil); resp.StatusCode != 401 || len(resp.Cookies()) != 0 {
+	if resp, _ := get("/?token=wrong", nil); resp.StatusCode != http.StatusUnauthorized || len(resp.Cookies()) != 0 {
 		t.Errorf("a wrong token on /: %d with %d cookies, want 401 and none", resp.StatusCode, len(resp.Cookies()))
 	}
 	// The interface itself carries no data, so it needs no token.
-	if resp, body := get("/", nil); resp.StatusCode != 200 || !strings.Contains(body, "<") {
+	if resp, body := get("/", nil); resp.StatusCode != http.StatusOK || !strings.Contains(body, "<") {
 		t.Errorf("/: %d", resp.StatusCode)
 	}
 }
@@ -108,7 +108,7 @@ func TestHostAndFetchSite(t *testing.T) {
 	}
 	for _, c := range cases {
 		for _, path := range []string{"/api/ping", "/"} {
-			req, _ := http.NewRequest("GET", p.base+path, nil)
+			req, _ := http.NewRequest(http.MethodGet, p.base+path, nil)
 			req.Host = c.host
 			req.Header.Set("Authorization", "Bearer "+p.srv.Token())
 			resp, _ := p.send(req)
@@ -124,10 +124,10 @@ func TestHostAndFetchSite(t *testing.T) {
 		}
 	}
 	// A page of another port of this host may navigate here, and cross-site may not.
-	if resp, _ := p.do("GET", "/", map[string]string{"Sec-Fetch-Site": "same-site"}); resp.StatusCode != 200 {
+	if resp, _ := p.do("GET", "/", map[string]string{"Sec-Fetch-Site": "same-site"}); resp.StatusCode != http.StatusOK {
 		t.Errorf("a same-site navigation: %d, want 200", resp.StatusCode)
 	}
-	if resp, _ := p.do("GET", "/", map[string]string{"Sec-Fetch-Site": "cross-site"}); resp.StatusCode != 403 {
+	if resp, _ := p.do("GET", "/", map[string]string{"Sec-Fetch-Site": "cross-site"}); resp.StatusCode != http.StatusForbidden {
 		t.Errorf("a cross-site navigation: %d, want 403", resp.StatusCode)
 	}
 }
@@ -182,11 +182,11 @@ func TestHeaders(t *testing.T) {
 		t.Errorf("graph content type %q", ct)
 	}
 	// Fonts of the interface are served with a font type.
-	if resp, _ := p.do("GET", "/assets/fonts/plex-sans-400.woff2", nil); resp.StatusCode == 200 && resp.Header.Get("Content-Type") != "font/woff2" {
+	if resp, _ := p.do("GET", "/assets/fonts/plex-sans-400.woff2", nil); resp.StatusCode == http.StatusOK && resp.Header.Get("Content-Type") != "font/woff2" {
 		t.Errorf("a font is served as %q", resp.Header.Get("Content-Type"))
 	}
 	// A directory of the interface is not listed.
-	if resp, body := p.do("GET", "/assets/", nil); resp.StatusCode != 404 {
+	if resp, body := p.do("GET", "/assets/", nil); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("/assets/ lists a directory: %d %s", resp.StatusCode, body)
 	}
 }
@@ -218,7 +218,7 @@ func TestLoopbackOnly(t *testing.T) {
 // another, and the graph then has the revision of the event.
 func TestEventsOnStateChange(t *testing.T) {
 	p := newProject(t)
-	req, _ := http.NewRequest("GET", p.base+"/api/events", nil)
+	req, _ := http.NewRequest(http.MethodGet, p.base+"/api/events", nil)
 	req.Header.Set("Authorization", "Bearer "+p.srv.Token())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -345,7 +345,7 @@ func contains(l []string, s string) bool {
 // Serve returns when its context ends, although an event stream is open.
 func TestShutdownEndsEventStreams(t *testing.T) {
 	p := newProject(t)
-	req, _ := http.NewRequest("GET", p.base+"/api/events", nil)
+	req, _ := http.NewRequest(http.MethodGet, p.base+"/api/events", nil)
 	req.Header.Set("Authorization", "Bearer "+p.srv.Token())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

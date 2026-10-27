@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -82,6 +81,7 @@ func main() {
 	_ = shutdownTelemetry(context.Background())
 	close(finished)
 	if code != 0 {
+		cancel()
 		os.Exit(code)
 	}
 }
@@ -264,6 +264,9 @@ func newRootCmd() *cobra.Command {
 			}
 			setEnvironment(e)
 			applyProcessSettings(e)
+			if err := applyParallelism(e); err != nil {
+				return err
+			}
 			if flagJSON {
 				// Human output moves to stderr; stdout carries JSON only.
 				out = ui.NewPrinter(os.Stderr, true)

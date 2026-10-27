@@ -159,7 +159,7 @@ func TestStoreListShowAndApplyAPlan(t *testing.T) {
 		t.Errorf("list --all after the apply:\n%s", text)
 	}
 	// A plan that was applied has nothing left to apply.
-	if text, code = runPravo(t, dir, "apply", id); !(code == 0 && strings.Contains(text, "nothing left")) {
+	if text, code = runPravo(t, dir, "apply", id); code != 0 || !strings.Contains(text, "nothing left") {
 		t.Errorf("a second apply exited %d:\n%s", code, text)
 	}
 	// And it is collected a day later, not at once.
@@ -210,7 +210,6 @@ func TestStoringAPlanWithJSONSaysWhereItWentAndEveryCommandHasJSON(t *testing.T)
 	if err := json.Unmarshal([]byte(text), &res); err != nil || code != 0 || res.Looked != 1 || len(res.Removed) != 0 || !res.DryRun {
 		t.Fatalf("gc --json: %v, exit %d\n%s", err, code, text)
 	}
-
 }
 
 func TestShowAndApplyOfAStoredPlanWithJSON(t *testing.T) {
@@ -751,7 +750,7 @@ func TestOpportunisticCollectionIsBounded(t *testing.T) {
 	}
 	dir, _ := pendingDir(t)
 	const stored = opportunisticGC + 5
-	for i := 0; i < stored; i++ {
+	for range stored {
 		storePlanAs(t, dir, "alice", "--ttl", "6s")
 	}
 	if got := len(planObjects(t, dir)); got != 2*stored {

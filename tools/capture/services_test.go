@@ -893,14 +893,14 @@ func TestInitRunsOneAtATimeAcrossProcesses(t *testing.T) {
 		return writePage(t, "init.md", head+"---\n\n```sh run\npravo init\n```\n")
 	}
 	codes := make(chan int, 4)
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		p := page()
 		go func() {
 			code, _, _ := capture(t, "-bin", fakeBin(t), p)
 			codes <- code
 		}()
 	}
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		if code := <-codes; code != 0 {
 			t.Errorf("exit %d: two runs ran pravo init at the same time", code)
 		}

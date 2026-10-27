@@ -31,7 +31,7 @@ func buildDemoProvider(t *testing.T) string {
 		t.Skip("builds a provider")
 	}
 	demoBuild.Do(func() {
-		dir, err := os.MkdirTemp("", "pravo-fakeprovider-")
+		dir, err := os.MkdirTemp("", "pravo-fakeprovider-") //nolint:usetesting // built once for every test of the package, so no one test owns it
 		if err != nil {
 			demoErr = err
 			return

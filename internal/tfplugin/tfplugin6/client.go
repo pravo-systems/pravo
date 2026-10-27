@@ -1,4 +1,4 @@
-// Code hand-written to match tfplugin6.proto. It mirrors what protoc-gen-go-grpc
+// Package tfplugin6 is code hand-written to match tfplugin6.proto. It mirrors what protoc-gen-go-grpc
 // would emit for the subset of Provider RPCs that pravo uses.
 package tfplugin6
 

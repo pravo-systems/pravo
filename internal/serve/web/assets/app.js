@@ -16,7 +16,7 @@ import { PoliciesView } from './policies.js';
 import { Palette, Sheet } from './palette.js';
 import { compileQuery, QueryMenu, quoted, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
-import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, motionOn, tick } from './util.js';
+import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, motionOn } from './util.js';
 import { initTips } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -970,6 +970,16 @@ function renderAccess() {
   accessView.render({ access: S.access, project: S.model && S.model.graph ? S.model.graph.project : null });
 }
 
+// renderPlansTab shows on the tab how many stored plans can still be applied: the same rule as the other two tabs, a number
+// only when something waits for a decision.
+function renderPlansTab() {
+  const n = S.plans.filter((p) => p.open).length;
+  const el = $('sec-plans-count');
+  el.hidden = !(n > 0);
+  el.textContent = n > 99 ? '99+' : String(n);
+  $('sec-plans').setAttribute('aria-label', n > 0 ? `Plans, ${n} pending` : 'Plans');
+}
+
 function renderPolicies() {
   policiesView.render({ policies: S.policies });
 }
@@ -1070,7 +1080,7 @@ function renderWho() {
 }
 
 function renderStatus() {
-  const g = S.graph, m = S.model;
+  const g = S.graph;
   if (!g) return;
   const plan = g.plan;
   const set = (id, kids) => { const el = $(id); clear(el); el.hidden = !kids; if (kids) el.append(kids); };
@@ -1224,6 +1234,7 @@ async function refresh() {
   if (S.view === 'policies') renderPolicies();
   renderDiscoveryTab();
   renderPoliciesTab();
+  renderPlansTab();
   const flash = [...d.changed, ...d.added].map((a) => S.vis.rep.get(a)).filter(Boolean);
   gv.flash(new Set(flash));
   showInspector();

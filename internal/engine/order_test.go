@@ -15,7 +15,7 @@ import (
 func orderedSpec(n int) (spec, string) {
 	var want []string
 	resources := []string{"d1", "d2", "d3", "d4"}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		resources = append(resources, fmt.Sprintf("files.f%d", i))
 		want = append(want, fmt.Sprintf("c%d", i))
 	}
@@ -44,7 +44,7 @@ all: {value: strings.Join([for k, v in files {v.content}], ",")}
 // estate half applied.
 func TestContainerIterationFollowsTheDeclarationOrder(t *testing.T) {
 	s, want := orderedSpec(12)
-	for run := 0; run < 15; run++ {
+	for run := range 15 {
 		h := newHarness(t)
 		e := h.engine(s, Options{})
 		plan, err := e.Plan(context.Background())

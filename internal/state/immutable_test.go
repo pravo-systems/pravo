@@ -348,7 +348,7 @@ type lostRace struct {
 
 func (b *lostRace) ReplaceIf(ctx context.Context, key string, update func([]byte) ([]byte, bool)) (bool, error) {
 	if strings.HasPrefix(key, b.prefix) && b.lose.Load() > 0 {
-		cur, err := b.Backend.Get(ctx, key)
+		cur, err := b.Get(ctx, key)
 		if err != nil {
 			return false, err
 		}
@@ -544,7 +544,7 @@ func TestUpgradeToImmutableSurvivesACrash(t *testing.T) {
 			for _, r := range done.List() {
 				pointerAt(t, lb, r.Address())
 			}
-			if string(fmt.Sprint(done.Outputs())) != fmt.Sprint(s.Outputs()) {
+			if fmt.Sprint(done.Outputs()) != fmt.Sprint(s.Outputs()) {
 				t.Error("the outputs changed")
 			}
 		})

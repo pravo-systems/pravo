@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,7 @@ func TestStoreRequestsAreSpans(t *testing.T) {
 	defer st.Close()
 	ctx, span := otel.Tracer("test").Start(context.Background(), "phase test")
 	st.SetContext(ctx)
-	if _, err := st.Backend().Get(st.cx(), "missing.json"); err != ErrNotFound {
+	if _, err := st.Backend().Get(st.cx(), "missing.json"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("get: %v", err)
 	}
 	span.End()
@@ -92,7 +93,7 @@ func TestRemoteStoreRequestsAreNetworkSpans(t *testing.T) {
 	}
 	b := &tracedBackend{Backend: hb}
 	ctx, root := otel.Tracer("test").Start(context.Background(), "phase test")
-	if _, err := b.Get(ctx, "missing.json"); err != ErrNotFound {
+	if _, err := b.Get(ctx, "missing.json"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("get: %v", err)
 	}
 	root.End()

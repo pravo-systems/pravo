@@ -127,7 +127,7 @@ pravo reads every field of every resource and records each reference to another 
 
 ### 4. Plan
 
-pravo visits the graph in dependency order, at most ten resources at a time. For each resource it reads the recorded node from the state and converts the body to a value that the provider understands. A resource that is unchanged since the last apply is skipped. The plan reads the record of a resource from its provider only for the resources it reaches and for the resources they read, and only when the record is older than its refresh age. The other records are not read.
+pravo visits the graph in dependency order, at most ten resources at a time (`PRAVO_PARALLELISM` changes the number). For each resource it reads the recorded node from the state and converts the body to a value that the provider understands. A resource that is unchanged since the last apply is skipped. The plan reads the record of a resource from its provider only for the resources it reaches and for the resources they read, and only when the record is older than its refresh age. The other records are not read.
 
 Every other resource goes to its provider, which returns the planned state. From the answer pravo derives one action: create, update, replace, delete or no-op. A record in the state that no struct declares becomes a delete.
 

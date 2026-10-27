@@ -21,7 +21,7 @@ type normalizer struct {
 }
 
 var (
-	reCSI = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+	reCSI = regexp.MustCompile(`\x1b\[[0-9;?]*[\x20-/]*[@-~]`)
 	reOSC = regexp.MustCompile(`\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`)
 )
 

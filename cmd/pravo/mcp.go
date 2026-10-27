@@ -5,10 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -106,6 +109,9 @@ func mcpTools() []mcpTool {
 			args: func(in map[string]any) ([]string, error) {
 				a := append([]string{"plan"}, tagArgs(in)...)
 				if v := strArg(in, "out"); v != "" {
+					if err := insideProject("out", v); err != nil {
+						return nil, err
+					}
 					a = append(a, "-out", v)
 				}
 				if v := strArg(in, "refresh"); v != "" {
@@ -182,7 +188,7 @@ func mcpTools() []mcpTool {
 			args: func(in map[string]any) ([]string, error) {
 				types := listArg(in, "types")
 				if len(types) == 0 {
-					return nil, fmt.Errorf("types is required")
+					return nil, errors.New("types is required")
 				}
 				if err := positional("types", types...); err != nil {
 					return nil, err
@@ -198,7 +204,7 @@ func mcpTools() []mcpTool {
 			args: func(in map[string]any) ([]string, error) {
 				addrs := listArg(in, "addrs")
 				if len(addrs) == 0 {
-					return nil, fmt.Errorf("addrs is required")
+					return nil, errors.New("addrs is required")
 				}
 				if err := positional("addrs", addrs...); err != nil {
 					return nil, err
@@ -252,7 +258,7 @@ func mcpTools() []mcpTool {
 					return nil, err
 				}
 				if given {
-					a = append(a, "-limit", fmt.Sprint(n))
+					a = append(a, "-limit", strconv.Itoa(n))
 				}
 				return a, nil
 			}},
@@ -420,7 +426,8 @@ func runSelf(ctx context.Context, args []string) (string, int) {
 	c.Env = append(os.Environ(), telemetry.Environ(ctx)...)
 	err = c.Run()
 	code := 0
-	if ee, ok := err.(*exec.ExitError); ok {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
 		code = ee.ExitCode()
 	} else if err != nil {
 		code = 1
@@ -446,9 +453,25 @@ func planRefArg(in map[string]any) (string, error) {
 		return "", err
 	}
 	if len(listArg(in, "tags")) > 0 && !isStoredRef(ref) {
-		return "", fmt.Errorf("tags go with the id of a stored plan; a plan file carries its own")
+		return "", errors.New("tags go with the id of a stored plan; a plan file carries its own")
 	}
 	return ref, nil
+}
+
+// insideProject refuses a path that leaves the project directory: a tool call
+// may name where a file is written only below the root the server runs in. A
+// symbolic link below the root is the person's own doing and is not followed up.
+func insideProject(name, v string) error {
+	if err := positional(name, v); err != nil {
+		return err
+	}
+	if filepath.IsAbs(v) || filepath.VolumeName(v) != "" || v[0] == '/' || v[0] == '\\' {
+		return fmt.Errorf("%s %q must be a path below the project directory, not an absolute one", name, v)
+	}
+	if c := filepath.Clean(v); c == ".." || strings.HasPrefix(c, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("%s %q leaves the project directory", name, v)
+	}
+	return nil
 }
 
 func positional(name string, values ...string) error {

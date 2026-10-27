@@ -729,7 +729,7 @@ func bound(v any, depth int) any {
 		}
 		n := min(len(x), maxChildren)
 		out := make([]any, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			out[i] = bound(x[i], depth+1)
 		}
 		return out

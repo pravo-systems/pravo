@@ -16,8 +16,7 @@ func TestRootsRunInParallelInOneProcess(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make([]error, roots)
 	outs := make([]string, roots)
-	for i := 0; i < roots; i++ {
-		i := i
+	for i := range roots {
 		dir := specDir(t, greeting)
 		wg.Add(1)
 		go func() {
@@ -43,7 +42,7 @@ func TestRootsRunInParallelInOneProcess(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	for i := 0; i < roots; i++ {
+	for i := range roots {
 		if errs[i] != nil {
 			t.Errorf("root %d: %v", i, errs[i])
 			continue

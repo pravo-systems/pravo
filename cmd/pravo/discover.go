@@ -1,8 +1,8 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"github.com/pravo-systems/pravo/pravo"
 	"sort"
 	"strings"
 
@@ -13,6 +13,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // maxShown is how many objects of one kind a listing prints before it says how
@@ -45,7 +46,7 @@ discover adopt" to write the resource that adopts an object.`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if all && len(args) > 0 {
-				return fmt.Errorf("--all runs every discovery; name some or give --all, not both")
+				return errors.New("--all runs every discovery; name some or give --all, not both")
 			}
 			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true})
 			if err != nil {

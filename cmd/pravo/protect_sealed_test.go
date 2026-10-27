@@ -250,8 +250,7 @@ func TestSealedStateAndTheReadersFile(t *testing.T) {
 		if code != 5 || !strings.Contains(text, "looked in .pravo/access") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		var stderr string
-		stderr = withStderr(t, func() { text, code = runPravo(t, s.dir, "state", "list") })
+		stderr := withStderr(t, func() { text, code = runPravo(t, s.dir, "state", "list") })
 		if code != 0 || !strings.Contains(stderr, "Warning: the readers file was not found (looked in .pravo/access)") {
 			t.Errorf("a reader: exit %d, standard error %q", code, stderr)
 		}

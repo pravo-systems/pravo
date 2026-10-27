@@ -19,7 +19,7 @@ func processAlive(pid int) bool {
 		// A process that this user may not query still exists.
 		return errors.Is(err, windows.ERROR_ACCESS_DENIED)
 	}
-	defer windows.CloseHandle(h)
+	defer func() { _ = windows.CloseHandle(h) }()
 	var code uint32
 	if err := windows.GetExitCodeProcess(h, &code); err != nil {
 		return false

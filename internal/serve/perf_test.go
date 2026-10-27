@@ -23,7 +23,7 @@ func TestBigEstate(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, "pravo.state", "txn"), 0o755)
 	os.MkdirAll(filepath.Join(dir, "pravo.state", "locks"), 0o755)
 	os.WriteFile(filepath.Join(dir, "pravo.state", "meta.json"), []byte(`{"format":1,"lineage":"abc","created":"2026-01-01T00:00:00Z"}`), 0o644)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		addr := fmt.Sprintf("estate.g%02d.n%03d", i/100, i%100)
 		deps := ""
 		if i%100 != 0 {

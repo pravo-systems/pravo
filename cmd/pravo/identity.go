@@ -137,7 +137,7 @@ func forgetSecretEnv() {
 		}
 	}
 	for _, name := range protect.SecretEnv {
-		unsetEnv(name)
+		_ = unsetEnv(name)
 	}
 	taken.identity, taken.passphrase = "", ""
 	if os.Getenv("PRAVO_IDENTITY") == "" && os.Getenv("PRAVO_PASSPHRASE") == "" && os.Getenv("PRAVO_IDENTITY_PASSPHRASE") == "" {
@@ -330,7 +330,7 @@ func loadIdentity(data []byte, prompt bool) (*protect.Identity, error) {
 		attempts = 3
 	}
 	var lastErr error
-	for i := 0; i < attempts; i++ {
+	for range attempts {
 		id, err := protect.ParseIdentity(data, func() ([]byte, error) {
 			return passphraseFor(head.Name, prompt, terminal)
 		})

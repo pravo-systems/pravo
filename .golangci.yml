@@ -1,0 +1,206 @@
+# golangci-lint v2. The `lint` job of .github/workflows/ci.yml runs it. To run it
+# here, use a build of golangci-lint made with the Go version of go.mod:
+#
+#   golangci-lint run ./...
+version: "2"
+
+run:
+  timeout: 10m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - copyloopvar
+    - durationcheck
+    - errorlint
+    - exptostd
+    - fatcontext
+    - gocheckcompilerdirectives
+    - gocritic
+    - gosec
+    - intrange
+    - makezero
+    - mirror
+    - misspell
+    - nakedret
+    - noctx
+    - nolintlint
+    - perfsprint
+    - predeclared
+    - reassign
+    - revive
+    - sloglint
+    - unconvert
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+
+  # Left off on purpose, after a run that reported them:
+  #   forcetypeassert  the assertions follow a type switch or a type check, and a
+  #                    failing one is a bug that should stop the program
+  #   nilerr           the walks over files and records skip what they cannot
+  #                    read, and say so elsewhere
+  #   prealloc         saves an allocation in loops that run a few times
+  #   unparam          parameters keep the shape of the callers they are handed
+  #                    to, and a dropped one only comes back with the next caller
+
+  settings:
+    errcheck:
+      exclude-functions:
+        # Writes to a terminal or a buffer that the caller reads back: there is
+        # nobody to tell when they fail.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*os.File).Write
+        # Cleanup on the way out. A failure leaves a temporary file behind, and
+        # the next run removes it.
+        - os.Remove
+        - os.RemoveAll
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (net.Conn).Close
+        - (net.Listener).Close
+    errorlint:
+      # Whether an error is wrapped with %w or only printed with %v is a choice
+      # about what callers may match with errors.Is: the packages wrap their
+      # sentinels and leave the cause as text. Type assertions and comparisons
+      # on errors are still checked.
+      errorf: false
+    gocritic:
+      enabled-tags: [diagnostic]
+      disabled-checks:
+        - commentedOutCode
+        - ifElseChain
+        - sloppyReassign
+        - sprintfQuotedString
+        - evalOrder
+        - exitAfterDefer # main cancels the context by hand before it exits
+    gosec:
+      excludes:
+        # The tool reads and writes the paths that its user names, runs the
+        # providers and hooks that its configuration names, and keeps its state
+        # in directories that the user's umask governs. These rules describe
+        # that, not a flaw.
+        - G304 # file inclusion via variable
+        - G204 # subprocess launched with a variable
+        - G301 # directory permissions
+        - G302 # file permissions on open
+        - G306 # file permissions on write
+        - G404 # math/rand where nothing depends on the value being secret
+        # errcheck reports the same lines and says which call it is.
+        - G104
+        # The conversions are of sizes and counts that the code has bounded, or
+        # that came from a type of that width.
+        - G115
+        # The taint rules follow every path that the user types into the
+        # program, which is the point of a command line tool.
+        - G703
+        - G704
+        - G710
+        # Walks over a tree that the user named, on the user's own machine.
+        - G122
+    misspell:
+      # The tests of the policy checks write a misspelt field name on purpose.
+      ignore-rules:
+        - sumary
+        - destory
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: empty-block
+        - name: error-naming
+        - name: error-return
+        # error-strings is off: the messages are shown to the user, start with
+        # the name of a command or a setting, and are compared with the
+        # documentation by the capture tool.
+        - name: errorf
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: var-declaration
+    staticcheck:
+      checks:
+        - all
+        # Messages that name a command or a setting start with it, and end with
+        # a full stop when they are several sentences: see error-strings above.
+        - -ST1005
+        # Package comments, doc comments of unexported names, and the names of
+        # receivers are the business of revive and the reviewer.
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling
+      - common-false-positives
+    rules:
+      # Tests and the tools around the documentation fail loudly when something
+      # is wrong, and they build their own temporary trees, servers and requests.
+      - path: '(_test\.go|^tools/|/testdata/)'
+        linters:
+          - bodyclose
+          - errcheck
+          - errorlint
+          - gocritic
+          - gosec
+          - noctx
+          - perfsprint
+          - predeclared
+          - revive
+      # The command line tool starts its helpers and listens on its sockets for as
+      # long as the process lives, and the process is what ends them.
+      - linters: [noctx]
+        text: '(os/exec\.Command|net\.Listen|net\.Dial|net\.DialTimeout|\.Handshake) must not be called'
+      # The provider protocol is in the types that terraform-plugin-go marks as
+      # not for third parties, and it has no other way to be spoken.
+      - linters: [staticcheck]
+        text: 'SA1019: .*(tftypes\.|terraform-plugin-go)'
+      # Values here are built in the context of the value they are combined with,
+      # which is what Context() is for.
+      - linters: [staticcheck]
+        text: 'SA1019: .*cue\.Value\).Context'
+      # The OpenTelemetry attribute that the tests read back.
+      - linters: [staticcheck]
+        text: 'SA1019: .*attribute\.Value\).Emit'
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+  settings:
+    gci:
+      # Three groups, in this order: the standard library, other modules, and
+      # this module.
+      sections:
+        - standard
+        - default
+        - prefix(github.com/pravo-systems/pravo)
+      custom-order: true

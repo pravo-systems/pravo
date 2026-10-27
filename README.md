@@ -144,6 +144,7 @@ pravo serve --plan change.plan       # overlay a saved plan
 | `tools/sitegen/` | Documentation site generator, its HTML contract and the contrast check. |
 | `tools/capture/` | Runs the examples in the documentation and compares their output. |
 | `tools/hclcheck/` | Runs the OpenTofu listings of the documentation through `tofu fmt`, `init` and `validate`. |
+| `tools/_weblint/` | ESLint and Stylelint for the viewer and the site. The underscore keeps the Go tools out of its `node_modules`. |
 | `tools/serveshots/` | Applies the estates in `scenarios/`, starts `pravo serve` and makes the screenshots of the documentation with headless Chrome. |
 | `tools/protogen/`, `tools/fakes3/`, `tools/fakeoci/` | Protocol message generator; an in-memory S3 bucket and an in-memory container registry for trying state and modules. |
 | `docs/` | Documentation sources. `docs/AUTHORING.md` fixes the format. |
@@ -160,6 +161,14 @@ go test ./...
 go test -short ./...    # skips the tests that build the binary or run sitegen
 ```
 
+Linters. `.golangci.yml` configures golangci-lint for the Go code, and `tools/_weblint` has ESLint and Stylelint for the JavaScript and CSS of the viewer and the site. Each exclusion in them has the reason beside it.
+
+```sh
+golangci-lint run ./...                  # a build made with the Go version of go.mod
+npm --prefix tools/_weblint ci            # once
+npm --prefix tools/_weblint run lint
+```
+
 Documentation. `docs/AUTHORING.md` fixes the structure, the voice and the Markdown extensions. `tools/capture` runs every command on a page against the real binary and compares the output beside it:
 
 ```sh
@@ -170,7 +179,7 @@ go run ./tools/hclcheck                              # validate every OpenTofu l
 go run ./tools/sitegen -pravo-bin bin/pravo           # build the site, lint it, check every link
 ```
 
-Continuous integration. `.github/workflows/ci.yml` runs on every push to `main` and on every pull request. Its jobs start together and run side by side: formatting, vet and a build for Linux and macOS; the Go tests split by package, with the race detector on the engine and the state; the tools; the documentation, one job for each section; the demos; the OpenTofu listings; and the site. The job `ci` passes when all of them do, and is the one check to require.
+Continuous integration. `.github/workflows/ci.yml` runs on every push to `main` and on every pull request. Its jobs start together and run side by side: formatting, vet and a build for every platform; golangci-lint for each of Linux, Windows and macOS, and ESLint and Stylelint for the viewer and the site; the Go tests split by package, with the race detector on the engine and the state; the tools; the documentation, one job for each section; the demos; the OpenTofu listings; and the site. The job `ci` passes when all of them do, and is the one check to require.
 
 ## License
 

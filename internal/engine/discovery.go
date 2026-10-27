@@ -28,7 +28,7 @@ func (e *Engine) Discover(ctx context.Context, d *config.Discovery) (*state.Disc
 	e.State.SetContext(ctx)
 	run, err := e.discover(ctx, d)
 	if run != nil {
-		span.SetAttributes(attribute.Int("pravo.discovery.items", len(run.Items)), attribute.String("pravo.discovery.status", string(run.Status)), attribute.Int("pravo.warnings", len(run.Warnings)))
+		span.SetAttributes(attribute.Int("pravo.discovery.items", len(run.Items)), attribute.String("pravo.discovery.status", run.Status), attribute.Int("pravo.warnings", len(run.Warnings)))
 	}
 	telemetry.End(span, err)
 	return run, err

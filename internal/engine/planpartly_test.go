@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"sort"
 	"strings"
@@ -243,7 +244,8 @@ func TestNeedsAreTheRulesOfSubset(t *testing.T) {
 		}
 		want := []string{sc.Addr}
 		if _, err := plan.Subset([]string{sc.Addr}); err != nil {
-			nc, ok := err.(*ErrNotClosed)
+			nc := &ErrNotClosed{}
+			ok := errors.As(err, &nc)
 			if !ok {
 				t.Fatalf("%s: %v", sc.Addr, err)
 			}

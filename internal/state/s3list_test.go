@@ -22,7 +22,7 @@ func TestS3ListFollowsEveryPage(t *testing.T) {
 	ctx := context.Background()
 	const n = 2500
 	var want []string
-	for i := 0; i < n; i++ {
+	for i := range n {
 		k := fmt.Sprintf("rec/%04d", i)
 		f.Objects["team/app/"+k] = []byte("x")
 		want = append(want, k)
@@ -54,7 +54,7 @@ func TestS3ListFollowsEveryPage(t *testing.T) {
 func TestS3ListDoesNotLoop(t *testing.T) {
 	f, b := newFakeS3(t)
 	ctx := context.Background()
-	for i := 0; i < 7; i++ {
+	for i := range 7 {
 		f.Objects[fmt.Sprintf("team/app/rec/%d", i)] = []byte("x")
 	}
 	f.PageSize = 3

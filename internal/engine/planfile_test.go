@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -53,7 +54,7 @@ func TestSubsetClosure(t *testing.T) {
 	}}
 	if _, err := plan.Subset([]string{"d"}); err == nil {
 		t.Fatal("d alone is not closed")
-	} else if nc, ok := err.(*ErrNotClosed); !ok || len(nc.Missing) != 2 || nc.Closure[0] != "a" {
+	} else if nc := (*ErrNotClosed)(nil); !errors.As(err, &nc) || len(nc.Missing) != 2 || nc.Closure[0] != "a" {
 		t.Fatalf("unexpected closure error: %v", err)
 	}
 	sub, err := plan.Subset([]string{"a", "b", "d"})
@@ -93,7 +94,7 @@ func TestSubsetClosure(t *testing.T) {
 	}}
 	if _, err := data.Subset([]string{"w"}); err == nil {
 		t.Error("w alone does not hold: it reads src, which returned new data")
-	} else if nc, ok := err.(*ErrNotClosed); !ok || len(nc.Missing) != 1 || nc.Missing[0] != "src" {
+	} else if nc := (*ErrNotClosed)(nil); !errors.As(err, &nc) || len(nc.Missing) != 1 || nc.Missing[0] != "src" {
 		t.Errorf("unexpected closure error: %v", err)
 	}
 	if sub, err := data.Subset([]string{"src", "w"}); err != nil || sub.Partial {

@@ -210,7 +210,7 @@ func (s *fileSeal) aead(key []byte, f *identityFile, secret, ct []byte) ([]byte,
 		return nil, err
 	}
 	if ct == nil {
-		return g.Seal(nil, nil, secret, s.aad(f)), nil
+		return g.Seal(nil, nil, secret, s.aad(f)), nil //nolint:gosec // the AEAD picks a random nonce and prepends it
 	}
 	pt, err := g.Open(nil, nil, ct, s.aad(f))
 	if err != nil {

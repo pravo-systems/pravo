@@ -45,6 +45,9 @@ type Source struct {
 // OCIPrefix starts the address of a provider kept in a container registry.
 const OCIPrefix = "oci://"
 
+// maxUnzippedFile is the most that one file of a provider package may unpack to.
+const maxUnzippedFile = 4 << 30
+
 // ParseSource parses "type", "namespace/type" or "host/namespace/type".
 func ParseSource(s string) (Source, error) {
 	if rest, ok := strings.CutPrefix(strings.TrimSpace(s), OCIPrefix); ok {
@@ -58,7 +61,7 @@ func ParseSource(s string) (Source, error) {
 	switch len(parts) {
 	case 1:
 		if parts[0] == "" {
-			return Source{}, fmt.Errorf("empty provider source")
+			return Source{}, errors.New("empty provider source")
 		}
 		return Source{Host: DefaultHost, Namespace: "hashicorp", Type: parts[0]}, nil
 	case 2:
@@ -205,7 +208,7 @@ func (c *Client) providersBase(ctx context.Context, host string) (string, error)
 }
 
 func (c *Client) getJSON(ctx context.Context, u string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return err
 	}
@@ -520,7 +523,7 @@ func (c *Client) Archive(ctx context.Context, src Source, ver string, plat Platf
 	if progress != nil {
 		progress(fmt.Sprintf("Downloading %s v%s (%s)", src.Display(), ver, dl.Filename))
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, dl.DownloadURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, dl.DownloadURL, http.NoBody)
 	if err != nil {
 		return "", "", err
 	}
@@ -536,7 +539,11 @@ func (c *Client) Archive(ctx context.Context, src Source, ver string, plat Platf
 	if err != nil {
 		return "", "", fmt.Errorf("downloading %s: %w", dl.DownloadURL, err)
 	}
-	if dl.Shasum != "" && !strings.EqualFold(sum, dl.Shasum) {
+	if dl.Shasum == "" {
+		os.Remove(path)
+		return "", "", fmt.Errorf("the registry gave no checksum for %s, so the archive cannot be checked", dl.Filename)
+	}
+	if !strings.EqualFold(sum, dl.Shasum) {
 		os.Remove(path)
 		return "", "", fmt.Errorf("checksum mismatch for %s: registry says %s, archive is %s", dl.Filename, dl.Shasum, sum)
 	}
@@ -593,9 +600,13 @@ func unzip(archive, dir string) error {
 			rc.Close()
 			return err
 		}
-		_, err = io.Copy(out, rc)
+		// A provider is a few hundred megabytes at most. The cap keeps a
+		// package that lies about its size from filling the disk.
+		_, err = io.Copy(out, io.LimitReader(rc, maxUnzippedFile))
 		rc.Close()
-		out.Close()
+		if cerr := out.Close(); err == nil {
+			err = cerr
+		}
 		if err != nil {
 			return err
 		}

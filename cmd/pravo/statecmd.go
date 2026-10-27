@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/pravo-systems/pravo/pravo"
 	"os"
 	"strings"
 	"time"
@@ -15,6 +15,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/tfstate"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 func stateCmd() *cobra.Command {
@@ -137,7 +138,7 @@ func stateCmd() *cobra.Command {
 			if err := st.Lock(args[0], "pravo state rm", ""); err != nil {
 				return err
 			}
-			defer st.Unlock(args[0])
+			defer func() { _ = st.Unlock(args[0]) }()
 			r := st.Get(args[0])
 			if r == nil {
 				return fmt.Errorf("%s is not in state", args[0])
@@ -170,11 +171,17 @@ func stateCmd() *cobra.Command {
 			if st.Get(args[1]) != nil {
 				return fmt.Errorf("%s already exists in state", args[1])
 			}
+			var locked []string
+			defer func() {
+				for _, a := range locked {
+					_ = st.Unlock(a)
+				}
+			}()
 			for _, a := range args {
 				if err := st.Lock(a, "pravo state mv", ""); err != nil {
 					return err
 				}
-				defer st.Unlock(a)
+				locked = append(locked, a)
 			}
 			// The records that depend on the one that moves are written too, and
 			// every record is read again from the state with its lock held.
@@ -471,9 +478,9 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch {
 			case stale && len(args) > 0:
-				return fmt.Errorf("--stale releases every stale lock; it takes no address")
+				return errors.New("--stale releases every stale lock; it takes no address")
 			case !stale && len(args) == 0:
-				return fmt.Errorf("give the address of the lock to release, or --stale for every lock that is stale")
+				return errors.New("give the address of the lock to release, or --stale for every lock that is stale")
 			}
 			st, err := load()
 			if err != nil {

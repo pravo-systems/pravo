@@ -101,7 +101,7 @@ func (s *Store) checkLocks() error {
 // fn returns an error to refuse. A bucket that says the object changed after it
 // was read makes fn run again on what is there now.
 func (s *Store) updateMeta(fn func(m *meta) error) error {
-	for attempt := 0; attempt < replaceAttempts; attempt++ {
+	for range replaceAttempts {
 		var (
 			next    meta
 			refused error
@@ -198,7 +198,7 @@ func (s *Store) convertNodes(ctx context.Context, rw rewrite, progress func(done
 	if !s.b.Local() {
 		width = convertWidthRemote
 	}
-	for w := 0; w < min(width, len(keys)); w++ {
+	for range min(width, len(keys)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -263,7 +263,7 @@ func jsonKeysOf(keys []string) []string {
 // convertNode rewrites the object at key if rw selects it, and reports whether it
 // did.
 func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, error) {
-	for attempt := 0; attempt < replaceAttempts; attempt++ {
+	for range replaceAttempts {
 		raw, err := s.b.Get(s.cx(), key)
 		if errors.Is(err, ErrNotFound) {
 			return false, nil
@@ -363,7 +363,7 @@ func (s *Store) VerifyAll(ctx context.Context) (VerifyResult, error) {
 	if !s.b.Local() {
 		width = readWidthRemote
 	}
-	for w := 0; w < min(width, len(keys)); w++ {
+	for range min(width, len(keys)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -395,7 +395,7 @@ func (s *Store) VerifyAll(ctx context.Context) (VerifyResult, error) {
 // verifyNode checks the object at key. checked is true for a pointer; bad names
 // the record that failed. An object that is a whole record is not checked.
 func (s *Store) verifyNode(ctx context.Context, key string) (checked bool, bad string, err error) {
-	for attempt := 0; attempt < readAttempts; attempt++ {
+	for attempt := range readAttempts {
 		data, err := s.b.Get(s.cx(), key)
 		if errors.Is(err, ErrNotFound) {
 			return false, "", nil

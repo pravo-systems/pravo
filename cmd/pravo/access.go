@@ -164,7 +164,7 @@ func gitTop(dir string) string {
 // readInside reads the regular file at path, which is in dir, up to the size
 // bound. A symbolic link is followed only when what it points to is also in dir.
 func readInside(dir, path string) ([]byte, error) {
-	real, err := filepath.EvalSymlinks(path)
+	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return nil, &readersFileError{Reason: "cannot be read: " + errorReason(err)}
 	}
@@ -172,14 +172,14 @@ func readInside(dir, path string) ([]byte, error) {
 	if err != nil {
 		return nil, &readersFileError{Reason: "cannot be read: " + errorReason(err)}
 	}
-	if rel, err := filepath.Rel(realDir, real); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+	if rel, err := filepath.Rel(realDir, resolved); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return nil, &readersFileError{Reason: "is a symbolic link that leaves the access directory"}
 	}
 	// A named pipe or a device blocks in open, so look before opening.
-	if info, err := os.Stat(real); err == nil && !info.Mode().IsRegular() {
+	if info, err := os.Stat(resolved); err == nil && !info.Mode().IsRegular() {
 		return nil, &readersFileError{Reason: "is not a regular file"}
 	}
-	f, err := os.Open(real)
+	f, err := os.Open(resolved)
 	if err != nil {
 		return nil, &readersFileError{Reason: "cannot be read: " + errorReason(err)}
 	}

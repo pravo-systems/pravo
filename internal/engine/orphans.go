@@ -145,10 +145,10 @@ func withTurn(ctx context.Context, t *printTurn) context.Context {
 }
 
 // announce prints a line, in its turn when ctx has one. A turn is for one line.
-func announce(ctx context.Context, print func()) {
+func announce(ctx context.Context, fn func()) {
 	t, _ := ctx.Value(turnKey{}).(*printTurn)
 	if t == nil {
-		print()
+		fn()
 		return
 	}
 	if t.i > 0 {
@@ -157,7 +157,7 @@ func announce(ctx context.Context, print func()) {
 		case <-ctx.Done():
 		}
 	}
-	print()
+	fn()
 	t.pass()
 }
 
@@ -342,7 +342,7 @@ func inReverse(changes []*Change, width int, do func(*Change) error) error {
 		wake.Broadcast()
 	}
 	var wg sync.WaitGroup
-	for w := 0; w < min(width, len(changes)); w++ {
+	for range min(width, len(changes)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

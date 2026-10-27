@@ -287,7 +287,7 @@ func screenshotRetry(ctx context.Context, chrome, userData, out, address string,
 // tried again for a few seconds.
 func removeProfile(dir string) error {
 	var err error
-	for i := 0; i < 40; i++ {
+	for range 40 {
 		if err = os.RemoveAll(dir); err == nil {
 			return nil
 		}

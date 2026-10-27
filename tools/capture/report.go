@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -71,7 +72,7 @@ func printResult(w io.Writer, res *pageResult, update, verbose bool, t *totals) 
 func updateSummary(res *pageResult) string {
 	var parts []string
 	if res.Rewrote > 0 {
-		parts = append(parts, fmt.Sprintf("%s rewritten", plural(res.Rewrote, "out block")))
+		parts = append(parts, plural(res.Rewrote, "out block")+" rewritten")
 	}
 	if res.Added > 0 {
 		parts = append(parts, fmt.Sprintf("%d added", res.Added))
@@ -148,7 +149,7 @@ func writeJSON(out string, results []*pageResult, roots []string, version []stri
 		}
 	}
 	if len(ran) == 0 {
-		return fmt.Errorf("-json: no page ran")
+		return errors.New("-json: no page ran")
 	}
 	asDir := len(ran) > 1
 	if info, err := os.Stat(out); err == nil && info.IsDir() {

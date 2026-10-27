@@ -15,7 +15,7 @@ func TestWatcherOfALargeStateIsQuiet(t *testing.T) {
 	dir := t.TempDir()
 	res := filepath.Join(dir, "resources")
 	os.MkdirAll(res, 0o755)
-	for i := 0; i < fullScanLimit+50; i++ {
+	for i := range fullScanLimit + 50 {
 		os.WriteFile(filepath.Join(res, fmt.Sprintf("r%04d.json", i)), []byte("{}"), 0o644)
 	}
 	w := newWatcher(time.Hour, dir, "")
@@ -23,7 +23,7 @@ func TestWatcherOfALargeStateIsQuiet(t *testing.T) {
 	sub, cancel := w.bus.subscribe()
 	defer cancel()
 	first, _ := w.sample()
-	for i := 0; i < 3*fullScanEvery; i++ {
+	for i := range 3 * fullScanEvery {
 		if rev, _ := w.sample(); rev != first {
 			t.Fatalf("poll %d: the revision moved from %s to %s with nothing written", i, first, rev)
 		}
@@ -43,7 +43,7 @@ func TestWatcherOfALargeStateIsQuiet(t *testing.T) {
 	if ev := <-sub; len(ev.What) != 1 || ev.What[0] != "state" || ev.Revision != rev {
 		t.Errorf("event %+v", ev)
 	}
-	for i := 0; i < 3*fullScanEvery; i++ {
+	for i := range 3 * fullScanEvery {
 		if r2, _ := w.sample(); r2 != rev {
 			t.Fatalf("poll %d: the full read made a second change of one write", i)
 		}

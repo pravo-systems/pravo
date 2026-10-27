@@ -135,7 +135,7 @@ export class PoliciesView {
     this.root.append(h('div', { class: 'po' },
       h('div', { class: 'po-bar' }, this.modes()),
       this.head(policies),
-      list.length ? h('div', { class: 'po-body' }, this.register(list), cur ? this.dossier(cur) : null) : this.none(policies),
+      list.length ? h('div', { class: 'po-body' }, this.register(list), cur ? this.dossier(cur) : null) : this.none(),
       h('p', { class: 'po-foot' }, FOOTER)));
     this.root.scrollTop = top;
     if (focus) {
@@ -165,7 +165,7 @@ export class PoliciesView {
       notes.length ? h('div', { class: 'po-notes' }, notes) : null);
   }
 
-  none(d) {
+  none() {
     const sample = 'no_destroy: pravo.#Policy & {\n\trule: {\n\t\tchanges: [...{\n\t\t\taddr:   string\n\t\t\tmode:   string\n\t\t\taction: string\n\t\t\tif mode == "managed" && (action == "delete" || action == "replace") {\n\t\t\t\terror("\\(addr): \\(action) is not allowed")\n\t\t\t}\n\t\t}]\n\t}\n}\n';
     return h('section', { class: 'po-none' },
       h('p', null, 'Write one in the specification and apply it. It is stored as version 1, signed, and every later plan is judged by it:'),
@@ -228,7 +228,7 @@ export class PoliciesView {
   // pending says what the next apply does to this policy, and shows the change.
   pending(p) {
     const head = p.versions[0];
-    let text = '', diff = null, tryIt = null;
+    let text, diff = null, tryIt = null;
     switch (p.status) {
       case 'pending':
         text = `The specification declares other text than version ${p.head}. The next apply writes version ${p.head + 1}.`;

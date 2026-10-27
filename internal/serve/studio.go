@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -225,7 +224,7 @@ func (s *Server) readPlanFileAt(path string, m *model) (*engine.PlanFile, error)
 	if m.store != nil {
 		sl = m.store.Sealer()
 	}
-	sig := fileSignature(path) + fmt.Sprint(sl != nil)
+	sig := fileSignature(path) + strconv.FormatBool(sl != nil)
 	s.files.mu.Lock()
 	defer s.files.mu.Unlock()
 	if e := s.files.files[path]; e != nil && e.sig == sig {

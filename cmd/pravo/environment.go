@@ -1,6 +1,10 @@
 package main
 
 import (
+	"fmt"
+	"strconv"
+
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -45,4 +49,23 @@ func applyProcessSettings(e env.Env) {
 	if d, ok := e.UserCacheDir(); ok {
 		filelock.SetDir(d)
 	}
+}
+
+// maxParallelism is the most PRAVO_PARALLELISM may ask for: past it the providers
+// and the backend, not pravo, are the limit.
+const maxParallelism = 256
+
+// applyParallelism sets how many resources a command works on at once from
+// PRAVO_PARALLELISM. Unset or empty keeps the default.
+func applyParallelism(e env.Env) error {
+	v := e.Get("PRAVO_PARALLELISM")
+	if v == "" {
+		return nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 || n > maxParallelism {
+		return fmt.Errorf("PRAVO_PARALLELISM=%q: want a whole number from 1 to %d", v, maxParallelism)
+	}
+	engine.Parallelism = n
+	return nil
 }

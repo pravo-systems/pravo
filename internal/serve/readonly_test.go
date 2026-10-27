@@ -35,7 +35,7 @@ func session(t *testing.T, p *project) {
 	p.do("GET", "/api/plan?id=plan-ffffffff", nil)
 	p.do("GET", "/", nil)
 	p.do("GET", "/?token="+p.srv.Token(), nil)
-	req, _ := http.NewRequest("GET", p.base+"/api/events", nil)
+	req, _ := http.NewRequest(http.MethodGet, p.base+"/api/events", nil)
 	req.Header.Set("Authorization", "Bearer "+p.srv.Token())
 	if resp, err := http.DefaultClient.Do(req); err == nil {
 		time.Sleep(300 * time.Millisecond) // a keepalive and a poll or two

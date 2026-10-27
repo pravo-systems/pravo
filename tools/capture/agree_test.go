@@ -99,13 +99,3 @@ func TestAgreesWithSitegen(t *testing.T) {
 		t.Errorf("the corpus ran only %d command lines; it should cover every container", len(ran))
 	}
 }
-
-func cmdLines(s string) []string {
-	var out []string
-	for _, l := range strings.Split(s, "\n") {
-		if strings.TrimSpace(l) != "" {
-			out = append(out, l)
-		}
-	}
-	return out
-}

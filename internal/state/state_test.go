@@ -102,7 +102,7 @@ func TestLocks(t *testing.T) {
 	_ = s.b.Put(context.Background(), lockKey("e.f"), data)
 	if err := s.Lock("e.f", "test", ""); err == nil {
 		t.Error("expected ErrLocked")
-	} else if _, ok := err.(*ErrLocked); !ok {
+	} else if errLocked := (*ErrLocked)(nil); !errors.As(err, &errLocked) {
 		t.Errorf("expected *ErrLocked, got %T", err)
 	}
 	if err := s.Unlock("a.b"); err != nil {
@@ -274,8 +274,8 @@ func reservation(t *testing.T, s *Store, addr string) Lock {
 }
 
 func isLocked(err error) bool {
-	_, ok := err.(*ErrLocked)
-	return ok
+	var errLocked *ErrLocked
+	return errors.As(err, &errLocked)
 }
 
 // A reservation taken without an actor label is owned by the operating system
@@ -713,5 +713,17 @@ func TestRefreshKeepsTheRevisionWhenOnlyTheProviderDigestChanges(t *testing.T) {
 	}
 	if r := reopened.Get("a"); r.ProviderConfig != "two" || r.Revision != 1 {
 		t.Errorf("the written record: %+v", r)
+	}
+}
+
+// Distinct addresses name distinct objects: a character above U+FFFF used to
+// encode to the same text as a shorter one followed by a digit.
+func TestEncodeAddrIsInjective(t *testing.T) {
+	a, b := encodeAddr("t.a\U0001F600"), encodeAddr("t.aὠ0")
+	if a == b {
+		t.Fatalf("both encode to %q", a)
+	}
+	if got := encodeAddr("t.aé"); got != "t.a%00E9" {
+		t.Errorf("a character below U+10000 changed its key: %q", got)
 	}
 }

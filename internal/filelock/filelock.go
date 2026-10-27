@@ -35,10 +35,10 @@ func Exclusive(name string) (unlock func()) {
 	if abs, err := filepath.Abs(name); err == nil {
 		name = abs
 	}
-	if real, err := filepath.EvalSymlinks(name); err == nil {
-		name = real
-	} else if real, err := filepath.EvalSymlinks(filepath.Dir(name)); err == nil {
-		name = filepath.Join(real, filepath.Base(name))
+	if resolved, err := filepath.EvalSymlinks(name); err == nil {
+		name = resolved
+	} else if dir, err := filepath.EvalSymlinks(filepath.Dir(name)); err == nil {
+		name = filepath.Join(dir, filepath.Base(name))
 	}
 	if runtime.GOOS == "windows" {
 		name = strings.ToLower(name)

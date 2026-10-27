@@ -314,7 +314,7 @@ export class DiscoveryView {
       it.status === 'adopting' ? h('span', { class: 'by' }, 'adopted by ', h('code', { class: lit(m.by(it)).trim() }, it.by)) : null);
     const ident = h('span', { class: 'dv-ident' }, (it.identity || []).filter((f) => f.value !== it.id && f.value !== it.name).map((f) => h('span', { class: 'sc' + lit(m.field(f)) }, h('b', null, f.name), '=', f.value)));
     const press = (which, label, cls, aria) => h('button', { class: cls, type: 'button', 'aria-pressed': mode === which ? 'true' : 'false', 'data-fk': which + ':' + k, 'aria-label': aria, on: { click: () => this.toggle(x, it, li, which) } }, label);
-    let tail = null;
+    let tail;
     if (it.status === 'unmanaged') {
       tail = h('span', { class: 'dv-acts' },
         press('ack', 'Acknowledge', 'btn dv-act', `Acknowledge ${it.name || it.id}: say that it is known and meant to stay as it is`),

@@ -79,7 +79,7 @@ func viewer(t *testing.T, dir string, prot func(accessDir string) serve.Protecti
 	base := "http://127.0.0.1:" + itoa(ln.Addr().(*net.TCPAddr).Port)
 	return func(path string) []byte {
 		t.Helper()
-		req, _ := http.NewRequest("GET", base+path, nil)
+		req, _ := http.NewRequest(http.MethodGet, base+path, nil)
 		req.Header.Set("Authorization", "Bearer "+srv.Token())
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -95,7 +95,7 @@ func viewer(t *testing.T, dir string, prot func(accessDir string) serve.Protecti
 				break
 			}
 		}
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("GET %s: %d %s", path, resp.StatusCode, body.String())
 		}
 		return []byte(body.String())
@@ -409,7 +409,7 @@ func TestViewerResolvesTheIdentityOnce(t *testing.T) {
 	reset()
 	t.Setenv("PRAVO_PASSPHRASE", "correct horse battery")
 	opened := &viewerState{}
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if err := opened.resolve(); err != nil {
 			t.Fatal(err)
 		}

@@ -69,7 +69,7 @@ func newGCM(dk DataKey) cipher.AEAD {
 
 // Seal encrypts plaintext under the data key of c.Group.
 func Seal(dk DataKey, c Ctx, plaintext []byte) Sealed {
-	return Sealed{Alg: Alg, Group: c.Group, CT: newGCM(dk).Seal(nil, nil, plaintext, c.AAD())}
+	return Sealed{Alg: Alg, Group: c.Group, CT: newGCM(dk).Seal(nil, nil, plaintext, c.AAD())} //nolint:gosec // the AEAD picks a random nonce and prepends it
 }
 
 // Open decrypts. Every failure (wrong key, wrong place, damaged bytes) is ErrAuth,

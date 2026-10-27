@@ -390,9 +390,7 @@ func stubModule(m moduleCall, rootSrc string) string {
 	var b strings.Builder
 	if pm := providersMap.FindStringSubmatch(m.Body); pm != nil {
 		var names []string
-		for _, n := range attrs(pm[1]) {
-			names = append(names, n)
-		}
+		names = append(names, attrs(pm[1])...)
 		if len(names) > 0 {
 			b.WriteString("terraform {\n  required_providers {\n")
 			for _, n := range names {

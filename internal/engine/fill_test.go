@@ -12,7 +12,7 @@ import (
 func chainSpec(n int, after bool) spec {
 	var src strings.Builder
 	var names []string
-	for i := 0; i < n; i++ {
+	for i := range n {
 		name := fmt.Sprintf("r%03d", i)
 		names = append(names, name)
 		extra := ""

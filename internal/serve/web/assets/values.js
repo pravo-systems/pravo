@@ -283,7 +283,7 @@ export class StateView {
     if (typeof v === 'boolean') return { el: h('span', { class: 'v-bool ' + v }, h('i', { 'aria-hidden': 'true' }), String(v)), copy: String(v) };
     if (typeof v === 'number') return { el: h('span', { class: 'v-num' }, String(v)), copy: String(v) };
     if (typeof v !== 'string') {
-      let t = '';
+      let t;
       try { t = JSON.stringify(v, null, 2); } catch { t = String(v); }
       return this.jsonValue(t, path, null);
     }

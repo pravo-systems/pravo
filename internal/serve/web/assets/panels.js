@@ -1,7 +1,7 @@
 // The inspector when nothing is selected (the project) and when a namespace is: summaries, bars, navigable lists,
 // and the places where a namespace is written.
 
-import { h, icon, plural, relTime, stamp, actionOf, tick, copyButton, pathEl, baseName, fmt, nodeMark } from './util.js';
+import { h, icon, plural, actionOf, tick, copyButton, nodeMark } from './util.js';
 import { eachNode, isOut } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { codeWindow } from './ui.js';
@@ -13,7 +13,6 @@ const num = (n, cls = '') => {
   return el;
 };
 const sec = (title, ...kids) => h('section', { class: 'sec' }, title ? h('h3', { class: 'h' }, title) : null, kids);
-const kv = (rows) => h('dl', { class: 'meta' }, rows.filter(Boolean).map(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
 
 // ---------------------------------------------------------------------------------------------------------
 // the project
@@ -37,11 +36,6 @@ export function projectPanel(ins, model) {
   if ((g.warnings || []).length) body.push(sec(`Warnings · ${g.warnings.length}`, g.warnings.map((w) => h('p', { class: 'note warn' }, icon('bang'), h('span', null, w)))));
   body.push(h('section', { class: 'sec hintsec' }, h('p', { class: 'hint' }, 'Select a resource or a namespace to see its values, its source and its history. Press ', h('kbd', null, '?'), ' for the shortcuts.')));
   return body;
-}
-
-function pathValue(p, ins) {
-  if (!p) return null;
-  return h('span', { class: 'pv', 'data-tip': p }, pathEl(p), copyButton(p, { label: 'Copy the path', tip: 'Copy the path', announce: ins.cb.announce, done: 'Copied the path' }));
 }
 
 // ---------------------------------------------------------------------------------------------------------

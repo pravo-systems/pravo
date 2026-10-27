@@ -3,6 +3,7 @@ package schema
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -78,7 +79,7 @@ func TestListResourcesSurviveTheJSONCache(t *testing.T) {
 
 func TestACacheOfAnOlderPravoLacksListResources(t *testing.T) {
 	old := []byte(`{"cache_version":3,"provider":{"version":0,"block":{}},"resources":{},"data_sources":{},"ephemerals":{},"functions":{}}`)
-	if _, err := Unmarshal(old); err != ErrStaleCache {
+	if _, err := Unmarshal(old); !errors.Is(err, ErrStaleCache) {
 		t.Fatalf("a cache of version 3 is read as it is: %v", err)
 	}
 }

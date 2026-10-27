@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // runningCommand is the command that runs. The root command sets it when the
