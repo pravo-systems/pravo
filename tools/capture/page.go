@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"regexp"
@@ -672,7 +673,7 @@ func tokenizeInfo(s string) ([]attr, error) {
 		key := s[start:i]
 		if i < len(s) && s[i] == '=' {
 			if key == "" {
-				return nil, fmt.Errorf("attribute without a name before '='")
+				return nil, errors.New("attribute without a name before '='")
 			}
 			i++
 			val, n, err := readValue(s[i:])
@@ -712,7 +713,7 @@ func readValue(s string) (string, int, error) {
 			sb.WriteByte(s[i])
 		}
 	}
-	return "", 0, fmt.Errorf("unterminated quoted value")
+	return "", 0, errors.New("unterminated quoted value")
 }
 
 // validate records the authoring errors of one block. Blocks in an ignored

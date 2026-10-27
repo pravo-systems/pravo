@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"html"
 	"sort"
@@ -88,12 +89,12 @@ func parseFenceInfo(info string) (fenceInfo, error) {
 		switch key {
 		case "file":
 			if !hasVal || val == "" {
-				return fi, fmt.Errorf("file needs a name: file=NAME")
+				return fi, errors.New("file needs a name: file=NAME")
 			}
 			fi.File = val
 		case "title":
 			if !hasVal {
-				return fi, fmt.Errorf(`title needs a value: title="TEXT"`)
+				return fi, errors.New(`title needs a value: title="TEXT"`)
 			}
 			fi.Title = val
 		case "hl":
@@ -135,13 +136,13 @@ func parseFenceInfo(info string) (fenceInfo, error) {
 	}
 	switch {
 	case fi.Run && fi.Out:
-		return fi, fmt.Errorf("a block is either run or out")
+		return fi, errors.New("a block is either run or out")
 	case fi.Check && !fi.Run:
-		return fi, fmt.Errorf("check belongs on a run block")
+		return fi, errors.New("check belongs on a run block")
 	case fi.Present["exit"] && !fi.Run:
-		return fi, fmt.Errorf("exit belongs on a run block")
+		return fi, errors.New("exit belongs on a run block")
 	case fi.Run && fi.File != "":
-		return fi, fmt.Errorf("a run block cannot also have file=")
+		return fi, errors.New("a run block cannot also have file=")
 	}
 	if fi.Lang == "" {
 		switch {
@@ -158,7 +159,7 @@ func parseFenceInfo(info string) (fenceInfo, error) {
 func parseLineSet(s string) (map[int]bool, error) {
 	set := map[int]bool{}
 	if strings.TrimSpace(s) == "" {
-		return nil, fmt.Errorf("empty")
+		return nil, errors.New("empty")
 	}
 	for _, part := range strings.Split(s, ",") {
 		part = strings.TrimSpace(part)

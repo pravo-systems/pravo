@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -98,7 +99,7 @@ func TestSourceOfAnOrphanAndOfBadAddresses(t *testing.T) {
 	os.WriteFile(filepath.Join(p.dir, "sub", "notes.cue"), []byte("package other\n\nTOPSECRETFILE: 1\n"), 0o644)
 	for _, addr := range []string{"main.cue", "sub/notes.cue", "../../etc/passwd", "/etc/passwd", "..", "services.a.db/../../main.cue", "services.a.db\x00", "services.a", "pravo.lock.cue", "C:\\Windows\\win.ini"} {
 		resp, body := p.do("GET", "/api/source?addr="+queryEscape(addr), nil)
-		if resp.StatusCode != 404 && resp.StatusCode != 400 {
+		if resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("addr %q: %d", addr, resp.StatusCode)
 		}
 		if strings.Contains(string(body), "package demo") || strings.Contains(string(body), "TOPSECRETFILE") || strings.Contains(string(body), "root:") {
@@ -106,7 +107,7 @@ func TestSourceOfAnOrphanAndOfBadAddresses(t *testing.T) {
 		}
 	}
 	resp, _ := p.do("GET", "/api/source?addr="+strings.Repeat("a", 3000), nil)
-	if resp.StatusCode != 400 {
+	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("a very long address: %d", resp.StatusCode)
 	}
 }

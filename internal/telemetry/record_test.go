@@ -135,7 +135,7 @@ func TestRecorderIgnoresOtherRunsAndCanBeOff(t *testing.T) {
 
 func TestTraceDirKeepsTheNewestRuns(t *testing.T) {
 	dir := t.TempDir()
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		rt := &RunTrace{Version: TraceFormat, TraceID: string(rune('a'+i)) + "0000000000000000000000000000000"}
 		id := rt.ID()
 		if err := writeTrace(dir, rt); err != nil {

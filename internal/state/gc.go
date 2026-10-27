@@ -194,7 +194,7 @@ func (s *Store) each(n int, fn func(i int)) {
 		next atomic.Int64
 		wg   sync.WaitGroup
 	)
-	for w := 0; w < min(width, n); w++ {
+	for range min(width, n) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

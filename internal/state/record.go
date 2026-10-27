@@ -63,7 +63,7 @@ func validRecKey(k string) bool {
 		return false
 	}
 	for _, c := range h {
-		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}
@@ -286,7 +286,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 	// against, and what Verify compares. The record that is superseded is the one
 	// the pointer names when it is replaced, which may not be the one the store
 	// read.
-	for attempt := 0; attempt < replaceAttempts; attempt++ {
+	for range replaceAttempts {
 		var (
 			refused    bool
 			superseded string
@@ -329,7 +329,7 @@ func (s *Store) removeNode(addr string, h nodeRef) error {
 	if s.Format() < FormatImmutable {
 		return s.b.Delete(s.cx(), nodeKey(addr))
 	}
-	for attempt := 0; attempt < replaceAttempts; attempt++ {
+	for range replaceAttempts {
 		refused := false
 		ok, err := s.b.DeleteIf(s.cx(), nodeKey(addr), func(cur []byte) bool {
 			if v, _, parsed := versionOf(cur); !parsed || v != h.Version {

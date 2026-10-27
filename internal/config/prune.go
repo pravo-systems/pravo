@@ -199,9 +199,7 @@ func typeStart(l []byte) (string, bool) {
 		return "", false
 	}
 	name := string(l[1 : len(l)-3])
-	if strings.HasSuffix(name, "?") {
-		name = name[:len(name)-1]
-	}
+	name = strings.TrimSuffix(name, "?")
 	if strings.HasPrefix(name, `"`) {
 		s, err := strconv.Unquote(name)
 		if err != nil {

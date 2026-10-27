@@ -263,7 +263,7 @@ func (s *site) docViewFor(p *page) docView {
 	}
 	if !p.FM.NoTOC {
 		for _, t := range p.TOC {
-			v.TOC = append(v.TOC, tocItem{Level: t.Level, ID: t.ID, Text: t.Text})
+			v.TOC = append(v.TOC, tocItem(t))
 		}
 	}
 	return v

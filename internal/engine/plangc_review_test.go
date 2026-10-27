@@ -643,7 +643,7 @@ func TestAListingAsksOnlyForWhatIsThere(t *testing.T) {
 	eachBackend(t, func(t *testing.T, ps *PlanStore, _ *time.Time) {
 		ctx := context.Background()
 		var withProgress string
-		for i := 0; i < 6; i++ {
+		for i := range 6 {
 			m := putPlan(t, ps, t0.Add(time.Duration(i)*time.Second), "alice", 0, change(fmt.Sprintf("r%d", i), ActionCreate, 0))
 			if i == 0 {
 				withProgress = m.ID
@@ -680,7 +680,7 @@ func TestAListingAsksOnlyForWhatIsThere(t *testing.T) {
 func TestAListingReadsEachRecordOnce(t *testing.T) {
 	eachBackend(t, func(t *testing.T, ps *PlanStore, _ *time.Time) {
 		ctx := context.Background()
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			putPlan(t, ps, t0.Add(time.Duration(i)*time.Second), "alice", 0, change("shared", ActionUpdate, 1), change("own"+string(rune('a'+i)), ActionCreate, 0))
 		}
 		var mu sync.Mutex

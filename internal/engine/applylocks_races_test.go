@@ -144,7 +144,7 @@ func TestRejectionCountsOnlyWhatItCanLookAt(t *testing.T) {
 	h := newHarnessOver(t, func(b state.Backend) state.Backend { return statetest.NewLatency(b, 10*time.Millisecond) })
 	other := h.process()
 	var addrs []string
-	for i := 0; i < 96; i++ {
+	for i := range 96 {
 		addrs = append(addrs, fmt.Sprintf("r%03d", i))
 	}
 	inParallel(len(addrs), lockWidth, func(i int) {

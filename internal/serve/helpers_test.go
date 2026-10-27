@@ -277,7 +277,7 @@ func start(t *testing.T, dir string, st *state.Store, opts Options) *project {
 // do sends a request with the token as a bearer.
 func (p *project) do(method, path string, hdr map[string]string) (*http.Response, []byte) {
 	p.t.Helper()
-	req, err := http.NewRequest(method, p.base+path, nil)
+	req, err := http.NewRequest(method, p.base+path, http.NoBody)
 	if err != nil {
 		p.t.Fatal(err)
 	}
@@ -303,7 +303,7 @@ func (p *project) send(req *http.Request) (*http.Response, []byte) {
 func (p *project) get(path string) []byte {
 	p.t.Helper()
 	resp, body := p.do("GET", path, nil)
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		p.t.Fatalf("GET %s: %d %s", path, resp.StatusCode, body)
 	}
 	return body

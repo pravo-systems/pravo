@@ -18,8 +18,8 @@ import (
 // The lock is not on the file, which the rename replaces; see filelock.Exclusive.
 // A filesystem that has no file locks gets none.
 func updatePlanFile(path string, sl state.Sealer, edit func(*PlanFile) error) error {
-	if real, err := filepath.EvalSymlinks(path); err == nil {
-		path = real
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
 	}
 	defer filelock.Exclusive(path)()
 	data, err := os.ReadFile(path)

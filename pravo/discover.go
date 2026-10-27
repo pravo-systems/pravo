@@ -2,6 +2,7 @@ package pravo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,7 +43,7 @@ func (w *Workspace) Discover(ctx context.Context, o DiscoverOptions) (*DiscoverR
 		return nil, err
 	}
 	if o.All && len(o.Names) > 0 {
-		return nil, fmt.Errorf("All runs every discovery; name some or set All, not both")
+		return nil, errors.New("all runs every discovery; name some or set All, not both")
 	}
 	chosen, err := w.chooseDiscoveries(o)
 	if err != nil {
@@ -73,7 +74,7 @@ func (w *Workspace) Discover(ctx context.Context, o DiscoverOptions) (*DiscoverR
 // them against its records. problems are the runs that could not be read.
 func (w *Workspace) DiscoveryReport() (rep *DiscoveryReport, problems []error, err error) {
 	if w.state == nil {
-		return nil, nil, fmt.Errorf("pravo: discoveries live in the state: open the workspace with Config.State set")
+		return nil, nil, errors.New("pravo: discoveries live in the state: open the workspace with Config.State set")
 	}
 	runs, bad, err := w.state.Discoveries()
 	if err != nil {

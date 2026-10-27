@@ -115,7 +115,7 @@ func seedSecrets(t *testing.T, s *Store) {
 // as it is, in hex, and in every base64 alphabet and alignment.
 func needles(secret string) []string {
 	out := []string{secret, hex.EncodeToString([]byte(secret)), strings.ToUpper(hex.EncodeToString([]byte(secret)))}
-	for skip := 0; skip < 3; skip++ {
+	for skip := range 3 {
 		rest := []byte(secret)[skip:]
 		rest = rest[:len(rest)/3*3]
 		out = append(out,
@@ -785,8 +785,8 @@ func TestUpgradeToSealedSurvivesACrash(t *testing.T) {
 					t.Fatalf("seal that crashed: %v", err)
 				}
 				m := formatMeta(t, lb)
-				switch {
-				case n == 0:
+				switch n {
+				case 0:
 					if m.Format != from || m.Sealed != nil {
 						t.Errorf("a seal that wrote nothing changed meta.json: %+v", m)
 					}
@@ -1073,7 +1073,7 @@ func TestUpgradeToSealedNotesItsProgress(t *testing.T) {
 				t.Fatal(err)
 			}
 			const n = 450
-			for i := 0; i < n; i++ {
+			for i := range n {
 				mustSet(t, s, &Resource{Mode: "managed", Type: "t", Name: fmt.Sprintf("r%03d", i), Attributes: json.RawMessage(`{"password":"` + secretValue + `"}`)})
 			}
 			var (

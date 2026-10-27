@@ -81,7 +81,7 @@ func TestPackReadsATypeWhenItIsAskedFor(t *testing.T) {
 	if len(p.Resources) != 1 {
 		t.Errorf("one type is decoded: %d", len(p.Resources))
 	}
-	if p.Resource("x_alpha") != p.Resource("x_alpha") {
+	if first, again := p.Resource("x_alpha"), p.Resource("x_alpha"); first != again {
 		t.Error("a type is decoded once")
 	}
 	if p.Resource("nope") != nil || p.DataSource("x_alpha") != nil {
@@ -194,7 +194,7 @@ func TestPackIsSafeToReadFromManyGoroutines(t *testing.T) {
 		t.Fatal(err)
 	}
 	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
+	for range 16 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

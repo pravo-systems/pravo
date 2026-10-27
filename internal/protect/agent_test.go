@@ -25,7 +25,7 @@ func openSSHAgent(t *testing.T) (sock string, pub ed25519.PublicKey) {
 	if err1 != nil || err2 != nil || err3 != nil {
 		t.Skip("OpenSSH tools not installed")
 	}
-	dir, err := os.MkdirTemp("/tmp", "pa")
+	dir, err := os.MkdirTemp("/tmp", "pa") //nolint:usetesting // a socket path is limited to about a hundred bytes, which t.TempDir() can exceed
 	if err != nil {
 		t.Skip(err)
 	}
@@ -36,7 +36,7 @@ func openSSHAgent(t *testing.T) (sock string, pub ed25519.PublicKey) {
 		t.Skip(err)
 	}
 	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		if _, err := os.Stat(sock); err == nil {
 			break
 		}
@@ -100,7 +100,7 @@ func TestAnIdentityUnderAnOpenSSHAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		got, err := ParseIdentity(file, nil)
 		if err != nil {
 			t.Fatalf("open %d: %v", i, err)

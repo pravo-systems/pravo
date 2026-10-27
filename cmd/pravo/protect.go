@@ -389,7 +389,8 @@ func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
 		fmt.Fprintln(os.Stderr, "Warning: "+problem)
 		return nil
 	}
-	problem, code := "", engine.ExitRefused
+	var problem string
+	code := engine.ExitRefused
 	switch {
 	case !rf.Found:
 		problem = fmt.Sprintf("the readers file was not found (looked in %s). A sealed state is written with the list of readers from the repository.", rf.shownDir())
@@ -590,7 +591,7 @@ func (p *protectRun) probeLines(b state.Backend) ([2]string, error) {
 	err = sb.ProbeStrict(p.ctx, func(check string, err error) {
 		switch {
 		case check == state.StrictChecks[0] && err == nil:
-			second = append(second, fmt.Sprintf("8 concurrent replaces: 1 winner"))
+			second = append(second, "8 concurrent replaces: 1 winner")
 		case check == state.StrictChecks[0]:
 			second = append(second, "8 concurrent replaces: "+out.C(ui.Red, "FAILED"))
 		case err == nil:

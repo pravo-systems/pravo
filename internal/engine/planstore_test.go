@@ -183,7 +183,7 @@ func TestResolveFindsAPlanByAUniquePrefix(t *testing.T) {
 	eachBackend(t, func(t *testing.T, ps *PlanStore, _ *time.Time) {
 		ctx := context.Background()
 		var ids []string
-		for i := 0; i < 12; i++ {
+		for i := range 12 {
 			ids = append(ids, putPlan(t, ps, t0.Add(time.Duration(i)*time.Minute), "alice", 0, change(fmt.Sprintf("r%d", i), ActionCreate, 0)).ID)
 		}
 		if got, err := ps.Resolve(ctx, ids[3]); err != nil || got != ids[3] {
@@ -285,12 +285,12 @@ func TestMarksOfApplyiesThatRunAtTheSameTimeAreAllKept(t *testing.T) {
 	eachBackend(t, func(t *testing.T, ps *PlanStore, _ *time.Time) {
 		ctx := context.Background()
 		var changes []savedChange
-		for i := 0; i < 8; i++ {
+		for i := range 8 {
 			changes = append(changes, change(fmt.Sprintf("r%d", i), ActionCreate, 0))
 		}
 		m := putPlan(t, ps, t0, "alice", 0, changes...)
 		var wg sync.WaitGroup
-		for i := 0; i < 8; i++ {
+		for i := range 8 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

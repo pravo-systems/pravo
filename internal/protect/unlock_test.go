@@ -51,7 +51,7 @@ func (a *keyAgent) handle(body []byte) []byte {
 		reply := binary.BigEndian.AppendUint32([]byte{agentIDsAnswer}, uint32(len(a.keys)))
 		for i, k := range a.keys {
 			blob := sshWire(sshEd25519, string(k.Public().(ed25519.PublicKey)))
-			reply = append(reply, sshStringBytes([]byte(blob))...)
+			reply = append(reply, sshStringBytes(blob)...)
 			reply = append(reply, sshStringBytes([]byte(a.names[i]))...)
 		}
 		return reply

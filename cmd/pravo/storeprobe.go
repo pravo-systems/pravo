@@ -75,7 +75,10 @@ func probeS3(ctx context.Context, root *config.Root) error {
 	if err != nil {
 		return err
 	}
-	sb := b.(state.Prober)
+	sb, ok := b.(state.Prober)
+	if !ok {
+		return errors.New("this state backend cannot be probed")
+	}
 	type result struct {
 		Check string `json:"check"`
 		OK    bool   `json:"ok"`

@@ -129,13 +129,13 @@ func gitOutput(dir string, args ...string) (string, error) {
 // modPublish publishes the module in the current directory.
 func modPublish(ctx context.Context, args []string) error {
 	if len(args) != 1 || !strings.HasPrefix(args[0], "v") {
-		return fmt.Errorf("usage: pravo mod publish <version>, for example v1.2.0")
+		return errors.New("usage: pravo mod publish <version>, for example v1.2.0")
 	}
 	version := args[0]
 	wd, _ := os.Getwd()
 	root := config.FindModuleRoot(wd)
 	if root == "" {
-		return fmt.Errorf("no cue.mod found: run \"pravo mod init <github.com/owner/name@v0>\" first")
+		return errors.New("no cue.mod found: run \"pravo mod init <github.com/owner/name@v0>\" first")
 	}
 	r := &config.Root{Dir: root, ModRoot: root}
 	mf, err := r.ModuleFile()
@@ -150,7 +150,7 @@ func modPublish(ctx context.Context, args []string) error {
 		return fmt.Errorf("module path %q: the first path element needs a dot (github.com/owner/name)", path)
 	}
 	if mf.Source == nil || mf.Source.Kind == "" {
-		return fmt.Errorf("cue.mod/module.cue needs a source: run \"pravo mod edit --source git\"")
+		return errors.New("cue.mod/module.cue needs a source: run \"pravo mod edit --source git\"")
 	}
 	if mf.Source.Kind == "git" {
 		if _, err := gitOutput(root, "rev-parse", "--git-dir"); err != nil {
@@ -237,7 +237,7 @@ func modVerify() error {
 	}
 	for p := range lock.Modules {
 		if !have[p] {
-			problems = append(problems, fmt.Sprintf("%s is locked but no longer used", p))
+			problems = append(problems, p+" is locked but no longer used")
 		}
 	}
 	sort.Strings(problems)

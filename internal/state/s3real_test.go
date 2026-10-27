@@ -132,7 +132,7 @@ func TestRealStoreConditionalRaces(t *testing.T) {
 		var wg sync.WaitGroup
 		var mu sync.Mutex
 		wins := 0
-		for i := 0; i < racers; i++ {
+		for i := range racers {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -174,7 +174,7 @@ func TestRealStoreConditionalRaces(t *testing.T) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	wins := 0
-	for i := 0; i < racers; i++ {
+	for i := range racers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -231,7 +231,7 @@ func TestRealStoreListAndKeys(t *testing.T) {
 	var want []string
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 16)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		k := fmt.Sprintf("page/%05d", i)
 		want = append(want, k)
 		wg.Add(1)

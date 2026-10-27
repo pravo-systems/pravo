@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -126,7 +127,7 @@ func skillsDir(args []string) (string, error) {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("no home directory to find the skills directory in: name one, as in \"pravo skill install DIR\"")
+		return "", errors.New("no home directory to find the skills directory in: name one, as in \"pravo skill install DIR\"")
 	}
 	return filepath.Join(home, ".claude", "skills"), nil
 }

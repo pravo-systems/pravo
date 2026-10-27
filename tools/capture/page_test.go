@@ -116,7 +116,7 @@ func TestFences(t *testing.T) {
 	}
 	var got []string
 	for _, b := range p.Blocks {
-		got = append(got, strings.Join([]string{b.Lang, strings.Join(b.Content, "/")}, ":"))
+		got = append(got, b.Lang+":"+strings.Join(b.Content, "/"))
 	}
 	want := []string{"sh:echo one", "text:one", "text:```sh run/inside/```", "sh:echo   three", "sh:echo four"}
 	if !reflect.DeepEqual(got, want) {

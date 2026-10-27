@@ -39,7 +39,7 @@ func patience(try time.Duration) time.Duration {
 func inParallel(n, width int, fn func(i int)) {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, width)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		sem <- struct{}{}
 		wg.Add(1)
 		go func(i int) {

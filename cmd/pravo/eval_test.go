@@ -12,10 +12,10 @@ import (
 func runEval(t *testing.T, dir string, args ...string) (string, error) {
 	t.Helper()
 	old, _ := os.Getwd()
-	if err := os.Chdir(dir); err != nil {
+	if err := os.Chdir(dir); err != nil { //nolint:usetesting // see the deferred Chdir
 		t.Fatal(err)
 	}
-	defer os.Chdir(old)
+	defer os.Chdir(old) //nolint:usetesting // the directory is put back after each call, so that a relative path in the next call means what it meant in the first
 	r, w, _ := os.Pipe()
 	stdout := os.Stdout
 	os.Stdout = w

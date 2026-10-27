@@ -56,7 +56,7 @@ func dialWS(ctx context.Context, address string) (*wsConn, error) {
 		return nil, err
 	}
 	br := bufio.NewReader(c)
-	resp, err := http.ReadResponse(br, &http.Request{Method: "GET"})
+	resp, err := http.ReadResponse(br, &http.Request{Method: http.MethodGet})
 	if err != nil {
 		c.Close()
 		return nil, err
@@ -390,8 +390,8 @@ type browser struct {
 // pageSocket returns the WebSocket address of the first page of the browser.
 func (b *browser) pageSocket(ctx context.Context) (string, error) {
 	var last error
-	for i := 0; i < 50; i++ {
-		req, _ := http.NewRequestWithContext(ctx, "GET", "http://127.0.0.1:"+b.port+"/json/list", nil)
+	for range 50 {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+b.port+"/json/list", nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err == nil {
 			var targets []struct {

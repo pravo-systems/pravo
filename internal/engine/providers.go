@@ -290,14 +290,14 @@ func (m *Providers) loadSchema(ctx context.Context, local string) (*schema.Provi
 	if !ok {
 		return nil, fmt.Errorf("provider %q is not resolved", local)
 	}
-	packPath, jsonPath := "", ""
+	var packPath string
 	// Recording and replaying must go through the provider interface: the
 	// on-disk schema cache would hide GetSchema from the recorder.
 	rec := m.recording()
 	useCache := rec.Record == "" && !rec.Replaying()
 	if rp.Req.Path == "" && !rp.Reattached() && useCache {
 		packPath = m.Registry.SchemaPackPath(rp.Req.Source, rp.Version)
-		jsonPath = m.Registry.SchemaCachePath(rp.Req.Source, rp.Version)
+		jsonPath := m.Registry.SchemaCachePath(rp.Req.Source, rp.Version)
 		began := time.Now()
 		// The pack is opened and its types are read when they are first asked for.
 		if s, err := schema.OpenPack(packPath); err == nil {

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"io"
 	"math/rand/v2"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 )
 
 // HTTPConfig describes a server that keeps a state graph as objects under a URL.
@@ -155,7 +156,7 @@ func busy(status int) bool {
 func (b *HTTPBackend) do(ctx context.Context, method, target string, body []byte, header map[string]string) (reply, error) {
 	var r reply
 	var lastErr error
-	for attempt := 0; attempt < httpAttempts; attempt++ {
+	for attempt := range httpAttempts {
 		if attempt > 0 {
 			limit := httpMaxBackoff
 			if attempt < 16 && httpBackoffBase<<attempt < limit {
@@ -209,7 +210,6 @@ func (b *HTTPBackend) do(ctx context.Context, method, target string, body []byte
 			lastErr = rerr
 			continue
 		}
-		lastErr = nil
 		r.status, r.body, r.etag = resp.StatusCode, data, resp.Header.Get("ETag")
 		if busy(r.status) {
 			lastErr = &httpStatusError{status: r.status, body: snippet(data)}

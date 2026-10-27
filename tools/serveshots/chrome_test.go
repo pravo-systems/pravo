@@ -137,12 +137,12 @@ func TestScreenshot(t *testing.T) {
 	// The helper processes of Chrome can still be writing to the profile when
 	// the test ends, so it is not in the directory that the test removes: it is
 	// removed again until Chrome has let go of it.
-	profile, err := os.MkdirTemp("", "serveshots-profile-")
+	profile, err := os.MkdirTemp("", "serveshots-profile-") //nolint:usetesting // see the comment above
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			if os.RemoveAll(profile) == nil {
 				return
 			}

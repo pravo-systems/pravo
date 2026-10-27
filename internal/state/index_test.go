@@ -174,14 +174,14 @@ func TestIndexFollowsEveryChange(t *testing.T) {
 // graphs of every shape.
 func TestIndexAgreesWithAPassOverTheRecords(t *testing.T) {
 	rng := rand.New(rand.NewPCG(1, 2))
-	for trial := 0; trial < 30; trial++ {
+	for trial := range 30 {
 		s, err := Open(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
 		}
 		n := 2 + rng.IntN(25)
 		name := func(i int) string { return fmt.Sprintf("n%02d", i) }
-		for i := 0; i < n; i++ {
+		for i := range n {
 			var deps []string
 			for k := rng.IntN(4); k > 0; k-- {
 				// Edges may point anywhere, so cycles and records that are not there occur.
@@ -190,13 +190,13 @@ func TestIndexAgreesWithAPassOverTheRecords(t *testing.T) {
 			mustSet(t, s, node(name(i), deps...))
 		}
 		// Some records go, and some are written again with other edges.
-		for k := 0; k < 3; k++ {
+		for range 3 {
 			if _, err := s.Remove("t." + name(rng.IntN(n))); err != nil {
 				t.Fatal(err)
 			}
 			mustSet(t, s, node(name(rng.IntN(n)), "t."+name(rng.IntN(n))))
 		}
-		for i := 0; i < n+3; i++ {
+		for i := range n + 3 {
 			addr := "t." + name(i)
 			if got, want := s.Dependents(addr), refDependents(s, addr); !reflect.DeepEqual(got, want) {
 				t.Fatalf("trial %d: Dependents(%s) = %v, want %v", trial, addr, got, want)
@@ -206,7 +206,7 @@ func TestIndexAgreesWithAPassOverTheRecords(t *testing.T) {
 			}
 		}
 		var some []string
-		for i := 0; i < 4; i++ {
+		for range 4 {
 			some = append(some, "t."+name(rng.IntN(n)))
 		}
 		if got, want := s.ReachOf(some), refReach(s, some...); !reflect.DeepEqual(got, want) {
@@ -228,7 +228,7 @@ func TestReachOfAHubIsLinear(t *testing.T) {
 		t.Fatal(err)
 	}
 	mustSet(t, s, node("hub"))
-	for i := 0; i < n; i++ {
+	for i := range n {
 		mustSet(t, s, node(fmt.Sprintf("d%04d", i), "t.hub"))
 	}
 	start := time.Now()
@@ -244,7 +244,7 @@ func TestReachOfAHubIsLinear(t *testing.T) {
 		t.Errorf("Reach of a hub with %d dependents took %s, want less than 50ms", n, took)
 	}
 	start = time.Now()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		_ = s.Dependents(fmt.Sprintf("t.d%04d", i))
 	}
 	if took := time.Since(start); took > 50*time.Millisecond {
@@ -272,11 +272,11 @@ func TestIndexIsSafeUnderConcurrentWrites(t *testing.T) {
 	}
 	mustSet(t, s, node("root"))
 	var wg sync.WaitGroup
-	for w := 0; w < 4; w++ {
+	for w := range 4 {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			for i := 0; i < 40; i++ {
+			for i := range 40 {
 				if err := s.Set(node(fmt.Sprintf("w%d_%02d", w, i), "t.root"), ""); err != nil {
 					t.Error(err)
 					return
@@ -285,7 +285,7 @@ func TestIndexIsSafeUnderConcurrentWrites(t *testing.T) {
 		}()
 		go func() {
 			defer wg.Done()
-			for i := 0; i < 40; i++ {
+			for range 40 {
 				_ = s.Dependents("t.root")
 				_ = s.Reach("t.root")
 				_ = s.List()
@@ -329,7 +329,7 @@ func TestOpenReadsWithTheWidthOfTheBackend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		mustSet(t, seed, node(fmt.Sprintf("r%03d", i)))
 	}
 	for _, c := range []struct {

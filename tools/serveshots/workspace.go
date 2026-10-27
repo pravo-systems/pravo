@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -68,7 +69,8 @@ func (r *pravoRunner) run(ctx context.Context, dir string, args ...string) (resu
 	err := cmd.Run()
 	res := result{Out: buf.String()}
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
+		ee := &exec.ExitError{}
+		if errors.As(err, &ee) {
 			res.Exit = ee.ExitCode()
 			return res, nil
 		}

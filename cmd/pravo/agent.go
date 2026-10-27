@@ -354,7 +354,7 @@ than their refresh age, the oldest first, at most --limit of them. It plans
 nothing, so a scheduled run costs what it reads.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if limit != 0 && !due {
-				return fmt.Errorf("--limit applies to --due")
+				return errors.New("--limit applies to --due")
 			}
 			if limit < 0 {
 				return fmt.Errorf("--limit %d: want a number above zero", limit)
@@ -372,7 +372,7 @@ nothing, so a scheduled run costs what it reads.`,
 				return err
 			}
 			if webhook != "" {
-				if err := postJSON(webhook, report); err != nil {
+				if err := postJSON(cmd.Context(), webhook, report); err != nil {
 					return err
 				}
 			}
@@ -413,7 +413,7 @@ func driftDue(cmd *cobra.Command, s *session, limit int, webhook string) error {
 	}
 	rep := report.DueReport
 	if webhook != "" {
-		if err := postJSON(webhook, report); err != nil {
+		if err := postJSON(cmd.Context(), webhook, report); err != nil {
 			return err
 		}
 	}
@@ -504,7 +504,7 @@ func parseSchemaArgs(args []string) ([]schemaTarget, error) {
 		out = append(out, t)
 	}
 	if explicit != 0 && explicit != len(out) {
-		return nil, fmt.Errorf("name every type the same way: either each with the address of its provider (hashicorp/random/random_pet), or none")
+		return nil, errors.New("name every type the same way: either each with the address of its provider (hashicorp/random/random_pet), or none")
 	}
 	// Two providers with one type name need distinct local names.
 	seen := map[string]string{}

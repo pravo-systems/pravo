@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -447,10 +448,10 @@ func findNested(v cue.Value, at cue.Path, depth int) string {
 // tree of the struct, so the same rule always has the same text and digest.
 func RuleText(v cue.Value) (string, error) {
 	if !v.Exists() {
-		return "", fmt.Errorf("rule is missing: write the rule as a CUE struct, such as rule: {summary: destroy: 0}")
+		return "", errors.New("rule is missing: write the rule as a CUE struct, such as rule: {summary: destroy: 0}")
 	}
 	if v.Kind() != cue.StructKind {
-		return "", fmt.Errorf("rule must be a CUE struct, not a string of CUE: write rule: {summary: destroy: 0}")
+		return "", errors.New("rule must be a CUE struct, not a string of CUE: write rule: {summary: destroy: 0}")
 	}
 	// A rule that uses the standard library comes out as a file with its
 	// imports; any other as a struct. The imports stay in the text, which is
@@ -469,7 +470,7 @@ func RuleText(v cue.Value) (string, error) {
 		decls = structsOf(n.(ast.Expr))
 	}
 	if decls == nil {
-		return "", fmt.Errorf("rule must be a CUE struct")
+		return "", errors.New("rule must be a CUE struct")
 	}
 	// The schema leaves the struct open so that any rule fits; that trailing
 	// "..." is the schema's, not the author's.
@@ -489,7 +490,7 @@ func RuleText(v cue.Value) (string, error) {
 		}
 	}
 	if empty {
-		return "", fmt.Errorf("rule is empty: a policy with no rule judges nothing")
+		return "", errors.New("rule is empty: a policy with no rule judges nothing")
 	}
 	var text strings.Builder
 	for _, e := range elts {
@@ -501,7 +502,6 @@ func RuleText(v cue.Value) (string, error) {
 		text.WriteByte('\n')
 	}
 	return text.String(), nil
-
 }
 
 // structsOf returns the fields of the structs written in an expression: of the

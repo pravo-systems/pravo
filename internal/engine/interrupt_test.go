@@ -372,7 +372,7 @@ func TestInterruptStopsStartingDestroys(t *testing.T) {
 	h := newHarness(t)
 	var names []string
 	var b strings.Builder
-	for i := 0; i < 14; i++ {
+	for i := range 14 {
 		name := fmt.Sprintf("r%02d", i)
 		names = append(names, name)
 		fmt.Fprintf(&b, "%s: %s\n", name, thing(name, ""))

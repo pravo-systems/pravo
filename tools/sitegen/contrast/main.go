@@ -14,6 +14,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -255,11 +256,11 @@ func main() {
 func check(src string, verbose bool, w io.Writer) (int, error) {
 	rootDecls, _, ok := block(src, ":root {", 0)
 	if !ok {
-		return 0, fmt.Errorf("no :root block")
+		return 0, errors.New("no :root block")
 	}
 	explicit, _, ok := block(src, `:root[data-theme="dark"] {`, 0)
 	if !ok {
-		return 0, fmt.Errorf(`no :root[data-theme="dark"] block`)
+		return 0, errors.New(`no :root[data-theme="dark"] block`)
 	}
 	light := tokens(rootDecls)
 	dark := map[string]rgba{}

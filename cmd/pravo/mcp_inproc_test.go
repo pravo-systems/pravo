@@ -27,11 +27,7 @@ func TestInprocessStateTools(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	wd, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(wd) })
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
+	t.Chdir(dir)
 	root := newRootCmd()
 	root.SetArgs(normaliseArgs([]string{"pravo", "apply", "-auto-approve", "--no-color"})[1:])
 	if err := root.Execute(); err != nil {

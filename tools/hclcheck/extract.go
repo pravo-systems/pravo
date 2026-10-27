@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -172,10 +173,10 @@ func (b *Block) configure(comment []string) error {
 	b.Match = b.Attrs["match"]
 	b.Skip = b.Attrs["skip"]
 	if _, ok := b.Attrs["skip"]; ok && b.Skip == "" {
-		return fmt.Errorf("skip needs a reason: skip=REASON")
+		return errors.New("skip needs a reason: skip=REASON")
 	}
 	if b.Match != "" && b.Expect == "" {
-		return fmt.Errorf("match=TEXT needs expect=error")
+		return errors.New("match=TEXT needs expect=error")
 	}
 	b.Path, b.Excerpt, b.Files = pathOf(b.Attrs["file"], b.Attrs["title"])
 	return nil

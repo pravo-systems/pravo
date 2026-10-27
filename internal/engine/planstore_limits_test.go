@@ -104,7 +104,7 @@ func TestPlanMetaCacheSavesTheReadOfImmutableSummaries(t *testing.T) {
 		for _, n := range cb.reads {
 			n.Store(0) // what MarkApplied read does not count
 		}
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			es, skipped, err := ps.EntriesAndSkipped(ctx, nil)
 			if err != nil || len(es) != 1 || len(skipped) != 1 || !errors.Is(skipped[0].Err, ErrTooLarge) {
 				t.Fatalf("listing %d: %d entries, skipped %v, %v", i, len(es), skipped, err)

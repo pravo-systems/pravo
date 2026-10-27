@@ -295,11 +295,11 @@ func (s *Store) refuseUnopenable(ctx context.Context, o UnsealOptions) error {
 	} else if !errors.Is(err, ErrNotFound) {
 		return err
 	}
-	if counts, err := s.sealedSummaries(ctx); err != nil {
+	counts, err := s.sealedSummaries(ctx)
+	if err != nil {
 		return err
-	} else {
-		note(counts)
 	}
+	note(counts)
 	if o.PlanGroups != nil {
 		counts, err := o.PlanGroups(ctx)
 		if err != nil {

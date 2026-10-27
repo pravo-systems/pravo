@@ -90,9 +90,9 @@ func recoveryProblem(prot state.Protection, rf readersFile) (string, engine.Exit
 	case rcf.Err != nil:
 		return fmt.Sprintf("%s: %s", rcf.shown(), rcf.Err), engine.ExitInvalid
 	case rcf.Found && m.Recovery == nil:
-		return fmt.Sprintf("%s lists a recovery recipient that the state does not have. Run pravo protect rewrap.", rcf.shown()), engine.ExitRefused
+		return rcf.shown() + " lists a recovery recipient that the state does not have. Run pravo protect rewrap.", engine.ExitRefused
 	case rcf.Found && !rcf.Rec.Equal(m.Recovery):
-		return fmt.Sprintf("%s and the state name different recovery keys. Run pravo protect rewrap.", rcf.shown()), engine.ExitRefused
+		return rcf.shown() + " and the state name different recovery keys. Run pravo protect rewrap.", engine.ExitRefused
 	case !rcf.Found && m.Recovery != nil:
 		return fmt.Sprintf("the state has a recovery recipient, and %s was not found (looked in %s). Commit the file, or remove the recovery with pravo protect rewrap --remove-recovery.", rcf.shown(), rf.shownDir()), engine.ExitRefused
 	}

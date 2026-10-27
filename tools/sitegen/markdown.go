@@ -295,7 +295,7 @@ func fenceInfoText(n *ast.FencedCodeBlock, source []byte) string {
 
 func fenceCode(n *ast.FencedCodeBlock, source []byte) string {
 	var b strings.Builder
-	for i := 0; i < n.Lines().Len(); i++ {
+	for i := range n.Lines().Len() {
 		seg := n.Lines().At(i)
 		b.Write(seg.Value(source))
 	}

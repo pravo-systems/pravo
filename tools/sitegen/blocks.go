@@ -405,12 +405,13 @@ func (r *renderer) renderTabs(d *directive) string {
 func (r *renderer) renderPredict(d *directive) string {
 	var pre, reveal *part
 	for _, p := range d.parts {
-		if p.name == "reveal" {
+		switch p.name {
+		case "reveal":
 			if reveal != nil {
 				r.errorf(p.line-1, "::reveal appears twice")
 			}
 			reveal = p
-		} else if p.name == "" {
+		case "":
 			pre = p
 		}
 	}

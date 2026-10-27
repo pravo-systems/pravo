@@ -185,8 +185,7 @@ func TestStudioStoredPlansAndBadRequests(t *testing.T) {
 
 // The fields of the document are listed for completion, with their docs, the fields of a change, and the values of an action.
 func TestStudioSchemaTree(t *testing.T) {
-	var find func(fs []SchemaField, name string) *SchemaField
-	find = func(fs []SchemaField, name string) *SchemaField {
+	var find = func(fs []SchemaField, name string) *SchemaField {
 		for i := range fs {
 			if fs[i].Name == name {
 				return &fs[i]
@@ -220,7 +219,7 @@ func TestStudioTakesADroppedPlanFile(t *testing.T) {
 	}
 	before := digestTree(t, p.dir)
 	post := func(path, ctype string, body []byte) (*http.Response, []byte) {
-		req, _ := http.NewRequest("POST", p.base+path, bytes.NewReader(body))
+		req, _ := http.NewRequest(http.MethodPost, p.base+path, bytes.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+p.srv.Token())
 		if ctype != "" {
 			req.Header.Set("Content-Type", ctype)
@@ -229,7 +228,7 @@ func TestStudioTakesADroppedPlanFile(t *testing.T) {
 	}
 	resp, body := post("/api/studio/plan?name="+url.QueryEscape("../../saved/dropped.json"), "application/octet-stream", data)
 	var pl StudioPlan
-	if resp.StatusCode != 200 || json.Unmarshal(body, &pl) != nil {
+	if resp.StatusCode != http.StatusOK || json.Unmarshal(body, &pl) != nil {
 		t.Fatalf("upload: %d %s", resp.StatusCode, body)
 	}
 	if !strings.HasPrefix(pl.Ref, "upload:") || pl.Kind != "upload" || pl.Label != "dropped.json" || pl.Add != 2 || pl.Change != 1 || pl.Destroy != 1 {
@@ -247,16 +246,16 @@ func TestStudioTakesADroppedPlanFile(t *testing.T) {
 		t.Errorf("the dropped file is judged like the file: %+v", got.Plans)
 	}
 	// What is not a plan file, a wrong type and a GET are refused, and a file that was never dropped is not held.
-	if r, b := post("/api/studio/plan", "application/octet-stream", []byte("{}")); r.StatusCode != 400 {
+	if r, b := post("/api/studio/plan", "application/octet-stream", []byte("{}")); r.StatusCode != http.StatusBadRequest {
 		t.Errorf("not a plan: %d %s", r.StatusCode, b)
 	}
-	if r, b := post("/api/studio/plan", "text/plain", data); r.StatusCode != 415 {
+	if r, b := post("/api/studio/plan", "text/plain", data); r.StatusCode != http.StatusUnsupportedMediaType {
 		t.Errorf("wrong type: %d %s", r.StatusCode, b)
 	}
-	if r, _ := p.do("GET", "/api/studio/plan", nil); r.StatusCode != 405 {
+	if r, _ := p.do("GET", "/api/studio/plan", nil); r.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("GET: %d", r.StatusCode)
 	}
-	if r, _ := post("/api/graph", "application/octet-stream", data); r.StatusCode != 405 {
+	if r, _ := post("/api/graph", "application/octet-stream", data); r.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("POST elsewhere: %d", r.StatusCode)
 	}
 	if got := p.try("summary: destroy: 0\n", "upload:000000000000"); got.Plans[0].State != "unknown" {

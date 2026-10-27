@@ -178,7 +178,7 @@ func TestLineDiff(t *testing.T) {
 
 func TestRenderDiffFoldsUnchangedLines(t *testing.T) {
 	var exp, act []string
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		exp = append(exp, "same")
 		act = append(act, "same")
 	}

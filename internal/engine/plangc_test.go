@@ -409,7 +409,7 @@ func TestADryRunChangesNothing(t *testing.T) {
 
 func TestACollectionRemovesAtMostTheLimit(t *testing.T) {
 	eachBackend(t, func(t *testing.T, ps *PlanStore, clock *time.Time) {
-		for i := 0; i < 6; i++ {
+		for i := range 6 {
 			putPlan(t, ps, t0.Add(time.Duration(i)*time.Second), "alice", time.Hour, change(fmt.Sprintf("r%d", i), ActionCreate, 0))
 		}
 		*clock = t0.Add(2 * time.Hour)
@@ -426,7 +426,7 @@ func TestCollectorsThatRunAtTheSameTimeRemoveEachPlanOnce(t *testing.T) {
 	eachBackend(t, func(t *testing.T, ps *PlanStore, clock *time.Time) {
 		const plans = 12
 		var want []string
-		for i := 0; i < plans; i++ {
+		for i := range plans {
 			want = append(want, putPlan(t, ps, t0.Add(time.Duration(i)*time.Second), "alice", time.Hour, change(fmt.Sprintf("r%d", i), ActionCreate, 0)).ID)
 		}
 		sort.Strings(want)
@@ -469,7 +469,7 @@ func TestAnApplyAndACollectionThatRunAtTheSameTimeDoNotCorruptEachOther(t *testi
 		ctx := context.Background()
 		const plans = 16
 		var metas []*PlanMeta
-		for i := 0; i < plans; i++ {
+		for i := range plans {
 			metas = append(metas, putPlan(t, ps, t0.Add(time.Duration(i)*time.Second), "alice", time.Hour, change(fmt.Sprintf("r%d", i), ActionCreate, 0)))
 		}
 		*clock = t0.Add(2 * time.Hour) // every plan is past its ttl, so the collector wants all of them

@@ -158,7 +158,7 @@ func TestRedactArgsNeverShowsTheValueOfASealedFlag(t *testing.T) {
 		seed ^= seed << 17
 		return int(seed % uint64(n))
 	}
-	for i := 0; i < 2000; i++ {
+	for range 2000 {
 		var args []string
 		for j, n := 0, 1+next(6); j < n; j++ {
 			if next(2) == 0 {

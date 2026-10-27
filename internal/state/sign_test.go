@@ -39,14 +39,6 @@ func txnOf(t *testing.T, s *Store, id string) Transaction {
 	return tx
 }
 
-func putTxn(t *testing.T, s *Store, tx Transaction) {
-	t.Helper()
-	data, _ := json.Marshal(tx)
-	if err := s.b.Put(context.Background(), "txn/"+tx.ID+".json", data); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestTransactionsOfASealedStateAreSigned(t *testing.T) {
 	skipWhenSealed(t)
 	b := testBackends()[0].make(t)

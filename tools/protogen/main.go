@@ -46,7 +46,7 @@ func main() {
 		}
 		seen[f.Path()] = true
 		imps := f.Imports()
-		for i := 0; i < imps.Len(); i++ {
+		for i := range imps.Len() {
 			add(imps.Get(i).FileDescriptor)
 		}
 		fdps = append(fdps, protodesc.ToFileDescriptorProto(f))

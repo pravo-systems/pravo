@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -72,7 +73,7 @@ func timeCmd(args []string, stderr io.Writer) (int, error) {
 	}
 	rest := fs.Args()
 	if len(rest) == 0 {
-		return 2, fmt.Errorf("usage: scale time -r FILE -- command [args...]")
+		return 2, errors.New("usage: scale time -r FILE -- command [args...]")
 	}
 	cmd := exec.Command(rest[0], rest[1:]...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
@@ -297,7 +298,7 @@ func jsonCmd(args []string) error {
 		return err
 	}
 	if *results == "" || *meta == "" || *out == "" {
-		return fmt.Errorf("usage: scale json -results FILE -meta FILE -o FILE")
+		return errors.New("usage: scale json -results FILE -meta FILE -o FILE")
 	}
 	raw, err := os.ReadFile(*results)
 	if err != nil {

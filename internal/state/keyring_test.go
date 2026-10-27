@@ -133,7 +133,7 @@ func TestKeysSwapUnderUse(t *testing.T) {
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
 	failed := make(chan error, 8)
-	for w := 0; w < 6; w++ {
+	for range 6 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

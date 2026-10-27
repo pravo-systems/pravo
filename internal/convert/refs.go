@@ -153,11 +153,11 @@ func AnalyseWith(v cue.Value, resolve Resolver, self *cue.Path) RefInfo {
 				seen[key] = true
 				if task, alias, ok := resolve.Task(p); ok {
 					addTask(task, alias)
-				} else if self != nil && isPrefixPath(p, *self) {
-					// A reference to a struct the task sits inside (the
-					// instance of a definition): the references inside it
-					// that matter are reported on their own paths.
-				} else {
+				} else if self == nil || !isPrefixPath(p, *self) {
+					// Anything but a reference to a struct the task sits inside
+					// (the instance of a definition), whose inner references are
+					// reported on their own paths.
+
 					// A plain field. A container of tasks stands for every
 					// task in it. If its value is not concrete, whatever it
 					// is built from may be a task, so follow it.

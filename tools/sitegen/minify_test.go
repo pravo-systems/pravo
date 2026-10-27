@@ -503,7 +503,7 @@ func landingAssets(t *testing.T, out string) []loadedAsset {
 		}
 	}
 	// The images that the style sheets draw, and the sheets they import.
-	for i := 0; i < len(order); i++ {
+	for i := range order {
 		p := order[i]
 		if seen[p] != "css" {
 			continue

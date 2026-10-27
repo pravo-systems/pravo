@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -186,7 +188,7 @@ func mcpTools() []mcpTool {
 			args: func(in map[string]any) ([]string, error) {
 				types := listArg(in, "types")
 				if len(types) == 0 {
-					return nil, fmt.Errorf("types is required")
+					return nil, errors.New("types is required")
 				}
 				if err := positional("types", types...); err != nil {
 					return nil, err
@@ -202,7 +204,7 @@ func mcpTools() []mcpTool {
 			args: func(in map[string]any) ([]string, error) {
 				addrs := listArg(in, "addrs")
 				if len(addrs) == 0 {
-					return nil, fmt.Errorf("addrs is required")
+					return nil, errors.New("addrs is required")
 				}
 				if err := positional("addrs", addrs...); err != nil {
 					return nil, err
@@ -256,7 +258,7 @@ func mcpTools() []mcpTool {
 					return nil, err
 				}
 				if given {
-					a = append(a, "-limit", fmt.Sprint(n))
+					a = append(a, "-limit", strconv.Itoa(n))
 				}
 				return a, nil
 			}},
@@ -424,7 +426,8 @@ func runSelf(ctx context.Context, args []string) (string, int) {
 	c.Env = append(os.Environ(), telemetry.Environ(ctx)...)
 	err = c.Run()
 	code := 0
-	if ee, ok := err.(*exec.ExitError); ok {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
 		code = ee.ExitCode()
 	} else if err != nil {
 		code = 1
@@ -450,7 +453,7 @@ func planRefArg(in map[string]any) (string, error) {
 		return "", err
 	}
 	if len(listArg(in, "tags")) > 0 && !isStoredRef(ref) {
-		return "", fmt.Errorf("tags go with the id of a stored plan; a plan file carries its own")
+		return "", errors.New("tags go with the id of a stored plan; a plan file carries its own")
 	}
 	return ref, nil
 }

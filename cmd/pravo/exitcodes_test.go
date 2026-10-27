@@ -353,14 +353,6 @@ func TestProcessExitStatus(t *testing.T) {
 	}
 }
 
-// missingFileMessage is what the system says of a file that does not exist.
-var missingFileMessage = func() string {
-	if runtime.GOOS == "windows" {
-		return "cannot find the file specified"
-	}
-	return "no such file"
-}()
-
 // The errors of the state package that a sealed state adds map to the codes of
 // the reference, whatever their text.
 func TestExitCodeOfTheErrorsOfASealedState(t *testing.T) {

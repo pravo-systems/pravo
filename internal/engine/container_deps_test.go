@@ -121,7 +121,7 @@ func TestComprehensionOverAContainerAppliesAfterTheContainer(t *testing.T) {
 			"sorted: " + thing("sorted", `content: strings.Join([for k, v in pets {"\(k)=\(v.id)"}], ",")`) + "\n",
 		resources: []string{"pets.a", "pets.b", "pets.c", "all", "sorted"},
 	}
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		h := newHarness(t)
 		res := h.apply(s)
 		if res.Added != 5 {
@@ -173,7 +173,7 @@ func TestComprehensionOverAPlainFieldBuiltFromResourcesAppliesAfterThem(t *testi
 	if got := depsOfTask(t, h, s, "all"); got != "a,b" {
 		t.Fatalf("all depends on %q, want a,b", got)
 	}
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		h := newHarness(t)
 		h.apply(s)
 		if got, want := recordedContent(t, h, "all"), recordedID(t, h, "a")+","+recordedID(t, h, "b"); got != want {
@@ -239,20 +239,20 @@ func TestIndexedEntryOfAContainerIsTheOnlyDependency(t *testing.T) {
 func layered(layers, n int) spec {
 	var keys, src strings.Builder
 	var resources []string
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i > 0 {
 			keys.WriteString(", ")
 		}
 		fmt.Fprintf(&keys, "%q", fmt.Sprintf("k%d", i))
 	}
 	fmt.Fprintf(&src, "keys: [%s]\n", keys.String())
-	for l := 0; l < layers; l++ {
+	for l := range layers {
 		extra := ""
 		if l > 0 {
 			extra = fmt.Sprintf(`content: "\(l%d[k].id)"`, l-1)
 		}
 		fmt.Fprintf(&src, "l%d: {for k in keys {\"\\(k)\": %s}}\n", l, thing("p", extra))
-		for i := 0; i < n; i++ {
+		for i := range n {
 			resources = append(resources, fmt.Sprintf("l%d.k%d", l, i))
 		}
 	}

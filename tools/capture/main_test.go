@@ -467,7 +467,7 @@ func TestInitRunsOneAtATime(t *testing.T) {
 	t.Setenv("CAPTURE_TEST_LOCK", filepath.Join(t.TempDir(), "lock"))
 	var pages []string
 	args := []string{"-j", "4", "-bin", fakeBin(t)}
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		pages = append(pages, writePage(t, "init.md", "---\ntitle: T\ndescription: D\norder: 1\n---\n\n```sh run\npravo init\n```\n"))
 	}
 	code, out, _ := capture(t, append(args, pages...)...)

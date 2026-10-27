@@ -33,7 +33,7 @@ func (t *tracedBackend) kind() string {
 	case *HTTPBackend:
 		return "http"
 	}
-	if t.Backend.Local() {
+	if t.Local() {
 		return "local"
 	}
 	return "remote"

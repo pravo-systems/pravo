@@ -62,7 +62,6 @@ type Capture struct {
 	blind   map[string]bool // hosts whose clients did not trust the authority
 	environ env.Env         // the environment of the run: the proxy settings the provider would have had
 	closed  atomic.Bool
-	conns   sync.WaitGroup
 	started time.Time
 }
 
@@ -111,7 +110,7 @@ func New(e env.Env) (*Capture, error) {
 	f.Close()
 	c.caFile = f.Name()
 	c.srv = &http.Server{Handler: http.HandlerFunc(c.serve), ReadHeaderTimeout: 30 * time.Second}
-	go c.srv.Serve(ln)
+	go func() { _ = c.srv.Serve(ln) }() // ends with ErrServerClosed when the capture stops
 	return c, nil
 }
 
@@ -230,7 +229,7 @@ func (c *Capture) connect(w http.ResponseWriter, r *http.Request) {
 	// one connection, any number of requests, each a span
 	one := &oneConn{conn: tc, done: make(chan struct{})}
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { c.forward(w, r, "https", host) }), ReadHeaderTimeout: 30 * time.Second}
-	go func() { srv.Serve(one) }()
+	go func() { _ = srv.Serve(one) }()
 	<-one.done
 	srv.Close()
 }
@@ -394,7 +393,7 @@ func (c *Capture) tunnel(w http.ResponseWriter, hj http.Hijacker, host string) {
 		telemetry.End(span, err)
 		return
 	}
-	io.WriteString(conn, "HTTP/1.1 200 Connection Established\r\n\r\n")
+	_, _ = io.WriteString(conn, "HTTP/1.1 200 Connection Established\r\n\r\n")
 	var sent, got int64
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -410,7 +409,7 @@ func (c *Capture) tunnel(w http.ResponseWriter, hj http.Hijacker, host string) {
 func copyThen(dst net.Conn, src io.Reader) int64 {
 	n, _ := io.Copy(dst, src)
 	if cw, ok := dst.(interface{ CloseWrite() error }); ok {
-		cw.CloseWrite()
+		_ = cw.CloseWrite()
 	}
 	return n
 }

@@ -7,7 +7,9 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -196,12 +198,12 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 		}
 	}
 	if imports > 0 {
-		declared += fmt.Sprintf(", %s to import", p.C(Cyan, fmt.Sprint(imports)))
+		declared += fmt.Sprintf(", %s to import", p.C(Cyan, strconv.Itoa(imports)))
 	}
 	if moves > 0 {
-		declared += fmt.Sprintf(", %s to move", p.C(Cyan, fmt.Sprint(moves)))
+		declared += fmt.Sprintf(", %s to move", p.C(Cyan, strconv.Itoa(moves)))
 	}
-	p.Printf("%s %s to add, %s to change, %s to destroy%s.\n", p.C(Bold, "Plan:"), p.C(Green, fmt.Sprint(add)), p.C(Yellow, fmt.Sprint(change)), p.C(Red, fmt.Sprint(destroy)), declared)
+	p.Printf("%s %s to add, %s to change, %s to destroy%s.\n", p.C(Bold, "Plan:"), p.C(Green, strconv.Itoa(add)), p.C(Yellow, strconv.Itoa(change)), p.C(Red, strconv.Itoa(destroy)), declared)
 	p.renderPolicies(plan)
 	for _, h := range plan.Hints {
 		p.Println(p.C(Yellow, "Hint: ") + h)
@@ -573,7 +575,7 @@ func (p *Printer) value(v tftypes.Value, indent string, sens func([]string) bool
 }
 
 func (p *Printer) renderValue(b *strings.Builder, sym, color string, v tftypes.Value, indent string, sens func([]string) bool, path []string, _ map[string]bool) {
-	if !v.IsKnown() || v.IsNull() || !(v.Type().Is(tftypes.Object{}) || v.Type().Is(tftypes.Map{})) {
+	if !v.IsKnown() || v.IsNull() || (!v.Type().Is(tftypes.Object{}) && !v.Type().Is(tftypes.Map{})) {
 		b.WriteString(p.value(v, indent, sens, path))
 		return
 	}
@@ -635,7 +637,7 @@ func (p *Printer) renderDiff(b *strings.Builder, before, after tftypes.Value, in
 		bv, bok := bm[k]
 		av, aok := am[k]
 		label := fmt.Sprintf("%-*s ", width+1, convert.FieldLabel(k)+":")
-		sub := append(path, k)
+		sub := append(slices.Clone(path), k)
 		inner := indent + convert.Indent
 		switch {
 		case !bok || (bv.IsNull() && !av.IsNull()):

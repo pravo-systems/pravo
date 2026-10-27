@@ -64,7 +64,7 @@ func refreshValueHint(cmd *cobra.Command, word string) string {
 	if _, err := parseRefresh(word); err != nil {
 		return ""
 	}
-	return fmt.Sprintf("write the value of -refresh with =, as in -refresh=%s", word)
+	return "write the value of -refresh with =, as in -refresh=" + word
 }
 
 // hclHint is the hint for a specification that declares no resource and no

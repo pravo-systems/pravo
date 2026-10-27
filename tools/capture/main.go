@@ -173,7 +173,7 @@ func runPages(ctx context.Context, r *runner, pages []*page, jobs int, report fu
 	}
 	work := make(chan int)
 	var wg sync.WaitGroup
-	for w := 0; w < jobs; w++ {
+	for range jobs {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

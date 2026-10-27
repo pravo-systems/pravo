@@ -66,7 +66,7 @@ func TestOrderForDestroy(t *testing.T) {
 	for i, c := range got {
 		pos[c.Addr] = i
 	}
-	if !(pos["c"] < pos["b"] && pos["b"] < pos["a"] && pos["d"] < pos["a"]) {
+	if pos["c"] >= pos["b"] || pos["b"] >= pos["a"] || pos["d"] >= pos["a"] {
 		t.Errorf("bad destroy order: %v", Addresses(got))
 	}
 }

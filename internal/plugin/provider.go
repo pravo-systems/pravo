@@ -6,6 +6,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -217,7 +218,7 @@ func decodeIdentity(msgpackData, jsonData []byte) (map[string]any, error) {
 	}
 	m, ok := normalize(raw).(map[string]any)
 	if !ok && raw != nil {
-		return nil, fmt.Errorf("the identity of a listed object is not an object")
+		return nil, errors.New("the identity of a listed object is not an object")
 	}
 	return m, nil
 }

@@ -7,8 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pravo-systems/pravo/internal/protect"
 	"testing"
+
+	"github.com/pravo-systems/pravo/internal/protect"
 )
 
 // Two commands seal the same state at the same moment: one begins, the other is
@@ -27,7 +28,7 @@ func TestTwoSealsAtOnce(t *testing.T) {
 				}
 				seedSecrets(t, seed)
 				want := listJSON(t, seed)
-				for round := 0; round < 4; round++ {
+				for round := range 4 {
 					var wg sync.WaitGroup
 					errs := make([]error, 2)
 					for i, id := range []*protect.Identity{ada, dan} {

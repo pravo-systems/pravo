@@ -24,13 +24,11 @@ const (
 	maxSourceFile = 4 << 20
 )
 
-// source answers /api/source for a node: the lines that write it, the lines of
+// sourceFor answers /api/source for a node: the lines that write it, the lines of
 // each instance that fills it in, and everything else that shapes it. It reads
 // files that the evaluation loaded and no other, selected by the address of the
-// node, and masks what a sensitive attribute is given as a literal.
-func (m *model) source(mn *mnode) *Source { return m.sourceFor(mn, m.plan) }
-
-// sourceFor is source with the lines marked that the plan po changes.
+// node, and masks what a sensitive attribute is given as a literal. The lines
+// that the plan po changes are marked.
 func (m *model) sourceFor(mn *mnode, po *planOverlay) *Source {
 	src := &Source{Version: APIVersion, Addr: mn.Addr, Blocks: []SourceBlock{}, Contributions: []Contribution{}}
 	ss := m.spec
@@ -258,7 +256,7 @@ func (r *blockReader) read(role, label string, ref *Ref, markChanged bool) *Sour
 	mod := pf.mod
 	b.Modified = &mod
 	if mod.After(r.ss.loaded) {
-		*r.notes = append(*r.notes, fmt.Sprintf("%s was written after the specification was loaded; the lines may not be the ones that were evaluated.", ref.File))
+		*r.notes = append(*r.notes, ref.File+" was written after the specification was loaded; the lines may not be the ones that were evaluated.")
 	}
 	if stop-start+1 > maxBlockLines {
 		stop = start + maxBlockLines - 1
@@ -355,8 +353,7 @@ func (r *blockReader) mask(pf *parsedFile, field *ast.Field, text string) (strin
 		}
 		spans = append(spans, span{from, to})
 	}
-	var strings_ func(n ast.Node)
-	strings_ = func(n ast.Node) {
+	walkStrings := func(n ast.Node) {
 		ast.Walk(n, func(c ast.Node) bool {
 			switch x := c.(type) {
 			case *ast.BasicLit:
@@ -379,7 +376,7 @@ func (r *blockReader) mask(pf *parsedFile, field *ast.Field, text string) (strin
 				name = labelText(x.Label)
 			}
 			if r.sens[name] || guarded(name) {
-				strings_(x.Value)
+				walkStrings(x.Value)
 				return false
 			}
 		case *ast.BasicLit:

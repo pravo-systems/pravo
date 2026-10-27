@@ -82,6 +82,7 @@ func main() {
 	_ = shutdownTelemetry(context.Background())
 	close(finished)
 	if code != 0 {
+		cancel()
 		os.Exit(code)
 	}
 }
