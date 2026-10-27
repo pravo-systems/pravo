@@ -61,16 +61,28 @@ func plannableBucket(t *testing.T) *sealed {
 	requireSealing(t)
 	ids := isolateIdentities(t)
 	e := newS3Env(t, false)
-	st := e.store(t)
-	attrs := fmt.Sprintf(`{"id":"cfg","password":%q}`, secretA)
-	if err := st.Set(&state.Resource{Addr: "cfg", Mode: "data", Type: "t_data", Name: "cfg", Attributes: []byte(attrs)}, "20260101T000000Z-aaaaaa"); err != nil {
-		t.Fatal(err)
-	}
 	ada, adaLine := person(t, ids, "ada")
 	dan, danLine := person(t, ids, "dan")
 	e.readers(t, adaLine, danLine)
 	if text, code := runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
+	}
+	// ada records the data source in a transaction of her own, as a command would.
+	st, err := state.OpenBackendWith(context.Background(), e.backend(t), state.Options{Identity: ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx := st.Begin("edit", "pravo test")
+	if err := tx.Start(); err != nil {
+		t.Fatal(err)
+	}
+	attrs := fmt.Sprintf(`{"id":"cfg","password":%q}`, secretA)
+	if err := st.Set(&state.Resource{Addr: "cfg", Mode: "data", Type: "t_data", Name: "cfg", Attributes: []byte(attrs)}, tx.ID()); err != nil {
+		t.Fatal(err)
+	}
+	tx.Record("cfg", "create", 0, 1)
+	if err := tx.Finish("applied", "", true); err != nil {
+		t.Fatal(err)
 	}
 	return &sealed{e, ids, ada, dan, adaLine, danLine}
 }
@@ -275,6 +287,16 @@ func TestTheRecordsOfAWriterAreBoundToItsTransactions(t *testing.T) {
 	st = r.store(t)
 	if v = st.VerifyRecords(txns, readers); len(v.Problems) != 1 || v.Problems[0].Addr != "forged" {
 		t.Fatalf("after a reader's write: %+v", v)
+	}
+	// A record that names a transaction that is not there is no better.
+	if err := dst.Set(&state.Resource{Addr: "forged2", Mode: "managed", Type: "local_file", Name: "forged2", Attributes: []byte(`{"id":"y"}`)}, "20260101T000000Z-bbbbbb"); err != nil {
+		t.Fatal(err)
+	}
+	if v = r.store(t).VerifyRecords(txns, readers); len(v.Problems) != 2 {
+		t.Fatalf("after a record that names a missing transaction: %+v", v)
+	}
+	if text, code := runPravo(t, r.dir, "--identity", "ada", "state", "rm", "forged2"); code != 0 {
+		t.Fatalf("state rm forged2: exit %d\n%s", code, text)
 	}
 	text, code = runPravo(t, r.dir, "--identity", "ada", "protect", "status")
 	if code != 7 || !strings.Contains(text, "Untrusted: forged: it names no transaction that wrote it") {
