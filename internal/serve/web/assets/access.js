@@ -280,7 +280,7 @@ export class AccessView {
     d.append(h('summary', { 'data-fk': 'sum:' + s.id },
       h('span', { class: 'ti' }, s.title),
       s.primary ? [h('span', { class: 'sr-only' }, ', '), h('span', { class: 'b ok' }, 'next')] : null,
-      s.who ? [h('span', { class: 'sr-only' }, ', '), h('span', { class: 'who' }, s.who)] : null),
+      s.who ? [h('span', { class: 'sr-only' }, ', '), h('span', { class: 'who' }, 'Done by ' + s.who)] : null),
       h('div', { class: 'ac-cbody' }, h('p', { class: 'ac-why' }, s.why), h('div', { class: 'ac-steps' }, s.steps.map((st, i) => this.step(s, st, i)))));
     return d;
   }

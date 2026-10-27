@@ -71,7 +71,7 @@
    "id": "add-reader",
    "title": "Add a member",
    "why": "The new member makes a key and sends the line it prints (a CI job is a member too, with a key of its own). A current member adds the line, commits it and rewraps.",
-   "who": "the new member, then a current member",
+   "who": "the new member, then any member",
    "kind": "member-add",
    "steps": [
     {
@@ -115,7 +115,7 @@
    "id": "remove-reader:ada",
    "title": "Remove access for ada",
    "why": "This removes you: once it has run you cannot open the state, and another member has to finish it. Use this when ada no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
-   "who": "a current member",
+   "who": "any member",
    "kind": "member-remove",
    "member": "ada",
    "steps": [
@@ -154,7 +154,7 @@
    "id": "remove-reader:dan",
    "title": "Remove access for dan",
    "why": "Use this when dan no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
-   "who": "a current member",
+   "who": "any member",
    "kind": "member-remove",
    "member": "dan",
    "steps": [
@@ -193,7 +193,7 @@
    "id": "enable-roles",
    "title": "Give members roles",
    "why": "Roles are off, so every member may change the state, sign, and remove a policy. A role limits that: a CI job can be a writer, so a leaked CI key cannot change who has access or remove a policy. Keep at least one admin.",
-   "who": "a current member",
+   "who": "any member",
    "steps": [
     {
      "kind": "note",
@@ -225,7 +225,7 @@
    "id": "set-recovery",
    "title": "Set a recovery key",
    "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can still be opened when every member has lost their key. Give each share to a different person, offline. Whoever holds K shares can open the state, so K is a decision about whom to trust together.",
-   "who": "a current member",
+   "who": "any member",
    "steps": [
     {
      "kind": "note",

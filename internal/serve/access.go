@@ -737,15 +737,15 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	}
 	if a.State == "migrating" && a.Migration != nil && a.Migration.Unseal {
 		add(Suggestion{ID: "finish", Title: "Finish unsealing the state", Why: "Unsealing started and stopped before it finished. Running it again finishes the records that are left.",
-			Who: "a member", Steps: []SuggestionStep{protectCmd("unseal")}})
+			Who: "any member", Steps: []SuggestionStep{protectCmd("unseal")}})
 	} else if a.State == "migrating" {
 		add(Suggestion{ID: "finish", Title: "Finish sealing the state", Why: "Sealing started and stopped before it finished. Running it again finishes the records that are left.",
-			Who: "a member", Steps: []SuggestionStep{protectCmd(initCmd)}})
+			Who: "any member", Steps: []SuggestionStep{protectCmd(initCmd)}})
 	}
 	if a.File.Verdict == "expected-sealed" {
 		add(Suggestion{ID: "check-downgrade", Title: "Check why the state is not sealed",
 			Why: "The access list names members, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
-			Who: "a member",
+			Who: "any member",
 			Steps: []SuggestionStep{protectCmd("status"),
 				note("If you did not mean to seal this state, remove the access list and the recovery file. To seal it: pravo protect " + initCmd),
 				protectCmd(initCmd)}})
@@ -753,7 +753,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	if !protected {
 		s := Suggestion{ID: "seal", Title: "Seal the state",
 			Why: "Sealing locks attributes, outputs and stored plans so that only the members on the access list can open them. It needs the store at rest, so announce a short freeze.",
-			Who: "each member, then one of them"}
+			Who: "every member, then one of them"}
 		s.Steps = append(s.Steps, note("On the machine of each member:"), fill("pravo id new --name <name>"))
 		if a.File.Count == 0 {
 			s.Steps = append(s.Steps, note("On the machine of the member who seals, add the line each member sent, one for each, to the access list:"),
@@ -802,7 +802,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 	}
 	if a.State == "sealed" && a.File.Verdict == "differs" {
 		add(Suggestion{ID: "rewrap", Title: "Make the state match the access list",
-			Why: "The list and the state disagree about who has access. Changes to the state are refused until they match.", Who: "a current member",
+			Why: "The list and the state disagree about who has access. Changes to the state are refused until they match.", Who: "any member",
 			Steps: []SuggestionStep{protectCmd("rewrap"), note("If you did not edit the file, something else changed it. Compare with git:"),
 				command("git log -p -- " + engine.ShellWord(file))}})
 	}
@@ -813,7 +813,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			addWhy = "With one member and no recovery key, nobody can open the state again if that member loses their key or its passphrase. A backup member makes a key and sends the line it prints. A current member adds the line, commits it and rewraps."
 		}
 		add(Suggestion{ID: "add-reader", Title: addTitle, Why: addWhy,
-			Who: "the new member, then a current member", Kind: "member-add",
+			Who: "the new member, then any member", Kind: "member-add",
 			Steps: append(append([]SuggestionStep{note("On the machine of the new member:"), fill("pravo id new --name <name>"),
 				note("On the machine of a current member:"),
 				{Kind: "add-line", File: file, Text: "<the line pravo id new printed>", Placeholder: true}},
@@ -855,7 +855,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			}
 			add(Suggestion{ID: "remove-reader:" + r.Name, Title: "Remove access for " + r.Name, Kind: "member-remove", Member: r.Name,
 				Why: why,
-				Who: "a current member", Steps: steps})
+				Who: "any member", Steps: steps})
 			if a.Roles != nil && a.Roles.State != "off" {
 				add(Suggestion{ID: "change-role:" + r.Name, Title: "Change the role of " + r.Name, Kind: "member-role", Member: r.Name,
 					Why: "A role says what a member may do: an admin manages who has access and the roles, a writer can change the state, a reader can look and plan.",
@@ -867,7 +867,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 		if a.Roles != nil && a.Roles.State == "off" {
 			add(Suggestion{ID: "enable-roles", Title: "Give members roles",
 				Why: "Roles are off, so every member may change the state, sign, and remove a policy. A role limits that: a CI job can be a writer, so a leaked CI key cannot change who has access or remove a policy. Keep at least one admin.",
-				Who: "a current member",
+				Who: "any member",
 				Steps: append(append([]SuggestionStep{note("In " + file + ", add role:admin, role:writer or role:reader as the last word of every line, and keep yourself as an admin.")},
 					gitSteps(file, "Give members roles")...), protectCmd("roles"), note("It lists the roles and asks first. It saves them in the state, signed, so editing the list alone changes nothing later."))})
 		}
@@ -882,17 +882,17 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			// A recovery recipient answers the risk that every reader loses their key.
 			add(Suggestion{ID: "set-recovery", Title: "Set a recovery key",
 				Why: "A recovery key is split into shares, any K of which rebuild it, so that the state can still be opened when every member has lost their key. Give each share to a different person, offline. Whoever holds K shares can open the state, so K is a decision about whom to trust together.",
-				Who: "a current member",
+				Who: "any member",
 				Steps: append(append([]SuggestionStep{note("Make the key and the shares. This writes recovery-shares/ and " + recoveryFile + ":"), fill("pravo protect rewrap --recovery <K>/<N>" + where)},
 					gitSteps(recoveryFile, "Set a recovery key")...), note("Do not commit recovery-shares/. Give each file to a different person, offline."))})
 		} else if a.Recovery.Warning != "" {
 			add(Suggestion{ID: "fix-recovery", Title: "Bring the recovery in line",
-				Why: a.Recovery.Warning, Who: "a current member",
+				Why: a.Recovery.Warning, Who: "any member",
 				Steps: []SuggestionStep{protectCmd("rewrap"), note("The recovery file is " + recoveryFile + ". If it was not committed, commit it:")}})
 		}
 		if underOld || (a.Records.Unreadable > 0 && a.You != nil && a.You.State == "reader") {
 			add(Suggestion{ID: "reseal", Title: "Seal every record again",
-				Why: "Records stay under an old group until they are written again.", Who: "a current member",
+				Why: "Records stay under an old group until they are written again.", Who: "any member",
 				Steps: []SuggestionStep{protectCmd("rewrap --all")}})
 		}
 		// A group other than the current one is a data key that a reader who was removed may still hold.
@@ -909,7 +909,7 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 			steps = append(steps, note("Say what would be marked, deleted and dropped, and then do it. gc marks the records that no pointer names and deletes them on a run at least 15 minutes later:"), protectCmd("gc --dry-run"), protectCmd("gc"))
 			add(Suggestion{ID: "prune", Title: "Drop the groups nothing is sealed in",
 				Why: "A member who was removed keeps the data key of the groups they were in. A group that no record, output or stored plan is sealed in is dropped from meta.json, and the key opens nothing that is left. The same command marks the records that no pointer names once they are a day old, and deletes them on a run at least 15 minutes later.",
-				Who: "a current member", Steps: steps})
+				Who: "any member", Steps: steps})
 		}
 		add(Suggestion{ID: "status", Title: "Check the state", Why: "The check hashes every record against its name and prints who can read the state.",
 			Steps: []SuggestionStep{protectCmd("status")}})

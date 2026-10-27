@@ -70,7 +70,7 @@
    "id": "finish",
    "title": "Finish sealing the state",
    "why": "Sealing started and stopped before it finished. Running it again finishes the records that are left.",
-   "who": "a member",
+   "who": "any member",
    "primary": true,
    "steps": [
     {

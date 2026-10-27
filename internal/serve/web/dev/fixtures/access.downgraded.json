@@ -64,7 +64,7 @@
    "id": "check-downgrade",
    "title": "Check why the state is not sealed",
    "why": "The access list names members, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
-   "who": "a member",
+   "who": "any member",
    "primary": true,
    "steps": [
     {
@@ -85,7 +85,7 @@
    "id": "seal",
    "title": "Seal the state",
    "why": "Sealing locks attributes, outputs and stored plans so that only the members on the access list can open them. It needs the store at rest, so announce a short freeze.",
-   "who": "each member, then one of them",
+   "who": "every member, then one of them",
    "steps": [
     {
      "kind": "note",

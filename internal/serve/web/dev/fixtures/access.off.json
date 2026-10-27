@@ -26,7 +26,7 @@
    "id": "seal",
    "title": "Seal the state",
    "why": "Sealing locks attributes, outputs and stored plans so that only the members on the access list can open them. It needs the store at rest, so announce a short freeze.",
-   "who": "each member, then one of them",
+   "who": "every member, then one of them",
    "primary": true,
    "steps": [
     {

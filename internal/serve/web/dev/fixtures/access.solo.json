@@ -59,7 +59,7 @@
    "id": "add-reader",
    "title": "Add a backup member",
    "why": "With one member and no recovery key, nobody can open the state again if that member loses their key or its passphrase. A backup member makes a key and sends the line it prints. A current member adds the line, commits it and rewraps.",
-   "who": "the new member, then a current member",
+   "who": "the new member, then any member",
    "kind": "member-add",
    "steps": [
     {
@@ -103,7 +103,7 @@
    "id": "set-recovery",
    "title": "Set a recovery key",
    "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can still be opened when every member has lost their key. Give each share to a different person, offline. Whoever holds K shares can open the state, so K is a decision about whom to trust together.",
-   "who": "a current member",
+   "who": "any member",
    "steps": [
     {
      "kind": "note",
