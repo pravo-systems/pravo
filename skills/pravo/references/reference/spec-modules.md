@@ -4,6 +4,8 @@
 
 A module is a CUE definition or package that contains resources. Instantiating it is enough. pravo finds the resources inside the instance.
 
+Two resources whose addresses differ only in case, such as `Logs` and `logs`, are an error: a state on a file system that ignores case would keep both in one file.
+
 There is no module block and nothing to wire. A reusable unit is a definition, or a package of definitions. Its resources are written as in a root. The instance sits at a path, and that path is the prefix of the addresses of the resources inside.
 
 | Form | Written as | Resource address |

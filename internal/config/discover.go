@@ -53,10 +53,32 @@ func (r *Root) discover() error {
 			return err
 		}
 	}
+	if err := r.checkCaseCollisions(); err != nil {
+		return err
+	}
 	if err := r.resolveMoves(); err != nil {
 		return err
 	}
 	return r.resolveProviders()
+}
+
+// checkCaseCollisions refuses two resources whose addresses differ only in
+// case. A state on a disk that ignores case (macOS and Windows by default) keeps
+// them in one file.
+func (r *Root) checkCaseCollisions() error {
+	seen := make(map[string]string, len(r.Resources))
+	for _, res := range r.Resources {
+		if res.Builtin {
+			continue
+		}
+		a := res.Address()
+		k := strings.ToLower(a)
+		if prev, ok := seen[k]; ok && prev != a {
+			return fmt.Errorf("%s and %s differ only in case: a state on a file system that ignores case would keep both in one file, so rename one of them", prev, a)
+		}
+		seen[k] = a
+	}
+	return nil
 }
 
 type pendingMove struct {

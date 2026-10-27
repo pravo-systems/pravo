@@ -17,8 +17,10 @@ import (
 	"github.com/pravo-systems/pravo/internal/plog"
 )
 
-// Parallelism bounds how many resources are planned or applied at once.
-const Parallelism = 10
+// Parallelism bounds how many resources are planned or applied at once. The
+// command line sets it from PRAVO_PARALLELISM before a command runs; nothing
+// changes it while one does.
+var Parallelism = 10
 
 type node struct {
 	res        *config.Resource

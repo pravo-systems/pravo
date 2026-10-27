@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/env"
 	"reflect"
 	"strings"
 	"testing"
@@ -196,5 +198,41 @@ func TestStateToolsTakeTags(t *testing.T) {
 	// Without tags the command line is what it was.
 	if got, err := byName["pravo_state_show"].args(map[string]any{"addr": "a"}); err != nil || !reflect.DeepEqual(got, []string{"state", "show", "a"}) {
 		t.Errorf("without tags: %v, %v", got, err)
+	}
+}
+
+// A tool call writes a plan file only below the project directory.
+func TestPlanToolWritesOnlyBelowTheProject(t *testing.T) {
+	var plan mcpTool
+	for _, tool := range mcpTools() {
+		if tool.Name == "pravo_plan" {
+			plan = tool
+		}
+	}
+	for _, out := range []string{"/etc/cron.d/x", "../x.plan", "a/../../x.plan", "-x"} {
+		if _, err := plan.args(map[string]any{"out": out}); err == nil {
+			t.Errorf("out %q accepted", out)
+		}
+	}
+	for _, out := range []string{"x.plan", "plans/x.plan", "a/../x.plan"} {
+		if _, err := plan.args(map[string]any{"out": out}); err != nil {
+			t.Errorf("out %q: %v", out, err)
+		}
+	}
+}
+
+func TestPravoParallelismComesFromTheEnvironment(t *testing.T) {
+	old := engine.Parallelism
+	defer func() { engine.Parallelism = old }()
+	for _, v := range []string{"0", "-1", "x", "257", "2.5"} {
+		if err := applyParallelism(env.New([]string{"PRAVO_PARALLELISM=" + v})); err == nil {
+			t.Errorf("%q accepted", v)
+		}
+	}
+	if err := applyParallelism(env.New(nil)); err != nil || engine.Parallelism != old {
+		t.Errorf("unset: %v, %d", err, engine.Parallelism)
+	}
+	if err := applyParallelism(env.New([]string{"PRAVO_PARALLELISM=32"})); err != nil || engine.Parallelism != 32 {
+		t.Errorf("32: %v, %d", err, engine.Parallelism)
 	}
 }

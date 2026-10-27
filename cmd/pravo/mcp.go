@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -106,6 +107,9 @@ func mcpTools() []mcpTool {
 			args: func(in map[string]any) ([]string, error) {
 				a := append([]string{"plan"}, tagArgs(in)...)
 				if v := strArg(in, "out"); v != "" {
+					if err := insideProject("out", v); err != nil {
+						return nil, err
+					}
 					a = append(a, "-out", v)
 				}
 				if v := strArg(in, "refresh"); v != "" {
@@ -449,6 +453,22 @@ func planRefArg(in map[string]any) (string, error) {
 		return "", fmt.Errorf("tags go with the id of a stored plan; a plan file carries its own")
 	}
 	return ref, nil
+}
+
+// insideProject refuses a path that leaves the project directory: a tool call
+// may name where a file is written only below the root the server runs in. A
+// symbolic link below the root is the person's own doing and is not followed up.
+func insideProject(name, v string) error {
+	if err := positional(name, v); err != nil {
+		return err
+	}
+	if filepath.IsAbs(v) || filepath.VolumeName(v) != "" {
+		return fmt.Errorf("%s %q must be a path below the project directory, not an absolute one", name, v)
+	}
+	if c := filepath.Clean(v); c == ".." || strings.HasPrefix(c, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("%s %q leaves the project directory", name, v)
+	}
+	return nil
 }
 
 func positional(name string, values ...string) error {

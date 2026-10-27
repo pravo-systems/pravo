@@ -2,6 +2,9 @@ package registry
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -106,5 +109,33 @@ func TestBodyLine(t *testing.T) {
 		if got := bodyLine([]byte(tc.body), tc.status); got != tc.want {
 			t.Errorf("%s: bodyLine = %q, want %q", name, got, tc.want)
 		}
+	}
+}
+
+// An archive is installed only when the registry names its checksum: an answer
+// without one leaves nothing to check the download against.
+func TestArchiveNeedsAChecksum(t *testing.T) {
+	var shasum string
+	var base string
+	cl, src := registryServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".zip") {
+			w.Write([]byte("not really a zip"))
+			return
+		}
+		fmt.Fprintf(w, `{"filename":"p.zip","download_url":%q,"shasum":%q}`, base+"/v1/providers/p.zip", shasum)
+	})
+	base = "https://" + src.Host
+	_, _, err := cl.Archive(context.Background(), src, "1.0.0", CurrentPlatform(), t.TempDir(), nil)
+	if err == nil || !strings.Contains(err.Error(), "no checksum") {
+		t.Fatalf("no checksum: err = %v", err)
+	}
+	shasum = "00"
+	if _, _, err := cl.Archive(context.Background(), src, "1.0.0", CurrentPlatform(), t.TempDir(), nil); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatalf("wrong checksum: err = %v", err)
+	}
+	sum := sha256.Sum256([]byte("not really a zip"))
+	shasum = hex.EncodeToString(sum[:])
+	if _, _, err := cl.Archive(context.Background(), src, "1.0.0", CurrentPlatform(), t.TempDir(), nil); err != nil {
+		t.Fatalf("right checksum: %v", err)
 	}
 }

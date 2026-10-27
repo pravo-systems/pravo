@@ -43,7 +43,7 @@ pravo has no workspaces, no `-target` and no provisioners. The same holds for th
 | `tofu graph` | `pravo state graph --dot`. |
 | `tofu test`, `.tftest.hcl` | `pravo validate`, `pravo eval -c`, and a plan policy on a saved plan in CI. |
 | `-var`, `-var-file`, `*.tfvars` | `-t name=value` for a string, a number or a boolean. A list or a map is a field in a `.cue` file. |
-| `-parallelism`, `-lock`, `-lock-timeout`, `-input` | Locks are per resource and always on. A saved plan asks nothing. |
+| `-parallelism`, `-lock`, `-lock-timeout`, `-input` | Locks are per resource and always on. A saved plan asks nothing. For `-parallelism`, set `PRAVO_PARALLELISM`. |
 | `removed` block | `pravo state rm addr`. |
 | `-generate-config-out` | Write the resource, then `pravo import addr id` or `$import`. |
 | `required_version` | Pin `pravo version` in the pipeline image. |

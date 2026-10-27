@@ -810,3 +810,21 @@ p: #Policy & {rule: {
 		t.Errorf("rule text = %q", got)
 	}
 }
+
+// Two resources whose addresses differ only in case are refused: a state on a
+// file system that ignores case would keep them in one file.
+func TestAddressesDifferingOnlyInCaseAreRefused(t *testing.T) {
+	_, err := loadSpec(t, `
+Logs: $local.#Resource.local_file & {filename: "a"}
+logs: $local.#Resource.local_file & {filename: "b"}
+`)
+	if err == nil || !strings.Contains(err.Error(), "differ only in case") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := loadSpec(t, `
+Logs:  $local.#Resource.local_file & {filename: "a"}
+Other: $local.#Resource.local_file & {filename: "b"}
+`); err != nil {
+		t.Fatal(err)
+	}
+}

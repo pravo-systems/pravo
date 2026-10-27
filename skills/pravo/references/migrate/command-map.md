@@ -78,7 +78,7 @@ These commands have no counterpart in OpenTofu:
 | `-no-color` | `--no-color` | |
 | `-input=false` | None | `pravo apply f` asks nothing. |
 | `-lock=false`, `-lock-timeout` | None | Locks are per resource and always on. |
-| `-parallelism=n` | None | |
+| `-parallelism=n` | `PRAVO_PARALLELISM=n` | An environment variable, not a flag. |
 | `-compact-warnings` | None | |
 | `-backend-config`, `-reconfigure`, `-migrate-state` | None | `$settings: state:` names the backend. `pravo state push` moves a graph. |
 | `-upgrade` | `--upgrade` | On `init`. |

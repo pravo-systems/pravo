@@ -228,3 +228,26 @@ func TestHTTPProbe(t *testing.T) {
 		t.Fatalf("Probe of a server that refuses us: %v, want an error that is not a verdict", err)
 	}
 }
+
+// A server that accepts a request and never answers does not hold a command for
+// ever: each attempt is given up after the request timeout, and the call fails.
+func TestHTTPBackendGivesUpOnAServerThatNeverAnswers(t *testing.T) {
+	old, oldBase := httpRequestTimeout, httpBackoffBase
+	httpRequestTimeout, httpBackoffBase = 50*time.Millisecond, time.Millisecond
+	defer func() { httpRequestTimeout, httpBackoffBase = old, oldBase }()
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-release }))
+	defer srv.Close()
+	defer close(release)
+	b, err := NewHTTPBackend(HTTPConfig{URL: srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	began := time.Now()
+	if _, err := b.Get(context.Background(), "a"); err == nil {
+		t.Fatal("a server that never answers gave an answer")
+	}
+	if d := time.Since(began); d > 10*time.Second {
+		t.Errorf("took %s", d)
+	}
+}
