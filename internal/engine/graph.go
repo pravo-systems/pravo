@@ -242,7 +242,7 @@ func (e *Engine) outputReadsLocked() map[string][]string {
 // CheckGraph builds the dependency graph of the root and reports a cycle in
 // it. It needs neither state nor providers, so "pravo validate" can use it.
 func CheckGraph(root *config.Root, value cue.Value) error {
-	e := &Engine{Root: root, Value: value, current: value, deps: map[string][]string{}, byPath: map[string]*config.Resource{}}
+	e := &Engine{Root: root, Value: value, cueState: cueState{current: value}, deps: map[string][]string{}, byPath: map[string]*config.Resource{}}
 	for _, r := range root.Resources {
 		e.byPath[r.Path.String()] = r
 	}

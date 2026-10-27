@@ -86,7 +86,11 @@ type Options struct {
 	Reserve time.Duration
 }
 
-// Engine runs plans and applies.
+// Engine runs plans and applies. Its state is grouped by what uses it: the
+// evaluation of the specification (cueState), the dependency graph (graphState),
+// what a plan has read (readState), the apply that runs (applyState) and the
+// hooks that tests set (testHooks). The groups are embedded, so a field is
+// reached as e.name.
 type Engine struct {
 	Root      *config.Root
 	State     *state.Store
@@ -95,31 +99,32 @@ type Engine struct {
 	Value     cue.Value
 	Opts      Options
 
-	// planID and planDigest name the plan an apply runs from (see SetPlan).
-	planID, planDigest string
-
-	// planFile is the whole plan file an apply runs from, when it runs from one.
-	planFile *PlanFile
+	cueState
+	graphState
+	readState
+	applyState
+	testHooks
 
 	mu      sync.Mutex
 	changes map[string]*Change
 	deps    map[string][]string
 	byPath  map[string]*config.Resource
-	// reads holds what this plan read from the providers, by address, so that a
-	// node is read once: the next walk of the graph and the apply that follows
-	// use the answer.
-	reads map[string]*readResult
-	// dataReads holds what this plan read from the data sources, by address, with
-	// the hash of the configuration that was read.
-	dataReads map[string]dataRead
-	// imported holds what each import made by this plan named, by address.
-	imported map[string]importMark
-	// touchedAddrs are the records that the apply of the declarations wrote (see declared.go).
-	touchedAddrs map[string]bool
-	// ages holds the refresh ages that were parsed, by their text.
-	ages map[string]parsedAge
 	// now is the clock that records are aged against; nil is the wall clock.
-	now func() time.Time
+	now   func() time.Time
+	stats Stats
+	// open lists the ephemeral resources opened during the current run. keepOpen
+	// makes a run leave them open for its caller to close.
+	open     []*openEphemeral
+	keepOpen bool
+	// traceID is the OpenTelemetry trace of the current run, if any.
+	traceID string
+	// runCtx is the context a plan or an apply was started with, so that what
+	// follows it (the policy, the saved plan) is part of the same trace.
+	runCtx context.Context
+}
+
+// cueState is the evaluation of the specification.
+type cueState struct {
 	// belowIdx lists, for every path that holds tasks without being one, the
 	// tasks below it; it is built on first use.
 	belowOnce sync.Once
@@ -141,6 +146,10 @@ type Engine struct {
 	iterated map[string]bool
 	// settles counts the times pending fills were unified into current.
 	settles int
+}
+
+// graphState is the dependency graph.
+type graphState struct {
 	// providerDeps lists, per provider key, the tasks its configuration
 	// references.
 	providerDeps map[string][]string
@@ -156,9 +165,39 @@ type Engine struct {
 	// outputReadsLocked. graphBuilds counts the times the graph was worked out.
 	outputReads map[string][]string
 	graphBuilds int
+}
 
-	txn   *state.Txn
-	stats Stats
+// readState is what a plan found out about the records and the providers.
+type readState struct {
+	// reads holds what this plan read from the providers, by address, so that a
+	// node is read once: the next walk of the graph and the apply that follows
+	// use the answer.
+	reads map[string]*readResult
+	// dataReads holds what this plan read from the data sources, by address, with
+	// the hash of the configuration that was read.
+	dataReads map[string]dataRead
+	// imported holds what each import made by this plan named, by address.
+	imported map[string]importMark
+	// touchedAddrs are the records that the apply of the declarations wrote (see declared.go).
+	touchedAddrs map[string]bool
+	// ages holds the refresh ages that were parsed, by their text.
+	ages map[string]parsedAge
+	// suspects holds the stale locks the plan found, by address: the node was
+	// locked by an apply that stopped. targets holds, by provider key, the digest
+	// of the configuration of the provider instance for the walk that is running.
+	suspects map[string]state.Lock
+	targets  map[string]*target
+}
+
+// applyState is the apply that runs, or the plan it runs from.
+type applyState struct {
+	// planID and planDigest name the plan an apply runs from (see SetPlan).
+	planID, planDigest string
+
+	// planFile is the whole plan file an apply runs from, when it runs from one.
+	planFile *PlanFile
+
+	txn *state.Txn
 	// saved holds the changes of a plan being applied, by address; only lists the
 	// resources to apply, the rest are taken from state. approved reports that
 	// the plan was made by this engine and not read from a file.
@@ -170,23 +209,6 @@ type Engine struct {
 	scope *applyScope
 	// held is the set of locks the apply holds on the nodes it writes.
 	held *heldLocks
-	// onTask, when set, is told the address of each task a walk starts, onConvert
-	// the address of each configuration that is converted for its provider and
-	// onFill the address of each task whose values are queued for the
-	// configuration; adjustScope, when set, may change the scope before the apply
-	// walks it. Tests set them.
-	onTask      func(addr string, apply bool)
-	onConvert   func(addr string, apply bool)
-	onFill      func(addr string)
-	adjustScope func(*applyScope)
-	// readOnce, when set, stands in for the read of the inputs of the reached
-	// nodes that readInputs makes in each round. Tests set it.
-	readOnce func(ctx context.Context) ([]string, error)
-	// suspects holds the stale locks the plan found, by address: the node was
-	// locked by an apply that stopped. targets holds, by provider key, the digest
-	// of the configuration of the provider instance for the walk that is running.
-	suspects map[string]state.Lock
-	targets  map[string]*target
 	// flying holds the nodes whose provider is changing the object right now, by
 	// address, with what it is doing; unsettled holds what is said of the ones
 	// whose result is not known; interrupt is the handle of the signals of the
@@ -197,15 +219,22 @@ type Engine struct {
 	// completed holds the nodes whose change the current apply finished and
 	// recorded, by address.
 	completed map[string]bool
-	// open lists the ephemeral resources opened during the current run. keepOpen
-	// makes a run leave them open for its caller to close.
-	open     []*openEphemeral
-	keepOpen bool
-	// traceID is the OpenTelemetry trace of the current run, if any.
-	traceID string
-	// runCtx is the context a plan or an apply was started with, so that what
-	// follows it (the policy, the saved plan) is part of the same trace.
-	runCtx context.Context
+}
+
+// testHooks are set by tests only.
+type testHooks struct {
+	// onTask, when set, is told the address of each task a walk starts, onConvert
+	// the address of each configuration that is converted for its provider and
+	// onFill the address of each task whose values are queued for the
+	// configuration; adjustScope, when set, may change the scope before the apply
+	// walks it.
+	onTask      func(addr string, apply bool)
+	onConvert   func(addr string, apply bool)
+	onFill      func(addr string)
+	adjustScope func(*applyScope)
+	// readOnce, when set, stands in for the read of the inputs of the reached
+	// nodes that readInputs makes in each round.
+	readOnce func(ctx context.Context) ([]string, error)
 }
 
 // New creates an engine. value must already have provider schemas unified in.
@@ -218,7 +247,7 @@ func New(root *config.Root, st *state.Store, providers *Providers, schemas map[s
 	}
 	e := &Engine{Root: root, State: st, Providers: providers, Schemas: schemas, Value: value, Opts: opts,
 		changes: map[string]*Change{}, deps: map[string][]string{}, byPath: map[string]*config.Resource{},
-		current: value}
+		cueState: cueState{current: value}}
 	for _, r := range root.Resources {
 		e.byPath[r.Path.String()] = r
 	}

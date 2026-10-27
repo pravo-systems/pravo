@@ -336,8 +336,8 @@ func TestScopeOfAnApply(t *testing.T) {
 		"deep": {"far"},
 		"out":  {"far"},
 	}
-	e := &Engine{Root: &config.Root{}, deps: deps, byPath: map[string]*config.Resource{}, graph: map[string]*node{},
-		outputDeps: map[string][]string{"o": {"out"}, "q": {"env"}}}
+	e := &Engine{Root: &config.Root{}, deps: deps, byPath: map[string]*config.Resource{}, graphState: graphState{graph: map[string]*node{},
+		outputDeps: map[string][]string{"o": {"out"}, "q": {"env"}}}}
 	for addr, m := range mode {
 		e.byPath[addr] = &config.Resource{Mode: m, Path: cue.ParsePath(addr)}
 	}
@@ -957,7 +957,7 @@ func TestApplyMayDoLessThanThePlanSaid(t *testing.T) {
 			t.Run(fmt.Sprintf("%s, approved %v", c.name, approved), func(t *testing.T) {
 				// The plan saw "x" as the result of the change, with an id to come.
 				saved := &Change{Addr: "a", Action: c.saved, Planned: unknownID("x"), PlannedCreate: unknownID("x")}
-				e := &Engine{approved: approved, saved: map[string]*Change{"a": saved}}
+				e := &Engine{applyState: applyState{approved: approved, saved: map[string]*Change{"a": saved}}}
 				err := e.checkSaved(&Change{Addr: "a", Action: c.actual, Prior: val(c.priorN), Planned: val(c.plannedN), PlannedCreate: val(c.plannedN)})
 				if (err == nil) != c.ok {
 					t.Fatalf("error = %v, want ok %v", err, c.ok)
@@ -969,7 +969,7 @@ func TestApplyMayDoLessThanThePlanSaid(t *testing.T) {
 			})
 		}
 	}
-	e := &Engine{saved: map[string]*Change{"a": {Addr: "a", Action: ActionUpdate, Planned: val("x")}}}
+	e := &Engine{applyState: applyState{saved: map[string]*Change{"a": {Addr: "a", Action: ActionUpdate, Planned: val("x")}}}}
 	if err := e.checkSaved(&Change{Addr: "a", Action: ActionUpdate, Planned: val("y")}); err == nil || !strings.Contains(err.Error(), "different plan than the saved one") {
 		t.Errorf("a known value that changed: %v", err)
 	}
@@ -977,7 +977,7 @@ func TestApplyMayDoLessThanThePlanSaid(t *testing.T) {
 		t.Errorf("a node that is not in the plan: %v", err)
 	}
 	// A saved plan that would have changed a node says so when there is nothing to do and the node is not what it would make.
-	e = &Engine{saved: map[string]*Change{"a": {Addr: "a", Action: ActionReplace, PlannedCreate: unknownID("x")}}}
+	e = &Engine{applyState: applyState{saved: map[string]*Change{"a": {Addr: "a", Action: ActionReplace, PlannedCreate: unknownID("x")}}}}
 	if err := e.checkSaved(&Change{Addr: "a", Action: ActionNoop, Prior: val("w"), Planned: val("w")}); err == nil ||
 		!strings.Contains(err.Error(), "the saved plan would replace but the provider now plans to no-op") {
 		t.Errorf("a replacement that finds nothing to do: %v", err)
