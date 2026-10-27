@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/pravo-systems/pravo/pravo"
-
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/config"
@@ -15,6 +13,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // maxShown is how many objects of one kind a listing prints before it says how

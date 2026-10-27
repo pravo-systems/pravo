@@ -9,13 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pravo-systems/pravo/pravo"
-
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // opportunisticGC is the most plans that "plan --store" removes on its way.

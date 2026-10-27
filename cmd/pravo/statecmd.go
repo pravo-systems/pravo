@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pravo-systems/pravo/pravo"
-
 	"cuelang.org/go/cue"
 	"github.com/spf13/cobra"
 
@@ -17,6 +15,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/tfstate"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 func stateCmd() *cobra.Command {

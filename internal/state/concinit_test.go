@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
-
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
 )

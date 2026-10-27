@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
