@@ -285,10 +285,9 @@ export function firstView(model, clusters, o = {}) {
   for (const m of model.namespaces.values()) if (!m.isRoot) collapsed.add(m.path);
   for (const p of must) { const m = model.namespaces.get(p); if (m) for (const c of chain(m)) collapsed.delete(c.path); }
 
-  let trials = 0, lastK = 0, lastItems = 0;
+  let trials = 0, lastK = 0;
   const measure = () => {
     const count = countItems(model, collapsed, clusters).total;
-    lastItems = count;
     if (count > budget) return false;
     trials++;
     const vis = buildItems(model, collapsed, clusters);

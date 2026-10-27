@@ -26,7 +26,7 @@ code, kbd, pre, .mono { font-family: var(--font-mono); }
 ::selection { background: var(--accent); color: var(--on-accent); }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--key); outline-offset: 2px; }
-.sr-only { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .grow { flex: 1 1 auto; }
 .dim { color: var(--text-3); }
 .pad { padding: .8rem 1rem; margin: 0; }
@@ -396,7 +396,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .only-narrow, .only-medium { display: inline-grid; }
   .app, .app[data-view="access"], .app[data-view="plans"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .stage { grid-row: 1; grid-column: 1; }
-  .drawer-scrim { display: block; position: fixed; z-index: 55; inset: 52px 0 30px 0; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(2px); animation: ui-fade .2s ease; }
+  .drawer-scrim { display: block; position: fixed; z-index: 55; inset: 52px 0 30px; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(2px); animation: ui-fade .2s ease; }
   .brand small { display: none; }
   .sec-tab { padding-inline: .8rem; }
 }

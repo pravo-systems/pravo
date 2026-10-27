@@ -30,7 +30,7 @@
     if (window.pravoTimeline) return cb(window.pravoTimeline);
     if (window.pravoUI) return window.pravoUI.timeline(cb);
     var s = d.createElement("script");
-    s.src = here ? here.replace(/[^\/]*$/, "timeline.js") : "timeline.js";
+    s.src = here ? here.replace(/[^/]*$/, "timeline.js") : "timeline.js";
     s.onload = function () { cb(window.pravoTimeline); };
     d.head.appendChild(s);
   }
@@ -40,7 +40,7 @@
     if (mounted.indexOf(el) >= 0) return;
     var init = registry[el.getAttribute("data-widget")];
     if (!init) return;
-    var js = el.querySelector('script[type="application/json"]'), data = null;
+    var js = el.querySelector('script[type="application/json"]'), data;
     try { data = js ? JSON.parse(js.textContent) : null; } catch (e) { return; }
     mounted.push(el);
     var keep = js;

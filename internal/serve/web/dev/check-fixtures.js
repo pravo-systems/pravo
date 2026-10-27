@@ -33,7 +33,7 @@ function parseBody(src, open) {
     const [, goName, type, tag] = m;
     const [name, ...opts] = tag.split(',');
     if (name === '-') continue;
-    let t = type.trim();
+    const t = type.trim();
     let anon = null;
     if (t.startsWith('struct')) anon = parseBody(t, t.indexOf('{')).fields;
     fields.push({ goName, name, type: t, anon, omitempty: opts.includes('omitempty') });

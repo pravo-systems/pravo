@@ -22,8 +22,7 @@
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  column-gap: .7rem;
-  row-gap: .12rem;
+  gap: .12rem .7rem;
   align-items: baseline;
   min-height: 2.9rem;
   padding: .6rem 1rem .6rem .85rem;

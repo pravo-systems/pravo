@@ -47,15 +47,13 @@ function makeRun(opts) {
   const jit = (v, spread = 0.35) => v * (1 + (r() - 0.5) * 2 * spread);
   const cmd = { apply: 'pravo apply', plan: 'pravo plan', drift: 'pravo drift', failed: 'pravo apply' }[kind];
   const root = span(cmd, null, 0, 0, {}, {});
-  const events = [];
-  let t = 1800; // loading the specification
   const ev = (parent, name, at, attrs) => { (parent.events = parent.events || []).push({ name, at_us: Math.round(at), ...(attrs ? { attrs } : {}) }); };
   const STATE = (op, key, bytes) => ({ 'pravo.state.op': op, 'pravo.state.key': key, 'pravo.state.backend': 'local', ...(bytes != null ? { 'pravo.state.bytes': bytes } : {}) });
   // st is one request to the state, in a span of its own
   const st = (parent, op, key, at, d, bytes, extra = {}) => span('state ' + op + ' ' + key, parent, at, d, { ...STATE(op, key, bytes), ...extra });
   const load = span('setup load specification', root, 0, 8200, {});
   for (const [n, o, d] of [['load package', 0, 2400], ['evaluate', 2400, 4300], ['validate', 6700, 900], ['extract resources', 7600, 600]]) span('config ' + n, load, 1800 + o - 1800, d, {});
-  t = 8200;
+  let t = 8200; // the specification is loaded
   ev(root, 'loaded', t, { specification: 'modules/api/main.cue' });
   span('setup read lock file', root, t, 300, {});
   t += 300;
@@ -157,9 +155,9 @@ function makeRun(opts) {
       st(ro, 'replace-if', 'outputs.json', after + 400, 320, 1388, { 'pravo.state.applied': true });
       after += 2600;
     } else {
-      const fr = span('phase frontier', eng, after, 900, {});
+      span('phase frontier', eng, after, 900, {});
       after += 900;
-      const rs2 = span('phase reservations', eng, after, 300, {});
+      span('phase reservations', eng, after, 300, {});
       after += 300;
     }
     const ft = span('phase finish transaction', eng, after, 1500, {});

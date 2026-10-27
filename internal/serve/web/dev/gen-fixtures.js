@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { T0, MIN, H, D, iso, prune, Builder, planOf } = require('./gen-lib');
+const { MIN, H, D, iso, prune, Builder, planOf } = require('./gen-lib');
 
 const out = (name, v) => fs.writeFileSync(path.join(__dirname, 'fixtures', name), JSON.stringify(v, null, 1) + '\n');
 const src = (file, line, end) => ({ file, line, col: 2, end_line: end });
@@ -14,7 +14,6 @@ const PROJECT_DIR = '/srv/infra/estate';
 const AWS = { local: 'aws', source: 'registry.opentofu.org/hashicorp/aws', version: '5.61.0' };
 const RANDOM = { local: 'random', source: 'registry.opentofu.org/hashicorp/random', version: '3.6.2' };
 const LOCAL = { local: 'local', source: 'registry.opentofu.org/hashicorp/local', version: '2.5.1' };
-const NULLP = { local: 'null', source: 'registry.opentofu.org/hashicorp/null', version: '3.2.2' };
 
 // ---------------------------------------------------------------------------------------------------------
 // platform: about 45 nodes in three top-level namespaces with nested namespaces, a plan, drift, a gone node, a
@@ -484,7 +483,7 @@ function detailDBPassword(b, g) {
 
 const L = (no, text, mark, dim) => ({ no, text, mark, dim });
 
-function sourceDB(g) {
+function sourceDB() {
   const def = [
     L(17, '\t// db is the primary store of the service. Its size follows the size field.', undefined, true),
     L(18, '\tsize: string | *"t3.medium"', undefined, true),
@@ -533,7 +532,7 @@ function sourceDB(g) {
   });
 }
 
-function sourceURL(g) {
+function sourceURL() {
   return prune({
     version: 1,
     addr: 'url',
@@ -542,7 +541,7 @@ function sourceURL(g) {
         L(56, '', undefined, true),
         L(57, '// The address that clients use.', undefined, true),
         L(58, 'url: pravo.#Output & {', 'focus'),
-        L(59, '\tvalue:       "https://\(edge.dns.name)"', 'focus'),
+        L(59, '\tvalue:       "https://(edge.dns.name)"', 'focus'),
         L(60, '\tdescription: "Public address of the service"', 'focus'),
         L(61, '}', 'focus'),
         L(62, '', undefined, true),
@@ -556,7 +555,7 @@ function sourceURL(g) {
   });
 }
 
-function sourcePassword(g) {
+function sourcePassword() {
   const def = [
     L(8, '#Parameter: {', undefined, true),
     L(9, '\tname:  string', undefined, true),
@@ -783,12 +782,12 @@ out('graph.platform.json', P.g);
 out('detail.db.json', detailDB(P.b, P.g));
 out('detail.password.json', detailPassword(P.b, P.g));
 out('detail.drifted.json', detailDrifted(P.b, P.g));
-out('source.db.json', sourceDB(P.g));
-out('source.password.json', sourcePassword(P.g));
+out('source.db.json', sourceDB());
+out('source.password.json', sourcePassword());
 out('detail.output.json', detailURL(P.b, P.g));
 out('detail.outputmap.json', detailSummary(P.b, P.g));
 out('detail.outputsecret.json', detailDBPassword(P.b, P.g));
-out('source.output.json', sourceURL(P.g));
+out('source.output.json', sourceURL());
 out('plans.platform.json', P.stored.list);
 for (const [id, overlay] of Object.entries(P.stored.overlays)) out(`plan.${id.replace(/^plan-/, '')}.json`, overlay);
 const F = fleet();

@@ -34,7 +34,7 @@ const chrome = findChrome();
 if (!chrome) { console.log('skipped: no Chrome (set CHROME)'); process.exit(0); }
 
 let failed = 0;
-let minRing = { light: 99, dark: 99 };
+const minRing = { light: 99, dark: 99 };
 const check = (ok, msg) => { if (!ok) { failed++; console.log('FAIL', msg); } return ok; };
 
 const srv = await serve();
@@ -50,7 +50,6 @@ async function open(width) {
   return b;
 }
 
-const label = (st, map) => (map[st] || {}).label;
 const VERDICT = { match: 'matches the store', differs: 'differs from the store', missing: 'no file', invalid: 'does not load', 'expected-sealed': 'state not sealed' };
 const YOU = { reader: 'reader', 'not-reader': 'not a reader', 'no-identity': 'no identity', locked: 'identity locked' };
 

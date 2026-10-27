@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildModel } from '../assets/model.js';
+import { buildModel, FILTERS, isEnv } from '../assets/model.js';
 import { parseQuery, compileQuery, fieldHits, fieldSpecs, fieldMatcher, suggest, addTerm, removeTerm, removeValues, entityOf, LEGACY_FILTERS } from '../assets/query.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -65,7 +65,6 @@ const all = suggest(model, 'type:', 5).items.reduce((a, i) => a + i.count, 0);
 check(ctx > 0 && ctx < all, `the counts of type: follow ns:api (${ctx} of ${all})`);
 
 // the old filter= of a link is a term: each one matches what the filter of its name matched
-import { FILTERS, isEnv } from '../assets/model.js';
 for (const [key, f] of Object.entries(FILTERS)) {
   const { col, value } = LEGACY_FILTERS[key];
   // the resources of the old filter held the environment variables too, which are an entity of their own now

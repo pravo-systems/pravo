@@ -477,7 +477,7 @@ html:not(.js) .metro::after { transform: scaleX(1); }
 
 @media (max-width: 59.99rem) {
   .metro { grid-auto-flow: row; grid-auto-columns: auto; margin-left: .3rem; }
-  .metro::before, .metro::after { left: 7px; right: auto; top: 0; bottom: 0; width: 2px; height: auto; }
+  .metro::before, .metro::after { inset: 0 auto 0 7px; width: 2px; height: auto; }
   .metro::after { transform: scaleY(0); transform-origin: 50% 0; }
   .metro.is-in::after, html:not(.js) .metro::after { transform: scaleY(1); }
   

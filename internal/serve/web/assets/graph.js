@@ -361,7 +361,6 @@ export class GraphView {
     // edges
     this.adj = new Map();
     const edgeSeen = new Set();
-    let calm = 0;
     // the counts of the merged edges, each on its own wire and none on another
     const counts = new Map();
     for (const e of vis.edges) if (e.n > 1 && lay.routes.has(e.key)) counts.set(e.key, e.n);
@@ -391,7 +390,6 @@ export class GraphView {
       r.bto = badgeAt.get(e.key) || null;
       r.bfrom = r.bat || r.bto;
       if (!animate) { r.pts = clonePts(pts); this.placeEdge(r); } else { moves.edges.push(r); this.placeEdge(r, 0); }
-      calm++;
     }
     // many edges say less each: they are drawn lighter as they grow in number
     this.svg.style.setProperty('--ed', clamp(1.2 - edgeSeen.size / 110, 0.5, 1).toFixed(2));
@@ -702,7 +700,7 @@ export class GraphView {
     const pbw = (bare) => counts.reduce((w, n) => w + (bare ? 14 : 17 + String(n).length * 6.4), 0) + (counts.length ? 6 : 0);
     // the title stands whole beside the plan counts: at 16 px, else at 14.5, else the counts give up their
     // numbers (the cells and the card of a hover still say them) and the title tries both sizes again
-    let bare = false, size = 16;
+    let bare = false, size;
     const fits = (z, b) => title.length * z * MONO <= W - 38 - 14 - pbw(b);
     if (fits(16, false)) size = 16;
     else if (fits(14.5, false)) size = 14.5;

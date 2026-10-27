@@ -296,10 +296,7 @@
 /* ---------- glossary term and popover ---------- */
 .term-link {
   color: inherit;
-  text-decoration-line: underline;
-  text-decoration-style: dotted;
-  text-decoration-thickness: 2px;
-  text-decoration-color: var(--accent);
+  text-decoration: underline dotted var(--accent) 2px;
   text-underline-offset: .24em;
   cursor: help;
 }

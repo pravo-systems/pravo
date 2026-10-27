@@ -75,9 +75,8 @@ const MARK_LABEL = { changed: 'changed', sensitive: 'sensitive' };
 export function codeWindow(b, opts = {}) {
   const lines = dedent(b.lines || []);
   const toks = opts.json ? jsonTokens(lines.map((l) => l.text)) : tokenize(lines.map((l) => l.text));
-  const marks = new Set(lines.map((l) => l.mark).filter(Boolean));
   const focused = lines.some((l) => l.mark);
-  const first = lines.length ? lines[0].no : b.start_line, last = lines.length ? lines[lines.length - 1].no : b.end_line;
+  const first = lines.length ? lines[0].no : b.start_line;
   const focusLines = lines.filter((l) => l.mark === 'focus');
   // the lines to name in "open in editor": the first line of the node itself, else the block's first
   const at = focusLines.length ? focusLines[0].no : b.start_line || first;

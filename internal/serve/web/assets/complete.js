@@ -124,7 +124,9 @@ export function complete(fields, text, offset, force = false) {
   let path = here.path;
   let policyBody = here.policy;
   for (const l of labels) {
-    if (policyBody && path === null && l === 'rule') { path = []; policyBody = false; } else if (path !== null) path = path.concat(l); policyBody = false;
+    if (policyBody && path === null && l === 'rule') path = [];
+    else if (path !== null) path = path.concat(l);
+    policyBody = false;
   }
   const typed = labels.length;
 

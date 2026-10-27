@@ -283,7 +283,7 @@
   .mig-steps { grid-template-columns: minmax(0, 1fr); }
   .mig-step { padding: 0 0 1.5rem; }
   .mig-step:last-child { padding-bottom: 0; }
-  .mig-step > a { display: grid; grid-template-columns: 26px minmax(0, 1fr); column-gap: .95rem; row-gap: .15rem; align-items: start; }
+  .mig-step > a { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: .15rem .95rem; align-items: start; }
   .mig-node { grid-column: 1; grid-row: 1 / span 2; margin: 0; }
   .mig-n, .mig-t, .mig-d, .mig-tag { grid-column: 2; }
   .mig-tag { justify-self: start; margin-top: .4rem; }
