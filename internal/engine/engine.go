@@ -345,9 +345,10 @@ type Options struct {
 	// Readers are the readers of the readers file, against which the signatures of the
 	// policy versions are checked.
 	Readers []protect.Reader
-	// FormerKeys are signing keys that left, and StrictKeys refuses a transaction signed by
-	// a key that is in neither list, once the roles are pinned in the state. See state.RecordRules.
-	FormerKeys []protect.FormerKey
+	// Vouched are the transactions an admin vouched for, and StrictKeys refuses a transaction
+	// signed by a key that is not in the roles and was not vouched for, once the roles are
+	// pinned in the state. See state.RecordRules.
+	Vouched    map[string]protect.Vouch
 	StrictKeys bool
 	// Judged is called when an apply judges its plan, before the verdict is known.
 	Judged   func()
@@ -2762,7 +2763,7 @@ func (e *Engine) checkBound(addrs []string) error {
 	if !protect.RolesOn(e.Opts.Readers) || e.State.Sealer() == nil || e.State.Locked() {
 		return nil
 	}
-	v := e.State.CheckRecordsWith(state.RecordRules{Readers: e.Opts.Readers, Former: e.Opts.FormerKeys, Strict: e.Opts.StrictKeys}, addrs...)
+	v := e.State.CheckRecordsWith(state.RecordRules{Readers: e.Opts.Readers, Vouched: e.Opts.Vouched, Strict: e.Opts.StrictKeys}, addrs...)
 	if len(v.Problems) == 0 {
 		return nil
 	}

@@ -1,6 +1,7 @@
 package protect
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -73,9 +74,10 @@ func TestNextRolesKeepsAKeyThatLeftAsFormer(t *testing.T) {
 	if len(former) != 1 || former[0].Name != "dan" || former[0].Key != SSHFingerprint(dan.Sign) {
 		t.Fatalf("former = %+v", former)
 	}
-	text := FormatRolesSet(active, former)
-	rs, fs, err := ParseRolesSet(text)
-	if err != nil || len(rs) != 2 || len(fs) != 1 || FormatRolesSet(rs, fs) != text {
+	vouch := []Vouch{{Key: former[0].Key, Txn: "20261027T084112Z-e8d40e", Digest: strings.Repeat("ab", 32)}}
+	text := FormatRolesSet(active, former, vouch)
+	rs, fs, vs, err := ParseRolesSet(text)
+	if err != nil || len(rs) != 2 || len(fs) != 1 || len(vs) != 1 || FormatRolesSet(rs, fs, vs) != text {
 		t.Fatalf("round trip: %v\n%s", err, text)
 	}
 
@@ -93,7 +95,7 @@ func TestNextRolesKeepsAKeyThatLeftAsFormer(t *testing.T) {
 		}
 		names[f.Name] = true
 	}
-	if _, _, err := ParseRolesSet("dan SHA256:short role:former\n"); err == nil {
+	if _, _, _, err := ParseRolesSet("dan SHA256:short role:former\n"); err == nil {
 		t.Error("a short fingerprint was accepted")
 	}
 }

@@ -161,7 +161,7 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 	// that does not verify was refused when the state was opened.
 	if eff, rs, err := rf.withRoles(s.state); err == nil {
 		rf = eff
-		opts.FormerKeys, opts.StrictKeys = rs.Former, rs.Source == "state"
+		opts.Vouched, opts.StrictKeys = rs.Vouched, rs.Source == "state"
 	}
 	opts.Readers = rf.Readers
 	if flagJSON && streamEvents && opts.Event == nil {
@@ -487,5 +487,5 @@ func checkBoundRecords(root *config.Root, st *state.Store) error {
 // of the roles, the keys that left, and, when the roles are pinned in the state, a refusal of
 // any other key.
 func recordRules(readers []protect.Reader, rs state.RolesStatus) state.RecordRules {
-	return state.RecordRules{Readers: readers, Former: rs.Former, Strict: rs.Source == "state"}
+	return state.RecordRules{Readers: readers, Vouched: rs.Vouched, Strict: rs.Source == "state"}
 }

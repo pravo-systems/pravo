@@ -94,15 +94,35 @@ func RoleOf(rs []Reader, fp string) (role Role, ok bool) {
 
 // FormerKey is a signing key that held a role in the roles of a state and does not now: a
 // member who has left, or a key that signed transactions before the roles were stored. Only the
-// fingerprint is kept, since the signatures of a former key are not verified: its old
-// transactions are accepted, and a key that is neither listed nor former is not.
+// fingerprint is kept, since the signatures of a former key are not verified: the
+// transactions of it that count are the ones vouched for (see Vouch).
 type FormerKey struct {
 	Name string
 	// Key is the fingerprint of the signing key, as SSHFingerprint writes it.
 	Key string
 }
 
-var fingerprintRE = regexp.MustCompile(`^SHA256:[A-Za-z0-9+/]{43}$`)
+// Vouch is an admin's statement that one finished transaction of a key was legitimate: the
+// key was a writer when it ran, or the roles were off. A key that is demoted or dropped keeps
+// the records it wrote, and these lines are what lets them stay: only the transactions
+// listed here are accepted from it. Digest is VouchDigest of the transaction, which covers
+// everything its finish signature covers, so a transaction rewritten in place is not the
+// one that was vouched for.
+type Vouch struct {
+	// Key is the fingerprint of the signing key of the transaction.
+	Key    string
+	Txn    string
+	Digest string
+}
+
+// VouchKey is the first field of the line of a vouch in the text of a version of the roles. No
+// name starts with it, so it cannot be mistaken for a key.
+const VouchKey = "@vouch"
+
+var (
+	fingerprintRE = regexp.MustCompile(`^SHA256:[A-Za-z0-9+/]{43}$`)
+	vouchTxnRE    = regexp.MustCompile(`^[0-9A-Za-z._-]{1,64}$`)
+)
 
 // NextRoles is the roles to store after prev (nil for the first): the readers of the file, a
 // line without a role being a reader, and every key of prev that the file no longer lists as a
@@ -149,8 +169,9 @@ func NextRoles(file []Reader, prev []Reader, prevFormer []FormerKey, seen []stri
 // FormatRolesSet writes the roles that a version of the roles in the state holds: one line
 // for each key, sorted by name. An active key is "NAME ssh-ed25519 BASE64 role:ROLE", with the
 // signing key and not the reader key, since a role is about who may sign. A former key is
-// "NAME SHA256:FINGERPRINT role:former". A reader without a role is written as a reader.
-func FormatRolesSet(rs []Reader, former []FormerKey) string {
+// "NAME SHA256:FINGERPRINT role:former". A reader without a role is written as a reader. The
+// vouches come last, one "@vouch FINGERPRINT TXN DIGEST" line each.
+func FormatRolesSet(rs []Reader, former []FormerKey, vouches []Vouch) string {
 	type line struct{ name, text string }
 	var lines []line
 	for _, r := range rs {
@@ -168,50 +189,70 @@ func FormatRolesSet(rs []Reader, former []FormerKey) string {
 	for _, l := range lines {
 		b.WriteString(l.text + "\n")
 	}
+	sorted := append([]Vouch(nil), vouches...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Key != sorted[j].Key {
+			return sorted[i].Key < sorted[j].Key
+		}
+		return sorted[i].Txn < sorted[j].Txn
+	})
+	for _, v := range sorted {
+		b.WriteString(VouchKey + " " + v.Key + " " + v.Txn + " " + v.Digest + "\n")
+	}
 	return b.String()
 }
 
 // ParseRolesSet is the reverse of FormatRolesSet. The readers it returns have a name, a
 // signing key and a role, and no reader key.
-func ParseRolesSet(text string) ([]Reader, []FormerKey, error) {
+func ParseRolesSet(text string) ([]Reader, []FormerKey, []Vouch, error) {
 	var out []Reader
 	var former []FormerKey
+	var vouches []Vouch
+	seenVouch := map[string]bool{}
 	seen := map[string]bool{}
 	keys := map[string]bool{}
 	for n, line := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
 		f := strings.Fields(line)
+		if len(f) > 0 && f[0] == VouchKey {
+			if len(f) != 4 || !fingerprintRE.MatchString(f[1]) || !vouchTxnRE.MatchString(f[2]) || !digestRE.MatchString(f[3]) || seenVouch[f[2]] {
+				return nil, nil, nil, fmt.Errorf("roles line %d: want %s FINGERPRINT TXN DIGEST, once for each transaction", n+1, VouchKey)
+			}
+			seenVouch[f[2]] = true
+			vouches = append(vouches, Vouch{Key: f[1], Txn: f[2], Digest: f[3]})
+			continue
+		}
 		if len(f) < 3 || !nameRE.MatchString(f[0]) || seen[strings.ToLower(f[0])] {
-			return nil, nil, fmt.Errorf("roles line %d: the name is not valid or is used twice", n+1)
+			return nil, nil, nil, fmt.Errorf("roles line %d: the name is not valid or is used twice", n+1)
 		}
 		seen[strings.ToLower(f[0])] = true
 		if len(f) == 3 {
 			if !fingerprintRE.MatchString(f[1]) || f[2] != "role:former" || keys[f[1]] {
-				return nil, nil, fmt.Errorf("roles line %d: want NAME SHA256:FINGERPRINT role:former", n+1)
+				return nil, nil, nil, fmt.Errorf("roles line %d: want NAME SHA256:FINGERPRINT role:former", n+1)
 			}
 			keys[f[1]] = true
 			former = append(former, FormerKey{Name: f[0], Key: f[1]})
 			continue
 		}
 		if len(f) != 4 || f[1] != sshEd25519 {
-			return nil, nil, fmt.Errorf("roles line %d: want NAME ssh-ed25519 BASE64 role:ROLE", n+1)
+			return nil, nil, nil, fmt.Errorf("roles line %d: want NAME ssh-ed25519 BASE64 role:ROLE", n+1)
 		}
 		sign, err := ParseSSHBlob(f[2])
 		if err != nil {
-			return nil, nil, fmt.Errorf("roles line %d: signing key: %w", n+1, err)
+			return nil, nil, nil, fmt.Errorf("roles line %d: signing key: %w", n+1, err)
 		}
 		if fp := SSHFingerprint(sign); keys[fp] {
-			return nil, nil, fmt.Errorf("roles line %d: the key is listed twice", n+1)
+			return nil, nil, nil, fmt.Errorf("roles line %d: the key is listed twice", n+1)
 		} else {
 			keys[fp] = true
 		}
 		role, err := ParseRole(f[3])
 		if err != nil {
-			return nil, nil, fmt.Errorf("roles line %d: %w", n+1, err)
+			return nil, nil, nil, fmt.Errorf("roles line %d: %w", n+1, err)
 		}
 		out = append(out, Reader{Name: f[0], Sign: sign, Role: role})
 	}
 	if len(out) == 0 {
-		return nil, nil, errors.New("the roles are empty")
+		return nil, nil, nil, errors.New("the roles are empty")
 	}
-	return out, former, nil
+	return out, former, vouches, nil
 }

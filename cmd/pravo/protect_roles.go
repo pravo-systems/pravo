@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -104,16 +105,42 @@ func (p *protectRun) roles(yes bool) error {
 		return err
 	}
 	next, nextFormer := protect.NextRoles(p.rf.Readers, before, beforeFormer, seen)
-	text := protect.FormatRolesSet(next, nextFormer)
+	vouches, err := newVouches(p.ctx, st, chain, before, next, seen)
+	if err != nil {
+		return err
+	}
+	text := protect.FormatRolesSet(next, nextFormer, vouches)
 	changes := roleChanges(before, next)
 	for _, fp := range seen {
 		changes = append(changes, fmt.Sprintf("%s: signed %s and is in no list: recorded as former", fp, plural(counts[fp], "transaction", "transactions")))
+	}
+	vouchedFor := map[string]int{}
+	for _, v := range vouches {
+		vouchedFor[v.Key]++
+	}
+	names := map[string]string{}
+	for _, rs := range [][]protect.Reader{before, p.rf.Readers} {
+		for _, r := range rs {
+			names[protect.SSHFingerprint(r.Sign)] = r.Name
+		}
+	}
+	var vouchKeys []string
+	for k := range vouchedFor {
+		vouchKeys = append(vouchKeys, k)
+	}
+	sort.Strings(vouchKeys)
+	for _, k := range vouchKeys {
+		who := names[k]
+		if who == "" {
+			who = k
+		}
+		changes = append(changes, fmt.Sprintf("%s: vouched for %s (records they wrote stay valid)", who, plural(vouchedFor[k], "transaction", "transactions")))
 	}
 	seq := 1
 	if head != nil {
 		seq = head.Seq + 1
 	}
-	wrote := head == nil || head.Text != text
+	wrote := head == nil || len(vouches) > 0 || protect.FormatRolesSet(head.Set, head.Former, nil) != protect.FormatRolesSet(next, nextFormer, nil)
 	if wrote {
 		if len(changes) > 0 && !flagJSON {
 			for _, c := range changes {
@@ -240,4 +267,51 @@ func appendPin(path, digest string) error {
 	}
 	data = append(data, []byte(protect.RolesGenesisKey+" "+digest+"\n")...)
 	return os.WriteFile(path, data, 0o644)
+}
+
+// maxVouches is the most transactions that one version of the roles vouches for. A larger
+// number is read by every command that opens the state.
+const maxVouches = 5000
+
+// newVouches are the transactions to vouch for in the version that follows head (chain, before)
+// with the roles next: those that account for live records and were signed by a key that is not
+// a writer in next, when the key was a writer in before, when there were no roles yet, or when
+// the key is one of seen, which the admin has just been shown. A transaction that an earlier
+// version vouched for is left out.
+func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before, next []protect.Reader, seen []string) ([]protect.Vouch, error) {
+	live, err := st.LiveSigners(ctx)
+	if err != nil {
+		return nil, err
+	}
+	done := map[string]bool{}
+	for _, v := range chain.Versions {
+		for _, vo := range v.Vouched {
+			done[vo.Txn] = true
+		}
+	}
+	writer := func(rs []protect.Reader) map[string]bool {
+		out := map[string]bool{}
+		for _, r := range rs {
+			out[protect.SSHFingerprint(r.Sign)] = r.Role >= protect.RoleWriter
+		}
+		return out
+	}
+	wasWriter, isWriter := writer(before), writer(next)
+	unlisted := map[string]bool{}
+	for _, fp := range seen {
+		unlisted[fp] = true
+	}
+	var out []protect.Vouch
+	for _, v := range live {
+		if done[v.Txn] || isWriter[v.Key] {
+			continue
+		}
+		if chain.Head() == nil || wasWriter[v.Key] || unlisted[v.Key] {
+			out = append(out, v)
+		}
+	}
+	if len(out) > maxVouches {
+		return nil, fmt.Errorf("%d transactions would be vouched for, and one version of the roles holds %d. Remove the records of the keys that leave with pravo state rm, or have a writer apply them again, and run this again.", len(out), maxVouches)
+	}
+	return out, nil
 }

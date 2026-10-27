@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,7 +124,7 @@ func putRolesAs(t *testing.T, s *sealed, id *protect.Identity, seq int, readers 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := st.PutRolesVersion(context.Background(), seq, protect.FormatRolesSet(readers, nil), time.Now()); err != nil {
+	if err := st.PutRolesVersion(context.Background(), seq, protect.FormatRolesSet(readers, nil, nil), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -228,7 +229,7 @@ func writeAs(t *testing.T, s *sealed, id *protect.Identity, addr string) {
 	}
 }
 
-func TestAKeyThatLeftIsFormerAndItsRecordsStayUsable(t *testing.T) {
+func TestAKeyThatLeftIsFormerAndItsVouchedRecordsStayUsable(t *testing.T) {
 	s := plannableBucket(t)
 	pin := pinnedRoles(t, s)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer", pin)
@@ -240,24 +241,25 @@ func TestAKeyThatLeftIsFormerAndItsRecordsStayUsable(t *testing.T) {
 		t.Fatalf("status with dan a writer: exit %d\n%s", code, text)
 	}
 
-	// dan leaves. Before anyone stores the roles again, the chain still knows his key.
+	// dan leaves. Until an admin stores the roles again, the chain still has him as a writer.
 	s.readers(t, s.adaLine+" role:admin", pin)
 	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "rewrap", "--yes"); code != 0 {
 		t.Fatalf("rewrap: exit %d\n%s", code, text)
 	}
 	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
-	if code != 0 || !strings.Contains(text, "not checked") {
+	if code != 0 || !strings.Contains(text, "1 bound to a transaction of a writer") || !strings.Contains(text, "the readers file asks for other roles") {
 		t.Fatalf("status after dan left: exit %d\n%s", code, text)
 	}
 	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
-	if code != 0 || !strings.Contains(text, "dan: removed, now a former key") {
+	if code != 0 || !strings.Contains(text, "dan: removed, now a former key") || !strings.Contains(text, "dan: vouched for 1 transaction") {
 		t.Fatalf("protect roles after dan left: exit %d\n%s", code, text)
 	}
-	if !strings.Contains(string(s.f.Objects["prod/roles/00000003.json"]), "role:former") {
-		t.Fatalf("dan is not a former key:\n%s", s.f.Objects["prod/roles/00000003.json"])
+	obj := string(s.f.Objects["prod/roles/00000003.json"])
+	if !strings.Contains(obj, "role:former") || !strings.Contains(obj, "@vouch") {
+		t.Fatalf("dan is not a former key with a vouch:\n%s", obj)
 	}
 	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status")
-	if code != 0 || !strings.Contains(text, "1 not checked") || !strings.Contains(text, "pinned, version 3") {
+	if code != 0 || !strings.Contains(text, "1 vouched for by an admin") || !strings.Contains(text, "pinned, version 3") {
 		t.Fatalf("status with dan a former key: exit %d\n%s", code, text)
 	}
 	if text, code := runPravo(t, s.dir, "--identity", "ada", "state", "rm", "extra"); code != 0 {
@@ -266,6 +268,93 @@ func TestAKeyThatLeftIsFormerAndItsRecordsStayUsable(t *testing.T) {
 	// Run again: nothing changes.
 	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "already holds these roles") {
 		t.Fatalf("a second protect roles: exit %d\n%s", code, text)
+	}
+}
+
+// vouchedBucket is a pinned bucket in which dan wrote the record "extra" as a writer, and ada
+// then dropped him from the roles, with the transaction of that record vouched for. dan still
+// holds the data key, as someone who left and kept it.
+func vouchedBucket(t *testing.T, demote bool) *sealed {
+	t.Helper()
+	s := plannableBucket(t)
+	pin := pinnedRoles(t, s)
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer", pin)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+		t.Fatalf("protect roles: exit %d\n%s", code, text)
+	}
+	writeAs(t, s, s.dan, "extra")
+	if demote {
+		s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
+	} else {
+		s.readers(t, s.adaLine+" role:admin", pin)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "vouched for 1 transaction") {
+		t.Fatalf("protect roles: exit %d\n%s", code, text)
+	}
+	return s
+}
+
+func TestADemotedWritersRecordsStayAndItsNewWritesAreRefused(t *testing.T) {
+	s := vouchedBucket(t, true)
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 0 || !strings.Contains(text, "1 vouched for by an admin") {
+		t.Fatalf("status after the demotion: exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "plan"); code != 0 {
+		t.Fatalf("plan after the demotion: exit %d\n%s", code, text)
+	}
+	// dan, a reader now, writes a record with a transaction of his own.
+	writeAs(t, s, s.dan, "forged")
+	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 7 || !strings.Contains(text, "Untrusted: forged:") || !strings.Contains(text, "who is a reader and may not write") {
+		t.Fatalf("status after a demoted key wrote: exit %d\n%s", code, text)
+	}
+	if strings.Contains(text, "Untrusted: extra") {
+		t.Errorf("the vouched record was refused:\n%s", text)
+	}
+}
+
+func TestAKeyThatLeftCannotWriteWithTheOldDataKey(t *testing.T) {
+	s := vouchedBucket(t, false)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 0 {
+		t.Fatalf("status after dan left: exit %d\n%s", code, text)
+	}
+	// Nobody cut his credentials or ran rewrap --all: he seals a record and signs it with his old key.
+	writeAs(t, s, s.dan, "forged")
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 7 || !strings.Contains(text, "Untrusted: forged:") || !strings.Contains(text, "no admin vouched for it") {
+		t.Fatalf("status after a leaver wrote: exit %d\n%s", code, text)
+	}
+}
+
+func TestAVouchedTransactionRewrittenInPlaceIsNotVouchedFor(t *testing.T) {
+	s := vouchedBucket(t, false)
+	n := 0
+	for k, v := range s.f.Objects {
+		if !strings.HasPrefix(k, "prod/txn/") {
+			continue
+		}
+		var m map[string]any
+		if json.Unmarshal(v, &m) != nil {
+			continue
+		}
+		changes, _ := m["changes"].([]any)
+		for _, c := range changes {
+			if c, ok := c.(map[string]any); ok && c["addr"] == "extra" {
+				// The signed parts are not changed back: the key is dan's, and he can sign anything.
+				c["record"] = "rec/" + strings.Repeat("0", 64)
+				data, _ := json.Marshal(m)
+				s.f.Objects[k] = data
+				n++
+			}
+		}
+	}
+	if n == 0 {
+		t.Fatal("no transaction wrote extra")
+	}
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 7 || !strings.Contains(text, "Untrusted: extra:") {
+		t.Fatalf("status after a rewrite in place: exit %d\n%s", code, text)
 	}
 }
 
@@ -298,11 +387,11 @@ func TestAKeyThatWasNeverListedIsRefusedOncePinned(t *testing.T) {
 	signedByAKeyNobodyListed(t, s)
 
 	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
-	if code != 7 || !strings.Contains(text, "signed by a key that was never in the roles") {
+	if code != 7 || !strings.Contains(text, "no admin vouched for it") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
 	text, code = runPravo(t, s.dir, "--identity", "ada", "plan")
-	if code != 7 || !strings.Contains(text, "signed by a key that was never in the roles") {
+	if code != 7 || !strings.Contains(text, "no admin vouched for it") {
 		t.Fatalf("plan: exit %d\n%s", code, text)
 	}
 	// An admin who stores the roles again is shown the key, and records it as former.

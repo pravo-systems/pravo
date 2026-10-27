@@ -1226,11 +1226,14 @@ func rolesDoc(rf readersFile, rs state.RolesStatus, st *state.Store) map[string]
 // recordsText is the Records line of protect status, for a repository with roles.
 func recordsText(v state.RecordVerdict) string {
 	line := fmt.Sprintf("%d bound to a transaction of a writer", v.Bound)
+	if v.Vouched > 0 {
+		line += fmt.Sprintf(" · %d vouched for by an admin (the key left or was demoted)", v.Vouched)
+	}
 	if v.Earlier > 0 {
 		line += fmt.Sprintf(" · %d from before roles", v.Earlier)
 	}
 	if v.Unchecked > 0 {
-		line += fmt.Sprintf(" · %d not checked (transaction running, or signed by a key that left)", v.Unchecked)
+		line += fmt.Sprintf(" · %d not checked (transaction running, or signed by a key not in the readers file)", v.Unchecked)
 	}
 	if n := len(v.Problems); n > 0 {
 		line += fmt.Sprintf(" · %d that no transaction of a writer accounts for", n)

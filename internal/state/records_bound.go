@@ -50,12 +50,15 @@ type RecordProblem struct {
 type RecordVerdict struct {
 	// Bound counts the records that a verified transaction of a writer names.
 	Bound int `json:"bound"`
+	// Vouched counts the records whose transaction was signed by a key that is not a writer
+	// now, and that an admin vouched for.
+	Vouched int `json:"vouched,omitempty"`
 	// Earlier counts the records of a verified transaction of a writer that was made before
 	// the transactions bound their records: nothing says they are not the writer's.
 	Earlier int `json:"before_roles"`
-	// Unchecked counts the records whose transaction is still running or was killed, or
-	// is signed by a key that left. Without strict rules it also counts those signed by a
-	// key that is in no list, which could be a key that someone made.
+	// Unchecked counts the records whose transaction is still running or was killed. Without
+	// strict rules it also counts those signed by a key that is not in the readers file,
+	// which could be a member who left or a key that someone made.
 	Unchecked int `json:"unchecked"`
 	// Problems lists the records that are not a writer's work, sorted by address.
 	Problems []RecordProblem `json:"problems,omitempty"`
@@ -65,21 +68,14 @@ type RecordVerdict struct {
 type RecordRules struct {
 	// Readers are the keys of the roles, against which the signatures are verified.
 	Readers []protect.Reader
-	// Former are the keys that left. A transaction of one is not checked and is accepted.
-	Former []protect.FormerKey
-	// Strict refuses a transaction signed by a key that is in neither list: one that was never
-	// in the roles, such as a key a holder of the data key made for the purpose. It is set
-	// when the roles are pinned in the state, which is when the lists are complete.
+	// Vouched are the transactions that an admin vouched for, by id: a key that was demoted or
+	// left keeps these, and nothing else it signs.
+	Vouched map[string]protect.Vouch
+	// Strict refuses a transaction signed by a key that is not in the roles and whose
+	// transaction is not vouched for, such as a key a holder of the data key made for the
+	// purpose or a leaver's. It is set when the roles are pinned in the state, which is when
+	// the lists are complete.
 	Strict bool
-}
-
-func (r RecordRules) former(fp string) bool {
-	for _, f := range r.Former {
-		if f.Key == fp {
-			return true
-		}
-	}
-	return false
 }
 
 // VerifyRecords checks the records of the nodes in addrs, or of every node when addrs is
@@ -151,17 +147,13 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 	var v RecordVerdict
 	problem := func(addr, why string) { v.Problems = append(v.Problems, RecordProblem{addr, why}) }
 	lineage := s.Lineage()
-	// A key the signature names that is not in the roles: a key that left is accepted, and a
-	// key that never was is a problem when the rules are strict.
-	unknown := func(addr, txn, key string) {
-		switch {
-		case rules.former(key):
-			v.Unchecked++
-		case rules.Strict:
-			problem(addr, "the transaction "+txn+" that wrote it was signed by a key that was never in the roles")
-		default:
-			v.Unchecked++
+	// A key the signature names that is not in the roles is a problem when the rules are strict.
+	unknown := func(addr, txn string) {
+		if rules.Strict {
+			problem(addr, "the transaction "+txn+" that wrote it was signed by a key that is not in the roles, and no admin vouched for it")
+			return
 		}
+		v.Unchecked++
 	}
 	for _, n := range nodes {
 		if n.txn == "" {
@@ -181,7 +173,7 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			sv := VerifyTransaction(lineage, t, readers)
 			switch role, _ := protect.RoleOf(readers, startKey(t)); {
 			case sv.Start == protect.SigUnknownKey:
-				unknown(n.addr, t.ID, startKey(t))
+				unknown(n.addr, t.ID)
 			case sv.Start != protect.SigVerified || !role.Allows(protect.RoleWriter):
 				problem(n.addr, "the transaction "+t.ID+" that wrote it was not started by a writer")
 			default:
@@ -190,10 +182,16 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			continue
 		}
 		verdict := VerifyTransaction(lineage, t, readers)
+		vouched := false
+		if vo, ok := rules.Vouched[t.ID]; ok && t.FinishSig != nil && vo.Key == t.FinishSig.Key && vo.Digest == VouchDigest(lineage, t) {
+			vouched = true
+		}
 		switch verdict.Finish {
 		case protect.SigUnknownKey:
-			unknown(n.addr, t.ID, t.FinishSig.Key)
-			continue
+			if !vouched {
+				unknown(n.addr, t.ID)
+				continue
+			}
 		case protect.SigVerified:
 		default:
 			problem(n.addr, "the transaction "+t.ID+" that wrote it is not signed, or its signature does not verify")
@@ -203,7 +201,9 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			problem(n.addr, "the transaction "+t.ID+" that wrote it was altered")
 			continue
 		}
-		if role, _ := protect.RoleOf(readers, t.FinishSig.Key); !role.Allows(protect.RoleWriter) {
+		if role, _ := protect.RoleOf(readers, t.FinishSig.Key); role.Allows(protect.RoleWriter) {
+			vouched = false // a writer needs no vouching
+		} else if !vouched {
 			problem(n.addr, "the transaction "+t.ID+" that wrote it was run by "+verdict.Signer+", who is a "+role.String()+" and may not write")
 			continue
 		}
@@ -214,6 +214,8 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			v.Earlier++
 		case c.Record != n.rec:
 			problem(n.addr, "the transaction "+t.ID+" signed another record for revision "+strconv.Itoa(n.revision))
+		case vouched:
+			v.Vouched++
 		default:
 			v.Bound++
 		}

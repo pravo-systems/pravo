@@ -3,12 +3,16 @@ package state
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -24,9 +28,11 @@ import (
 // and the role of each. A version is created with PutIfAbsent and never replaced.
 //
 // A key that leaves is kept in the next version as "NAME SHA256:FINGERPRINT role:former", and
-// so is a key that signed a transaction before the roles were stored and that no one lists. A
-// transaction of a former key is accepted, one of a key that was never in the roles is not
-// (see Store.VerifyRecordsWith).
+// so is a key that signed a transaction before the roles were stored and that no one lists.
+// The transactions of a key that is demoted, dropped or found unlisted that account for live
+// records are vouched for in the same version, "@vouch FINGERPRINT TXN DIGEST": those stay
+// valid, and nothing else that the key signs does (see Store.VerifyRecordsWith). Each
+// version holds only the vouches it adds.
 //
 // The first version is pinned by the readers file of the repository ("roles-genesis" and
 // the SHA-256 of its text), which a writer of the bucket cannot change; it is signed by a
@@ -54,10 +60,11 @@ type RolesVersion struct {
 	Text      string             `json:"text"`
 	At        time.Time          `json:"at"`
 	Signature *protect.Signature `json:"signature,omitempty"`
-	// Set is the active keys of Text, with their roles; Former is the keys that left. Both
-	// are set by what reads the version.
-	Set    []protect.Reader    `json:"-"`
-	Former []protect.FormerKey `json:"-"`
+	// Set is the active keys of Text, with their roles; Former is the keys that left, and
+	// Vouched the transactions it vouches for. All are set by what reads the version.
+	Set     []protect.Reader    `json:"-"`
+	Former  []protect.FormerKey `json:"-"`
+	Vouched []protect.Vouch     `json:"-"`
 }
 
 // Digest is the SHA-256 of the text in hex, which the readers file pins for the first.
@@ -115,7 +122,7 @@ func (s *Store) RolesChain(ctx context.Context) (*RolesChain, error) {
 		if err := json.Unmarshal(data, &v); err != nil {
 			return nil, fmt.Errorf("%w: %s: %v", ErrUntrusted, rolesKey(n), err)
 		}
-		if v.Set, v.Former, err = protect.ParseRolesSet(v.Text); err != nil {
+		if v.Set, v.Former, v.Vouched, err = protect.ParseRolesSet(v.Text); err != nil {
 			return nil, fmt.Errorf("%w: %s: %v", ErrUntrusted, rolesKey(n), err)
 		}
 		signers := v.Set
@@ -149,9 +156,11 @@ type RolesStatus struct {
 	Unpinned bool
 	// Differs is set when the roles of the readers file are not the head of the chain.
 	Differs bool
-	// Former are the keys that signed in the past and are not listed now: the former keys of
-	// the head of the chain, and its keys that the readers file has dropped. Set with a chain.
+	// Former are the former keys of the head of the chain. Set with a chain.
 	Former []protect.FormerKey
+	// Vouched are the transactions that admins vouched for, by transaction id, in every
+	// version of the chain. Set when the chain decides.
+	Vouched map[string]protect.Vouch
 }
 
 // RolesFor gives the readers the roles that decide for this state. file are the readers of the
@@ -191,12 +200,16 @@ func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string)
 		return nil, st, fmt.Errorf("%w: the first roles in the state are not the ones the readers file pins", ErrUntrusted)
 	}
 	st.Source = "state"
-	for _, r := range head.Set {
-		if !listedIn(file, r.Sign) {
-			st.Former = append(st.Former, protect.FormerKey{Name: r.Name, Key: protect.SSHFingerprint(r.Sign)})
+	st.Former = head.Former
+	st.Vouched = map[string]protect.Vouch{}
+	for _, v := range chain.Versions {
+		for _, vo := range v.Vouched {
+			st.Vouched[vo.Txn] = vo
 		}
 	}
-	st.Former = append(st.Former, head.Former...)
+	// The roles in the state decide for the keys in the readers file. A key that the file
+	// dropped keeps its role until an admin stores a version without it, since only that
+	// version is signed by an admin: it is in force too.
 	out := make([]protect.Reader, len(file))
 	copy(out, file)
 	for i := range out {
@@ -207,8 +220,13 @@ func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string)
 			}
 		}
 	}
+	for _, r := range head.Set {
+		if !listedIn(file, r.Sign) {
+			out = append(out, protect.Reader{Name: r.Name, Sign: r.Sign, Role: r.Role})
+		}
+	}
 	want, wantFormer := protect.NextRoles(file, head.Set, head.Former, nil)
-	st.Differs = protect.FormatRolesSet(want, wantFormer) != head.Text
+	st.Differs = protect.FormatRolesSet(want, wantFormer, nil) != protect.FormatRolesSet(head.Set, head.Former, nil)
 	return out, st, nil
 }
 
@@ -254,4 +272,80 @@ func (s *Store) PutRolesVersion(ctx context.Context, seq int, text string, at ti
 		return nil
 	}
 	return fmt.Errorf("%w: %s exists", ErrRolesChanged, rolesKey(seq))
+}
+
+// VouchDigest is what an admin vouches for when the transaction t stays valid: the SHA-256 of
+// everything its finish signature covers, the lineage, the signature and the key. The text
+// of an error and the diffs, which a rewrap rewrites, are not in it. It is empty for a
+// transaction with no finish signature.
+func VouchDigest(lineage string, t *Transaction) string {
+	if t.FinishSig == nil {
+		return ""
+	}
+	h := sha256.New()
+	put := func(b []byte) {
+		var n [8]byte
+		binary.BigEndian.PutUint64(n[:], uint64(len(b)))
+		h.Write(n[:])
+		h.Write(b)
+	}
+	put([]byte(lineage))
+	put([]byte(t.FinishSig.Key))
+	put(t.FinishSig.Sig)
+	for _, p := range txnFinishParts(t) {
+		put(p)
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// LiveSigners lists, for each finished and signed transaction that is the latest writer of a
+// record in the state, the key that signed it and its VouchDigest. It reads each such
+// transaction once. A transaction that is gone, or has no finish signature, is left out.
+func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
+	s.mu.Lock()
+	ids := map[string]bool{}
+	for addr, r := range s.nodes {
+		if s.held[addr].Record != "" && r.Txn != "" {
+			ids[r.Txn] = true
+		}
+	}
+	s.mu.Unlock()
+	list := make([]string, 0, len(ids))
+	for id := range ids {
+		list = append(list, id)
+	}
+	sort.Strings(list)
+	out := make([]protect.Vouch, len(list))
+	var mu sync.Mutex
+	var firstErr error
+	s.each(len(list), func(i int) {
+		data, err := s.b.Get(ctx, "txn/"+list[i]+".json")
+		if errors.Is(err, ErrNotFound) {
+			return
+		}
+		var t Transaction
+		if err == nil {
+			err = json.Unmarshal(data, &t)
+		}
+		if err != nil {
+			mu.Lock()
+			firstErr = errors.Join(firstErr, fmt.Errorf("txn/%s.json: %w", list[i], err))
+			mu.Unlock()
+			return
+		}
+		if t.ID != list[i] || t.FinishSig == nil || t.Finished == nil {
+			return
+		}
+		out[i] = protect.Vouch{Key: t.FinishSig.Key, Txn: t.ID, Digest: VouchDigest(s.Lineage(), &t)}
+	})
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	kept := out[:0]
+	for _, v := range out {
+		if v.Txn != "" {
+			kept = append(kept, v)
+		}
+	}
+	return kept, nil
 }
