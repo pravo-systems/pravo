@@ -864,6 +864,13 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 						gitSteps(file, "Change the role of "+r.Name)...), protectCmd("roles"), note("It lists what changes and asks first."))})
 			}
 		}
+		if a.Roles != nil && a.Roles.State == "off" {
+			add(Suggestion{ID: "enable-roles", Title: "Give members roles",
+				Why: "Roles are off, so every member may change the state, sign, and remove a policy. A role limits that: a CI job can be a writer, so a leaked CI key cannot change who has access or remove a policy. Keep at least one admin.",
+				Who: "a current member",
+				Steps: append(append([]SuggestionStep{note("In " + file + ", add role:admin, role:writer or role:reader as the last word of every line, and keep yourself as an admin.")},
+					gitSteps(file, "Give members roles")...), protectCmd("roles"), note("It lists the roles and asks first. It saves them in the state, signed, so editing the list alone changes nothing later."))})
+		}
 		// Records out of reach of a reader are under a group that an old reader list made; with no key every
 		// record is out of reach, which says nothing about the groups.
 		underOld := false

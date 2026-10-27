@@ -1483,10 +1483,18 @@ func TestAccessSuggestionsAboutAMemberAreMarked(t *testing.T) {
 			t.Errorf("a role can be changed with roles off: %s", id)
 		}
 	}
+	off := sealedFacts()
+	off.Roles = &RolesFacts{Source: "off"}
+	if s := suggestion(*buildAccess(in(off)), "enable-roles"); s == nil || s.Who == "" || len(s.Steps) == 0 {
+		t.Errorf("roles off: no suggestion to turn them on: %+v", s)
+	}
 	f := sealedFacts()
 	f.Roles = fixRoles("state")
 	f.Roles.Keys = []RoleKeyFacts{fixRole("ada", "admin"), fixRole("dan", "writer"), fixRole("eve", "reader")}
 	roled := buildAccess(in(f))
+	if s := suggestion(*roled, "enable-roles"); s != nil {
+		t.Errorf("roles on: still suggests turning them on")
+	}
 	got = kinds(roled)
 	if got["change-role:dan"] != "member-role/dan" {
 		t.Errorf("kinds with roles: %v", got)

@@ -190,6 +190,38 @@
    ]
   },
   {
+   "id": "enable-roles",
+   "title": "Give members roles",
+   "why": "Roles are off, so every member may change the state, sign, and remove a policy. A role limits that: a CI job can be a writer, so a leaked CI key cannot change who has access or remove a policy. Keep at least one admin.",
+   "who": "a current member",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "In .pravo/access/readers.txt, add role:admin, role:writer or role:reader as the last word of every line, and keep yourself as an admin."
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Give members roles'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect roles"
+    },
+    {
+     "kind": "note",
+     "text": "It lists the roles and asks first. It saves them in the state, signed, so editing the list alone changes nothing later."
+    }
+   ]
+  },
+  {
    "id": "set-recovery",
    "title": "Set a recovery key",
    "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can still be opened when every member has lost their key. Give each share to a different person, offline. Whoever holds K shares can open the state, so K is a decision about whom to trust together.",
