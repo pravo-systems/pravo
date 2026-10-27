@@ -715,3 +715,15 @@ func TestRefreshKeepsTheRevisionWhenOnlyTheProviderDigestChanges(t *testing.T) {
 		t.Errorf("the written record: %+v", r)
 	}
 }
+
+// Distinct addresses name distinct objects: a character above U+FFFF used to
+// encode to the same text as a shorter one followed by a digit.
+func TestEncodeAddrIsInjective(t *testing.T) {
+	a, b := encodeAddr("t.a\U0001F600"), encodeAddr("t.aὠ0")
+	if a == b {
+		t.Fatalf("both encode to %q", a)
+	}
+	if got := encodeAddr("t.aé"); got != "t.a%00E9" {
+		t.Errorf("a character below U+10000 changed its key: %q", got)
+	}
+}
