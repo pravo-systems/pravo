@@ -54,26 +54,57 @@ type RecordVerdict struct {
 	// the transactions bound their records: nothing says they are not the writer's.
 	Earlier int `json:"before_roles"`
 	// Unchecked counts the records whose transaction is still running or was killed, or
-	// is signed with a key that is not in the readers file: a member who has left, or a
-	// key that someone made. Nothing tells those two apart.
+	// is signed by a key that left. Without strict rules it also counts those signed by a
+	// key that is in no list, which could be a key that someone made.
 	Unchecked int `json:"unchecked"`
 	// Problems lists the records that are not a writer's work, sorted by address.
 	Problems []RecordProblem `json:"problems,omitempty"`
 }
 
+// RecordRules says whom the transactions that wrote the records may be signed by.
+type RecordRules struct {
+	// Readers are the keys of the roles, against which the signatures are verified.
+	Readers []protect.Reader
+	// Former are the keys that left. A transaction of one is not checked and is accepted.
+	Former []protect.FormerKey
+	// Strict refuses a transaction signed by a key that is in neither list: one that was never
+	// in the roles, such as a key a holder of the data key made for the purpose. It is set
+	// when the roles are pinned in the state, which is when the lists are complete.
+	Strict bool
+}
+
+func (r RecordRules) former(fp string) bool {
+	for _, f := range r.Former {
+		if f.Key == fp {
+			return true
+		}
+	}
+	return false
+}
+
 // VerifyRecords checks the records of the nodes in addrs, or of every node when addrs is
 // empty, against the transactions. It is meaningful only when the readers give roles.
 func (s *Store) VerifyRecords(txns []Transaction, readers []protect.Reader, addrs ...string) RecordVerdict {
+	return s.VerifyRecordsWith(txns, RecordRules{Readers: readers}, addrs...)
+}
+
+// VerifyRecordsWith is VerifyRecords with the rules for keys that are not in the roles.
+func (s *Store) VerifyRecordsWith(txns []Transaction, rules RecordRules, addrs ...string) RecordVerdict {
 	byID := make(map[string]*Transaction, len(txns))
 	for i := range txns {
 		byID[txns[i].ID] = &txns[i]
 	}
-	return s.verifyRecords(func(id string) *Transaction { return byID[id] }, readers, addrs)
+	return s.verifyRecords(func(id string) *Transaction { return byID[id] }, rules, addrs)
 }
 
 // CheckRecords is VerifyRecords for the nodes in addrs, reading only the transactions
 // that wrote them. A command that is about to build on a record checks the ones it reads.
 func (s *Store) CheckRecords(readers []protect.Reader, addrs ...string) RecordVerdict {
+	return s.CheckRecordsWith(RecordRules{Readers: readers}, addrs...)
+}
+
+// CheckRecordsWith is CheckRecords with the rules for keys that are not in the roles.
+func (s *Store) CheckRecordsWith(rules RecordRules, addrs ...string) RecordVerdict {
 	if len(addrs) == 0 {
 		return RecordVerdict{}
 	}
@@ -91,10 +122,11 @@ func (s *Store) CheckRecords(readers []protect.Reader, addrs ...string) RecordVe
 		}
 		cache[id] = t
 		return t
-	}, readers, addrs)
+	}, rules, addrs)
 }
 
-func (s *Store) verifyRecords(lookup func(id string) *Transaction, readers []protect.Reader, addrs []string) RecordVerdict {
+func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordRules, addrs []string) RecordVerdict {
+	readers := rules.Readers
 	type node struct {
 		addr, rec, txn string
 		revision       int
@@ -119,6 +151,18 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, readers []pro
 	var v RecordVerdict
 	problem := func(addr, why string) { v.Problems = append(v.Problems, RecordProblem{addr, why}) }
 	lineage := s.Lineage()
+	// A key the signature names that is not in the roles: a key that left is accepted, and a
+	// key that never was is a problem when the rules are strict.
+	unknown := func(addr, txn, key string) {
+		switch {
+		case rules.former(key):
+			v.Unchecked++
+		case rules.Strict:
+			problem(addr, "the transaction "+txn+" that wrote it was signed by a key that was never in the roles")
+		default:
+			v.Unchecked++
+		}
+	}
 	for _, n := range nodes {
 		if n.txn == "" {
 			problem(n.addr, "it names no transaction that wrote it")
@@ -137,7 +181,7 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, readers []pro
 			sv := VerifyTransaction(lineage, t, readers)
 			switch role, _ := protect.RoleOf(readers, startKey(t)); {
 			case sv.Start == protect.SigUnknownKey:
-				v.Unchecked++
+				unknown(n.addr, t.ID, startKey(t))
 			case sv.Start != protect.SigVerified || !role.Allows(protect.RoleWriter):
 				problem(n.addr, "the transaction "+t.ID+" that wrote it was not started by a writer")
 			default:
@@ -148,7 +192,7 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, readers []pro
 		verdict := VerifyTransaction(lineage, t, readers)
 		switch verdict.Finish {
 		case protect.SigUnknownKey:
-			v.Unchecked++
+			unknown(n.addr, t.ID, t.FinishSig.Key)
 			continue
 		case protect.SigVerified:
 		default:

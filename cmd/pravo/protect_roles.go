@@ -91,12 +91,24 @@ func (p *protectRun) roles(yes bool) error {
 		}
 		return engine.WithCode(engine.ExitRefused, fmt.Errorf("your identity is %s in %s, and an admin is needed to store the roles.", got, whose))
 	}
-	text := protect.FormatRolesSet(p.rf.Readers)
 	var before []protect.Reader
+	var beforeFormer []protect.FormerKey
 	if head != nil {
-		before = head.Set
+		before, beforeFormer = head.Set, head.Former
 	}
-	changes := roleChanges(before, p.rf.Readers)
+	// Keys that signed transactions and that no one lists are recorded as former: they are
+	// members who left before the roles were stored. A key that is not recorded here is
+	// refused from then on, so what is recorded is shown.
+	seen, counts, err := unlistedSigners(st, p.rf.Readers, before, beforeFormer)
+	if err != nil {
+		return err
+	}
+	next, nextFormer := protect.NextRoles(p.rf.Readers, before, beforeFormer, seen)
+	text := protect.FormatRolesSet(next, nextFormer)
+	changes := roleChanges(before, next)
+	for _, fp := range seen {
+		changes = append(changes, fmt.Sprintf("%s: signed %s and is in no list: recorded as former", fp, plural(counts[fp], "transaction", "transactions")))
+	}
 	seq := 1
 	if head != nil {
 		seq = head.Seq + 1
@@ -148,7 +160,8 @@ func (p *protectRun) roles(yes bool) error {
 	return nil
 }
 
-// roleChanges describes how the roles went from before to after, one line each, in name order.
+// roleChanges describes how the active roles went from before to after, one line each, in name
+// order. A key that is gone from after is now a former key.
 func roleChanges(before, after []protect.Reader) []string {
 	old := map[string]protect.Role{}
 	for _, r := range before {
@@ -172,11 +185,48 @@ func roleChanges(before, after []protect.Reader) []string {
 	}
 	for _, r := range before {
 		if !seen[r.Name] {
-			lines = append(lines, fmt.Sprintf("%s: removed", r.Name))
+			lines = append(lines, fmt.Sprintf("%s: removed, now a former key", r.Name))
 		}
 	}
 	sort.Strings(lines)
 	return lines
+}
+
+// unlistedSigners are the fingerprints of the keys that signed a transaction of the state and
+// that are not in the readers file, the active roles or the former keys, in order, and how many
+// transactions each signed.
+func unlistedSigners(st *state.Store, file, active []protect.Reader, former []protect.FormerKey) ([]string, map[string]int, error) {
+	known := map[string]bool{}
+	for _, rs := range [][]protect.Reader{file, active} {
+		for _, r := range rs {
+			known[protect.SSHFingerprint(r.Sign)] = true
+		}
+	}
+	for _, f := range former {
+		known[f.Key] = true
+	}
+	txns, err := st.Transactions()
+	if err != nil {
+		return nil, nil, err
+	}
+	counts := map[string]int{}
+	for _, t := range txns {
+		keys := map[string]bool{}
+		for _, sig := range []*protect.Signature{t.StartSig, t.FinishSig} {
+			if sig != nil && !known[sig.Key] {
+				keys[sig.Key] = true
+			}
+		}
+		for k := range keys {
+			counts[k]++
+		}
+	}
+	var seen []string
+	for k := range counts {
+		seen = append(seen, k)
+	}
+	sort.Strings(seen)
+	return seen, counts, nil
 }
 
 // appendPin adds the pin line to the readers file.

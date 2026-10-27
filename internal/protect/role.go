@@ -3,6 +3,7 @@ package protect
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -91,50 +92,126 @@ func RoleOf(rs []Reader, fp string) (role Role, ok bool) {
 	return RoleNone, false
 }
 
+// FormerKey is a signing key that held a role in the roles of a state and does not now: a
+// member who has left, or a key that signed transactions before the roles were stored. Only the
+// fingerprint is kept, since the signatures of a former key are not verified: its old
+// transactions are accepted, and a key that is neither listed nor former is not.
+type FormerKey struct {
+	Name string
+	// Key is the fingerprint of the signing key, as SSHFingerprint writes it.
+	Key string
+}
+
+var fingerprintRE = regexp.MustCompile(`^SHA256:[A-Za-z0-9+/]{43}$`)
+
+// NextRoles is the roles to store after prev (nil for the first): the readers of the file, a
+// line without a role being a reader, and every key of prev that the file no longer lists as a
+// former key, with the fingerprints in seen added as former keys when no one lists them. Names
+// are made unique.
+func NextRoles(file []Reader, prev []Reader, prevFormer []FormerKey, seen []string) ([]Reader, []FormerKey) {
+	active := make([]Reader, 0, len(file))
+	listed := map[string]bool{}
+	names := map[string]bool{}
+	for _, r := range file {
+		if r.Role == RoleNone {
+			r.Role = RoleReader
+		}
+		active = append(active, Reader{Name: r.Name, Sign: r.Sign, Role: r.Role})
+		listed[SSHFingerprint(r.Sign)] = true
+		names[strings.ToLower(r.Name)] = true
+	}
+	var former []FormerKey
+	add := func(name, fp string) {
+		if listed[fp] {
+			return
+		}
+		listed[fp] = true
+		base, n := name, 1
+		for names[strings.ToLower(name)] {
+			n++
+			name = fmt.Sprintf("%s-%d", base, n)
+		}
+		names[strings.ToLower(name)] = true
+		former = append(former, FormerKey{Name: name, Key: fp})
+	}
+	for _, r := range prev {
+		add(r.Name, SSHFingerprint(r.Sign))
+	}
+	for _, f := range prevFormer {
+		add(f.Name, f.Key)
+	}
+	for _, fp := range seen {
+		add("former-"+strings.TrimPrefix(fp, "SHA256:")[:8], fp)
+	}
+	return active, former
+}
+
 // FormatRolesSet writes the roles that a version of the roles in the state holds: one line
-// for each key, "NAME ssh-ed25519 BASE64 role:ROLE", sorted by name. The line has the signing
-// key and not the reader key, since a role is about who may sign. A reader without a role is
-// written as a reader.
-func FormatRolesSet(rs []Reader) string {
-	sorted := append([]Reader(nil), rs...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
-	var b strings.Builder
-	for _, r := range sorted {
+// for each key, sorted by name. An active key is "NAME ssh-ed25519 BASE64 role:ROLE", with the
+// signing key and not the reader key, since a role is about who may sign. A former key is
+// "NAME SHA256:FINGERPRINT role:former". A reader without a role is written as a reader.
+func FormatRolesSet(rs []Reader, former []FormerKey) string {
+	type line struct{ name, text string }
+	var lines []line
+	for _, r := range rs {
 		role := r.Role
 		if role == RoleNone {
 			role = RoleReader
 		}
-		b.WriteString(r.Name + " " + sshEd25519 + " " + SSHBlob(r.Sign) + " role:" + role.String() + "\n")
+		lines = append(lines, line{r.Name, r.Name + " " + sshEd25519 + " " + SSHBlob(r.Sign) + " role:" + role.String()})
+	}
+	for _, f := range former {
+		lines = append(lines, line{f.Name, f.Name + " " + f.Key + " role:former"})
+	}
+	sort.Slice(lines, func(i, j int) bool { return lines[i].name < lines[j].name })
+	var b strings.Builder
+	for _, l := range lines {
+		b.WriteString(l.text + "\n")
 	}
 	return b.String()
 }
 
 // ParseRolesSet is the reverse of FormatRolesSet. The readers it returns have a name, a
 // signing key and a role, and no reader key.
-func ParseRolesSet(text string) ([]Reader, error) {
+func ParseRolesSet(text string) ([]Reader, []FormerKey, error) {
 	var out []Reader
+	var former []FormerKey
 	seen := map[string]bool{}
+	keys := map[string]bool{}
 	for n, line := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
 		f := strings.Fields(line)
-		if len(f) != 4 || f[1] != sshEd25519 {
-			return nil, fmt.Errorf("roles line %d: want NAME ssh-ed25519 BASE64 role:ROLE", n+1)
-		}
-		if !nameRE.MatchString(f[0]) || seen[strings.ToLower(f[0])] {
-			return nil, fmt.Errorf("roles line %d: the name is not valid or is used twice", n+1)
+		if len(f) < 3 || !nameRE.MatchString(f[0]) || seen[strings.ToLower(f[0])] {
+			return nil, nil, fmt.Errorf("roles line %d: the name is not valid or is used twice", n+1)
 		}
 		seen[strings.ToLower(f[0])] = true
+		if len(f) == 3 {
+			if !fingerprintRE.MatchString(f[1]) || f[2] != "role:former" || keys[f[1]] {
+				return nil, nil, fmt.Errorf("roles line %d: want NAME SHA256:FINGERPRINT role:former", n+1)
+			}
+			keys[f[1]] = true
+			former = append(former, FormerKey{Name: f[0], Key: f[1]})
+			continue
+		}
+		if len(f) != 4 || f[1] != sshEd25519 {
+			return nil, nil, fmt.Errorf("roles line %d: want NAME ssh-ed25519 BASE64 role:ROLE", n+1)
+		}
 		sign, err := ParseSSHBlob(f[2])
 		if err != nil {
-			return nil, fmt.Errorf("roles line %d: signing key: %w", n+1, err)
+			return nil, nil, fmt.Errorf("roles line %d: signing key: %w", n+1, err)
+		}
+		if fp := SSHFingerprint(sign); keys[fp] {
+			return nil, nil, fmt.Errorf("roles line %d: the key is listed twice", n+1)
+		} else {
+			keys[fp] = true
 		}
 		role, err := ParseRole(f[3])
 		if err != nil {
-			return nil, fmt.Errorf("roles line %d: %w", n+1, err)
+			return nil, nil, fmt.Errorf("roles line %d: %w", n+1, err)
 		}
 		out = append(out, Reader{Name: f[0], Sign: sign, Role: role})
 	}
 	if len(out) == 0 {
-		return nil, errors.New("the roles are empty")
+		return nil, nil, errors.New("the roles are empty")
 	}
-	return out, nil
+	return out, former, nil
 }

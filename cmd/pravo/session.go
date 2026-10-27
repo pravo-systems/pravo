@@ -159,8 +159,9 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 	rf := loadReadersFile(s.root.Dir, flagAccessDir)
 	// The roles that decide are those in the state when the readers file pins them. A chain
 	// that does not verify was refused when the state was opened.
-	if eff, _, err := rf.withRoles(s.state); err == nil {
+	if eff, rs, err := rf.withRoles(s.state); err == nil {
 		rf = eff
+		opts.FormerKeys, opts.StrictKeys = rs.Former, rs.Source == "state"
 	}
 	opts.Readers = rf.Readers
 	if flagJSON && streamEvents && opts.Event == nil {
@@ -456,7 +457,7 @@ func checkBoundRecords(root *config.Root, st *state.Store) error {
 	if !rf.Found || rf.Err != nil || st.Locked() || !isSealed(st.Protection()) {
 		return nil
 	}
-	rf, _, err := rf.withRoles(st)
+	rf, rs, err := rf.withRoles(st)
 	if err != nil {
 		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%s", printable(err.Error())))
 	}
@@ -467,7 +468,7 @@ func checkBoundRecords(root *config.Root, st *state.Store) error {
 	for _, r := range st.List() {
 		addrs = append(addrs, r.Address())
 	}
-	v := st.CheckRecords(rf.Readers, addrs...)
+	v := st.CheckRecordsWith(recordRules(rf.Readers, rs), addrs...)
 	if len(v.Problems) == 0 {
 		return nil
 	}
@@ -480,4 +481,11 @@ func checkBoundRecords(root *config.Root, st *state.Store) error {
 		lines = append(lines, printable(p.Addr)+": "+printable(p.Why))
 	}
 	return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s that no transaction of a writer accounts for (someone who holds the data key may have sealed them):\n%s\nSee pravo protect status. Remove or restore them with pravo state rm or from a version of the bucket.", state.ErrUntrusted, plural(len(v.Problems), "record", "records"), strings.Join(lines, "\n")))
+}
+
+// recordRules are the rules for the signers of the transactions that wrote records: the keys
+// of the roles, the keys that left, and, when the roles are pinned in the state, a refusal of
+// any other key.
+func recordRules(readers []protect.Reader, rs state.RolesStatus) state.RecordRules {
+	return state.RecordRules{Readers: readers, Former: rs.Former, Strict: rs.Source == "state"}
 }

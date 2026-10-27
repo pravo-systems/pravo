@@ -1091,7 +1091,7 @@ func (p *protectRun) status() error {
 	add("Roles", rolesText(erf, rstat, st))
 	var recs *state.RecordVerdict
 	if rolesOn && prot.Sealed != nil && !st.Locked() {
-		v := st.VerifyRecords(txns, erf.Readers)
+		v := st.VerifyRecordsWith(txns, recordRules(erf.Readers, rstat))
 		recs = &v
 		add("Records", recordsText(v))
 	}
@@ -1230,7 +1230,7 @@ func recordsText(v state.RecordVerdict) string {
 		line += fmt.Sprintf(" · %d from before roles", v.Earlier)
 	}
 	if v.Unchecked > 0 {
-		line += fmt.Sprintf(" · %d not checked (transaction gone, running, or signed by a key not in the file)", v.Unchecked)
+		line += fmt.Sprintf(" · %d not checked (transaction running, or signed by a key that left)", v.Unchecked)
 	}
 	if n := len(v.Problems); n > 0 {
 		line += fmt.Sprintf(" · %d that no transaction of a writer accounts for", n)

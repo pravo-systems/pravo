@@ -60,3 +60,40 @@ func TestRoleOf(t *testing.T) {
 		t.Error("the order is not linear")
 	}
 }
+
+func TestNextRolesKeepsAKeyThatLeftAsFormer(t *testing.T) {
+	ada, _ := roleLine(t, "ada", " role:admin")
+	dan, _ := roleLine(t, "dan", " role:writer")
+	eve, _ := roleLine(t, "eve", "")
+
+	active, former := NextRoles([]Reader{ada, eve}, []Reader{ada, dan}, nil, nil)
+	if len(active) != 2 || active[1].Role != RoleReader {
+		t.Fatalf("active = %+v", active)
+	}
+	if len(former) != 1 || former[0].Name != "dan" || former[0].Key != SSHFingerprint(dan.Sign) {
+		t.Fatalf("former = %+v", former)
+	}
+	text := FormatRolesSet(active, former)
+	rs, fs, err := ParseRolesSet(text)
+	if err != nil || len(rs) != 2 || len(fs) != 1 || FormatRolesSet(rs, fs) != text {
+		t.Fatalf("round trip: %v\n%s", err, text)
+	}
+
+	// The key comes back: it is active and no longer former. A new person named dan gets another name.
+	again, formerAgain := NextRoles([]Reader{ada, dan}, rs, fs, nil)
+	if len(again) != 2 || len(formerAgain) != 1 || formerAgain[0].Name != "eve" {
+		t.Fatalf("after dan returned: %+v %+v", again, formerAgain)
+	}
+	dan2, _ := roleLine(t, "dan", "")
+	_, formerClash := NextRoles([]Reader{ada, dan2}, rs, fs, []string{"SHA256:" + "A" + "B" + "CDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"})
+	names := map[string]bool{}
+	for _, f := range formerClash {
+		if names[f.Name] {
+			t.Errorf("name %q twice in %+v", f.Name, formerClash)
+		}
+		names[f.Name] = true
+	}
+	if _, _, err := ParseRolesSet("dan SHA256:short role:former\n"); err == nil {
+		t.Error("a short fingerprint was accepted")
+	}
+}

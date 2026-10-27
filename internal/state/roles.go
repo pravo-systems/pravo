@@ -23,6 +23,11 @@ import (
 // roles of all keys, as protect.FormatRolesSet writes them: the name, the signing key
 // and the role of each. A version is created with PutIfAbsent and never replaced.
 //
+// A key that leaves is kept in the next version as "NAME SHA256:FINGERPRINT role:former", and
+// so is a key that signed a transaction before the roles were stored and that no one lists. A
+// transaction of a former key is accepted, one of a key that was never in the roles is not
+// (see Store.VerifyRecordsWith).
+//
 // The first version is pinned by the readers file of the repository ("roles-genesis" and
 // the SHA-256 of its text), which a writer of the bucket cannot change; it is signed by a
 // key that is an admin in its own text. Every later version is signed by a key that is an
@@ -49,8 +54,10 @@ type RolesVersion struct {
 	Text      string             `json:"text"`
 	At        time.Time          `json:"at"`
 	Signature *protect.Signature `json:"signature,omitempty"`
-	// Set is the keys of Text, with their roles. It is set by what reads the version.
-	Set []protect.Reader `json:"-"`
+	// Set is the active keys of Text, with their roles; Former is the keys that left. Both
+	// are set by what reads the version.
+	Set    []protect.Reader    `json:"-"`
+	Former []protect.FormerKey `json:"-"`
 }
 
 // Digest is the SHA-256 of the text in hex, which the readers file pins for the first.
@@ -108,7 +115,7 @@ func (s *Store) RolesChain(ctx context.Context) (*RolesChain, error) {
 		if err := json.Unmarshal(data, &v); err != nil {
 			return nil, fmt.Errorf("%w: %s: %v", ErrUntrusted, rolesKey(n), err)
 		}
-		if v.Set, err = protect.ParseRolesSet(v.Text); err != nil {
+		if v.Set, v.Former, err = protect.ParseRolesSet(v.Text); err != nil {
 			return nil, fmt.Errorf("%w: %s: %v", ErrUntrusted, rolesKey(n), err)
 		}
 		signers := v.Set
@@ -142,6 +149,9 @@ type RolesStatus struct {
 	Unpinned bool
 	// Differs is set when the roles of the readers file are not the head of the chain.
 	Differs bool
+	// Former are the keys that signed in the past and are not listed now: the former keys of
+	// the head of the chain, and its keys that the readers file has dropped. Set with a chain.
+	Former []protect.FormerKey
 }
 
 // RolesFor gives the readers the roles that decide for this state. file are the readers of the
@@ -181,6 +191,12 @@ func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string)
 		return nil, st, fmt.Errorf("%w: the first roles in the state are not the ones the readers file pins", ErrUntrusted)
 	}
 	st.Source = "state"
+	for _, r := range head.Set {
+		if !listedIn(file, r.Sign) {
+			st.Former = append(st.Former, protect.FormerKey{Name: r.Name, Key: protect.SSHFingerprint(r.Sign)})
+		}
+	}
+	st.Former = append(st.Former, head.Former...)
 	out := make([]protect.Reader, len(file))
 	copy(out, file)
 	for i := range out {
@@ -191,8 +207,19 @@ func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string)
 			}
 		}
 	}
-	st.Differs = protect.FormatRolesSet(file) != head.Text
+	want, wantFormer := protect.NextRoles(file, head.Set, head.Former, nil)
+	st.Differs = protect.FormatRolesSet(want, wantFormer) != head.Text
 	return out, st, nil
+}
+
+func listedIn(rs []protect.Reader, sign []byte) bool {
+	fp := protect.SSHFingerprint(sign)
+	for _, r := range rs {
+		if protect.SSHFingerprint(r.Sign) == fp {
+			return true
+		}
+	}
+	return false
 }
 
 // PutRolesVersion signs a version of the roles and creates it at seq, the number after the head
