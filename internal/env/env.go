@@ -7,8 +7,10 @@
 package env
 
 import (
+	"maps"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 )
 
@@ -27,7 +29,7 @@ func New(environ []string) Env {
 // Map returns the environment of a map of names to values, in the order of the names.
 func Map(vars map[string]string) Env {
 	var e Env
-	for _, k := range sortedKeys(vars) {
+	for _, k := range slices.Sorted(maps.Keys(vars)) {
 		e.environ = append(e.environ, k+"="+vars[k])
 	}
 	return e
@@ -75,19 +77,6 @@ func sameName(a, b string) bool {
 		return strings.EqualFold(a, b)
 	}
 	return a == b
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	for i := 1; i < len(keys); i++ {
-		for j := i; j > 0 && keys[j] < keys[j-1]; j-- {
-			keys[j], keys[j-1] = keys[j-1], keys[j]
-		}
-	}
-	return keys
 }
 
 // The directories of the user, from the variables of this environment. They

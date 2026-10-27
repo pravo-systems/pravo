@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -92,7 +94,7 @@ func (e *Engine) planPolicies(ctx context.Context) ([]PolicyEntry, error) {
 		declared[state.PolicyName(p.Name)] = p.Rule
 	}
 	var entries []PolicyEntry
-	for _, name := range sortedKeys(declared) {
+	for _, name := range slices.Sorted(maps.Keys(declared)) {
 		text := declared[name]
 		head, ok := set.Head(name)
 		if ok && !head.Tombstone() && head.Text == text {
@@ -397,15 +399,6 @@ func (e *Engine) writePolicies(ctx context.Context, set *state.PolicySet, plan *
 		}
 	}
 	return nil
-}
-
-func sortedKeys(m map[string]string) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }
 
 func refused(format string, args ...any) error {

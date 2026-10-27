@@ -81,7 +81,30 @@ func stateCmd() *cobra.Command {
 			},
 		}
 	}
-	cmd.AddCommand(verifyCmd(), &cobra.Command{
+	cmd.AddCommand(
+		verifyCmd(),
+		stateListCmd(loadRead),
+		stateShowCmd(loadValues),
+		stateRmCmd(load),
+		stateMvCmd(load),
+		stateLogCmd(loadRead),
+		stateProbeCmd(),
+		stateLocksCmd(loadRead),
+		upgradeCmd(load),
+		unlockCmd(load),
+		copyCmd("pull <dir>", "Copy the configured state graph into a local directory", false),
+		copyCmd("push <dir>", "Copy a local state directory into the configured backend", true),
+		stateEdgesCmd(loadRead),
+		stateDependentsCmd(loadRead),
+		stateQueryCmd(loadValues),
+		stateImportTfstateCmd(load),
+	)
+	return cmd
+}
+
+// stateListCmd is "state list".
+func stateListCmd(loadRead func() (*state.Store, error)) *cobra.Command {
+	return &cobra.Command{
 		Use: "list", Short: "List resource addresses in state", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := loadRead()
@@ -93,7 +116,12 @@ func stateCmd() *cobra.Command {
 			}
 			return nil
 		},
-	}, &cobra.Command{
+	}
+}
+
+// stateShowCmd is "state show".
+func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
+	return &cobra.Command{
 		Use: "show <addr>", Short: "Show a node: attributes as CUE plus its bookkeeping", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := loadValues()
@@ -128,7 +156,12 @@ func stateCmd() *cobra.Command {
 			fmt.Println(jsonToCUE(r.Attributes, ""))
 			return nil
 		},
-	}, &cobra.Command{
+	}
+}
+
+// stateRmCmd is "state rm".
+func stateRmCmd(load func() (*state.Store, error)) *cobra.Command {
+	return &cobra.Command{
 		Use: "rm <addr>", Short: "Forget a resource without destroying it", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := load()
@@ -154,7 +187,12 @@ func stateCmd() *cobra.Command {
 			out.Printf("Removed %s\n", args[0])
 			return txn.Finish("applied", "forgot "+args[0], true)
 		},
-	}, &cobra.Command{
+	}
+}
+
+// stateMvCmd is "state mv".
+func stateMvCmd(load func() (*state.Store, error)) *cobra.Command {
+	return &cobra.Command{
 		Use: "mv <from> <to>", Short: "Rename a resource in state", Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := load()
@@ -232,7 +270,12 @@ func stateCmd() *cobra.Command {
 			out.Printf("Moved %s to %s\n", args[0], args[1])
 			return txn.Finish("applied", "moved "+args[0]+" to "+args[1], true)
 		},
-	}, &cobra.Command{
+	}
+}
+
+// stateLogCmd is "state log".
+func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
+	return &cobra.Command{
 		Use: "log", Short: "List recorded transactions, newest first", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := loadRead()
@@ -329,7 +372,12 @@ func stateCmd() *cobra.Command {
 			}
 			return invalidTxns(invalid)
 		},
-	}, &cobra.Command{
+	}
+}
+
+// stateProbeCmd is "state probe".
+func stateProbeCmd() *cobra.Command {
+	return &cobra.Command{
 		Use: "probe", Short: "Check that the S3 store honours the conditional requests that locks need", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, err := loadRoot()
@@ -338,7 +386,12 @@ func stateCmd() *cobra.Command {
 			}
 			return probeS3(context.Background(), root)
 		},
-	}, &cobra.Command{
+	}
+}
+
+// stateLocksCmd is "state locks".
+func stateLocksCmd(loadRead func() (*state.Store, error)) *cobra.Command {
+	return &cobra.Command{
 		Use: "locks", Short: "List resource locks held by running commands", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := loadRead()
@@ -379,28 +432,36 @@ func stateCmd() *cobra.Command {
 			}
 			return nil
 		},
-	}, upgradeCmd(load), unlockCmd(load), copyCmd("pull <dir>", "Copy the configured state graph into a local directory", false),
-		copyCmd("push <dir>", "Copy a local state directory into the configured backend", true),
-		stateEdgesCmd(loadRead), &cobra.Command{
-			Use: "dependents <addr>", Short: "List everything a change to the resource can reach", Args: cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				st, err := loadRead()
-				if err != nil {
-					return err
-				}
-				reach, err := pravo.Dependents(st, args[0])
-				if err != nil {
-					return err
-				}
-				for _, a := range reach {
-					fmt.Println(a)
-				}
-				return nil
-			},
-		}, &cobra.Command{
-			Use:   "query <cue-expression>",
-			Short: "Evaluate a CUE expression over the state graph",
-			Long: `Evaluates a CUE expression with the state graph in scope and prints the
+	}
+}
+
+// stateDependentsCmd is "state dependents".
+func stateDependentsCmd(loadRead func() (*state.Store, error)) *cobra.Command {
+	return &cobra.Command{
+		Use: "dependents <addr>", Short: "List everything a change to the resource can reach", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			st, err := loadRead()
+			if err != nil {
+				return err
+			}
+			reach, err := pravo.Dependents(st, args[0])
+			if err != nil {
+				return err
+			}
+			for _, a := range reach {
+				fmt.Println(a)
+			}
+			return nil
+		},
+	}
+}
+
+// stateQueryCmd is "state query".
+func stateQueryCmd(loadValues func() (*state.Store, error)) *cobra.Command {
+	return &cobra.Command{
+		Use:   "query <cue-expression>",
+		Short: "Evaluate a CUE expression over the state graph",
+		Long: `Evaluates a CUE expression with the state graph in scope and prints the
 result. The scope has these fields:
 
   resources: {<addr>: {mode, type, name, provider, attributes, dependencies, revision, refreshed_at, ...}}
@@ -412,38 +473,35 @@ Examples:
   pravo state query '[for a, r in resources if r.type == "aws_instance" {a}]'
   pravo state query '{for a, r in resources {"\(a)": r.attributes.id}}'
   pravo state query 'len(resources)'`,
-			Args: cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				st, err := loadValues()
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			st, err := loadValues()
+			if err != nil {
+				return err
+			}
+			res, err := pravo.QueryState(st, args[0])
+			if err != nil {
+				return err
+			}
+			if flagJSON {
+				b, err := res.JSON()
 				if err != nil {
 					return err
 				}
-				res, err := pravo.QueryState(st, args[0])
-				if err != nil {
-					return err
-				}
-				if flagJSON {
-					b, err := res.JSON()
-					if err != nil {
-						return err
-					}
-					os.Stdout.Write(append(b, '\n'))
-					return nil
-				}
-				b, err := res.CUE()
-				if err != nil {
-					return err
-				}
-				os.Stdout.Write(b)
-				fmt.Println()
+				os.Stdout.Write(append(b, '\n'))
 				return nil
-			},
-		}, stateImportTfstateCmd(load))
-	return cmd
+			}
+			b, err := res.CUE()
+			if err != nil {
+				return err
+			}
+			os.Stdout.Write(b)
+			fmt.Println()
+			return nil
+		},
+	}
 }
 
-// unlockCmd is "state unlock": it releases one lock, or with --stale every lock
-// that may be reclaimed.
 // upgradeCmd is "state upgrade": the first step of "protect init" alone. It is
 // hidden, because a state in format 2 is not encrypted and nothing but a test or
 // a careful operator has a use for it.
@@ -471,6 +529,8 @@ func upgradeCmd(load func() (*state.Store, error)) *cobra.Command {
 	}
 }
 
+// unlockCmd is "state unlock": it releases one lock, or with --stale every lock
+// that may be reclaimed.
 func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 	var stale bool
 	cmd := &cobra.Command{

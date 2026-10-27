@@ -2,6 +2,8 @@ package serve
 
 import (
 	"encoding/json"
+	"maps"
+	"slices"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -40,7 +42,7 @@ func historyAttrs(e *HistoryEntry, d state.Diff, sch *schema.Schema, secrets *se
 		df.block("", sch.Block, before, after)
 		out = df.out
 	}
-	for _, k := range sortedKeys(d.Withheld) {
+	for _, k := range slices.Sorted(maps.Keys(d.Withheld)) {
 		side := d.Withheld[k]
 		out = append(out, AttrChange{Path: k, BeforeRedacted: side != "after", AfterRedacted: side != "before"})
 	}
@@ -76,15 +78,6 @@ func diffKeys(d state.Diff) []string {
 	}
 	keys := make([]string, 0, len(set))
 	for k := range set {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)

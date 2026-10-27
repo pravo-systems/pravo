@@ -59,6 +59,17 @@ Files in `cmd/pravo/`:
 | `protect.go`, `access.go` | `protect check`, `init`, `status`, `rewrap` and `gc` (`protect_gc.go`); the readers file (`loadReadersFile`) and its comparison with a sealed state. `session.go` opens a sealed state with the identity and compares the readers file with the state. |
 | `helpers.go`, `webhook.go` | Small shared helpers (`noArgs`, `refreshValueHint`, `typesOf`); the drift webhook POST. |
 
+Files of the plan and apply core in `internal/engine/`:
+
+| File | Contents |
+|---|---|
+| `engine.go` | `Options`, `Engine`, `New`; `planRun`, the run-level checks and the phase bookkeeping. |
+| `plan.go` | The values a plan is made of: `Action`, `RefreshMode`, `Change`, `Plan`, `Stats` and their counts. |
+| `planresource.go` | `planResource`: the plan steps of one node, as `startPlan`, `explainChange`, `planData` and `planManaged` (with `priorObject` and `planReplacement`). |
+| `refresh.go`, `readcache.go`, `age.go` | Reading the record of a node against the provider (`priorState`, `readRecord`, `quiet`, `readInputs`), the reads a run remembers, and refresh ages. |
+| `apply.go` | `applyRun` and its steps (`tally`, `evalOutputs`, `recordOutputs`), `applyTask`, `applyChange`, `writeState`, the locks of an apply and the reservations. |
+| `graph.go`, `frontier.go`, `target.go` | The dependency graph and scheduler, the nodes a run reaches, `-target` selection. |
+
 Files in `internal/serve/`:
 
 | File | Contents |
