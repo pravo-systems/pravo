@@ -137,7 +137,9 @@ func TestReadersFileErrorsCarryALineAndAReasonAndNeverTheLine(t *testing.T) {
 		want string
 	}{
 		{"too few fields", "SECRETWORD ssh-ed25519", "want 4 fields"},
-		{"too many fields", good[0] + " SECRETWORD", "want 4 fields"},
+		{"too many fields", good[0] + " role:admin SECRETWORD", "want 4 fields"},
+		{"a fifth field that is not a role", good[0] + " SECRETWORD", "fifth field"},
+		{"a role that is not known", good[0] + " role:SECRETWORD", "role"},
 		{"a name with a character that is not allowed", "SECRET!WORD " + strings.Join(fields[1:], " "), "name"},
 		{"another key type", fields[0] + " ssh-rsa " + fields[2] + " " + fields[3], "ssh-ed25519"},
 		{"a key type that is not supported", fields[0] + " ssh-ed25519 SECRETWORDSECRET " + fields[3], "signing key"},

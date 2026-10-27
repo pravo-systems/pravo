@@ -50,6 +50,17 @@ func fixSealed(store, file []string, you *YouFacts) Facts {
 	return f
 }
 
+func fixRole(name, role string) RoleKeyFacts {
+	return RoleKeyFacts{Name: name, Fingerprint: fingerprint(fixBlob(name)), Role: role}
+}
+
+// fixRoles are the roles of a team of four, ada and dan admins, eve a writer and fay a reader.
+func fixRoles(source string) *RolesFacts {
+	return &RolesFacts{Source: source, You: "admin",
+		Keys:    []RoleKeyFacts{fixRole("ada", "admin"), fixRole("dan", "admin"), fixRole("eve", "writer"), fixRole("fay", "reader")},
+		Records: &RecordCheckFacts{}}
+}
+
 func TestAccessFixtures(t *testing.T) {
 	ada := &YouFacts{State: "reader", Name: "ada", Key: fixKey("ada")}
 	in := func(f Facts, format int, backend string) accessInput {
@@ -88,21 +99,44 @@ func TestAccessFixtures(t *testing.T) {
 	withRecovery.Store.Recovery = &RecoveryFacts{K: 2, N: 3, Key: fixKey("recovery"), Locked: true, File: "match"}
 	brokenRecovery := fixSealed([]string{"ada", "dan"}, []string{"ada", "dan"}, ada)
 	brokenRecovery.Store.Recovery = &RecoveryFacts{K: 3, N: 5, Key: fixKey("recovery"), Locked: false, Groups: []string{"g1"}, File: "missing"}
+	// Roles: stored in the state and pinned, asked for in the readers file only, and a chain that does not verify.
+	pinned := fixSealed([]string{"ada", "dan", "eve", "fay"}, []string{"ada", "dan", "eve", "fay"}, ada)
+	pinned.Roles = fixRoles("state")
+	fromFile := fixSealed([]string{"ada", "dan", "eve", "fay"}, []string{"ada", "dan", "eve", "fay"}, ada)
+	fromFile.Roles = &RolesFacts{Source: "file", You: "admin", Keys: []RoleKeyFacts{fixRole("ada", "admin"), fixRole("dan", "admin"), fixRole("eve", "writer"), fixRole("fay", "reader")},
+		Records: &RecordCheckFacts{}}
+	differs := fixSealed([]string{"ada", "dan", "eve", "fay"}, []string{"ada", "dan", "eve", "fay"}, ada)
+	differs.Roles = fixRoles("state")
+	differs.Roles.Differs = true
+	broken := fixSealed([]string{"ada", "dan", "eve", "fay"}, []string{"ada", "dan", "eve", "fay"}, ada)
+	broken.Roles = fixRoles("state")
+	broken.Roles.Error = "roles/00000002.json is not signed by an admin of the roles it follows."
+	broken.Roles.Records = &RecordCheckFacts{Problems: []RecordProblemFacts{
+		{Addr: "aws_iam_role.deploy", Why: "was written by a transaction signed by a key that is not in the roles, and no admin vouched for it"},
+		{Addr: "aws_s3_bucket.logs", Why: "was written by a transaction signed by fay, who is a reader"},
+		{Addr: "aws_s3_bucket.assets", Why: "was written by a transaction signed by fay, who is a reader"}}}
+	rolesOff := fixSealed([]string{"ada", "dan"}, []string{"ada", "dan"}, ada)
+	rolesOff.Roles = &RolesFacts{Source: "off"}
 	cases := map[string]accessInput{
-		"recovery":    in(withRecovery, 3, "s3"),
-		"recoverybad": in(brokenRecovery, 3, "s3"),
-		"platform":    in(fixSealed([]string{"ada", "dan", "eve"}, []string{"ada", "dan", "eve"}, ada), 3, "s3"),
-		"solo":        in(solo, 3, "s3"),
-		"off":         in(off, 1, "s3"),
-		"downgraded":  in(downgraded, 1, "s3"),
-		"immutable":   in(immutable, 2, "s3"),
-		"drift":       in(drift, 3, "s3"),
-		"locked":      in(locked, 3, "s3"),
-		"migrating":   in(migrating, 3, "s3"),
-		"unsealing":   in(unsealing, 3, "s3"),
-		"invalid":     in(invalid, 3, "s3"),
-		"missing":     in(missing, 3, "s3"),
-		"notreader":   in(notReader, 3, "s3"),
+		"roles":        in(pinned, 3, "s3"),
+		"rolesfile":    in(fromFile, 3, "s3"),
+		"rolesdiffers": in(differs, 3, "s3"),
+		"rolesbad":     in(broken, 3, "s3"),
+		"rolesoff":     in(rolesOff, 3, "s3"),
+		"recovery":     in(withRecovery, 3, "s3"),
+		"recoverybad":  in(brokenRecovery, 3, "s3"),
+		"platform":     in(fixSealed([]string{"ada", "dan", "eve"}, []string{"ada", "dan", "eve"}, ada), 3, "s3"),
+		"solo":         in(solo, 3, "s3"),
+		"off":          in(off, 1, "s3"),
+		"downgraded":   in(downgraded, 1, "s3"),
+		"immutable":    in(immutable, 2, "s3"),
+		"drift":        in(drift, 3, "s3"),
+		"locked":       in(locked, 3, "s3"),
+		"migrating":    in(migrating, 3, "s3"),
+		"unsealing":    in(unsealing, 3, "s3"),
+		"invalid":      in(invalid, 3, "s3"),
+		"missing":      in(missing, 3, "s3"),
+		"notreader":    in(notReader, 3, "s3"),
 	}
 	for name, input := range cases {
 		doc, err := json.MarshalIndent(buildAccess(input), "", " ")

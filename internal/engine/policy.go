@@ -15,6 +15,7 @@ import (
 	cuejson "cuelang.org/go/encoding/json"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
@@ -113,6 +114,29 @@ func (e *Engine) planPolicies(ctx context.Context) ([]PolicyEntry, error) {
 		}
 	}
 	return entries, nil
+}
+
+// checkPolicyRoles refuses the removal of a policy by a key that is not an admin in the
+// readers file. A writer adds and edits policies; removing one is for an admin, since it
+// is the one change that lets a plan through that the policy would have stopped.
+func (e *Engine) checkPolicyRoles(plan *Plan) error {
+	if !protect.RolesOn(e.Opts.Readers) {
+		return nil
+	}
+	var removing []string
+	for _, en := range plan.Policies {
+		if en.removal() {
+			removing = append(removing, en.Name)
+		}
+	}
+	if len(removing) == 0 {
+		return nil
+	}
+	role, ok := protect.RoleOf(e.Opts.Readers, e.State.SigningKey())
+	if ok && role.Allows(protect.RoleAdmin) {
+		return nil
+	}
+	return refused("removing the polic%s %s needs an admin, and your key is %s in the readers file", map[bool]string{true: "y", false: "ies"}[len(removing) == 1], strings.Join(removing, ", "), map[bool]string{true: "a " + role.String(), false: "not in it"}[ok])
 }
 
 // checkNewPolicy refuses a text that cannot be a policy: it compiles alone, imports
@@ -311,6 +335,9 @@ func (e *Engine) SetPlanFile(pf *PlanFile) { e.planFile = pf }
 func (e *Engine) judgeApply(ctx context.Context, plan *Plan, writes bool) (*state.PolicySet, error) {
 	set, err := e.policySet(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := e.checkPolicyRoles(plan); err != nil {
 		return nil, err
 	}
 	var reasons []string

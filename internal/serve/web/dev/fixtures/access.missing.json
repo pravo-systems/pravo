@@ -5,7 +5,7 @@
  "format": 3,
  "location": "s3://acme-state/estate",
  "backend": "s3",
- "summary": "The state is sealed to 3 readers. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
+ "summary": "This state is sealed: its secret values are locked, and only the 3 members listed below can open them. Names, types and dependencies stay visible, so the graph and the plans keep working.",
  "readers": [
   {
    "name": "ada",
@@ -14,7 +14,9 @@
    "key_short": "x25519:zILxDZ…",
    "in_store": true,
    "in_file": false,
-   "you": true
+   "you": true,
+   "status": "to-remove",
+   "status_text": "Off the list, still has a key"
   },
   {
    "name": "dan",
@@ -22,7 +24,9 @@
    "key": "x25519:Hli_Xj5WuXVFv4DwxC4drR13YSgBV_Idby_OkIthUm0",
    "key_short": "x25519:Hli_Xj…",
    "in_store": true,
-   "in_file": false
+   "in_file": false,
+   "status": "to-remove",
+   "status_text": "Off the list, still has a key"
   },
   {
    "name": "eve",
@@ -30,19 +34,21 @@
    "key": "x25519:1SF2s5-AKKnLO9umTOT0kedPWRnElvdGZ7B5sBXfXgU",
    "key_short": "x25519:1SF2s5…",
    "in_store": true,
-   "in_file": false
+   "in_file": false,
+   "status": "to-remove",
+   "status_text": "Off the list, still has a key"
   }
  ],
  "file": {
   "verdict": "missing",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "No readers file was found in .pravo/access. Writers take the list of readers from the repository, so a sealed state cannot be written from this checkout.",
+  "text": "No access list (readers.txt) was found in .pravo/access. Changes to a sealed state need it, so this checkout can't change the state.",
   "count": 0
  },
  "you": {
   "state": "reader",
   "name": "ada",
-  "text": "You are ada, a reader."
+  "text": "You are ada and can open this state."
  },
  "records": {
   "total": 46,
@@ -51,6 +57,13 @@
   "unreadable": 0,
   "text": "All 46 records are sealed."
  },
+ "issues": [
+  {
+   "level": "chg",
+   "title": "The access list is missing",
+   "text": "No access list (readers.txt) was found in .pravo/access. Changes to a sealed state need it, so this checkout can't change the state."
+  }
+ ],
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",
@@ -58,18 +71,19 @@
   "added": [
    "eve"
   ],
-  "text": "2026-10-22 10:41 UTC · readers rewrapped by ada"
+  "text": "2026-10-22 10:41 UTC · members changed by ada"
  },
  "suggestions": [
   {
    "id": "add-reader",
-   "title": "Add a reader",
-   "why": "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
-   "who": "the new reader, then a current reader",
+   "title": "Add a member",
+   "why": "The new member makes a key and sends the line it prints (a CI job is a member too, with a key of its own). A current member adds the line, commits it and rewraps.",
+   "who": "the new member, then any member",
+   "kind": "member-add",
    "steps": [
     {
      "kind": "note",
-     "text": "On the machine of the new reader:"
+     "text": "On the machine of the new member:"
     },
     {
      "kind": "command",
@@ -78,7 +92,7 @@
     },
     {
      "kind": "note",
-     "text": "On the machine of a current reader:"
+     "text": "On the machine of a current member:"
     },
     {
      "kind": "add-line",
@@ -92,7 +106,7 @@
     },
     {
      "kind": "command",
-     "text": "git commit -m 'Add a reader'"
+     "text": "git commit -m 'Add a member'"
     },
     {
      "kind": "command",
@@ -107,8 +121,8 @@
   {
    "id": "set-recovery",
    "title": "Set a recovery key",
-   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
-   "who": "a current reader",
+   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can still be opened when every member has lost their key. Give each share to a different person, offline. Whoever holds K shares can open the state, so K is a decision about whom to trust together.",
+   "who": "any member",
    "steps": [
     {
      "kind": "note",

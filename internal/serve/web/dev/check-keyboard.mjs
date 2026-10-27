@@ -10,7 +10,7 @@
 //     Escape leaves it where it was
 //   - a copy announces what it copied in the live region
 //   - the skip link moves the focus into the view, and the next Tab goes to the first stop of the view
-//   - the accessibility tree has the verdict and the state of "You" as text, the tables with their header cells,
+//   - the accessibility tree has the verdict and the state of "You" as text, the list of members and the table of groups,
 //     the marks with names, and the headings in order
 //
 //   node check-keyboard.mjs              all of it (about a minute)
@@ -50,8 +50,7 @@ async function open(width) {
   return b;
 }
 
-const VERDICT = { match: 'matches the store', differs: 'differs from the store', missing: 'no file', invalid: 'does not load', 'expected-sealed': 'state not sealed' };
-const YOU = { reader: 'reader', 'not-reader': 'not a reader', 'no-identity': 'no identity', locked: 'identity locked' };
+const YOU = { reader: 'member', 'not-reader': 'not a member', 'no-identity': 'no key', locked: 'key locked' };
 
 // the text of the accessibility tree under the pane, with roles
 async function paneTree(b) {
@@ -105,7 +104,10 @@ async function checkOne(b, f, theme, width, report) {
   const seq = inPane.map((s) => s.fk).filter(Boolean);
   check(JSON.stringify(seq) === JSON.stringify(order.filter((k) => seq.includes(k))), `${tag}: the Tab order is not the order of the page`);
   for (const s of inPane) {
-    if (s.tag === 'button' && s.fk === 'single') check(/^Add a backup reader/.test(s.ax?.name || ''), `${tag}: the warning button is named "${s.ax?.name}"`);
+    if (s.tag === 'button' && s.fk === 'single') check(/^Add a backup member/.test(s.ax?.name || ''), `${tag}: the warning button is named "${s.ax?.name}"`);
+    else if (s.tag === 'button' && s.fk === 'add') check(/^Add a (backup )?member/.test(s.ax?.name || ''), `${tag}: the add button is named "${s.ax?.name}"`);
+    else if (s.tag === 'button' && (s.fk || '').startsWith('fix:')) check(s.ax?.name === 'See what to do', `${tag}: the button of an issue is named "${s.ax?.name}"`);
+    else if (s.tag === 'button' && s.fk === 'recovery') check(/^Bring the recovery in line/.test(s.ax?.name || ''), `${tag}: the recovery button is named "${s.ax?.name}"`);
     else if (s.tag === 'button') check(/^Copy /.test(s.ax?.name || ''), `${tag}: the button "${s.ax?.name}" does not say what it copies`);
     if (s.tag === 'summary') {
       check(s.ax?.props.expanded !== undefined, `${tag}: the suggestion "${s.ax?.name}" does not say whether it is open`);
@@ -132,10 +134,10 @@ async function checkOne(b, f, theme, width, report) {
     const who = await b.eval(`(() => { const w = document.getElementById('me'); return w && !w.hidden ? w.getAttribute('aria-label') : null; })()`);
     check(who && who.includes(YOU.reader), `${tag}: the bar does not name the reader (${who})`);
   } else if (doc.you) check(has(doc.you.text.slice(0, 20)) && has(YOU[doc.you.state]), `${tag}: the state of You (${YOU[doc.you.state]}) is not in the accessibility tree`);
-  const sealed = doc.state === 'sealed' || doc.state === 'migrating' || doc.file.verdict === 'expected-sealed';
-  if (sealed && VERDICT[doc.file.verdict]) check(has(VERDICT[doc.file.verdict]), `${tag}: the verdict "${VERDICT[doc.file.verdict]}" is not in the accessibility tree`);
-  const bare = doc.state !== 'sealed' && doc.state !== 'migrating' && !(doc.readers || []).length && doc.file.verdict === 'none';
-  if (!bare) check(has(doc.file.text.slice(0, 30)), `${tag}: the sentence of the verdict is not in the accessibility tree`);
+  // what needs attention is said in words, once: the issues, or the line that says all is clear
+  for (const i of doc.issues || []) check(has(i.title) && has(i.text.slice(0, 30)), `${tag}: the issue "${i.title}" is not in the accessibility tree`);
+  if (doc.all_clear) check(has(doc.all_clear.slice(0, 30)) && has('all clear'), `${tag}: the line that says all is clear is not in the accessibility tree`);
+  check(!(doc.issues || []).length || out.some((n) => n.role === 'heading' && n.name.toLowerCase().startsWith('needs attention')), `${tag}: no heading Needs attention`);
   if (doc.migration) {
     const pb = out.find((n) => n.role === 'progressbar');
     check(pb && /records (un)?sealed$/.test(pb.name), `${tag}: the progress of a seal is not a named progress bar in the accessibility tree`);
@@ -144,19 +146,19 @@ async function checkOne(b, f, theme, width, report) {
   check(levels.every((l, i) => i === 0 || l - levels[i - 1] <= 1), `${tag}: the headings skip a level: ${levels.join(',')}`);
   const rows = (doc.readers || []).length;
   if (rows) {
-    check(out.some((n) => n.role === 'table'), `${tag}: the readers are not a table in the accessibility tree`);
-    check(out.filter((n) => n.role === 'columnheader').length >= 6, `${tag}: the readers table has no column headers`);
-    check(out.filter((n) => n.role === 'rowheader').length >= rows, `${tag}: the readers table has no row headers`);
-    const marks = out.filter((n) => n.role === 'image').map((n) => n.name);
-    check(marks.length === 2 * rows && marks.every((m) => /^(not )?in the (readers file|store)$/.test(m)), `${tag}: the marks of the table are not all named: ${marks.length} of ${2 * rows}`);
-    // the label that a stacked cell draws is upper case in the tree, as it is on the page; a mark's name is lower case
-    const echoed = out.filter((n) => n.role === 'cell' && /^(READER KEY|SIGNING KEY|IN THE FILE|IN THE STORE|LINE)\b/.test(n.name));
-    check(echoed.length === 0, `${tag}: a cell reads out its column label, which its header cell already gives: "${echoed[0] && echoed[0].name}"`);
+    // the members are a list, one row each, which opens: the row is a stop with a name, and says whether it is open
+    check(out.some((n) => n.role === 'list' && n.name === 'Members of the state'), `${tag}: the members are not a named list in the accessibility tree`);
+    check(out.filter((n) => n.role === 'listitem').length >= rows, `${tag}: the list of members has fewer items than members`);
+    const people = await b.eval(`Array.from(document.querySelectorAll('#access-pane .ac-person > summary')).length`);
+    check(people === rows, `${tag}: ${people} rows for ${rows} members`);
     const unusable = (doc.readers || []).filter((r) => !r.name_ok).length;
     check(out.filter((n) => n.role === 'note' && n.name === 'name not usable').length === unusable, `${tag}: a name that cannot be used is not marked in the accessibility tree`);
+    // what is about one member is with that member and not in the list of suggestions
+    const loose = await b.eval(`Array.from(document.querySelectorAll('#access-pane .ac-sec:last-of-type details.ac-card')).map((d) => d.dataset.id).filter((id) => id.startsWith('remove-reader:') || id.startsWith('change-role:'))`);
+    check(loose.length === 0, `${tag}: the suggestions of one member are in the list of suggestions: ${loose.join(', ')}`);
   }
   const t = await b.eval(`document.querySelector('#main > h1').textContent`);
-  check(/access|protected|read the state/i.test(t), `${tag}: the h1 of the page does not belong to the view: ${t}`);
+  check(/access|protected|read the state|members/i.test(t), `${tag}: the h1 of the page does not belong to the view: ${t}`);
   check(await b.eval(`document.getElementById('access-pane').getAttribute('role') === 'region'`), `${tag}: the pane has a label and no role`);
   return { stops, inPane };
 }

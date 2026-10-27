@@ -49,6 +49,9 @@ type sessionOptions struct {
 	// location that holds none is read as an empty state. For the commands that
 	// only look.
 	readOnlyState bool
+	// planning opens the state as openStateForPlan does: a reader of a repository with
+	// roles works on it in memory.
+	planning bool
 	// regenerates is set by the commands that write the generated provider
 	// packages in this run, which therefore do not warn that they are old.
 	regenerates bool
@@ -97,7 +100,25 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 			if mode == pravo.StateRead {
 				return openStateValues(ctx, root)
 			}
-			return openState(ctx, root)
+			var st *state.Store
+			var err error
+			if opts.planning {
+				st, err = openStateForPlan(ctx, root)
+			} else {
+				st, err = openState(ctx, root)
+			}
+			if err != nil {
+				return nil, err
+			}
+			// A command that plans or applies reads the records and writes them again, and
+			// a writer would give a record that a reader sealed the signature of its own
+			// transaction. The state commands do not come through here: they are how a
+			// record like that is removed.
+			if err := checkBoundRecords(root, st); err != nil {
+				st.Close()
+				return nil, err
+			}
+			return st, nil
 		},
 		// Looked for only when remote_outputs meets a sealed state, so that a command
 		// that never needs a key never asks for a passphrase.
@@ -135,7 +156,14 @@ func (s *session) close() {
 
 func (s *session) engine(opts engine.Options) *engine.Engine {
 	opts.Actor, opts.Reason = flagActor, flagReason
-	opts.Readers = loadReadersFile(s.root.Dir, flagAccessDir).Readers
+	rf := loadReadersFile(s.root.Dir, flagAccessDir)
+	// The roles that decide are those in the state when the readers file pins them. A chain
+	// that does not verify was refused when the state was opened.
+	if eff, rs, err := rf.withRoles(s.state); err == nil {
+		rf = eff
+		opts.Vouched, opts.StrictKeys = rs.Vouched, rs.Source == "state"
+	}
+	opts.Readers = rf.Readers
 	if flagJSON && streamEvents && opts.Event == nil {
 		// Only commands that change things stream events; plan-like
 		// commands print a single document.
@@ -153,7 +181,16 @@ func openState(ctx context.Context, root *config.Root) (*state.Store, error) {
 // sealed state needs the identity of a reader and a readers file that matches
 // the state.
 func openStateStore(ctx context.Context, root *config.Root) (*state.Store, error) {
-	st, _, err := openStateAs(ctx, root, true, false)
+	st, _, err := openStateAs(ctx, root, true, false, false)
+	return st, err
+}
+
+// openStateForPlan opens the state for a command that plans. A key that may change the
+// state opens it as openState does. A reader gets the same state with its writes held
+// in memory: the plan refreshes what it reads and leaves the bucket as it found it, and
+// only a stored plan is written. See Role in internal/protect.
+func openStateForPlan(ctx context.Context, root *config.Root) (*state.Store, error) {
+	st, _, err := openStateAs(ctx, root, true, false, true)
 	return st, err
 }
 
@@ -165,11 +202,11 @@ func openStateStore(ctx context.Context, root *config.Root) (*state.Store, error
 // command that needs values gets the refusal of a store that is not read, unless
 // allowLocked is set. A command that writes also needs a readers
 // file that matches the state; one that reads only warns.
-func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool) (st *state.Store, why *noKey, err error) {
-	open := func(id *protect.Identity) (*state.Store, error) {
+func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, planning bool) (st *state.Store, why *noKey, err error) {
+	open := func(id *protect.Identity, overlay bool) (*state.Store, error) {
 		// The end of a transaction that could not be signed is shown, not failed on.
 		return pravo.OpenStore(ctx, root, pravo.StoreOptions{
-			Write: write, Identity: id, Env: environment(),
+			Write: write, Overlay: overlay, Identity: id, Env: environment(),
 			CheckConditions: func(ctx context.Context, b state.Backend) error { return checkStoreConditions(ctx, root, b) },
 			Warn:            func(msg string) { out.Warning(msg) },
 		})
@@ -177,7 +214,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 	// A repository that lists readers expects a sealed state, and a state that does
 	// not exist yet is not one. Whether it exists is looked at before the open, which
 	// would make it, in format 1.
-	missing := false
+	missing, overlay := false, false
 	if rf := loadReadersFile(root.Dir, flagAccessDir); rf.Found && stateMissing(ctx, root) {
 		problem := missingStateProblem(rf)
 		if write {
@@ -186,7 +223,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 		fmt.Fprintln(os.Stderr, "Warning: "+problem)
 		missing = true
 	}
-	if st, err = open(nil); err != nil {
+	if st, err = open(nil, false); err != nil {
 		return nil, nil, err
 	}
 	if missing {
@@ -198,12 +235,20 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 	// The state is sealed.
 	id, idErr := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
 	if idErr == nil {
-		keyed, err := open(id)
+		keyed, err := open(id, false)
 		if err != nil && !errors.Is(err, state.ErrNotReader) {
 			return nil, nil, err
 		}
 		if err == nil {
 			st = keyed
+		}
+		// A reader who plans works on the state in memory.
+		if msg, _ := roleProblem(loadReadersFile(root.Dir, flagAccessDir), st, protect.RoleWriter, ""); write && planning && !st.Locked() && msg != "" {
+			st.Close()
+			if st, err = open(id, true); err != nil {
+				return nil, nil, err
+			}
+			overlay = true
 		}
 	}
 	if st.Locked() {
@@ -215,7 +260,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 			fmt.Fprintln(os.Stderr, "Warning: "+idErr.Error())
 		}
 	}
-	return st, why, checkReadersFile(root, st, write && !st.Locked())
+	return st, why, checkReadersFile(root, st, write && !st.Locked() && !overlay)
 }
 
 // stateMissing reports whether the state of the root does not exist yet: its
@@ -267,7 +312,7 @@ func openStateReadOnly(ctx context.Context, root *config.Root) (*state.Store, er
 
 func openStateReadOnlyWhy(ctx context.Context, root *config.Root) (*state.Store, *noKey, error) {
 	began := time.Now()
-	st, why, err := openStateAs(ctx, root, false, true)
+	st, why, err := openStateAs(ctx, root, false, true, false)
 	if err == nil {
 		plog.Debug(ctx, "state opened for reading", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
 	}
@@ -392,4 +437,45 @@ func (s *session) warnStaleSchemas() {
 			out.Warning(fmt.Sprintf("the generated schema for provider %s was made from a different version than the selected v%s; run \"pravo init\" to refresh it", local, rp.Version))
 		}
 	}
+}
+
+// checkBoundRecords refuses a sealed state, in a repository whose readers file gives roles,
+// that holds a record which no verified transaction of a writer names (see
+// state.Store.VerifyRecords). It checks every record, reading each transaction once.
+func checkBoundRecords(root *config.Root, st *state.Store) error {
+	rf := loadReadersFile(root.Dir, flagAccessDir)
+	if !rf.Found || rf.Err != nil || st.Locked() || !isSealed(st.Protection()) {
+		return nil
+	}
+	rf, rs, err := rf.withRoles(st)
+	if err != nil {
+		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%s", printable(err.Error())))
+	}
+	if !protect.RolesOn(rf.Readers) {
+		return nil
+	}
+	var addrs []string
+	for _, r := range st.List() {
+		addrs = append(addrs, r.Address())
+	}
+	v := st.CheckRecordsWith(recordRules(rf.Readers, rs), addrs...)
+	if len(v.Problems) == 0 {
+		return nil
+	}
+	var lines []string
+	for i, p := range v.Problems {
+		if i == 3 {
+			lines = append(lines, fmt.Sprintf("and %d more", len(v.Problems)-3))
+			break
+		}
+		lines = append(lines, printable(p.Addr)+": "+printable(p.Why))
+	}
+	return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s that no transaction of a writer accounts for (someone who holds the data key may have sealed them):\n%s\nSee pravo protect status. Remove or restore them with pravo state rm or from a version of the bucket.", state.ErrUntrusted, plural(len(v.Problems), "record", "records"), strings.Join(lines, "\n")))
+}
+
+// recordRules are the rules for the signers of the transactions that wrote records: the keys
+// of the roles, the keys that left, and, when the roles are pinned in the state, a refusal of
+// any other key.
+func recordRules(readers []protect.Reader, rs state.RolesStatus) state.RecordRules {
+	return state.RecordRules{Readers: readers, Vouched: rs.Vouched, Strict: rs.Source == "state"}
 }

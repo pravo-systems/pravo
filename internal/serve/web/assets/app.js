@@ -1067,7 +1067,7 @@ function setDocTitle() {
 }
 
 // renderWho names the identity that the page is read as. An unsealed state has none to name.
-const WHO = { reader: 'reader', 'not-reader': 'not a reader', 'no-identity': 'no identity', locked: 'identity locked' };
+const WHO = { reader: 'member', 'not-reader': 'not a member', 'no-identity': 'no key', locked: 'key locked' };
 function renderWho() {
   const el = $('me'), y = S.access && S.access.you;
   el.hidden = !y;
@@ -1174,7 +1174,7 @@ function toggleInspSize() {
 // ---------------------------------------------------------------------------------------------------------
 // live updates
 
-const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock', plans: 'the stored plans', access: 'the readers file', discovery: 'the discoveries' };
+const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock', plans: 'the stored plans', access: 'the access list', discovery: 'the discoveries' };
 let pendingWhat = new Set();
 
 async function refresh() {
@@ -1399,7 +1399,7 @@ function paletteActions() {
   add('Go to', 'Open the policy studio', S.view === 'policies' ? ['s'] : [], () => { setView('policies'); policiesView.setMode('studio'); }, { icon: 'policy', words: 'try rule draft playground preview plans refuse policy test' });
   if (S.view !== 'traces') add('Go to', 'Go to Traces', ['r'], into('traces'), { icon: 'trace', words: 'runs recorded timeline spans transactions' });
   if (S.view !== 'plans') add('Go to', 'Go to Plans', ['p'], into('plans'), { icon: 'file', words: 'stored plans' });
-  if (S.view !== 'access') add('Go to', 'Go to State', ['a'], into('access'), { icon: 'lock', words: 'access readers sealed' });
+  if (S.view !== 'access') add('Go to', 'Go to State', ['a'], into('access'), { icon: 'lock', words: 'access members readers sealed roles' });
   if (res) {
     if (S.view === 'list') add('View', 'Show the graph', ['g'], into('graph'), { words: 'view' });
     else add('View', 'Show the list', ['g'], into('list'), { words: 'view' });

@@ -18,6 +18,9 @@ type StoreOptions struct {
 	// open for reading: a location that holds none reads as an empty state and
 	// nothing is created or changed.
 	Write bool
+	// Overlay keeps what the store writes in memory, except the stored plans, for a
+	// caller that may read the state and not change it. It needs Write.
+	Overlay bool
 	// Identity is the key of a reader, for a state that is sealed. Nil opens a sealed
 	// state locked: it lists addresses and revisions and returns no value.
 	Identity *Identity
@@ -59,10 +62,15 @@ func openStore(ctx context.Context, root *config.Root, o StoreOptions) (*state.S
 					return nil, err
 				}
 			}
+			if o.Overlay {
+				b = state.OverlayBackend(b, "plans")
+			}
 		} else {
 			b = &readOnlyBackend{Backend: b}
 		}
 		return state.OpenBackendWith(ctx, b, so)
+	case o.Write && o.Overlay:
+		return state.OpenBackendWith(ctx, state.OverlayBackend(&state.LocalBackend{Dir: root.StateFile()}, "plans"), so)
 	case o.Write:
 		return state.OpenWithContext(ctx, root.StateFile(), so)
 	}

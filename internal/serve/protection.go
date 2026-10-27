@@ -27,8 +27,52 @@ type Facts struct {
 	File  FileFacts
 	// You is the identity the process holds, nil for none.
 	You *YouFacts
+	// Roles are the roles of the keys, nil for a state that is not sealed.
+	Roles *RolesFacts
 	// Problem is a sentence for the page when the facts could not be made in full.
 	Problem string
+}
+
+// RolesFacts are the roles of the keys of a sealed state: what the readers file gives, what the
+// state holds, and whether the records are the work of writers.
+type RolesFacts struct {
+	// Source is "off" (no line of the readers file gives a role), "file" (the readers file
+	// decides: the roles are not pinned in the state) or "state" (a chain of versions in the
+	// state decides, as the readers file pins it).
+	Source string
+	// Unpinned is set when the state holds a chain that the readers file does not pin.
+	Unpinned bool
+	// Differs is set when the readers file asks for other roles than the newest version.
+	Differs bool
+	// Error says why the chain does not verify, or is not the one the readers file pins.
+	Error string
+	// You is the role of the identity of the process: "admin", "writer", "reader" or "".
+	You string
+	// Keys are the signing keys of the members with their roles, by fingerprint.
+	Keys []RoleKeyFacts
+	// Records is how the records stand against the transactions of writers, nil when the
+	// roles are off.
+	Records *RecordCheckFacts
+}
+
+// RoleKeyFacts is one signing key with its role: "admin", "writer" or "reader".
+type RoleKeyFacts struct {
+	Name        string
+	Fingerprint string
+	Role        string
+}
+
+// RecordCheckFacts is the verdict on the records: each is the work of a writer, or is not.
+type RecordCheckFacts struct {
+	// Skipped is set, with the reason, when the check was not made, for a state too large to
+	// be walked each time the page is read.
+	Skipped  string
+	Problems []RecordProblemFacts
+}
+
+// RecordProblemFacts is a record that no transaction of a writer accounts for.
+type RecordProblemFacts struct {
+	Addr, Why string
 }
 
 // StoreFacts are what the store says about its own protection, from meta.json

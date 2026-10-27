@@ -665,6 +665,12 @@ type Access struct {
 	// Recovery is the recovery recipient of the state: any K of N shares rebuild
 	// its key. It is absent when the state has none.
 	Recovery *AccessRecovery `json:"recovery,omitempty"`
+	// Roles are the roles of the keys. It is absent unless the state is sealed.
+	Roles *AccessRoles `json:"roles,omitempty"`
+	// Issues are what needs attention, worst first. AllClear is the sentence for a sealed state
+	// that has none, empty when there are some.
+	Issues   []AccessIssue `json:"issues"`
+	AllClear string        `json:"all_clear,omitempty"`
 	// LastChange is the newest entry of the history of the seal.
 	LastChange  *AccessChange `json:"last_change,omitempty"`
 	Suggestions []Suggestion  `json:"suggestions"`
@@ -690,6 +696,46 @@ type AccessReader struct {
 	You bool `json:"you,omitempty"`
 	// Line is the line of the readers file, 0 for a reader that is not in it.
 	Line int `json:"line,omitempty"`
+	// Role is what the key may do, "admin", "writer" or "reader", when the roles are on.
+	Role string `json:"role,omitempty"`
+	// Status is "active" (in the list and in the state), "to-add" (in the list, not let in yet) or
+	// "to-remove" (off the list, still holds a key). It is absent when the state is not sealed.
+	// StatusText is the words for it.
+	Status     string `json:"status,omitempty"`
+	StatusText string `json:"status_text,omitempty"`
+}
+
+// AccessRoles are the roles of a sealed state. State is "off", "file" (the readers file decides),
+// "pinned" (the roles in the state decide) or "untrusted" (the chain in the state does not
+// verify). Text is the sentence for it. What is long, rare or complex about them, the versions
+// and the vouched transactions, is left to pravo protect status.
+type AccessRoles struct {
+	State string `json:"state"`
+	Text  string `json:"text"`
+	// Differs is set when the readers file asks for other roles than the state holds.
+	Differs bool `json:"differs,omitempty"`
+	// You is the role of this process, absent when it has none known.
+	You string `json:"you,omitempty"`
+}
+
+// AccessIssue is something that needs a person's attention: the page lists these and nothing else
+// that is about how well the state is kept. Level is "bad" (the state cannot be trusted or changed
+// until it is dealt with) or "chg" (it works, and should be mended). Suggestion is the ID of the
+// card that says what to do, absent when the answer is in Text.
+type AccessIssue struct {
+	Level      string `json:"level"`
+	Title      string `json:"title"`
+	Text       string `json:"text"`
+	Suggestion string `json:"suggestion,omitempty"`
+	// Items are the records of an issue about records, up to 20, and More the number left out.
+	Items []AccessIssueItem `json:"items,omitempty"`
+	More  int               `json:"more,omitempty"`
+}
+
+// AccessIssueItem is a record and why it is in doubt.
+type AccessIssueItem struct {
+	Addr string `json:"addr"`
+	Why  string `json:"why"`
 }
 
 // AccessFile is what the readers file says in relation to the store.
@@ -805,8 +851,13 @@ type Suggestion struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Why   string `json:"why"`
-	// Who says whose machine the steps are for, such as "a current reader".
+	// Who says whose machine the steps are for, such as "a current member".
 	Who string `json:"who,omitempty"`
+	// Kind is set on the steps that are about one member of the state, which the page shows with that
+	// member and not in the list: "member-add", "member-remove" or "member-role". Member is the name
+	// of the member the last two are for.
+	Kind   string `json:"kind,omitempty"`
+	Member string `json:"member,omitempty"`
 	// Primary marks the next step for the state shown.
 	Primary bool             `json:"primary,omitempty"`
 	Steps   []SuggestionStep `json:"steps"`
@@ -1108,7 +1159,7 @@ type PolicyVersionInfo struct {
 	At     time.Time `json:"at"`
 	// Removal is set when the version removes the policy.
 	Removal bool `json:"removal,omitempty"`
-	// Signature is "verified", "key_not_in_file", "invalid" or "unsigned", or empty when
+	// Signature is "verified", "role_changed", "key_not_in_file", "invalid" or "unsigned", or empty when
 	// no readers file was there to check it against.
 	Signature string `json:"signature,omitempty"`
 	Signer    string `json:"signer,omitempty"`
