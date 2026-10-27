@@ -2,6 +2,8 @@ package protect
 
 import (
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -87,4 +89,52 @@ func RoleOf(rs []Reader, fp string) (role Role, ok bool) {
 		return r.Role, true
 	}
 	return RoleNone, false
+}
+
+// FormatRolesSet writes the roles that a version of the roles in the state holds: one line
+// for each key, "NAME ssh-ed25519 BASE64 role:ROLE", sorted by name. The line has the signing
+// key and not the reader key, since a role is about who may sign. A reader without a role is
+// written as a reader.
+func FormatRolesSet(rs []Reader) string {
+	sorted := append([]Reader(nil), rs...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
+	var b strings.Builder
+	for _, r := range sorted {
+		role := r.Role
+		if role == RoleNone {
+			role = RoleReader
+		}
+		b.WriteString(r.Name + " " + sshEd25519 + " " + SSHBlob(r.Sign) + " role:" + role.String() + "\n")
+	}
+	return b.String()
+}
+
+// ParseRolesSet is the reverse of FormatRolesSet. The readers it returns have a name, a
+// signing key and a role, and no reader key.
+func ParseRolesSet(text string) ([]Reader, error) {
+	var out []Reader
+	seen := map[string]bool{}
+	for n, line := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		f := strings.Fields(line)
+		if len(f) != 4 || f[1] != sshEd25519 {
+			return nil, fmt.Errorf("roles line %d: want NAME ssh-ed25519 BASE64 role:ROLE", n+1)
+		}
+		if !nameRE.MatchString(f[0]) || seen[strings.ToLower(f[0])] {
+			return nil, fmt.Errorf("roles line %d: the name is not valid or is used twice", n+1)
+		}
+		seen[strings.ToLower(f[0])] = true
+		sign, err := ParseSSHBlob(f[2])
+		if err != nil {
+			return nil, fmt.Errorf("roles line %d: signing key: %w", n+1, err)
+		}
+		role, err := ParseRole(f[3])
+		if err != nil {
+			return nil, fmt.Errorf("roles line %d: %w", n+1, err)
+		}
+		out = append(out, Reader{Name: f[0], Sign: sign, Role: role})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("the roles are empty")
+	}
+	return out, nil
 }

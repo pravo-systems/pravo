@@ -42,6 +42,8 @@ const (
 	maxReaders     = 200
 )
 
+var digestRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
 var nameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
 // ParseReaderLine parses one line, without its newline.
@@ -81,20 +83,32 @@ func ParseReaderLine(line string) (Reader, error) {
 	return Reader{Name: f[0], Sign: sign, Key: key, Role: role}, nil
 }
 
+// RolesGenesisKey is the first field of the line that pins the first version of the roles
+// stored in the state: "roles-genesis DIGEST", the SHA-256 of its text in hex. A key that is
+// named like this and has two fields is the pin and not a reader.
+const RolesGenesisKey = "roles-genesis"
+
 // ParseReaders parses a whole file. It stops at the first bad line and names it.
 // The result is in file order. It fails on a repeated name (case-insensitive) or
 // a repeated reader key, which are almost always a paste error.
 func ParseReaders(r io.Reader) ([]Reader, error) {
+	rs, _, err := ParseReadersPin(r)
+	return rs, err
+}
+
+// ParseReadersPin is ParseReaders for a file that may hold a pin of the roles in the state:
+// the line "roles-genesis DIGEST". pin is the digest, empty without the line.
+func ParseReadersPin(r io.Reader) (rs []Reader, pin string, err error) {
 	data, err := io.ReadAll(io.LimitReader(r, maxReadersFile+1))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if len(data) > maxReadersFile {
-		return nil, fmt.Errorf("readers file is larger than %d bytes", maxReadersFile)
+		return nil, "", fmt.Errorf("readers file is larger than %d bytes", maxReadersFile)
 	}
 	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 	if bytes.IndexByte(data, 0) >= 0 {
-		return nil, fmt.Errorf("readers file contains a NUL byte")
+		return nil, "", fmt.Errorf("readers file contains a NUL byte")
 	}
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 0, 4096), maxReaderLine+2)
@@ -106,27 +120,34 @@ func ParseReaders(r io.Reader) ([]Reader, error) {
 		if t := strings.TrimSpace(line); t == "" || t[0] == '#' {
 			continue
 		}
+		if f := strings.Fields(strings.SplitN(line, "#", 2)[0]); len(f) == 2 && f[0] == RolesGenesisKey {
+			if pin != "" || !digestRE.MatchString(f[1]) {
+				return nil, "", fmt.Errorf("readers file, line %d: want one %s line with the SHA-256 of the first roles in hex", n, RolesGenesisKey)
+			}
+			pin = f[1]
+			continue
+		}
 		rd, err := ParseReaderLine(line)
 		if err != nil {
-			return nil, fmt.Errorf("readers file, line %d: %w", n, err)
+			return nil, "", fmt.Errorf("readers file, line %d: %w", n, err)
 		}
 		rd.Line = n
 		if p, dup := names[strings.ToLower(rd.Name)]; dup {
-			return nil, fmt.Errorf("readers file, line %d: name %q is already used on line %d", n, rd.Name, p)
+			return nil, "", fmt.Errorf("readers file, line %d: name %q is already used on line %d", n, rd.Name, p)
 		}
 		if p, dup := keys[rd.Key.String()]; dup {
-			return nil, fmt.Errorf("readers file, line %d: reader key of %q is already listed on line %d", n, rd.Name, p)
+			return nil, "", fmt.Errorf("readers file, line %d: reader key of %q is already listed on line %d", n, rd.Name, p)
 		}
 		names[strings.ToLower(rd.Name)] = n
 		keys[rd.Key.String()] = n
 		if out = append(out, rd); len(out) > maxReaders {
-			return nil, fmt.Errorf("readers file, line %d: more than %d readers", n, maxReaders)
+			return nil, "", fmt.Errorf("readers file, line %d: more than %d readers", n, maxReaders)
 		}
 	}
 	if err := sc.Err(); err != nil { // includes a line over maxReaderLine
-		return nil, fmt.Errorf("readers file: %w", err)
+		return nil, "", fmt.Errorf("readers file: %w", err)
 	}
-	return out, nil
+	return out, pin, nil
 }
 
 // String is the canonical line, with no comment.

@@ -1,0 +1,230 @@
+package state
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
+	"sort"
+	"strconv"
+	"time"
+
+	"github.com/pravo-systems/pravo/internal/protect"
+)
+
+// Roles in the state. The roles of the keys are kept in the state as a chain of immutable
+// versions, one object each:
+//
+//	roles/<seq>.json   {"text":"…","at":"…","signature":{…}}
+//
+// <seq> is eight digits and counts from 1 without a gap. The text of a version is the
+// roles of all keys, as protect.FormatRolesSet writes them: the name, the signing key
+// and the role of each. A version is created with PutIfAbsent and never replaced.
+//
+// The first version is pinned by the readers file of the repository ("roles-genesis" and
+// the SHA-256 of its text), which a writer of the bucket cannot change; it is signed by a
+// key that is an admin in its own text. Every later version is signed by a key that is an
+// admin in the version before it. So a writer of the bucket who holds no admin key cannot
+// add a version, replace the first, or make a role of their own: they can delete the
+// newest versions, which an object lock on roles/ stops, and the chain they leave is
+// the older one. A state whose pin finds no chain is refused.
+//
+// The roles of the readers file are what an admin asks for. Only the chain decides.
+
+const rolesDir = "roles"
+
+var rolesKeyRe = regexp.MustCompile(`^roles/([0-9]{8})\.json$`)
+
+// ErrRolesChanged is returned when a version of the roles could not be put because another
+// writer put one at that number first.
+var ErrRolesChanged = errors.New("the roles changed since they were read")
+
+func rolesKey(seq int) string { return fmt.Sprintf("%s/%08d.json", rolesDir, seq) }
+
+// RolesVersion is one version of the roles.
+type RolesVersion struct {
+	Seq       int                `json:"-"`
+	Text      string             `json:"text"`
+	At        time.Time          `json:"at"`
+	Signature *protect.Signature `json:"signature,omitempty"`
+	// Set is the keys of Text, with their roles. It is set by what reads the version.
+	Set []protect.Reader `json:"-"`
+}
+
+// Digest is the SHA-256 of the text in hex, which the readers file pins for the first.
+func (v RolesVersion) Digest() string { return TextDigest(v.Text) }
+
+func rolesParts(seq int, text string, at time.Time) [][]byte {
+	return [][]byte{[]byte(strconv.Itoa(seq)), []byte(TextDigest(text)), []byte(at.UTC().Format(time.RFC3339Nano))}
+}
+
+// RolesChain is the verified versions of the roles of a state.
+type RolesChain struct {
+	Versions []RolesVersion
+}
+
+// Head is the newest version, nil for an empty chain.
+func (c *RolesChain) Head() *RolesVersion {
+	if c == nil || len(c.Versions) == 0 {
+		return nil
+	}
+	return &c.Versions[len(c.Versions)-1]
+}
+
+// RolesChain reads the chain of roles of the state and checks it: no gap, every text
+// parses, the first is signed by an admin of its own text, and every later one by an admin of
+// the version before it. It does not look at the pin; RolesFor does. An empty chain is no
+// error. A state that is not sealed has none.
+func (s *Store) RolesChain(ctx context.Context) (*RolesChain, error) {
+	chain := &RolesChain{}
+	if !s.sealedState() {
+		return chain, nil
+	}
+	keys, err := s.b.List(ctx, rolesDir)
+	if err != nil {
+		return nil, err
+	}
+	var seqs []int
+	for _, k := range keys {
+		m := rolesKeyRe.FindStringSubmatch(k)
+		if m == nil {
+			return nil, fmt.Errorf("%w: %s is not a version of the roles", ErrUntrusted, k)
+		}
+		n, _ := strconv.Atoi(m[1])
+		seqs = append(seqs, n)
+	}
+	sort.Ints(seqs)
+	for i, n := range seqs {
+		if n != i+1 {
+			return nil, fmt.Errorf("%w: the roles have no version %d", ErrUntrusted, i+1)
+		}
+		data, err := s.b.Get(ctx, rolesKey(n))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", rolesKey(n), err)
+		}
+		v := RolesVersion{Seq: n}
+		if err := json.Unmarshal(data, &v); err != nil {
+			return nil, fmt.Errorf("%w: %s: %v", ErrUntrusted, rolesKey(n), err)
+		}
+		if v.Set, err = protect.ParseRolesSet(v.Text); err != nil {
+			return nil, fmt.Errorf("%w: %s: %v", ErrUntrusted, rolesKey(n), err)
+		}
+		signers := v.Set
+		if n > 1 {
+			signers = chain.Versions[n-2].Set
+		}
+		if v.Signature == nil {
+			return nil, fmt.Errorf("%w: %s has no signature", ErrUntrusted, rolesKey(n))
+		}
+		status, _ := protect.VerifySignature(v.Signature, signers, protect.DomainRolesVersion, s.Lineage(), rolesParts(n, v.Text, v.At)...)
+		if status != protect.SigVerified {
+			return nil, fmt.Errorf("%w: %s is not signed by an admin of the roles it follows", ErrUntrusted, rolesKey(n))
+		}
+		if role, _ := protect.RoleOf(append([]protect.Reader(nil), signers...), v.Signature.Key); role != protect.RoleAdmin {
+			return nil, fmt.Errorf("%w: %s is signed by a key that is not an admin of the roles it follows", ErrUntrusted, rolesKey(n))
+		}
+		chain.Versions = append(chain.Versions, v)
+	}
+	return chain, nil
+}
+
+// RolesStatus says where the roles of a state come from.
+type RolesStatus struct {
+	// Source is "file" when the readers file decides, because it gives roles and pins
+	// no chain, "state" when the chain decides, and "off" when there are no roles.
+	Source string
+	// Version is the number of the head of the chain, 0 without one.
+	Version int
+	// Unpinned is set when the state holds a chain that the readers file does not pin: the
+	// file decides until its pin is committed.
+	Unpinned bool
+	// Differs is set when the roles of the readers file are not the head of the chain.
+	Differs bool
+}
+
+// RolesFor gives the readers the roles that decide for this state. file are the readers of the
+// repository, as parsed, and pin is the digest its roles-genesis line holds, empty without the
+// line. With a pin, the chain decides, and the roles of the file only say what an admin asks
+// for; a pin without a chain, a chain that does not begin with the pin, or a chain that does
+// not verify is ErrUntrusted. Without a pin the readers file decides, and a chain is
+// reported and not used.
+func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string) ([]protect.Reader, RolesStatus, error) {
+	st := RolesStatus{Source: "off"}
+	if protect.RolesOn(file) {
+		st.Source = "file"
+	}
+	if !s.sealedState() {
+		return file, st, nil
+	}
+	chain, err := s.RolesChain(ctx)
+	if err != nil {
+		if pin == "" {
+			return file, st, nil // nobody relies on it; status says so
+		}
+		return nil, st, err
+	}
+	head := chain.Head()
+	if head != nil {
+		st.Version = head.Seq
+	}
+	switch {
+	case pin == "" && head == nil:
+		return file, st, nil
+	case pin == "":
+		st.Unpinned = true
+		return file, st, nil
+	case head == nil:
+		return nil, st, fmt.Errorf("%w: the readers file pins the roles of the state, and the state has none", ErrUntrusted)
+	case chain.Versions[0].Digest() != pin:
+		return nil, st, fmt.Errorf("%w: the first roles in the state are not the ones the readers file pins", ErrUntrusted)
+	}
+	st.Source = "state"
+	out := make([]protect.Reader, len(file))
+	copy(out, file)
+	for i := range out {
+		out[i].Role = protect.RoleReader
+		for _, r := range head.Set {
+			if protect.SSHFingerprint(r.Sign) == protect.SSHFingerprint(out[i].Sign) {
+				out[i].Role = r.Role
+			}
+		}
+	}
+	st.Differs = protect.FormatRolesSet(file) != head.Text
+	return out, st, nil
+}
+
+// PutRolesVersion signs a version of the roles and creates it at seq, the number after the head
+// the caller read. A version at that number with the same text is the caller's own earlier
+// attempt and is no error; any other is ErrRolesChanged.
+func (s *Store) PutRolesVersion(ctx context.Context, seq int, text string, at time.Time) error {
+	at = at.UTC()
+	sig, ok, err := s.SignMessage(protect.DomainRolesVersion, rolesParts(seq, text, at)...)
+	if err != nil {
+		return fmt.Errorf("signing the roles: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("%w: the roles are signed and the state is not sealed", ErrNotReader)
+	}
+	data, err := indentJSON(RolesVersion{Text: text, At: at, Signature: &sig})
+	if err != nil {
+		return err
+	}
+	created, err := s.b.PutIfAbsent(ctx, rolesKey(seq), data)
+	if err != nil {
+		return Advise(err)
+	}
+	if created {
+		return nil
+	}
+	cur, err := s.b.Get(ctx, rolesKey(seq))
+	if err != nil {
+		return err
+	}
+	var old RolesVersion
+	if bytes.Equal(cur, data) || json.Unmarshal(cur, &old) == nil && old.Text == text && old.Signature != nil && old.Signature.Key == sig.Key {
+		return nil
+	}
+	return fmt.Errorf("%w: %s exists", ErrRolesChanged, rolesKey(seq))
+}

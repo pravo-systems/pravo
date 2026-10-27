@@ -271,7 +271,7 @@ func TestTheRecordsOfAWriterAreBoundToItsTransactions(t *testing.T) {
 	}
 
 	text, code := runPravo(t, r.dir, "--identity", "dan", "protect", "status")
-	if code != 0 || !strings.Contains(text, "Roles        on · 0 admin · 1 writer · 1 reader · you are a reader") ||
+	if code != 0 || !strings.Contains(text, "Roles        on · 0 admin · 1 writer · 1 reader · from the readers file, not pinned (pravo protect roles) · you are a reader") ||
 		!strings.Contains(text, "Records      1 bound to a transaction of a writer · 1 from before roles") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}

@@ -312,10 +312,12 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 			}
 		}
 	}
-	copied, err := copyPolicies(ctx, src, dst)
-	n += copied
-	if err != nil {
-		return n, err
+	for _, dir := range []string{policyDir, rolesDir} {
+		copied, err := copyVersions(ctx, src, dst, dir)
+		n += copied
+		if err != nil {
+			return n, err
+		}
 	}
 	for _, k := range []string{"meta.json", "outputs.json"} {
 		if k == "meta.json" && srcMeta != nil && srcMeta.Format > Format {
@@ -328,22 +330,22 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 	return n, nil
 }
 
-// copyPolicies puts the policy versions of src into dst without replacing any: a version
+// copyVersions puts the versions of the policies or of the roles under dir of src into dst without replacing any: a version
 // that dst holds with other bytes, and a version of dst that src lacks, would rewrite
 // the history of a policy, and are refused. A copy that skipped the prefix would
 // leave the destination without its policies, which judges nothing.
-func copyPolicies(ctx context.Context, src, dst Backend) (int, error) {
-	have, err := src.List(ctx, policyDir)
+func copyVersions(ctx context.Context, src, dst Backend, dir string) (int, error) {
+	have, err := src.List(ctx, dir)
 	if err != nil {
 		return 0, err
 	}
-	held, err := dst.List(ctx, policyDir)
+	held, err := dst.List(ctx, dir)
 	if err != nil {
 		return 0, err
 	}
 	for _, k := range held {
 		if !slices.Contains(have, k) {
-			return 0, fmt.Errorf("%w: %s holds the policy version %s, which the source lacks", ErrCopyRefused, dst.Name(), k)
+			return 0, fmt.Errorf("%w: %s holds the version %s, which the source lacks", ErrCopyRefused, dst.Name(), k)
 		}
 	}
 	n := 0
@@ -437,7 +439,7 @@ func checkCopy(ctx context.Context, src *meta, dst Backend) error {
 // holdsNothing reports whether b holds no record, output, stored plan or
 // discovery object, which is what a store that was opened and never written holds.
 func holdsNothing(ctx context.Context, b Backend) (bool, error) {
-	for _, prefix := range []string{"resources", "rec", "plans", DiscoveryRunDir, policyDir} {
+	for _, prefix := range []string{"resources", "rec", "plans", DiscoveryRunDir, policyDir, rolesDir} {
 		keys, err := b.List(ctx, prefix)
 		if err != nil {
 			return false, err

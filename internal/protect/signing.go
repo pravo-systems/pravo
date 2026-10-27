@@ -25,6 +25,8 @@ const (
 	DomainTxnFinish     = "pravo/v1/txn-finish"
 	DomainPlan          = "pravo/v1/plan"
 	DomainPolicyVersion = "pravo/v1/policy-version"
+	// DomainRolesVersion signs a version of the roles stored in the state.
+	DomainRolesVersion = "pravo/v1/roles-version"
 )
 
 // Signature is a signature as it is stored beside what it signs. Signer is the

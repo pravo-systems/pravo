@@ -6,7 +6,7 @@ What a sealed state encrypts, who can read it, and what it does not do. It gives
 
 A state records the attributes of every resource, and some of them are secrets. Sealing encrypts those values to a list of readers, so that a copy of the bucket, a backup or an old version of an object shows no value. This page says what is sealed, how a reader opens it, and what a sealed state still leaves open. The commands are in [pravo id and pravo protect](../reference/protect.md).
 
-Sealing answers one question: who can read the values? It does not say who may change the state, and it does not make a change visible after the fact. A signature says who made a change; [roles](../reference/protect.md#roles), which say who may, are an option of the readers file.
+Sealing answers one question: who can read the values? It does not say who may change the state, and it does not make a change visible after the fact. A signature says who made a change; [roles](../reference/protect.md#roles), which say who may, are an option of the readers file, and `pravo protect roles` pins them in the state so that a reader cannot promote themselves by editing a copy of the file.
 
 ## What is sealed
 

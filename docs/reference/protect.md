@@ -34,10 +34,10 @@ keywords: "encrypt seal secrets readers identity access passphrase rewrap state 
 
 | | |
 |---|---|
-| Synopsis | `pravo id new`, `pravo id show`, `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap`, `pravo protect recover`, `pravo protect unseal`, `pravo protect gc` |
+| Synopsis | `pravo id new`, `pravo id show`, `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap`, `pravo protect roles`, `pravo protect recover`, `pravo protect unseal`, `pravo protect gc` |
 | Changes infrastructure | No. |
 | Reads | The state, and `.pravo/access/readers.txt` in the repository. `id` reads and writes only identity files. |
-| Writes | `id new` writes an identity file. `protect init`, `protect rewrap`, `protect recover`, `protect unseal` and `protect gc` write the state; `protect unseal --remove-files` also deletes the readers file and the recovery file of the repository; a command that sets a recovery also writes `recovery-shares/` and `.pravo/access/recovery.txt`; `gc` writes the object `gc/marks.json` as well. `check` and `status` write nothing, and so does `gc --dry-run`. |
+| Writes | `id new` writes an identity file. `protect init`, `protect rewrap`, `protect roles`, `protect recover`, `protect unseal` and `protect gc` write the state; `protect roles` also adds the `roles-genesis` line to the readers file; `protect unseal --remove-files` also deletes the readers file and the recovery file of the repository; a command that sets a recovery also writes `recovery-shares/` and `.pravo/access/recovery.txt`; `gc` writes the object `gc/marks.json` as well. `check` and `status` write nothing, and so does `gc --dry-run`. |
 | Prints | One line for each check, then a verdict. The line to add to the readers file. For `gc`, what it deleted and dropped. |
 | Taught in | [Seal the state to a list of readers](../how-to/seal-the-state.md) and [Lab 3](../learn/lab3-the-leaked-bucket.md). |
 
@@ -65,6 +65,7 @@ The format is the layout, and it only goes up. Whether the state is sealed is a 
 | `protect init --encrypt` | Seals the state to the readers file. | yes | yes | no |
 | `protect status` | Says whether the state is sealed, to whom, and whether it verifies. | yes | No. | yes |
 | `protect rewrap` | Brings the keys of the state in line with the readers file. | yes | yes | yes |
+| `protect roles` | Stores the roles of the readers file in the state and pins them. | yes | yes | yes |
 | `protect recover` | Opens the state with the shares of its recovery key, and makes the readers those of the readers file. | yes | yes | yes |
 | `protect unseal` | Takes the seal off: writes everything in the open, and removes the sealed part of `meta.json`. | yes | yes | yes |
 | `protect gc` | Deletes the records that no pointer names, and the reader groups that nothing is sealed in. | yes | yes | yes |
@@ -84,7 +85,7 @@ The format is the layout, and it only goes up. Whether the state is sealed is a 
 | `--identity NAME` | every command that opens a state, and `id show` | The identity to open the state with, a file of the identity directory. A global flag, also written before the command. For `id show` it is another way to write `--name`. |
 | `--allow-local` | `protect check`, `protect init` | Accept a state in a local directory. |
 | `--encrypt` | `protect init` | Required. Seal the attributes, outputs and stored plans to the readers. |
-| `--yes` | `protect init`, `protect recover`, `protect rewrap`, `protect unseal` | Do not ask for confirmation. `rewrap` asks only before it replaces or removes a recovery recipient, since that makes the shares that were given out worth nothing. |
+| `--yes` | `protect init`, `protect recover`, `protect rewrap`, `protect roles`, `protect unseal` | Do not ask for confirmation. `rewrap` asks only before it replaces or removes a recovery recipient, since that makes the shares that were given out worth nothing. |
 | `--recovery K/N` | `protect init`, `protect rewrap`, `protect recover` | Set a recovery recipient, or replace it: a new key is split into N shares, any K of which rebuild it. `2/3` to `20/20`; K is at least 2. |
 | `--remove-recovery` | `protect rewrap` | Take the recovery recipient out of the state, and delete the recovery file. |
 | `--share FILE` | `protect recover`, `protect unseal` | A share file. Give it once for each share. For `unseal` the shares open the state in place of an identity. |
@@ -185,7 +186,7 @@ A key has one of three roles, and the strength is linear: an admin may do what a
 |---|---|
 | `reader` | Open the state, read it, and plan (or ask `why`) without changing it. Store a plan with `plan --store`. |
 | `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. |
-| `admin` | Remove a policy. Change who reads the state (`protect rewrap`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). |
+| `admin` | Remove a policy. Change who reads the state (`protect rewrap`), change roles (`protect roles`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). |
 
 The role is the fifth field of the line of the key in the readers file, which the repository holds:
 
@@ -195,7 +196,15 @@ dan ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK2fPq… x25519:Qm41Zt… role:writer
 eve ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB8dYw… x25519:Vb92Nc… role:reader
 ```
 
-Whoever can merge a change to this file decides the roles. A readers file in which no line has a role gives none, and every key may do everything, as before roles. As soon as one line has a role, a line without one is a reader. A pravo that does not know roles refuses a line with a fifth field, so it fails closed. The roles are not in the state: the state holds the locks, and a promotion needs no `rewrap`.
+Whoever can merge a change to this file decides the roles. A readers file in which no line has a role gives none, and every key may do everything, as before roles. As soon as one line has a role, a line without one is a reader. A pravo that does not know roles refuses a line with a fifth field, so it fails closed. A promotion needs no `rewrap`: the state holds the locks, and the roles are a separate thing, which the next paragraph describes.
+
+**Pinned roles.** The file alone has a gap: a reader who edits their own line in their own checkout becomes an admin for as long as that checkout lasts. `pravo protect roles` closes it. An admin runs it, and it stores the roles of the readers file in the state as `roles/00000001.json`, signed, and adds one line to the readers file:
+
+```text
+roles-genesis 5c1e…
+```
+
+The line is the SHA-256 of the first roles. Commit it with the file. From then on the roles in the state decide, and the roles in the file say what an admin asks for. A change of roles is a new version, made by `pravo protect roles` and signed by a key that is an admin in the version before it; the first version is signed by a key that is an admin in the readers file. So a reader who holds the data key and the credentials of the bucket cannot make a version that verifies, cannot replace the first one (its digest is the pin), and cannot delete the chain without every honest run refusing the state with exit 7. A key that is in the file and not in the roles of the state is a reader. Before the line is committed the file decides, and `protect status` says `from the readers file, not pinned`. An object lock on `roles/` stops the deletion of the newest versions, which the pin cannot see.
 
 **What happens to a reader who plans.** The state is opened as it is and what the plan writes stays in memory: the refreshed records, the marks and the locks are not written to the bucket. The one thing a reader writes is a stored plan, with `plan --store`. A writer can apply it. The apply checks the plan as it checks any stored plan, against the revisions of the state and the fingerprint of the configuration, and the prompt says which key stored it. `plan --reserve` is for a writer.
 
@@ -205,13 +214,13 @@ Whoever can merge a change to this file decides the roles. A readers file in whi
 
 **Records are bound to the writer.** With roles, the transaction of a writer signs the key of every record it writes, in the finish signature. A reader holds the data key, and can seal a record that opens for everyone, but cannot make the transaction of a writer name it. `pravo protect status` prints a `Records` line, and `Untrusted:` and the address of a record that no verified transaction of a writer accounts for, and exits 7. `plan`, `apply` and `destroy` check every record before they read it: a writer who refreshed a record that a reader had sealed would give it a transaction of their own. Remove such a record with `pravo state rm`, or restore it from a version of the bucket. A record that was written before the roles began shows as `from before roles`. A record whose transaction is not in the state is untrusted: transactions are not collected, so do not delete them. One whose transaction is still running or was killed, or is signed by a key that is not in the file, is `not checked`: a member who has left looks the same as a key that someone made.
 
-**What roles do not do.** They are checked by a pravo that reads the readers file. Someone who holds the credentials of the bucket and the data key, and a pravo of their own, can write the bucket; the record they write is found by the next honest run, and not stopped. What stops it is the bucket. Give the keys of the bucket by role:
+**What roles do not do.** They are checked by a pravo that reads the readers file and the roles in the state. Someone who holds the credentials of the bucket and the data key, and a pravo of their own, can write the bucket; the record they write is found by the next honest run, and not stopped. What stops it is the bucket. Give the keys of the bucket by role:
 
 | Role | Credentials on the bucket |
 |---|---|
 | `reader` | Get and list on the whole prefix. Put on `plans/`. |
-| `writer` | Get, put, delete and list on the prefix, except `meta.json` and `policy/`, where a writer has get and list and may put a new object under `policy/`. |
-| `admin` | Everything on the prefix, `meta.json` and `policy/` included. |
+| `writer` | Get, put, delete and list on the prefix, except `meta.json`, `policy/` and `roles/`, where a writer has get and list and may put a new object under `policy/`. |
+| `admin` | Everything on the prefix, `meta.json`, `policy/` and `roles/` included. |
 
 A job that only plans runs with the first row.
 
@@ -477,7 +486,7 @@ Unsettled    none
 | `Readers` | `matches the store`; `differs:` and who is in the file and not in the store, or the other way round; `file not found (looked in DIR)`; `file is invalid:` and the line and reason. |
 | `Recovery` | Shown when the state has a recovery recipient or the repository has a recovery file: `2 of 3 shares · key x25519:…` and whether the recovery file matches the state, differs from it or is missing, and a group whose lock is missing. |
 | `You` | The identity and its reader key. `identity NAME is not a reader`. `not a reader of this state (no identity found)`. |
-| `Roles` | `off`, or `on` with the number of admins, writers and readers in the readers file and your own role. |
+| `Roles` | `off`, or `on` with the number of admins, writers and readers and your own role, and where they come from: `pinned, version N in the state`, `from the readers file, not pinned`, or `from the readers file; the state holds roles it does not pin`. A state whose roles do not verify, or are not the ones the file pins, exits 7. |
 | `Records` | Shown when the readers file has roles: how many records are bound to a transaction of a writer, how many are from before roles, how many were not checked, and how many no transaction of a writer accounts for. Each of those is printed as `Untrusted:` and the command exits 7. |
 | `Signatures` | For a sealed state: `41 of 43 transactions verified`, then the count of those signed with a key that is not in the readers file, of the unsigned ones, and of those whose signature does not verify. `not checked` without a readers file. |
 | `Unsettled` | `none`, or the number of interrupted transactions; `pravo state log` lists them. |

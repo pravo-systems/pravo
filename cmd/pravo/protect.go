@@ -60,7 +60,7 @@ that nothing is sealed in any more.`,
 	// The tags select the state, so the commands that open it take them too.
 	pf.StringArrayVarP(&flagTags, "tag", "t", nil, tagUsage)
 	pf.BoolVarP(&flagSysTags, "inject-vars", "T", false, sysTagsUsage)
-	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRecoverCmd(), protectUnsealCmd(), protectGCCmd())
+	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRolesCmd(), protectRecoverCmd(), protectUnsealCmd(), protectGCCmd())
 	return cmd
 }
 
@@ -86,8 +86,8 @@ func (p *protectRun) needAdmin(st *state.Store, what string) error {
 	if st.Locked() {
 		return nil
 	}
-	if msg := roleProblem(p.rf, st, protect.RoleAdmin, what); msg != "" {
-		return engine.WithCode(engine.ExitRefused, errors.New(msg))
+	if msg, code := roleProblem(p.rf, st, protect.RoleAdmin, what); msg != "" {
+		return engine.WithCode(code, errors.New(msg))
 	}
 	return nil
 }
@@ -417,7 +417,7 @@ func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
 		problem = fmt.Sprintf("%s and the state differ (%s). Run pravo protect rewrap.", rf.shown(), diffText(added, removed))
 	}
 	if problem == "" && write {
-		problem, code = roleProblem(rf, st, protect.RoleWriter, "change the state"), engine.ExitRefused
+		problem, code = roleProblem(rf, st, protect.RoleWriter, "change the state")
 	}
 	if problem == "" {
 		return nil
@@ -1083,11 +1083,15 @@ func (p *protectRun) status() error {
 	if err != nil {
 		return err
 	}
-	rolesOn := rf.Found && rf.Err == nil && protect.RolesOn(rf.Readers)
-	add("Roles", rolesText(rf, st))
+	erf, rstat, rerr := rf.withRoles(st)
+	if rerr != nil {
+		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("roles: %s", printable(rerr.Error())))
+	}
+	rolesOn := erf.Found && erf.Err == nil && protect.RolesOn(erf.Readers)
+	add("Roles", rolesText(erf, rstat, st))
 	var recs *state.RecordVerdict
 	if rolesOn && prot.Sealed != nil && !st.Locked() {
-		v := st.VerifyRecords(txns, rf.Readers)
+		v := st.VerifyRecords(txns, erf.Readers)
 		recs = &v
 		add("Records", recordsText(v))
 	}
@@ -1127,7 +1131,7 @@ func (p *protectRun) status() error {
 		if sigs != nil {
 			doc["signatures"] = sigs
 		}
-		doc["roles"] = rolesDoc(rf, st)
+		doc["roles"] = rolesDoc(erf, rstat, st)
 		if recs != nil {
 			doc["record_check"] = recs
 		}
@@ -1174,7 +1178,7 @@ func (p *protectRun) status() error {
 }
 
 // rolesText is the Roles line of protect status.
-func rolesText(rf readersFile, st *state.Store) string {
+func rolesText(rf readersFile, rs state.RolesStatus, st *state.Store) string {
 	if !rf.Found || rf.Err != nil || !protect.RolesOn(rf.Readers) {
 		return "off"
 	}
@@ -1184,15 +1188,34 @@ func rolesText(rf readersFile, st *state.Store) string {
 		n[role]++
 	}
 	line := fmt.Sprintf("on · %d admin · %d writer · %d reader", n[protect.RoleAdmin], n[protect.RoleWriter], n[protect.RoleReader])
+	switch {
+	case rs.Source == "state":
+		line += fmt.Sprintf(" · pinned, version %d in the state", rs.Version)
+		if rs.Differs {
+			line += " (the readers file asks for other roles: pravo protect roles)"
+		}
+	case rs.Unpinned:
+		line += " · from the readers file; the state holds roles it does not pin (pravo protect roles)"
+	default:
+		line += " · from the readers file, not pinned (pravo protect roles)"
+	}
 	if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
 		line += " · you are " + article(role)
 	}
 	return line
 }
 
-func rolesDoc(rf readersFile, st *state.Store) map[string]any {
+func rolesDoc(rf readersFile, rs state.RolesStatus, st *state.Store) map[string]any {
 	doc := map[string]any{"on": rf.Found && rf.Err == nil && protect.RolesOn(rf.Readers)}
 	if doc["on"] == true {
+		doc["source"] = rs.Source
+		doc["pinned"] = rs.Source == "state"
+		if rs.Version > 0 {
+			doc["version"] = rs.Version
+		}
+		if rs.Differs {
+			doc["file_differs"] = true
+		}
 		if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
 			doc["you"] = role.String()
 		}
@@ -1489,24 +1512,28 @@ func plansInUseLine(n int, again bool) string {
 }
 
 // roleProblem says why the identity of the store may not do what need allows, or is
-// empty. The roles are those of the readers file of the repository: a writer of the
-// bucket cannot change them. A readers file without roles lets every key do everything.
-// This is the check of an honest pravo; a state that was written by a key without the
-// role is found by the signatures (see sealed-state.md), and only the credentials of
-// the bucket stop a write.
-func roleProblem(rf readersFile, st *state.Store, need protect.Role, what string) string {
+// empty, with the exit code of the refusal. The roles are those that decide for the state:
+// the roles in it when the readers file pins them, the roles of the file otherwise. A
+// readers file without roles lets every key do everything. This is the check of an honest
+// pravo; a state that was written by a key without the role is found by the signatures (see
+// sealed-state.md), and only the credentials of the bucket stop a write.
+func roleProblem(rf readersFile, st *state.Store, need protect.Role, what string) (string, engine.ExitCode) {
+	rf, _, err := rf.withRoles(st)
+	if err != nil {
+		return printable(err.Error()), engine.ExitUntrusted
+	}
 	if !rf.Found || rf.Err != nil || !protect.RolesOn(rf.Readers) {
-		return ""
+		return "", engine.ExitRefused
 	}
 	key := st.SigningKey()
 	role, ok := protect.RoleOf(rf.Readers, key)
 	if !ok {
-		return fmt.Sprintf("your identity is not in %s, so its role is not known, and %s is needed to %s.", rf.shown(), article(need), what)
+		return fmt.Sprintf("your identity is not in %s, so its role is not known, and %s is needed to %s.", rf.shown(), article(need), what), engine.ExitRefused
 	}
 	if role.Allows(need) {
-		return ""
+		return "", engine.ExitRefused
 	}
-	return fmt.Sprintf("your identity is %s in %s, and %s is needed to %s.", article(role), rf.shown(), article(need), what)
+	return fmt.Sprintf("your identity is %s in %s, and %s is needed to %s.", article(role), rf.shown(), article(need), what), engine.ExitRefused
 }
 
 // article puts a or an before the name of a role.

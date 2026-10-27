@@ -156,7 +156,13 @@ func (s *session) close() {
 
 func (s *session) engine(opts engine.Options) *engine.Engine {
 	opts.Actor, opts.Reason = flagActor, flagReason
-	opts.Readers = loadReadersFile(s.root.Dir, flagAccessDir).Readers
+	rf := loadReadersFile(s.root.Dir, flagAccessDir)
+	// The roles that decide are those in the state when the readers file pins them. A chain
+	// that does not verify was refused when the state was opened.
+	if eff, _, err := rf.withRoles(s.state); err == nil {
+		rf = eff
+	}
+	opts.Readers = rf.Readers
 	if flagJSON && streamEvents && opts.Event == nil {
 		// Only commands that change things stream events; plan-like
 		// commands print a single document.
@@ -236,7 +242,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 			st = keyed
 		}
 		// A reader who plans works on the state in memory.
-		if write && planning && !st.Locked() && roleProblem(loadReadersFile(root.Dir, flagAccessDir), st, protect.RoleWriter, "") != "" {
+		if msg, _ := roleProblem(loadReadersFile(root.Dir, flagAccessDir), st, protect.RoleWriter, ""); write && planning && !st.Locked() && msg != "" {
 			st.Close()
 			if st, err = open(id, true); err != nil {
 				return nil, nil, err
@@ -447,7 +453,14 @@ func (s *session) warnStaleSchemas() {
 // state.Store.VerifyRecords). It checks every record, reading each transaction once.
 func checkBoundRecords(root *config.Root, st *state.Store) error {
 	rf := loadReadersFile(root.Dir, flagAccessDir)
-	if !rf.Found || rf.Err != nil || !protect.RolesOn(rf.Readers) || st.Locked() || !isSealed(st.Protection()) {
+	if !rf.Found || rf.Err != nil || st.Locked() || !isSealed(st.Protection()) {
+		return nil
+	}
+	rf, _, err := rf.withRoles(st)
+	if err != nil {
+		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%s", printable(err.Error())))
+	}
+	if !protect.RolesOn(rf.Readers) {
 		return nil
 	}
 	var addrs []string
