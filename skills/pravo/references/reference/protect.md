@@ -157,7 +157,7 @@ A key has one of three roles, and the strength is linear: an admin may do what a
 
 | Role | May |
 |---|---|
-| `reader` | Open the state, read it, and plan without changing it. Store a plan with `plan --store`. |
+| `reader` | Open the state, read it, and plan (or ask `why`) without changing it. Store a plan with `plan --store`. |
 | `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. |
 | `admin` | Remove a policy. Change who reads the state (`protect rewrap`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). |
 

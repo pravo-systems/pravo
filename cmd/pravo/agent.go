@@ -298,7 +298,7 @@ func whyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true})
+			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
 			}

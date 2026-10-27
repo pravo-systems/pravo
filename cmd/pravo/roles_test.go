@@ -310,3 +310,17 @@ func TestAReaderCannotReserve(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 }
+
+func TestAReaderMayAskWhy(t *testing.T) {
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
+	before := s.objects()
+	if text, code := runPravo(t, s.dir, "--identity", "dan", "why", "cfg"); code != 0 {
+		t.Fatalf("a reader's why: exit %d\n%s", code, text)
+	}
+	for k, v := range s.objects() {
+		if old, ok := before[k]; !ok || old != v {
+			t.Errorf("why wrote %s", k)
+		}
+	}
+}
