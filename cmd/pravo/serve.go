@@ -307,7 +307,81 @@ func isProtected(p state.Protection) bool {
 // store says of itself, what the readers file says, and who the viewer is.
 func (v *viewerState) protection(ctx context.Context, st *state.Store, readersFile string) serve.Facts {
 	rf := loadReadersFile(v.dir, filepath.Dir(readersFile))
-	return accessFacts(st.Protection(), st.Locked(), v.who(), rf)
+	f := accessFacts(st.Protection(), st.Locked(), v.who(), rf)
+	if st.Protection().Sealed != nil && !st.Locked() {
+		f.Roles = rolesFacts(ctx, st, rf)
+	}
+	return f
+}
+
+// maxRecordCheck is the most records of a state whose transactions the viewer walks to tell
+// whether they are the work of writers. A larger state says to run pravo protect status.
+const maxRecordCheck = 5000
+
+// rolesFacts are the roles of a sealed state for the Access view: where they come from, the
+// chain of versions, the keys, and how the records stand. It holds no key and writes nothing.
+func rolesFacts(ctx context.Context, st *state.Store, rf readersFile) *serve.RolesFacts {
+	if !rf.Found || rf.Err != nil {
+		return nil
+	}
+	erf, rs, err := rf.withRoles(st)
+	f := &serve.RolesFacts{Source: rs.Source, Version: rs.Version, Unpinned: rs.Unpinned, Differs: rs.Differs}
+	if err != nil {
+		f.Error = err.Error()
+		erf = rf
+	}
+	on := protect.RolesOn(erf.Readers)
+	if !on {
+		if f.Error == "" && rs.Version == 0 {
+			f.Source = "off"
+		}
+		return f
+	}
+	if role, ok := protect.RoleOf(erf.Readers, st.SigningKey()); ok {
+		f.You = role.String()
+	}
+	vouched := map[string]int{}
+	for _, vo := range rs.Vouched {
+		vouched[vo.Key]++
+	}
+	for _, r := range erf.Readers {
+		fp := protect.SSHFingerprint(r.Sign)
+		role, _ := protect.RoleOf(erf.Readers, fp)
+		f.Keys = append(f.Keys, serve.RoleKeyFacts{Name: r.Name, Fingerprint: fp, Role: role.String(), Vouched: vouched[fp]})
+	}
+	for _, k := range rs.Former {
+		f.Keys = append(f.Keys, serve.RoleKeyFacts{Name: k.Name, Fingerprint: k.Key, Role: "former", Vouched: vouched[k.Key]})
+	}
+	if chain, cerr := st.RolesChain(ctx); cerr == nil {
+		var prev []protect.Reader
+		for _, v := range chain.Versions {
+			by := ""
+			if v.Signature != nil {
+				by = v.Signature.Signer
+			}
+			f.Versions = append(f.Versions, serve.RolesVersionFacts{Seq: v.Seq, At: v.At, By: by, Changes: roleChanges(prev, v.Set), Vouched: len(v.Vouched)})
+			prev = v.Set
+		}
+	}
+	f.Records = recordCheckFacts(st, erf, rs)
+	return f
+}
+
+// recordCheckFacts is the verdict of the records against the transactions of writers.
+func recordCheckFacts(st *state.Store, rf readersFile, rs state.RolesStatus) *serve.RecordCheckFacts {
+	if st.Len() > maxRecordCheck {
+		return &serve.RecordCheckFacts{Skipped: fmt.Sprintf("the state holds more than %d records; run pravo protect status", maxRecordCheck)}
+	}
+	txns, err := st.Transactions()
+	if err != nil {
+		return &serve.RecordCheckFacts{Skipped: "the transactions could not be read"}
+	}
+	v := st.VerifyRecordsWith(txns, recordRules(rf.Readers, rs))
+	out := &serve.RecordCheckFacts{Bound: v.Bound, Vouched: v.Vouched, Earlier: v.Earlier, Unchecked: v.Unchecked}
+	for _, p := range v.Problems {
+		out.Problems = append(out.Problems, serve.RecordProblemFacts{Addr: p.Addr, Why: p.Why})
+	}
+	return out
 }
 
 // accessFacts turns what the state says of its protection, and the readers

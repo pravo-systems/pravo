@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/serve"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -412,5 +413,47 @@ func TestAKeyThatWasNeverListedIsOnlyCountedWithoutAPin(t *testing.T) {
 	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
 	if code != 0 || !strings.Contains(text, "1 not checked") {
 		t.Fatalf("status without a pin: exit %d\n%s", code, text)
+	}
+}
+
+// The viewer is given the roles that decide: the keys with their roles, a key that left as a
+// former key with the transactions vouched for, the versions with who signed them, and a verdict
+// on the records.
+func TestTheViewerIsToldTheRolesOfThePinnedChain(t *testing.T) {
+	s := vouchedBucket(t, false)
+	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := rolesFacts(context.Background(), st, loadReadersFile(s.dir, ""))
+	if f == nil || f.Source != "state" || f.Version != 3 || f.Error != "" || f.You != "admin" {
+		t.Fatalf("roles facts: %+v", f)
+	}
+	var former *serve.RoleKeyFacts
+	for i, k := range f.Keys {
+		if k.Role == "former" {
+			former = &f.Keys[i]
+		}
+	}
+	if former == nil || former.Name != "dan" || former.Vouched != 1 {
+		t.Fatalf("keys: %+v", f.Keys)
+	}
+	if len(f.Versions) != 3 || f.Versions[0].By != "ada" || f.Versions[2].Vouched != 1 || len(f.Versions[2].Changes) != 1 || !strings.Contains(f.Versions[2].Changes[0], "dan: removed") {
+		t.Fatalf("versions: %+v", f.Versions)
+	}
+	if r := f.Records; r == nil || r.Skipped != "" || r.Vouched != 1 || len(r.Problems) != 0 {
+		t.Fatalf("records: %+v", r)
+	}
+
+	// A chain that the readers file does not pin is reported, and the file decides.
+	rf := loadReadersFile(s.dir, "")
+	rf.Pin = ""
+	if f := rolesFacts(context.Background(), st, rf); f == nil || f.Source != "file" || !f.Unpinned {
+		t.Fatalf("unpinned roles facts: %+v", f)
+	}
+	// A pin that the chain does not start with is an error, and the page says so.
+	rf.Pin = strings.Repeat("0", 64)
+	if f := rolesFacts(context.Background(), st, rf); f == nil || f.Error == "" {
+		t.Fatalf("a wrong pin: %+v", f)
 	}
 }

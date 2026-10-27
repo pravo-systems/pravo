@@ -240,11 +240,11 @@ func ParseRolesSet(text string) ([]Reader, []FormerKey, []Vouch, error) {
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("roles line %d: signing key: %w", n+1, err)
 		}
-		if fp := SSHFingerprint(sign); keys[fp] {
+		fp := SSHFingerprint(sign)
+		if keys[fp] {
 			return nil, nil, nil, fmt.Errorf("roles line %d: the key is listed twice", n+1)
-		} else {
-			keys[fp] = true
 		}
+		keys[fp] = true
 		role, err := ParseRole(f[3])
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("roles line %d: %w", n+1, err)

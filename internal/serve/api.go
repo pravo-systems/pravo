@@ -665,6 +665,8 @@ type Access struct {
 	// Recovery is the recovery recipient of the state: any K of N shares rebuild
 	// its key. It is absent when the state has none.
 	Recovery *AccessRecovery `json:"recovery,omitempty"`
+	// Roles are the roles of the keys. It is absent unless the state is sealed.
+	Roles *AccessRoles `json:"roles,omitempty"`
 	// LastChange is the newest entry of the history of the seal.
 	LastChange  *AccessChange `json:"last_change,omitempty"`
 	Suggestions []Suggestion  `json:"suggestions"`
@@ -690,6 +692,76 @@ type AccessReader struct {
 	You bool `json:"you,omitempty"`
 	// Line is the line of the readers file, 0 for a reader that is not in it.
 	Line int `json:"line,omitempty"`
+	// Role is what the key may do, "admin", "writer" or "reader", when the roles are on.
+	Role string `json:"role,omitempty"`
+}
+
+// AccessRoles are the roles of a sealed state. State is "off", "file" (the readers file decides),
+// "pinned" (the roles in the state decide) or "untrusted" (the chain in the state does not
+// verify). Text is the sentence for it.
+type AccessRoles struct {
+	State string `json:"state"`
+	Text  string `json:"text"`
+	// Version is the newest version in the state, absent without one.
+	Version int `json:"version,omitempty"`
+	// Differs is set when the readers file asks for other roles than the state holds.
+	Differs bool `json:"differs,omitempty"`
+	// You is the role of this process, absent when it has none known.
+	You    string          `json:"you,omitempty"`
+	Counts AccessRoleCount `json:"counts"`
+	// Others are the keys the roles name that no reader row shows: keys that left, and keys
+	// in the state that the readers file does not list.
+	Others   []AccessRoleKey      `json:"others,omitempty"`
+	Versions []AccessRolesVersion `json:"versions,omitempty"`
+	Records  *AccessRoleRecords   `json:"records,omitempty"`
+}
+
+// AccessRoleCount counts the keys of each role.
+type AccessRoleCount struct {
+	Admin  int `json:"admin"`
+	Writer int `json:"writer"`
+	Reader int `json:"reader"`
+	Former int `json:"former"`
+}
+
+// AccessRoleKey is a key and its role, "admin", "writer", "reader" or "former".
+type AccessRoleKey struct {
+	Name             string `json:"name"`
+	Fingerprint      string `json:"fingerprint"`
+	FingerprintShort string `json:"fingerprint_short"`
+	Role             string `json:"role"`
+	// Vouched counts the transactions of the key that an admin vouched for.
+	Vouched int `json:"vouched,omitempty"`
+}
+
+// AccessRolesVersion is one version of the roles in the state. The first is pinned by the readers
+// file when the state is "pinned".
+type AccessRolesVersion struct {
+	Seq     int       `json:"seq"`
+	At      time.Time `json:"at"`
+	By      string    `json:"by"`
+	Changes []string  `json:"changes,omitempty"`
+	Vouched int       `json:"vouched,omitempty"`
+	Pinned  bool      `json:"pinned,omitempty"`
+}
+
+// AccessRoleRecords is how the records stand against the transactions of writers. Skipped holds
+// the reason when the check was not made.
+type AccessRoleRecords struct {
+	Skipped     string              `json:"skipped,omitempty"`
+	Bound       int                 `json:"bound"`
+	Vouched     int                 `json:"vouched"`
+	BeforeRoles int                 `json:"before_roles"`
+	Unchecked   int                 `json:"unchecked"`
+	Problems    []AccessRoleProblem `json:"problems,omitempty"`
+	// MoreProblems counts the problems that are not listed.
+	MoreProblems int `json:"more_problems,omitempty"`
+}
+
+// AccessRoleProblem is a record that no transaction of a writer accounts for.
+type AccessRoleProblem struct {
+	Addr string `json:"addr"`
+	Why  string `json:"why"`
 }
 
 // AccessFile is what the readers file says in relation to the store.

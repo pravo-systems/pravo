@@ -233,6 +233,9 @@ func buildAccess(in accessInput) *Access {
 		rows = rows[:maxAccessReaders]
 	}
 	a.Readers = rows
+	if protected && f.Roles != nil {
+		a.Roles = rolesOf(f.Roles, a.Readers)
+	}
 	a.File = fileVerdict(a.State, f.File, in.path, in.dir, added, removed)
 	storeReaders := 0
 	for _, r := range rows {
@@ -783,6 +786,14 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 		}
 		add(s)
 	}
+	if a.State == "sealed" && a.Roles != nil && (a.Roles.State == "file" || a.Roles.Differs) {
+		title, why := "Pin the roles in the state", "The roles are only in the readers file. An admin stores them in the state as a signed version and adds one line to the readers file that pins the first version. From then on a reader cannot give themselves a role by editing their own copy of the file."
+		if a.Roles.State != "file" {
+			title, why = "Store the roles the readers file asks for", "The readers file asks for other roles than the state holds. An admin stores them as the next version, which is signed by an admin of the one before. A key that leaves or is demoted keeps the records it wrote only through the transactions the admin vouches for here."
+		}
+		add(Suggestion{ID: "pin-roles", Title: title, Why: why, Who: "an admin",
+			Steps: append([]SuggestionStep{protectCmd("roles"), note("It lists what changes and asks first.")}, gitSteps(file, "Store the roles")...)})
+	}
 	if a.State == "sealed" && a.File.Verdict == "differs" {
 		add(Suggestion{ID: "rewrap", Title: "Make the store match the readers file",
 			Why: "The file and the store list different readers. Writers refuse to write until they match.", Who: "a current reader",
@@ -905,4 +916,110 @@ func (m *model) sealedReason() string {
 		return "the identity is sealed with a passphrase and none was available."
 	}
 	return "no identity was given. Start the viewer with pravo serve --identity NAME."
+}
+
+const (
+	maxRoleProblems = 20 // records listed as not the work of a writer
+	maxRoleVersions = 50 // versions of the roles listed
+	maxRoleOthers   = 50 // keys listed that no reader row shows
+)
+
+// rolesOf makes the document of the roles from their facts, and gives the reader rows the role
+// of their signing key. A key is matched by the fingerprint of its signing key.
+func rolesOf(f *RolesFacts, rows []AccessReader) *AccessRoles {
+	r := &AccessRoles{Version: f.Version, Differs: f.Differs && f.Source == "state", You: roleName(f.You)}
+	switch {
+	case f.Error != "":
+		r.State = "untrusted"
+		r.Text = "The roles in the state do not verify: " + cleanReason(f.Error) + " Commands that change the state refuse to run until this is resolved."
+	case f.Source == "state":
+		r.State = "pinned"
+		r.Text = fmt.Sprintf("The roles are pinned in the state, at version %d. Each version is signed by an admin of the one before it, and the readers file pins the first. Editing a line of the readers file changes nothing until an admin stores the new roles.", f.Version)
+		if f.Differs {
+			r.Text += " The readers file asks for other roles than the state holds."
+		}
+	case f.Source == "file":
+		r.State = "file"
+		r.Text = "The roles come from the readers file, which anyone with a checkout can edit for their own run."
+		if f.Unpinned {
+			r.Text = "The state holds roles that the readers file does not pin, so the readers file still decides, and anyone with a checkout can edit it for their own run."
+		}
+		r.Text += " Storing them in the state and pinning them closes that."
+	default:
+		r.State = "off"
+		r.Text = "Roles are off. Every reader may write the state, sign and remove a policy. Give the lines of the readers file a role to turn them on."
+	}
+	byFP := map[string]string{}
+	for _, k := range f.Keys {
+		if k.Fingerprint != "" {
+			byFP[k.Fingerprint] = k.Role
+		}
+	}
+	shown := map[string]bool{}
+	for i := range rows {
+		if role, ok := byFP[rows[i].Fingerprint]; ok && rows[i].Fingerprint != "" && r.State != "off" {
+			rows[i].Role = roleName(role)
+			shown[rows[i].Fingerprint] = true
+		}
+	}
+	for _, k := range f.Keys {
+		role := roleName(k.Role)
+		if role == "" || r.State == "off" {
+			continue
+		}
+		switch role {
+		case "admin":
+			r.Counts.Admin++
+		case "writer":
+			r.Counts.Writer++
+		case "reader":
+			r.Counts.Reader++
+		case "former":
+			r.Counts.Former++
+		}
+		if shown[k.Fingerprint] || len(r.Others) >= maxRoleOthers {
+			continue
+		}
+		r.Others = append(r.Others, AccessRoleKey{Name: display(k.Name), Fingerprint: display(k.Fingerprint), FingerprintShort: shortFingerprint(k.Fingerprint), Role: role, Vouched: k.Vouched})
+	}
+	vs := f.Versions
+	if len(vs) > maxRoleVersions {
+		vs = vs[len(vs)-maxRoleVersions:]
+	}
+	for _, v := range vs {
+		av := AccessRolesVersion{Seq: v.Seq, At: v.At.UTC(), By: display(v.By), Vouched: v.Vouched, Pinned: v.Seq == 1 && r.State == "pinned"}
+		for _, c := range v.Changes {
+			av.Changes = append(av.Changes, display(c))
+		}
+		r.Versions = append(r.Versions, av)
+	}
+	if rc := f.Records; rc != nil && r.State != "off" {
+		ar := &AccessRoleRecords{Skipped: clip(rc.Skipped, maxLineReason), Bound: rc.Bound, Vouched: rc.Vouched, BeforeRoles: rc.Earlier, Unchecked: rc.Unchecked}
+		for i, p := range rc.Problems {
+			if i == maxRoleProblems {
+				ar.MoreProblems = len(rc.Problems) - maxRoleProblems
+				break
+			}
+			ar.Problems = append(ar.Problems, AccessRoleProblem{Addr: display(p.Addr), Why: cleanReason(p.Why)})
+		}
+		r.Records = ar
+	}
+	return r
+}
+
+// roleName is the role as the page knows it, "" for any other word.
+func roleName(s string) string {
+	switch s {
+	case "admin", "writer", "reader", "former":
+		return s
+	}
+	return ""
+}
+
+// shortFingerprint is a fingerprint as it is shown: the start of it.
+func shortFingerprint(fp string) string {
+	if len(fp) > 18 {
+		return display(fp[:18]) + "…"
+	}
+	return display(fp)
 }

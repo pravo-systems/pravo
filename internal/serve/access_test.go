@@ -1385,3 +1385,33 @@ func TestAccessDoesNotOfferToRemoveTheOnlyReader(t *testing.T) {
 		t.Error("the one reader of the file is offered for removal")
 	}
 }
+
+func TestRolesOfTheAccessDocument(t *testing.T) {
+	f := fixRoles("state")
+	f.Differs = true
+	rows := []AccessReader{{Name: "ada", Fingerprint: fingerprint(fixBlob("ada"))}, {Name: "fay", Fingerprint: fingerprint(fixBlob("fay"))}}
+	r := rolesOf(f, rows)
+	if r.State != "pinned" || !r.Differs || r.You != "admin" || r.Counts != (AccessRoleCount{Admin: 2, Writer: 1, Reader: 1, Former: 1}) {
+		t.Fatalf("roles: %+v", r)
+	}
+	if rows[0].Role != "admin" || rows[1].Role != "reader" {
+		t.Errorf("the reader rows have no role: %+v", rows)
+	}
+	// ada and fay have a row; dan, eve and gus do not, so they are listed apart.
+	if len(r.Others) != 3 || r.Others[2].Name != "gus" || r.Others[2].Role != "former" || r.Others[2].Vouched != 7 {
+		t.Errorf("other keys: %+v", r.Others)
+	}
+	if len(r.Versions) != 3 || !r.Versions[0].Pinned || r.Versions[2].Pinned {
+		t.Errorf("versions: %+v", r.Versions)
+	}
+
+	f = fixRoles("state")
+	f.Error = "roles/00000002.json is not signed by an admin of the roles it follows."
+	f.Records.Problems = make([]RecordProblemFacts, maxRoleProblems+5)
+	if r := rolesOf(f, nil); r.State != "untrusted" || r.Records.MoreProblems != 5 || len(r.Records.Problems) != maxRoleProblems {
+		t.Errorf("untrusted roles: %+v", r)
+	}
+	if r := rolesOf(&RolesFacts{Source: "off"}, rows); r.State != "off" || r.Others != nil {
+		t.Errorf("roles off: %+v", r)
+	}
+}

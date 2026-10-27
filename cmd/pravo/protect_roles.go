@@ -212,7 +212,7 @@ func roleChanges(before, after []protect.Reader) []string {
 	}
 	for _, r := range before {
 		if !seen[r.Name] {
-			lines = append(lines, fmt.Sprintf("%s: removed, now a former key", r.Name))
+			lines = append(lines, r.Name+": removed, now a former key")
 		}
 	}
 	sort.Strings(lines)

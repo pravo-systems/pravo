@@ -33,7 +33,7 @@ export default {
     'no-duplicate-selectors': null,
     // The class of a signature mark is made from the verdict of the server, which
     // has underscores in it.
-    'selector-class-pattern': ['^([a-z][a-z0-9]*(-[a-z0-9]+)*|sig-key_[a-z_]+)$', { message: (name) => `Expected class selector "${name}" to be kebab-case` }],
+    'selector-class-pattern': ['^([a-z][a-z0-9]*(-[a-z0-9]+)*|sig-(key|role)_[a-z_]+)$', { message: (name) => `Expected class selector "${name}" to be kebab-case` }],
   },
   overrides: [
     {

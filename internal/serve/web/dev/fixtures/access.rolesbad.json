@@ -1,0 +1,361 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "state": "sealed",
+ "format": 3,
+ "location": "s3://acme-state/estate",
+ "backend": "s3",
+ "summary": "The state is sealed to 4 readers. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
+ "readers": [
+  {
+   "name": "ada",
+   "name_ok": true,
+   "key": "x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
+   "key_short": "x25519:zILxDZ…",
+   "fingerprint": "SHA256:m8YMmlDg9T6mFey9zpNAmej98q7pMpDsi0aia27rJlo",
+   "in_store": true,
+   "in_file": true,
+   "you": true,
+   "line": 1,
+   "role": "admin"
+  },
+  {
+   "name": "dan",
+   "name_ok": true,
+   "key": "x25519:Hli_Xj5WuXVFv4DwxC4drR13YSgBV_Idby_OkIthUm0",
+   "key_short": "x25519:Hli_Xj…",
+   "fingerprint": "SHA256:OXONlpNIN4+YAxgAA72tFS273MSP9v31RNyZ2aJwA7g",
+   "in_store": true,
+   "in_file": true,
+   "line": 2,
+   "role": "admin"
+  },
+  {
+   "name": "eve",
+   "name_ok": true,
+   "key": "x25519:1SF2s5-AKKnLO9umTOT0kedPWRnElvdGZ7B5sBXfXgU",
+   "key_short": "x25519:1SF2s5…",
+   "fingerprint": "SHA256:UcAPC/FaE/Zgq+rhXHTUBQDP09GW9+NCURIOldYtkf0",
+   "in_store": true,
+   "in_file": true,
+   "line": 3,
+   "role": "writer"
+  },
+  {
+   "name": "fay",
+   "name_ok": true,
+   "key": "x25519:tOJjs41CKIA6jIkwdBgal1Ay-g29HSbrrBqFATZkZiE",
+   "key_short": "x25519:tOJjs4…",
+   "fingerprint": "SHA256:dvQHrPdaNRTkFQbQGzRm49gCmse+vRMS9IXnELHNwvA",
+   "in_store": true,
+   "in_file": true,
+   "line": 4,
+   "role": "reader"
+  }
+ ],
+ "file": {
+  "verdict": "match",
+  "path": "/srv/infra/estate/.pravo/access/readers.txt",
+  "text": "The readers file matches the store.",
+  "count": 4
+ },
+ "you": {
+  "state": "reader",
+  "name": "ada",
+  "text": "You are ada, a reader."
+ },
+ "records": {
+  "total": 46,
+  "sealed": 46,
+  "plain": 0,
+  "unreadable": 0,
+  "text": "All 46 records are sealed."
+ },
+ "roles": {
+  "state": "untrusted",
+  "text": "The roles in the state do not verify: roles/00000002.json is not signed by an admin of the roles it follows. Commands that change the state refuse to run until this is resolved.",
+  "version": 3,
+  "you": "admin",
+  "counts": {
+   "admin": 2,
+   "writer": 1,
+   "reader": 1,
+   "former": 1
+  },
+  "others": [
+   {
+    "name": "gus",
+    "fingerprint": "SHA256:11PPvnPOohF4F7eV/9vLMl+j4oT8A4NbESthRmH/s6E",
+    "fingerprint_short": "SHA256:11PPvnPOohF…",
+    "role": "former",
+    "vouched": 7
+   }
+  ],
+  "records": {
+   "bound": 31,
+   "vouched": 7,
+   "before_roles": 3,
+   "unchecked": 1,
+   "problems": [
+    {
+     "addr": "aws_iam_role.deploy",
+     "why": "was written by a transaction signed by a key that is not in the roles, and no admin vouched for it"
+    },
+    {
+     "addr": "aws_s3_bucket.logs",
+     "why": "was written by a transaction signed by fay, who is a reader"
+    },
+    {
+     "addr": "aws_s3_bucket.assets",
+     "why": "was written by a transaction signed by fay, who is a reader"
+    }
+   ]
+  }
+ },
+ "last_change": {
+  "at": "2026-10-22T10:41:00Z",
+  "by": "ada",
+  "what": "rewrap",
+  "added": [
+   "eve"
+  ],
+  "text": "2026-10-22 10:41 UTC · readers rewrapped by ada"
+ },
+ "suggestions": [
+  {
+   "id": "add-reader",
+   "title": "Add a reader",
+   "why": "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
+   "who": "the new reader, then a current reader",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "On the machine of the new reader:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo id new --name \u003cname\u003e",
+     "placeholder": true
+    },
+    {
+     "kind": "note",
+     "text": "On the machine of a current reader:"
+    },
+    {
+     "kind": "add-line",
+     "text": "\u003cthe line pravo id new printed\u003e",
+     "file": ".pravo/access/readers.txt",
+     "placeholder": true
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Add a reader'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    }
+   ]
+  },
+  {
+   "id": "remove-reader:ada",
+   "title": "Remove ada",
+   "why": "This removes you: once it has run you cannot open the state, and another reader has to finish it. Removing the line stops new records being sealed to ada. ada keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets ada could read where they live.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "remove-line",
+     "text": "ada ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH5ET7znEbFgMprQljUaVlzyk4qjIG3fNOQdttLes/Jq x25519:zILxDZ6fwvBs4t_2g7DahEWgUoh1GPsFcjMVrnK7AgE",
+     "file": ".pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'ada leaves'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    },
+    {
+     "kind": "note",
+     "text": "You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --all"
+    }
+   ]
+  },
+  {
+   "id": "remove-reader:dan",
+   "title": "Remove dan",
+   "why": "Removing the line stops new records being sealed to dan. dan keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets dan could read where they live.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "remove-line",
+     "text": "dan ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHPAbTnt1+T+s2W2FeyhOamXfBHN8I8WOVA7ril08/DO x25519:Hli_Xj5WuXVFv4DwxC4drR13YSgBV_Idby_OkIthUm0",
+     "file": ".pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'dan leaves'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    },
+    {
+     "kind": "note",
+     "text": "rewrap --all seals every existing record again under the new key."
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --all"
+    }
+   ]
+  },
+  {
+   "id": "remove-reader:eve",
+   "title": "Remove eve",
+   "why": "Removing the line stops new records being sealed to eve. eve keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets eve could read where they live.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "remove-line",
+     "text": "eve ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGe+NVO75qo2wza1AlFu432QsP511ID6I1oF2BaEG8v8 x25519:1SF2s5-AKKnLO9umTOT0kedPWRnElvdGZ7B5sBXfXgU",
+     "file": ".pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'eve leaves'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    },
+    {
+     "kind": "note",
+     "text": "rewrap --all seals every existing record again under the new key."
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --all"
+    }
+   ]
+  },
+  {
+   "id": "remove-reader:fay",
+   "title": "Remove fay",
+   "why": "Removing the line stops new records being sealed to fay. fay keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets fay could read where they live.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "remove-line",
+     "text": "fay ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO70bxUYCF82y6WLoFg7GBaeHwiwIfD0O/A+6F/pjKUp x25519:tOJjs41CKIA6jIkwdBgal1Ay-g29HSbrrBqFATZkZiE",
+     "file": ".pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/readers.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'fay leaves'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap"
+    },
+    {
+     "kind": "note",
+     "text": "rewrap --all seals every existing record again under the new key."
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --all"
+    }
+   ]
+  },
+  {
+   "id": "set-recovery",
+   "title": "Set a recovery key",
+   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
+   "who": "a current reader",
+   "steps": [
+    {
+     "kind": "note",
+     "text": "Make the key and the shares. This writes recovery-shares/ and .pravo/access/recovery.txt:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect rewrap --recovery \u003cK\u003e/\u003cN\u003e",
+     "placeholder": true
+    },
+    {
+     "kind": "command",
+     "text": "git add .pravo/access/recovery.txt"
+    },
+    {
+     "kind": "command",
+     "text": "git commit -m 'Set a recovery key'"
+    },
+    {
+     "kind": "command",
+     "text": "git push"
+    },
+    {
+     "kind": "note",
+     "text": "Do not commit recovery-shares/. Give each file to a different person, offline."
+    }
+   ]
+  },
+  {
+   "id": "status",
+   "title": "Check the state",
+   "why": "The check hashes every record against its name and prints who can read the state.",
+   "steps": [
+    {
+     "kind": "command",
+     "text": "pravo protect status"
+    }
+   ]
+  }
+ ]
+}

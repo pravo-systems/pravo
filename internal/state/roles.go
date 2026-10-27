@@ -210,7 +210,7 @@ func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string)
 	// The roles in the state decide for the keys in the readers file. A key that the file
 	// dropped keeps its role until an admin stores a version without it, since only that
 	// version is signed by an admin: it is in force too.
-	out := make([]protect.Reader, len(file))
+	out := make([]protect.Reader, len(file), len(file)+len(head.Set))
 	copy(out, file)
 	for i := range out {
 		out[i].Role = protect.RoleReader

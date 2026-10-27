@@ -111,10 +111,10 @@
 .ac-foot { margin: 0; padding-top: .8rem; border-top: 1px solid var(--line); font: 400 var(--fs-2)/1.4 var(--font-mono); color: var(--text-3); }
 
 /* ---- narrow: a row of the table is a small card ----
-   The table needs 41rem with short names and 46.5rem with the chips of a name that cannot be used. What counts is
+   The table needs 48rem with short names and 54rem with the chips of a name that cannot be used, and its role column. What counts is
    the room the table has, not the viewport, so the wrapper is a container, as the grid of the table view is. */
 .ac-tablewrap { container-type: inline-size; }
-@container (max-width: 48rem) {
+@container (max-width: 56rem) {
   .ac-table:not(.small) thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .ac-table:not(.small), .ac-table:not(.small) tbody, .ac-table:not(.small) tr, .ac-table:not(.small) th, .ac-table:not(.small) td { display: block; }
   .ac-table:not(.small) tr { padding: .5rem .2rem; border-bottom: 1px solid var(--line); }
@@ -128,6 +128,65 @@
   .ac-title { font-size: 1.25rem; }
   .ac-card .who { margin-left: 0; flex-basis: 100%; }
   .ac-cbody { padding-left: .9rem; }
+}
+
+/* ---- roles ----
+   A role is a square tag: reader is bare, writer is keyed, admin is filled. */
+.b.rl { --c: var(--text-3); font-family: var(--font-mono); }
+.b.rl-admin { --c: var(--accent); background: var(--accent-wash); border-color: var(--accent); color: var(--text); }
+.b.rl-writer { --c: var(--key); }
+.b.rl-reader { --c: var(--text-2); }
+.b.rl-former { --c: var(--text-3); border-style: dashed; background: transparent; }
+.ac-rhead { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .8rem; margin-bottom: .6rem; }
+.ac-rhead .h { margin: 0; }
+.ac-ryou { margin-left: auto; display: inline-flex; align-items: center; gap: .4rem; font-size: var(--fs-2); color: var(--text-2); }
+.ac-rtext { margin: 0; max-width: 46rem; font-size: var(--fs-4); line-height: 1.55; text-wrap: pretty; }
+.ac-roles.rs-untrusted .ac-rtext { padding: .6rem .8rem; border: 1px solid color-mix(in srgb, var(--conflict) 42%, transparent); background: var(--conflict-wash); }
+.ac-roles.rs-file .ac-rtext { padding: .6rem .8rem; border: 1px solid color-mix(in srgb, var(--change) 42%, transparent); background: var(--change-wash); }
+
+.ac-block { margin-top: 1.3rem; min-width: 0; }
+.ac-sub { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .6rem; margin: 0 0 .6rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+
+/* the versions: a plan of the chain, left to right, each one signed by an admin of the one before */
+.ac-chain { display: flex; align-items: stretch; margin: 0; padding: 0 0 .4rem; list-style: none; overflow-x: auto; }
+.ac-ver { position: relative; flex: 0 0 15rem; display: flex; flex-direction: column; gap: .35rem; padding: .65rem .8rem .7rem; border: 1px solid var(--line-strong); background: var(--surface); }
+.ac-ver + .ac-ver { margin-left: 2.4rem; }
+.ac-ver + .ac-ver::before { content: ""; position: absolute; top: 1.2rem; right: 100%; width: 2.4rem; height: 1px; background: var(--text-2); }
+.ac-ver + .ac-ver::after { content: ""; position: absolute; top: calc(1.2rem - 3px); left: -.5rem; width: 0; height: 0; border-left: 5px solid var(--text-2); border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
+.ac-ver.pin { border-color: var(--accent); }
+.ac-ver.head:not(.pin) { border-color: var(--text-2); }
+.ac-ver .vh { display: flex; align-items: center; gap: .5rem; }
+.ac-ver .vn { font: 600 var(--fs-4)/1 var(--font-mono); color: var(--text); }
+.ac-ver .vm { margin: 0; font-size: var(--fs-2); line-height: 1.4; color: var(--text-2); }
+.ac-ver .vm b { font-family: var(--font-mono); font-weight: 500; color: var(--text); }
+.ac-ver .vc { margin: .2rem 0 0; padding: .4rem 0 0; border-top: 1px solid var(--line); list-style: none; display: grid; gap: .2rem; font: 400 var(--fs-2)/1.35 var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
+.ac-ver .vv { margin: 0; display: flex; align-items: center; gap: .4rem; font-size: var(--fs-2); color: var(--text-2); }
+.ac-differs { display: flex; align-items: baseline; gap: .45rem; color: var(--change); }
+
+/* the records: one bar that holds every record once */
+.ac-bar { display: flex; height: .7rem; border: 1px solid var(--line-strong); background: var(--surface); }
+.ac-bar .seg { flex: var(--n, 1) 1 0; min-width: 2px; background: var(--c, var(--text-3)); }
+.ac-bar .seg + .seg { border-left: 1px solid var(--bg, var(--surface)); }
+.ac-bar .ok, .ac-legend .ok { --c: var(--accent); }
+.ac-bar .lock, .ac-legend .lock { --c: var(--key); }
+.ac-bar .dim, .ac-legend .dim { --c: var(--text-3); }
+.ac-bar .chg, .ac-legend .chg { --c: var(--change); }
+.ac-legend { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin: .7rem 0 0; padding: 0; list-style: none; font-size: var(--fs-2); color: var(--text-2); }
+.ac-legend li { display: inline-flex; align-items: baseline; gap: .4rem; }
+.ac-legend .sw { align-self: center; width: .6rem; height: .6rem; background: var(--c); }
+.ac-legend b { font: 500 var(--fs-3)/1 var(--font-mono); color: var(--text); }
+.ac-problems { margin: .8rem 0 0; padding: 0; list-style: none; display: grid; gap: .3rem; font-size: var(--fs-3); }
+.ac-problems li { display: grid; grid-template-columns: minmax(10rem, 22rem) 1fr; gap: .2rem 1rem; padding: .35rem .6rem; border: 1px solid color-mix(in srgb, var(--conflict) 40%, var(--line)); background: var(--conflict-wash); color: var(--text); }
+.ac-problems li.dim { background: none; border-style: dashed; display: block; }
+.ac-problems code { overflow-wrap: anywhere; }
+@media (max-width: 47.5em) {
+  .ac-ryou { margin-left: 0; }
+  .ac-chain { flex-direction: column; overflow: visible; }
+  .ac-ver { flex-basis: auto; }
+  .ac-ver + .ac-ver { margin: 1.8rem 0 0; }
+  .ac-ver + .ac-ver::before { inset: auto auto 100% 1.2rem; width: 1px; height: 1.8rem; }
+  .ac-ver + .ac-ver::after { top: -.5rem; left: calc(1.2rem - 3px); border: 0; border-top: 5px solid var(--text-2); border-left: 3.5px solid transparent; border-right: 3.5px solid transparent; }
+  .ac-problems li { grid-template-columns: 1fr; }
 }
 
 /* the chip in the project panel that opens this view */
