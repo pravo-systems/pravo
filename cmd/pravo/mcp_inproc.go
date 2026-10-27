@@ -17,9 +17,9 @@ import (
 // inprocess runs the tool inside the server and returns its text and exit
 // code in the form of runSelf.
 func inprocess(ctx context.Context, in map[string]any, run func(ctx context.Context, in map[string]any) (string, error)) (string, int) {
-	saved := flagTags
-	flagTags = listArg(in, "tags")
-	defer func() { flagTags = saved }()
+	saved := flags.Tags
+	flags.Tags = listArg(in, "tags")
+	defer func() { flags.Tags = saved }()
 	text, err := run(ctx, in)
 	if err != nil {
 		code := exitCodeOf(err)

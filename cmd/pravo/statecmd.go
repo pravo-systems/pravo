@@ -28,8 +28,8 @@ func stateCmd() *cobra.Command {
 	// The tags select the state that $settings.state.path names, as they do
 	// for the commands that load the specification.
 	pf := cmd.PersistentFlags()
-	pf.StringArrayVarP(&flagTags, "tag", "t", nil, tagUsage)
-	pf.BoolVarP(&flagSysTags, "inject-vars", "T", false, sysTagsUsage)
+	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	// Subcommands run with their own context; the parent's is never set.
 	load := func() (*state.Store, error) {
 		root, err := loadRoot()
@@ -132,7 +132,7 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 			if r == nil {
 				return fmt.Errorf("%s is not in state", args[0])
 			}
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(map[string]any{"node": r, "dependents": st.Dependents(r.Address())})
 			}
 			provider := r.Provider
@@ -291,7 +291,7 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 			readers, checked := []protect.Reader(nil), false
 			if prot := st.Protection(); prot.Sealed != nil {
 				if root, err := loadRoot(); err == nil {
-					readers, checked = attributionReaders(loadReadersFile(root.Dir, flagAccessDir))
+					readers, checked = attributionReaders(loadReadersFile(root.Dir, flags.AccessDir))
 				}
 			}
 			verdicts := make([]state.TxnVerdict, len(txns))
@@ -320,10 +320,10 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 					txns[i].SummarySealed = nil
 				}
 			}
-			if !checked && !flagJSON && st.Protection().Sealed != nil {
+			if !checked && !flags.JSON && st.Protection().Sealed != nil {
 				out.Println(out.C(ui.Dim, "Signatures are not checked: the readers file is missing or invalid."))
 			}
-			if flagJSON {
+			if flags.JSON {
 				type view struct {
 					state.Transaction
 					Signature *sigStatusJSON `json:"signature,omitempty"`
@@ -402,7 +402,7 @@ func stateLocksCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				if locks == nil {
 					locks = []state.Lock{}
 				}
@@ -483,7 +483,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				b, err := res.JSON()
 				if err != nil {
 					return err
@@ -520,7 +520,7 @@ func upgradeCmd(load func() (*state.Store, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(map[string]any{"from": res.From, "to": res.To, "records": res.Records})
 			}
 			out.Printf("The state is in format %d: %s as immutable objects\n", res.To, plural(res.Records, "record", "records"))

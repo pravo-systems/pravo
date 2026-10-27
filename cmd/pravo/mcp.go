@@ -380,7 +380,7 @@ func serveMCP(ctx context.Context, in io.Reader, outW io.Writer) error {
 				continue
 			}
 			callCtx, span := telemetry.Tracer().Start(ctx, "mcp tools/call "+p.Name, trace.WithSpanKind(trace.SpanKindServer),
-				trace.WithAttributes(attribute.String("mcp.tool", p.Name), attribute.String("pravo.actor", flagActor)))
+				trace.WithAttributes(attribute.String("mcp.tool", p.Name), attribute.String("pravo.actor", flags.Actor)))
 			var text string
 			var code int
 			if t.run != nil {
@@ -410,14 +410,14 @@ func runSelf(ctx context.Context, args []string) (string, int) {
 		return err.Error(), 1
 	}
 	full := append([]string{"--json", "--no-color"}, args...)
-	if flagActor != "" {
-		full = append(full, "--actor", flagActor)
+	if flags.Actor != "" {
+		full = append(full, "--actor", flags.Actor)
 	}
-	if flagReason != "" {
-		full = append(full, "--reason", flagReason)
+	if flags.Reason != "" {
+		full = append(full, "--reason", flags.Reason)
 	}
-	if flagIdentity != "" {
-		full = append(full, "--identity", flagIdentity)
+	if flags.Identity != "" {
+		full = append(full, "--identity", flags.Identity)
 	}
 	c := exec.CommandContext(ctx, exe, full...)
 	var stdout, stderr bytes.Buffer

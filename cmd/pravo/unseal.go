@@ -114,7 +114,7 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 	}
 	names := protectedNames(prot)
 	files := p.repoFiles()
-	if !flagJSON {
+	if !flags.JSON {
 		out.Printf("%-8s %s  (%s)\n", "State", p.location(), prot.State)
 		if m := prot.Migration; prot.State == "unsealing" && m != nil {
 			out.Printf("An unseal was started by %s and did not finish: %s of %s records are done.\n", safeName(m.By), commas(m.Done), commas(m.Total))
@@ -146,7 +146,7 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 	case err != nil:
 		return err
 	}
-	if flagJSON {
+	if flags.JSON {
 		gone, err := p.dropFiles(removeFiles)
 		if err != nil {
 			return err
@@ -176,7 +176,7 @@ func (p *protectRun) notSealed(prot *state.Protection, removeFiles, yes bool, li
 	wasSealed := prot != nil && prot.Format >= state.FormatSealed
 	files := p.repoFiles()
 	if removeFiles && len(files) > 0 && wasSealed {
-		if !flagJSON {
+		if !flags.JSON {
 			out.Println(line)
 			out.Printf("This will delete %s from the repository.\n", strings.Join(displayPaths(files), " and "))
 		}
@@ -186,7 +186,7 @@ func (p *protectRun) notSealed(prot *state.Protection, removeFiles, yes bool, li
 			return errors.New("protect unseal cancelled; nothing was deleted")
 		}
 	}
-	if flagJSON {
+	if flags.JSON {
 		var gone []string
 		if removeFiles && wasSealed {
 			var err error

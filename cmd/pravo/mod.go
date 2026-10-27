@@ -68,14 +68,14 @@ func extractGlobals(args []string) []string {
 		a := args[i]
 		switch {
 		case a == "--json" || a == "-json":
-			flagJSON = true
+			flags.JSON = true
 		case a == "--no-color" || a == "-no-color":
-			flagNoColor = true
+			flags.NoColor = true
 		case (a == "--actor" || a == "-actor") && i+1 < len(args):
-			flagActor = args[i+1]
+			flags.Actor = args[i+1]
 			i++
 		case (a == "--reason" || a == "-reason") && i+1 < len(args):
-			flagReason = args[i+1]
+			flags.Reason = args[i+1]
 			i++
 		case (a == "-C" || a == "--chdir") && i+1 < len(args):
 			_ = os.Chdir(args[i+1])
@@ -84,10 +84,10 @@ func extractGlobals(args []string) []string {
 			rest = append(rest, a)
 		}
 	}
-	if flagJSON {
+	if flags.JSON {
 		out = ui.NewPrinter(os.Stderr, true)
 	} else {
-		out = ui.NewPrinter(os.Stdout, colourOff(flagNoColor))
+		out = ui.NewPrinter(os.Stdout, colourOff(flags.NoColor))
 	}
 	return rest
 }
@@ -192,7 +192,7 @@ func modList() error {
 	if err != nil {
 		return err
 	}
-	if flagJSON {
+	if flags.JSON {
 		list := []map[string]string{}
 		for _, m := range root.Modules {
 			list = append(list, map[string]string{"module": m.Path, "version": m.Version, "hash": m.Hash})
@@ -241,7 +241,7 @@ func modVerify() error {
 		}
 	}
 	sort.Strings(problems)
-	if flagJSON {
+	if flags.JSON {
 		if problems == nil {
 			problems = []string{}
 		}

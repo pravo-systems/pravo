@@ -58,14 +58,14 @@ func (p *protectRun) check(allowLocal bool) error {
 	res := checkResult{Store: p.location(), Format: prot.Format, Records: prot.Records}
 	if prot.State == "sealed" {
 		res.Sealed = true
-		if flagJSON {
+		if flags.JSON {
 			return emitJSON(res)
 		}
 		out.Println("Already sealed. Use pravo protect status.")
 		return nil
 	}
 	if prot.State == "unsealing" {
-		if flagJSON {
+		if flags.JSON {
 			return emitJSON(res)
 		}
 		out.Println("The state is being unsealed: it was started and did not finish. Finish it with pravo protect unseal.")
@@ -116,7 +116,7 @@ func (p *protectRun) check(allowLocal bool) error {
 	switch {
 	case !rf.Found || rf.Err != nil || len(rf.Readers) == 0:
 		res.NotReady = "readers file"
-		if flagJSON {
+		if flags.JSON {
 			if e := emitJSON(res); e != nil {
 				return e
 			}
@@ -126,7 +126,7 @@ func (p *protectRun) check(allowLocal bool) error {
 	case running > 0 || locks > 0:
 		res.NotReady = "running"
 		out.Println(out.C(ui.Red, "Not ready: wait for them, or release stale locks with pravo state unlock --stale."))
-		if flagJSON {
+		if flags.JSON {
 			if e := emitJSON(res); e != nil {
 				return e
 			}
@@ -135,7 +135,7 @@ func (p *protectRun) check(allowLocal bool) error {
 	}
 	res.Ready = true
 	out.Println(out.C(ui.Green, "Ready to seal. Next: pravo protect init --encrypt"))
-	if flagJSON {
+	if flags.JSON {
 		return emitJSON(res)
 	}
 	return nil

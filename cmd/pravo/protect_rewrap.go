@@ -110,11 +110,11 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes b
 	// A recovery file that the state has no recovery for is the repository's mistake: it goes.
 	fileRemoving := removeRecovery && !removing && rcf.Found
 	if len(added) == 0 && len(removed) == 0 && !all && setRec == nil && !removing && !fileRemoving && len(prot.RecoveryUnverified) == 0 {
-		if removeRecovery && !flagJSON {
+		if removeRecovery && !flags.JSON {
 			out.Println("The state has no recovery recipient, and there is no recovery file.")
 			return nil
 		}
-		if flagJSON {
+		if flags.JSON {
 			return emitJSON(map[string]any{"added": nil, "removed": nil, "new_group": "", "resealed": 0})
 		}
 		out.Println("The store already matches the readers file.")
@@ -201,7 +201,7 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes b
 			}
 		}
 	}
-	if flagJSON {
+	if flags.JSON {
 		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup, "resealed": res.Resealed, "plans_skipped": res.PlansSkipped}
 		if recJSON != nil {
 			j["recovery"] = recJSON

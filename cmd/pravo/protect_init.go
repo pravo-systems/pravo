@@ -109,7 +109,7 @@ func (p *protectRun) init(yes, allowLocal bool, recoverySpec string) error {
 	for _, r := range p.rf.Readers {
 		listed = append(listed, r.Key)
 	}
-	id, err := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: listed})
+	id, err := resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: listed})
 	if err != nil {
 		if errors.Is(err, errNoIdentity) {
 			return engine.WithCode(engine.ExitRefused, fmt.Errorf("%w; sealing to a list you are not on would lock you out", err))
@@ -247,7 +247,7 @@ func confirm(prompt string, assume bool) (bool, error) {
 	if assume {
 		return true, nil
 	}
-	if flagJSON {
+	if flags.JSON {
 		return false, errors.New("refusing to ask with --json; pass --yes")
 	}
 	if !stdinIsTerminal() {

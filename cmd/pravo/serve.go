@@ -54,9 +54,9 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			if err != nil {
 				return err
 			}
-			v := &viewerState{name: flagIdentity, dir: dir, accessDir: loadReadersFile(dir, flagAccessDir).Dir}
+			v := &viewerState{name: flags.Identity, dir: dir, accessDir: loadReadersFile(dir, flags.AccessDir).Dir}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Env: environment(), Tags: flagTags, SysTags: flagSysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, VerifyPlan: v.verifyPlan}
+			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, VerifyPlan: v.verifyPlan}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.
@@ -79,7 +79,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 					return err
 				}
 				opts.PlanFile = abs
-				if pf != nil && len(flagTags) == 0 && !flagSysTags {
+				if pf != nil && len(flags.Tags) == 0 && !flags.SysTags {
 					// The plan was made with these values; the specification is read with them.
 					opts.Tags, opts.SysTags = pf.Tags, pf.SysTags
 				}
@@ -97,7 +97,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			if d := srv.StateDescription(); d != "" {
 				out.Printf("pravo serve: reading state from %s\n", d)
 			}
-			if flagJSON {
+			if flags.JSON {
 				emitLine(map[string]any{"url": url, "token": srv.Token(), "port": ln.Addr().(*net.TCPAddr).Port})
 			} else {
 				out.Printf("pravo serve: %s\n", url)

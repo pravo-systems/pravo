@@ -63,7 +63,7 @@ type sessionOptions struct {
 // command.
 func loadRoot() (*config.Root, error) {
 	ctx, end := setupSpan("load specification")
-	root, err := config.Load(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags, Context: ctx, Env: environment()})
+	root, err := config.Load(".", config.LoadOptions{Tags: flags.Tags, SysTags: flags.SysTags, Context: ctx, Env: environment()})
 	end(err)
 	if err != nil {
 		return nil, engine.WithCode(engine.ExitInvalid, err)
@@ -90,9 +90,9 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 		mode = pravo.StateWrite
 	}
 	ws, err := pravo.Open(ctx, pravo.Config{
-		Tags: flagTags, SysTags: flagSysTags, Env: environment(), Root: opts.root,
+		Tags: flags.Tags, SysTags: flags.SysTags, Env: environment(), Root: opts.root,
 		Install: opts.install, Upgrade: opts.upgrade, Schemas: opts.schemas, State: mode, RelockModules: opts.relockModules,
-		Actor: flagActor, Reason: flagReason, Args: os.Args[1:],
+		Actor: flags.Actor, Reason: flags.Reason, Args: os.Args[1:],
 		OpenState: func(ctx context.Context, root *config.Root, mode pravo.StateMode) (*state.Store, error) {
 			if mode == pravo.StateRead {
 				return openStateValues(ctx, root)
@@ -105,7 +105,7 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 		// none named like the user, the one whose reader key has a lock in it is
 		// chosen, as it is for the state of this root.
 		Identity: func(readers []protect.ReaderPublic) (*protect.Identity, error) {
-			return resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: readers})
+			return resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: readers})
 		},
 		Log:      func(msg string) { out.Println(msg) },
 		Progress: func(format string, args ...any) { out.Printf(format+"\n", args...) },
@@ -134,9 +134,9 @@ func (s *session) close() {
 }
 
 func (s *session) engine(opts engine.Options) *engine.Engine {
-	opts.Actor, opts.Reason = flagActor, flagReason
-	opts.Readers = loadReadersFile(s.root.Dir, flagAccessDir).Readers
-	if flagJSON && streamEvents && opts.Event == nil {
+	opts.Actor, opts.Reason = flags.Actor, flags.Reason
+	opts.Readers = loadReadersFile(s.root.Dir, flags.AccessDir).Readers
+	if flags.JSON && streamEvents && opts.Event == nil {
 		// Only commands that change things stream events; plan-like
 		// commands print a single document.
 		opts.Event = func(ev engine.Event) { emitLine(ev) }
@@ -178,7 +178,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 	// not exist yet is not one. Whether it exists is looked at before the open, which
 	// would make it, in format 1.
 	missing := false
-	if rf := loadReadersFile(root.Dir, flagAccessDir); rf.Found && stateMissing(ctx, root) {
+	if rf := loadReadersFile(root.Dir, flags.AccessDir); rf.Found && stateMissing(ctx, root) {
 		problem := missingStateProblem(rf)
 		if write {
 			return nil, nil, engine.WithCode(engine.ExitRefused, errors.New(problem))
@@ -196,7 +196,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked bool
 		return st, nil, checkReadersFile(root, st, write)
 	}
 	// The state is sealed.
-	id, idErr := resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
+	id, idErr := resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
 	if idErr == nil {
 		keyed, err := open(id)
 		if err != nil && !errors.Is(err, state.ErrNotReader) {
@@ -247,7 +247,7 @@ type noKey struct {
 }
 
 func (k *noKey) error(root *config.Root) error {
-	return notReaderError(loadReadersFile(root.Dir, flagAccessDir), k.id, k.err)
+	return notReaderError(loadReadersFile(root.Dir, flags.AccessDir), k.id, k.err)
 }
 
 // remoteBackend opens the bucket or the server that the root keeps its state on.

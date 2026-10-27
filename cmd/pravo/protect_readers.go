@@ -215,7 +215,7 @@ func expectsSealed(prot state.Protection, rf readersFile) bool {
 // sealed yet, or it was downgraded in the bucket.
 func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
 	prot := st.Protection()
-	rf := loadReadersFile(root.Dir, flagAccessDir)
+	rf := loadReadersFile(root.Dir, flags.AccessDir)
 	if !isSealed(prot) {
 		if !expectsSealed(prot, rf) {
 			return nil

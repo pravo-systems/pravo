@@ -47,7 +47,7 @@ not touched.`,
 			if err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(map[string]any{"path": target, "files": n, "version": Version})
 			}
 			out.Printf("Installed the pravo skill for pravo %s: %d files in %s\n", Version, n, target)
@@ -91,7 +91,7 @@ func skillListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(map[string]any{"version": Version, "files": files})
 			}
 			for _, f := range files {

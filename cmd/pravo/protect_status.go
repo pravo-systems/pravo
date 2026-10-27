@@ -155,7 +155,7 @@ func (p *protectRun) status() error {
 	if err != nil {
 		return err
 	}
-	if flagJSON {
+	if flags.JSON {
 		doc := map[string]any{"state": prot.State, "format": prot.Format, "store": p.location(), "records": prot.Records,
 			"readers": protectedNames(prot), "checked": ver.Checked, "untrusted": ver.Bad, "unsettled": len(interrupted)}
 		if none {

@@ -22,13 +22,8 @@ import (
 
 // Machine-facing surface: JSON output, attribution, explanations.
 
-var (
-	flagJSON   bool
-	flagActor  string
-	flagReason string
-	// streamEvents makes --json stream progress as NDJSON (apply, destroy).
-	streamEvents bool
-)
+// streamEvents makes --json stream progress as NDJSON (apply, destroy).
+var streamEvents bool
 
 // jsonText encodes v as JSON for a person or a program to read. The characters
 // <, > and & are written as they are and not as \u003c, \u003e and \u0026, also
@@ -182,7 +177,7 @@ specification. With --json the definitions are returned as {"type":
 				}
 				results[t.arg] = text
 			}
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(results)
 			}
 			for _, arg := range args {
@@ -307,7 +302,7 @@ func whyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(all)
 			}
 			for _, ex := range all {
@@ -376,7 +371,7 @@ nothing, so a scheduled run costs what it reads.`,
 					return err
 				}
 			}
-			if flagJSON {
+			if flags.JSON {
 				if err := emitJSON(report); err != nil {
 					return err
 				}
@@ -418,7 +413,7 @@ func driftDue(cmd *cobra.Command, s *session, limit int, webhook string) error {
 		}
 	}
 	switch {
-	case flagJSON:
+	case flags.JSON:
 		if err := emitJSON(report); err != nil {
 			return err
 		}

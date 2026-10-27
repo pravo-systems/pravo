@@ -50,10 +50,10 @@ that nothing is sealed in any more.`,
 		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 	pf := cmd.PersistentFlags()
-	pf.StringVar(&flagAccessDir, "access-dir", "", accessDirUsage)
+	pf.StringVar(&flags.AccessDir, "access-dir", "", accessDirUsage)
 	// The tags select the state, so the commands that open it take them too.
-	pf.StringArrayVarP(&flagTags, "tag", "t", nil, tagUsage)
-	pf.BoolVarP(&flagSysTags, "inject-vars", "T", false, sysTagsUsage)
+	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRecoverCmd(), protectUnsealCmd(), protectGCCmd())
 	return cmd
 }
@@ -71,7 +71,7 @@ func newProtectRun(cmd *cobra.Command) (*protectRun, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &protectRun{ctx: cmd.Context(), root: root, rf: loadReadersFile(root.Dir, flagAccessDir)}, nil
+	return &protectRun{ctx: cmd.Context(), root: root, rf: loadReadersFile(root.Dir, flags.AccessDir)}, nil
 }
 
 func (p *protectRun) local() bool { return !p.root.State.Remote() }
@@ -150,7 +150,7 @@ func (p *protectRun) open(b state.Backend, write, needKey bool) (st *state.Store
 	if st, err = mk(nil); err != nil || !st.Locked() || !needKey {
 		return st, nil, nil, err
 	}
-	id, idErr = resolveIdentity(identityOptions{Name: flagIdentity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
+	id, idErr = resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
 	if idErr != nil {
 		return st, nil, idErr, nil
 	}
