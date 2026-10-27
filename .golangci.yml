@@ -193,4 +193,14 @@ issues:
 
 formatters:
   enable:
+    - gci
     - gofmt
+  settings:
+    gci:
+      # Three groups, in this order: the standard library, other modules, and
+      # this module.
+      sections:
+        - standard
+        - default
+        - prefix(github.com/pravo-systems/pravo)
+      custom-order: true

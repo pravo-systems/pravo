@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/pravo-systems/pravo/internal/engine"
-	"github.com/pravo-systems/pravo/internal/env"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 // A tool argument that the command line would read as a flag is refused, so
