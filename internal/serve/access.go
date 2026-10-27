@@ -689,200 +689,72 @@ func gitSteps(file, message string) []SuggestionStep {
 	}
 }
 
+// suggester holds what the suggestion cards share. Each method makes one card,
+// or none when the state does not call for it.
+type suggester struct {
+	a         *Access
+	local     bool
+	blobs     map[string]string
+	file      string // the readers file, as the commands name it
+	where     string // the --access-dir flag, when the file is not where the commands look
+	protected bool
+	notReader bool
+	initCmd   string
+	addTitle  string
+}
+
 func suggestions(a *Access, dir string, local bool, blobs map[string]string) []Suggestion {
-	file := shortPath(dir, a.File.Path)
+	g := &suggester{a: a, local: local, blobs: blobs, file: shortPath(dir, a.File.Path)}
 	// A readers file that is not where the commands look for it (.pravo/access, here
 	// or in a parent) is named on the commands that read it, so that a paste reads
 	// the file this page shows.
-	where := ""
-	if !strings.HasSuffix(file, ".pravo/access/"+readersFile) {
-		where = " --access-dir " + engine.ShellWord(shortPath(dir, filepath.Dir(a.File.Path)))
+	if !strings.HasSuffix(g.file, ".pravo/access/"+readersFile) {
+		g.where = " --access-dir " + engine.ShellWord(shortPath(dir, filepath.Dir(a.File.Path)))
 	}
-	protectCmd := func(rest string) SuggestionStep { return command("pravo protect " + rest + where) }
-	protected := a.State == "sealed" || a.State == "migrating"
-	var list []Suggestion
-	add := func(s Suggestion) { list = append(list, s) }
-	primary := ""
-
-	notReader := a.You != nil && a.You.State != "reader"
-	addTitle := addReaderTitle
+	g.protected = a.State == "sealed" || a.State == "migrating"
+	g.notReader = a.You != nil && a.You.State != "reader"
+	g.addTitle = addReaderTitle
 	if a.SingleReader != nil {
-		addTitle = addBackupTitle
+		g.addTitle = addBackupTitle
 	}
-	switch {
-	case a.State == "migrating":
-		primary = "finish"
-	case a.State == "sealed" && a.File.Verdict == "differs":
-		primary = "rewrap"
-	case protected && notReader:
-		primary = "identity"
-	case a.File.Verdict == "expected-sealed":
-		primary = "check-downgrade"
-	case !protected:
-		primary = "seal"
+	g.initCmd = "init --encrypt"
+	if local {
+		g.initCmd += " --allow-local"
 	}
 
-	initCmd := "init --encrypt"
-	if local {
-		initCmd += " --allow-local"
-	}
-	if a.State == "migrating" && a.Migration != nil && a.Migration.Unseal {
-		add(Suggestion{ID: "finish", Title: "Finish unsealing the state", Why: "Unsealing started and stopped before it finished. Running it again finishes the records that are left.",
-			Who: "a reader", Steps: []SuggestionStep{protectCmd("unseal")}})
-	} else if a.State == "migrating" {
-		add(Suggestion{ID: "finish", Title: "Finish sealing the state", Why: "Sealing started and stopped before it finished. Running it again finishes the records that are left.",
-			Who: "a reader", Steps: []SuggestionStep{protectCmd(initCmd)}})
-	}
-	if a.File.Verdict == "expected-sealed" {
-		add(Suggestion{ID: "check-downgrade", Title: "Check why the state is not sealed",
-			Why: "The readers file lists readers, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
-			Who: "a reader",
-			Steps: []SuggestionStep{protectCmd("status"),
-				note("If you did not mean to seal this state, remove the readers file and the recovery file. To seal it: pravo protect " + initCmd),
-				protectCmd(initCmd)}})
-	}
-	if !protected {
-		s := Suggestion{ID: "seal", Title: "Seal the state",
-			Why: "Sealing encrypts attributes, outputs and stored plans to the readers in the file. It needs the store at rest, so announce a short freeze.",
-			Who: "each reader, then one of them"}
-		s.Steps = append(s.Steps, note("On the machine of each reader:"), fill("pravo id new --name <name>"))
-		if a.File.Count == 0 {
-			s.Steps = append(s.Steps, note("On the machine of the reader who seals, add the line each reader sent, one for each, to the readers file:"),
-				SuggestionStep{Kind: "add-line", File: file, Text: "<the line pravo id new printed>", Placeholder: true})
-		} else {
-			s.Steps = append(s.Steps, note("The readers file lists "+strconv.Itoa(a.File.Count)+" "+plural(a.File.Count, "reader", "readers")+". A reader who is not listed sends their line, and it is added to "+file+"."))
-		}
-		if local {
-			s.Steps = append(s.Steps, note("This state is a local directory. pravo protect refuses it unless --allow-local is given, because two users on one directory would not be excluded."), protectCmd(initCmd))
-		} else {
-			s.Steps = append(s.Steps, protectCmd("check"), protectCmd(initCmd))
-			s.Steps = append(s.Steps, gitSteps(file, "Seal the state")...)
-		}
+	var list []Suggestion
+	add := func(s ...Suggestion) { list = append(list, s...) }
+	if s, ok := g.finish(); ok {
 		add(s)
 	}
-	if protected && notReader {
-		s := Suggestion{ID: "identity", Title: "Read the state with your own key",
-			Why: "This key is not a reader. Print your line and send it to a reader, who adds it as described under " + addTitle + ".",
-			Who: "you"}
-		switch a.You.State {
-		case "locked":
-			// The identity exists and may well be a reader: what is missing is its passphrase.
-			s.Title = "Give the identity its passphrase"
-			s.Why = "The identity is sealed with a passphrase and none was available. The viewer asks for it on the terminal before it starts, or reads PRAVO_PASSPHRASE from its environment."
-			s.Steps = append(s.Steps, note("Start the viewer again from a terminal:"), command("pravo serve"))
-		default:
-			if a.You.State == "no-identity" {
-				s.Why = "No identity was given, so there is no key to open the state with. Make one, send its line to a reader, who adds it as described under " + addTitle + "."
-				s.Steps = append(s.Steps, fill("pravo id new --name <name>"))
-			}
-			s.Steps = append(s.Steps, command("pravo id show"), note("When a reader has added your line and rewrapped, start the viewer again:"), fill("pravo serve --identity <name>"))
-		}
-		if a.Recovery != nil {
-			s.Steps = append(s.Steps, note(fmt.Sprintf("If no reader can open the state any more, put your line in the readers file in place of theirs, and open the state with %d of its %d recovery shares:", a.Recovery.K, a.Recovery.N)),
-				fill("pravo protect recover --share <share-file> --share <share-file>"+where))
-		}
+	if s, ok := g.checkDowngrade(); ok {
 		add(s)
 	}
-	if a.State == "sealed" && a.File.Verdict == "differs" {
-		add(Suggestion{ID: "rewrap", Title: "Make the store match the readers file",
-			Why: "The file and the store list different readers. Writers refuse to write until they match.", Who: "a current reader",
-			Steps: []SuggestionStep{protectCmd("rewrap"), note("If you did not edit the file, something else changed it. Compare with git:"),
-				command("git log -p -- " + engine.ShellWord(file))}})
+	if s, ok := g.seal(); ok {
+		add(s)
+	}
+	if s, ok := g.identity(); ok {
+		add(s)
+	}
+	if s, ok := g.rewrap(); ok {
+		add(s)
 	}
 	if a.State == "sealed" {
-		addWhy := "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps."
-		if a.SingleReader != nil {
-			// With one reader the card is the answer to the risk the page has just told of, so it leads with it.
-			addWhy = "With one reader and no recovery key, nobody can read the state again if that reader loses their key or its passphrase. A backup reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps."
+		add(g.addReader())
+		add(g.removals()...)
+		if s, ok := g.recovery(); ok {
+			add(s)
 		}
-		add(Suggestion{ID: "add-reader", Title: addTitle, Why: addWhy,
-			Who: "the new reader, then a current reader",
-			Steps: append(append([]SuggestionStep{note("On the machine of the new reader:"), fill("pravo id new --name <name>"),
-				note("On the machine of a current reader:"),
-				{Kind: "add-line", File: file, Text: "<the line pravo id new printed>", Placeholder: true}},
-				gitSteps(file, "Add a reader")...), protectCmd("rewrap"))})
-		// A reader who is the only one cannot be removed: the readers file would list nobody, and
-		// pravo protect rewrap refuses to remove every reader. A second reader is added first.
-		inFile := 0
-		for _, r := range a.Readers {
-			if r.InFile {
-				inFile++
-			}
+		if s, ok := g.reseal(); ok {
+			add(s)
 		}
-		removals := 0
-		for _, r := range a.Readers {
-			if removals == maxRemovals || inFile < 2 {
-				break
-			}
-			if !r.InFile || !r.NameOK {
-				continue
-			}
-			line, ok := readerLine(r, blobs[r.Key])
-			if !ok {
-				continue
-			}
-			removals++
-			steps := []SuggestionStep{{Kind: "remove-line", File: file, Text: line}}
-			steps = append(steps, gitSteps(file, r.Name+" leaves")...)
-			steps = append(steps, protectCmd("rewrap"))
-			if r.You {
-				// The first rewrap takes away the key of the person who runs it: rewrap --all needs a reader.
-				steps = append(steps, note("You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"))
-			} else {
-				steps = append(steps, note("rewrap --all seals every existing record again under the new key."))
-			}
-			steps = append(steps, protectCmd("rewrap --all"))
-			why := "Removing the line stops new records being sealed to " + r.Name + ". " + r.Name + " keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets " + r.Name + " could read where they live."
-			if r.You {
-				why = "This removes you: once it has run you cannot open the state, and another reader has to finish it. " + why
-			}
-			add(Suggestion{ID: "remove-reader:" + r.Name, Title: "Remove " + r.Name,
-				Why: why,
-				Who: "a current reader", Steps: steps})
-		}
-		// Records out of reach of a reader are under a group that an old reader list made; with no key every
-		// record is out of reach, which says nothing about the groups.
-		underOld := false
-		for _, g := range a.Groups {
-			underOld = underOld || (!g.Current && g.Records > 0)
-		}
-		recoveryFile := path.Join(path.Dir(file), "recovery.txt")
-		if a.Recovery == nil {
-			// A recovery recipient answers the risk that every reader loses their key.
-			add(Suggestion{ID: "set-recovery", Title: "Set a recovery key",
-				Why: "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
-				Who: "a current reader",
-				Steps: append(append([]SuggestionStep{note("Make the key and the shares. This writes recovery-shares/ and " + recoveryFile + ":"), fill("pravo protect rewrap --recovery <K>/<N>" + where)},
-					gitSteps(recoveryFile, "Set a recovery key")...), note("Do not commit recovery-shares/. Give each file to a different person, offline."))})
-		} else if a.Recovery.Warning != "" {
-			add(Suggestion{ID: "fix-recovery", Title: "Bring the recovery in line",
-				Why: a.Recovery.Warning, Who: "a current reader",
-				Steps: []SuggestionStep{protectCmd("rewrap"), note("The recovery file is " + recoveryFile + ". If it was not committed, commit it:")}})
-		}
-		if underOld || (a.Records.Unreadable > 0 && a.You != nil && a.You.State == "reader") {
-			add(Suggestion{ID: "reseal", Title: "Seal every record again",
-				Why: "Records stay under an old group until they are written again.", Who: "a current reader",
-				Steps: []SuggestionStep{protectCmd("rewrap --all")}})
-		}
-		// A group other than the current one is a data key that a reader who was removed may still hold.
-		// It is dropped when nothing is sealed in it; the garbage collection deletes the records that no
-		// pointer names as well.
-		if len(a.Groups) > 1 {
-			var steps []SuggestionStep
-			for _, g := range a.Groups {
-				if !g.Current && g.Records > 0 {
-					steps = append(steps, note("Records are still under an old group. Seal them again first:"), protectCmd("rewrap --all"))
-					break
-				}
-			}
-			steps = append(steps, note("Say what would be marked, deleted and dropped, and then do it. gc marks the records that no pointer names and deletes them on a run at least 15 minutes later:"), protectCmd("gc --dry-run"), protectCmd("gc"))
-			add(Suggestion{ID: "prune", Title: "Drop the groups nothing is sealed in",
-				Why: "A reader who was removed keeps the data key of the groups they were in. A group that no record, output or stored plan is sealed in is dropped from meta.json, and the key opens nothing that is left. The same command marks the records that no pointer names once they are a day old, and deletes them on a run at least 15 minutes later.",
-				Who: "a current reader", Steps: steps})
+		if s, ok := g.prune(); ok {
+			add(s)
 		}
 		add(Suggestion{ID: "status", Title: "Check the state", Why: "The check hashes every record against its name and prints who can read the state.",
-			Steps: []SuggestionStep{protectCmd("status")}})
+			Steps: []SuggestionStep{g.protectCmd("status")}})
 	}
+	primary := g.primary()
 	for i := range list {
 		if list[i].ID == primary {
 			list[i].Primary = true
@@ -891,6 +763,236 @@ func suggestions(a *Access, dir string, local bool, blobs map[string]string) []S
 		}
 	}
 	return list
+}
+
+func (g *suggester) protectCmd(rest string) SuggestionStep {
+	return command("pravo protect " + rest + g.where)
+}
+
+// primary is the id of the card that leads the list.
+func (g *suggester) primary() string {
+	a := g.a
+	switch {
+	case a.State == "migrating":
+		return "finish"
+	case a.State == "sealed" && a.File.Verdict == "differs":
+		return "rewrap"
+	case g.protected && g.notReader:
+		return "identity"
+	case a.File.Verdict == "expected-sealed":
+		return "check-downgrade"
+	case !g.protected:
+		return "seal"
+	}
+	return ""
+}
+
+func (g *suggester) finish() (Suggestion, bool) {
+	a := g.a
+	switch {
+	case a.State == "migrating" && a.Migration != nil && a.Migration.Unseal:
+		return Suggestion{ID: "finish", Title: "Finish unsealing the state", Why: "Unsealing started and stopped before it finished. Running it again finishes the records that are left.",
+			Who: "a reader", Steps: []SuggestionStep{g.protectCmd("unseal")}}, true
+	case a.State == "migrating":
+		return Suggestion{ID: "finish", Title: "Finish sealing the state", Why: "Sealing started and stopped before it finished. Running it again finishes the records that are left.",
+			Who: "a reader", Steps: []SuggestionStep{g.protectCmd(g.initCmd)}}, true
+	}
+	return Suggestion{}, false
+}
+
+func (g *suggester) checkDowngrade() (Suggestion, bool) {
+	if g.a.File.Verdict != "expected-sealed" {
+		return Suggestion{}, false
+	}
+	return Suggestion{ID: "check-downgrade", Title: "Check why the state is not sealed",
+		Why: "The readers file lists readers, so the state was expected to be sealed, and it is not. It has not been sealed yet, or someone who can write to the store changed its meta.json.",
+		Who: "a reader",
+		Steps: []SuggestionStep{g.protectCmd("status"),
+			note("If you did not mean to seal this state, remove the readers file and the recovery file. To seal it: pravo protect " + g.initCmd),
+			g.protectCmd(g.initCmd)}}, true
+}
+
+func (g *suggester) seal() (Suggestion, bool) {
+	if g.protected {
+		return Suggestion{}, false
+	}
+	a, file := g.a, g.file
+	s := Suggestion{ID: "seal", Title: "Seal the state",
+		Why: "Sealing encrypts attributes, outputs and stored plans to the readers in the file. It needs the store at rest, so announce a short freeze.",
+		Who: "each reader, then one of them"}
+	s.Steps = append(s.Steps, note("On the machine of each reader:"), fill("pravo id new --name <name>"))
+	if a.File.Count == 0 {
+		s.Steps = append(s.Steps, note("On the machine of the reader who seals, add the line each reader sent, one for each, to the readers file:"),
+			SuggestionStep{Kind: "add-line", File: file, Text: "<the line pravo id new printed>", Placeholder: true})
+	} else {
+		s.Steps = append(s.Steps, note("The readers file lists "+strconv.Itoa(a.File.Count)+" "+plural(a.File.Count, "reader", "readers")+". A reader who is not listed sends their line, and it is added to "+file+"."))
+	}
+	if g.local {
+		s.Steps = append(s.Steps, note("This state is a local directory. pravo protect refuses it unless --allow-local is given, because two users on one directory would not be excluded."), g.protectCmd(g.initCmd))
+	} else {
+		s.Steps = append(s.Steps, g.protectCmd("check"), g.protectCmd(g.initCmd))
+		s.Steps = append(s.Steps, gitSteps(file, "Seal the state")...)
+	}
+	return s, true
+}
+
+func (g *suggester) identity() (Suggestion, bool) {
+	if !g.protected || !g.notReader {
+		return Suggestion{}, false
+	}
+	a := g.a
+	s := Suggestion{ID: "identity", Title: "Read the state with your own key",
+		Why: "This key is not a reader. Print your line and send it to a reader, who adds it as described under " + g.addTitle + ".",
+		Who: "you"}
+	switch a.You.State {
+	case "locked":
+		// The identity exists and may well be a reader: what is missing is its passphrase.
+		s.Title = "Give the identity its passphrase"
+		s.Why = "The identity is sealed with a passphrase and none was available. The viewer asks for it on the terminal before it starts, or reads PRAVO_PASSPHRASE from its environment."
+		s.Steps = append(s.Steps, note("Start the viewer again from a terminal:"), command("pravo serve"))
+	default:
+		if a.You.State == "no-identity" {
+			s.Why = "No identity was given, so there is no key to open the state with. Make one, send its line to a reader, who adds it as described under " + g.addTitle + "."
+			s.Steps = append(s.Steps, fill("pravo id new --name <name>"))
+		}
+		s.Steps = append(s.Steps, command("pravo id show"), note("When a reader has added your line and rewrapped, start the viewer again:"), fill("pravo serve --identity <name>"))
+	}
+	if a.Recovery != nil {
+		s.Steps = append(s.Steps, note(fmt.Sprintf("If no reader can open the state any more, put your line in the readers file in place of theirs, and open the state with %d of its %d recovery shares:", a.Recovery.K, a.Recovery.N)),
+			fill("pravo protect recover --share <share-file> --share <share-file>"+g.where))
+	}
+	return s, true
+}
+
+func (g *suggester) rewrap() (Suggestion, bool) {
+	if g.a.State != "sealed" || g.a.File.Verdict != "differs" {
+		return Suggestion{}, false
+	}
+	return Suggestion{ID: "rewrap", Title: "Make the store match the readers file",
+		Why: "The file and the store list different readers. Writers refuse to write until they match.", Who: "a current reader",
+		Steps: []SuggestionStep{g.protectCmd("rewrap"), note("If you did not edit the file, something else changed it. Compare with git:"),
+			command("git log -p -- " + engine.ShellWord(g.file))}}, true
+}
+
+func (g *suggester) addReader() Suggestion {
+	addWhy := "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps."
+	if g.a.SingleReader != nil {
+		// With one reader the card is the answer to the risk the page has just told of, so it leads with it.
+		addWhy = "With one reader and no recovery key, nobody can read the state again if that reader loses their key or its passphrase. A backup reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps."
+	}
+	return Suggestion{ID: "add-reader", Title: g.addTitle, Why: addWhy,
+		Who: "the new reader, then a current reader",
+		Steps: append(append([]SuggestionStep{note("On the machine of the new reader:"), fill("pravo id new --name <name>"),
+			note("On the machine of a current reader:"),
+			{Kind: "add-line", File: g.file, Text: "<the line pravo id new printed>", Placeholder: true}},
+			gitSteps(g.file, "Add a reader")...), g.protectCmd("rewrap"))}
+}
+
+// removals makes a card for each reader in the file who can be removed, up to
+// maxRemovals. A reader who is the only one cannot be removed: the readers file
+// would list nobody, and pravo protect rewrap refuses to remove every reader. A
+// second reader is added first.
+func (g *suggester) removals() []Suggestion {
+	file := g.file
+	inFile := 0
+	for _, r := range g.a.Readers {
+		if r.InFile {
+			inFile++
+		}
+	}
+	var list []Suggestion
+	for _, r := range g.a.Readers {
+		if len(list) == maxRemovals || inFile < 2 {
+			break
+		}
+		if !r.InFile || !r.NameOK {
+			continue
+		}
+		line, ok := readerLine(r, g.blobs[r.Key])
+		if !ok {
+			continue
+		}
+		steps := []SuggestionStep{{Kind: "remove-line", File: file, Text: line}}
+		steps = append(steps, gitSteps(file, r.Name+" leaves")...)
+		steps = append(steps, g.protectCmd("rewrap"))
+		if r.You {
+			// The first rewrap takes away the key of the person who runs it: rewrap --all needs a reader.
+			steps = append(steps, note("You are not a reader once this has run. A reader who is left runs the rest, which seals every existing record again under the new key:"))
+		} else {
+			steps = append(steps, note("rewrap --all seals every existing record again under the new key."))
+		}
+		steps = append(steps, g.protectCmd("rewrap --all"))
+		why := "Removing the line stops new records being sealed to " + r.Name + ". " + r.Name + " keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets " + r.Name + " could read where they live."
+		if r.You {
+			why = "This removes you: once it has run you cannot open the state, and another reader has to finish it. " + why
+		}
+		list = append(list, Suggestion{ID: "remove-reader:" + r.Name, Title: "Remove " + r.Name,
+			Why: why,
+			Who: "a current reader", Steps: steps})
+	}
+	return list
+}
+
+// recovery is the card that sets a recovery key, or the one that brings a
+// recovery that does not match in line.
+func (g *suggester) recovery() (Suggestion, bool) {
+	a := g.a
+	recoveryFile := path.Join(path.Dir(g.file), "recovery.txt")
+	if a.Recovery == nil {
+		// A recovery recipient answers the risk that every reader loses their key.
+		return Suggestion{ID: "set-recovery", Title: "Set a recovery key",
+			Why: "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
+			Who: "a current reader",
+			Steps: append(append([]SuggestionStep{note("Make the key and the shares. This writes recovery-shares/ and " + recoveryFile + ":"), fill("pravo protect rewrap --recovery <K>/<N>" + g.where)},
+				gitSteps(recoveryFile, "Set a recovery key")...), note("Do not commit recovery-shares/. Give each file to a different person, offline."))}, true
+	}
+	if a.Recovery.Warning != "" {
+		return Suggestion{ID: "fix-recovery", Title: "Bring the recovery in line",
+			Why: a.Recovery.Warning, Who: "a current reader",
+			Steps: []SuggestionStep{g.protectCmd("rewrap"), note("The recovery file is " + recoveryFile + ". If it was not committed, commit it:")}}, true
+	}
+	return Suggestion{}, false
+}
+
+func (g *suggester) reseal() (Suggestion, bool) {
+	a := g.a
+	// Records out of reach of a reader are under a group that an old reader list made; with no key every
+	// record is out of reach, which says nothing about the groups.
+	unreadable := a.Records.Unreadable > 0 && a.You != nil && a.You.State == "reader"
+	if !g.underOldGroup() && !unreadable {
+		return Suggestion{}, false
+	}
+	return Suggestion{ID: "reseal", Title: "Seal every record again",
+		Why: "Records stay under an old group until they are written again.", Who: "a current reader",
+		Steps: []SuggestionStep{g.protectCmd("rewrap --all")}}, true
+}
+
+// underOldGroup reports whether a record is still sealed under a group other
+// than the current one.
+func (g *suggester) underOldGroup() bool {
+	for _, grp := range g.a.Groups {
+		if !grp.Current && grp.Records > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// prune is the card for a group other than the current one: a data key that a
+// reader who was removed may still hold. It is dropped when nothing is sealed in
+// it; the garbage collection deletes the records that no pointer names as well.
+func (g *suggester) prune() (Suggestion, bool) {
+	if len(g.a.Groups) <= 1 {
+		return Suggestion{}, false
+	}
+	var steps []SuggestionStep
+	if g.underOldGroup() {
+		steps = append(steps, note("Records are still under an old group. Seal them again first:"), g.protectCmd("rewrap --all"))
+	}
+	steps = append(steps, note("Say what would be marked, deleted and dropped, and then do it. gc marks the records that no pointer names and deletes them on a run at least 15 minutes later:"), g.protectCmd("gc --dry-run"), g.protectCmd("gc"))
+	return Suggestion{ID: "prune", Title: "Drop the groups nothing is sealed in",
+		Why: "A reader who was removed keeps the data key of the groups they were in. A group that no record, output or stored plan is sealed in is dropped from meta.json, and the key opens nothing that is left. The same command marks the records that no pointer names once they are a day old, and deletes them on a run at least 15 minutes later.",
+		Who: "a current reader", Steps: steps}, true
 }
 
 // sealedReason says why a sealed record is not opened, for the note on a record.
