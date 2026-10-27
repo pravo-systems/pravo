@@ -56,7 +56,7 @@ Files in `cmd/pravo/`:
 | `skill.go` | `skill`: writes (`install`), prints (`print`) and lists the files of the embedded `skills/pravo`. |
 | `mod.go` | `mod`: embeds the CUE module commands, adds `publish`, `list` and `verify`. |
 | `id.go`, `identity.go` | `id new` and `id show`; `resolveIdentity`, which finds the identity of the user (`--identity`, `PRAVO_IDENTITY`, the identity directory) and opens it with a passphrase. |
-| `protect.go`, `access.go` | `protect check`, `init`, `status`, `rewrap` and `gc` (`protect_gc.go`); the readers file (`loadReadersFile`) and its comparison with a sealed state. `session.go` opens a sealed state with the identity and compares the readers file with the state. |
+| `protect.go`, `protect_readers.go`, `protect_check.go`, `protect_init.go`, `protect_status.go`, `protect_rewrap.go`, `protect_gc.go`, `access.go` | `protect`: `protect.go` holds the command, `protectRun` and how it opens the store; `protect_readers.go` the comparison of the readers file with a sealed state (`checkReadersFile`; `access.go` loads the file with `loadReadersFile`); then one file for each of `check`, `init`, `status`, `rewrap` and `gc`. `session.go` opens a sealed state with the identity and compares the readers file with the state. |
 | `helpers.go`, `webhook.go` | Small shared helpers (`noArgs`, `refreshValueHint`, `typesOf`); the drift webhook POST. |
 
 Files of the plan and apply core in `internal/engine/`:
