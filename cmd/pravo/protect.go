@@ -80,6 +80,18 @@ func newProtectRun(cmd *cobra.Command) (*protectRun, error) {
 	return &protectRun{ctx: cmd.Context(), root: root, rf: loadReadersFile(root.Dir, flagAccessDir)}, nil
 }
 
+// needAdmin refuses an identity that is not an admin in the readers file of the repository.
+// It does nothing for a state with no key to judge by, or a readers file without roles.
+func (p *protectRun) needAdmin(st *state.Store, what string) error {
+	if st.Locked() {
+		return nil
+	}
+	if msg := roleProblem(p.rf, st, protect.RoleAdmin, what); msg != "" {
+		return engine.WithCode(engine.ExitRefused, errors.New(msg))
+	}
+	return nil
+}
+
 func (p *protectRun) local() bool { return !p.root.State.Remote() }
 
 // backend returns the backend of the state. A local directory that does not
@@ -403,6 +415,9 @@ func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
 			break
 		}
 		problem = fmt.Sprintf("%s and the state differ (%s). Run pravo protect rewrap.", rf.shown(), diffText(added, removed))
+	}
+	if problem == "" && write {
+		problem, code = roleProblem(rf, st, protect.RoleWriter, "change the state"), engine.ExitRefused
 	}
 	if problem == "" {
 		return nil
@@ -1064,10 +1079,17 @@ func (p *protectRun) status() error {
 		text, recoveryFileState = recoveryStatusText(prot, rf)
 		add("Recovery", text)
 	}
-	add("Roles", "off")
 	txns, err := st.Transactions()
 	if err != nil {
 		return err
+	}
+	rolesOn := rf.Found && rf.Err == nil && protect.RolesOn(rf.Readers)
+	add("Roles", rolesText(rf, st))
+	var recs *state.RecordVerdict
+	if rolesOn && prot.Sealed != nil && !st.Locked() {
+		v := st.VerifyRecords(txns, rf.Readers)
+		recs = &v
+		add("Records", recordsText(v))
 	}
 	var sigs *sigCounts
 	if prot.Sealed != nil {
@@ -1105,6 +1127,10 @@ func (p *protectRun) status() error {
 		if sigs != nil {
 			doc["signatures"] = sigs
 		}
+		doc["roles"] = rolesDoc(rf, st)
+		if recs != nil {
+			doc["record_check"] = recs
+		}
 		if sealed {
 			doc["you"] = prot.You.State
 			added, removed := readersDiff(prot, rf)
@@ -1129,6 +1155,11 @@ func (p *protectRun) status() error {
 				out.Println(out.C(ui.Red, "Untrusted: txn/"+printable(id)+".json has a signature that does not verify"))
 			}
 		}
+		if recs != nil {
+			for _, pr := range recs.Problems {
+				out.Println(out.C(ui.Red, "Untrusted: "+printable(pr.Addr)+": "+printable(pr.Why)))
+			}
+		}
 	}
 	if len(ver.Bad) > 0 {
 		return fmt.Errorf("%w: %s", state.ErrUntrusted, plural(len(ver.Bad), "object does", "objects do")+" not match")
@@ -1136,7 +1167,52 @@ func (p *protectRun) status() error {
 	if sigs != nil && sigs.Invalid > 0 {
 		return invalidTxns(sigs.Invalid)
 	}
+	if recs != nil && len(recs.Problems) > 0 {
+		return fmt.Errorf("%w: %s that no transaction of a writer accounts for", state.ErrUntrusted, plural(len(recs.Problems), "record", "records"))
+	}
 	return nil
+}
+
+// rolesText is the Roles line of protect status.
+func rolesText(rf readersFile, st *state.Store) string {
+	if !rf.Found || rf.Err != nil || !protect.RolesOn(rf.Readers) {
+		return "off"
+	}
+	var n [4]int
+	for _, r := range rf.Readers {
+		role, _ := protect.RoleOf(rf.Readers, protect.SSHFingerprint(r.Sign))
+		n[role]++
+	}
+	line := fmt.Sprintf("on · %d admin · %d writer · %d reader", n[protect.RoleAdmin], n[protect.RoleWriter], n[protect.RoleReader])
+	if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
+		line += " · you are " + article(role)
+	}
+	return line
+}
+
+func rolesDoc(rf readersFile, st *state.Store) map[string]any {
+	doc := map[string]any{"on": rf.Found && rf.Err == nil && protect.RolesOn(rf.Readers)}
+	if doc["on"] == true {
+		if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
+			doc["you"] = role.String()
+		}
+	}
+	return doc
+}
+
+// recordsText is the Records line of protect status, for a repository with roles.
+func recordsText(v state.RecordVerdict) string {
+	line := fmt.Sprintf("%d bound to a transaction of a writer", v.Bound)
+	if v.Earlier > 0 {
+		line += fmt.Sprintf(" · %d from before roles", v.Earlier)
+	}
+	if v.Unchecked > 0 {
+		line += fmt.Sprintf(" · %d not checked (transaction gone, running, or signed by a key not in the file)", v.Unchecked)
+	}
+	if n := len(v.Problems); n > 0 {
+		line += fmt.Sprintf(" · %d that no transaction of a writer accounts for", n)
+	}
+	return line
 }
 
 // reportUntrusted prints the object that failed verification when the state
@@ -1240,6 +1316,9 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes b
 	}
 	if st.Locked() || prot.You.State != "reader" {
 		return engine.WithCode(engine.ExitRefused, notReaderError(p.rf, id, idErr))
+	}
+	if err := p.needAdmin(st, "change who reads the state"); err != nil {
+		return err
 	}
 	if err := p.rf.require(); err != nil {
 		return err
@@ -1407,4 +1486,33 @@ func plansInUseLine(n int, again bool) string {
 		return "1 stored plan in use was not " + sealed + "; run pravo protect rewrap --all when it is done."
 	}
 	return fmt.Sprintf("%d stored plans in use were not %s; run pravo protect rewrap --all when they are done.", n, sealed)
+}
+
+// roleProblem says why the identity of the store may not do what need allows, or is
+// empty. The roles are those of the readers file of the repository: a writer of the
+// bucket cannot change them. A readers file without roles lets every key do everything.
+// This is the check of an honest pravo; a state that was written by a key without the
+// role is found by the signatures (see sealed-state.md), and only the credentials of
+// the bucket stop a write.
+func roleProblem(rf readersFile, st *state.Store, need protect.Role, what string) string {
+	if !rf.Found || rf.Err != nil || !protect.RolesOn(rf.Readers) {
+		return ""
+	}
+	key := st.SigningKey()
+	role, ok := protect.RoleOf(rf.Readers, key)
+	if !ok {
+		return fmt.Sprintf("your identity is not in %s, so its role is not known, and %s is needed to %s.", rf.shown(), article(need), what)
+	}
+	if role.Allows(need) {
+		return ""
+	}
+	return fmt.Sprintf("your identity is %s in %s, and %s is needed to %s.", article(role), rf.shown(), article(need), what)
+}
+
+// article puts a or an before the name of a role.
+func article(r protect.Role) string {
+	if r == protect.RoleAdmin {
+		return "an admin"
+	}
+	return "a " + r.String()
 }

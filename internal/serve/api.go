@@ -1108,7 +1108,7 @@ type PolicyVersionInfo struct {
 	At     time.Time `json:"at"`
 	// Removal is set when the version removes the policy.
 	Removal bool `json:"removal,omitempty"`
-	// Signature is "verified", "key_not_in_file", "invalid" or "unsigned", or empty when
+	// Signature is "verified", "role_changed", "key_not_in_file", "invalid" or "unsigned", or empty when
 	// no readers file was there to check it against.
 	Signature string `json:"signature,omitempty"`
 	Signer    string `json:"signer,omitempty"`

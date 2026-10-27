@@ -30,7 +30,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/mod.md](reference/mod.md) | Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file. | 6 KB |
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
 | [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 15 KB |
-| [reference/protect.md](reference/protect.md) | Make an identity, seal the state to a list of readers, check that it holds, change the readers and collect old records. Commands, flags and exit codes. | 58 KB |
+| [reference/protect.md](reference/protect.md) | Make an identity, seal the state to a list of readers, check that it holds, change the readers and collect old records. Commands, flags and exit codes. | 63 KB |
 | [reference/discover.md](reference/discover.md) | Run the discoveries of the specification, show what they found against the state, show the objects that are meant to stay unmanaged apart and write the resource that adopts one. | 6 KB |
 
 ### Language
@@ -53,7 +53,7 @@ One page for each command and each part of the specification, tables first.
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/policies-overview.md](reference/policies-overview.md) | A policy is a node of the specification whose rule is a CUE struct. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply. | 10 KB |
+| [reference/policies-overview.md](reference/policies-overview.md) | A policy is a node of the specification whose rule is a CUE struct. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply. | 11 KB |
 | [reference/policies-plan-document.md](reference/policies-plan-document.md) | What a rule is unified with. How absent, null and unknown values behave, and what the judged document leaves out of the one that plan --json prints. | 9 KB |
 | [reference/policies-writing.md](reference/policies-writing.md) | The four rules for writing a policy rule, each with a captured run, plan-wide rules, and the typos that forbid nothing. | 19 KB |
 | [reference/policies-operations.md](reference/policies-operations.md) | Where each command judges a policy, what a stale plan does, how to retire a policy, how to roll a rule out and test it, and what a policy does and does not guarantee. | 23 KB |

@@ -13,8 +13,9 @@ import (
 	"strings"
 )
 
-// A readers line is "NAME ssh-ed25519 BASE64 x25519:BASE64URL", exactly four
-// fields. This is the whole of .pravo/access/readers.txt:
+// A readers line is "NAME ssh-ed25519 BASE64 x25519:BASE64URL", four fields, and
+// a fifth, "role:reader", "role:writer" or "role:admin", when the repository gives
+// roles (see Role). This is the whole of .pravo/access/readers.txt:
 //
 //	ada ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIQx7mT… x25519:7Hc3Kp…
 //
@@ -30,6 +31,8 @@ type Reader struct {
 	Sign ed25519.PublicKey // the signing key; unused for sealing in step 2
 	Key  ReaderPublic      // the key data keys are locked for
 	Line int               // 1-based line number, 0 if not from a file
+	// Role is what the key may do. It is RoleNone when the line has no role field.
+	Role Role
 }
 
 // Limits keep a hostile or damaged file from costing anything.
@@ -48,8 +51,15 @@ func ParseReaderLine(line string) (Reader, error) {
 		body = body[:i]
 	}
 	f := strings.Fields(body)
-	if len(f) != 4 {
+	if len(f) != 4 && len(f) != 5 {
 		return Reader{}, fmt.Errorf("want 4 fields: NAME ssh-ed25519 BASE64 x25519:BASE64URL (got %d)", len(f))
+	}
+	role := RoleNone
+	if len(f) == 5 {
+		var err error
+		if role, err = ParseRole(f[4]); err != nil {
+			return Reader{}, err
+		}
 	}
 	if !nameRE.MatchString(f[0]) {
 		return Reader{}, fmt.Errorf("name %q: use letters, digits, . _ - (at most 64, starting with a letter or digit)", f[0])
@@ -68,7 +78,7 @@ func ParseReaderLine(line string) (Reader, error) {
 	if err != nil {
 		return Reader{}, err
 	}
-	return Reader{Name: f[0], Sign: sign, Key: key}, nil
+	return Reader{Name: f[0], Sign: sign, Key: key, Role: role}, nil
 }
 
 // ParseReaders parses a whole file. It stops at the first bad line and names it.
@@ -121,7 +131,11 @@ func ParseReaders(r io.Reader) ([]Reader, error) {
 
 // String is the canonical line, with no comment.
 func (r Reader) String() string {
-	return r.Name + " " + sshEd25519 + " " + SSHBlob(r.Sign) + " " + r.Key.String()
+	line := r.Name + " " + sshEd25519 + " " + SSHBlob(r.Sign) + " " + r.Key.String()
+	if r.Role != RoleNone {
+		line += " role:" + r.Role.String()
+	}
+	return line
 }
 
 // FormatReaders writes the canonical file: one line per reader, in the order given.
@@ -137,7 +151,8 @@ func FormatReaders(rs []Reader) []byte {
 // SetID is a digest of the set of readers that does not depend on line order,
 // comments or spacing. `protect status` compares the digest of the readers file
 // with the one recorded in the store ("readers.txt matches the store").
-// It covers the name, signing key and reader key of each reader.
+// It covers the name, signing key and reader key of each reader, and not the role:
+// the role is read from the repository and the state holds none.
 func SetID(rs []Reader) string {
 	sorted := append([]Reader(nil), rs...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })

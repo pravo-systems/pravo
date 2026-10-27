@@ -432,7 +432,7 @@
 
 /* Who signed a transaction in the history of a node, or a stored plan in the plan view. */
 .sigmark.sig-verified { color: var(--accent); }
-.sigmark.sig-key_not_in_file, .sigmark.sig-unsigned { color: var(--text-3); font-style: italic; }
+.sigmark.sig-key_not_in_file, .sigmark.sig-role_changed, .sigmark.sig-unsigned { color: var(--text-3); font-style: italic; }
 .sigmark.sig-invalid { color: var(--conflict); font-weight: 600; }
 
 /* a tag that filters by what it says: a button that looks like the tag */

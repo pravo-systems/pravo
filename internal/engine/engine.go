@@ -497,6 +497,8 @@ func New(root *config.Root, st *state.Store, providers *Providers, schemas map[s
 	e := &Engine{Root: root, State: st, Providers: providers, Schemas: schemas, Value: value, Opts: opts,
 		changes: map[string]*Change{}, deps: map[string][]string{}, byPath: map[string]*config.Resource{},
 		current: value}
+	// With roles, the transactions sign the records they write.
+	st.BindRecords(protect.RolesOn(opts.Readers))
 	for _, r := range root.Resources {
 		e.byPath[r.Path.String()] = r
 	}
@@ -2351,6 +2353,12 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.finishError("rejected", err, true)
 		return result, err
 	}
+	// With roles, an apply does not build on a record that no transaction of a writer
+	// accounts for: someone who holds the data key sealed it.
+	if err := e.checkBound(held.held()); err != nil {
+		e.finishError("rejected", err, true)
+		return result, err
+	}
 	// The policies in force judge the resource changes of the whole plan file before
 	// the start is signed, which lists the versions that judged.
 	var policies *state.PolicySet
@@ -2742,3 +2750,21 @@ func mergeOutputs(recorded, baseline, computed map[string]json.RawMessage, decla
 // for a plan file, and the digest of the plan file (see PlanDigest). The transaction of the
 // apply carries both under its signature.
 func (e *Engine) SetPlan(id, digest string) { e.planID, e.planDigest = id, digest }
+
+// checkBound refuses an apply that reads, to change or replace, a record which no verified
+// transaction of a writer names. It does nothing when the readers file gives no roles or
+// the state is not sealed. See Store.CheckRecords.
+func (e *Engine) checkBound(addrs []string) error {
+	if !protect.RolesOn(e.Opts.Readers) || e.State.Sealer() == nil || e.State.Locked() {
+		return nil
+	}
+	v := e.State.CheckRecords(e.Opts.Readers, addrs...)
+	if len(v.Problems) == 0 {
+		return nil
+	}
+	var lines []string
+	for _, p := range v.Problems {
+		lines = append(lines, fmt.Sprintf("%s: %s", p.Addr, p.Why))
+	}
+	return WithCode(ExitUntrusted, fmt.Errorf("%w: a record that no transaction of a writer accounts for (a reader may have sealed it):\n%s", state.ErrUntrusted, strings.Join(lines, "\n")))
+}

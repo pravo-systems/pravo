@@ -90,9 +90,9 @@ Whoever can merge a change to this file decides who may read. Writers take the l
 
 | Rule | |
 |---|---|
-| Fields | Exactly four, separated by blanks: the name, `ssh-ed25519`, the SSH public key as `pravo id new` prints it without a comment, and the reader key. |
+| Fields | Four, separated by blanks: the name, `ssh-ed25519`, the SSH public key as `pravo id new` prints it without a comment, and the reader key. A fifth field, `role:reader`, `role:writer` or `role:admin`, gives the key a [role](#roles). |
 | Name | Letters, digits, `.`, `_` and `-`, starting with a letter or a digit, at most 64 characters. A name is used once, without regard to case. |
-| Comments | A line that starts with `#` is skipped. A `#` after the fourth field starts a comment. Blank lines are skipped. |
+| Comments | A line that starts with `#` is skipped. A `#` after the last field starts a comment. Blank lines are skipped. |
 | Readers | At most 200 readers. The line that exceeds the limit is reported by its number. |
 | Size | At most 64 KiB. pravo reads it as a regular file, and not through a symbolic link that leaves the access directory. |
 | Errors | A line that does not parse is reported as its number and a reason. The text of the line is never repeated. |
@@ -147,9 +147,47 @@ Without a readers file, or with one that is invalid, nothing is checked, and `st
 
 **What it does not cover.**
 
-- *The bodies of records.* A signature says which key ran a transaction, which addresses and revisions it changed, and, for an apply, which plan. It does not bind the values. In a sealed state a writer without a reader key cannot make a record at all; a reader can seal any record, and a signature does not say that a value is the one a run wrote.
+- *The bodies of records.* A signature says which key ran a transaction, which addresses and revisions it changed, and, for an apply, which plan. It does not bind the values. In a sealed state a writer without a reader key cannot make a record at all; a reader can seal any record, and a signature does not say that a value is the one a run wrote. With [roles](#roles) the signature also covers the key of each record, so a record that a reader sealed is found.
 - *Deletion, replacement by an older copy and order.* An old signed transaction is as valid as a new one. Finding a deleted transaction or a state that was rolled back takes a ledger.
-- *Who may write.* Every reader may sign. Roles come after.
+- *Who may write.* Without roles every reader may sign. With [roles](#roles) a writer may.
+
+## Roles
+
+A key has one of three roles, and the strength is linear: an admin may do what a writer may, and a writer what a reader may.
+
+| Role | May |
+|---|---|
+| `reader` | Open the state, read it, and plan without changing it. Store a plan with `plan --store`. |
+| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. |
+| `admin` | Remove a policy. Change who reads the state (`protect rewrap`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). |
+
+The role is the fifth field of the line of the key in the readers file, which the repository holds:
+
+```text
+ada ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIQx7mT… x25519:7Hc3Kp… role:admin
+dan ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK2fPq… x25519:Qm41Zt… role:writer
+eve ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB8dYw… x25519:Vb92Nc… role:reader
+```
+
+Whoever can merge a change to this file decides the roles. A readers file in which no line has a role gives none, and every key may do everything, as before roles. As soon as one line has a role, a line without one is a reader. A pravo that does not know roles refuses a line with a fifth field, so it fails closed. The roles are not in the state: the state holds the locks, and a promotion needs no `rewrap`.
+
+**What happens to a reader who plans.** The state is opened as it is and what the plan writes stays in memory: the refreshed records, the marks and the locks are not written to the bucket. The one thing a reader writes is a stored plan, with `plan --store`. A writer can apply it. The apply checks the plan as it checks any stored plan, against the revisions of the state and the fingerprint of the configuration, and the prompt says which key stored it. `plan --reserve` is for a writer.
+
+**What a reader who applies is told.** `your identity is a reader in .pravo/access/readers.txt, and a writer is needed to change the state.`, with exit code 5. The same for `protect rewrap`, `gc` and `unseal` and a writer: `an admin is needed to change who reads the state.` A key that is not in the file has no role, and is refused as well, when the file has roles. The shares of a recovery key are not an identity, so the roles do not apply to `protect recover`: K holders of shares can read the state together.
+
+**Policies.** A writer adds a policy and edits one. Only an admin removes one, because a removal is the change that lets a plan through that the policy would have stopped. An apply that removes a policy with a key that is not an admin is refused before it changes anything, with exit code 5. A version that was signed by a key whose role the file has lowered since reads as `role_changed` in the viewer and is accepted, as a version signed by a key that left reads as `key_not_in_file`: nothing says whether the key had the role when it signed.
+
+**Records are bound to the writer.** With roles, the transaction of a writer signs the key of every record it writes, in the finish signature. A reader holds the data key, and can seal a record that opens for everyone, but cannot make the transaction of a writer name it. `pravo protect status` prints a `Records` line, and `Untrusted:` and the address of a record that no verified transaction of a writer accounts for, and exits 7. `plan`, `apply` and `destroy` check every record before they read it: a writer who refreshed a record that a reader had sealed would give it a transaction of their own. Remove such a record with `pravo state rm`, or restore it from a version of the bucket. A record that was written before the roles began shows as `from before roles`. One whose transaction is gone, still running, or signed by a key that is not in the file is `not checked`.
+
+**What roles do not do.** They are checked by a pravo that reads the readers file. Someone who holds the credentials of the bucket and the data key, and a pravo of their own, can write the bucket; the record they write is found by the next honest run, and not stopped. What stops it is the bucket. Give the keys of the bucket by role:
+
+| Role | Credentials on the bucket |
+|---|---|
+| `reader` | Get and list on the whole prefix. Put on `plans/`. |
+| `writer` | Get, put, delete and list on the prefix, except `meta.json` and `policy/`, where a writer has get and list and may put a new object under `policy/`. |
+| `admin` | Everything on the prefix, `meta.json` and `policy/` included. |
+
+A job that only plans runs with the first row.
 
 ## The recovery recipient
 
@@ -180,7 +218,7 @@ A command that writes a sealed state compares the recovery file with the state, 
 
 A recovery file that does not load stops a command that writes with exit code 6. A command that only reads prints the same text as a warning.
 
-Setting a recovery is a decision about trust. K holders of shares can read the state together, and nothing delays them: there is no waiting time and no approval until roles exist. A recovery key that was used has been rebuilt on one machine, so replace it afterwards. The shares of a replaced key open nothing that is sealed from then on: replacing or removing the recovery makes a new data key, as removing a reader does, so a holder of old shares who kept a copy of the bucket opens what was in it and nothing written after. A reader may not hold the recovery key: `rewrap` refuses a readers file that lists it.
+Setting a recovery is a decision about trust. K holders of shares can read the state together, and nothing delays them: there is no waiting time and no approval, and the roles do not apply to shares. A recovery key that was used has been rebuilt on one machine, so replace it afterwards. The shares of a replaced key open nothing that is sealed from then on: replacing or removing the recovery makes a new data key, as removing a reader does, so a holder of old shares who kept a copy of the bucket opens what was in it and nothing written after. A reader may not hold the recovery key: `rewrap` refuses a readers file that lists it.
 
 ## id new
 
@@ -405,6 +443,8 @@ Unsettled    none
 | `Readers` | `matches the store`; `differs:` and who is in the file and not in the store, or the other way round; `file not found (looked in DIR)`; `file is invalid:` and the line and reason. |
 | `Recovery` | Shown when the state has a recovery recipient or the repository has a recovery file: `2 of 3 shares · key x25519:…` and whether the recovery file matches the state, differs from it or is missing, and a group whose lock is missing. |
 | `You` | The identity and its reader key. `identity NAME is not a reader`. `not a reader of this state (no identity found)`. |
+| `Roles` | `off`, or `on` with the number of admins, writers and readers in the readers file and your own role. |
+| `Records` | Shown when the readers file has roles: how many records are bound to a transaction of a writer, how many are from before roles, how many were not checked, and how many no transaction of a writer accounts for. Each of those is printed as `Untrusted:` and the command exits 7. |
 | `Signatures` | For a sealed state: `41 of 43 transactions verified`, then the count of those signed with a key that is not in the readers file, of the unsigned ones, and of those whose signature does not verify. `not checked` without a readers file. |
 | `Unsettled` | `none`, or the number of interrupted transactions; `pravo state log` lists them. |
 

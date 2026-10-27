@@ -221,7 +221,7 @@ func planCmd() *cobra.Command {
 					return fmt.Errorf("--ttl %s: want a length of time above zero", ttlText)
 				}
 			}
-			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true})
+			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: reserve == 0})
 			if err != nil {
 				return err
 			}

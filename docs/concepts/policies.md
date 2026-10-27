@@ -390,7 +390,7 @@ There is no environment variable and no flag that names or skips a policy. A rul
 ### What a policy does not guarantee
 
 - **Bypass.** A laptop with another binary, an agent shell with cloud credentials and a job that calls the cloud API directly are not checked. Every apply by pravo that reads the state judges. The log records the versions that judged each apply.
-- **Review.** A reader who can apply can write a new version of a policy. The signed version names who applied it, and review of the files that declare policies is the control.
+- **Review.** A reader who can apply can write a new version of a policy. The signed version names who applied it, and review of the files that declare policies is the control. With [roles](../reference/protect.md#roles) a writer adds and edits a policy and only an admin removes one.
 - **Facts chosen by the specification.** The specification decides the state location, the providers and their sources, and the addresses that `$from` and `$import` set. It also decides the refresh ages and the data sources. A `$lifecycle` setting such as `ignore_changes` keeps differences out of the plan. A policy judges the plan that these choices give.
 - **Provider code runs before any verdict.** Providers run with the credentials of the person who invokes pravo. Data sources and ephemeral resources run while the plan is computed.
 - **Plan files are unsigned.** A plan file holds no entry for an ephemeral resource or a function call. A rule about those entries is judged when the plan is made, and not when it is applied.

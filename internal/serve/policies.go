@@ -106,6 +106,9 @@ func (m *model) buildPolicies(rev string) {
 				vi.Signature = v.Status.Key()
 				if v.Status == protect.SigVerified {
 					vi.Signer = m.clipText(v.Signer)
+					if v.RoleShort {
+						vi.Signature = "role_changed"
+					}
 				}
 			}
 			runs := judged[v.Ref()]
