@@ -970,6 +970,16 @@ function renderAccess() {
   accessView.render({ access: S.access, project: S.model && S.model.graph ? S.model.graph.project : null });
 }
 
+// renderPlansTab shows on the tab how many stored plans can still be applied: the same rule as the other two tabs, a number
+// only when something waits for a decision.
+function renderPlansTab() {
+  const n = S.plans.filter((p) => p.open).length;
+  const el = $('sec-plans-count');
+  el.hidden = !(n > 0);
+  el.textContent = n > 99 ? '99+' : String(n);
+  $('sec-plans').setAttribute('aria-label', n > 0 ? `Plans, ${n} pending` : 'Plans');
+}
+
 function renderPolicies() {
   policiesView.render({ policies: S.policies });
 }
@@ -1224,6 +1234,7 @@ async function refresh() {
   if (S.view === 'policies') renderPolicies();
   renderDiscoveryTab();
   renderPoliciesTab();
+  renderPlansTab();
   const flash = [...d.changed, ...d.added].map((a) => S.vis.rep.get(a)).filter(Boolean);
   gv.flash(new Set(flash));
   showInspector();
