@@ -462,7 +462,7 @@ func insideProject(name, v string) error {
 	if err := positional(name, v); err != nil {
 		return err
 	}
-	if filepath.IsAbs(v) || filepath.VolumeName(v) != "" {
+	if filepath.IsAbs(v) || filepath.VolumeName(v) != "" || v[0] == '/' || v[0] == '\\' {
 		return fmt.Errorf("%s %q must be a path below the project directory, not an absolute one", name, v)
 	}
 	if c := filepath.Clean(v); c == ".." || strings.HasPrefix(c, ".."+string(filepath.Separator)) {
