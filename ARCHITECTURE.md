@@ -70,6 +70,16 @@ Files of the plan and apply core in `internal/engine/`:
 | `apply.go` | `applyRun` and its steps (`tally`, `evalOutputs`, `recordOutputs`), `applyTask`, `applyChange`, `writeState`, the locks of an apply and the reservations. |
 | `graph.go`, `frontier.go`, `target.go` | The dependency graph and scheduler, the nodes a run reaches, `-target` selection. |
 
+Files of the store in `internal/state/`:
+
+| File | Contents |
+|---|---|
+| `state.go` | `Resource`, `Store`, `Open`, loading, and the records: `Get`, `Set`, `Refresh`, `Remove`, versions and revisions. |
+| `outputs.go` | The outputs object: reading, the locked read-merge-write of `UpdateOutputs`. |
+| `graph.go` | The dependency index over the records: `Dependents`, `Reach`, `Edges`, `Snapshot`. |
+| `locks.go` | Resource locks and reservations: `Lock`, `TryHold`, `Release`, staleness, `Locks`, `Suspects`, `Interrupted`. |
+| `txn.go` | `Transaction`, `Txn` and the recorded history. |
+
 Files in `internal/serve/`:
 
 | File | Contents |
