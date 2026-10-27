@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -366,7 +367,7 @@ func TestAccessDiffers(t *testing.T) {
 	if a.File.Verdict != "differs" || !equalStrings(a.File.Added, []string{"dan"}) || !equalStrings(a.File.Removed, []string{"fay"}) {
 		t.Fatalf("file %+v", a.File)
 	}
-	if want := "The access list and the state disagree: dan is on the list and not let in yet; fay is off the list but still has a key in the state. Changes to the state are refused until they match."; a.File.Text != want {
+	if want := "The access list and the state disagree: dan is on the list and not let in yet; fay is off the list and still in the state. Changes to the state are refused until they match."; a.File.Text != want {
 		t.Errorf("text %q", a.File.Text)
 	}
 	if a.Suggestions[0].ID != "rewrap" || !a.Suggestions[0].Primary {
@@ -1391,28 +1392,71 @@ func TestRolesOfTheAccessDocument(t *testing.T) {
 	f.Differs = true
 	rows := []AccessReader{{Name: "ada", Fingerprint: fingerprint(fixBlob("ada"))}, {Name: "fay", Fingerprint: fingerprint(fixBlob("fay"))}}
 	r := rolesOf(f, rows)
-	if r.State != "pinned" || !r.Differs || r.You != "admin" || r.Counts != (AccessRoleCount{Admin: 2, Writer: 1, Reader: 1, Former: 1}) {
+	if r.State != "pinned" || !r.Differs || r.You != "admin" {
 		t.Fatalf("roles: %+v", r)
 	}
 	if rows[0].Role != "admin" || rows[1].Role != "reader" {
 		t.Errorf("the reader rows have no role: %+v", rows)
 	}
-	// ada and fay have a row; dan, eve and gus do not, so they are listed apart.
-	if len(r.Others) != 3 || r.Others[2].Name != "gus" || r.Others[2].Role != "former" || r.Others[2].Vouched != 7 {
-		t.Errorf("other keys: %+v", r.Others)
-	}
-	if len(r.Versions) != 3 || !r.Versions[0].Pinned || r.Versions[2].Pinned {
-		t.Errorf("versions: %+v", r.Versions)
-	}
-
 	f = fixRoles("state")
 	f.Error = "roles/00000002.json is not signed by an admin of the roles it follows."
-	f.Records.Problems = make([]RecordProblemFacts, maxRoleProblems+5)
-	if r := rolesOf(f, nil); r.State != "untrusted" || r.Records.MoreProblems != 5 || len(r.Records.Problems) != maxRoleProblems {
+	if r := rolesOf(f, nil); r.State != "untrusted" || !strings.Contains(r.Text, "fail their check") {
 		t.Errorf("untrusted roles: %+v", r)
 	}
-	if r := rolesOf(&RolesFacts{Source: "off"}, rows); r.State != "off" || r.Others != nil {
+	if r := rolesOf(&RolesFacts{Source: "off"}, rows); r.State != "off" {
 		t.Errorf("roles off: %+v", r)
+	}
+}
+
+// Only what needs attention is listed, worst first, and a sealed state with nothing to flag says so.
+func TestAccessIssues(t *testing.T) {
+	in := func(f Facts) *Access {
+		return buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, records: 5, facts: f, path: "/p/.pravo/access/readers.txt", dir: "/p"})
+	}
+	ok := sealedFacts()
+	ok.Roles = fixRoles("state")
+	a := in(ok)
+	if len(a.Issues) != 0 || a.AllClear != "The access list matches the state, the roles are locked in and every record was written by someone who may change the state." {
+		t.Errorf("a state in order: %+v %q", a.Issues, a.AllClear)
+	}
+	plain := in(sealedFacts())
+	if len(plain.Issues) != 0 || plain.AllClear != "The access list matches the state." {
+		t.Errorf("a state with no roles: %+v %q", plain.Issues, plain.AllClear)
+	}
+
+	f := sealedFacts()
+	f.Roles = fixRoles("file")
+	a = in(f)
+	if len(a.Issues) != 1 || a.Issues[0].Level != "chg" || a.Issues[0].Title != "Roles are not locked in" || a.Issues[0].Suggestion != "pin-roles" || a.AllClear != "" {
+		t.Errorf("roles from the file: %+v %q", a.Issues, a.AllClear)
+	}
+
+	f = sealedFacts()
+	f.Roles = fixRoles("state")
+	f.Roles.Error = "roles/00000002.json is not signed by an admin of the roles it follows."
+	f.Roles.Records = &RecordCheckFacts{Problems: make([]RecordProblemFacts, maxIssueItems+5)}
+	for i := range f.Roles.Records.Problems {
+		f.Roles.Records.Problems[i] = RecordProblemFacts{Addr: "r" + strconv.Itoa(i), Why: "was written by fay, who is a reader"}
+	}
+	a = in(f)
+	if len(a.Issues) != 2 || a.Issues[0].Level != "bad" || a.Issues[0].Title != "The saved roles fail their check" || a.Issues[1].Items == nil || len(a.Issues[1].Items) != maxIssueItems || a.Issues[1].More != 5 || !strings.HasPrefix(a.Issues[1].Title, "25 records were written") {
+		t.Errorf("a broken chain and records: %+v", a.Issues)
+	}
+
+	// A state with one member is flagged by its own warning, so the all-clear is not said.
+	solo := sealedFacts()
+	solo.Store.Readers = solo.Store.Readers[:1]
+	solo.File.Readers = solo.File.Readers[:1]
+	if a := in(solo); a.SingleReader == nil || a.AllClear != "" {
+		t.Errorf("a single member: %+v %q", a.SingleReader, a.AllClear)
+	}
+
+	// An access list that disagrees with the state is an issue, and names the card that mends it.
+	d := sealedFacts()
+	d.File.Readers = d.File.Readers[:2]
+	a = in(d)
+	if len(a.Issues) != 1 || a.Issues[0].Suggestion != "rewrap" || a.Issues[0].Level != "chg" {
+		t.Errorf("a list that differs: %+v", a.Issues)
 	}
 }
 
@@ -1441,7 +1485,7 @@ func TestAccessSuggestionsAboutAMemberAreMarked(t *testing.T) {
 	}
 	f := sealedFacts()
 	f.Roles = fixRoles("state")
-	f.Roles.Keys = []RoleKeyFacts{fixRole("ada", "admin", 0), fixRole("dan", "writer", 0), fixRole("eve", "reader", 0)}
+	f.Roles.Keys = []RoleKeyFacts{fixRole("ada", "admin"), fixRole("dan", "writer"), fixRole("eve", "reader")}
 	roled := buildAccess(in(f))
 	got = kinds(roled)
 	if got["change-role:dan"] != "member-role/dan" {

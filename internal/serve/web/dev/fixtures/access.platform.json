@@ -63,6 +63,8 @@
   "unreadable": 0,
   "text": "All 46 records are sealed."
  },
+ "issues": null,
+ "all_clear": "The access list matches the state.",
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

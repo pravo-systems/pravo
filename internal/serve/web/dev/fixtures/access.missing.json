@@ -57,6 +57,13 @@
   "unreadable": 0,
   "text": "All 46 records are sealed."
  },
+ "issues": [
+  {
+   "level": "chg",
+   "title": "The access list is missing",
+   "text": "No access list (readers.txt) was found in .pravo/access. Changes to a sealed state need it, so this checkout can't change the state."
+  }
+ ],
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

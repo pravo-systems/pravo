@@ -1,5 +1,5 @@
-// The Access view: how the state is protected, who can read it, whether the readers file agrees with the store,
-// and commands to copy that change it. The page reads /api/access and shows it; nothing here runs a command,
+// The Access view: how the state is protected, who can open it, what needs attention, and commands to copy that
+// change it. What is long, rare or complex, such as the history of the roles, is left to the command line. The page reads /api/access and shows it; nothing here runs a command,
 // writes a file or asks the server to. The text of every command comes from the server and is shown as text.
 
 import { h, clear, icon, relTime, stamp, fmt } from './util.js';
@@ -12,15 +12,6 @@ const STATE = {
   migrating: { cls: 'chg', label: 'sealing in progress', ic: 'hold' },
 };
 
-const VERDICT = {
-  match: { cls: 'ok', label: 'matches the state' },
-  differs: { cls: 'chg', label: 'differs from the state' },
-  missing: { cls: 'chg', label: 'no list' },
-  invalid: { cls: 'bad', label: "can't be read" },
-  'expected-sealed': { cls: 'bad', label: 'state not sealed' },
-  none: { cls: '', label: 'not compared' },
-};
-
 const YOU = {
   reader: { cls: 'ok', label: 'member' },
   'not-reader': { cls: 'bad', label: 'not a member' },
@@ -28,20 +19,11 @@ const YOU = {
   locked: { cls: 'chg', label: 'key locked' },
 };
 
-// ROLE_STATE says what the badge of the roles reads; the sentence is the server's.
-const ROLE_STATE = {
-  pinned: { cls: 'ok', label: 'locked in', ic: 'lock' },
-  file: { cls: 'chg', label: 'not locked in', ic: 'bang' },
-  untrusted: { cls: 'bad', label: 'check failed', ic: 'bang' },
-  off: { cls: '', label: 'off', ic: 'hold' },
-};
-
 // ROLE_HINT is what a role lets a member do, in the words of a person who has not read the manual.
 const ROLE_HINT = {
   admin: 'Manages who has access and who may do what. Can also do everything a writer can.',
   writer: 'Can change the state: apply, destroy, import. Can also do everything a reader can.',
   reader: 'Can open the state, look at it and plan. Cannot change anything.',
-  former: 'Has left, or no longer holds a role. Only the changes an admin approved stay valid.',
 };
 
 // STATUS is the badge of a member: whether the list and the state agree about them.
@@ -84,9 +66,8 @@ export class AccessView {
     this.root.append(h('div', { class: 'ac' },
       this.banner(a, project),
       a.you && a.you.state !== 'reader' ? this.you(a.you) : null,
+      this.attention(a),
       bare ? null : this.members(a),
-      this.single(a),
-      bare ? null : this.checks(a),
       this.recovery(a),
       this.todo(a),
       h('p', { class: 'ac-foot' }, FOOTER)));
@@ -178,9 +159,9 @@ export class AccessView {
     const list = rows.map((r) => this.person(r, sugs.filter((x) => x.member === r.name && x.kind).sort((p, q) => order[p.kind] - order[q.kind]), roles));
     return h('section', { class: 'ac-sec ac-members', 'aria-labelledby': 'ac-h-readers' }, head,
       h('p', { class: 'ac-note first' }, intro),
+      a.file && a.file.path ? h('p', { class: 'ac-path' }, 'Access list: ', h('code', null, a.file.path), h('button', { class: 'cpbtn', type: 'button', 'data-copy': a.file.path, 'aria-label': 'Copy the path of the access list', 'data-tip': 'Copy the path', 'data-fk': 'path' }, icon('copy'))) : null,
       roles ? this.legend() : null,
       h('ul', { class: 'ac-people', 'aria-label': 'Members of the state' }, list),
-      this.past(a.roles),
       add ? h('div', { class: 'ac-cards' }, this.card(add)) : null);
   }
 
@@ -213,82 +194,6 @@ export class AccessView {
     return h('span', { class: `b rl rl-${role}`, title: ROLE_HINT[role] || null }, role);
   }
 
-  // past lists the keys that the roles name and that the list does not: members who left, and keys that were
-  // given a role and are not on the list.
-  past(r) {
-    const list = r && r.others;
-    if (!list || !list.length) return null;
-    return h('div', { class: 'ac-block' },
-      h('h4', { class: 'ac-sub' }, 'No longer on the list'),
-      h('ul', { class: 'ac-past' }, list.map((k) => h('li', null,
-        h('span', { class: 'nm' }, k.name), this.rolePill(k.role),
-        h('span', { class: 'dim' }, k.vouched ? `${fmt(k.vouched)} ${k.vouched === 1 ? 'change' : 'changes'} they made stay valid, approved by an admin` : 'nothing they made needs approval'),
-        h('span', { class: 'ac-keyend' }, this.key(k.fingerprint_short, k.fingerprint, 'signing key fingerprint of ' + k.name))))));
-  }
-
-  // checks is what a person can look at to know that all is in order: the list, the roles and the records.
-  checks(a) {
-    return h('section', { class: 'ac-sec ac-checks', 'aria-labelledby': 'ac-h-checks' },
-      h('h3', { id: 'ac-h-checks', class: 'h' }, 'Checks'),
-      this.file(a),
-      a.roles ? this.roles(a) : null,
-      a.roles && a.roles.records ? this.recordCheck(a.roles.records) : null);
-  }
-
-  // roles says where the roles come from, with the history of them one disclosure away.
-  roles(a) {
-    const r = a.roles;
-    const st = ROLE_STATE[r.state] || ROLE_STATE.off;
-    return h('div', { class: `ac-chk ac-roles rs-${r.state}` },
-      h('h4', { class: 'ac-chk-h' }, 'Roles', h('span', { class: `b ${st.cls}` }, icon(st.ic), st.label),
-        r.you ? h('span', { class: 'ac-ryou' }, 'you are ', this.rolePill(r.you)) : null),
-      h('p', { class: 'ac-rtext' }, r.text),
-      (r.versions || []).length ? this.chain(r) : null);
-  }
-
-  // chain draws the versions of the roles in the state from the first to the newest. Each is signed by an admin of the
-  // one before it, so the line between them is an arrow.
-  chain(r) {
-    const vs = r.versions;
-    const d = h('details', { class: 'ac-hist' });
-    d.append(h('summary', { 'data-fk': 'hist' }, `History of the roles · ${vs.length} ${vs.length === 1 ? 'version' : 'versions'}`),
-      h('ol', { class: 'ac-chain', 'aria-label': 'Versions of the roles, oldest first' }, vs.map((v, i) => {
-        const last = i === vs.length - 1;
-        return h('li', { class: 'ac-ver' + (v.pinned ? ' pin' : '') + (last ? ' head' : ''), 'data-seq': String(v.seq) },
-          h('div', { class: 'vh' }, h('b', { class: 'vn' }, 'v' + v.seq),
-            v.pinned ? h('span', { class: 'b ok', title: 'The access list remembers this first version, so it cannot be swapped' }, icon('lock'), 'first') : null,
-            last && !v.pinned ? h('span', { class: 'b', title: 'The newest version' }, 'newest') : null),
-          h('p', { class: 'vm', title: stamp(v.at) }, relTime(v.at), ' · signed by ', h('b', null, v.by || 'unknown')),
-          (v.changes || []).length ? h('ul', { class: 'vc' }, v.changes.map((x) => h('li', null, x.replace(' -> ', ' → ')))) : h('p', { class: 'vm dim' }, 'nobody gained or lost a role'),
-          v.vouched ? h('p', { class: 'vv' }, h('span', { class: 'b lock' }, 'approved'), ` ${fmt(v.vouched)} ${v.vouched === 1 ? 'change' : 'changes'} by someone who left`) : null);
-      })),
-      ...(r.differs ? [h('p', { class: 'ac-note ac-differs' }, icon('bang'), 'The access list asks for other roles than the newest version holds. An admin saves them with the card under To do.')] : []));
-    return d;
-  }
-
-  // recordCheck says whether the records were written by members who may write, as one bar of the four kinds there are.
-  recordCheck(rc) {
-    const parts = [
-      { k: 'bound', n: rc.bound, label: 'written by a member who may write', cls: 'ok' },
-      { k: 'vouched', n: rc.vouched, label: 'written by someone who left, approved by an admin', cls: 'lock' },
-      { k: 'before', n: rc.before_roles, label: 'older than roles', cls: 'dim' },
-      { k: 'unchecked', n: rc.unchecked, label: 'not checked yet: still running, or interrupted', cls: 'chg' },
-    ].filter((p) => p.n > 0);
-    const total = parts.reduce((x, p) => x + p.n, 0);
-    const bad = (rc.problems || []).length + (rc.more_problems || 0);
-    return h('div', { class: 'ac-chk ac-check' },
-      h('h4', { class: 'ac-chk-h' }, 'Who wrote the records',
-        rc.skipped ? null : (bad ? h('span', { class: 'b bad' }, icon('bang'), `${fmt(bad)} to look at`) : h('span', { class: 'b ok' }, icon('check'), 'all in order'))),
-      rc.skipped ? h('p', { class: 'ac-rtext' }, 'Not checked here: ' + rc.skipped + '.') : [
-        h('p', { class: 'ac-rtext' }, bad ? 'These records were written by someone who may not change the state, or whom nobody approved.' : 'Every record was written by a member who may change the state.'),
-        total ? h('div', { class: 'ac-bar', role: 'img', 'aria-label': parts.map((p) => `${fmt(p.n)} ${p.label}`).join(', ') },
-          parts.map((p) => h('span', { class: `seg ${p.cls}`, style: `--n:${p.n}`, title: `${fmt(p.n)} ${p.label}` }))) : null,
-        h('ul', { class: 'ac-legend' }, parts.map((p) => h('li', { class: p.cls }, h('i', { class: 'sw', 'aria-hidden': 'true' }), h('b', null, fmt(p.n)), p.label))),
-        bad ? h('ul', { class: 'ac-problems' },
-          rc.problems.map((p) => h('li', null, h('code', null, p.addr), h('span', null, p.why))),
-          rc.more_problems ? h('li', { class: 'dim' }, `and ${fmt(rc.more_problems)} more`) : null) : null]);
-  }
-
   // open opens the card of a suggestion and moves the focus to it.
   open(id) {
     const card = Array.from(this.root.querySelectorAll('details.ac-card')).find((d) => d.dataset.id === id);
@@ -304,29 +209,36 @@ export class AccessView {
       h('button', { class: 'cpbtn', type: 'button', 'data-copy': full, 'aria-label': `Copy the ${what}`, 'data-tip': 'Copy', 'data-fk': 'k:' + full }, icon('copy')));
   }
 
-  // file is the verdict between the access list (the readers file) and the state.
-  file(a) {
-    const f = a.file;
-    const v = VERDICT[f.verdict] || VERDICT.none;
-    // The verdict is about the store, which a state that is not sealed has no locks for, except when the repository lists members.
-    const sealed = a.state === 'sealed' || a.state === 'migrating' || f.verdict === 'expected-sealed';
-    return h('div', { class: `ac-chk ac-file v-${f.verdict}` },
-      h('h4', { class: 'ac-chk-h' }, 'Access list', sealed ? h('span', { class: `b ${v.cls}` }, icon(f.verdict === 'match' ? 'check' : 'bang'), v.label) : null),
-      h('p', { class: 'ac-rtext' }, f.text),
-      h('p', { class: 'ac-path' }, h('code', null, f.path), h('button', { class: 'cpbtn', type: 'button', 'data-copy': f.path, 'aria-label': 'Copy the path of the access list', 'data-tip': 'Copy the path', 'data-fk': 'path' }, icon('copy'))),
-      (f.errors || []).length ? h('ul', { class: 'ac-errors' }, f.errors.map((e) => h('li', null, e.line > 0 ? [h('b', null, `line ${e.line}`), ' '] : null, e.reason))) : null);
+  // attention is the one place that says whether something is wrong, and lists what is, worst first. Each issue has a
+  // button that opens the card that says what to do. A state with nothing to flag says so in one line.
+  attention(a) {
+    const have = (id) => (a.suggestions || []).some((x) => x.id === id);
+    const list = (a.issues || []).map((i) => ({ ...i, fk: 'fix:' + i.suggestion, action: 'See what to do', card: i.suggestion }));
+    const w = a.single_reader;
+    if (w && have(w.suggestion)) list.push({ level: 'chg', title: 'Only one member can open this state', text: w.text, fk: 'single', action: w.action, card: w.suggestion });
+    const r = a.recovery;
+    if (r && r.warning && have('fix-recovery')) list.push({ level: 'chg', title: 'The recovery key needs attention', text: r.warning, fk: 'recovery', action: 'Bring the recovery in line', card: 'fix-recovery' });
+    if (!list.length) {
+      if (!a.all_clear) return null;
+      return h('section', { class: 'ac-sec ac-clear', 'aria-labelledby': 'ac-h-checks' },
+        h('h3', { id: 'ac-h-checks', class: 'h' }, 'Needs attention'),
+        h('p', { class: 'ac-clearline' }, h('span', { class: 'b ok' }, icon('check'), 'all clear'), a.all_clear));
+    }
+    return h('section', { class: 'ac-sec ac-attn', 'aria-labelledby': 'ac-h-checks' },
+      h('h3', { id: 'ac-h-checks', class: 'h' }, `Needs attention · ${list.length}`),
+      h('div', { class: 'ac-issues' }, list.map((i) => this.issue(i, have(i.card)))));
   }
 
-  // single warns that one reader holds the only lock: there is no recovery key, so losing that key loses the state.
-  // The button opens the suggestion that adds a backup reader.
-  single(a) {
-    const w = a.single_reader;
-    if (!w || !(a.suggestions || []).some((x) => x.id === w.suggestion)) return null;
-    const go = () => this.open(w.suggestion);
-    return h('section', { class: 'ac-warn', role: 'note', 'aria-labelledby': 'ac-h-single' },
-      h('h3', { id: 'ac-h-single', class: 'sr-only' }, 'Only one member'),
-      icon('bang'), h('p', null, w.text),
-      h('button', { class: 'btn', type: 'button', 'data-fk': 'single', on: { click: go } }, w.action));
+  issue(i, canOpen) {
+    return h('div', { class: `ac-issue lv-${i.level}`, role: 'note' },
+      icon('bang'),
+      h('div', { class: 'ib' },
+        h('h4', { class: 'ac-chk-h' }, i.title),
+        h('p', null, i.text),
+        (i.items || []).length ? h('ul', { class: 'ac-problems' },
+          i.items.map((p) => h('li', null, h('code', null, p.addr), h('span', null, p.why))),
+          i.more ? h('li', { class: 'dim' }, `and ${fmt(i.more)} more`) : null) : null),
+      canOpen && i.card ? h('button', { class: 'btn', type: 'button', 'data-fk': i.fk, on: { click: () => this.open(i.card) } }, i.action) : null);
   }
 
   // recovery says how the state can be opened when every reader has lost their key: a key that is split into shares.
@@ -334,13 +246,9 @@ export class AccessView {
   recovery(a) {
     const r = a.recovery;
     if (!r) return null;
-    const go = () => this.open('fix-recovery');
-    const fix = r.warning && (a.suggestions || []).some((x) => x.id === 'fix-recovery');
     return h('section', { class: 'ac-sec ac-recovery', 'aria-labelledby': 'ac-h-recovery' },
       h('h3', { id: 'ac-h-recovery', class: 'h' }, 'Recovery'),
-      h('p', null, r.text, ' ', h('code', { title: r.key }, r.key_short)),
-      r.warning ? h('div', { class: 'ac-warn', role: 'note' }, icon('bang'), h('p', null, r.warning),
-        fix ? h('button', { class: 'btn', type: 'button', 'data-fk': 'recovery', on: { click: go } }, 'Bring the recovery in line') : null) : null);
+      h('p', { class: 'ac-note first' }, r.text, ' ', h('code', { title: r.key }, r.key_short)));
   }
 
   groups(groups, text) {

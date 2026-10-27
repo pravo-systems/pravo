@@ -67,6 +67,13 @@
   "unreadable": 0,
   "text": "All 46 records are sealed."
  },
+ "issues": [
+  {
+   "level": "bad",
+   "title": "The access list can't be read",
+   "text": "line 3: want 4 fields: NAME ssh-ed25519 BASE64 x25519:BASE64URL (got 3)."
+  }
+ ],
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

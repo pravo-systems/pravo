@@ -44,6 +44,7 @@
   "action": "Add a backup member",
   "suggestion": "add-reader"
  },
+ "issues": null,
  "last_change": {
   "at": "2026-10-23T08:03:00Z",
   "by": "ada",

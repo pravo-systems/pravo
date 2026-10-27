@@ -53,14 +53,10 @@
  },
  "roles": {
   "state": "off",
-  "text": "Roles are off, so every member may change the state, sign, and remove a policy. Give the lines of the access list a role to turn them on.",
-  "counts": {
-   "admin": 0,
-   "writer": 0,
-   "reader": 0,
-   "former": 0
-  }
+  "text": "Roles are off, so every member may change the state, sign, and remove a policy. Give the lines of the access list a role to turn them on."
  },
+ "issues": null,
+ "all_clear": "The access list matches the state.",
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

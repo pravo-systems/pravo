@@ -46,6 +46,8 @@
   "key_short": "x25519:7rDj4D…",
   "text": "If everyone loses their key, any 2 of 3 shares rebuild the recovery key (x25519:7rDj4D…) and open the state."
  },
+ "issues": null,
+ "all_clear": "The access list matches the state.",
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

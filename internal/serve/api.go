@@ -667,6 +667,10 @@ type Access struct {
 	Recovery *AccessRecovery `json:"recovery,omitempty"`
 	// Roles are the roles of the keys. It is absent unless the state is sealed.
 	Roles *AccessRoles `json:"roles,omitempty"`
+	// Issues are what needs attention, worst first. AllClear is the sentence for a sealed state
+	// that has none, empty when there are some.
+	Issues   []AccessIssue `json:"issues"`
+	AllClear string        `json:"all_clear,omitempty"`
 	// LastChange is the newest entry of the history of the seal.
 	LastChange  *AccessChange `json:"last_change,omitempty"`
 	Suggestions []Suggestion  `json:"suggestions"`
@@ -703,68 +707,33 @@ type AccessReader struct {
 
 // AccessRoles are the roles of a sealed state. State is "off", "file" (the readers file decides),
 // "pinned" (the roles in the state decide) or "untrusted" (the chain in the state does not
-// verify). Text is the sentence for it.
+// verify). Text is the sentence for it. What is long, rare or complex about them, the versions
+// and the vouched transactions, is left to pravo protect status.
 type AccessRoles struct {
 	State string `json:"state"`
 	Text  string `json:"text"`
-	// Version is the newest version in the state, absent without one.
-	Version int `json:"version,omitempty"`
 	// Differs is set when the readers file asks for other roles than the state holds.
 	Differs bool `json:"differs,omitempty"`
 	// You is the role of this process, absent when it has none known.
-	You    string          `json:"you,omitempty"`
-	Counts AccessRoleCount `json:"counts"`
-	// Others are the keys the roles name that no reader row shows: keys that left, and keys
-	// in the state that the readers file does not list.
-	Others   []AccessRoleKey      `json:"others,omitempty"`
-	Versions []AccessRolesVersion `json:"versions,omitempty"`
-	Records  *AccessRoleRecords   `json:"records,omitempty"`
+	You string `json:"you,omitempty"`
 }
 
-// AccessRoleCount counts the keys of each role.
-type AccessRoleCount struct {
-	Admin  int `json:"admin"`
-	Writer int `json:"writer"`
-	Reader int `json:"reader"`
-	Former int `json:"former"`
+// AccessIssue is something that needs a person's attention: the page lists these and nothing else
+// that is about how well the state is kept. Level is "bad" (the state cannot be trusted or changed
+// until it is dealt with) or "chg" (it works, and should be mended). Suggestion is the ID of the
+// card that says what to do, absent when the answer is in Text.
+type AccessIssue struct {
+	Level      string `json:"level"`
+	Title      string `json:"title"`
+	Text       string `json:"text"`
+	Suggestion string `json:"suggestion,omitempty"`
+	// Items are the records of an issue about records, up to 20, and More the number left out.
+	Items []AccessIssueItem `json:"items,omitempty"`
+	More  int               `json:"more,omitempty"`
 }
 
-// AccessRoleKey is a key and its role, "admin", "writer", "reader" or "former".
-type AccessRoleKey struct {
-	Name             string `json:"name"`
-	Fingerprint      string `json:"fingerprint"`
-	FingerprintShort string `json:"fingerprint_short"`
-	Role             string `json:"role"`
-	// Vouched counts the transactions of the key that an admin vouched for.
-	Vouched int `json:"vouched,omitempty"`
-}
-
-// AccessRolesVersion is one version of the roles in the state. The first is pinned by the readers
-// file when the state is "pinned".
-type AccessRolesVersion struct {
-	Seq     int       `json:"seq"`
-	At      time.Time `json:"at"`
-	By      string    `json:"by"`
-	Changes []string  `json:"changes,omitempty"`
-	Vouched int       `json:"vouched,omitempty"`
-	Pinned  bool      `json:"pinned,omitempty"`
-}
-
-// AccessRoleRecords is how the records stand against the transactions of writers. Skipped holds
-// the reason when the check was not made.
-type AccessRoleRecords struct {
-	Skipped     string              `json:"skipped,omitempty"`
-	Bound       int                 `json:"bound"`
-	Vouched     int                 `json:"vouched"`
-	BeforeRoles int                 `json:"before_roles"`
-	Unchecked   int                 `json:"unchecked"`
-	Problems    []AccessRoleProblem `json:"problems,omitempty"`
-	// MoreProblems counts the problems that are not listed.
-	MoreProblems int `json:"more_problems,omitempty"`
-}
-
-// AccessRoleProblem is a record that no transaction of a writer accounts for.
-type AccessRoleProblem struct {
+// AccessIssueItem is a record and why it is in doubt.
+type AccessIssueItem struct {
 	Addr string `json:"addr"`
 	Why  string `json:"why"`
 }

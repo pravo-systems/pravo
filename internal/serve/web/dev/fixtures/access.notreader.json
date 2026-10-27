@@ -62,6 +62,8 @@
   "unreadable": 46,
   "text": "46 records are sealed under a group that this key cannot open."
  },
+ "issues": null,
+ "all_clear": "The access list matches the state.",
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

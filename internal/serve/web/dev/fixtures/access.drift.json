@@ -68,7 +68,7 @@
  "file": {
   "verdict": "differs",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The access list and the state disagree: dan is on the list and not let in yet; fay and x; rm -rf ~ are off the list but still has a key in the state. Changes to the state are refused until they match.",
+  "text": "The access list and the state disagree: dan is on the list and not let in yet; fay and x; rm -rf ~ are off the list and still in the state. Changes to the state are refused until they match.",
   "count": 3,
   "added": [
    "dan"
@@ -104,6 +104,14 @@
   }
  ],
  "groups_text": "Removing a member starts a new group of keys. Records stay under the old group until they are written again or resealed with rewrap --all.",
+ "issues": [
+  {
+   "level": "chg",
+   "title": "The access list and the state disagree",
+   "text": "dan is on the list and not let in yet; fay and x; rm -rf ~ are off the list and still in the state. Changes to the state are refused until they match.",
+   "suggestion": "rewrap"
+  }
+ ],
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

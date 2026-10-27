@@ -82,62 +82,10 @@
  "roles": {
   "state": "pinned",
   "text": "The roles are locked in. Only an admin can change them, and every change is signed, so editing your own copy of the access list gives nobody extra rights.",
-  "version": 3,
-  "you": "admin",
-  "counts": {
-   "admin": 2,
-   "writer": 1,
-   "reader": 1,
-   "former": 1
-  },
-  "others": [
-   {
-    "name": "gus",
-    "fingerprint": "SHA256:11PPvnPOohF4F7eV/9vLMl+j4oT8A4NbESthRmH/s6E",
-    "fingerprint_short": "SHA256:11PPvnPOohF…",
-    "role": "former",
-    "vouched": 7
-   }
-  ],
-  "versions": [
-   {
-    "seq": 1,
-    "at": "2026-10-24T09:00:00Z",
-    "by": "ada",
-    "changes": [
-     "ada: admin",
-     "dan: admin",
-     "eve: reader",
-     "fay: reader",
-     "gus: writer"
-    ],
-    "pinned": true
-   },
-   {
-    "seq": 2,
-    "at": "2026-10-25T14:30:00Z",
-    "by": "dan",
-    "changes": [
-     "eve: reader -\u003e writer"
-    ]
-   },
-   {
-    "seq": 3,
-    "at": "2026-10-27T08:15:00Z",
-    "by": "ada",
-    "changes": [
-     "gus: removed, now a former key"
-    ],
-    "vouched": 7
-   }
-  ],
-  "records": {
-   "bound": 36,
-   "vouched": 7,
-   "before_roles": 3,
-   "unchecked": 0
-  }
+  "you": "admin"
  },
+ "issues": null,
+ "all_clear": "The access list matches the state, the roles are locked in and every record was written by someone who may change the state.",
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

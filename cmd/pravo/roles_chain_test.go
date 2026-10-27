@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
-	"github.com/pravo-systems/pravo/internal/serve"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -416,9 +415,8 @@ func TestAKeyThatWasNeverListedIsOnlyCountedWithoutAPin(t *testing.T) {
 	}
 }
 
-// The viewer is given the roles that decide: the keys with their roles, a key that left as a
-// former key with the transactions vouched for, the versions with who signed them, and a verdict
-// on the records.
+// The viewer is given the roles that decide: the keys with their roles, where the roles come from,
+// and a verdict on the records.
 func TestTheViewerIsToldTheRolesOfThePinnedChain(t *testing.T) {
 	s := vouchedBucket(t, false)
 	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.ada})
@@ -426,22 +424,14 @@ func TestTheViewerIsToldTheRolesOfThePinnedChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := rolesFacts(context.Background(), st, loadReadersFile(s.dir, ""))
-	if f == nil || f.Source != "state" || f.Version != 3 || f.Error != "" || f.You != "admin" {
+	if f == nil || f.Source != "state" || f.Error != "" || f.You != "admin" {
 		t.Fatalf("roles facts: %+v", f)
 	}
-	var former *serve.RoleKeyFacts
-	for i, k := range f.Keys {
-		if k.Role == "former" {
-			former = &f.Keys[i]
-		}
-	}
-	if former == nil || former.Name != "dan" || former.Vouched != 1 {
+	if len(f.Keys) != 1 || f.Keys[0].Name != "ada" || f.Keys[0].Role != "admin" {
 		t.Fatalf("keys: %+v", f.Keys)
 	}
-	if len(f.Versions) != 3 || f.Versions[0].By != "ada" || f.Versions[2].Vouched != 1 || len(f.Versions[2].Changes) != 1 || !strings.Contains(f.Versions[2].Changes[0], "dan: removed") {
-		t.Fatalf("versions: %+v", f.Versions)
-	}
-	if r := f.Records; r == nil || r.Skipped != "" || r.Vouched != 1 || len(r.Problems) != 0 {
+	// dan left, and an admin vouched for his transaction: his record is not a problem.
+	if r := f.Records; r == nil || r.Skipped != "" || len(r.Problems) != 0 {
 		t.Fatalf("records: %+v", r)
 	}
 

@@ -59,6 +59,7 @@
   "text": "If everyone loses their key, any 3 of 5 shares rebuild the recovery key (x25519:7rDj4D…) and open the state.",
   "warning": "The lock of the recovery key is missing from g1. The repository has no recovery file, so a writer cannot tell that the recovery was taken out of the bucket."
  },
+ "issues": null,
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

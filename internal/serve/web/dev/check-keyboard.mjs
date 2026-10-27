@@ -50,7 +50,6 @@ async function open(width) {
   return b;
 }
 
-const VERDICT = { match: 'matches the state', differs: 'differs from the state', missing: 'no list', invalid: "can't be read", 'expected-sealed': 'state not sealed' };
 const YOU = { reader: 'member', 'not-reader': 'not a member', 'no-identity': 'no key', locked: 'key locked' };
 
 // the text of the accessibility tree under the pane, with roles
@@ -107,6 +106,8 @@ async function checkOne(b, f, theme, width, report) {
   for (const s of inPane) {
     if (s.tag === 'button' && s.fk === 'single') check(/^Add a backup member/.test(s.ax?.name || ''), `${tag}: the warning button is named "${s.ax?.name}"`);
     else if (s.tag === 'button' && s.fk === 'add') check(/^Add a (backup )?member/.test(s.ax?.name || ''), `${tag}: the add button is named "${s.ax?.name}"`);
+    else if (s.tag === 'button' && (s.fk || '').startsWith('fix:')) check(s.ax?.name === 'See what to do', `${tag}: the button of an issue is named "${s.ax?.name}"`);
+    else if (s.tag === 'button' && s.fk === 'recovery') check(/^Bring the recovery in line/.test(s.ax?.name || ''), `${tag}: the recovery button is named "${s.ax?.name}"`);
     else if (s.tag === 'button') check(/^Copy /.test(s.ax?.name || ''), `${tag}: the button "${s.ax?.name}" does not say what it copies`);
     if (s.tag === 'summary') {
       check(s.ax?.props.expanded !== undefined, `${tag}: the suggestion "${s.ax?.name}" does not say whether it is open`);
@@ -133,10 +134,10 @@ async function checkOne(b, f, theme, width, report) {
     const who = await b.eval(`(() => { const w = document.getElementById('me'); return w && !w.hidden ? w.getAttribute('aria-label') : null; })()`);
     check(who && who.includes(YOU.reader), `${tag}: the bar does not name the reader (${who})`);
   } else if (doc.you) check(has(doc.you.text.slice(0, 20)) && has(YOU[doc.you.state]), `${tag}: the state of You (${YOU[doc.you.state]}) is not in the accessibility tree`);
-  const sealed = doc.state === 'sealed' || doc.state === 'migrating' || doc.file.verdict === 'expected-sealed';
-  if (sealed && VERDICT[doc.file.verdict]) check(has(VERDICT[doc.file.verdict]), `${tag}: the verdict "${VERDICT[doc.file.verdict]}" is not in the accessibility tree`);
-  const bare = doc.state !== 'sealed' && doc.state !== 'migrating' && !(doc.readers || []).length && doc.file.verdict === 'none';
-  if (!bare) check(has(doc.file.text.slice(0, 30)), `${tag}: the sentence of the verdict is not in the accessibility tree`);
+  // what needs attention is said in words, once: the issues, or the line that says all is clear
+  for (const i of doc.issues || []) check(has(i.title) && has(i.text.slice(0, 30)), `${tag}: the issue "${i.title}" is not in the accessibility tree`);
+  if (doc.all_clear) check(has(doc.all_clear.slice(0, 30)) && has('all clear'), `${tag}: the line that says all is clear is not in the accessibility tree`);
+  check(!(doc.issues || []).length || out.some((n) => n.role === 'heading' && n.name.toLowerCase().startsWith('needs attention')), `${tag}: no heading Needs attention`);
   if (doc.migration) {
     const pb = out.find((n) => n.role === 'progressbar');
     check(pb && /records (un)?sealed$/.test(pb.name), `${tag}: the progress of a seal is not a named progress bar in the accessibility tree`);

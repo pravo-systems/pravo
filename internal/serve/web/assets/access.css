@@ -56,13 +56,7 @@
 .ac-groups .ac-note { margin-top: .5rem; }
 
 /* ---- the readers file ---- */
-.ac-verdict { display: flex; align-items: baseline; flex-wrap: wrap; gap: .4rem .8rem; }
-.ac-verdict p { margin: 0; font-size: var(--fs-4); line-height: 1.5; flex: 1 1 22rem; text-wrap: pretty; }
-.ac-file.v-differs .ac-rtext, .ac-file.v-missing .ac-rtext { padding: .6rem .8rem; border: 1px solid color-mix(in srgb, var(--change) 42%, transparent); background: var(--change-wash); }
-.ac-file.v-invalid .ac-rtext, .ac-file.v-expected-sealed .ac-rtext { padding: .6rem .8rem; border: 1px solid color-mix(in srgb, var(--conflict) 42%, transparent); background: var(--conflict-wash); }
 .ac-path { display: flex; align-items: center; gap: .3rem; margin: .5rem 0 0; color: var(--text-2); min-width: 0; }
-.ac-errors { margin: .6rem 0 0; padding: 0; list-style: none; display: grid; gap: .25rem; font-size: var(--fs-3); }
-.ac-errors li { padding: .25rem .6rem; border: 1px solid color-mix(in srgb, var(--conflict) 40%, var(--line)); background: var(--conflict-wash); color: var(--text); overflow-wrap: anywhere; }
 
 /* ---- records ---- */
 .ac-stats { display: flex; flex-wrap: wrap; gap: .5rem 1.6rem; margin: 0; padding: 0; list-style: none; }
@@ -132,56 +126,26 @@
 .b.rl-admin { --c: var(--accent); background: var(--accent-wash); border-color: var(--accent); color: var(--text); }
 .b.rl-writer { --c: var(--key); }
 .b.rl-reader { --c: var(--text-2); }
-.b.rl-former { --c: var(--text-3); border-style: dashed; background: transparent; }
-.ac-ryou { margin-left: auto; display: inline-flex; text-transform: none; letter-spacing: 0; font-weight: 400; align-items: center; gap: .4rem; font-size: var(--fs-2); color: var(--text-2); }
 .ac-rtext { margin: .55rem 0 0; max-width: 46rem; font-size: var(--fs-4); line-height: 1.55; text-wrap: pretty; }
-.ac-roles.rs-untrusted .ac-rtext { padding: .6rem .8rem; border: 1px solid color-mix(in srgb, var(--conflict) 42%, transparent); background: var(--conflict-wash); }
-.ac-roles.rs-file .ac-rtext { padding: .6rem .8rem; border: 1px solid color-mix(in srgb, var(--change) 42%, transparent); background: var(--change-wash); }
-
 .ac-block { margin-top: 1.3rem; min-width: 0; }
 .ac-sub { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .6rem; margin: 0 0 .6rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
-
-/* the history of the roles: a plan of the chain, left to right, left to right, each one signed by an admin of the one before */
-.ac-chain { display: flex; align-items: stretch; margin: 0; padding: 0 0 .4rem; list-style: none; overflow-x: auto; }
-.ac-ver { position: relative; flex: 0 0 15rem; display: flex; flex-direction: column; gap: .35rem; padding: .65rem .8rem .7rem; border: 1px solid var(--line-strong); background: var(--surface); }
-.ac-ver + .ac-ver { margin-left: 2.4rem; }
-.ac-ver + .ac-ver::before { content: ""; position: absolute; top: 1.2rem; right: 100%; width: 2.4rem; height: 1px; background: var(--text-2); }
-.ac-ver + .ac-ver::after { content: ""; position: absolute; top: calc(1.2rem - 3px); left: -.5rem; width: 0; height: 0; border-left: 5px solid var(--text-2); border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
-.ac-ver.pin { border-color: var(--accent); }
-.ac-ver.head:not(.pin) { border-color: var(--text-2); }
-.ac-ver .vh { display: flex; align-items: center; gap: .5rem; }
-.ac-ver .vn { font: 600 var(--fs-4)/1 var(--font-mono); color: var(--text); }
-.ac-ver .vm { margin: 0; font-size: var(--fs-2); line-height: 1.4; color: var(--text-2); }
-.ac-ver .vm b { font-family: var(--font-mono); font-weight: 500; color: var(--text); }
-.ac-ver .vc { margin: .2rem 0 0; padding: .4rem 0 0; border-top: 1px solid var(--line); list-style: none; display: grid; gap: .2rem; font: 400 var(--fs-2)/1.35 var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
-.ac-ver .vv { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: var(--fs-2); color: var(--text-2); }
-.ac-differs { display: flex; align-items: baseline; gap: .45rem; color: var(--change); }
-
-/* the records: one bar that holds every record once */
-.ac-bar { margin-top: .8rem; display: flex; height: .7rem; border: 1px solid var(--line-strong); background: var(--surface); }
-.ac-bar .seg { flex: var(--n, 1) 1 0; min-width: 2px; background: var(--c, var(--text-3)); }
-.ac-bar .seg + .seg { border-left: 1px solid var(--bg, var(--surface)); }
-.ac-bar .ok, .ac-legend .ok { --c: var(--accent); }
-.ac-bar .lock, .ac-legend .lock { --c: var(--key); }
-.ac-bar .dim, .ac-legend .dim { --c: var(--text-3); }
-.ac-bar .chg, .ac-legend .chg { --c: var(--change); }
-.ac-legend { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin: .7rem 0 0; padding: 0; list-style: none; font-size: var(--fs-2); color: var(--text-2); }
-.ac-legend li { display: inline-flex; align-items: baseline; gap: .4rem; }
-.ac-legend .sw { align-self: center; width: .6rem; height: .6rem; background: var(--c); }
-.ac-legend b { font: 500 var(--fs-3)/1 var(--font-mono); color: var(--text); }
 .ac-problems { margin: .8rem 0 0; padding: 0; list-style: none; display: grid; gap: .3rem; font-size: var(--fs-3); }
-.ac-problems li { display: grid; grid-template-columns: minmax(10rem, 22rem) 1fr; gap: .2rem 1rem; padding: .35rem .6rem; border: 1px solid color-mix(in srgb, var(--conflict) 40%, var(--line)); background: var(--conflict-wash); color: var(--text); }
+.ac-problems li { display: grid; grid-template-columns: minmax(10rem, 22rem) 1fr; gap: .2rem 1rem; padding: .35rem .6rem; border: 1px solid color-mix(in srgb, var(--conflict) 40%, var(--line)); background: var(--surface); color: var(--text); }
 .ac-problems li.dim { background: none; border-style: dashed; display: block; }
 .ac-problems code { overflow-wrap: anywhere; }
-@media (max-width: 47.5em) {
-  .ac-ryou { margin-left: 0; }
-  .ac-chain { flex-direction: column; overflow: visible; }
-  .ac-ver { flex-basis: auto; }
-  .ac-ver + .ac-ver { margin: 1.8rem 0 0; }
-  .ac-ver + .ac-ver::before { inset: auto auto 100% 1.2rem; width: 1px; height: 1.8rem; }
-  .ac-ver + .ac-ver::after { top: -.5rem; left: calc(1.2rem - 3px); border: 0; border-top: 5px solid var(--text-2); border-left: 3.5px solid transparent; border-right: 3.5px solid transparent; }
-  .ac-problems li { grid-template-columns: 1fr; }
-}
+@media (max-width: 47.5em) { .ac-problems li { grid-template-columns: 1fr; } }
+
+/* ---- what needs attention: a flagged block each, worst first; nothing else is listed ---- */
+.ac-issues { display: grid; gap: .6rem; }
+.ac-issue { display: flex; align-items: flex-start; flex-wrap: wrap; gap: .5rem .9rem; padding: .8rem 1rem; border: 1px solid var(--change); background: var(--change-wash); }
+.ac-issue.lv-bad { border-color: var(--conflict); background: var(--conflict-wash); }
+.ac-issue > .i { margin-top: .2rem; color: var(--change); }
+.ac-issue.lv-bad > .i { color: var(--conflict); }
+.ac-issue .ib { flex: 1 1 22rem; min-width: 0; }
+.ac-issue .ib p { margin: .35rem 0 0; font-size: var(--fs-3); line-height: 1.5; color: var(--text); max-width: 46rem; text-wrap: pretty; }
+.ac-issue .btn { align-self: center; }
+.ac-clearline { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .8rem; margin: 0; font-size: var(--fs-4); line-height: 1.5; text-wrap: pretty; }
+.ac-chk-h { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .8rem; margin: 0; font: 500 var(--fs-4)/1.3 var(--font-sans); color: var(--text); }
 
 /* ---- the state: three facts, and the rest on demand ---- */
 .ac-facts.lead { grid-template-columns: minmax(0, .55fr) minmax(0, 1.25fr) minmax(0, 1.2fr); }
@@ -222,33 +186,17 @@
 .ac-keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .6rem 1.4rem; margin: 0; }
 .ac-keys dt { font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); margin-bottom: .3rem; }
 .ac-keys dd { margin: 0; font-size: var(--fs-3); }
-.ac-past { margin: 0; padding: 0; list-style: none; display: grid; gap: .4rem; }
-.ac-past li { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .8rem; padding: .45rem .8rem; border: 1px solid var(--line); background: var(--surface); font-size: var(--fs-3); }
-.ac-past .nm { font: 500 var(--fs-3)/1.3 var(--font-mono); }
-.ac-past .ac-keyend { margin-left: auto; }
 @media (max-width: 47.5em) {
   .ac-person > summary { grid-template-columns: minmax(0, 1fr) 1rem; }
   .ac-person > summary > .pn { grid-column: 1; }
   .ac-person > summary > .pr, .ac-person > summary > .ps { grid-column: 1; }
   .ac-person > summary::after { grid-column: 2; grid-row: 1; }
   .ac-pbody { padding-left: .9rem; }
-  .ac-past .ac-keyend { margin-left: 0; }
-}
-
-/* ---- the checks: three rows, each with a verdict ---- */
-.ac-chk { padding: 1rem 0; border-top: 1px solid var(--line); }
-.ac-chk:first-of-type { border-top: 0; padding-top: .2rem; }
-.ac-chk-h { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .8rem; margin: 0; font: 500 var(--fs-4)/1.3 var(--font-sans); color: var(--text); }
-.ac-hist { margin-top: .8rem; }
-.ac-hist > .ac-chain { margin-top: .6rem; }
+  }
 
 /* the chip in the project panel that opens this view */
 .b.linkchip { cursor: pointer; scroll-margin: .5rem; }
 .b.linkchip:hover { background: color-mix(in srgb, var(--c, var(--text-3)) 18%, transparent); }
 .ac-who { padding: .1rem .4rem; border: 1px solid var(--line-strong); background: var(--surface); }
 
-/* the warning that one reader holds the only lock, with the button that opens the suggestion that adds another */
-.ac-warn { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; margin: .8rem 0 0; padding: .6rem .8rem; border: 1px solid var(--change); background: var(--change-wash); font-size: var(--fs-3); line-height: 1.5; }
-.ac-warn p { flex: 1 1 18rem; margin: 0; color: var(--text); text-wrap: pretty; }
-.ac-warn .i { color: var(--change); }
 .ac-table.small th .b { margin-left: .5rem; }

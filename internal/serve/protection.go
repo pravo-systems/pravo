@@ -40,8 +40,6 @@ type RolesFacts struct {
 	// decides: the roles are not pinned in the state) or "state" (a chain of versions in the
 	// state decides, as the readers file pins it).
 	Source string
-	// Version is the newest version of the chain, 0 without one.
-	Version int
 	// Unpinned is set when the state holds a chain that the readers file does not pin.
 	Unpinned bool
 	// Differs is set when the readers file asks for other roles than the newest version.
@@ -50,44 +48,26 @@ type RolesFacts struct {
 	Error string
 	// You is the role of the identity of the process: "admin", "writer", "reader" or "".
 	You string
-	// Keys are the signing keys the roles name: the readers' by fingerprint, the roles
-	// as they decide, and the keys that left (Role "former").
+	// Keys are the signing keys of the members with their roles, by fingerprint.
 	Keys []RoleKeyFacts
-	// Versions are the versions of the chain, oldest first.
-	Versions []RolesVersionFacts
 	// Records is how the records stand against the transactions of writers, nil when the
 	// roles are off.
 	Records *RecordCheckFacts
 }
 
-// RoleKeyFacts is one signing key with its role: "admin", "writer", "reader" or "former".
+// RoleKeyFacts is one signing key with its role: "admin", "writer" or "reader".
 type RoleKeyFacts struct {
 	Name        string
 	Fingerprint string
 	Role        string
-	// Vouched counts the transactions an admin vouched for, of a key that left or was demoted.
-	Vouched int
-}
-
-// RolesVersionFacts is one version of the roles in the state.
-type RolesVersionFacts struct {
-	Seq int
-	At  time.Time
-	// By is the name of the admin who signed it.
-	By string
-	// Changes are the lines of what changed from the version before, as protect roles prints them.
-	Changes []string
-	// Vouched counts the transactions the version vouches for.
-	Vouched int
 }
 
 // RecordCheckFacts is the verdict on the records: each is the work of a writer, or is not.
 type RecordCheckFacts struct {
 	// Skipped is set, with the reason, when the check was not made, for a state too large to
 	// be walked each time the page is read.
-	Skipped                            string
-	Bound, Vouched, Earlier, Unchecked int
-	Problems                           []RecordProblemFacts
+	Skipped  string
+	Problems []RecordProblemFacts
 }
 
 // RecordProblemFacts is a record that no transaction of a writer accounts for.

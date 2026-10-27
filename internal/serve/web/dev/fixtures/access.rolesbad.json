@@ -82,29 +82,19 @@
  "roles": {
   "state": "untrusted",
   "text": "The saved roles fail their check: roles/00000002.json is not signed by an admin of the roles it follows. Commands that change the state refuse to run until this is fixed.",
-  "version": 3,
-  "you": "admin",
-  "counts": {
-   "admin": 2,
-   "writer": 1,
-   "reader": 1,
-   "former": 1
+  "you": "admin"
+ },
+ "issues": [
+  {
+   "level": "bad",
+   "title": "The saved roles fail their check",
+   "text": "roles/00000002.json is not signed by an admin of the roles it follows. Commands that change the state refuse to run until this is fixed. Run pravo protect status for the details."
   },
-  "others": [
-   {
-    "name": "gus",
-    "fingerprint": "SHA256:11PPvnPOohF4F7eV/9vLMl+j4oT8A4NbESthRmH/s6E",
-    "fingerprint_short": "SHA256:11PPvnPOohF…",
-    "role": "former",
-    "vouched": 7
-   }
-  ],
-  "records": {
-   "bound": 31,
-   "vouched": 7,
-   "before_roles": 3,
-   "unchecked": 1,
-   "problems": [
+  {
+   "level": "bad",
+   "title": "3 records were written by someone who may not change the state",
+   "text": "These records were written by someone who may not change the state, or whom nobody approved. Look at who wrote them, and remove them with pravo state rm if they are not right.",
+   "items": [
     {
      "addr": "aws_iam_role.deploy",
      "why": "was written by a transaction signed by a key that is not in the roles, and no admin vouched for it"
@@ -119,7 +109,7 @@
     }
    ]
   }
- },
+ ],
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",

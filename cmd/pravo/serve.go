@@ -318,20 +318,21 @@ func (v *viewerState) protection(ctx context.Context, st *state.Store, readersFi
 // whether they are the work of writers. A larger state says to run pravo protect status.
 const maxRecordCheck = 5000
 
-// rolesFacts are the roles of a sealed state for the Access view: where they come from, the
-// chain of versions, the keys, and how the records stand. It holds no key and writes nothing.
+// rolesFacts are the roles of a sealed state for the Access view: where they come from, the keys
+// with their roles, and whether every record is the work of a writer. It holds no key and writes
+// nothing. What is long or rare about the roles, their versions and the transactions an admin
+// vouched for, is left to pravo protect status.
 func rolesFacts(ctx context.Context, st *state.Store, rf readersFile) *serve.RolesFacts {
 	if !rf.Found || rf.Err != nil {
 		return nil
 	}
 	erf, rs, err := rf.withRoles(st)
-	f := &serve.RolesFacts{Source: rs.Source, Version: rs.Version, Unpinned: rs.Unpinned, Differs: rs.Differs}
+	f := &serve.RolesFacts{Source: rs.Source, Unpinned: rs.Unpinned, Differs: rs.Differs}
 	if err != nil {
 		f.Error = err.Error()
 		erf = rf
 	}
-	on := protect.RolesOn(erf.Readers)
-	if !on {
+	if !protect.RolesOn(erf.Readers) {
 		if f.Error == "" && rs.Version == 0 {
 			f.Source = "off"
 		}
@@ -340,28 +341,10 @@ func rolesFacts(ctx context.Context, st *state.Store, rf readersFile) *serve.Rol
 	if role, ok := protect.RoleOf(erf.Readers, st.SigningKey()); ok {
 		f.You = role.String()
 	}
-	vouched := map[string]int{}
-	for _, vo := range rs.Vouched {
-		vouched[vo.Key]++
-	}
 	for _, r := range erf.Readers {
 		fp := protect.SSHFingerprint(r.Sign)
 		role, _ := protect.RoleOf(erf.Readers, fp)
-		f.Keys = append(f.Keys, serve.RoleKeyFacts{Name: r.Name, Fingerprint: fp, Role: role.String(), Vouched: vouched[fp]})
-	}
-	for _, k := range rs.Former {
-		f.Keys = append(f.Keys, serve.RoleKeyFacts{Name: k.Name, Fingerprint: k.Key, Role: "former", Vouched: vouched[k.Key]})
-	}
-	if chain, cerr := st.RolesChain(ctx); cerr == nil {
-		var prev []protect.Reader
-		for _, v := range chain.Versions {
-			by := ""
-			if v.Signature != nil {
-				by = v.Signature.Signer
-			}
-			f.Versions = append(f.Versions, serve.RolesVersionFacts{Seq: v.Seq, At: v.At, By: by, Changes: roleChanges(prev, v.Set), Vouched: len(v.Vouched)})
-			prev = v.Set
-		}
+		f.Keys = append(f.Keys, serve.RoleKeyFacts{Name: r.Name, Fingerprint: fp, Role: role.String()})
 	}
 	f.Records = recordCheckFacts(st, erf, rs)
 	return f
@@ -377,7 +360,7 @@ func recordCheckFacts(st *state.Store, rf readersFile, rs state.RolesStatus) *se
 		return &serve.RecordCheckFacts{Skipped: "the transactions could not be read"}
 	}
 	v := st.VerifyRecordsWith(txns, recordRules(rf.Readers, rs))
-	out := &serve.RecordCheckFacts{Bound: v.Bound, Vouched: v.Vouched, Earlier: v.Earlier, Unchecked: v.Unchecked}
+	out := &serve.RecordCheckFacts{}
 	for _, p := range v.Problems {
 		out.Problems = append(out.Problems, serve.RecordProblemFacts{Addr: p.Addr, Why: p.Why})
 	}

@@ -213,7 +213,7 @@ func buildAccess(in accessInput) *Access {
 	f := in.facts
 	st := f.Store
 	a := &Access{Version: APIVersion, Revision: in.rev, Format: in.format, Location: in.location, Backend: in.backend,
-		Readers: []AccessReader{}, Suggestions: []Suggestion{}}
+		Readers: []AccessReader{}, Suggestions: []Suggestion{}, Issues: []AccessIssue{}}
 	a.State = st.State
 	switch a.State {
 	case "off", "immutable", "sealed", "migrating":
@@ -291,6 +291,7 @@ func buildAccess(in accessInput) *Access {
 		blobs[r.Key] = r.SSH
 	}
 	a.Suggestions = suggestions(a, in.dir, in.backend == "" || in.backend == "local", blobs)
+	a.Issues, a.AllClear = issuesOf(a, f)
 	return a
 }
 
@@ -463,7 +464,7 @@ func fileVerdict(stateName string, f FileFacts, path, dir string, added, removed
 			parts = append(parts, nameList(added)+" on the list and not let in yet")
 		}
 		if len(removed) > 0 {
-			parts = append(parts, nameList(removed)+" off the list but still has a key in the state")
+			parts = append(parts, nameList(removed)+" off the list and still in the state")
 		}
 		af.Text = "The access list and the state disagree: " + strings.Join(parts, "; ") + ". Changes to the state are refused until they match."
 	default:
@@ -930,16 +931,12 @@ func (m *model) sealedReason() string {
 	return "no identity was given. Start the viewer with pravo serve --identity NAME."
 }
 
-const (
-	maxRoleProblems = 20 // records listed as not the work of a writer
-	maxRoleVersions = 50 // versions of the roles listed
-	maxRoleOthers   = 50 // keys listed that no reader row shows
-)
+const maxIssueItems = 20 // records listed under an issue about records
 
 // rolesOf makes the document of the roles from their facts, and gives the reader rows the role
 // of their signing key. A key is matched by the fingerprint of its signing key.
 func rolesOf(f *RolesFacts, rows []AccessReader) *AccessRoles {
-	r := &AccessRoles{Version: f.Version, Differs: f.Differs && f.Source == "state", You: roleName(f.You)}
+	r := &AccessRoles{Differs: f.Differs && f.Source == "state", You: roleName(f.You)}
 	switch {
 	case f.Error != "":
 		r.State = "untrusted"
@@ -961,60 +958,19 @@ func rolesOf(f *RolesFacts, rows []AccessReader) *AccessRoles {
 		r.State = "off"
 		r.Text = "Roles are off, so every member may change the state, sign, and remove a policy. Give the lines of the access list a role to turn them on."
 	}
+	if r.State == "off" {
+		return r
+	}
 	byFP := map[string]string{}
 	for _, k := range f.Keys {
 		if k.Fingerprint != "" {
 			byFP[k.Fingerprint] = k.Role
 		}
 	}
-	shown := map[string]bool{}
 	for i := range rows {
-		if role, ok := byFP[rows[i].Fingerprint]; ok && rows[i].Fingerprint != "" && r.State != "off" {
+		if role, ok := byFP[rows[i].Fingerprint]; ok && rows[i].Fingerprint != "" {
 			rows[i].Role = roleName(role)
-			shown[rows[i].Fingerprint] = true
 		}
-	}
-	for _, k := range f.Keys {
-		role := roleName(k.Role)
-		if role == "" || r.State == "off" {
-			continue
-		}
-		switch role {
-		case "admin":
-			r.Counts.Admin++
-		case "writer":
-			r.Counts.Writer++
-		case "reader":
-			r.Counts.Reader++
-		case "former":
-			r.Counts.Former++
-		}
-		if shown[k.Fingerprint] || len(r.Others) >= maxRoleOthers {
-			continue
-		}
-		r.Others = append(r.Others, AccessRoleKey{Name: display(k.Name), Fingerprint: display(k.Fingerprint), FingerprintShort: shortFingerprint(k.Fingerprint), Role: role, Vouched: k.Vouched})
-	}
-	vs := f.Versions
-	if len(vs) > maxRoleVersions {
-		vs = vs[len(vs)-maxRoleVersions:]
-	}
-	for _, v := range vs {
-		av := AccessRolesVersion{Seq: v.Seq, At: v.At.UTC(), By: display(v.By), Vouched: v.Vouched, Pinned: v.Seq == 1 && r.State == "pinned"}
-		for _, c := range v.Changes {
-			av.Changes = append(av.Changes, display(c))
-		}
-		r.Versions = append(r.Versions, av)
-	}
-	if rc := f.Records; rc != nil && r.State != "off" {
-		ar := &AccessRoleRecords{Skipped: clip(rc.Skipped, maxLineReason), Bound: rc.Bound, Vouched: rc.Vouched, BeforeRoles: rc.Earlier, Unchecked: rc.Unchecked}
-		for i, p := range rc.Problems {
-			if i == maxRoleProblems {
-				ar.MoreProblems = len(rc.Problems) - maxRoleProblems
-				break
-			}
-			ar.Problems = append(ar.Problems, AccessRoleProblem{Addr: display(p.Addr), Why: cleanReason(p.Why)})
-		}
-		r.Records = ar
 	}
 	return r
 }
@@ -1022,16 +978,77 @@ func rolesOf(f *RolesFacts, rows []AccessReader) *AccessRoles {
 // roleName is the role as the page knows it, "" for any other word.
 func roleName(s string) string {
 	switch s {
-	case "admin", "writer", "reader", "former":
+	case "admin", "writer", "reader":
 		return s
 	}
 	return ""
 }
 
-// shortFingerprint is a fingerprint as it is shown: the start of it.
-func shortFingerprint(fp string) string {
-	if len(fp) > 18 {
-		return display(fp[:18]) + "…"
+// issuesOf lists what needs a person's attention, worst first, and, for a sealed state with none,
+// the sentence that says so. Each issue points to the card that says what to do when there is one.
+func issuesOf(a *Access, f Facts) (issues []AccessIssue, allClear string) {
+	has := func(id string) string {
+		for _, s := range a.Suggestions {
+			if s.ID == id {
+				return id
+			}
+		}
+		return ""
 	}
-	return display(fp)
+	add := func(level, title, text, card string) *AccessIssue {
+		issues = append(issues, AccessIssue{Level: level, Title: title, Text: text, Suggestion: has(card)})
+		return &issues[len(issues)-1]
+	}
+	if a.State == "migrating" {
+		title := "Sealing has not finished"
+		if a.Migration != nil && a.Migration.Unseal {
+			title = "Unsealing has not finished"
+		}
+		add("chg", title, "Changes to the state are refused until it does.", "finish")
+	}
+	switch a.File.Verdict {
+	case "expected-sealed":
+		add("bad", "The state is not sealed", a.File.Text, "check-downgrade")
+	case "differs":
+		add("chg", "The access list and the state disagree", strings.TrimPrefix(a.File.Text, "The access list and the state disagree: "), "rewrap")
+	case "missing":
+		add("chg", "The access list is missing", a.File.Text, "")
+	case "invalid":
+		add("bad", "The access list can't be read", strings.TrimPrefix(a.File.Text, "The access list can't be read: "), "")
+	}
+	if r := a.Roles; r != nil {
+		switch {
+		case r.State == "untrusted" && f.Roles != nil:
+			add("bad", "The saved roles fail their check", cleanReason(f.Roles.Error)+" Commands that change the state refuse to run until this is fixed. Run pravo protect status for the details.", "")
+		case r.State == "file":
+			add("chg", "Roles are not locked in", r.Text, "pin-roles")
+		case r.Differs:
+			add("chg", "The access list asks for different roles", "The access list asks for other roles than the ones saved. An admin saves them to make them count.", "pin-roles")
+		}
+	}
+	if rc := f.Roles; rc != nil && rc.Records != nil && len(rc.Records.Problems) > 0 && a.Roles != nil && a.Roles.State != "off" {
+		n := len(rc.Records.Problems)
+		is := add("bad", fmt.Sprintf("%s %s written by someone who may not change the state", commas(n), plural(n, "record was", "records were")),
+			"These records were written by someone who may not change the state, or whom nobody approved. Look at who wrote them, and remove them with pravo state rm if they are not right.", "")
+		for i, p := range rc.Records.Problems {
+			if i == maxIssueItems {
+				is.More = n - maxIssueItems
+				break
+			}
+			is.Items = append(is.Items, AccessIssueItem{Addr: display(p.Addr), Why: cleanReason(p.Why)})
+		}
+	}
+	if a.State != "sealed" || len(issues) > 0 || a.SingleReader != nil || (a.Recovery != nil && a.Recovery.Warning != "") {
+		return issues, ""
+	}
+	allClear = "The access list matches the state"
+	if a.Roles != nil && a.Roles.State == "pinned" {
+		allClear += ", the roles are locked in"
+	}
+	if rc := f.Roles; rc != nil && rc.Records != nil && rc.Records.Skipped == "" && a.Roles != nil && a.Roles.State != "off" {
+		allClear += " and every record was written by someone who may change the state."
+	} else {
+		allClear += "."
+	}
+	return issues, allClear
 }

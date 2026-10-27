@@ -82,20 +82,16 @@
  "roles": {
   "state": "file",
   "text": "The roles are only written in the access list, which anyone with a copy of the repository can edit for their own runs. Locking them in closes that.",
-  "you": "admin",
-  "counts": {
-   "admin": 2,
-   "writer": 1,
-   "reader": 1,
-   "former": 0
-  },
-  "records": {
-   "bound": 36,
-   "vouched": 0,
-   "before_roles": 10,
-   "unchecked": 0
-  }
+  "you": "admin"
  },
+ "issues": [
+  {
+   "level": "chg",
+   "title": "Roles are not locked in",
+   "text": "The roles are only written in the access list, which anyone with a copy of the repository can edit for their own runs. Locking them in closes that.",
+   "suggestion": "pin-roles"
+  }
+ ],
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",
