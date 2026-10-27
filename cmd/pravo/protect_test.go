@@ -251,7 +251,7 @@ func TestProtectCheckReadersFile(t *testing.T) {
 		if code != 0 || !strings.Contains(text, "Readers file     elsewhere/readers.txt · 1 reader (ada)\n") {
 			t.Fatalf("flag: exit %d\n%s", code, text)
 		}
-		flagAccessDir = ""
+		flags.AccessDir = ""
 		t.Setenv("PRAVO_ACCESS_DIR", other)
 		text, code = runPravo(t, e.dir, "protect", "check")
 		if code != 0 || !strings.Contains(text, "elsewhere/readers.txt") {
@@ -414,8 +414,8 @@ func TestProtectInitRefusals(t *testing.T) {
 	t.Run("you are not on the list", func(t *testing.T) {
 		e.readers(t, danLine)
 		t.Setenv("PRAVO_IDENTITY_DIR", "")
-		flagIdentity = "ada"
-		defer func() { flagIdentity = "" }()
+		flags.Identity = "ada"
+		defer func() { flags.Identity = "" }()
 		text, code := runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes", "--identity", "ada")
 		want := "Error: your identity ada is not in .pravo/access/readers.txt. Sealing to a list you are not on would lock you out."
 		if code != 5 || !strings.Contains(text, want) {

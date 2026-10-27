@@ -54,7 +54,7 @@ discover adopt" to write the resource that adopts an object.`,
 			}
 			defer s.close()
 			if len(s.root.Discoveries) == 0 {
-				if flagJSON {
+				if flags.JSON {
 					return emitJSON(map[string]any{"discoveries": []any{}})
 				}
 				out.Println("The specification has no discoveries.")
@@ -71,7 +71,7 @@ discover adopt" to write the resource that adopts an object.`,
 			for _, p := range res.Problems {
 				out.Warning("cannot read " + p.Error())
 			}
-			if flagJSON {
+			if flags.JSON {
 				if err := emitJSON(discoveryJSON(rep, names(chosen), false)); err != nil {
 					return err
 				}
@@ -165,7 +165,7 @@ object, so that a schedule can tell someone.`,
 			for _, v := range views {
 				unmanaged += v.Counts[engine.Unmanaged]
 			}
-			if flagJSON {
+			if flags.JSON {
 				names := make([]string, len(views))
 				for i, v := range views {
 					names[i] = v.Name
@@ -458,7 +458,7 @@ in a comment and not written. Nothing is recorded in the state.`,
 				}
 			}
 			snippet := engine.FormatCUE(engine.AdoptSnippet(s.root, v, l, body))
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(map[string]any{"discovery": name, "id": l.ID, "identity": l.Identity, "status": item.Status, "snippet": snippet})
 			}
 			fmt.Print(snippet)

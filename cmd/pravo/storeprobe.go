@@ -91,7 +91,7 @@ func probeS3(ctx context.Context, root *config.Root) error {
 			r.Error = err.Error()
 		}
 		results = append(results, r)
-		if !flagJSON {
+		if !flags.JSON {
 			status := "ok"
 			if err != nil {
 				status = "FAILED"
@@ -102,7 +102,7 @@ func probeS3(ctx context.Context, root *config.Root) error {
 	if err == nil {
 		rememberS3Store(root)
 	}
-	if flagJSON {
+	if flags.JSON {
 		if e := emitJSON(map[string]any{"store": sb.Name(), "ok": err == nil, "checks": results}); e != nil {
 			return e
 		}

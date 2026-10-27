@@ -265,15 +265,6 @@ func (p *ProviderSchema) SortedListNames() []string {
 	return p.names(kindList)
 }
 
-func sortedKeys(m map[string]*Schema) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
-}
-
 // Sort orders attributes and block types by name, recursively, so that
 // generated output is stable.
 func (b *Block) Sort() {

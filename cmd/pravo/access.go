@@ -25,12 +25,8 @@ const readersFileName = "readers.txt"
 // maxReadersFileSize is the most that is read of a readers file.
 const maxReadersFileSize = 64 << 10
 
-// flagAccessDir is the --access-dir flag of the commands that read the readers
-// file.
-var flagAccessDir string
-
 func addAccessDirFlag(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&flagAccessDir, "access-dir", "", "directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR")
+	cmd.Flags().StringVar(&flags.AccessDir, "access-dir", "", "directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR")
 }
 
 // readersFile is what was found of the readers file.

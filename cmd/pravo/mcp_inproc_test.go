@@ -56,7 +56,7 @@ func TestInprocessStateTools(t *testing.T) {
 	if code == 0 {
 		t.Errorf("an unknown address was accepted: %q", text)
 	}
-	if flagTags != nil {
-		t.Errorf("the tags of a call were left set: %v", flagTags)
+	if flags.Tags != nil {
+		t.Errorf("the tags of a call were left set: %v", flags.Tags)
 	}
 }

@@ -88,7 +88,7 @@ $PRAVO_IDENTITY, then the identity directory ($PRAVO_IDENTITY_DIR, default ~/.co
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if name == "" {
-				name = flagIdentity // the global flag means the same
+				name = flags.Identity // the global flag means the same
 			}
 			return runIDShow(name)
 		},
@@ -216,7 +216,7 @@ func runIDNew(name, sshFile, outFile string, ci bool, unlock, agentKey string) e
 		keeping = "sealed under ssh-agent key " + fp
 		unlocked = map[string]any{"by": "ssh-agent", "key": fp, "comment": unlocker.Comment}
 	}
-	if flagJSON {
+	if flags.JSON {
 		return emitJSON(map[string]any{"name": id.Name, "path": path, "ci": ci, "unlock": unlocked,
 			"signing": map[string]string{"alg": "ssh-ed25519", "fingerprint": sum.Fingerprint, "source": sum.Source},
 			"reader":  sum.Reader, "line": sum.Line})
@@ -388,7 +388,7 @@ func runIDShow(name string) error {
 	}
 	sum := identitySummary(p.Name, sign, p.Signing.Via, reader)
 	by, agentKey := p.unlockedBy()
-	if flagJSON {
+	if flags.JSON {
 		unlocked := map[string]any{"by": by}
 		if agentKey != "" {
 			unlocked["key"] = agentKey

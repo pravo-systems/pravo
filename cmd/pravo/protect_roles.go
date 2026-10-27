@@ -142,7 +142,7 @@ func (p *protectRun) roles(yes bool) error {
 	}
 	wrote := head == nil || len(vouches) > 0 || protect.FormatRolesSet(head.Set, head.Former, nil) != protect.FormatRolesSet(next, nextFormer, nil)
 	if wrote {
-		if len(changes) > 0 && !flagJSON {
+		if len(changes) > 0 && !flags.JSON {
 			for _, c := range changes {
 				out.Println("  " + c)
 			}
@@ -172,7 +172,7 @@ func (p *protectRun) roles(yes bool) error {
 		}
 		pinAdded = true
 	}
-	if flagJSON {
+	if flags.JSON {
 		return emitJSON(map[string]any{"version": seq, "written": wrote, "pin": digest, "pin_added": pinAdded, "changes": changes})
 	}
 	switch {

@@ -40,11 +40,6 @@ type identityOptions struct {
 	Readers []protect.ReaderPublic
 }
 
-// flagIdentity is the global --identity flag: the name of a file in the
-// identity directory, for every command that opens a sealed state. It takes
-// precedence over $PRAVO_IDENTITY.
-var flagIdentity string
-
 // identityUsage is the help text of --identity.
 const identityUsage = "name of the identity to read a sealed state with; overrides $PRAVO_IDENTITY"
 

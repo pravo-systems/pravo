@@ -109,7 +109,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 	}
 	// A state that is not sealed in a repository that lists readers may have been
 	// downgraded in the bucket: a collection that deletes is a writer, as any other.
-	if rf := loadReadersFile(p.root.Dir, flagAccessDir); expectsSealed(prot, rf) {
+	if rf := loadReadersFile(p.root.Dir, flags.AccessDir); expectsSealed(prot, rf) {
 		problem := downgradeProblem(rf)
 		if !dryRun {
 			return engine.WithCode(engine.ExitRefused, errors.New(problem))
@@ -157,7 +157,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 	if res.Raised {
 		fmt.Fprintf(os.Stderr, "Warning: --older-than %s is below the least, %s, which keeps the record of a writer that opened the state before a rewrap. Using %s.\n", graceText(grace), graceText(res.Grace), graceText(res.Grace))
 	}
-	if flagJSON {
+	if flags.JSON {
 		if err := emitJSON(gcJSON(prot.Format, prot.Sealed != nil, res, groups, skipped)); err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 
 // gcFormatOne reports a state with no records to collect.
 func gcFormatOne(format int, line string) error {
-	if flagJSON {
+	if flags.JSON {
 		return emitJSON(map[string]any{"format": format, "records": map[string]any{"listed": 0, "deleted": 0}, "note": strings.TrimSuffix(line, ".")})
 	}
 	out.Println(line)

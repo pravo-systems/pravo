@@ -732,7 +732,7 @@ func TestRemoteOutputsOfSeveralSealedRootsChooseTheIdentityByTheirLocks(t *testi
 		}
 	})
 	t.Run("--identity still decides", func(t *testing.T) {
-		defer func() { flagIdentity = "" }()
+		defer func() { flags.Identity = "" }()
 		dir := consumer(remote("one", forCarol), "copy_one: pravo.#Output & {value: one.outputs.url}")
 		text, code := runPravo(t, dir, "--identity", "dan", "plan")
 		if code != 5 || strings.Contains(text, "carol.internal") {

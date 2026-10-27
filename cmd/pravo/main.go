@@ -30,14 +30,8 @@ import (
 // Version is the pravo version string.
 var Version = "0.1.0-dev"
 
-var (
-	flagDir     string
-	flagNoColor bool
-	flagVerbose int
-	flagTags    []string
-	flagSysTags bool
-	out         *ui.Printer
-)
+// out prints the output of the command that runs.
+var out *ui.Printer
 
 // cmdSpan is the span of the running command; ended in main.
 var (
@@ -71,7 +65,7 @@ func main() {
 		}
 		code = exitCodeOf(err)
 		if !errors.Is(err, errSilent) {
-			if flagJSON {
+			if flags.JSON {
 				emitLine(map[string]any{"kind": "error", "code": code, "message": err.Error()})
 			}
 			out.Error(err)
@@ -182,9 +176,9 @@ func startCommand(cmd *cobra.Command) {
 	ctx, span := telemetry.Tracer().Start(cmd.Context(), cmdName, trace.WithSpanKind(trace.SpanKindServer), trace.WithAttributes(
 		attribute.String("pravo.command", cmdName),
 		attribute.String("pravo.version", Version),
-		attribute.String("pravo.actor", flagActor),
-		attribute.String("pravo.reason", flagReason),
-		attribute.Bool("pravo.json", flagJSON),
+		attribute.String("pravo.actor", flags.Actor),
+		attribute.String("pravo.reason", flags.Reason),
+		attribute.Bool("pravo.json", flags.JSON),
 		attribute.String("pravo.command_line", commandLine(os.Args)),
 	))
 	cmdSpan = span
@@ -258,8 +252,8 @@ func newRootCmd() *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			defer startCommand(cmd) // after the flags that the span records are resolved
 			e := env.OS()
-			plog.Configure(flagVerbose, e.Get("PRAVO_LOG"))
-			if flagVerbose >= 2 && e.Get("PRAVO_LOG") == "" {
+			plog.Configure(flags.Verbose, e.Get("PRAVO_LOG"))
+			if flags.Verbose >= 2 && e.Get("PRAVO_LOG") == "" {
 				e = e.With("PRAVO_LOG", "debug") // the providers' own log, too
 			}
 			setEnvironment(e)
@@ -267,20 +261,20 @@ func newRootCmd() *cobra.Command {
 			if err := applyParallelism(e); err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				// Human output moves to stderr; stdout carries JSON only.
 				out = ui.NewPrinter(os.Stderr, true)
 			} else {
-				out = ui.NewPrinter(os.Stdout, colourOff(flagNoColor))
+				out = ui.NewPrinter(os.Stdout, colourOff(flags.NoColor))
 			}
-			if flagActor == "" {
-				flagActor = e.Get("PRAVO_ACTOR")
+			if flags.Actor == "" {
+				flags.Actor = e.Get("PRAVO_ACTOR")
 			}
-			if flagReason == "" {
-				flagReason = e.Get("PRAVO_REASON")
+			if flags.Reason == "" {
+				flags.Reason = e.Get("PRAVO_REASON")
 			}
-			if flagDir != "" {
-				if err := os.Chdir(flagDir); err != nil {
+			if flags.Dir != "" {
+				if err := os.Chdir(flags.Dir); err != nil {
 					return err
 				}
 			}
@@ -288,13 +282,13 @@ func newRootCmd() *cobra.Command {
 		},
 	}
 	pf := cmd.PersistentFlags()
-	pf.StringVarP(&flagDir, "chdir", "C", "", "run as if started in this directory")
-	pf.BoolVar(&flagNoColor, "no-color", false, "disable coloured output")
-	pf.CountVarP(&flagVerbose, "verbose", "v", "log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)")
-	pf.BoolVar(&flagJSON, "json", false, "machine-readable output on stdout (progress goes to stderr)")
-	pf.StringVar(&flagActor, "actor", "", "a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)")
-	pf.StringVar(&flagReason, "reason", "", "why; recorded on transactions and plans ($PRAVO_REASON)")
-	pf.StringVar(&flagIdentity, "identity", "", identityUsage)
+	pf.StringVarP(&flags.Dir, "chdir", "C", "", "run as if started in this directory")
+	pf.BoolVar(&flags.NoColor, "no-color", false, "disable coloured output")
+	pf.CountVarP(&flags.Verbose, "verbose", "v", "log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)")
+	pf.BoolVar(&flags.JSON, "json", false, "machine-readable output on stdout (progress goes to stderr)")
+	pf.StringVar(&flags.Actor, "actor", "", "a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)")
+	pf.StringVar(&flags.Reason, "reason", "", "why; recorded on transactions and plans ($PRAVO_REASON)")
+	pf.StringVar(&flags.Identity, "identity", "", identityUsage)
 	cmd.AddCommand(
 		initCmd(), planCmd(), applyCmd(), destroyCmd(), showCmd(), outputCmd(), stateCmd(), importCmd(), discoverCmd(),
 		providersCmd(), genCmd(), validateCmd(), evalCmd(), fmtCmd(), versionCmd(),
@@ -309,8 +303,8 @@ const (
 )
 
 func addTagFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&flagTags, "tag", "t", nil, tagUsage)
-	cmd.Flags().BoolVarP(&flagSysTags, "inject-vars", "T", false, sysTagsUsage)
+	cmd.Flags().StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	cmd.Flags().BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 }
 
 func versionCmd() *cobra.Command {

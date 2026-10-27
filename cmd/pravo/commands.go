@@ -91,7 +91,7 @@ func loadOrGenerate(ctx context.Context, upgrade, report bool) (root *config.Roo
 	}
 	var extra []registry.Source
 	for round := 0; loadErr != nil && round < 6; round++ {
-		settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags, Env: environment()})
+		settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: flags.Tags, SysTags: flags.SysTags, Env: environment()})
 		if err != nil {
 			// The pravo block is the first thing to fix, and its error is
 			// more useful than the load error about missing imports.
@@ -152,7 +152,7 @@ func loadOrGenerate(ctx context.Context, upgrade, report bool) (root *config.Roo
 // initWithoutSpecification initialises a directory that holds no CUE file yet:
 // it creates the module and says what to write next.
 func initWithoutSpecification(ctx context.Context, upgrade bool) error {
-	settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: flagTags, SysTags: flagSysTags, Env: environment()})
+	settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: flags.Tags, SysTags: flags.SysTags, Env: environment()})
 	if err != nil {
 		return engine.WithCode(engine.ExitInvalid, err)
 	}
@@ -244,9 +244,9 @@ func planCmd() *cobra.Command {
 					return nil
 				}
 				savedOut = true
-				return eng.SavePlan(outFile, plan, flagTags, flagSysTags)
+				return eng.SavePlan(outFile, plan, flags.Tags, flags.SysTags)
 			}
-			if store && flagJSON {
+			if store && flags.JSON {
 				policyErr, judged = eng.JudgePlan(cmd.Context(), plan), true
 				if policyErr == nil && planWorth(plan) {
 					// The file is written before the plan is stored, as it is without
@@ -260,7 +260,7 @@ func planCmd() *cobra.Command {
 					}
 				}
 			}
-			if flagJSON {
+			if flags.JSON {
 				if stored != nil {
 					err = emitJSON(storedPlanDoc{View: view, Stored: storedInfoOf(stored)})
 				} else {
@@ -292,7 +292,7 @@ func planCmd() *cobra.Command {
 			if err := saveOut(); err != nil {
 				return err
 			}
-			if outFile != "" && !flagJSON {
+			if outFile != "" && !flags.JSON {
 				out.Println()
 				out.Printf("Saved the plan to %s. To apply exactly these actions, run:\n  pravo apply %s\n", outFile, outFile)
 			}
@@ -330,8 +330,8 @@ func planCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&reserve, "reserve", 0, "reserve the nodes with pending changes for this long (e.g. 15m), so other actors cannot plan or apply them meanwhile")
 	// The tags select the state, so the commands that list stored plans take them too.
 	pf := cmd.PersistentFlags()
-	pf.StringArrayVarP(&flagTags, "tag", "t", nil, tagUsage)
-	pf.BoolVarP(&flagSysTags, "inject-vars", "T", false, sysTagsUsage)
+	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	cmd.AddCommand(planCommands()...)
 	return cmd
 }
@@ -349,7 +349,7 @@ func showCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			flagTags, flagSysTags = pf.Tags, pf.SysTags
+			flags.Tags, flags.SysTags = pf.Tags, pf.SysTags
 			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
@@ -364,7 +364,7 @@ func showCmd() *cobra.Command {
 			} else if err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				v := eng.NewView(plan, engine.ViewOptions{})
 				v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
 				v.Reservation = pf.Reservation
@@ -405,7 +405,7 @@ func readPlanFile(ctx context.Context, path string) (*engine.PlanFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !slices.Equal(sortedCopy(pf.Tags), sortedCopy(flagTags)) || pf.SysTags != flagSysTags {
+	if !slices.Equal(sortedCopy(pf.Tags), sortedCopy(flags.Tags)) || pf.SysTags != flags.SysTags {
 		return nil, fmt.Errorf("%s was made with other tags than these: a sealed plan file is opened in the state that its tags select, so give the tags it was made with (-t, -T)", path)
 	}
 	return pf, nil
@@ -496,7 +496,7 @@ func destroyCmd() *cobra.Command {
 func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []string) error {
 	ctx := cmd.Context()
 	streamEvents = true
-	if sealed, _ := engine.PlanFileSealed(path); !sealed && (len(flagTags) > 0 || flagSysTags) {
+	if sealed, _ := engine.PlanFileSealed(path); !sealed && (len(flags.Tags) > 0 || flags.SysTags) {
 		return errors.New("-t and -T cannot be combined with a saved plan; the plan carries its own tags")
 	}
 	if cmd.Flags().Changed("refresh") || full {
@@ -506,7 +506,7 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	if err != nil {
 		return err
 	}
-	flagTags, flagSysTags = pf.Tags, pf.SysTags
+	flags.Tags, flags.SysTags = pf.Tags, pf.SysTags
 	s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true})
 	if err != nil {
 		return err
@@ -522,8 +522,8 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	// re-plans against the recorded state without refreshing again.
 	// The note that the plan was made with is the reason of the apply, unless the
 	// apply was given its own: the history of the resources says why.
-	if flagReason == "" {
-		flagReason = pf.Reason
+	if flags.Reason == "" {
+		flags.Reason = pf.Reason
 	}
 	eng := s.engine(engine.Options{Refresh: engine.RefreshNone})
 	eng.SetPlan("", pf.Digest)
@@ -555,7 +555,7 @@ func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, 
 	}
 	remaining := plan.Remaining()
 	if !pf.LeftToApply(remaining) {
-		if flagJSON {
+		if flags.JSON {
 			emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", kind: name})
 			return nil
 		}
@@ -665,7 +665,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		return err
 	}
 	view := eng.NewView(plan, engine.ViewOptions{})
-	if flagJSON {
+	if flags.JSON {
 		emitLine(map[string]any{"kind": "plan", "phase": "done", "plan": view})
 	} else {
 		out.RenderPlan(plan)
@@ -681,7 +681,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		}
 		return nil
 	}
-	if !autoApprove && flagJSON {
+	if !autoApprove && flags.JSON {
 		return errors.New("apply with --json needs -auto-approve, or apply a reviewed plan file")
 	}
 	if !autoApprove {
@@ -709,7 +709,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 
 // reportApply prints the outcome of an apply, as text or as a final JSON line.
 func reportApply(res *engine.ApplyResult, destroy bool, kind, planfile, again string, remaining int) {
-	if flagJSON {
+	if flags.JSON {
 		if kind == "" {
 			kind = "planfile"
 		}
@@ -948,7 +948,7 @@ func providersCmd() *cobra.Command {
 				locals = append(locals, l)
 			}
 			sort.Strings(locals)
-			if flagJSON {
+			if flags.JSON {
 				list := []map[string]any{}
 				for _, l := range locals {
 					rp := s.providers.Resolved[l]
@@ -1102,7 +1102,7 @@ func validateCmd() *cobra.Command {
 			if err := engine.CheckGraph(s.root, s.value); err != nil {
 				return engine.WithCode(engine.ExitInvalid, err)
 			}
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(map[string]any{"valid": true, "resources": countMode(s.root, "managed"), "data_sources": countMode(s.root, "data"),
 					"ephemeral": countMode(s.root, "ephemeral"), "calls": countMode(s.root, "call"), "outputs": len(s.root.Outputs), "providers": len(s.root.Providers)})
 			}

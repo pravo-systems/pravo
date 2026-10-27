@@ -52,11 +52,11 @@ func TestCheckReplace(t *testing.T) {
 }
 
 func TestReplaceRequestedFromSavedPlan(t *testing.T) {
-	e := &Engine{saved: map[string]*Change{
+	e := &Engine{applyState: applyState{saved: map[string]*Change{
 		"random_pet.a": {Forced: true},
 		"random_pet.b": {Forced: true, Applied: true},
 		"random_pet.c": {},
-	}}
+	}}}
 	for addr, want := range map[string]bool{"random_pet.a": true, "random_pet.b": false, "random_pet.c": false, "random_pet.z": false} {
 		if got := e.replaceRequested(addr); got != want {
 			t.Errorf("%s: replaceRequested = %v, want %v", addr, got, want)

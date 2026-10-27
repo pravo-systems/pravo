@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -418,7 +419,7 @@ func (p *Printer) outputChange(plan *engine.Plan, n string) (string, bool) {
 		if raw, saved := plan.SavedOutputs[n]; saved {
 			now = JSONToCUE(raw, "  ")
 			nowJSON = raw
-		} else if contains(plan.UnknownOutputs, n) {
+		} else if slices.Contains(plan.UnknownOutputs, n) {
 			now = p.C(Dim, "(known after apply)")
 		} else {
 			now = p.C(Dim, "(removed)")
@@ -444,15 +445,6 @@ func sameJSON(a, b []byte) bool {
 		return false
 	}
 	return reflect.DeepEqual(x, y)
-}
-
-func contains(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
 }
 
 // pad right-aligns the symbol in a 3-character column.
@@ -582,7 +574,7 @@ func (p *Printer) renderValue(b *strings.Builder, sym, color string, v tftypes.V
 	var m map[string]tftypes.Value
 	_ = v.As(&m)
 	var keys []string
-	for _, k := range sortedKeys(m) {
+	for _, k := range slices.Sorted(maps.Keys(m)) {
 		if !m[k].IsNull() {
 			keys = append(keys, k)
 		}
@@ -661,15 +653,6 @@ func (p *Printer) renderDiff(b *strings.Builder, before, after tftypes.Value, in
 	}
 	b.WriteString("\n")
 	b.WriteString(p.pad(" ") + " " + indent + "}")
-}
-
-func sortedKeys(m map[string]tftypes.Value) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func maxWidth(keys []string) int {

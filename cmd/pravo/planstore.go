@@ -186,7 +186,7 @@ plan is applied.`,
 					shown = append(shown, e)
 				}
 			}
-			if flagJSON {
+			if flags.JSON {
 				list := make([]storedPlanJSON, 0, len(shown))
 				for _, e := range shown {
 					list = append(list, storedPlanView(e))
@@ -330,7 +330,7 @@ file and not in the state.`,
 			if err := ps.Pull(cmd.Context(), id, args[1]); err != nil {
 				return err
 			}
-			if !flagJSON {
+			if !flags.JSON {
 				out.Printf("Wrote %s to %s. To apply exactly these actions, run:\n  pravo apply %s\n", id, args[1], args[1])
 			} else {
 				return emitJSON(map[string]any{"id": id, "planfile": args[1]})
@@ -395,7 +395,7 @@ small collection of its own.`,
 			if err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(res)
 			}
 			printGC(res)
@@ -408,7 +408,7 @@ small collection of its own.`,
 }
 
 // collector names this process in the claims that it makes on plans.
-func collector(st *state.Store) string { return pravo.ClaimOwner(st, flagActor) }
+func collector(st *state.Store) string { return pravo.ClaimOwner(st, flags.Actor) }
 
 func printGC(res *engine.GCResult) {
 	verb, none := "Removed", "No stored plan needs to be removed."
@@ -569,7 +569,7 @@ func showStored(cmd *cobra.Command, ref string) error {
 		return err
 	}
 	sigs, sigNote := storedPlanSignatures(ctx, s, entry.Meta.ID)
-	if flagJSON {
+	if flags.JSON {
 		v := eng.NewView(plan, engine.ViewOptions{})
 		v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
 		v.Reservation = pf.Reservation
@@ -679,7 +679,7 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 			out.Printf("Applying %d of %d remaining changes from %s.\n", selected, left, id)
 		},
 	}
-	if flagJSON {
+	if flags.JSON {
 		o.Event = func(ev engine.Event) { emitLine(ev) }
 	}
 	res, err := s.ws.ApplyStored(ctx, ref, o)
@@ -689,7 +689,7 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 		}
 		if err == nil {
 			switch {
-			case res.NothingLeft && flagJSON:
+			case res.NothingLeft && flags.JSON:
 				emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", "plan": res.ID})
 			case res.NothingLeft:
 				out.Println(out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")

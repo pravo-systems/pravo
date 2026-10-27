@@ -177,7 +177,7 @@ func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bo
 		}
 		reports = append(reports, rep)
 	}
-	if flagJSON {
+	if flags.JSON {
 		if err := emitJSON(map[string]any{"rules": reports, "refused": refused, "invalid": invalid}); err != nil {
 			return err
 		}
@@ -198,7 +198,7 @@ func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bo
 func trialRules(ctx context.Context, s *session, args []string, inForce bool) ([]trialRule, error) {
 	var declared, held map[string]trialRule
 	if inForce {
-		set, err := s.state.PolicySet(ctx, loadReadersFile(s.root.Dir, flagAccessDir).Readers)
+		set, err := s.state.PolicySet(ctx, loadReadersFile(s.root.Dir, flags.AccessDir).Readers)
 		if err != nil {
 			return nil, err
 		}

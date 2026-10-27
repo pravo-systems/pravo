@@ -37,7 +37,7 @@ func isolateIdentities(t *testing.T) string {
 	t.Cleanup(func() {
 		stdinIsTerminal, askPassphrase, askNewPassphrase = oldTerm, oldAsk, oldNew
 		resetIdentityState(t)
-		flagIdentity, flagAccessDir = "", ""
+		flags.Identity, flags.AccessDir = "", ""
 	})
 	return filepath.Join(cfg, "id")
 }

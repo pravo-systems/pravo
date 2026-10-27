@@ -56,8 +56,30 @@ Files in `cmd/pravo/`:
 | `skill.go` | `skill`: writes (`install`), prints (`print`) and lists the files of the embedded `skills/pravo`. |
 | `mod.go` | `mod`: embeds the CUE module commands, adds `publish`, `list` and `verify`. |
 | `id.go`, `identity.go` | `id new` and `id show`; `resolveIdentity`, which finds the identity of the user (`--identity`, `PRAVO_IDENTITY`, the identity directory) and opens it with a passphrase. |
-| `protect.go`, `access.go` | `protect check`, `init`, `status`, `rewrap` and `gc` (`protect_gc.go`); the readers file (`loadReadersFile`) and its comparison with a sealed state. `session.go` opens a sealed state with the identity and compares the readers file with the state. |
+| `protect.go`, `protect_readers.go`, `protect_check.go`, `protect_init.go`, `protect_status.go`, `protect_rewrap.go`, `protect_gc.go`, `access.go` | `protect`: `protect.go` holds the command, `protectRun` and how it opens the store; `protect_readers.go` the comparison of the readers file with a sealed state (`checkReadersFile`; `access.go` loads the file with `loadReadersFile`); then one file for each of `check`, `init`, `status`, `rewrap` and `gc`. `session.go` opens a sealed state with the identity and compares the readers file with the state. |
+| `flags.go` | `rootFlags`: the values of the global flags and of `--access-dir` as one value, `flags`. The output printer `out` is the other piece of per-run state. |
 | `helpers.go`, `webhook.go` | Small shared helpers (`noArgs`, `refreshValueHint`, `typesOf`); the drift webhook POST. |
+
+Files of the plan and apply core in `internal/engine/`:
+
+| File | Contents |
+|---|---|
+| `engine.go` | `Options`, `Engine`, `New`; `planRun`, the run-level checks and the phase bookkeeping. |
+| `plan.go` | The values a plan is made of: `Action`, `RefreshMode`, `Change`, `Plan`, `Stats` and their counts. |
+| `planresource.go` | `planResource`: the plan steps of one node, as `startPlan`, `explainChange`, `planData` and `planManaged` (with `priorObject` and `planReplacement`). |
+| `refresh.go`, `readcache.go`, `age.go` | Reading the record of a node against the provider (`priorState`, `readRecord`, `quiet`, `readInputs`), the reads a run remembers, and refresh ages. |
+| `apply.go` | `applyRun` and its steps (`tally`, `evalOutputs`, `recordOutputs`), `applyTask`, `applyChange`, `writeState`, the locks of an apply and the reservations. |
+| `graph.go`, `frontier.go`, `target.go` | The dependency graph and scheduler, the nodes a run reaches, `-target` selection. |
+
+Files of the store in `internal/state/`:
+
+| File | Contents |
+|---|---|
+| `state.go` | `Resource`, `Store`, `Open`, loading, and the records: `Get`, `Set`, `Refresh`, `Remove`, versions and revisions. |
+| `outputs.go` | The outputs object: reading, the locked read-merge-write of `UpdateOutputs`. |
+| `graph.go` | The dependency index over the records: `Dependents`, `Reach`, `Edges`, `Snapshot`. |
+| `locks.go` | Resource locks and reservations: `Lock`, `TryHold`, `Release`, staleness, `Locks`, `Suspects`, `Interrupted`. |
+| `txn.go` | `Transaction`, `Txn` and the recorded history. |
 
 Files in `internal/serve/`:
 

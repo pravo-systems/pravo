@@ -495,7 +495,7 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 			return fmt.Errorf("the new recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, newRec.Line())
 		}
 	}
-	if flagJSON {
+	if flags.JSON {
 		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup,
 			"resealed": res.Resealed, "recovery_replaced": newRec != nil}
 		if newRec != nil {

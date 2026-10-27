@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -160,10 +162,10 @@ func (p *ProviderSchema) MarshalPack() ([]byte, error) {
 		into  map[string]packRange
 		get   func(string) any
 	}{
-		{sortedKeys(p.Resources), idx.Resources, func(n string) any { return p.Resources[n] }},
-		{sortedKeys(p.DataSources), idx.DataSources, func(n string) any { return p.DataSources[n] }},
-		{sortedKeys(p.Ephemerals), idx.Ephemerals, func(n string) any { return p.Ephemerals[n] }},
-		{sortedKeys(p.ListResources), idx.ListResources, func(n string) any { return p.ListResources[n] }},
+		{slices.Sorted(maps.Keys(p.Resources)), idx.Resources, func(n string) any { return p.Resources[n] }},
+		{slices.Sorted(maps.Keys(p.DataSources)), idx.DataSources, func(n string) any { return p.DataSources[n] }},
+		{slices.Sorted(maps.Keys(p.Ephemerals)), idx.Ephemerals, func(n string) any { return p.Ephemerals[n] }},
+		{slices.Sorted(maps.Keys(p.ListResources)), idx.ListResources, func(n string) any { return p.ListResources[n] }},
 		{p.SortedFunctionNames(), idx.Functions, func(n string) any { return p.Functions[n] }},
 	} {
 		for _, n := range set.names {
@@ -363,7 +365,7 @@ func (p *ProviderSchema) names(k kind) []string {
 		sort.Strings(out)
 		return out
 	}
-	return sortedKeys(p.setOf(k))
+	return slices.Sorted(maps.Keys(p.setOf(k)))
 }
 
 // AllResources returns every managed resource type, decoding the ones that are

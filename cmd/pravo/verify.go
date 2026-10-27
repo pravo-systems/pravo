@@ -26,7 +26,7 @@ func verifyCmd() *cobra.Command {
 				if pf, err = readPlanFile(ctx, planFile); err != nil {
 					return err
 				}
-				flagTags, flagSysTags = pf.Tags, pf.SysTags
+				flags.Tags, flags.SysTags = pf.Tags, pf.SysTags
 			}
 			s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 			if err != nil {
@@ -60,7 +60,7 @@ func verifyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if flagJSON {
+			if flags.JSON {
 				return emitJSON(rc)
 			}
 			out.Printf("%s %s\n", out.C(ui.Bold, "Transaction"), rc.Txn)
