@@ -264,6 +264,9 @@ func newRootCmd() *cobra.Command {
 			}
 			setEnvironment(e)
 			applyProcessSettings(e)
+			if err := applyParallelism(e); err != nil {
+				return err
+			}
 			if flagJSON {
 				// Human output moves to stderr; stdout carries JSON only.
 				out = ui.NewPrinter(os.Stderr, true)

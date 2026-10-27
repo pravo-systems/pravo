@@ -473,6 +473,10 @@ func encodeAddr(addr string) string {
 		switch {
 		case r == '.' || r == '_' || r == '-' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9'):
 			b.WriteRune(r)
+		case r > 0xFFFF:
+			// Five or six digits after a "%" would read as four digits and a
+			// character. A "~" is always escaped, so it opens no other form.
+			fmt.Fprintf(&b, "~%X~", r)
 		default:
 			fmt.Fprintf(&b, "%%%04X", r)
 		}

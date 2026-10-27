@@ -246,6 +246,7 @@ Copying a recording, or keeping it in version control, does not keep the modes. 
 |---|---|
 | `PRAVO_HOME` | Where providers and cached schemas are kept. Default `~/.pravo`. |
 | `PRAVO_LOG` | `trace`, `debug`, `info`, `warn` or `error`. See [The debug log](#the-debug-log). |
+| `PRAVO_PARALLELISM` | How many resources a command plans, applies or reads at once, from 1 to 256. Default 10. A value outside that range is an error. |
 | `PRAVO_NO_PRUNE` | When set, the generated provider packages are loaded whole. A run loads them without the types that the specification does not use. See [Providers](../concepts/providers.md#the-generated-package). |
 | `PRAVO_S3_PROBE` | `off` skips the check that an S3 store honours conditional requests. See [S3-compatible stores](s3-stores.md). |
 | `PRAVO_ACTOR`, `PRAVO_REASON` | The values of `--actor` and `--reason` when the flags are absent. |

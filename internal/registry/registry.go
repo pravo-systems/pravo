@@ -536,7 +536,11 @@ func (c *Client) Archive(ctx context.Context, src Source, ver string, plat Platf
 	if err != nil {
 		return "", "", fmt.Errorf("downloading %s: %w", dl.DownloadURL, err)
 	}
-	if dl.Shasum != "" && !strings.EqualFold(sum, dl.Shasum) {
+	if dl.Shasum == "" {
+		os.Remove(path)
+		return "", "", fmt.Errorf("the registry gave no checksum for %s, so the archive cannot be checked", dl.Filename)
+	}
+	if !strings.EqualFold(sum, dl.Shasum) {
 		os.Remove(path)
 		return "", "", fmt.Errorf("checksum mismatch for %s: registry says %s, archive is %s", dl.Filename, dl.Shasum, sum)
 	}
