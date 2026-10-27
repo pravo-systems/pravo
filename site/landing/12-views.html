@@ -1,0 +1,62 @@
+<section class="band views-band" id="views" data-band="views"><div class="wrap">
+<div class="band-head">
+<p class="kicker">See it</p>
+<h2 class="band-title">Understand your infrastructure <em>at a glance.</em></h2>
+<p class="band-lede">One command, <code>pravo serve</code>, opens a read-only viewer on your own machine. These are screenshots of it, from a sealed state with three members, a stored plan, two policies and four recorded runs.</p>
+</div>
+
+<figure class="view view-wide">
+<div class="view-frame">
+<img class="view-img view-light" src="assets/shots/graph-light.webp" width="2160" height="930" alt="The viewer showing the whole estate as a graph. The namespaces network, api and edge are open and hold their resources, joined by wires that carry counts. Two outputs sit on the right." loading="lazy">
+<img class="view-img view-dark" src="assets/shots/graph-dark.webp" width="2160" height="930" alt="The same graph in the dark theme." loading="lazy">
+</div>
+<figcaption class="view-cap"><b>The whole estate.</b> Modules, resources and what depends on what. Open a namespace, follow a wire, jump to the code that wrote a resource.</figcaption>
+</figure>
+
+<div class="view-grid">
+<figure class="view">
+<div class="view-frame">
+<img class="view-img view-light" src="assets/shots/plan-light.webp" width="2160" height="1350" alt="A stored plan laid over the graph. The resource config is marked for replacement, and the panel on the right shows the old and the new content line by line." loading="lazy">
+<img class="view-img view-dark" src="assets/shots/plan-dark.webp" width="2160" height="1350" alt="The same plan in the dark theme." loading="lazy">
+</div>
+<figcaption class="view-cap"><b>What a plan changes.</b> Lay a saved plan over the graph and read each change before anyone applies it.</figcaption>
+</figure>
+<figure class="view">
+<div class="view-frame">
+<img class="view-img view-light" src="assets/shots/traces-light.webp" width="2160" height="1350" alt="The timeline of a recorded run. Bars show the setup, the state requests and each resource of a plan, with the time each took." loading="lazy">
+<img class="view-img view-dark" src="assets/shots/traces-dark.webp" width="2160" height="1350" alt="The same timeline in the dark theme." loading="lazy">
+</div>
+<figcaption class="view-cap"><b>Where the time went.</b> Every run records its spans, down to each provider call and state request, with no collector.</figcaption>
+</figure>
+<figure class="view">
+<div class="view-frame">
+<img class="view-img view-light" src="assets/shots/policies-light.webp" width="2160" height="1350" alt="The policies page. Two rules are in force, each with its version, its digest and who signed it, and the rule itself in CUE." loading="lazy">
+<img class="view-img view-dark" src="assets/shots/policies-dark.webp" width="2160" height="1350" alt="The same page in the dark theme." loading="lazy">
+</div>
+<figcaption class="view-cap"><b>Rules that are written down.</b> Policies are versioned and signed, and each apply names the versions that judged it. The studio tries a rule on a plan first.</figcaption>
+</figure>
+<figure class="view">
+<div class="view-frame">
+<img class="view-img view-light" src="assets/shots/access-light.webp" width="2160" height="1350" alt="The state page. It says the state is sealed, lists three members with the roles admin, writer and reader, and reports that all is clear." loading="lazy">
+<img class="view-img view-dark" src="assets/shots/access-dark.webp" width="2160" height="1350" alt="The same page in the dark theme." loading="lazy">
+</div>
+<figcaption class="view-cap"><b>Who can do what.</b> Members, roles and a check that every record was written by someone allowed to write it.</figcaption>
+</figure>
+</div>
+
+<div class="view-term">
+<figure class="term" data-exit="0">
+<figcaption class="code-title"><span class="code-file">terminal</span></figcaption>
+<div class="term-body">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo protect status</span></div>
+<pre class="term-out"><code>Sealed       on · format 4 · 3 readers (ada dan eve) · recovery none
+Readers      .pravo/access/readers.txt matches the store
+Roles        on · 1 admin · 1 writer · 1 reader · pinned · you are an admin
+Signatures   13 of 13 transactions verified
+Unsettled    none</code></pre>
+</div>
+<button class="copy" type="button" data-copy="pravo protect status" aria-label="Copy command">Copy</button>
+</figure>
+<p class="stage-caption">The same checks from a terminal, abridged. Recorded from pravo 0.1.0-dev.</p>
+</div>
+</div></section>

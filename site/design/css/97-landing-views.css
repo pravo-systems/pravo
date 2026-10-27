@@ -1,0 +1,23 @@
+/* ==========================================================================
+   97 landing: screenshots of the viewer
+   ========================================================================== */
+
+.views-band .band-head { margin-bottom: clamp(1.5rem, 3vw, 2.5rem); }
+.views-band .band-title em { display: block; font-style: italic; color: var(--accent); }
+.views-band .band-lede { max-width: 46rem; margin-top: 1rem; }
+.view { margin: 0; min-width: 0; }
+.view-frame { border: 1px solid var(--line-strong); background: var(--surface); line-height: 0; }
+.view-img { display: block; width: 100%; height: auto; }
+.view-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .view-light { display: none; }
+  :root:not([data-theme="light"]) .view-dark { display: block; }
+}
+:root[data-theme="dark"] .view-light { display: none; }
+:root[data-theme="dark"] .view-dark { display: block; }
+.view-cap { margin: .8rem 0 0; max-width: 40rem; font: 400 .98rem/1.5 var(--font-sans); color: var(--text-2); }
+.view-cap b { color: var(--text); font-weight: 600; }
+.view-wide { margin-bottom: clamp(1.5rem, 3vw, 2.5rem); }
+.view-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1.5rem, 3vw, 2.5rem); }
+@media (max-width: 47.99rem) { .view-grid { grid-template-columns: minmax(0, 1fr); } }
+.view-term { margin-top: clamp(1.5rem, 3vw, 2.5rem); max-width: 46rem; }
