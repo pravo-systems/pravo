@@ -96,6 +96,8 @@
   --rad-s: 0;                               /* chips, keys, tags */
   --rad: 0;                                 /* what is pressed: buttons, switches, inputs */
   --rad-p: 0;                               /* what holds things: cards, panels, banners, lists, windows */
+  /* type scale: five small steps (10.6, 11.5, 12.5, 13.4, 14.4 px); display sizes are set on their own */
+  --fs-1: .66rem; --fs-2: .72rem; --fs-3: .78rem; --fs-4: .84rem; --fs-5: .9rem;
   --font-ui: var(--font-sans);                /* the words of the interface; mono is for what is typed or measured */
   --focus: 0 0 0 3px var(--key-wash);
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");   /* a fine paper tooth under the stage; ink has a lighter one */
