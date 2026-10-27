@@ -166,7 +166,8 @@
 .node.down .box { stroke: var(--change); stroke-width: 1.6; }
 .node.reach .box { stroke: var(--change); stroke-width: 2.2; }
 .node.sel .box, .ns-item.sel .box, .cluster-item.sel .box { stroke: var(--text); stroke-width: 1.8; }
-.node.sel .halo, .ns-item.sel .halo, .cluster-item.sel .halo { opacity: 1; stroke: var(--accent); filter: drop-shadow(0 0 7px var(--glow)) drop-shadow(0 0 16px var(--glow)); }
+.reticle { fill: none; stroke: var(--text); stroke-width: 2; stroke-linecap: square; vector-effect: non-scaling-stroke; opacity: 0; pointer-events: none; transform-box: fill-box; transform-origin: center; transform: scale(1.07); transition: opacity var(--t-fast), transform var(--t-fast) var(--ease); }
+.node.sel .reticle, .ns-item.sel .reticle, .cluster-item.sel .reticle { opacity: 1; transform: none; transition-duration: .22s; }
 .node.kf .halo, .ns-item.kf .halo, .cluster-item.kf .halo { opacity: 1; stroke: var(--key); stroke-dasharray: 3 3; filter: none; }
 .node.flash .halo { stroke: var(--accent); stroke-width: 2; animation: flash 1.5s ease-out both; }
 
@@ -235,20 +236,20 @@
 /* the card that a hover opens */
 .gtip { left: 0; top: 0; min-width: 12rem; max-width: 19rem; padding: .6rem .75rem .65rem; background: var(--surface); border: 1px solid var(--g-edge-hi); border-radius: 0; box-shadow: 0 12px 34px rgba(0, 0, 0, .3), 0 2px 6px rgba(0, 0, 0, .18); pointer-events: none; opacity: 0; transition: opacity .16s ease; z-index: 6; }
 .gtip.in { opacity: 1; }
-.gtip-addr { font: 600 .78rem/1.3 var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
-.gtip-type { margin-top: .12rem; font: 400 .72rem/1.3 var(--font-mono); color: var(--text-3); }
+.gtip-addr { font: 600 var(--fs-3)/1.3 var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
+.gtip-type { margin-top: .12rem; font: 400 var(--fs-2)/1.3 var(--font-mono); color: var(--text-3); }
 .gtip-row { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; }
-.gtip .gchip { font: 600 .66rem/1 var(--font-mono); padding: .22rem .42rem; border-radius: 0; border: 1px solid var(--line-strong); color: var(--text-2); background: var(--surface-2); }
+.gtip .gchip { font: 600 var(--fs-1)/1 var(--font-mono); padding: .22rem .42rem; border-radius: 0; border: 1px solid var(--line-strong); color: var(--text-2); background: var(--surface-2); }
 .gtip .gchip.a-create { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-wash); }
 .gtip .gchip.a-update, .gtip .gchip.a-replace, .gtip .gchip.drift, .gtip .gchip.hold { color: var(--change); border-color: color-mix(in srgb, var(--change) 45%, transparent); background: var(--change-wash); }
 .gtip .gchip.a-delete, .gtip .gchip.gone { color: var(--conflict); border-color: color-mix(in srgb, var(--conflict) 45%, transparent); background: var(--conflict-wash); }
 .gtip .gchip.sens { color: var(--key); border-color: color-mix(in srgb, var(--key) 45%, transparent); background: var(--key-wash); }
 .gtip .gchip.skip { color: var(--text-3); }
-.gtip-meta { margin-top: .5rem; font: 400 .68rem/1.3 var(--font-mono); color: var(--text-3); }
+.gtip-meta { margin-top: .5rem; font: 400 var(--fs-1)/1.3 var(--font-mono); color: var(--text-3); }
 
 /* overlays on the canvas */
 .overlay { position: absolute; z-index: 4; }
-.legend { right: 1rem; bottom: .8rem; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem .9rem; padding: .45rem .75rem; font: 400 .66rem/1 var(--font-mono); color: var(--text-2); pointer-events: none; border-radius: 0; background: color-mix(in srgb, var(--bg) 72%, transparent); border: 1px solid var(--line); backdrop-filter: blur(6px); }
+.legend { right: 1rem; bottom: .8rem; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem .9rem; padding: .45rem .75rem; font: 400 var(--fs-1)/1 var(--font-mono); color: var(--text-2); pointer-events: none; border-radius: 0; background: color-mix(in srgb, var(--bg) 72%, transparent); border: 1px solid var(--line); backdrop-filter: blur(6px); }
 /* a small screen has no room for the key (graph.css comes after app.css, so its own rule has to say so) */
 @media (max-width: 47.5em) { .legend { display: none; } }
 /* where the minimap stands at the other corner, the key leaves it room and wraps */
@@ -268,13 +269,13 @@
 .minimap { left: 1rem; bottom: .8rem; width: 184px; height: 120px; border: 1px solid var(--g-edge); border-radius: 0; overflow: hidden; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .22); z-index: 5; transition: opacity .3s ease, transform .3s var(--ease); }
 .minimap.off { opacity: 0; transform: translateY(8px); pointer-events: none; }
 .minimap canvas { display: block; cursor: crosshair; }
-.backbtn { top: .8rem; left: 1rem; display: inline-flex; align-items: center; gap: .5rem; height: 2rem; padding: 0 .55rem 0 .65rem; border: 1px solid var(--g-edge-hi); border-radius: 0; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); color: var(--text); font: 500 .74rem/1 var(--font-mono); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .2); animation: fadein .3s ease; }
+.backbtn { top: .8rem; left: 1rem; display: inline-flex; align-items: center; gap: .5rem; height: 2rem; padding: 0 .55rem 0 .65rem; border: 1px solid var(--g-edge-hi); border-radius: 0; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); color: var(--text); font: 500 var(--fs-2)/1 var(--font-mono); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .2); animation: fadein .3s ease; }
 .backbtn:hover { border-color: var(--accent); }
 .backbtn svg { width: .95rem; height: .95rem; color: var(--accent); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.backbtn kbd { font: 500 .62rem/1 var(--font-mono); padding: .2rem .32rem; border: 1px solid var(--line-strong); border-radius: 0; color: var(--text-3); }
+.backbtn kbd { font: 500 var(--fs-1)/1 var(--font-mono); padding: .2rem .32rem; border: 1px solid var(--line-strong); border-radius: 0; color: var(--text-3); }
 .backbtn[hidden] { display: none; }
 .backbtn[data-kind="back"] .bk-zoom, .backbtn:not([data-kind="back"]) .bk-back { display: none; }
-.reachbar { top: .5rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .8rem; padding: .4rem .5rem .4rem .8rem; border: 1px solid var(--change); border-radius: 0; background: var(--surface); font: 400 .76rem/1 var(--font-mono); color: var(--text); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.reachbar { top: .5rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .8rem; padding: .4rem .5rem .4rem .8rem; border: 1px solid var(--change); border-radius: 0; background: var(--surface); font: 400 var(--fs-3)/1 var(--font-mono); color: var(--text); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
 .reachbar b { font-weight: 500; }
 .reachbar button { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 0; color: var(--text-2); }
 
