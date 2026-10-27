@@ -20,6 +20,11 @@ type Change struct {
 	Action string `json:"action"`
 	Before int    `json:"before_revision,omitempty"`
 	After  int    `json:"after_revision,omitempty"`
+	// Record is the key of the immutable record the change wrote (rec/ and the SHA-256
+	// of its bytes), set in a state whose readers file gives roles. The finish
+	// signature covers it, so a record that no signed transaction of a writer names is
+	// not one a writer made (see VerifyRecords).
+	Record string `json:"record,omitempty"`
 	// Diff is what the change did to the attributes of the record. A sealed state
 	// keeps it in Transaction.DiffSealed and leaves this empty.
 	Diff *Diff `json:"diff,omitempty"`
@@ -109,7 +114,11 @@ func (t *Txn) Start() error {
 func (t *Txn) Record(addr, action string, before, after int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.t.Changes = append(t.t.Changes, Change{Addr: addr, Action: action, Before: before, After: after})
+	c := Change{Addr: addr, Action: action, Before: before, After: after}
+	if t.store.bindsRecords() && after > 0 {
+		c.Record = t.store.heldRecord(addr)
+	}
+	t.t.Changes = append(t.t.Changes, c)
 }
 
 // Finish writes the transaction with the given status and summary. A

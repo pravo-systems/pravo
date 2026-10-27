@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // The readers file is .pravo/access/readers.txt in the repository: one line per
@@ -40,6 +41,9 @@ type readersFile struct {
 	// Readers is the parsed list, in file order. Nil unless Err is nil and Found
 	// is set.
 	Readers []protect.Reader
+	// Pin is the digest of the first roles of the state that the file pins, empty without
+	// the roles-genesis line.
+	Pin string
 	// Err is why a file that exists could not be used. It is a *readersFileError
 	// and never holds the text of a line.
 	Err error
@@ -100,12 +104,12 @@ func loadReadersFile(rootDir, flagDir string) readersFile {
 			rf.Err = err
 			return rf
 		}
-		readers, err := protect.ParseReaders(strings.NewReader(string(data)))
+		readers, pin, err := protect.ParseReadersPin(strings.NewReader(string(data)))
 		if err != nil {
 			rf.Err = sanitiseReadersError(err)
 			return rf
 		}
-		rf.Readers = readers
+		rf.Readers, rf.Pin = readers, pin
 		return rf
 	}
 	return rf
@@ -224,4 +228,19 @@ func sanitiseReadersError(err error) error {
 	msg = strings.Replace(msg, "reader key of is already listed", "reader key is already listed", 1)
 	e.Reason = msg
 	return e
+}
+
+// withRoles is the readers file with the roles that decide for the state: the roles stored
+// in it when the file pins them (see state.Store.RolesFor), the roles of the file otherwise.
+// An error is a chain that does not verify, or is not the one the file pins.
+func (rf readersFile) withRoles(st *state.Store) (readersFile, state.RolesStatus, error) {
+	if !rf.Found || rf.Err != nil || st == nil {
+		return rf, state.RolesStatus{Source: "off"}, nil
+	}
+	readers, status, err := st.RolesFor(st.Context(), rf.Readers, rf.Pin)
+	if err != nil {
+		return rf, status, err
+	}
+	rf.Readers = readers
+	return rf, status, nil
 }

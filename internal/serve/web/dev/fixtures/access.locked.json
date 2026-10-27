@@ -5,7 +5,7 @@
  "format": 3,
  "location": "s3://acme-state/estate",
  "backend": "s3",
- "summary": "The state is sealed to 3 readers. Attributes, outputs and stored plans are encrypted. Addresses, types, names, dependencies and revisions stay readable, so the graph and the plans keep working.",
+ "summary": "This state is sealed: its secret values are locked, and only the 3 members listed below can open them. Names, types and dependencies stay visible, so the graph and the plans keep working.",
  "readers": [
   {
    "name": "ada",
@@ -15,7 +15,9 @@
    "fingerprint": "SHA256:m8YMmlDg9T6mFey9zpNAmej98q7pMpDsi0aia27rJlo",
    "in_store": true,
    "in_file": true,
-   "line": 1
+   "line": 1,
+   "status": "active",
+   "status_text": "Has access"
   },
   {
    "name": "dan",
@@ -25,7 +27,9 @@
    "fingerprint": "SHA256:OXONlpNIN4+YAxgAA72tFS273MSP9v31RNyZ2aJwA7g",
    "in_store": true,
    "in_file": true,
-   "line": 2
+   "line": 2,
+   "status": "active",
+   "status_text": "Has access"
   },
   {
    "name": "eve",
@@ -35,18 +39,20 @@
    "fingerprint": "SHA256:UcAPC/FaE/Zgq+rhXHTUBQDP09GW9+NCURIOldYtkf0",
    "in_store": true,
    "in_file": true,
-   "line": 3
+   "line": 3,
+   "status": "active",
+   "status_text": "Has access"
   }
  ],
  "file": {
   "verdict": "match",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The readers file matches the store.",
+  "text": "The access list (readers.txt) matches the state.",
   "count": 3
  },
  "you": {
   "state": "no-identity",
-  "text": "No identity was given. Resources are listed and no value is shown."
+  "text": "No key was given, so secret values are hidden. The resources are still listed."
  },
  "records": {
   "total": 46,
@@ -55,6 +61,8 @@
   "unreadable": 46,
   "text": "46 records are sealed and no key was given to open them."
  },
+ "issues": null,
+ "all_clear": "The access list matches the state.",
  "last_change": {
   "at": "2026-10-22T10:41:00Z",
   "by": "ada",
@@ -62,13 +70,13 @@
   "added": [
    "eve"
   ],
-  "text": "2026-10-22 10:41 UTC · readers rewrapped by ada"
+  "text": "2026-10-22 10:41 UTC · members changed by ada"
  },
  "suggestions": [
   {
    "id": "identity",
    "title": "Read the state with your own key",
-   "why": "No identity was given, so there is no key to open the state with. Make one, send its line to a reader, who adds it as described under Add a reader.",
+   "why": "No identity was given, so there is no key to open the state with. Make one, send its line to a member, who adds it as described under Add a member.",
    "who": "you",
    "primary": true,
    "steps": [
@@ -83,7 +91,7 @@
     },
     {
      "kind": "note",
-     "text": "When a reader has added your line and rewrapped, start the viewer again:"
+     "text": "When a member has added your line and rewrapped, start the viewer again:"
     },
     {
      "kind": "command",
@@ -94,13 +102,14 @@
   },
   {
    "id": "add-reader",
-   "title": "Add a reader",
-   "why": "The new reader makes an identity and sends the line it prints. A current reader adds the line, commits it and rewraps.",
-   "who": "the new reader, then a current reader",
+   "title": "Add a member",
+   "why": "The new member makes a key and sends the line it prints (a CI job is a member too, with a key of its own). A current member adds the line, commits it and rewraps.",
+   "who": "the new member, then any member",
+   "kind": "member-add",
    "steps": [
     {
      "kind": "note",
-     "text": "On the machine of the new reader:"
+     "text": "On the machine of the new member:"
     },
     {
      "kind": "command",
@@ -109,7 +118,7 @@
     },
     {
      "kind": "note",
-     "text": "On the machine of a current reader:"
+     "text": "On the machine of a current member:"
     },
     {
      "kind": "add-line",
@@ -123,7 +132,7 @@
     },
     {
      "kind": "command",
-     "text": "git commit -m 'Add a reader'"
+     "text": "git commit -m 'Add a member'"
     },
     {
      "kind": "command",
@@ -137,9 +146,11 @@
   },
   {
    "id": "remove-reader:ada",
-   "title": "Remove ada",
-   "why": "Removing the line stops new records being sealed to ada. ada keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets ada could read where they live.",
-   "who": "a current reader",
+   "title": "Remove access for ada",
+   "why": "Use this when ada no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
+   "who": "any member",
+   "kind": "member-remove",
+   "member": "ada",
    "steps": [
     {
      "kind": "remove-line",
@@ -174,9 +185,11 @@
   },
   {
    "id": "remove-reader:dan",
-   "title": "Remove dan",
-   "why": "Removing the line stops new records being sealed to dan. dan keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets dan could read where they live.",
-   "who": "a current reader",
+   "title": "Remove access for dan",
+   "why": "Use this when dan no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
+   "who": "any member",
+   "kind": "member-remove",
+   "member": "dan",
    "steps": [
     {
      "kind": "remove-line",
@@ -211,9 +224,11 @@
   },
   {
    "id": "remove-reader:eve",
-   "title": "Remove eve",
-   "why": "Removing the line stops new records being sealed to eve. eve keeps what they already read, and an old copy of the bucket still opens with their key. Replace the real secrets eve could read where they live.",
-   "who": "a current reader",
+   "title": "Remove access for eve",
+   "why": "Use this when eve no longer needs the state. It stops new records being locked to their key. They keep what they have already read, and an old copy of the bucket still opens with their key, so replace any real secrets they could read where those secrets live.",
+   "who": "any member",
+   "kind": "member-remove",
+   "member": "eve",
    "steps": [
     {
      "kind": "remove-line",
@@ -249,8 +264,8 @@
   {
    "id": "set-recovery",
    "title": "Set a recovery key",
-   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can be opened when every reader has lost their key. Give each share to a different person, offline. Whoever holds K shares can read the state, so K is a decision about whom to trust together.",
-   "who": "a current reader",
+   "why": "A recovery key is split into shares, any K of which rebuild it, so that the state can still be opened when every member has lost their key. Give each share to a different person, offline. Whoever holds K shares can open the state, so K is a decision about whom to trust together.",
+   "who": "any member",
    "steps": [
     {
      "kind": "note",

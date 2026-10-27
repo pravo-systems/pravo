@@ -91,6 +91,9 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 		}
 	} else {
 		st, id, idErr, err = p.open(b, true, true)
+		if err == nil {
+			err = p.needAdmin(st, "take the seal off the state")
+		}
 	}
 	if errors.Is(err, state.ErrUntrusted) {
 		return reportUntrusted(err)

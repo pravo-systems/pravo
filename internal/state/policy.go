@@ -72,6 +72,20 @@ type PolicyVersion struct {
 	// it gives the key. They are set by what reads the version.
 	Status protect.SigStatus `json:"-"`
 	Signer string            `json:"-"`
+	// RoleShort is set when the readers file gives roles and the key that signed the
+	// version has a lesser role than the version needs today: a writer for a version, an
+	// admin for a tombstone. It is shown and does not fail the read: a key whose role was
+	// lowered since it signed looks the same as one that never had the role.
+	RoleShort bool `json:"-"`
+}
+
+// RoleNeeded is the role a key must have to sign the version: a writer adds and edits a
+// policy, and only an admin removes it.
+func (v PolicyVersion) RoleNeeded() protect.Role {
+	if v.Tombstone() {
+		return protect.RoleAdmin
+	}
+	return protect.RoleWriter
 }
 
 // Tombstone reports whether the version removes the policy.
@@ -221,6 +235,10 @@ func (s *Store) PolicyVersion(ctx context.Context, readers []protect.Reader, nam
 		return PolicyVersion{}, fmt.Errorf("%w: %s has no signature", ErrUntrusted, key)
 	case protect.SigInvalid:
 		return PolicyVersion{}, fmt.Errorf("%w: the signature of %s does not verify", ErrUntrusted, key)
+	}
+	if v.Status == protect.SigVerified && protect.RolesOn(readers) {
+		role, _ := protect.RoleOf(readers, v.Signature.Key)
+		v.RoleShort = !role.Allows(v.RoleNeeded())
 	}
 	return v, nil
 }

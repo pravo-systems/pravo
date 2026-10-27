@@ -64,6 +64,9 @@ func txnFinishParts(t *Transaction) [][]byte {
 	parts = append(parts, []byte(finished), text(t.Status), []byte(strconv.Itoa(len(t.Changes))))
 	for _, c := range t.Changes {
 		parts = append(parts, text(c.Addr), text(c.Action), []byte(strconv.Itoa(c.Before)), []byte(strconv.Itoa(c.After)))
+		if c.Record != "" {
+			parts = append(parts, text(c.Record))
+		}
 	}
 	return parts
 }
@@ -238,4 +241,15 @@ func (s *Store) warnFunc() func(string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.warn
+}
+
+// SigningKey is the fingerprint of the signing key of the identity the store was
+// opened with, empty for a state that is not sealed or a store with no identity. The
+// role of that key in the readers file says what the store may be used for.
+func (s *Store) SigningKey() string {
+	id := s.signingIdentity()
+	if id == nil || len(id.SignPub) == 0 {
+		return ""
+	}
+	return protect.SSHFingerprint(id.SignPub)
 }

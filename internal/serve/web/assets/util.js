@@ -269,6 +269,7 @@ export function pathEl(path, { shorten = true, keep = 2, cls = '' } = {}) {
 const SIGNATURE = {
   verified: { tip: 'The signature verifies against a key in the readers file.' },
   key_not_in_file: { tip: 'Signed with a key that the readers file does not list: a member who has left, or a key that never was.' },
+  role_changed: { tip: 'The key verifies, and the readers file now gives it a lesser role than this change needs: its role was lowered since it signed, or it never had it.' },
   invalid: { tip: 'The signature does not verify: it was changed, or made up.' },
   unsigned: { tip: 'There is no signature.' },
 };
@@ -278,6 +279,7 @@ export function signatureMark(status, signer, claimed) {
   const text = {
     verified: 'signed by ' + (signer || 'a reader'),
     key_not_in_file: claimed ? 'signed by ' + claimed + ', whose key is not in the readers file' : 'signer not in the readers file',
+    role_changed: 'signed by ' + (signer || 'a reader') + ', whose role is lower than this change needs',
     invalid: 'signature does not verify',
   }[status] || 'unsigned';
   return h('span', { class: 'sigmark sig-' + status, title: (SIGNATURE[status] || SIGNATURE.unsigned).tip }, text);

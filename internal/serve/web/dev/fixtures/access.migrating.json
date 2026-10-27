@@ -16,7 +16,9 @@
    "in_store": true,
    "in_file": true,
    "you": true,
-   "line": 1
+   "line": 1,
+   "status": "active",
+   "status_text": "Has access"
   },
   {
    "name": "dan",
@@ -26,19 +28,21 @@
    "fingerprint": "SHA256:OXONlpNIN4+YAxgAA72tFS273MSP9v31RNyZ2aJwA7g",
    "in_store": true,
    "in_file": true,
-   "line": 2
+   "line": 2,
+   "status": "active",
+   "status_text": "Has access"
   }
  ],
  "file": {
   "verdict": "match",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The readers file matches the store.",
+  "text": "The access list (readers.txt) matches the state.",
   "count": 2
  },
  "you": {
   "state": "reader",
   "name": "ada",
-  "text": "You are ada, a reader."
+  "text": "You are ada and can open this state."
  },
  "records": {
   "total": 46,
@@ -53,12 +57,20 @@
   "done": 25,
   "total": 46
  },
+ "issues": [
+  {
+   "level": "chg",
+   "title": "Sealing has not finished",
+   "text": "Changes to the state are refused until it does.",
+   "suggestion": "finish"
+  }
+ ],
  "suggestions": [
   {
    "id": "finish",
    "title": "Finish sealing the state",
    "why": "Sealing started and stopped before it finished. Running it again finishes the records that are left.",
-   "who": "a reader",
+   "who": "any member",
    "primary": true,
    "steps": [
     {

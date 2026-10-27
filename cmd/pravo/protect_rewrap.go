@@ -90,6 +90,9 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes b
 	if st.Locked() || prot.You.State != "reader" {
 		return engine.WithCode(engine.ExitRefused, notReaderError(p.rf, id, idErr))
 	}
+	if err := p.needAdmin(st, "change who reads the state"); err != nil {
+		return err
+	}
 	if err := p.rf.require(); err != nil {
 		return err
 	}

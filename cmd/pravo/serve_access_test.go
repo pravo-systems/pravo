@@ -550,7 +550,7 @@ func TestViewerSaysThatAStateIsNotSealedWhereTheRepositoryExpectsOne(t *testing.
 			if a.File.Verdict != "expected-sealed" || a.File.Count != 2 || len(a.Suggestions) == 0 || a.Suggestions[0].ID != "check-downgrade" || !a.Suggestions[0].Primary {
 				t.Fatalf("file %+v, suggestions %+v", a.File, a.Suggestions)
 			}
-			if !strings.Contains(a.File.Text, "The repository lists readers in .pravo/access/readers.txt, but the state is not sealed.") {
+			if !strings.Contains(a.File.Text, "The repository has an access list (.pravo/access/readers.txt), but the state is not sealed.") {
 				t.Errorf("text %q", a.File.Text)
 			}
 		})
@@ -569,7 +569,7 @@ func TestViewerSaysThatAStateIsNotSealedWhereTheRepositoryExpectsOne(t *testing.
 		if err := json.Unmarshal(get("/api/access"), &a); err != nil {
 			t.Fatal(err)
 		}
-		if a.File.Verdict != "none" || !strings.Contains(a.File.Text, "does not load") {
+		if a.File.Verdict != "none" || !strings.Contains(a.File.Text, "can't be read") {
 			t.Errorf("file %+v", a.File)
 		}
 	})

@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 )
@@ -127,10 +129,21 @@ func (p *protectRun) status() error {
 		text, recoveryFileState = recoveryStatusText(prot, rf)
 		add("Recovery", text)
 	}
-	add("Roles", "off")
 	txns, err := st.Transactions()
 	if err != nil {
 		return err
+	}
+	erf, rstat, rerr := rf.withRoles(st)
+	if rerr != nil {
+		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("roles: %s", printable(rerr.Error())))
+	}
+	rolesOn := erf.Found && erf.Err == nil && protect.RolesOn(erf.Readers)
+	add("Roles", rolesText(erf, rstat, st))
+	var recs *state.RecordVerdict
+	if rolesOn && prot.Sealed != nil && !st.Locked() {
+		v := st.VerifyRecordsWith(txns, recordRules(erf.Readers, rstat))
+		recs = &v
+		add("Records", recordsText(v))
 	}
 	var sigs *sigCounts
 	if prot.Sealed != nil {
@@ -168,6 +181,10 @@ func (p *protectRun) status() error {
 		if sigs != nil {
 			doc["signatures"] = sigs
 		}
+		doc["roles"] = rolesDoc(erf, rstat, st)
+		if recs != nil {
+			doc["record_check"] = recs
+		}
 		if sealed {
 			doc["you"] = prot.You.State
 			added, removed := readersDiff(prot, rf)
@@ -192,6 +209,11 @@ func (p *protectRun) status() error {
 				out.Println(out.C(ui.Red, "Untrusted: txn/"+printable(id)+".json has a signature that does not verify"))
 			}
 		}
+		if recs != nil {
+			for _, pr := range recs.Problems {
+				out.Println(out.C(ui.Red, "Untrusted: "+printable(pr.Addr)+": "+printable(pr.Why)))
+			}
+		}
 	}
 	if len(ver.Bad) > 0 {
 		return fmt.Errorf("%w: %s", state.ErrUntrusted, plural(len(ver.Bad), "object does", "objects do")+" not match")
@@ -199,5 +221,72 @@ func (p *protectRun) status() error {
 	if sigs != nil && sigs.Invalid > 0 {
 		return invalidTxns(sigs.Invalid)
 	}
+	if recs != nil && len(recs.Problems) > 0 {
+		return fmt.Errorf("%w: %s that no transaction of a writer accounts for", state.ErrUntrusted, plural(len(recs.Problems), "record", "records"))
+	}
 	return nil
+}
+
+// rolesText is the Roles line of protect status.
+func rolesText(rf readersFile, rs state.RolesStatus, st *state.Store) string {
+	if !rf.Found || rf.Err != nil || !protect.RolesOn(rf.Readers) {
+		return "off"
+	}
+	var n [4]int
+	for _, r := range rf.Readers {
+		role, _ := protect.RoleOf(rf.Readers, protect.SSHFingerprint(r.Sign))
+		n[role]++
+	}
+	line := fmt.Sprintf("on · %d admin · %d writer · %d reader", n[protect.RoleAdmin], n[protect.RoleWriter], n[protect.RoleReader])
+	switch {
+	case rs.Source == "state":
+		line += fmt.Sprintf(" · pinned, version %d in the state", rs.Version)
+		if rs.Differs {
+			line += " (the readers file asks for other roles: pravo protect roles)"
+		}
+	case rs.Unpinned:
+		line += " · from the readers file; the state holds roles it does not pin (pravo protect roles)"
+	default:
+		line += " · from the readers file, not pinned (pravo protect roles)"
+	}
+	if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
+		line += " · you are " + article(role)
+	}
+	return line
+}
+
+func rolesDoc(rf readersFile, rs state.RolesStatus, st *state.Store) map[string]any {
+	doc := map[string]any{"on": rf.Found && rf.Err == nil && protect.RolesOn(rf.Readers)}
+	if doc["on"] == true {
+		doc["source"] = rs.Source
+		doc["pinned"] = rs.Source == "state"
+		if rs.Version > 0 {
+			doc["version"] = rs.Version
+		}
+		if rs.Differs {
+			doc["file_differs"] = true
+		}
+		if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
+			doc["you"] = role.String()
+		}
+	}
+	return doc
+}
+
+// recordsText is the Records line of protect status, for a repository with roles.
+func recordsText(v state.RecordVerdict) string {
+	line := fmt.Sprintf("%d bound to a transaction of a writer", v.Bound)
+	if v.Vouched > 0 {
+		line += fmt.Sprintf(" · %d vouched for by an admin (the key left or was demoted)", v.Vouched)
+	}
+	if v.Earlier > 0 {
+		line += fmt.Sprintf(" · %d from before roles", v.Earlier)
+	}
+	if v.Unchecked > 0 {
+		line += fmt.Sprintf(" · %d not checked (transaction running, or signed by a key not in the readers file)", v.Unchecked)
+	}
+	if n := len(v.Problems); n > 0 {
+		line += fmt.Sprintf(" · %d that no transaction of a writer accounts for", n)
+	}
+	return line
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/pravo"
@@ -54,7 +55,7 @@ that nothing is sealed in any more.`,
 	// The tags select the state, so the commands that open it take them too.
 	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
 	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
-	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRecoverCmd(), protectUnsealCmd(), protectGCCmd())
+	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRolesCmd(), protectRecoverCmd(), protectUnsealCmd(), protectGCCmd())
 	return cmd
 }
 
@@ -72,6 +73,18 @@ func newProtectRun(cmd *cobra.Command) (*protectRun, error) {
 		return nil, err
 	}
 	return &protectRun{ctx: cmd.Context(), root: root, rf: loadReadersFile(root.Dir, flags.AccessDir)}, nil
+}
+
+// needAdmin refuses an identity that is not an admin in the readers file of the repository.
+// It does nothing for a state with no key to judge by, or a readers file without roles.
+func (p *protectRun) needAdmin(st *state.Store, what string) error {
+	if st.Locked() {
+		return nil
+	}
+	if msg, code := roleProblem(p.rf, st, protect.RoleAdmin, what); msg != "" {
+		return engine.WithCode(code, errors.New(msg))
+	}
+	return nil
 }
 
 func (p *protectRun) local() bool { return !p.root.State.Remote() }

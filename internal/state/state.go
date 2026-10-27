@@ -203,6 +203,8 @@ type Store struct {
 	// and, in format 2, the record the pointer names. A write replaces the object
 	// only if it is still that.
 	held map[string]nodeRef
+	// bindRecordsOn makes the transactions sign the records they write (BindRecords).
+	bindRecordsOn bool
 	// strays are the addresses of records that were found sealed in a state whose
 	// meta.json says it is not sealed: the sealed part was removed or replaced by
 	// something other than an unseal. Such a record reads without its values, and a

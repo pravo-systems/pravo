@@ -243,6 +243,9 @@ func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
 		}
 		problem = fmt.Sprintf("%s and the state differ (%s). Run pravo protect rewrap.", rf.shown(), diffText(added, removed))
 	}
+	if problem == "" && write {
+		problem, code = roleProblem(rf, st, protect.RoleWriter, "change the state")
+	}
 	if problem == "" {
 		return nil
 	}
@@ -285,4 +288,37 @@ func protectedNames(prot state.Protection) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// roleProblem says why the identity of the store may not do what need allows, or is
+// empty, with the exit code of the refusal. The roles are those that decide for the state:
+// the roles in it when the readers file pins them, the roles of the file otherwise. A
+// readers file without roles lets every key do everything. This is the check of an honest
+// pravo; a state that was written by a key without the role is found by the signatures (see
+// sealed-state.md), and only the credentials of the bucket stop a write.
+func roleProblem(rf readersFile, st *state.Store, need protect.Role, what string) (string, engine.ExitCode) {
+	rf, _, err := rf.withRoles(st)
+	if err != nil {
+		return printable(err.Error()), engine.ExitUntrusted
+	}
+	if !rf.Found || rf.Err != nil || !protect.RolesOn(rf.Readers) {
+		return "", engine.ExitRefused
+	}
+	key := st.SigningKey()
+	role, ok := protect.RoleOf(rf.Readers, key)
+	if !ok {
+		return fmt.Sprintf("your identity is not in %s, so its role is not known, and %s is needed to %s.", rf.shown(), article(need), what), engine.ExitRefused
+	}
+	if role.Allows(need) {
+		return "", engine.ExitRefused
+	}
+	return fmt.Sprintf("your identity is %s in %s, and %s is needed to %s.", article(role), rf.shown(), article(need), what), engine.ExitRefused
+}
+
+// article puts a or an before the name of a role.
+func article(r protect.Role) string {
+	if r == protect.RoleAdmin {
+		return "an admin"
+	}
+	return "a " + r.String()
 }

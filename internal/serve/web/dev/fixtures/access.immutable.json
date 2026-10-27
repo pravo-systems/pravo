@@ -10,7 +10,7 @@
  "file": {
   "verdict": "none",
   "path": "/srv/infra/estate/.pravo/access/readers.txt",
-  "text": "The state is not sealed, so there is no list of readers to compare.",
+  "text": "The state is not sealed, so there is no access list to compare.",
   "count": 0
  },
  "records": {
@@ -20,17 +20,18 @@
   "unreadable": 0,
   "text": "46 records, not sealed."
  },
+ "issues": null,
  "suggestions": [
   {
    "id": "seal",
    "title": "Seal the state",
-   "why": "Sealing encrypts attributes, outputs and stored plans to the readers in the file. It needs the store at rest, so announce a short freeze.",
-   "who": "each reader, then one of them",
+   "why": "Sealing locks attributes, outputs and stored plans so that only the members on the access list can open them. It needs the store at rest, so announce a short freeze.",
+   "who": "every member, then one of them",
    "primary": true,
    "steps": [
     {
      "kind": "note",
-     "text": "On the machine of each reader:"
+     "text": "On the machine of each member:"
     },
     {
      "kind": "command",
@@ -39,7 +40,7 @@
     },
     {
      "kind": "note",
-     "text": "On the machine of the reader who seals, add the line each reader sent, one for each, to the readers file:"
+     "text": "On the machine of the member who seals, add the line each member sent, one for each, to the access list:"
     },
     {
      "kind": "add-line",

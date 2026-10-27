@@ -21,6 +21,7 @@ import (
 type policyRoot struct {
 	dir string
 	ada *protect.Identity
+	ids string // the directory of the identity files
 }
 
 const policyHead = "package infra\n\nimport \"pravo.dev/pravo\"\nimport loc \"pravo.dev/providers/hashicorp/local\"\n\n$local: loc.#Provider\n\n#unused: pravo.#Policy\n"
@@ -32,7 +33,7 @@ func newPolicyRoot(t *testing.T, rules map[string]string, files ...string) *poli
 	requireSealing(t)
 	ids := isolateIdentities(t)
 	ada, line := person(t, ids, "ada")
-	r := &policyRoot{ada: ada, dir: specDir(t, map[string]string{})}
+	r := &policyRoot{ada: ada, ids: ids, dir: specDir(t, map[string]string{})}
 	r.declare(t, rules, files...)
 	if text, code := runPravo(t, r.dir, "init"); code != 0 {
 		t.Skipf("init exited %d:\n%s", code, text)

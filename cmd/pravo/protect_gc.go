@@ -93,6 +93,11 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 	if err != nil {
 		return err
 	}
+	if !dryRun {
+		if err := p.needAdmin(st, "collect the garbage of the state"); err != nil {
+			return err
+		}
+	}
 	prot := st.Protection()
 	switch {
 	case prot.Format < state.FormatImmutable:

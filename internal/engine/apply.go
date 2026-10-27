@@ -435,6 +435,12 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.finishError("rejected", err, true)
 		return result, err
 	}
+	// With roles, an apply does not build on a record that no transaction of a writer
+	// accounts for: someone who holds the data key sealed it.
+	if err := e.checkBound(held.held()); err != nil {
+		e.finishError("rejected", err, true)
+		return result, err
+	}
 	// The policies in force judge the resource changes of the whole plan file before
 	// the start is signed, which lists the versions that judged.
 	var policies *state.PolicySet
