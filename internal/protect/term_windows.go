@@ -26,7 +26,7 @@ func readNoEcho(prompt string) ([]byte, error) {
 	if err := windows.SetConsoleMode(h, mode&^windows.ENABLE_ECHO_INPUT); err != nil {
 		return nil, err
 	}
-	defer windows.SetConsoleMode(h, mode)
+	defer func() { _ = windows.SetConsoleMode(h, mode) }()
 	fmt.Fprint(os.Stderr, prompt)
 	line, err := bufio.NewReader(in).ReadString('\n')
 	fmt.Fprintln(os.Stderr)

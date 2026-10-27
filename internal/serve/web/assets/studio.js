@@ -7,7 +7,7 @@
 // state, the plans and the policies are as they were. The page also explains the plan document, which a rule is written
 // against, and what the apply does with a rule.
 
-import { h, clear, icon, plural, relTime, stamp, debounce, store } from './util.js';
+import { h, clear, icon, plural, relTime, debounce, store } from './util.js';
 import { tokenize } from './cue.js';
 import { attachFolds, foldRanges, hiddenRows } from './fold.js';
 import * as api from './api.js';
@@ -641,7 +641,7 @@ export class StudioView {
     }
     box.append(h('div', { class: 'studio-f' }, h('span', { class: 'k', id: 'studio-plan-k' }, 'look at'), picker(groups, this.plan, (v) => this.choose(v), 'studio-plan-k')));
     const tp = got.get(this.plan);
-    if (tp) box.append(h('ul', { class: 'studio-plans' }, h('li', { class: 'studio-item' }, this.planRow(tp, this.result), this.rowBodyOf(tp))));
+    if (tp) box.append(h('ul', { class: 'studio-plans' }, h('li', { class: 'studio-item' }, this.planRow(tp), this.rowBodyOf(tp))));
     else box.append(h('p', { class: 'studio-empty' }, this.busy ? 'Trying…' : 'Waiting for the rule.'));
     box.append(this.dropBar());
     return box;
@@ -708,7 +708,7 @@ export class StudioView {
       h('details', { class: 'studio-raw' }, h('summary', null, 'What CUE says, in full'), h('pre', null, c.message)));
   }
 
-  planRow(tp, r, headOnly) {
+  planRow(tp) {
     const label = this.labelOf(tp.ref);
     const meta = this.metaOf(tp.ref);
     const res = tp.draft;

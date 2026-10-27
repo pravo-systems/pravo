@@ -19,7 +19,7 @@ import (
 func runPravoCtx(t *testing.T, ctx context.Context, dir string, args ...string) (string, int) {
 	t.Helper()
 	wd, _ := os.Getwd()
-	defer os.Chdir(wd)
+	defer os.Chdir(wd) //nolint:usetesting // the directory is put back after each call, so that a relative path in the next call means what it meant in the first
 	r, w, _ := os.Pipe()
 	stdout := os.Stdout
 	os.Stdout = w
@@ -62,7 +62,7 @@ func TestProtectInitInterruptedIsResumed(t *testing.T) {
 		`$settings: state: {backend: "s3", bucket: "northwind-state", prefix: "prod", region: "eu-west-1", endpoint: "` + srv.URL + `", path_style: true, access_key: "test", secret_key: "test"}` + "\n"})
 	e := &s3Env{dir: dir, f: f, url: srv.URL}
 	st := e.store(t)
-	for i := 0; i < records; i++ {
+	for i := range records {
 		e.record(t, st, "r"+string(rune('a'+i%26))+strings.Repeat("x", i/26), secretA)
 	}
 	_, ada := person(t, ids, "ada")

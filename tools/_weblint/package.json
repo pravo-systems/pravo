@@ -1,0 +1,17 @@
+{
+  "name": "pravo-weblint",
+  "private": true,
+  "description": "Linters for the JavaScript and CSS of the viewer (pravo serve) and of the site. Run: npm --prefix tools/_weblint ci && npm --prefix tools/_weblint run lint",
+  "type": "module",
+  "scripts": {
+    "lint": "cd ../.. && eslint --config tools/_weblint/eslint.config.js . && stylelint --config tools/_weblint/stylelint.config.js 'internal/serve/web/**/*.css' 'site/design/css/*.css'",
+    "fix": "cd ../.. && eslint --fix --config tools/_weblint/eslint.config.js . ; stylelint --fix --config tools/_weblint/stylelint.config.js 'internal/serve/web/**/*.css' 'site/design/css/*.css'"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "stylelint": "^17.16.0",
+    "stylelint-config-standard": "^40.0.0"
+  }
+}

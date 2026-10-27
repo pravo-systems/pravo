@@ -57,7 +57,7 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: var(-
 .rp-view { flex: none; align-self: center; margin: 0 1rem 0 .2rem; width: 4.2rem; height: 1.7rem; padding: 0; text-align: center; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-2); font: 500 var(--fs-2)/1 var(--font-mono); }
 .rp-view:hover { color: var(--text); border-color: var(--text-3); }
 .rp-row.sel .rp-view { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
-.rp { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .6rem; width: 100%; padding: .55rem 1rem .55rem 1rem; text-align: left; position: relative; border-top: 1px solid var(--line); transition: background var(--t-fast); }
+.rp { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .6rem; width: 100%; padding: .55rem 1rem; text-align: left; position: relative; border-top: 1px solid var(--line); transition: background var(--t-fast); }
 .rp:first-child { border-top: 0; }
 .rp:hover { background: var(--surface-2); }
 .rp:focus-visible { outline-offset: -2px; }

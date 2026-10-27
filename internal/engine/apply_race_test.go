@@ -62,7 +62,7 @@ func TestUnchangedDataReadIsNotAWrite(t *testing.T) {
 		h.backend.Reset()
 		h.fake.resetCalls()
 
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			e := h.engine(dataEstate("1", "1", "1"), Options{})
 			p := plan(t, e)
 			if p.NeedsApply() || len(p.Write) != 0 {

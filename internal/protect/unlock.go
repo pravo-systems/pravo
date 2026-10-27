@@ -158,8 +158,8 @@ func PickAgentKey(keys []AgentKey, selector string) (AgentKey, error) {
 		return AgentKey{}, errors.New("the ssh-agent holds no ssh-ed25519 key (is it locked, or is the key an RSA or ECDSA one?)")
 	}
 	var match []AgentKey
-	switch selector = strings.TrimSpace(selector); {
-	case selector == "":
+	switch selector = strings.TrimSpace(selector); selector {
+	case "":
 		match = keys
 	default:
 		for _, k := range keys {

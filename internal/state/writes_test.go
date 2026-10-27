@@ -194,11 +194,11 @@ func TestSameAddressWritesStayOrdered(t *testing.T) {
 		wg   sync.WaitGroup
 		seen = make([][]int, writers)
 	)
-	for w := 0; w < writers; w++ {
+	for w := range writers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for i := 0; i < each; i++ {
+			for range each {
 				r := node("a")
 				if err := s.Set(r, ""); err != nil {
 					t.Error(err)
@@ -322,7 +322,7 @@ func TestUpdateOutputsKeepsBothApplysChanges(t *testing.T) {
 		}
 		stores[k] = s
 	}
-	for round := 0; round < rounds; round++ {
+	for round := range rounds {
 		var wg sync.WaitGroup
 		for k, s := range stores {
 			wg.Add(1)
@@ -346,7 +346,7 @@ func TestUpdateOutputsKeepsBothApplysChanges(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for k := 0; k < commands; k++ {
+		for k := range commands {
 			if want := fmt.Sprintf("%d", round); string(got[fmt.Sprintf("o%d", k)]) != want {
 				t.Fatalf("round %d: o%d = %s, want %s; outputs %v", round, k, got[fmt.Sprintf("o%d", k)], want, got)
 			}

@@ -113,9 +113,7 @@ func run(o options) error {
 		for _, f := range cfg.LintSkip {
 			skip = append(skip, filepath.Join(o.site, filepath.FromSlash(f)))
 		}
-		for _, m := range lintRoots(rules, skip, o.docs, o.site, o.readme) {
-			s.msgs.errs = append(s.msgs.errs, m)
-		}
+		s.msgs.errs = append(s.msgs.errs, lintRoots(rules, skip, o.docs, o.site, o.readme)...)
 	}
 
 	s.loadGlossary()

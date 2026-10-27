@@ -305,6 +305,8 @@ Compatibility: the package is v0 and unstable. Its types that alias internal one
 go test ./...                 # every package
 go test -short ./...          # skips the tests that build the binary or run sitegen
 go vet ./...
+golangci-lint run ./...       # .golangci.yml; the CI job `lint` runs it for linux, windows and darwin
+npm --prefix tools/_weblint ci && npm --prefix tools/_weblint run lint   # ESLint and Stylelint
 ```
 
 | Package | How it tests |

@@ -295,7 +295,7 @@ func TestSSHLineAgainstOpenSSH(t *testing.T) {
 func TestConfigHashKeyed(t *testing.T) {
 	h1, h2 := NewHashKey(), NewHashKey()
 	cfg := []byte(`{"password":"hunter2"}`)
-	if h1.Sum("L", cfg) != h1.Sum("L", cfg) {
+	if first, again := h1.Sum("L", cfg), h1.Sum("L", cfg); first != again {
 		t.Error("not deterministic")
 	}
 	if h1.Sum("L", cfg) == h2.Sum("L", cfg) || h1.Sum("L", cfg) == h1.Sum("M", cfg) || h1.Sum("L", cfg) == h1.Sum("L", []byte(`{"password":"hunter3"}`)) {
@@ -564,7 +564,7 @@ func BenchmarkWrapUnwrap(b *testing.B) {
 func TestGarbageNeverPanics(t *testing.T) {
 	_, k := mustReader(t, "x")
 	dk := NewDataKey()
-	for n := 0; n <= 200; n++ {
+	for n := range 201 {
 		b := make([]byte, n)
 		rand.Read(b)
 		if _, err := Unwrap(b, k, WrapCtx{"L", "g1"}); err == nil {

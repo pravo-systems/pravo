@@ -32,7 +32,7 @@ func TestPlanDoesNotMoveARecord(t *testing.T) {
 	}
 	mustWrite(t, dir, "main.cue", strings.Replace(readFile(t, dir, "main.cue"), `old: $demo.#Resource.demo_server & {name: "keep"}`, movedSpec, 1))
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		text, code := runPravo(t, dir, "plan")
 		if code != 0 {
 			t.Fatalf("plan %d exited %d:\n%s", i+1, code, text)
@@ -241,7 +241,7 @@ func TestPlanDoesNotRelabelAProvider(t *testing.T) {
 	spec := readFile(t, dir, "main.cue")
 	mustWrite(t, dir, "main.cue", strings.Replace(spec, "demo.#Provider & {", `demo.#Provider & {$from: "`+old+`", `, 1))
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		text, code := runPravo(t, dir, "plan")
 		if code != 0 {
 			t.Fatalf("plan %d exited %d:\n%s", i+1, code, text)

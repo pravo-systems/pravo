@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 )
 
@@ -172,11 +173,11 @@ func (b *HTTPBackend) ProbeSteps(ctx context.Context, report func(check string, 
 			won  int
 			oops error
 		)
-		for i := 0; i < probeRacers; i++ {
+		for i := range probeRacers {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				ok, err := put("If-None-Match", race, fmt.Sprint(i), "*", "")
+				ok, err := put("If-None-Match", race, strconv.Itoa(i), "*", "")
 				mu.Lock()
 				defer mu.Unlock()
 				switch {
@@ -233,11 +234,11 @@ func (b *HTTPBackend) ProbeStrict(ctx context.Context, report func(check string,
 			wins int
 			oops error
 		)
-		for i := 0; i < probeRacers; i++ {
+		for i := range probeRacers {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				st, err := b.probePut(ctx, swap, fmt.Sprint(i), "", tag)
+				st, err := b.probePut(ctx, swap, strconv.Itoa(i), "", tag)
 				mu.Lock()
 				defer mu.Unlock()
 				switch {
@@ -258,7 +259,7 @@ func (b *HTTPBackend) ProbeStrict(ctx context.Context, report func(check string,
 		if wins != 1 {
 			return fail("%d of %d concurrent replaces of one object succeeded, want 1", wins, probeRacers)
 		}
-		if data, _, err := b.getTagged(ctx, swap); err != nil || string(data) != fmt.Sprint(won) {
+		if data, _, err := b.getTagged(ctx, swap); err != nil || string(data) != strconv.Itoa(won) {
 			return fail("the object does not hold what the one successful replace wrote")
 		}
 		return nil

@@ -160,7 +160,7 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 		out.Println(out.C(ui.Green, fmt.Sprintf("%s unsealed in %s", counted(res.Records, "record", "records"), elapsed(time.Since(began)))))
 	}
 	if res.PlansUnsealed > 0 {
-		out.Println(out.C(ui.Green, fmt.Sprintf("%s unsealed", counted(res.PlansUnsealed, "stored plan", "stored plans"))))
+		out.Println(out.C(ui.Green, counted(res.PlansUnsealed, "stored plan", "stored plans")+" unsealed"))
 	}
 	out.Println(out.C(ui.Green, "outputs unsealed · the sealed part of meta.json is gone"))
 	out.Println()

@@ -572,10 +572,10 @@ func TestSealAllLeavesAPlanThatChangedOrWentWhileItWasSealed(t *testing.T) {
 		if err != nil || sealed != 0 || skipped != 2 {
 			t.Fatalf("sealed %d, skipped %d, %v", sealed, skipped, err)
 		}
-		if data, _ := r.Backend.Get(ctx, planKey(kept.ID)); !strings.Contains(string(data), "meanwhile") {
+		if data, _ := r.Get(ctx, planKey(kept.ID)); !strings.Contains(string(data), "meanwhile") {
 			t.Errorf("the object that changed meanwhile was overwritten: %s", data)
 		}
-		if _, err := r.Backend.Get(ctx, planKey(gone.ID)); !errors.Is(err, state.ErrNotFound) {
+		if _, err := r.Get(ctx, planKey(gone.ID)); !errors.Is(err, state.ErrNotFound) {
 			t.Errorf("the plan that a collection removed was written back: %v", err)
 		}
 	})

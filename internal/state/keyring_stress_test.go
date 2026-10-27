@@ -40,7 +40,7 @@ func TestSharedStoreSurvivesRewrapsAndClose(t *testing.T) {
 	fail := func(format string, args ...any) { bad.CompareAndSwap(nil, fmt.Sprintf(format, args...)) }
 	closed := func(err error) bool { return errors.Is(err, ErrNotReader) }
 
-	for w := 0; w < 6; w++ {
+	for w := range 6 {
 		wg.Add(1)
 		go func(w int) {
 			defer wg.Done()
@@ -86,7 +86,7 @@ func TestSharedStoreSurvivesRewrapsAndClose(t *testing.T) {
 	}
 
 	// The admin rewraps, removing and adding fay, some of them with --all.
-	for i := 0; i < 12; i++ {
+	for i := range 12 {
 		readers := readersOf(ada)
 		if i%2 == 1 {
 			readers = readersOf(ada, fay)

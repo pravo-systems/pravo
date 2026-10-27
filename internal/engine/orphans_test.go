@@ -82,7 +82,7 @@ func (t *turns) dependentsFirst(tb testing.TB, changes []*Change) {
 
 func TestInReverseRunsDependentsFirst(t *testing.T) {
 	chain := map[string][]string{}
-	for i := 0; i < 12; i++ {
+	for i := range 12 {
 		var deps []string
 		if i > 0 {
 			deps = []string{fmt.Sprintf("n%02d", i-1)}
@@ -121,7 +121,7 @@ func TestInReverseRunsDependentsFirst(t *testing.T) {
 // Changes that do not wait for each other run at the same time, up to the width.
 func TestInReverseRunsIndependentChangesTogether(t *testing.T) {
 	deps := map[string][]string{}
-	for i := 0; i < 40; i++ {
+	for i := range 40 {
 		deps[fmt.Sprintf("i%02d", i)] = nil
 	}
 	tr := newTurns(20 * time.Millisecond)
@@ -169,7 +169,7 @@ func TestInReverseRunsACycleLast(t *testing.T) {
 // change depends on is left alone.
 func TestInReverseStopsAfterAnError(t *testing.T) {
 	deps := map[string][]string{"top": nil, "mid": {"top"}, "leaf": {"mid"}}
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		deps[fmt.Sprintf("x%02d", i)] = nil
 	}
 	changes := destroyChanges(deps)
@@ -212,7 +212,7 @@ func TestInReverseStopsAfterAnError(t *testing.T) {
 func orphanSpec(independent, chain int) spec {
 	var src strings.Builder
 	var names []string
-	for i := 0; i < independent; i++ {
+	for i := range independent {
 		name := fmt.Sprintf("o%03d", i)
 		names = append(names, name)
 		fmt.Fprintf(&src, "%s: %s\n", name, thing(name, ""))

@@ -44,7 +44,7 @@ func TestAPIRefusesAForeignOrigin(t *testing.T) {
 		if origin != "" {
 			hdr["Origin"] = origin
 		}
-		if resp, _ := p.do("GET", "/api/ping", hdr); resp.StatusCode != 200 {
+		if resp, _ := p.do("GET", "/api/ping", hdr); resp.StatusCode != http.StatusOK {
 			t.Errorf("Origin %q: %d, want 200", origin, resp.StatusCode)
 		}
 	}
@@ -70,7 +70,7 @@ func TestResponsesAreNotEmbeddable(t *testing.T) {
 		}
 	}
 	// Even a request the host check refuses.
-	req, _ := http.NewRequest("GET", p.base+"/api/ping", nil)
+	req, _ := http.NewRequest(http.MethodGet, p.base+"/api/ping", nil)
 	req.Host = "evil.example"
 	resp, _ := p.send(req)
 	if resp.Header.Get("Cross-Origin-Resource-Policy") != "same-origin" || resp.Header.Get("Content-Security-Policy") == "" {
@@ -90,25 +90,25 @@ func TestCookieTossingDoesNotLockTheOwnerOut(t *testing.T) {
 		"other=1; " + name + "=bad; " + name + "=" + p.srv.Token() + "; z=2",
 	} {
 		resp, _ := p.send(newReq(t, p.base+"/api/ping", map[string]string{"Cookie": cookie}))
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Cookie %q: %d, want 200", cookie, resp.StatusCode)
 		}
 	}
 	// And neither of two wrong ones does.
 	resp, _ := p.send(newReq(t, p.base+"/api/ping", map[string]string{"Cookie": name + "=bad; " + name + "=worse"}))
-	if resp.StatusCode != 401 {
+	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("two wrong cookies: %d, want 401", resp.StatusCode)
 	}
 	// A cookie of the name of another port's server is not this server's.
 	resp, _ = p.send(newReq(t, p.base+"/api/ping", map[string]string{"Cookie": "pravo_serve_1=" + p.srv.Token()}))
-	if resp.StatusCode != 401 {
+	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("the token under another port's cookie name: %d, want 401", resp.StatusCode)
 	}
 }
 
 func newReq(t *testing.T, url string, hdr map[string]string) *http.Request {
 	t.Helper()
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestTokenIsNotEchoed(t *testing.T) {
 			if k == "Set-Cookie" {
 				continue
 			}
-			if strings.Contains(strings.Join(v, ","), tok) && !(k == "Location" && strings.Contains(path, "x="+tok)) {
+			if strings.Contains(strings.Join(v, ","), tok) && (k != "Location" || !strings.Contains(path, "x="+tok)) {
 				t.Errorf("%s: header %s carries the token: %v", path, k, v)
 			}
 		}
@@ -206,7 +206,7 @@ func TestHeadOnEventsEnds(t *testing.T) {
 	go func() {
 		defer close(done)
 		resp, _ := p.do("HEAD", "/api/events", nil)
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != http.StatusOK {
 			t.Errorf("HEAD /api/events: %d", resp.StatusCode)
 		}
 	}()
@@ -228,7 +228,7 @@ func TestEventStreamsAreBounded(t *testing.T) {
 		}
 	}()
 	var refused int
-	for i := 0; i < maxStreams+20; i++ {
+	for i := range maxStreams + 20 {
 		c, err := net.DialTimeout("tcp", p.host, 2*time.Second)
 		if err != nil {
 			t.Fatal(err)
@@ -248,7 +248,7 @@ func TestEventStreamsAreBounded(t *testing.T) {
 		t.Errorf("%d of %d streams were refused, want at least 20", refused, maxStreams+20)
 	}
 	// The API still answers.
-	if resp, _ := p.do("GET", "/api/ping", nil); resp.StatusCode != 200 {
+	if resp, _ := p.do("GET", "/api/ping", nil); resp.StatusCode != http.StatusOK {
 		t.Errorf("ping while the streams are open: %d", resp.StatusCode)
 	}
 }
@@ -273,7 +273,7 @@ func TestStalledEventReaderIsDropped(t *testing.T) {
 	// they do not on a system with a large buffer; either way the server must
 	// stay answerable and shut down.
 	time.Sleep(500 * time.Millisecond)
-	if resp, _ := p.do("GET", "/api/ping", nil); resp.StatusCode != 200 {
+	if resp, _ := p.do("GET", "/api/ping", nil); resp.StatusCode != http.StatusOK {
 		t.Errorf("ping: %d", resp.StatusCode)
 	}
 }
@@ -328,7 +328,7 @@ func TestConcurrentRequestsWhileTheProjectChanges(t *testing.T) {
 	p := newProject(t)
 	var wg sync.WaitGroup
 	stop := make(chan struct{})
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -347,7 +347,7 @@ func TestConcurrentRequestsWhileTheProjectChanges(t *testing.T) {
 			}
 		}(i)
 	}
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		r := record("shared", "fake_db", fmt.Sprintf(`{"name":"shared","port":%d}`, 5000+i))
 		_ = p.store.Set(r, "")
 		os.WriteFile(filepath.Join(p.dir, "extra.cue"), []byte(fmt.Sprintf("package demo\n\nextra%d: 1\n", i)), 0o644)
@@ -618,9 +618,9 @@ func TestRetargetedSymlinkIsNotServed(t *testing.T) {
 		t.Skip("no symlinks here: ", err)
 	}
 	defer func() { os.Remove(abs); os.WriteFile(abs, orig, 0o644) }()
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		resp, body := p.do("GET", "/api/source?addr=shared", nil)
-		if resp.StatusCode == 200 && strings.Contains(string(body), "PLANTED_MARKER_LINE") {
+		if resp.StatusCode == http.StatusOK && strings.Contains(string(body), "PLANTED_MARKER_LINE") {
 			t.Fatalf("a file that replaced a loaded one is served: %s", body)
 		}
 		if strings.Contains(string(body), "secret-from-another-file") {
@@ -659,7 +659,7 @@ func TestHugeAttribute(t *testing.T) {
 	}
 	// Eight at once.
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		wg.Add(1)
 		go func() { defer wg.Done(); p.get("/api/detail?addr=services.a.file") }()
 	}
@@ -721,8 +721,8 @@ func TestSecretsAreFoundInTheirEncodedForms(t *testing.T) {
 			"at the end":   "pw:" + secret,
 			"at the start": secret + " is the password",
 		}
-		for lead := 0; lead < 7; lead++ {
-			for trail := 0; trail < 7; trail++ {
+		for lead := range 7 {
+			for trail := range 7 {
 				text := strings.Repeat("L", lead) + secret + strings.Repeat("T", trail)
 				forms[fmt.Sprintf("base64 %d/%d", lead, trail)] = base64.StdEncoding.EncodeToString([]byte(text))
 				forms[fmt.Sprintf("urlsafe %d/%d", lead, trail)] = base64.URLEncoding.EncodeToString([]byte(text))

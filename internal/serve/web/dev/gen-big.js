@@ -4,7 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { MIN, H, D, iso, rng, Builder, planOf } = require('./gen-lib');
+const { MIN, iso, rng, Builder, planOf } = require('./gen-lib');
 
 const SCALE = 0.45; // tuned so that the graph has about 1800 nodes
 const rand = rng(20261021);
@@ -45,7 +45,6 @@ NSS.length = 30;
 const b = new Builder();
 const singles = new Map(); // namespace -> addrs of singles
 const groups = new Map(); // namespace -> [[addrs of group]]
-let n = 0;
 
 function nameFor(type, i) { return type.replace(/^aws_/, '').replace(/_/g, '') .slice(0, 12) + '_' + String(i).padStart(3, '0'); }
 
@@ -58,7 +57,7 @@ for (const [mpath, profile, gkeys] of NSS) {
     const name = t.replace(/^aws_/, '') + (i >= types.length ? '_' + (Math.floor(i / types.length) + 1) : '');
     const addr = `${mpath}.${name}`;
     b.add(addr, t, { source: { file: `modules/${mpath.split('.')[0]}/main.cue`, line: 10 + i * 6, col: 2, end_line: 15 + i * 6 }, revision: int(1, 18), refreshed: int(1, 200) * MIN, sensitive: t === 'aws_db_instance' || t === 'aws_secretsmanager_secret' || t === 'aws_iam_access_key' ? int(1, 2) : 0 });
-    s.push(addr); n++;
+    s.push(addr);
   }
   singles.set(mpath, s);
   const gs = [];
@@ -70,7 +69,7 @@ for (const [mpath, profile, gkeys] of NSS) {
         const addr = `${mpath}.${nameFor(t, i)}`;
         if (b.index.has(addr)) continue;
         b.add(addr, t, { source: { file: `modules/${mpath.split('.')[0]}/groups.cue`, line: 4 + (members.length % 5), col: 2, end_line: 12 + (members.length % 5) }, revision: int(1, 9), refreshed: int(1, 300) * MIN });
-        members.push(addr); n++;
+        members.push(addr);
       }
       gs.push(members);
     }

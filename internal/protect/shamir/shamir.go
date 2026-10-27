@@ -10,7 +10,7 @@ var exp, log [256]byte
 
 func init() { // generator 3
 	x := byte(1)
-	for i := 0; i < 255; i++ {
+	for i := range 255 {
 		exp[i] = x
 		log[x] = byte(i)
 		x ^= xtime(x) // x*3

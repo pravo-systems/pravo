@@ -89,7 +89,7 @@ func TestRetryTransportGivesUpAndStopsWhenCancelled(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	slow := &http.Client{Transport: &retryTransport{wait: func(int) time.Duration { return time.Minute }}}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, http.NoBody)
 	time.AfterFunc(50*time.Millisecond, cancel)
 	start := time.Now()
 	if _, err := slow.Do(req); err == nil {

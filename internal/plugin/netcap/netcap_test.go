@@ -89,7 +89,7 @@ func TestRequestsAreSpans(t *testing.T) {
 		r.Body.Close()
 	}
 	var found, failed bool
-	for i := 0; i < 100 && !(found && failed); i++ {
+	for i := 0; i < 100 && (!found || !failed); i++ {
 		found, failed = false, false
 		time.Sleep(10 * time.Millisecond)
 		for _, sp := range rec.Ended() {
@@ -139,7 +139,7 @@ func TestUntrustingClientIsTunnelled(t *testing.T) {
 	}
 	// the proxy marks the host a moment after the client sees the failure
 	var err error
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		var r *http.Response
 		if r, err = cl.Get(up.URL + "/x"); err == nil {
 			r.Body.Close()

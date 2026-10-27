@@ -794,9 +794,9 @@ func TestViewerCannotRunAnything(t *testing.T) {
 
 func TestAccessNeedsAToken(t *testing.T) {
 	p := accessProject(t, &fakeProtection{facts: sealedFacts()})
-	req, _ := http.NewRequest("GET", p.base+"/api/access", nil)
+	req, _ := http.NewRequest(http.MethodGet, p.base+"/api/access", nil)
 	resp, body := p.send(req)
-	if resp.StatusCode != 401 || strings.Contains(string(body), "ada") {
+	if resp.StatusCode != http.StatusUnauthorized || strings.Contains(string(body), "ada") {
 		t.Errorf("without a token: %d %s", resp.StatusCode, body)
 	}
 }

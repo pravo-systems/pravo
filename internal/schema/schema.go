@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -328,7 +329,7 @@ func (p *ProviderSchema) Marshal() ([]byte, error) {
 
 // ErrStaleCache is returned by Unmarshal for caches written by an older
 // pravo that lack fields this build needs.
-var ErrStaleCache = fmt.Errorf("cached provider schema is from an older pravo")
+var ErrStaleCache = errors.New("cached provider schema is from an older pravo")
 
 // Unmarshal decodes a cached schema.
 func Unmarshal(data []byte) (*ProviderSchema, error) {

@@ -242,13 +242,6 @@ func maskWith(sec *secretSet, text string) string {
 	return out
 }
 
-// scrub masks the sensitive strings of the state in a text that comes from the
-// record of a run.
-func (m *model) scrub(text string) string {
-	out, _ := m.secrets.scrub(text)
-	return out
-}
-
 func nonNil(l []string) []string {
 	if l == nil {
 		return []string{}

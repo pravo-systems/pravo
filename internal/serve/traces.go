@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,7 +10,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 	"unicode"
 
 	"github.com/pravo-systems/pravo/internal/telemetry"
@@ -42,7 +42,6 @@ func (s *Server) traceDir() string {
 
 // traceCache keeps the summary of each file between requests, by name, size and time.
 type traceCache struct {
-	mu      sync.Mutex
 	entries map[string]traceEntry
 }
 
@@ -186,7 +185,7 @@ func readTrace(dir, id string) (*telemetry.RunTrace, error) {
 		return nil, err
 	}
 	if !fi.Mode().IsRegular() {
-		return nil, fmt.Errorf("not a file")
+		return nil, errors.New("not a file")
 	}
 	if fi.Size() > maxTraceFile {
 		return nil, fmt.Errorf("the file is %d MiB, over the limit of %d", fi.Size()>>20, maxTraceFile>>20)
@@ -197,10 +196,10 @@ func readTrace(dir, id string) (*telemetry.RunTrace, error) {
 	}
 	var rt telemetry.RunTrace
 	if err := json.Unmarshal(data, &rt); err != nil {
-		return nil, fmt.Errorf("not a recorded run")
+		return nil, errors.New("not a recorded run")
 	}
 	if rt.Version != telemetry.TraceFormat || len(rt.Spans) == 0 {
-		return nil, fmt.Errorf("not a recorded run of this format")
+		return nil, errors.New("not a recorded run of this format")
 	}
 	return &rt, nil
 }

@@ -73,7 +73,7 @@ func stripComments(s string) string {
 				i++
 			}
 		case b[i] == '/' && i+1 < len(b) && b[i+1] == '*':
-			for i < len(b) && !(b[i] == '*' && i+1 < len(b) && b[i+1] == '/') {
+			for i < len(b) && (b[i] != '*' || i+1 >= len(b) || b[i+1] != '/') {
 				if b[i] != '\n' {
 					b[i] = ' '
 				}

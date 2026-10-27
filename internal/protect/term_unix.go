@@ -34,7 +34,7 @@ func readNoEcho(prompt string) ([]byte, error) {
 	if err := unix.IoctlSetTermios(fd, ioctlWriteTermios, &noecho); err != nil {
 		return nil, err
 	}
-	defer unix.IoctlSetTermios(fd, ioctlWriteTermios, old)
+	defer func() { _ = unix.IoctlSetTermios(fd, ioctlWriteTermios, old) }()
 	fmt.Fprint(tty, prompt)
 	line, err := bufio.NewReader(tty).ReadString('\n')
 	fmt.Fprintln(tty)

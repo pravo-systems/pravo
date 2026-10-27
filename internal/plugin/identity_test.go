@@ -96,7 +96,7 @@ func TestImportByIdentityAsksForTheSchemaOnceAndSendsTheIdentity(t *testing.T) {
 	stub := &identityStub{}
 	p := &v6{c: stub, close: func() {}}
 	types := map[string]tftypes.Type{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if _, _, err := p.ImportResourceState(context.Background(), "aws_s3_bucket", ImportTarget{Identity: map[string]any{"bucket": "logs", "region": "eu-north-1"}}, types); err != nil {
 			t.Fatal(err)
 		}

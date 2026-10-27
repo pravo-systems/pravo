@@ -142,7 +142,7 @@ func jsonInner(x string, escapeHTML bool) string {
 // around them, so those are left out.
 func base64Forms(enc *base64.Encoding, secret []byte) []string {
 	var out []string
-	for lead := 0; lead < 3; lead++ {
+	for lead := range 3 {
 		text := strings.TrimRight(enc.EncodeToString(append(make([]byte, lead), secret...)), "=")
 		// The characters that the lead bytes take part in are not the secret's.
 		drop := [3]int{0, 2, 3}[lead]

@@ -92,12 +92,12 @@ func fieldsOf(v cue.Value, depth int) []SchemaField {
 
 func kindName(v cue.Value) string {
 	k := v.IncompleteKind()
-	switch {
-	case k == cue.StructKind:
+	switch k {
+	case cue.StructKind:
 		return "struct"
-	case k == cue.ListKind:
+	case cue.ListKind:
 		return "list"
-	case k == cue.TopKind:
+	case cue.TopKind:
 		return "any"
 	}
 	return k.String()

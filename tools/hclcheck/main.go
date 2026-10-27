@@ -12,6 +12,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -57,7 +58,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	list := flags.Bool("list", false, "list the blocks and the file each one is written to; run nothing")
 	verbose := flags.Bool("v", false, "print the output of every failing command")
 	if err := flags.Parse(args); err != nil {
-		if err == flag.ErrHelp {
+		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
 		return 2
@@ -147,7 +148,7 @@ func moduleRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("no go.mod above the working directory: run hclcheck inside the module")
+			return "", errors.New("no go.mod above the working directory: run hclcheck inside the module")
 		}
 		dir = parent
 	}

@@ -388,11 +388,11 @@ func TestReplacingOrRemovingTheRecoveryRotatesTheDataKey(t *testing.T) {
 			t.Fatal(err)
 		}
 		stale := cloneMeta(t, m)
-		next := &Recovery{}
-		if remove {
-			next = nil
-		} else if next, _, err = NewRecovery(2, 3); err != nil {
-			t.Fatal(err)
+		var next *Recovery
+		if !remove {
+			if next, _, err = NewRecovery(2, 3); err != nil {
+				t.Fatal(err)
+			}
 		}
 		before := m.Current
 		if err := m.SetRecovery(keys, next, false); err != nil {

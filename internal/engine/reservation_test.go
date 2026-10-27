@@ -196,7 +196,6 @@ func TestRepeatReserveExtendsAndNeverShortens(t *testing.T) {
 	if !only.Reservation.Until.Equal(thirty) {
 		t.Errorf("the plan reports %v, want %v", only.Reservation.Until, thirty)
 	}
-
 }
 
 // Point 4: a reserve that fails part-way leaves the actor with what it held

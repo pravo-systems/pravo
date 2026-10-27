@@ -2,7 +2,6 @@ package engine
 
 import (
 	"encoding/json"
-	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -323,7 +322,7 @@ func (e *Engine) readReason(sr *state.Resource) string {
 		return ""
 	}
 	if l, ok := e.suspects[sr.Address()]; ok {
-		return fmt.Sprintf("%s; its real state is read again whatever the refresh age", stoppedApply(l))
+		return stoppedApply(l) + "; its real state is read again whatever the refresh age"
 	}
 	if sr.NoReadTime() {
 		return noReadTime + "; its real state is read again whatever the refresh age"

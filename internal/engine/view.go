@@ -198,7 +198,7 @@ func addOutputs(v *View, plan *Plan) {
 		v.Outputs[n] = Unknown
 	}
 	for n, raw := range plan.SavedOutputs {
-		v.Outputs[n] = json.RawMessage(raw)
+		v.Outputs[n] = raw
 	}
 	for _, n := range plan.UnknownOutputs {
 		v.Outputs[n] = Unknown

@@ -106,7 +106,7 @@
 .studio-row .chev { display: inline-grid; place-items: center; color: var(--text-3); }
 .studio-row .chev .i { width: .8rem; height: .8rem; transition: transform var(--t-fast) var(--ease); }
 .studio-row .chev.open .i { transform: rotate(90deg); }
-.studio-rbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: .8rem; padding: .2rem .9rem 1rem .9rem; min-width: 0; }
+.studio-rbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: .8rem; padding: .2rem .9rem 1rem; min-width: 0; }
 .studio-rbody[hidden] { display: none; }
 .studio-cmd { display: flex; align-items: center; gap: .6rem; margin: 0; }
 

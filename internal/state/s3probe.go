@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -173,11 +174,11 @@ func (b *S3Backend) ProbeSteps(ctx context.Context, report func(check string, er
 			won  int
 			oops error
 		)
-		for i := 0; i < probeRacers; i++ {
+		for i := range probeRacers {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				err := put(race, fmt.Sprint(i), "*", "")
+				err := put(race, strconv.Itoa(i), "*", "")
 				mu.Lock()
 				defer mu.Unlock()
 				switch {
@@ -270,11 +271,11 @@ func (b *S3Backend) ProbeStrict(ctx context.Context, report func(check string, e
 			wins int
 			oops error
 		)
-		for i := 0; i < probeRacers; i++ {
+		for i := range probeRacers {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				err := put(swap, fmt.Sprint(i), "", aws.ToString(tag))
+				err := put(swap, strconv.Itoa(i), "", aws.ToString(tag))
 				mu.Lock()
 				defer mu.Unlock()
 				switch {
@@ -294,7 +295,7 @@ func (b *S3Backend) ProbeStrict(ctx context.Context, report func(check string, e
 		if wins != 1 {
 			return fail("%d of %d concurrent replaces of one object succeeded, want 1", wins, probeRacers)
 		}
-		if data, _, err := b.getTagged(ctx, swap); err != nil || string(data) != fmt.Sprint(won) {
+		if data, _, err := b.getTagged(ctx, swap); err != nil || string(data) != strconv.Itoa(won) {
 			return fail("the object does not hold what the one successful replace wrote")
 		}
 		return nil

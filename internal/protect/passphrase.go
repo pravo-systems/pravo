@@ -3,7 +3,6 @@ package protect
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -20,7 +19,7 @@ import (
 // PassphraseFromReader reads one line (up to 1 KiB) and trims the newline.
 func PassphraseFromReader(r io.Reader) ([]byte, error) {
 	line, err := bufio.NewReaderSize(io.LimitReader(r, 1024), 1024).ReadString('\n')
-	if err != nil && !(errors.Is(err, io.EOF) && line != "") {
+	if err != nil && (!errors.Is(err, io.EOF) || line == "") {
 		return nil, errors.New("no passphrase on input")
 	}
 	return []byte(strings.TrimRight(line, "\r\n")), nil
@@ -56,7 +55,7 @@ func PassphraseFromTerminal(prompt string, confirm bool) ([]byte, error) {
 	defer clear(second)
 	if string(first) != string(second) { // a typo check, not a secret compare
 		clear(first)
-		return nil, fmt.Errorf("the two passphrases differ")
+		return nil, errors.New("the two passphrases differ")
 	}
 	return first, nil
 }

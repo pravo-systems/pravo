@@ -104,7 +104,7 @@ func attributesOf(t *testing.T, s *Store) map[string]string {
 // a second revision, some of them removed.
 func seedMany(t *testing.T, s *Store, n int) {
 	t.Helper()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		r := &Resource{Mode: "managed", Type: "db", Name: fmt.Sprintf("r%02d", i), Provider: "p",
 			Attributes: json.RawMessage(fmt.Sprintf(`{"id":"db-%d","password":%q}`, i, secretValue)), Private: []byte("private:" + secretValue), ConfigHash: "c0ffee"}
 		if i%3 == 0 {

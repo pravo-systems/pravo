@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -65,7 +66,7 @@ type planCache struct {
 // readPlan reads the plan file, again only when it changed.
 // A sealed plan file opens with the sealer of the state, when the viewer can read it.
 func (s *Server) readPlan(sl state.Sealer) (*engine.PlanFile, error) {
-	sig := fileSignature(s.opts.PlanFile) + fmt.Sprint(sl != nil)
+	sig := fileSignature(s.opts.PlanFile) + strconv.FormatBool(sl != nil)
 	if s.plan != nil && s.plan.sig == sig {
 		return s.plan.pf, s.plan.err
 	}
@@ -136,7 +137,7 @@ func (s *Server) overlay(ctx context.Context, m *model, pf *engine.PlanFile, dis
 		}
 	}
 	for _, sc := range pf.Changes {
-		a := engine.Action(sc.Action)
+		a := sc.Action
 		if a == engine.ActionOpen || a == engine.ActionCall {
 			continue
 		}
@@ -188,7 +189,7 @@ func (s *Server) overlay(ctx context.Context, m *model, pf *engine.PlanFile, dis
 		po.info.Summary.Add, po.info.Summary.Change, po.info.Summary.Destroy, po.info.Summary.Read = plan.Counts()
 	} else {
 		for _, sc := range pf.Changes {
-			switch engine.Action(sc.Action) {
+			switch sc.Action {
 			case engine.ActionCreate:
 				po.info.Summary.Add++
 			case engine.ActionUpdate:
@@ -310,7 +311,7 @@ func (s *Server) planEngine(m *model, pf *engine.PlanFile) (*engine.Engine, erro
 		provs.Resolved[local] = &engine.ResolvedProvider{Req: req, Version: now, Protocol: config.ProtocolTfplugin}
 	}
 	for _, sc := range pf.Changes {
-		if engine.Action(sc.Action) == engine.ActionMove {
+		if sc.Action == engine.ActionMove {
 			continue
 		}
 		local := config.LocalName(sc.ProviderKey)
@@ -358,7 +359,7 @@ func (s *Server) staleReasons(m *model, pf *engine.PlanFile) (bool, []string) {
 		reasons = append(reasons, "the plan was made against a different state (lineage mismatch)")
 	}
 	for _, sc := range pf.Changes {
-		if sc.Applied || sc.Skipped || sc.Kept || engine.Action(sc.Action) == engine.ActionMove {
+		if sc.Applied || sc.Skipped || sc.Kept || sc.Action == engine.ActionMove {
 			continue
 		}
 		have := 0
@@ -531,7 +532,7 @@ func (d *differ) nested(path string, o *schema.Object, before, after tftypes.Val
 			d.leaf(path, d.subtreeSensitive(o.Attributes), before, after)
 			return
 		}
-		for i := 0; i < max(len(bl), len(al)); i++ {
+		for i := range max(len(bl), len(al)) {
 			object(fmt.Sprintf("%s[%d]", path, i), at(bl, i), at(al, i))
 		}
 	case schema.NestingMap:
@@ -556,7 +557,7 @@ func (d *differ) nestedBlock(path string, nb *schema.NestedBlock, before, after 
 			d.leaf(path, blockSensitive(nb.Block), before, after)
 			return
 		}
-		for i := 0; i < max(len(bl), len(al)); i++ {
+		for i := range max(len(bl), len(al)) {
 			object(fmt.Sprintf("%s[%d]", path, i), at(bl, i), at(al, i))
 		}
 	case schema.NestingMap:
@@ -629,7 +630,7 @@ func (d *differ) value(path string, t tftypes.Type, before, after tftypes.Value)
 			return
 		}
 		et := elementType(t)
-		for i := 0; i < max(len(bl), len(al)); i++ {
+		for i := range max(len(bl), len(al)) {
 			d.value(fmt.Sprintf("%s[%d]", path, i), et, at(bl, i), at(al, i))
 		}
 	default:
@@ -729,7 +730,7 @@ func renameHints(m *model, pf *engine.PlanFile) []string {
 	var creates, deletes []change
 	for _, sc := range pf.Changes {
 		c := change{sc.Addr, sc.Mode, sc.Type, sc.ConfigHash}
-		switch engine.Action(sc.Action) {
+		switch sc.Action {
 		case engine.ActionCreate:
 			if c.mode == "managed" && c.hash != "" {
 				creates = append(creates, c)

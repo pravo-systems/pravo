@@ -28,7 +28,7 @@ import (
 func lockEstate(n int, changed ...int) spec {
 	var src strings.Builder
 	var names []string
-	for i := 0; i < n; i++ {
+	for i := range n {
 		name := fmt.Sprintf("r%03d", i)
 		names = append(names, name)
 		content := "v1"
@@ -379,7 +379,7 @@ func TestHeartbeatDoesNotRaceWithAcquisition(t *testing.T) {
 		t.Fatal(err)
 	}
 	var addrs []string
-	for i := 0; i < 160; i++ {
+	for i := range 160 {
 		addrs = append(addrs, fmt.Sprintf("r%03d", i))
 	}
 	var (
@@ -681,7 +681,7 @@ func TestDisjointAppliesAllSucceed(t *testing.T) {
 		}
 	}
 	now := h.process()
-	for i := 0; i < applies*per; i++ {
+	for i := range applies * per {
 		addr := fmt.Sprintf("r%03d", i)
 		if sr := now.Get(addr); sr == nil || sr.Revision != 2 || !strings.Contains(string(sr.Attributes), "v2") {
 			t.Fatalf("%s is %+v; want revision 2 and v2", addr, sr)
@@ -793,7 +793,7 @@ func TestOverlappingAppliesHaveOneWinnerPerNode(t *testing.T) {
 				granted  int
 				spurious int
 			)
-			for trial := 0; trial < trials; trial++ {
+			for trial := range trials {
 				sets := sh.sets(rnd)
 				for k := range sets {
 					sort.Strings(sets[k])
@@ -917,7 +917,7 @@ func TestOverlappingAppliesLoseNoRecord(t *testing.T) {
 		}
 	}
 	want := map[string]int{} // successful writes of each record
-	for i := 0; i < nodes; i++ {
+	for i := range nodes {
 		want[fmt.Sprintf("r%03d", i)] = 1
 	}
 	var winners, rejected int

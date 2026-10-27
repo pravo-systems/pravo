@@ -993,7 +993,7 @@ func (ps *PlanStore) Pull(ctx context.Context, id, path string) error {
 // object when the plan has none. edit returns errSkip to decline: the object is
 // then not written and updateProgress returns errSkip.
 func (ps *PlanStore) updateProgress(ctx context.Context, id string, edit func(p *PlanProgress) error) error {
-	for attempt := 0; attempt < 8; attempt++ {
+	for range 8 {
 		_, err := ps.B.Get(ctx, progressKey(id))
 		if errors.Is(err, state.ErrNotFound) {
 			p := &PlanProgress{Format: PlanMetaFormat, ID: id}
@@ -1084,7 +1084,8 @@ func (ps *PlanStore) BeginApply(ctx context.Context, id, owner string) error {
 				claims = append(claims, c)
 			}
 		}
-		p.Applying = append(claims, PlanClaim{By: owner, At: now})
+		claims = append(claims, PlanClaim{By: owner, At: now})
+		p.Applying = claims
 		return nil
 	})
 	if errors.Is(err, ErrPlanRemoving) {
@@ -1641,12 +1642,6 @@ func liveChanges(m *PlanMeta, p *PlanProgress, blocked map[string]string) []stri
 	}
 	sort.Strings(out)
 	return out
-}
-
-// planStaleReasons says why a plan, taken whole, can no longer be applied to the
-// state: what a plan that is stale as a whole reports.
-func planStaleReasons(m *PlanMeta, p *PlanProgress, check *PlanCheck) []string {
-	return movedRecords(m, p, check).reasons
 }
 
 // Overlap is a pending plan that changes a resource that another plan changes.

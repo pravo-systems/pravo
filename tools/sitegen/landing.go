@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"html/template"
@@ -124,7 +125,7 @@ func (s *site) derivedValue(name string) (string, error) {
 		}
 		return "", fmt.Errorf("start_href %q is not a page with minutes", s.cfg.StartHref)
 	}
-	return "", fmt.Errorf("unknown token")
+	return "", errors.New("unknown token")
 }
 
 // dataValue resolves "file.key.0.key" against site/data/file.json. The first
@@ -134,7 +135,7 @@ func (s *site) derivedValue(name string) (string, error) {
 func (s *site) dataValue(path string) (any, error) {
 	parts := strings.Split(path, ".")
 	if len(parts) == 0 || parts[0] == "" {
-		return nil, fmt.Errorf("a data token names a file of site/data and a path inside it")
+		return nil, errors.New("a data token names a file of site/data and a path inside it")
 	}
 	name := parts[0]
 	if s.data == nil {

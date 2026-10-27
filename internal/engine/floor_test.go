@@ -45,7 +45,7 @@ func (f *fills) addrs() []string {
 func floorSpec(version string) spec {
 	var src strings.Builder
 	names := []string{}
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		name := fmt.Sprintf("a%d", i)
 		names = append(names, name)
 		fmt.Fprintf(&src, "%s: %s\n", name, thing(name, ""))

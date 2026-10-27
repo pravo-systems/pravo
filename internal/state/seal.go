@@ -596,7 +596,7 @@ func (s *Store) Protection() Protection {
 		p.State = "immutable"
 	}
 	for _, h := range s.meta.History {
-		p.History = append(p.History, HistoryEntry{At: h.At, By: h.By, What: h.What, Added: h.Added, Removed: h.Removed})
+		p.History = append(p.History, HistoryEntry(h))
 	}
 	if s.meta.Sealed == nil {
 		p.StraySealed = slices.Clone(s.strays)
@@ -609,8 +609,8 @@ func (s *Store) Protection() Protection {
 	p.RecoveryUnverified = s.ring.verifyRecovery(&sealed)
 	p.ByGroup = map[string]int{}
 	for _, ref := range s.held {
-		switch {
-		case ref.Group == "":
+		switch ref.Group {
+		case "":
 			p.Plain++
 		default:
 			p.ByGroup[ref.Group]++

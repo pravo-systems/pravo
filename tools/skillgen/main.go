@@ -14,6 +14,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -371,7 +372,7 @@ func convert(p *page, included map[string]*page) ([]byte, error) {
 		emit(strings.TrimRight(line, " \t"))
 	}
 	if inFence {
-		return nil, fmt.Errorf("a code fence is not closed")
+		return nil, errors.New("a code fence is not closed")
 	}
 	s := strings.TrimRight(b.String(), "\n") + "\n"
 	return []byte(s), nil
@@ -564,7 +565,7 @@ func checkCore(skillDir string, files map[string][]byte) error {
 	}
 	m := frontRe.FindSubmatch(data)
 	if m == nil {
-		return fmt.Errorf("SKILL.md has no front matter")
+		return errors.New("SKILL.md has no front matter")
 	}
 	var fm struct {
 		Name        string `yaml:"name"`

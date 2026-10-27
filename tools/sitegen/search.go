@@ -48,7 +48,7 @@ loop:
 			break loop
 		case xhtml.TextToken:
 			if !skipping() {
-				b.WriteString(string(z.Text()))
+				b.Write(z.Text())
 			}
 		case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
 			tok := z.Token()

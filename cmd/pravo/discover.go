@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"github.com/pravo-systems/pravo/pravo"
 	"sort"
 	"strings"
+
+	"github.com/pravo-systems/pravo/pravo"
 
 	"github.com/spf13/cobra"
 
@@ -45,7 +47,7 @@ discover adopt" to write the resource that adopts an object.`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if all && len(args) > 0 {
-				return fmt.Errorf("--all runs every discovery; name some or give --all, not both")
+				return errors.New("--all runs every discovery; name some or give --all, not both")
 			}
 			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true})
 			if err != nil {

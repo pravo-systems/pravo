@@ -369,16 +369,6 @@ func (s *session) writeGenerated(verbose bool) error {
 	return err
 }
 
-func quoteLabel(s string) string {
-	for i, r := range s {
-		if r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (i > 0 && r >= '0' && r <= '9') {
-			continue
-		}
-		return fmt.Sprintf("%q", s)
-	}
-	return s
-}
-
 // warnStaleSchemas tells the user when a generated provider package was made
 // from a different provider version than the one now selected: the
 // definitions a specification is checked against would be out of date.

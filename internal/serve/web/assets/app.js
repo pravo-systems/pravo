@@ -16,7 +16,7 @@ import { PoliciesView } from './policies.js';
 import { Palette, Sheet } from './palette.js';
 import { compileQuery, QueryMenu, quoted, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
-import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, motionOn, tick } from './util.js';
+import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, motionOn } from './util.js';
 import { initTips } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -1080,7 +1080,7 @@ function renderWho() {
 }
 
 function renderStatus() {
-  const g = S.graph, m = S.model;
+  const g = S.graph;
   if (!g) return;
   const plan = g.plan;
   const set = (id, kids) => { const el = $(id); clear(el); el.hidden = !kids; if (kids) el.append(kids); };

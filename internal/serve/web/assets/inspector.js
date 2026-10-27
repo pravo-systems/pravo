@@ -55,7 +55,7 @@ export class Inspector {
       const rt = ev.target.closest('[data-retry]');
       if (rt) { this.cache.clear(); this.render(); return; }
       const pl = ev.target.closest('[data-plan]');
-      if (pl) { cb.onPlan(pl.dataset.plan); return; }
+      if (pl) cb.onPlan(pl.dataset.plan);
     });
     this.plansRow.addEventListener('click', (ev) => {
       const pl = ev.target.closest('[data-plan]');
@@ -424,34 +424,34 @@ export class Inspector {
   // ---- State ----
 
   // refsRow is the two lists of what a node reads and what reads it
-  refsRow(d, node) {
+  refsRow(d) {
     const model = this.model;
     const refs = (title, addrs) => h('section', { class: 'sec' }, h('h3', { class: 'h' }, title, h('span', { class: 'cnt' }, String(addrs.length))),
-      addrs.length ? this.nodeList(addrs.map((a) => model.nodes.get(a) || { addr: a, name: a, type: '' }), model, node) : h('p', { class: 'dim none' }, 'none'));
+      addrs.length ? this.nodeList(addrs.map((a) => model.nodes.get(a) || { addr: a, name: a, type: '' }), model) : h('p', { class: 'dim none' }, 'none'));
     return h('div', { class: 'cols2' }, refs('Depends on', d.depends_on || []), refs('Used by', d.used_by || []));
   }
 
   // outputPane is the State tab of an output: what it is for, its value (or the lock that says it is withheld), and the
   // nodes it reads and the outputs that read it
-  outputPane(d, node) {
+  outputPane(d) {
     const wrap = h('div', { class: 'pane state-pane out-pane' });
     const attrs = d.attrs || [];
     const desc = attrs.find((a) => a.name === 'description');
     if (desc && desc.value) wrap.append(h('p', { class: 'out-desc' }, desc.value));
     wrap.append(this.state.render(Object.assign({}, d, { attrs: attrs.filter((a) => a.name !== 'description'), bare: true }), new Set()));
-    wrap.append(this.refsRow(d, node));
+    wrap.append(this.refsRow(d));
     for (const note of d.notes || []) wrap.append(h('p', { class: 'note' }, icon('info'), h('span', null, note)));
     wrap.append(h('p', { class: 'note quiet' }, icon('lock'), h('span', null, 'A value marked sensitive is withheld by the server. This page receives its name, never its content.')));
     return wrap;
   }
 
   statePane(d, node) {
-    if (isOut(node)) return this.outputPane(d, node);
+    if (isOut(node)) return this.outputPane(d);
     const wrap = h('div', { class: 'pane state-pane' });
     const changed = new Set((d.change && d.change.attrs || []).map((a) => a.path));
     wrap.append(this.state.render(d, changed));
 
-    wrap.append(this.refsRow(d, node));
+    wrap.append(this.refsRow(d));
     const reach = d.reach && d.reach.length ? d.reach : null;
     wrap.append(h('section', { class: 'sec' }, h('h3', { class: 'h' }, 'Reach'),
       reach
@@ -486,7 +486,7 @@ export class Inspector {
   }
 
   // a list of resources: the status square, the name, the namespace they sit in
-  nodeList(nodes, model, from) {
+  nodeList(nodes, model) {
     const LIMIT = 8;
     const ul = h('ul', { class: 'nav' });
     const draw = (all) => {
@@ -672,7 +672,7 @@ export class Inspector {
   diffValue(v) {
     if (v === undefined || v === null) return h('span', { class: 'v-nul' }, 'null');
     if (typeof v === 'string') return h('span', { class: 'str' }, JSON.stringify(v.length > 300 ? v.slice(0, 300) + '…' : v));
-    let t = '';
+    let t;
     try { t = JSON.stringify(v); } catch { t = String(v); }
     return h('span', { class: 'str' }, t.length > 300 ? t.slice(0, 300) + '…' : t);
   }

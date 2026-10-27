@@ -299,7 +299,7 @@ func TestDiscoveryTextsAreMaskedAndBounded(t *testing.T) {
 func TestDiscoveryListIsBounded(t *testing.T) {
 	p := newDiscoveryProject(t)
 	var items []state.Listed
-	for i := 0; i < maxDiscoveryItems+300; i++ {
+	for i := range maxDiscoveryItems + 300 {
 		items = append(items, state.ListedOf(map[string]any{"id": fmt.Sprintf("i-%05d", i)}, fmt.Sprintf("n%05d", i)))
 	}
 	p.putRun("d", items)
@@ -401,7 +401,7 @@ func TestAdoptEndpoint(t *testing.T) {
 			t.Errorf("%v: %d", c, code)
 		}
 	}
-	if resp, _ := p.do("GET", "/api/adopt?discovery="+strings.Repeat("a", 600)+"&key=x", nil); resp.StatusCode != 400 {
+	if resp, _ := p.do("GET", "/api/adopt?discovery="+strings.Repeat("a", 600)+"&key=x", nil); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("a name that is too long: %d", resp.StatusCode)
 	}
 }
@@ -427,12 +427,12 @@ func TestDiscoveryViewerWritesNothing(t *testing.T) {
 func TestDiscoveryRequiresTheToken(t *testing.T) {
 	p := newDiscoveryProject(t)
 	for _, path := range []string{"/api/discovery", "/api/adopt?discovery=vms&key=x"} {
-		req, err := http.NewRequest("GET", p.base+path, nil)
+		req, err := http.NewRequest(http.MethodGet, p.base+path, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		resp, _ := p.send(req)
-		if resp.StatusCode != 401 {
+		if resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("%s without a token: %d", path, resp.StatusCode)
 		}
 	}
@@ -473,7 +473,7 @@ func TestWatcherSeesDiscoveries(t *testing.T) {
 	})
 	// Nothing written, no change.
 	rev := w.revision()
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if w.sample(); w.revision() != rev {
 			t.Fatal("the revision moved with nothing written")
 		}
@@ -498,7 +498,7 @@ func TestRemoteDiscoverySignature(t *testing.T) {
 	if sig() == one {
 		t.Error("a run that was replaced under its key was not seen")
 	}
-	if sig() != sig() {
+	if first, again := sig(), sig(); first != again {
 		t.Error("the signature of an unchanged state moves")
 	}
 }

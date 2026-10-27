@@ -551,7 +551,7 @@ func (e *Engine) checkReplace() error {
 		return nil
 	}
 	if e.Opts.Destroy {
-		return fmt.Errorf("-replace cannot be combined with -destroy")
+		return errors.New("-replace cannot be combined with -destroy")
 	}
 	for _, addr := range e.Opts.Replace {
 		r := e.Root.Resource(addr)
@@ -1427,12 +1427,6 @@ func emptyAsNull(v any) any {
 	return v
 }
 
-// revisionOf returns the revision of the record at addr, 0 when there is none.
-func (e *Engine) revisionOf(addr string) int {
-	rev, _ := e.versionOf(addr)
-	return rev
-}
-
 // versionOf returns the revision and the generation of the record at addr, 0 and
 // "" when there is none.
 func (e *Engine) versionOf(addr string) (int, string) {
@@ -1660,7 +1654,7 @@ func (e *Engine) planResource(ctx context.Context, r *config.Resource, v cue.Val
 	} else if ch.Fresh {
 		ch.Reasons = append(ch.Reasons, "refresh skipped: the record is within its refresh age")
 	}
-	if sr != nil && sr.Marked() && !(ch.Refreshed && ch.Drifted) {
+	if sr != nil && sr.Marked() && (!ch.Refreshed || !ch.Drifted) {
 		// An earlier read left a mark that this run did not find again.
 		if sr.Gone {
 			ch.Reasons = append(ch.Reasons, "an earlier read did not find the object; it is planned until an apply writes the record")
@@ -2376,7 +2370,6 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			return fail(err)
 		}
 	}
-	var skipped []string
 	if !e.Opts.Destroy {
 		defer e.approve(plan)()
 		e.scope = sc
@@ -2413,7 +2406,6 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 				if plan.Partial {
 					// Part of the plan is still to be applied: an output that reads
 					// a resource outside the selection waits for it.
-					skipped = append(skipped, o.Name)
 					continue
 				}
 				return fail(fmt.Errorf("output %s is not concrete after apply", o.Name))

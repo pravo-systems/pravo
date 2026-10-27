@@ -29,13 +29,13 @@ func TestLocalBackendPutsOfOneKeyDoNotCollide(t *testing.T) {
 		mu   sync.Mutex
 		errs []error
 	)
-	for w := 0; w < writers; w++ {
+	for w := range writers {
 		value := fmt.Sprintf(`{"writer": %d}`, w)
 		values[value] = true
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for i := 0; i < rounds; i++ {
+			for range rounds {
 				if err := b.Put(ctx, "outputs.json", []byte(value)); err != nil {
 					mu.Lock()
 					errs = append(errs, err)

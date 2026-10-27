@@ -3,7 +3,7 @@
 // grouping is off. Only the rows in view are in the document, so an estate of thousands of resources scrolls freely.
 
 import { h, clear, relTime, stamp, actionOf, store, icon } from './util.js';
-import { natural, isOut, isEnv } from './model.js';
+import { natural, isOut } from './model.js';
 import { providerOf, pvClass } from './provider.js';
 import { avatar } from './plans.js';
 import { compileQuery } from './query.js';
@@ -130,7 +130,7 @@ export class ListView {
     const cmp = SORTERS[this.sort.key];
     const dir = this.sort.dir;
     const rows = [];
-    let count = 0;
+    let count;
     if (!this.grouped) {
       const list = (active ? model.list.filter(test) : model.list.slice()).sort((a, b) => cmp(a, b) * dir);
       for (const n of list) rows.push({ kind: 'node', n, depth: 0 });

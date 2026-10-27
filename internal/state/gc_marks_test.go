@@ -224,7 +224,7 @@ func TestGCRacingCollections(t *testing.T) {
 			seedRecords(t, s)
 			old := time.Now().UTC().Add(-48 * time.Hour)
 			var unnamed []string
-			for i := 0; i < 12; i++ {
+			for i := range 12 {
 				unnamed = append(unnamed, putUnnamed(t, b, s, "net.vpc", 100+i, old))
 			}
 			named := s.Len()

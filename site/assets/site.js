@@ -40,7 +40,7 @@
   var brand = $(".brand"), rootAttr = body.getAttribute("data-root");
   var rootURL = rootAttr != null ? new URL(rootAttr || "./", location.href) :
     new URL((brand && brand.getAttribute("href")) || "./", location.href);
-  var rootDir = rootURL.href.replace(/[^\/]*([?#].*)?$/, "");
+  var rootDir = rootURL.href.replace(/[^/]*([?#].*)?$/, "");
   /* sibling scripts (search.js, timeline.js) load on demand from the folder of this file */
   var here = d.currentScript && d.currentScript.src, loaded = {};
   function loadSibling(name, cb) {
@@ -49,7 +49,7 @@
     if (l) { if (cb) l.cbs.push(cb); return; }
     l = loaded[name] = { cbs: cb ? [cb] : [], done: false };
     var s = d.createElement("script");
-    s.src = here ? here.replace(/[^\/]*$/, name) : rootDir + "assets/" + name;
+    s.src = here ? here.replace(/[^/]*$/, name) : rootDir + "assets/" + name;
     s.onload = function () { l.done = true; l.cbs.forEach(function (f) { f(); }); };
     s.onerror = function () { delete loaded[name]; };
     d.head.appendChild(s);
@@ -334,7 +334,7 @@
   /* ---------- open what a link points into: details and tab panels ---------- */
   function openForHash() {
     if (location.hash.length < 2) return;
-    var t = null;
+    var t;
     try { t = d.getElementById(decodeURIComponent(location.hash.slice(1))); } catch (e) { return; }
     for (var n = t; n; n = n.parentElement) {
       if (n.tagName === "DETAILS") n.open = true;

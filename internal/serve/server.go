@@ -305,8 +305,10 @@ func (s *Server) cookieName() string {
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// A request that fails does not take the server with it.
-		if v := recover(); v != nil && v != http.ErrAbortHandler {
-			writeError(w, http.StatusInternalServerError, "internal error")
+		if v := recover(); v != nil {
+			if err, _ := v.(error); !errors.Is(err, http.ErrAbortHandler) {
+				writeError(w, http.StatusInternalServerError, "internal error")
+			}
 		}
 	}()
 	h := w.Header()
@@ -387,6 +389,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
+		//nolint:gosec // the viewer listens on loopback over plain HTTP, where a Secure cookie would never be sent
 		http.SetCookie(w, &http.Cookie{Name: s.cookieName(), Value: s.token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
 		q.Del("token")
 		target := "/"

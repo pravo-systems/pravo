@@ -184,7 +184,7 @@ func (s *Store) firstSealedRecord(ctx context.Context) (string, error) {
 		}
 		mu.Unlock()
 	}
-	for w := 0; w < min(width, len(keys)); w++ {
+	for range min(width, len(keys)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -375,7 +375,7 @@ func (s *Store) namedRecords() (map[string]bool, error) {
 	if !s.b.Local() {
 		width = readWidthRemote
 	}
-	for w := 0; w < min(width, len(keys)); w++ {
+	for range min(width, len(keys)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

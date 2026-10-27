@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/pravo-systems/pravo/internal/config"
@@ -503,7 +504,7 @@ func cueLiteral(v any) string {
 	case string:
 		return quoteCUE(x)
 	case bool:
-		return fmt.Sprint(x)
+		return strconv.FormatBool(x)
 	case int64, int, uint64, float64, json.Number:
 		return fmt.Sprint(x)
 	case []any:

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -43,10 +44,10 @@ func untrusted(format string, args ...any) error {
 func (e *Engine) VerifyReceipt(ctx context.Context, t *state.Transaction, pf *PlanFile) (*Receipt, error) {
 	readers := e.Opts.Readers
 	if e.State.Sealer() == nil {
-		return nil, fmt.Errorf("the state is not sealed: its transactions carry no signature to check")
+		return nil, errors.New("the state is not sealed: its transactions carry no signature to check")
 	}
 	if len(readers) == 0 {
-		return nil, fmt.Errorf("the readers file is missing or empty: there is nothing to check the signatures against")
+		return nil, errors.New("the readers file is missing or empty: there is nothing to check the signatures against")
 	}
 	verdict := state.VerifyTransaction(e.State.Lineage(), t, readers)
 	switch verdict.Overall() {
@@ -184,11 +185,11 @@ func parseRef(ref string) (name string, seq int, digest string, err error) {
 	at := strings.IndexByte(ref, '@')
 	colon := strings.IndexByte(ref, ':')
 	if at <= 0 || colon < at {
-		return "", 0, "", fmt.Errorf("not a policy version")
+		return "", 0, "", errors.New("not a policy version")
 	}
 	seq, err = strconv.Atoi(ref[at+1 : colon])
 	if err != nil || seq < 1 {
-		return "", 0, "", fmt.Errorf("not a policy version")
+		return "", 0, "", errors.New("not a policy version")
 	}
 	return ref[:at], seq, ref[colon+1:], nil
 }

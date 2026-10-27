@@ -95,8 +95,7 @@ func TestDowngradedStateIsRefusedToWriters(t *testing.T) {
 		if code != 0 || strings.Contains(text, "expects") || !strings.Contains(text, "Sealed       off · format 2 · immutable records · 2 records are sealed, and meta.json says the state is not: it was changed\n") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		var stderr string
-		stderr = withStderr(t, func() { text, code = runPravo(t, s.dir, "state", "list") })
+		stderr := withStderr(t, func() { text, code = runPravo(t, s.dir, "state", "list") })
 		if code != 0 || strings.Contains(stderr, "Warning") {
 			t.Errorf("list: exit %d\n%s\n%s", code, text, stderr)
 		}

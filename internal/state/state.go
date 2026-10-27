@@ -371,7 +371,7 @@ func (s *Store) load() error {
 		wg   sync.WaitGroup
 		next atomic.Int64
 	)
-	for w := 0; w < min(width, len(jsonKeys)); w++ {
+	for range min(width, len(jsonKeys)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -1333,7 +1333,7 @@ func (s *Store) deleteLock(addr string, raw []byte) bool {
 func (s *Store) lock(addr, command, txn string, keep bool) (bool, error) {
 	l := s.newLock(addr, command, txn)
 	data, _ := indentJSON(l)
-	for attempt := 0; attempt < 3; attempt++ {
+	for range 3 {
 		created, err := s.b.PutIfAbsent(s.cx(), lockKey(addr), data)
 		// A write of unknown outcome is not acquired, as a refusal is not, and the
 		// lock is read: if the store holds the bytes written, this call took it.
@@ -1482,7 +1482,7 @@ func (s *Store) reserve(addr, command string, until time.Time) (time.Time, *Lock
 		prev *Lock
 	}
 	var maybe []possible
-	for attempt := 0; attempt < 4; attempt++ {
+	for range 4 {
 		l := s.newLock(addr, command, "")
 		l.Kind = "reservation"
 		l.Expires = &until

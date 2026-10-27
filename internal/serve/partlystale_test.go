@@ -199,13 +199,13 @@ func TestPartlyStaleListIsBoundedAndMasked(t *testing.T) {
 	}
 	meta := &engine.PlanMeta{ID: "plan-00aa11bb", Created: time.Now(), Expires: time.Now().Add(time.Hour), Author: "ana@acme"}
 	conflicts := map[string][]string{}
-	for i := 0; i < maxReasons+7; i++ {
+	for i := range maxReasons + 7 {
 		addr := fmt.Sprintf("c.r%03d", i)
 		meta.Changes = append(meta.Changes, engine.PlanTouch{Addr: addr, Action: engine.ActionUpdate})
 		conflicts[addr] = []string{addr + " changed in state " + secretToken + " " + strings.Repeat("x", 2*maxReason)}
 	}
 	var live []string
-	for i := 0; i < maxTouches+5; i++ {
+	for i := range maxTouches + 5 {
 		addr := fmt.Sprintf("live.resource.name%04d", i)
 		meta.Changes = append(meta.Changes, engine.PlanTouch{Addr: addr, Action: engine.ActionCreate})
 		live = append(live, addr)

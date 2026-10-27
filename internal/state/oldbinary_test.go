@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -43,7 +44,8 @@ func TestOldBinaryRefusesNewerFormats(t *testing.T) {
 		cmd.Dir = project
 		out, err := cmd.CombinedOutput()
 		code := 0
-		if ee, ok := err.(*exec.ExitError); ok {
+		ee := &exec.ExitError{}
+		if errors.As(err, &ee) {
 			code = ee.ExitCode()
 		} else if err != nil {
 			t.Fatal(err)

@@ -32,7 +32,7 @@ type serveInfo struct {
 func runServe(t *testing.T, dir string, args ...string) (serveInfo, func() error) {
 	t.Helper()
 	wd, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(wd) })
+	t.Cleanup(func() { os.Chdir(wd) }) //nolint:usetesting // the directory is put back after each call, so that a relative path in the next call means what it meant in the first
 	r, w, _ := os.Pipe()
 	stdout := os.Stdout
 	os.Stdout = w
@@ -88,7 +88,7 @@ func runServe(t *testing.T, dir string, args ...string) (serveInfo, func() error
 
 func fetch(t *testing.T, info serveInfo, path string) []byte {
 	t.Helper()
-	req, _ := http.NewRequest("GET", "http://127.0.0.1:"+itoa(info.Port)+path, nil)
+	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:"+itoa(info.Port)+path, nil)
 	req.Header.Set("Authorization", "Bearer "+info.Token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -96,7 +96,7 @@ func fetch(t *testing.T, info serveInfo, path string) []byte {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s: %d %s", path, resp.StatusCode, body)
 	}
 	return body

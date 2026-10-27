@@ -79,11 +79,15 @@ func (m *model) clipText(s string) string {
 	return clip(stripControl(m.scrubText(s)), maxDiscoveryText)
 }
 
+// bidiControls are the marks that set the direction of text: LRM, RLM, LRE, RLE and
+// the isolates. Written as escapes so that this file is not itself bidirectional.
+const bidiControls = "\u200e\u200f\u202d\u202e\u2066\u2067\u2068\u2069"
+
 // stripControl removes the control and direction characters of a text that someone
 // else wrote, so that it cannot move the text around it.
 func stripControl(s string) string {
 	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) || r == '‮' || r == '‭' || r == '⁦' || r == '⁧' || r == '⁨' || r == '⁩' || r == '‎' || r == '‏' {
+		if unicode.IsControl(r) || strings.ContainsRune(bidiControls, r) {
 			return -1
 		}
 		return r

@@ -47,7 +47,7 @@ body:has(.app[data-view="policies"]) .planstrip, body:has(.app[data-view="polici
 .po-reg .po-h3 { padding: .75rem .9rem; border-bottom: 1px solid var(--line-strong); background: var(--surface-2); }
 .po-reg ul { margin: 0; padding: 0; list-style: none; }
 .po-reg li + li { border-top: 1px solid var(--line); }
-.po-row { display: grid; grid-template-columns: .6rem minmax(0, 1fr); column-gap: .7rem; row-gap: .3rem; width: 100%; padding: .7rem .9rem; text-align: left; background: none; border: 0; color: var(--text); transition: background var(--t-fast); }
+.po-row { display: grid; grid-template-columns: .6rem minmax(0, 1fr); gap: .3rem .7rem; width: 100%; padding: .7rem .9rem; text-align: left; background: none; border: 0; color: var(--text); transition: background var(--t-fast); }
 .po-row:hover { background: var(--surface-2); }
 .po-row[aria-current="true"] { background: var(--accent-wash); }
 .po-mark { grid-row: 1 / span 3; align-self: start; margin-top: .3rem; width: .6rem; height: .6rem; border: 1px solid var(--text-3); box-sizing: border-box; }

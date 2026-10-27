@@ -114,7 +114,7 @@ func (l *lazyPack) read(r packRange) ([]byte, error) {
 		}
 	}
 	buf := make([]byte, r[1])
-	if _, err := f.ReadAt(buf, l.base+r[0]); err != nil && !(errors.Is(err, io.EOF) && int64(len(buf)) == r[1]) {
+	if _, err := f.ReadAt(buf, l.base+r[0]); err != nil && (!errors.Is(err, io.EOF) || int64(len(buf)) != r[1]) {
 		return nil, err
 	}
 	return buf, nil

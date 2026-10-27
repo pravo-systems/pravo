@@ -30,7 +30,7 @@ func conjunctSyntax(v cue.Value) []ast.Node {
 		}
 		return out
 	}
-	if n, ok := v.Source().(ast.Node); ok && n != nil {
+	if n := v.Source(); n != nil {
 		return []ast.Node{n}
 	}
 	return nil

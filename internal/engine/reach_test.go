@@ -19,7 +19,7 @@ import (
 func manySpec(n int, content func(i int) string) spec {
 	var src strings.Builder
 	var names []string
-	for i := 0; i < n; i++ {
+	for i := range n {
 		name := fmt.Sprintf("r%03d", i)
 		names = append(names, name)
 		fmt.Fprintf(&src, "%s: %s\n", name, thing(name, fmt.Sprintf("content: %q", content(i))))
@@ -186,7 +186,7 @@ func TestRefreshModes(t *testing.T) {
 func chain(depth int, version string) spec {
 	var src strings.Builder
 	names := []string{}
-	for i := 0; i < depth; i++ {
+	for i := range depth {
 		extra := ""
 		if i > 0 {
 			extra = fmt.Sprintf(`content: "\(c%d.id)"`, i-1)
@@ -347,7 +347,7 @@ func TestInputsOfReachedNodesAreReadOnce(t *testing.T) {
 	t.Run("a record that keeps changing", func(t *testing.T) {
 		h := newHarness(t)
 		h.apply(chain(5, "1"))
-		rounds := func(found ...[]string) (*Plan, error, int) {
+		rounds := func(found ...[]string) (*Plan, int, error) {
 			e := h.engine(chain(5, "2"), Options{})
 			n := 0
 			e.readOnce = func(context.Context) ([]string, error) {
@@ -358,12 +358,12 @@ func TestInputsOfReachedNodesAreReadOnce(t *testing.T) {
 				return found[n-1], nil
 			}
 			p, err := e.Plan(context.Background())
-			return p, err, n
+			return p, n, err
 		}
-		if p, err, n := rounds([]string{"c4"}, []string{"c3"}, []string{"c2"}, []string{"c1"}, []string{"c0"}); err != nil || p == nil || n != 6 {
+		if p, n, err := rounds([]string{"c4"}, []string{"c3"}, []string{"c2"}, []string{"c1"}, []string{"c0"}); err != nil || p == nil || n != 6 {
 			t.Errorf("five rounds that find a record each: error %v, %d rounds; want a plan after 6", err, n)
 		}
-		p, err, n := rounds([]string{"c4"}, []string{"c3", "c4"})
+		p, n, err := rounds([]string{"c4"}, []string{"c3", "c4"})
 		if err == nil || !strings.Contains(err.Error(), "c4 changed while the plan read it; run pravo plan again") || strings.Contains(err.Error(), "c3") {
 			t.Fatalf("plan: error = %v", err)
 		}

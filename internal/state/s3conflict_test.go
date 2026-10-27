@@ -145,11 +145,11 @@ func TestS3SlowDownAndServerErrorsAreRetriedForManyWriters(t *testing.T) {
 	const writers, each = 16, 40
 	var wg sync.WaitGroup
 	errs := make(chan error, writers*each)
-	for w := 0; w < writers; w++ {
+	for w := range writers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for i := 0; i < each; i++ {
+			for i := range each {
 				key := fmt.Sprintf("rec/%d-%d", w, i)
 				ok, err := b.PutIfAbsent(context.Background(), key, []byte(key))
 				if err != nil || !ok {
@@ -423,12 +423,12 @@ func TestS3CounterUnderLostAnswersAndConflicts(t *testing.T) {
 	const workers, each = 4, 15
 	var reported atomic.Int64
 	var wg sync.WaitGroup
-	for w := 0; w < workers; w++ {
+	for range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for i := 0; i < each; i++ {
-				for try := 0; try < 100; try++ {
+			for range each {
+				for range 100 {
 					lock, err := OpenBackend(ctx, b)
 					if err != nil || lock.Lock("t.c", "increment", "tx") != nil {
 						time.Sleep(time.Millisecond)
