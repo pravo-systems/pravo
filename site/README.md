@@ -7,7 +7,7 @@ Static site: HTML from `tools/sitegen`, one style sheet, four shared scripts and
 | Path | Purpose |
 |---|---|
 | `site.json` | Site configuration read by `tools/sitegen`. `tools/sitegen/README.md` describes it. |
-| `landing/NN-name.html` | Bands of the front page, one `<section class="band"><div class="wrap">` per file, in file name order: the hero, kept and revisited, plans and applies, where to start and about. |
+| `landing/NN-name.html` | Bands of the front page, one `<section class="band"><div class="wrap">` per file, in file name order: the hero, rebuilt for teams, plans and applies, batteries included, assumptions, the comparison, where to start and about. |
 | `data/*.json` | Recorded output and values read from the sources. A partial or a demo reads them with `{{data file.path}}` and `{{json file.path}}`. Not copied to the output. |
 | `demos/NAME/` | One interactive demo, or the hero of the front page. `NAME/page.md` is a capture page; `build.sh` runs `tools/capture -update`, `-check` and `-json site/data/NAME.json` on it and then a Go program that derives the rest. A demo ends in `NAME/embed.html`, which a page of the documentation embeds with `:::demo NAME`. `demos/facts/facts.go` reads the state format and the plugin protocols from their sources into `data/facts.json`. |
 | `assets/style.css` | The built style sheet. Generated; edit the parts under `design/css/`. |

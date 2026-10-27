@@ -1,0 +1,20 @@
+<section class="band compare-band" id="compare" data-band="compare"><div class="wrap">
+<div class="band-head">
+<p class="kicker">Side by side</p>
+<h2 class="band-title">What you have been doing, <em>and what changes.</em></h2>
+</div>
+<div class="table-wrap"><table class="compare-table">
+<thead><tr><th>You</th><th>OpenTofu or Terraform</th><th>pravo</th></tr></thead>
+<tbody>
+<tr><td>Keep state</td><td>One file for a workspace</td><td>One record per resource</td></tr>
+<tr><td>Run a plan</td><td>Reads every resource in the state</td><td>Reads what the change reaches</td></tr>
+<tr><td>Apply together</td><td>One apply holds the lock of the state</td><td>Applies that do not overlap run at once</td></tr>
+<tr><td>Protect the state</td><td>Plain text, or encryption of the whole file</td><td>Sealed to a list of readers, every change signed</td></tr>
+<tr><td>Ask who changed it</td><td>Not recorded in the state</td><td>A signed, immutable ledger</td></tr>
+<tr><td>See the estate</td><td>A DOT graph</td><td>A browser viewer with plans, history, policies and traces</td></tr>
+<tr><td>Find out why it was slow</td><td>Logs</td><td>Traces down to provider and HTTP calls</td></tr>
+<tr><td>Take over what exists</td><td>Import each object by hand</td><td>Discover, then adopt</td></tr>
+<tr><td>Use providers</td><td>The registry</td><td>The same providers</td></tr>
+</tbody></table></div>
+<p class="stage-caption">Compared with OpenTofu and Terraform as documented. Terraform adds a minimal-refresh option in its next release and OpenTofu emits OpenTelemetry logs. Neither changes the shape of the state. <a href="migrate/index.html">Migrate</a> maps every construct.</p>
+</div></section>

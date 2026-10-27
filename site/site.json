@@ -1,7 +1,7 @@
 {
   "name": "pravo",
-  "title": "pravo · a study in declarative infrastructure",
-  "description": "An open study of the declarative layer of OpenTofu and Terraform, reimagined: per-resource state, scoped plans, policy and CUE, on the providers that already exist.",
+  "title": "pravo · Terraform, reimagined",
+  "description": "OpenTofu and Terraform, rebuilt for teams: per-resource state, plans that read what a change reaches, sealed and signed state and a viewer, on the providers that already exist.",
   "pravo_version": "0.1",
   "cue_version": "0.17",
   "repo": "https://github.com/pravo-systems/pravo",
