@@ -24,9 +24,11 @@ env:
 jobs:
   # A pull request run that is not finished three minutes after it started is
   # cancelled: a job that hangs or a cache that is cold should not hold the author
-  # for forty minutes. It leaves as soon as the ci job below is done. It cannot
-  # cancel a run of a fork, whose token may not write.
+  # for forty minutes. It leaves as soon as the ci job below is done. A change
+  # that also runs the Windows and macOS tests, or the whole of CI, gets seven
+  # minutes. It cannot cancel a run of a fork, whose token may not write.
   watchdog:
+    needs: changes
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -34,8 +36,8 @@ jobs:
       actions: write
     env:
       GH_TOKEN: ${{ github.token }}
-      # Seconds a pull request run may take.
-      LIMIT: 180
+      # Seconds a pull request run may take, from the end of the changes job.
+      LIMIT: ${{ (needs.changes.outputs.all == 'true' || needs.changes.outputs.platform == 'true') && 420 || 170 }}
     steps:
       - run: |
           jobs="repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100"
