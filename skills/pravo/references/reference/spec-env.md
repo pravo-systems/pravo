@@ -205,7 +205,7 @@ pravo plan
 Output:
 
 ```text
-Error: rev: prod/db_password: secrets are kept in a sealed state: seal the state with pravo protect init --encrypt
+Error: db: prod/db_password: secrets are kept in a sealed state: seal the state with pravo protect init --encrypt
 ```
 
 `pravo validate`, `pravo fmt` and `pravo eval` do not open the state. `pravo eval` prints `value` as the type `string` and `version` as the type `int`:
