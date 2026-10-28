@@ -63,6 +63,7 @@
   text-wrap: balance;
 }
 .band-title em { font-style: italic; }
+.shift-band .band-title em { color: var(--accent); }
 .band-lede {
   margin: 1.2rem 0 0;
   max-width: 38rem;
@@ -442,6 +443,8 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
   transition: transform var(--t-fast) var(--ease);
 }
 a.card:hover .card-more::after { transform: translateX(4px); }
+.card-down .card-more::after { transform: rotate(90deg); }
+a.card-down:hover .card-more::after { transform: rotate(90deg) translateX(4px); }
 
 /* ---------- headings of a list of steps ---------- */
 .metro-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem 1rem; margin: 0 0 .6rem; }

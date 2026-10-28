@@ -97,7 +97,7 @@ func (s *site) headerFor(fromOut string, current *section) headerView {
 }
 
 func (s *site) footerFor(fromOut string) footerView {
-	f := footerView{Name: s.cfg.Name, Tagline: firstSentence(s.cfg.Description), Applies: s.applies, Note: s.cfg.FooterNote}
+	f := footerView{Name: s.cfg.Name, Applies: s.applies, Note: s.cfg.FooterNote}
 	for _, sec := range s.sections {
 		if sec.Missing || sec.Index == nil || !sec.cfg.inNav() {
 			continue
@@ -112,16 +112,6 @@ func (s *site) footerFor(fromOut string) footerView {
 		navItem{Title: "llms.txt", Href: relURL(fromOut, "llms.txt")},
 	)
 	return f
-}
-
-// firstSentence returns the text up to and including the first full stop that
-// is followed by a space, or the whole text when it has none.
-func firstSentence(s string) string {
-	s = strings.TrimSpace(s)
-	if i := strings.Index(s, ". "); i > 0 {
-		return s[:i+1]
-	}
-	return s
 }
 
 // siteFileExists reports whether a file of the site directory exists.

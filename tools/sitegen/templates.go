@@ -63,7 +63,7 @@ const shellTemplates = `
 {{define "footer"}}<footer class="site-footer">
 <div class="foot-inner">
 <div class="foot-row">
-<p class="foot-brand"><span class="foot-title">{{.Name}}</span>{{if .Tagline}} <span class="foot-tag">{{.Tagline}}</span>{{end}}</p>
+<p class="foot-brand"><span class="foot-title">{{.Name}}</span></p>
 <nav class="foot-nav" aria-label="Footer">
 <ul class="foot-sections">
 {{range .Sections}}<li><a href="{{.Href}}">{{.Title}}</a></li>
@@ -259,7 +259,6 @@ type headerView struct {
 
 type footerView struct {
 	Name     string
-	Tagline  string    // the first sentence of the description
 	Sections []navItem // the sections of the header nav, each linking to its overview
 	Project  []navItem // the repository, when set, the list of pages and llms.txt
 	Applies  string
