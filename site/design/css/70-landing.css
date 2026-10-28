@@ -58,7 +58,7 @@
 .band-head { max-width: 48rem; margin: 0 0 clamp(2rem, 4vw, 3.5rem); }
 .band-title {
   margin: 0;
-  font: 500 clamp(2rem, 1.2rem + 3.4vw, 3.6rem)/1.04 var(--font-display);
+  font: 500 var(--fs-10)/1.04 var(--font-display);
   letter-spacing: -.022em;
   text-wrap: balance;
 }
@@ -67,7 +67,7 @@
 .band-lede {
   margin: 1.2rem 0 0;
   max-width: 38rem;
-  font: 400 clamp(1.15rem, 1rem + .6vw, 1.4rem)/1.5 var(--font-display);
+  font: 400 var(--fs-lede)/1.5 var(--font-ui);
   color: var(--text-2);
   text-wrap: pretty;
 }
@@ -152,7 +152,7 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
   border: 1px solid var(--code-edge);
   border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: .8125rem;
+  font-size: var(--fs-3);
   line-height: 1.7;
   min-width: 0;
 }
@@ -176,7 +176,7 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
   background: #3a424f;
   box-shadow: 14px 0 0 #3a424f, 28px 0 0 #3a424f;
 }
-.stage .tab-list [role="tab"] { color: var(--code-dim); font-size: .75rem; min-height: 0; border-inline: 1px solid transparent; }
+.stage .tab-list [role="tab"] { color: var(--code-dim); font-size: var(--fs-2); min-height: 0; border-inline: 1px solid transparent; }
 .stage .tab-list [role="tab"]:hover { color: var(--code-text); background: rgba(255, 255, 255, .04); }
 .stage .tab-list [role="tab"][aria-selected="true"] {
   color: var(--code-text);
@@ -216,7 +216,7 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
 }
 .stage-caption {
   margin: .9rem 0 0;
-  font: 400 .8rem/1.5 var(--font-sans);
+  font: 400 var(--fs-3)/1.5 var(--font-sans);
   color: var(--text-2);
 }
 .fig-n { white-space: nowrap; }
@@ -229,7 +229,7 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
   border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
   background: color-mix(in srgb, var(--c) 12%, transparent);
   color: var(--c);
-  font: 500 .66rem/1.3 var(--font-mono);
+  font: 500 var(--fs-1)/1.3 var(--font-ui);
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -316,12 +316,12 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
 }
 .stat dd, .stat-n {
   margin: 0;
-  font: 500 clamp(2.4rem, 1.6rem + 2.6vw, 3.6rem)/1 var(--font-display);
+  font: 500 var(--fs-10)/1 var(--font-display);
   letter-spacing: -.02em;
   font-variant-numeric: tabular-nums lining-nums;
 }
 .stat dt, .stat-l {
-  font: 500 .68rem/1.4 var(--font-mono);
+  font: 500 var(--fs-1)/1.4 var(--font-ui);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -340,7 +340,7 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
   align-items: center;
   gap: 1.6rem;
   padding: 1rem 0 1rem 1.6rem;
-  font: 500 .84rem/1 var(--font-mono);
+  font: 500 var(--fs-4)/1 var(--font-mono);
   color: var(--text-2);
   white-space: nowrap;
 }
@@ -367,7 +367,7 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
   border-radius: var(--r);
   background: transparent;
   color: var(--text-2);
-  font: 500 .68rem/1.6 var(--font-mono);
+  font: 500 var(--fs-1)/1.6 var(--font-ui);
   letter-spacing: .08em;
   text-transform: uppercase;
   vertical-align: baseline;
@@ -433,10 +433,10 @@ html.js .typed:not(.is-on) { clip-path: inset(0 100% 0 0); }
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 .spot:hover::before, .spot:hover::after, .spot:focus-visible::before, .spot:focus-visible::after { opacity: 1; }
-.card-kicker { font: 500 .68rem/1.3 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--accent); }
-.card-title { margin: 0; font: 500 1.55rem/1.15 var(--font-display); letter-spacing: -.015em; }
-.card-text { margin: 0; font-size: .95rem; line-height: 1.55; color: var(--text-2); }
-.card-more { margin-top: auto; padding-top: .6rem; font-weight: 600; font-size: .9rem; color: var(--text); display: inline-flex; align-items: center; gap: .45rem; }
+.card-kicker { font: 500 var(--fs-1)/1.3 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--accent); }
+.card-title { margin: 0; font: 500 var(--fs-8)/1.15 var(--font-ui); letter-spacing: -.015em; }
+.card-text { margin: 0; font-size: var(--fs-5); line-height: 1.55; color: var(--text-2); }
+.card-more { margin-top: auto; padding-top: .6rem; font-weight: 600; font-size: var(--fs-5); color: var(--text); display: inline-flex; align-items: center; gap: .45rem; }
 .card-more::after {
   content: ""; width: 1em; height: 1em; background: currentColor;
   -webkit-mask: var(--i-arrow) center / contain no-repeat; mask: var(--i-arrow) center / contain no-repeat;
@@ -448,8 +448,8 @@ a.card-down:hover .card-more::after { transform: rotate(90deg) translateX(4px); 
 
 /* ---------- headings of a list of steps ---------- */
 .metro-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem 1rem; margin: 0 0 .6rem; }
-.metro-head h3 { margin: 0; font: 500 1.35rem/1.2 var(--font-display); letter-spacing: -.01em; }
-.metro-head span { font: 500 .72rem/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.metro-head h3 { margin: 0; font: 500 var(--fs-8)/1.2 var(--font-ui); letter-spacing: -.01em; }
+.metro-head span { font: 500 var(--fs-2)/1.3 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
 .metro {
   position: relative;
   display: grid;
@@ -476,7 +476,7 @@ a.card-down:hover .card-more::after { transform: rotate(90deg) translateX(4px); 
 .metro.is-in::after { transform: scaleX(1); }
 html:not(.js) .metro::after { transform: scaleX(1); }
 
-.metro-id { font: 600 .78rem/1.2 var(--font-mono); }
+.metro-id { font: 600 var(--fs-3)/1.2 var(--font-mono); }
 
 @media (max-width: 59.99rem) {
   .metro { grid-auto-flow: row; grid-auto-columns: auto; margin-left: .3rem; }
@@ -501,7 +501,7 @@ html:not(.js) .metro::after { transform: scaleX(1); }
   border-radius: var(--r);
   background: var(--surface);
   color: var(--text);
-  font: 500 .84rem/1 var(--font-mono);
+  font: 500 var(--fs-4)/1 var(--font-mono);
   transition: border-color var(--t-fast), background-color var(--t-fast), color var(--t-fast);
 }
 .chip:hover { border-color: var(--text-3); background: var(--surface-2); }

@@ -9,7 +9,7 @@
 .shift-col { gap: .55rem; }
 .shift-col .card-kicker { color: var(--accent); }
 .shift-list { margin: .5rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .7rem; }
-.shift-list li { position: relative; padding-left: 1.2rem; font-size: .98rem; line-height: 1.5; color: var(--text-2); }
+.shift-list li { position: relative; padding-left: 1.2rem; font-size: var(--fs-6); line-height: 1.5; color: var(--text-2); }
 .shift-list li::before {
   content: "";
   position: absolute;
@@ -26,12 +26,12 @@
 .reach-band .band-head { margin-bottom: clamp(1.5rem, 3vw, 2.5rem); }
 .reach-band .band-title em { display: block; font-style: italic; color: var(--accent); }
 .reach-band .band-lede { max-width: 46rem; margin-top: 1rem; }
-.reach-scenario { margin: 0 0 1rem; max-width: 46rem; font: 400 1.05rem/1.5 var(--font-sans); color: var(--text); }
+.reach-scenario { margin: 0 0 1rem; max-width: 46rem; font: 400 var(--fs-6)/1.5 var(--font-sans); color: var(--text); }
 .reach-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1rem, 2.5vw, 2rem); }
 @media (max-width: 47.99rem) { .reach-compare { grid-template-columns: minmax(0, 1fr); } }
 .reach-side { display: flex; flex-direction: column; gap: .5rem; min-width: 0; padding: 1.1rem 1.4rem 1.2rem; background: var(--surface); border: 1px solid var(--line-strong); }
 .reach-side-pravo { border-color: var(--accent); }
-.reach-name { margin: 0; font: 500 .74rem/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.reach-name { margin: 0; font: 500 var(--fs-2)/1.4 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
 .reach-side-pravo .reach-name { color: var(--accent); }
 .reach-side .stats { margin: 0; border: 0; display: block; }
 .reach-side .stat { padding: 0; border: 0; background: none; }
@@ -40,16 +40,16 @@
 .reach-side .term-body .term-out, .reach-side .term-body .term-out code { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .reach-side .term { margin: 0; }
 .reach-caption { margin: .9rem 0 clamp(2.5rem, 5vw, 4rem); max-width: 52rem; }
-.reach-caption code { font-size: .92em; }
+.reach-caption code { font-size: .9em; }
 .reach-sub { margin: 0 0 1rem; }
 .reach-why { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 56rem) { .reach-why { grid-template-columns: minmax(0, 1fr); } }
-.reach-why .card-title { font-size: 1.35rem; }
+.reach-why .card-title { font-size: var(--fs-8); }
 
 /* ---------- about ---------- */
 .about-copy { display: flex; flex-direction: column; gap: 1.3rem; min-width: 0; }
 .about-copy > * { margin: 0; }
-.about-note { max-width: 38rem; font: 400 clamp(1.1rem, 1rem + .4vw, 1.25rem)/1.6 var(--font-display); color: var(--text); text-wrap: pretty; }
+.about-note { max-width: 38rem; font: 400 var(--fs-7)/1.6 var(--font-ui); color: var(--text); text-wrap: pretty; }
 .about-act { gap: .7rem; }
 
 /* ---------- download ---------- */
@@ -57,11 +57,11 @@
 @media (max-width: 47.99rem) { .download { grid-template-columns: minmax(0, 1fr); } }
 .download-main, .download-all { display: flex; flex-direction: column; align-items: flex-start; gap: .9rem; min-width: 0; }
 .download-all[hidden] { display: none; }
-.download-label { margin: 0; font: 500 .72rem/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.download-label { margin: 0; font: 500 var(--fs-2)/1.4 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
 .download-label-sub { margin-top: .5rem; }
-.download-note { margin: 0; max-width: 34rem; font-size: .92rem; line-height: 1.5; color: var(--text-2); }
+.download-note { margin: 0; max-width: 34rem; font-size: var(--fs-5); line-height: 1.5; color: var(--text-2); }
 .download-term { width: 100%; max-width: 36rem; margin: 0; }
 .download-term .term-body { padding-right: 3.2rem; }
 .download-term .term-line, .download-term .cmd-text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
-.download-list { margin: 0; padding: 0; list-style: none; display: grid; gap: .45rem; font-size: .95rem; color: var(--text-2); }
+.download-list { margin: 0; padding: 0; list-style: none; display: grid; gap: .45rem; font-size: var(--fs-5); color: var(--text-2); }
 .download-list a { color: var(--text); text-decoration-color: var(--accent); text-underline-offset: .2em; }

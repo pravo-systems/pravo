@@ -30,7 +30,7 @@
   position: absolute;
   left: 0;
   top: calc(var(--idea-fs) * .24);
-  font: 600 .72rem/1 var(--font-mono);
+  font: 600 var(--fs-2)/1 var(--font-mono);
   letter-spacing: .08em;
   color: var(--accent);
   transition: color 420ms var(--ease);
@@ -69,26 +69,26 @@
 #idea .w-field { height: 12.5rem; }
 #idea .w-card { width: min(17rem, 44%); padding: 1rem 1.1rem 1.1rem; }
 #idea .w-merged { width: min(21rem, 72%); }
-#idea .w-val { font-size: 1.28rem; }
+#idea .w-val { font-size: var(--fs-7); }
 #idea .w-field::before {
   content: "&"; content: "&" / "";
   position: absolute;
   left: 50%; top: 50%;
   translate: -50% -52%;
-  font: 500 2.4rem/1 var(--font-display);
+  font: 500 var(--fs-9)/1 var(--font-display);
   color: var(--text-3);
   transition: opacity 260ms ease-out;
 }
 #idea .widget:not([data-state="apart"]) .w-field::before { opacity: 0; }
-#idea .w-chips .chip { min-height: 2.4rem; padding: 0 1rem; font-size: .9rem; }
+#idea .w-chips .chip { min-height: 2.4rem; padding: 0 1rem; font-size: var(--fs-5); }
 @media (max-width: 30rem) {
   #idea .w-field { height: 11rem; }
   #idea .w-card { width: 43%; min-width: 0; padding: .75rem .8rem .85rem; }
-  #idea .w-val { font-size: 1rem; }
+  #idea .w-val { font-size: var(--fs-6); }
   #idea .w-merged { width: 80%; }
   #idea .w-left { --x: -54%; }
   #idea .w-right { --x: 54%; }
-  #idea .w-field::before { font-size: 1.8rem; }
+  #idea .w-field::before { font-size: var(--fs-9); }
 }
 .idea-prog { display: grid; gap: .9rem; min-width: 0; }
 .idea-pair { display: grid; gap: .9rem; min-width: 0; }
@@ -135,7 +135,7 @@ html:not(.js) .idea-prog { grid-template-columns: repeat(2, minmax(0, 1fr)); gap
 .idea-pair.is-enter .code[data-status="conflict"] .line:nth-child(4) { animation-name: idea-flash-bad; }
 .idea-pair.is-enter .code[data-status="conflict"] .line:nth-child(4) > :last-child { display: inline-block; animation: shake 180ms var(--ease) 120ms; }
 
-.idea-note { margin: 1rem 0 0; font: 400 .74rem/1.5 var(--font-mono); color: var(--text-3); }
+.idea-note { margin: 1rem 0 0; font: 400 var(--fs-2)/1.5 var(--font-ui); color: var(--text-3); }
 .idea-note code { font-size: inherit; background: none; border: 0; padding: 0; color: var(--text-2); }
 
 /* ---------- inline code in the bands ---------- */
@@ -144,10 +144,10 @@ html:not(.js) .idea-prog { grid-template-columns: repeat(2, minmax(0, 1fr)); gap
   border: 1px solid var(--line);
   border-radius: 2px;
   background: var(--surface-2);
-  font: 500 .86em var(--font-mono);
+  font: 500 .9em var(--font-mono);
   color: var(--text);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
 /* the lede is set in the display face at 1.2 to 1.3 rem: its code is one step smaller */
-.band-lede code { font-size: .74em; }
+.band-lede code { font-size: .8em; }

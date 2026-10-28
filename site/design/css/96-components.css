@@ -7,7 +7,7 @@
 /* ---------- mapping: a table from what you have to what replaces it ---------- */
 .mapping { margin: 1.8rem 0; }
 .mapping .table-wrap { margin: 0; overflow: visible; border: 0; background: none; }
-.mapping table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: .9rem; }
+.mapping table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: var(--fs-5); }
 .mapping thead th { padding: .55rem .9rem .65rem; border-bottom: 2px solid var(--text); }
 .mapping thead th:first-child::before,
 .mapping thead th:nth-child(2)::before {
@@ -23,7 +23,7 @@
 .mapping tbody td { padding: .7rem .9rem; vertical-align: top; border-top: 1px solid var(--line); background: none; font-weight: 400; }
 .mapping tbody tr:first-child td { border-top: 0; }
 .mapping tbody tr:hover td { background: none; }
-.mapping td code { white-space: normal; overflow-wrap: anywhere; font-size: .86em; }
+.mapping td code { white-space: normal; overflow-wrap: anywhere; font-size: .9em; }
 
 /* a map: the first column is what you write today, the second is what replaces it */
 .mapping:not(.mapping-status) tbody td:first-child { position: relative; background: var(--surface); font-weight: 500; }
@@ -70,7 +70,7 @@
 .mapping-status tbody tr:has([data-v="no"]) td:first-child { box-shadow: inset 3px 0 0 var(--conflict); }
 .mapping-status td.map-status {
   white-space: nowrap;
-  font: 600 .66rem/1.3 var(--font-mono);
+  font: 600 var(--fs-1)/1.3 var(--font-ui);
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -103,10 +103,10 @@
 /* ---------- cards: short blocks that link to a section ---------- */
 .doc-cards { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin: 1.8rem 0; }
 .doc-cards .card { gap: .45rem; padding: 1.1rem 1.15rem 1.2rem; }
-.doc-cards .card-title { font-size: 1.3rem; }
-.doc-cards .card-text { font-size: .9rem; }
-.doc-cards .card-text code { font-size: .86em; }
-.doc-cards .card-text:last-child { margin-top: auto; padding-top: .35rem; font-weight: 600; font-size: .86rem; }
+.doc-cards .card-title { font-size: var(--fs-7); }
+.doc-cards .card-text { font-size: var(--fs-5); }
+.doc-cards .card-text code { font-size: .9em; }
+.doc-cards .card-text:last-child { margin-top: auto; padding-top: .35rem; font-weight: 600; font-size: var(--fs-4); }
 .doc-cards .card-text:last-child::after {
   content: "";
   display: inline-block;
@@ -127,7 +127,7 @@
 
 /* ---------- runbook: the steps of a migration as nodes on a line ---------- */
 .runbook { margin: 0 0 2.25rem; padding: .95rem 0 1.05rem; border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line); }
-.rb-label { margin: 0 0 .95rem; font: 500 .68rem/1.3 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+.rb-label { margin: 0 0 .95rem; font: 500 var(--fs-1)/1.3 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
 .rb-list { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 1.2rem 0; margin: 0; padding: 0; list-style: none; }
 .rb-step { position: relative; min-width: 0; padding-right: .9rem; }
 .rb-in { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; color: var(--text); text-decoration: none; }
@@ -138,20 +138,20 @@ a.rb-in:hover .rb-t { text-decoration: underline; text-decoration-color: var(--a
 .rb-node::after { width: 0; height: 0; margin: 0; background: var(--accent); transition: width var(--t-fast) var(--ease), height var(--t-fast) var(--ease), margin var(--t-fast) var(--ease); }
 .rb-step::after { content: ""; position: absolute; left: 24px; top: 10px; right: 0; height: 2px; background: var(--line-strong); }
 .rb-step.rb-end::after { display: none; }
-.rb-n { font: 600 .7rem/1.2 var(--font-mono); letter-spacing: .06em; color: var(--text-3); }
-.rb-t { font: 500 .88rem/1.3 var(--font-sans); }
+.rb-n { font: 600 var(--fs-1)/1.2 var(--font-mono); letter-spacing: .06em; color: var(--text-3); }
+.rb-t { font: 500 var(--fs-4)/1.3 var(--font-sans); }
 .rb-past .rb-node::before { border-color: var(--accent); background: var(--accent); }
 .rb-past::after { background: var(--accent); }
 .rb-here .rb-node::before { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-wash); }
 .rb-here .rb-node::after { width: 4px; height: 4px; margin: -2px 0 0 -2px; }
 .rb-here .rb-n { color: var(--accent); }
 .rb-here .rb-t { font-weight: 600; }
-.rb-g { margin-top: .15rem; font-size: .76rem; line-height: 1.4; color: var(--text-2); }
-.rb-g code { font-size: .92em; }
+.rb-g { margin-top: .15rem; font-size: var(--fs-2); line-height: 1.4; color: var(--text-2); }
+.rb-g code { font-size: .9em; }
 .rb-here .rb-g { color: var(--text); }
 .rb-ahead .rb-t { color: var(--text-2); }
-.rb-lookup { max-width: none; margin: 1.1rem 0 0; font-size: .86rem; color: var(--text-2); }
-.rb-lookup-l { margin-right: .7rem; font: 600 .66rem/1.3 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+.rb-lookup { max-width: none; margin: 1.1rem 0 0; font-size: var(--fs-4); color: var(--text-2); }
+.rb-lookup-l { margin-right: .7rem; font: 600 var(--fs-1)/1.3 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
 .rb-lookup a { margin-right: 1rem; color: var(--text); text-decoration: none; white-space: nowrap; }
 .rb-lookup a:hover { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: .18em; }
 @media (max-width: 40rem) {
@@ -170,7 +170,7 @@ a.rb-in:hover .rb-t { text-decoration: underline; text-decoration-color: var(--a
 /* ---------- cause and fix: the two lines under a pitfall ---------- */
 .cause-fix { margin: 1.3rem 0; padding: .1rem 0 .1rem 1rem; border-left: 2px solid var(--line-strong); }
 .cause-fix p { position: relative; max-width: var(--measure); margin: .55rem 0; padding-left: 4.3rem; }
-.cf-l { position: absolute; left: 0; top: .22rem; font: 600 .66rem/1.3 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--change); }
+.cf-l { position: absolute; left: 0; top: .22rem; font: 600 var(--fs-1)/1.3 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--change); }
 .cf-fix { color: var(--accent); }
 .cause-fix:has(.cf-fix) { border-left-color: var(--accent); }
 @media (max-width: 40rem) { .cause-fix p { padding-left: 0; } .cf-l { position: static; display: block; margin-bottom: .1rem; } }
