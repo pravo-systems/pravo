@@ -633,6 +633,9 @@ func TestRetargetedSymlinkIsNotServed(t *testing.T) {
 // graph and the detail answer in bounded time and the answer is bounded.
 func TestHugeAttribute(t *testing.T) {
 	size := 24 << 20
+	if testing.Short() {
+		size = 4 << 20
+	}
 	if n := os.Getenv("PRAVO_SERVE_HUGE"); n != "" {
 		size = atoiOr0(n) << 20
 	}
@@ -678,7 +681,13 @@ func TestDeeplyNestedAttribute(t *testing.T) {
 		t.Fatal(err)
 	}
 	seed(t, st)
-	for _, depth := range []int{50, 9990} {
+	depths := []int{50, 9990}
+	if testing.Short() {
+		// The time grows faster than the depth. 9990 is just under the limit of the
+		// JSON decoder, and is left to the runs without -short.
+		depths = []int{50, 1500}
+	}
+	for _, depth := range depths {
 		nest := strings.Repeat(`{"k":`, depth) + `"deep-` + secretBlob + `"` + strings.Repeat("}", depth)
 		arr := strings.Repeat("[", depth) + `"x"` + strings.Repeat("]", depth)
 		raw := `{"path":"/tmp/n","content":"c","tags":` + nest + `,"zones":` + arr + `,"legacy":` + nest + `}`

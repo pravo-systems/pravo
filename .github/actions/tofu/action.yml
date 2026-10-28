@@ -1,0 +1,32 @@
+name: OpenTofu
+description: >
+  Puts the OpenTofu binary of a version on the path. It is kept in the cache and,
+  when it is not there, downloaded with a time limit and checked against the
+  checksums of the release. opentofu/setup-opentofu has hung for minutes on its
+  own requests, with nothing in the log.
+inputs:
+  version:
+    description: The version of OpenTofu, such as 1.13.1.
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache@v6
+      with:
+        path: ~/.local/opentofu
+        key: opentofu-${{ runner.os }}-${{ inputs.version }}
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        v=${{ inputs.version }}
+        base=https://github.com/opentofu/opentofu/releases/download/v$v
+        zip=tofu_${v}_linux_amd64.zip
+        tmp=$(mktemp -d)
+        curl -fsSL --retry 3 --connect-timeout 10 --max-time 90 -o "$tmp/$zip" "$base/$zip"
+        curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 -o "$tmp/sums" "$base/tofu_${v}_SHA256SUMS"
+        (cd "$tmp" && grep " $zip\$" sums | sha256sum -c -)
+        mkdir -p ~/.local/opentofu
+        unzip -q -o "$tmp/$zip" tofu -d ~/.local/opentofu
+    - shell: bash
+      run: echo "$HOME/.local/opentofu" >> "$GITHUB_PATH"

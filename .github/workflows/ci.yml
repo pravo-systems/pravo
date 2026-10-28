@@ -22,57 +22,92 @@ env:
   TOFU_VERSION: 1.13.1
 
 jobs:
-  # Formatting, vet, module hygiene, and a build for every platform that pravo
-  # supports. The slow jobs below do not wait for this one: they all start at once.
-  static:
+  # Which parts of the repository a pull request touches (tools/ci/changes.sh).
+  # The jobs that it cannot affect are skipped; main, tags and the workflows
+  # themselves run everything. A job of a pull request that takes longer than the
+  # limit that it names (three minutes, as a rule) is cancelled: a job that hangs
+  # or a cache that is cold should not hold the author for forty minutes.
+  changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
+    outputs:
+      all: ${{ steps.c.outputs.all }}
+      code: ${{ steps.c.outputs.code }}
+      binary: ${{ steps.c.outputs.binary }}
+      docs: ${{ steps.c.outputs.docs }}
+      site: ${{ steps.c.outputs.site }}
+      web: ${{ steps.c.outputs.web }}
+      hcl: ${{ steps.c.outputs.hcl }}
+      platform: ${{ steps.c.outputs.platform }}
+      slow: ${{ steps.c.outputs.slow }}
+      waits: ${{ steps.c.outputs.waits }}
+      limit: ${{ steps.c.outputs.limit }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
-      - name: gofmt
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "These files need gofmt:"; echo "$unformatted"; exit 1
-          fi
-      - name: go vet
-        run: go vet ./...
-      - name: go vet for Windows
-        run: GOOS=windows GOARCH=amd64 go vet ./...
-      - name: go mod tidy changes nothing
-        run: |
-          go mod tidy
-          git diff --exit-code go.mod go.sum
-      - name: Build for every platform
-        run: |
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-            GOOS=${target%/*} GOARCH=${target#*/} go build ./... && echo "built $target"
-          done
+          fetch-depth: 2
+      - id: c
+        env:
+          CI_EVENT: ${{ github.event_name }}
+        run: sh tools/ci/changes.sh
+      # Every page of the documentation is in a job of the docs matrix.
+      - run: sh tools/ci/pages.sh check
+
+  # Formatting, module hygiene, and a build for every platform that pravo
+  # supports, a job for each system (tools/ci/static.sh). The jobs of a matrix have
+  # no names of their own, so that a pull request that skips them shows "static" and
+  # not the template of a name. Main, the release and a
+  # change to CI itself also vet the module on each system; a pull request leaves
+  # that to golangci-lint on the packages that it changed.
+  static:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    env:
+      CI_EVENT: ${{ github.event_name }}
+      CI_ALL: ${{ needs.changes.outputs.all }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The linux job also checks the formatting and the modules.
+        system: [linux, macos, windows]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: static-${{ matrix.system }}
+      - run: sh tools/ci/static.sh job ${{ matrix.system }}
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: static-${{ matrix.system }}
 
   # golangci-lint (.golangci.yml) on the files of each platform that pravo
   # supports, next to the other jobs and waited for by none of them. The binary,
   # its analysis cache and the build cache are kept between runs, so a run takes
   # about a minute once they are warm.
   lint:
-    name: lint (${{ matrix.goos }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
     strategy:
       fail-fast: false
       matrix:
-        goos: [linux, windows, darwin]
+        # The files of the other systems are linted when a change touches them.
+        goos: ${{ fromJSON(needs.changes.outputs.platform == 'true' && '["linux","windows","darwin"]' || '["linux"]') }}
     env:
       # The first release that was built with the Go version of go.mod. Change it
       # together with the line `go` of go.mod when that moves on.
       GOLANGCI_LINT_VERSION: v2.15.0
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          fetch-depth: 2
+      - uses: ./.github/actions/go
+        with:
+          key: lint-${{ matrix.goos }}
       - name: Cache golangci-lint
         id: binary
         uses: actions/cache@v6
@@ -89,13 +124,22 @@ jobs:
           key: golangci-lint-cache-${{ matrix.goos }}-${{ hashFiles('go.sum', '.golangci.yml') }}-${{ github.sha }}
           restore-keys: golangci-lint-cache-${{ matrix.goos }}-${{ hashFiles('go.sum', '.golangci.yml') }}-
       - name: golangci-lint
-        run: GOOS=${{ matrix.goos }} ~/go/bin/golangci-lint run ./...
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_ALL: ${{ needs.changes.outputs.all }}
+        run: GOOS=${{ matrix.goos }} sh tools/ci/lint.sh ~/go/bin/golangci-lint
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: lint-${{ matrix.goos }}
 
   # ESLint and Stylelint (tools/_weblint) on the viewer and on the site.
   lint-web:
     name: lint (viewer and site)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -106,148 +150,289 @@ jobs:
       - run: npm --prefix tools/_weblint ci
       - run: npm --prefix tools/_weblint run lint
 
-  # The Go tests, split by package so that the long ones run side by side.
+  # The Go tests on Linux, split so that the long ones run side by side
+  # (tools/ci/shards.txt). A pull request runs only the packages that its change
+  # can reach through imports (tools/ci/gotest.sh), without the race detector, and
+  # with -short, which keeps the shapes of the stress tests and cuts the number of
+  # trials, and leaves out the tests that build the binary or a provider. Main and
+  # the release run all of it, with -race.
   test:
-    name: test (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    env:
+      CI_EVENT: ${{ github.event_name }}
+      CI_ALL: ${{ needs.changes.outputs.all }}
+      SHORT: ${{ github.event_name == 'pull_request' && '-short' || '' }}
+      RACE: ${{ github.event_name == 'pull_request' && ' ' || '-race' }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: engine, race
-            os: ubuntu-latest
-            run: go test -race -count=1 ./internal/engine
-          - name: state, race
-            os: ubuntu-latest
-            run: go test -race -count=1 ./internal/state/...
-          - name: cmd
-            os: ubuntu-latest
-            run: go test -count=1 ./cmd/...
-          - name: other packages
-            os: ubuntu-latest
-            run: go test -count=1 $(go list ./... | grep -v -E '/(internal/engine|internal/state|cmd|tools)(/|$)')
-          - name: state and cmd on macOS
-            os: macos-latest
-            run: go test -count=1 ./internal/state/... ./cmd/...
+        # serve is the viewer. cmd-*: the command line, by the topic of the test
+        # files. rest: the other tests of the command line, and the packages that no
+        # other job has.
+        shard: [engine, serve, state, cmd-plans, cmd-outcomes, cmd-sealing, cmd-identities, rest]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
-      - run: ${{ matrix.run }}
+          fetch-depth: 2
+      - uses: ./.github/actions/go
+        with:
+          key: test
+      - run: sh tools/ci/tests.sh ${{ matrix.shard }}
+      # Each job compiles only its share of the packages, so on main the job below
+      # saves the cache instead, and a pull request saves only when it found none:
+      # what one job of the matrix saved would stand for all of them, and be
+      # restored before the complete entry of main.
+      - if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: ./.github/actions/go-save
+        with:
+          key: test
+          heal: false
 
-  # The Go tests on Windows, where file operations are slow: the engine tests
-  # are dealt out to eight jobs, and everything else runs in one. The build and
-  # vet for Windows are in the static job. The documentation tools run a POSIX
-  # shell and are not part of this.
+  # The cache that the test jobs of the pull requests start from. A job of the
+  # matrix above has compiled the tests of its own packages only, and whichever
+  # saved first would stand for all; this one compiles every test binary, without
+  # race detector as a pull request has none, and runs none of the tests.
+  warm:
+    name: warm the test cache
+    needs: changes
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: test
+      - run: go test -count=1 -run '^$' $(go list ./... | grep -v /tools/)
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: test
+
+  # The same tests on Windows, where file operations and locks behave differently
+  # and the runners are slow (tools/ci/windows.sh). A pull request runs them when it
+  # changes a file for one system or a package that works with files, locks or
+  # processes; main and the release run them always. The build, vet and lint for
+  # Windows and macOS are in the jobs above and run every time. The documentation
+  # tools run a POSIX shell and are not part of this. The job has no name of its
+  # own, so that a pull request that skips it shows "windows".
   windows:
-    name: windows (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || needs.changes.outputs.platform == 'true')
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    env:
+      CI_EVENT: ${{ github.event_name }}
+      CI_ALL: ${{ needs.changes.outputs.all }}
+      SHORT: ${{ github.event_name == 'pull_request' && '-short' || '' }}
     defaults:
       run:
         shell: bash
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {name: "engine 1/8", run: "sh tools/ci/test-shard.sh ./internal/engine 0 8 -v -timeout 25m"}
-          - {name: "engine 2/8", run: "sh tools/ci/test-shard.sh ./internal/engine 1 8 -v -timeout 25m"}
-          - {name: "engine 3/8", run: "sh tools/ci/test-shard.sh ./internal/engine 2 8 -v -timeout 25m"}
-          - {name: "engine 4/8", run: "sh tools/ci/test-shard.sh ./internal/engine 3 8 -v -timeout 25m"}
-          - {name: "engine 5/8", run: "sh tools/ci/test-shard.sh ./internal/engine 4 8 -v -timeout 25m"}
-          - {name: "engine 6/8", run: "sh tools/ci/test-shard.sh ./internal/engine 5 8 -v -timeout 25m"}
-          - {name: "engine 7/8", run: "sh tools/ci/test-shard.sh ./internal/engine 6 8 -v -timeout 25m"}
-          - {name: "engine 8/8", run: "sh tools/ci/test-shard.sh ./internal/engine 7 8 -v -timeout 25m"}
-          - {name: "other packages", run: "go test -count=1 -timeout 25m $(go list ./internal/... ./cmd/... | grep -v '/internal/engine$')"}
+        shard: ["engine locks", "engine equivalence", "engine plans and discovery", "commands and viewer", "state and libraries"]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
-      - run: ${{ matrix.run }}
+          fetch-depth: 2
+      - uses: ./.github/actions/go
+        with:
+          key: tests
+      - run: sh tools/ci/windows.sh "${{ matrix.shard }}"
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: tests
+
+  # The tests of the packages that work with files and locks, on macOS. The
+  # runners are scarce: a job has waited five minutes for one. Only main and the
+  # release run it.
+  macos:
+    name: macos (state and cmd)
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
+    runs-on: macos-latest
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    env:
+      CI_EVENT: ${{ github.event_name }}
+      CI_ALL: ${{ needs.changes.outputs.all }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: tests
+      - run: sh tools/ci/gotest.sh state && sh tools/ci/gotest.sh cmd
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: tests
 
   # The tools of the documentation: capture, sitegen, hclcheck and the scale
   # benchmark. Their tests start the binary and some of them run tofu.
   tools:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
-      - uses: opentofu/setup-opentofu@v2
+          key: tools-tests
+      - uses: ./.github/actions/tofu
+        timeout-minutes: 3
         with:
-          tofu_version: ${{ env.TOFU_VERSION }}
-          tofu_wrapper: false
+          version: ${{ env.TOFU_VERSION }}
       - run: go test -count=1 ./tools/...
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: tools-tests
 
   # Every command of every page of the documentation runs against the real
-  # binary, and its output is compared with the page. One job for each section.
+  # binary, and its output is compared with the page. The pages are dealt out to
+  # jobs by section (tools/ci/pages.sh). A change that leaves the binary alone
+  # checks the pages that it changed, and the pages that wait for a minute are
+  # checked when the change is about what they show.
   docs:
-    name: docs (${{ matrix.section }})
+    needs: changes
+    if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    env:
+      CI_EVENT: ${{ github.event_name }}
+      CI_BINARY: ${{ needs.changes.outputs.binary }}
+      CI_WAITS: ${{ needs.changes.outputs.waits }}
+      SHARD: ${{ matrix.shard }}
     strategy:
       fail-fast: false
       matrix:
-        section: [concepts, how-to, learn, migrate, reference]
+        # The pages of each section (tools/ci/pages.sh); slow is the pages that wait
+        # for a minute.
+        shard: [concepts, cue, how-to, learn, labs, commands, slow]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
-      - name: Cache the providers that the pages download
+          fetch-depth: 2
+      - id: pages
+        run: |
+          if [ -n "$(sh tools/ci/pages.sh "$SHARD")" ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No page of this job needs checking."
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.pages.outputs.any == 'true'
+        uses: ./.github/actions/go
+        with:
+          key: capture
+      - if: steps.pages.outputs.any == 'true'
+        name: Cache the providers that the pages download
         uses: actions/cache@v6
         with:
           path: ~/.pravo
-          key: pravo-home-${{ runner.os }}-${{ matrix.section }}-${{ hashFiles('docs/**/*.md') }}
-          restore-keys: pravo-home-${{ runner.os }}-${{ matrix.section }}-
-      - name: Install cue at the version that pravo embeds
+          key: pravo-home-${{ runner.os }}-docs-${{ matrix.shard }}-${{ hashFiles('docs/**/*.md') }}
+          restore-keys: pravo-home-${{ runner.os }}-docs-${{ matrix.shard }}-
+      - if: steps.pages.outputs.any == 'true'
+        name: Cache cue
+        id: cue
+        uses: actions/cache@v6
+        with:
+          path: ~/go/bin/cue
+          key: cue-${{ runner.os }}-${{ hashFiles('go.mod', 'go.sum') }}
+      - if: steps.pages.outputs.any == 'true' && steps.cue.outputs.cache-hit != 'true'
+        name: Install cue at the version that pravo embeds
         run: go install cuelang.org/go/cmd/cue@$(go list -m -f '{{.Version}}' cuelang.org/go)
-      - name: Build pravo
+      - if: steps.pages.outputs.any == 'true'
+        name: Build pravo
         run: go build -o bin/pravo ./cmd/pravo
-      - name: Check the pages
-        run: go run ./tools/capture -check -j 4 -bin bin/pravo ./docs/${{ matrix.section }}
+      - if: steps.pages.outputs.any == 'true'
+        name: Check the pages
+        run: go run ./tools/capture -check -j 4 -bin bin/pravo $(sh tools/ci/pages.sh "$SHARD")
+      - if: ${{ always() && steps.pages.outputs.any == 'true' }}
+        uses: ./.github/actions/go-save
+        with:
+          key: capture
 
   # The recorded scenarios behind the landing page and the demos. They run
   # OpenTofu next to pravo.
   demos:
+    name: demos (hero, idea, blast and migration)
+    needs: changes
+    if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
-      - uses: opentofu/setup-opentofu@v2
+          key: capture
+      - uses: ./.github/actions/tofu
+        timeout-minutes: 3
         with:
-          tofu_version: ${{ env.TOFU_VERSION }}
-          tofu_wrapper: false
+          version: ${{ env.TOFU_VERSION }}
       - uses: actions/cache@v6
         with:
           path: ~/.pravo
           key: pravo-home-${{ runner.os }}-demos-${{ hashFiles('site/demos/**/page.md') }}
           restore-keys: pravo-home-${{ runner.os }}-demos-
       - run: go build -o bin/pravo ./cmd/pravo
-      - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos
+      - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos/hero site/demos/idea site/demos/facts site/demos/blast site/demos/migrate
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: capture
+
+  # The scenario with two thousand resources, which pravo and OpenTofu each apply
+  # and plan again. It takes a minute by itself, so a pull request runs it when it
+  # changes the engine, the state or the plugins, or the scenario.
+  scale:
+    name: demos (scale)
+    needs: changes
+    if: needs.changes.outputs.slow == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: capture
+      - uses: ./.github/actions/tofu
+        timeout-minutes: 3
+        with:
+          version: ${{ env.TOFU_VERSION }}
+      - uses: actions/cache@v6
+        with:
+          path: ~/.pravo
+          key: pravo-home-${{ runner.os }}-demos-scale-${{ hashFiles('site/demos/scale/page.md') }}
+          restore-keys: pravo-home-${{ runner.os }}-demos-scale-
+      - run: go build -o bin/pravo ./cmd/pravo
+      - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos/scale
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: capture
 
   # The OpenTofu listings of the documentation are valid, and the statements
   # about OpenTofu that the pages make still hold.
   opentofu:
+    needs: changes
+    if: needs.changes.outputs.hcl == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
-      - uses: opentofu/setup-opentofu@v2
+          key: hclcheck
+      - uses: ./.github/actions/tofu
+        timeout-minutes: 3
         with:
-          tofu_version: ${{ env.TOFU_VERSION }}
-          tofu_wrapper: false
+          version: ${{ env.TOFU_VERSION }}
       - uses: actions/cache@v6
         with:
           path: ~/hclcheck-plugins
@@ -255,25 +440,35 @@ jobs:
           restore-keys: hclcheck-plugins-
       - run: go run ./tools/hclcheck -j 4 -cache ~/hclcheck-plugins
       - run: sh tools/hclcheck/claims.sh
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: hclcheck
 
   # The site builds, the phrase lint passes, every link resolves and the facts
   # on the landing page are the ones that the sources give.
   site:
+    needs: changes
+    if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: site
       - run: go build -o bin/pravo ./cmd/pravo
       - run: go run ./tools/sitegen -pravo-bin bin/pravo
       - run: go run site/demos/facts/facts.go -check
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: site
 
   # One check to require in the branch protection settings.
   ci:
     if: always()
-    needs: [static, lint, lint-web, test, windows, tools, docs, demos, opentofu, site]
+    needs: [changes, static, lint, lint-web, test, warm, windows, macos, tools, docs, demos, scale, opentofu, site]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed

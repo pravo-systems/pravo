@@ -7,6 +7,8 @@ env:
   PRAVO_PASSPHRASE: an example passphrase
   PRAVO_CONFIG_DIR: people/ada
 normalize:
+  - pattern: 'records sealed in [0-9.]+ s'
+    replace: 'records sealed in 0.0 s'
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
   - pattern: '\[id=[a-z]+-[a-z]+\]'
