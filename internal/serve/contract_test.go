@@ -42,6 +42,8 @@ func TestInterfaceFixturesMatchTheContract(t *testing.T) {
 			into = &Discovery{}
 		case "policies":
 			into = &Policies{}
+		case "secrets":
+			into = &Secrets{}
 		case "adopt":
 			into = &Adopt{}
 		case "traces":
@@ -49,7 +51,7 @@ func TestInterfaceFixturesMatchTheContract(t *testing.T) {
 		case "trace":
 			into = &Trace{}
 		default:
-			t.Errorf("%s: a fixture is named graph.*, detail.*, source.*, search.*, event.*, plans.*, plan.*, access.*, discovery.*, policies.*, adopt.*, traces.* or trace.*", name)
+			t.Errorf("%s: a fixture is named graph.*, detail.*, source.*, search.*, event.*, plans.*, plan.*, access.*, discovery.*, policies.*, secrets.*, adopt.*, traces.* or trace.*", name)
 			continue
 		}
 		data, err := os.ReadFile(f)

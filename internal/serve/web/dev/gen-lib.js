@@ -67,6 +67,23 @@ class Builder {
     this.index.set(addr, n);
     return n;
   }
+  // transient records a node that is never written to the state: an environment variable, a secret of the sealed
+  // state and the number of its version. It has no provider, no record and no refresh time.
+  transient(addr, type, o = {}) {
+    const parts = addr.split('.');
+    const n = {
+      addr,
+      mode: o.mode || 'ephemeral',
+      type,
+      name: parts[parts.length - 1],
+      namespace: parts.slice(0, -1).join('.'),
+      presence: o.presence || 'both',
+      source: o.source,
+    };
+    this.nodes.push(n);
+    this.index.set(addr, n);
+    return n;
+  }
   // output records the node of an output of the root: it has no provider, no revision and no refresh time, and
   // it is a node of the graph and not a resource (Namespace.resources and the counts of a plan leave it out)
   output(addr, o = {}) {
@@ -137,6 +154,10 @@ class Builder {
   }
 }
 
+// resource says that a node is one that a plan counts: a managed resource or a data source. Outputs and the nodes that
+// are never written to the state (an environment variable, a secret) are not.
+const resource = (n) => n.mode === 'managed' || n.mode === 'data';
+
 // planOf summarises the actions of the nodes of a builder as a PlanInfo.
 function planOf(b, o) {
   const c = { add: 0, change: 0, destroy: 0, read: 0 };
@@ -162,9 +183,9 @@ function planOf(b, o) {
     reasons: o.reasons,
     summary: { add: c.add, change: c.change, destroy: c.destroy, read: c.read, blast_radius: blast.size },
     planned,
-    total: b.nodes.filter((n) => n.mode !== 'output').length,
+    total: b.nodes.filter(resource).length,
     hints: o.hints,
   });
 }
 
-module.exports = { T0, MIN, H, D, iso, rng, prune, Builder, planOf };
+module.exports = { T0, MIN, H, D, iso, rng, prune, Builder, planOf, resource };

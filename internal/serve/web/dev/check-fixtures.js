@@ -89,7 +89,7 @@ const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
 for (const f of files) {
   const v = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
   const kind = f.split('.')[0];
-  const type = { graph: 'Graph', detail: 'Detail', source: 'Source', plans: 'PlanList', plan: 'PlanOverlay', access: 'Access', discovery: 'Discovery', policies: 'Policies', adopt: 'Adopt' }[kind];
+  const type = { graph: 'Graph', detail: 'Detail', source: 'Source', plans: 'PlanList', plan: 'PlanOverlay', access: 'Access', discovery: 'Discovery', policies: 'Policies', secrets: 'Secrets', adopt: 'Adopt' }[kind];
   if (!type) { fail(f, 'unknown fixture kind'); continue; }
   const before = errors;
   check(v, type, f);
@@ -119,7 +119,8 @@ for (const f of files) {
       const below = v.nodes.filter((n) => n.addr.startsWith(m.path + '.'));
       if (m.resources !== below.filter((n) => n.mode !== 'output').length || (m.outputs || 0) !== below.filter((n) => n.mode === 'output').length) fail(f, `namespace ${m.path} counts ${m.resources} resources and ${m.outputs || 0} outputs`);
     }
-    if (v.plan && v.plan.total !== v.nodes.filter((n) => n.mode !== 'output').length) fail(f, 'plan.total counts the outputs');
+    // a plan counts resources and data sources: not outputs, and not what is never recorded (an environment variable, a secret)
+    if (v.plan && v.plan.total !== v.nodes.filter((n) => n.mode === 'managed' || n.mode === 'data').length) fail(f, 'plan.total counts more than the resources and data sources');
   }
   console.log(`${errors === before ? 'ok  ' : 'FAIL'} ${f}`);
 }
@@ -171,6 +172,56 @@ for (const f of files) {
       }
     }
     if (errors === before) console.log(`ok   ${f} (suggestions)`);
+  }
+}
+
+// The secrets documents: a state that is not sealed holds no secret, an issue is of a known kind and level, the count
+// on the tab is the number of issues, the line that says all is clear is for a document with nothing to flag, no
+// version carries a trust before it was judged, the commands are ones of pravo secret, and the nodes that read a
+// secret are secret nodes of the platform graph.
+{
+  const read = (f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+  const KINDS = new Set(['unsealed', 'unreadable', 'roles', 'unset', 'untrusted', 'unchecked', 'unchecked-all']);
+  const LEVELS = new Set(['bad', 'chg']);
+  const TRUST = new Set(['ok', 'vouched', 'unchecked', 'unconfirmed', 'problem']);
+  const secretNodes = new Map(read('graph.platform.json').nodes.filter((n) => n.type === 'secret' || n.type === 'secret_version').map((n) => [n.addr, n]));
+  for (const f of files.filter((x) => x.startsWith('secrets.'))) {
+    const d = read(f);
+    const before = errors;
+    if (d.problems !== d.issues.length) fail(f, `problems ${d.problems}, ${d.issues.length} issues`);
+    if (!d.sealed && d.secrets.length) fail(f, 'a state that is not sealed holds secrets');
+    if (!d.sealed && d.checked) fail(f, 'checked without a state to check');
+    if (d.all_clear && (d.issues.length || !d.secrets.length)) fail(f, 'all clear with something to flag, or with nothing to say it of');
+    if (!d.all_clear && d.sealed && !d.issues.length && d.secrets.length) fail(f, 'a sealed state with secrets and nothing to flag says it is all clear');
+    const names = d.secrets.map((e) => e.name);
+    if (names.join() !== [...names].sort().join()) fail(f, 'the secrets are not sorted by name');
+    const uses = new Set();
+    for (const e of d.secrets) {
+      const w = `${f} ${e.name}`;
+      if (!['set', 'removed'].includes(e.status)) fail(w, `status ${e.status}`);
+      if (e.version < 1 || e.versions < e.version || (e.bad || 0) > e.versions) fail(w, `version ${e.version} of ${e.versions}, ${e.bad || 0} flagged`);
+      if (e.trust && !TRUST.has(e.trust)) fail(w, `trust ${e.trust}`);
+      if (e.trust && !d.checked) fail(w, 'a trust, and nothing was checked');
+      if (d.checked && !e.trust) fail(w, 'checked and no trust');
+      for (const u of e.used_by) {
+        uses.add(u.addr);
+        const n = secretNodes.get(u.addr);
+        if (!n) fail(w, `read by ${u.addr}, which is not a secret node of the platform graph`);
+        else if (!!u.number !== (n.type === 'secret_version')) fail(w, `${u.addr}: number does not agree with the type of the node`);
+        if (u.pin && u.number) fail(w, `${u.addr} asks for a version of a number`);
+      }
+    }
+    for (const i of d.issues) {
+      const w = `${f} ${i.kind}`;
+      if (!KINDS.has(i.kind)) fail(w, 'unknown kind');
+      if (!LEVELS.has(i.level)) fail(w, `level ${i.level}`);
+      for (const it of i.items || []) {
+        if (it.command && !/^pravo secret [a-z]+ [A-Za-z0-9][A-Za-z0-9._/-]*$/.test(it.command)) fail(w, `command ${it.command}`);
+        for (const a of it.used_by || []) if (!secretNodes.has(a)) fail(w, `${it.name} is read by ${a}, which is not a secret node of the platform graph`);
+        if (/[\n\r]/.test(it.why)) fail(w, 'a reason with a line break');
+      }
+    }
+    if (errors === before) console.log(`ok   ${f} (secrets)`);
   }
 }
 
@@ -258,7 +309,7 @@ for (const f of files) {
       if (p.status !== 'stale' && (o.plan.reasons || []).length) fail(of, 'reasons on a plan that is not stale');
       if (o.nodes.map((n) => n.addr).join() !== p.touches.map((t) => t.addr).join() || o.nodes.some((n, i) => n.action !== p.touches[i].action || !!n.applied !== !!p.touches[i].applied)) fail(of, 'the nodes are not the touches of the plan');
       for (const k of ['add', 'change', 'destroy', 'read']) if (o.plan.summary[k] !== p.summary[k]) fail(of, `summary.${k}`);
-      if (o.plan.planned !== p.planned || o.plan.total !== g.nodes.filter((n) => n.mode !== 'output').length) fail(of, 'planned of total');
+      if (o.plan.planned !== p.planned || o.plan.total !== g.nodes.filter((n) => n.mode === 'managed' || n.mode === 'data').length) fail(of, 'planned of total');
     }
     console.log(`${errors === before ? 'ok  ' : 'FAIL'} ${f} goes with ${graphFile}`);
   }

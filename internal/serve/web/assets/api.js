@@ -43,6 +43,8 @@ export const access = () => get('/api/access').catch((err) => { if (err && err.s
 export const discovery = () => get('/api/discovery').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, unmanaged: 0, discoveries: [], command: 'pravo discover' }; throw err; });
 // policies is the rules that every plan is judged by, with their signed versions, set against the specification; a server that does not know them has none.
 export const policies = () => get('/api/policies').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, checked: false, in_force: 0, pending: 0, policies: [], command: 'pravo apply' }; throw err; });
+// secrets is the secrets of the sealed state, in the clear: their names, versions and signers, never a value, set against the nodes that read them; a server that does not know them says the state keeps none.
+export const secrets = () => get('/api/secrets').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, sealed: false, checked: false, secrets: [], issues: [], problems: 0 }; throw err; });
 // studio is what a rule can be tried on (the stored plans and the plan files of the project), the policies and examples to start from, and the schema of the plan document.
 export const studio = () => get('/api/studio');
 // tryRule holds the policies of a text against plans. Nothing is written: it is a GET, as every request of the page is.

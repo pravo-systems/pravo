@@ -9,7 +9,7 @@
 
 import { s, h, clamp, ease, schedule, actionOf, plural } from './util.js';
 import { G, FIT, fitScale, pathOf, badges, badgeSize, lengthOf, wiring } from './layout.js';
-import { eachNode, cellsOf, isOut, isEnv } from './model.js';
+import { eachNode, cellsOf, isOut, isEnv, isSecret } from './model.js';
 import { initials, hueOf } from './plans.js';
 import { providerOf, pvClass } from './provider.js';
 import { ENTITY_LABEL } from './query.js';
@@ -31,6 +31,8 @@ const GLYPH = {
   // a data source reads: an eye; an ephemeral resource lives for a run: an hourglass
   eye: [['line', 'M1.8 8S4.2 3.8 8 3.8 14.2 8 14.2 8 11.8 12.2 8 12.2 1.8 8 1.8 8zM8 6.2a1.8 1.8 0 1 0 .01 0z']],
   glass: [['line', 'M4 2.8h8M4 13.2h8M5 2.8c0 3 3 3.4 3 5.2s-3 2.2-3 5.2M11 2.8c0 3-3 3.4-3 5.2s3 2.2 3 5.2']],
+  // a secret: a key
+  key: [['line', 'M2.4 5.4h5v5h-5zM7.4 8h6.4M11.2 8v2.6M13.8 8v1.8']],
   // an environment variable: a dollar sign
   env: [['line', 'M10.6 5.3C10.1 4.3 9.1 3.8 8 3.8c-1.4 0-2.4.7-2.4 1.8 0 2.4 4.9 1.2 4.9 3.8 0 1.1-1 1.9-2.5 1.9-1.1 0-2.1-.5-2.6-1.4M8 2.4v1.4M8 12.2v1.4']],
 };
@@ -80,8 +82,9 @@ export function nodeClasses(n, ctx) {
   if (n.sensitive > 0) c += ' sens';
   if (n.presence === 'spec') c += ' spec';
   if (n.presence === 'state') c += ' orphan';
-  if (n.mode && n.mode !== 'managed') c += ' m-' + n.mode;
+  if (n.mode && n.mode !== 'managed' && !isSecret(n)) c += ' m-' + n.mode;
   if (isEnv(n)) c += ' m-env';
+  if (isSecret(n)) c += ' m-secret';
   if (n.overlap) c += ' overlap';
   return c;
 }
@@ -155,7 +158,7 @@ const spring = (t) => { if (t <= 0) return 0; if (t >= 1) return 1; const c = 0.
 // provider (the class of its tile), and any other namespace is neutral, so is one that holds only built-in values and
 // outputs. The built-in values, the environment variables and the outputs belong to no provider and do not count.
 const looks = new WeakMap();
-const unowned = (n) => isOut(n) || isEnv(n) || n.mode === 'call' || n.mode === 'builtin';
+const unowned = (n) => isOut(n) || isEnv(n) || isSecret(n) || n.mode === 'call' || n.mode === 'builtin';
 function lookOfNodes(nodes) {
   let first = null;
   for (const n of nodes) {
@@ -617,13 +620,14 @@ export class GraphView {
     inn.append(s('rect', { class: 'box', width: W, height: H, rx: 0 }));
     inn.append(s('rect', { class: 'bar', width: 4, height: H, 'clip-path': this.clip(W, H, 0) }));
     const tile = s('g', { class: 'tile', transform: `translate(15 ${(H - 26) / 2})` });
-    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 0 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
-    if (n.provider && !isEnv(n)) facet(tile, 'instance', n.provider, `Show only the provider instance ${n.provider} (shift: hide it)`);
+    const bare = isEnv(n) || isSecret(n); // built in: no provider to mark, and the kind in its badge instead of a type
+    tile.append(s('rect', { class: 'tb', width: 26, height: 26, rx: 0 }), isEnv(n) ? glyph('env', 5, 5, 16, 'mk mk-env') : isSecret(n) ? glyph('key', 5, 5, 16, 'mk mk-key') : s('text', { class: 'tm', x: 13, y: 17.2 }, pv.mono));
+    if (n.provider && !bare) facet(tile, 'instance', n.provider, `Show only the provider instance ${n.provider} (shift: hide it)`);
     inn.append(tile);
     const nameRoom = W - 52 - (badge ? 34 : 14);
-    // an environment variable has the kind in its badge and no type to show
-    inn.append(s('text', { class: 'nm', x: 53, y: isEnv(n) ? H / 2 + 5 : 22.5 }, trunc(n.name, chars(nameRoom, 14))));
-    if (!isEnv(n)) inn.append(s('text', { class: 'ty', x: 53, y: 40 }, trunc(n.type, chars(W - 53 - 12 - marks.length * 16, 11))));
+    // an environment variable and a secret have the kind in their badge and no type to show
+    inn.append(s('text', { class: 'nm', x: 53, y: bare ? H / 2 + 5 : 22.5 }, trunc(n.name, chars(nameRoom, 14))));
+    if (!bare) inn.append(s('text', { class: 'ty', x: 53, y: 40 }, trunc(n.type, chars(W - 53 - 12 - marks.length * 16, 11))));
     if (badge) {
       const b = s('g', { class: 'act', transform: `translate(${W - 26} 8)` });
       b.append(s('rect', { class: 'ab', width: 16, height: 16 }), s('path', { class: 'ag', d: act.glyph, transform: 'translate(2 2)' }));
@@ -631,7 +635,7 @@ export class GraphView {
     }
     let mx = W - 12 - 13;
     for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
-    const kind = isEnv(n) ? 'env' : n.mode === 'data' || n.mode === 'ephemeral' ? n.mode : '';
+    const kind = isEnv(n) ? 'env' : isSecret(n) ? 'secret' : n.mode === 'data' || n.mode === 'ephemeral' ? n.mode : '';
     if (kind) inn.append(this.kindBadge(kind, H));
     const aus = this.authorBadges(authorsOf(n, this.ctx), W);
     if (aus) inn.append(aus);
@@ -644,7 +648,7 @@ export class GraphView {
     const label = ENTITY_LABEL[mode] || mode;
     const word = mode, w = 24 + word.length * 5.8;
     const g = s('g', { class: 'kb', transform: `translate(15 ${H})` });
-    g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 0 }), glyph({ data: 'eye', ephemeral: 'glass', output: 'out', env: 'env' }[mode], 5, -5.5, 11, 'kbg'), s('text', { class: 'kbt', x: 19, y: 3.4 }, word));
+    g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 0 }), glyph({ data: 'eye', ephemeral: 'glass', output: 'out', env: 'env', secret: 'key' }[mode], 5, -5.5, 11, 'kbg'), s('text', { class: 'kbt', x: 19, y: 3.4 }, word));
     return facet(g, 'entity', mode, `Show only ${label.toLowerCase()}s (shift: hide them)`);
   }
 

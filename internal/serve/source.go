@@ -487,10 +487,10 @@ func (m *model) otherContributions(mn *mnode, r *blockReader) []Contribution {
 		out = append(out, Contribution{Kind: "builtin", Where: "pravo.dev/pravo", Note: "the built-in package gives pravo.#Output"})
 		return append(out, m.tagContributions(mn, r)...)
 	}
-	switch mn.res.Mode {
-	case "builtin":
+	switch {
+	case mn.res.Mode == "builtin" || mn.res.Builtin:
 		out = append(out, Contribution{Kind: "builtin", Where: "pravo.dev/pravo", Note: "the built-in package gives pravo." + builtinName(mn.res.Type)})
-	case "managed", "data", "ephemeral", "call":
+	case mn.res.Mode == "managed", mn.res.Mode == "data", mn.res.Mode == "ephemeral", mn.res.Mode == "call":
 		if ref := ss.typeDefinition(mn.res); ref != nil {
 			note := fmt.Sprintf("the schema of %s %s", mn.res.Type, modeNoun(mn.res.Mode))
 			if mn.providerVersion != "" {
@@ -512,6 +512,10 @@ func builtinName(typ string) string {
 		return "#Env"
 	case "secret_env":
 		return "#SecretEnv"
+	case "secret":
+		return "#Secret"
+	case "secret_version":
+		return "#SecretVersion"
 	case "remote_outputs":
 		return "#RemoteOutputs"
 	}

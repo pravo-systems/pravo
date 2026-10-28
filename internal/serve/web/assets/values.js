@@ -5,7 +5,7 @@
 
 import { h, icon, plural, store, copyButton, relTime, stamp, softBreaks } from './util.js';
 import { textBlock } from './ui.js';
-import { isEnv } from './model.js';
+import { isEnv, isSecret } from './model.js';
 
 export const REDACTED = {
   sensitive: ['withheld', 'The provider schema marks this attribute sensitive.'],
@@ -70,7 +70,7 @@ export class StateView {
     this.changed = changed;
     const attrs = d.attrs || [];
     this.buckets = { configured: [], sensitive: [], computed: [] };
-    const plain = !!d.node && isEnv(d.node);
+    const plain = !!d.node && (isEnv(d.node) || isSecret(d.node));
     for (const a of attrs) this.buckets[bucketOf(a, plain)].push(a);
     const wrap = h('div', { class: 'state' });
     if (!d.schema_known) wrap.append(h('p', { class: 'note warn' }, icon('bang'), h('span', null, 'The provider schema could not be read, so no one can say which values are sensitive. Every value is withheld.')));
@@ -127,7 +127,9 @@ export class StateView {
       ? [['configured', 'Value', 'What the root publishes'], ['sensitive', 'Value', 'Withheld by the server'], ['computed', 'Value', '']]
       : this.d.node && isEnv(this.d.node)
         ? [['configured', 'Variable', 'Read from the environment'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Value', '']]
-        : [['configured', 'Configured', 'Set by the specification'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Computed', 'Filled in by the provider']];
+        : this.d.node && isSecret(this.d.node)
+          ? [['configured', 'Secret', 'Read from the sealed state'], ['sensitive', 'Sensitive', 'Never sent: the viewer has no key for it'], ['computed', 'Value', '']]
+          : [['configured', 'Configured', 'Set by the specification'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Computed', 'Filled in by the provider']];
     for (const [key, title, hint] of order) {
       const list = this.buckets[key];
       if (!list.length) continue;

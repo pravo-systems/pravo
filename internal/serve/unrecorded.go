@@ -24,6 +24,8 @@ func (m *model) unrecorded(mn *mnode, d *Detail, sec *secretSet) {
 		switch mn.res.Type {
 		case "env", "secret_env":
 			m.envDetail(mn, d, sec)
+		case "secret", "secret_version":
+			m.secretDetail(mn, d)
 		}
 		return
 	}

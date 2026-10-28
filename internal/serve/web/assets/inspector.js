@@ -4,7 +4,7 @@
 
 import { h, clear, icon, relTime, stamp, copyButton, actionOf, plural, motionOn, splitPath, pathEl, baseName, nodeMark, signatureMark } from './util.js';
 import * as api from './api.js';
-import { isChange, chain, isOut, isEnv } from './model.js';
+import { isChange, chain, isOut, isEnv, isSecret } from './model.js';
 import { entityOf, ENTITY_LABEL, facetHit } from './query.js';
 import { codeWindow, kindLabel } from './ui.js';
 import { StateView, withheld, unknownEl, timeRow } from './values.js';
@@ -550,7 +550,7 @@ export class Inspector {
     return h('div', { class: 'pane' },
       h('div', { class: 'stbar' }, h('label', { class: 'sfbox' }, icon('search'), input, count)),
       h('section', { class: 'sec flush' }, body),
-      h('p', { class: 'note quiet' }, icon('info'), h('span', null, d.node && isEnv(d.node) ? 'Names, types and descriptions come from the declaration in the built-in package.' : 'Types, kinds and descriptions come from the provider schema. Descriptions are shown when the server has them.')));
+      h('p', { class: 'note quiet' }, icon('info'), h('span', null, d.node && (isEnv(d.node) || isSecret(d.node)) ? 'Names, types and descriptions come from the declaration in the built-in package.' : 'Types, kinds and descriptions come from the provider schema. Descriptions are shown when the server has them.')));
   }
 
   // ---- History ----
