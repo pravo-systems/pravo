@@ -255,6 +255,8 @@ When the container has text before `::reveal`, both sit in `<div class="predict-
 </section>
 ```
 
+On a page with several exercises the label counts them: `Exercise 1`, `Exercise 2`.
+
 ```html
 <section class="check"><h3 id="check-yourself"><a class="anchor" href="#check-yourself">Check yourself</a></h3>
 <details><summary>Question?</summary><p>Answer</p></details> ...

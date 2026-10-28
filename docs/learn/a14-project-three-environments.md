@@ -45,7 +45,7 @@ You write four more files, one per task. Each task gives the names to use and a 
 
 ## Tasks
 
-:::exercise 1. Select the environment
+:::exercise Select the environment
 Write `env.cue`. It declares the field `env` for rule R1. The command line supplies the value with `-t env=...`.
 
 Expected result:
@@ -64,7 +64,7 @@ Read [A6](a06-choices-and-defaults.md). The whole file is the package clause and
 The file `env.cue` is in [Your directory now](#your-directory-now).
 :::
 
-:::exercise 2. Shape the buckets
+:::exercise Shape the buckets
 Write `shapes.cue` for rules R2 and R3. Define `#Bucket` with these fields:
 
 - `name`, required. It starts with `estate-` and has 3 to 63 lowercase letters, digits or hyphens.
@@ -95,7 +95,7 @@ Read [A5](a05-constraints-narrow-a-value.md), [A8](a08-definitions-reject-typos.
 The file `shapes.cue` is in [Your directory now](#your-directory-now).
 :::
 
-:::exercise 3. Generate the subnets
+:::exercise Generate the subnets
 Write `network.cue` for rules R4 and R5.
 
 - `region` is `"eu-west-1"`.
@@ -120,7 +120,7 @@ Read [A9](a09-patterns.md), [A10](a10-comprehensions.md) and [A13](a13-packages-
 The file `network.cue` is in [Your directory now](#your-directory-now).
 :::
 
-:::exercise 4. Make prod stricter
+:::exercise Make prod stricter
 Write `rules.cue` for rule R6. Keep the three sets of rules in one hidden struct with a key per environment. Apply the set that `env` selects to every bucket.
 
 Expected result: this loop prints one line per environment.
