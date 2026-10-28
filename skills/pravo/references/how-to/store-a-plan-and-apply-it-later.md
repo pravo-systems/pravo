@@ -1,15 +1,15 @@
-<!-- Generated from docs/how-to/share-a-plan-before-you-apply-it.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/how-to/store-a-plan-and-apply-it-later.md by tools/skillgen. Do not edit. -->
 
-# Share a plan before you apply it
+# Store a plan and apply it later
 
-Store a plan in the state so that a team can list it, read it, see who else plans the same resources and apply it by its id.
+Store a plan in the state so that a team can list it, read it, see who else plans the same resources, approve it where a policy asks for that, and apply it by its id.
 
-A plan file belongs to the person who made it. Nobody else knows that it exists, and two people can plan the same resource without noticing. `pravo plan --store` writes the plan into the state instead. Anyone who can read the state can list the plan, read it and apply it.
+A plan file belongs to the person who made it. Nobody else knows that it exists, and two people can plan the same resource without noticing. `pravo plan --store` writes the plan into the state instead. Anyone who can read the state can list the plan, read it and apply it, on the command line or in [the viewer](explore-your-estate.md#8-see-what-your-team-has-planned), and a policy can ask that other people approve it first.
 
 This page follows two people, `alice` and `bob`. Each has a checkout of one repository, and the two checkouts share one state.
 
 > [!WARNING]
-> A stored plan holds the same values as a plan file, sensitive values included. Whoever can read the state can read its plans, as they can read its records. `pravo serve` withholds them, as it does for a plan file.
+> A stored plan holds the same values as a plan file, sensitive values included. Whoever can read the state can read its plans, as they can read its records. `pravo serve` withholds them, as it does for a plan file, and in a [sealed state](seal-the-state.md) the values of a stored plan are encrypted to the readers, as the records are.
 
 ## 1. Share a state
 
@@ -98,7 +98,7 @@ Stored plan plan-<id> by alice, just now (pending)
 pravo will perform the following actions:
 ```
 
-The header names the author, the age, the status and the reason. It adds the command that made the plan, its expiry and the command that applies it. Six hexadecimal digits are enough to find a plan, as in `plan-2f9c1a`, when no other plan starts with them. `pravo serve` lists the same plans in a browser and shows which resources they share: [Explore an estate in a browser](explore-your-estate.md#7-see-what-your-team-has-planned).
+The header names the author, the age, the status and the reason. It adds the command that made the plan, its expiry and the command that applies it. Six hexadecimal digits are enough to find a plan, as in `plan-2f9c1a`, when no other plan starts with them. `pravo serve` lists the same plans in a browser and shows which resources they share: [Explore an estate in a browser](explore-your-estate.md#8-see-what-your-team-has-planned).
 
 ## 4. See who else plans the same resource
 
@@ -336,7 +336,7 @@ plan-<id>  stale    bob    just now  +1 ~0 -1  port changed in state (revision 2
 
 ## 9. Use a bucket
 
-The commands are the same when the state is in an S3 bucket. The objects below `plans/` sit next to the records, under the same prefix. The commands below run against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000. [Keep the state in a shared bucket](remote-state.md) sets up a real bucket.
+The commands are the same when the state is in an S3 bucket. The objects below `plans/` sit next to the records, under the same prefix. The commands below run against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000. [Keep the state in a shared store](keep-the-state-in-a-shared-store.md) sets up a real bucket.
 
 File `team/main.cue`:
 
@@ -385,9 +385,14 @@ plan-<id>.plan.json
 
 `state pull` and `state push` copy the plans with the records. Storing, listing and collecting plans needs the permissions that the state already needs: get, put, delete and list on the objects of the bucket. pravo creates the plan and its summary with `If-None-Match: *`, and replaces the progress object and deletes objects with `If-Match`. [S3-compatible stores](../reference/s3-stores.md) says how to test that a store honours them.
 
+## 10. Ask for approvals
+
+A policy can ask that a plan is approved before it is applied: by one or more keys other than the one that stored it, of the role `writer` at least. The approvals belong to the stored plan, so a plan that a policy asks approvals for has to be stored, and `pravo apply` of a file refuses it. An apply that lacks them stops with exit code 5 and says how many approvals the plan has and how many it needs. `pravo plan approve ID` adds one, and `pravo plan show ID` names who approved. An approval is a signature, so the state has to be sealed. [Approve a plan](approve-a-plan.md) sets it up with three people.
+
 ## What next
 
+- [Approve a plan](approve-a-plan.md) makes a plan wait for the approval of a colleague.
 - [`pravo plan`](../reference/plan.md) lists every flag and subcommand, and the fields of the JSON document.
-- [Plans](../concepts/plans.md#stored-plans) explains the life of a stored plan.
-- [Run pravo in a pipeline](ci.md) uses plans in a job.
+- [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) explains the life of a stored plan.
+- [Run pravo in a pipeline](ci.md) stores a plan in one job and applies it in another.
 - [State format](../reference/state-format.md#plans) lists the objects of a stored plan.

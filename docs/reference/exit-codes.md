@@ -2,7 +2,7 @@
 title: Exit codes
 description: The exit status of every pravo command, what each code means, and how --json reports an error.
 order: 52
-group: Data and formats
+group: Formats and interfaces
 env:
   PRAVO_PASSPHRASE: an example passphrase
   PRAVO_CONFIG_DIR: people/ada

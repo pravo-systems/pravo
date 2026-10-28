@@ -34,7 +34,7 @@ export function projectPanel(ins, model) {
     }))));
   }
   if ((g.warnings || []).length) body.push(sec(`Warnings · ${g.warnings.length}`, g.warnings.map((w) => h('p', { class: 'note warn' }, icon('bang'), h('span', null, w)))));
-  body.push(h('section', { class: 'sec hintsec' }, h('p', { class: 'hint' }, 'Select a resource or a namespace to see its values, its source and its history. Press ', h('kbd', null, '?'), ' for the shortcuts.')));
+  body.push(h('section', { class: 'sec hintsec' }, h('p', { class: 'hint' }, 'Select a resource or a group to see its values, its source and its history. Press ', h('kbd', null, '?'), ' for the shortcuts.')));
   return body;
 }
 
@@ -57,7 +57,7 @@ export function namespacePanel(ins, ns, model, collapsed) {
   body.push(h('section', { class: 'sec' },
     h('div', { class: 'tiles', style: model.hasPlan ? null : 'grid-template-columns: repeat(3, minmax(0, 1fr))' },
       h('div', { class: 'tile big' }, num(a.n), h('span', { class: 'tlb' }, a.n === 1 ? 'resource' : 'resources')),
-      h('div', { class: 'tile' + (ns.kids.length ? '' : ' zero') }, num(ns.kids.length), h('span', { class: 'tlb' }, ns.kids.length === 1 ? 'namespace' : 'namespaces')),
+      h('div', { class: 'tile' + (ns.kids.length ? '' : ' zero') }, num(ns.kids.length), h('span', { class: 'tlb' }, ns.kids.length === 1 ? 'group' : 'groups')),
       // with no plan laid over the graph there is nothing that it could change
       model.hasPlan ? h('div', { class: 'tile' + (a.plan ? ' chg' : ' zero') }, num(a.plan), h('span', { class: 'tlb' }, 'in plan')) : null,
       h('div', { class: 'tile' + (a.drifted + a.gone ? ' chg' : ' zero') }, num(a.drifted + a.gone), h('span', { class: 'tlb' }, 'drifted'))),
@@ -84,13 +84,13 @@ export function namespacePanel(ins, ns, model, collapsed) {
       rows.length || notRead ? h('ul', { class: 'bars act' }, [
         ...rows.map(([k, label]) => { const at = actionOf(k); return h('li', { class: 'k-' + k }, h('span', { class: 'bl' }, h('i', { class: 'sq ' + at.cls }), label), h('span', { class: 'bt' }, h('i', { style: `--w:${Math.max(4, (a[k] / max) * 100)}%` })), h('span', { class: 'bv' }, String(a[k]))); }),
         notRead ? h('li', { class: 'k-skip' }, h('span', { class: 'bl' }, h('i', { class: 'sq skip' }), 'not changed'), h('span', { class: 'bt' }, h('i', { style: `--w:${Math.max(4, (notRead / max) * 100)}%` })), h('span', { class: 'bv' }, String(notRead))) : null,
-      ]) : h('p', { class: 'hint' }, 'The plan does not touch this namespace.')));
+      ]) : h('p', { class: 'hint' }, 'The plan does not touch this group.')));
   }
 
   // children
   if (ns.kids.length) {
     const maxKid = Math.max(1, ...ns.kids.map((k) => k.agg.n));
-    body.push(sec(`Sub-namespaces · ${ns.kids.length}`, h('ul', { class: 'nav' }, ns.kids.map((k) =>
+    body.push(sec(`Subgroups · ${ns.kids.length}`, h('ul', { class: 'nav' }, ns.kids.map((k) =>
       h('li', null, h('a', { class: 'navrow ns', href: '#', data: { gons: k.path }, title: k.path },
         icon('chev', 'tiny'), h('span', { class: 'nn' }, k.name),
         k.agg.plan ? h('span', { class: 'sq a-update tiny', title: `${k.agg.plan} in plan` }) : null,
@@ -137,7 +137,7 @@ function resourcesSection(ins, ns, model, outputs) {
     if (!all && !q && list.length > LIMIT) host.append(h('li', null, h('button', { class: 'more-btn', type: 'button', on: { click: () => draw('', true) } }, `Show all ${list.length}`)));
   };
   draw('', false);
-  const filter = nodes.length > LIMIT ? h('input', { class: 'filter', type: 'search', placeholder: 'Filter these resources', 'aria-label': 'Filter the resources of the namespace', on: { input: (ev) => draw(ev.target.value.trim().toLowerCase(), false) } }) : null;
+  const filter = nodes.length > LIMIT ? h('input', { class: 'filter', type: 'search', placeholder: 'Filter these resources', 'aria-label': 'Filter the resources of the group', on: { input: (ev) => draw(ev.target.value.trim().toLowerCase(), false) } }) : null;
   return sec(`${outputs ? 'Outputs' : 'Resources'} · ${nodes.length}`, filter, host);
 }
 
@@ -149,7 +149,7 @@ async function fillWhere(ins, host, ns, model) {
   const ref = (label, r) => r && h('div', { class: 'refline' }, h('span', { class: 'rl' }, label), h('code', null, `${r.file}:${r.line}${r.end_line && r.end_line !== r.line ? '–' + r.end_line : ''}`),
     copyButton(`${r.file}:${r.line}`, { label: `Copy ${r.file}:${r.line}`, tip: `Copy ${r.file}:${r.line}`, announce: ins.cb.announce, done: 'Copied the path and line' }));
   refs.push(ref('declared', ns.declared), ref('definition', ns.definition));
-  const fallback = () => { host.textContent = ''; const r = refs.filter(Boolean); host.append(...(r.length ? r : [h('p', { class: 'hint' }, 'The specification does not say where this namespace is written.')])); };
+  const fallback = () => { host.textContent = ''; const r = refs.filter(Boolean); host.append(...(r.length ? r : [h('p', { class: 'hint' }, 'The specification does not say where this group is written.')])); };
   let rep = null;
   eachNode(ns, (n) => { if (!rep && n.presence !== 'state' && !isOut(n)) rep = n; });
   if (!rep || !(ns.declared || ns.definition)) { fallback(); return; }

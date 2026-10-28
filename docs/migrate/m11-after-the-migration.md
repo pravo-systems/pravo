@@ -563,6 +563,7 @@ Each of these is one more commit with the same check.
 - Replace a flag pair by a condition, [A12 Conditions and strings](../learn/a12-conditions-and-strings.md).
 - Put the rules of the platform on the provider definition, so that every resource built through it obeys, [B10 Policy](../learn/b10-policy.md).
 - Build the three environments from one definition, [A14 Project](../learn/a14-project-three-environments.md).
+- Put the state where the team can reach it, seal it and give the members roles, [Track D](../learn/d01-one-state-two-people.md).
 
 ## Recap
 
@@ -580,4 +581,4 @@ Why is `$from` removed in its own commit?
 The move has been applied, so the field does nothing. A separate commit keeps the refactor and the cleanup apart, and each has an empty plan.
 :::
 
-Next: [How-to](../how-to/index.md) has the task-shaped pages for what you do every week, such as remote state, CI and policies.
+Next: [How-to](../how-to/index.md) has the task-shaped pages for what you do every week, such as a shared store, CI, roles and approvals.

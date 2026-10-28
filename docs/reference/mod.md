@@ -1,7 +1,7 @@
 ---
 title: pravo mod
 description: Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file.
-order: 16
+order: 17
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'

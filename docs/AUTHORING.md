@@ -69,7 +69,7 @@ Other optional fields:
 | `toc: false` | The page has no table of contents and its column is wider. Use it for a page that embeds a demo. |
 | `capture: false` | `tools/capture` skips the page. Use it for a page that needs credentials or a server that `services` does not offer, and say so in its text. |
 | `normalize` | Rules that rewrite output before `tools/capture` compares it. See section 5. |
-| `services` | Servers that `tools/capture` starts for the page: `fakes3`, `fakeoci`, each optionally with a port, `fakes3:9000`. See section 5. |
+| `services` | Servers that `tools/capture` starts for the page: `fakes3`, `fakehttp`, `fakeoci`, each optionally with a port, `fakes3:9000`; and `fakeprovider`, the provider binary that it builds for the page and pravo starts. See section 5. |
 | `env` | Variables that `tools/capture` sets for every command of the page. See section 5. |
 
 A key that is not listed is an error. A page body does not start a level-1 heading: the title comes from the front matter.
@@ -197,7 +197,9 @@ normalize:
 
 Each `pattern` is a Go regular expression applied to the whole output, so `(?m)` and `\n` work, and `replace` may use `$1`.
 
-A page that needs a server lists it under `services`. `tools/capture` starts a new one for the page, so that every page begins with an empty bucket or registry, and stops it after the last block. `fakes3` is the in-memory S3 server of `tools/fakes3` and `fakeoci` the in-memory registry of `tools/fakeoci`. A page that shows an address names the port, as the reader types it; a page that does not show one leaves the port out and gets a free port.
+A page that needs a server lists it under `services`. `tools/capture` starts a new one for the page, so that every page begins with an empty bucket or registry, and stops it after the last block. `fakes3` is the in-memory S3 server of `tools/fakes3`, `fakehttp` the in-memory state server of `tools/fakehttp` and `fakeoci` the in-memory registry of `tools/fakeoci`. A page that shows an address names the port, as the reader types it; a page that does not show one leaves the port out and gets a free port.
+
+A page that needs a provider which can list objects, for a discovery, lists `fakeprovider`. It is not a server: `tools/capture` builds `tools/fakeprovider` as `terraform-provider-demo` and pravo starts it. The page sees `FAKEPROVIDER_BIN`, the path of the binary, which a specification names as `$path: "{{FAKEPROVIDER_BIN}}"`, and `FAKEPROVIDER_DIR`, the directory `objects` of the workspace, where a `file=objects/catalog.json` block lists the objects that exist, as `{"type": "demo_bucket", "id": "...", "name": "...", "region": "..."}` (the type `demo_server` when `type` is left out). The provider adds the objects it creates to the file. The page says that the provider stands in for a cloud.
 
 ```yaml
 services:
@@ -210,7 +212,7 @@ env:
 
 Commands see `FAKES3_ADDR` (`127.0.0.1:9000`), `FAKES3_URL`, `FAKES3_PORT` and `FAKES3_PID` for each service, and `FAKEOCI_ADDR`, `FAKEOCI_URL`, `FAKEOCI_PORT` and `FAKEOCI_PID`. `kill "$FAKEOCI_PID"` in a block stops the service before the end of the page, to show a command that runs while the server is down.
 
-A `file=` block or an `env` value writes `{{FAKES3_PORT}}` where it needs a number that capture chooses; the placeholder is replaced when the file is written. A port that capture chooses is shown as `<fakes3-port>` in output. A port that the page names is shown as written.
+A `file=` block or an `env` value writes `{{FAKES3_PORT}}` where it needs a number that capture chooses, and `{{FAKEPROVIDER_BIN}}` where it needs the path of the provider; the placeholder is replaced when the file is written. A port that capture chooses is shown as `<fakes3-port>` in output. A port that the page names is shown as written.
 
 Pages that name the same port run one after another. A page with a service has a `CUE_CACHE_DIR` of its own. `tools/capture/README.md` describes the lifetime of the services.
 

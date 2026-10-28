@@ -4,10 +4,10 @@
 
 Encrypt the attributes, outputs and stored plans of a state in a bucket to a list of readers that the repository keeps, add and remove a reader, and let a CI job read.
 
-A state holds the attributes of every resource: passwords, keys and tokens that a provider returned. Anyone who can read the bucket can read them. This page seals the state, so that the bucket, a backup or an old version of an object shows addresses and types and no value. A list of readers, kept in the repository, decides who can open it.
+A state holds the attributes of every resource: passwords, keys and tokens that a provider returned. Its outputs and its stored plans hold the same values. Anyone who can read the bucket can read them. This page seals the state, so that the bucket, a backup or an old version of an object shows addresses and types and no value. A list of readers, kept in the repository, decides who can open it.
 
 > [!NOTE]
-> Every command below runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000, and the three people are three directories on one machine. The state is created with `pravo state import-tfstate` so that the page needs no provider. Sealing stops at format 3: there are no roles, and [what sealing protects](../concepts/sealed-state.md) says what that leaves open.
+> Every command below runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000, and the three people are three directories on one machine. The state is created with `pravo state import-tfstate` so that the page needs no provider. Sealing decides who may read. Who may write is a second step, [Give people roles](give-people-roles.md), and [Signatures and roles](../concepts/signatures-and-roles.md) says what each of the two protects and what neither does.
 
 ## 1. Make an identity
 
@@ -32,7 +32,7 @@ Give whoever keeps .pravo/access/readers.txt this line, and nothing else:
 
 The identity is a file in `~/.config/pravo/id`, apart from `~/.pravo`, which is the provider cache and may be deleted. The line at the end is public. To reuse an SSH key as the signing key, add `--ssh ~/.ssh/id_ed25519`.
 
-A person who reads from more than one machine, or who wants an identity with a passphrase and another that the ssh-agent unlocks, has one identity for each, under different names such as `ada` and `ada-mac`. Each is a reader with a line of its own. Add the second as [step 9](#9-let-a-ci-job-read) adds a job: put its line in the readers file, commit it, and let an existing reader run `rewrap`. To unlock an identity with a key of the ssh-agent, such as one in 1Password that Touch ID approves, add `--unlock agent`: see [Unlock with the ssh-agent](../reference/protect.md#unlock-with-the-ssh-agent). That identity is lost with the key, so keep the identity with a passphrase as a second reader.
+A person who reads from more than one machine, or who wants an identity with a passphrase and another that the ssh-agent unlocks, has one identity for each, under different names such as `ada` and `ada-mac`. Each is a reader with a line of its own. Add the second as [step 9](#9-let-a-ci-job-read) adds a job: put its line in the readers file, commit it, and let an existing reader run `rewrap`. To unlock an identity with a key of the ssh-agent, such as one in 1Password that Touch ID approves, add `--unlock agent`: see [Unlock with the ssh-agent](../reference/id.md#unlock-with-the-ssh-agent). That identity is lost with the key, so keep the identity with a passphrase as a second reader.
 
 ## 2. Have a state to seal
 
@@ -190,6 +190,8 @@ Signatures   0 of 1 transaction verified · 1 unsigned
 Unsettled    none
 ```
 
+`Roles off` says that no line of the readers file has a role, so every reader may write the state as well. [Give people roles](give-people-roles.md) adds a role to each line, and then says who may change the state and who may only read and plan.
+
 ## 8. A leaked bucket
 
 Someone copies the bucket. The password is in none of its objects, and a person with no identity can list what exists but cannot read a value.
@@ -340,7 +342,7 @@ Signatures   2 of 3 transactions verified · 1 unsigned
 
 The transaction from before the seal is unsigned, which is not an error. A signature from a key that the readers file does not list, such as a reader who has left, shows as `signed by NAME, whose key is not in the readers file`, and is not an error either. A transaction that was changed in the bucket after it was signed shows `the signature does not verify`, and `state log` and `protect status` exit with 7.
 
-What the signature covers is the event: which key ran which command, and which addresses and revisions it changed. It does not cover the values of the records, and it cannot tell that a transaction was deleted or that an older copy of the state was put back. [Signatures](../reference/protect.md#signatures) lists what it covers and what it leaves.
+What the signature covers is the event: which key ran which command, and which addresses and revisions it changed. It does not cover the values of the records, and it cannot tell that a transaction was deleted or that an older copy of the state was put back. [Signatures](../reference/protect.md#signatures) lists what it covers and what it leaves, and [What a signature binds](../concepts/signatures-and-roles.md#what-a-signature-binds) explains it. With roles, the signature of a writer also names each record the run wrote, which is what lets a later run tell a record that a writer wrote from one that a reader put in the bucket.
 
 ## 12. Add a recovery recipient
 
@@ -509,8 +511,10 @@ A state that is unsealed is sealed again with `pravo protect init --encrypt`, to
 
 ## What next
 
+- [Give people roles](give-people-roles.md) says which readers may write the state, and pins the roles so that a copy of the readers file cannot promote its owner.
+- [Approve a plan](approve-a-plan.md) uses the signatures: a policy makes a plan wait for the approval of another key.
 - [pravo id and pravo protect](../reference/protect.md) lists every flag, the exit codes and the format of the readers file.
-- [What sealing protects](../concepts/sealed-state.md) lists what the seal covers, what it does not, and the risks that remain.
+- [Signatures and roles](../concepts/signatures-and-roles.md) lists what the seal covers, what a signature binds, what a role allows, and what none of the three does.
 - [CI](ci.md) runs plan and apply as separate jobs. Give the job `PRAVO_IDENTITY` as in step 9.
 - [protect unseal](../reference/protect.md#protect-unseal) lists what the unseal does, in what order, and what it cannot restore.
 - [The recovery recipient](../reference/protect.md#the-recovery-recipient) says what the files hold, what the writers check and what to do after a recovery.

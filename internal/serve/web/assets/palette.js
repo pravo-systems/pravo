@@ -119,7 +119,7 @@ export class Palette {
       for (const m of model.namespaces.values()) if (!m.isRoot && m.depth === 0) nss.push({ kind: 'ns', m, score: 0, cs: [] });
       for (const n of model.list) if (n.action && n.action !== 'no-op' && nodes.length < 12) nodes.push({ kind: 'node', n, score: 0, cs: [] });
       if (!nodes.length) for (const n of model.list.filter((x) => x.mode !== 'output').concat(model.list.filter((x) => x.mode === 'output')).slice(0, 12)) nodes.push({ kind: 'node', n, score: 0, cs: [] });
-      add('Namespaces', nss.slice(0, MAX_MODS), nss.length);
+      add('Groups', nss.slice(0, MAX_MODS), nss.length);
       add('In the plan', nodes.filter((x) => x.n.mode !== 'output'));
       add('Outputs', nodes.filter((x) => x.n.mode === 'output'));
     } else {
@@ -152,7 +152,7 @@ export class Palette {
       const others = plans.length + runs.length + finds.found.length + acts.length > 0;
       const found = nodes.slice(0, others ? MAX_SHARED : MAX_NODES);
       // the outputs are a group of their own, after the resources
-      add('Namespaces', nss.slice(0, MAX_MODS), nss.length);
+      add('Groups', nss.slice(0, MAX_MODS), nss.length);
       add('Items', found.filter((x) => x.n.mode !== 'output'));
       add('Outputs', found.filter((x) => x.n.mode === 'output'));
       total += nodes.length - found.length;
@@ -325,9 +325,9 @@ export class Palette {
 export const SHORTCUTS = [
   ['Search', [['/', 'or', 'Ctrl K', 'Search everything, or run an action'], ['>', '', '', 'In the palette: the actions alone']]],
   ['Move around', [['←', '', '', 'To a dependency of the selection'], ['→', '', '', 'To a dependent'], ['↑ ↓', '', '', 'To the sibling above or below'], ['Esc', '', '', 'Go back to where a search began, or clear the selection']]],
-  ['View', [['f', '', '', 'Fit the graph'], ['i', '', '', 'Show or hide the project'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every namespace'], ['Enter', '', '', 'Open or close the selected namespace'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or list of the resources'], ['a', '', '', 'Inventory or state'], ['p', '', '', 'Inventory or plans'], ['d', '', '', 'Inventory or discovery'], ['o', '', '', 'Inventory or the policies'], ['r', '', '', 'Inventory or the recorded runs'], ['?', '', '', 'This sheet']]],
-  ['The list', [['↑ ↓', '', '', 'Select the row above or below, Home and End jump'], ['← →', '', '', 'Close or open a namespace, or go to its row'], ['Enter', 'or', 'Space', 'Close or open the namespace'], ['*', '', '', 'Open every namespace of this level']]],
-  ['Pointer', [['Drag', '', '', 'Pan'], ['Wheel', '', 'Pinch', 'Zoom'], ['Double-click', '', '', 'Open or close a namespace']]],
+  ['View', [['f', '', '', 'Fit the graph'], ['i', '', '', 'Show or hide the project'], ['0', '', '', 'Back to the first view'], ['+', 'or', '−', 'Zoom in or out'], ['[', '', ']', 'Collapse or expand every group'], ['Enter', '', '', 'Open or close the selected group'], ['t', '', '', 'Switch the theme'], ['g', '', '', 'Graph or list of the resources'], ['a', '', '', 'Inventory or state'], ['p', '', '', 'Inventory or plans'], ['d', '', '', 'Inventory or discovery'], ['o', '', '', 'Inventory or the policies'], ['r', '', '', 'Inventory or the recorded runs'], ['?', '', '', 'This sheet']]],
+  ['The list', [['↑ ↓', '', '', 'Select the row above or below, Home and End jump'], ['← →', '', '', 'Close or open a group, or go to its row'], ['Enter', 'or', 'Space', 'Close or open the group'], ['*', '', '', 'Open every group of this level']]],
+  ['Pointer', [['Drag', '', '', 'Pan'], ['Wheel', '', 'Pinch', 'Zoom'], ['Double-click', '', '', 'Open or close a group']]],
 ];
 
 export class Sheet {

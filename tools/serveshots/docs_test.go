@@ -140,18 +140,18 @@ func TestImageTagsStateTheViewportSize(t *testing.T) {
 	}
 }
 
-var listingRe = regexp.MustCompile("(?ms)^```[a-z]* [^\n]*title=\"((?:platform|fleet)/[^\"]+)\"[^\n]*\n(.*?)^```")
+var listingRe = regexp.MustCompile("(?ms)^```[a-z]* [^\n]*title=\"((?:platform|fleet|team)/[^\"]+)\"[^\n]*\n(.*?)^```")
 
-// A listing of a page that is titled platform/FILE or fleet/FILE shows lines
-// of that file of the scenario. A line that holds only three dots stands for
-// lines that the listing leaves out, so every run of lines between them has to
-// occur in the file.
+// A listing of a page that is titled platform/FILE, fleet/FILE or team/FILE
+// shows lines of that file of the scenario. A line that holds only three dots
+// stands for lines that the listing leaves out, so every run of lines between
+// them has to occur in the file.
 func TestListingsShowTheScenarioFiles(t *testing.T) {
 	root := repoRoot(t)
 	found := 0
 	for _, f := range docFiles(t, root) {
 		// Other pages have a root called platform of their own.
-		if !strings.Contains(f, "explore-your-estate") && !strings.Contains(f, "the-viewer") && !strings.HasSuffix(f, "serve.md") {
+		if !strings.Contains(f, "explore-your-estate") && !strings.Contains(f, "the-viewer") && !strings.Contains(f, "viewer-sections") && !strings.HasSuffix(f, "serve.md") {
 			continue
 		}
 		data, err := os.ReadFile(f)
@@ -214,7 +214,7 @@ func TestClusterThresholdAgreesWithTheInterface(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(page), "holds "+word+" or more resources") {
-		t.Errorf("the-viewer.md does not say that a namespace with %s or more resources of one type is drawn as a cluster", word)
+		t.Errorf("the-viewer.md does not say that a group with %s or more resources of one type is drawn as a cluster", word)
 	}
 }
 
@@ -264,7 +264,7 @@ var (
 // the interface does, with the parameter value that each sets.
 func TestReferenceNamesTheColumnsAndTabsOfTheInterface(t *testing.T) {
 	root := repoRoot(t)
-	page, err := os.ReadFile(filepath.Join(root, "docs", "reference", "serve.md"))
+	page, err := os.ReadFile(filepath.Join(root, "docs", "reference", "viewer-sections.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,10 +280,10 @@ func TestReferenceNamesTheColumnsAndTabsOfTheInterface(t *testing.T) {
 		}
 		for _, m := range ms {
 			if !strings.Contains(string(page), "| "+m[2]+" |") {
-				t.Errorf("serve.md has no table row for the %s %q of %s", what, m[2], file)
+				t.Errorf("viewer-sections.md has no table row for the %s %q of %s", what, m[2], file)
 			}
 			if m[1] != "" && !strings.Contains(string(page), "`"+m[1]+"`") {
-				t.Errorf("serve.md does not name the %s value `%s` of the %s %q", column, m[1], what, m[2])
+				t.Errorf("viewer-sections.md does not name the %s value `%s` of the %s %q", column, m[1], what, m[2])
 			}
 		}
 	}
@@ -297,7 +297,7 @@ func TestReferenceNamesTheColumnsAndTabsOfTheInterface(t *testing.T) {
 	}
 	for _, col := range regexp.MustCompile(`'(\w+)'`).FindAllStringSubmatch(m[1], -1) {
 		if !strings.Contains(string(page), "| `"+col[1]+"` |") {
-			t.Errorf("serve.md has no table row for the filter column `%s` of query.js", col[1])
+			t.Errorf("viewer-sections.md has no table row for the filter column `%s` of query.js", col[1])
 		}
 	}
 	check("inspector.js", tabRe, "tab", "tab")

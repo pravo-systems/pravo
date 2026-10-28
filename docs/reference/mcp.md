@@ -1,7 +1,7 @@
 ---
 title: pravo mcp
 description: Serve pravo to an agent over the Model Context Protocol on stdio. Fourteen tools, applies only from saved plans, and plan policies the agent cannot remove.
-order: 14
+order: 15
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'

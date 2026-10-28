@@ -13,11 +13,10 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
-	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
-	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // Machine-facing surface: JSON output, attribution, explanations.
@@ -94,31 +93,10 @@ func emitLine(v any) {
 	os.Stdout.Write(b)
 }
 
+// exitCodeOf is the exit code of a failed command: the library decides, so that a
+// program built on it ends with the same code.
 func exitCodeOf(err error) int {
-	var coded *engine.CodedError
-	if errors.As(err, &coded) {
-		return int(coded.Code)
-	}
-	var stale *engine.ErrStalePlan
-	if errors.As(err, &stale) {
-		return int(engine.ExitStale)
-	}
-	switch {
-	case errors.Is(err, state.ErrUntrusted):
-		return int(engine.ExitUntrusted)
-	case errors.Is(err, state.ErrNotReader), errors.Is(err, protect.ErrNotReader):
-		return int(engine.ExitRefused)
-	case errors.Is(err, state.ErrSealing):
-		return int(engine.ExitLocked)
-	}
-	var held *state.ErrLocked
-	if errors.As(err, &held) {
-		return int(engine.ExitLocked)
-	}
-	if strings.Contains(err.Error(), "is locked by") || strings.Contains(err.Error(), "reserved by") {
-		return int(engine.ExitLocked)
-	}
-	return int(engine.ExitError)
+	return int(pravo.CodeOf(err))
 }
 
 // ---------- pravo schema ----------

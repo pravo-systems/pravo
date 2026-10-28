@@ -292,7 +292,7 @@ Saved the plan to add.plan. To apply exactly these actions, run:
   pravo apply add.plan
 ```
 
-The plan is printed first. The verdict names the version of the policy, `no_delete@1`, and the SHA-256 of its text, and says `is satisfied`. The digest identifies the text that judged the plan. The apply judges the plan again, under the locks, and signs the version into the transaction.
+The plan is printed first, and the last line of the plan says how many policies judged it and held. The apply judges the plan again, under the locks, and signs the versions that judged it into the transaction: the name, the version and the SHA-256 of the text, so that the log says under which rules a change was made.
 
 ```sh run
 pravo -C root apply add.plan
@@ -356,7 +356,7 @@ changes.0: note: delete is not allowed:
 The plan is printed, then judged, and the run exits with code 5. The error has three parts.
 
 - The version of the policy and the digest of its text.
-- The path `changes.2`. It is a position in the plan document. That list includes unchanged resources, so it is not a count of the blocks above.
+- The path `changes.0`. It is a position in the list of changes of the plan document, in the order the document holds them, which is not the order of the blocks above.
 - The message from `error()`, and the line in the rule that wrote it.
 
 A refused plan is not saved.
@@ -386,7 +386,7 @@ changes.0: note: delete is not allowed:
 
 ## What a policy does not bind
 
-A policy binds the applies of this state. The way to lift a rule is to remove it from the root. A change to a policy is not judged, so the apply that removes it passes, and the state keeps a signed removal. Restore `note`, remove `policy.cue`, and apply:
+A policy binds the applies of this state. The way to lift a rule is to remove it from the root. A change to a policy is not judged by the rule, so the apply that removes it passes, and the state keeps a signed removal. With roles in the readers file, removing a policy is an admin's apply, and a rule that asks for approvals cannot be changed without an admin's approval; [D6](d06-ask-for-approvals.md) shows both. Here the state has one member, who is an admin. Restore `note`, remove `policy.cue`, and apply:
 
 ```cue file=root/main.cue title="root/main.cue"
 package main
@@ -631,6 +631,6 @@ How do you lift a rule that refuses every plan?
 Remove the policy from the root and apply. A change to a policy is not judged, and the apply writes a signed removal.
 :::
 
-The how-to pages cover writing and rolling out policies: [Policies](../how-to/policies.md). The reference describes the plan document: [Plan document](../reference/plan-document.md).
+[D5, Write a plan policy](d05-write-a-plan-policy.md) teaches the shapes of a rule and tries them on saved plans with `pravo policy test`, and [D6](d06-ask-for-approvals.md) writes a rule that makes a plan wait for a second person. The how-to page [Write and roll out policies](../how-to/policies.md) rolls a rule out, and the reference describes [the plan document](../reference/plan-document.md).
 
 The [project](b11-project.md) combines every lesson of this track. [Lab 1](lab1-break-it-on-purpose.md) breaks a root ten ways to show the exit codes.

@@ -314,5 +314,5 @@ The provider keeps no copy of the key, so it cannot see that a key changed. Its 
 - [Concepts: secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) describes how pravo orders ephemeral resources.
 - [Environments](environments.md) uses a tag for the environment name, which is configuration.
 - [Environment variables and remote outputs](../reference/spec-env.md) is the reference for `pravo.#Env` and `pravo.#SecretEnv`.
-- [Remote state](remote-state.md) covers who may read the bucket that holds the state.
+- [Keep the state in a shared store](keep-the-state-in-a-shared-store.md) covers who may read the bucket that holds the state.
 - [Seal the state](seal-the-state.md) encrypts the values in the state to a list of readers.

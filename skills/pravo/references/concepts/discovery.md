@@ -20,7 +20,7 @@ servers: $demo.#Discovery.demo_server & {region: "eu"}
 
 The scope is written out in the specification. It cannot read an attribute of a resource, because nothing has been applied when a discovery runs. A scope that has a field without a value, or reads a value that a run would produce, fails when the discovery runs, and nothing else in the specification is affected.
 
-The address of the struct, `servers` above, names the discovery. A discovery in a namespace has the address of its path, such as `network.vpcs`.
+The address of the struct, `servers` above, names the discovery. A discovery in a group has the address of its path, such as `network.vpcs`.
 
 ## What a run keeps
 
@@ -81,7 +81,7 @@ Nothing writes the specification for you. pravo does not edit your `.cue` files.
 
 ## Where it shows
 
-The unmanaged objects are shown in the Discovery section of [the viewer](the-viewer.md#the-discovery-section), and by `pravo discover show`. They are not in the graph or in the list of the Inventory, which show what the specification declares and the state records. The tab carries the number of objects that ask to be adopted.
+The unmanaged objects are shown in the Discovery section of [the viewer](../reference/viewer-sections.md#the-discovery-section), and by `pravo discover show`. They are not in the graph or in the list of the Inventory, which show what the specification declares and the state records. The tab carries the number of objects that ask to be adopted.
 
 ## Providers
 

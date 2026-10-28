@@ -211,7 +211,7 @@ sed -n '/"signature"/,$p' infra/pravo.state/policy/no_destroy@00000001.json | se
 - A version is written with a put that fails if the object exists. A policy that changes gets the next number. A policy that is removed from the specification gets a version with empty text, a tombstone.
 - The first version raises `meta.json` to format 4. A pravo that does not know format 4 refuses the state.
 - The signature covers the state, the name, the number, the digest of the text and `at`. A version cannot be moved to another state.
-- A reader who can apply can write a version. The signature names who wrote it, and review of the specification is the control. With [roles](protect.md#roles) a writer writes a version and only an admin writes a removal.
+- A reader who can apply can write a version. The signature names who wrote it, and review of the specification is the control. With [roles](roles.md) a writer writes a version and only an admin writes a removal.
 - `pravo state pull` and `pravo state push` copy the versions with the rest.
 
 ## How a plan is judged

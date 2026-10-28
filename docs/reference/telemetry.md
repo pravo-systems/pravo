@@ -2,7 +2,7 @@
 title: Telemetry
 description: OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables.
 order: 53
-group: Data and formats
+group: Formats and interfaces
 normalize:
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
@@ -114,7 +114,7 @@ The address in `resource <address>` is the CUE path of the resource, such as `pe
 | `engine plan`, `engine apply` | `pravo.actor`, `pravo.reason`, `vcs.revision`, `pravo.destroy`, `pravo.txn`. For plan: `pravo.plan.add`, `.change`, `.destroy` and `pravo.nodes.total`, `.planned`, `.skipped`, `.refreshed`, `.fresh`, `.not_read`, `.drifted`, `pravo.ephemeral.opened`, `pravo.function.calls`. For apply: what was added, changed and destroyed. |
 | `phase <stage>` | The stage of a plan or an apply: `check specification`, `begin transaction`, `moves`, `evaluate and refresh`, `read inputs`, `plan orphans`, `frontier`, `reservations`, `commit moves`, `lock`, `check revisions`, `apply changes`, `destroy orphans`, `read back`, `record outputs`, `finish transaction`. `pravo.tasks` on the stages that walk the resources. |
 | `setup <stage>`, `config <stage>` | What readies a command: loading the specification and its stages, reading the lock file, opening the state, resolving, installing, starting and configuring a provider and reading its schema. `pravo.provider`, `pravo.provider.instance` (when a provider is configured), `pravo.provider.version`, `pravo.provider.source`, `pravo.state.backend`. |
-| `seal <kind> <name>`, `unseal <kind> <name>`, `unseal state keys` | Work of the seal of a [sealed state](../concepts/sealed-state.md): a value sealed or opened, and the data keys of the state opened with the reader's key. `pravo.seal.kind` (`resource`, `outputs`, a plan or a summary), `pravo.seal.name` (an address or an id), `pravo.seal.group`, `pravo.seal.bytes` and, for the keys, `pravo.seal.groups`, `pravo.identity` (the name of the identity that opened the state) and `pravo.identity.reader` (its public reader key); the same two are on the span that was running when the state was opened, `setup open state`. Never the value. |
+| `seal <kind> <name>`, `unseal <kind> <name>`, `unseal state keys` | Work of the seal of a [sealed state](../concepts/signatures-and-roles.md): a value sealed or opened, and the data keys of the state opened with the reader's key. `pravo.seal.kind` (`resource`, `outputs`, a plan or a summary), `pravo.seal.name` (an address or an id), `pravo.seal.group`, `pravo.seal.bytes` and, for the keys, `pravo.seal.groups`, `pravo.identity` (the name of the identity that opened the state) and `pravo.identity.reader` (its public reader key); the same two are on the span that was running when the state was opened, `setup open state`. Never the value. |
 | `network <METHOD> <host>`, `network tunnel <host>` | A request that went over the network: one that a provider sent, under the provider call that was running, or one that pravo sent to a remote state (the `s3` and `http` backends), under the `state` span of the request. `http.request.method`, `server.address`, `url.scheme`, `url.path` (without the query, 300 characters at most), `http.response.status_code`, `pravo.net.request_bytes`, `pravo.net.response_bytes` and `pravo.net.decrypted`. A status of 500 or more is an error. A `tunnel` span is one connection that could not be opened: it has the host and the bytes, and no method, path or status. Only with `PRAVO_TRACES=on`; never a header, a body or a query. |
 | `state <operation> <key>` | A request to the state: `get`, `put`, `create` (only if absent), `replace-if`, `delete-if`, `delete`, `list`. `pravo.state.op`, `pravo.state.key`, `pravo.state.backend` (`local`, `s3`, `http`), and where they apply `pravo.state.bytes`, `pravo.state.keys` and `pravo.state.applied` (a conditional write that was made). The key is the name of an object, such as `resources/api.db.json`; a missing object and a refused conditional write are answers, and the span does not fail. |
 | `engine discover <name>` | `pravo.discovery.name`, `pravo.discovery.type`, `pravo.provider`, `pravo.discovery.items`, `pravo.discovery.status`, `pravo.warnings` |
@@ -173,7 +173,7 @@ jq -c 'select((.Events | length) > 0) | {Name, events: [.Events[] | .Name]}' tra
 
 ## The recorded runs
 
-With `PRAVO_TRACES=on`, a command that did some work (`plan`, `apply`, `destroy`, `drift`, `discover` and the commands that plan inside them, and those that load the specification or read the state) writes its trace to `.pravo/traces/<trace id>-<span id>.json` in the directory it ran in, when it ends. This needs no `OTEL_*` variable and no collector. [`pravo serve`](serve.md#the-traces-section) reads the directory and shows each run as a timeline, which is the quickest way to see where a run spent its time or where it stopped.
+With `PRAVO_TRACES=on`, a command that did some work (`plan`, `apply`, `destroy`, `drift`, `discover` and the commands that plan inside them, and those that load the specification or read the state) writes its trace to `.pravo/traces/<trace id>-<span id>.json` in the directory it ran in, when it ends. This needs no `OTEL_*` variable and no collector. [`pravo serve`](viewer-sections.md#the-traces-section) reads the directory and shows each run as a timeline, which is the quickest way to see where a run spent its time or where it stopped.
 
 - The file holds the spans that the exporters get: the same names, the same attributes and the same debug events, with times counted in microseconds from the start of the run. It holds no attribute value, by the rule [above](#what-spans-never-contain).
 - A command that ran no engine (`pravo version`, `pravo serve`, `pravo state log`) writes nothing. A command that continues the trace of its caller (`TRACEPARENT`) writes its own file, so a CI job that runs several commands in one trace has one file for each.
@@ -278,5 +278,5 @@ Logs are not exported as an OpenTelemetry signal. The transaction log and the `-
 ## See also
 
 - [Find out why a run fails](../how-to/debugging.md) follows a command in a trace.
-- [`pravo serve`](serve.md#the-traces-section) shows the recorded runs.
+- [`pravo serve`](viewer-sections.md#the-traces-section) shows the recorded runs.
 - [Global flags, environment and exit codes](global-flags.md) lists the other variables.

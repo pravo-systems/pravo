@@ -124,7 +124,7 @@ func standInDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	for _, name := range []string{"fakes3", "fakeoci", "httpget", "capture"} {
+	for _, name := range []string{"fakes3", "fakeoci", "httpget", "capture", "terraform-provider-demo"} {
 		if err := os.Symlink(exe, filepath.Join(dir, name)); err != nil {
 			t.Skipf("symbolic links: %v", err)
 		}
@@ -225,6 +225,26 @@ func TestServicesOnFreePortsAreReachableAndStopped(t *testing.T) {
 	got := pids(t, pidfile)
 	if got[0][2] == got[1][2] || got[0][2] == "0" {
 		t.Errorf("ports = %s and %s", got[0][2], got[1][2])
+	}
+}
+
+// A tool is built and not started: the page gets its path and a directory
+// below the workspace for its objects, and a file block can name both.
+func TestAToolIsNotStartedAndExportsItsPath(t *testing.T) {
+	dir := standInDir(t)
+	pidfile := filepath.Join(t.TempDir(), "pids")
+	t.Setenv("STANDIN_PIDFILE", pidfile)
+	page := servicePage(t, "tool.md", "services: [fakeprovider]\n", ""+
+		"```text file=objects/catalog.json\n[]\n```\n\n"+
+		"```cue file=main.cue\n$path: \"{{FAKEPROVIDER_BIN}}\"\ndir: \"{{FAKEPROVIDER_DIR}}\"\n```\n\n"+
+		"```sh run\nbasename \"$FAKEPROVIDER_BIN\"\ntest \"$FAKEPROVIDER_DIR\" = \"$PWD/objects\" && echo own directory\ntest -x \"$FAKEPROVIDER_BIN\" && echo executable\ncat objects/catalog.json\ngrep -c objects main.cue\n```\n\n"+
+		"```text out\nterraform-provider-demo\nown directory\nexecutable\n[]\n1\n```\n")
+	code, out, errb := run1(t, dir, page)
+	if code != 0 {
+		t.Fatalf("exit %d\n%s%s", code, out, errb)
+	}
+	if _, err := os.Stat(pidfile); !os.IsNotExist(err) {
+		t.Errorf("a tool was started: %v", err)
 	}
 }
 
@@ -507,7 +527,8 @@ func TestMissingServiceExecutable(t *testing.T) {
 
 func TestServiceFrontMatterErrors(t *testing.T) {
 	cases := []struct{ front, want string }{
-		{"services: [nosuch]\n", `unknown service "nosuch" (known: fakehttp, fakeoci, fakes3)`},
+		{"services: [nosuch]\n", `unknown service "nosuch" (known: fakehttp, fakeoci, fakeprovider, fakes3)`},
+		{"services: [fakeprovider:9000]\n", "fakeprovider is a program that pravo starts, not a server: it takes no port"},
 		{"services: [fakes3:0]\n", `"0" is not a port from 1 to 65535`},
 		{"services: [fakes3:http]\n", `"http" is not a port`},
 		{"services: [fakes3:70000]\n", `"70000" is not a port`},
@@ -567,11 +588,12 @@ func TestPlaceholderOfAServiceThePageDoesNotStart(t *testing.T) {
 }
 
 func TestExpandHolders(t *testing.T) {
-	vars := map[string]string{"FAKES3_PORT": "9000", "FAKES3_ADDR": "127.0.0.1:9000"}
+	vars := map[string]string{"FAKES3_PORT": "9000", "FAKES3_ADDR": "127.0.0.1:9000", "FAKEPROVIDER_BIN": "/t/terraform-provider-demo", "FAKEPROVIDER_DIR": "/w/objects"}
 	cases := []struct{ in, want string }{
 		{"{{FAKES3_PORT}}", "9000"},
 		{"http://{{FAKES3_ADDR}}/x {{FAKES3_PORT}}", "http://127.0.0.1:9000/x 9000"},
 		{"{{FAKES3_URL}}", "{{FAKES3_URL}}"},
+		{"{{FAKEPROVIDER_BIN}} {{FAKEPROVIDER_DIR}}", "/t/terraform-provider-demo /w/objects"},
 		{"{{fakes3_port}} {{ FAKES3_PORT }} ${{ secrets.X }} {{.Port}}", "{{fakes3_port}} {{ FAKES3_PORT }} ${{ secrets.X }} {{.Port}}"},
 		{"no braces", "no braces"},
 	}

@@ -1,7 +1,7 @@
 ---
 title: Find what nothing manages
 description: Declare a discovery, run it, read the objects that no record accounts for, acknowledge the ones that are meant to stay, adopt the rest and run it again when the scope changes.
-order: 14
+order: 7
 group: Operate
 minutes: 15
 needs: A root that you have initialised, and a provider that can list the objects of a type. The commands are for a POSIX shell.
@@ -185,7 +185,7 @@ pravo serve
 
 Open the Discovery section, or press `d`. Each discovery is a card, closed at first, with the count of its objects by status; open it with its name. It shows its scope, when it ran and who ran it, and the count of objects by status. The unmanaged objects come first, with an amber edge, an Adopt button and an Acknowledge button. Adopt opens the resource that adopts the object, and the command that reads the object into it. Acknowledge opens the `$ack` entry that says it is known, to copy. One of them is open at a time. The acknowledged objects are listed below in grey with their reasons, and under them the `$ack` entries of the specification with the number of objects each covers, and the managed objects are a number. The number on the tab is the objects that ask to be adopted.
 
-To narrow what a long list shows, type in the filter box, as in the Inventory: `status:unmanaged` leaves what asks to be adopted, `type:aws_s3*` the buckets, `field:region=eu` the objects of a region, `-status:acknowledged` leaves out what is known. The menu offers the columns and the values the page holds, and a click on the type, the provider or a count of a card adds the term. [The reference](../reference/serve.md#filtering-the-objects) lists the columns.
+To narrow what a long list shows, type in the filter box, as in the Inventory: `status:unmanaged` leaves what asks to be adopted, `type:aws_s3*` the buckets, `field:region=eu` the objects of a region, `-status:acknowledged` leaves out what is known. The menu offers the columns and the values the page holds, and a click on the type, the provider or a count of a card adds the term. [The reference](../reference/viewer-sections.md#filtering-the-objects) lists the columns.
 
 The page runs nothing and writes nothing. It shows each command, and a button copies it.
 

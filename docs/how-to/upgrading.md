@@ -1,7 +1,7 @@
 ---
 title: Upgrade pravo and providers
 description: Replace the pravo binary, move a provider to a newer version through the lock file, pin the archives of every platform and review the plan that follows.
-order: 13
+order: 1
 minutes: 12
 needs: "pravo on your PATH and network access to `registry.opentofu.org`. [Quick start](quick-start.md#1-install-pravo) for the binary."
 done_when: "`pravo init -upgrade` moves a provider to a newer version, `pravo providers lock` pins four platforms, and `pravo plan` is empty."

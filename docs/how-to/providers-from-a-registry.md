@@ -1,7 +1,7 @@
 ---
 title: Install providers from your own registry
 description: Copy a provider into a container registry, install it from there and move a root that has resources to the copy without touching them.
-order: 6
+order: 5
 minutes: 12
 needs: A container registry. This page uses the in-memory registry from pravo's source. The provider is hashicorp/random, so no cloud credentials are involved.
 done_when: "`pravo plan` reports no changes with the provider installed from `oci://localhost:5001/acme/providers/random`."
@@ -15,7 +15,7 @@ normalize:
     replace: '[id=<id>]'
   - pattern: '[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}'
     replace: '<txn>'
-group: Providers and state
+group: Specify
 keywords: "oci registry mirror provider"
 ---
 

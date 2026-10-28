@@ -51,8 +51,9 @@ func TestAPolicyAsksForApprovalsBeforeAPlanIsApplied(t *testing.T) {
 	if text, code := runPravo(t, r.dir, "--identity", "dan", "plan", "approve", id); code != 0 {
 		t.Fatalf("dan approves: exit %d\n%s", code, text)
 	}
+	// The approvals are listed in the order they were made, ada's first, whatever the ids of the keys.
 	text, code = runPravo(t, r.dir, "--identity", "dan", "plan", "show", id)
-	if code != 0 || !strings.Contains(text, "approved:") || !strings.Contains(text, "dan (admin)") {
+	if code != 0 || !strings.Contains(text, "approved: ada (writer), dan (admin)") {
 		t.Fatalf("plan show: exit %d\n%s", code, text)
 	}
 	if text, code := runPravo(t, r.dir, "--identity", "ada", "apply", id, "--auto-approve"); code != 0 {
@@ -62,6 +63,41 @@ func TestAPolicyAsksForApprovalsBeforeAPlanIsApplied(t *testing.T) {
 	r.declare(t, map[string]string{"ok_first": rule}, "b")
 	if text, code := runPravo(t, r.dir, "--identity", "dan", "apply", "--auto-approve"); code != 0 {
 		t.Fatalf("an admin's plain apply: exit %d\n%s", code, text)
+	}
+}
+
+// A rule that asks for approvals without naming a role asks for a writer, the default of the
+// schema, which the judged document does not carry.
+func TestApprovalsAskedWithoutARoleCountAWriter(t *testing.T) {
+	rule := "{summary: add: 0} | {summary: add: >0, approvals: {min: 1}}"
+	r := newPolicyRoot(t, map[string]string{"ok_first": rule})
+	if text, code := r.apply(t); code != 0 {
+		t.Fatalf("storing the policy: exit %d\n%s", code, text)
+	}
+	_, dan := person(t, r.ids, "dan")
+	ada := r.ada.AsReader().String()
+	access := filepath.Join(r.dir, ".pravo", "access")
+	writeReaders(t, access, ada, dan)
+	if text, code := runPravo(t, r.dir, "protect", "rewrap", "--yes"); code != 0 {
+		t.Fatalf("rewrap: exit %d\n%s", code, text)
+	}
+	writeReaders(t, access, ada+" role:writer", dan+" role:writer")
+
+	r.declare(t, map[string]string{"ok_first": rule}, "a")
+	text, code := runPravo(t, r.dir, "--identity", "ada", "plan", "--store")
+	id := regexp.MustCompile(`plan-[0-9a-f]+`).FindString(text)
+	if code != 0 || id == "" {
+		t.Fatalf("plan --store: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, r.dir, "--identity", "ada", "apply", id, "--auto-approve")
+	if code != 5 || !strings.Contains(text, "needs 1 approval by a writer or an admin") {
+		t.Fatalf("an apply without approvals: exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, r.dir, "--identity", "dan", "plan", "approve", id); code != 0 {
+		t.Fatalf("dan approves: exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, r.dir, "--identity", "ada", "apply", id, "--auto-approve"); code != 0 {
+		t.Fatalf("an apply approved by a writer: exit %d\n%s", code, text)
 	}
 }
 

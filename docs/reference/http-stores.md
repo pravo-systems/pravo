@@ -2,7 +2,7 @@
 title: HTTP state servers
 description: The object protocol that the http backend speaks, the conditional requests that the locks need, and how pravo retries and checks a server.
 order: 56
-group: Data and formats
+group: Formats and interfaces
 services:
   - fakehttp:9000
 ---

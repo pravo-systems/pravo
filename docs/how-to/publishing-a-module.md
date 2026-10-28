@@ -1,7 +1,7 @@
 ---
 title: Publish a module
 description: Create a module in a git repository, try it from an example, and publish a version to a registry that others can use.
-order: 4
+order: 3
 minutes: 12
 needs: git, and a registry that stores OCI artifacts. This page uses the in-memory registry from pravo's source. A module takes its providers as inputs; see B6.
 done_when: "`pravo mod publish v0.1.0` prints `published example.com/acme/pravo-service@v0.1.0`."

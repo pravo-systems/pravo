@@ -80,7 +80,7 @@ pravo.state/txn/<id>.json
 | `outputs.json` | The outputs recorded by the last apply. |
 | `txn/ID.json` | One recorded transaction. |
 | `locks/ADDRESS.lock` | A lock or a reservation, present while it is held. |
-| `plans/ID.plan.json`, `plans/ID.meta.json`, `plans/ID.progress.json` | A stored plan: the plan, its summary, and what was applied from it. They exist after `pravo plan --store` and until a collection removes them. See [Stored plans](plans.md#stored-plans). |
+| `plans/ID.plan.json`, `plans/ID.meta.json`, `plans/ID.progress.json` | A stored plan: the plan, its summary, and what was applied from it. They exist after `pravo plan --store` and until a collection removes them. See [Stored plans and approvals](stored-plans-and-approvals.md). |
 
 The lineage identifies the store for its whole life. A saved plan records it, and an apply refuses the plan when the lineage differs. A stored plan records it too, and a listing marks a plan stale when the lineage differs.
 
@@ -469,7 +469,7 @@ Split a state for ownership, permissions or blast radius.
 - **Ownership and permissions.** A state is the unit of access. Whoever may write the bucket may write every record in it, and the records hold the attributes of the resources, secrets included. Teams that must not change each other's resources keep separate states.
 - **Blast radius.** A command acts on one state. `pravo destroy` deletes every node in it, and a wrong edit to the specification, or to the credentials of a provider, can reach every node that uses it. A policy can bound the blast radius of a plan; separate states bound what any command can touch.
 
-[Remote state](../how-to/remote-state.md) describes the bucket that one state lives in.
+[Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) describes the bucket that one state lives in.
 
 ## Recap
 

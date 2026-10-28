@@ -269,9 +269,13 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 {"kind":"apply","status":"applied","policies":["owner@1:<digest>"]}
 ```
 
+### Asking for approvals
+
+A rule refuses a plan or lets it through. It can also let a plan through on the condition that other people approve it first: a rule that sets `approvals: {min: N, role: "writer" | "admin", self: bool}` on the plans it matches makes the apply of such a plan wait until `N` distinct keys of that role or above have approved it, and the key that stored the plan does not count unless `self` says so. The approvals belong to a stored plan, so a plan that needs them is stored with `pravo plan --store`, approved by other keys with `pravo plan approve ID` and applied by its id. The refusal of an apply that waits is exit code 5, as a refusal by a rule is, and the signed finish of the apply that goes through names who approved. An admin needs no approval, and a plan that edits or removes a policy that asks for approvals needs an admin's approval of its own. [Stored plans and approvals](stored-plans-and-approvals.md#approvals) runs it with three people, and [Operating policies](../reference/policies-operations.md#ask-for-approvals) lists the rules.
+
 ### Typos in a rule
 
-The failures of a misspelt rule are quiet. A misspelt literal forbids nothing. A misspelt list template adds a field and forbids nothing. A misspelt field with a concrete value is a new field that holds. A misspelt field with a constraint is refused when the rule is added, because the document of an empty plan never sets the field. Test a rule against a fixture that it must refuse and a fixture that it must pass. [Writing policies](../reference/policies-writing.md#mistakes-that-forbid-nothing) runs each of the four.
+The failures of a misspelt rule are quiet. A misspelt literal forbids nothing. A misspelt list template adds a field and forbids nothing. A misspelt field with a concrete value is a new field that holds. A misspelt field with a constraint is refused when the rule is added, because the document of an empty plan never sets the field. Test a rule against a fixture that it must refuse and a fixture that it must pass. [Writing policies](../reference/policies-writing.md#mistakes-that-forbid-nothing) runs each of the four. The policy studio of [the viewer](the-viewer.md#the-six-sections) holds a rule against every resource that exists and against one plan while you type it, and [`pravo policy test`](../reference/policy.md) does the same on the command line, so a rule can be tried on real plans before it is stored.
 
 ## The trust anchor
 
@@ -321,7 +325,7 @@ There is no environment variable and no flag that names or skips a policy. A rul
 ### What a policy does not guarantee
 
 - **Bypass.** A laptop with another binary, an agent shell with cloud credentials and a job that calls the cloud API directly are not checked. Every apply by pravo that reads the state judges. The log records the versions that judged each apply.
-- **Review.** A reader who can apply can write a new version of a policy. The signed version names who applied it, and review of the files that declare policies is the control. With [roles](../reference/protect.md#roles) a writer adds and edits a policy and only an admin removes one.
+- **Review.** A reader who can apply can write a new version of a policy. The signed version names who applied it, and review of the files that declare policies is the control. With [roles](signatures-and-roles.md#roles) a writer adds and edits a policy, only an admin removes one or changes one that asks for approvals, and a reader applies nothing.
 - **Facts chosen by the specification.** The specification decides the state location, the providers and their sources, and the addresses that `$from` and `$import` set. It also decides the refresh ages and the data sources. A `$lifecycle` setting such as `ignore_changes` keeps differences out of the plan. A policy judges the plan that these choices give.
 - **Provider code runs before any verdict.** Providers run with the credentials of the person who invokes pravo. Data sources and ephemeral resources run while the plan is computed.
 - **Plan files are unsigned.** A plan file holds no entry for an ephemeral resource or a function call. A rule about those entries is judged when the plan is made, and not when it is applied.
@@ -343,6 +347,7 @@ The policies bind the tool. They do not bind the process around it. An agent wit
 
 - A specification policy is a constraint on a provider definition. It is checked when the specification evaluates and rejects a value that is set and wrong.
 - A plan policy is a node of the specification, kept in the state as signed versions. It judges every plan that changes a resource, can require a value, and is strict about absent, null and unknown values.
+- A plan policy can ask for approvals of a stored plan by other keys, and an admin needs none.
 - The signed start of an apply lists the versions that judged it. Whoever can change the policy source, the job definition, the state or the credentials is not stopped by a policy.
 
 Next: [Secrets and ephemeral values](secrets-and-ephemeral-values.md) describes what a plan, the state and the log hold.

@@ -14,7 +14,7 @@ import { touchAction } from './plancount.js';
 const ALIAS = {
   state: 'status', author: 'by', who: 'by', owner: 'by', plan: 'id', note: 'reason', title: 'reason', age: 'created', expiry: 'expires', lapses: 'expires',
   overlaps: 'overlap', op: 'action', does: 'action', kind: 'type', address: 'resource', addr: 'resource', touches: 'resource', resources: 'resource',
-  namespace: 'ns', module: 'ns', changes: 'change', progress: 'change',
+  namespace: 'ns', group: 'ns', module: 'ns', changes: 'change', progress: 'change',
 };
 export const COLUMNS = ['status', 'by', 'id', 'reason', 'created', 'expires', 'overlap', 'action', 'resource', 'ns', 'type', 'provider', 'change'];
 export const LANG = { columns: COLUMNS, alias: ALIAS };
@@ -38,7 +38,7 @@ const HINTS = {
   overlap: 'any, none, or the id of a plan: plans that change a resource that another one changes',
   action: 'What a change does: create, update, replace, delete, read, move, import',
   resource: 'The address of a resource that the plan changes; * stands for any run',
-  ns: 'A namespace and everything below it',
+  ns: 'A group and everything below it',
   type: 'The type of a resource that the plan changes: aws_db_instance, or aws_s3* for a run of them',
   provider: 'The provider type of a resource that the plan changes, as in provider:aws',
   change: 'pending (still to apply), applied, conflict (cannot be applied now)',

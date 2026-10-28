@@ -92,11 +92,11 @@ pravo apply
 
 ## The viewer
 
-`pravo serve` shows the specification, the state and a saved plan of a root as an animated graph of namespaces and resources, in a browser. It listens on the loopback interface, needs the token that it prints, withholds sensitive values on the server and writes nothing.
+`pravo serve` shows the specification, the state and a saved plan of a root as an animated graph of groups and resources, in a browser. It listens on the loopback interface, needs the token that it prints, withholds sensitive values on the server and writes nothing.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/serve/overview-dark.png">
-  <img src="docs/img/serve/overview-light.png" alt="The pravo viewer as it opens. A filter box in the toolbar narrows the nodes. The graph fills the window and draws the namespaces that fit as lanes and the others as cards, joined by arrows. The inspector comes in when something is selected." width="1440" height="900">
+  <img src="docs/img/serve/overview-light.png" alt="The pravo viewer as it opens. A filter box in the toolbar narrows the nodes. The graph fills the window and draws the groups that fit as lanes and the others as cards, joined by arrows. The inspector comes in when something is selected." width="1440" height="900">
 </picture>
 
 ```sh
@@ -108,7 +108,7 @@ pravo serve --plan change.plan       # overlay a saved plan
 
 ## Sealed state
 
-`pravo protect init --encrypt` encrypts the attributes, outputs and stored plans of a state to a list of readers that the repository keeps in `.pravo/access/readers.txt`. `pravo id new` makes an identity and prints the line for that file. Addresses, types, names and dependencies stay readable, so the graph and the plans keep working. Protection is off by default, and a state that has it off is unchanged. `docs/how-to/seal-the-state.md` walks through it, and `docs/concepts/sealed-state.md` says what it protects and what it leaves open.
+`pravo protect init --encrypt` encrypts the attributes, outputs and stored plans of a state to a list of readers that the repository keeps in `.pravo/access/readers.txt`. `pravo id new` makes an identity and prints the line for that file. Addresses, types, names and dependencies stay readable, so the graph and the plans keep working. Protection is off by default, and a state that has it off is unchanged. `docs/how-to/seal-the-state.md` walks through it, and `docs/concepts/signatures-and-roles.md` says what it protects and what it leaves open.
 
 ## The skill for agents
 

@@ -1,7 +1,7 @@
 ---
 title: pravo validate, eval, fmt and gen
 description: Check a specification without planning it, print its evaluated value, format the CUE files and regenerate the provider packages.
-order: 10
+order: 12
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'

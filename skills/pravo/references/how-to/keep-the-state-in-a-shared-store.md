@@ -1,10 +1,10 @@
-<!-- Generated from docs/how-to/remote-state.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/how-to/keep-the-state-in-a-shared-store.md by tools/skillgen. Do not edit. -->
 
-# Keep the state in a shared bucket
+# Keep the state in a shared store
 
-Store the state in an S3 bucket so that a team shares it, move an existing local state into the bucket and read another root's outputs.
+Keep the state in an S3 bucket, or on an HTTP server of your own, so that a team shares it. Move an existing local state into it, read another root's outputs and decide who may write it.
 
-A bucket holds the state for every checkout, and the locks that keep two people from changing one resource. This page puts a state in a bucket, reads it from a second checkout and moves a local state into it.
+A shared store holds the state for every checkout, and the locks that keep two people from changing one resource. It is an S3 bucket, a store that speaks the S3 API, or an HTTP server of your own. This page puts a state in a bucket, reads it from a second checkout and moves a local state into it. It ends with the server, and with who may write.
 
 > [!NOTE]
 > Every command below runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000. For a real bucket, change step 1 and the `endpoint` and `path_style` lines.
@@ -208,7 +208,7 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
 No locks or reservations held.
 ```
 
-A reservation keeps others out. To let a colleague see, read and apply a plan, store it in the bucket: [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) shows how.
+A reservation keeps others out. To let a colleague see, read and apply a plan, store it in the bucket: [Store a plan and apply it later](store-a-plan-and-apply-it-later.md) shows how.
 
 An apply locks the resources it writes and no others. After it holds the locks, it reads the revision of each resource it writes, and of each record it reads, from the bucket, and stops with exit code 3 if another command wrote one of them since the plan was made. The bucket must return the object that was last written when it is read back. S3 does. Opening the state reads one object for each record before a command starts, 64 at a time, so the time to open grows with the size of the estate and with the latency of the bucket. A plan then reads from the providers only the records it looks at.
 
@@ -354,10 +354,28 @@ pravo reads only the object `outputs.json` under the prefix. A bucket policy tha
 
 The bucket holds the record of what exists. Whoever can write to it can change what the next plan believes: `pravo state rm`, `pravo state mv` and `pravo import` are not plans, so no [policy](policies.md) sees them. The locks and the transaction log are objects in the same bucket. Give read, write, delete and list permission to the identities that run pravo against this root, and treat the right to write the bucket as the right to change what pravo knows. The bucket also holds the plans that `pravo plan --store` writes. A stored plan holds the same values as a plan file, sensitive values included, so whoever can read the bucket can read its plans.
 
+Two further steps narrow that. [Seal the state](seal-the-state.md) encrypts the attributes, the outputs and the stored plans to a list of readers, so that the bucket, a backup or an old version of an object shows addresses and no value. [Give people roles](give-people-roles.md) then says which of those readers may write, and the credentials of the bucket follow the roles: a reader gets `get` and `list`, and `put` under `plans/`; a writer gets `put` and `delete` as well, except on `meta.json`, `policy/` and `roles/`; an admin gets everything. [`pravo protect roles`](../reference/roles.md#what-roles-do-not-do) has the table.
+
+## 9. Use an HTTP server instead of a bucket
+
+A team that has no bucket, or that keeps its state behind a service of its own, points the root at an HTTP server. The backend keeps the same objects, one for each record, each lock, each transaction and each stored plan, under a URL, and the server has to honour the three conditional requests that the locks rest on, as a bucket does.
+
+```cue
+$settings: pravo.#Settings & {
+	state: pravo.#HTTPState & {
+		backend: "http"
+		url:     "https://state.example.com/team/app"
+	}
+}
+```
+
+Every command of this page runs the same against it, and `pravo state probe` runs the same checks against a server as against a bucket. [HTTP state servers](../reference/http-stores.md) lists the requests a server has to answer, how pravo retries, and `tools/fakehttp`, an in-memory server in pravo's source to try the protocol against. [Settings](../reference/spec-settings.md#http-keys) lists the keys, among them the token or the user name that every request carries.
+
 ## What next
 
 - [Environments](environments.md) computes the prefix from the environment.
+- [Seal the state](seal-the-state.md) encrypts the values in the bucket to a list of readers, and [Give people roles](give-people-roles.md) says which of them may write.
+- [Store a plan and apply it later](store-a-plan-and-apply-it-later.md) stores a plan in the bucket, where a colleague can list, approve and apply it.
 - [CI](ci.md) runs plan and apply as separate jobs against the shared state.
-- [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) stores a plan in the bucket, where a colleague can list and apply it.
 - [State](../concepts/state.md) describes what the bucket holds.
-- [state](../reference/state.md) and [Settings](../reference/spec-settings.md) are the reference for `pravo state push`, `pull` and the `state` block. [Environment variables and remote outputs](../reference/spec-env.md) covers `pravo.#RemoteOutputs`.
+- [state](../reference/state.md), [Settings](../reference/spec-settings.md) and [HTTP state servers](../reference/http-stores.md) are the reference for `pravo state push`, `pull`, the `state` block and the server. [Environment variables and remote outputs](../reference/spec-env.md) covers `pravo.#RemoteOutputs`.

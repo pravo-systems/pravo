@@ -388,7 +388,7 @@ When the list is empty, add the rule. The two `if` clauses are chained so that t
 
 ### Try a rule on plans you have
 
-`pravo policy test` holds a rule, or a draft file of one, against the stored plans and plan files and says which it would refuse and why, without writing anything. The policy studio of the viewer does the same with an editor and a live verdict. See [`pravo policy`](policy.md) and [the studio](serve.md#the-studio).
+`pravo policy test` holds a rule, or a draft file of one, against the stored plans and plan files and says which it would refuse and why, without writing anything. The policy studio of the viewer does the same with an editor and a live verdict. See [`pravo policy`](policy.md) and [the studio](viewer-sections.md#the-studio).
 
 ### A scratch root
 
@@ -405,23 +405,6 @@ cue vet -c rule.cue fixture.json
 ```
 
 `pravo version` prints the CUE version of the binary. With a Go toolchain, `go install cuelang.org/go/cmd/cue@v0.17.1` installs that release; use the version that your `pravo version` prints. `-c` asks for a concrete result, which is what pravo asks. The messages carry the position in the fixture in place of `plan:1:N`. The document that `plan --json` prints has fields the judged document lacks, such as `summary.blast_radius`: see [The plan document in a policy](policies-plan-document.md#what-the-judged-document-leaves-out). A fixture is a plan document, and the document is not masked: scrub it, or write it by hand, before it goes into a repository.
-
-## Ask for approvals
-
-A rule can ask for approvals as well as refuse. A rule that sets `approvals` on the plan it matches makes the apply wait until enough keys have approved that plan. `min` is how many distinct keys, `role` the weakest role that counts (`"writer"`, the default, or `"admin"`), and `self` whether the key that stored the plan may approve it (`false` by default). A rule picks out the plans it asks for with a disjunction, since a rule cannot test the plan with `if` outside a list template:
-
-```cue
-// A plan that destroys anything needs two approvals, one of them from an admin.
-big_destroys: pravo.#Policy & {rule: {
-	{summary: destroy: 0} | {summary: destroy: >0, approvals: {min: 2, role: "admin"}}
-}}
-```
-
-When several policies ask, the strongest wins: the largest `min`, the highest `role`, and the key that stored the plan counts only if every one of them allows it. The approvals belong to a stored plan, so a plan that needs them is made with `pravo plan --store`, approved with [`pravo plan approve ID`](plan.md#approve-a-stored-plan) by other keys, and applied by its id. `pravo apply` of a file or without an id refuses such a plan, because there is nowhere to keep an approval. The refusal is exit code 5 and says how many approvals the plan has and how many it needs.
-
-An admin needs no approval, and a readers file without roles makes every key an admin, so a state with one member applies as it did before. A plan that edits or removes a policy that asks for approvals needs one admin's approval of its own, from a key other than the one that stored it, so that a writer cannot end the requirement with a plan that no rule judges. Adding a policy needs none.
-
-An approval is a signature over the digest of the plan, so it holds for that plan alone and a plan that is made again needs its own. Whether the key may approve is decided at apply from the readers file: a key that was demoted, or that is not in the readers file any more, stops counting. A state that is not sealed has no approvals, because it has no signatures. `pravo plan show ID` and the plan strip of [`pravo serve`](serve.md) name who approved.
 
 ## Exemptions
 
@@ -523,6 +506,129 @@ Verified.
 The command finds the plan by the id that the transaction names, or takes it from `--plan FILE`. It exits with 0 when the signatures verify, the plan has the digest that the transaction signed, and every version listed passes on the plan. A bad signature, a plan with another digest or a version whose text is not the listed one is exit code 7. A rule that fails on the plan is exit code 5. Anything else that stops the check, such as a plan that is not kept, is exit code 1 with the reason.
 
 A plan that an apply judged is marked kept: `pravo plan gc` does not remove it, so the receipt can be checked later. A plain `apply` without a plan names the digest of the plan it built, and keeps no plan, so its receipt lists the versions and cannot be run again.
+
+## Ask for approvals
+
+A rule can ask for approvals as well as refuse. A rule that sets `approvals` on the plan it matches makes the apply wait until enough keys have approved that plan. `min` is how many distinct keys, `role` the weakest role that counts (`"writer"`, the default, or `"admin"`), and `self` whether the key that stored the plan may approve it (`false` by default). A rule picks out the plans it asks for with a disjunction, since a rule cannot test the plan with `if` outside a list template:
+
+```cue
+// A plan that destroys anything needs two approvals, one of them from an admin.
+big_destroys: pravo.#Policy & {rule: {
+	{summary: destroy: 0} | {summary: destroy: >0, approvals: {min: 2, role: "admin"}}
+}}
+```
+
+When several policies ask, the strongest wins: the largest `min`, the highest `role`, and the key that stored the plan counts only if every one of them allows it. The approvals belong to a stored plan, so a plan that needs them is made with `pravo plan --store`, approved with [`pravo plan approve ID`](plan.md#approve-a-stored-plan) by other keys, and applied by its id. `pravo apply` of a file or without an id refuses such a plan, because there is nowhere to keep an approval. The refusal is exit code 5 and says how many approvals the plan has and how many it needs.
+
+An admin needs no approval, and a readers file without roles makes every key an admin, so a state with one member applies as it did before. A plan that edits or removes a policy that asks for approvals needs one admin's approval of its own, from a key other than the one that stored it, so that a writer cannot end the requirement with a plan that no rule judges. Adding a policy needs none.
+
+An approval is a signature over the digest of the plan, so it holds for that plan alone and a plan that is made again needs its own. Whether the key may approve is decided at apply from the readers file: a key that was demoted, or that is not in the readers file any more, stops counting. A state that is not sealed has no approvals, because it has no signatures. `pravo plan show ID` and the plan strip of [the viewer](viewer-sections.md#the-plans-section) name who approved.
+
+Two more members join the state: dan and eve, both writers, while ada is an admin. [Roles](roles.md) are the fifth field of the readers file, and `rewrap` writes the locks of the new readers to `meta.json`:
+
+```sh
+{
+  echo "$(pravo -C infra id show | tail -n 1 | sed 's/^ *//') role:admin"
+  echo "$(PRAVO_CONFIG_DIR=people/dan pravo -C infra id show | tail -n 1 | sed 's/^ *//') role:writer"
+  echo "$(PRAVO_CONFIG_DIR=people/eve pravo -C infra id show | tail -n 1 | sed 's/^ *//') role:writer"
+} > infra/.pravo/access/readers.txt
+pravo -C infra protect rewrap --yes | tail -n 1
+```
+
+Output:
+
+```text
+meta.json updated
+```
+
+A rule asks for one approval of any plan that adds a resource. ada applies it; a policy that is added is not judged, and an admin needs no approval:
+
+File `policy/second-opinion.cue`:
+
+```cue
+// A plan that adds a resource is applied once a writer other than its author has approved it.
+{summary: add: 0} | {summary: add: >0, approvals: {min: 1}}
+```
+
+```sh
+./set-rule.sh second_opinion policy/second-opinion.cue
+pravo -C infra apply --auto-approve | grep -E '^(Policies|Apply complete)'
+```
+
+Output:
+
+```text
+Policies: +1 new, ~0 changed, -0 removed.
+Policies: +1 new, ~0 changed, -0 removed.
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
+```
+
+dan adds a pet and stores the plan. The policies are satisfied, and the plan is stored. His apply is refused, because nobody has approved it and his own key does not count:
+
+```sh
+cat >> infra/main.cue <<'CUE'
+
+third: $random.#Resource.random_pet & {length: 2, keepers: owner: "ops"}
+CUE
+PRAVO_CONFIG_DIR=people/dan pravo -C infra plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
+ID=$(pravo -C infra plan list | awk 'NR==1 {print $1}')
+PRAVO_CONFIG_DIR=people/dan pravo -C infra apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
+sed -n '/^Error/,$p' apply.out
+```
+
+Output:
+
+```text
+Policies: 3 satisfied.
+Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
+exit=5
+Error: the plan plan-<id> needs 1 approval by a writer or an admin (second_opinion@1) and has 0. The key that stored the plan does not count.
+```
+
+eve approves the plan, and dan applies it. `plan show` names who approved:
+
+```sh
+ID=$(pravo -C infra plan list | awk 'NR==1 {print $1}')
+PRAVO_CONFIG_DIR=people/eve pravo -C infra plan approve "$ID"
+PRAVO_CONFIG_DIR=people/dan pravo -C infra apply "$ID" --auto-approve | grep '^Apply complete'
+pravo -C infra plan show "$ID" | grep -E '^(Stored plan|  approved)'
+```
+
+Output:
+
+```text
+Approved plan-<id> as eve.
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
+Stored plan plan-<id> by dan, just now (applied)
+  approved: eve (writer)
+```
+
+A writer may edit a policy, and the edit is a plan with no resource change, which no rule judges. A change to a policy that asks for approvals therefore needs an admin's approval of its own. dan rewrites the rule so that it asks for nothing, and his apply waits for an admin:
+
+File `policy/no-opinion.cue`:
+
+```cue
+// Nothing to approve.
+summary: add: >=0
+```
+
+```sh
+./set-rule.sh second_opinion policy/no-opinion.cue
+PRAVO_CONFIG_DIR=people/dan pravo -C infra plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
+ID=$(pravo -C infra plan list | awk 'NR==1 {print $1}')
+PRAVO_CONFIG_DIR=people/dan pravo -C infra apply "$ID" --auto-approve 2>&1 | sed -n '/^Error/,$p'
+./set-rule.sh second_opinion policy/second-opinion.cue
+```
+
+Output:
+
+```text
+Policies: +0 new, ~1 changed, -0 removed.
+Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
+Error: the plan plan-<id> needs 1 approval by an admin (a change to second_opinion@1) and has 0. The key that stored the plan does not count.
+```
+
+With `--json`, `pravo plan approve` prints `id`, `approved_by` and `at`, and the refusal of an apply is the error object with code 5. [Approve a plan](../how-to/approve-a-plan.md) walks through the same with two people and the viewer.
 
 ## What is recorded
 

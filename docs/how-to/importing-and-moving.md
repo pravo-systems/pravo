@@ -1,7 +1,7 @@
 ---
 title: Rename, move and adopt resources
 description: Rename a resource without recreating it, move a group of resources, adopt an object that already exists and forget one without destroying it.
-order: 11
+order: 6
 minutes: 12
 needs: B8 teaches why an address is an identity. An empty directory.
 done_when: "A renamed resource keeps its object, a renamed module instance moves every record under it, and an existing object is adopted with `$import`."
@@ -15,7 +15,7 @@ normalize:
     replace: '[id=<id>]'
   - pattern: 'refreshed [0-9]+s ago'
     replace: 'refreshed 0s ago'
-group: Providers and state
+group: Operate
 keywords: "terraform import moved block state mv"
 ---
 

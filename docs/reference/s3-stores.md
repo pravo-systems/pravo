@@ -2,7 +2,7 @@
 title: S3-compatible stores
 description: The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state.
 order: 55
-group: Data and formats
+group: Formats and interfaces
 ---
 
 The S3 backend keeps one object for each record, one object for each lock and up to three objects for each stored plan. Its locks rest on three conditional requests, and so do the stored plans. A store that honours all three keeps two applies apart. A store that ignores one lets two commands hold the same lock, and nothing says so.
@@ -72,4 +72,4 @@ The checks have been run against these servers. `ignored` means that the server 
 
 A store that fails the delete check cannot hold a state that more than one command writes, whatever else it honours: a lock that is reclaimed while its holder renews it is deleted although it has changed. `pravo state probe` names the check that fails. Amazon S3 and Cloudflare R2 are not in the table.
 
-[Remote state](../how-to/remote-state.md) sets up the bucket, and [State format](state-format.md#remote-layout) describes the objects.
+[Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) sets up the bucket, and [State format](state-format.md#remote-layout) describes the objects.

@@ -295,8 +295,13 @@ func (m *Providers) loadSchema(ctx context.Context, local string) (*schema.Provi
 	// on-disk schema cache would hide GetSchema from the recorder.
 	rec := m.recording()
 	useCache := rec.Record == "" && !rec.Replaying()
-	if rp.Req.Path == "" && !rp.Reattached() && useCache {
+	if !rp.Reattached() && useCache {
 		packPath = m.Registry.SchemaPackPath(rp.Req.Source, rp.Version)
+	}
+	// A provider from a path is asked every run: its binary can change without
+	// its version changing. Its schema is still written to the cache, as "dev",
+	// for the viewer, which never starts a provider and reads only the cache.
+	if rp.Req.Path == "" && packPath != "" {
 		jsonPath := m.Registry.SchemaCachePath(rp.Req.Source, rp.Version)
 		began := time.Now()
 		// The pack is opened and its types are read when they are first asked for.

@@ -2,7 +2,7 @@
 title: Compatibility
 description: The versions and formats that pravo reads and writes, the provider protocol it speaks, and what it does with a version it does not know.
 order: 54
-group: Data and formats
+group: Formats and interfaces
 normalize:
   - pattern: '(?m)^Downloading .*\n'
     replace: ''

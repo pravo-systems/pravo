@@ -1,7 +1,7 @@
 ---
 title: pravo why and pravo drift
 description: Explain why a plan creates, changes, replaces or skips a resource, and read the records that a plan does not read to report what changed outside pravo.
-order: 12
+order: 10
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'

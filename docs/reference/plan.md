@@ -559,7 +559,7 @@ Error: no such stored plan: plan-000000 (see: pravo plan list --all)
 
 ### Approve a stored plan
 
-`pravo plan approve ID` signs an approval of a stored plan with your identity, in a [sealed state](../concepts/sealed-state.md). A [policy can ask for approvals](policies-operations.md#ask-for-approvals) before a plan is applied; the apply counts the approvals of keys in the readers file whose role suffices, and not the key that stored the plan unless the policy allows it. Give the `-t` and `-T` that the plan was made with. `--json` prints the plan id, the signer and the time.
+`pravo plan approve ID` signs an approval of a stored plan with your identity, in a [sealed state](../concepts/signatures-and-roles.md). A [policy can ask for approvals](policies-operations.md#ask-for-approvals) before a plan is applied; the apply counts the approvals of keys in the readers file whose role suffices, and not the key that stored the plan unless the policy allows it. Give the `-t` and `-T` that the plan was made with. `--json` prints the plan id, the signer and the time.
 
 ### Collect stored plans
 
@@ -660,6 +660,6 @@ Removed 1 stored plan that was no longer needed.
 
 - [`pravo apply`](apply.md) applies a plan, from a file or from the state.
 - [`pravo show`](show.md) prints a saved plan or a stored plan.
-- [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md) follows two people through a stored plan.
+- [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) follows two people through a stored plan.
 - [`pravo why`](why-and-drift.md) explains a single change.
 - [Plans](../concepts/plans.md) explains scoped plans, unknown values and stored plans.

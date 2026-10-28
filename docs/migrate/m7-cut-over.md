@@ -123,7 +123,7 @@ pravo state push pravo.state
 pravo plan --detailed-exitcode
 ```
 
-The settings, the bucket and the commands are in [Keep the state in a shared bucket](../how-to/remote-state.md#6-move-a-local-state-into-the-bucket). Keep versioning on for the bucket, as you did for the OpenTofu state.
+The settings, the bucket and the commands are in [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md#6-move-a-local-state-into-the-bucket). Keep versioning on for the bucket, as you did for the OpenTofu state.
 
 Each OpenTofu step has a pravo step. A policy is a node of the root, so the commands name none.
 

@@ -1,7 +1,7 @@
 ---
 title: Write and roll out policies
-description: Write a policy rule, test it on fixtures with the matching cue version, roll a new rule out as advice, exempt by type, apply under the policies of the state and retire a policy.
-order: 8
+description: Write a policy rule, test it on fixtures with the matching cue version, try it on the plans you have, roll a new rule out as advice, exempt by type, apply under the policies of the state, ask for approvals and retire a policy.
+order: 2
 minutes: 25
 needs: B10 for the idea of a policy. `cue` at the version that `pravo version` prints on its second line, `jq`, and an empty directory.
 done_when: "`sh policy/test.sh` passes, a plan that replaces a pet is refused with exit code 5, and `pravo state verify` verifies the apply job."
@@ -270,6 +270,24 @@ pravo -C root state query '[for a, r in resources if r.type == "random_pet" if r
 ["server"]
 ```
 
+`pravo policy test` asks the same question without `cue`, of a plan file or of the plans stored in the state, and says which plans the rule would refuse. It exits with 5 when one would be, so a pipeline can gate a draft on the plans the team has. The paths are relative to the root, as `-C` runs the command there:
+
+```sh run exit=5
+pravo -C root policy test ../policy/advice.cue --plan change.plan
+```
+
+```text out
+Policy advice (../policy/advice.cue)
+  ✗ change.plan  file  would be refused
+      changes.0.after.prefix: conflicting values null and string (mismatched types null and string)
+      change extra
+  0 of 1 judged plan hold.
+
+Error: 1 plan would be refused
+```
+
+The viewer asks the same question with an editor. Its policy studio, `s` in `pravo serve`, holds a rule against every stored plan, or against every resource of the state as if a plan updated it, and the verdict updates as you type. Nothing is applied or stored. [Explore an estate in a browser](explore-your-estate.md#11-see-the-policies-in-force-and-try-a-rule) has the picture, and [`pravo policy`](../reference/policy.md) the flags.
+
 `server` must be replaced to get a prefix, and the policy refuses a replacement. Section 7 covers exceptions. Fix the new pet first.
 
 ```cue file=root/extra.cue title="root/extra.cue" hl="3"
@@ -470,7 +488,7 @@ Verified.
 
 ## 9. Retire a policy
 
-No flag lifts a policy. A rule that has to go is removed from the root. The apply that removes it is not judged, and it writes a signed removal.
+No flag lifts a policy. A rule that has to go is removed from the root. The apply that removes it is not judged, and it writes a signed removal. With [roles](give-people-roles.md), that apply is an admin's: a writer adds and edits a policy, and only an admin removes one, or changes one that asks for approvals.
 
 ```sh run
 rm root/policy.cue
@@ -490,6 +508,21 @@ guard@00000003.json
 guard@00000004.json
 ```
 
+## 10. Ask for approvals instead of refusing
+
+A rule can ask for a second pair of eyes rather than say no. A rule that sets `approvals` on the plans it matches makes the apply of such a plan wait until enough other members have approved it with `pravo plan approve`:
+
+```cue
+// A plan that destroys a resource is applied once another writer has approved it.
+careful_destroys: pravo.#Policy & {
+	rule: {
+		{summary: destroy: 0} | {summary: destroy: >0, approvals: {min: 1}}
+	}
+}
+```
+
+The approvals belong to a stored plan, so a plan that such a rule matches is made with `pravo plan --store` and applied by its id, and an admin needs none. [Approve a plan](approve-a-plan.md) sets it up with three people, and [Operating policies](../reference/policies-operations.md#ask-for-approvals) lists the fields.
+
 ## What a policy does not bind
 
 A policy binds the runs of pravo that read the state. A laptop, a shell that an agent holds and a job that calls the cloud API directly are not checked. [The trust anchor](../concepts/policies.md#the-trust-anchor) names the rights that decide what a policy guarantees, and [What a policy does not guarantee](../concepts/policies.md#what-a-policy-does-not-guarantee) lists the limits.
@@ -498,5 +531,7 @@ Review every change to the files that declare policies: the signed version names
 
 ## What next
 
+- [Approve a plan](approve-a-plan.md) makes a plan wait for the approval of a colleague.
 - [Run pravo in a pipeline](ci.md) puts the plan and apply jobs in a pipeline with the exit codes.
 - [Let an agent plan and apply](agents-and-mcp.md) shows the tool server under the same policies.
+- [Explore an estate in a browser](explore-your-estate.md#11-see-the-policies-in-force-and-try-a-rule) shows the policies in force, their versions and the studio.

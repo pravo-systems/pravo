@@ -252,7 +252,7 @@ The fingerprint of a saved plan covers every file that was loaded for the root, 
 - `cue.mod/module.cue`, the shared packages and each root's `main.cue`.
 - Each root's `pravo.lock.cue`.
 - Either `cue.mod/gen`, so that `pravo validate` works in a clean checkout, or a `pravo init` step in [CI](ci.md).
-- The state, in a place the team shares: [a bucket](remote-state.md), one prefix per root.
+- The state, in a place the team shares: [a bucket](keep-the-state-in-a-shared-store.md), one prefix per root.
 
 Keep one `cue.mod` per repository. A second `cue.mod` inside it starts a separate module, and code on the other side cannot import across the boundary by path. Code that is shared between repositories, or that has its own release schedule, is [published](publishing-a-module.md) and [used by version](using-a-module.md).
 

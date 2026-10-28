@@ -451,6 +451,7 @@ Each of these is one more commit with the same check.
 - Replace a flag pair by a condition, [A12 Conditions and strings](https://pravo.systems/learn/a12-conditions-and-strings.html).
 - Put the rules of the platform on the provider definition, so that every resource built through it obeys, [B10 Policy](../learn/b10-policy.md).
 - Build the three environments from one definition, [A14 Project](https://pravo.systems/learn/a14-project-three-environments.html).
+- Put the state where the team can reach it, seal it and give the members roles, [Track D](../learn/d01-one-state-two-people.md).
 
 ## Recap
 
@@ -458,4 +459,4 @@ Each of these is one more commit with the same check.
 - A refactor commit leaves the plan empty or moving records only. A policy turns that rule into a check.
 - A new address is a move: `$from` names the old one, and it can go in a later commit.
 
-Next: [How-to](https://pravo.systems/how-to/index.html) has the task-shaped pages for what you do every week, such as remote state, CI and policies.
+Next: [How-to](https://pravo.systems/how-to/index.html) has the task-shaped pages for what you do every week, such as a shared store, CI, roles and approvals.

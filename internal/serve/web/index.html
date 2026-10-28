@@ -57,12 +57,12 @@
         <button type="button" id="view-list" aria-pressed="false" aria-keyshortcuts="g">List</button>
       </div>
       <div class="seg list-only" role="group" aria-label="Rows of the list">
-        <button type="button" id="btn-grouped" aria-pressed="true" title="Group the rows by namespace">Grouped</button>
+        <button type="button" id="btn-grouped" aria-pressed="true" title="One block of rows per group">Grouped</button>
         <button type="button" id="btn-flat" aria-pressed="false" title="List every resource with its whole address">Flat</button>
       </div>
-      <div class="seg ns-only" role="group" aria-label="Namespaces">
-        <button type="button" id="btn-collapse" title="Collapse every namespace ( [ )">Collapse</button>
-        <button type="button" id="btn-expand" title="Expand every namespace ( ] )">Expand</button>
+      <div class="seg ns-only" role="group" aria-label="Groups">
+        <button type="button" id="btn-collapse" title="Collapse every group ( [ )">Collapse</button>
+        <button type="button" id="btn-expand" title="Expand every group ( ] )">Expand</button>
       </div>
       <div class="filterbox">
         <span class="i i-search" aria-hidden="true"></span>
@@ -82,7 +82,7 @@
     <div class="pills" id="pills" role="group" aria-label="Active filters"></div>
 
     <div class="pane graph-pane" id="graph-pane">
-      <div class="canvas" id="canvas" tabindex="0" role="application" aria-roledescription="dependency graph" aria-label="Dependency graph. Arrow keys follow dependencies. Enter opens or closes the selected namespace. Press ? for all shortcuts.">
+      <div class="canvas" id="canvas" tabindex="0" role="application" aria-roledescription="dependency graph" aria-label="Dependency graph. Arrow keys follow dependencies. Enter opens or closes the selected group. Press ? for all shortcuts.">
         <div class="overlay reachbar" id="reachbar" hidden></div>
         <div class="overlay legend" id="legend"></div>
         <div class="gskel" id="skeleton" aria-hidden="true">

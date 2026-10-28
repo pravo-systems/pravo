@@ -301,7 +301,7 @@ resources
 txn
 ```
 
-`pull` and `push` copy the stored plans below `plans/` with the records, the claims on them included. A stored plan that a collection removes during the copy is left out of it. `push` copies a local directory into the configured backend. To move a root to a bucket, add the `state` block to `$settings`, run `pravo state push pravo.state`, and archive the local directory. See [Remote state](../how-to/remote-state.md).
+`pull` and `push` copy the stored plans below `plans/` with the records, the claims on them included. A stored plan that a collection removes during the copy is left out of it. `push` copies a local directory into the configured backend. To move a root to a bucket, add the `state` block to `$settings`, run `pravo state push pravo.state`, and archive the local directory. See [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md).
 
 ### import-tfstate
 

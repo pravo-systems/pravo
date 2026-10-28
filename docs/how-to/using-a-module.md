@@ -1,7 +1,7 @@
 ---
 title: Use a published module
 description: Add a published module to a root, lock it, read an upgrade before you take it and know what happens in CI and offline.
-order: 5
+order: 4
 minutes: 12
 needs: "The module from [Publish a module](publishing-a-module.md), published as v0.1.0 and v0.2.0 in the in-memory registry from pravo's source. Any module published the same way works."
 done_when: "`pravo mod verify` prints `Verified. 1 modules match pravo.lock.cue.` and a changed version is refused with exit code 5."

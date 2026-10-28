@@ -669,7 +669,7 @@ function selectNamespace(path, o = {}) {
     if (lane) gv.centerOnBox(lane); else if (id) gv.centerOn(id);
   }
   syncFragment();
-  announce(`Namespace ${ns.name}, ${plural(ns.agg.n, 'resource')}${ns.agg.out ? ' and ' + plural(ns.agg.out, 'output') : ''}.`);
+  announce(`Group ${ns.name}, ${plural(ns.agg.n, 'resource')}${ns.agg.out ? ' and ' + plural(ns.agg.out, 'output') : ''}.`);
 }
 
 // setProject shows the project in the inspector, with nothing selected, or takes it away
@@ -748,7 +748,7 @@ function openNamespace(path) {
   renderSide();
   selectNamespace(path, { center: true });
   updateBack();
-  announce(`Opened namespace ${ns.name}, ${plural(ns.agg.n, 'resource')}. Escape zooms out.`);
+  announce(`Opened group ${ns.name}, ${plural(ns.agg.n, 'resource')}. Escape zooms out.`);
 }
 
 // backOut undoes the last openNamespace: the namespace closes and the camera returns to where it was.
@@ -769,7 +769,7 @@ function backOut() {
   gv.setView(t.view, true);
   gv.userMoved = t.moved;
   updateBack();
-  announce(`Closed namespace ${S.model.namespaces.get(t.path).name}.`);
+  announce(`Closed group ${S.model.namespaces.get(t.path).name}.`);
   return true;
 }
 
@@ -781,9 +781,9 @@ function updateBack() {
   backBtn.dataset.kind = kind;
   if (!kind) return;
   backBtn.querySelector('.bl').textContent = kind === 'zoom' ? 'Zoom out' : 'Back to where you were';
-  backBtn.setAttribute('aria-label', kind === 'zoom' ? 'Zoom out of the namespace that was opened (Escape)' : 'Go back to where you were before the search (Escape)');
+  backBtn.setAttribute('aria-label', kind === 'zoom' ? 'Zoom out of the group that was opened (Escape)' : 'Go back to where you were before the search (Escape)');
   backBtn.removeAttribute('data-tip');
-  backBtn.dataset.tip = kind === 'zoom' ? 'Close the namespace and return to the picture before it' : 'Return to the picture, the selection and the open namespaces from before the search';
+  backBtn.dataset.tip = kind === 'zoom' ? 'Close the group and return to the picture before it' : 'Return to the picture, the selection and the open groups from before the search';
 }
 
 function toggleNamespace(path) {
@@ -809,7 +809,7 @@ function toggleNamespace(path) {
   if (closing) S.trail = S.trail.filter((x) => !S.collapsed.has(x.path));
   updateBack();
   syncFragment();
-  announce(`${closing ? 'Closed' : 'Opened'} namespace ${ns.name}, ${plural(ns.agg.n, 'resource')}.`);
+  announce(`${closing ? 'Closed' : 'Opened'} group ${ns.name}, ${plural(ns.agg.n, 'resource')}.`);
 }
 
 function boxVisible(b) {
@@ -832,7 +832,7 @@ function setAllNamespaces(collapse) {
   renderSide();
   if (S.view === 'graph') gv.fit(true);
   syncFragment();
-  announce(collapse ? 'Every namespace is closed' : 'Every namespace is open');
+  announce(collapse ? 'Every group is closed' : 'Every group is open');
 }
 
 // resetView goes back to the first view: the namespaces that were open when the page loaded, no group opened, the
@@ -1409,8 +1409,8 @@ function paletteActions() {
     add('View', 'Fit the graph', ['f'], () => gv.fit(true), { words: 'zoom' });
     add('View', 'Zoom in', ['+'], () => gv.zoomBy(1.25, undefined, undefined, true));
     add('View', 'Zoom out', ['-'], () => gv.zoomBy(0.8, undefined, undefined, true));
-    add('View', 'Collapse every namespace', ['['], () => setAllNamespaces(true), { words: 'close all' });
-    add('View', 'Expand every namespace', [']'], () => setAllNamespaces(false), { words: 'open all' });
+    add('View', 'Collapse every group', ['['], () => setAllNamespaces(true), { words: 'close all' });
+    add('View', 'Expand every group', [']'], () => setAllNamespaces(false), { words: 'open all' });
     add('View', S.proj ? 'Hide the project' : 'Show the project', ['i'], () => setProject(!S.proj), { words: 'info directory state' });
     add('View', 'Reset the view', ['0'], resetView, { words: 'first view' });
   }

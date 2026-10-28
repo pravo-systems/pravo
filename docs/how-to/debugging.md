@@ -1,7 +1,7 @@
 ---
 title: Find out why a run fails
 description: Read an evaluation error, ask pravo what it decided with -v, ask why a resource changes, check for drift and follow a run in a trace.
-order: 12
+order: 3
 minutes: 15
 needs: C1 for the shape of a CUE error. `jq`, and an empty directory.
 done_when: "You can name the file and line of an evaluation error, print the reason for a task from the debug log and follow a command in a trace."
@@ -17,7 +17,7 @@ normalize:
     replace: 'took=0ms'
   - pattern: 'the record is [0-9]+[smhd] old'
     replace: 'the record is <age> old'
-group: Maintain
+group: Observe
 keywords: "field not allowed conflicting values error debug why"
 ---
 
@@ -371,7 +371,7 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 32
 ```
 
-Without any of this, `PRAVO_TRACES=on pravo plan` (the recording is off until you ask for it) keeps the trace of a command that did some work in `.pravo/traces`, and `pravo serve` shows it as a timeline: the Traces section lists the runs, and a click on a bar shows the span, its error and its parts. That is the quickest way to find the slow resource of an apply or the call that failed. See [The Traces section](../reference/serve.md#the-traces-section).
+Without any of this, `PRAVO_TRACES=on pravo plan` (the recording is off until you ask for it) keeps the trace of a command that did some work in `.pravo/traces`, and `pravo serve` shows it as a timeline: the Traces section lists the runs, and a click on a bar shows the span, its error and its parts. That is the quickest way to find the slow resource of an apply or the call that failed. [Record what a run does](record-what-a-run-does.md) turns it on and reads a run that failed, and [The Traces section](../reference/viewer-sections.md#the-traces-section) lists every part of the view.
 
 A real collector takes the standard `OTEL_EXPORTER_OTLP_ENDPOINT` variable. `TRACEPARENT` in the environment makes the command a child of the caller's span, so a pipeline's trace shows pravo's work inside it.
 

@@ -48,7 +48,7 @@ normalize:
     replace: 'v<version> as '
 ---
 
-A state holds the attributes of every resource, and a provider returns some of them as secrets. Whoever can read the bucket that holds the state can read them. Sealing encrypts the attributes to a list of readers. This lab copies a bucket, finds a secret in the copy, seals the state and copies the bucket again. [What sealing protects](../concepts/sealed-state.md) explains what it covers, and [pravo id and pravo protect](../reference/protect.md) lists the commands.
+A state holds the attributes of every resource, and a provider returns some of them as secrets. Whoever can read the bucket that holds the state can read them. Sealing encrypts the attributes to a list of readers. This lab copies a bucket, finds a secret in the copy, seals the state and copies the bucket again. [Signatures and roles](../concepts/signatures-and-roles.md) explains what it covers, and [pravo id and pravo protect](../reference/protect.md) lists the commands.
 
 > [!NOTE]
 > Every command runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000. The two people of the lab are two directories on one machine.
@@ -74,7 +74,7 @@ Run both lines in every terminal that runs a pravo command.
 
 A script reads the passphrase from the environment. In a terminal pravo ignores the variable and asks for the passphrase without echo, twice when it makes an identity. Type `an example passphrase` each time. Every identity of the lab uses it. Where pravo asks, run the next line of a block only after you answer.
 
-The specification keeps its state in the bucket and holds one resource, a password of 24 characters. [Keep the state in a shared bucket](../how-to/remote-state.md) explains the `state` block. The provider generates the value, so it appears nowhere in your files. The password has no special characters. The state file escapes some of them, such as `<` and `&`, and the search would miss the value.
+The specification keeps its state in the bucket and holds one resource, a password of 24 characters. [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) explains the `state` block. The provider generates the value, so it appears nowhere in your files. The password has no special characters. The state file escapes some of them, such as `<` and `&`, and the search would miss the value.
 
 ```cue file=main.cue title="main.cue"
 package lab
@@ -421,7 +421,7 @@ A reader sees the value. Sealing does not hide a value from the people on the li
 - **Nothing recovers a state if every reader loses their key,** unless it has a recovery recipient. The lab did not set one. [Seal the state](../how-to/seal-the-state.md) shows how, and keeping more than one reader comes first.
 - **Roles are not part of it.** Sealing hides values, and the signatures on transactions say who ran what. Neither says who may change the state. A person who can write to the bucket can delete or replace its objects.
 
-[What sealing protects](../concepts/sealed-state.md) lists the rest.
+[Signatures and roles](../concepts/signatures-and-roles.md) lists the rest.
 
 ## Clean up
 

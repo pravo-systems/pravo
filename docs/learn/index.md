@@ -1,9 +1,9 @@
 ---
 title: Learn
-description: Two tracks in order. Track A teaches CUE from zero. Track B teaches pravo. Each lesson takes between 6 and 20 minutes.
+description: Three tracks in order. Track A teaches CUE from zero. Track B teaches pravo. Track D puts a team on one state. Each lesson takes between 6 and 20 minutes.
 ---
 
-Learn has two tracks. Track A teaches CUE with pravo as the only tool. Track B teaches pravo on top of it.
+Learn has three tracks. Track A teaches CUE with pravo as the only tool. Track B teaches pravo on top of it. Track D puts a team on one shared state: stored plans, sealing, roles, policies, approvals and recorded runs.
 
 Learn teaches, in order. To do one task on a project you already understand, use [How-to](../how-to/index.md).
 
@@ -28,6 +28,13 @@ Start Track A at [A1, Your data is already CUE](a01-your-data-is-already-cue.md)
 </div>
 <div class="card">
 
+### My team shares one state
+
+Start Track D at [D1, One state, two people](d01-one-state-two-people.md), once you know Track B to B7 and Lab 2.
+
+</div>
+<div class="card">
+
 ### Show me the reference
 
 Open the [Reference](../reference/index.md), or the [CUE cheat sheet](cue-cheat-sheet.md) for the language on one page.
@@ -37,14 +44,17 @@ Open the [Reference](../reference/index.md), or the [CUE cheat sheet](cue-cheat-
 
 If you write CUE already, begin Track B at [B1, Providers and resources](b01-providers-and-resources.md).
 
-## The two tracks
+## The tracks
 
 | Track | Lessons | Time | You finish with |
 |---|---|---|---|
 | **Track A · CUE from zero** | [A1](a01-your-data-is-already-cue.md) to [A14](a14-project-three-environments.md) and five companion pages | about 2 hours | One definition that produces three environments, checked by `pravo eval`. |
 | **Track B · pravo** | [B1](b01-providers-and-resources.md) to [B10](b10-policy.md), three labs and a [project](b11-project.md) | about 2 hours, plus the labs | A specification that you plan, apply, change, move, check against a policy and destroy. |
+| **Track D · A team on one state** | [D1](d01-one-state-two-people.md) to [D7](d07-read-a-run.md) | under 2 hours | A sealed state in a shared store that three people work on, with roles, a policy, an approval and a recorded run. |
 
 Do Track A first. Track B assumes the CUE that Track A teaches. The [quick start](../how-to/quick-start.md) runs a plan before you know any CUE, and Track A explains what you saw there.
+
+Track D follows a team of three on one state. Each lesson names the lessons it needs, under "Needs": B7 and Lab 2 for most of them, and B10 before [D5](d05-write-a-plan-policy.md).
 
 The companion pages sit beside Track A. Open them when a lesson sends you there, or when an error confuses you.
 
@@ -62,6 +72,7 @@ The [glossary](../reference/glossary.md) defines every term. Track A defines at 
 - A terminal, a text editor and an empty directory. A1 to A5 build on one directory. Each later lesson says where to work.
 - For Track A, nothing else. `pravo eval` and `pravo validate` evaluate plain CUE, so almost every example needs no provider, no account and no network. A10, C2, C3 and C4 each run one example with a provider from [Quick start](../how-to/quick-start.md). `pravo init` fetches it once.
 - For Track B, providers that run on your machine. A lesson that needs more says so in its header, under "Needs".
+- For Track D, an S3-compatible bucket, or `tools/fakes3` from a checkout of pravo's source: an in-memory server that needs no account. [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md#1-provide-a-bucket) starts it. D7 runs on a local state and needs neither.
 
 Examples use a POSIX shell. The output in the lessons comes from a real run of the examples. Ids and times are normalised, and absolute paths are shortened to `./`. Your terminal prints the full path.
 

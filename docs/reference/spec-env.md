@@ -170,7 +170,7 @@ Error: output leak references db; outputs are recorded in state, so ephemeral va
 An output named with dots, such as `api.url`, is a quoted label: `net.outputs["api.url"]`.
 
 - Only `outputs.json` is read. The other root's resources are never opened. A bucket policy that allows `GetObject` on that one object gives a reader the outputs and nothing else. Nothing is created or locked in the other root's state.
-- If the other root's state is [sealed](../concepts/sealed-state.md), its `outputs.json` is sealed to its readers, and `meta.json` is read as well. The outputs are opened with the identity of the person running the command, which must be one of the readers of that state, and pravo looks for it only then. With several identity files and none named like the user, the one whose reader key has a lock in the current group of that state's `meta.json` is used, so that one identity directory serves roots with different readers. `--identity NAME` names one. A person who is not a reader gets exit code 5.
+- If the other root's state is [sealed](../concepts/signatures-and-roles.md), its `outputs.json` is sealed to its readers, and `meta.json` is read as well. The outputs are opened with the identity of the person running the command, which must be one of the readers of that state, and pravo looks for it only then. With several identity files and none named like the user, the one whose reader key has a lock in the current group of that state's `meta.json` is used, so that one identity directory serves roots with different readers. `--identity NAME` names one. A person who is not a reader gets exit code 5.
 - The outputs are read on every plan and apply. The value is an ordinary one, recorded wherever it is used. A change in the other root shows up as a change here at the next plan.
 - An output that the other root marked `sensitive` is not included. A root converted with `pravo state import-tfstate` keeps the mark that its OpenTofu state had.
 - pravo does not make this root wait for the other. Apply the producer first. The order between roots is yours to enforce, in CI for example.
@@ -333,4 +333,4 @@ Where a data source can look the object up in the real infrastructure, it does n
 
 - [Keep secrets out of the state](../how-to/secrets.md) uses `pravo.#SecretEnv` step by step.
 - [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) says where an ephemeral value may go.
-- [Keep the state in a shared bucket](../how-to/remote-state.md) reads the outputs of another root from a bucket.
+- [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) reads the outputs of another root from a bucket.

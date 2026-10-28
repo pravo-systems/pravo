@@ -71,4 +71,4 @@ It is not sealed. `pravo state pull` and `pravo state push` copy it with the rec
 
 ## The viewer
 
-[`pravo serve`](serve.md#the-discovery-section) shows the same data in the Discovery section: each discovery as a card, the unmanaged objects first. It reads the runs and the specification and writes nothing. It offers the commands above as text.
+[`pravo serve`](viewer-sections.md#the-discovery-section) shows the same data in the Discovery section: each discovery as a card, the unmanaged objects first. It reads the runs and the specification and writes nothing. It offers the commands above as text.

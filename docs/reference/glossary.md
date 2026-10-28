@@ -11,7 +11,7 @@ A term links to the lesson that teaches it, or to the page that describes it. A 
 | Group | Terms |
 |---|---|
 | CUE | [attribute](#attribute), [bottom](#bottom), [bound](#bound), [closed](#closed), [comprehension](#comprehension), [concrete](#concrete), [conflict](#conflict), [constraint](#constraint), [default](#default), [definition](#definition), [disjunction](#disjunction), [embedding](#embedding), [evaluation](#evaluation), [field](#field), [hidden field](#hidden-field), [import](#import), [incomplete](#incomplete), [interpolation](#interpolation), [let](#let), [list](#list), [open](#open), [optional field](#optional-field), [package](#package), [pattern](#pattern), [reference](#reference), [regular field](#regular-field), [required field](#required-field), [standard library](#standard-library), [struct](#struct), [tag](#tag), [type](#type), [unification](#unification) |
-| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [namespace](#namespace), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
+| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [approval](#approval), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [group](#group), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [role](#role), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
 
 ## Terms of CUE
 
@@ -233,6 +233,12 @@ Bringing an object that already exists under management. `$import: "<id>"` or `$
 
 Taught in [B8](../learn/b08-renames-moves-imports.md). See [Moves and imports](spec-moves-and-imports.md#import).
 
+### approval
+
+A signature of a [stored plan](#stored-plan), made with `pravo plan approve` by a [reader](#reader) whose [role](#role) suffices. A [policy](#policy) says how many approvals a plan needs before it is applied and who may give them. The key that stored the plan does not count unless the policy allows it, and an admin applies without them.
+
+Taught in [D6](../learn/d06-ask-for-approvals.md). See [Stored plans and approvals](../concepts/stored-plans-and-approvals.md).
+
 ### blast radius
 
 The number of distinct nodes that have a pending change, together with every node that depends on one of them. It is `summary.blast_radius` in the output of `plan --json`. A policy does not see it, because the judged document is built from the plan file alone.
@@ -299,6 +305,12 @@ A CUE package that `pravo init` writes under `cue.mod/gen/`: one for each provid
 
 See [Generated packages](spec-generated-packages.md).
 
+### group
+
+In the viewer, a struct of the specification that holds resources: an instance of a definition, an instance of a package or a plain struct. Every proper prefix of a node's address that holds a resource below it is a group. It is not a [module](#module), which needs a definition or a package that takes providers as inputs.
+
+See [The viewer](../concepts/the-viewer.md#groups).
+
 ### identity
 
 A name, a signing key and a reader key, kept in a file that `pravo id new` writes. The reader key opens a [sealed state](#sealed-state), and the signing key signs the [transactions](protect.md#signatures) the identity runs. The reader key is sealed under a passphrase, or under a key that the ssh-agent derives (`pravo id new --unlock agent`). An identity for a CI job has no passphrase and is read from `PRAVO_IDENTITY`.
@@ -352,12 +364,6 @@ Taught in [B6](../learn/b06-modules-providers-credentials.md). See [Modules](spe
 Keeping the record of a resource when its address changes, by writing the old address in `$from`. The plan lists the rename, the apply makes it, and the object is left alone.
 
 Taught in [B8](../learn/b08-renames-moves-imports.md). See [Moves and imports](spec-moves-and-imports.md).
-
-### namespace
-
-In the viewer, a struct of the specification that holds resources: an instance of a definition, an instance of a package or a plain struct. Every proper prefix of a node's address that holds a resource below it is a namespace. It is not a [module](#module), which needs a definition or a package that takes providers as inputs.
-
-See [The viewer](../concepts/the-viewer.md#namespaces).
 
 ### node
 
@@ -417,7 +423,7 @@ See [Plans](../concepts/plans.md#scoped-plans).
 
 A person or a job that can open the values of a [sealed state](#sealed-state). A reader is a line of the [readers file](#readers-file) and has a lock for each data key of the state.
 
-See [What sealing protects](../concepts/sealed-state.md).
+See [Signatures and roles](../concepts/signatures-and-roles.md).
 
 ### readers file
 
@@ -449,6 +455,12 @@ A struct built through a provider from `#Resource.<type>`. pravo creates, update
 
 Taught in [B1](../learn/b01-providers-and-resources.md). See [Resources](spec-resources.md).
 
+### role
+
+What a key on the [readers file](#readers-file) may do with a [sealed state](#sealed-state). A reader opens the values. A writer applies and stores plans as well. An admin changes the readers file, pins the roles and removes a policy that asks for approvals as well. The roles are pinned in the state, signed by an admin, so a checkout cannot promote its own key by editing its readers file.
+
+Taught in [D4](../learn/d04-readers-writers-admins.md). See [Roles](roles.md).
+
 ### root
 
 A directory that holds one CUE package, and the unit that pravo plans, applies and keeps a state for. Its location is where you run pravo, or what `-C` names.
@@ -471,7 +483,7 @@ See [Plans](../concepts/plans.md).
 
 A state whose attributes, outputs, stored plans and the values in command lines are encrypted to a list of [readers](#reader). Addresses, types, names, dependencies and revisions stay readable. It is format 3.
 
-See [What sealing protects](../concepts/sealed-state.md).
+See [Signatures and roles](../concepts/signatures-and-roles.md).
 
 ### sensitive value
 
@@ -495,7 +507,7 @@ Taught in [B3](../learn/b03-apply-outputs-state.md). See [State format](state-fo
 
 A plan that `pravo plan --store` wrote into the state, as objects below `plans/`. Anyone who can read the state can list it, show it and apply it by its [plan id](#plan-id). A listing judges it by the state alone, change by change, and a [collection](#collection) removes it when nobody needs it. An apply that fails records the changes it finished, and the plan is `partial`.
 
-Taught in [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md). See [Plans](../concepts/plans.md#stored-plans).
+Taught in [D2](../learn/d02-store-a-plan.md). See [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) and [Stored plans and approvals](../concepts/stored-plans-and-approvals.md).
 
 ### transaction
 
@@ -517,7 +529,7 @@ Taught in [B2](../learn/b02-reading-a-plan.md). See [The plan document](policies
 
 ### viewer
 
-The read-only web page that `pravo serve` runs on the loopback interface. It shows the specification, the state and a saved plan as a graph of [namespaces](#namespace) and resources. A node's presence says whether it is declared, recorded or both.
+The read-only web page that `pravo serve` runs on the loopback interface. It shows the specification, the state and a saved plan as a graph of [groups](#group) and resources. A node's presence says whether it is declared, recorded or both.
 
 See [The viewer](../concepts/the-viewer.md) and [`pravo serve`](serve.md).
 

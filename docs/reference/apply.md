@@ -345,7 +345,7 @@ Apply complete! Resources: 2 added, 0 changed, 2 destroyed. [txn <txn>]
 
 ### Apply a stored plan
 
-`pravo plan --store` writes a plan into the state, and `pravo apply ID` applies it. The checks are those of a plan file: the configuration, the providers, the lineage of the state, and the revision and generation of every record the plan writes or reads. A difference is exit code 3 and changes nothing. The policies in force judge the whole plan, and `--only` applies a closed part. `--refresh`, `--full` and `--replace` are refused, as they are with a plan file: the plan decided them. [`pravo plan`](plan.md#store-a-plan) stores a plan, and [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md) follows two people through it.
+`pravo plan --store` writes a plan into the state, and `pravo apply ID` applies it. The checks are those of a plan file: the configuration, the providers, the lineage of the state, and the revision and generation of every record the plan writes or reads. A difference is exit code 3 and changes nothing. The policies in force judge the whole plan, and `--only` applies a closed part. `--refresh`, `--full` and `--replace` are refused, as they are with a plan file: the plan decided them. [`pravo plan`](plan.md#store-a-plan) stores a plan, and [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) follows two people through it.
 
 The root has no pending change. Store a plan that replaces `solo`, and apply it by its id.
 

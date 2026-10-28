@@ -2,7 +2,7 @@
 
 # Run pravo in a pipeline
 
-Validate without credentials, plan under a policy, apply a saved plan, find drift and test offline, with the exit code of every step.
+Validate without credentials, plan under a policy, apply a saved or a stored plan, wait for an approval, find drift, test offline and keep a trace of each job, with the exit code of every step.
 
 A pipeline needs four answers: does the specification evaluate, what changes, what exactly was applied and did anything change outside pravo. Each is a command with an exit code.
 
@@ -233,7 +233,7 @@ plan job       pravo plan --store --json --actor ci --reason "$REV" > plan.json
 apply job      pravo apply "$PLAN_ID"
 ```
 
-Both jobs need the same checkout, because the apply compares the files, and the same `-t` and `-T`. A stored plan expires after seven days, or after the `--ttl` of the plan job. [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) follows a stored plan from the plan to the apply.
+Both jobs need the same checkout, because the apply compares the files, and the same `-t` and `-T`. A stored plan expires after seven days, or after the `--ttl` of the plan job. A stored plan is also where a person comes in: the team lists it with `pravo plan list` or in the viewer, and where a policy asks for approvals, a member approves it with `pravo plan approve ID` from their own machine. The apply job runs once the approvals are there, and exit code 5 with `needs N approvals` before that means that it runs again later. [Store a plan and apply it later](store-a-plan-and-apply-it-later.md) follows a stored plan from the plan to the apply, and [Approve a plan](approve-a-plan.md) adds the approval.
 
 ## 5. Find drift on a schedule
 
@@ -394,7 +394,7 @@ The plan is printed first and judged afterwards. Exit code 5 means that a policy
 | 2 | Changes pending (`plan -detailed-exitcode`) or drift found (`drift`). | Steps 2 and 5. |
 | 3 | A saved plan is stale, or a node that an apply writes or reads moved after the plan was made. A stored plan that expired is refused with this code too. A job plans again and retries. | Step 4. |
 | 4 | Rejected: a node is locked or reserved by another actor. A job retries later. | [Let an agent plan and apply](agents-and-mcp.md). |
-| 5 | Refused by a policy, or by a module that does not match its lock. | Steps 4 and 7. |
+| 5 | Refused: by a policy, by a module that does not match its lock, by a role that does not allow the command, or for the approvals a stored plan still needs. | Steps 4 and 7. |
 | 6 | A command that loads the specification found that it does not load or evaluate. | Step 1. |
 | 7 | The state failed verification: a record does not match its name. A job stops and reports it. | [Seal the state](seal-the-state.md). |
 
@@ -404,6 +404,12 @@ With `--json`, an error also prints `{"code":N,"kind":"error","message":"..."}` 
 
 When the state is [sealed](seal-the-state.md), a job that plans or applies opens it with an identity of its own. Make one with `pravo id new --ci --name deploy-bot --out deploy-bot.identity`, add its public line to `.pravo/access/readers.txt`, run `pravo protect rewrap`, and store the contents of the file as the secret `PRAVO_IDENTITY` of the job. pravo reads the variable once, removes it from its environment, and starts providers without it. A job that has no identity can run `pravo state list` and gets exit code 5 from any command that needs a value. The job checks out the repository, because a command that writes a sealed state reads the readers file from it.
 
+Give each job the smallest [role](give-people-roles.md) its work needs, as the fifth word of its line: the plan job is a reader, `role:reader`, which plans and stores and cannot apply, and the apply job is a writer, `role:writer`. No job is an admin, because an admin changes who reads the state and applies without the approvals a policy asks for. A job that holds a reader's identity and tries to apply gets exit code 5, as a job without an identity does.
+
+## Keep a trace of each job
+
+A job that fails leaves a log, and a job that is slow leaves a number. `PRAVO_TRACES=on` keeps more: the trace of each command, every stage, resource, provider call and request to the state with its timing, in `.pravo/traces` of the checkout. Save that directory as an artifact of the job, and `pravo serve` on any checkout of the repository shows the run as a timeline, with the span that failed in red. A team that has a collector sets `OTEL_EXPORTER_OTLP_ENDPOINT` instead, and the `TRACEPARENT` that the CI system sets makes each command a child of the job's span. [Record what a run does](record-what-a-run-does.md) shows both.
+
 ## One pipeline
 
 The commands of this page, in the jobs that run them:
@@ -412,7 +418,9 @@ The commands of this page, in the jobs that run them:
 pull request   pravo init; test -z "$(pravo fmt)"; pravo validate
                PRAVO_REPLAY=recordings pravo plan --json > plan.json
 plan job       pravo plan -out change.plan --actor ci --reason "$REV"
+               or, with a shared state: pravo plan --store --json --actor ci --reason "$REV" | jq -r .stored.id
 apply job      pravo apply change.plan
+               or, once the approvals a policy asks for are there: pravo apply "$PLAN_ID"
 schedule       pravo drift --due --limit 500 --actor drift-cron
 ```
 
@@ -421,6 +429,7 @@ schedule       pravo drift --due --limit 500 --actor drift-cron
 ## What next
 
 - [Write and roll out policies](policies.md) writes a policy and tests it.
-- [Share a plan before you apply it](share-a-plan-before-you-apply-it.md) stores a plan in the state, where a team can list it and apply it by its id.
+- [Store a plan and apply it later](store-a-plan-and-apply-it-later.md) stores a plan in the state, where a team can list it and apply it by its id, and [Approve a plan](approve-a-plan.md) makes it wait for a colleague.
+- [Give people roles](give-people-roles.md) gives the plan job and the apply job their identities.
 - [Let an agent plan and apply](agents-and-mcp.md) adds reservations and the tool server.
-- [Find out why a run fails](debugging.md) reads the log of a job that failed.
+- [Record what a run does](record-what-a-run-does.md) keeps the trace of a job, and [Find out why a run fails](debugging.md) reads the log of one that failed.

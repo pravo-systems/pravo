@@ -71,6 +71,11 @@ func approvalNeed(e *Engine, doc cue.Value, force []state.PolicyVersion) (*Appro
 		if err := a.Decode(&spec); err != nil {
 			return nil, WithCode(ExitInvalid, fmt.Errorf("policy %s@%d sets approvals that are not concrete: %w", v.Name, v.Seq, err))
 		}
+		// The rule is judged standalone, without the schema of the specification, so the
+		// default of the schema, a writer, is supplied here.
+		if spec.Role == "" {
+			spec.Role = "writer"
+		}
 		role, err := protect.ParseRole("role:" + spec.Role)
 		if err != nil || role == protect.RoleReader || spec.Min < 1 {
 			return nil, WithCode(ExitInvalid, fmt.Errorf("policy %s@%d sets approvals min %d, role %q: want min of 1 or more and role writer or admin", v.Name, v.Seq, spec.Min, spec.Role))
@@ -149,6 +154,21 @@ func (ps *PlanStore) Approvals(ctx context.Context, id, digest string, readers [
 		}
 		out = append(out, a)
 	}
+	// The objects are listed by the id of the key that signed them, which says nothing
+	// to a reader. Give them in the order the approvals were made, and the objects that
+	// are not approvals last.
+	slices.SortStableFunc(out, func(a, b Approval) int {
+		if a.At.IsZero() != b.At.IsZero() {
+			if a.At.IsZero() {
+				return 1
+			}
+			return -1
+		}
+		if c := a.At.Compare(b.At); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Signer+a.Key, b.Signer+b.Key)
+	})
 	return out, nil
 }
 

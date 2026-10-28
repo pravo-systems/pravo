@@ -23,7 +23,7 @@ const FRESH_ALIAS = { current: 'current', fresh: 'current', stale: 'stale', chan
 
 const HINTS = {
   status: 'unmanaged (asks to be adopted), adopting, acknowledged',
-  discovery: 'A discovery, by its address; a namespace takes the discoveries below it: network or network.vpcs',
+  discovery: 'A discovery, by its address; a group takes the discoveries below it: network or network.vpcs',
   type: 'The list resource type: aws_s3_bucket, or aws_s3* for a run of them',
   provider: 'The provider type, as in provider:aws: every instance of it',
   instance: 'A provider instance, by its whole key: aws.$west, or aws for a provider that has one',

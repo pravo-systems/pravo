@@ -683,7 +683,7 @@ export class GraphView {
     const pv = it.look ? ' ' + it.look : '';
     const outs = it.mode === 'output';
     const outsNote = agg.out ? `, ${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
-    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isNs ? `namespace ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
+    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isNs ? `group ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
     const inn = s('g', { class: 'in' });
     inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }), reticle(W, H));
     inn.append(s('rect', { class: 'stack s2', x: 10, y: 10, width: W - 20, height: H, rx: 0 }));
@@ -717,7 +717,7 @@ export class GraphView {
     if (isNs) {
       const kids = it.ns.kids.length;
       const res = agg.n || !agg.out ? `${agg.n} ${agg.n === 1 ? 'resource' : 'resources'}` : '';
-      const nss = kids ? `${kids} ${kids === 1 ? 'namespace' : 'namespaces'}` : '';
+      const nss = kids ? `${kids} ${kids === 1 ? 'group' : 'groups'}` : '';
       const out = agg.out ? `${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
       const join = (...p) => p.filter(Boolean).join(' · ');
       opts = [...new Set([join(res, nss, out), join(res, nss), join(res, out), res || out, String(agg.n || agg.out)])];
@@ -1047,7 +1047,7 @@ export class GraphView {
   tipNamespace(ns, open) {
     const a = ns.agg;
     const outs = a.out ? `${a.out} ${a.out === 1 ? 'output' : 'outputs'}` : '';
-    const out = [h('div', { class: 'gtip-addr' }, ns.path), h('div', { class: 'gtip-type' }, [a.n || !outs ? `${a.n} ${a.n === 1 ? 'resource' : 'resources'}` : '', ns.kids.length ? `${ns.kids.length} ${ns.kids.length === 1 ? 'namespace' : 'namespaces'}` : '', outs].filter(Boolean).join(' · '))];
+    const out = [h('div', { class: 'gtip-addr' }, ns.path), h('div', { class: 'gtip-type' }, [a.n || !outs ? `${a.n} ${a.n === 1 ? 'resource' : 'resources'}` : '', ns.kids.length ? `${ns.kids.length} ${ns.kids.length === 1 ? 'group' : 'groups'}` : '', outs].filter(Boolean).join(' · '))];
     const chips = [];
     if (a.create) chips.push(h('span', { class: 'gchip a-create' }, `${a.create} create`));
     if (a.update + a.replace) chips.push(h('span', { class: 'gchip a-update' }, `${a.update + a.replace} change`));

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
@@ -82,5 +83,46 @@ func TestSchemaCacheOfAnEarlierPravoBecomesAPack(t *testing.T) {
 	}
 	if again, err := schema.OpenPack(packPath); err != nil || again.Resource("x_alpha") == nil {
 		t.Errorf("the pack is not written again: %v", err)
+	}
+}
+
+// A provider from a path is started every run, since its binary can change
+// without its version changing. Its schema is still cached as "dev", so that
+// the viewer, which never starts a provider, can read it.
+func TestADevProviderIsAskedEveryRunAndItsSchemaIsCachedForTheViewer(t *testing.T) {
+	t.Setenv("PRAVO_RECORD", "")
+	t.Setenv("PRAVO_REPLAY", "")
+	reg := &registry.Client{Home: t.TempDir()}
+	src := registry.Source{Host: registry.DefaultHost, Namespace: "demo", Type: "demo"}
+	fake := &fakeProvider{}
+	providers := func() *Providers {
+		m := NewProviders(&config.Root{Providers: map[string]*config.ProviderReq{}}, reg)
+		req := &config.ProviderReq{LocalName: "demo", Source: src, Path: "./terraform-provider-demo", Protocol: config.ProtocolTfplugin}
+		m.Resolved["demo"] = &ResolvedProvider{Req: req, Version: "dev", Path: req.Path, Protocol: config.ProtocolTfplugin}
+		m.launch = func(string, *ResolvedProvider) (plugin.Provider, error) {
+			fake.count("start")
+			return fake, nil
+		}
+		return m
+	}
+	for run := 1; run <= 2; run++ {
+		ps, err := providers().Schema(context.Background(), "demo")
+		if err != nil {
+			t.Fatalf("run %d: %v", run, err)
+		}
+		if ps.Resource("fake_thing") == nil {
+			t.Fatalf("run %d: the schema of the provider is not the one it reported", run)
+		}
+		if got := fake.calls["start"]; got != run {
+			t.Errorf("run %d: the provider was started %d times, so a run read the cache", run, got)
+		}
+	}
+	packPath := reg.SchemaPackPath(src, "dev")
+	cached, err := schema.OpenPack(packPath)
+	if err != nil {
+		t.Fatalf("the schema is not cached for the viewer: %v", err)
+	}
+	if cached.Resource("fake_thing") == nil {
+		t.Error("the cached schema is not the one the provider reported")
 	}
 }

@@ -577,7 +577,7 @@ Success! 0 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs a
 :::mapping
 | OpenTofu | pravo | Note |
 |---|---|---|
-| `backend` | `$settings: pravo.#Settings & {state: {…}}` | A local directory or an S3-compatible bucket. No other backend. |
+| `backend` | `$settings: pravo.#Settings & {state: {…}}` | A local directory, an S3-compatible bucket or an HTTP server of your own: [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md). |
 | Workspaces, `terraform.workspace` | No equivalent | `@tag(env)` selects the environment. The state path can depend on it. |
 | `terraform_remote_state` | `pravo.#RemoteOutputs` | Reads the other root's `outputs.json`. Sensitive outputs are left out. |
 :::
@@ -669,6 +669,11 @@ greeting
 | `tofu workspace` | No equivalent | Use a tag. |
 | `tofu test` | No equivalent | |
 | No OpenTofu command | `pravo why ADDR`, `pravo schema TYPE`, `pravo mcp` | Explain a plan entry, print a resource definition, serve the commands to an agent. |
+| No OpenTofu command | `pravo plan --store`, `pravo plan list`, `pravo plan approve ID` | A plan in the state, which the team lists, reads, approves and applies by its id. |
+| No OpenTofu command | `pravo id`, `pravo protect` | An identity per person, a state sealed to a list of readers, a role per reader. |
+| No OpenTofu command | `pravo policy test` | A rule held against saved plans or the stored plans, with nothing applied. |
+| No OpenTofu command | `pravo discover` | The objects of a scope that nothing manages, to acknowledge or adopt. |
+| No OpenTofu command | `pravo serve` | The viewer: the estate as a graph, its history, the team's plans, drift, the policies and the recorded runs. |
 :::
 
 The [command map](command-map.md) lists the flags, the environment variables and the files as well.
@@ -770,7 +775,7 @@ pravo eval -t env=staging -e '[env, shout, joined, size]'
 ## Recap
 
 - Every construct maps to a field, a definition, a comprehension or a `$` field; the rows with no equivalent name their replacement.
-- Commands keep their names, and flags move from `-var` to `-t`; `-target`, workspaces and taint have no counterpart.
+- Commands keep their names, and flags move from `-var` to `-t`; `-target`, workspaces and taint have no counterpart. Stored plans, sealing, roles, discovery and the viewer have no OpenTofu side, and [Track D](../learn/d01-one-state-two-people.md) teaches them.
 - Functions come from CUE packages; `merge` is `&`, and a conflict is an error.
 
 Next: [the worked example](m3-worked-example.md) runs the forms on a real stack.

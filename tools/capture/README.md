@@ -59,9 +59,11 @@ env:
 | Service | Source | Serves |
 |---|---|---|
 | `fakes3` | `tools/fakes3` | An S3 bucket, path style. |
+| `fakehttp` | `tools/fakehttp` | A state server of the HTTP protocol. |
 | `fakeoci` | `tools/fakeoci` | An OCI registry for modules and providers. |
+| `fakeprovider` | `tools/fakeprovider` | Nothing: it is a provider binary, `terraform-provider-demo`, that pravo starts when a specification names it in `$path`. It has the types `demo_server` and `demo_bucket`, which a discovery can list, and keeps its objects in `catalog.json` of the directory that `FAKEPROVIDER_DIR` names. |
 
-An entry is a name, or a name and a port separated by a colon. A page that shows an address, such as `endpoint: "http://127.0.0.1:9000"`, names the port. A page that has no address to show leaves the port out and `capture` takes a free one. A service listens on `127.0.0.1` only.
+An entry is a name, or a name and a port separated by a colon. A page that shows an address, such as `endpoint: "http://127.0.0.1:9000"`, names the port. A page that has no address to show leaves the port out and `capture` takes a free one. A service listens on `127.0.0.1` only. `fakeprovider` takes no port: it is built and not started, and the page sees `FAKEPROVIDER_BIN`, its path, and `FAKEPROVIDER_DIR`, the directory `objects` of the workspace, made empty, where a `file=objects/catalog.json` block puts the objects that exist. A specification writes the path as `$path: "{{FAKEPROVIDER_BIN}}"`.
 
 ### Variables
 
@@ -76,7 +78,7 @@ Every command of the page, and the values of `env`, see these variables for each
 
 `FAKEOCI_ADDR`, `FAKEOCI_URL`, `FAKEOCI_PORT` and `FAKEOCI_PID` are the same for the registry.
 
-A `file=` block and an `env` value can hold the placeholders `{{FAKES3_ADDR}}`, `{{FAKES3_URL}}` and `{{FAKES3_PORT}}`, and the same three for `FAKEOCI`, where the page needs the address in the contents of a file. They are replaced when the file is written. Any other `{{...}}` text is left as it is, and so is a placeholder in a `run` block: commands use the variables, `$FAKES3_URL`. A placeholder of a known service that the page does not list is an authoring error.
+A `file=` block and an `env` value can hold the placeholders `{{FAKES3_ADDR}}`, `{{FAKES3_URL}}` and `{{FAKES3_PORT}}`, and the same three for `FAKEOCI` and `FAKEHTTP`, where the page needs the address in the contents of a file, and `{{FAKEPROVIDER_BIN}}` and `{{FAKEPROVIDER_DIR}}` for the tool. They are replaced when the file is written. Any other `{{...}}` text is left as it is, and so is a placeholder in a `run` block: commands use the variables, `$FAKES3_URL`. A placeholder of a known service that the page does not list is an authoring error.
 
 A port that the system chose differs between runs. `capture` replaces it in the output with `<NAME-port>`, as in `127.0.0.1:<fakes3-port>`, so that the page, `-update` and `-json` do not hold a number that changes. A port that the page names is not replaced.
 
@@ -92,7 +94,7 @@ A page with at least one service gets `CUE_CACHE_DIR` set to a directory of its 
 - During the page: the services are shared by every block, including the copies that `::solution` parts, `::reveal` parts and deep dives run in. Their data is not copied.
 - After the page, however it ended: `capture` closes the standard input of each service and kills its process group, then waits for it. The services also exit when their standard input ends, so a `capture` that is killed does not leave them behind. An interrupt (Ctrl-C) ends the commands that are running, stops the services and removes the workspaces before `capture` exits with status 2.
 
-The executables are built once per run, from `tools/fakes3` and `tools/fakeoci` of the module, and only when a page that runs lists them. `-services DIR` names a directory that already holds them. A service is any executable that takes `-addr` and `-exit-on-eof` and prints `listening on ADDR` once it accepts connections; the tests use a stand-in.
+The executables are built once per run, from `tools/fakes3`, `tools/fakehttp`, `tools/fakeoci` and `tools/fakeprovider` of the module, and only when a page that runs lists them. `-services DIR` names a directory that already holds them, the provider under the name `terraform-provider-demo`. A service is any executable that takes `-addr` and `-exit-on-eof` and prints `listening on ADDR` once it accepts connections; the tests use a stand-in.
 
 ### Pages that name the same port
 
