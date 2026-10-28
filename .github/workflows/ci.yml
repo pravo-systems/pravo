@@ -148,8 +148,10 @@ jobs:
       - uses: ./.github/actions/go
         with:
           key: test
-      - name: Temporary files in memory
-        if: runner.os == 'Linux'
+      # The engine tests sync many small files. Other packages compare paths
+      # under the temporary directory and expect the usual one.
+      - name: Temporary files of the engine tests in memory
+        if: matrix.name == 'engine, race'
         run: echo "TMPDIR=/dev/shm" >> "$GITHUB_ENV"
       - run: ${{ matrix.run }}
       - uses: ./.github/actions/go-save
