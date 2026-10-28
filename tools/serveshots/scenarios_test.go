@@ -119,6 +119,32 @@ func TestCopyScenario(t *testing.T) {
 	}
 }
 
+// Every catalog is objects with an id, a name and a region, and the files of
+// a scenario with a catalog name the fake provider by its placeholder.
+func TestCatalogsAreComplete(t *testing.T) {
+	for _, sc := range scenarios {
+		if !sc.hasCatalog() {
+			continue
+		}
+		for _, o := range sc.Catalog {
+			if o.ID == "" || o.Name == "" || o.Region == "" {
+				t.Errorf("%s: the object %+v is incomplete", sc.Name, o)
+			}
+		}
+		dir := t.TempDir()
+		if err := copyScenario(sc.Name, dir); err != nil {
+			t.Fatal(err)
+		}
+		lacks, err := lacksPlaceholder(dir, providerPlaceholder)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if lacks {
+			t.Errorf("%s: no file names the provider by %s", sc.Name, providerPlaceholder)
+		}
+	}
+}
+
 // Every team is people with roles, the first of them the admin; each step is
 // run by one of them and approved by one of them, its edits apply to a fresh
 // copy of the scenario, its label or its file is unique, and the edits made
@@ -149,11 +175,6 @@ func checkTeam(t *testing.T, sc scenario) {
 	}
 	if len(team.People) == 0 || team.People[0].Role != "admin" {
 		t.Errorf("the people of the team: %+v", team.People)
-	}
-	for _, o := range team.Catalog {
-		if o.Type == "" || o.ID == "" || o.Name == "" || o.Region == "" {
-			t.Errorf("the object %+v is incomplete", o)
-		}
 	}
 	labels := map[string]bool{}
 	files := map[string]bool{}
@@ -229,7 +250,7 @@ func TestTeamOfThePlatform(t *testing.T) {
 	if len(team.People) < 3 || !roles["admin"] || !roles["writer"] || !roles["reader"] {
 		t.Errorf("the team does not have one of each role: %+v", team.People)
 	}
-	if len(team.Catalog) == 0 {
+	if len(sc.Catalog) == 0 {
 		t.Error("the fake provider lists nothing")
 	}
 	kinds := map[string]int{}

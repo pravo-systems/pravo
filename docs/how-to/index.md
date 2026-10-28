@@ -44,13 +44,13 @@ Run pravo from a pipeline, a program or an agent, under rules, and keep the esta
 | I want to | Guide | Background |
 |---|---|---|
 | Run pravo in a pipeline | [Run pravo in a pipeline](ci.md) | [Exit codes](../reference/exit-codes.md) |
-| Refuse plans that break a rule, or make them wait for an approval | [Write and roll out policies](policies.md) | [Constraints and policies](../concepts/policies.md), [B10, Constraints on providers, policy on plans](../learn/b10-policy.md) |
+| Refuse plans that break a rule, or make them wait for an approval | [Write and roll out policies](policies.md) | [Constraints and policies](../concepts/policies.md), [B11, Constraints on providers, policy on plans](../learn/b11-policy.md) |
 | Let an AI agent plan, under the policies and with a key of its own | [Let an agent plan and apply](agents-and-mcp.md) | [pravo mcp](../reference/mcp.md) |
 | Plan and apply from a Go program | [Embed pravo in your program](embed-pravo-in-your-program.md) | [The library and the machine interface](../concepts/the-library-and-the-machine-interface.md), [The Go library](../reference/library.md) |
 | Hand a secret from the environment to a provider, and keep it out of the state | [Keep secrets out of the state](secrets.md) | [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) |
 | Keep a secret in the sealed state, hand it to a provider and rotate it | [Store secrets in the sealed state](store-secrets-in-the-state.md) | [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md#secrets-of-the-sealed-state) |
 | Rename a resource, move it, or adopt an existing object | [Rename, move and adopt resources](importing-and-moving.md) | [B8, Renames, moves, imports](../learn/b08-renames-moves-imports.md) |
-| Find the objects that exist and that nothing manages | [Find what nothing manages](find-what-nothing-manages.md) | [Discovery](../concepts/discovery.md) |
+| Find the objects that exist and that nothing manages | [Find what nothing manages](find-what-nothing-manages.md) | [Discovery](../concepts/discovery.md), [B10, Find what nothing manages](../learn/b10-find-what-nothing-manages.md) |
 
 ## Observe
 

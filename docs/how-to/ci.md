@@ -3,7 +3,7 @@ title: Run pravo in a pipeline
 description: Validate without credentials, plan under a policy, apply a saved or a stored plan, wait for an approval, find drift, test offline and keep a trace of each job, with the exit code of every step.
 order: 1
 minutes: 15
-needs: pravo and `jq` on the runner. B7 teaches saved plans and B10 teaches policies.
+needs: pravo and `jq` on the runner. B7 teaches saved plans and B11 teaches policies.
 done_when: "A plan job saves a plan under a policy, an apply job applies that file, and each step ends with the exit code in the table."
 level: intermediate
 env:

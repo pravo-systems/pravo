@@ -49,12 +49,12 @@ If you write CUE already, begin Track B at [B1, Providers and resources](b01-pro
 | Track | Lessons | Time | You finish with |
 |---|---|---|---|
 | **Track A · CUE from zero** | [A1](a01-your-data-is-already-cue.md) to [A14](a14-project-three-environments.md) and five companion pages | about 2 hours | One definition that produces three environments, checked by `pravo eval`. |
-| **Track B · pravo** | [B1](b01-providers-and-resources.md) to [B10](b10-policy.md), three labs and a [project](b11-project.md) | about 2 hours, plus the labs | A specification that you plan, apply, change, move, check against a policy and destroy. |
+| **Track B · pravo** | [B1](b01-providers-and-resources.md) to [B11](b11-policy.md), three labs and a [project](b12-project.md) | about 2 hours, plus the labs | A specification that you plan, apply, change, move, check against a policy and destroy. |
 | **Track C · A team on one state** | [C1](c01-one-state-two-people.md) to [C7](c07-read-a-run.md) | under 2 hours | A sealed state in a shared store that three people work on, with roles, a policy, an approval and a recorded run. |
 
 Do Track A first. Track B assumes the CUE that Track A teaches. The [quick start](../how-to/quick-start.md) runs a plan before you know any CUE, and Track A explains what you saw there.
 
-Track C follows a team of three on one state. Each lesson names the lessons it needs, under "Needs": B7 and Lab 2 for most of them, and B10 before [C5](c05-write-a-plan-policy.md).
+Track C follows a team of three on one state. Each lesson names the lessons it needs, under "Needs": B7 and Lab 2 for most of them, and B11 before [C5](c05-write-a-plan-policy.md).
 
 The companion pages sit beside Track A. Open them when a lesson sends you there, or when an error confuses you.
 

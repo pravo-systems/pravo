@@ -28,13 +28,21 @@ func TestScenariosWithPravo(t *testing.T) {
 	}
 	r := &pravoRunner{Bin: bin}
 	ctx := context.Background()
+	// The scenarios with a catalog list it through the fake provider, and the
+	// team situations need it too.
+	provider := os.Getenv("SERVESHOTS_FAKEPROVIDER")
+	if provider == "" {
+		if provider, err = buildFakeProvider(ctx, filepath.Join(t.TempDir(), "bin")); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, sc := range scenarios {
 		if sc.hasTeam() || sc.Resources == 0 {
 			continue
 		}
 		t.Run(sc.Name, func(t *testing.T) {
 			dir := filepath.Join(t.TempDir(), "ws")
-			if _, err := prepareClean(ctx, r, sc, dir); err != nil {
+			if _, err := prepareClean(ctx, r, sc, dir, provider); err != nil {
 				t.Fatal(err)
 			}
 			res, err := r.mustRun(ctx, dir, []int{0}, "state", "list")
@@ -45,7 +53,7 @@ func TestScenariosWithPravo(t *testing.T) {
 			// the plan has: one that the edits add, or one that a move names.
 			var planned []string
 			if sc.hasChanges() {
-				w, err := prepareChanged(ctx, r, sc, filepath.Join(t.TempDir(), "changed"))
+				w, err := prepareChanged(ctx, r, sc, filepath.Join(t.TempDir(), "changed"), provider)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -61,7 +69,7 @@ func TestScenariosWithPravo(t *testing.T) {
 	t.Run("c02 stored", func(t *testing.T) {
 		sc, _ := findScenario("c02")
 		dir := filepath.Join(t.TempDir(), "ws")
-		w, err := prepareStored(ctx, r, sc, dir)
+		w, err := prepareStored(ctx, r, sc, dir, provider)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +86,7 @@ func TestScenariosWithPravo(t *testing.T) {
 	t.Run("platform stored", func(t *testing.T) {
 		sc, _ := findScenario("platform")
 		dir := filepath.Join(t.TempDir(), "ws")
-		w, err := prepareStored(ctx, r, sc, dir)
+		w, err := prepareStored(ctx, r, sc, dir, provider)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +111,7 @@ func TestScenariosWithPravo(t *testing.T) {
 	t.Run("platform changed", func(t *testing.T) {
 		sc, _ := findScenario("platform")
 		dir := filepath.Join(t.TempDir(), "ws")
-		w, err := prepareChanged(ctx, r, sc, dir)
+		w, err := prepareChanged(ctx, r, sc, dir, provider)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -126,12 +134,6 @@ func TestScenariosWithPravo(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.stop()
-	provider := os.Getenv("SERVESHOTS_FAKEPROVIDER")
-	if provider == "" {
-		if provider, err = buildFakeProvider(ctx, filepath.Join(t.TempDir(), "bin")); err != nil {
-			t.Fatal(err)
-		}
-	}
 	for _, sc := range scenarios {
 		if !sc.hasTeam() {
 			continue

@@ -449,7 +449,7 @@ Each of these is one more commit with the same check.
 - Write a rule for every entry once with a pattern, [A9 Patterns](https://pravo.systems/learn/a09-patterns.html).
 - Replace a repeated expression by a hidden field or a `let`, [A11 References, let and hidden fields](https://pravo.systems/learn/a11-references-let-hidden.html).
 - Replace a flag pair by a condition, [A12 Conditions and strings](https://pravo.systems/learn/a12-conditions-and-strings.html).
-- Put the rules of the platform on the provider definition, so that every resource built through it obeys, [B10 Policy](../learn/b10-policy.md).
+- Put the rules of the platform on the provider definition, so that every resource built through it obeys, [B11 Policy](https://pravo.systems/learn/b11-policy.html).
 - Build the three environments from one definition, [A14 Project](https://pravo.systems/learn/a14-project-three-environments.html).
 - Put the state where the team can reach it, seal it and give the members roles, [Track C](../learn/c01-one-state-two-people.md).
 

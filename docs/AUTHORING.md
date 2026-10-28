@@ -6,7 +6,7 @@ This file is for people who write documentation. It is not published. It fixes t
 
 | Section | Directory | Purpose |
 |---|---|---|
-| Learn | `docs/learn/` | Track A, CUE from zero (A1 to A14), with four companion pages and a cheat sheet. Track B, pravo (B1 to B10), three labs and the project B11. Track C, a team on one state (C1 to C7). |
+| Learn | `docs/learn/` | Track A, CUE from zero (A1 to A14), with four companion pages and a cheat sheet. Track B, pravo (B1 to B11), three labs and the project B12. Track C, a team on one state (C1 to C7). |
 | Migrate | `docs/migrate/` | From OpenTofu or Terraform: an index with the gate demo, a runbook (M1 to M11) and three annexes. |
 | How-to | `docs/how-to/` | Task-shaped pages for a reader who knows the basics: how to do one thing. The group Get started holds the quick start: install, a first plan, a change, a conflict and a destroy, with no cloud account. |
 | Concepts | `docs/concepts/` | Explanation of how pravo behaves, with diagrams. Behaviour only. |

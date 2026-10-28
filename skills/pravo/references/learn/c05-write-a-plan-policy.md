@@ -4,7 +4,7 @@
 
 A rule is a shape that the plan document has to fit, in the CUE you already know. Read the document, write rules in the policy studio of the viewer, where each is held against the plans you saved and against the resources of the state as you type, keep them as files for the pipeline, and put one in force.
 
-B10 wrote one policy: a list template with a guard and `error()`, and the plan that deleted a resource was refused. This lesson is about writing rules. In the OpenTofu world a rule on a plan is a program in another language, run by another tool over the JSON of the plan, and the team that writes infrastructure learns a second language to guard it. In pravo a rule is a CUE value, and the plan has to unify with it. The language of the rule is the language of the specification, and a rule is read the way A3 read two declarations of one field: it holds when the two agree.
+B11 wrote one policy: a list template with a guard and `error()`, and the plan that deleted a resource was refused. This lesson is about writing rules. In the OpenTofu world a rule on a plan is a program in another language, run by another tool over the JSON of the plan, and the team that writes infrastructure learns a second language to guard it. In pravo a rule is a CUE value, and the plan has to unify with it. The language of the rule is the language of the specification, and a rule is read the way A3 read two declarations of one field: it holds when the two agree.
 
 ```text
 deny[msg] {
@@ -208,7 +208,7 @@ The resources are judged as one plan, so `secret` is `changes.1`, after the pet,
 
 ## Say why
 
-A conflict names a path and two values. For a rule that people will read in a refusal, `error()` from B10 writes the sentence, and the sentence can name the resource. In the studio the reason reads the sentence; so does the terminal.
+A conflict names a path and two values. For a rule that people will read in a refusal, `error()` from B11 writes the sentence, and the sentence can name the resource. In the studio the reason reads the sentence; so does the terminal.
 
 File `rules/no_replace.cue`:
 

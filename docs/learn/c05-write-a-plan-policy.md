@@ -4,7 +4,7 @@ description: A rule is a shape that the plan document has to fit, in the CUE you
 order: 65
 group: Track C · A team on one state
 minutes: 25
-needs: B10 and C3
+needs: B11 and C3
 learn: What does a rule read? How do you say "every change of this type" and "at least this much"? How do you try a rule on a plan, or on the whole estate, without applying anything?
 done_when: "A rule you wrote refuses a plan file in the policy studio and under pravo policy test with exit code 5, and a plan against the state is refused by the policy in force."
 level: intermediate
@@ -26,7 +26,7 @@ normalize:
     replace: "[id=<id>]"
 ---
 
-B10 wrote one policy: a list template with a guard and `error()`, and the plan that deleted a resource was refused. This lesson is about writing rules. In the OpenTofu world a rule on a plan is a program in another language, run by another tool over the JSON of the plan, and the team that writes infrastructure learns a second language to guard it. In pravo a rule is a CUE value, and the plan has to unify with it. The language of the rule is the language of the specification, and a rule is read the way A3 read two declarations of one field: it holds when the two agree.
+B11 wrote one policy: a list template with a guard and `error()`, and the plan that deleted a resource was refused. This lesson is about writing rules. In the OpenTofu world a rule on a plan is a program in another language, run by another tool over the JSON of the plan, and the team that writes infrastructure learns a second language to guard it. In pravo a rule is a CUE value, and the plan has to unify with it. The language of the rule is the language of the specification, and a rule is read the way A3 read two declarations of one field: it holds when the two agree.
 
 :::compare
 ```text title="a rule as a program"
@@ -238,7 +238,7 @@ The resources are judged as one plan, so `secret` is `changes.1`, after the pet,
 
 ## Say why
 
-A conflict names a path and two values. For a rule that people will read in a refusal, `error()` from B10 writes the sentence, and the sentence can name the resource. In the studio the reason reads the sentence; so does the terminal.
+A conflict names a path and two values. For a rule that people will read in a refusal, `error()` from B11 writes the sentence, and the sentence can name the resource. In the studio the reason reads the sentence; so does the terminal.
 
 ```cue file=rules/no_replace.cue title="rules/no_replace.cue"
 import "pravo.dev/pravo"

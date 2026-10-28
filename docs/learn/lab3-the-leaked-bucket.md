@@ -399,7 +399,7 @@ Error: you are not a reader of this state (no identity found).
   Readers are listed in .pravo/access/readers.txt. Ask one of them to add yours.
 ```
 
-Exit code 5 is a refusal. [B10](b10-policy.md) and [Lab 1](lab1-break-it-on-purpose.md) meet it as a policy. In a sealed state it also means that the caller is not a reader. The [exit codes](../reference/exit-codes.md) page lists every case.
+Exit code 5 is a refusal. [B11](b11-policy.md) and [Lab 1](lab1-break-it-on-purpose.md) meet it as a policy. In a sealed state it also means that the caller is not a reader. The [exit codes](../reference/exit-codes.md) page lists every case.
 
 Dan has an identity, and the readers file lists it. He opens the same record. The command counts the output lines that hold the secret from the first copy.
 

@@ -329,4 +329,4 @@ Why does pravo plan print No changes after a file is deleted?
 The plan does not reach the resource, and the record is within the refresh age, so the plan does not read the file.
 :::
 
-The guide [CI](../how-to/ci.md) shows how a pipeline reads these exit codes. [B10](b10-policy.md) turns to rules about what a plan may do.
+The guide [CI](../how-to/ci.md) shows how a pipeline reads these exit codes. [B10](b10-find-what-nothing-manages.md) finds the objects of the cloud that no specification names.

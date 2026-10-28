@@ -3,7 +3,7 @@ title: Approve a plan
 description: Make a plan wait for the approval of another member before it is applied. Write the rule, store the plan, approve it with a second key, apply it by its id, and see what an admin may skip and what a change to the rule itself needs.
 order: 5
 minutes: 15
-needs: A sealed state whose members have roles, as in [Give people roles](give-people-roles.md), and the idea of a policy from [B10](../learn/b10-policy.md). This page uses a local state, sealed with `--allow-local`, and the three people are three directories on one machine.
+needs: A sealed state whose members have roles, as in [Give people roles](give-people-roles.md), and the idea of a policy from [B11](../learn/b11-policy.md). This page uses a local state, sealed with `--allow-local`, and the three people are three directories on one machine.
 done_when: "A writer's apply of a stored plan is refused with exit code 5 until a second writer runs `pravo plan approve`, and `pravo plan show` names the approver."
 level: intermediate
 group: Share and protect

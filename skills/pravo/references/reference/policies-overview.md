@@ -20,7 +20,7 @@ A policy is a node of the specification: `pravo.#Policy`, with a `rule` that is 
 | Needs | A sealed state. A root that declares a policy on an unsealed state is refused with exit code 5. |
 | Refusal | Exit code 5. The plan is printed. Nothing is applied. |
 
-How a rule is written is on [Writing policies](policies-writing.md). Where each command judges is on [Operating policies](policies-operations.md), and what the receipt proves is on [What a policy guarantees](policies-operations.md#what-a-policy-guarantees). The idea is taught in [B10](../learn/b10-policy.md), and a rollout is in [Write and roll out policies](../how-to/policies.md).
+How a rule is written is on [Writing policies](policies-writing.md). Where each command judges is on [Operating policies](policies-operations.md), and what the receipt proves is on [What a policy guarantees](policies-operations.md#what-a-policy-guarantees). The idea is taught in [B11](https://pravo.systems/learn/b11-policy.html), and a rollout is in [Write and roll out policies](../how-to/policies.md).
 
 ## A policy and a plan
 

@@ -45,12 +45,12 @@ Read them in this order. Later pages use terms that earlier pages define.
 | State | [B3, Apply, outputs, state](../learn/b03-apply-outputs-state.md) |
 | Providers | [B1, Providers and resources](../learn/b01-providers-and-resources.md) and [B6, Reuse, providers, credentials](../learn/b06-reuse-providers-credentials.md) |
 | Stored plans and approvals | [C2, Store a plan](../learn/c02-store-a-plan.md) and [C6, Ask for approvals](../learn/c06-ask-for-approvals.md) |
-| Policies | [B10, Constraints on providers, policy on plans](../learn/b10-policy.md) and [C5, Write a plan policy](../learn/c05-write-a-plan-policy.md) |
+| Policies | [B11, Constraints on providers, policy on plans](../learn/b11-policy.md) and [C5, Write a plan policy](../learn/c05-write-a-plan-policy.md) |
 | Secrets and ephemeral values | [B6, Reuse, providers, credentials](../learn/b06-reuse-providers-credentials.md) |
 | Signatures and roles | [C3, Seal the state](../learn/c03-seal-the-state.md) and [C4, Readers, writers, admins](../learn/c04-readers-writers-admins.md) |
 | The viewer | [Explore an estate in a browser](../how-to/explore-your-estate.md) shows every section. [C5, Write a plan policy](../learn/c05-write-a-plan-policy.md) tries a rule in the policy studio, and [C7, Read a run](../learn/c07-read-a-run.md) reads a run in the Traces section. |
 | Traces | [C7, Read a run](../learn/c07-read-a-run.md) |
-| Discovery | None. [Find what nothing manages](../how-to/find-what-nothing-manages.md) shows it. |
+| Discovery | [B10, Find what nothing manages](../learn/b10-find-what-nothing-manages.md) |
 | The library and the machine interface | None. [Embed pravo in your program](../how-to/embed-pravo-in-your-program.md) and [Agents and MCP](../how-to/agents-and-mcp.md) show it. |
 
 The lessons run the commands. The concept pages explain what the commands did.

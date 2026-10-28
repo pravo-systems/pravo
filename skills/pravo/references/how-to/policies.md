@@ -67,7 +67,7 @@ guard: pravo.#Policy & {
 }
 ```
 
-The template declares every field that a guard reads, because CUE resolves names lexically. [B10](../learn/b10-policy.md) walks through the parts, and [Writing policies](../reference/policies-writing.md) lists the shapes that work and the ones that check nothing.
+The template declares every field that a guard reads, because CUE resolves names lexically. [B11](https://pravo.systems/learn/b11-policy.html) walks through the parts, and [Writing policies](../reference/policies-writing.md) lists the shapes that work and the ones that check nothing.
 
 ## 2. Test it on fixtures
 

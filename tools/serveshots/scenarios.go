@@ -42,6 +42,12 @@ type scenario struct {
 	// Team is the team situation: the state in a bucket, sealed to people with
 	// roles, and the work they did.
 	Team *teamSetup
+	// Catalog is what the fake provider lists before anything is applied: the
+	// objects of the cloud that a discovery of the specification finds. A
+	// scenario with a catalog names the provider by @FAKEPROVIDER@. The clean
+	// situation runs its discoveries after the apply; the team situation runs
+	// them as a step.
+	Catalog []catalogObject
 }
 
 // A storedPlan is a plan that pravo plan --store puts in the state.
@@ -66,10 +72,7 @@ type storedPlan struct {
 // order, and every command that does work is recorded as a run.
 type teamSetup struct {
 	People []person
-	// Catalog is what the fake provider lists before anything is applied: the
-	// objects of the cloud that a discovery finds.
-	Catalog []catalogObject
-	Steps   []teamStep
+	Steps  []teamStep
 	// After are edits of the specification made last, so that the next apply
 	// has something to carry: a changed policy.
 	After []edit
@@ -198,15 +201,15 @@ edge: waf: rules: $local.#Resource.local_file & {
 		Name:      "team",
 		Base:      "platform",
 		Resources: 49,
+		Catalog: []catalogObject{
+			{Type: "demo_bucket", ID: "bkt-platform-logs", Name: "platform-logs", Region: "eu"},
+			{Type: "demo_bucket", ID: "bkt-platform-export-2026-10", Name: "platform-export-2026-10", Region: "eu"},
+			{Type: "demo_bucket", ID: "bkt-legacy-uploads", Name: "legacy-uploads", Region: "eu"},
+			{Type: "demo_bucket", ID: "bkt-tmp-migration", Name: "tmp-migration", Region: "eu"},
+			{Type: "demo_bucket", ID: "bkt-us-archive", Name: "us-archive", Region: "us"},
+		},
 		Team: &teamSetup{
 			People: []person{{"ada", "admin"}, {"ben", "writer"}, {"cy", "reader"}},
-			Catalog: []catalogObject{
-				{Type: "demo_bucket", ID: "bkt-platform-logs", Name: "platform-logs", Region: "eu"},
-				{Type: "demo_bucket", ID: "bkt-platform-export-2026-10", Name: "platform-export-2026-10", Region: "eu"},
-				{Type: "demo_bucket", ID: "bkt-legacy-uploads", Name: "legacy-uploads", Region: "eu"},
-				{Type: "demo_bucket", ID: "bkt-tmp-migration", Name: "tmp-migration", Region: "eu"},
-				{Type: "demo_bucket", ID: "bkt-us-archive", Name: "us-archive", Region: "us"},
-			},
 			Steps: []teamStep{
 				{Kind: "discover", Actor: "ada"},
 				// A change that went through: ben stored it, ada approved it,
@@ -267,10 +270,23 @@ edge: waf: rules: $local.#Resource.local_file & {
 		Disk:      []diskChange{{Path: "motd.txt", Remove: true, Addr: "motd"}},
 	},
 	{
-		// B10, Constraints on providers, policy on plans: a policy in force, and
+		// B10, Find what nothing manages: a server of the specification, and a
+		// discovery of its region that found three more, two of them started by
+		// the nightly job and acknowledged, and one to adopt.
+		Name:      "b10",
+		Resources: 1,
+		Catalog: []catalogObject{
+			{ID: "srv-web-old", Name: "web-old", Region: "eu"},
+			{ID: "srv-batch-1", Name: "batch-1", Region: "eu"},
+			{ID: "srv-batch-2", Name: "batch-2", Region: "eu"},
+			{ID: "srv-us-1", Name: "us-one", Region: "us"},
+		},
+	},
+	{
+		// B11, Constraints on providers, policy on plans: a policy in force, and
 		// an apply that it judged, which replaced the note. The state is a
 		// local directory, sealed to one person.
-		Name:      "b10",
+		Name:      "b11",
 		Resources: 2,
 		Team: &teamSetup{
 			People: []person{{"ada", "admin"}},
@@ -358,6 +374,10 @@ func (s scenario) hasStored() bool { return len(s.Stored) > 0 }
 
 // hasTeam reports whether the scenario has a team situation.
 func (s scenario) hasTeam() bool { return s.Team != nil }
+
+// hasCatalog reports whether the fake provider has objects to list for the
+// scenario.
+func (s scenario) hasCatalog() bool { return s.Catalog != nil }
 
 // planLabels are the names that a fragment may give a stored plan of the
 // scenario, as "@name": the actors of the stored situation and the labels of

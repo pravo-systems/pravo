@@ -133,28 +133,49 @@ type workspace struct {
 }
 
 // prepareClean copies the scenario to dir, initialises it and applies it. A
-// scenario without resources is initialised and not applied.
-func prepareClean(ctx context.Context, r *pravoRunner, sc scenario, dir string) (*workspace, error) {
+// scenario without resources is initialised and not applied. A scenario with
+// a catalog has it written for the fake provider, whose path fills the
+// placeholder of its files, and its discoveries are run after the apply.
+func prepareClean(ctx context.Context, r *pravoRunner, sc scenario, dir, provider string) (*workspace, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
 	if err := copyScenario(sc.Name, dir); err != nil {
 		return nil, err
 	}
-	if _, err := r.mustRun(ctx, dir, []int{0}, "init"); err != nil {
+	w := &workspace{Dir: dir, Scenario: sc, Situation: situationClean}
+	if sc.hasCatalog() {
+		if provider == "" {
+			return nil, fmt.Errorf("scenario %s has a catalog and no fake provider to list it", sc.Name)
+		}
+		if err := fillPlaceholders(dir, map[string]string{providerPlaceholder: provider}); err != nil {
+			return nil, err
+		}
+		demo := filepath.Join(filepath.Dir(dir), sc.Name+"-objects")
+		if err := writeCatalog(demo, sc.Catalog); err != nil {
+			return nil, err
+		}
+		w.Env = []string{"FAKEPROVIDER_DIR=" + demo}
+	}
+	if _, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "init"); err != nil {
 		return nil, err
 	}
 	if sc.Resources == 0 {
-		return &workspace{Dir: dir, Scenario: sc, Situation: situationClean}, nil
+		return w, nil
 	}
-	res, err := r.mustRun(ctx, dir, []int{0}, "apply", "-auto-approve")
+	res, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "apply", "-auto-approve")
 	if err != nil {
 		return nil, err
 	}
 	if err := checkAdded(sc, res.Out); err != nil {
 		return nil, err
 	}
-	return &workspace{Dir: dir, Scenario: sc, Situation: situationClean}, nil
+	if sc.hasCatalog() {
+		if _, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "discover"); err != nil {
+			return nil, err
+		}
+	}
+	return w, nil
 }
 
 // checkAdded reads the apply output for the number of resources the scenario
@@ -169,11 +190,11 @@ func checkAdded(sc scenario, out string) error {
 // prepareChanged is prepareClean followed by the changes of the scenario: the
 // files on disk change and pravo drift marks the records, the specification is
 // edited without an apply, and pravo plan saves a plan.
-func prepareChanged(ctx context.Context, r *pravoRunner, sc scenario, dir string) (*workspace, error) {
+func prepareChanged(ctx context.Context, r *pravoRunner, sc scenario, dir, provider string) (*workspace, error) {
 	if !sc.hasChanges() {
 		return nil, fmt.Errorf("scenario %s has no changed situation", sc.Name)
 	}
-	w, err := prepareClean(ctx, r, sc, dir)
+	w, err := prepareClean(ctx, r, sc, dir, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -207,11 +228,11 @@ func prepareChanged(ctx context.Context, r *pravoRunner, sc scenario, dir string
 // state as its actor, and the specification is put back, so that the estate is
 // as it was applied and each plan is a plan that someone made earlier, against
 // the same state. The times of the plan are then moved into the past.
-func prepareStored(ctx context.Context, r *pravoRunner, sc scenario, dir string) (*workspace, error) {
+func prepareStored(ctx context.Context, r *pravoRunner, sc scenario, dir, provider string) (*workspace, error) {
 	if !sc.hasStored() {
 		return nil, fmt.Errorf("scenario %s has no stored plans", sc.Name)
 	}
-	w, err := prepareClean(ctx, r, sc, dir)
+	w, err := prepareClean(ctx, r, sc, dir, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +407,7 @@ func prepareTeam(ctx context.Context, r *pravoRunner, sc scenario, dir string, d
 		return nil, err
 	}
 	demo := filepath.Join(filepath.Dir(dir), sc.Name+"-objects")
-	if err := writeCatalog(demo, t.Catalog); err != nil {
+	if err := writeCatalog(demo, sc.Catalog); err != nil {
 		return nil, err
 	}
 	w := &workspace{Dir: dir, Scenario: sc, Situation: situationTeam, Plans: map[string]string{}, Traces: map[string]string{}}

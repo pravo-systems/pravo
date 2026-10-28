@@ -447,8 +447,12 @@ func allShots() []Shot {
 	s = append(s, both("b08-move", "b08", situationPlan, Fragment{Sel: "primary", Tab: "change"})...)
 	// B9: a file deleted outside pravo, after pravo drift found it.
 	s = append(s, both("b09-drift", "b09", situationChanged, Fragment{Sel: "motd", Tab: "state"})...)
-	// B10: a policy in force, and the apply that it judged.
-	s = append(s, both("b10-policies", "b10", situationTeam, Fragment{View: "policies", Pol: "no_delete"})...)
+	// B10: the discovery of the lesson after its run and the acknowledgement:
+	// one object to adopt, two that the nightly job made, and the server of
+	// the specification counted as managed.
+	s = append(s, both("b10-discovery", "b10", situationClean, Fragment{View: "discovery"})...)
+	// B11: a policy in force, and the apply that it judged.
+	s = append(s, both("b11-policies", "b11", situationTeam, Fragment{View: "policies", Pol: "no_delete"})...)
 	// C2: two stored plans for one resource, before anything is applied.
 	s = append(s, both("c02-plans", "c02", situationStored, Fragment{View: "plans", Plan: "@dan"})...)
 	// C5: the studio with a rule typed into it, held against a plan file or

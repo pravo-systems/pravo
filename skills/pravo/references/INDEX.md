@@ -199,7 +199,13 @@ The tutorial on pravo (track B), the team track (track C) and the companion page
 | [learn/b07-changing-live-infrastructure.md](learn/b07-changing-live-infrastructure.md) | Save a plan, apply exactly that plan or nothing, and apply it in stages. Read the refusal when the plan is stale. | 7 KB |
 | [learn/b08-renames-moves-imports.md](learn/b08-renames-moves-imports.md) | Keep the object of a resource when its address changes, and adopt an object that already exists. | 14 KB |
 | [learn/b09-drift.md](learn/b09-drift.md) | Change a resource outside pravo, find the change with pravo drift, and reconcile it in both directions. | 7 KB |
-| [learn/b10-policy.md](learn/b10-policy.md) | A constraint on a provider binds every resource built through it. A policy judges what a plan does and is kept in the state. | 17 KB |
+| [learn/b10-find-what-nothing-manages.md](learn/b10-find-what-nothing-manages.md) | Declare a discovery over a region, run it, acknowledge the objects that are meant to stay, adopt one into the specification and check the rest from a pipeline. | 13 KB |
+
+### Track B · Labs and project
+
+| File | Covers | Size |
+|---|---|---|
+| [learn/b12-project.md](learn/b12-project.md) | Build three environments from one definition, with a policy, a secret, a drift check and a destroy. A script checks the outcomes. | 10 KB |
 
 ### Track C · A team on one state
 

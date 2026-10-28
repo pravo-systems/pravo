@@ -224,4 +224,4 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <txn>]
 - `pravo drift --due --limit N` reads the oldest records that are past their refresh age, so a scheduled job covers a large estate in turns.
 - Reconcile by applying the specification, or by changing the specification to match the world.
 
-The guide [CI](../how-to/ci.md) shows how a pipeline reads these exit codes. [B10](b10-policy.md) turns to rules about what a plan may do.
+The guide [CI](../how-to/ci.md) shows how a pipeline reads these exit codes. [B10](b10-find-what-nothing-manages.md) finds the objects of the cloud that no specification names.

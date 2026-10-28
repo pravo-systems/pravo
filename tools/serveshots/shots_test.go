@@ -76,7 +76,7 @@ var wantViews = []string{
 	"list", "drift", "plan",
 	"plans", "plans-list", "plans-finder", "plan-expired", "state-unsealed",
 	"history", "plans-team", "policies", "policy-pending", "studio", "discovery", "traces", "trace-span", "traces-slowest", "members",
-	"b02-plan", "b03-state", "b05-groups", "b06-source", "b08-move", "b09-drift", "b10-policies", "c02-plans",
+	"b02-plan", "b03-state", "b05-groups", "b06-source", "b08-move", "b09-drift", "b10-discovery", "b11-policies", "c02-plans",
 	"c05-studio-shape", "c05-studio-template", "c05-studio-resources", "c05-studio-typo", "c06-waits", "c06-approved",
 }
 

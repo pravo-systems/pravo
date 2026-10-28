@@ -4,7 +4,7 @@ description: Declare a discovery, run it, read the objects that no record accoun
 order: 7
 group: Operate
 minutes: 15
-needs: A root that you have initialised, and a provider that can list the objects of a type. The commands are for a POSIX shell.
+needs: A root that you have initialised, and a provider that can list the objects of a type. B10 teaches what a discovery is. The commands are for a POSIX shell.
 done_when: "A discovery lists the objects of a scope, the ones you know are acknowledged, one is adopted by a resource of the specification, and the Discovery section of the viewer shows the rest."
 level: intermediate
 keywords: "list inventory unmanaged orphans import shadow resources console drift audit cloud"

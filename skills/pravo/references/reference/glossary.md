@@ -271,7 +271,7 @@ See [Meta fields](spec-meta-fields.md#depends-on).
 
 A struct built from `#Discovery.<type>` of a provider that can list: a list resource type with the scope to list it in. `pravo discover` runs it, and the objects it finds that no record accounts for are shown for adoption. It manages nothing and is not a node of the graph.
 
-See [Discovery](../concepts/discovery.md) and [`pravo discover`](discover.md).
+Taught in [B10](../learn/b10-find-what-nothing-manages.md). See [Discovery](../concepts/discovery.md) and [`pravo discover`](discover.md).
 
 ### done when
 
@@ -403,7 +403,7 @@ See [State format](state-format.md#plans).
 
 A `pravo.#Policy` node of the specification whose rule is CUE text that a plan must satisfy. pravo keeps each version in the state, signed, and the signed start of an apply lists the versions that judged it. A specification cannot exempt a resource from it. A refusal is exit code 5.
 
-Taught in [B10](../learn/b10-policy.md). See [Policies](policies-overview.md).
+Taught in [B11](https://pravo.systems/learn/b11-policy.html). See [Policies](policies-overview.md).
 
 ### provider
 

@@ -176,7 +176,7 @@ func TestPrepareClean(t *testing.T) {
 	r, log := fake(t)
 	sc, _ := findScenario("platform")
 	dir := filepath.Join(t.TempDir(), "ws")
-	w, err := prepareClean(context.Background(), r, sc, dir)
+	w, err := prepareClean(context.Background(), r, sc, dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestPrepareCleanChecksTheResourceCount(t *testing.T) {
 	r, _ := fake(t)
 	t.Setenv("SERVESHOTS_FAKE_RESOURCES", "12")
 	sc, _ := findScenario("platform")
-	_, err := prepareClean(context.Background(), r, sc, filepath.Join(t.TempDir(), "ws"))
+	_, err := prepareClean(context.Background(), r, sc, filepath.Join(t.TempDir(), "ws"), "")
 	if err == nil || !strings.Contains(err.Error(), "Resources: 47 added") {
 		t.Errorf("error = %v", err)
 	}
@@ -206,7 +206,7 @@ func TestPrepareChanged(t *testing.T) {
 	r, log := fake(t)
 	sc, _ := findScenario("platform")
 	dir := filepath.Join(t.TempDir(), "ws")
-	w, err := prepareChanged(context.Background(), r, sc, dir)
+	w, err := prepareChanged(context.Background(), r, sc, dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestPrepareStored(t *testing.T) {
 	r, log := fake(t)
 	sc, _ := findScenario("platform")
 	dir := filepath.Join(t.TempDir(), "ws")
-	w, err := prepareStored(context.Background(), r, sc, dir)
+	w, err := prepareStored(context.Background(), r, sc, dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,13 +286,13 @@ func TestPrepareStored(t *testing.T) {
 func TestPrepareStoredNeedsPlansAndOldEnoughOnes(t *testing.T) {
 	r, _ := fake(t)
 	fleet, _ := findScenario("fleet")
-	if _, err := prepareStored(context.Background(), r, fleet, filepath.Join(t.TempDir(), "ws")); err == nil {
+	if _, err := prepareStored(context.Background(), r, fleet, filepath.Join(t.TempDir(), "ws"), ""); err == nil {
 		t.Error("a scenario without stored plans: no error")
 	}
 	sc, _ := findScenario("platform")
 	young := sc
 	young.Stored = []storedPlan{{Actor: "ci", Reason: "x", Expired: true, Age: time.Hour, Edits: sc.Stored[0].Edits}}
-	if _, err := prepareStored(context.Background(), r, young, filepath.Join(t.TempDir(), "ws")); err == nil || !strings.Contains(err.Error(), "not old enough") {
+	if _, err := prepareStored(context.Background(), r, young, filepath.Join(t.TempDir(), "ws"), ""); err == nil || !strings.Contains(err.Error(), "not old enough") {
 		t.Errorf("a plan that did not expire: %v", err)
 	}
 }
@@ -301,7 +301,7 @@ func TestPrepareChangedNeedsTheDriftThatWasMade(t *testing.T) {
 	r, _ := fake(t)
 	t.Setenv("SERVESHOTS_FAKE_DRIFT_MISSING", "1")
 	sc, _ := findScenario("platform")
-	_, err := prepareChanged(context.Background(), r, sc, filepath.Join(t.TempDir(), "ws"))
+	_, err := prepareChanged(context.Background(), r, sc, filepath.Join(t.TempDir(), "ws"), "")
 	if err == nil || !strings.Contains(err.Error(), "network.dns.records") {
 		t.Errorf("error = %v", err)
 	}
@@ -310,7 +310,7 @@ func TestPrepareChangedNeedsTheDriftThatWasMade(t *testing.T) {
 func TestPrepareChangedRefusesAScenarioWithoutChanges(t *testing.T) {
 	r, _ := fake(t)
 	sc, _ := findScenario("fleet")
-	if _, err := prepareChanged(context.Background(), r, sc, filepath.Join(t.TempDir(), "ws")); err == nil {
+	if _, err := prepareChanged(context.Background(), r, sc, filepath.Join(t.TempDir(), "ws"), ""); err == nil {
 		t.Error("no error")
 	}
 }
@@ -398,7 +398,7 @@ func TestPrepareTeam(t *testing.T) {
 	}
 	// The objects of the fake provider are written next to the workspace.
 	var objs []catalogObject
-	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(filepath.Dir(dir), "team-objects", "catalog.json"))), &objs); err != nil || len(objs) != len(sc.Team.Catalog) {
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(filepath.Dir(dir), "team-objects", "catalog.json"))), &objs); err != nil || len(objs) != len(sc.Catalog) {
 		t.Errorf("catalog.json: %d objects, %v", len(objs), err)
 	}
 	// The change stayed, the proposals were undone, and the edits made last
@@ -502,7 +502,7 @@ func TestPrepareStoredWithoutResources(t *testing.T) {
 	r, log := fake(t)
 	sc, _ := findScenario("c02")
 	dir := filepath.Join(t.TempDir(), "ws")
-	w, err := prepareStored(context.Background(), r, sc, dir)
+	w, err := prepareStored(context.Background(), r, sc, dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}

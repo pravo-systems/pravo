@@ -4,7 +4,7 @@ description: Cause ten failures one at a time and read each message. Match each 
 order: 51
 group: Track B · Labs and project
 minutes: 30
-needs: B10
+needs: B11
 learn: Which stage of a run produces which failure? Which exit code does each one give?
 done_when: "You have caused a failure with each of the exit codes 1 to 6. You can say which stage produced it."
 level: intermediate

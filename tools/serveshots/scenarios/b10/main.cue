@@ -1,19 +1,15 @@
 package main
 
-import loc "pravo.dev/providers/hashicorp/local"
+import demo "pravo.dev/providers/demo/demo"
 
-#Strict: loc.#Provider & {
-	#Resource: local_file: file_permission: "0600"
-}
+$demo: demo.#Provider & {$path: "@FAKEPROVIDER@"}
 
-$files: #Strict
+web: $demo.#Resource.demo_server & {name: "web"}
 
-key: $files.#Resource.local_file & {
-	filename: "key.pem"
-	content:  "secret\n"
-}
-
-note: $files.#Resource.local_file & {
-	filename: "note.txt"
-	content:  "note\n"
+servers: $demo.#Discovery.demo_server & {
+	region: "eu"
+	$ack: [{
+		names:  ["batch-*"]
+		reason: "started and removed by the nightly job"
+	}]
 }

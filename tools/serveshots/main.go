@@ -254,11 +254,19 @@ func (m *maker) workspace(sc scenario, situation string) (*workspace, error) {
 		w   *workspace
 		err error
 	)
+	// A scenario with a catalog lists it through the fake provider in every
+	// situation; the team situation builds the provider with its store.
+	provider := ""
+	if sc.hasCatalog() && kind != situationTeam {
+		if provider, err = m.fakeProvider(); err != nil {
+			return nil, fmt.Errorf("scenario %s, %s: %w", sc.Name, kind, err)
+		}
+	}
 	switch kind {
 	case situationClean:
-		w, err = prepareClean(m.ctx, m.runner, sc, dir)
+		w, err = prepareClean(m.ctx, m.runner, sc, dir, provider)
 	case situationStored:
-		w, err = prepareStored(m.ctx, m.runner, sc, dir)
+		w, err = prepareStored(m.ctx, m.runner, sc, dir, provider)
 	case situationTeam:
 		var deps teamDeps
 		deps, err = m.teamDeps()
@@ -266,7 +274,7 @@ func (m *maker) workspace(sc scenario, situation string) (*workspace, error) {
 			w, err = prepareTeam(m.ctx, m.runner, sc, dir, deps)
 		}
 	default:
-		w, err = prepareChanged(m.ctx, m.runner, sc, dir)
+		w, err = prepareChanged(m.ctx, m.runner, sc, dir, provider)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("scenario %s, %s: %w", sc.Name, kind, err)
@@ -355,22 +363,32 @@ func (m *maker) teamDeps() (teamDeps, error) {
 		m.store = s
 		m.logf("serving the bucket of the team on %s", s.Endpoint)
 	}
+	p, err := m.fakeProvider()
+	if err != nil {
+		return teamDeps{}, err
+	}
+	return teamDeps{Store: m.store, FakeProvider: p}, nil
+}
+
+// fakeProvider is the path of the fake provider, built once when none was
+// given.
+func (m *maker) fakeProvider() (string, error) {
 	if m.provider == "" {
 		m.logf("building the fake provider")
 		p, err := buildFakeProvider(m.ctx, filepath.Join(m.work, "bin"))
 		if err != nil {
-			return teamDeps{}, err
+			return "", err
 		}
 		m.provider = p
 	}
 	p, err := filepath.Abs(m.provider)
 	if err != nil {
-		return teamDeps{}, err
+		return "", err
 	}
 	if info, err := os.Stat(p); err != nil || !info.Mode().IsRegular() {
-		return teamDeps{}, fmt.Errorf("-fakeprovider %s: no such file", m.provider)
+		return "", fmt.Errorf("-fakeprovider %s: no such file", m.provider)
 	}
-	return teamDeps{Store: m.store, FakeProvider: p}, nil
+	return p, nil
 }
 
 func fileSize(path string) (int64, error) {

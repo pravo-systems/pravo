@@ -3,7 +3,7 @@ title: Write and roll out policies
 description: Write a policy rule, test it on fixtures with the matching cue version, try it on the plans you have, roll a new rule out as advice, exempt by type, apply under the policies of the state, ask for approvals and retire a policy.
 order: 2
 minutes: 25
-needs: B10 for the idea of a policy. `cue` at the version that `pravo version` prints on its second line, `jq`, and an empty directory.
+needs: B11 for the idea of a policy. `cue` at the version that `pravo version` prints on its second line, `jq`, and an empty directory.
 done_when: "`sh policy/test.sh` passes, a plan that replaces a pet is refused with exit code 5, and `pravo state verify` verifies the apply job."
 level: advanced
 env:
@@ -90,7 +90,7 @@ guard: pravo.#Policy & {
 }
 ```
 
-The template declares every field that a guard reads, because CUE resolves names lexically. [B10](../learn/b10-policy.md) walks through the parts, and [Writing policies](../reference/policies-writing.md) lists the shapes that work and the ones that check nothing.
+The template declares every field that a guard reads, because CUE resolves names lexically. [B11](../learn/b11-policy.md) walks through the parts, and [Writing policies](../reference/policies-writing.md) lists the shapes that work and the ones that check nothing.
 
 ## 2. Test it on fixtures
 
