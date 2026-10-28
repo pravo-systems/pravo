@@ -10,7 +10,7 @@ Print the CUE definition of a resource, data source, ephemeral resource or funct
 |---|---|
 | Synopsis | `pravo schema TYPE [TYPE...] [--required]`, or `pravo schema NAMESPACE/PROVIDER/TYPE ...` |
 | Changes infrastructure | No. It starts no provider after `pravo init`. |
-| Provider | The prefix of the type up to the first underscore (`random_pet` is in `random`), or `provider/type` with the local name of the provider. The provider must be declared in the root. A type written with the address of its provider, `hashicorp/random/random_pet`, needs no root. |
+| Provider | The prefix of the type up to the first underscore (`random_pet` is in `random`), or `provider/type` with the local name of the provider. The provider must be declared in the root. If two providers in the root are named `random`, the prefix form is refused with the list of them; write the address of the one you mean. A type written with the address of its provider, `hashicorp/random/random_pet`, needs no root. |
 | Taught in | [B1, Providers and resources](../learn/b01-providers-and-resources.md). |
 
 ### Flags

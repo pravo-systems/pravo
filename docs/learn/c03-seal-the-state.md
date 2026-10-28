@@ -318,4 +318,4 @@ Why can a person who can write to the bucket not add themselves as a reader?
 Writers take the readers list from the checkout, not from the bucket, and a new reader needs an existing reader to run `rewrap`, which locks the data keys for them. Nobody can lock a key they do not hold.
 :::
 
-The how-to page [Seal the state](../how-to/seal-the-state.md) adds a CI job as a reader, a recovery recipient and the way back out. The next lesson, [Readers, writers, admins](c04-readers-writers-admins.md), says which readers may change the state.
+The how-to page [Seal the state](../how-to/seal-the-state.md) adds a CI job as a reader, a recovery recipient and the way back out. A sealed state can also keep secrets of its own, as named values with a history, which [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) sets and hands to a provider. The next lesson, [Readers, writers, admins](c04-readers-writers-admins.md), says which readers may change the state.

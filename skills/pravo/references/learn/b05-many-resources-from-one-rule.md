@@ -172,6 +172,10 @@ conf.worker -> port.worker
 
 The graph has one edge per key. `conf.api` reads `port.api` and no other port.
 
+In the viewer, `pravo serve` from the root, the two rules are two groups, `port` and `conf`, with three resources each and a wire from each port to its file. The Source tab of any of the six points at the lines of the rule that wrote it, with a note that the same lines write two more.
+
+*Figure: Six resources from two rules, in the groups port and conf. The Source tab of conf.web points at the lines of the rule, which write two more.*
+
 ## Reorder the keys
 
 Check the answer. This file holds the same three services in a new order:

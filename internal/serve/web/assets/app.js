@@ -2,7 +2,7 @@
 // graph, the filter pills, the list, the inspector and the palette. It only reads: every request is a GET.
 
 import * as api from './api.js';
-import { buildModel, buildItems, firstView, touchedNamespaces, reveal, diffModels, CLUSTER_CAP, isChange, chain, isOut, isEnv } from './model.js';
+import { buildModel, buildItems, firstView, touchedNamespaces, reveal, diffModels, CLUSTER_CAP, isChange, chain, isOut, isEnv, isSecret } from './model.js';
 import { layout } from './layout.js';
 import { GraphView, Minimap } from './graph.js';
 import { Pills } from './pills.js';
@@ -13,6 +13,7 @@ import { AccessView } from './access.js';
 import { DiscoveryView } from './discovery.js';
 import { TracesView } from './traces.js';
 import { PoliciesView } from './policies.js';
+import { SecretsView } from './secrets.js';
 import { Palette, Sheet } from './palette.js';
 import { compileQuery, QueryMenu, quoted, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
@@ -27,7 +28,7 @@ const root = document.documentElement;
 const S = {
   // graph is what the page draws; raw is what the server sent, and the stored plan that is laid over it (plan, with
   // its overlay when the server did not lay it itself) makes the difference
-  graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null, access: null, discovery: null, policies: null,
+  graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null, access: null, discovery: null, policies: null, secrets: null,
   view: 'graph', sel: null, tab: null, q: '', dq: '', plq: '',
   collapsed: new Set(), auto: new Set(), clusters: new Map(), trail: [],
   theme: null, motion: true, reach: false, zoom: 'fit',
@@ -36,7 +37,7 @@ const S = {
   runs: [], // the runs that pravo recorded, read when the palette opens
   live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
-let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView;
+let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView, secretsView;
 let booted = false;
 
 // ---------------------------------------------------------------------------------------------------------
@@ -143,7 +144,7 @@ function readFragment() {
     plq: p.plq || '',
     q: Object.hasOwn(LEGACY_FILTERS, p.filter) ? addTerm(p.q || '', LEGACY_FILTERS[p.filter].col, LEGACY_FILTERS[p.filter].value, false) : p.q || '',
     // an address from before the view was renamed says table, or tree
-    view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'policies' ? 'policies' : p.view === 'traces' ? 'traces' : 'graph',
+    view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'policies' ? 'policies' : p.view === 'secrets' ? 'secrets' : p.view === 'traces' ? 'traces' : 'graph',
     trace: /^[0-9a-f]{32}-[0-9a-f]{16}$/.test(p.trace || '') ? p.trace : '',
     span: /^[0-9a-f]{16}$/.test(p.span || '') ? p.span : '',
     pol: (p.pol || '').slice(0, 512),
@@ -311,16 +312,16 @@ function wantedPlan(f) {
 // fetchAll reads the graph and the stored plans of one revision and, when the plan to show is a stored plan that
 // the server did not lay itself, its overlay. want is a plan id, 'none', or undefined for the page's own choice.
 async function fetchAll(want) {
-  let raw, list, access, discovery, policies;
+  let raw, list, access, discovery, policies, secrets;
   // the Access and Discovery views do not stop the page: a document that cannot be read leaves the view saying so
   const soft = (err) => {
     if (err instanceof api.Unauthorized || err instanceof api.Unreachable) throw err;
     return null;
   };
   for (let i = 0; ; i++) {
-    [raw, list, access, discovery, policies] = await Promise.all([api.graph(), api.plans(), api.access().catch(soft), api.discovery().catch(soft), api.policies().catch(soft)]);
+    [raw, list, access, discovery, policies, secrets] = await Promise.all([api.graph(), api.plans(), api.access().catch(soft), api.discovery().catch(soft), api.policies().catch(soft), api.secrets().catch(soft)]);
     const same = (x) => !x || !x.revision || x.revision === raw.revision;
-    if ((same(list) && same(access) && same(discovery) && same(policies)) || i >= 2) break; // the project changed between the requests
+    if ((same(list) && same(access) && same(discovery) && same(policies) && same(secrets)) || i >= 2) break; // the project changed between the requests
   }
   const plans = list.plans || [];
   const own = ownPlan(raw);
@@ -342,7 +343,7 @@ async function fetchAll(want) {
     plan = own;
     overlay = plan ? await read(plan) : null;
   }
-  return { raw, plans, access, discovery, policies, plan, overlay, gone, failed };
+  return { raw, plans, access, discovery, policies, secrets, plan, overlay, gone, failed };
 }
 
 // the overlay of the plan that is laid over the graph, which has what the author wrote with it
@@ -923,6 +924,7 @@ const TITLES = {
   access: 'pravo serve: where the state is kept, how it is protected and who can read it',
   discovery: 'pravo serve: the objects that discoveries found and that nothing manages',
   policies: 'pravo serve: the rules that every plan is judged by, and their signed versions',
+  secrets: 'pravo serve: the secrets that the sealed state keeps, and the nodes that read them',
   traces: 'pravo serve: the recorded runs of pravo, as timelines of spans',
 };
 
@@ -936,6 +938,7 @@ function setView(v) {
   $('discovery-pane').hidden = v !== 'discovery';
   $('traces-pane').hidden = v !== 'traces';
   $('policies-pane').hidden = v !== 'policies';
+  $('secrets-pane').hidden = v !== 'secrets';
   if (v !== 'traces' && tracesView) tracesView.close();
   if (v === 'graph' || v === 'list') S.lastResources = v;
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
@@ -945,19 +948,21 @@ function setView(v) {
   $('sec-discovery').setAttribute('aria-pressed', v === 'discovery' ? 'true' : 'false');
   $('sec-traces').setAttribute('aria-pressed', v === 'traces' ? 'true' : 'false');
   $('sec-policies').setAttribute('aria-pressed', v === 'policies' ? 'true' : 'false');
+  $('sec-secrets').setAttribute('aria-pressed', v === 'secrets' ? 'true' : 'false');
   $('sec-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'list' ? 'Skip to the list' : v === 'plans' ? 'Skip to the plans' : v === 'discovery' ? 'Skip to the discoveries' : v === 'traces' ? 'Skip to the traces' : v === 'policies' ? 'Skip to the policies' : 'Skip to the state';
+  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'list' ? 'Skip to the list' : v === 'plans' ? 'Skip to the plans' : v === 'discovery' ? 'Skip to the discoveries' : v === 'traces' ? 'Skip to the traces' : v === 'policies' ? 'Skip to the policies' : v === 'secrets' ? 'Skip to the secrets' : 'Skip to the state';
   if (v === 'list') renderList();
   else if (v === 'access') renderAccess();
   else if (v === 'discovery') renderDiscovery();
   else if (v === 'policies') renderPolicies();
+  else if (v === 'secrets') renderSecrets();
   else if (v === 'traces') tracesView.open();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   setDocTitle();
   syncFragment();
-  announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : v === 'traces' ? 'Traces' : v === 'policies' ? 'Policies' : 'Inventory, graph view');
+  announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : v === 'traces' ? 'Traces' : v === 'policies' ? 'Policies' : v === 'secrets' ? 'Secrets' : 'Inventory, graph view');
 }
 
 // openPlan goes to the Plans page with the detail of a plan open under its row.
@@ -993,6 +998,20 @@ function renderPoliciesTab() {
   el.hidden = !(n > 0);
   el.textContent = n > 99 ? '99+' : String(n);
   $('sec-policies').setAttribute('aria-label', n > 0 ? `Policies, ${n} pending` : 'Policies');
+}
+
+function renderSecrets() {
+  secretsView.render({ secrets: S.secrets });
+}
+
+// renderSecretsTab shows on the tab how many things the page flags: a number only when something is wrong, as the other
+// tabs show a number only when something waits for a decision.
+function renderSecretsTab() {
+  const n = S.secrets ? S.secrets.problems : 0;
+  const el = $('sec-sec-count');
+  el.hidden = !(n > 0);
+  el.textContent = n > 99 ? '99+' : String(n);
+  $('sec-secrets').setAttribute('aria-label', n > 0 ? `Secrets, ${n} to look at` : 'Secrets');
 }
 
 function renderDiscovery() {
@@ -1061,7 +1080,7 @@ function renderHeader() {
 }
 
 // the tab says where the page is: the project, then the section, so that several estates in several tabs tell apart
-const SECTION = { graph: 'Inventory', list: 'Inventory', plans: 'Plans', discovery: 'Discovery', traces: 'Traces', policies: 'Policies', access: 'State' };
+const SECTION = { graph: 'Inventory', list: 'Inventory', plans: 'Plans', discovery: 'Discovery', traces: 'Traces', policies: 'Policies', secrets: 'Secrets', access: 'State' };
 function setDocTitle() {
   const dir = S.graph && S.graph.project && S.graph.project.dir;
   document.title = dir ? `${baseName(dir)} \u00b7 ${SECTION[S.view] || 'Inventory'} \u00b7 pravo serve` : 'pravo serve';
@@ -1121,8 +1140,9 @@ function renderLegend() {
     sel(h('i', { class: 'ln up' }), 'depends on'), sel(h('i', { class: 'ln down' }), 'used by'),
     ...(m.nout ? [item(h('span', { class: 'i i-output key' }), 'output')] : []),
     ...(m.list.some(isEnv) ? [item(h('span', { class: 'i i-env key' }), 'environment variable')] : []),
+    ...(m.list.some(isSecret) ? [item(h('span', { class: 'i i-key key' }), 'secret')] : []),
     ...(m.list.some((n) => n.mode === 'data') ? [item(h('i', { class: 'sq k-data' }), 'data source')] : []),
-    ...(m.list.some((n) => n.mode === 'ephemeral') ? [item(h('i', { class: 'sq k-ephemeral' }), 'ephemeral')] : []),
+    ...(m.list.some((n) => n.mode === 'ephemeral' && !isSecret(n)) ? [item(h('i', { class: 'sq k-ephemeral' }), 'ephemeral')] : []),
     ...(m.list.some((n) => n.sensitive > 0) ? [item(h('span', { class: 'i i-lock key' }), 'sensitive')] : []),
     ...(m.list.some((n) => n.drifted) ? [item(h('span', { class: 'i i-drift warn' }), 'drifted')] : []));
   // the badges of the authors of open plans, and the ring of a resource that two of them change
@@ -1204,6 +1224,7 @@ async function refresh() {
   S.access = r.access;
   S.discovery = r.discovery;
   S.policies = r.policies;
+  S.secrets = r.secrets;
   S.plan = r.plan;
   S.overlay = r.overlay;
   const g = shown(r.raw);
@@ -1233,8 +1254,10 @@ async function refresh() {
   if (S.view === 'access') renderAccess();
   if (S.view === 'discovery') renderDiscovery();
   if (S.view === 'policies') renderPolicies();
+  if (S.view === 'secrets') renderSecrets();
   renderDiscoveryTab();
   renderPoliciesTab();
+  renderSecretsTab();
   renderPlansTab();
   const flash = [...d.changed, ...d.added].map((a) => S.vis.rep.get(a)).filter(Boolean);
   gv.flash(new Set(flash));
@@ -1400,6 +1423,7 @@ function paletteActions() {
   add('Go to', 'Open the policy studio', S.view === 'policies' ? ['s'] : [], () => { setView('policies'); policiesView.setMode('studio'); }, { icon: 'policy', words: 'try rule draft playground preview plans refuse policy test' });
   if (S.view !== 'traces') add('Go to', 'Go to Traces', ['r'], into('traces'), { icon: 'trace', words: 'runs recorded timeline spans transactions' });
   if (S.view !== 'plans') add('Go to', 'Go to Plans', ['p'], into('plans'), { icon: 'file', words: 'stored plans' });
+  if (S.view !== 'secrets') add('Go to', 'Go to Secrets', ['e'], into('secrets'), { icon: 'key', words: 'secrets vault sealed values passwords tokens credentials keys' });
   if (S.view !== 'access') add('Go to', 'Go to State', ['a'], into('access'), { icon: 'lock', words: 'access members readers sealed roles' });
   if (res) {
     if (S.view === 'list') add('View', 'Show the graph', ['g'], into('graph'), { words: 'view' });
@@ -1465,9 +1489,10 @@ function onKey(ev) {
   if (k === 'p') { setView(S.view === 'plans' ? (S.lastResources || 'graph') : 'plans'); return; }
   if (k === 'd') { setView(S.view === 'discovery' ? (S.lastResources || 'graph') : 'discovery'); return; }
   if (k === 'o') { setView(S.view === 'policies' ? (S.lastResources || 'graph') : 'policies'); return; }
+  if (k === 'e') { setView(S.view === 'secrets' ? (S.lastResources || 'graph') : 'secrets'); return; }
   if (k === 's' && S.view === 'policies') { policiesView.toggleStudio(); return; }
   if (k === 'r') { setView(S.view === 'traces' ? (S.lastResources || 'graph') : 'traces'); return; }
-  if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies') return; // the keys below are for the resources
+  if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets') return; // the keys below are for the resources
   if (k === 'g') { setView(S.view === 'graph' ? 'list' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
@@ -1534,6 +1559,12 @@ function wire() {
   accessView = new AccessView($('access-pane'));
   discoveryView = new DiscoveryView($('discovery-pane'), { onQuery: (dq) => { S.dq = dq; syncFragment(); } });
   policiesView = new PoliciesView($('policies-pane'), { onRoute: () => syncFragment() });
+  secretsView = new SecretsView($('secrets-pane'), {
+    // a node that reads a secret: the resources open on it
+    onNode: (addr) => { setView(S.lastResources || 'graph'); selectNode(addr, { center: true }); },
+    // a state that is not sealed: sealing is on the State page
+    onState: () => setView('access'),
+  });
   tracesView = new TracesView($('traces-pane'), { onRoute: () => syncFragment() });
   addEventListener('resize', () => tracesView.resize());
   insp = new Inspector($('insp'), {
@@ -1557,7 +1588,7 @@ function wire() {
       const there = !away && S.sel === key && (S.view === 'list' || kind === 'namespace' || !!(S.vis && itemOf(key) && gv.visible(itemOf(key), 60)));
       if (!there) pushReturn();
       S.foundAt = key;
-      if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies') setView(S.lastResources || 'graph'); // a resource is found among the resources
+      if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets') setView(S.lastResources || 'graph'); // a resource is found among the resources
       if (kind === 'namespace') {
         const ns = S.model.namespaces.get(key);
         for (const m of chain(ns)) S.collapsed.delete(m.path);
@@ -1574,10 +1605,11 @@ function wire() {
 
   $('view-graph').addEventListener('click', () => setView('graph'));
   $('view-list').addEventListener('click', () => setView('list'));
-  $('sec-inventory').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies') setView(S.lastResources || 'graph'); });
+  $('sec-inventory').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets') setView(S.lastResources || 'graph'); });
   $('sec-discovery').addEventListener('click', () => setView('discovery'));
   $('sec-traces').addEventListener('click', () => setView('traces'));
   $('sec-policies').addEventListener('click', () => setView('policies'));
+  $('sec-secrets').addEventListener('click', () => setView('secrets'));
   $('sec-plans').addEventListener('click', () => setView('plans'));
   $('sec-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
@@ -1601,7 +1633,7 @@ function wire() {
   initTips();
   // the skip link goes to the graph, or to the list in the list view; it must not write #canvas into the address, which is the view
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else if (S.view === 'discovery') $('discovery-pane').focus(); else if (S.view === 'traces') $('traces-pane').focus(); else if (S.view === 'policies') $('policies-pane').focus(); else list.scroller.focus(); });
+  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else if (S.view === 'discovery') $('discovery-pane').focus(); else if (S.view === 'traces') $('traces-pane').focus(); else if (S.view === 'policies') $('policies-pane').focus(); else if (S.view === 'secrets') $('secrets-pane').focus(); else list.scroller.focus(); });
   // the mark at the top left goes back to the start: nothing selected, no filter, the first view (not the address "#/", which would drop the theme and the motion setting too)
   const brand = document.querySelector('.brand');
   if (brand) brand.addEventListener('click', (ev) => {
@@ -1736,6 +1768,7 @@ async function boot() {
   await load(frag);
   renderDiscoveryTab();
   renderPoliciesTab();
+  renderSecretsTab();
 }
 
 async function load(frag) {
@@ -1758,6 +1791,7 @@ async function load(frag) {
   S.access = r.access;
   S.discovery = r.discovery;
   S.policies = r.policies;
+  S.secrets = r.secrets;
   S.plan = r.plan;
   S.overlay = r.overlay;
   setModel(shown(r.raw), frag);
@@ -1815,7 +1849,7 @@ async function load(frag) {
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, discoveryView, tracesView, policiesView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, discoveryView, tracesView, policiesView, secretsView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

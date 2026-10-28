@@ -104,7 +104,7 @@ a { color: inherit; }
 /* The sections of the page: the resources of the state, and who can read it. They are two things, not two views of one,
    so they are tabs of the header and not a switch of the toolbar. */
 .sections { flex: none; display: inline-flex; align-self: stretch; margin-left: .4rem; border-left: 1px solid var(--line); isolation: isolate; }
-.sec-tab { position: relative; display: inline-flex; align-items: center; gap: .5rem; padding: 0 1rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); border: 0; border-right: 1px solid var(--line); background: none; transition: color var(--t-fast), background var(--t-fast); }
+.sec-tab { position: relative; display: inline-flex; align-items: center; gap: .45rem; padding: 0 .7rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); border: 0; border-right: 1px solid var(--line); background: none; transition: color var(--t-fast), background var(--t-fast); }
 .sec-tab:hover { color: var(--text); background: var(--surface-2); }
 .sec-tab[aria-pressed="true"] { color: var(--text); background: var(--accent-wash); }
 .sec-tab .i { width: .95rem; height: .95rem; color: var(--text-3); }
@@ -398,10 +398,14 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .stage { grid-row: 1; grid-column: 1; }
   .drawer-scrim { display: block; position: fixed; z-index: 55; inset: 52px 0 30px; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(2px); animation: ui-fade .2s ease; }
   .brand small { display: none; }
-  .sec-tab { padding-inline: .8rem; }
 }
-/* the sections keep their icons, and the label for a screen reader, when the bar has no room for six words */
+/* The sections keep their icons, and the label for a screen reader and for the tip, when the bar has no room for seven words: below 88em
+   the tab that is open keeps its word and the others their mark and their count, and below 62em none keeps its word. */
+@media (max-width: 88em) {
+  .sec-tab:not([aria-pressed="true"]) .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 @media (max-width: 62em) {
+  .sec-tab { padding-inline: .8rem; }
   .sec-tab .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 @media (max-width: 47.5em) {
@@ -429,10 +433,11 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .pal-wrap { padding-top: 1rem; }
   .sheet-body dl { grid-template-columns: 6.5rem 1fr; }
 }
-/* The section tabs do not fit the bar of a phone with the word beside the mark: the tab keeps its icon, and its label for a screen reader. */
-@media (max-width: 30em) {
+/* The bar of a phone has room for the marks of the seven sections and not for the word of the brand, nor for a count beside a mark. */
+@media (max-width: 40em) {
   .brand .word { display: none; }
-  .sec-tab { padding-inline: .3rem; gap: .2rem; } /* six sections fit a phone */
+  .sec-tab { padding-inline: .3rem; gap: .2rem; } /* seven sections fit a phone: a count sits over the mark and does not widen the tab */
+  .sections .sec-tab .cnt { position: absolute; top: .4rem; right: -.05rem; min-width: .95rem; height: .85rem; padding: 0 .2rem; font-size: .5625rem; }
   .top, .topright { gap: .3rem; }
   .top { padding: 0 .5rem; }
   .sections { margin-left: 0; }
@@ -457,8 +462,8 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 
 
 /* the Plans page, with the heads of Discovery and State: one frame (a card with an edge in the colour of its state) and one title */
-.pghead, .dv-head, .ac-banner, .pl-head, .po-head { position: relative; padding: 1.1rem 1.5rem 1.15rem; border: 1px solid var(--line-strong); border-radius: var(--rad-p); background: var(--surface); }
-.pl-title, .dv-title, .ac-title, .po-title { display: inline-flex; align-items: center; gap: .55rem; margin: 0; font: 500 1.7rem/1.1 var(--font-display); letter-spacing: -.015em; }
+.pghead, .dv-head, .ac-banner, .pl-head, .po-head, .se-head { position: relative; padding: 1.1rem 1.5rem 1.15rem; border: 1px solid var(--line-strong); border-radius: var(--rad-p); background: var(--surface); }
+.pl-title, .dv-title, .ac-title, .po-title, .se-title { display: inline-flex; align-items: center; gap: .55rem; margin: 0; font: 500 1.7rem/1.1 var(--font-display); letter-spacing: -.015em; }
 .plans-pane { overflow: auto; padding: var(--page-pad); }
 .pl { box-sizing: border-box; display: grid; gap: 1.6rem; width: 100%; max-width: var(--page-w); margin: 0 auto; }
 .pl-head { --hc: var(--accent); }
@@ -499,7 +504,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 :is(.btn, .filter, .sfbox, .rp-view, .navrow) { border-radius: var(--rad); }
 :is(.plrow, .dv-ackrec, .dv-notice, .dv-empty, .dv-none, .ac-empty, .ac-youline, .ac-verdict, .ac-warn, .note, .errbox, .rp-why, .dv-items, .dv-code, .ac-diff, .cmd, .cmdline, .tb) { border-radius: var(--rad-p); }
 :is(.tg, .kd, .kindpill, .rows .ver, .v-tag, .v-hash, .v-unk, .wh, .jhead .jl, .plovl, .dv-ack .b, .ac-who, .cw-role, .cw-tag, .hint code, .h .cnt, .itab .tc, .src-h .step, .grp-h .gc, .sf-count, .gtip .gchip) { border-radius: var(--rad-s); }
-:is(.cw, .tile, .tv-grid, .dv-head, .po-head, .dv-card, .ac-banner, .ac-card, .ac-tablewrap) { border-radius: var(--rad-p); }
+:is(.cw, .tile, .tv-grid, .dv-head, .po-head, .se-head, .dv-card, .ac-banner, .ac-card, .ac-tablewrap) { border-radius: var(--rad-p); }
 :is(.cpbtn, .row-fx, .tv-row .cf button, .fatal .term, .fatal .fat-msg, .cw-skel, .iconbtn) { border-radius: var(--rad); }
 :is(.fatal .card) { border-radius: 0; }
 .qpill { border-radius: 0; overflow: hidden; }
@@ -546,4 +551,4 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 .fold-chip:hover, .fold-chip:focus-visible { color: var(--code-text); border-color: var(--code-key); outline: none; }
 
 /* the colour of a page's state is a square before its title, not a tint over the whole card */
-.pl-title::before, .dv-title::before, .ac-title::before, .po-title::before { content: ""; flex: none; width: .5rem; height: .5rem; background: var(--hc, var(--text-3)); }
+.pl-title::before, .dv-title::before, .ac-title::before, .po-title::before, .se-title::before { content: ""; flex: none; width: .5rem; height: .5rem; background: var(--hc, var(--text-3)); }

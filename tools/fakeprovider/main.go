@@ -14,6 +14,13 @@
 // an identity of several attributes and no id: an account_id, a bucket and a region,
 // and can only be imported by that identity, as a bucket of a cloud is.
 //
+// demo_account is not a list type. It has a write-only password and an ordinary
+// password_version, as a provider with a password_wo and a password_wo_version has: the
+// provider reads the password from the configuration and keeps none. It is for trying
+// what a run hands to a provider. What the provider receives is appended to the file
+// "received" of FAKEPROVIDER_DIR, one line each: "token=VALUE" for the token of the
+// provider's configuration and "account NAME version=V password=VALUE" for an apply.
+//
 // The objects that exist are kept in the directory that FAKEPROVIDER_DIR names, in
 // catalog.json, a list of {"id", "name", "region"} and, for a bucket, "type":
 // "demo_bucket". Applying a demo_server adds an object to it. The file "fail", when it exists, makes a list fail with its
@@ -74,6 +81,7 @@ type provider struct {
 
 var (
 	serverType         = tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String, "name": tftypes.String, "size": tftypes.String, "secret": tftypes.String}}
+	accountType        = tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String, "name": tftypes.String, "password": tftypes.String, "password_version": tftypes.String}}
 	bucketType         = tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String, "bucket": tftypes.String}}
 	listType           = tftypes.Object{AttributeTypes: map[string]tftypes.Type{"region": tftypes.String}}
 	identityType       = tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String, "region": tftypes.String}}
@@ -83,8 +91,11 @@ var (
 // typeOf is the type of the state of a resource type, and nameAttr the attribute
 // that names an object of it.
 func typeOf(typ string) tftypes.Object {
-	if typ == "demo_bucket" {
+	switch typ {
+	case "demo_bucket":
 		return bucketType
+	case "demo_account":
+		return accountType
 	}
 	return serverType
 }
@@ -128,6 +139,9 @@ func (p *provider) GetProviderSchema(context.Context, *tfprotov6.GetProviderSche
 			{Name: "secret", Type: tftypes.String, Optional: true, Sensitive: true},
 		}}}, "demo_bucket": {Block: &tfprotov6.SchemaBlock{Attributes: []*tfprotov6.SchemaAttribute{
 			attr("id", false, false, true), attr("bucket", true, false, false),
+		}}}, "demo_account": {Block: &tfprotov6.SchemaBlock{Attributes: []*tfprotov6.SchemaAttribute{
+			attr("id", false, false, true), attr("name", true, false, false), attr("password_version", false, true, false),
+			{Name: "password", Type: tftypes.String, Optional: true, WriteOnly: true},
 		}}}},
 		ListResourceSchemas: map[string]*tfprotov6.Schema{"demo_server": {Block: &tfprotov6.SchemaBlock{Attributes: []*tfprotov6.SchemaAttribute{
 			{Name: "region", Type: tftypes.String, Optional: true, Description: "Only the servers of this region."},
@@ -157,8 +171,28 @@ func (p *provider) ValidateProviderConfig(context.Context, *tfprotov6.ValidatePr
 	return &tfprotov6.ValidateProviderConfigResponse{}, nil
 }
 
-func (p *provider) ConfigureProvider(context.Context, *tfprotov6.ConfigureProviderRequest) (*tfprotov6.ConfigureProviderResponse, error) {
+func (p *provider) ConfigureProvider(_ context.Context, req *tfprotov6.ConfigureProviderRequest) (*tfprotov6.ConfigureProviderResponse, error) {
+	if cfg, err := req.Config.Unmarshal(tftypes.Object{AttributeTypes: map[string]tftypes.Type{"token": tftypes.String}}); err == nil {
+		var m map[string]tftypes.Value
+		var token string
+		if cfg.As(&m) == nil && m["token"].As(&token) == nil && token != "" {
+			p.received("token=%s", token)
+		}
+	}
 	return &tfprotov6.ConfigureProviderResponse{}, nil
+}
+
+// received notes what the provider was given, in the file "received" of its directory.
+func (p *provider) received(format string, args ...any) {
+	if p.dir == "" {
+		return
+	}
+	f, err := os.OpenFile(filepath.Join(p.dir, "received"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, format+"\n", args...)
 }
 
 func (p *provider) StopProvider(context.Context, *tfprotov6.StopProviderRequest) (*tfprotov6.StopProviderResponse, error) {
@@ -203,6 +237,9 @@ func (p *provider) PlanResourceChange(_ context.Context, req *tfprotov6.PlanReso
 		_ = prior.As(&pm)
 		m["id"] = pm["id"]
 	}
+	if _, ok := m["password"]; ok {
+		m["password"] = tftypes.NewValue(tftypes.String, nil) // a write-only attribute is not planned
+	}
 	dv, err := tfprotov6.NewDynamicValue(serverType, tftypes.NewValue(serverType, m))
 	return &tfprotov6.PlanResourceChangeResponse{PlannedState: &dv}, err
 }
@@ -224,6 +261,18 @@ func (p *provider) ApplyResourceChange(_ context.Context, req *tfprotov6.ApplyRe
 	_ = m[nameAttr(req.TypeName)].As(&name)
 	if !m["id"].IsKnown() || m["id"].IsNull() {
 		m["id"] = tftypes.NewValue(tftypes.String, "srv-"+name)
+	}
+	if req.TypeName == "demo_account" {
+		var password, version string
+		if cfg, err := req.Config.Unmarshal(serverType); err == nil {
+			var cm map[string]tftypes.Value
+			if cfg.As(&cm) == nil {
+				_ = cm["password"].As(&password)
+				_ = cm["password_version"].As(&version)
+			}
+		}
+		p.received("account %s version=%s password=%s", name, version, password)
+		m["password"] = tftypes.NewValue(tftypes.String, nil)
 	}
 	var id string
 	_ = m["id"].As(&id)

@@ -42,9 +42,9 @@ A sealed state says who may read it. Everyone on that list may also change it, u
 
 | Role | May |
 |---|---|
-| `reader` | Open the state, read it, plan, ask `why`, and store a plan with `plan --store`. |
-| `writer` | What a reader may, and change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `discover adopt`. Add and edit a policy. Approve a plan. |
-| `admin` | What a writer may, and change who reads the state, change the roles, remove a policy, collect garbage and take the seal off. Apply a plan without the approvals a policy asks for. |
+| `reader` | Open the state, read it, plan, ask `why`, and store a plan with `plan --store`. Read a secret that the state keeps. |
+| `writer` | What a reader may, and change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `discover adopt`. Add and edit a policy. Set a secret. Approve a plan. |
+| `admin` | What a writer may, and change who reads the state, change the roles, remove a policy, remove a secret, collect garbage and take the seal off. Apply a plan without the approvals a policy asks for. |
 
 > [!NOTE]
 > Every command below runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000. The three people, ada, dan and eve, are three identity directories on one machine, and `PRAVO_CONFIG_DIR` picks one. Each command is written as the person who runs it; a command without a prefix is ada's.
@@ -295,8 +295,8 @@ The roles are checked by every pravo that reads the readers file and the roles i
 | Role | Credentials on the bucket |
 |---|---|
 | `reader` | Get and list on the whole prefix. Put on `plans/`. |
-| `writer` | Get, put, delete and list on the prefix, except `meta.json`, `policy/` and `roles/`, where a writer has get and list and may put a new object under `policy/`. |
-| `admin` | Everything on the prefix, `meta.json`, `policy/` and `roles/` included. |
+| `writer` | Get, put, delete and list on the prefix, except `meta.json`, `policy/`, `roles/` and `secret/`, where a writer has get and list and may put a new object under `policy/` and under `secret/`. |
+| `admin` | Everything on the prefix, `meta.json`, `policy/`, `roles/` and `secret/` included. |
 
 An object lock on `roles/` keeps the newest versions of the chain from being deleted, which the pin cannot see.
 

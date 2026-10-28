@@ -150,6 +150,10 @@ Output:
 
 `gone` means the provider found no object. `pending_changes` is the number of changes in the plan.
 
+The viewer reads the same mark. `pravo serve` draws `motd` with the outline of a record whose object is gone, and the inspector says gone where it said in sync, over the file name and content that the state still holds.
+
+*Figure: motd after pravo drift: the record says that the object is gone, and the state still holds what the file had.*
+
 ## Reconcile: restore
 
 The specification is right and the world is wrong. `pravo drift` left a mark on `motd`: the record says that the file is gone, and the plan acts on that without reading the file again.

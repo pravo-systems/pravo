@@ -145,8 +145,11 @@ func canonicalOutput(v cue.Value) cue.Value {
 
 // builtinTask runs a task that pravo implements itself.
 func (e *Engine) builtinTask(ctx context.Context, r *config.Resource, v cue.Value) error {
-	if r.Type == "remote_outputs" {
+	switch r.Type {
+	case "remote_outputs":
 		return e.remoteOutputsTask(ctx, r)
+	case "secret", "secret_version":
+		return e.secretTask(ctx, r, v)
 	}
 	return e.envTask(r, v)
 }

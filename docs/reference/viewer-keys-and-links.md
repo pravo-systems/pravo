@@ -14,7 +14,7 @@ A fragment looks like `#/?sel=api.services.billing.config&tab=source&collapse=ne
 
 | Parameter | Value | Meaning |
 |---|---|---|
-| `view` | `graph`, `list`, `plans`, `discovery`, `policies`, `traces` or `state` | The section, and for the Inventory whether the graph or the list is shown. `table` and `access` are older names of `list` and `state`, and a link that has them still opens. |
+| `view` | `graph`, `list`, `plans`, `discovery`, `policies`, `traces`, `secrets` or `state` | The section, and for the Inventory whether the graph or the list is shown. `table` and `access` are older names of `list` and `state`, and a link that has them still opens. |
 | `sel` | An address, or the path of a group | The selected node or group. It opens the groups and the cluster that hide the node, unless `collapse` names a group that holds it. |
 | `tab` | `state`, `source`, `schema`, `history` or `change` | The tab of the inspector. `change` shows what the plan over the graph does to the node. |
 | `collapse` | Group paths, or `all` | Groups drawn as one card, on top of the first view. |
@@ -69,6 +69,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `o` | Switch between the Inventory and the Policies sections. |
 | `s` | Open the policy studio, or go back to the register when it is open. |
 | `r` | Switch between the Inventory and the Traces sections. |
+| `e` | Switch between the Inventory and the Secrets sections. |
 | Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the group that a click opened, then clear the selection. |
 
 ### In the graph

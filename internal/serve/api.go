@@ -1214,6 +1214,100 @@ type JudgedRun struct {
 	Time   time.Time `json:"time"`
 }
 
+// Secrets is the answer of GET /api/secrets: the secrets that the sealed state keeps, by name,
+// with the latest version of each and who wrote it, the nodes of the specification that read
+// them, and what is wrong. It holds no value and no note: the viewer asks for no key to build
+// it, and what it lists is the clear part of the versions and the transactions that wrote
+// them. The page reads this and runs nothing.
+type Secrets struct {
+	Version  int    `json:"version"`
+	Revision string `json:"revision"`
+	// SpecOK is false when the specification does not load: the nodes that read a secret
+	// cannot be listed then.
+	SpecOK bool `json:"spec_ok"`
+	// Sealed is false when the state is not sealed, which cannot hold a secret.
+	Sealed bool `json:"sealed"`
+	// Checked says whether the signatures of the versions were judged against a readers file
+	// and the roles. Without one the versions are listed and none is vouched for.
+	Checked bool `json:"checked"`
+	// Secrets lists what the state holds, by name. A secret that the specification reads and
+	// the state lacks is an issue and not a row.
+	Secrets []SecretEntry `json:"secrets"`
+	// Issues are what needs attention, worst first. Problems counts them: it is the number on
+	// the tab. AllClear is the sentence for a state that holds secrets and has no issue.
+	Issues   []SecretIssue `json:"issues"`
+	Problems int           `json:"problems"`
+	AllClear string        `json:"all_clear,omitempty"`
+	// Note is a sentence about what was left unchecked, shown quietly.
+	Note string `json:"note,omitempty"`
+	// Unresolved lists the nodes that read a secret whose name is not known before a command
+	// runs, so that no row can say they use it.
+	Unresolved []string `json:"unresolved,omitempty"`
+}
+
+// SecretEntry is one secret of the state.
+type SecretEntry struct {
+	// Name is the name as it was written; one that is not a valid name for a secret is cleaned
+	// up for display and has no command.
+	Name string `json:"name"`
+	// Status is "set" (the latest version holds a value) or "removed" (the latest version
+	// removed the secret).
+	Status string `json:"status"`
+	// Version is the number of the latest version, and Versions the number of all of them, the
+	// removals and the purged ones included.
+	Version  int `json:"version"`
+	Versions int `json:"versions"`
+	// At is when the latest version was written, as its signature has it.
+	At time.Time `json:"at"`
+	// By is who signed the latest version: the name the readers file gives the key, or, when
+	// Trust is "unchecked", the name the signature gives itself, which proves nothing.
+	By string `json:"by,omitempty"`
+	// Trust is what the transactions make of the latest version: "ok", "vouched", "unchecked",
+	// "unconfirmed" or "problem". It is empty when the signatures were not checked.
+	Trust string `json:"trust,omitempty"`
+	// Bad counts the versions of the secret that no transaction of someone who may write it
+	// accounts for.
+	Bad int `json:"bad,omitempty"`
+	// UsedBy lists the nodes of the specification that read the secret, up to 40, and UsedMore
+	// the number left out.
+	UsedBy   []SecretUse `json:"used_by"`
+	UsedMore int         `json:"used_more,omitempty"`
+}
+
+// SecretUse is a node that reads a secret.
+type SecretUse struct {
+	Addr string `json:"addr"`
+	// Pin is the version the node asks for, absent for the latest.
+	Pin int `json:"pin,omitempty"`
+	// Number is set for a node that reads the number of the version and not the value.
+	Number bool `json:"number,omitempty"`
+}
+
+// SecretIssue is something about the secrets that needs a person's attention. Level is "bad" (a
+// command that reads the secret stops, or the state cannot be trusted) or "chg" (it works, and
+// should be mended). Kind is "unsealed", "unreadable", "roles", "unset", "untrusted",
+// "unchecked" or "unchecked-all".
+type SecretIssue struct {
+	Kind  string `json:"kind"`
+	Level string `json:"level"`
+	Title string `json:"title"`
+	Text  string `json:"text"`
+	// Items are the secrets or the versions of an issue, up to 20, and More the number left out.
+	Items []SecretIssueItem `json:"items,omitempty"`
+	More  int               `json:"more,omitempty"`
+}
+
+// SecretIssueItem is a secret, or a version of one, and what is wrong with it.
+type SecretIssueItem struct {
+	Name    string `json:"name"`
+	Version int    `json:"version,omitempty"`
+	Why     string `json:"why"`
+	// UsedBy lists the nodes that read it.
+	UsedBy []string `json:"used_by,omitempty"`
+	// Command is what to copy and run about it; absent when there is none to give.
+	Command string `json:"command,omitempty"`
+}
+
 // Studio is what the policy studio starts from: the plans a rule can be tried on, the
 // policies that can be started from, the document a rule is written against and some
 // rules to begin with. It is read from the state and the project and runs no rule.

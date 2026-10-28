@@ -56,7 +56,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			}
 			v := &viewerState{name: flags.Identity, dir: dir, accessDir: loadReadersFile(dir, flags.AccessDir).Dir}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, VerifyPlan: v.verifyPlan}
+			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.
@@ -491,6 +491,22 @@ func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, 
 // against, for the policies view. A repository with no readers file has none.
 func (v *viewerState) policyReaders(st *state.Store) ([]protect.Reader, bool) {
 	return attributionReaders(loadReadersFile(v.dir, v.accessDir))
+}
+
+// secretRules gives the rules that the signatures of the secret versions are judged by, for
+// the secrets view: the readers with their roles, the keys that left and were vouched for, and
+// the refusal of unknown keys when the roles are pinned in the state. A repository with no
+// readers file has none; roles that fail their check are no rules, and the string says why.
+func (v *viewerState) secretRules(st *state.Store) (state.RecordRules, bool, string) {
+	rf := loadReadersFile(v.dir, v.accessDir)
+	if !rf.Found || rf.Err != nil {
+		return state.RecordRules{}, false, ""
+	}
+	erf, rs, err := rf.withRoles(st)
+	if err != nil {
+		return state.RecordRules{}, false, printable(err.Error())
+	}
+	return recordRules(erf.Readers, rs), true, ""
 }
 
 // verifyPlan checks the signatures of a stored plan against the readers file, for the plan

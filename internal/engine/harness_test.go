@@ -706,6 +706,10 @@ type spec struct {
 	// (pravo.#Env) of the specification.
 	data     []string
 	builtins []string
+	// secrets lists the pravo.#Secret nodes and secretVersions the pravo.#SecretVersion
+	// nodes of the specification.
+	secrets        []string
+	secretVersions []string
 	// ephemerals lists the ephemeral resources (fake_session) and calls the
 	// function calls (fake_upper) of the specification.
 	ephemerals []string
@@ -757,6 +761,12 @@ func (h *harness) engine(s spec, opts Options) *Engine {
 	}
 	for _, addr := range s.builtins {
 		root.Resources = append(root.Resources, &config.Resource{Mode: "builtin", Type: "env", Name: addr, Path: cue.ParsePath(addr), Builtin: true})
+	}
+	for _, addr := range s.secrets {
+		root.Resources = append(root.Resources, &config.Resource{Mode: "ephemeral", Type: "secret", Name: addr, Path: cue.ParsePath(addr), Builtin: true})
+	}
+	for _, addr := range s.secretVersions {
+		root.Resources = append(root.Resources, &config.Resource{Mode: "builtin", Type: "secret_version", Name: addr, Path: cue.ParsePath(addr), Builtin: true})
 	}
 	for _, name := range s.outputs {
 		root.Outputs = append(root.Outputs, &config.Output{Name: name, Path: cue.ParsePath(name)})

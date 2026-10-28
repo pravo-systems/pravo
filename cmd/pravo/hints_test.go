@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/pravo-systems/pravo/internal/registry"
 )
 
 func TestValidateAndPlanSayWhenTheSpecificationIsWrittenAsHCL(t *testing.T) {
@@ -66,5 +68,22 @@ func TestSchemaWithoutASpecificationSaysHowToNameTheProvider(t *testing.T) {
 	out, code := runPravo(t, t.TempDir(), "schema", "random_pet")
 	if code == 0 || !strings.Contains(out, "this directory has no specification") || !strings.Contains(out, "hashicorp/random/random_pet") {
 		t.Errorf("exit %d\n%s", code, out)
+	}
+}
+
+func TestSchemaPrefixMustNotBeAmbiguous(t *testing.T) {
+	hashi := registry.Source{Host: registry.DefaultHost, Namespace: "hashicorp", Type: "random"}
+	acme := registry.Source{Host: registry.DefaultHost, Namespace: "acme", Type: "random"}
+	other := registry.Source{Host: registry.DefaultHost, Namespace: "hashicorp", Type: "null"}
+	target := schemaTarget{arg: "random_integer", local: "random", typ: "random_integer", bare: true}
+	if err := checkPrefix(target, []registry.Source{hashi, other}); err != nil {
+		t.Errorf("one provider named random: %v", err)
+	}
+	err := checkPrefix(target, []registry.Source{hashi, acme, other})
+	if err == nil || !strings.Contains(err.Error(), "ambiguous") || !strings.Contains(err.Error(), "acme/random") || !strings.Contains(err.Error(), "hashicorp/random") {
+		t.Errorf("two providers named random: %v", err)
+	}
+	if got, _ := parseSchemaArgs([]string{"random_integer", "random/random_integer", "hashicorp/random/random_integer"}[:2]); !got[0].bare || got[1].bare {
+		t.Errorf("only the prefix form is a guess: %+v", got)
 	}
 }

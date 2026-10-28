@@ -78,6 +78,7 @@ Run `pravo init` before the first `plan`. Commit `cue.mod/gen` and `pravo.lock.c
 | `#Output` | `name: pravo.#Output & {value: ...}`. See [Outputs](spec-outputs.md). |
 | `#Policy` | A rule over plans, kept in the state. See [Policies](policies-overview.md). |
 | `#Env`, `#SecretEnv` | Environment variables. See [Environment and remote outputs](spec-env.md). |
+| `#Secret`, `#SecretVersion` | A secret of the sealed state, and the number of its version. See [Secrets of the sealed state](spec-env.md#secrets-of-the-sealed-state). |
 | `#RemoteOutputs` | The outputs of another root. |
 | `#Movable` | Embedded in a definition so that its instances accept `$from`. See [Moves and imports](spec-moves-and-imports.md#from-on-a-group). |
 
@@ -94,6 +95,8 @@ grep -E '^#[A-Za-z0-9]+:' cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 #Change: {
 #Env: {
 #SecretEnv: {
+#Secret: {
+#SecretVersion: {
 #RemoteOutputs: {
 #Settings: {
 #StateSettings: #StateFields & (#LocalState | #S3State | #HTTPState)

@@ -295,7 +295,7 @@ worker: service.#Service & {random: $random, local: $local, name: "worker", port
 
 Put a credential on the provider in the root, not in the definition. The `tls` provider has no account, but its `proxy` block takes a user name and a password. It stands in for a cloud provider here.
 
-`pravo.#SecretEnv` reads a variable of the environment. Its value is ephemeral: it lives for one run. It may go into provider configuration and nowhere that is recorded.
+`pravo.#SecretEnv` reads a variable of the environment. Its value is ephemeral: it lives for one run. It may go into provider configuration and nowhere that is recorded. A state that is sealed, as Track C seals one, can keep the secret itself, with a history of who set it; [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) shows that.
 
 Add a third provider input to the definition, and a key that uses it.
 

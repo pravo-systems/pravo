@@ -55,7 +55,7 @@ function verify(tag, m, vis, lay) {
   // an environment variable stands in the first column of its lane, an output in the last
   const roleOf = (it) => {
     const x = it.kind === 'node' ? it.n : it;
-    return x.mode === 'output' ? 'output' : x.type === 'env' || x.type === 'secret_env' ? 'env' : '';
+    return x.mode === 'output' ? 'output' : x.type === 'env' || x.type === 'secret_env' || (!x.provider && (x.type === 'secret' || x.type === 'secret_version')) ? 'env' : '';
   };
   const parentOf = (p) => (p.includes('.') ? p.slice(0, p.lastIndexOf('.')) : '');
   const groups = new Map();

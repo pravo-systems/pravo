@@ -10,7 +10,7 @@ normalize:
     replace: '[txn <id>]'
 ---
 
-pravo handles three kinds of value that need care. A provider marks some attributes sensitive. Some values must never be recorded, and pravo calls them ephemeral. Some values come from the environment. Each travels through plans, the state and outputs in a different way. This page says where each one goes.
+pravo handles four kinds of value that need care. A provider marks some attributes sensitive. Some values must never be recorded, and pravo calls them ephemeral. Some values come from the environment. Some are secrets that the sealed state keeps. Each travels through plans, the state and outputs in a different way. This page says where each one goes.
 
 ## Where a value is recorded
 
@@ -19,6 +19,7 @@ pravo handles three kinds of value that need care. A provider marks some attribu
 | An attribute of a resource or data source | Recorded | Recorded | Printed | Present |
 | An attribute that the provider marks sensitive | Recorded as returned | Recorded | `(sensitive)` | Present, not masked |
 | A value read with `pravo.#Env` | Wherever it is used | Wherever it is used | Where it is used | Where it is used |
+| The number of a version, read with `pravo.#SecretVersion` | Wherever it is used | Wherever it is used | Where it is used | Where it is used |
 | An output | Recorded | Recorded when it is known | Printed | Present |
 | An output with `sensitive: true` | Recorded, wrapped as `$sensitive` | Recorded when it is known | `(sensitive)` | Present, not masked |
 | An ephemeral value | Never | Never | Never | Never |
@@ -116,7 +117,7 @@ Everything that a managed resource or a data source returns is recorded in the s
 <rect x="0" y="100" width="168" height="74" rx="2" style="fill:var(--accent-wash);stroke:var(--accent);stroke-width:1.5"/>
 <text x="84" y="128" text-anchor="middle" style="fill:var(--text);font-size:13px;font-weight:600">ephemeral value</text>
 <text x="84" y="146" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">ephemeral resource</text>
-<text x="84" y="160" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">pravo.#SecretEnv</text>
+<text x="84" y="160" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">#SecretEnv, #Secret</text>
 <line x1="168" y1="137" x2="220" y2="137" style="stroke:var(--text-3);stroke-width:1.5"/>
 <line x1="220" y1="27" x2="220" y2="261" style="stroke:var(--text-3);stroke-width:1.5"/>
 <line x1="220" y1="27" x2="262" y2="27" style="stroke:var(--accent);stroke-width:1.5"/>
@@ -254,6 +255,17 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 
 The kind is chosen where the variable is declared.
 
+### Secrets of the sealed state
+
+A `pravo.#Secret` is an ephemeral value that comes from the [sealed state](signatures-and-roles.md#what-is-sealed) of the root instead of the environment of the process. [`pravo secret set`](../reference/secret.md) keeps it there as a named secret with numbered versions, sealed to the same readers as the records. A run reads the latest version when it starts, or the version that `version` names, and stops before any provider starts when the secret is missing or was removed. The same rules decide where the value may go: provider configuration, a write-only attribute and another ephemeral resource.
+
+```cue
+db_password: pravo.#Secret & {name: "prod/db_password"}
+db_rev:      pravo.#SecretVersion & {name: "prod/db_password"}
+```
+
+A `pravo.#SecretVersion` is the number of the version that the run reads. The number is not secret, so it is an ordinary value that goes anywhere and is recorded where it is used. Wire it to the version attribute that sits next to a write-only attribute, such as `password_wo_version`, and a new version of the secret changes that attribute, which is what makes the provider take the new value. A run that uses both reads one version of the secret. `pravo validate`, `pravo fmt` and `pravo eval` do not open the state, so the value is unknown there, as it is for a `pravo.#SecretEnv`. [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) shows a secret from `set` to a rotation.
+
 ### Write-only attributes
 
 A write-only attribute is an attribute that the provider reads from the configuration and never stores. The generated schema marks it `@pravo(write_only)`.
@@ -327,7 +339,7 @@ grep -q 'PRIVATE KEY' pravo.state/resources/cert.json || echo "not found"
 not found
 ```
 
-A `pravo.#SecretEnv` is accepted in the same place. [Keep secrets out of the state](../how-to/secrets.md) shows one. Remove the certificate before the next section.
+A `pravo.#SecretEnv` and a `pravo.#Secret` are accepted in the same place. [Keep secrets out of the state](../how-to/secrets.md) shows the first, and [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) the second. Remove the certificate before the next section.
 
 ```sh run
 rm cert.cue
@@ -409,6 +421,6 @@ Another root reads outputs with `pravo.#RemoteOutputs`. It reads `outputs.json` 
 
 - A value is recorded in the state, the saved plan and the plan document unless it is ephemeral. Sensitive hides a value on a screen and nowhere else.
 - An ephemeral value exists for one run. It may go into provider configuration, a write-only attribute and another ephemeral resource, and nowhere else.
-- `pravo.#SecretEnv` is an ephemeral environment variable, and `pravo.#Env` is an ordinary one.
+- `pravo.#SecretEnv` is an ephemeral environment variable, and `pravo.#Env` is an ordinary one. `pravo.#Secret` is an ephemeral value that the sealed state keeps, and `pravo.#SecretVersion` is its number.
 
 Back to [Concepts](index.md), or to the guide on [secrets](../how-to/secrets.md).

@@ -72,15 +72,18 @@ for (const [key, f] of Object.entries(FILTERS)) {
   check(count(addTerm('', col, value, false)) === want, `filter=${key} is ${col}:${value}: ${count(addTerm('', col, value, false))} of ${want}`);
 }
 check(Object.keys(FILTERS).every((k) => k in LEGACY_FILTERS), 'every old filter has a term');
-check(count('entity:resource') + count('entity:data') + count('entity:ephemeral') + count('entity:output') + count('entity:env') === model.list.length, 'every node is one entity');
-check(count('entity:datasource') === count('entity:data') && count('entity:environment') === count('entity:env') && count('entity:managed') === count('entity:resource'), 'the names of an entity');
+check(count('entity:resource') + count('entity:data') + count('entity:ephemeral') + count('entity:output') + count('entity:env') + count('entity:secret') === model.list.length, 'every node is one entity');
+check(count('entity:datasource') === count('entity:data') && count('entity:environment') === count('entity:env') && count('entity:managed') === count('entity:resource') && count('entity:secrets') === count('entity:secret'), 'the names of an entity');
 check(count('-entity:output') === model.list.length - count('entity:output'), '-entity:output');
 check(entityOf({ mode: 'managed', type: 'env' }) === 'env' && entityOf({ mode: 'data', type: 'x' }) === 'data' && entityOf({ mode: 'output', type: 'output' }) === 'output', 'entityOf');
+// a secret of the sealed state and the number of its version are built in and have no provider: a resource of a provider whose type is called secret is not one
+check(entityOf({ mode: 'ephemeral', type: 'secret' }) === 'secret' && entityOf({ mode: 'builtin', type: 'secret_version' }) === 'secret' && entityOf({ mode: 'ephemeral', type: 'secret', provider: 'vault' }) === 'ephemeral', 'a secret is an entity of its own');
+check(model.list.some((n) => entityOf(n) === 'secret') && count('entity:secret') === model.list.filter((n) => n.type === 'secret' || n.type === 'secret_version').length, 'the secrets of the platform are found by entity:secret');
 const quick = at('');
 check(quick && quick.items[0].group === 'Filters' && quick.items.some((i) => i.group === 'Columns' && i.insert === 'entity:'), 'an empty word offers the filters and the columns');
 check(quick.items.filter((i) => i.group === 'Filters').every((i) => i.count > 0 && i.insert.endsWith(' ')), 'a filter that is offered has something to show');
 check(!at('entity:resource ').items.some((i) => i.label === 'entity:resource'), 'a filter that is on is not offered again');
-check(at('entity:').items.map((i) => i.label).join() === at('entity:').items.map((i) => i.label).sort((a, b) => ['resource', 'data', 'ephemeral', 'output', 'env'].indexOf(a) - ['resource', 'data', 'ephemeral', 'output', 'env'].indexOf(b)).join(), 'the entities come in their order');
+check(at('entity:').items.map((i) => i.label).join() === at('entity:').items.map((i) => i.label).sort((a, b) => ['resource', 'data', 'ephemeral', 'output', 'env', 'secret'].indexOf(a) - ['resource', 'data', 'ephemeral', 'output', 'env', 'secret'].indexOf(b)).join(), 'the entities come in their order');
 check(at('en').items[0].insert === 'entity:', 'en offers entity:');
 
 const inst = { addr: 'a', type: 'aws_lb', mode: 'managed', provider: 'aws.$awsPlatform', namespace: '' };

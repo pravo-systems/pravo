@@ -61,6 +61,7 @@ Protection is off by default, and a state with protection off is unchanged. `pra
 |---|---|---|
 | A record, `rec/SHA256` | The attributes and the private data of the provider, the hash of the configuration that made it and the configuration of its provider. | The address, type, name, provider, dependencies, revision, generation, the times and the transaction that wrote it. |
 | `outputs.json` | All of it. | Nothing. |
+| A secret, `secret/NAME@NUMBER.json` | The value and the note of a version. | The name, the number of the version, the time and the transaction that wrote it. |
 | A stored plan | The plan, and the command and tags that made it. | The id, the author, the actor, the reason, the times, the counts, the addresses and actions of the changes and the plans it overlaps. |
 | A transaction and a lock | The values of `-t`, `--tag`, `--webhook` and `-e` in the command line, which a lock and a transaction show as a tag. The original line is not kept. The text of the error of a run that failed or was rejected, which a transaction keeps for the readers, and what each change altered in the attributes of its record. | Everything else: the kind, the user, the host, the times, the status, the addresses and revisions it changed. The command shows each sealed value as `<sealed:a1b2c3d4>`. The summary of a failed run says that its text is sealed. |
 | A policy version | Nothing. | The text of the rule, its signature and who signed it. A policy is a rule about plans, not a secret. |
@@ -98,9 +99,9 @@ Sealing says who may read. Roles say who may change the state, and they are a fi
 
 | Role | May |
 |---|---|
-| `reader` | Open the state, read it and plan without changing it. Store a plan with `plan --store`, for a writer to apply. |
-| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. Approve a plan, where a policy asks for a writer's approval. |
-| `admin` | Remove a policy, or change one that asks for approvals. Change who reads the state, change roles, collect garbage, take the seal off. Apply a plan without the approvals a policy asks for. |
+| `reader` | Open the state, read it and plan without changing it. Store a plan with `plan --store`, for a writer to apply. Read a secret that the state keeps. |
+| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. Set a secret. Approve a plan, where a policy asks for a writer's approval. |
+| `admin` | Remove a policy, or change one that asks for approvals. Remove a secret and forget its old values. Change who reads the state, change roles, collect garbage, take the seal off. Apply a plan without the approvals a policy asks for. |
 
 A readers file in which no line has a role gives none, and every key may do everything. As soon as one line has a role, a line without one is a reader. A command that a role does not allow stops with exit code 5 before it changes anything, and says which role is needed. [`pravo protect roles`](../reference/roles.md#what-is-refused) lists each case.
 
@@ -153,6 +154,24 @@ Roles are checked by a pravo that reads the readers file and the roles in the st
 
 A key that left and kept the data key can still write to a bucket that its credentials reach, and honest runs refuse the result. Remove its credentials, and run `pravo protect rewrap --all` and `pravo protect gc` so that the key opens nothing that is left. An object lock on `roles/` stops the deletion of the newest versions, which the pin cannot see.
 
+## Secrets
+
+A sealed state can keep secrets of its own. A secret is sealed like a record: one object for each version, `secret/NAME@NUMBER.json`, with the value and its note encrypted to the readers of the state. [`pravo secret`](../reference/secret.md) sets, reads and removes them, and a run reads one with `pravo.#Secret` ([Environment and remote outputs](../reference/spec-env.md#secrets-of-the-sealed-state)). A state that holds a secret is in format 5.
+
+Each `secret` command is a transaction that the identity signs, and the finish signature covers the version it wrote, as it covers the key of a record. The history of a secret says who set each version, from which machine and for which reason. With [roles](#roles), only a writer sets a value and only an admin removes or forgets one, and a version that no signed transaction of such a key accounts for is refused with exit code 7. A reader holds the data key and can seal a value that opens for everyone, and cannot make a writer's transaction name it.
+
+What a secret does not get:
+
+**Every reader reads every secret.** There is no list of readers for one secret. A secret that some of the readers of a state should not read belongs in another state, with its own list of readers and its own prefix in the bucket.
+
+**A reader who leaves has read what they could open.** Removing the line, `pravo protect rewrap --all` and `pravo protect gc` leave nothing in the bucket that their key opens, and do not take back what they read. Set each secret they could read again at its source, and forget the old values with `pravo secret purge`. [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md#10-when-a-reader-leaves) lists the steps.
+
+**Reads are not recorded.** A read of a secret is a read of an object. The access log of the bucket is the only record that an identity fetched its ciphertext, and pravo keeps no audit of reads.
+
+**No freshness.** A signature does not say that a version is the newest. Someone who can write to the bucket can put an old object back. The check finds a missing newer version, because a verified transaction names it, and not an old object in its place. An object lock on `secret/` stops the replacement.
+
+**No expiry.** A secret has no lifetime, and no run is refused because of the clock. A rotation is a `pravo secret set`.
+
 ## What it does not do
 
 These are limits of the version that exists. Each is a fact to plan around.
@@ -193,13 +212,14 @@ These are limits of the version that exists. Each is a fact to plan around.
 
 **A state in a local directory is not shared.** The compare-and-swap of a directory is a lock of one user. `pravo protect check` refuses a local directory unless `--allow-local` says that only you use it.
 
-**Earlier versions of pravo refuse a sealed state, and a line with a role.** They stop with `state at LOCATION was written by a newer pravo (format 3)`, and do not read or write it. A readers file with a `role:` field is refused by a pravo that does not know roles, so it fails closed.
+**Earlier versions of pravo refuse a sealed state, and a line with a role.** They stop with `state at LOCATION was written by a newer pravo (format 3)`, and do not read or write it. A readers file with a `role:` field is refused by a pravo that does not know roles, so it fails closed. A state that holds a secret is in format 5, and a pravo that does not know secrets refuses it in the same way.
 
 **Sealing can be taken off, and it takes the protection with it.** `pravo protect unseal` writes every record, the outputs and the stored plans in the open. From then on anyone who can read the bucket can read every value. A copy of the bucket made while it was sealed still opens with the key of a reader. Values that sealing replaced by a tag in the command lines of old transactions are not restored. The state stays in the same lineage and the same format; see [protect unseal](../reference/protect.md#protect-unseal).
 
 ## Recap
 
 - Sealing encrypts attributes, private data, outputs, the values in stored plans and the values in command lines to a list of readers kept in the repository. Addresses, types, names, dependencies and revisions stay readable, and so do the names and roles of the readers.
+- A secret is a signed, versioned object in the sealed state. Every reader reads every secret, and a reader who leaves has read what they could open.
 - A signature says which key wrote which transaction, plan or policy version, and with roles, which records a writer wrote. It does not detect a rollback of the whole bucket.
 - A role is a field of the readers file, pinned in the state as a signed chain, so that no reader promotes themselves in a checkout. A former key keeps what an admin vouched for and can add nothing.
 - Each mechanism is checked by a pravo that has the repository. The credentials of the bucket, given by role, are what stop a write that pravo never sees.

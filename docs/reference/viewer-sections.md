@@ -1,12 +1,12 @@
 ---
 title: The sections of the viewer
-description: "What each section of the viewer shows and how to read it: Inventory, Plans, Discovery, Policies with the studio, Traces and State, part by part, with the filter columns and the tabs of the inspector."
+description: "What each section of the viewer shows and how to read it: Inventory, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector."
 order: 30
 group: Viewer
-keywords: "viewer sections inventory graph list inspector plans discovery policies studio traces state members filter columns tabs"
+keywords: "viewer sections inventory graph list inspector plans discovery policies studio traces secrets state members filter columns tabs"
 ---
 
-The viewer that [`pravo serve`](serve.md) starts is one page with six sections. The bar at the top switches between them, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
+The viewer that [`pravo serve`](serve.md) starts is one page with seven sections. The bar at the top switches between them, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
 
 | Section | Shows | Key | Link |
 |---|---|---|---|
@@ -15,9 +15,10 @@ The viewer that [`pravo serve`](serve.md) starts is one page with six sections. 
 | Discovery | What the discoveries of the specification found, and which objects nothing manages. | `d` | `view=discovery` |
 | Policies | The policies in force, what the next apply writes, and the studio that tries a rule on plans. | `o`, and `s` for the studio | `view=policies` |
 | Traces | The runs that pravo recorded, as a timeline of spans. | `r` | `view=traces` |
+| Secrets | The secrets that a sealed state keeps, each with its latest version, who set it and the nodes that read it, and whether a signed record of a writer stands behind every version. Never a value. | `e` | `view=secrets` |
 | State | Where the state is kept, how it is protected, who can read it and what needs doing. | `a` | `view=state` |
 
-The tab of Discovery carries the number of objects that ask to be adopted, and the tab of Policies the number of policies that the next apply changes; a tab with nothing waiting carries no number. The bar also holds the search button, which opens the command palette, the theme button, and, when the state is sealed, the identity the page is read as: its name, or `not a reader`, `no identity` or `identity locked` beside it. The title of the browser tab names the project and the section, so that tabs of several estates tell apart.
+The tab of Discovery carries the number of objects that ask to be adopted, the tab of Policies the number of policies that the next apply changes, and the tab of Secrets the number of problems it flags; a tab with nothing waiting carries no number. The bar also holds the search button, which opens the command palette, the theme button, and, when the state is sealed, the identity the page is read as: its name, or `not a reader`, `no identity` or `identity locked` beside it. The title of the browser tab names the project and the section, so that tabs of several estates tell apart.
 
 A status bar runs along the bottom of every section: the revision of the data, when it was read, `live`, `reconnecting`, `offline` or `connecting`, and `read-only · localhost only`. In Inventory it also says `no plan loaded`, or the id of the plan laid over the graph with `planned N of M` and the number of resources the plan did not read.
 
@@ -74,7 +75,7 @@ The filter box sets `q`: words, and terms of the form `column:value`. A word mat
 
 | Column | Matches | Values |
 |---|---|---|
-| `entity` | What the node is. Every node is one of them. | `resource`, `data` (a data source), `ephemeral`, `output`, `env` (an environment variable that the specification reads, `pravo.#Env` and `pravo.#SecretEnv`). `managed`, `datasource` and `environment` are read as `resource`, `data` and `env`. |
+| `entity` | What the node is. Every node is one of them. | `resource`, `data` (a data source), `ephemeral`, `output`, `env` (an environment variable that the specification reads, `pravo.#Env` and `pravo.#SecretEnv`), `secret` (a secret of the sealed state that the specification reads, `pravo.#Secret` and `pravo.#SecretVersion`). `managed`, `datasource`, `environment` and `secrets` are read as `resource`, `data`, `env` and `secret`. |
 | `type` | The resource type, whole. | A type, such as `aws_s3_bucket`. A `*` stands for any run of characters: `aws_s3*`. |
 | `provider` | The provider type of the resource. | A provider type, such as `aws`, whatever its instance. A `*` works. |
 | `instance` | The provider instance of the resource, by its whole key. | `aws.west`: the provider type and the name of the instance, which is only unique within its type. A `*` works. |
@@ -96,7 +97,7 @@ The menu under the box offers, while the box is empty, the filters that the esta
 
 ### The inspector
 
-The inspector shows the selection. For a resource it has a strip of cells, then the tabs. The strip has the cells Action, Record, Lock, Revision and Refreshed, and Plans when plans that can be applied change the resource. Action is the action of the plan laid over the graph, `no change`, `not read` or `no plan`. Record is `in sync`, `drifted`, `gone`, `declared only`, `orphan` or, for a node that is never recorded, `not recorded`. Lock shows when a lock or a reservation holds the resource. An ephemeral resource, a function call and an environment variable have no Revision and Refreshed cells.
+The inspector shows the selection. For a resource it has a strip of cells, then the tabs. The strip has the cells Action, Record, Lock, Revision and Refreshed, and Plans when plans that can be applied change the resource. Action is the action of the plan laid over the graph, `no change`, `not read` or `no plan`. Record is `in sync`, `drifted`, `gone`, `declared only`, `orphan` or, for a node that is never recorded, `not recorded`. Lock shows when a lock or a reservation holds the resource. An ephemeral resource, a function call, an environment variable and a secret have no Revision and Refreshed cells.
 
 | Tab | Shows | `tab` |
 |---|---|---|
@@ -313,6 +314,36 @@ The Traces section shows the runs that pravo recorded in the project. With `PRAV
 :::
 
 The values in a trace are the ones that a trace has anywhere: addresses, types, actions, counts, outcomes and error messages, never attribute values. The viewer masks them as it masks every other text that it shows, so an error message that quotes a secret of the state does not show it. A directory that holds a file that is not a run of this version shows its count and not the file. [The keys of the timeline](viewer-keys-and-links.md#in-the-timeline) move the selection and the view.
+
+## The Secrets section
+
+The Secrets section shows the secrets that the sealed state keeps and the nodes of the specification that read them. [`pravo secret`](secret.md) sets them; the viewer only reads. Its link is `view=secrets`, and its key is `e`. The tab carries the number of problems that the section flags, and no number when there are none. It has no toolbar of the Inventory and no inspector.
+
+The page never shows a value. The server builds it from the part of each version that is in the clear, which is the name, the number, the time and the transaction, and from the transactions that wrote them, which it checks against the readers file and the roles. It holds no key for a value, so a person who is not a reader sees the same page.
+
+| Part | Holds |
+|---|---|
+| The title block | The title with the number of secrets, and a sentence that says what a secret is. A square before the title is red when the page flags a problem and amber when it flags a change. |
+| Needs attention | The one place that says whether something is wrong. A state that holds secrets and has nothing to flag shows one line, `all clear`, with what was checked. Otherwise each problem is a flagged block, worst first, with the secrets it names (up to 20), the nodes that read each and the command that mends it, to copy. |
+| The table | One row for each secret, by name: its name, with `removed` when the latest version is a removal; the number of the latest version, whose tip gives how many versions there are; who set it, with `not trusted`, `older version flagged` or `key not listed` when the signatures do not account for it; when; and the nodes that read it, as chips (three at first, and a button for the rest, up to 40). A chip shows its node in the graph. `v3` on a chip marks a node that asks for version 3, and `number only` a node that reads the number of the version and not the value. |
+| A state with no secret | The command that sets one and the line of the specification that reads it, to copy. A state that is not sealed says so, with a button that opens the State section. |
+| Notes | Under the table, quietly: that the specification does not load, that only the latest version of each secret was checked (a state that holds more than 2000 versions), the nodes that read a secret whose name is not known until a command runs, and that `pravo secret history NAME` shows who wrote each version. |
+
+The problems, worst first:
+
+| Problem | When |
+|---|---|
+| `Secrets need a sealed state` | A node reads a secret and the state is not sealed, so it cannot keep one. A button opens the State section. |
+| `The secrets cannot be read as trusted` | The versions or their transactions could not be read. |
+| `The saved roles fail their check` | No version is vouched for until `pravo protect status` is satisfied. |
+| `N secret versions no signed record of a writer accounts for` | A version whose transaction is missing, did not verify, or was signed by a key that may not write. The command to mend it sets the secret again when it is the latest version, and shows the history otherwise. |
+| `N secrets the specification reads cannot be read` | A secret that is not set, was removed, or whose pinned version is not there or was purged, with `pravo secret set NAME`. |
+| `N secret versions were signed by a key the access list does not list` | Amber. A member who left, or a key someone made; with the roles pinned in the state, a command refuses it. |
+| `Who set each version is not checked` | Amber. The repository has no readers file to check the signatures against. |
+
+The section is read-only like the rest: the commands are text to copy, the footer says `This page shows the secrets. It runs nothing and writes nothing, and it never shows a value.`, and every response is built without opening a value. Tab visits each button and chip in the order of the page, with a ring that shows, and every button has a name.
+
+A node that reads a secret is in the graph, in the first column with the environment variables. Its State tab names the secret and the version that the state holds, which is not secret, and says what to run when the state holds none. It shows no value: `value` is withheld as an ephemeral value always is.
 
 ## The State section
 

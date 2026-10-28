@@ -240,6 +240,10 @@ Output:
 web -> port
 ```
 
+The viewer draws the edge and shows the record. Run `pravo serve` from the root, open the address it prints, and select `web`: the State tab lists the attributes that the provider reported, with the computed ones marked, and the outputs stand at the right of the graph.
+
+*Figure: web in the viewer, with its record. The outputs stand at the right of the graph, and web_file, which reads web, is outlined with it.*
+
 State is a directory with one file per resource and one per transaction:
 
 ```sh

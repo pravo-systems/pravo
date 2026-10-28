@@ -145,6 +145,19 @@ func (p *protectRun) status() error {
 		recs = &v
 		add("Records", recordsText(v))
 	}
+	// The secrets are judged without a key: what is checked is the clear part of each version
+	// and the transactions that wrote it.
+	var secs *state.SecretVerdict
+	if prot.Sealed != nil {
+		v, err := st.VerifySecrets(p.ctx, txns, recordRules(erf.Readers, rstat))
+		if err != nil {
+			return err
+		}
+		if v.Secrets > 0 {
+			secs = &v
+			add("Secrets", secretsText(v))
+		}
+	}
 	var sigs *sigCounts
 	if prot.Sealed != nil {
 		if readers, ok := attributionReaders(rf); ok {
@@ -185,6 +198,9 @@ func (p *protectRun) status() error {
 		if recs != nil {
 			doc["record_check"] = recs
 		}
+		if secs != nil {
+			doc["secrets"] = secs
+		}
 		if sealed {
 			doc["you"] = prot.You.State
 			added, removed := readersDiff(prot, rf)
@@ -214,6 +230,11 @@ func (p *protectRun) status() error {
 				out.Println(out.C(ui.Red, "Untrusted: "+printable(pr.Addr)+": "+printable(pr.Why)))
 			}
 		}
+		if secs != nil {
+			for _, pr := range secs.Problems {
+				out.Println(out.C(ui.Red, "Untrusted: "+secretProblemText(pr)))
+			}
+		}
 	}
 	if len(ver.Bad) > 0 {
 		return fmt.Errorf("%w: %s", state.ErrUntrusted, plural(len(ver.Bad), "object does", "objects do")+" not match")
@@ -224,7 +245,38 @@ func (p *protectRun) status() error {
 	if recs != nil && len(recs.Problems) > 0 {
 		return fmt.Errorf("%w: %s that no transaction of a writer accounts for", state.ErrUntrusted, plural(len(recs.Problems), "record", "records"))
 	}
+	if secs != nil && len(secs.Problems) > 0 {
+		return fmt.Errorf("%w: %s that no transaction of a writer accounts for", state.ErrUntrusted, plural(len(secs.Problems), "secret version", "secret versions"))
+	}
 	return nil
+}
+
+// secretsText is the Secrets line of protect status.
+func secretsText(v state.SecretVerdict) string {
+	line := fmt.Sprintf("%s · %s", plural(v.Secrets, "secret", "secrets"), plural(v.Versions, "version", "versions"))
+	line += fmt.Sprintf(" · %d bound to a transaction of a writer", v.Bound)
+	if v.Vouched > 0 {
+		line += fmt.Sprintf(" · %d vouched for by an admin (the key left or was demoted)", v.Vouched)
+	}
+	if v.Unchecked > 0 {
+		line += fmt.Sprintf(" · %d not checked (signed by a key that is not in the readers file)", v.Unchecked)
+	}
+	if v.Unconfirmed > 0 {
+		line += fmt.Sprintf(" · %d from a transaction that did not finish", v.Unconfirmed)
+	}
+	if n := len(v.Problems); n > 0 {
+		line += fmt.Sprintf(" · %d that no transaction of a writer accounts for", n)
+	}
+	return line
+}
+
+// secretProblemText says which version of which secret is not accounted for, and why.
+func secretProblemText(p state.SecretProblem) string {
+	what := printable(p.Name)
+	if p.Version > 0 {
+		what += fmt.Sprintf(" version %d", p.Version)
+	}
+	return what + ": " + printable(p.Why)
 }
 
 // rolesText is the Roles line of protect status.

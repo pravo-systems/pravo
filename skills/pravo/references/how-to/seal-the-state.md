@@ -512,6 +512,7 @@ A state that is unsealed is sealed again with `pravo protect init --encrypt`, to
 ## What next
 
 - [Give people roles](give-people-roles.md) says which readers may write the state, and pins the roles so that a copy of the readers file cannot promote its owner.
+- [Store secrets in the sealed state](store-secrets-in-the-state.md) keeps a secret in the state you sealed, with a history and roles, and hands it to a provider.
 - [Approve a plan](approve-a-plan.md) uses the signatures: a policy makes a plan wait for the approval of another key.
 - [pravo id and pravo protect](../reference/protect.md) lists every flag, the exit codes and the format of the readers file.
 - [Signatures and roles](../concepts/signatures-and-roles.md) lists what the seal covers, what a signature binds, what a role allows, and what none of the three does.

@@ -15,9 +15,9 @@ pravo records a run as a tree of spans: the command, the stages of its engine, e
 
 ## Turn the recording on
 
-Work in an empty directory. The root is `local/`, a name and a file that holds it, with the state in a local directory.
+Work in an empty directory: it is the root, with a name and a file that holds it, and the state in a local directory.
 
-File `local/main.cue`:
+File `main.cue`:
 
 ```cue
 package traced
@@ -41,9 +41,9 @@ note: $local.#Resource.local_file & {
 Nothing is recorded until you ask. `PRAVO_TRACES=on` in the environment of a command keeps its trace, and `export PRAVO_TRACES=on` keeps it for every command of the session.
 
 ```sh
-pravo -C local init > /dev/null
-PRAVO_TRACES=on pravo -C local apply --auto-approve | grep '^Apply complete'
-ls local/.pravo/traces
+pravo init > /dev/null
+PRAVO_TRACES=on pravo apply --auto-approve | grep '^Apply complete'
+ls .pravo/traces
 ```
 
 Output:
@@ -60,7 +60,7 @@ The file is named by the trace and its first span, and it is written in the dire
 The file is JSON, and `jq` reads it. The first span is the command, and every other span has a parent. The first word of a span's name is its kind:
 
 ```sh
-F=$(ls local/.pravo/traces/*.json)
+F=$(ls .pravo/traces/*.json)
 jq -r '.spans[0].name' "$F"
 jq -r '.spans[].name | split(" ")[0]' "$F" | sort | uniq -c
 ```
@@ -82,7 +82,7 @@ pravo apply
 Eighty spans for two resources. `engine` is the plan and the apply; `phase` the stages inside each, evaluate, refresh, apply changes; `resource` one span per resource per stage; `provider` the calls to the providers; `state` the requests to the state store. The spans of one resource, with their durations in microseconds, show what an apply of a resource is made of:
 
 ```sh
-F=$(ls local/.pravo/traces/*.json)
+F=$(ls .pravo/traces/*.json)
 jq -r '.spans[] | select(.name == "resource note") | .name' "$F" | sort | uniq -c
 jq -r '.spans[] | select(.name | startswith("provider ")) | .name' "$F" | sort | uniq -c
 ```
@@ -105,7 +105,7 @@ Two spans for `note`: one under the plan, one under the apply. The provider call
 ## Read it in the viewer
 
 ```sh
-pravo -C local serve
+pravo serve
 ```
 
 Press `r`, or open Traces from the bar. The runs are listed newest first, with the command, the age, how long it took and the resources it handled, and the newest is open as a timeline.
@@ -119,9 +119,9 @@ Time runs across and nesting runs down. The width of a bar is how long it took; 
 Make the directory of the file a file, so that the provider cannot write there, and change the length of the name, so that the apply has to write the file again. `-refresh=false` keeps the plan from reading the file first, so that the run fails where a failed apply usually fails: at the call that writes.
 
 ```sh
-rm -r local/out && touch local/out
-sed -i 's/length: 2/length: 3/' local/main.cue
-PRAVO_TRACES=on pravo -C local apply --auto-approve -refresh=false > apply.out 2>&1; echo "exit=$?"
+rm -r out && touch out
+sed -i 's/length: 2/length: 3/' main.cue
+PRAVO_TRACES=on pravo apply --auto-approve -refresh=false > apply.out 2>&1; echo "exit=$?"
 grep '^Error' apply.out
 ```
 
@@ -133,7 +133,7 @@ Error: note: Create local file error: An unexpected error occurred while writing
 ```
 
 ```sh
-F=$(ls -t local/.pravo/traces/*.json | head -n 1)
+F=$(ls -t .pravo/traces/*.json | head -n 1)
 jq -r '.spans[] | select(.status == "error") | .name' "$F"
 jq -r '.spans[] | select(.name == "provider ApplyResourceChange" and .status == "error") | .message' "$F"
 ```
@@ -158,8 +158,8 @@ In the viewer the run is marked `failed`, the spans that failed are red, and `is
 Addresses, types, actions, counts, outcomes and timings are recorded. Attribute values never are: not a value of the configuration, not a value of the state, not an id a provider returned, not an output. The name of the pet is not in the file, and neither would the password of C3 be. Error messages are recorded as they are printed, so a provider that quotes a value in its own error text puts it in the span, and the viewer masks it as it masks every text it shows.
 
 ```sh
-F=$(ls -t local/.pravo/traces/*.json | head -n 1)
-grep -c "$(pravo -C local state show server --json | jq -r .node.attributes.id)" "$F" || true
+F=$(ls -t .pravo/traces/*.json | head -n 1)
+grep -c "$(pravo state show server --json | jq -r .node.attributes.id)" "$F" || true
 ```
 
 Output:
@@ -177,9 +177,9 @@ A recorded run is as private as the project that holds it, and no more: the path
 Put the directory back, so that the apply succeeds, then destroy.
 
 ```sh
-rm local/out
-pravo -C local apply --auto-approve | grep '^Apply complete'
-pravo -C local destroy --auto-approve | tail -n 1
+rm out
+pravo apply --auto-approve | grep '^Apply complete'
+pravo destroy --auto-approve | tail -n 1
 ```
 
 Output:

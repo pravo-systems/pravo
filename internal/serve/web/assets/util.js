@@ -168,6 +168,7 @@ export const kindClass = (n) => (KINDS[n.mode] ? ' k-' + n.mode : '');
 export function nodeMark(n, hasPlan) {
   if (n.mode === 'output') return h('span', { class: 'i i-output omark', 'aria-hidden': 'true' });
   if (n.type === 'env' || n.type === 'secret_env') return h('span', { class: 'i i-env omark', 'aria-hidden': 'true' });
+  if (!n.provider && (n.type === 'secret' || n.type === 'secret_version')) return h('span', { class: 'i i-key omark', 'aria-hidden': 'true' });
   const act = actionOf(n.action);
   return h('i', { class: 'sq' + kindClass(n) + (act ? ' ' + act.cls : '') + (hasPlan && !n.action ? ' skip' : '') });
 }

@@ -46,9 +46,9 @@ pravo puts it in the readers file. A fifth word on a line gives the key a role: 
 
 | Role | May |
 |---|---|
-| `reader` | Open the state, read it, plan, ask `why`, and store a plan with `plan --store`. |
-| `writer` | What a reader may, and change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `discover adopt`. Add and edit a policy. Approve a plan. |
-| `admin` | What a writer may, and change who reads the state, change the roles, remove a policy, collect garbage and take the seal off. Apply a plan without the approvals a policy asks for. |
+| `reader` | Open the state, read it, plan, ask `why`, and store a plan with `plan --store`. Read a secret that the state keeps. |
+| `writer` | What a reader may, and change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `discover adopt`. Add and edit a policy. Set a secret. Approve a plan. |
+| `admin` | What a writer may, and change who reads the state, change the roles, remove a policy, remove a secret, collect garbage and take the seal off. Apply a plan without the approvals a policy asks for. |
 
 ## A sealed state, three readers
 

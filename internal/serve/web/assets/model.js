@@ -12,6 +12,9 @@ export const CLUSTER_CAP = 200;
 export const isOut = (n) => n.mode === 'output';
 // isEnv says that a node is an environment variable that the project reads. It is built in, like an output, and has no provider.
 export const isEnv = (n) => n.type === 'env' || n.type === 'secret_env';
+// isSecret says that a node is a secret of the sealed state that the project reads, or the number of its version. It is built in too, has no
+// provider and no record, and is read when a command runs. Its value is never on the page.
+export const isSecret = (n) => !n.provider && (n.type === 'secret' || n.type === 'secret_version');
 
 const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 export const natural = (a, b) => collator.compare(a, b);
@@ -26,7 +29,7 @@ const zero = () => ({ n: 0, out: 0, plan: 0, create: 0, update: 0, replace: 0, d
 export const FILTERS = {
   resources: (n) => n.mode === 'managed',
   data: (n) => n.mode === 'data',
-  ephemeral: (n) => n.mode === 'ephemeral',
+  ephemeral: (n) => n.mode === 'ephemeral' && !isSecret(n),
   plan: (n) => !isOut(n) && !!n.action && n.action !== 'no-op',
   drifted: (n) => !isOut(n) && !!(n.drifted || n.gone),
   sensitive: (n) => n.sensitive > 0,
@@ -34,6 +37,7 @@ export const FILTERS = {
   declared: (n) => !isOut(n) && n.presence === 'spec',
   outputs: (n) => isOut(n),
   env: (n) => !isOut(n) && isEnv(n),
+  secret: (n) => !isOut(n) && isSecret(n),
 };
 
 // The counts that a sealed record leaves out: its attributes and its marks are not read, so a zero beside sealed
@@ -86,9 +90,9 @@ export function buildModel(graph, plans) {
     edges.push({ a: a.addr, b: b.addr });
   }
   const nout = list.filter(isOut).length;
-  const nenv = list.filter((n) => !isOut(n) && isEnv(n)).length;
-  // All is the resources: what the state records and what a plan counts. Outputs and environment variables are not resources, and their chips count them.
-  const counts = { all: list.length - nout - nenv, resources: 0, data: 0, ephemeral: 0, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0, env: 0, sealed: 0 };
+  const nenv = list.filter((n) => !isOut(n) && (isEnv(n) || isSecret(n))).length;
+  // All is the resources: what the state records and what a plan counts. Outputs, environment variables and secrets are not resources, and their chips count them.
+  const counts = { all: list.length - nout - nenv, resources: 0, data: 0, ephemeral: 0, plan: 0, drifted: 0, sensitive: 0, orphans: 0, declared: 0, outputs: 0, env: 0, secret: 0, sealed: 0 };
   for (const n of list) {
     for (const k of Object.keys(FILTERS)) if (FILTERS[k](n)) counts[k]++;
     if (n.sealed) counts.sealed++;

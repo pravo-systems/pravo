@@ -21,9 +21,9 @@ A sealed state says who may read it. Roles say who may change it. A key has one 
 
 | Role | May |
 |---|---|
-| `reader` | Open the state, read it, and plan (or ask `why`) without changing it. Store a plan with `plan --store`. |
-| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. Approve a plan, where a policy asks for a writer's approval. |
-| `admin` | Remove a policy, or change one that asks for approvals. Change who reads the state (`protect rewrap`), change roles (`protect roles`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). Apply a plan without the approvals a policy asks for. |
+| `reader` | Open the state, read it, and plan (or ask `why`) without changing it. Store a plan with `plan --store`. Read a secret: `secret get`, `secret exec`, and a run that reads one. |
+| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. Set a secret with `secret set`. Approve a plan, where a policy asks for a writer's approval. |
+| `admin` | Remove a policy, or change one that asks for approvals. Remove a secret and forget its old values (`secret rm`, `secret purge`). Change who reads the state (`protect rewrap`), change roles (`protect roles`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). Apply a plan without the approvals a policy asks for. |
 
 The role is the fifth field of the line of the key in the readers file, which the repository holds:
 
@@ -97,10 +97,10 @@ They are checked by a pravo that reads the readers file and the roles in the sta
 | Role | Credentials on the bucket |
 |---|---|
 | `reader` | Get and list on the whole prefix. Put on `plans/`. |
-| `writer` | Get, put, delete and list on the prefix, except `meta.json`, `policy/` and `roles/`, where a writer has get and list and may put a new object under `policy/`. |
-| `admin` | Everything on the prefix, `meta.json`, `policy/` and `roles/` included. |
+| `writer` | Get, put, delete and list on the prefix, except `meta.json`, `policy/`, `roles/` and `secret/`, where a writer has get and list and may put a new object under `policy/` and under `secret/`. |
+| `admin` | Everything on the prefix, `meta.json`, `policy/`, `roles/` and `secret/` included. |
 
-A job that only plans runs with the first row.
+A job that only plans runs with the first row. The first secret of a state raises `meta.json` to format 5, which needs the put of an admin; a writer sets every later version with a put of a new object. `secret rm` writes a new object too, and `secret purge` and `rewrap --all` replace objects of `secret/`, so they need an admin's credentials as well as an admin's role.
 
 ## Example
 

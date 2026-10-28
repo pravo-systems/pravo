@@ -151,6 +151,10 @@ plan-<id>  pending  dan  just now  +1 ~0 -0  expires in 7 days
 plan-<id>  pending  ada  just now  +1 ~0 -0  expires in 7 days
 ```
 
+The Plans section of the viewer, `pravo -C dan serve` and then `p`, lists both, newest first, with the note each author wrote as the title and a mark on each row that says another plan changes one of the same resources. View lays the plan of a row over the graph.
+
+*Figure: Both plans in the Plans section. The mark of two rings on each row says that the other plan changes the same resource.*
+
 Dan's checkout differs from the files Ada planned from, so Ada's plan cannot be applied from it. `plan show` says so, and names the file:
 
 ```sh

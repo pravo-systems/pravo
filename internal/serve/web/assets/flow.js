@@ -542,7 +542,7 @@ export function flow(args, G) {
     const roleOf = (n) => {
       if (!n || n.kind !== 'item') return '';
       const x = n.it.kind === 'node' ? n.it.n : n.it;
-      return x.mode === 'output' ? 'output' : x.type === 'env' || x.type === 'secret_env' ? 'env' : '';
+      return x.mode === 'output' ? 'output' : x.type === 'env' || x.type === 'secret_env' || (!x.provider && (x.type === 'secret' || x.type === 'secret_version')) ? 'env' : '';
     };
     const isOutR = (r) => roleOf(N.get(r)) === 'output';
     const isEnvR = (r) => roleOf(N.get(r)) === 'env';

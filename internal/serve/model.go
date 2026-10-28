@@ -66,6 +66,10 @@ type model struct {
 	// studio tries them. The page gets them masked.
 	polText map[string]polTexts
 
+	// secs is the secrets of the state set against the specification, and its bytes.
+	secs     *Secrets
+	secsJSON []byte
+
 	// studio holds what the studio has worked out for this revision.
 	studio studioCache
 
@@ -246,6 +250,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	m.accessJSON, _ = json.Marshal(m.access)
 	m.buildDiscovery(rev)
 	m.buildPolicies(rev)
+	m.buildSecrets(rev)
 	return m
 }
 

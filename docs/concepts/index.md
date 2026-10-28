@@ -25,7 +25,7 @@ Read them in this order. Later pages use terms that earlier pages define.
 
 8. [Stored plans and approvals](stored-plans-and-approvals.md). How a plan lives in the state, how it moves from pending to applied, and how a policy makes it wait for the approval of other people.
 9. [Constraints and policies](policies.md). A constraint on a provider, checked at evaluation, and a policy on a plan, kept in the state: what each binds, and what neither guarantees.
-10. [Secrets and ephemeral values](secrets-and-ephemeral-values.md). How sensitive and short-lived values travel through plans, state and outputs.
+10. [Secrets and ephemeral values](secrets-and-ephemeral-values.md). How sensitive and short-lived values travel through plans, state and outputs, and how a sealed state keeps a secret of its own.
 11. [Signatures and roles](signatures-and-roles.md). What a sealed state encrypts, what a signature binds, what a role allows, and what none of the three does.
 
 **Reading an estate**

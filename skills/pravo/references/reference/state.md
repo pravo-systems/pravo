@@ -159,7 +159,7 @@ With `--json`, `query` prints JSON. `pravo state graph --dot | dot -Tsvg` draws 
 
 ### log
 
-Every apply, destroy, import and state edit is a transaction. A plan that refreshes or moves records is one too, and so is a plan that finds drift: the entry says `drift`. A plan that reads nothing and writes nothing leaves none.
+Every apply, destroy, import and state edit is a transaction. A plan that refreshes or moves records is one too, and so is a plan that finds drift: the entry says `drift`. So is each `pravo secret set`, `rm` and `purge`: the entry says `secret`, and its line for the node is `secret:NAME` with the numbers of the versions, never a value ([`pravo secret`](secret.md)). A plan that reads nothing and writes nothing leaves none.
 
 ```sh
 pravo state log
@@ -309,7 +309,7 @@ resources
 txn
 ```
 
-`pull` and `push` copy the stored plans below `plans/` with the records, the claims on them included. A stored plan that a collection removes during the copy is left out of it. `push` copies a local directory into the configured backend. To move a root to a bucket, add the `state` block to `$settings`, run `pravo state push pravo.state`, and archive the local directory. See [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md).
+`pull` and `push` copy the stored plans below `plans/` with the records, the claims on them included, and the versions of the secrets below `secret/`. A copy stops when the destination holds a version of a secret that the source lacks or another version at the same number, and it does not put back a value that the destination purged. A stored plan that a collection removes during the copy is left out of it. `push` copies a local directory into the configured backend. To move a root to a bucket, add the `state` block to `$settings`, run `pravo state push pravo.state`, and archive the local directory. See [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md).
 
 ### import-tfstate
 

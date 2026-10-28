@@ -431,9 +431,9 @@ $settings: pravo.#Settings & {state: pravo.#S3State & {
 
 The block is typed by backend. Local fields with an S3 backend, S3 fields with the local backend, and `backend: "s3"` without a `bucket` are errors at evaluation. A `bucket` with no `backend` means `s3`. Credentials come from the usual AWS chain: the environment, a profile, or a role. Static `access_key` and `secret_key` fields end up in the specification.
 
-Every property of the local store holds in a bucket. Each node is one object, written on its own. The bucket holds a log of transactions, a lock for each node and the stored plans. A lock is an object created with the `If-None-Match: *` conditional write. Two commands on different machines cannot both create it, so the store must honour that header, and `If-Match` on renew, release and reclaim. Stored plans use the same requests: a plan is created with `If-None-Match: *`, and its progress object is replaced and its objects are deleted with `If-Match`. [S3-compatible stores](../reference/s3-stores.md) says how to test a store. The prefix lets several roots share a bucket.
+Every property of the local store holds in a bucket. Each node is one object, written on its own. The bucket holds a log of transactions, a lock for each node, the stored plans and, when the state is sealed, its secrets. A lock is an object created with the `If-None-Match: *` conditional write. Two commands on different machines cannot both create it, so the store must honour that header, and `If-Match` on renew, release and reclaim. Stored plans use the same requests: a plan is created with `If-None-Match: *`, and its progress object is replaced and its objects are deleted with `If-Match`. [S3-compatible stores](../reference/s3-stores.md) says how to test a store. The prefix lets several roots share a bucket.
 
-`pravo state pull DIR` copies the configured graph into a local directory. `pravo state push DIR` copies a local directory into the configured backend, objects, transaction log and stored plans included.
+`pravo state pull DIR` copies the configured graph into a local directory. `pravo state push DIR` copies a local directory into the configured backend, objects, transaction log, stored plans and secrets included.
 
 ## Cost follows the change
 

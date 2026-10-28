@@ -216,7 +216,7 @@ One rule closes the loop. A writer may edit a policy, and a plan that changes a 
 
 ## What a stored plan does not do
 
-The viewer, `plan list` and the listing of an agent judge a plan by the state alone. They do not know whether the checkout that applies it has the same files, and they do not know whether the plan has its approvals: a plan is `pending` until an apply records otherwise, and `pravo apply` makes both checks. A plan is not a lock. Storing it reserves nothing, and another plan on the same resources is a warning, not a refusal; `plan --reserve` is the reservation. And a plan is not a review. It says what the apply will do, exactly, and nothing about whether that is wanted: a policy says that, and an approval says that someone looked.
+The viewer, `plan list` and the listing of an agent judge a plan by the state alone. They do not know whether the checkout that applies it has the same files. `plan list` and the agent do not count approvals either; the viewer does, against its own readers file, and says on the row of a plan what it still needs. A plan is `pending` until an apply records otherwise, and `pravo apply` makes both checks. A plan is not a lock. Storing it reserves nothing, and another plan on the same resources is a warning, not a refusal; `plan --reserve` is the reservation. And a plan is not a review. It says what the apply will do, exactly, and nothing about whether that is wanted: a policy says that, and an approval says that someone looked.
 
 ## Recap
 

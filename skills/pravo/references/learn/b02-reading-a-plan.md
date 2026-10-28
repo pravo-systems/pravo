@@ -255,7 +255,20 @@ web: replace
   - the provider cannot change content in place; replacement required
 ```
 
-`reaches: web` lists the resources that the change spreads to. For `web` the reason is `inputs depend on values known only after apply: port`. Apply the change:
+`reaches: web` lists the resources that the change spreads to. For `web` the reason is `inputs depend on values known only after apply: port`.
+
+The viewer draws the same account over the graph. Save the plan to a file and open it there, in a second terminal:
+
+```sh
+pravo plan --out change.plan
+pravo serve --plan change.plan
+```
+
+Both resources carry the badge of a replacement, and the Change tab of `web` lists the reasons that `why` gave, with the attribute that forces the replacement and its value before and after.
+
+*Figure: The plan of the narrower range over the graph. Both resources are replaced, and the Change tab of web says why: its content depends on a value that is known only after apply.*
+
+Apply the change:
 
 ```sh
 pravo apply --auto-approve | tail -n 1

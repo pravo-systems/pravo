@@ -155,6 +155,10 @@ worker.config
 worker.serial
 ```
 
+In the viewer, `pravo serve` from the root, each instance is a group with its two resources, and the Source tab of `api.config` has two places: where the definition declares the file, in the package, and where the root instantiates the definition as `api`.
+
+*Figure: api.config in the viewer. Its source has two places: the definition in the package, and the instance in the root.*
+
 Each instance wrote its own file.
 
 ```sh
@@ -207,9 +211,9 @@ Error: evaluating .:
 api.local.$source: conflicting values "registry.opentofu.org/hashicorp/local" and "registry.opentofu.org/hashicorp/random":
     ./cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue:23:11
     ./cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue:23:11
+    ./lib/service/service.cue:10:11
     ./main.cue:12:9
     ./main.cue:12:53
-    ./lib/service/service.cue:10:11
 ```
 
 The path is `api.local.$source`, the identity of the provider. The two values are the sources of `local` and `random`. The locations name the generated packages, the instance in `main.cue` and the input in the definition.
@@ -271,7 +275,7 @@ worker: service.#Service & {random: $random, local: $local, name: "worker", port
 
 Put a credential on the provider in the root, not in the definition. The `tls` provider has no account, but its `proxy` block takes a user name and a password. It stands in for a cloud provider here.
 
-`pravo.#SecretEnv` reads a variable of the environment. Its value is ephemeral: it lives for one run. It may go into provider configuration and nowhere that is recorded.
+`pravo.#SecretEnv` reads a variable of the environment. Its value is ephemeral: it lives for one run. It may go into provider configuration and nowhere that is recorded. A state that is sealed, as Track C seals one, can keep the secret itself, with a history of who set it; [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) shows that.
 
 Add a third provider input to the definition, and a key that uses it.
 
