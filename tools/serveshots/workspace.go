@@ -132,7 +132,8 @@ type workspace struct {
 	Env []string
 }
 
-// prepareClean copies the scenario to dir, initialises it and applies it.
+// prepareClean copies the scenario to dir, initialises it and applies it. A
+// scenario without resources is initialised and not applied.
 func prepareClean(ctx context.Context, r *pravoRunner, sc scenario, dir string) (*workspace, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -142,6 +143,9 @@ func prepareClean(ctx context.Context, r *pravoRunner, sc scenario, dir string) 
 	}
 	if _, err := r.mustRun(ctx, dir, []int{0}, "init"); err != nil {
 		return nil, err
+	}
+	if sc.Resources == 0 {
+		return &workspace{Dir: dir, Scenario: sc, Situation: situationClean}, nil
 	}
 	res, err := r.mustRun(ctx, dir, []int{0}, "apply", "-auto-approve")
 	if err != nil {
@@ -356,9 +360,10 @@ const (
 const passphrase = "an example passphrase"
 
 // prepareTeam makes the team situation: the scenario with its state in the
-// store, three identities with roles in the readers file, the state sealed to
-// them and the roles pinned, the first apply, and then the steps of the team,
-// each by its person. Every command that does work is recorded as a run.
+// store, or in a local directory when its files name no store, an identity
+// with a role in the readers file for each person, the state sealed to them
+// and the roles pinned, the first apply, and then the steps of the team, each
+// by its person. Every command that does work is recorded as a run.
 func prepareTeam(ctx context.Context, r *pravoRunner, sc scenario, dir string, deps teamDeps) (*workspace, error) {
 	t := sc.Team
 	if t == nil {
@@ -371,6 +376,10 @@ func prepareTeam(ctx context.Context, r *pravoRunner, sc scenario, dir string, d
 		return nil, err
 	}
 	if err := copyScenario(sc.Name, dir); err != nil {
+		return nil, err
+	}
+	local, err := lacksPlaceholder(dir, storePlaceholder)
+	if err != nil {
 		return nil, err
 	}
 	if err := fillPlaceholders(dir, map[string]string{storePlaceholder: deps.Store.Endpoint, providerPlaceholder: deps.FakeProvider}); err != nil {
@@ -409,9 +418,15 @@ func prepareTeam(ctx context.Context, r *pravoRunner, sc scenario, dir string, d
 	if err := os.WriteFile(filepath.Join(access, "readers.txt"), []byte(strings.Join(readers, "\n")+"\n"), 0o644); err != nil {
 		return nil, err
 	}
+	// A state in a local directory is sealed with --allow-local: its lock is
+	// one user's, which is what the scenario has.
+	seal := []string{"protect", "init", "--encrypt", "--yes"}
+	if local {
+		seal = append(seal, "--allow-local")
+	}
 	for _, args := range [][]string{
 		{"init"},
-		{"protect", "init", "--encrypt", "--yes"},
+		seal,
 		{"protect", "roles", "--yes"},
 	} {
 		if _, err := r.mustRunEnv(ctx, dir, as(admin), []int{0}, args...); err != nil {
@@ -420,7 +435,11 @@ func prepareTeam(ctx context.Context, r *pravoRunner, sc scenario, dir string, d
 	}
 
 	// The first apply, by the admin, and the work of the team.
-	res, err := w.traced(ctx, r, "apply", as(admin), "apply", "-auto-approve", "--actor", admin, "--reason", "first apply of the "+sc.Base)
+	reason := "first apply"
+	if sc.Base != "" {
+		reason += " of the " + sc.Base
+	}
+	res, err := w.traced(ctx, r, "apply", as(admin), "apply", "-auto-approve", "--actor", admin, "--reason", reason)
 	if err != nil {
 		return nil, err
 	}
@@ -469,8 +488,8 @@ func (w *workspace) step(ctx context.Context, r *pravoRunner, st teamStep, as fu
 			return fmt.Errorf("pravo plan --store named no plan:\n%s", indent(strings.TrimSpace(res.Out)))
 		}
 		w.Plans[st.Label] = id
-		if st.ApproveBy != "" {
-			if _, err := r.mustRunEnv(ctx, w.Dir, as(st.ApproveBy), []int{0}, "plan", "approve", id, "--actor", st.ApproveBy, "--reason", "reviewed: "+st.Reason); err != nil {
+		for _, by := range st.ApproveBy {
+			if _, err := r.mustRunEnv(ctx, w.Dir, as(by), []int{0}, "plan", "approve", id, "--actor", by, "--reason", "reviewed: "+st.Reason); err != nil {
 				return err
 			}
 		}
@@ -480,6 +499,22 @@ func (w *workspace) step(ctx context.Context, r *pravoRunner, st teamStep, as fu
 			}
 		}
 		return nil
+	case "save":
+		if st.File == "" {
+			return fmt.Errorf("the step has no file")
+		}
+		restore, err := saveFiles(w.Dir, st.Edits)
+		if err != nil {
+			return err
+		}
+		if err := applyEdits(w.Dir, st.Edits); err != nil {
+			return err
+		}
+		_, err = r.mustRunEnv(ctx, w.Dir, as(st.Actor), []int{0}, "plan", "--out", st.File, "--actor", st.Actor)
+		if rerr := restore(); err == nil {
+			err = rerr
+		}
+		return err
 	}
 	return fmt.Errorf("unknown kind %q", st.Kind)
 }
@@ -508,6 +543,26 @@ func (w *workspace) traced(ctx context.Context, r *pravoRunner, label string, en
 	}
 	w.Traces[label] = strings.TrimSuffix(filepath.Base(fresh[0]), ".json")
 	return res, nil
+}
+
+// lacksPlaceholder reports whether none of the CUE files at the top of dir
+// holds the placeholder: a team scenario whose files name no store keeps its
+// state in a local directory.
+func lacksPlaceholder(dir, placeholder string) (bool, error) {
+	files, err := filepath.Glob(filepath.Join(dir, "*.cue"))
+	if err != nil {
+		return false, err
+	}
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(string(data), placeholder) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // fillPlaceholders writes the values into the CUE files at the top of dir.

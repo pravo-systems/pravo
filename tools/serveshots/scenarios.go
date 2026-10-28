@@ -25,7 +25,9 @@ type scenario struct {
 	// Base names a scenario whose files are copied first; the files of this
 	// scenario are laid over them.
 	Base string
-	// Resources is the number of resources that pravo apply creates.
+	// Resources is the number of resources that pravo apply creates. Zero is
+	// a scenario that is initialised and not applied: its plans are made
+	// before anything exists.
 	Resources int
 	// Disk are changes to the files that the resources wrote, made after the
 	// apply and before pravo drift.
@@ -93,7 +95,9 @@ type teamStep struct {
 	// Kind is what the step does: "discover" runs the discoveries; "change"
 	// stores a plan of the edits, has it approved and applies it by its id, and
 	// the edits stay; "propose" stores a plan of the edits and undoes them,
-	// and the plan waits in the state.
+	// and the plan waits in the state; "save" saves a plan of the edits to
+	// File, with pravo plan --out, and undoes them, and the file is a plan
+	// that the policy studio lists.
 	Kind string
 	// Actor is the person who runs the step.
 	Actor  string
@@ -102,9 +106,11 @@ type teamStep struct {
 	// Label names the stored plan of the step for a fragment, as "@label", and
 	// its recorded runs, as "@plan:label" and "@apply:label".
 	Label string
-	// ApproveBy is the person who approves the plan: the admin, for a change,
-	// and anyone, for a proposal that is to show as approved.
-	ApproveBy string
+	// ApproveBy are the people who approve the plan, in order: the admin, for
+	// a change, and anyone, for a proposal that is to show as approved.
+	ApproveBy []string
+	// File is the plan file that a save writes, in the root.
+	File string
 }
 
 // diskChange changes a file in the workspace the way a person would outside
@@ -127,8 +133,11 @@ type edit struct {
 	New  string
 }
 
-// The edits that the platform and team scenarios share.
+// The edits that the scenarios share.
 var (
+	// A second name, which a plan of the lesson C5 adds.
+	addSecond = edit{File: "main.cue", New: `second: $random.#Resource.random_pet & {length: 2, prefix: "db"}
+`}
 	// A new port for orders changes its configuration, which replaces the
 	// file, the deploy step that reads its hash and the route at the edge.
 	ordersPort = edit{File: "api.cue", Old: "port:     8082", New: "port:     9082"}
@@ -202,17 +211,131 @@ edge: waf: rules: $local.#Resource.local_file & {
 				{Kind: "discover", Actor: "ada"},
 				// A change that went through: ben stored it, ada approved it,
 				// since every replacement needs an admin, and ben applied it.
-				{Kind: "change", Actor: "ben", Reason: "search moves to port 8084", Label: "search", ApproveBy: "ada",
+				{Kind: "change", Actor: "ben", Reason: "search moves to port 8084", Label: "search", ApproveBy: []string{"ada"},
 					Edits: []edit{{File: "api.cue", Old: "port:     8083", New: "port:     8084"}}},
 				// A proposal that waits for an admin.
 				{Kind: "propose", Actor: "ben", Reason: "retire the reload step of the balancer", Label: "reload",
 					Edits: []edit{removeReload}},
 				// A proposal of a reader, approved and not applied yet.
-				{Kind: "propose", Actor: "cy", Reason: "move orders to port 9082", Label: "orders", ApproveBy: "ada",
+				{Kind: "propose", Actor: "cy", Reason: "move orders to port 9082", Label: "orders", ApproveBy: []string{"ada"},
 					Edits: []edit{ordersPort}},
 			},
 			// A stricter rule, written and not applied: the next apply carries it.
 			After: []edit{{File: "policies.cue", Old: `approvals: {min: 1, role: "admin"}`, New: `approvals: {min: 2, role: "admin"}`}},
+		},
+	},
+
+	// The estates of the lessons, each the root of its lesson as it stands when
+	// the lesson opens the viewer. The files are the ones that the lesson writes.
+	{
+		// B2, Reading a plan: one changed number replaces the port and the file
+		// that reads it.
+		Name:      "b02",
+		Resources: 2,
+		Edits:     []edit{{File: "port.cue", Old: "max:  29999", New: "max:  20999"}},
+	},
+	{
+		// B3, Apply, outputs, state: the same root with two outputs, applied.
+		Name:      "b03",
+		Resources: 2,
+	},
+	{
+		// B5, Many resources from one rule: three services, a port and a file each.
+		Name:      "b05",
+		Resources: 6,
+	},
+	{
+		// B6, Reuse, providers, credentials: a definition in a package of its
+		// own, used twice.
+		Name:      "b06",
+		Resources: 4,
+	},
+	{
+		// B8, Renames, moves, imports: the number is renamed and keeps its object.
+		Name:      "b08",
+		Resources: 2,
+		Edits: []edit{
+			{File: "main.cue", Old: `server: $random.#Resource.random_integer & {min: 1, max: 99, seed: "s1"}`,
+				New: `primary: $random.#Resource.random_integer & {$from: "server", min: 1, max: 99, seed: "s1"}`},
+			{File: "main.cue", Old: `content:  "server \(server.result)\n"`, New: `content:  "server \(primary.result)\n"`},
+		},
+	},
+	{
+		// B9, Drift: a file that someone deleted, which pravo drift finds.
+		Name:      "b09",
+		Resources: 2,
+		Disk:      []diskChange{{Path: "motd.txt", Remove: true, Addr: "motd"}},
+	},
+	{
+		// B10, Constraints on providers, policy on plans: a policy in force, and
+		// an apply that it judged, which replaced the note. The state is a
+		// local directory, sealed to one person.
+		Name:      "b10",
+		Resources: 2,
+		Team: &teamSetup{
+			People: []person{{"ada", "admin"}},
+			Steps: []teamStep{
+				{Kind: "change", Actor: "ada", Reason: "a new note", Label: "note",
+					Edits: []edit{{File: "main.cue", Old: `content:  "note\n"`, New: `content:  "a new note\n"`}}},
+			},
+		},
+	},
+	{
+		// C2, Store a plan: two people store a plan for the one resource before
+		// anything is applied. The second plan is made from a narrower range.
+		Name:      "c02",
+		Resources: 0,
+		Stored: []storedPlan{
+			{Actor: "ada", Reason: "Reserve a port for the web server", Age: 12 * time.Minute},
+			{Actor: "dan", Reason: "Keep 29999 free", Age: 3 * time.Minute,
+				Edits: []edit{{File: "main.cue", Old: "max: 29999", New: "max: 29998"}}},
+		},
+	},
+	{
+		// C5, Write a plan policy: a name and a password, applied, and three
+		// plan files to try a rule on: a longer password, a second name, and a
+		// shorter password with the second name. The rules on trial are the
+		// files below rules/.
+		Name:      "c05",
+		Resources: 2,
+		Team: &teamSetup{
+			People: []person{{"ada", "admin"}},
+			Steps: []teamStep{
+				{Kind: "save", Actor: "ada", File: "longer.plan",
+					Edits: []edit{{File: "main.cue", Old: "length: 16", New: "length: 20"}}},
+				{Kind: "save", Actor: "ada", File: "add.plan",
+					Edits: []edit{addSecond}},
+				{Kind: "save", Actor: "ada", File: "short.plan",
+					Edits: []edit{{File: "main.cue", Old: "length: 16", New: "length: 12"}, addSecond}},
+			},
+		},
+	},
+	{
+		// C6, Ask for approvals: a rule that asks a second writer. The plan of
+		// dan destroys the resource; dan approved it, which counts for nothing,
+		// and then eve did, so it can be applied.
+		Name:      "c06",
+		Resources: 1,
+		Team: &teamSetup{
+			People: []person{{"ada", "admin"}, {"dan", "writer"}, {"eve", "writer"}},
+			Steps: []teamStep{
+				{Kind: "propose", Actor: "dan", Reason: "retire the pet", Label: "retire", ApproveBy: []string{"dan", "eve"},
+					Edits: []edit{{File: "main.cue", Old: "\npet: $random.#Resource.random_pet & {length: 2}\n", New: ""}}},
+			},
+		},
+	},
+	{
+		// C6, the same plan before anyone approved it: what it waits for, and
+		// the command that approves it. The files are those of c06.
+		Name:      "c06-waits",
+		Base:      "c06",
+		Resources: 1,
+		Team: &teamSetup{
+			People: []person{{"ada", "admin"}, {"dan", "writer"}, {"eve", "writer"}},
+			Steps: []teamStep{
+				{Kind: "propose", Actor: "dan", Reason: "retire the pet", Label: "retire",
+					Edits: []edit{{File: "main.cue", Old: "\npet: $random.#Resource.random_pet & {length: 2}\n", New: ""}}},
+			},
 		},
 	},
 }
@@ -278,6 +401,7 @@ func (s scenario) traceLabels() []string {
 // files is where the files of the scenario are, with the base first.
 func (s scenario) files() ([]string, error) {
 	var roots []string
+	own := path.Join("scenarios", s.Name)
 	if s.Base != "" {
 		base, ok := findScenario(s.Base)
 		if !ok {
@@ -287,8 +411,13 @@ func (s scenario) files() ([]string, error) {
 			return nil, fmt.Errorf("scenario %s: base %q has a base of its own", s.Name, s.Base)
 		}
 		roots = append(roots, path.Join("scenarios", base.Name))
+		// A scenario that differs from its base only in what the team did has
+		// no files of its own.
+		if _, err := fs.Stat(scenarioFS, own); err != nil {
+			return roots, nil
+		}
 	}
-	return append(roots, path.Join("scenarios", s.Name)), nil
+	return append(roots, own), nil
 }
 
 // copyScenario writes the files of the scenario into dir, which exists.

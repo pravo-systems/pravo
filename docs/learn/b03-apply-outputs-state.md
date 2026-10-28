@@ -251,6 +251,13 @@ pravo state graph
 web -> port
 ```
 
+The viewer draws the edge and shows the record. Run `pravo serve` from the root, open the address it prints, and select `web`: the State tab lists the attributes that the provider reported, with the computed ones marked, and the outputs stand at the right of the graph.
+
+:::figure `web` in the viewer, with its record. The outputs stand at the right of the graph, and `web_file`, which reads `web`, is outlined with it.
+<a class="shot shot-dark" href="../img/serve/b03-state-dark.png"><img src="../img/serve/b03-state-dark.png" width="1440" height="900" alt="The viewer with the graph of the root: port, a random_integer, wired to web, a local_file, which is wired to the output web_file; the output web_port, which reads port, stands faint above it. web is selected. The inspector shows web, a local_file of the provider local v2.9.1, with the record in sync, the revision 1 and refreshed just now, and its State tab: under Configured, 6 attributes set by the specification, content with the value port = 26720, content_base64 null, directory_permission and file_permission 0777 and marked computed, filename web.conf and marked required, and source null. Under Sensitive, sensitive_content, deprecated, withheld by the server." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/b03-state-light.png"><img src="../img/serve/b03-state-light.png" width="1440" height="900" alt="The viewer with the graph of the root: port, a random_integer, wired to web, a local_file, which is wired to the output web_file; the output web_port, which reads port, stands faint above it. web is selected. The inspector shows web, a local_file of the provider local v2.9.1, with the record in sync, the revision 1 and refreshed just now, and its State tab: under Configured, 6 attributes set by the specification, content with the value port = 26720, content_base64 null, directory_permission and file_permission 0777 and marked computed, filename web.conf and marked required, and source null. Under Sensitive, sensitive_content, deprecated, withheld by the server." loading="lazy"></a>
+:::
+
 State is a directory with one file per resource and one per transaction:
 
 ```sh run

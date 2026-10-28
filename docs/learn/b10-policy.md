@@ -57,9 +57,9 @@ pravo has two checks of this kind, and one of them is a policy. A **constraint o
 
 ## Pin a value for every resource
 
-Work in an empty directory. The root lives in `root`, and the identity that seals the state lives beside it in `people`. Every command names the root with `-C root`, which runs it as if started there. Wrap the provider in a definition and constrain the resource inside.
+Work in an empty directory: it is the root, and the identity that seals the state lives in `people` inside it. Wrap the provider in a definition and constrain the resource inside.
 
-```cue file=root/main.cue title="root/main.cue" hl="5-7,9"
+```cue file=main.cue title="main.cue" hl="5-7,9"
 package main
 
 import loc "pravo.dev/providers/hashicorp/local"
@@ -79,8 +79,8 @@ key: $files.#Resource.local_file & {
 `#Strict` is a provider definition with one more constraint. `$files` is a provider built from it. Every `local_file` built through `$files` carries the mode `0600`.
 
 ```sh run
-pravo -C root init
-pravo -C root plan
+pravo init
+pravo plan
 ```
 
 ```text out
@@ -110,7 +110,7 @@ Graph: planned 1
 
 Set a different mode on the resource. The block carries `status=conflict`.
 
-```cue file=root/main.cue title="root/main.cue" status=conflict hl="14"
+```cue file=main.cue title="main.cue" status=conflict hl="14"
 package main
 
 import loc "pravo.dev/providers/hashicorp/local"
@@ -129,20 +129,20 @@ key: $files.#Resource.local_file & {
 ```
 
 ```sh run exit=6
-pravo -C root validate
+pravo validate
 ```
 
 ```text out
-Error: evaluating ./root:
+Error: evaluating .:
 key.file_permission: 2 errors in empty disjunction:
 key.file_permission: conflicting values "0600" and "0644":
-    ./root/main.cue:6:42
-    ./root/main.cue:11:6
-    ./root/main.cue:14:19
+    ./main.cue:6:42
+    ./main.cue:11:6
+    ./main.cue:14:19
 key.file_permission: conflicting values "0644" and null (mismatched types string and null):
-    ./root/cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue:97:29
-    ./root/main.cue:11:6
-    ./root/main.cue:14:19
+    ./cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue:97:29
+    ./main.cue:11:6
+    ./main.cue:14:19
 ```
 
 The path is `key.file_permission`. The first error names the two values, `"0600"` and `"0644"`, and three places: the pin, the resource and the value. The second error appears because the generated attribute is `string | null`, and CUE reports each alternative that failed. No provider started and nothing was planned.
@@ -153,7 +153,7 @@ A constraint rejects a value that is set and wrong. It does not require an attri
 
 A plan policy is a node of the root. Its `rule` is a CUE struct, and pravo unifies it with the plan document, the data that `pravo plan --json` prints. The plan satisfies the policy when the result is concrete and has no error. Write the policy beside the resources:
 
-```cue file=root/policy.cue title="root/policy.cue" hl="7-14"
+```cue file=policy.cue title="policy.cue" hl="7-14"
 package main
 
 import "pravo.dev/pravo"
@@ -177,7 +177,7 @@ no_delete: pravo.#Policy & {
 
 Restore the root and add a second file.
 
-```cue file=root/main.cue title="root/main.cue"
+```cue file=main.cue title="main.cue"
 package main
 
 import loc "pravo.dev/providers/hashicorp/local"
@@ -202,9 +202,9 @@ note: $files.#Resource.local_file & {
 A policy version is signed by whoever applies it, so the state must be sealed. Make an identity, list it as a reader, and seal the state:
 
 ```sh run
-mkdir -p root/.pravo/access
-pravo -C root id new --name ada | grep '^  ada ssh' | sed 's/^  //' > root/.pravo/access/readers.txt
-pravo -C root protect init --encrypt --yes --allow-local
+mkdir -p .pravo/access
+pravo id new --name ada | grep '^  ada ssh' | sed 's/^  //' > .pravo/access/readers.txt
+pravo protect init --encrypt --yes --allow-local
 ```
 
 ```text out
@@ -229,7 +229,7 @@ Add one with: pravo protect rewrap --recovery 3/5
 The first apply creates both files and writes the policy to the state. The plan that adds a policy is not judged by it.
 
 ```sh run
-pravo -C root apply --auto-approve | sed -n '/^Policies/,/^Graph/p;/^Apply complete/p'
+pravo apply --auto-approve | sed -n '/^Policies/,/^Graph/p;/^Apply complete/p'
 ```
 
 ```text out
@@ -243,7 +243,7 @@ Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 
 Add a third file and plan it. The plan creates and does not delete, so the policy is satisfied.
 
-```cue file=root/main.cue title="root/main.cue" hl="21-24"
+```cue file=main.cue title="main.cue" hl="21-24"
 package main
 
 import loc "pravo.dev/providers/hashicorp/local"
@@ -271,7 +271,7 @@ log: $files.#Resource.local_file & {
 ```
 
 ```sh run
-pravo -C root plan --out add.plan | sed -n '/^Plan:/,$p'
+pravo plan --out add.plan | sed -n '/^Plan:/,$p'
 ```
 
 ```text out
@@ -286,8 +286,8 @@ Saved the plan to add.plan. To apply exactly these actions, run:
 The plan is printed first, and the last line of the plan says how many policies judged it and held. The apply judges the plan again, under the locks, and signs the versions that judged it into the transaction: the name, the version and the SHA-256 of the text, so that the log says under which rules a change was made.
 
 ```sh run
-pravo -C root apply add.plan
-pravo -C root state log --json | jq -c '.[0].policies'
+pravo apply add.plan
+pravo state log --json | jq -c '.[0].policies'
 ```
 
 ```text out
@@ -298,11 +298,18 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 ["no_delete@1:d0fce23004ba3284e425b8753266ed26f2203fac9f8c06ffe60a7ca1db8c2bc9"]
 ```
 
+The Policies section of the viewer, `pravo serve` from the root and then `o`, lists the policy in force with its version, its digest, who signed it and how many applies it judged, and shows the text that was signed. Its button Try on plans opens the policy studio with the text: an editor that holds a rule against the plan files of the root, and against every resource of the state, as you type, before anything is in force. C5 writes its rules there.
+
+:::figure `no_delete` in force, in the Policies section: version 1, signed by Ada, one apply judged, and the text that was signed.
+<a class="shot shot-dark" href="../img/serve/b10-policies-dark.png"><img src="../img/serve/b10-policies-dark.png" width="1440" height="900" alt="The Policies section of the viewer. The head says every plan that changes a resource is held to these rules when it is applied, with the counts In force 1, Pending 0 and Applies judged 1. At the left, the register lists one policy: A plan may create and change, it may not delete, no_delete, in force, v1, 1 run. At the right, the policy is open: its description as the title, the chip in force, no_delete, policy.cue line 5, and the cells version v1, digest d0fce23004ba, signed by ada, written just now, judged 1 run. Under Policy in force, v1, policy.cue line 5, 13 lines, the button Try on plans and the text of the rule with the line numbers 5 to 17: the list template over changes with addr, mode and action, and the condition that calls error for a delete of a managed resource. Under it, a disclosure for the text that version 1 signed, and the list of versions: v1, first version, signed by ada, just now, 1 run." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/b10-policies-light.png"><img src="../img/serve/b10-policies-light.png" width="1440" height="900" alt="The Policies section of the viewer. The head says every plan that changes a resource is held to these rules when it is applied, with the counts In force 1, Pending 0 and Applies judged 1. At the left, the register lists one policy: A plan may create and change, it may not delete, no_delete, in force, v1, 1 run. At the right, the policy is open: its description as the title, the chip in force, no_delete, policy.cue line 5, and the cells version v1, digest d0fce23004ba, signed by ada, written just now, judged 1 run. Under Policy in force, v1, policy.cue line 5, 13 lines, the button Try on plans and the text of the rule with the line numbers 5 to 17: the list template over changes with addr, mode and action, and the condition that calls error for a delete of a managed resource. Under it, a disclosure for the text that version 1 signed, and the list of versions: v1, first version, signed by ada, just now, 1 run." loading="lazy"></a>
+:::
+
 ## Break it: a plan that deletes
 
 Remove `note` from the root. The plan deletes it. The block carries `status=unintended`: the specification is valid, and the plan breaks the policy.
 
-```cue file=root/main.cue title="root/main.cue" status=unintended
+```cue file=main.cue title="main.cue" status=unintended
 package main
 
 import loc "pravo.dev/providers/hashicorp/local"
@@ -332,7 +339,7 @@ The plan deletes `note`, so the policy refuses it. The exit code is 5, and the p
 :::
 
 ```sh run
-pravo -C root plan --out delete.plan 2>&1 | sed -n '/^Plan:/,$p'
+pravo plan --out delete.plan 2>&1 | sed -n '/^Plan:/,$p'
 ```
 
 ```text out
@@ -353,18 +360,18 @@ The plan is printed, then judged, and the run exits with code 5. The error has t
 A refused plan is not saved.
 
 ```sh run
-ls root/*.plan
+ls *.plan
 ```
 
 ```text out
-root/add.plan
+add.plan
 ```
 
 There is no `delete.plan`. An apply judges its plan too, under the locks, and records the refusal:
 
 ```sh run
-pravo -C root apply --auto-approve 2>&1 | sed -n '/^Error/,$p'
-pravo -C root state log --json | jq -c '.[0] | {kind, status}'
+pravo apply --auto-approve 2>&1 | sed -n '/^Error/,$p'
+pravo state log --json | jq -c '.[0] | {kind, status}'
 ```
 
 ```text out
@@ -379,7 +386,7 @@ changes.0: note: delete is not allowed:
 
 A policy binds the applies of this state. The way to lift a rule is to remove it from the root. A change to a policy is not judged by the rule, so the apply that removes it passes, and the state keeps a signed removal. With roles in the readers file, removing a policy is an admin's apply, and a rule that asks for approvals cannot be changed without an admin's approval; [C6](c06-ask-for-approvals.md) shows both. Here the state has one member, who is an admin. Restore `note`, remove `policy.cue`, and apply:
 
-```cue file=root/main.cue title="root/main.cue"
+```cue file=main.cue title="main.cue"
 package main
 
 import loc "pravo.dev/providers/hashicorp/local"
@@ -407,9 +414,9 @@ log: $files.#Resource.local_file & {
 ```
 
 ```sh run
-rm root/policy.cue
-pravo -C root apply --auto-approve | sed -n '/^Policies/,/^Graph/p;/^Apply/p'
-ls root/pravo.state/policy
+rm policy.cue
+pravo apply --auto-approve | sed -n '/^Policies/,/^Graph/p;/^Apply/p'
+ls pravo.state/policy
 ```
 
 ```text out
@@ -427,9 +434,9 @@ With the rule gone, a plan that deletes `note` is applied:
 
 ```sh run
 rm -f delete.plan
-sed -i '/^note:/,/^}/d' root/main.cue
-pravo -C root apply --auto-approve | grep '^Apply complete'
-pravo -C root state list
+sed -i '/^note:/,/^}/d' main.cue
+pravo apply --auto-approve | grep '^Apply complete'
+pravo state list
 ```
 
 ```text out
@@ -442,7 +449,7 @@ The log of the removal names who applied it, and every apply names the versions 
 
 A constraint on a provider has its own limit. It binds the resources built through that provider. A root can declare another provider from `loc.#Provider` and build a resource through that one.
 
-```cue file=root/main.cue title="root/main.cue" status=unintended hl="10,22"
+```cue file=main.cue title="main.cue" status=unintended hl="10,22"
 package main
 
 import loc "pravo.dev/providers/hashicorp/local"
@@ -468,7 +475,7 @@ probe: $other.#Resource.local_file & {filename: "probe.txt", content: "x\n", fil
 ```
 
 ```sh run
-pravo -C root validate
+pravo validate
 ```
 
 ```text out
@@ -479,7 +486,7 @@ The mode `0644` passes, because `$other` carries no pin. The platform decides wh
 
 Take `probe` out again:
 
-```cue file=root/main.cue title="root/main.cue"
+```cue file=main.cue title="main.cue"
 package main
 
 import loc "pravo.dev/providers/hashicorp/local"
@@ -516,8 +523,8 @@ Give the first two rights to the people who review policies. Nothing in pravo co
 The `$settings` block takes `state` and `refresh`. Naming a policy there is an error. A policy is a node, and the block holds no rule.
 
 ```sh run exit=6
-printf 'package main\n\n$settings: policy: "x"\n' > root/setting.cue
-pravo -C root plan
+printf 'package main\n\n$settings: policy: "x"\n' > setting.cue
+pravo plan
 ```
 
 ```text out
@@ -525,7 +532,7 @@ Error: $settings.policy is not a setting (the block takes state and refresh)
 ```
 
 ```sh run
-rm root/setting.cue
+rm setting.cue
 ```
 :::
 
@@ -541,7 +548,7 @@ The action of a replacement is `replace`. The guard already reads `action`. Comb
 A change to a policy is applied like any other change: the apply writes version 2. The plan that replaces `key` comes after it.
 
 ::solution
-```cue file=root/policy.cue title="root/policy.cue"
+```cue file=policy.cue title="policy.cue"
 package main
 
 import "pravo.dev/pravo"
@@ -564,8 +571,8 @@ no_delete: pravo.#Policy & {
 Apply the new text of the policy, then change the content of `key` so that the plan replaces it.
 
 ```sh run
-pravo -C root apply --auto-approve | sed -n '/^Policies/,/^Graph/p'
-sed -i 's/secret/new secret/' root/main.cue
+pravo apply --auto-approve | sed -n '/^Policies/,/^Graph/p'
+sed -i 's/secret/new secret/' main.cue
 ```
 
 ```text out
@@ -577,7 +584,7 @@ Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 
 ```sh run
-pravo -C root plan 2>&1 | sed -n '/^Error/,$p'
+pravo plan 2>&1 | sed -n '/^Error/,$p'
 ```
 
 ```text out
@@ -587,7 +594,7 @@ changes.0: key: replace is not allowed:
 ```
 
 ```sh run check
-pravo -C root plan > /dev/null 2>&1 || test $? -eq 5
+pravo plan > /dev/null 2>&1 || test $? -eq 5
 ```
 :::
 
@@ -596,10 +603,10 @@ pravo -C root plan > /dev/null 2>&1 || test $? -eq 5
 Destroy needs the policy out of the way, because a destroy deletes. Remove the policy, then destroy:
 
 ```sh run
-rm -f root/policy.cue
-sed -i 's/new secret/secret/' root/main.cue
-pravo -C root apply --auto-approve > /dev/null
-pravo -C root destroy --auto-approve | tail -n 1
+rm -f policy.cue
+sed -i 's/new secret/secret/' main.cue
+pravo apply --auto-approve > /dev/null
+pravo destroy --auto-approve | tail -n 1
 ```
 
 ```text out

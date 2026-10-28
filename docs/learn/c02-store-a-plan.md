@@ -170,6 +170,13 @@ plan-<id>  pending  dan  just now  +1 ~0 -0  expires in 7 days
 plan-<id>  pending  ada  just now  +1 ~0 -0  expires in 7 days
 ```
 
+The Plans section of the viewer, `pravo -C dan serve` and then `p`, lists both, newest first, with the note each author wrote as the title and a mark on each row that says another plan changes one of the same resources. View lays the plan of a row over the graph.
+
+:::figure Both plans in the Plans section. The mark of two rings on each row says that the other plan changes the same resource.
+<a class="shot shot-dark" href="../img/serve/c02-plans-dark.png"><img src="../img/serve/c02-plans-dark.png" width="1440" height="900" alt="The Plans section of the viewer. The head says 2 stored plans can still be applied, of 2 in the state, and the switch reads Pending 2 and All 2. Two pending plans are listed: Keep 29999 free, by dan, 3 min ago, +1, whose row reads Viewing and is tinted, and Reserve a port for the web server, by ada, 12 min ago, +1, with a View button. Each row carries the badge of its author, the chip pending, a ring for the time that is left, a mark of two rings that says another plan changes one of the same resources, and the id of the plan in small type. The inspector shows the project team." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/c02-plans-light.png"><img src="../img/serve/c02-plans-light.png" width="1440" height="900" alt="The Plans section of the viewer. The head says 2 stored plans can still be applied, of 2 in the state, and the switch reads Pending 2 and All 2. Two pending plans are listed: Keep 29999 free, by dan, 3 min ago, +1, whose row reads Viewing and is tinted, and Reserve a port for the web server, by ada, 12 min ago, +1, with a View button. Each row carries the badge of its author, the chip pending, a ring for the time that is left, a mark of two rings that says another plan changes one of the same resources, and the id of the plan in small type. The inspector shows the project team." loading="lazy"></a>
+:::
+
 Dan's checkout differs from the files Ada planned from, so Ada's plan cannot be applied from it. `plan show` says so, and names the file:
 
 ```sh run

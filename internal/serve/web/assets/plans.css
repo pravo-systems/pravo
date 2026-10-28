@@ -96,6 +96,10 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: var(-
 .rp-why li.dim { color: var(--text-3); }
 .rp-note code { font: 400 var(--fs-1)/1.4 var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
 .rp-why.ovl { border-color: color-mix(in srgb, var(--overlap) 50%, transparent); background: var(--overlap-wash); }
+/* the approvals of a plan: amber while the policies ask for more, the accent once the plan has them */
+.rp-why.rp-appr.met { border-color: color-mix(in srgb, var(--accent) 42%, transparent); background: var(--accent-wash); }
+.rp-why.rp-appr p { margin: .3rem 0 0; }
+.rp-why.rp-appr li.ok { color: var(--text-2); }
 .rp-why.ovl ul { padding-left: 0; list-style: none; }
 .rp-note { display: flex; gap: .45rem; align-items: baseline; margin: .7rem 0 0; font-size: var(--fs-2); color: var(--text-2); }
 .rp-note.chg { color: var(--change); }

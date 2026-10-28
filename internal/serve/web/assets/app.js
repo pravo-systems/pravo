@@ -1785,7 +1785,11 @@ async function load(frag) {
   palette.setModel(S.model);
   $('empty').hidden = S.model.list.length > 0;
   $('app').classList.toggle('is-empty', S.model.list.length === 0);
-  if (sel) openDrawer(); // before the picture is laid out and framed: on a narrow screen the panel takes room from the graph
+  // The inspector is given its room before the picture is laid out and framed: on a wide screen its column
+  // narrows the graph, on a narrow one the drawer does. Opened after the fit, the graph would stay framed for
+  // the full width, as the canvas is the same size at the end of the frame and no resize is seen.
+  $('app').dataset.sel = sel ? '1' : '';
+  if (sel) openDrawer();
   gv.resize();
   relayout({ animate: false, intro: true, draw: false });
   const zoom = parseFloat(S.zoom);

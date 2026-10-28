@@ -30,9 +30,9 @@ Each fault is declared before it runs. A badge says what to expect. `conflict` m
 
 ## The root that works
 
-Work in an empty directory. The root lives in `root`, and every command names it with `-C`.
+Work in an empty directory: it is the root.
 
-```cue file=root/main.cue title="root/main.cue"
+```cue file=main.cue title="main.cue"
 package main
 
 import (
@@ -54,8 +54,8 @@ manifest: $local.#Resource.local_file & {
 ```
 
 ```sh run
-pravo -C root init
-pravo -C root apply --auto-approve
+pravo init
+pravo apply --auto-approve
 ```
 
 ```text out
@@ -70,7 +70,7 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 
-Every file in `root` that ends in `.cue` is part of one package. The faults below are files that you add to it, so that the revert is deleting the file.
+Every file in the root that ends in `.cue` is part of one package. The faults below are files that you add to it, so that the revert is deleting the file.
 
 ## Before any provider starts
 
@@ -80,21 +80,21 @@ These faults are found while the specification is evaluated. Every command that 
 
 A second file sets `min` to a different number. The block carries `status=conflict`.
 
-```cue file=root/fault.cue title="root/fault.cue" status=conflict
+```cue file=fault.cue title="fault.cue" status=conflict
 package main
 
 release: min: 5
 ```
 
 ```sh run exit=6
-pravo -C root validate
+pravo validate
 ```
 
 ```text out
-Error: evaluating ./root:
+Error: evaluating .:
 release.min: conflicting values 1 and 5:
-    ./root/fault.cue:3:15
-    ./root/main.cue:13:51
+    ./fault.cue:3:15
+    ./main.cue:13:51
 ```
 
 Read it in four parts. The path is `release.min`. The values are `1` and `5`. The rule is that two concrete values must be equal. The locations are the two files. See [A3](a03-writing-a-field-twice.md).
@@ -103,67 +103,67 @@ Read it in four parts. The path is `release.min`. The values are `1` and `5`. Th
 
 The next file misspells `filename`. The block carries `status=rejected`.
 
-```cue file=root/fault.cue title="root/fault.cue" status=rejected
+```cue file=fault.cue title="fault.cue" status=rejected
 package main
 
 manifest: filenam: "x"
 ```
 
 ```sh run exit=6
-pravo -C root validate
+pravo validate
 ```
 
 ```text out
-Error: evaluating ./root:
+Error: evaluating .:
 manifest.filenam: field not allowed:
-    ./root/fault.cue:3:11
+    ./fault.cue:3:11
 ```
 
 The provider's definition is closed, so the field is refused. The only location is the one you typed. See [A8](a08-definitions-reject-typos.md).
 
 ### Fault 3: the wrong type
 
-```cue file=root/fault.cue title="root/fault.cue" status=rejected
+```cue file=fault.cue title="fault.cue" status=rejected
 package main
 
 release: max: "ninety"
 ```
 
 ```sh run exit=6
-pravo -C root validate
+pravo validate
 ```
 
 ```text out
-Error: evaluating ./root:
+Error: evaluating .:
 release.max: conflicting values "ninety" and 99 (mismatched types string and int):
-    ./root/fault.cue:3:15
-    ./root/main.cue:13:59
+    ./fault.cue:3:15
+    ./main.cue:13:59
 ```
 
 The message names both values and says why they cannot meet: `mismatched types string and int`.
 
 ### Fault 4: a reference to nothing
 
-```cue file=root/fault.cue title="root/fault.cue" status=rejected
+```cue file=fault.cue title="fault.cue" status=rejected
 package main
 
 extra: $local.#Resource.local_file & {filename: "extra.txt", content: relase.result}
 ```
 
 ```sh run exit=6
-pravo -C root validate
+pravo validate
 ```
 
 ```text out
-Error: evaluating ./root:
+Error: evaluating .:
 extra.content: reference "relase" not found:
-    ./root/fault.cue:3:71
+    ./fault.cue:3:71
 ```
 
 `relase` is not a field in scope. The message names the path that holds the reference and the word that failed to resolve. Revert the file.
 
 ```sh run
-rm root/fault.cue
+rm fault.cue
 ```
 
 ### Fault 5: a tag outside the set
@@ -171,31 +171,31 @@ rm root/fault.cue
 No file changes this time. The `env` tag accepts `"dev"` or `"prod"`.
 
 ```sh run exit=6
-pravo -C root validate -t env=qa
+pravo validate -t env=qa
 ```
 
 ```text out
-Error: evaluating ./root:
+Error: evaluating .:
 env: 2 errors in empty disjunction:
 env: conflicting values "dev" and "qa":
-    ./root/main.cue:11:7
+    ./main.cue:11:7
 env: conflicting values "prod" and "qa":
-    ./root/main.cue:11:15
+    ./main.cue:11:15
 ```
 
 CUE tries each alternative and lists every one that failed: `qa` is neither `dev` nor `prod`. The same specification run through `plan` gives the same text and the same code.
 
 ```sh run exit=6
-pravo -C root plan -t env=qa
+pravo plan -t env=qa
 ```
 
 ```text out
-Error: evaluating ./root:
+Error: evaluating .:
 env: 2 errors in empty disjunction:
 env: conflicting values "dev" and "qa":
-    ./root/main.cue:11:7
+    ./main.cue:11:7
 env: conflicting values "prod" and "qa":
-    ./root/main.cue:11:15
+    ./main.cue:11:15
 ```
 
 Every command that loads the specification reports the error in this form, with exit code 6. A job needs no special case for the command that found it.
@@ -215,7 +215,7 @@ A stale plan exits with 3. A reserved resource exits with 4. A plan refused by a
 
 Add a valid resource and save a plan.
 
-```cue file=root/extra.cue title="root/extra.cue"
+```cue file=extra.cue title="extra.cue"
 package main
 
 extra: $local.#Resource.local_file & {
@@ -225,7 +225,7 @@ extra: $local.#Resource.local_file & {
 ```
 
 ```sh run
-pravo -C root plan --out change.plan
+pravo plan --out change.plan
 ```
 
 ```text out
@@ -246,11 +246,11 @@ Saved the plan to change.plan. To apply exactly these actions, run:
 Edit the file after the plan was saved. A comment is enough.
 
 ```sh run
-echo "// edited" >> root/extra.cue
+echo "// edited" >> extra.cue
 ```
 
 ```sh run exit=3
-pravo -C root apply change.plan
+pravo apply change.plan
 ```
 
 ```text out
@@ -261,7 +261,7 @@ Error: saved plan is stale; run "pravo plan" again:
 Exit code 3 is a saved plan that does not match its files. Revert by planning again. This time apply the specification, so that `extra` exists.
 
 ```sh run
-pravo -C root apply --auto-approve
+pravo apply --auto-approve
 ```
 
 ```text out
@@ -277,14 +277,14 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 A policy version is signed by whoever applies it, so the state must be sealed. Make an identity, list it as a reader, and seal the state.
 
 ```sh run
-mkdir -p root/.pravo/access
-pravo -C root id new --name ada | grep '^  ada ssh' | sed 's/^  //' > root/.pravo/access/readers.txt
-pravo -C root protect init --encrypt --yes --allow-local > /dev/null
+mkdir -p .pravo/access
+pravo id new --name ada | grep '^  ada ssh' | sed 's/^  //' > .pravo/access/readers.txt
+pravo protect init --encrypt --yes --allow-local > /dev/null
 ```
 
 Add a policy to the root and apply it. The policy does not judge the plan that adds it.
 
-```cue file=root/no_delete.cue title="root/no_delete.cue"
+```cue file=no_delete.cue title="no_delete.cue"
 package main
 
 import "pravo.dev/pravo"
@@ -305,7 +305,7 @@ no_delete: pravo.#Policy & {
 ```
 
 ```sh run
-pravo -C root apply --auto-approve | tail -n 1
+pravo apply --auto-approve | tail -n 1
 ```
 
 ```text out
@@ -315,11 +315,11 @@ Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 Delete `extra.cue`. The specification is valid, and the plan now deletes `extra`.
 
 ```sh run
-rm root/extra.cue
+rm extra.cue
 ```
 
 ```sh run exit=5
-pravo -C root plan
+pravo plan
 ```
 
 ```text out
@@ -339,7 +339,7 @@ changes.0: extra: delete is not allowed:
 
 Exit code 5 is a policy. Nothing was applied. Revert by writing the file again.
 
-```cue file=root/extra.cue title="root/extra.cue"
+```cue file=extra.cue title="extra.cue"
 package main
 
 extra: $local.#Resource.local_file & {
@@ -352,7 +352,7 @@ extra: $local.#Resource.local_file & {
 
 Add one more resource. Ana plans it and reserves it for fifteen minutes. A reservation is a claim in the state, and it needs no running process.
 
-```cue file=root/late.cue title="root/late.cue"
+```cue file=late.cue title="late.cue"
 package main
 
 late: $local.#Resource.local_file & {
@@ -362,7 +362,7 @@ late: $local.#Resource.local_file & {
 ```
 
 ```sh run
-pravo -C root plan --reserve 15m --actor ana
+pravo plan --reserve 15m --actor ana
 ```
 
 ```text out
@@ -380,29 +380,29 @@ Policies: 1 satisfied.
 `pravo state locks` lists the claim.
 
 ```sh run
-pravo -C root state locks
+pravo state locks
 ```
 
 ```text out
-late  reserved by ana until <time>: pravo -C root plan --reserve 15m --actor <sealed>
+late  reserved by ana until <time>: pravo plan --reserve 15m --actor <sealed>
 ```
 
 Bob tries to apply. The actor label is not verified, and it is how reservations tell people apart.
 
 ```sh run exit=4
-pravo -C root apply --auto-approve --actor bob
+pravo apply --auto-approve --actor bob
 ```
 
 ```text out
 ...
-Error: plan rejected: late is reserved by ana (pravo -C root plan --reserve 15m --actor <sealed> until <time>, since <time>)
+Error: plan rejected: late is reserved by ana (pravo plan --reserve 15m --actor <sealed> until <time>, since <time>)
 ```
 
 Exit code 4 is a resource that another actor holds. Ana releases the claim, and Bob applies.
 
 ```sh run
-pravo -C root state unlock late
-pravo -C root apply --auto-approve --actor bob
+pravo state unlock late
+pravo apply --auto-approve --actor bob
 ```
 
 ```text out
@@ -416,11 +416,11 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 Delete a file that pravo wrote, and ask for drift.
 
 ```sh run
-rm root/manifest-dev.txt
+rm manifest-dev.txt
 ```
 
 ```sh run exit=2
-pravo -C root drift
+pravo drift
 ```
 
 ```text out
@@ -432,8 +432,8 @@ Drift. 1 of 4 resources changed outside pravo:
 Exit code 2 is drift. Revert by applying the specification.
 
 ```sh run
-pravo -C root apply --auto-approve
-pravo -C root drift
+pravo apply --auto-approve
+pravo drift
 ```
 
 ```text out
@@ -449,7 +449,7 @@ No drift. 4 resources refreshed; 0 pending changes from the specification.
 The last fault is none of the above. Ask for an output that the state does not hold.
 
 ```sh run exit=1
-pravo -C root output nosuch
+pravo output nosuch
 ```
 
 ```text out
@@ -474,9 +474,9 @@ Faults 1 to 5 stop before any provider starts. Faults 6 to 10 need a plan, a sta
 Remove what the lab created. The policy refuses a destroy, so remove the policy first. A plan that changes no resource is not judged.
 
 ```sh run
-rm root/no_delete.cue
-pravo -C root apply --auto-approve | tail -n 1
-pravo -C root destroy --auto-approve | tail -n 1
+rm no_delete.cue
+pravo apply --auto-approve | tail -n 1
+pravo destroy --auto-approve | tail -n 1
 ```
 
 ```text out

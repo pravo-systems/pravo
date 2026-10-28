@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -28,7 +29,7 @@ func TestScenariosWithPravo(t *testing.T) {
 	r := &pravoRunner{Bin: bin}
 	ctx := context.Background()
 	for _, sc := range scenarios {
-		if sc.hasTeam() {
+		if sc.hasTeam() || sc.Resources == 0 {
 			continue
 		}
 		t.Run(sc.Name, func(t *testing.T) {
@@ -40,9 +41,40 @@ func TestScenariosWithPravo(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			checkSelections(t, sc, strings.Fields(res.Out))
+			// A shot of the changed situation may select a resource that only
+			// the plan has: one that the edits add, or one that a move names.
+			var planned []string
+			if sc.hasChanges() {
+				w, err := prepareChanged(ctx, r, sc, filepath.Join(t.TempDir(), "changed"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				shown, err := r.mustRun(ctx, w.Dir, []int{0}, "show", w.Plan)
+				if err != nil {
+					t.Fatal(err)
+				}
+				planned = plannedAddrs(shown.Out)
+			}
+			checkSelections(t, sc, strings.Fields(res.Out), planned)
 		})
 	}
+	t.Run("c02 stored", func(t *testing.T) {
+		sc, _ := findScenario("c02")
+		dir := filepath.Join(t.TempDir(), "ws")
+		w, err := prepareStored(ctx, r, sc, dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := r.mustRun(ctx, dir, []int{0}, "plan", "list", "--all")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for actor, id := range w.Plans {
+			if !strings.Contains(res.Out, id) {
+				t.Errorf("pravo plan list --all does not list the plan of %s, %s:\n%s", actor, id, lastLines(res.Out, 8))
+			}
+		}
+	})
 	t.Run("platform stored", func(t *testing.T) {
 		sc, _ := findScenario("platform")
 		dir := filepath.Join(t.TempDir(), "ws")
@@ -89,60 +121,90 @@ func TestScenariosWithPravo(t *testing.T) {
 			}
 		}
 	})
-	t.Run("team", func(t *testing.T) {
-		sc, _ := findScenario("team")
-		s, err := startStore()
-		if err != nil {
+	s, err := startStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.stop()
+	provider := os.Getenv("SERVESHOTS_FAKEPROVIDER")
+	if provider == "" {
+		if provider, err = buildFakeProvider(ctx, filepath.Join(t.TempDir(), "bin")); err != nil {
 			t.Fatal(err)
 		}
-		defer s.stop()
-		provider := os.Getenv("SERVESHOTS_FAKEPROVIDER")
-		if provider == "" {
-			if provider, err = buildFakeProvider(ctx, filepath.Join(t.TempDir(), "bin")); err != nil {
+	}
+	for _, sc := range scenarios {
+		if !sc.hasTeam() {
+			continue
+		}
+		t.Run(sc.Name+" team", func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), sc.Name)
+			w, err := prepareTeam(ctx, r, sc, dir, teamDeps{Store: s, FakeProvider: provider})
+			if err != nil {
 				t.Fatal(err)
 			}
-		}
-		dir := filepath.Join(t.TempDir(), "team")
-		w, err := prepareTeam(ctx, r, sc, dir, teamDeps{Store: s, FakeProvider: provider})
-		if err != nil {
-			t.Fatal(err)
-		}
-		res, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "state", "list")
-		if err != nil {
-			t.Fatal(err)
-		}
-		checkSelections(t, sc, strings.Fields(res.Out))
-		res, err = r.mustRunEnv(ctx, dir, w.Env, []int{0}, "plan", "list", "--all")
-		if err != nil {
-			t.Fatal(err)
-		}
-		for label, id := range w.Plans {
-			if !strings.Contains(res.Out, id) {
-				t.Errorf("pravo plan list --all does not list the plan %s, %s:\n%s", label, id, lastLines(res.Out, 8))
+			res, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "state", "list")
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		// Every span that a shot names is in the run that the shot opens.
-		for _, sh := range allShots() {
-			if sh.Scenario != sc.Name {
-				continue
+			checkSelections(t, sc, strings.Fields(res.Out), nil)
+			res, err = r.mustRunEnv(ctx, dir, w.Env, []int{0}, "plan", "list", "--all")
+			if err != nil {
+				t.Fatal(err)
 			}
-			if _, err := resolveLabels(sh.URLFragment(), w); err != nil {
-				t.Errorf("%s: %v", sh.Name, err)
+			for label, id := range w.Plans {
+				if !strings.Contains(res.Out, id) {
+					t.Errorf("pravo plan list --all does not list the plan %s, %s:\n%s", label, id, lastLines(res.Out, 8))
+				}
 			}
-		}
-	})
+			for _, st := range sc.Team.Steps {
+				if st.Kind == "save" {
+					if _, err := os.Stat(filepath.Join(dir, st.File)); err != nil {
+						t.Errorf("the plan file %s: %v", st.File, err)
+					}
+				}
+			}
+			// Every span that a shot names is in the run that the shot opens.
+			for _, sh := range allShots() {
+				if sh.Scenario != sc.Name {
+					continue
+				}
+				if _, err := resolveLabels(sh.URLFragment(), w); err != nil {
+					t.Errorf("%s: %v", sh.Name, err)
+				}
+			}
+		})
+	}
+}
+
+var (
+	plannedRe = regexp.MustCompile(`(?m)^  # (\S+) (?:\(|will be)`)
+	movedRe   = regexp.MustCompile(`(?m)^  # \S+ will be moved to (\S+)`)
+)
+
+// plannedAddrs reads the addresses that a printed plan changes, and the new
+// addresses of its moves.
+func plannedAddrs(out string) []string {
+	var addrs []string
+	for _, m := range plannedRe.FindAllStringSubmatch(out, -1) {
+		addrs = append(addrs, m[1])
+	}
+	for _, m := range movedRe.FindAllStringSubmatch(out, -1) {
+		addrs = append(addrs, m[1])
+	}
+	return addrs
 }
 
 // checkSelections checks that every address a shot of the scenario selects or
-// names is a resource or a group in the state, whose addresses are addrs.
-func checkSelections(t *testing.T, sc scenario, addrs []string) {
+// names is a resource or a group in the state, whose addresses are addrs, or
+// one of the planned addresses of the changed situation.
+func checkSelections(t *testing.T, sc scenario, addrs, planned []string) {
 	t.Helper()
 	if len(addrs) != sc.Resources {
 		t.Errorf("%d resources in the state, the scenario says %d", len(addrs), sc.Resources)
 	}
 	has := map[string]bool{}
 	prefix := map[string]bool{}
-	for _, a := range addrs {
+	for _, a := range append(append([]string(nil), addrs...), planned...) {
 		has[a] = true
 		parts := strings.Split(a, ".")
 		for i := 1; i < len(parts); i++ {

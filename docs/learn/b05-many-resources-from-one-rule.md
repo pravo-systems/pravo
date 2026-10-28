@@ -188,6 +188,13 @@ conf.worker -> port.worker
 
 The graph has one edge per key. `conf.api` reads `port.api` and no other port.
 
+In the viewer, `pravo serve` from the root, the two rules are two groups, `port` and `conf`, with three resources each and a wire from each port to its file. The Source tab of any of the six points at the lines of the rule that wrote it, with a note that the same lines write two more.
+
+:::figure Six resources from two rules, in the groups `port` and `conf`. The Source tab of `conf.web` points at the lines of the rule, which write two more.
+<a class="shot shot-dark" href="../img/serve/b05-groups-dark.png"><img src="../img/serve/b05-groups-dark.png" width="1440" height="900" alt="The viewer with six resources in two groups: port, with api, web and worker of type random_integer, and conf, with api, web and worker of type local_file, and a wire from each port to the file of the same name. conf.web is selected. The inspector shows web in the group conf, a local_file, with the record in sync, and its Source tab: a note says the same lines write 3 nodes, this one and 2 more. Under Where it is declared, the file rules.cue and the definition conf.(name) at lines 14 to 19, with the lines for name, svc in services, (name): $local.#Resource.local_file, filename and content. Under What shapes it, 3 entries: rules.cue lines 14 to 19, which writes the resource, the generated schema of local_file in the provider hashicorp/local v2.9.1, and pravo.lock.cue, which pins the provider." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/b05-groups-light.png"><img src="../img/serve/b05-groups-light.png" width="1440" height="900" alt="The viewer with six resources in two groups: port, with api, web and worker of type random_integer, and conf, with api, web and worker of type local_file, and a wire from each port to the file of the same name. conf.web is selected. The inspector shows web in the group conf, a local_file, with the record in sync, and its Source tab: a note says the same lines write 3 nodes, this one and 2 more. Under Where it is declared, the file rules.cue and the definition conf.(name) at lines 14 to 19, with the lines for name, svc in services, (name): $local.#Resource.local_file, filename and content. Under What shapes it, 3 entries: rules.cue lines 14 to 19, which writes the resource, the generated schema of local_file in the provider hashicorp/local v2.9.1, and pravo.lock.cue, which pins the provider." loading="lazy"></a>
+:::
+
 ## Reorder the keys
 
 :::predict You write the services in another order in services.cue. How many resources does the plan replace?

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/protect"
 )
 
 // try tries a rule, declared as the policy draft, on plans.
@@ -299,4 +300,30 @@ func TestStudioTriesARuleOnTheState(t *testing.T) {
 	raw, _ := json.Marshal(p.try("changes: [...{type: \"no_such_type\", ...}]\n", "state"))
 	noSecrets(t, "try state", raw, allSecrets...)
 	noSecrets(t, "doc state", p.get("/api/studio/doc?ref=state"), allSecrets...)
+}
+
+// The plan file of a sealed state is an envelope. The studio lists it with the plan files: it opens for a
+// reader of the state, and the viewer of anyone else counts it as a file that could not be read.
+func TestStudioListsTheSealedPlanFileOfAState(t *testing.T) {
+	p, _ := newPlanProject(t)
+	env, err := json.Marshal(struct {
+		V      int            `json:"v"`
+		ID     string         `json:"id"`
+		Sealed protect.Sealed `json:"sealed"`
+	}{1, "plan-0badcafe", protect.Sealed{Alg: "test", Group: "g", CT: []byte("not for this viewer")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string][]byte{"sealed.plan": env, "notes.json": []byte(`{"v": 1, "notes": "a file of the project that is no plan"}`)} {
+		if err := os.WriteFile(filepath.Join(p.dir, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var studio Studio
+	if err := json.Unmarshal(p.get("/api/studio"), &studio); err != nil {
+		t.Fatal(err)
+	}
+	if len(studio.Plans) != 1 || studio.Plans[0].Ref != "file:plan.pravo" || studio.Note != "1 file(s) that look like plan files could not be read." {
+		t.Errorf("studio: plans %+v, note %q", studio.Plans, studio.Note)
+	}
 }

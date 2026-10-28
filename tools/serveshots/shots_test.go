@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -75,6 +76,8 @@ var wantViews = []string{
 	"list", "drift", "plan",
 	"plans", "plans-list", "plans-finder", "plan-expired", "state-unsealed",
 	"history", "plans-team", "policies", "policy-pending", "studio", "discovery", "traces", "trace-span", "traces-slowest", "members",
+	"b02-plan", "b03-state", "b05-groups", "b06-source", "b08-move", "b09-drift", "b10-policies", "c02-plans",
+	"c05-studio-shape", "c05-studio-template", "c05-studio-resources", "c05-studio-typo", "c06-waits", "c06-approved",
 }
 
 func TestShotListIsConsistent(t *testing.T) {
@@ -152,7 +155,7 @@ func TestThemePairsShowTheSameView(t *testing.T) {
 		l := light.Fragment
 		l.Theme = "dark"
 		if l.String() != dark.Fragment.String() || light.Scenario != dark.Scenario || light.Situation != dark.Situation ||
-			light.Width != dark.Width || light.Height != dark.Height {
+			light.Width != dark.Width || light.Height != dark.Height || light.Script != dark.Script {
 			t.Errorf("%s and %s differ in more than the theme", name, base+"-light")
 		}
 	}
@@ -327,5 +330,95 @@ func TestTeamShotsNameStepsOfTheTeam(t *testing.T) {
 	}
 	if len(sc.traceLabels()) < 2 || sc.traceLabels()[0] != "apply" {
 		t.Errorf("the runs of the team: %v", sc.traceLabels())
+	}
+}
+
+// A shot of the studio types the rule of a file of its scenario and turns the
+// switch: the script names the file's text, the target and, for a plan, the
+// plan file that a save step of the team wrote.
+func TestStudioShotsTypeTheRulesOfTheScenario(t *testing.T) {
+	n := 0
+	for _, s := range allShots() {
+		if s.Script == "" || strings.Contains(s.Script, "const reason =") {
+			continue
+		}
+		n++
+		if !s.Fragment.Studio || s.Fragment.View != "policies" {
+			t.Errorf("%s has a script and does not open the studio", s.Name)
+		}
+		sc, _ := findScenario(s.Scenario)
+		if sc.Team == nil {
+			t.Errorf("%s: a shot of the studio needs the team situation", s.Name)
+			continue
+		}
+		for _, st := range sc.Team.Steps {
+			if st.Kind == "save" && strings.Contains(s.Script, strconv.Quote(st.File)) {
+				goto ok
+			}
+		}
+		if strings.Contains(s.Script, `target = "plan"`) {
+			t.Errorf("%s looks at a plan that no save step of %s wrote", s.Name, s.Scenario)
+		}
+	ok:
+		if !strings.Contains(s.Script, `pravo.#Policy`) {
+			t.Errorf("%s does not type a policy", s.Name)
+		}
+	}
+	if n == 0 {
+		t.Error("no shot of the studio")
+	}
+	if got := studioScript("x", "plan", "a.plan", ""); !strings.Contains(got, `plan = "a.plan"`) || !strings.Contains(got, `target = "plan"`) {
+		t.Errorf("studioScript = %s", got)
+	}
+	for _, bad := range [][3]string{{"plan", "", ""}, {"resources", "a.plan", ""}, {"state", "", ""}} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("studioScript(%q, %q, %q): no panic", bad[0], bad[1], bad[2])
+				}
+			}()
+			studioScript("x", bad[0], bad[1], bad[2])
+		}()
+	}
+	if got := withBound("a >=16 b", ">=16", ">=20"); got != "a >=20 b" {
+		t.Errorf("withBound = %q", got)
+	}
+	if got := rule("c05", "no_destroy"); !strings.HasPrefix(got, `import "pravo.dev/pravo"`) {
+		t.Errorf("rule = %q", got)
+	}
+}
+
+// A script that opens the row of a plan names a plan that a propose step of
+// the team of its scenario stored, in the Plans section.
+func TestPlanShotsOpenAPlanOfTheScenario(t *testing.T) {
+	n := 0
+	for _, s := range allShots() {
+		if !strings.Contains(s.Script, "const reason =") {
+			continue
+		}
+		n++
+		if s.Fragment.View != "plans" {
+			t.Errorf("%s opens the row of a plan outside the Plans section", s.Name)
+		}
+		sc, _ := findScenario(s.Scenario)
+		if sc.Team == nil {
+			t.Errorf("%s: a shot that opens a plan needs the team situation", s.Name)
+			continue
+		}
+		found := false
+		for _, st := range sc.Team.Steps {
+			if st.Kind == "propose" && strings.Contains(s.Script, "const reason = "+strconv.Quote(st.Reason)+";") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s opens a plan that no propose step of %s stored", s.Name, s.Scenario)
+		}
+	}
+	if n == 0 {
+		t.Error("no shot opens the row of a plan")
+	}
+	if got := openPlanScript("ask for nothing"); !strings.Contains(got, `const reason = "ask for nothing";`) || !strings.Contains(got, "const until =") {
+		t.Errorf("openPlanScript = %s", got)
 	}
 }

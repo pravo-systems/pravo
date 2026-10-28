@@ -184,6 +184,13 @@ worker.config
 worker.serial
 ```
 
+In the viewer, `pravo serve` from the root, each instance is a group with its two resources, and the Source tab of `api.config` has two places: where the definition declares the file, in the package, and where the root instantiates the definition as `api`.
+
+:::figure `api.config` in the viewer. Its source has two places: the definition in the package, and the instance in the root.
+<a class="shot shot-dark" href="../img/serve/b06-source-dark.png"><img src="../img/serve/b06-source-dark.png" width="1440" height="900" alt="The viewer with four resources in two groups: api, with serial of type random_integer and config of type local_file, and worker, with the same two. api.config is selected. The inspector shows config in the group api, a local_file, with the record in sync, and its Source tab: a note says the same lines write 2 nodes, this one and 1 more. Under 1, Where it is declared, the file lib/service/service.cue and the definition #Service.config at lines 16 to 19, with the lines config: local.#Resource.local_file, filename and content. Under 2, Where it is instantiated, the file main.cue and the instance api of #Service at line 12: api: service.#Service with the providers. Under What shapes it, 4 entries, the first two service.cue lines 16 to 19, which writes the resource, and main.cue line 12." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/b06-source-light.png"><img src="../img/serve/b06-source-light.png" width="1440" height="900" alt="The viewer with four resources in two groups: api, with serial of type random_integer and config of type local_file, and worker, with the same two. api.config is selected. The inspector shows config in the group api, a local_file, with the record in sync, and its Source tab: a note says the same lines write 2 nodes, this one and 1 more. Under 1, Where it is declared, the file lib/service/service.cue and the definition #Service.config at lines 16 to 19, with the lines config: local.#Resource.local_file, filename and content. Under 2, Where it is instantiated, the file main.cue and the instance api of #Service at line 12: api: service.#Service with the providers. Under What shapes it, 4 entries, the first two service.cue lines 16 to 19, which writes the resource, and main.cue line 12." loading="lazy"></a>
+:::
+
 Each instance wrote its own file.
 
 ```sh run

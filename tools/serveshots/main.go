@@ -324,6 +324,7 @@ func (m *maker) make(s Shot) (info imageInfo, notes []string, err error) {
 	m.logf("shot %s: %s", s.Name, fragment)
 	opts := m.opts
 	opts.Replace = m.replacements(sc, s.Situation, v)
+	opts.Script = s.Script
 	notes, err = screenshotRetry(m.ctx, m.chrome, profile, tmp, v.open(fragment), s.Width, s.Height, opts)
 	if err != nil {
 		return info, notes, err

@@ -138,6 +138,10 @@ type shotOptions struct {
 	// Inspect, when set, is called after the replacement with a function that
 	// evaluates an expression in the page. The tests use it to read the page.
 	Inspect func(eval func(expression string) (string, error)) error
+	// Script, when set, runs in the page once it has settled, as the body of
+	// an async function, and the page gets to settle again before the
+	// replacement and the picture.
+	Script string
 }
 
 // replaceScript replaces text in the page: the pairs are an array of [from, to].
@@ -210,8 +214,8 @@ func screenshot(ctx context.Context, chrome, userData, out, address string, w, h
 	if err := waitSettled(ctx, c, 250*time.Millisecond, 4, o.Min, o.Max); err != nil {
 		return nil, err
 	}
-	eval := func(expression string) (string, error) {
-		raw, err := c.call(ctx, "Runtime.evaluate", map[string]any{"expression": expression, "returnByValue": true})
+	evaluate := func(expression string, await bool) (string, error) {
+		raw, err := c.call(ctx, "Runtime.evaluate", map[string]any{"expression": expression, "returnByValue": true, "awaitPromise": await})
 		if err != nil {
 			return "", err
 		}
@@ -220,16 +224,32 @@ func screenshot(ctx context.Context, chrome, userData, out, address string, w, h
 				Value any `json:"value"`
 			} `json:"result"`
 			ExceptionDetails *struct {
-				Text string `json:"text"`
+				Text      string `json:"text"`
+				Exception *struct {
+					Description string `json:"description"`
+				} `json:"exception"`
 			} `json:"exceptionDetails"`
 		}
 		if err := json.Unmarshal(raw, &r); err != nil {
 			return "", err
 		}
-		if r.ExceptionDetails != nil {
-			return "", fmt.Errorf("evaluating in the page: %s", r.ExceptionDetails.Text)
+		if d := r.ExceptionDetails; d != nil {
+			text := d.Text
+			if d.Exception != nil && d.Exception.Description != "" {
+				text = d.Exception.Description
+			}
+			return "", fmt.Errorf("evaluating in the page: %s", text)
 		}
 		return fmt.Sprint(r.Result.Value), nil
+	}
+	eval := func(expression string) (string, error) { return evaluate(expression, false) }
+	if o.Script != "" {
+		if _, err := evaluate("(async () => {"+o.Script+"\n})()", true); err != nil {
+			return nil, &pageError{fmt.Sprintf("the script of the shot failed: %v", err)}
+		}
+		if err := waitSettled(ctx, c, 250*time.Millisecond, 4, max(o.Min, time.Second), o.Max); err != nil {
+			return nil, err
+		}
 	}
 	if len(o.Replace) > 0 {
 		pairs, err := json.Marshal(o.Replace)

@@ -10,8 +10,22 @@ import (
 	"time"
 )
 
-// Every scenario is a CUE root, or lays its files over one: the module and
-// main.cue are in the first of its roots, and nothing generated is embedded.
+// A scenario without resources is initialised and not applied: it has stored
+// plans or a team, which is what the viewer shows of it.
+func TestScenariosWithoutResourcesHaveSomethingToShow(t *testing.T) {
+	for _, sc := range scenarios {
+		if sc.Resources == 0 && !sc.hasStored() {
+			t.Errorf("%s has no resources and no stored plans", sc.Name)
+		}
+		if sc.Resources == 0 && (sc.hasTeam() || sc.hasChanges()) {
+			t.Errorf("%s has no resources, and the team and the changed situations apply the scenario", sc.Name)
+		}
+	}
+}
+
+// Every scenario is a CUE root, or lays its files over one, or is the files
+// of its base alone: the module and main.cue are in the first of its roots,
+// and nothing generated is embedded.
 func TestScenariosAreEmbedded(t *testing.T) {
 	for _, sc := range scenarios {
 		roots, err := sc.files()
@@ -25,6 +39,12 @@ func TestScenariosAreEmbedded(t *testing.T) {
 			}
 		}
 		own := path.Join("scenarios", sc.Name)
+		if _, err := fs.Stat(scenarioFS, own); err != nil {
+			if sc.Base == "" {
+				t.Errorf("%s: no directory, and no base", sc.Name)
+			}
+			continue
+		}
 		if roots[len(roots)-1] != own {
 			t.Errorf("%s: the roots %v do not end with its own directory", sc.Name, roots)
 		}
@@ -55,8 +75,14 @@ func TestEveryScenarioDirectoryIsListed(t *testing.T) {
 			t.Errorf("scenarios/%s is not in the list of scenarios", e.Name())
 		}
 	}
-	if len(entries) != len(scenarios) {
-		t.Errorf("%d directories, %d scenarios", len(entries), len(scenarios))
+	withFiles := 0
+	for _, sc := range scenarios {
+		if _, err := fs.Stat(scenarioFS, path.Join("scenarios", sc.Name)); err == nil {
+			withFiles++
+		}
+	}
+	if len(entries) != withFiles {
+		t.Errorf("%d directories, %d scenarios with files of their own", len(entries), withFiles)
 	}
 }
 
@@ -93,16 +119,22 @@ func TestCopyScenario(t *testing.T) {
 	}
 }
 
-// The team is three people with the roles that the pictures show, the first
-// of them the admin; each step is run by one of them and approved by one of
-// them, its edits apply to a fresh copy of the scenario, its label is unique,
-// and the edits made last apply after every step that stays.
-func TestTeamSetupIsConsistent(t *testing.T) {
-	sc, _ := findScenario("team")
-	team := sc.Team
-	if team == nil {
-		t.Fatal("the team scenario has no team")
+// Every team is people with roles, the first of them the admin; each step is
+// run by one of them and approved by one of them, its edits apply to a fresh
+// copy of the scenario, its label or its file is unique, and the edits made
+// last apply after every step that stays.
+func TestTeamSetupsAreConsistent(t *testing.T) {
+	for _, sc := range scenarios {
+		if sc.Team == nil {
+			continue
+		}
+		t.Run(sc.Name, func(t *testing.T) { checkTeam(t, sc) })
 	}
+}
+
+func checkTeam(t *testing.T, sc scenario) {
+	t.Helper()
+	team := sc.Team
 	people := map[string]string{}
 	for _, p := range team.People {
 		if people[p.Name] != "" || p.Name == "" {
@@ -115,18 +147,8 @@ func TestTeamSetupIsConsistent(t *testing.T) {
 		}
 		people[p.Name] = p.Role
 	}
-	if len(team.People) < 3 || team.People[0].Role != "admin" {
+	if len(team.People) == 0 || team.People[0].Role != "admin" {
 		t.Errorf("the people of the team: %+v", team.People)
-	}
-	roles := map[string]bool{}
-	for _, p := range team.People {
-		roles[p.Role] = true
-	}
-	if !roles["admin"] || !roles["writer"] || !roles["reader"] {
-		t.Errorf("the team does not have one of each role: %+v", team.People)
-	}
-	if len(team.Catalog) == 0 {
-		t.Error("the fake provider lists nothing")
 	}
 	for _, o := range team.Catalog {
 		if o.Type == "" || o.ID == "" || o.Name == "" || o.Region == "" {
@@ -134,55 +156,88 @@ func TestTeamSetupIsConsistent(t *testing.T) {
 		}
 	}
 	labels := map[string]bool{}
-	kinds := map[string]int{}
+	files := map[string]bool{}
 	base := t.TempDir()
 	if err := copyScenario(sc.Name, base); err != nil {
 		t.Fatal(err)
 	}
 	for _, st := range team.Steps {
-		kinds[st.Kind]++
 		if people[st.Actor] == "" {
 			t.Errorf("the step %s of %q: not a person of the team", st.Kind, st.Actor)
 		}
-		if st.ApproveBy != "" && people[st.ApproveBy] == "" {
-			t.Errorf("the step %s of %s is approved by %q, who is not in the team", st.Kind, st.Actor, st.ApproveBy)
+		for _, by := range st.ApproveBy {
+			if people[by] == "" {
+				t.Errorf("the step %s of %s is approved by %q, who is not in the team", st.Kind, st.Actor, by)
+			}
 		}
 		switch st.Kind {
 		case "discover":
-			if st.Label != "" || len(st.Edits) > 0 {
-				t.Errorf("a discovery has no label and no edits: %+v", st)
+			if st.Label != "" || len(st.Edits) > 0 || st.File != "" {
+				t.Errorf("a discovery has no label, no edits and no file: %+v", st)
 			}
 		case "change", "propose":
-			if st.Label == "" || labels[st.Label] || st.Reason == "" || len(st.Edits) == 0 {
+			if st.Label == "" || labels[st.Label] || st.Reason == "" || len(st.Edits) == 0 || st.File != "" {
 				t.Errorf("the step %s of %s is not a plan: %+v", st.Kind, st.Actor, st)
 			}
 			labels[st.Label] = true
-			if st.Kind == "change" && st.ApproveBy != "" && people[st.ApproveBy] != "admin" {
-				t.Errorf("the change %s is approved by %s, who is not an admin", st.Label, st.ApproveBy)
+			if st.Kind == "change" && len(st.ApproveBy) > 0 && people[st.ApproveBy[len(st.ApproveBy)-1]] != "admin" {
+				t.Errorf("the change %s is approved last by %s, who is not an admin", st.Label, st.ApproveBy[len(st.ApproveBy)-1])
 			}
-			dir := t.TempDir()
-			if err := copyScenario(sc.Name, dir); err != nil {
-				t.Fatal(err)
+		case "save":
+			if st.File == "" || files[st.File] || len(st.Edits) == 0 || st.Label != "" || len(st.ApproveBy) > 0 || !strings.HasSuffix(st.File, ".plan") {
+				t.Errorf("the save of %s is not a plan file: %+v", st.Actor, st)
 			}
-			if err := applyEdits(dir, st.Edits); err != nil {
-				t.Errorf("the step %s of %s: %v", st.Kind, st.Actor, err)
-			}
-			// A change stays: the steps after it, and the edits made last,
-			// apply on top of it.
-			if st.Kind == "change" {
-				if err := applyEdits(base, st.Edits); err != nil {
-					t.Errorf("the change %s on top of the changes before it: %v", st.Label, err)
-				}
-			}
+			files[st.File] = true
 		default:
 			t.Errorf("the step of %s has the kind %q", st.Actor, st.Kind)
 		}
-	}
-	if kinds["discover"] == 0 || kinds["change"] == 0 || kinds["propose"] == 0 {
-		t.Errorf("the team does not discover, change and propose: %v", kinds)
+		if st.Kind == "discover" {
+			continue
+		}
+		dir := t.TempDir()
+		if err := copyScenario(sc.Name, dir); err != nil {
+			t.Fatal(err)
+		}
+		if err := applyEdits(dir, st.Edits); err != nil {
+			t.Errorf("the step %s of %s: %v", st.Kind, st.Actor, err)
+		}
+		// A change stays: the steps after it, and the edits made last,
+		// apply on top of it.
+		if st.Kind == "change" {
+			if err := applyEdits(base, st.Edits); err != nil {
+				t.Errorf("the change %s on top of the changes before it: %v", st.Label, err)
+			}
+		}
 	}
 	if err := applyEdits(base, team.After); err != nil {
 		t.Errorf("the edits made last: %v", err)
+	}
+}
+
+// The team of the platform has every role, a catalog for the discovery, every
+// kind of step that is recorded, and the plans and runs that its shots name.
+func TestTeamOfThePlatform(t *testing.T) {
+	sc, _ := findScenario("team")
+	team := sc.Team
+	if team == nil {
+		t.Fatal("the team scenario has no team")
+	}
+	roles := map[string]bool{}
+	for _, p := range team.People {
+		roles[p.Role] = true
+	}
+	if len(team.People) < 3 || !roles["admin"] || !roles["writer"] || !roles["reader"] {
+		t.Errorf("the team does not have one of each role: %+v", team.People)
+	}
+	if len(team.Catalog) == 0 {
+		t.Error("the fake provider lists nothing")
+	}
+	kinds := map[string]int{}
+	for _, st := range team.Steps {
+		kinds[st.Kind]++
+	}
+	if kinds["discover"] == 0 || kinds["change"] == 0 || kinds["propose"] == 0 {
+		t.Errorf("the team does not discover, change and propose: %v", kinds)
 	}
 	if got := sc.planLabels(); strings.Join(got, " ") != "search reload orders" {
 		t.Errorf("the plans of the team are %v", got)
@@ -211,12 +266,13 @@ func TestScenarioEditsApply(t *testing.T) {
 
 // The edits of each stored plan apply to a fresh copy of the scenario, the actors
 // are distinct, and two of the plans that can be applied change the same thing
-// (the port of orders), which is what the picture of an overlap needs.
+// (the port of orders), which is what the picture of an overlap needs. A plan
+// without edits is a plan of the specification as it stands.
 func TestStoredPlanEditsApply(t *testing.T) {
 	for _, sc := range scenarios {
 		actors := map[string]bool{}
 		for _, sp := range sc.Stored {
-			if actors[sp.Actor] || sp.Actor == "" || sp.Reason == "" || len(sp.Edits) == 0 {
+			if actors[sp.Actor] || sp.Actor == "" || sp.Reason == "" {
 				t.Errorf("%s: the stored plan of %q is not a plan: %+v", sc.Name, sp.Actor, sp)
 			}
 			actors[sp.Actor] = true

@@ -62,9 +62,9 @@ pravo can seal a state. The values of every record, the outputs and the stored p
 
 ## A password in the bucket
 
-Work in an empty directory. The team's root is `team/`, with the state in the in-memory bucket as in C1, and one resource that returns a secret. The people of this track are directories under `people/`, one identity each; `PRAVO_CONFIG_DIR` picks the one a command runs as, and the lesson sets it to Ada's.
+Work in an empty directory: it is the team's root, with the state in the in-memory bucket as in C1, and one resource that returns a secret. The people of this track are directories under `people/`, one identity each; `PRAVO_CONFIG_DIR` picks the one a command runs as, and the lesson sets it to Ada's.
 
-```cue file=team/main.cue title="team/main.cue"
+```cue file=main.cue title="main.cue"
 package team
 
 import (
@@ -89,8 +89,8 @@ secret: $random.#Resource.random_password & {length: 16}
 ```
 
 ```sh run
-pravo -C team init > /dev/null
-pravo -C team apply --auto-approve | tail -n 1
+pravo init > /dev/null
+pravo apply --auto-approve | tail -n 1
 curl -s "$FAKES3_URL/northwind-state/prod/resources/secret.json" | grep '"result"'
 ```
 
@@ -106,7 +106,7 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 `pravo id new` makes an identity: a reader key, which opens sealed values, and a signing key, which signs what the identity does. The reader key is sealed under a passphrase. On a terminal the command asks for it twice; the lesson sets `PRAVO_PASSPHRASE` so that it runs in a script. The command touches no state.
 
 ```sh run
-pravo -C team id new --name ada
+pravo id new --name ada
 ```
 
 ```text out
@@ -126,10 +126,10 @@ The last line is public: a name and two public keys. It is what Ada gives the te
 The list of readers is `.pravo/access/readers.txt` in the repository, one line per reader, the line that `id new` printed. Whoever can merge a change to this file decides who may read the state. Writers take the list from the checkout, never from the bucket, so someone who can write to the bucket cannot add themselves.
 
 ```sh run
-mkdir -p team/.pravo/access
-pravo -C team id show | tail -n 1 | sed 's/^ *//' > team/.pravo/access/readers.txt
-PRAVO_CONFIG_DIR=people/dan pravo -C team id new --name dan | tail -n 1 | sed 's/^ *//' >> team/.pravo/access/readers.txt
-cat team/.pravo/access/readers.txt
+mkdir -p .pravo/access
+pravo id show | tail -n 1 | sed 's/^ *//' > .pravo/access/readers.txt
+PRAVO_CONFIG_DIR=people/dan pravo id new --name dan | tail -n 1 | sed 's/^ *//' >> .pravo/access/readers.txt
+cat .pravo/access/readers.txt
 ```
 
 ```text out
@@ -142,7 +142,7 @@ dan ssh-ed25519 <ssh-key> x25519:<key>
 `pravo protect init --encrypt` is the one step that changes the bucket. It says what it will do and asks for a yes; `--yes` answers in a script. It refuses to run for an identity that is not on the list, since sealing to a list you are not on would lock you out.
 
 ```sh run
-pravo -C team protect init --encrypt --yes
+pravo protect init --encrypt --yes
 ```
 
 ```text out
@@ -169,7 +169,7 @@ Read the four lines of the plan. The records become immutable objects, named by 
 Now `curl` is the leaked bucket. Every object, searched for the password:
 
 ```sh run
-PW=$(pravo -C team state show secret --json | jq -r .node.attributes.result)
+PW=$(pravo state show secret --json | jq -r .node.attributes.result)
 for k in $(curl -s "$FAKES3_URL/northwind-state?list-type=2&prefix=prod/" | grep -o '<Key>[^<]*' | sed 's/<Key>//'); do
   curl -s "$FAKES3_URL/northwind-state/$k"
 done | grep -c -F "$PW" || true
@@ -182,7 +182,7 @@ done | grep -c -F "$PW" || true
 Ada reads it as before, because her identity opens the records:
 
 ```sh run
-pravo -C team state show secret | grep result | sed 's/"[^"]*"/"<password>"/'
+pravo state show secret | grep result | sed 's/"[^"]*"/"<password>"/'
 ```
 
 ```text out
@@ -201,8 +201,8 @@ Ask what the seal left in the open, and why.
 :::
 
 ```sh run exit=5
-PRAVO_CONFIG_DIR=nobody pravo -C team state list
-PRAVO_CONFIG_DIR=nobody pravo -C team state show secret
+PRAVO_CONFIG_DIR=nobody pravo state list
+PRAVO_CONFIG_DIR=nobody pravo state show secret
 ```
 
 ```text out
@@ -219,15 +219,15 @@ The error says where the list is and what to do. A backup or an old version of a
 Ada changes the length and applies. The apply is a transaction, as in C1, and now it is signed by the identity that ran it: once when it starts and once when it ends.
 
 ```sh run
-sed -i 's/length: 16/length: 20/' team/main.cue
-pravo -C team apply --auto-approve | tail -n 1
-pravo -C team state log | head -n 5
+sed -i 's/length: 16/length: 20/' main.cue
+pravo apply --auto-approve | tail -n 1
+pravo state log | head -n 5
 ```
 
 ```text out
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
 <txn>  apply    applied   <time> <duration>
-    pravo -C team apply --auto-approve
+    pravo apply --auto-approve
     signed by ada (verified)
     1 added, 0 changed, 1 destroyed
     replace  secret  r1 -> r2
@@ -238,7 +238,7 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
 The transaction from before the seal is unsigned, which is not an error. `pravo protect status` is the one screen to read when you are unsure where a state stands:
 
 ```sh run
-pravo -C team protect status
+pravo protect status
 ```
 
 ```text out
@@ -259,16 +259,16 @@ Unsettled    none
 Eve joins the team. Make her identity in `people/eve`, add her line to the readers file and let her read the password. Only an existing reader can add one. Say why.
 
 ::hint
-`PRAVO_CONFIG_DIR=people/eve pravo -C team id new --name eve` makes the identity and prints the line. Append it to `team/.pravo/access/readers.txt`.
+`PRAVO_CONFIG_DIR=people/eve pravo id new --name eve` makes the identity and prints the line. Append it to `.pravo/access/readers.txt`.
 
 ::hint
 The readers file changed, and the state has not heard of it yet. `pravo protect rewrap`, run by Ada, locks the data keys for the new reader. It does not rewrite the records.
 
 ::solution
 ```sh run
-PRAVO_CONFIG_DIR=people/eve pravo -C team id new --name eve | tail -n 1 | sed 's/^ *//' >> team/.pravo/access/readers.txt
-pravo -C team protect rewrap
-PRAVO_CONFIG_DIR=people/eve pravo -C team state show secret | grep result | sed 's/"[^"]*"/"<password>"/'
+PRAVO_CONFIG_DIR=people/eve pravo id new --name eve | tail -n 1 | sed 's/^ *//' >> .pravo/access/readers.txt
+pravo protect rewrap
+PRAVO_CONFIG_DIR=people/eve pravo state show secret | grep result | sed 's/"[^"]*"/"<password>"/'
 ```
 
 ```text out
@@ -281,7 +281,7 @@ meta.json updated
 Only a reader can run `rewrap`, because only a reader holds the data key that has to be locked for Eve. That is why someone who can write to the bucket, and even to the readers file, cannot read the state by adding a line: an existing reader has to act, and the act is signed.
 
 ```sh run check
-PRAVO_CONFIG_DIR=people/eve pravo -C team state show secret | grep -q result
+PRAVO_CONFIG_DIR=people/eve pravo state show secret | grep -q result
 ```
 :::
 
@@ -291,11 +291,11 @@ Removing a reader is the same steps the other way, with a difference that no too
 
 ```sh run hidden
 # The exercise runs in a copy of the directory, and the bucket is shared, so the file and the state are made to agree first.
-pravo -C team protect rewrap
+pravo protect rewrap
 ```
 
 ```sh run
-pravo -C team destroy --auto-approve | tail -n 1
+pravo destroy --auto-approve | tail -n 1
 ```
 
 ```text out

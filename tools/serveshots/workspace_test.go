@@ -495,3 +495,68 @@ func TestLastLines(t *testing.T) {
 		t.Errorf("lastLines = %q", got)
 	}
 }
+
+// A scenario without resources is initialised and not applied, and a stored
+// plan without edits is a plan of the specification as it stands.
+func TestPrepareStoredWithoutResources(t *testing.T) {
+	r, log := fake(t)
+	sc, _ := findScenario("c02")
+	dir := filepath.Join(t.TempDir(), "ws")
+	w, err := prepareStored(context.Background(), r, sc, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Situation != situationStored || len(w.Plans) != 2 {
+		t.Fatalf("workspace = %+v", w)
+	}
+	want := []string{"init",
+		"plan --store --actor ada --reason Reserve a port for the web server",
+		"plan --store --actor dan --reason Keep 29999 free"}
+	if got := calls(t, log); !reflect.DeepEqual(got, want) {
+		t.Errorf("calls = %q, want %q", got, want)
+	}
+	original, _ := scenarioFS.ReadFile("scenarios/c02/main.cue")
+	if got := readFile(t, filepath.Join(dir, "main.cue")); got != string(original) {
+		t.Error("the specification was not put back")
+	}
+}
+
+// A team whose files name no store keeps its state in a local directory, which
+// is sealed with --allow-local, and a save step writes a plan file as its actor
+// and puts the specification back.
+func TestPrepareTeamWithALocalState(t *testing.T) {
+	r, log := fake(t)
+	t.Setenv("SERVESHOTS_FAKE_RESOURCES", "2")
+	sc, _ := findScenario("c05")
+	dir := filepath.Join(t.TempDir(), "c05")
+	deps := teamDeps{Store: &store{Endpoint: "http://127.0.0.1:9000"}, FakeProvider: filepath.Join(t.TempDir(), "terraform-provider-demo")}
+	w, err := prepareTeam(context.Background(), r, sc, dir, deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"id new --name ada @ada",
+		"init @ada",
+		"protect init --encrypt --yes --allow-local @ada",
+		"protect roles --yes @ada",
+		"apply -auto-approve --actor ada --reason first apply @ada +traces",
+		"plan --out longer.plan --actor ada @ada",
+		"plan --out add.plan --actor ada @ada",
+		"plan --out short.plan --actor ada @ada",
+	}
+	if got := calls(t, log); !reflect.DeepEqual(got, want) {
+		t.Errorf("calls =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
+	}
+	for _, f := range []string{"longer.plan", "add.plan", "short.plan"} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			t.Errorf("the plan file %s: %v", f, err)
+		}
+	}
+	original, _ := scenarioFS.ReadFile("scenarios/c05/main.cue")
+	if got := readFile(t, filepath.Join(dir, "main.cue")); got != string(original) {
+		t.Error("the specification was not put back after the saves")
+	}
+	if len(w.Plans) != 0 || len(w.Traces) != 1 {
+		t.Errorf("plans %v, traces %v", w.Plans, w.Traces)
+	}
+}

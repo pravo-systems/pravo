@@ -36,9 +36,9 @@ pravo puts the second pair of eyes in the rule. A policy can say that a plan whi
 
 ## Three people, one rule
 
-Work in an empty directory. The root is `team/`, one resource, and its state is sealed to Ada, an admin, and to Dan and Eve, two writers, with the roles pinned as C4 did it. The setup runs those steps for you.
+Work in an empty directory: it is the root, with one resource, and its state is sealed to Ada, an admin, and to Dan and Eve, two writers, with the roles pinned as C4 did it. The setup runs those steps for you.
 
-```cue file=team/main.cue title="team/main.cue"
+```cue file=main.cue title="main.cue"
 package team
 
 import rnd "pravo.dev/providers/hashicorp/random"
@@ -49,24 +49,24 @@ pet: $random.#Resource.random_pet & {length: 2}
 ```
 
 ```sh run hidden
-mkdir -p team/.pravo/access
-pravo -C team id new --name ada > /dev/null
-PRAVO_CONFIG_DIR=people/dan pravo -C team id new --name dan > /dev/null
-PRAVO_CONFIG_DIR=people/eve pravo -C team id new --name eve > /dev/null
+mkdir -p .pravo/access
+pravo id new --name ada > /dev/null
+PRAVO_CONFIG_DIR=people/dan pravo id new --name dan > /dev/null
+PRAVO_CONFIG_DIR=people/eve pravo id new --name eve > /dev/null
 {
-  echo "$(pravo -C team id show | tail -n 1 | sed 's/^ *//') role:admin"
-  echo "$(PRAVO_CONFIG_DIR=people/dan pravo -C team id show | tail -n 1 | sed 's/^ *//') role:writer"
-  echo "$(PRAVO_CONFIG_DIR=people/eve pravo -C team id show | tail -n 1 | sed 's/^ *//') role:writer"
-} > team/.pravo/access/readers.txt
-pravo -C team init > /dev/null
-pravo -C team protect init --encrypt --yes --allow-local > /dev/null
-pravo -C team protect roles --yes > /dev/null
-pravo -C team apply --auto-approve > /dev/null
+  echo "$(pravo id show | tail -n 1 | sed 's/^ *//') role:admin"
+  echo "$(PRAVO_CONFIG_DIR=people/dan pravo id show | tail -n 1 | sed 's/^ *//') role:writer"
+  echo "$(PRAVO_CONFIG_DIR=people/eve pravo id show | tail -n 1 | sed 's/^ *//') role:writer"
+} > .pravo/access/readers.txt
+pravo init > /dev/null
+pravo protect init --encrypt --yes --allow-local > /dev/null
+pravo protect roles --yes > /dev/null
+pravo apply --auto-approve > /dev/null
 ```
 
 ```sh run
-awk '$5 ~ /^role:/ {print $1, $5}' team/.pravo/access/readers.txt
-pravo -C team protect status | grep '^Roles'
+awk '$5 ~ /^role:/ {print $1, $5}' .pravo/access/readers.txt
+pravo protect status | grep '^Roles'
 ```
 
 ```text out
@@ -80,7 +80,7 @@ Roles        on · 1 admin · 2 writer · 0 reader · pinned, version 1 in the s
 
 C5's rules said what a plan may not do. This one says what a plan that destroys needs. It is written with `|`, which A6 used for a choice between values: here it is a choice between two shapes, and a plan fits the rule when it fits one of them.
 
-```cue file=team/policy.cue title="team/policy.cue"
+```cue file=policy.cue title="policy.cue"
 package team
 
 import "pravo.dev/pravo"
@@ -108,7 +108,7 @@ approvals: {
 Ada applies. The plan that adds a policy is not judged by it, and the rule is in force from this apply on.
 
 ```sh run
-pravo -C team apply --auto-approve | grep -E '^(Policies|Apply complete)'
+pravo apply --auto-approve | grep -E '^(Policies|Apply complete)'
 ```
 
 ```text out
@@ -122,8 +122,8 @@ Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 Dan removes the resource and stores the plan. The approvals belong to the stored plan, so a plan the rule catches is stored, as C2 stored one, and judged at the apply, so that the approvals can be given in between.
 
 ```sh run
-sed -i '/^pet:/d' team/main.cue
-PRAVO_CONFIG_DIR=people/dan pravo -C team plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
+sed -i '/^pet:/d' main.cue
+PRAVO_CONFIG_DIR=people/dan pravo plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
 ```
 
 ```text out
@@ -139,8 +139,8 @@ The apply is refused with exit code 5. The plan has no approval, and Dan's own k
 :::
 
 ```sh run
-ID=$(pravo -C team plan list | awk 'NR==1 {print $1}')
-PRAVO_CONFIG_DIR=people/dan pravo -C team apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
+ID=$(pravo plan list | awk 'NR==1 {print $1}')
+PRAVO_CONFIG_DIR=people/dan pravo apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
 sed -n '/^Error/,$p' apply.out
 ```
 
@@ -151,14 +151,21 @@ Error: the plan plan-<id> needs 1 approval by a writer or an admin (second_opini
 
 `ID` in the shell stands for the id that pravo printed. The error says how many approvals the plan needs, of which role, under which rule, and how many it has.
 
+The Plans section of the viewer, `pravo serve` from the root and then `p`, says the same on the row of the plan and under it, with the command that approves the plan, to copy. The viewer approves nothing itself: an approval is a signature, by the key of the member who runs the command.
+
+:::figure The plan of Dan in the Plans section: what the policies ask for, how far the plan is, and the command that approves it.
+<a class="shot shot-dark" href="../img/serve/c06-waits-dark.png"><img src="../img/serve/c06-waits-dark.png" width="1440" height="900" alt="The Plans section of the viewer. The head says 1 stored plan can still be applied, of 1 in the state. The row of the plan retire the pet, by dan, just now, −1, carries the chip pending and an amber chip Awaiting 1 approval, and reads Viewing. Under it the row is open: Changes 1, pet, a random_pet, to delete; expires in 7 d; the command pravo plan --store --actor dan --reason retire the pet; a box Waiting for approvals, which says that the policies ask for 1 approval by a writer or an admin, by second_opinion@1, and the plan has 0, that the key that stored the plan does not count, that an admin applies without approvals, and that nobody has approved it yet; then the command pravo plan approve with the id of the plan, with a copy button, and the command pravo apply with the id. The inspector shows the project." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/c06-waits-light.png"><img src="../img/serve/c06-waits-light.png" width="1440" height="900" alt="The Plans section of the viewer. The head says 1 stored plan can still be applied, of 1 in the state. The row of the plan retire the pet, by dan, just now, −1, carries the chip pending and an amber chip Awaiting 1 approval, and reads Viewing. Under it the row is open: Changes 1, pet, a random_pet, to delete; expires in 7 d; the command pravo plan --store --actor dan --reason retire the pet; a box Waiting for approvals, which says that the policies ask for 1 approval by a writer or an admin, by second_opinion@1, and the plan has 0, that the key that stored the plan does not count, that an admin applies without approvals, and that nobody has approved it yet; then the command pravo plan approve with the id of the plan, with a copy button, and the command pravo apply with the id. The inspector shows the project." loading="lazy"></a>
+:::
+
 ## Break it: approve your own plan
 
 Dan approves it himself. The command works, because an approval is a signature and any writer can sign. The apply counts it as nothing.
 
 ```sh run
-ID=$(pravo -C team plan list | awk 'NR==1 {print $1}')
-PRAVO_CONFIG_DIR=people/dan pravo -C team plan approve "$ID"
-PRAVO_CONFIG_DIR=people/dan pravo -C team apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
+ID=$(pravo plan list | awk 'NR==1 {print $1}')
+PRAVO_CONFIG_DIR=people/dan pravo plan approve "$ID"
+PRAVO_CONFIG_DIR=people/dan pravo apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
 grep -o 'and has [0-9]*' apply.out
 ```
 
@@ -173,11 +180,11 @@ and has 0
 Eve reads the plan, with `pravo plan show ID` or in the Plans section of the viewer, and approves it. Then Dan applies.
 
 ```sh run
-ID=$(pravo -C team plan list | awk 'NR==1 {print $1}')
-PRAVO_CONFIG_DIR=people/eve pravo -C team plan approve "$ID"
-pravo -C team plan show "$ID" | grep -E '^(Stored plan|  approved)'
-PRAVO_CONFIG_DIR=people/dan pravo -C team apply "$ID" --auto-approve | grep '^Apply complete'
-pravo -C team plan list --all | head -n 1
+ID=$(pravo plan list | awk 'NR==1 {print $1}')
+PRAVO_CONFIG_DIR=people/eve pravo plan approve "$ID"
+pravo plan show "$ID" | grep -E '^(Stored plan|  approved)'
+PRAVO_CONFIG_DIR=people/dan pravo apply "$ID" --auto-approve | grep '^Apply complete'
+pravo plan list --all | head -n 1
 ```
 
 ```text out
@@ -190,15 +197,22 @@ plan-<id>  applied  dan  just now  +0 ~0 -1  applied just now
 
 `plan show` lists every approval in the order it was given, and the apply counts the ones that qualify. The transaction is signed by Dan, who applied, and the plan keeps Eve's approval, so the state says who asked, who agreed and who ran it. An approval holds for this plan alone: a plan made again from the same change needs approvals of its own, because the digest differs. Whether a key counts is decided at the apply, from the readers file of the checkout, so a key that was demoted or taken off the file stops counting.
 
+Between the approval and the apply, the row of the plan in the viewer carries Approved with the count of approvals, and the open row says that what the policies ask for is met, who approved and when, and the command that applies the plan.
+
+:::figure The same plan with Dan's and Eve's approvals. One of the two counts, and the plan can be applied.
+<a class="shot shot-dark" href="../img/serve/c06-approved-dark.png"><img src="../img/serve/c06-approved-dark.png" width="1440" height="900" alt="The Plans section of the viewer with the plan retire the pet open. Its row carries the chip pending and a green chip Approved · 2. The open row shows Changes 1, pet, a random_pet, to delete, expires in 7 d, the command that stored the plan, and a box Approvals, which says that the policies ask for 1 approval by a writer or an admin, by second_opinion@1, and the plan has 1, that the key that stored the plan does not count, that an admin applies without approvals, and Approved by dan (writer), just now; eve (writer), just now. Under it the command pravo apply with the id of the plan, with a copy button." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/c06-approved-light.png"><img src="../img/serve/c06-approved-light.png" width="1440" height="900" alt="The Plans section of the viewer with the plan retire the pet open. Its row carries the chip pending and a green chip Approved · 2. The open row shows Changes 1, pet, a random_pet, to delete, expires in 7 d, the command that stored the plan, and a box Approvals, which says that the policies ask for 1 approval by a writer or an admin, by second_opinion@1, and the plan has 1, that the key that stored the plan does not count, that an admin applies without approvals, and Approved by dan (writer), just now; eve (writer), just now. Under it the command pravo apply with the id of the plan, with a copy button." loading="lazy"></a>
+:::
+
 ## What an admin may skip
 
 An admin needs no approval, so a state with one member works as it did before the rule, and a readers file without roles makes every key an admin. Ada puts the resource back, and removes it again with a plain apply:
 
 ```sh run
-printf '\npet: $random.#Resource.random_pet & {length: 2}\n' >> team/main.cue
-pravo -C team apply --auto-approve | grep '^Apply complete'
-sed -i '/^pet:/d' team/main.cue
-pravo -C team apply --auto-approve | grep '^Apply complete'
+printf '\npet: $random.#Resource.random_pet & {length: 2}\n' >> main.cue
+pravo apply --auto-approve | grep '^Apply complete'
+sed -i '/^pet:/d' main.cue
+pravo apply --auto-approve | grep '^Apply complete'
 ```
 
 ```text out
@@ -214,7 +228,7 @@ A writer may edit a policy, and the plan that carries the edit changes no resour
 
 Dan rewrites the rule so that it asks for nothing:
 
-```cue file=team/policy.cue title="team/policy.cue" hl="8"
+```cue file=policy.cue title="policy.cue" hl="8"
 package team
 
 import "pravo.dev/pravo"
@@ -228,12 +242,12 @@ second_opinion: pravo.#Policy & {
 ```
 
 ```sh run
-PRAVO_CONFIG_DIR=people/dan pravo -C team plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
-ID=$(pravo -C team plan list | awk 'NR==1 {print $1}')
-PRAVO_CONFIG_DIR=people/dan pravo -C team apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
+PRAVO_CONFIG_DIR=people/dan pravo plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
+ID=$(pravo plan list | awk 'NR==1 {print $1}')
+PRAVO_CONFIG_DIR=people/dan pravo apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
 sed -n '/^Error/,$p' apply.out
-PRAVO_CONFIG_DIR=people/eve pravo -C team plan approve "$ID"
-PRAVO_CONFIG_DIR=people/dan pravo -C team apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
+PRAVO_CONFIG_DIR=people/eve pravo plan approve "$ID"
+PRAVO_CONFIG_DIR=people/dan pravo apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
 sed -n '/^Error/,$p' apply.out
 ```
 
@@ -262,10 +276,10 @@ Ada agrees with the change. Approve the stored plan as Ada and apply it as Dan, 
 
 ::solution
 ```sh run
-ID=$(pravo -C team plan list | awk 'NR==1 {print $1}')
-pravo -C team plan approve "$ID"
-PRAVO_CONFIG_DIR=people/dan pravo -C team apply "$ID" --auto-approve | grep -E '^(Policies|Apply complete)'
-pravo -C team plan show "$ID" | grep '^  approved'
+ID=$(pravo plan list | awk 'NR==1 {print $1}')
+pravo plan approve "$ID"
+PRAVO_CONFIG_DIR=people/dan pravo apply "$ID" --auto-approve | grep -E '^(Policies|Apply complete)'
+pravo plan show "$ID" | grep '^  approved'
 ```
 
 ```text out
@@ -278,7 +292,7 @@ Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 Eve's approval stays on the plan as a record of who agreed. Ada's is the one that counted.
 
 ```sh run check
-pravo -C team plan show "$(pravo -C team plan list --all | awk 'NR==1 {print $1}')" | grep -q 'ada (admin)'
+pravo plan show "$(pravo plan list --all | awk 'NR==1 {print $1}')" | grep -q 'ada (admin)'
 ```
 :::
 

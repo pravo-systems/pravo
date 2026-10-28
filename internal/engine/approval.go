@@ -292,3 +292,43 @@ func policyChangeNeed(set *state.PolicySet, plan *Plan) *ApprovalNeed {
 	}
 	return need
 }
+
+// ApprovalNeeds is what a plan must have approved before an apply lets it through, as
+// the apply counts it, each need on its own: the admin that a change to a policy in
+// force that asks for approvals needs, and what the rules of the policies in force set
+// on the document of the plan when it changes a resource. A plan that the rules refuse
+// gets no need from them, and refused says so: the apply stops at the refusal. An admin
+// applies without approvals. The viewer shows the needs beside the approvals a stored
+// plan has.
+func (e *Engine) ApprovalNeeds(set *state.PolicySet, pf *PlanFile) (needs []ApprovalNeed, refused bool, err error) {
+	data, plan, err := e.PolicyDocument(pf)
+	if err != nil {
+		return nil, false, err
+	}
+	if need := policyChangeNeed(set, plan); need != nil {
+		needs = append(needs, *need)
+	}
+	force := set.InForce()
+	if len(force) == 0 || !pf.changesResources() {
+		return needs, false, nil
+	}
+	doc, err := buildDoc(e.Root.Ctx, data)
+	if err != nil {
+		return nil, false, err
+	}
+	if _, err := judgeVersions(e, doc, force); err != nil {
+		var coded *CodedError
+		if errors.As(err, &coded) && coded.Code == ExitRefused {
+			return needs, true, nil
+		}
+		return nil, false, err
+	}
+	need, err := approvalNeed(e, doc, force)
+	if err != nil {
+		return nil, false, err
+	}
+	if need != nil {
+		needs = append(needs, *need)
+	}
+	return needs, false, nil
+}

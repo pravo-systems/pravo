@@ -296,6 +296,11 @@ type Shot struct {
 	// Width and Height are the viewport in CSS pixels. The PNG is twice as large
 	// in each direction.
 	Width, Height int
+	// Script is JavaScript that runs in the page once it has settled and before
+	// the picture is taken, for a view that no fragment reaches: a rule typed
+	// into the policy studio. It is the body of an async function and may
+	// await; the page then gets to settle again.
+	Script string
 }
 
 // scale is the device scale factor of every shot.
@@ -364,6 +369,12 @@ func allShots() []Shot {
 		}
 		return shots
 	}
+	scripted := func(script string, shots []Shot) []Shot {
+		for i := range shots {
+			shots[i].Script = script
+		}
+		return shots
+	}
 	var s []Shot
 	// Nothing is selected, so the inspector shows the project: this is the page
 	// as it opens.
@@ -421,6 +432,43 @@ func allShots() []Shot {
 	s = append(s, sized(1440, 1500, both("trace-span", "team", situationTeam, Fragment{View: "traces", Trace: "@apply:search", Span: "@network PUT 127.0.0.1"}))...)
 	s = append(s, both("traces-slowest", "team", situationTeam, Fragment{View: "traces", Trace: "@apply", TV: "table"})...)
 	s = append(s, both("members", "team", situationTeam, Fragment{View: "state"})...)
+
+	// The estates of the lessons, each as its lesson opens the viewer there.
+	// B2: the plan of one changed number, laid over the graph, with the file
+	// that the replacement spreads to selected.
+	s = append(s, both("b02-plan", "b02", situationPlan, Fragment{Sel: "web", Tab: "change"})...)
+	// B3: the record of a resource, and the outputs at the right of the graph.
+	s = append(s, both("b03-state", "b03", situationClean, Fragment{Sel: "web", Tab: "state"})...)
+	// B5: six resources from one rule, in two groups, and the rule in the Source tab.
+	s = append(s, both("b05-groups", "b05", situationClean, Fragment{Sel: "conf.web", Tab: "source"})...)
+	// B6: a resource of a definition that another package holds: both files.
+	s = append(s, both("b06-source", "b06", situationClean, Fragment{Sel: "api.config", Tab: "source"})...)
+	// B8: a rename that keeps the object, as the plan shows it.
+	s = append(s, both("b08-move", "b08", situationPlan, Fragment{Sel: "primary", Tab: "change"})...)
+	// B9: a file deleted outside pravo, after pravo drift found it.
+	s = append(s, both("b09-drift", "b09", situationChanged, Fragment{Sel: "motd", Tab: "state"})...)
+	// B10: a policy in force, and the apply that it judged.
+	s = append(s, both("b10-policies", "b10", situationTeam, Fragment{View: "policies", Pol: "no_delete"})...)
+	// C2: two stored plans for one resource, before anything is applied.
+	s = append(s, both("c02-plans", "c02", situationStored, Fragment{View: "plans", Plan: "@dan"})...)
+	// C5: the studio with a rule typed into it, held against a plan file or
+	// against the resources of the state.
+	studio := Fragment{View: "policies", Studio: true}
+	s = append(s, scripted(studioScript(rule("c05", "no_destroy"), "plan", "longer.plan", ""),
+		both("c05-studio-shape", "c05", situationTeam, studio))...)
+	s = append(s, scripted(studioScript(rule("c05", "long_passwords"), "plan", "short.plan", ""),
+		both("c05-studio-template", "c05", situationTeam, studio))...)
+	s = append(s, scripted(studioScript(withBound(rule("c05", "long_passwords"), ">=16", ">=20"), "resources", "", "secret"),
+		both("c05-studio-resources", "c05", situationTeam, studio))...)
+	s = append(s, scripted(studioScript(rule("c05", "typo"), "resources", "", ""),
+		both("c05-studio-typo", "c05", situationTeam, studio))...)
+	// C6: the plan that destroys the resource as it waits for an approval,
+	// with its row open on what it waits for and the command that approves
+	// it, and the same plan once a second writer approved it.
+	s = append(s, scripted(openPlanScript("retire the pet"),
+		both("c06-waits", "c06-waits", situationTeam, Fragment{View: "plans", Plan: "@retire"}))...)
+	s = append(s, scripted(openPlanScript("retire the pet"),
+		both("c06-approved", "c06", situationTeam, Fragment{View: "plans", Plan: "@retire"}))...)
 	return s
 }
 
