@@ -20,7 +20,13 @@ keywords: "tfvars variable workspace -var -t environments"
 
 Two questions from earlier lessons. Decide, then open the answer.
 
-:::predict The only line about `env` is `env: *"dev" | "prod"`. What does `pravo eval -e env` print?
+:::predict What does `pravo eval -e env` print?
+The only line about `env` is:
+
+```cue
+env: *"dev" | "prod"
+```
+
 ::reveal
 `"dev"`. The `*` marks the default, and nothing else sets the field ([A6](a06-choices-and-defaults.md)).
 :::

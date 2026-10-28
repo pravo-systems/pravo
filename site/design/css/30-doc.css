@@ -315,7 +315,7 @@ html:not(.js) .copy-page { display: none; }
   line-height: 1.12;
   padding-top: 1.3rem;
 }
-.doc h2::before {
+.doc h2::after {
   content: "";
   position: absolute;
   left: 0; top: 0;
@@ -328,12 +328,16 @@ html:not(.js) .copy-page { display: none; }
 .doc .card > h3 { margin: 0; font: 500 var(--fs-8)/1.2 var(--font-ui); letter-spacing: -.012em; }
 .doc .card > p { margin: 0; max-width: none; font-size: var(--fs-5); line-height: 1.55; color: var(--text-2); }
 .doc .card .anchor::after, .doc .card .anchor-side { display: none; }
+/* the section sign stands in the margin, centred on the x-height of the
+   heading, whatever the size of the heading */
 @media (min-width: 60rem) {
-  .doc h2::after {
+  .doc h2::before {
     content: "\00a7"; content: "\00a7" / "";
-    position: absolute;
-    left: -2.1rem; top: 1.45rem;
-    font: 400 var(--fs-7)/1 var(--font-display);
+    display: inline-block;
+    width: 2.1rem;
+    margin-left: -2.1rem;
+    vertical-align: middle;
+    font: 400 .6em/1 var(--font-display);
     color: var(--text-3);
   }
 }

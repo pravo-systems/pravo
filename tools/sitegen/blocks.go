@@ -51,7 +51,7 @@ var containerSpec = map[string]struct {
 	"tabs":      {nil, ""},
 	"predict":   {[]string{"reveal"}, "the question"},
 	"exercise":  {[]string{"hint", "solution"}, "a title"},
-	"check":     {[]string{"answer"}, ""},
+	"check":     {[]string{"question", "answer"}, ""},
 	"deep-dive": {nil, "a title"},
 	"figure":    {nil, "a caption"},
 	"widget":    {[]string{"fallback"}, "the widget name"},
@@ -478,13 +478,58 @@ func permalink(id, inner string) string {
 	return `<a class="anchor" href="#` + html.EscapeString(id) + `">` + inner + `</a>`
 }
 
-func (r *renderer) renderCheck(d *directive) string {
-	// segments between ::answer markers: Q1 | A1 Q2 | A2 Q3 | ... | An
-	segs := d.parts
-	if len(segs) < 2 {
-		r.errorf(d.line, ":::check needs questions, each followed by ::answer")
-		return ""
+// checkQuestion is one question of a check: the question, one paragraph that
+// ends in "?", and the premise before it, the paragraphs and listings that the
+// question is about, when it has one.
+type checkQuestion struct {
+	premise  *part
+	question string
+	line     int
+}
+
+// lastParagraph returns the bounds of the last paragraph of lines: the lines
+// after the last blank line, without the blank lines at the end.
+func lastParagraph(lines []string) (start, end int) {
+	end = len(lines)
+	for end > 0 && strings.TrimSpace(lines[end-1]) == "" {
+		end--
 	}
+	start = end
+	for start > 0 && strings.TrimSpace(lines[start-1]) != "" {
+		start--
+	}
+	return start, end
+}
+
+// questionOf reads a question from the lines of a part: the last paragraph is
+// the question, and what comes before it is the premise.
+func (r *renderer) questionOf(p *part) *checkQuestion {
+	start, end := lastParagraph(p.lines)
+	q := &checkQuestion{question: strings.TrimSpace(strings.Join(p.lines[start:end], "\n")), line: p.line + start}
+	if !strings.HasSuffix(q.question, "?") {
+		r.errorf(q.line, "a check question ends in ?; found %q", q.question)
+	}
+	if nonBlank(p.lines[:start]) {
+		q.premise = &part{line: p.line, lines: p.lines[:start]}
+	}
+	return q
+}
+
+// checkItem draws one question with its answer. A question with a premise is
+// framed with it, and the number stands beside the premise.
+func (r *renderer) checkItem(q *checkQuestion, answer *part) string {
+	details := fmt.Sprintf("<details>\n<summary>%s</summary>\n%s\n</details>\n", r.inline(q.question, q.line), r.sub(answer))
+	if q.premise == nil {
+		return details
+	}
+	return fmt.Sprintf("<div class=\"check-item\">\n<div class=\"check-premise\">\n%s\n</div>\n%s</div>\n", r.sub(q.premise), details)
+}
+
+func (r *renderer) renderCheck(d *directive) string {
+	// The parts are the first question, then an ::answer for each question. A
+	// question is one paragraph that ends in "?": the text before the first
+	// ::answer, the last paragraph of the answer before it, or the end of a
+	// ::question part, whose other lines are the premise shown above it.
 	var b strings.Builder
 	title := "Check yourself"
 	if d.arg != "" {
@@ -492,37 +537,48 @@ func (r *renderer) renderCheck(d *directive) string {
 	}
 	id := r.generatedID("check", title)
 	fmt.Fprintf(&b, "<section class=\"check\">\n<h3 id=\"%s\">%s</h3>\n", id, permalink(id, r.inline(title, d.line)))
-	question, qline := strings.TrimSpace(segs[0].text()), segs[0].line
-	if !strings.HasSuffix(question, "?") {
-		r.errorf(qline, "a check question ends in ?")
+	var q *checkQuestion
+	n := 0
+	for i, p := range d.parts {
+		switch p.name {
+		case "":
+			if nonBlank(p.lines) {
+				q = r.questionOf(p)
+			}
+		case "question":
+			if q != nil {
+				r.errorf(p.line-1, "::question follows a question that has no ::answer")
+			}
+			q = r.questionOf(p)
+		case "answer":
+			if q == nil {
+				r.errorf(p.line-1, "::answer follows no question")
+				continue
+			}
+			answer := p.lines
+			var next *checkQuestion
+			if i+1 < len(d.parts) && d.parts[i+1].name == "answer" {
+				// The last paragraph of this answer is the next question.
+				start, end := lastParagraph(answer)
+				next = &checkQuestion{question: strings.TrimSpace(strings.Join(answer[start:end], "\n")), line: p.line + start}
+				if !strings.HasSuffix(next.question, "?") {
+					r.errorf(p.line, "a check question ends in ?; found %q before ::answer", next.question)
+				}
+				answer = answer[:start]
+			}
+			if !nonBlank(answer) {
+				r.errorf(p.line-1, "::answer has no answer")
+			}
+			b.WriteString(r.checkItem(q, &part{line: p.line, lines: answer}))
+			n++
+			q = next
+		}
 	}
-	for i := 1; i < len(segs); i++ {
-		ans := segs[i]
-		answerLines := ans.lines
-		nextQ, nextLine := "", 0
-		if i < len(segs)-1 {
-			// the last paragraph of this segment is the next question
-			idx := len(answerLines)
-			for idx > 0 && strings.TrimSpace(answerLines[idx-1]) == "" {
-				idx--
-			}
-			end := idx
-			for idx > 0 && strings.TrimSpace(answerLines[idx-1]) != "" {
-				idx--
-			}
-			nextQ = strings.TrimSpace(strings.Join(answerLines[idx:end], "\n"))
-			nextLine = ans.line + idx
-			answerLines = answerLines[:idx]
-			if nextQ == "" || !strings.HasSuffix(nextQ, "?") {
-				r.errorf(ans.line, "a check question ends in ?; found %q before ::answer", nextQ)
-			}
+	if n == 0 || q != nil {
+		r.errorf(d.line, ":::check needs questions, each followed by ::answer")
+		if n == 0 {
+			return ""
 		}
-		if !nonBlank(answerLines) {
-			r.errorf(ans.line-1, "::answer has no answer")
-		}
-		fmt.Fprintf(&b, "<details>\n<summary>%s</summary>\n%s\n</details>\n",
-			r.inline(question, qline), r.sub(&part{line: ans.line, lines: answerLines}))
-		question, qline = nextQ, nextLine
 	}
 	b.WriteString("</section>")
 	return b.String()

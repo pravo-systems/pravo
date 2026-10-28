@@ -31,6 +31,7 @@ URLs are stable. A page that moves keeps a stub (`redirect: new-page.md` in its 
 - A feature that pravo does not have is stated as a fact with its replacement: "pravo has no workspaces. Select the environment with `-t env=prod`." No reason, no apology, no defence.
 - No history, no former names, no "no longer", "previously", "formerly", "instead of the old", no migrations from earlier versions of pravo, no stories about why a decision was taken. The build fails when a line matches `tools/sitegen/banned.txt`. The list is a net: a sentence that tells the history of a decision is wrong whether or not a rule catches it.
 - No claim without a run. Every output is captured from the real binary. No command, flag or behaviour that does not exist.
+- Inline code is for a name, a flag, a path or a short value. An expression or a line of a file stands in a fence of its own, where it can be read and copied, also in a question.
 - At most two new terms per lesson in Track A, defined once where they first appear. A glossary link (`../reference/glossary.md#unification`) renders as a hover definition.
 
 ## 3. Front matter
@@ -114,7 +115,7 @@ A container starts with `:::name arguments` on its own line and ends with `:::`.
 |---|---|
 | `:::compare` | Two or more code blocks side by side, each with a `title` or a `file`. Stacked on phones. Typically HCL and CUE for the same intent. |
 | `:::tabs NAME` | Two or more code blocks as tabs, one per `title`. A `run` block with its `out` block is one tab, titled `Terminal` unless it has a title. The optional name labels the tab list for screen readers. |
-| `:::predict Question text` | A question the reader answers before looking. |
+| `:::predict Question text` | A question the reader answers before looking. The lines before `::reveal` are the premise, framed with the question: a listing that the question is about goes there as a fence, never inside the question. |
 | `:::exercise Title` | A task. The state of the workspace at that point is the start. |
 | `:::check TITLE` | Questions at the end of a lesson. Each question is a paragraph ending in `?`; its answer follows after `::answer`. Collapsed. The title is optional and defaults to "Check yourself"; a page with two checks gives the first a title. |
 | `:::deep-dive Title` | Optional theory, collapsed, never on the path. |
@@ -133,6 +134,7 @@ A line that holds only `::name` starts a part of the container that holds it:
 | `::hint` | `exercise` | A hint. At most two: a nudge, then a reference link. |
 | `::solution` | `exercise` | The solution. At most one. |
 | `::answer` | `check` | The answer to the question before it. |
+| `::question` | `check` | Starts a question with a premise: the paragraphs and listings before the question, which is the last paragraph of the part. Without it, a question is the last paragraph before `::answer`. |
 | `::fallback` | `widget` | The text shown without JavaScript. Without it, the JSON needs a `fallback` or `alt` string, and the build warns when it has neither. |
 
 What `tools/capture` does with the blocks in each place is in section 5.

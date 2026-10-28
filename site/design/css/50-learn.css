@@ -93,6 +93,25 @@
 }
 .predict-reveal > :first-child { margin-top: 1rem; }
 .predict-reveal > :last-child { margin-bottom: 0; }
+/* a question with a premise: the paragraphs and listings before ::reveal
+   share the frame, and the question closes it */
+.predict-group {
+  margin: 1.9rem 0;
+  padding: 1rem 1.15rem 0;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--change);
+  background: var(--surface);
+  max-width: var(--measure);
+}
+.predict-group > p { margin: 0 0 .9rem; font: 500 var(--fs-6)/1.5 var(--font-sans); }
+.predict-group > .code, .predict-group > .term { margin: .9rem 0 1rem; }
+.predict-group > .predict {
+  margin: 0 -1.15rem;
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+  background: none;
+  max-width: none;
+}
 @media (max-width: 36rem) {
   .predict > summary { padding-left: 1.15rem; }
   .predict-label { position: static; display: inline-block; margin-right: .8rem; vertical-align: .08em; }
@@ -157,8 +176,9 @@
 .exercise details.solution > summary::after { content: "reveals the answer"; margin-left: auto; color: var(--text-3); }
 .exercise details.solution > summary { color: var(--change); }
 .exercise details > :not(summary) { margin-inline: 1.15rem; }
-.exercise details > :not(summary):last-child { margin-bottom: 1.1rem; }
-.exercise details[open] > summary { padding-bottom: .55rem; }
+.exercise details > summary + * { margin-top: .45rem; }
+.exercise details > :not(summary):last-child { margin-bottom: 1rem; }
+.exercise details[open] > summary { padding-bottom: .5rem; }
 .exercise details[open] > :nth-child(2) { animation: reveal-in var(--t-med) var(--ease); }
 
 /* ---------- check yourself ---------- */
@@ -205,6 +225,28 @@
 .check details > p, .check details > div { margin: 0 0 1rem 2.7rem; color: var(--text-2); }
 .check details > p { animation: reveal-in var(--t-med) var(--ease); }
 .check details > summary:hover { color: var(--accent); }
+/* a question with a premise: the number stands beside the premise, and the
+   question closes it */
+.check-item {
+  position: relative;
+  padding-top: .85rem;
+  border-top: 1px solid var(--line);
+  counter-increment: q;
+}
+.check-item::before {
+  content: "Q" counter(q);
+  position: absolute;
+  left: 0; top: 1.03rem;
+  font: 600 var(--fs-2)/1.5 var(--font-mono);
+  color: var(--accent);
+}
+.check-item > details { border-top: 0; counter-increment: none; }
+.check-item > details > summary { padding-top: .15rem; }
+.check-item > details > summary::after { top: .45rem; }
+.check-item > details > summary::before { content: none; }
+.check-premise { margin: 0 2.5rem 0 2.7rem; font-weight: 500; line-height: 1.5; }
+.check-premise > p { margin: 0 0 .65rem; }
+.check-premise > .code, .check-premise > .term { margin: .65rem 0 .8rem; }
 
 /* ---------- deep dive: optional, never on the path ---------- */
 .deep-dive {

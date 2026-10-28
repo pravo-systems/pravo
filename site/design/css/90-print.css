@@ -27,7 +27,7 @@
   .doc h2 { break-after: avoid; }
   .doc a { color: #000; text-decoration: underline; }
   .doc a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; color: #444; }
-  .code, .term, .callout, .exercise, .predict, .check details, figure, .fig, .compare > * { break-inside: avoid; }
+  .code, .term, .callout, .exercise, .predict, .predict-group, .check details, .check-item, figure, .fig, .compare > * { break-inside: avoid; }
   .code, .term { border-color: #888 !important; }
   /* a long line of code wraps on paper: nothing is cut at the edge of the page */
   .code pre, .term pre, .code code, .term code, .code-body, .term-body, .line { white-space: pre-wrap !important; overflow: visible !important; overflow-wrap: anywhere; }

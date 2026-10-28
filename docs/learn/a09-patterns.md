@@ -30,11 +30,25 @@ The text before the colon is the key of a field. A [pattern](../reference/glossa
 ## Warm-up
 
 :::check From earlier lessons
-A bucket is `#Bucket & {name: "logs", extra: 1}`, and `#Bucket` declares no field `extra`. Is it accepted?
+::question
+`#Bucket` declares no field `extra`, and a bucket is built from it:
+
+```cue
+logs: #Bucket & {name: "logs", extra: 1}
+```
+
+Is it accepted?
 ::answer
 No. `#Bucket` is closed, and the error is `field not allowed` ([A8](a08-definitions-reject-typos.md)).
 
-A field is `env: *"dev" | "prod" @tag(env)`. What does `pravo eval -t env=qa` do?
+::question
+A field reads:
+
+```cue
+env: *"dev" | "prod" @tag(env)
+```
+
+What does `pravo eval -t env=qa` do?
 ::answer
 It refuses `qa`. The tag value must match one of the choices ([A6](a06-choices-and-defaults.md)).
 :::
@@ -335,7 +349,14 @@ The entry `logs-web` matches both rules and gets `versioning: true`. The entry `
 - A pattern constrains entries that exist. It never creates one.
 
 :::check
-What does `Name=` do in `[Name=string]: #Bucket & {name: Name}`?
+::question
+A pattern reads:
+
+```cue
+[Name=string]: #Bucket & {name: Name}
+```
+
+What does `Name=` do?
 ::answer
 It gives the key of the entry being checked a name. The rule uses it to set `name`.
 

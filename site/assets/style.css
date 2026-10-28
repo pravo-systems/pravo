@@ -1114,7 +1114,7 @@ html:not(.js) .copy-page { display: none; }
   line-height: 1.12;
   padding-top: 1.3rem;
 }
-.doc h2::before {
+.doc h2::after {
   content: "";
   position: absolute;
   left: 0; top: 0;
@@ -1127,12 +1127,16 @@ html:not(.js) .copy-page { display: none; }
 .doc .card > h3 { margin: 0; font: 500 var(--fs-8)/1.2 var(--font-ui); letter-spacing: -.012em; }
 .doc .card > p { margin: 0; max-width: none; font-size: var(--fs-5); line-height: 1.55; color: var(--text-2); }
 .doc .card .anchor::after, .doc .card .anchor-side { display: none; }
+/* the section sign stands in the margin, centred on the x-height of the
+   heading, whatever the size of the heading */
 @media (min-width: 60rem) {
-  .doc h2::after {
+  .doc h2::before {
     content: "\00a7"; content: "\00a7" / "";
-    position: absolute;
-    left: -2.1rem; top: 1.45rem;
-    font: 400 var(--fs-7)/1 var(--font-display);
+    display: inline-block;
+    width: 2.1rem;
+    margin-left: -2.1rem;
+    vertical-align: middle;
+    font: 400 .6em/1 var(--font-display);
     color: var(--text-3);
   }
 }
@@ -1826,6 +1830,25 @@ html:not(.js) .copy { display: none; }
 }
 .predict-reveal > :first-child { margin-top: 1rem; }
 .predict-reveal > :last-child { margin-bottom: 0; }
+/* a question with a premise: the paragraphs and listings before ::reveal
+   share the frame, and the question closes it */
+.predict-group {
+  margin: 1.9rem 0;
+  padding: 1rem 1.15rem 0;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--change);
+  background: var(--surface);
+  max-width: var(--measure);
+}
+.predict-group > p { margin: 0 0 .9rem; font: 500 var(--fs-6)/1.5 var(--font-sans); }
+.predict-group > .code, .predict-group > .term { margin: .9rem 0 1rem; }
+.predict-group > .predict {
+  margin: 0 -1.15rem;
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+  background: none;
+  max-width: none;
+}
 @media (max-width: 36rem) {
   .predict > summary { padding-left: 1.15rem; }
   .predict-label { position: static; display: inline-block; margin-right: .8rem; vertical-align: .08em; }
@@ -1890,8 +1913,9 @@ html:not(.js) .copy { display: none; }
 .exercise details.solution > summary::after { content: "reveals the answer"; margin-left: auto; color: var(--text-3); }
 .exercise details.solution > summary { color: var(--change); }
 .exercise details > :not(summary) { margin-inline: 1.15rem; }
-.exercise details > :not(summary):last-child { margin-bottom: 1.1rem; }
-.exercise details[open] > summary { padding-bottom: .55rem; }
+.exercise details > summary + * { margin-top: .45rem; }
+.exercise details > :not(summary):last-child { margin-bottom: 1rem; }
+.exercise details[open] > summary { padding-bottom: .5rem; }
 .exercise details[open] > :nth-child(2) { animation: reveal-in var(--t-med) var(--ease); }
 
 /* ---------- check yourself ---------- */
@@ -1938,6 +1962,28 @@ html:not(.js) .copy { display: none; }
 .check details > p, .check details > div { margin: 0 0 1rem 2.7rem; color: var(--text-2); }
 .check details > p { animation: reveal-in var(--t-med) var(--ease); }
 .check details > summary:hover { color: var(--accent); }
+/* a question with a premise: the number stands beside the premise, and the
+   question closes it */
+.check-item {
+  position: relative;
+  padding-top: .85rem;
+  border-top: 1px solid var(--line);
+  counter-increment: q;
+}
+.check-item::before {
+  content: "Q" counter(q);
+  position: absolute;
+  left: 0; top: 1.03rem;
+  font: 600 var(--fs-2)/1.5 var(--font-mono);
+  color: var(--accent);
+}
+.check-item > details { border-top: 0; counter-increment: none; }
+.check-item > details > summary { padding-top: .15rem; }
+.check-item > details > summary::after { top: .45rem; }
+.check-item > details > summary::before { content: none; }
+.check-premise { margin: 0 2.5rem 0 2.7rem; font-weight: 500; line-height: 1.5; }
+.check-premise > p { margin: 0 0 .65rem; }
+.check-premise > .code, .check-premise > .term { margin: .65rem 0 .8rem; }
 
 /* ---------- deep dive: optional, never on the path ---------- */
 .deep-dive {
@@ -2804,7 +2850,7 @@ html:not(.js) .metro::after { transform: scaleX(1); }
   .doc h2 { break-after: avoid; }
   .doc a { color: #000; text-decoration: underline; }
   .doc a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; color: #444; }
-  .code, .term, .callout, .exercise, .predict, .check details, figure, .fig, .compare > * { break-inside: avoid; }
+  .code, .term, .callout, .exercise, .predict, .predict-group, .check details, .check-item, figure, .fig, .compare > * { break-inside: avoid; }
   .code, .term { border-color: #888 !important; }
   /* a long line of code wraps on paper: nothing is cut at the edge of the page */
   .code pre, .term pre, .code code, .term code, .code-body, .term-body, .line { white-space: pre-wrap !important; overflow: visible !important; overflow-wrap: anywhere; }

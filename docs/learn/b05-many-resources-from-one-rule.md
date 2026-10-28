@@ -25,7 +25,15 @@ Two questions from earlier lessons. Decide, then open the answer.
 No. A saved plan carries its own tags, and pravo refuses `-t` with a plan file ([B4](b04-inputs-tags-environments.md)).
 :::
 
-:::predict The rule `for name, svc in services { (name): ... }` writes one field per entry. What does the label of each field hold?
+:::predict What does the label of each field hold?
+A rule writes one field per entry of `services`:
+
+```cue
+for name, svc in services {
+	(name): svc
+}
+```
+
 ::reveal
 The key of the entry in `services`. The parentheses make the label an expression ([A10](a10-comprehensions.md)).
 :::

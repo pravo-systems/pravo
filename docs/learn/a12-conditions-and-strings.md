@@ -360,7 +360,15 @@ bucket: {
 - A condition needs a concrete value. `pravo eval -c` finds the ones that are still types.
 
 :::check
-What does `retention: 7` plus `if env == "prod" { retention: 90 }` do in `prod`?
+::question
+A file holds both lines:
+
+```cue
+retention: 7
+if env == "prod" { retention: 90 }
+```
+
+What happens in `prod`?
 ::answer
 It fails with `conflicting values 90 and 7`. Make the first value a default: `*7 | int`.
 

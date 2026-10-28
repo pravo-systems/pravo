@@ -359,3 +359,30 @@ func TestLinksAndGlossary(t *testing.T) {
 		t.Errorf("glossary: %+v", s.gloss)
 	}
 }
+
+func TestCheckQuestionWithPremise(t *testing.T) {
+	html, msgs := renderBody(t, ":::check\n::question\nA file reads:\n\n```cue\na: 1\n```\n\nIs it accepted?\n::answer\nYes.\n\nAnd this?\n::answer\nAlso.\n\n::question\nLast one?\n::answer\nIt is.\n:::\n")
+	noErrors(t, msgs)
+	mustContain(t, html,
+		`<div class="check-item">`, `<div class="check-premise">`, `<p>A file reads:</p>`, `<pre`,
+		`<summary>Is it accepted?</summary>`, `<p>Yes.</p>`,
+		`<summary>And this?</summary>`, `<p>Also.</p>`,
+		`<summary>Last one?</summary>`, `<p>It is.</p>`,
+	)
+	if strings.Count(html, "<details>") != 3 || strings.Count(html, "check-item") != 1 {
+		t.Errorf("want three questions and one premise:\n%s", html)
+	}
+
+	_, msgs = renderBody(t, ":::check\n::question\nA premise.\n\nNo question mark\n::answer\nx\n:::\n")
+	if !hasError(msgs, "ends in ?") {
+		t.Errorf("premise question without ?: %v", msgs.errs)
+	}
+	_, msgs = renderBody(t, ":::check\nQ?\n::question\nR?\n::answer\nx\n:::\n")
+	if !hasError(msgs, "no ::answer") {
+		t.Errorf("question upon question: %v", msgs.errs)
+	}
+	_, msgs = renderBody(t, ":::check\n::answer\nx\n:::\n")
+	if !hasError(msgs, "follows no question") {
+		t.Errorf("answer without a question: %v", msgs.errs)
+	}
+}
