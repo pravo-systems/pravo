@@ -3,8 +3,12 @@
 # packages that it changed, those that import them, and those whose tests do. It
 # prints ALL when it cannot tell, and for everything but a pull request.
 #
-#   sh tools/ci/affected.sh
+#   sh tools/ci/affected.sh [changed]
+#
+# With "changed" it prints only the packages that the pull request changed
+# itself, which is what a linter needs: it reads the packages they import anyway.
 set -eu
+only=${1:-}
 if [ "${CI_EVENT:-}" != pull_request ] || [ "${CI_ALL:-true}" = true ]; then
 	echo ALL; exit 0
 fi
@@ -21,6 +25,10 @@ for f in $(git diff --name-only HEAD^1 HEAD); do
 	if [ "$d" = . ]; then changed="$changed $mod"; else changed="$changed $mod/$d"; fi
 done
 [ -n "$changed" ] || exit 0
+if [ "$only" = changed ]; then
+	for p in $changed; do echo "$p"; done | sort -u
+	exit 0
+fi
 # Into a variable first, so that a failure of go list fails the script instead of
 # reading as "nothing is affected".
 graph=$(go list -f '{{.ImportPath}}|{{join .Imports " "}}|{{join .TestImports " "}} {{join .XTestImports " "}}' ./...)

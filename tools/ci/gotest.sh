@@ -2,17 +2,18 @@
 # Runs go test for one group of packages, leaving out the packages that a pull
 # request cannot affect (tools/ci/affected.sh).
 #
-#   sh tools/ci/gotest.sh GROUP [INDEX COUNT] [go test flags]
+#   sh tools/ci/gotest.sh GROUP [in|out "FILE..."] [go test flags]
 #
-# GROUP is engine, state, cmd, serve, other (the rest of the module, without
-# tools) or nonengine (internal and cmd without the engine). With INDEX and COUNT
-# the group is dealt out to COUNT jobs: a group of one package by the tests of
-# the package (tools/ci/test-shard.sh), a larger one by package.
+# GROUP is engine, state, cmd, serve, commands (cmd and the viewer), libraries
+# (the other packages of internal without the engine and the viewer), or other
+# (the rest of the module, without tools). With in or out and test files, a group
+# of one package runs only the tests of these files, or all the others
+# (tools/ci/test-files.sh), so that jobs can be named for what they cover.
 set -eu
 group=$1; shift
-idx="" count=""
+mode="" files=""
 case ${1:-} in
-[0-9]*) idx=$1 count=$2; shift 2 ;;
+in|out) mode=$1 files=$2; shift 2 ;;
 esac
 mod=$(go list -m)
 all=$(go list ./...)
@@ -21,10 +22,11 @@ members=$(echo "$all" | sed "s|^$mod/||" | grep -v '^tools/' | grep -E "$(case $
 	state) echo '^internal/state(/|$)' ;;
 	cmd) echo '^cmd(/|$)' ;;
 	serve) echo '^internal/serve$' ;;
-	nonengine) echo '^(internal|cmd)(/|$)' ;;
+	commands) echo '^(cmd|internal/serve)(/|$)' ;;
+	libraries) echo '^internal/' ;;
 	other) echo '^' ;;
 	*) echo "unknown group $group" >&2; exit 2 ;;
-esac)" | { if [ "$group" = nonengine ]; then grep -v '^internal/engine$'; elif [ "$group" = other ]; then grep -v -E '^(internal/(engine|state|serve)(/|$)|cmd(/|$))'; else cat; fi; })
+esac)" | { if [ "$group" = libraries ]; then grep -v -E '^internal/(engine|serve)(/|$)'; elif [ "$group" = other ]; then grep -v -E '^(internal/(engine|state|serve)(/|$)|cmd(/|$))'; else cat; fi; })
 affected=$(sh "$(dirname "$0")/affected.sh")
 if [ "$affected" = ALL ]; then
 	pkgs=$members
@@ -34,12 +36,11 @@ fi
 if [ -z "$pkgs" ]; then
 	echo "no package of $group is affected by this change"; exit 0
 fi
-if [ -n "$count" ]; then
-	if [ "$(echo "$pkgs" | wc -l | tr -d ' ')" = 1 ]; then
-		exec sh "$(dirname "$0")/test-shard.sh" "./$pkgs" "$idx" "$count" "$@"
+if [ -n "$mode" ]; then
+	if [ "$(echo "$pkgs" | wc -l | tr -d ' ')" != 1 ]; then
+		echo "gotest: $mode needs a group of one package, and $group has several" >&2; exit 2
 	fi
-	pkgs=$(echo "$pkgs" | awk -v i="$idx" -v c="$count" '(NR-1)%c==i')
-	[ -n "$pkgs" ] || { echo "shard $idx of $count has no packages"; exit 0; }
+	exec sh "$(dirname "$0")/test-files.sh" "./$pkgs" "$mode" "$files" "$@"
 fi
 echo "go test: $(echo "$pkgs" | wc -l | tr -d ' ') packages"
 exec go test -count=1 "$@" $(echo "$pkgs" | sed 's|^|./|')
