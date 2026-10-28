@@ -214,6 +214,7 @@ $source: "registry.opentofu.org/hashicorp/random"
 | `provider` | `rnd.#Provider & {...}` | a provider |
 | `output` | `pravo.#Output & {...}` | an output |
 | `env`, `secret_env` | `pravo.#Env & {...}`, `pravo.#SecretEnv & {...}` | an environment variable that pravo reads |
+| `secret`, `secret_version` | `pravo.#Secret & {...}`, `pravo.#SecretVersion & {...}` | a secret that the sealed state keeps, or the number of its version |
 | `remote_outputs` | `pravo.#RemoteOutputs & {...}` | the outputs of another root |
 
 The address of a found struct is its path. The walk follows fields, nested structs and list elements. It registers a struct and does not look inside it.

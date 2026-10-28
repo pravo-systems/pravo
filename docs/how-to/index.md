@@ -21,6 +21,7 @@ How-to pages are for when you know the basics and need to do one thing: share st
 | Refuse plans that break a rule | [Policies](policies.md) | [B10, Policy on providers and on plans](../learn/b10-policy.md) |
 | Let an agent plan and apply | [Agents and MCP](agents-and-mcp.md) | [pravo mcp](../reference/mcp.md) |
 | Handle secrets and credentials | [Secrets](secrets.md) | [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) |
+| Keep a secret in the sealed state, hand it to a provider and rotate it | [Store secrets in the sealed state](store-secrets-in-the-state.md) | [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) |
 | Rename a resource, move it, or adopt an existing object | [Importing and moving](importing-and-moving.md) | [B8, Renames, moves, imports](../learn/b08-renames-moves-imports.md) |
 | See an estate as a graph of namespaces and resources, with its source, a saved plan and drift | [Explore an estate in a browser](explore-your-estate.md) | [The viewer](../concepts/the-viewer.md) |
 | Find the objects that exist and that nothing manages, and adopt or acknowledge them | [Find what nothing manages](find-what-nothing-manages.md) | [Discovery](../concepts/discovery.md) |

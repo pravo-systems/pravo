@@ -42,6 +42,7 @@ Every page opens with the synopsis, the flags with their defaults, and the exit 
 | `pravo skill` | Installs or prints the skill that teaches an agent to use pravo. | [skill](skill.md) |
 | `pravo mod` | Creates, fetches, publishes and verifies CUE modules. | [mod](mod.md) |
 | `pravo id`, `protect` | Makes an identity. Seals the state to a list of readers, checks it and changes the readers. | [id and protect](protect.md) |
+| `pravo secret` | Sets, reads, lists, removes and forgets the secrets of a sealed state. Runs a command with secrets in its environment. | [secret](secret.md) |
 | `pravo version` | Prints the version of pravo and of CUE. | [version](version.md) |
 | Flags, environment, exit codes | The parts every command shares. | [global flags](global-flags.md) |
 
@@ -57,7 +58,7 @@ The fields and definitions that a specification uses.
 | [Providers](spec-providers.md) | Provider declarations and their `$` fields. |
 | [Moves and imports](spec-moves-and-imports.md) | `$from` and `$import`. |
 | [Outputs](spec-outputs.md) | `pravo.#Output`. |
-| [Environment and remote outputs](spec-env.md) | Environment values, secret environment values and the outputs of another root. |
+| [Environment and remote outputs](spec-env.md) | Environment values, secret environment values, the secrets of a sealed state and the outputs of another root. |
 | [Meta fields](spec-meta-fields.md) | `$lifecycle`, `$depends_on` and the other `$` fields of a resource. |
 | [Tags and variables](spec-tags-and-variables.md) | `@tag()` fields and how a command fills them. |
 | [Modules](spec-modules.md) | Modules that hold resources. |

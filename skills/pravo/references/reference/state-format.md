@@ -8,13 +8,14 @@ pravo records what it manages in a state graph, not a state file. Every resource
 
 | Path | Contents |
 |---|---|
-| `meta.json` | The format number and the lineage of the store, and in formats 3 and 4 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
+| `meta.json` | The format number and the lineage of the store, and in formats 3 to 5 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
 | `resources/<addr>.json` | One node for each resource or data source, named by its address. In format 1 it holds the whole record. In formats 2 and 3 it is a pointer to a record. |
 | `rec/<sha256>` | In formats 2 and 3, one record, named by the SHA-256 of its bytes. It is written once and never changed. |
 | `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. While the state is sealed, the whole object is sealed. |
 | `gc/marks.json` | In formats 2 and 3, written by `pravo protect gc`: the records that no pointer names and that a collection has seen, with the time. Never sealed. A copy of the state does not carry it. See [Format 2](#format-2-immutable-records). |
 | `txn/<id>.json` | One recorded transaction. |
 | `policy/<name>@<seq>.json` | In format 4, one version of a policy: its text, the time and the signature of whoever applied it. Written once and never changed. See [Format 4](#format-4-policies). |
+| `secret/<name>@<seq>.json` | In format 5, one version of a secret: a value sealed to the readers, a removal or a purged value. Written once; a purge replaces it by a stub in place. See [Format 5](#format-5-secrets). |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |
 | `plans/<id>.plan.json`, `plans/<id>.meta.json`, `plans/<id>.progress.json` | A stored plan: the plan, its summary and what was applied from it. See [Plans](#plans). |
 | `discovery/runs/<name>.json` | What the last run of one discovery found. Replaced by the next run. See [Discoveries](#discoveries). |
@@ -98,7 +99,7 @@ Output:
 
 | Field | Meaning |
 |---|---|
-| `format` | The version of the store layout: `1` to `4`. A new store is `1`. |
+| `format` | The version of the store layout: `1` to `5`. A new store is `1`. |
 | `lineage` | An identifier chosen when the store was created. A saved plan records it. |
 | `created` | When the store was created. |
 
@@ -106,14 +107,14 @@ pravo refuses a store with a higher format number:
 
 ```sh
 cp pravo.state/meta.json meta.json.bak
-echo '{"format":5,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
+echo '{"format":6,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
 pravo plan
 ```
 
 Output:
 
 ```text
-Error: state at ./pravo.state was written by a newer pravo (format 5)
+Error: state at ./pravo.state was written by a newer pravo (format 6)
 ```
 
 ```sh
@@ -124,7 +125,7 @@ A command that writes the state, such as `plan` or `apply`, creates the director
 
 ## Formats
 
-`meta.json` says in which of four formats a store is kept.
+`meta.json` says in which of five formats a store is kept.
 
 | Format | Layout |
 |---|---|
@@ -132,8 +133,9 @@ A command that writes the state, such as `plan` or `apply`, creates the director
 | 2 | Immutable records. Each record is an object `rec/<sha256>` that is never overwritten, and `resources/<addr>.json` is a pointer to the current one. |
 | 3 | Sealed state. Format 2, with the values of each record, the outputs and the stored plans encrypted to a list of readers. |
 | 4 | Policies. Format 3, with `policy/<name>@<seq>.json`, the signed versions of the policies of the root. |
+| 5 | Secrets. Format 4, with `secret/<name>@<seq>.json`, the versions of the secrets of the state. |
 
-A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all four. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
+A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all five. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
 
 ## Format 2: immutable records
 
@@ -445,7 +447,7 @@ Output:
 | Field | Meaning |
 |---|---|
 | `id` | A UTC timestamp, a hyphen and six hexadecimal digits. |
-| `kind` | `plan`, `apply`, `destroy`, `import` or `edit`. |
+| `kind` | `plan`, `apply`, `destroy`, `import`, `edit` or `secret`. |
 | `command` | The command line as it was run, from the word `pravo`, flags included. |
 | `user`, `host` | The operating-system user and the host. |
 | `started`, `finished` | When it began and ended. |
@@ -746,9 +748,32 @@ A version is written with a put that fails when the object exists. A policy that
 
 A transaction that judged a plan lists the versions in its signed start: see [Transactions](#transactions).
 
+## Format 5: secrets
+
+A secret is a named series of versions that [`pravo secret`](secret.md) writes. Each version is an object `secret/<name>@<seq>.json`, where `<name>` is the name of the secret encoded as in [Addresses in file names](#addresses-in-file-names), so that the `/` of `prod/db_password` is `%002F`, and `<seq>` has eight digits and counts from 1 without a gap. The first version of any secret raises `meta.json` to format 5, and a pravo that does not know format 5 refuses the store. A state needs to be sealed to hold one.
+
+A version has one of three shapes. Every shape has `v` (the layout, 1), `at`, `txn` and `commit`.
+
+| Shape | Has | Meaning |
+|---|---|---|
+| A value | `sealed` | The value and its note, sealed to the readers of the state. |
+| A removal | `removed: true` | The secret has no value after this version. A later version continues the numbering. |
+| A purge | `purged: true` and `purged_by` | A value whose `sealed` part was dropped, in place, by the transaction `purged_by`. The numbering keeps no gap, so a deleted version is always noticed. |
+
+| Field | Meaning |
+|---|---|
+| `at` | When the version was written, by the clock of the writer. |
+| `txn` | The id of the transaction that wrote it. |
+| `commit` | For a value, the HMAC-SHA256 in hex, under a random 32-byte nonce that sits in the sealed part, of the value, the note, the name, the number and the lineage of the state. For a removal, the SHA-256 of the name, the number and the lineage. A purge keeps the commit of the value it replaces. The nonce keeps the commit from confirming a guess at a weak value. |
+| `sealed` | `{"alg", "group", "ct"}`, as for a record: one AES-256-GCM message under the data key of a reader group, holding the value, the nonce and the note. The associated data names the lineage, the group, the kind (`secret`), the name and the number, so a sealed part that is moved to another version or another state does not open. |
+
+The object is not signed. A command of `pravo secret` is a transaction of the kind `secret`, and its change for `secret:<name>` has the `action` (`set`, `remove` or `purge`), the version before and after in `before_revision` and `after_revision`, and the `commit` of the version in `record`. The finish signature covers that change, as it covers the key of a record, so the version is tied to the key that wrote it. Reading a version checks the object against its name, the transaction against its signature and the roles, and an opened value against the commit: [`pravo secret`](secret.md#roles) lists the checks. A version whose transaction is gone is untrusted when the readers file gives roles, so `txn/` is not pruned in a state that holds secrets.
+
+`pravo protect rewrap --all` writes a value again under the current group and leaves the `commit` as it is, so the signatures stay valid. `pravo state pull` and `push` carry the versions. A version that exists on both sides must have the same transaction and the same commit, and the bytes of the source win, since a rewrap and a purge change the bytes of a version. A copy that finds a version in the destination that the source lacks, or that would bring back a value the destination purged, is refused and copies nothing more.
+
 ## Remote layout
 
-On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 to 4, `policy/<name>@<seq>.json` in format 4, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions, the policy versions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
+On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 to 5, `policy/<name>@<seq>.json` in formats 4 and 5, `secret/<name>@<seq>.json` in format 5, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions, the policy versions, the secret versions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
 
 ## Discoveries
 
