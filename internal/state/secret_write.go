@@ -14,8 +14,8 @@ import (
 // secretWritable is the refusal of a write of a secret that this store cannot make: the state
 // has to be sealed, and the store has to hold a key of it.
 func (s *Store) secretWritable() error {
-	if !s.sealedState() {
-		return fmt.Errorf("%w: seal the state with pravo protect init --encrypt", ErrSecretsNeedSeal)
+	if err := s.CanKeepSecrets(""); err != nil {
+		return err
 	}
 	if err := s.writable(); err != nil {
 		return err

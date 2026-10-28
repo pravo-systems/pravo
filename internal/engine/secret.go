@@ -12,6 +12,32 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
+// checkSecrets stops a run that reads secrets from a state that cannot keep any, before a task
+// starts. The tasks would race to say so, and the message would name whichever of them lost;
+// this names the first by address, so the same specification gives the same message, and no
+// provider has started when the run stops.
+func (e *Engine) checkSecrets(nodes map[string]*node) error {
+	if e.State == nil {
+		return nil
+	}
+	var first *config.Resource
+	for _, n := range nodes {
+		if r := n.res; r.Builtin && (r.Type == "secret" || r.Type == "secret_version") && (first == nil || r.Address() < first.Address()) {
+			first = r
+		}
+	}
+	if first == nil {
+		return nil
+	}
+	e.cueMu.Lock()
+	name, _ := e.current.LookupPath(first.Path).LookupPath(cue.ParsePath("name")).String()
+	e.cueMu.Unlock()
+	if err := e.State.CanKeepSecrets(name); err != nil {
+		return e.secretError(first, name, err)
+	}
+	return nil
+}
+
 // secretTask reads a version of a secret of the sealed state for a pravo.#Secret, which fills in
 // its value, or a pravo.#SecretVersion, which fills in the number of the version. Like envTask it
 // runs on every plan and apply and records nothing: the value stays in the process.

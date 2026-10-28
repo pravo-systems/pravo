@@ -356,6 +356,28 @@ func TestSecretNeedsASealedState(t *testing.T) {
 	}
 }
 
+// Nodes that read secrets from a state that is not sealed would each fail, and the node that the
+// message names must not depend on which task got there first: it is the first by address, and
+// the run stops before a provider starts.
+func TestSecretNeedsASealedStateNamesTheFirstNodeByAddress(t *testing.T) {
+	unsealedStart(t)
+	h := newHarness(t)
+	s := spec{
+		cue: "zed: {name: \"prod/zed\", value: string}\nmid: {name: \"prod/mid\", version: int}\namy: {name: \"prod/amy\", value: string}\n" +
+			"a: " + thing("a", `content: "x"`) + "\n",
+		resources: []string{"a"}, secrets: []string{"zed", "amy"}, secretVersions: []string{"mid"},
+	}
+	for i := range 30 {
+		_, err := h.engine(s, Options{}).Plan(context.Background())
+		if err == nil || !strings.HasPrefix(err.Error(), "amy: prod/amy: secrets are kept in a sealed state") || codeOf(err) != ExitRefused {
+			t.Fatalf("run %d: exit code %d for: %v", i, codeOf(err), err)
+		}
+	}
+	if n := h.fake.called("start"); n != 0 {
+		t.Errorf("%d providers started for a run that could not begin", n)
+	}
+}
+
 // The error of a secret says where the secret is, and carries the exit code of what is wrong
 // with it, whatever sits around it.
 func TestSecretErrorsKeepTheirCodes(t *testing.T) {

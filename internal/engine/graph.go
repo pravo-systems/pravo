@@ -371,6 +371,9 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 			n.pending = len(n.deps)
 		}
 	}
+	if err := e.checkSecrets(nodes); err != nil {
+		return e.current, err
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

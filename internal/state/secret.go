@@ -570,6 +570,20 @@ func refuseSecret(info SecretInfo, rules RecordRules) error {
 	return nil
 }
 
+// CanKeepSecrets is nil when the state is sealed, so that it can keep secrets, and
+// ErrSecretsNeedSeal with what to do about it when it is not. name is the secret that was asked
+// for, or empty.
+func (s *Store) CanKeepSecrets(name string) error {
+	if s.sealedState() {
+		return nil
+	}
+	err := fmt.Errorf("%w: seal the state with pravo protect init --encrypt", ErrSecretsNeedSeal)
+	if name != "" {
+		err = fmt.Errorf("%s: %w", name, err)
+	}
+	return err
+}
+
 // pickSecret finds the version to use: the latest when version is 0. It judges the version and,
 // in a state with roles, refuses one that the transactions do not account for. A removed or
 // purged version is the error for it.
@@ -577,8 +591,8 @@ func (s *Store) pickSecret(ctx context.Context, name string, version int, rules 
 	if err := ValidSecretName(name); err != nil {
 		return SecretInfo{}, secretFile{}, err
 	}
-	if !s.sealedState() {
-		return SecretInfo{}, secretFile{}, fmt.Errorf("%s: %w: seal the state with pravo protect init --encrypt", name, ErrSecretsNeedSeal)
+	if err := s.CanKeepSecrets(name); err != nil {
+		return SecretInfo{}, secretFile{}, err
 	}
 	enc := encodeAddr(name)
 	names, err := s.secretNames(ctx)
