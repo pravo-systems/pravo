@@ -1,0 +1,48 @@
+<section class="band views-band" id="views" data-band="views"><div class="wrap">
+<div class="band-head">
+<p class="kicker">See it</p>
+<h2 class="band-title">Understand your infrastructure <em>at a glance.</em></h2>
+<p class="band-lede"><code>pravo serve</code> opens a read-only viewer on your machine. These pages come from a sealed state with three members, a stored plan, two policies and four recorded runs.</p>
+</div>
+
+<div class="vw" data-vw data-reveal>
+<div class="vw-tabs" role="tablist" aria-label="Pages of the viewer">
+<button role="tab" id="vt-graph" aria-controls="vp-graph" aria-selected="true"><b>01</b>Graph<i></i></button>
+<button role="tab" id="vt-plan" aria-controls="vp-plan" aria-selected="false" tabindex="-1"><b>02</b>Plan<i></i></button>
+<button role="tab" id="vt-policies" aria-controls="vp-policies" aria-selected="false" tabindex="-1"><b>03</b>Policies<i></i></button>
+<button role="tab" id="vt-state" aria-controls="vp-state" aria-selected="false" tabindex="-1"><b>04</b>State<i></i></button>
+<button role="tab" id="vt-traces" aria-controls="vp-traces" aria-selected="false" tabindex="-1"><b>05</b>Traces<i></i></button>
+</div>
+<div class="vw-body">
+<div class="vw-p on" id="vp-graph" role="tabpanel" aria-labelledby="vt-graph">
+<div class="vw-win"><div class="vw-bar"><span>localhost</span><span>read-only</span></div><div class="vw-shot"><img class="view-light" src="assets/shots/graph-light.webp" width="2160" height="1350" alt="The viewer showing the estate as a graph of namespaces, resources and the wires between them." loading="lazy"><img class="view-dark" src="assets/shots/graph-dark.webp" width="2160" height="1350" alt="" loading="lazy">
+<i class="vw-pin" style="left:60%;top:21%">1</i>
+<i class="vw-pin" style="left:44%;top:42%">2</i>
+<u></u></div></div>
+<div class="vw-txt"><h3><b>01</b> Graph</h3><p><strong>Everything you manage, in one map.</strong> Every resource and what depends on what. Open a group, follow a wire, jump to the code behind a resource.</p><ol><li>Open a namespace</li><li>Follow a wire</li></ol></div></div>
+<div class="vw-p" id="vp-plan" role="tabpanel" aria-labelledby="vt-plan">
+<div class="vw-win"><div class="vw-bar"><span>localhost</span><span>read-only</span></div><div class="vw-shot"><img class="view-light" src="assets/shots/plan-light.webp" width="2160" height="1350" alt="A stored plan laid over the graph, with the old and new content of a replaced resource in a side panel." loading="lazy"><img class="view-dark" src="assets/shots/plan-dark.webp" width="2160" height="1350" alt="" loading="lazy">
+<i class="vw-pin" style="left:36%;top:56%">1</i>
+<i class="vw-pin" style="left:86%;top:76%">2</i>
+<u></u></div></div>
+<div class="vw-txt"><h3><b>02</b> Plan</h3><p><strong>What a plan changes.</strong> Lay a saved plan over the graph and read each change before anyone applies it.</p><ol><li>The resource marked for replacement</li><li>The old and the new content, line by line</li></ol></div></div>
+<div class="vw-p" id="vp-policies" role="tabpanel" aria-labelledby="vt-policies">
+<div class="vw-win"><div class="vw-bar"><span>localhost</span><span>read-only</span></div><div class="vw-shot"><img class="view-light" src="assets/shots/policies-light.webp" width="2160" height="1350" alt="The policies page: two rules in force, each with its version, digest, signer and its text in CUE." loading="lazy"><img class="view-dark" src="assets/shots/policies-dark.webp" width="2160" height="1350" alt="" loading="lazy">
+<i class="vw-pin" style="left:59%;top:44%">1</i>
+<i class="vw-pin" style="left:55%;top:64%">2</i>
+<u></u></div></div>
+<div class="vw-txt"><h3><b>03</b> Policies</h3><p><strong>Rules that are written down.</strong> Policies are versioned and signed, and each apply names the versions that judged it. The studio tries a rule on a plan first.</p><ol><li>Who signed it</li><li>The rule itself, in CUE</li></ol></div></div>
+<div class="vw-p" id="vp-state" role="tabpanel" aria-labelledby="vt-state">
+<div class="vw-win"><div class="vw-bar"><span>localhost</span><span>read-only</span></div><div class="vw-shot"><img class="view-light" src="assets/shots/access-light.webp" width="2160" height="1350" alt="The state page: sealed, three members with the roles admin, writer and reader, and an all clear." loading="lazy"><img class="view-dark" src="assets/shots/access-dark.webp" width="2160" height="1350" alt="" loading="lazy">
+<i class="vw-pin" style="left:10%;top:41%">1</i>
+<i class="vw-pin" style="left:35%;top:76%">2</i>
+<u></u></div></div>
+<div class="vw-txt"><h3><b>04</b> State</h3><p><strong>Who can do what.</strong> Members, roles and a check that every record was written by someone allowed to write it.</p><ol><li>The check, all clear</li><li>Members and their roles</li></ol></div></div>
+<div class="vw-p" id="vp-traces" role="tabpanel" aria-labelledby="vt-traces">
+<div class="vw-win"><div class="vw-bar"><span>localhost</span><span>read-only</span></div><div class="vw-shot"><img class="view-light" src="assets/shots/traces-light.webp" width="2160" height="1350" alt="The timeline of an apply: provider calls, and the network requests captured from the provider, as blue bars." loading="lazy"><img class="view-dark" src="assets/shots/traces-dark.webp" width="2160" height="1350" alt="The timeline of an apply: provider calls, and the network requests captured from the provider, as blue bars." loading="lazy">
+<i class="vw-pin" style="left:39.5%;top:74%">1</i>
+<i class="vw-pin" style="left:35.5%;top:84.5%">2</i>
+<u></u></div></div>
+<div class="vw-txt"><h3><b>05</b> Traces</h3><p><strong>Where the time went.</strong> Every run records its spans, and pravo captures the network requests a provider makes while it works. They appear in the viewer with nothing to set up, or you can send them to your own collector.</p><ol><li>Network requests captured from the provider</li><li>A provider call</li></ol></div></div>
+</div></div>
+</div></section>

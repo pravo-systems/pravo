@@ -418,7 +418,8 @@ var loadedWithLanding = []string{}
 var (
 	tagScriptRe = regexp.MustCompile(`<script\b[^>]*\bsrc="([^"]+)"`)
 	tagLinkRe   = regexp.MustCompile(`<link\b[^>]*>`)
-	tagImgRe    = regexp.MustCompile(`<img\b[^>]*\bsrc="([^"]+)"`)
+	tagImgRe    = regexp.MustCompile(`<img\b[^>]*\bsrc="([^"]+)"[^>]*>`)
+	lazyImgRe   = regexp.MustCompile(`\bloading="lazy"`)
 	attrRelRe   = regexp.MustCompile(`\brel="([^"]+)"`)
 	attrHrefRe  = regexp.MustCompile(`\bhref="([^"]+)"`)
 	attrAsRe    = regexp.MustCompile(`\bas="([^"]+)"`)
@@ -477,6 +478,10 @@ func landingAssets(t *testing.T, out string) []loadedAsset {
 		add(p, "js")
 	}
 	for _, m := range tagImgRe.FindAllStringSubmatch(page, -1) {
+		// A lazy image loads when the reader scrolls to it, so it is not part of the first load.
+		if lazyImgRe.MatchString(m[0]) {
+			continue
+		}
 		if p, ok := localRef("index.html", m[1]); ok {
 			add(p, "image")
 		}

@@ -1,39 +1,33 @@
 <section class="band shift-band" id="shift" data-band="shift"><div class="wrap">
 <div class="band-head">
-<p class="kicker">Kept, revisited, tried</p>
-<h2 class="band-title">The providers stay. The foundation is new.</h2>
-<p class="band-lede">OpenTofu and Terraform got the providers and the plan-and-apply loop right. Where ten years of operating them point elsewhere, pravo starts from a clean slate: the state, the plan, the policy and the language.</p>
+<p class="kicker">Rebuilt for teams</p>
+<h2 class="band-title">Multiplayer <em>by design.</em></h2>
+<p class="band-lede">The classic tools shine on a laptop. In multiplayer scenarios they break: one state file that every plan reads in full, no record of who changed what. An entire ecosystem of external tools had to cover those gaps. pravo learns from the past but starts from a clean slate, with multiplayer mode built in.</p>
 </div>
-<div class="cards shift-cols">
-<div class="card shift-col">
-<span class="card-kicker">Kept</span>
-<h3 class="card-title">What worked</h3>
-<ul class="shift-list">
-<li>Every OpenTofu and Terraform provider, <a href="concepts/providers.html">unchanged</a>.</li>
-<li><a href="concepts/evaluation.html">Declarative desired state</a>, not a program that runs.</li>
-<li>A <a href="concepts/plans.html#what-a-plan-contains">plan you read</a> before anything changes.</li>
-</ul>
-</div>
-<div class="card shift-col">
-<span class="card-kicker">Revisited</span>
-<h3 class="card-title">What ten years of operating it taught</h3>
-<ul class="shift-list">
-<li><a href="concepts/state.html">State</a> is one record per resource, not one file.</li>
-<li>A <a href="concepts/plans.html#scoped-plans">plan reaches</a> what a change can affect and skips the rest.</li>
-<li><a href="concepts/state.html#locks-and-reservations">Locks</a> are per resource, so applies on different resources run at once.</li>
-<li>A <a href="concepts/plans.html#refresh-age">refresh age</a> says when to read real state again.</li>
-<li><a href="concepts/policies.html">Policy as code</a> is built in and uses the same language.</li>
-</ul>
-</div>
-<div class="card shift-col">
-<span class="card-kicker">Tried</span>
-<h3 class="card-title">A different footing</h3>
-<ul class="shift-list">
-<li><a href="learn/index.html">CUE</a>, a constraint language, in place of markup with imperative extras.</li>
-<li><a href="learn/b06-modules-providers-credentials.html">Modules</a> need no variable or output wiring, and any field can be overridden.</li>
-<li><a href="learn/c1-reading-a-cue-error.html">Validation</a> is just the schema, checked before any provider starts.</li>
-<li>A <a href="how-to/explore-your-estate.html">read-only viewer</a> draws the estate as a graph of modules and resources, with a saved plan on top.</li>
-</ul>
-</div>
+<div class="cards shift-cards">
+<a class="card spot" href="#views">
+<span class="card-kicker">See it</span>
+<h3 class="card-title">The whole estate in a browser</h3>
+<p class="card-text">One command, <code>pravo serve</code>, opens a read-only viewer on your machine. The graph, plans, history, state, policies and traces are in one place. There is nothing to host and nothing to set up.</p>
+<span class="card-more">Explore the viewer</span>
+</a>
+<a class="card spot" href="#reach">
+<span class="card-kicker">Scale it</span>
+<h3 class="card-title">Change one resource, read one resource</h3>
+<p class="card-text">A plan reads only what the change reaches, so its cost follows the change and not the size of the estate. Applies that do not overlap run at the same time, started by different people.</p>
+<span class="card-more">How plans stay small</span>
+</a>
+<a class="card spot" href="concepts/sealed-state.html">
+<span class="card-kicker">Trust it</span>
+<h3 class="card-title">Sealed and signed state</h3>
+<p class="card-text">State is encrypted to a list of readers and every change is signed. A copy of the bucket shows nothing, and a record that was altered shows up. Readers, writers and admins have different keys.</p>
+<span class="card-more">Sealed state</span>
+</a>
+<a class="card spot" href="concepts/discovery.html">
+<span class="card-kicker">Take over what exists</span>
+<h3 class="card-title">Find what nothing manages</h3>
+<p class="card-text">Most estates were built before the code. <code>pravo discover</code> lists what exists in a scope and sets it against the state, and <code>adopt</code> writes the resource that brings an object under management.</p>
+<span class="card-more">Discovery</span>
+</a>
 </div>
 </div></section>

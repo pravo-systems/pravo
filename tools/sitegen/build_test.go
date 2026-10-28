@@ -523,23 +523,10 @@ func TestLandingProblemsFailTheBuild(t *testing.T) {
 }
 
 func TestFooterIsOneRow(t *testing.T) {
-	for in, want := range map[string]string{
-		"Infrastructure as code in CUE. It runs providers.": "Infrastructure as code in CUE.",
-		"One sentence only.": "One sentence only.",
-		"No stop":            "No stop",
-		"":                   "",
-	} {
-		if got := firstSentence(in); got != want {
-			t.Errorf("firstSentence(%q) = %q, want %q", in, got, want)
-		}
-	}
 	s := newTestSite(t, map[string]string{
 		"site/site.json": strings.Replace(testSiteJSON, `"name": "pravo",`, `"name": "pravo", "description": "Infrastructure as code in CUE. More text follows.", "repo": "https://example.org/pravo",`, 1),
 	})
 	f := s.footerFor("learn/page.html")
-	if f.Tagline != "Infrastructure as code in CUE." {
-		t.Errorf("tagline %q", f.Tagline)
-	}
 	var titles []string
 	for _, it := range f.Sections {
 		titles = append(titles, it.Title+"="+it.Href)

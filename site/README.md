@@ -7,7 +7,7 @@ Static site: HTML from `tools/sitegen`, one style sheet, four shared scripts and
 | Path | Purpose |
 |---|---|
 | `site.json` | Site configuration read by `tools/sitegen`. `tools/sitegen/README.md` describes it. |
-| `landing/NN-name.html` | Bands of the front page, one `<section class="band"><div class="wrap">` per file, in file name order: the hero, kept and revisited, plans and applies, where to start and about. |
+| `landing/NN-name.html` | Bands of the front page, one `<section class="band"><div class="wrap">` per file, in file name order: the hero, rebuilt for teams, plans and applies, the viewer, where to start and about. |
 | `data/*.json` | Recorded output and values read from the sources. A partial or a demo reads them with `{{data file.path}}` and `{{json file.path}}`. Not copied to the output. |
 | `demos/NAME/` | One interactive demo, or the hero of the front page. `NAME/page.md` is a capture page; `build.sh` runs `tools/capture -update`, `-check` and `-json site/data/NAME.json` on it and then a Go program that derives the rest. A demo ends in `NAME/embed.html`, which a page of the documentation embeds with `:::demo NAME`. `demos/facts/facts.go` reads the state format and the plugin protocols from their sources into `data/facts.json`. |
 | `assets/style.css` | The built style sheet. Generated; edit the parts under `design/css/`. |
@@ -222,19 +222,19 @@ Focus rings are 2 px `--key` with a 2 px offset; the chamfered button keeps its 
 
 ## Sizes
 
-The landing page loads `index.html`, the style sheet, two scripts and three images. Fonts are separate. `search.js` loads when the reader opens the palette and is not counted. Sizes are in bytes. Gzipped is each file on its own at the highest level, as `compress/gzip` writes it; the `gzip -9` command gives figures within 1 percent of these. An image counts as the smaller of the file and its gzip.
+The landing page loads `index.html`, the style sheet, two scripts and three images. Fonts are separate. `search.js` loads when the reader opens the palette and is not counted. The screenshots of the viewer carry `loading="lazy"` and load when the reader scrolls to them, so they are not counted either. Sizes are in bytes. Gzipped is each file on its own at the highest level, as `compress/gzip` writes it; the `gzip -9` command gives figures within 1 percent of these. An image counts as the smaller of the file and its gzip.
 
 | Asset | Published | Gzipped | Source gzipped |
 |---|---|---|---|
-| `index.html` | 17,826 | 5,176 | 5,176 |
-| `assets/style.css` | 130,578 | 25,809 | 34,452 |
-| `assets/site.js` | 17,263 | 5,888 | 8,541 |
-| `assets/download.js` | 1,794 | 907 | 1,196 |
+| `index.html` | 28,450 | 7,745 | 7,745 |
+| `assets/style.css` | 131,810 | 25,939 | 34,605 |
+| `assets/site.js` | 17,256 | 5,885 | 8,541 |
+| `assets/download.js` | 1,790 | 909 | 1,198 |
 | `assets/logo.svg` | 805 | 390 | 390 |
 | `assets/apple-touch-icon.png` | 3,497 | 3,433 | 3,433 |
 | `favicon.ico` | 3,588 | 3,565 | 3,565 |
-| JavaScript, 2 files | 19,057 | 6,795 | 9,737 |
-| Everything but fonts, 7 files | 175,351 | 45,168 | 56,753 |
+| JavaScript, 2 files | 19,046 | 6,794 | 9,739 |
+| Everything but fonts, 7 files | 187,196 | 47,866 | 59,477 |
 | Budget, JavaScript | | 8,000 | 8,000 |
 | Budget, everything but fonts | | 50,000 | 50,000 |
 

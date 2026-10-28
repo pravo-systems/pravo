@@ -1,0 +1,81 @@
+/* ==========================================================================
+   98 landing: the page as a story. One screen for each band, a rail that
+   follows it, and bands that arrive as they are reached.
+   ========================================================================== */
+
+.rail, .cue { display: none; }
+@media (min-width: 60rem) and (min-height: 45rem) {
+  html:has(.page-landing) { scroll-snap-type: y mandatory; scroll-padding-top: var(--header-h); }
+  [data-band] { min-height: calc(100svh - var(--header-h)); display: flex; flex-direction: column; justify-content: center; scroll-snap-align: start; scroll-snap-stop: always; --band-pad: 1.5rem; }
+  [data-band] > .wrap { width: 100%; }
+  .page-landing .site-footer { scroll-snap-align: end; }
+  .views-band .band-head { margin-bottom: 1rem; }
+  .views-band .band-head { max-width: none; }
+  .views-band .band-title { white-space: nowrap; font-size: clamp(1.9rem, 6.2vh, 3rem); }
+  .views-band .band-lede { max-width: none; font-size: 1rem; }
+  .vw-tabs button { padding: .6rem 1rem .75rem; }
+  .vw-body { padding: .9rem 1.1rem; }
+  .vw-p { grid-template-columns: minmax(0, calc((100svh - var(--header-h) - 18.5rem) * 1.6)) 19rem; justify-content: center; }
+}
+@media (min-width: 88rem) and (min-height: 43rem) {
+  .rail { position: fixed; z-index: 30; right: .6rem; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: .15rem; }
+  .rail::before { content: ""; position: absolute; right: 7px; top: .5rem; bottom: .5rem; width: 1px; background: var(--line-strong); }
+  .rail a { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: .6rem; padding: .45rem .15rem; color: var(--text-3); text-decoration: none; font: 500 .62rem/1 var(--font-mono); letter-spacing: .08em; }
+  .rail a::after { content: ""; flex: none; width: 9px; height: 9px; background: var(--bg); border: 1px solid var(--line-strong); transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+  .rail a::before { content: attr(data-n); }
+  .rail span { position: absolute; right: 1.6rem; padding: .35rem .5rem; background: var(--surface); border: 1px solid var(--line-strong); color: var(--text); text-transform: uppercase; white-space: nowrap; opacity: 0; pointer-events: none; transform: translateX(6px); transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+  .rail a:hover span, .rail a:focus-visible span { opacity: 1; transform: none; }
+  .rail a[aria-current]::after { background: var(--accent); border-color: var(--accent); }
+  .rail a[aria-current] { color: var(--text); }
+  .rail i { display: none; }
+  .cue { position: absolute; z-index: 2; left: 50%; bottom: .9rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: .4rem; color: var(--text-3); text-decoration: none; font: 500 .62rem/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; }
+  .cue::after { content: ""; width: 1px; height: 1.4rem; background: var(--accent); animation: cuedrop 1.8s var(--ease) infinite; transform-origin: 0 0; }
+}
+@keyframes cuedrop { 0% { transform: scaleY(0); } 60% { transform: scaleY(1); } 100% { transform: scaleY(1); opacity: 0; } }
+@supports (animation-timeline: scroll()) {
+  .cue { animation: cuegone linear both; animation-timeline: scroll(root); animation-range: 0 20vh; }
+  @keyframes cuegone { to { opacity: 0; } }
+}
+
+/* arrival: nothing is hidden unless the script has run */
+html.js [data-band]:not(.in) > .wrap > * { opacity: 0; transform: translateY(16px); }
+html.js [data-band] > .wrap > * { transition: opacity .7s var(--ease), transform .7s var(--ease); }
+html.js [data-band] > .wrap > :nth-child(2) { transition-delay: .12s; }
+html.js [data-band] > .wrap > :nth-child(3) { transition-delay: .24s; }
+html.js [data-band]:not(.in) .card, html.js [data-band]:not(.in) .vw-win { opacity: 0; }
+html.js [data-band] .card { transition: opacity .6s var(--ease); }
+html.js .in .card:nth-child(2) { transition-delay: .12s; }
+html.js .in .card:nth-child(3) { transition-delay: .24s; }
+html.js .in .card:nth-child(4) { transition-delay: .36s; }
+html.js [data-band] .vw-win { transition: clip-path .9s var(--ease), opacity .6s var(--ease); clip-path: inset(0); }
+html.js [data-band]:not(.in) .vw-win { clip-path: inset(0 100% 0 0); }
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-band] *, .cue, .cue::after { animation: none !important; transition: none !important; }
+  html.js [data-band]:not(.in) > .wrap > *, html.js [data-band]:not(.in) .card, html.js [data-band]:not(.in) .vw-win { opacity: 1; transform: none; clip-path: none; }
+}
+
+/* a band that is taller than the screen gives up room, not content */
+@media (min-width: 60rem) and (min-height: 43rem) and (max-height: 62rem) {
+  [data-band] .band-title { font-size: clamp(1.9rem, 6.2vh, 3rem); }
+  [data-band] .band-title em { display: inline; }
+  [data-band] .band-lede { margin-top: .6rem; font-size: 1.08rem; }
+  .band-head { margin-bottom: 1rem !important; }
+  .reach-band .band-lede { max-width: none; }
+  .reach-scenario { margin: 0 0 .5rem; font-size: .9rem; }
+  .reach-compare { gap: .75rem; }
+  .reach-side { flex-flow: row wrap; align-items: baseline; gap: .2rem .8rem; padding: .55rem 1rem; }
+  .reach-side .stats { margin: 0; }
+  .reach-side .stat { display: flex; flex-direction: row-reverse; align-items: baseline; justify-content: flex-end; gap: .6rem; }
+  .reach-side .stat dd { font-size: 2rem; line-height: 1; }
+  .reach-caption { margin: .4rem 0 .9rem; font-size: .78rem; }
+  .reach-sub { margin: 0 0 .5rem; }
+  .reach-why .card { padding: .9rem 1.1rem; gap: .5rem; }
+  .reach-why .card-title { font-size: 1.25rem; }
+  .reach-why .card-text { font-size: .88rem; line-height: 1.45; }
+  .start-band > .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem 3rem; align-items: center; }
+  .start-band .start-cards { grid-column: 1 / -1; }
+  .start-cards .card-text { display: none; }
+  .start-cards .card { padding: 1.1rem 1.25rem; }
+  .start-band > .wrap { gap: 1rem 3rem; }
+  .start-band .download { padding: 1rem 1.25rem; }
+}

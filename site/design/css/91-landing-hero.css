@@ -8,7 +8,7 @@
 .hero-split {
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
   gap: clamp(2rem, 4.5vw, 4.5rem);
-  align-items: start;
+  align-items: center;
 }
 @media (max-width: 59.99rem) { .hero-split { grid-template-columns: minmax(0, 1fr); } }
 .hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 1.6rem; min-width: 0; }
@@ -30,6 +30,23 @@
 .hero-stage { min-width: 0; }
 .hero-stack { display: flex; flex-direction: column; gap: .9rem; min-width: 0; }
 .hero-stack .code, .hero-stack .term { margin: 0; }
+.hero-proof { display: flex; flex-wrap: wrap; gap: .5rem; margin: .4rem 0 0; padding: 0; list-style: none; }
+.hero-proof li { display: flex; gap: .55rem; align-items: center; padding: .45rem .65rem; border: 1px solid var(--line-strong); font: 500 .66rem/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.hero-proof li::before { content: ""; width: .45rem; height: .45rem; background: var(--accent); }
+.hs-tabs { display: flex; border: 1px solid var(--line-strong); border-bottom: 0; background: var(--surface); }
+.hs-tabs button { flex: 1; display: flex; gap: .55rem; align-items: baseline; padding: .7rem 1rem; border: 0; border-right: 1px solid var(--line); background: none; color: var(--text-3); font: 500 .72rem/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.hs-tabs button:last-child { border-right: 0; }
+.hs-tabs button b { font-weight: 500; color: var(--accent); }
+.hs-tabs button:hover { color: var(--text); }
+.hs-tabs button[aria-selected="true"] { color: var(--text); background: var(--surface-2); }
+.hs-body { display: grid; }
+.hs-p { grid-area: 1 / 1; min-width: 0; }
+.hs-p .code-file, .hs-p .term > .code-title { display: none; }
+.hs-p .code, .hs-p .term { height: 100%; }
+html.js .hs-p:not(.on) { visibility: hidden; }
+html:not(.js) .hs-tabs { display: none; }
+html:not(.js) .hs-body { display: block; }
+html:not(.js) .hs-p { margin-bottom: .9rem; }
 
 /* ---------- kept and revisited, plans, start, about ---------- */
 .shift-band, .reach-band, .start-band, .about-band { --band-pad: clamp(3rem, 6vw, 5.5rem); }

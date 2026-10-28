@@ -437,6 +437,67 @@
     rv.forEach(function (n) { rio.observe(n); });
   }
 
+  /* ---------- the page as a story: the rail follows the band in the middle ---------- */
+  (function () {
+    var b = $$("[data-band]"), a = $$(".rail a");
+    if (!a.length || !("IntersectionObserver" in window)) return;
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.add("in");
+        a.forEach(function (x, i) { x.toggleAttribute("aria-current", b[i] === e.target); });
+      });
+    }, { rootMargin: "-45% 0px -45% 0px" });
+    b.forEach(function (n) { io.observe(n); });
+  })();
+
+  /* ---------- the hero: the file and the plan on tabs ---------- */
+  (function () {
+    var h = $("[data-htabs]");
+    if (!h) return;
+    var tabs = $$("[role=tab]", h);
+    function pick(i, f) {
+      tabs.forEach(function (t, j) {
+        t.setAttribute("aria-selected", i === j);
+        t.tabIndex = i === j ? 0 : -1;
+        $("#" + t.getAttribute("aria-controls")).classList.toggle("on", i === j);
+        if (f && i === j) t.focus();
+      });
+    }
+    tabs.forEach(function (t, i) {
+      t.addEventListener("click", function () { pick(i); });
+      t.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); pick(1 - i, 1); }
+      });
+    });
+  })();
+
+  /* ---------- the viewer showcase: tabs, arrow keys, auto-advance ---------- */
+  (function () {
+    var v = $("[data-vw]");
+    if (!v) return;
+    var tabs = $$("[role=tab]", v), tl = $("[role=tablist]", v);
+    function pick(i, f) {
+      tabs.forEach(function (t, j) {
+        var on = i === j;
+        t.setAttribute("aria-selected", on);
+        t.tabIndex = on ? 0 : -1;
+        $("#" + t.getAttribute("aria-controls")).classList.toggle("on", on);
+        if (on && f) { t.focus(); t.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+      });
+    }
+    function at() { return tabs.findIndex(function (t) { return t.getAttribute("aria-selected") === "true"; }); }
+    tabs.forEach(function (t, i) { t.addEventListener("click", function () { pick(i); }); });
+    tl.addEventListener("keydown", function (e) {
+      var k = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key], n = tabs.length;
+      if (e.key === "Home") k = -at(); else if (e.key === "End") k = n - 1 - at();
+      if (!k) return;
+      e.preventDefault();
+      pick((at() + k + n) % n, 1);
+    });
+    tl.addEventListener("animationend", function () { pick((at() + 1) % tabs.length); });
+  })();
+
   /* ---------- the headline's first word types itself out and back ---------- */
   (function () {
     var n = $("[data-swap]");
