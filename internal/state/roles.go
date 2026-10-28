@@ -310,6 +310,15 @@ func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
 		}
 	}
 	s.mu.Unlock()
+	// The transactions that wrote or purged a version of a secret count too: a key that is
+	// demoted or dropped keeps the versions an admin vouched for.
+	secretIDs, err := s.secretTxnIDsAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range secretIDs {
+		ids[id] = true
+	}
 	list := make([]string, 0, len(ids))
 	for id := range ids {
 		list = append(list, id)

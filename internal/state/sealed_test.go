@@ -130,7 +130,7 @@ func allObjects(t *testing.T, b Backend) map[string][]byte {
 	t.Helper()
 	ctx := context.Background()
 	out := map[string][]byte{}
-	for _, prefix := range []string{"resources", "rec", "txn", "plans", "locks"} {
+	for _, prefix := range []string{"resources", "rec", "txn", "plans", "locks", secretDir} {
 		for _, k := range listKeys(t, b, prefix) {
 			data, err := b.Get(ctx, k)
 			if err != nil {

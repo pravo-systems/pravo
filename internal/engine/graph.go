@@ -551,7 +551,7 @@ func (e *Engine) settleAllLocked() error {
 		v := e.current.FillPath(p.res.Path, p.fill)
 		if err := v.Validate(); err != nil {
 			if first == nil {
-				first = fmt.Errorf("%s: filling values into the configuration: %w", addr, err)
+				first = fmt.Errorf("%s: filling values into the configuration: %w", addr, fillError(p.res, err))
 			}
 			continue
 		}
@@ -561,4 +561,14 @@ func (e *Engine) settleAllLocked() error {
 		first = errors.New("filling values into the configuration: the configuration does not hold")
 	}
 	return first
+}
+
+// fillError is the error of a fill that does not fit the configuration. CUE says which values
+// conflict, and the value of a secret must not reach a message, so for a secret it says that
+// the value is not shown.
+func fillError(r *config.Resource, err error) error {
+	if r.Builtin && (r.Type == "secret" || r.Type == "secret_env") {
+		return errors.New("the value does not satisfy what the specification requires of it (the value is not shown)")
+	}
+	return err
 }

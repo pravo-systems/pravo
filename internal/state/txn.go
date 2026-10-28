@@ -121,6 +121,14 @@ func (t *Txn) Record(addr, action string, before, after int) {
 	t.t.Changes = append(t.t.Changes, c)
 }
 
+// RecordWith adds a change that names what it wrote itself, as the change of a secret
+// names the commit of the version: the finish signature covers record, whatever the roles.
+func (t *Txn) RecordWith(addr, action string, before, after int, record string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.t.Changes = append(t.t.Changes, Change{Addr: addr, Action: action, Before: before, After: after, Record: record})
+}
+
 // Finish writes the transaction with the given status and summary. A
 // transaction without changes is not recorded unless record is true.
 func (t *Txn) Finish(status, summary string, record bool) error {

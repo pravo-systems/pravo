@@ -225,11 +225,16 @@ func finishCommand(ctx context.Context, err error, code int) {
 }
 
 // normaliseArgs lets users write OpenTofu-style single-dash long flags
-// (-auto-approve, -refresh=false) by rewriting them to --long form.
+// (-auto-approve, -refresh=false) by rewriting them to --long form. The arguments after a
+// bare -- are left as they are.
 func normaliseArgs(args []string) []string {
 	out := make([]string, 0, len(args))
+	ended := false
 	for i, a := range args {
-		if i > 0 && strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") {
+		if a == "--" {
+			ended = true // what follows belongs to a command that pravo runs, as in pravo secret exec
+		}
+		if i > 0 && !ended && strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") {
 			name := a[1:]
 			if j := strings.IndexByte(name, '='); j >= 0 {
 				name = name[:j]
@@ -292,7 +297,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(
 		initCmd(), planCmd(), applyCmd(), destroyCmd(), showCmd(), outputCmd(), stateCmd(), importCmd(), discoverCmd(),
 		providersCmd(), genCmd(), validateCmd(), evalCmd(), fmtCmd(), versionCmd(),
-		schemaCmd(), whyCmd(), driftCmd(), mcpCmd(), modCmd(), serveCmd(), skillCmd(), idCmd(), protectCmd(), policyCmd(),
+		schemaCmd(), whyCmd(), driftCmd(), mcpCmd(), modCmd(), serveCmd(), skillCmd(), idCmd(), protectCmd(), policyCmd(), secretCmd(),
 	)
 	return cmd
 }

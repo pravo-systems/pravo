@@ -18,6 +18,7 @@ const (
 	KindPlanCmd = "plan-cmd"    // the same, in plans/<id>.meta.json
 	KindSummary = "txn-summary" // the text of the error of a transaction that failed or was rejected
 	KindDiff    = "txn-diff"    // what the changes of a transaction did to the attributes of their records
+	KindSecret  = "secret"      // the value and the note of one version of a secret
 )
 
 // Ctx says where a sealed value belongs. Every field is bound into the AEAD as

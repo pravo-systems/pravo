@@ -363,6 +363,10 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 					out.Printf("    %s\n", t.Summary)
 				}
 				for _, c := range t.Changes {
+					if t.Kind == "secret" {
+						out.Printf("    %-8s %s%s\n", c.Action, printable(c.Addr), out.C(ui.Dim, secretVersions(c)))
+						continue
+					}
 					out.Printf("    %-8s %s", c.Action, c.Addr)
 					if c.After > 0 {
 						out.Printf("%s", out.C(ui.Dim, fmt.Sprintf("  r%d -> r%d", c.Before, c.After)))
@@ -373,6 +377,20 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 			return invalidTxns(invalid)
 		},
 	}
+}
+
+// secretVersions is the versions a change of a secret went between: the first version of a
+// secret has no earlier one, and a purge has no later one.
+func secretVersions(c state.Change) string {
+	switch {
+	case c.Before == 0 && c.After == 0:
+		return ""
+	case c.After == 0:
+		return fmt.Sprintf("  v%d", c.Before)
+	case c.Before == 0:
+		return fmt.Sprintf("  v%d", c.After)
+	}
+	return fmt.Sprintf("  v%d -> v%d", c.Before, c.After)
 }
 
 // stateProbeCmd is "state probe".
