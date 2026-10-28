@@ -201,3 +201,5 @@ func isSkillDir(dir string) bool {
 	}
 	return strings.HasPrefix(strings.ReplaceAll(string(data), "\r\n", "\n"), "---\nname: pravo\n")
 }
+
+// Probe A: a change in the command package only, to time CI.
