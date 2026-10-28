@@ -2,18 +2,29 @@
 # Runs go test for one group of packages, leaving out the packages that a pull
 # request cannot affect (tools/ci/affected.sh).
 #
-#   sh tools/ci/gotest.sh GROUP [in|out "FILE..."] [go test flags]
+#   sh tools/ci/gotest.sh GROUP [in|out "FILE..."|shard NAME] [go test flags]
 #
 # GROUP is engine, state, cmd, serve, commands (cmd and the viewer), libraries
 # (the other packages of internal without the engine and the viewer), or other
 # (the rest of the module, without tools). With in or out and test files, a group
 # of one package runs only the tests of these files, or all the others
-# (tools/ci/test-files.sh), so that jobs can be named for what they cover.
+# (tools/ci/test-files.sh), so that jobs can be named for what they cover. With
+# shard and a name, the files are those that tools/ci/shards.txt lists for it.
 set -eu
 group=$1; shift
 mode="" files=""
 case ${1:-} in
 in|out) mode=$1 files=$2; shift 2 ;;
+shard)
+	table=$(dirname "$0")/shards.txt
+	files=$(awk -v g="$group" -v n="$2" '$1 == g && $2 == n { $1 = $2 = ""; print }' "$table")
+	[ -n "$files" ] || { echo "gotest: $table has no shard $2 for $group" >&2; exit 2; }
+	if [ "$(echo "$files" | tr -d ' \t')" = '*' ]; then
+		mode=out files=$(awk -v g="$group" -v n="$2" '$1 == g && $2 != n { $1 = $2 = ""; print }' "$table")
+	else
+		mode=in
+	fi
+	shift 2 ;;
 esac
 mod=$(go list -m)
 all=$(go list ./...)

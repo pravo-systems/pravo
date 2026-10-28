@@ -22,7 +22,8 @@ for f in $files; do
 	[ -n "$found" ] || { echo "test-files: $dir/$f matches no file" >&2; exit 2; }
 done
 mine=$(grep -h -o -E '^func (Test|Fuzz|Example)[A-Za-z0-9_]*' $chosen | sed 's/^func //' | sort -u)
-all=$(go test -list '.*' "$pkg" | grep -E '^(Test|Fuzz|Example)' | sort -u)
+# From the sources: go test -list would build the test binary one more time.
+all=$(grep -h -o -E '^func (Test|Fuzz|Example)[A-Za-z0-9_]*' $dir/*_test.go | sed 's/^func //' | sort -u)
 if [ "$mode" = in ]; then
 	names=$mine
 else

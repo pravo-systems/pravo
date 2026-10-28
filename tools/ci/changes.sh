@@ -14,10 +14,18 @@
 #   hcl     the OpenTofu listings or their checker changed
 #   platform  something that behaves differently by system changed: files for one
 #           system, and the packages that work with files, locks and processes
+#   slow    something changed that the slow checks are about: the engine, the state
+#           and sealing, the plugins, the commands that seal and sign, or the checks
+#           themselves. These are the pages of the documentation that wait for a
+#           minute and the scenario with two thousand resources (tools/ci/pages.sh)
+#   limit   minutes that a job of a pull request may take before it is cancelled: a
+#           job that hangs should not hold the author. Longer when the change runs
+#           the slow checks or the tests of the other systems; a run of main, a tag
+#           or a dispatch is left twenty
 # The PR is the merge commit of GitHub, so its first parent is the base.
 set -eu
 out=${GITHUB_OUTPUT:-/dev/stdout}
-all=false code=false binary=false docs=false site=false web=false hcl=false platform=false
+all=false code=false binary=false docs=false site=false web=false hcl=false platform=false slow=false
 
 if [ "${CI_EVENT:-}" != pull_request ]; then
 	all=true
@@ -28,7 +36,7 @@ else
 		case $f in
 		.github/*|tools/ci/*|go.mod|go.sum|.golangci.yml) all=true ;;
 		docs/*) docs=true; hcl=true ;;
-		design/*|*.md|LICENSE) ;;
+		site/demos/scale/*) site=true; hcl=true; slow=true ;;
 		site/demos/*) site=true; hcl=true ;;
 		site/*) site=true; web=true ;;
 		skills/*) code=true; binary=true; docs=true ;;
@@ -36,8 +44,14 @@ else
 		tools/hclcheck/*) code=true; hcl=true ;;
 		tools/*) code=true ;;
 		internal/serve/web/*) code=true; binary=true; web=true ;;
+		design/*|*.md|LICENSE) ;;
 		*_test.go|*/testdata/*) code=true ;;
 		*) code=true; binary=true ;;
+		esac
+		case $f in
+		*_test.go|*/testdata/*) ;;
+		internal/serve/*|internal/ui/*|internal/telemetry/*|internal/plog/*) ;;
+		internal/*|cmd/pravo/protect*|cmd/pravo/roles*|cmd/pravo/id*|cmd/pravo/recovery*|cmd/pravo/unseal*|cmd/pravo/downgrade*) slow=true ;;
 		esac
 		case $f in
 		*.go|go.mod) ;;
@@ -49,9 +63,15 @@ else
 		esac
 	done
 fi
-if [ $all = true ]; then code=true binary=true docs=true site=true web=true hcl=true platform=true; fi
+if [ $all = true ]; then code=true binary=true docs=true site=true web=true hcl=true platform=true slow=true; fi
 
-for n in all code binary docs site web hcl platform; do
+limit=3
+if [ "${CI_EVENT:-}" != pull_request ]; then limit=20
+elif [ $all = true ] || [ $platform = true ]; then limit=8
+elif [ $slow = true ]; then limit=5
+fi
+
+for n in all code binary docs site web hcl platform slow limit; do
 	eval "v=\$$n"
 	echo "$n=$v" >> "$out"
 done
