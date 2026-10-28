@@ -1,18 +1,19 @@
 #!/bin/sh
-# The static checks of CI. The static job runs them, and a job of main also vets
-# the module on each system.
+# The static checks of CI. Each job of the static matrix runs some of them.
 #
 #   sh tools/ci/static.sh format      every file is gofmt'd
 #   sh tools/ci/static.sh modules     go mod tidy changes nothing
-#   sh tools/ci/static.sh build       every package builds on every system and
-#                                     architecture that pravo supports
-#   sh tools/ci/static.sh vet GOOS    go vet on the files of a system
+#   sh tools/ci/static.sh check GOOS  every package builds for both architectures of
+#                                     the system, and is vetted
+#   sh tools/ci/static.sh job SYSTEM  what the job of a system does: for linux, the
+#                                     first two as well; macos is darwin
 #
-# A pull request leaves the vet to golangci-lint on the packages that it changed
-# (tools/ci/lint.sh): a package that it did not change but that stops compiling is
-# found by the build and by the tests.
+# A pull request leaves the vet of the whole module to golangci-lint on the
+# packages that it changed (tools/ci/lint.sh): a package that it did not change but
+# that stops compiling is found by the build and by the tests. Main, the release and
+# a change to CI itself (tools/ci/changes.sh) vet everything.
 set -eu
-what=${1:?usage: sh tools/ci/static.sh format|modules|build|vet GOOS}
+what=${1:?usage: sh tools/ci/static.sh format|modules|check GOOS|job SYSTEM}
 case $what in
 format)
 	unformatted=$(gofmt -l .)
@@ -25,19 +26,32 @@ modules)
 	go mod tidy
 	git diff --exit-code go.mod go.sum
 	;;
-build)
-	# All six at once: they share the module cache and compile different files.
+check)
+	goos=${2:?usage: sh tools/ci/static.sh check GOOS}
+	# Both architectures at once: they share the module cache and compile different files.
 	pids=""
-	for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-		(GOOS=${target%/*} GOARCH=${target#*/} go build ./... && echo "built $target") &
+	for arch in amd64 arm64; do
+		(GOOS=$goos GOARCH=$arch go build ./... && echo "built $goos/$arch") &
 		pids="$pids $!"
 	done
 	status=0
 	for pid in $pids; do wait "$pid" || status=1; done
-	exit $status
+	[ $status = 0 ] || exit $status
+	if [ "${CI_EVENT:-}" = pull_request ] && [ "${CI_ALL:-}" != true ]; then
+		echo "go vet: left to golangci-lint on the changed packages"
+	else
+		GOOS=$goos GOARCH=amd64 go vet ./...
+		echo "vetted $goos/amd64"
+	fi
 	;;
-vet)
-	GOOS=${2:?usage: sh tools/ci/static.sh vet GOOS} GOARCH=amd64 go vet ./...
+job)
+	here=$(dirname "$0")
+	case ${2:?usage: sh tools/ci/static.sh job linux|macos|windows} in
+	linux) sh "$here/static.sh" format && sh "$here/static.sh" modules && exec sh "$here/static.sh" check linux ;;
+	macos) exec sh "$here/static.sh" check darwin ;;
+	windows) exec sh "$here/static.sh" check windows ;;
+	*) echo "static: unknown system $2" >&2; exit 2 ;;
+	esac
 	;;
 *)
 	echo "static: unknown check $what" >&2; exit 2

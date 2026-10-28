@@ -53,36 +53,40 @@ jobs:
       - run: sh tools/ci/pages.sh check
 
   # Formatting, module hygiene, and a build for every platform that pravo
-  # supports (tools/ci/static.sh). Main, the release and a change to CI itself also
-  # vet the module on each system, a job for each; a pull request leaves that to
-  # golangci-lint on the packages that it changed.
+  # supports, a job for each system (tools/ci/static.sh). The jobs of a matrix have
+  # no names of their own, so that a pull request that skips them shows "static" and
+  # not the template of a name. Main, the release and a
+  # change to CI itself also vet the module on each system; a pull request leaves
+  # that to golangci-lint on the packages that it changed.
   static:
-    name: static (${{ matrix.name }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    env:
+      CI_EVENT: ${{ github.event_name }}
+      CI_ALL: ${{ needs.changes.outputs.all }}
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(github.event_name == 'pull_request' && needs.changes.outputs.all != 'true' && '[{"name":"formatting, modules and builds","key":"static","run":"sh tools/ci/static.sh format && sh tools/ci/static.sh modules && sh tools/ci/static.sh build"}]' || '[{"name":"formatting, modules and builds","key":"static","run":"sh tools/ci/static.sh format && sh tools/ci/static.sh modules && sh tools/ci/static.sh build"},{"name":"vet for linux","key":"static-vet-linux","run":"sh tools/ci/static.sh vet linux"},{"name":"vet for windows","key":"static-vet-windows","run":"sh tools/ci/static.sh vet windows"},{"name":"vet for macOS","key":"static-vet-darwin","run":"sh tools/ci/static.sh vet darwin"}]') }}
+        # The linux job also checks the formatting and the modules.
+        system: [linux, macos, windows]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
         with:
-          key: ${{ matrix.key }}
-      - run: ${{ matrix.run }}
-      - if: ${{ !cancelled() }}
+          key: static-${{ matrix.system }}
+      - run: sh tools/ci/static.sh job ${{ matrix.system }}
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
-          key: ${{ matrix.key }}
+          key: static-${{ matrix.system }}
 
   # golangci-lint (.golangci.yml) on the files of each platform that pravo
   # supports, next to the other jobs and waited for by none of them. The binary,
   # its analysis cache and the build cache are kept between runs, so a run takes
   # about a minute once they are warm.
   lint:
-    name: lint (${{ matrix.goos }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -123,7 +127,7 @@ jobs:
           CI_EVENT: ${{ github.event_name }}
           CI_ALL: ${{ needs.changes.outputs.all }}
         run: GOOS=${{ matrix.goos }} sh tools/ci/lint.sh ~/go/bin/golangci-lint
-      - if: ${{ !cancelled() }}
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
           key: lint-${{ matrix.goos }}
@@ -152,7 +156,6 @@ jobs:
   # trials, and leaves out the tests that build the binary or a provider. Main and
   # the release run all of it, with -race.
   test:
-    name: test (${{ matrix.name }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -165,18 +168,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # The engine tests sync many small files, and run faster with the
-          # temporary files in memory. Other packages compare paths under the
-          # temporary directory and expect the usual one.
-          - {name: "engine and viewer", run: "TMPDIR=/dev/shm sh tools/ci/gotest.sh engine $RACE $SHORT && sh tools/ci/gotest.sh serve $SHORT"}
-          - {name: "state", run: "sh tools/ci/gotest.sh state $RACE $SHORT"}
-          - {name: "cmd: plans", run: "sh tools/ci/gotest.sh cmd shard plans $SHORT"}
-          - {name: "cmd: outcomes and policies", run: "sh tools/ci/gotest.sh cmd shard outcomes $SHORT"}
-          - {name: "cmd: sealing and recovery", run: "sh tools/ci/gotest.sh cmd shard sealing $SHORT"}
-          - {name: "cmd: identities and roles", run: "sh tools/ci/gotest.sh cmd shard identities $SHORT"}
-          - {name: "cmd: the other commands", run: "sh tools/ci/gotest.sh cmd shard commands $SHORT"}
-          - {name: "other packages", run: "sh tools/ci/gotest.sh other"}
+        # serve is the viewer. cmd-*: the command line, by the topic of the test
+        # files. rest: the other tests of the command line, and the packages that no
+        # other job has.
+        shard: [engine, serve, state, cmd-plans, cmd-outcomes, cmd-sealing, cmd-identities, rest]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -184,20 +179,43 @@ jobs:
       - uses: ./.github/actions/go
         with:
           key: test
-      - run: ${{ matrix.run }}
-      - if: ${{ !cancelled() }}
+      - run: sh tools/ci/tests.sh ${{ matrix.shard }}
+      # Each job compiles only its share of the packages, so on main the job below
+      # saves the cache instead.
+      - if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: ./.github/actions/go-save
+        with:
+          key: test
+
+  # The cache that the test jobs of the pull requests start from. A job of the
+  # matrix above has compiled the tests of its own packages only, and whichever
+  # saved first would stand for all; this one compiles every test binary, without
+  # race detector as a pull request has none, and runs none of the tests.
+  warm:
+    name: warm the test cache
+    needs: changes
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: test
+      - run: go test -count=1 -run '^$' $(go list ./... | grep -v /tools/)
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
           key: test
 
   # The same tests on Windows, where file operations and locks behave differently
-  # and the runners are slow. A pull request runs them when it changes a file for
-  # one system or a package that works with files, locks or processes; main and
-  # the release run them always. The build, vet and lint for Windows and macOS
-  # are in the jobs above and run every time. The documentation tools run a POSIX
-  # shell and are not part of this.
-  other-systems:
-    name: windows (${{ matrix.name }})
+  # and the runners are slow (tools/ci/windows.sh). A pull request runs them when it
+  # changes a file for one system or a package that works with files, locks or
+  # processes; main and the release run them always. The build, vet and lint for
+  # Windows and macOS are in the jobs above and run every time. The documentation
+  # tools run a POSIX shell and are not part of this. The job has no name of its
+  # own, so that a pull request that skips it shows "windows".
+  windows:
     needs: changes
     if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || needs.changes.outputs.platform == 'true')
     runs-on: windows-latest
@@ -212,12 +230,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {name: "engine: locks and applies", run: "sh tools/ci/gotest.sh engine in 'applylocks_test.go interrupt_test.go apply_scope_test.go' -v -timeout 25m $SHORT"}
-          - {name: "engine: equivalence", run: "sh tools/ci/gotest.sh engine in 'equivalence_test.go' -v -timeout 25m $SHORT"}
-          - {name: "engine: plans and discovery", run: "sh tools/ci/gotest.sh engine out 'applylocks_test.go interrupt_test.go apply_scope_test.go equivalence_test.go' -v -timeout 25m $SHORT"}
-          - {name: "commands and viewer", run: "sh tools/ci/gotest.sh commands -timeout 25m $SHORT"}
-          - {name: "state and libraries", run: "sh tools/ci/gotest.sh libraries -timeout 25m $SHORT"}
+        shard: ["engine locks", "engine equivalence", "engine plans and discovery", "commands and viewer", "state and libraries"]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -225,8 +238,8 @@ jobs:
       - uses: ./.github/actions/go
         with:
           key: tests
-      - run: ${{ matrix.run }}
-      - if: ${{ !cancelled() }}
+      - run: sh tools/ci/windows.sh "${{ matrix.shard }}"
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
           key: tests
@@ -249,7 +262,7 @@ jobs:
         with:
           key: tests
       - run: sh tools/ci/gotest.sh state && sh tools/ci/gotest.sh cmd
-      - if: ${{ !cancelled() }}
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
           key: tests
@@ -271,7 +284,7 @@ jobs:
         with:
           version: ${{ env.TOFU_VERSION }}
       - run: go test -count=1 ./tools/...
-      - if: ${{ !cancelled() }}
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
           key: tools-tests
@@ -282,7 +295,6 @@ jobs:
   # checks the pages that it changed, and the pages that wait for a minute are
   # checked when the change is about what they show.
   docs:
-    name: docs (${{ matrix.name }})
     needs: changes
     if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
@@ -295,12 +307,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {name: "concepts, specification and policies", shard: concepts}
-          - {name: "how-to", shard: how-to}
-          - {name: "learn: pravo", shard: learn}
-          - {name: "reference: commands", shard: commands}
-          - {name: "pages that wait a minute", shard: slow}
+        # The pages of each section (tools/ci/pages.sh); slow is the pages that wait
+        # for a minute.
+        shard: [concepts, how-to, learn, labs, commands, slow]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -340,7 +349,7 @@ jobs:
       - if: steps.pages.outputs.any == 'true'
         name: Check the pages
         run: go run ./tools/capture -check -j 4 -bin bin/pravo $(sh tools/ci/pages.sh "$SHARD")
-      - if: ${{ !cancelled() && steps.pages.outputs.any == 'true' }}
+      - if: ${{ always() && steps.pages.outputs.any == 'true' }}
         uses: ./.github/actions/go-save
         with:
           key: capture
@@ -369,7 +378,7 @@ jobs:
           restore-keys: pravo-home-${{ runner.os }}-demos-
       - run: go build -o bin/pravo ./cmd/pravo
       - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos/hero site/demos/idea site/demos/facts site/demos/blast site/demos/migrate
-      - if: ${{ !cancelled() }}
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
           key: capture
@@ -399,7 +408,7 @@ jobs:
           restore-keys: pravo-home-${{ runner.os }}-demos-scale-
       - run: go build -o bin/pravo ./cmd/pravo
       - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos/scale
-      - if: ${{ !cancelled() }}
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
           key: capture
@@ -427,7 +436,7 @@ jobs:
           restore-keys: hclcheck-plugins-
       - run: go run ./tools/hclcheck -j 4 -cache ~/hclcheck-plugins
       - run: sh tools/hclcheck/claims.sh
-      - if: ${{ !cancelled() }}
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
           key: hclcheck
@@ -447,7 +456,7 @@ jobs:
       - run: go build -o bin/pravo ./cmd/pravo
       - run: go run ./tools/sitegen -pravo-bin bin/pravo
       - run: go run site/demos/facts/facts.go -check
-      - if: ${{ !cancelled() }}
+      - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:
           key: site
@@ -455,7 +464,7 @@ jobs:
   # One check to require in the branch protection settings.
   ci:
     if: always()
-    needs: [changes, static, lint, lint-web, test, other-systems, macos, tools, docs, demos, scale, opentofu, site]
+    needs: [changes, static, lint, lint-web, test, warm, windows, macos, tools, docs, demos, scale, opentofu, site]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed

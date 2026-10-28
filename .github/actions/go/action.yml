@@ -11,7 +11,29 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-go@v7
+    # On Linux the Go of go.mod comes straight from go.dev: setup-go copies it into
+    # the tool cache as well, which takes as long as the download. Anything that
+    # goes wrong, and the other systems, fall back to setup-go.
+    - id: fast
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        v=$(awk '$1 == "go" { print $2; exit }' go.mod)
+        dir=$HOME/.local/go$v
+        if [ "$(uname -m)" = x86_64 ] && [ -n "$v" ]; then
+          if [ ! -x "$dir/bin/go" ]; then
+            rm -rf "$dir.tmp"; mkdir -p "$dir.tmp"
+            curl -fsSL --retry 2 --connect-timeout 10 --max-time 60 "https://go.dev/dl/go$v.linux-amd64.tar.gz" | tar -xz -C "$dir.tmp" --strip-components=1 \
+              && "$dir.tmp/bin/go" version >/dev/null && mv "$dir.tmp" "$dir" || true
+          fi
+          if [ -x "$dir/bin/go" ]; then
+            echo "$dir/bin" >> "$GITHUB_PATH"
+            echo "GOTOOLCHAIN=local" >> "$GITHUB_ENV"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+        fi
+    - if: runner.os != 'Linux' || steps.fast.outputs.ok != 'true'
+      uses: actions/setup-go@v7
       with:
         go-version-file: go.mod
         cache: false
@@ -39,6 +61,9 @@ runs:
           sleep 3
         done
         exit 1
-    # The key that was found, if any: the save step saves again only when none was.
+    # The key that was found, if any, and when the job started to use it: the save
+    # step saves again when none was found, or when the job had to build a lot.
     - shell: bash
-      run: echo "GO_CACHE_MATCHED=${{ steps.restore.outputs.cache-matched-key }}" >> "$GITHUB_ENV"
+      run: |
+        echo "GO_CACHE_MATCHED=${{ steps.restore.outputs.cache-matched-key }}" >> "$GITHUB_ENV"
+        echo "GO_CACHE_STARTED=$(date +%s)" >> "$GITHUB_ENV"

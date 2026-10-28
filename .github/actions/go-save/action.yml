@@ -1,10 +1,13 @@
 name: Save the Go build cache
 description: >
   Saves the caches that the go action restored, so that the next run starts
-  from them. On main it always does. A pull request restores the newest entry of
-  its key, or else one of main, and saves only when it found none: saving takes
-  several seconds of every job. Put it last in a job and give it the key that
-  the go action was given.
+  from them. Main, the release and a manual run always do. A pull request restores
+  the newest entry of its key, or else one of main, and saves only when it found
+  none, or when the job took more than a minute after the restore to build what
+  the cache lacked: saving takes several seconds of every job, and an entry that
+  is too poor would otherwise stay as it is. Put it last in a job, with
+  `if: always()` so that a job that ran out of time keeps what it built, and give
+  it the key that the go action was given.
 inputs:
   key:
     description: The key that the go action was given.
@@ -12,16 +15,20 @@ inputs:
 runs:
   using: composite
   steps:
-    - id: dirs
-      if: ${{ !cancelled() && (github.ref == 'refs/heads/main' || env.GO_CACHE_MATCHED == '') }}
+    - id: decide
       shell: bash
       run: |
-        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-        echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-    - if: ${{ !cancelled() && (github.ref == 'refs/heads/main' || env.GO_CACHE_MATCHED == '') }}
+        command -v go >/dev/null || exit 0
+        if [ "${{ github.event_name }}" != pull_request ] || [ -z "${GO_CACHE_MATCHED:-}" ] \
+           || [ $(( $(date +%s) - ${GO_CACHE_STARTED:-0} )) -gt 60 ]; then
+          echo "save=true" >> "$GITHUB_OUTPUT"
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        fi
+    - if: steps.decide.outputs.save == 'true'
       uses: actions/cache/save@v6
       with:
         path: |
-          ${{ steps.dirs.outputs.build }}
-          ${{ steps.dirs.outputs.mod }}
+          ${{ steps.decide.outputs.build }}
+          ${{ steps.decide.outputs.mod }}
         key: go-${{ runner.os }}-${{ inputs.key }}-${{ hashFiles('go.sum') }}-${{ github.sha }}

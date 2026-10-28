@@ -5,8 +5,8 @@
 #   sh tools/ci/pages.sh check     every page is in exactly one shard
 #
 # The shards are concepts (concepts, migration, the specification, the policies,
-# and the CUE lessons), how-to, learn (the lessons about pravo), commands (the
-# rest of the reference), and slow: the pages that wait for a minute, found by the
+# and the CUE lessons), how-to, learn (the lessons about pravo), labs (the cheat
+# sheets and the labs), commands (the rest of the reference), and slow: the pages that wait for a minute, found by the
 # `sleep` of ten seconds or more in them. The slow ones have a job of their own
 # that a pull request runs when it changes what they are about (the slow flag of
 # tools/ci/changes.sh) or one of the pages itself; main runs it always.
@@ -22,7 +22,8 @@ members() {
 	case $1 in
 	concepts) ls docs/concepts/*.md docs/migrate/*.md docs/learn/a*.md docs/learn/cue*.md docs/reference/spec-*.md docs/reference/policies-*.md docs/reference/policy.md ;;
 	how-to) ls docs/how-to/*.md ;;
-	learn) ls docs/learn/b*.md docs/learn/c[0-9]*.md docs/learn/lab*.md docs/learn/index.md ;;
+	learn) ls docs/learn/b*.md docs/learn/index.md ;;
+	labs) ls docs/learn/c[0-9]*.md docs/learn/lab*.md ;;
 	commands) find docs/reference -name '*.md' ! -name 'spec-*' ! -name 'policies-*' ! -name policy.md ;;
 	*) echo "pages: unknown shard $1" >&2; exit 2 ;;
 	esac
@@ -38,10 +39,10 @@ slowlist=$(mktemp)
 trap 'rm -f "$slowlist"' EXIT
 slow > "$slowlist"
 
-what=${1:?usage: sh tools/ci/pages.sh concepts|how-to|learn|commands|slow|check}
+what=${1:?usage: sh tools/ci/pages.sh concepts|how-to|learn|labs|commands|slow|check}
 if [ "$what" = check ]; then
 	status=0
-	listed=$( { for s in concepts how-to learn commands slow; do shard $s; done; } | sort)
+	listed=$( { for s in concepts how-to learn labs commands slow; do shard $s; done; } | sort)
 	dup=$(echo "$listed" | uniq -d)
 	[ -z "$dup" ] || { echo "pages: in more than one shard:"; echo "$dup"; status=1; }
 	# AUTHORING.md tells how to write a page and is not one.
