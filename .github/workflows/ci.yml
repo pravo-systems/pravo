@@ -57,7 +57,8 @@ jobs:
           status=0
           for pid in $pids; do wait "$pid" || status=1; done
           exit $status
-      - uses: ./.github/actions/go-save
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
         with:
           key: static
 
@@ -154,7 +155,8 @@ jobs:
         if: matrix.name == 'engine, race'
         run: echo "TMPDIR=/dev/shm" >> "$GITHUB_ENV"
       - run: ${{ matrix.run }}
-      - uses: ./.github/actions/go-save
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
         with:
           key: test
 
@@ -188,7 +190,8 @@ jobs:
         with:
           key: windows
       - run: ${{ matrix.run }}
-      - uses: ./.github/actions/go-save
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
         with:
           key: windows
 
@@ -207,7 +210,8 @@ jobs:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
       - run: go test -count=1 ./tools/...
-      - uses: ./.github/actions/go-save
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
         with:
           key: tools
 
@@ -238,7 +242,8 @@ jobs:
         run: go build -o bin/pravo ./cmd/pravo
       - name: Check the pages
         run: go run ./tools/capture -check -j 4 -bin bin/pravo ./docs/${{ matrix.section }}
-      - uses: ./.github/actions/go-save
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
         with:
           key: tools
 
@@ -263,7 +268,8 @@ jobs:
           restore-keys: pravo-home-${{ runner.os }}-demos-
       - run: go build -o bin/pravo ./cmd/pravo
       - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos
-      - uses: ./.github/actions/go-save
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
         with:
           key: tools
 
@@ -288,7 +294,8 @@ jobs:
           restore-keys: hclcheck-plugins-
       - run: go run ./tools/hclcheck -j 4 -cache ~/hclcheck-plugins
       - run: sh tools/hclcheck/claims.sh
-      - uses: ./.github/actions/go-save
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
         with:
           key: tools
 
@@ -305,7 +312,8 @@ jobs:
       - run: go build -o bin/pravo ./cmd/pravo
       - run: go run ./tools/sitegen -pravo-bin bin/pravo
       - run: go run site/demos/facts/facts.go -check
-      - uses: ./.github/actions/go-save
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
         with:
           key: tools
 
