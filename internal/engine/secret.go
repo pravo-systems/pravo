@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"cuelang.org/go/cue"
 
@@ -12,28 +13,30 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
-// checkSecrets stops a run that reads secrets from a state that cannot keep any, before a task
-// starts. The tasks would race to say so, and the message would name whichever of them lost;
-// this names the first by address, so the same specification gives the same message, and no
-// provider has started when the run stops.
-func (e *Engine) checkSecrets(nodes map[string]*node) error {
-	if e.State == nil {
-		return nil
-	}
-	var first *config.Resource
+// checkSecrets asks the state about every secret that a node reads, before a task starts, in the
+// order of the addresses, and stops the run at the first thing it has to say: the state cannot
+// keep secrets, has none of that name, or does not accept the version. The tasks would race to say
+// so, and the message would name whichever of them lost; this names the first node by address, so
+// the same specification gives the same message, and no provider has started when the run stops.
+// A node whose name or version depends on something not known yet is left to its task.
+func (e *Engine) checkSecrets(ctx context.Context, nodes map[string]*node) error {
+	var asking []*config.Resource
 	for _, n := range nodes {
-		if r := n.res; r.Builtin && (r.Type == "secret" || r.Type == "secret_version") && (first == nil || r.Address() < first.Address()) {
-			first = r
+		if r := n.res; r.Builtin && (r.Type == "secret" || r.Type == "secret_version") {
+			asking = append(asking, r)
 		}
 	}
-	if first == nil {
-		return nil
-	}
-	e.cueMu.Lock()
-	name, _ := e.current.LookupPath(first.Path).LookupPath(cue.ParsePath("name")).String()
-	e.cueMu.Unlock()
-	if err := e.State.CanKeepSecrets(name); err != nil {
-		return e.secretError(first, name, err)
+	sort.Slice(asking, func(i, j int) bool { return asking[i].Address() < asking[j].Address() })
+	for _, r := range asking {
+		e.cueMu.Lock()
+		name, pinned, known := secretAsked(r, e.current.LookupPath(r.Path))
+		e.cueMu.Unlock()
+		if !known {
+			continue
+		}
+		if _, err := e.secretHead(ctx, r, name, pinned); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -47,37 +50,61 @@ func (e *Engine) checkSecrets(nodes map[string]*node) error {
 // belong together even when someone sets the secret while the run is going.
 func (e *Engine) secretTask(ctx context.Context, r *config.Resource, v cue.Value) error {
 	e.cueMu.Lock()
-	name, err := v.LookupPath(cue.ParsePath("name")).String()
-	asked := v.LookupPath(cue.ParsePath("version"))
-	pinned, perr := 0, error(nil)
-	if r.Type == "secret" && asked.Exists() {
-		var n int64
-		if n, perr = asked.Int64(); perr == nil {
-			pinned = int(n)
-		}
-	}
+	name, pinned, known := secretAsked(r, v)
 	e.cueMu.Unlock()
-	if err != nil || perr != nil {
+	if !known {
 		return nil // the name or the version depends on something not known yet
 	}
-	if e.State == nil {
-		return fmt.Errorf("%s: a run reads secrets from the state, and there is none", r.Address())
-	}
-	rules := state.RecordRules{Readers: e.Opts.Readers, Vouched: e.Opts.Vouched, Strict: e.Opts.StrictKeys}
-	seq, err := e.secretVersion(ctx, name, pinned, rules)
+	seq, err := e.secretHead(ctx, r, name, pinned)
 	if err != nil {
-		return e.secretError(r, name, err)
+		return err
 	}
 	plog.Debug(ctx, "secret", "addr", r.Address(), "name", name, "version", seq)
 	if r.Type == "secret_version" {
 		return e.fill(r, map[string]any{"version": seq})
 	}
-	sv, err := e.State.ReadSecret(ctx, name, seq, rules)
+	sv, err := e.State.ReadSecret(ctx, name, seq, e.secretRules())
 	if err != nil {
 		return e.secretError(r, name, err)
 	}
 	defer clear(sv.Value)
 	return e.fill(r, map[string]any{"value": string(sv.Value)})
+}
+
+// secretAsked is the name of the secret that a node reads and the version it asks for, 0 for the
+// latest. Only a pravo.#Secret asks for one: the version of a pravo.#SecretVersion is what it
+// reads. known is false when the name or the version depends on something not known yet. The
+// caller holds cueMu.
+func secretAsked(r *config.Resource, v cue.Value) (name string, version int, known bool) {
+	name, err := v.LookupPath(cue.ParsePath("name")).String()
+	if err != nil {
+		return "", 0, false
+	}
+	if asked := v.LookupPath(cue.ParsePath("version")); r.Type == "secret" && asked.Exists() {
+		n, err := asked.Int64()
+		if err != nil {
+			return "", 0, false
+		}
+		version = int(n)
+	}
+	return name, version, true
+}
+
+func (e *Engine) secretRules() state.RecordRules {
+	return state.RecordRules{Readers: e.Opts.Readers, Vouched: e.Opts.Vouched, Strict: e.Opts.StrictKeys}
+}
+
+// secretHead is what the state has to say about the secret that a node reads: the number of the
+// version that the node reads, judged, without opening the value.
+func (e *Engine) secretHead(ctx context.Context, r *config.Resource, name string, pinned int) (int, error) {
+	if e.State == nil {
+		return 0, fmt.Errorf("%s: a run reads secrets from the state, and there is none", r.Address())
+	}
+	seq, err := e.secretVersion(ctx, name, pinned, e.secretRules())
+	if err != nil {
+		return 0, e.secretError(r, name, err)
+	}
+	return seq, nil
 }
 
 // secretVersion is the number of the version of the secret that the run reads: pinned when the

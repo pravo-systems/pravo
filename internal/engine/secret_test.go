@@ -378,6 +378,67 @@ func TestSecretNeedsASealedStateNamesTheFirstNodeByAddress(t *testing.T) {
 	}
 }
 
+// Nodes that read a secret the state has none of, or that was removed, or that has no such version
+// would each fail, and the node that the message names must not depend on which task got there
+// first: it is the first by address, and the run stops before a provider starts.
+func TestSecretNodesThatFailTogetherNameTheFirstByAddress(t *testing.T) {
+	ctx := context.Background()
+	h, opts := secretHarness(t)
+	s := spec{
+		cue: "zed: {name: \"prod/zed\", value: string}\n" +
+			"mid: {name: \"prod/amy\", version: int}\n" +
+			"amy: {name: \"prod/amy\", value: string}\n" +
+			"old: {name: \"prod/amy\", version: 5, value: string}\n" +
+			"a: " + thing("a", `content: "x"`) + "\n",
+		resources: []string{"a"}, secrets: []string{"zed", "amy", "old"}, secretVersions: []string{"mid"},
+	}
+	stops := func(when, want string) {
+		t.Helper()
+		for i := range 30 {
+			_, err := h.engine(s, opts).Plan(ctx)
+			if err == nil || !strings.HasPrefix(err.Error(), want) {
+				t.Fatalf("%s, run %d: %v\nwant it to start with %q", when, i, err, want)
+			}
+		}
+	}
+	stops("no secret is set", "amy: the state has no secret named prod/amy. Set it with: pravo secret set prod/amy")
+
+	h.setSecret("prod/amy", secretOne)
+	stops("one version, and one node asks for the fifth", "old: prod/amy has versions 1 to 1, not 5")
+
+	if _, err := h.state.RemoveSecret(ctx, "prod/amy", "pravo secret rm prod/amy"); err != nil {
+		t.Fatal(err)
+	}
+	stops("the secret was removed", "amy: the secret prod/amy was removed. Set it again with: pravo secret set prod/amy")
+
+	h.setSecret("prod/amy", secretTwo)
+	stops("the secret is back with three versions", "old: prod/amy has versions 1 to 3, not 5")
+
+	if n := h.fake.called("start"); n != 0 {
+		t.Errorf("%d providers started for runs that could not begin", n)
+	}
+}
+
+// A name that comes from another node is not known when the run begins, so its task reads the
+// secret once the name is.
+func TestSecretWhoseNameComesFromAnotherNode(t *testing.T) {
+	ctx := context.Background()
+	h, opts := secretHarness(t)
+	s := spec{
+		cue: "who: {name: \"PRAVO_SECRET_TEST_WHO\", default: \"ada\", value: string}\n" +
+			"sec: {name: \"prod/\\(who.value)\", value: string}\nprov: {region: sec.value}\na: " + thing("a", `content: "x"`) + "\n",
+		resources: []string{"a"}, builtins: []string{"who"}, secrets: []string{"sec"}, providers: map[string]string{"fake": "prov"},
+	}
+	_, err := h.engine(s, opts).Plan(ctx)
+	if err == nil || !strings.HasPrefix(err.Error(), "sec: the state has no secret named prod/ada.") {
+		t.Errorf("a secret that is not there: %v", err)
+	}
+	h.setSecret("prod/ada", secretOne)
+	if _, err := h.engine(s, opts).Plan(ctx); err != nil {
+		t.Errorf("a secret that is there: %v", err)
+	}
+}
+
 // The error of a secret says where the secret is, and carries the exit code of what is wrong
 // with it, whatever sits around it.
 func TestSecretErrorsKeepTheirCodes(t *testing.T) {

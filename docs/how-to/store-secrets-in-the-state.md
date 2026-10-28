@@ -195,7 +195,7 @@ PRAVO_CONFIG_DIR=people/dan pravo plan
 ```
 
 ```text out
-Error: signing_rev: the state has no secret named prod/signing_key. Set it with: pravo secret set prod/signing_key
+Error: signing_key: the state has no secret named prod/signing_key. Set it with: pravo secret set prod/signing_key
 ```
 
 Dan sets the key. Any PEM private key works; this block makes one with `openssl` and passes it on standard input, so no file holds it.
