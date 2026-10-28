@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/parser"
 
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -174,6 +176,11 @@ func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
 	if need == nil {
 		return nil
 	}
+	// An admin needs no approval, and with no roles in the readers file every key is an admin: a
+	// state with one member applies as it did before.
+	if role, ok := protect.RoleOf(e.Opts.Readers, e.State.SigningKey()); ok && role.Allows(protect.RoleAdmin) {
+		return nil
+	}
 	ask := fmt.Sprintf("%d approval%s by %s (%s)", need.Min, map[bool]string{true: "", false: "s"}[need.Min == 1], roleWords(need.Role), strings.Join(need.By, ", "))
 	if e.planID == "" {
 		return refused("the plan needs %s, and approvals belong to a stored plan: make it with plan --store, have it approved with \"pravo plan approve\" and apply it by its id", ask)
@@ -223,4 +230,45 @@ func roleWords(r protect.Role) string {
 		return "an admin"
 	}
 	return "a writer or an admin"
+}
+
+// asksForApprovals reports whether the text of a rule sets the field approvals anywhere, in
+// any branch of a disjunction.
+func asksForApprovals(text string) bool {
+	f, err := parser.ParseFile("policy", text)
+	if err != nil {
+		return false
+	}
+	found := false
+	ast.Walk(f, func(n ast.Node) bool {
+		if fl, ok := n.(*ast.Field); ok {
+			if name, _, err := ast.LabelName(fl.Label); err == nil && name == "approvals" {
+				found = true
+			}
+		}
+		return !found
+	}, nil)
+	return found
+}
+
+// policyChangeNeed is what a plan needs when it edits or removes a policy in force that asks
+// for approvals: one admin, not the key that stored the plan. Without it a writer could end
+// the requirement with a plan that no rule judges. A policy that is new, or asks for none, is
+// free; a policy-only apply is not judged by the rules, so this is its only gate.
+func policyChangeNeed(set *state.PolicySet, plan *Plan) *ApprovalNeed {
+	var need *ApprovalNeed
+	for _, en := range plan.Policies {
+		if en.Base == 0 {
+			continue
+		}
+		head, ok := set.Head(en.Name)
+		if !ok || head.Tombstone() || head.Seq != en.Base || !asksForApprovals(head.Text) {
+			continue
+		}
+		if need == nil {
+			need = &ApprovalNeed{Min: 1, Role: protect.RoleAdmin}
+		}
+		need.By = append(need.By, fmt.Sprintf("a change to %s@%d", head.Name, head.Seq))
+	}
+	return need
 }

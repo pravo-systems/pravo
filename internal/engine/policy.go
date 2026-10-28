@@ -357,6 +357,11 @@ func (e *Engine) judgeApply(ctx context.Context, plan *Plan, writes bool) (*stat
 	if len(reasons) > 0 {
 		return nil, WithCode(ExitStale, &ErrStalePlan{Reasons: reasons})
 	}
+	if need := policyChangeNeed(set, plan); need != nil {
+		if err := e.checkApprovals(ctx, need); err != nil {
+			return nil, err
+		}
+	}
 	if !writes || len(set.InForce()) == 0 {
 		return set, nil
 	}

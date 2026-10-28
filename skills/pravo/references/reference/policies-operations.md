@@ -419,6 +419,8 @@ big_destroys: pravo.#Policy & {rule: {
 
 When several policies ask, the strongest wins: the largest `min`, the highest `role`, and the key that stored the plan counts only if every one of them allows it. The approvals belong to a stored plan, so a plan that needs them is made with `pravo plan --store`, approved with [`pravo plan approve ID`](plan.md#approve-a-stored-plan) by other keys, and applied by its id. `pravo apply` of a file or without an id refuses such a plan, because there is nowhere to keep an approval. The refusal is exit code 5 and says how many approvals the plan has and how many it needs.
 
+An admin needs no approval, and a readers file without roles makes every key an admin, so a state with one member applies as it did before. A plan that edits or removes a policy that asks for approvals needs one admin's approval of its own, from a key other than the one that stored it, so that a writer cannot end the requirement with a plan that no rule judges. Adding a policy needs none.
+
 An approval is a signature over the digest of the plan, so it holds for that plan alone and a plan that is made again needs its own. Whether the key may approve is decided at apply from the readers file: a key that was demoted, or that is not in the readers file any more, stops counting. A state that is not sealed has no approvals, because it has no signatures. `pravo plan show ID` and the plan strip of [`pravo serve`](serve.md) name who approved.
 
 ## Exemptions
