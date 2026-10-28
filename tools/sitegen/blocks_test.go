@@ -111,6 +111,31 @@ func TestExercise(t *testing.T) {
 	}
 }
 
+// The label of an exercise counts the exercises of a page that has several.
+func TestExercisesAreCountedOnAPageWithSeveral(t *testing.T) {
+	html, msgs := renderBody(t, ":::exercise First\nTask.\n:::\n\nText.\n\n:::exercise Second\nTask.\n:::\n")
+	noErrors(t, msgs)
+	mustContain(t, html, `<span class="exercise-label">Exercise 1</span>`, `<span class="exercise-label">Exercise 2</span>`)
+	mustNotContain(t, html, `<span class="exercise-label">Exercise</span>`)
+}
+
+// A title is inline text: one that Markdown would read as a block, such as a
+// numbered item, shows as written instead of nesting a list in the heading.
+func TestTitlesAreInline(t *testing.T) {
+	html, msgs := renderBody(t, ":::exercise 1. Select the environment\nTask.\n:::\n")
+	noErrors(t, msgs)
+	mustContain(t, html, `<h3 id="exercise-1-select-the-environment"><a class="anchor" href="#exercise-1-select-the-environment">1. Select the environment</a></h3>`)
+	mustNotContain(t, html, "<ol", "<li")
+
+	html, _ = renderBody(t, ":::deep-dive - A dash, then `code`\nText.\n:::\n")
+	mustContain(t, html, "<summary>- A dash, then <code>code</code></summary>")
+	mustNotContain(t, html, "<ul")
+
+	html, _ = renderBody(t, ":::predict # Not a heading?\nGuess.\n\n::reveal\nNo.\n:::\n")
+	mustContain(t, html, "# Not a heading?")
+	mustNotContain(t, html, "<h1")
+}
+
 func TestCheck(t *testing.T) {
 	html, msgs := renderBody(t, ":::check\nWhat is `&`?\n::answer\nUnification.\n\nWhy two lines?\n::answer\nBecause **both** apply.\n\nSecond paragraph.\n:::\n")
 	noErrors(t, msgs)

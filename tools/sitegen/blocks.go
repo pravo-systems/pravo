@@ -473,7 +473,12 @@ func (r *renderer) renderExercise(d *directive) string {
 	}
 	var b strings.Builder
 	id := r.generatedID("exercise", d.arg)
-	fmt.Fprintf(&b, "<section class=\"exercise\">\n<header><span class=\"exercise-label\">Exercise</span><h3 id=\"%s\">%s</h3></header>\n", id, permalink(id, r.inline(d.arg, d.line)))
+	r.exercise++
+	label := "Exercise"
+	if r.exercises > 1 {
+		label = fmt.Sprintf("Exercise %d", r.exercise)
+	}
+	fmt.Fprintf(&b, "<section class=\"exercise\">\n<header><span class=\"exercise-label\">%s</span><h3 id=\"%s\">%s</h3></header>\n", label, id, permalink(id, r.inline(d.arg, d.line)))
 	fmt.Fprintf(&b, "<div class=\"exercise-body\">\n%s\n</div>\n", r.sub(body))
 	for i, h := range hints {
 		label := "Hint"

@@ -28,6 +28,8 @@ type renderer struct {
 	tabs      int
 	hasWidget bool
 	ids       map[string]int // ids given to generated headings, to keep them unique on the page
+	exercises int            // exercises on the page, counted before the first is rendered
+	exercise  int            // exercises rendered so far
 }
 
 var nonSlugRe = regexp.MustCompile(`[^a-z0-9]+`)
@@ -79,6 +81,13 @@ const slotFmt = "<!--sitegen-slot:%d-->"
 // document and its source so the caller can collect headings.
 func (r *renderer) renderMD(lines []string, lineBase int, nested bool) (string, ast.Node, []byte) {
 	scanned, dirs := r.scan(lines, lineBase, nested)
+	if !nested {
+		for _, d := range dirs {
+			if d.kind != "callout" && d.name == "exercise" {
+				r.exercises++
+			}
+		}
+	}
 	src := []byte(strings.Join(scanned, "\n"))
 	md := r.newMarkdown(nested, lineBase)
 	ctx := parser.NewContext()
@@ -102,14 +111,37 @@ func (r *renderer) renderMD(lines []string, lineBase int, nested bool) (string, 
 	return out, doc, src
 }
 
-// inline renders a short piece of Markdown without a surrounding paragraph.
+// inline renders a short piece of Markdown without a surrounding paragraph:
+// a title, a caption or a question. A single line is inline content, so one
+// that Markdown would read as a block, such as the list item "1. Select the
+// environment" or a heading, renders as the text it shows.
 func (r *renderer) inline(s string, line int) string {
+	out, ok := r.paragraph(s, line)
+	if ok || strings.Contains(strings.TrimSpace(s), "\n") {
+		return out
+	}
+	// Every block opener is ASCII punctuation, after digits for an ordered
+	// list. A backslash before it leaves a paragraph.
+	if i := strings.IndexAny(s, asciiPunct); i >= 0 {
+		if out, ok := r.paragraph(s[:i]+`\`+s[i:], line); ok {
+			return out
+		}
+	}
+	return html.EscapeString(s)
+}
+
+// asciiPunct is the punctuation of CommonMark, which a backslash escapes.
+const asciiPunct = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+
+// paragraph renders s and reports whether it came out as one paragraph,
+// which it returns without the tags.
+func (r *renderer) paragraph(s string, line int) (string, bool) {
 	out, _, _ := r.renderMD([]string{s}, line, true)
 	out = strings.TrimSpace(out)
 	if strings.HasPrefix(out, "<p>") && strings.HasSuffix(out, "</p>") && strings.Count(out, "<p>") == 1 {
-		out = out[3 : len(out)-4]
+		return out[3 : len(out)-4], true
 	}
-	return out
+	return out, false
 }
 
 func (r *renderer) newMarkdown(nested bool, lineBase int) goldmark.Markdown {

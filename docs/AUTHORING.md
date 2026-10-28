@@ -110,14 +110,14 @@ Long output: keep the first and last lines and write a line that is exactly `...
 
 ### 4.2 Containers
 
-A container starts with `:::name arguments` on its own line and ends with `:::`. Containers do not nest. A callout may sit inside a container.
+A container starts with `:::name arguments` on its own line and ends with `:::`. The argument is inline text: a title that starts like a list item shows as written. Containers do not nest. A callout may sit inside a container.
 
 | Container | Use |
 |---|---|
 | `:::compare` | Two or more code blocks for the same intent, each with a `title` or a `file`. Typically HCL and CUE. They stand side by side when a column holds their longest line, and stack otherwise, so that no line is cut; the third of three takes the full width. |
 | `:::tabs NAME` | Two or more code blocks as tabs, one per `title`. A `run` block with its `out` block is one tab, titled `Terminal` unless it has a title. The optional name labels the tab list for screen readers. |
 | `:::predict Question text` | A question the reader answers before looking. The lines before `::reveal` are the premise, framed with the question: a listing that the question is about goes there as a fence, never inside the question. |
-| `:::exercise Title` | A task. The state of the workspace at that point is the start. |
+| `:::exercise Title` | A task. The state of the workspace at that point is the start. On a page with several exercises the label counts them: Exercise 1, Exercise 2. |
 | `:::check TITLE` | Questions at the end of a lesson. Each question is a paragraph ending in `?`; its answer follows after `::answer`. Collapsed. The title is optional and defaults to "Check yourself"; a page with two checks gives the first a title. |
 | `:::deep-dive Title` | Optional theory, collapsed, never on the path. |
 | `:::figure Caption` | A figure, usually inline SVG, with an auto-numbered caption (`fig. 3`). A screenshot is a link with an `img` inside: `<a class="shot" href="../img/serve/NAME.png"><img src="../img/serve/NAME.png" width="1440" height="900" alt="..."></a>`. A view that exists in a dark and a light picture is two such links in one figure, with the classes `shot shot-dark` and `shot shot-light`: the style sheet shows the one that matches the theme of the page. `tools/serveshots` makes the pictures of `pravo serve`, and its tests check the `width`, the `height` and the `alt`. |
