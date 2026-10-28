@@ -1,10 +1,12 @@
-<!-- Generated from docs/learn/b06-modules-providers-credentials.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/learn/b06-reuse-providers-credentials.md by tools/skillgen. Do not edit. -->
 
-# Modules, providers, credentials
+# Reuse, providers, credentials
 
 Share one definition between instances, pass a provider in as an input, and keep a credential out of the state.
 
-Two questions meet in a module. How does it get its provider? Where does a credential go?
+In OpenTofu, code is reused through a module: a directory with its own variables and outputs, called with a `module` block. pravo has no module block. A definition that contains resources does that work. The caller writes an instance, and the fields of the definition are its inputs, its outputs and its providers alike. The word module means one thing in pravo: a CUE module, the tree of packages under `cue.mod/module.cue` that import paths start with. [A13](https://pravo.systems/learn/a13-packages-and-the-standard-library.html) wrote one.
+
+Two questions come with a shared definition. How does it get its provider? Where does a credential go?
 
 In OpenTofu a module reaches its provider through a `providers` map on the module call. The module's inputs sit in another place. A `sensitive` variable is hidden from the plan output. It is still written to the state when a resource attribute uses it.
 
@@ -29,15 +31,15 @@ api: service.#Service & {
 }
 ```
 
-A module in pravo is a definition that contains resources. A provider is a value, so the module takes it as an input field, next to the other inputs. The module marks the field required with `!`. The caller fills the field with a provider.
+The definition contains the resources. A provider is a value, so the definition takes it as an input field, next to the other inputs, and marks the field required with `!`. The caller fills the field with a provider.
 
-A credential belongs to the provider, and pravo checks where it goes. A secret that reaches provider configuration is never recorded. A secret that reaches a resource attribute is refused at plan. This lesson builds a module and passes it providers. Then it puts a secret in each of the two places and shows what pravo does.
+A credential belongs to the provider, and pravo checks where it goes. A secret that reaches provider configuration is never recorded. A secret that reaches a resource attribute is refused at plan. This lesson writes a definition in a package of its own, uses it twice and passes it providers. Then it puts a secret in each of the two places and shows what pravo does.
 
-*Figure: The root owns the providers. Each one goes into an input field of the module instance. The module builds its resources through the inputs.*
+*Figure: The root owns the providers. Each one goes into an input field of the instance. The definition builds its resources through the inputs.*
 
-## Write the module
+## Write the definition
 
-Work in an empty directory. Imports of your own packages start with the module name in `cue.mod/module.cue`. `pravo init` writes that file with a name taken from the directory. Here you write it first, so that the name is `example.com/estate`.
+Work in an empty directory. The definition goes in a package of its own, so that any root can import it. An import of your own package starts with the name of the CUE module, the first line of `cue.mod/module.cue`. `pravo init` writes that file with a name taken from the directory. Here you write it first, so that the name is `example.com/estate`.
 
 File `cue.mod/module.cue`:
 
@@ -46,9 +48,9 @@ module: "example.com/estate@v0"
 language: version: "v0.14.0"
 ```
 
-The module is a definition in its own package.
+The package `service` holds the definition.
 
-File `modules/service/service.cue`:
+File `lib/service/service.cue`:
 
 ```cue
 package service
@@ -93,7 +95,7 @@ package main
 import (
 	loc "pravo.dev/providers/hashicorp/local"
 	rnd "pravo.dev/providers/hashicorp/random"
-	"example.com/estate/modules/service"
+	"example.com/estate/lib/service"
 )
 
 $random: rnd.#Provider
@@ -174,7 +176,7 @@ Each instance has its own name, port and serial. They share the definition and n
 
 ## Break it: a wrong provider
 
-A provider input is typed. This root passes the random provider where the module expects the local one. The block carries `status=rejected`: pravo refuses it before any provider starts.
+A provider input is typed. This root passes the random provider where the definition expects the local one. The block carries `status=rejected`: pravo refuses it before any provider starts.
 
 File `main.cue`:
 
@@ -184,7 +186,7 @@ package main
 import (
 	loc "pravo.dev/providers/hashicorp/local"
 	rnd "pravo.dev/providers/hashicorp/random"
-	"example.com/estate/modules/service"
+	"example.com/estate/lib/service"
 )
 
 $random: rnd.#Provider
@@ -207,10 +209,10 @@ api.local.$source: conflicting values "registry.opentofu.org/hashicorp/local" an
     ./cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue:23:11
     ./main.cue:12:9
     ./main.cue:12:53
-    ./modules/service/service.cue:10:11
+    ./lib/service/service.cue:10:11
 ```
 
-The path is `api.local.$source`, the identity of the provider. The two values are the sources of `local` and `random`. The locations name the generated packages, the call in `main.cue` and the input in the module.
+The path is `api.local.$source`, the identity of the provider. The two values are the sources of `local` and `random`. The locations name the generated packages, the instance in `main.cue` and the input in the definition.
 
 An input constraint fails in the same way. Restore the provider and set a port below 1025.
 
@@ -222,7 +224,7 @@ package main
 import (
 	loc "pravo.dev/providers/hashicorp/local"
 	rnd "pravo.dev/providers/hashicorp/random"
-	"example.com/estate/modules/service"
+	"example.com/estate/lib/service"
 )
 
 $random: rnd.#Provider
@@ -241,11 +243,11 @@ Output:
 ```text
 Error: evaluating .:
 api.port: invalid value 80 (out of bound >1024):
-    ./modules/service/service.cue:13:14
+    ./lib/service/service.cue:13:14
     ./main.cue:12:80
 ```
 
-The error points at the bound in the module and at the value in the root. Write the working root again to continue.
+The error points at the bound in the definition and at the value in the root. Write the working root again to continue.
 
 File `main.cue`:
 
@@ -255,7 +257,7 @@ package main
 import (
 	loc "pravo.dev/providers/hashicorp/local"
 	rnd "pravo.dev/providers/hashicorp/random"
-	"example.com/estate/modules/service"
+	"example.com/estate/lib/service"
 )
 
 $random: rnd.#Provider
@@ -267,13 +269,13 @@ worker: service.#Service & {random: $random, local: $local, name: "worker", port
 
 ## Credentials belong to the provider
 
-Put a credential on the provider in the root, not in the module. The `tls` provider has no account, but its `proxy` block takes a user name and a password. It stands in for a cloud provider here.
+Put a credential on the provider in the root, not in the definition. The `tls` provider has no account, but its `proxy` block takes a user name and a password. It stands in for a cloud provider here.
 
 `pravo.#SecretEnv` reads a variable of the environment. Its value is ephemeral: it lives for one run. It may go into provider configuration and nowhere that is recorded.
 
-Add a third provider input to the module, and a key that uses it.
+Add a third provider input to the definition, and a key that uses it.
 
-File `modules/service/service.cue`:
+File `lib/service/service.cue`:
 
 ```cue
 package service
@@ -313,7 +315,7 @@ import (
 	loc "pravo.dev/providers/hashicorp/local"
 	rnd "pravo.dev/providers/hashicorp/random"
 	tlsp "pravo.dev/providers/hashicorp/tls"
-	"example.com/estate/modules/service"
+	"example.com/estate/lib/service"
 )
 
 token: pravo.#SecretEnv & {name: "REGISTRY_TOKEN"}
@@ -422,7 +424,7 @@ import (
 	loc "pravo.dev/providers/hashicorp/local"
 	rnd "pravo.dev/providers/hashicorp/random"
 	tlsp "pravo.dev/providers/hashicorp/tls"
-	"example.com/estate/modules/service"
+	"example.com/estate/lib/service"
 )
 
 token: pravo.#SecretEnv & {name: "REGISTRY_TOKEN"}
@@ -468,7 +470,7 @@ import (
 	loc "pravo.dev/providers/hashicorp/local"
 	rnd "pravo.dev/providers/hashicorp/random"
 	tlsp "pravo.dev/providers/hashicorp/tls"
-	"example.com/estate/modules/service"
+	"example.com/estate/lib/service"
 )
 
 token: pravo.#SecretEnv & {name: "REGISTRY_TOKEN"}
@@ -515,7 +517,7 @@ import (
 	loc "pravo.dev/providers/hashicorp/local"
 	rnd "pravo.dev/providers/hashicorp/random"
 	tlsp "pravo.dev/providers/hashicorp/tls"
-	"example.com/estate/modules/service"
+	"example.com/estate/lib/service"
 )
 
 token: pravo.#SecretEnv & {name: "REGISTRY_TOKEN"}
@@ -586,10 +588,10 @@ Destroy complete! Resources: 0 added, 0 changed, 9 destroyed. [txn <txn>]
 
 ## Recap
 
-- A module is a definition that contains resources. The field that holds an instance is the prefix of its addresses.
-- A provider is a required input, `provider!: pkg.#Provider`. The root passes it in, and the module builds its resources through it. An instance that leaves it out stops the load and the message names the instance and the field.
+- There is no module block. A definition that contains resources is the unit of reuse. The field that holds an instance is the prefix of its addresses.
+- A provider is a required input, `provider!: pkg.#Provider`. The root passes it in, and the definition builds its resources through it. An instance that leaves it out stops the load and the message names the instance and the field.
 - A credential belongs to the provider in the root. `pravo.#SecretEnv` reaches provider configuration and never the state.
 
-Cloud providers follow the same pattern: configure the provider in the root and pass it in. The how-to pages cover credentials, registries and publishing: [Secrets](../how-to/secrets.md), [Providers from a registry](../how-to/providers-from-a-registry.md), [Modules in a repository](../how-to/modules-in-a-repository.md) and [Publishing a module](../how-to/publishing-a-module.md).
+Cloud providers follow the same pattern: configure the provider in the root and pass it in. The how-to pages cover credentials, registries and sharing: [Secrets](../how-to/secrets.md), [Providers from a registry](../how-to/providers-from-a-registry.md), [Share code between roots in one repository](../how-to/share-code-between-roots.md) and [Publish a CUE module](../how-to/publishing-a-module.md).
 
 [B7](b07-changing-live-infrastructure.md) saves a plan and applies it in stages.

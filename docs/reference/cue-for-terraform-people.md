@@ -284,7 +284,7 @@ A directory is one package, named by its `package` clause, and `import` brings i
 | `locals { }` | A hidden field, `_name: ...`, or a plain field that no provider reads | [Naming a value once](../learn/a11-references-let-hidden.md) |
 | `output "url" {}` | `url: pravo.#Output & {value: ...}` | [Outputs](spec-outputs.md) |
 | `count`, `for_each` | A comprehension | [Resources](spec-resources.md) |
-| `module "net" {}` | A definition, or a package that holds resources | [Modules](spec-modules.md) |
+| `module "net" {}` | An instance of a definition, or of a package, that holds resources | [Reuse](spec-reuse.md) |
 | `depends_on`, `lifecycle` | `$depends_on`, `$lifecycle` | [Meta fields](spec-meta-fields.md) |
 | `moved {}`, `import {}` | `$from`, `$import` | [Moves and imports](spec-moves-and-imports.md) |
 | `backend "s3" {}` | `$settings: state: {backend: "s3", ...}` | [Settings](spec-settings.md) |

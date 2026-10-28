@@ -177,14 +177,14 @@ bad.file_permission: conflicting values "0644" and null (mismatched types string
 
 A constraint rejects a value that is set and wrong. It does not require that an attribute is set. A rule such as "every bucket carries a team tag" is a rule for the [plan policy](policies-overview.md), which judges the changes that a plan makes. A team can still declare its own provider from `loc.#Provider` and build resources through that. The constraint binds the roots that build their providers from the wrapper.
 
-## Passing a provider into a module
+## Passing a provider into a definition
 
-A module takes its provider from its caller. It declares a required input of type `#Provider`, `provider!: loc.#Provider`, and builds its resources through it. The input is an alias of the caller's struct, not a second instance, and the instance is configured from the caller's struct alone.
+A shared definition takes its provider from its caller. It declares a required input of type `#Provider`, `provider!: loc.#Provider`, and builds its resources through it. The input is an alias of the caller's struct, not a second instance, and the instance is configured from the caller's struct alone.
 
 - An instance that passes no provider is an error when the specification loads: `provider two.provider was not supplied`.
-- Configuration that the module writes on the input must agree with the caller's struct. Another value for the same field is a CUE conflict. A field that the caller's struct leaves out is an error.
+- Configuration that the definition writes on the input must agree with the caller's struct. Another value for the same field is a CUE conflict. A field that the caller's struct leaves out is an error.
 
-See [Modules](spec-modules.md#providers-in-a-module) for both errors as they are printed.
+See [Reuse](spec-reuse.md#providers-in-a-shared-definition) for both errors as they are printed.
 
 ## Instance keys
 

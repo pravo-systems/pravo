@@ -9,7 +9,7 @@ The command line is a thin layer over a Go package, `github.com/pravo-systems/pr
 > [!NOTE]
 > The package is unstable, at v0: a release may change its types until it is declared stable. What is stable is the JSON that the commands print, and the library returns the same documents, so a program that keeps to them has a contract that holds. The page says where the two meet.
 
-## 1. Start a module
+## 1. Start a Go module
 
 ```sh
 mkdir runner && cd runner
@@ -17,7 +17,7 @@ go mod init example.com/runner
 go get github.com/pravo-systems/pravo/pravo@main
 ```
 
-`@main` takes the newest commit. Pin a commit or a tag once the program works, and move it when you mean to: the package is in the same module as the `pravo` command, so the version you pin is a version of pravo.
+`@main` takes the newest commit. Pin a commit or a tag once the program works, and move it when you mean to: the package is in the same Go module as the `pravo` command, so the version you pin is a version of pravo.
 
 ## 2. Open a workspace
 

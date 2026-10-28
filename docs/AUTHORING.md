@@ -28,6 +28,7 @@ URLs are stable. A page that moves keeps a stub (`redirect: new-page.md` in its 
 - Dry and institutional. No exclamation marks, no hype, no "we", no jokes, no metaphors of war or politics.
 - The lowercase name `pravo` everywhere. "OpenTofu" first; "Terraform" or "legacy Terraform" only as the name of the audience's tool.
 - The recorded resources are the *state*. A rule that judges a plan is a *policy*. The setting that decides when a record is read from its provider again is the *refresh age*. `docs/reference/glossary.md` defines the rest.
+- *Module* means a CUE module, the tree of packages under `cue.mod/module.cue` that `pravo mod` publishes and fetches. Write "CUE module" where a page first says it. What a `module` block does in OpenTofu is done by a *definition* that contains resources, used through an *instance* and shared through a *package*. Never call a definition, a package or an instance a module, and say once per page that teaches reuse that pravo has no module block.
 - A feature that pravo does not have is stated as a fact with its replacement: "pravo has no workspaces. Select the environment with `-t env=prod`." No reason, no apology, no defence.
 - No history, no former names, no "no longer", "previously", "formerly", "instead of the old", no migrations from earlier versions of pravo, no stories about why a decision was taken. The build fails when a line matches `tools/sitegen/banned.txt`. The list is a net: a sentence that tells the history of a decision is wrong whether or not a rule catches it.
 - No claim without a run. Every output is captured from the real binary. No command, flag or behaviour that does not exist.
@@ -113,7 +114,7 @@ A container starts with `:::name arguments` on its own line and ends with `:::`.
 
 | Container | Use |
 |---|---|
-| `:::compare` | Two or more code blocks side by side, each with a `title` or a `file`. Stacked on phones. Typically HCL and CUE for the same intent. |
+| `:::compare` | Two or more code blocks side by side, each with a `title` or a `file`. Stacked on phones. Typically HCL and CUE for the same intent. With three, the first two stack on the left and the third stands on the right; with four, two rows of two. |
 | `:::tabs NAME` | Two or more code blocks as tabs, one per `title`. A `run` block with its `out` block is one tab, titled `Terminal` unless it has a title. The optional name labels the tab list for screen readers. |
 | `:::predict Question text` | A question the reader answers before looking. The lines before `::reveal` are the premise, framed with the question: a listing that the question is about goes there as a fence, never inside the question. |
 | `:::exercise Title` | A task. The state of the workspace at that point is the start. |

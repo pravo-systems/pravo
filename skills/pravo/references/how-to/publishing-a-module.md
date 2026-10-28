@@ -1,10 +1,10 @@
 <!-- Generated from docs/how-to/publishing-a-module.md by tools/skillgen. Do not edit. -->
 
-# Publish a module
+# Publish a CUE module
 
-Create a module in a git repository, try it from an example, and publish a version to a registry that others can use.
+Put shared definitions in a CUE module of their own, try them from an example, and publish a version to a registry that other repositories fetch.
 
-A published module is a CUE module in a git repository, stored in a container registry under a version tag. Other roots add it with `pravo mod get`.
+A CUE module is the tree of packages under one `cue.mod/module.cue`. Published, it is a git repository stored in a container registry under a version tag, and other roots add it with `pravo mod get`. What it ships is packages: definitions that contain resources and take their providers as inputs. The consumer has no `module` block and no `source` to point at. It imports a package and writes an instance.
 
 > [!NOTE]
 > Every command below runs against `tools/fakeoci`, the in-memory registry in pravo's source, on port 5078. For ghcr.io, step 4 and the registry in the output of step 5 change.
@@ -40,7 +40,7 @@ The module path is its permanent name.
 
 ## 2. Write the package
 
-A module is a definition that contains resources. It takes each provider as an input and builds its resources through it.
+A shared definition contains resources. It takes each provider as an input and builds its resources through it.
 
 File `service/service.cue`:
 
@@ -80,13 +80,13 @@ import (
 - **Constrain inputs.** A pattern, a bound or a choice turns a mistake into an evaluation error that names the field.
 - **Comment fields.** Editors show the comments on hover.
 - **Give a default to what has one** (`*"standard" | "premium"`) and leave the rest required.
-- **Take each provider as a required input** (`provider!: loc.#Provider`). A published module cannot see the consumer's provider structs, and it does not choose their version or configuration. The input is another name for the struct that the caller passes. An instance that leaves it out does not load, and the module may not configure the provider it was given.
+- **Take each provider as a required input** (`provider!: loc.#Provider`). A published package cannot see the consumer's provider structs, and it does not choose their version or configuration. The input is another name for the struct that the caller passes. An instance that leaves it out does not load, and the definition may not configure the provider it was given.
 - **Import provider definitions** from `pravo.dev/providers/<namespace>/<type>`. They type the inputs. The consumer's `pravo init` generates the packages, so the module ships none.
 - **Keep resources as siblings.** A resource does not contain another resource.
 
 ## 3. Try it from an example in the repository
 
-An example is a root below the module root. It imports the module by its own path, so no registry is involved.
+An example is a root below the top of the module. It imports the package by the module's own path, so no registry is involved.
 
 File `examples/basic/main.cue`:
 
@@ -158,7 +158,7 @@ When `CUE_REGISTRY` is not set, pravo maps every `github.com/<owner>` module to 
 
 A first push to ghcr.io is private. The package settings page of the registry changes its visibility. Until then an anonymous pull of the module fails.
 
-The directory `templates/module` in pravo's source holds a template repository. Its workflow publishes a version whenever a version tag is pushed.
+The directory `templates/module` in pravo's source holds a template repository for a CUE module. Its workflow publishes a version whenever a version tag is pushed.
 
 ## 5. Publish
 
@@ -254,6 +254,6 @@ published example.com/acme/pravo-service@v0.2.0 to localhost:5078/example.com/ac
 
 ## What next
 
-- [Use a published module](using-a-module.md) shows the consumer's side.
-- [Run pravo in a pipeline](ci.md) records provider responses once, so that a module's test runs without credentials.
+- [Use a published CUE module](using-a-module.md) shows the consumer's side.
+- [Run pravo in a pipeline](ci.md) records provider responses once, so that the module's example runs without credentials.
 - [pravo mod](../reference/mod.md) lists every subcommand.

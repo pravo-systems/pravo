@@ -237,7 +237,7 @@ A group lists 100 objects and a button shows more. A discovery lists at most 200
 
 ## The Policies section
 
-The Policies section shows the rules that every plan is judged by. [Policies](../concepts/policies.md) explains what a policy is. The state keeps each one as numbered, signed versions that are never changed, and the section reads them with the specification, so it shows what is in force and what the next apply would write. The link is `view=policies`, with `pol=NAME` for the policy that is open. It has no toolbar of the Inventory and no inspector. A switch at the top right goes between the register and [the studio](#the-studio).
+The Policies section shows the rules that every plan is judged by. [Constraints and policies](../concepts/policies.md) explains what a policy is. The state keeps each one as numbered, signed versions that are never changed, and the section reads them with the specification, so it shows what is in force and what the next apply would write. The link is `view=policies`, with `pol=NAME` for the policy that is open. It has no toolbar of the Inventory and no inspector. A switch at the top right goes between the register and [the studio](#the-studio).
 
 | Part | Holds |
 |---|---|

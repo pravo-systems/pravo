@@ -1,27 +1,28 @@
-<!-- Generated from docs/reference/spec-modules.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/reference/spec-reuse.md by tools/skillgen. Do not edit. -->
 
-# Modules
+# Reuse
 
-A module is a CUE definition or package that contains resources. Instantiating it is enough. pravo finds the resources inside the instance.
+pravo has no module block. A definition that contains resources is instantiated with &, a package shares it between roots and a CUE module between repositories.
 
-Two resources whose addresses differ only in case, such as `Logs` and `logs`, are an error: a state on a file system that ignores case would keep both in one file.
+A `module` block, a `source` and a `providers` map have no counterpart in pravo. The unit of reuse is a definition that contains resources, or a package of such definitions. Its resources are written as in a root. The instance sits at a path, and that path is the prefix of the addresses of the resources inside. There is nothing to wire.
 
-There is no module block and nothing to wire. A reusable unit is a definition, or a package of definitions. Its resources are written as in a root. The instance sits at a path, and that path is the prefix of the addresses of the resources inside.
+The word module names one thing in pravo: a CUE module, the tree of packages under `cue.mod/module.cue`. Import paths start with its name, and [`pravo mod`](mod.md) publishes it to a registry, fetches it by version and locks its content. A definition travels between repositories inside one.
 
 | Form | Written as | Resource address |
 |---|---|---|
 | Definition in the root | `api: #Service & {name: "api"}` | `api.secret` |
 | Several instances | `services: {for n, p in ports {"\(n)": #Service & {...}}}` | `services.web.secret` |
-| Package in the module | `api: svc.#Service & {...}` | `api.secret` |
-| Package with a policy | `$eu: policy.#Random` | the addresses of the resources built through `$eu` |
+| Package in the same CUE module | `api: svc.#Service & {...}` | `api.secret` |
+| Package from a published CUE module | `api: svc.#Service & {...}`, after `pravo mod get` | `api.secret` |
+| Package with a constraint | `$eu: strict.#Random` | the addresses of the resources built through `$eu` |
 
-Inputs are the fields of the definition. A required input is a field with no default. Constraints on the fields do the work of validation.
+Inputs are the fields of the definition. A required input is a field with no default. Constraints on the fields do the work of validation. Two resources whose addresses differ only in case, such as `Logs` and `logs`, are an error: a state on a file system that ignores case would keep both in one file.
 
-Publishing, locking and fetching modules are commands: see [mod](mod.md), [Publish a module](../how-to/publishing-a-module.md), [Use a module](../how-to/using-a-module.md) and [Share code between roots](../how-to/modules-in-a-repository.md).
+Publishing, locking and fetching CUE modules are commands: see [mod](mod.md), [Publish a CUE module](../how-to/publishing-a-module.md), [Use a published CUE module](../how-to/using-a-module.md) and [Share code between roots in one repository](../how-to/share-code-between-roots.md).
 
 ## Definitions
 
-Work in an empty directory. Write the module path first. A root is inside a CUE module, and `pravo init` creates `cue.mod/module.cue` when none exists.
+Work in an empty directory. Write `cue.mod/module.cue` first: a root is inside a CUE module, and `pravo init` creates the file when none exists.
 
 File `cue.mod/module.cue`:
 
@@ -146,7 +147,7 @@ Name the loop variable differently from the input it fills. In `{name: n, port: 
 
 ## Packages
 
-To share a module between roots, put the definitions in a CUE package and import it. The root must be inside a CUE module. A package cannot see the providers of the root that imports it, so it takes them as inputs and builds its resources through them.
+To share a definition between roots, put it in a package and import it. The root must be inside a CUE module. A package cannot see the providers of the root that imports it, so it takes them as inputs and builds its resources through them.
 
 File `svc/svc.cue`:
 
@@ -201,11 +202,11 @@ Output:
 Plan: 2 to add, 0 to change, 0 to destroy.
 ```
 
-## Providers in a module
+## Providers in a shared definition
 
-A module that is published or reused declares each provider it needs as a required input of type `#Provider`, `provider!: loc.#Provider`, and builds its resources through it. The caller passes a provider struct. The input is an alias of that struct, not a second instance: the resource is recorded under the provider instance of the caller. There is no line on the resource that names the provider. Building it through `provider` is enough.
+A definition that is published or reused declares each provider it needs as a required input of type `#Provider`, `provider!: loc.#Provider`, and builds its resources through it. The caller passes a provider struct. The input is an alias of that struct, not a second instance: the resource is recorded under the provider instance of the caller. There is no line on the resource that names the provider. Building it through `provider` is enough.
 
-A module with several providers declares one input for each, and the caller passes them all, as `random: $random, local: $local` above. A module written in the same package as its provider may refer to a top-level provider directly. That ties it to the package, so a module meant for other roots takes its providers as inputs.
+A definition with several providers declares one input for each, and the caller passes them all, as `random: $random, local: $local` above. A definition written in the same package as its provider may refer to a top-level provider directly. That ties it to the package, so a definition meant for other roots takes its providers as inputs.
 
 File `main.cue`:
 
@@ -286,16 +287,16 @@ Error: provider two.provider was not supplied: two requires a hashicorp/local pr
 
 A field without the `!` is a provider struct of its own. An instance that leaves it out builds its resources through that struct, a second instance of the provider with no configuration, and nothing warns. [Pitfalls](../migrate/m9-pitfalls.md#a-provider-that-was-not-passed) shows the run. A required input has no such default.
 
-### Configuration in the module and in the caller
+### Configuration in the definition and in the caller
 
-The instance of a passed-in provider is configured from the caller's struct. The input is another name for that struct, so what the module writes on it is checked against what the caller wrote.
+The instance of a passed-in provider is configured from the caller's struct. The input is another name for that struct, so what the definition writes on it is checked against what the caller wrote.
 
-| The module writes | The caller's struct | Result |
+| The definition writes | The caller's struct | Result |
 |---|---|---|
 | nothing | any | The caller's configuration. |
 | a value | the same value | The caller's configuration. |
 | a value | another value for the same field | CUE reports `conflicting values`, with the path of the field in the instance. |
-| a value | nothing for that field | An error that names the field. The module cannot configure a provider it was given. |
+| a value | nothing for that field | An error that names the field. The definition cannot configure a provider it was given. |
 
 Neither side wins a conflict: the specification does not load. The provider `tls` takes its proxy in configuration, so it can show both errors.
 
@@ -307,7 +308,7 @@ package infra
 import tlsp "pravo.dev/providers/hashicorp/tls"
 
 #Key: {
-	tls!: tlsp.#Provider & {proxy: [{url: "http://module.internal:3128"}]}
+	tls!: tlsp.#Provider & {proxy: [{url: "http://shared.internal:3128"}]}
 	key:  tls.#Resource.tls_private_key & {algorithm: "ECDSA", ecdsa_curve: "P256"}
 }
 
@@ -325,7 +326,7 @@ Output:
 
 ```text
 Error: evaluating .:
-a.tls.proxy.0.url: conflicting values "http://caller.internal:3128" and "http://module.internal:3128":
+a.tls.proxy.0.url: conflicting values "http://caller.internal:3128" and "http://shared.internal:3128":
     ./main.cue:6:40
     ./main.cue:10:39
     ./main.cue:12:4
@@ -342,7 +343,7 @@ package infra
 import tlsp "pravo.dev/providers/hashicorp/tls"
 
 #Key: {
-	tls!: tlsp.#Provider & {proxy: [{url: "http://module.internal:3128"}]}
+	tls!: tlsp.#Provider & {proxy: [{url: "http://shared.internal:3128"}]}
 	key:  tls.#Resource.tls_private_key & {algorithm: "ECDSA", ecdsa_curve: "P256"}
 }
 
@@ -363,14 +364,14 @@ Error: a.tls sets proxy, but a.tls is another name for the provider $tls, which 
 
 The same rule holds for the `$` fields, such as `$version`, and for a provider struct that is built from another one at the top level, such as `$other: $tls & {proxy: [...]}`. Configure a provider where it is declared.
 
-## Policy packages
+## Constraints in a package
 
-Unification is commutative, so a package can constrain resources it did not create. A team ships a provider definition that fixes what the resources built through it may look like, and each root builds its provider from it.
+Unification is commutative, so a package can constrain resources it did not create. A team ships a provider definition that fixes what the resources built through it may look like, and each root builds its provider from it. The rule is a constraint, checked when the specification evaluates. It is not a [policy](policies-overview.md), which judges a plan.
 
-File `policy/policy.cue`:
+File `strict/strict.cue`:
 
 ```cue
-package policy
+package strict
 
 import rnd "pravo.dev/providers/hashicorp/random"
 
@@ -384,9 +385,9 @@ File `main.cue`:
 ```cue
 package infra
 
-import "example.com/infra/policy"
+import "example.com/infra/strict"
 
-$eu: policy.#Random
+$eu: strict.#Random
 
 a: $eu.#Resource.random_pet & {length: 2, prefix: "us-"}
 ```
@@ -400,17 +401,17 @@ Output:
 ```text
 Error: evaluating .:
 a.prefix: invalid value "us-" (out of bound =~"^eu-"):
-    ./policy/policy.cue:6:33
+    ./strict/strict.cue:6:33
     ./cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue:238:12
     ./main.cue:7:51
 ```
 
 With `prefix: "eu-"` the same root validates.
 
-A constraint rejects a value that is set and wrong. It does not reject an attribute that is left out. An unset attribute with no reference to another resource is sent to the provider as null. A rule that an attribute is present is a rule for the plan policy. See [Providers](spec-providers.md#provider-scoped-constraints) and [Policies](policies-overview.md).
+A constraint rejects a value that is set and wrong. It does not reject an attribute that is left out. An unset attribute with no reference to another resource is sent to the provider as null. A rule that an attribute is present is a rule for a policy. See [Providers](spec-providers.md#provider-scoped-constraints) and [Policies](policies-overview.md).
 
 ## See also
 
-- [Share code between roots in one repository](../how-to/modules-in-a-repository.md), [Publish a module](../how-to/publishing-a-module.md) and [Use a published module](../how-to/using-a-module.md) cover the three ways to share code.
-- [`pravo mod`](mod.md) lists the module commands.
-- [Providers](spec-providers.md#passing-a-provider-into-a-module) describes the provider input.
+- [Share code between roots in one repository](../how-to/share-code-between-roots.md), [Publish a CUE module](../how-to/publishing-a-module.md) and [Use a published CUE module](../how-to/using-a-module.md) cover the three ways to share code.
+- [`pravo mod`](mod.md) lists the commands for CUE modules.
+- [Providers](spec-providers.md#passing-a-provider-into-a-definition) describes the provider input.

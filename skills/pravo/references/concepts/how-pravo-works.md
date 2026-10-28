@@ -42,7 +42,7 @@ The plan can leave the terminal. `plan --out` saves it to a file, and `plan --st
 
 A policy is a `pravo.#Policy` node of the specification. The first apply that carries it writes it to the state as a signed version. For every plan that changes a resource, pravo unifies the rule of each version in force with the plan document. A plan that violates a policy ends the run with exit code 5. `apply` judges under the locks, before the transaction starts, and the signed start of the transaction lists the versions that judged. `plan` judges the same way, for feedback. A policy can also let a plan through on the condition that other people approve it, which only a stored plan can collect: the apply waits with exit code 5 until enough keys have approved.
 
-When no policy is in force, this stage does nothing. [Policies](policies.md) covers both kinds of rule.
+When no policy is in force, this stage does nothing. [Constraints and policies](policies.md) covers both.
 
 ### 6. Apply
 

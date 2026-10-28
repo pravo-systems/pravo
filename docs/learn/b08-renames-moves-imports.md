@@ -343,7 +343,7 @@ Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
 Graph: planned 0 · skipped 4 · not read 4 · to move 2
 ```
 
-Both records move when the plan is applied. This is how you rename a module instance, or move resources into one.
+Both records move when the plan is applied. This is how you rename an instance of a definition, or move resources into one.
 
 ```sh run
 pravo apply --auto-approve | grep '^Apply complete'

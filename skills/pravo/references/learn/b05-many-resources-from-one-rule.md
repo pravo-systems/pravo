@@ -326,4 +326,4 @@ Destroy complete! Resources: 0 added, 0 changed, 3 destroyed. [txn <id>]
 
 Reference: [Resources and addresses](../concepts/resources-and-addresses.md) and [Resources](../reference/spec-resources.md).
 
-[B6](b06-modules-providers-credentials.md) packs resources into a module and passes providers to it.
+[B6](b06-reuse-providers-credentials.md) packs resources into a definition that other roots share, and passes providers to it.

@@ -141,7 +141,7 @@ Every command accepts `--json`. Human progress moves to standard error, and stan
 | `output` | The recorded outputs. |
 | `providers`, `schema`, `why`, `drift` | The providers, the definitions by type, the explanation of each address, the drift report. |
 | `state log`, `state locks`, `state show`, `state query` | The transactions, the locks, a node with its dependents, the value of the expression. |
-| `mod list`, `mod verify` | The modules, the verification. |
+| `mod list`, `mod verify` | The CUE modules, the verification. |
 
 The other commands print text with `--json`: `version`, `eval`, `fmt`, `init`, `gen`, `state list`, `state graph` and `state dependents`.
 

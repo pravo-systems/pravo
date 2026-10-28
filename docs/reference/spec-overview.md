@@ -25,7 +25,7 @@ A root is a directory that holds one CUE package. pravo unifies every `.cue` fil
 | Rename, move, adopt | `$from`, `$import` | [Moves and imports](spec-moves-and-imports.md) |
 | Dependencies, lifecycle | `$depends_on`, `$lifecycle` | [Meta fields](spec-meta-fields.md) |
 | Input | a field with `@tag(name)` | [Tags and variables](spec-tags-and-variables.md) |
-| Module | a definition or a package | [Modules](spec-modules.md) |
+| Reuse | a definition that contains resources, or a package of them | [Reuse](spec-reuse.md) |
 | Provider and `pravo` packages | `cue.mod/gen/` | [Generated packages](spec-generated-packages.md) |
 
 ## A complete root

@@ -1,10 +1,10 @@
 <!-- Generated from docs/how-to/using-a-module.md by tools/skillgen. Do not edit. -->
 
-# Use a published module
+# Use a published CUE module
 
-Add a published module to a root, lock it, read an upgrade before you take it and know what happens in CI and offline.
+Add a published CUE module to a root, lock it, read an upgrade before you take it and know what happens in CI and offline.
 
-A root adds a module with one command, and `pravo.lock.cue` pins the version and a hash of its content. An upgrade is a diff that you read and a plan that you review.
+A root adds a CUE module with one command, and `pravo.lock.cue` pins the version and a hash of its content. What the module brings is packages: the root imports one and writes an instance of its definition, as it does with code of its own. An upgrade is a diff that you read and a plan that you review.
 
 > [!NOTE]
 > Every command below runs against `tools/fakeoci`, the in-memory registry in pravo's source, on port 5078, with the module from the previous guide. Modules under `github.com/<owner>` on ghcr.io need no `CUE_REGISTRY`.
@@ -42,7 +42,7 @@ deps: {
 
 ## 2. Use it
 
-Read the module's documentation for what it needs. This one builds resources through two providers that it takes as inputs, `random` and `local`. The root declares them, pins their versions and passes them in.
+The module ships the package `service` with the definition `#Service`. Read its documentation for what it needs. This one builds resources through two providers that it takes as inputs, `random` and `local`. The root declares them, pins their versions and passes them in.
 
 File `main.cue`:
 
@@ -66,7 +66,7 @@ cart_endpoint: pravo.#Output & {value: cart.endpoint}
 payments_endpoint: pravo.#Output & {value: payments.endpoint}
 ```
 
-`service.#Service & {...}` fills the module's inputs, and the constraints in the module check them. The module's `random` and `local` are the root's `$random` and `$local`, not copies. The resources are at the path of each instance: `cart.codename`, `cart.config`, `payments.codename` and `payments.config`.
+`service.#Service & {...}` fills the inputs of the definition, and the constraints in the definition check them. Its `random` and `local` are the root's `$random` and `$local`, not copies. The resources are at the path of each instance: `cart.codename`, `cart.config`, `payments.codename` and `payments.config`.
 
 ```sh
 pravo init > /dev/null
@@ -143,7 +143,7 @@ Output:
 > 		content:  "service \(name)\ncodename \(codename.id)\nport \(port)\nowner \(owner)\ntier \(tier)\n"
 ```
 
-A module is CUE, which cannot run code or reach the network, so the diff shows everything that a version can do. What it does to your infrastructure is the plan.
+A CUE module is CUE, which cannot run code or reach the network, so the diff shows everything that a version can do. What it does to your infrastructure is the plan.
 
 ```sh
 pravo plan | grep -E '^(  #|Plan|Graph)'
@@ -176,7 +176,7 @@ Output:
 Error: module example.com/acme/pravo-service@v0 v0.2.0 has different content than when it was locked (sha256:0000, now sha256:<hash>); a published version must not change. If this is expected, review the change and run "pravo init" to relock
 ```
 
-Exit code 5 is the code for a refusal: a module that does not match its lock, or a plan that violates a [policy](policies.md). `pravo mod verify` lists the differences without a plan.
+Exit code 5 is the code for a refusal: a CUE module that does not match its lock, or a plan that violates a [policy](policies.md). `pravo mod verify` lists the differences without a plan.
 
 ```sh
 pravo mod verify
@@ -269,7 +269,7 @@ The exit code is 6. In CI, point `CUE_CACHE_DIR` at a directory that the CI syst
 
 | Message | Cause and fix |
 |---|---|
-| `cannot find package "pravo.dev/providers/..."` and the hint `a provider schema package is missing` | The generated packages are missing, or the module needs a provider that it did not before. Run `pravo init`. |
+| `cannot find package "pravo.dev/providers/..."` and the hint `a provider schema package is missing` | The generated packages are missing, or the package needs a provider that it did not before. Run `pravo init`. |
 | `cannot find module providing package example.com/acme/pravo-service/service` | The dependency is not in `cue.mod/module.cue`. Run `pravo mod get <path>@<version>`. |
 | `has different content than when it was locked` | A published version changed. Find out why before you run `pravo init`. |
 | `cannot fetch` and `connection refused` | The registry is unreachable and the cache is cold. |
@@ -278,7 +278,7 @@ A private module needs credentials for pulls as well as for pushes. CUE reads th
 
 ## What next
 
-- [Publish a module](publishing-a-module.md) if you want to write one.
-- [Share code between roots in one repository](modules-in-a-repository.md) when the code does not leave the repository.
+- [Publish a CUE module](publishing-a-module.md) if you want to write one.
+- [Share code between roots in one repository](share-code-between-roots.md) when the code does not leave the repository: a package in the same CUE module.
 - [Upgrade pravo and providers](upgrading.md) covers the lock file for providers.
 - [pravo mod](../reference/mod.md) lists every subcommand.

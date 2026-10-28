@@ -74,7 +74,7 @@ The fields and definitions that a specification uses, and the CUE behind them.
 | [Environment and remote outputs](spec-env.md) | Environment values, secret environment values and the outputs of another root. |
 | [Meta fields](spec-meta-fields.md) | `$lifecycle`, `$depends_on` and the other `$` fields of a resource. |
 | [Tags and variables](spec-tags-and-variables.md) | `@tag()` fields and how a command fills them. |
-| [Modules](spec-modules.md) | Modules that hold resources. |
+| [Reuse](spec-reuse.md) | Definitions that hold resources, the packages that share them, and what a `module` block becomes. |
 | [Generated packages](spec-generated-packages.md) | The packages under `cue.mod/gen`. |
 
 ## Policies

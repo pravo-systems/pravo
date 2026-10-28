@@ -284,7 +284,7 @@ The address of a resource is the CUE path at which its struct sits. `pravo state
 |---|---|
 | `pet: $random.#Resource.random_pet & {...}` | `pet` |
 | `readme: $local.#Data.local_file & {...}` | `readme` |
-| `config` inside the module instance `api` | `api.config` |
+| `config` inside the instance `api` of a definition | `api.config` |
 | the first element of a list `servers` | `servers[0]` |
 | the key `"eu-west"` in `pets` | `pets."eu-west"` |
 

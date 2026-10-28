@@ -394,7 +394,7 @@ The plan is printed first and judged afterwards. Exit code 5 means that a policy
 | 2 | Changes pending (`plan -detailed-exitcode`) or drift found (`drift`). | Steps 2 and 5. |
 | 3 | A saved plan is stale, or a node that an apply writes or reads moved after the plan was made. A stored plan that expired is refused with this code too. A job plans again and retries. | Step 4. |
 | 4 | Rejected: a node is locked or reserved by another actor. A job retries later. | [Let an agent plan and apply](agents-and-mcp.md). |
-| 5 | Refused: by a policy, by a module that does not match its lock, by a role that does not allow the command, or for the approvals a stored plan still needs. | Steps 4 and 7. |
+| 5 | Refused: by a policy, by a CUE module that does not match its lock, by a role that does not allow the command, or for the approvals a stored plan still needs. | Steps 4 and 7. |
 | 6 | A command that loads the specification found that it does not load or evaluate. | Step 1. |
 | 7 | The state failed verification: a record does not match its name. A job stops and reports it. | [Seal the state](seal-the-state.md). |
 

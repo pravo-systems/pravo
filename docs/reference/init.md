@@ -71,7 +71,7 @@ Work in an empty directory named `demo`.
 
 ### A directory without a specification
 
-A directory with no `.cue` file has nothing to load. `init` creates the module and the package `pravo.dev/pravo`, says so and exits 0.
+A directory with no `.cue` file has nothing to load. `init` creates the CUE module and the package `pravo.dev/pravo`, says so and exits 0.
 
 ```sh run
 mkdir empty
@@ -120,7 +120,7 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
 
 ### A root without providers
 
-A root that imports no generated package needs no provider. `init` creates the module file.
+A root that imports no generated package needs no provider. `init` creates the file of the CUE module.
 
 ```cue file=main.cue
 package demo
@@ -257,8 +257,8 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
 ## Behaviour to know
 
 - Every other command needs the generated packages. Run `pravo init` after a checkout, or commit `cue.mod/gen`.
-- A generated package holds every type of its provider, so one package serves every root and module that imports it. Regenerate the packages with [`pravo gen`](validate-eval-fmt-gen.md#pravo-gen).
-- In a repository with one CUE module at the top, `init` finds that module and does not create a nested one. See [Modules in a repository](../how-to/modules-in-a-repository.md).
+- A generated package holds every type of its provider, so one package serves every root and package that imports it. Regenerate the packages with [`pravo gen`](validate-eval-fmt-gen.md#pravo-gen).
+- In a repository with one CUE module at the top, `init` finds that module and does not create a nested one. See [Share code between roots in one repository](../how-to/share-code-between-roots.md).
 - `init` accepts a dependency module whose content differs from `pravo.lock.cue` and records the new hash. Every other command refuses it with exit code 5.
 
 ## See also

@@ -62,7 +62,7 @@ $settings: pravo.#Settings & {
 }
 ```
 
-`pravo init` makes the module, and `pravo state probe` runs the checks against the server:
+`pravo init` makes the CUE module, and `pravo state probe` runs the checks against the server:
 
 ```sh
 pravo init

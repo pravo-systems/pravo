@@ -371,7 +371,7 @@ Output:
 1
 ```
 
-The plan document is the document that policies are judged against, and the document that `--json` hands to a program. A refusal by a policy quotes the offending value. [Policies](policies.md) says what that means for a rule over a sensitive attribute.
+The plan document is the document that policies are judged against, and the document that `--json` hands to a program. A refusal by a policy quotes the offending value. [Constraints and policies](policies.md) says what that means for a rule over a sensitive attribute.
 
 The files of the state are written with mode 0644, as the umask allows. A saved plan is written with mode 0600, and it holds the prior and planned values of every change. Treat both as sensitive.
 

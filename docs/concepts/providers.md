@@ -206,7 +206,7 @@ grep -E '^[[:space:]]?#(Provider|Resource|Data|Ephemeral|Function): ' cue.mod/ge
 | `#Discovery` | One for each list resource type, when the provider can list. See [Discovery](discovery.md). |
 | `#Function` | One for each provider function, with `args` and `result`. |
 
-Each member refers to a set of definitions that the file writes once, after `#Provider`, as `_#Resource`, `_#Data`, `_#Ephemeral`, `_#Discovery` and `_#Function`. CUE copies what a struct holds each time the struct is unified, so a provider that held its definitions would carry thousands of them into every provider struct and every module that takes one. A reference is shared. A specification does not use the hidden names. It writes `$aws.#Resource.aws_s3_bucket`.
+Each member refers to a set of definitions that the file writes once, after `#Provider`, as `_#Resource`, `_#Data`, `_#Ephemeral`, `_#Discovery` and `_#Function`. CUE copies what a struct holds each time the struct is unified, so a provider that held its definitions would carry thousands of them into every provider struct and every definition that takes one. A reference is shared. A specification does not use the hidden names. It writes `$aws.#Resource.aws_s3_bucket`.
 
 The provider-level fields of `#Provider` come first in the file.
 
@@ -226,7 +226,7 @@ grep -E '^[[:space:]]\$' cue.mod/gen/pravo.dev/providers/hashicorp/random/random
 
 The package holds every type that the provider offers, not only the ones that a root uses. A resource, a data source or a function is a struct that unifies with one definition, and the definition is closed. A misspelt attribute is a conflict that CUE reports before any provider runs. The definitions also carry the documentation of the provider as comments, so an editor shows it.
 
-A run does not load all of it. The package of a large provider is megabytes of CUE, and evaluating it is most of the time that a small root takes. When pravo loads a root, it reads the CUE of the module for the types that it names, such as `$aws.#Resource.aws_s3_bucket`, and loads a copy of each large generated package in which the other types are blanked. The lines keep their numbers, so a position in a message is a position in the file on disk. The file is not changed, and an editor still sees the whole package. A package is loaded whole when the module uses a catalogue as a whole, as in `for k, v in $aws.#Resource`, or names a type with an expression, and when the load fails, which is how a type that the scan did not find is found. `PRAVO_NO_PRUNE` loads whole packages.
+A run does not load all of it. The package of a large provider is megabytes of CUE, and evaluating it is most of the time that a small root takes. When pravo loads a root, it reads the CUE of the root and its packages for the types that it names, such as `$aws.#Resource.aws_s3_bucket`, and loads a copy of each large generated package in which the other types are blanked. The lines keep their numbers, so a position in a message is a position in the file on disk. The file is not changed, and an editor still sees the whole package. A package is loaded whole when the module uses a catalogue as a whole, as in `for k, v in $aws.#Resource`, or names a type with an expression, and when the load fails, which is how a type that the scan did not find is found. `PRAVO_NO_PRUNE` loads whole packages.
 
 A computed attribute is a regular field of the type `T | null`. Referring to it before it is known gives a non-concrete value, which pravo sends to the provider as unknown. An attribute that is both optional and computed has the same shape. A sensitive, deprecated or write-only attribute carries an `@pravo(...)` attribute.
 
@@ -272,7 +272,7 @@ rm orphan.cue
 
 A definition can take a provider as an input. `#Pair` above declares `provider!: loc.#Provider` and builds its resource through it. The caller writes `two: #Pair & {provider: $secondary, ...}`. The field of the instance is another name for `$secondary`. It is not a second provider.
 
-The `!` makes the input required. An instance that leaves it out does not load, and the error names the instance and the field. [Modules](../reference/spec-modules.md#an-instance-that-passes-no-provider) shows it.
+The `!` makes the input required. An instance that leaves it out does not load, and the error names the instance and the field. [Reuse](../reference/spec-reuse.md#an-instance-that-passes-no-provider) shows it.
 
 ## Instances and keys
 
@@ -514,4 +514,4 @@ server: provider registry.opentofu.org/hashicorp/random -> oci://localhost:5001/
 - A provider struct is an instance. A resource uses the provider that it was built through, and the state records the instance key.
 - The lock file pins the version and the archive hash of each provider for each platform.
 
-Next: [Policies](policies.md) describes the two places where a rule about a resource can live.
+Next: [Constraints and policies](policies.md) describes the two places where a rule about a resource can live.

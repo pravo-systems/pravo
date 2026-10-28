@@ -334,6 +334,6 @@ Generated cue.mod/gen/pravo.dev/providers/hashicorp/random (10 resource types, 0
 
 ## See also
 
-- [`pravo init`](init.md) creates the module and the generated packages.
+- [`pravo init`](init.md) creates the CUE module and the generated packages.
 - [`pravo schema`](schema.md) prints one type.
 - [Reading a CUE error](../learn/reading-a-cue-error.md) explains the shape of an evaluation error.

@@ -4,7 +4,7 @@
 
 pravo.#Output publishes a value. It is recorded in state when a plan is applied and printed by pravo output.
 
-An output is a struct built from `pravo.#Output`. It sits wherever you put it, and its name is its path, as for a resource: `url`, or `api.url` for one inside a module instance.
+An output is a struct built from `pravo.#Output`. It sits wherever you put it, and its name is its path, as for a resource: `url`, or `api.url` for one inside an instance of a definition.
 
 | Field | Type | Meaning |
 |---|---|---|

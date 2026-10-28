@@ -211,7 +211,7 @@ git commit -m "Translate the estate from OpenTofu"
 
 Idea: a constraint is a type. A name that does not match is refused when the specification evaluates, before any provider starts. Lesson: [A5 Constraints narrow a value](../learn/a05-constraints-narrow-a-value.md).
 
-The module takes a list of note names. Only lowercase letters make a file name that the estate wants.
+The definition takes a list of note names. Only lowercase letters make a file name that the estate wants.
 
 ```cue file=notes.cue title="notes.cue" hl="8"
 package estate
@@ -491,11 +491,11 @@ Outputs: 3 outputs unchanged.
 git commit -am "Remove the moves that have been applied"
 ```
 
-## Commit 5. A package for the module
+## Commit 5. A package for the definition
 
 Idea: a definition that other roots can use is a package. The root imports it, and its resources keep their addresses. Lesson: [A13 Packages and the standard library](../learn/a13-packages-and-the-standard-library.md).
 
-The module path comes from `cue.mod/module.cue`. The package takes its provider as an input, as before.
+The import path starts with the name of the CUE module in `cue.mod/module.cue`. The package takes its provider as an input, as before.
 
 ```cue file=notes/notes.cue title="notes/notes.cue"
 package notes
@@ -550,7 +550,7 @@ Outputs: 3 outputs unchanged.
 
 ```sh
 git add -A
-git commit -m "Move the notes module into a package"
+git commit -m "Move the notes definition into a package"
 ```
 
 ## What to do next

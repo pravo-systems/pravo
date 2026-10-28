@@ -184,9 +184,9 @@ Providers:
 
 An archive that is already unpacked in the provider store is neither downloaded nor compared. Remove the hash from the lock file, and run `pravo init`, only when you expect the bytes to differ.
 
-## 7. Upgrade a module
+## 7. Upgrade a CUE module
 
-A module is locked in the same file, with a hash of its content. `pravo mod get <path>@<version>` moves it, and the next plan shows what the new version does. [Use a published module](using-a-module.md) walks through it.
+A CUE module that the root fetched is locked in the same file, with a hash of its content. `pravo mod get <path>@<version>` moves it, and the next plan shows what the new version does. [Use a published CUE module](using-a-module.md) walks through it.
 
 ## What next
 

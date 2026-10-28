@@ -348,7 +348,7 @@ For a boundary, use controls outside pravo as well:
 - **The state store.** Limit who can write to the bucket or directory that holds the state, and give its credentials by role. To keep the values in it from an agent that has no need of them, [seal the state](seal-the-state.md) and give the agent no identity: it can list addresses and cannot read an attribute. An agent that needs to plan gets a reader's identity, as in step 6.
 - **Exceptions.** No flag turns a policy off. A change to a policy is a change to the specification, and review sees it.
 
-[Policies](../concepts/policies.md) explains the model, [Signatures and roles](../concepts/signatures-and-roles.md) what an identity proves, [pravo mcp](../reference/mcp.md) lists every tool and [pravo skill](../reference/skill.md) describes the skill.
+[Constraints and policies](../concepts/policies.md) explains the model, [Signatures and roles](../concepts/signatures-and-roles.md) what an identity proves, [pravo mcp](../reference/mcp.md) lists every tool and [pravo skill](../reference/skill.md) describes the skill.
 
 ## What next
 

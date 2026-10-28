@@ -42,7 +42,7 @@ size: conflicting values 11 and 3:
 | In another root's outputs | [Remote outputs](#remote-outputs) |
 | In plan, apply, the state or a saved plan | [Plans and state](#plans-and-state) |
 | In a policy | [Policies](#policies) |
-| In a module lock | [Modules](#modules) |
+| In the lock of a CUE module | [CUE modules](#cue-modules) |
 
 Work in an empty directory. The commands print paths in full. This page shows them relative to the directory.
 
@@ -179,7 +179,7 @@ exit=6
 
 ### An import that is the address of a provider
 
-A provider is imported from `pravo.dev/providers`, followed by its address. The address alone is read as a package of the CUE standard library, or as a module that does not exist. The error ends with a hint that names the path:
+A provider is imported from `pravo.dev/providers`, followed by its address. The address alone is read as a package of the CUE standard library, or as a CUE module that does not exist. The error ends with a hint that names the path:
 
 ```cue file=imports/main.cue
 package imports
@@ -537,7 +537,7 @@ and build the resource through it: $aws.#Resource.random_pet & {...}
 exit=6
 ```
 
-A module that needs a provider from its caller declares the field as required, `provider!:`. An instance that leaves the field out stops the load:
+A definition that needs a provider from its caller declares the field as required, `provider!:`. An instance that leaves the field out stops the load:
 
 ```cue file=main.cue
 package errors
@@ -570,8 +570,8 @@ exit=6
 | `$b: $version "~> 3.5" conflicts with "~> 3.6" on another hashicorp/random provider; one version of a provider is used` | Two provider structs of one source with different constraints. | Use one constraint. |
 | `provider random: version does not apply to protocol "tfplugin+reattach": pravo does not install or select what it connects to` | `$version` or `$path` with a reattached provider. | Remove it. See [Providers](spec-providers.md#protocol). |
 | `x was not built through a provider. Declare a provider, for example` | A resource written from `#Provider.#Resource...` directly. | Declare a provider struct and build the resource through it: `$aws.#Resource.<type>`. |
-| `provider docs.provider was not supplied: docs requires a hashicorp/random provider in its field provider.` | An instance of a module leaves out a provider input that the module marks required. | Pass a provider struct of the root: `docs: ... & {provider: $random}`. See [Modules](spec-modules.md#an-instance-that-passes-no-provider). |
-| `api.tls sets proxy, but api.tls is another name for the provider $tls, which does not set it.` | A module, or a struct built from a provider struct, sets a field that the provider it shares leaves unset. | Set the field on the struct that is passed in. See [Modules](spec-modules.md#configuration-in-the-module-and-in-the-caller). |
+| `provider docs.provider was not supplied: docs requires a hashicorp/random provider in its field provider.` | An instance of a definition leaves out a provider input that the definition marks required. | Pass a provider struct of the root: `docs: ... & {provider: $random}`. See [Reuse](spec-reuse.md#an-instance-that-passes-no-provider). |
+| `api.tls sets proxy, but api.tls is another name for the provider $tls, which does not set it.` | A definition, or a struct built from a provider struct, sets a field that the provider it shares leaves unset. | Set the field on the struct that is passed in. See [Reuse](spec-reuse.md#configuration-in-the-definition-and-in-the-caller). |
 | `provider registry.opentofu.org/hashicorp/ramdom was not found; check the name` | The registry has no provider of the name in the import path. | Fix the spelling of the path. |
 | `registry discovery for registry.opentofu.org: Get "https://registry.opentofu.org/.well-known/terraform.json": ...` | `pravo init` could not reach the registry. The words after the address name the cause. | Fix the proxy, firewall or network. See [the registry cannot be reached](#the-registry-cannot-be-reached). |
 
@@ -595,7 +595,7 @@ Configuration does not load yet; generating schemas for the declared providers f
 Error: provider registry.opentofu.org/hashicorp/ramdom was not found; check the name
 ```
 
-Remove the directory, because `init` reads every file of the module:
+Remove the directory, because `init` reads every file of the CUE module:
 
 ```sh run
 rm -r typo
@@ -623,7 +623,7 @@ Error: registry discovery for registry.opentofu.org: Get "https://registry.opent
 
 A refused connection points to a proxy, a firewall or a missing network. Fix it and run `pravo init` again. After a successful `init`, `validate` and `plan` need no registry access.
 
-Remove the directory, because `init` reads every file of the module:
+Remove the directory, because `init` reads every file of the CUE module:
 
 ```sh run
 rm -r offline
@@ -1539,9 +1539,9 @@ Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 
 The other refusals of a rule, before anything is applied, are in [The rule](policies-overview.md#the-rule).
 
-## Modules
+## CUE modules
 
-`pravo mod verify` compares the modules a root loads with `pravo.lock.cue`:
+`pravo mod verify` compares the CUE modules a root loads with `pravo.lock.cue`:
 
 ```sh run
 echo 'modules: "example.com/x@v0": {version: "v0.1.0", hash: "h1:abc"}' >> pravo.lock.cue

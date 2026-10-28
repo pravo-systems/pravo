@@ -124,7 +124,7 @@ The plan writes nothing: the state holds `hello` until the apply, which renames 
 
 ## $from on a group
 
-`$from` on a struct that holds resources moves every record below the old path to the same place below the struct. This moves a module instance. The definition must accept the field: embed `pravo.#Movable`, which declares `$from?: string`. The definitions generated for resources and data sources declare it already.
+`$from` on a struct that holds resources moves every record below the old path to the same place below the struct. This moves an instance of a definition. The definition must accept the field: embed `pravo.#Movable`, which declares `$from?: string`. The definitions generated for resources and data sources declare it already.
 
 ```cue file=main.cue
 package demo

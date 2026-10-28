@@ -567,7 +567,7 @@ $random: rnd.#Provider & {$version: "~> 3.6"}
 - `required_providers` and the `provider` block become one struct per provider. `$version` holds the constraint.
 - The import path names the provider. `pravo init` generates the package it points to.
 
-### The module
+### The module becomes a definition
 
 :::compare
 ```hcl title="platform/modules/service/main.tf"
@@ -619,11 +619,11 @@ package platform
 ```
 :::
 
-- A module is a definition that holds resources. `#Service` is the module.
+- pravo has no module block. `#Service` is a definition that holds the resources of one service.
 - The variables are fields. The `validation` block is the constraint on `port`.
-- The module output is an ordinary field: `endpoint`.
-- Nothing wires the module into the root. Writing an instance is enough.
-- `#Service` builds its resources through the providers of its own package. A module shared by several roots takes the provider as an input, as [M4](m4-translate-the-specification.md) shows.
+- The output of the module is an ordinary field of the definition: `endpoint`.
+- Nothing wires the definition into the root. Writing an instance is enough.
+- `#Service` builds its resources through the providers of its own package. A definition shared by several roots takes the provider as an input, as [M4](m4-translate-the-specification.md) shows.
 - The address of a resource inside an instance is the path of the instance plus the field: `services.api.host`.
 
 ### The root
@@ -985,7 +985,7 @@ for k, _ in _ports {
 }
 ```
 
-The `for` repeats the two lines for each service. A root without a module needs one `$from` per resource. Plan again.
+The `for` repeats the two lines for each service. Without it, each resource needs a `$from` of its own. Plan again.
 
 ```sh run
 pravo -C platform plan --detailed-exitcode

@@ -648,7 +648,7 @@ What a policy guarantees depends on four rights: write access to the policy sour
 
 ## What a policy does not guarantee
 
-A policy binds the invocations of pravo that read the state, and it judges the plan that the specification, the state and the providers produce. [Policies](../concepts/policies.md#what-a-policy-does-not-guarantee) lists each limit. Typos that forbid nothing are in [Writing policies](policies-writing.md#mistakes-that-forbid-nothing). Operations on the state and calls to the cloud API are outside pravo. A reader who can apply can write a new version of a policy, and the signed version names who did.
+A policy binds the invocations of pravo that read the state, and it judges the plan that the specification, the state and the providers produce. [Constraints and policies](../concepts/policies.md#what-a-policy-does-not-guarantee) lists each limit. Typos that forbid nothing are in [Writing policies](policies-writing.md#mistakes-that-forbid-nothing). Operations on the state and calls to the cloud API are outside pravo. A reader who can apply can write a new version of a policy, and the signed version names who did.
 
 ## Errors
 
@@ -660,7 +660,7 @@ A policy binds the invocations of pravo that read the state, and it judges the p
 | The messages under [The rule](policies-overview.md#the-rule) | 6 | A rule that cannot be used. |
 | A policy version whose signature does not verify, or a gap in the numbers | 7 | The state holds a version that no key signed. |
 
-Exit code 5 also means a module that does not match its lock: `pravo mod verify` exits with 5. All the codes are in [Exit codes](exit-codes.md).
+Exit code 5 also means a CUE module that does not match its lock: `pravo mod verify` exits with 5. All the codes are in [Exit codes](exit-codes.md).
 
 ## See also
 

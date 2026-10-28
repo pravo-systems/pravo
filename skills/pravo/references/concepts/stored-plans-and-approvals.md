@@ -225,4 +225,4 @@ The viewer, `plan list` and the listing of an agent judge a plan by the state al
 - An apply claims the plan, records each change it finishes, and leaves the rest for the next apply. A collection removes what nobody needs, with conditional deletes.
 - A policy asks for approvals with `approvals: {min, role, self}` on the plans it matches. Approvals are signatures on a stored plan, by other keys of the roles asked for, and an admin needs none.
 
-Next: [Policies](policies.md) explains the rules that judge every plan.
+Next: [Constraints and policies](policies.md) explains the rules that judge every plan.

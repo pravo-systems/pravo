@@ -1199,7 +1199,7 @@ The apply walks the changes of the plan and the nodes they read, and no others. 
 
 A saved plan is not signed. pravo checks that the file still matches the root, the state and what the providers plan. It does not check who made it.
 
-`pravo apply FILE` judges the whole file by the policies in force in the state, under the locks and before any provider is asked to change anything. A plan file that adds, changes or removes a policy records the version it was made from, and it is stale when the state holds another one. [Policies](policies.md) covers the rest.
+`pravo apply FILE` judges the whole file by the policies in force in the state, under the locks and before any provider is asked to change anything. A plan file that adds, changes or removes a policy records the version it was made from, and it is stale when the state holds another one. [Constraints and policies](policies.md) covers the rest.
 
 A plan file stays in one checkout. The same plan can be written into the state with `pravo plan --store`, where everyone who can read the state lists it, reads it and applies it by its id, and where a policy can make it wait for the approval of other people. [Stored plans and approvals](stored-plans-and-approvals.md) follows a plan from the moment it is stored.
 

@@ -6,7 +6,7 @@ group: Runbook
 gate: "`pravo validate` succeeds"
 minutes: 45
 needs: "Step 3 read: [a worked example](m3-worked-example.md)."
-learn: In what order do variables, resources, loops, modules and providers become CUE?
+learn: In what order do variables, resources, loops, module blocks and providers become CUE?
 done_when: "`pravo validate` prints `Success!` for the root and for every other root you translate."
 level: intermediate
 normalize:
@@ -36,8 +36,8 @@ The example is a small estate of `random` and `local` resources, so every comman
 | 4 | `resource`, `data` | a struct built through a provider | [B1](../learn/b01-providers-and-resources.md) |
 | 5 | `count`, `for_each` | a comprehension | [A10](../learn/a10-comprehensions.md), [B5](../learn/b05-many-resources-from-one-rule.md) |
 | 6 | `dynamic` | a comprehension inside the body | [A10](../learn/a10-comprehensions.md) |
-| 7 | `module` | a definition with resources | [A8](../learn/a08-definitions-reject-typos.md), [B6](../learn/b06-modules-providers-credentials.md) |
-| 8 | `provider`, `depends_on`, `lifecycle` | provider structs and `$` fields | [B6](../learn/b06-modules-providers-credentials.md) |
+| 7 | `module` | an instance of a definition with resources | [A8](../learn/a08-definitions-reject-typos.md), [B6](../learn/b06-reuse-providers-credentials.md) |
+| 8 | `provider`, `depends_on`, `lifecycle` | provider structs and `$` fields | [B6](../learn/b06-reuse-providers-credentials.md) |
 | 9 | `output` | `pravo.#Output` | [B3](../learn/b03-apply-outputs-state.md) |
 
 Do the steps in this order. Each one ends with `pravo validate`, and the counts it prints grow with the specification. Fix a step before you start the next.
@@ -422,11 +422,11 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
 Success! 1 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 1 providers.
 ```
 
-The `network` directory sits inside the module of the first root. `init` reuses that module, prints its path, and writes the AWS package under the module's `cue.mod/gen`.
+The `network` directory sits inside the CUE module of the first root. `init` reuses that module, prints its path, and writes the AWS package under the module's `cue.mod/gen`.
 
-## Step 7. Modules
+## Step 7. Module blocks
 
-A module is a definition that contains resources. The inputs are fields. The definition builds its resources through a provider that the caller passes in, so one definition serves every root. `module "notes" {...}` becomes a field that unifies the definition with the inputs.
+pravo has no module block. A `module "notes" {...}` block becomes an instance of a definition that contains resources: one field that unifies the definition with the inputs. The inputs are fields of the definition. The definition builds its resources through a provider that the caller passes in, so one definition serves every root.
 
 :::compare
 ```hcl title="modules/notes/main.tf"
@@ -496,7 +496,7 @@ notes: #Notes & {
 | `providers = { local = local.archive }` | a required input `provider!: loc.#Provider`, filled by the caller |
 :::
 
-Instantiating the definition is the whole wiring. The resources inside `notes` have the addresses `notes.files.alpha` and `notes.files.beta`. A module that is shared between roots is a package, and it takes every provider as an input. [B6](../learn/b06-modules-providers-credentials.md) shows the package form.
+Instantiating the definition is the whole wiring. The resources inside `notes` have the addresses `notes.files.alpha` and `notes.files.beta`. A definition that is shared between roots is a package, and it takes every provider as an input. [B6](../learn/b06-reuse-providers-credentials.md) shows the package form. A module from a registry becomes a package in a CUE module, fetched with `pravo mod get`: [Use a published CUE module](../how-to/using-a-module.md).
 
 ```sh run
 pravo validate
@@ -510,7 +510,7 @@ Success! 8 resources, 1 data sources, 0 ephemeral, 0 function calls, 0 outputs a
 
 A `provider` block becomes the fields of a provider struct, beside `$version`. Each alias is a further struct, and the resource chooses the alias by the struct it is built through. There is no `provider = aws.west` argument.
 
-The estate has a second `local` provider for the notes. Its HCL is `provider "local" { alias = "archive" }` and `providers = { local = local.archive }` on the module call. In CUE the second struct is a second line, and the caller passes it as the module's `provider` input.
+The estate has a second `local` provider for the notes. Its HCL is `provider "local" { alias = "archive" }` and `providers = { local = local.archive }` on the module call. In CUE the second struct is a second line, and the caller passes it as the `provider` input of the definition.
 
 ```cue file=providers.cue title="providers.cue"
 package estate
@@ -694,7 +694,7 @@ Success! 2 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs a
 
 ## Recap
 
-- Translate in order: providers, variables, locals, resources, loops, `dynamic`, modules, provider settings and meta-arguments, outputs.
+- Translate in order: providers, variables, locals, resources, loops, `dynamic`, module blocks, provider settings and meta-arguments, outputs.
 - Keep the shape and the keys of every `count` and `for_each`, because the key is part of the address.
 - `pravo validate` prints `Success!` with counts that grow with each step, and it reads only the provider schemas.
 

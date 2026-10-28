@@ -24,7 +24,7 @@ Read them in this order. Later pages use terms that earlier pages define.
 **A team on one state**
 
 8. [Stored plans and approvals](stored-plans-and-approvals.md). How a plan lives in the state, how it moves from pending to applied, and how a policy makes it wait for the approval of other people.
-9. [Policies](policies.md). Two moments for one idea: a rule on a provider and a policy on a plan, what each of them binds, and what neither guarantees.
+9. [Constraints and policies](policies.md). A constraint on a provider, checked at evaluation, and a policy on a plan, kept in the state: what each binds, and what neither guarantees.
 10. [Secrets and ephemeral values](secrets-and-ephemeral-values.md). How sensitive and short-lived values travel through plans, state and outputs.
 11. [Signatures and roles](signatures-and-roles.md). What a sealed state encrypts, what a signature binds, what a role allows, and what none of the three does.
 
@@ -43,10 +43,10 @@ Read them in this order. Later pages use terms that earlier pages define.
 | Resources and addresses | [B1, Providers and resources](../learn/b01-providers-and-resources.md) |
 | Plans | [B2, Reading a plan](../learn/b02-reading-a-plan.md) |
 | State | [B3, Apply, outputs, state](../learn/b03-apply-outputs-state.md) |
-| Providers | [B1, Providers and resources](../learn/b01-providers-and-resources.md) and [B6, Modules, providers, credentials](../learn/b06-modules-providers-credentials.md) |
+| Providers | [B1, Providers and resources](../learn/b01-providers-and-resources.md) and [B6, Reuse, providers, credentials](../learn/b06-reuse-providers-credentials.md) |
 | Stored plans and approvals | [C2, Store a plan](../learn/c02-store-a-plan.md) and [C6, Ask for approvals](../learn/c06-ask-for-approvals.md) |
-| Policies | [B10, Policy on providers and on plans](../learn/b10-policy.md) and [C5, Write a plan policy](../learn/c05-write-a-plan-policy.md) |
-| Secrets and ephemeral values | [B6, Modules, providers, credentials](../learn/b06-modules-providers-credentials.md) |
+| Policies | [B10, Constraints on providers, policy on plans](../learn/b10-policy.md) and [C5, Write a plan policy](../learn/c05-write-a-plan-policy.md) |
+| Secrets and ephemeral values | [B6, Reuse, providers, credentials](../learn/b06-reuse-providers-credentials.md) |
 | Signatures and roles | [C3, Seal the state](../learn/c03-seal-the-state.md) and [C4, Readers, writers, admins](../learn/c04-readers-writers-admins.md) |
 | The viewer | [Explore an estate in a browser](../how-to/explore-your-estate.md) shows every section. [C5, Write a plan policy](../learn/c05-write-a-plan-policy.md) tries a rule in the policy studio, and [C7, Read a run](../learn/c07-read-a-run.md) reads a run in the Traces section. |
 | Traces | [C7, Read a run](../learn/c07-read-a-run.md) |

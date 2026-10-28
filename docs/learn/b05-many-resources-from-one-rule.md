@@ -386,4 +386,4 @@ In a list the index is the address. In a struct the key is the address, and the 
 
 Reference: [Resources and addresses](../concepts/resources-and-addresses.md) and [Resources](../reference/spec-resources.md).
 
-[B6](b06-modules-providers-credentials.md) packs resources into a module and passes providers to it.
+[B6](b06-reuse-providers-credentials.md) packs resources into a definition that other roots share, and passes providers to it.

@@ -57,7 +57,7 @@ Taught in [A3](https://pravo.systems/learn/a03-writing-a-field-twice.html). See 
 
 ### constraint
 
-A value that allows some values and rejects the rest, such as `string`, `>=1` or `=~"^eu-"`. Unifying a constraint with a value keeps the value when it fits, and is an error when it does not.
+A value that allows some values and rejects the rest, such as `string`, `>=1` or `=~"^eu-"`. Unifying a constraint with a value keeps the value when it fits, and is an error when it does not. A constraint on the `#Resource` of a provider definition binds every resource built through that provider. It is checked when the specification evaluates, and it is not a [policy](#policy).
 
 Taught in [A5](https://pravo.systems/learn/a05-constraints-narrow-a-value.html).
 
@@ -69,7 +69,7 @@ Taught in [A6](https://pravo.systems/learn/a06-choices-and-defaults.html).
 
 ### definition
 
-A struct whose name starts with `#`, such as `#Service`. A definition is closed, and it declares nothing until a regular field instantiates it. A provider package is built from definitions.
+A struct whose name starts with `#`, such as `#Service`. A definition is closed, and it declares nothing until a regular field instantiates it. A provider package is built from definitions. A definition that contains resources is the unit of reuse: what a `module` block does in OpenTofu, an instance of such a definition does in pravo.
 
 Taught in [A8](https://pravo.systems/learn/a08-definitions-reject-typos.html). See [Generated packages](spec-generated-packages.md).
 
@@ -147,7 +147,7 @@ Taught in [A7](https://pravo.systems/learn/a07-required-optional-regular.html).
 
 ### package
 
-The files of one directory that begin with the same `package` clause, unified into one value. A root is one package. A file with no package clause, or with another one, is an error.
+The files of one directory that begin with the same `package` clause, unified into one value. A root is one package. A file with no package clause, or with another one, is an error. A package below the top of the CUE module can be imported by any root in the module, which is how a definition is shared.
 
 Taught in [A13](https://pravo.systems/learn/a13-packages-and-the-standard-library.html). See [The specification](spec-overview.md#what-makes-a-root).
 
@@ -295,7 +295,7 @@ See [Resources](spec-resources.md#ephemeral-resources).
 
 A value of an ephemeral resource or of `pravo.#SecretEnv`. It may be used in provider configuration, in write-only attributes and in other ephemeral resources, and nowhere that is recorded.
 
-Taught in [B6](../learn/b06-modules-providers-credentials.md). See [Environment](spec-env.md#secret-env).
+Taught in [B6](../learn/b06-reuse-providers-credentials.md). See [Environment](spec-env.md#secret-env).
 
 ### generated package
 
@@ -305,7 +305,7 @@ See [Generated packages](spec-generated-packages.md).
 
 ### group
 
-In the viewer, a struct of the specification that holds resources: an instance of a definition, an instance of a package or a plain struct. Every proper prefix of a node's address that holds a resource below it is a group. It is not a [module](#module), which needs a definition or a package that takes providers as inputs.
+In the viewer, a struct of the specification that holds resources: an instance of a definition, an instance of a package or a plain struct. Every proper prefix of a node's address that holds a resource below it is a group. It is a place in the address, not a form of reuse: it needs no definition and takes no providers.
 
 See [The viewer](../concepts/the-viewer.md#groups).
 
@@ -335,7 +335,7 @@ Taught in [Lab 2](https://pravo.systems/learn/lab2-two-applies-at-once.html). Se
 
 ### lock file
 
-`pravo.lock.cue`, written by `pravo init`. It holds the version of each provider and the hash of each archive, and the modules a root loads. Commit it.
+`pravo.lock.cue`, written by `pravo init`. It holds the version of each provider and the hash of each archive, and the CUE modules a root loads. Commit it.
 
 See [Compatibility](compatibility.md#providers-and-registries).
 
@@ -353,9 +353,9 @@ See [Meta fields](spec-meta-fields.md).
 
 ### module
 
-In CUE, the tree under a `cue.mod/module.cue` file, whose path begins every import path. In pravo, a definition or a package that contains resources and takes its providers as inputs.
+A CUE module: the tree of packages under a `cue.mod/module.cue` file. Its path begins every import path, and `pravo mod` publishes it to a registry, fetches it by version and locks its content. pravo has no module in the sense of a `module` block with a `source`, variables and outputs. That work is done by a [definition](#definition) that contains resources, shared through a [package](#package).
 
-Taught in [B6](../learn/b06-modules-providers-credentials.md). See [Modules](spec-modules.md).
+Taught in [A13](https://pravo.systems/learn/a13-packages-and-the-standard-library.html) and [B6](../learn/b06-reuse-providers-credentials.md). See [Reuse](spec-reuse.md) and [mod](mod.md).
 
 ### move
 
@@ -517,7 +517,7 @@ See [State format](state-format.md#transactions).
 
 The rights that decide what a policy guarantees: write access to the policy source, to the job definition and environment, and to the state store, and the cloud credentials. pravo cannot see who holds them.
 
-See [Policies](../concepts/policies.md#the-trust-anchor).
+See [Constraints and policies](../concepts/policies.md#the-trust-anchor).
 
 ### unknown value
 

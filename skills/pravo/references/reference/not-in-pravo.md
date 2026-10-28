@@ -15,7 +15,7 @@ pravo has no workspaces. Select the environment with `-t env=prod`. Each row bel
 | `taint`, `untaint` | Absent. | `pravo plan --replace ADDR` replaces a resource although the specification did not change. |
 | `refresh`, `plan -refresh-only` | Absent. | `pravo drift` reads every resource and reports the ones that changed. `-refresh=all` reads every record in a plan. |
 | `console` | Absent. | `pravo eval -e EXPRESSION` evaluates an expression in the scope of the specification. |
-| `graph` | Absent. | `pravo state graph` prints the edges of the state. `-dot` prints Graphviz. `pravo serve` shows the graph of modules and resources in a browser. |
+| `graph` | Absent. | `pravo state graph` prints the edges of the state. `-dot` prints Graphviz. `pravo serve` shows the graph of groups and resources in a browser. |
 | `force-unlock` | Absent. | `pravo state unlock ADDR` removes the lock or the reservation of one node. |
 | `test` | Absent. | `pravo validate` checks the constraints before a provider starts. A `pravo.#Policy` node judges a plan. |
 | `login`, `logout` | Absent. | Credentials come from the environment and from the files that each provider documents. |
@@ -69,7 +69,7 @@ Error: unknown flag: --raw
 | `lifecycle` | `$lifecycle` | `create_before_destroy`, `prevent_destroy`, `ignore_changes` and `refresh`. There is no `replace_triggered_by`: use `--replace`. |
 | `precondition`, `postcondition`, `check` | Absent. | A constraint on a field you write is evaluated before any provider starts. A constraint on a value the provider computes is checked during apply, after the provider has returned it. A rule about a plan is a policy. See [Policies](policies-overview.md). |
 | `moved`, `import`, `removed` blocks | Absent. | `$from` and `$import` on the resource. `pravo state rm ADDR` forgets a record without destroying the object. See [Moves and imports](spec-moves-and-imports.md). |
-| `module` block, `source`, `version` | Absent. | A definition or a package, instantiated with `&`. A module takes its providers as inputs. See [Modules](spec-modules.md). |
+| `module` block, `source`, `version` | Absent. | A definition or a package, instantiated with `&`. A shared definition takes its providers as inputs. A package from another repository comes in a CUE module, with `pravo mod get`. See [Reuse](spec-reuse.md). |
 | `provider` aliases and the `provider` meta-argument | Absent. | A provider struct for each configuration. A resource is built through the one it uses. See [Providers](spec-providers.md). |
 | `data "terraform_remote_state"` | Absent. | `pravo.#RemoteOutputs`. See [Environment and remote outputs](spec-env.md#remote-outputs). |
 | `terraform_data` | Absent. | `null_resource` of `hashicorp/null`. |

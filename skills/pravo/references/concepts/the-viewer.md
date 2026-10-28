@@ -28,7 +28,7 @@ An ephemeral resource, a function call and an environment variable have no recor
 
 ## Groups
 
-A group, to the viewer, is a struct of the specification that holds resources. It is an instance of a definition, an instance of a package, or a plain struct. It does not need to take providers as inputs, and it does not need a definition: in the platform estate, `network.zones` is a plain struct that holds three instances of one definition, and `network` holds both. A group is a place in the address, not a [module](../reference/glossary.md#module).
+A group, to the viewer, is a struct of the specification that holds resources. It is an instance of a definition, an instance of a package, or a plain struct. It does not need to take providers as inputs, and it does not need a definition: in the platform estate, `network.zones` is a plain struct that holds three instances of one definition, and `network` holds both. A group is a place in the address, not a form of reuse: it needs no [definition](../reference/glossary.md#definition) and takes no providers.
 
 The address of every node below a group starts with the path of the group. The viewer treats every proper prefix of a node's address that holds a resource below it as a group, so `api.services.billing.config` sits in `api.services.billing`, which sits in `api.services`, which sits in `api`. The server sends this tree, with the parent of each group and the number of resources below it, and the page never splits an address.
 

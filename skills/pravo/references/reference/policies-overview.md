@@ -194,12 +194,12 @@ Under `--json` the error is also printed as an object on standard output, after 
 
 ## Two moments
 
-A specification policy is a constraint on the `#Resource` of a `#Provider` definition. It is checked when the specification evaluates. A policy node is a rule over the plan. It is checked when a plan is judged, by the versions in the state, so a change of the specification that weakens a rule is itself a change that review sees, and the version it writes is signed.
+A constraint on the `#Resource` of a `#Provider` definition is checked when the specification evaluates. It is a CUE constraint, not a policy. A policy is a rule over the plan. It is checked when a plan is judged, by the versions in the state, so a change of the specification that weakens a rule is itself a change that review sees, and the version it writes is signed.
 
-A specification policy rejects a value that is set and wrong. It does not require that an attribute is set, which is a rule for a policy node. See [Providers](spec-providers.md#provider-scoped-constraints). [Policies](../concepts/policies.md#two-moments) compares the two.
+A constraint rejects a value that is set and wrong. It does not require that an attribute is set, which is a rule for a policy. See [Providers](spec-providers.md#provider-scoped-constraints). [Constraints and policies](../concepts/policies.md#two-moments) compares the two.
 
 ## See also
 
 - [Write and roll out policies](../how-to/policies.md) takes a rule from a first draft to an apply job.
-- [Policies](../concepts/policies.md) explains the two moments and what a policy binds.
+- [Constraints and policies](../concepts/policies.md) explains the two moments and what a policy binds.
 - [Writing policies](policies-writing.md) lists the shapes that work.

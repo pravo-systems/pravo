@@ -49,7 +49,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/spec-env.md](reference/spec-env.md) | pravo.#Env and pravo.#SecretEnv read environment variables. pravo.#RemoteOutputs reads the outputs another root has recorded. | 11 KB |
 | [reference/spec-meta-fields.md](reference/spec-meta-fields.md) | The $-prefixed fields that resources, data sources and ephemeral resources accept in addition to the provider schema. | 8 KB |
 | [reference/spec-tags-and-variables.md](reference/spec-tags-and-variables.md) | Inputs are fields with a @tag attribute. -t and -T inject their values. Defaults and constraints are plain CUE. | 7 KB |
-| [reference/spec-modules.md](reference/spec-modules.md) | A module is a CUE definition or package that contains resources. Instantiating it is enough. pravo finds the resources inside the instance. | 12 KB |
+| [reference/spec-reuse.md](reference/spec-reuse.md) | pravo has no module block. A definition that contains resources is instantiated with &, a package shares it between roots and a CUE module between repositories. | 13 KB |
 | [reference/spec-generated-packages.md](reference/spec-generated-packages.md) | The CUE packages that pravo init writes under cue.mod/gen, one per provider and one for pravo itself. | 10 KB |
 
 ### Viewer
@@ -88,7 +88,7 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/errors.md](reference/errors.md) | Every error a user is likely to meet, as pravo prints it: the symptom, the cause and the fix. | 71 KB |
-| [reference/glossary.md](reference/glossary.md) | The terms of CUE and of pravo, each with a definition of one or two sentences and a link to the lesson that teaches it. | 28 KB |
+| [reference/glossary.md](reference/glossary.md) | The terms of CUE and of pravo, each with a definition of one or two sentences and a link to the lesson that teaches it. | 29 KB |
 | [reference/faq.md](reference/faq.md) | Short, factual answers to the questions asked first. | 10 KB |
 | [reference/not-in-pravo.md](reference/not-in-pravo.md) | The commands, flags, blocks and files of OpenTofu and Terraform that pravo does not have, and what to use in each place. | 9 KB |
 
@@ -106,7 +106,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/what-a-plan-reaches.md](concepts/what-a-plan-reaches.md) | Change one setting, replace a root key, add a zone or run two applies on one estate, and see which resources each plan reaches and which locks each apply holds. | 2 KB |
 | [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 22 KB |
 | [concepts/stored-plans-and-approvals.md](concepts/stored-plans-and-approvals.md) | How a plan lives in the state: what pravo plan --store writes, how a listing judges a stored plan, how an apply claims it and records its progress, how it is collected, and how a policy makes a plan wait for the approval of other people. | 17 KB |
-| [concepts/policies.md](concepts/policies.md) | One idea at two moments: a constraint on a provider is checked at evaluation, a policy node against a plan. What each binds and what neither guarantees. | 19 KB |
+| [concepts/policies.md](concepts/policies.md) | A constraint on a provider is checked when the specification evaluates. A policy, a pravo.#Policy node, judges a plan and is kept in the state. What each binds and what neither guarantees. | 19 KB |
 | [concepts/secrets-and-ephemeral-values.md](concepts/secrets-and-ephemeral-values.md) | Which values pravo records in state, saved plans and outputs, what an ephemeral value is, where it may go, and what hiding a value does and does not do. | 12 KB |
 | [concepts/signatures-and-roles.md](concepts/signatures-and-roles.md) | What a sealed state encrypts and who can open it, what a signature binds, what a role allows, and what none of the three does. Confidentiality against a copy of the bucket, the provenance of every change, and who may change what. | 26 KB |
 | [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the six sections show, which values are withheld and why the viewer changes nothing. | 33 KB |
@@ -165,9 +165,9 @@ One task each, for a reader who knows the basics.
 | File | Covers | Size |
 |---|---|---|
 | [how-to/environments.md](how-to/environments.md) | Select dev, staging or prod with a tag, keep the differences in one table and give each environment its own state. | 7 KB |
-| [how-to/modules-in-a-repository.md](how-to/modules-in-a-repository.md) | Keep shared modules in one repository, run one root per environment and see how a change to shared code reaches every root. | 9 KB |
-| [how-to/publishing-a-module.md](how-to/publishing-a-module.md) | Create a module in a git repository, try it from an example, and publish a version to a registry that others can use. | 9 KB |
-| [how-to/using-a-module.md](how-to/using-a-module.md) | Add a published module to a root, lock it, read an upgrade before you take it and know what happens in CI and offline. | 9 KB |
+| [how-to/share-code-between-roots.md](how-to/share-code-between-roots.md) | Keep shared definitions in one repository, run one root per environment and see how a change to shared code reaches every root. | 9 KB |
+| [how-to/publishing-a-module.md](how-to/publishing-a-module.md) | Put shared definitions in a CUE module of their own, try them from an example, and publish a version to a registry that other repositories fetch. | 9 KB |
+| [how-to/using-a-module.md](how-to/using-a-module.md) | Add a published CUE module to a root, lock it, read an upgrade before you take it and know what happens in CI and offline. | 9 KB |
 | [how-to/providers-from-a-registry.md](how-to/providers-from-a-registry.md) | Copy a provider into a container registry, install it from there and move a root that has resources to the copy without touching them. | 8 KB |
 
 ## Learn
@@ -193,11 +193,11 @@ The tutorial on pravo (track B), the team track (track C) and the companion page
 | [learn/b03-apply-outputs-state.md](learn/b03-apply-outputs-state.md) | Apply a plan, read the outputs and open the state. A plan with no changes shows that a refactor changed nothing. | 11 KB |
 | [learn/b04-inputs-tags-environments.md](learn/b04-inputs-tags-environments.md) | Run one specification as dev, staging and prod. Use a constrained field, a tag and a state path derived from it. | 10 KB |
 | [learn/b05-many-resources-from-one-rule.md](learn/b05-many-resources-from-one-rule.md) | A comprehension produces resources. Each key becomes the last element of an address, so reordering the source replaces nothing. | 9 KB |
-| [learn/b06-modules-providers-credentials.md](learn/b06-modules-providers-credentials.md) | Share one definition between instances, pass a provider in as an input, and keep a credential out of the state. | 17 KB |
+| [learn/b06-reuse-providers-credentials.md](learn/b06-reuse-providers-credentials.md) | Share one definition between instances, pass a provider in as an input, and keep a credential out of the state. | 18 KB |
 | [learn/b07-changing-live-infrastructure.md](learn/b07-changing-live-infrastructure.md) | Save a plan, apply exactly that plan or nothing, and apply it in stages. Read the refusal when the plan is stale. | 7 KB |
 | [learn/b08-renames-moves-imports.md](learn/b08-renames-moves-imports.md) | Keep the object of a resource when its address changes, and adopt an object that already exists. | 13 KB |
 | [learn/b09-drift.md](learn/b09-drift.md) | Change a resource outside pravo, find the change with pravo drift, and reconcile it in both directions. | 7 KB |
-| [learn/b10-policy.md](learn/b10-policy.md) | A constraint on a provider binds every resource built through it, and a policy node judges what a plan does. | 16 KB |
+| [learn/b10-policy.md](learn/b10-policy.md) | A constraint on a provider binds every resource built through it. A policy judges what a plan does and is kept in the state. | 17 KB |
 
 ### Track C · A team on one state
 
@@ -220,7 +220,7 @@ From OpenTofu or Terraform: a runbook with its lookups.
 | File | Covers | Size |
 |---|---|---|
 | [migrate/m1-before-you-start.md](migrate/m1-before-you-start.md) | Make the OpenTofu plan empty, back up the state and the code, scan for constructs that need a decision, preview the conversion and write the recovery plan. | 15 KB |
-| [migrate/m2-concept-map.md](migrate/m2-concept-map.md) | Each OpenTofu construct, command and function beside its pravo equivalent, with one example for each group and the rows that have none. | 23 KB |
+| [migrate/m2-concept-map.md](migrate/m2-concept-map.md) | Each OpenTofu construct, command and function beside its pravo equivalent, with one example for each group and the rows that have none. | 24 KB |
 | [migrate/m3-worked-example.md](migrate/m3-worked-example.md) | One stack with a module, a for_each, a remote output, a sensitive value and a moved history, translated by hand, converted and planned to empty. | 28 KB |
 | [migrate/m4-translate-the-specification.md](migrate/m4-translate-the-specification.md) | Rewrite each OpenTofu construct as CUE in a fixed order, and check every step with pravo validate. | 22 KB |
 | [migrate/m5-convert-the-state.md](migrate/m5-convert-the-state.md) | Convert the OpenTofu state into pravo records, point each record at its address, and plan until nothing changes. | 26 KB |

@@ -146,11 +146,11 @@ pravo serve --plan change.plan       # overlay a saved plan
 | `tools/hclcheck/` | Runs the OpenTofu listings of the documentation through `tofu fmt`, `init` and `validate`. |
 | `tools/_weblint/` | ESLint and Stylelint for the viewer and the site. The underscore keeps the Go tools out of its `node_modules`. |
 | `tools/serveshots/` | Applies the estates in `scenarios/`, starts `pravo serve` and makes the screenshots of the documentation with headless Chrome. |
-| `tools/protogen/`, `tools/fakes3/`, `tools/fakeoci/` | Protocol message generator; an in-memory S3 bucket and an in-memory container registry for trying state and modules. |
+| `tools/protogen/`, `tools/fakes3/`, `tools/fakeoci/` | Protocol message generator; an in-memory S3 bucket and an in-memory container registry for trying state and CUE modules. |
 | `docs/` | Documentation sources. `docs/AUTHORING.md` fixes the format. |
 | `site/` | Site configuration, landing page, style sheet, scripts, recorded landing data. |
 | `examples/` | Four runnable roots. |
-| `templates/module/` | Template repository for a shared module. |
+| `templates/module/` | Template repository for a CUE module that other repositories fetch by version. |
 
 ## Contributing
 

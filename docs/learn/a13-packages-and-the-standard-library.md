@@ -28,7 +28,7 @@ locals {
 }
 ```
 
-To share a definition between directories, HCL uses a module with its own variables and outputs.
+To share a definition between directories, HCL uses a module with its own variables and outputs. CUE has no module of that kind. A package is shared as it is, and a definition in it is used by name.
 
 In CUE, a check is a value you join to the field. A function is a name in a package. A [package](../reference/glossary.md#package) is a directory of `.cue` files that share a `package` clause. You have written one since [A1](a01-your-data-is-already-cue.md). An [import](../reference/glossary.md#import) makes another package available under its last name. After `import "strings"`, you write `strings.ToUpper`.
 
@@ -217,9 +217,9 @@ The packages `math`, `strconv`, `path`, `encoding/yaml`, `encoding/base64` and `
 
 ## Share a definition in your own package
 
-A directory below the module root is a package of its own. To import it, the root needs a file `cue.mod/module.cue`. Its `module` line is the prefix of every import path.
+A directory below the top of the CUE module is a package of its own. To import it, the root needs a file `cue.mod/module.cue`. Its `module` line names the CUE module, the tree of packages that import paths start with.
 
-`pravo init` writes that file and names the module after the directory, as in `pravo.local/estate`. This lesson writes the file itself, so the import path is the same on every machine.
+`pravo init` writes that file and names the CUE module after the directory, as in `pravo.local/estate`. This lesson writes the file itself, so the import path is the same on every machine.
 
 ```cue file=cue.mod/module.cue
 module: "estate.example"
@@ -239,7 +239,7 @@ import "net"
 }
 ```
 
-Replace `estate.cue`. It imports the package by module path and directory.
+Replace `estate.cue`. It imports the package by the path of the CUE module and the directory.
 
 ```cue file=estate.cue hl="3,6-7"
 package estate
@@ -436,7 +436,7 @@ subnets.d.cidr: invalid value "10.0.4.0/33" (does not satisfy net.IPCIDR): netip
 
 - `import "name"` brings in a package. A validator joins a value with `&`. A function computes a value.
 - `pravo eval -e` accepts standard library names without an import.
-- A directory below the module root is a package. A definition in it is checked wherever it is used.
+- A directory below the top of the CUE module is a package. A definition in it is checked wherever it is used.
 
 :::check
 Which argument of a validator do you leave out when you write it?

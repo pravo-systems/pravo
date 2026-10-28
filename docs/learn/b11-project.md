@@ -5,7 +5,7 @@ order: 54
 group: Track B · Labs and project
 minutes: 60
 needs: B10
-learn: Can you combine modules, saved plans, moves, drift and policy without being told the steps?
+learn: Can you combine shared definitions, saved plans, moves, drift and policy without being told the steps?
 done_when: "`sh check.sh` prints `All outcomes hold.` and exits 0."
 level: advanced
 env:
@@ -37,7 +37,7 @@ Each outcome is a property of your estate. The number is the number in the scrip
 
 Two more outcomes are yours to confirm. The script does not look for them.
 
-- The bucket is a definition in its own package under `estate/modules`. It takes its providers as inputs, as in [B6](b06-modules-providers-credentials.md).
+- The bucket is a definition in its own package under `estate/lib`. It takes its providers as inputs, as in [B6](b06-reuse-providers-credentials.md).
 - Renaming a bucket with `$from` plans `0 to add, 0 to change, 0 to destroy`. The plan says that the record will move, as in [B8](b08-renames-moves-imports.md).
 
 ## What the script relies on
@@ -167,17 +167,17 @@ Make `sh check.sh` print `All outcomes hold.`
 Build in layers, and run `pravo -C estate validate -t env=prod` after each one. Start with the tag and the state path. Add the buckets from one pattern, then the definition in its own package. Add the mode pin, the secret and the policy last.
 
 ::hint
-The tag is in [B4](b04-inputs-tags-environments.md) and the pattern in [B5](b05-many-resources-from-one-rule.md). The module, the secret and the `tls` provider that carries it are in [B6](b06-modules-providers-credentials.md). The mode pin and the policy are in [B10](b10-policy.md).
+The tag is in [B4](b04-inputs-tags-environments.md) and the pattern in [B5](b05-many-resources-from-one-rule.md). The shared definition, the secret and the `tls` provider that carries it are in [B6](b06-reuse-providers-credentials.md). The mode pin and the policy are in [B10](b10-policy.md).
 
 ::solution
-One estate that meets the outcomes. The module comes first.
+One estate that meets the outcomes. The shared definition comes first.
 
 ```cue file=estate/cue.mod/module.cue title="estate/cue.mod/module.cue"
 module: "example.com/estate@v0"
 language: version: "v0.14.0"
 ```
 
-```cue file=estate/modules/bucket/bucket.cue title="estate/modules/bucket/bucket.cue"
+```cue file=estate/lib/bucket/bucket.cue title="estate/lib/bucket/bucket.cue"
 package bucket
 
 import (
@@ -213,7 +213,7 @@ import (
 	loc "pravo.dev/providers/hashicorp/local"
 	rnd "pravo.dev/providers/hashicorp/random"
 	tlsp "pravo.dev/providers/hashicorp/tls"
-	"example.com/estate/modules/bucket"
+	"example.com/estate/lib/bucket"
 )
 
 env: *"dev" | "staging" | "prod" @tag(env)
@@ -320,10 +320,10 @@ test -z "$(find estate/out -type f)"
 | Outcome | Lesson |
 |---|---|
 | 1. Three environments | [B4](b04-inputs-tags-environments.md) |
-| 2. Buckets from one rule | [B5](b05-many-resources-from-one-rule.md), [B6](b06-modules-providers-credentials.md), [B7](b07-changing-live-infrastructure.md) |
+| 2. Buckets from one rule | [B5](b05-many-resources-from-one-rule.md), [B6](b06-reuse-providers-credentials.md), [B7](b07-changing-live-infrastructure.md) |
 | 3. Retention | [A5](a05-constraints-narrow-a-value.md), [A14](a14-project-three-environments.md) |
 | 4. Mode | [B10](b10-policy.md) |
-| 5. Credentials | [B6](b06-modules-providers-credentials.md) |
+| 5. Credentials | [B6](b06-reuse-providers-credentials.md) |
 | 6. Policy | [B10](b10-policy.md) |
 | 7. Drift | [B9](b09-drift.md) |
 | 8. Destroy | [B3](b03-apply-outputs-state.md) |
@@ -344,4 +344,4 @@ Why does the script pass `ESTATE_TOKEN` itself?
 The root reads the variable on every plan and apply. The script sets it for its own commands and never writes it down.
 :::
 
-You have written a specification, planned it, applied it, moved it and watched it drift. You bound it with a policy and destroyed it. [Migrate](../migrate/index.md) applies the same steps to a project that already exists. The [How-to](../how-to/index.md) pages cover CI, remote state and publishing modules.
+You have written a specification, planned it, applied it, moved it and watched it drift. You bound it with a policy and destroyed it. [Migrate](../migrate/index.md) applies the same steps to a project that already exists. The [How-to](../how-to/index.md) pages cover CI, remote state and publishing CUE modules.

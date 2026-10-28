@@ -377,7 +377,7 @@ Output:
 No locks or reservations held.
 ```
 
-An actor is a label that pravo does not verify. A reservation coordinates the people and agents who tell the truth about who they are. [Policies](policies.md) says what that means for a rule.
+An actor is a label that pravo does not verify. A reservation coordinates the people and agents who tell the truth about who they are. [Constraints and policies](policies.md) says what that means for a rule.
 
 ## Outputs
 

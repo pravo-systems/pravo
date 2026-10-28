@@ -15,14 +15,14 @@ Every page runs its own examples, with no account and no cloud. Where a page nee
 
 ## Specify
 
-How one specification covers several environments, shares code, and gets its modules and providers.
+How one specification covers several environments, shares code, and gets its providers and CUE modules. pravo has no module block: shared code is a definition in a package.
 
 | I want to | Guide | Background |
 |---|---|---|
 | Run one specification for dev, staging and prod | [Run one specification in several environments](environments.md) | [B4, Inputs, tags, environments](../learn/b04-inputs-tags-environments.md) |
-| Share CUE between roots in one repository | [Share code between roots in one repository](modules-in-a-repository.md) | [B6, Modules, providers, credentials](../learn/b06-modules-providers-credentials.md) |
-| Publish a module for others | [Publish a module](publishing-a-module.md) | [Modules](../reference/spec-modules.md) |
-| Use a module that someone published, and take an upgrade when you choose to | [Use a published module](using-a-module.md) | [Modules](../reference/spec-modules.md) |
+| Share CUE between roots in one repository | [Share code between roots in one repository](share-code-between-roots.md) | [B6, Reuse, providers, credentials](../learn/b06-reuse-providers-credentials.md) |
+| Publish code for other repositories | [Publish a CUE module](publishing-a-module.md) | [Reuse](../reference/spec-reuse.md) |
+| Use code that someone published, and take an upgrade when you choose to | [Use a published CUE module](using-a-module.md) | [Reuse](../reference/spec-reuse.md) |
 | Install providers from a registry of my own | [Install providers from your own registry](providers-from-a-registry.md) | [Providers](../concepts/providers.md) |
 
 ## Share and protect
@@ -44,7 +44,7 @@ Run pravo from a pipeline, a program or an agent, under rules, and keep the esta
 | I want to | Guide | Background |
 |---|---|---|
 | Run pravo in a pipeline | [Run pravo in a pipeline](ci.md) | [Exit codes](../reference/exit-codes.md) |
-| Refuse plans that break a rule, or make them wait for an approval | [Write and roll out policies](policies.md) | [Policies: two moments, one idea](../concepts/policies.md), [B10, Policy on providers and on plans](../learn/b10-policy.md) |
+| Refuse plans that break a rule, or make them wait for an approval | [Write and roll out policies](policies.md) | [Constraints and policies](../concepts/policies.md), [B10, Constraints on providers, policy on plans](../learn/b10-policy.md) |
 | Let an AI agent plan, under the policies and with a key of its own | [Let an agent plan and apply](agents-and-mcp.md) | [pravo mcp](../reference/mcp.md) |
 | Plan and apply from a Go program | [Embed pravo in your program](embed-pravo-in-your-program.md) | [The library and the machine interface](../concepts/the-library-and-the-machine-interface.md), [The Go library](../reference/library.md) |
 | Handle secrets and credentials | [Keep secrets out of the state](secrets.md) | [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) |

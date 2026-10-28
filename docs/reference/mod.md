@@ -8,12 +8,14 @@ normalize:
     replace: ''
 ---
 
+A CUE module is the tree of packages under `cue.mod/module.cue`. Import paths start with its name, a registry stores it by version, and `pravo.lock.cue` holds a hash of each one a root loads. It is not a `module` block: a definition that contains resources is written as [Reuse](spec-reuse.md) describes, and a CUE module carries it between repositories.
+
 ## Quick reference
 
 | | |
 |---|---|
 | Synopsis | `pravo mod SUBCOMMAND [ARGS]` |
-| Taught in | [Publishing a module](../how-to/publishing-a-module.md), [Using a module](../how-to/using-a-module.md) and [Modules in a repository](../how-to/modules-in-a-repository.md). |
+| Taught in | [Publish a CUE module](../how-to/publishing-a-module.md), [Use a published CUE module](../how-to/using-a-module.md) and [Share code between roots in one repository](../how-to/share-code-between-roots.md). |
 
 | Subcommand | Does | Network |
 |---|---|---|
@@ -175,10 +177,10 @@ pravo mod publish v0.1.0
 Error: source is git but . is not a git repository with a commit
 ```
 
-Commit the module, and `publish` pushes it to the registry. It needs credentials for that registry, so this page does not run it. A first push to `ghcr.io` is private. When `CUE_REGISTRY` names `ghcr.io/OWNER`, the command prints the address of the package settings, where the visibility is changed. See [Publishing a module](../how-to/publishing-a-module.md).
+Commit the module, and `publish` pushes it to the registry. It needs credentials for that registry, so this page does not run it. A first push to `ghcr.io` is private. When `CUE_REGISTRY` names `ghcr.io/OWNER`, the command prints the address of the package settings, where the visibility is changed. See [Publish a CUE module](../how-to/publishing-a-module.md).
 
 ## See also
 
-- [`pravo init`](init.md) relocks a module whose content changed.
-- [Modules](spec-modules.md) describes how a module holds resources.
+- [`pravo init`](init.md) relocks a CUE module whose content changed.
+- [Reuse](spec-reuse.md) describes how a definition holds resources and a package shares it.
 - [CI](../how-to/ci.md) shows `pravo mod verify` in a pipeline, where exit code 5 fails the job.

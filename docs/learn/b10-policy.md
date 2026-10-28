@@ -1,6 +1,6 @@
 ---
-title: Policy on providers and on plans
-description: A constraint on a provider binds every resource built through it, and a policy node judges what a plan does.
+title: Constraints on providers, policy on plans
+description: A constraint on a provider binds every resource built through it. A policy judges what a plan does and is kept in the state.
 order: 40
 group: Track B · pravo
 minutes: 20
@@ -45,30 +45,19 @@ module "keys" {
 ```
 :::
 
-pravo has two checks of this kind. A **specification policy** is a constraint on a provider definition. It binds every resource built through that provider and is checked when the specification is evaluated. A **plan policy** is a node of the root that a plan must satisfy. It judges what a plan does, and pravo keeps it in the state. They are two moments of one idea: a rule written as a CUE value that something must unify with.
+pravo has two checks of this kind, and one of them is a policy. A **constraint on a provider definition** binds every resource built through that provider. CUE checks it when the specification is evaluated, as it checks every constraint. A **policy** is a `pravo.#Policy` node of the root that a plan must satisfy. pravo judges what a plan does against it and keeps it in the state. Both are CUE values that something must unify with. The constraint judges the specification, and the policy judges the plan.
 
-:::figure A specification policy is checked when the specification is evaluated. A plan policy is checked when the plan is judged.
-<svg font-size="13" viewBox="0 0 564 170" role="img" aria-label="A pipeline of five stages: CUE files, evaluate, plan, judge, apply. A specification policy acts at evaluate and fails with exit 6. A plan policy acts at judge and fails with exit 5.">
-<g fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="20" width="96" height="44"/><rect x="118" y="20" width="96" height="44"/><rect x="234" y="20" width="96" height="44"/><rect x="350" y="20" width="96" height="44"/><rect x="466" y="20" width="96" height="44"/><path d="M98 42H118M214 42H234M330 42H350M446 42H466"/></g>
-<g fill="currentColor"><path d="M111 38l7 4-7 4zM227 38l7 4-7 4zM343 38l7 4-7 4zM459 38l7 4-7 4z"/></g>
-<g fill="none" stroke-width="1.5"><path style="stroke: var(--key)" d="M166 64V92"/><path style="stroke: var(--conflict)" d="M398 64V92"/></g>
-<text x="16" y="47" style="fill: var(--text)">CUE files</text>
-<text x="144" y="47" style="fill: var(--text)">evaluate</text>
-<text x="272" y="47" style="fill: var(--text)">plan</text>
-<text x="380" y="47" style="fill: var(--text)">judge</text>
-<text x="502" y="47" style="fill: var(--text)">apply</text>
-<text x="166" y="112" text-anchor="middle" style="fill: var(--key)">specification policy</text>
-<text x="166" y="130" text-anchor="middle">constraint on the provider</text>
-<text x="166" y="148" text-anchor="middle">validate: exit 6</text>
-<text x="398" y="112" text-anchor="middle" style="fill: var(--conflict)">plan policy</text>
-<text x="398" y="130" text-anchor="middle">node kept in the state</text>
-<text x="398" y="148" text-anchor="middle">plan, apply: exit 5</text>
-</svg>
-:::
+| | Constraint on a provider | Policy |
+|---|---|---|
+| Is | A CUE constraint on the `#Resource` of a provider definition | A `pravo.#Policy` node of the root |
+| Binds | Every resource built through that provider | Every plan of the state |
+| Checked | When the specification is evaluated, before any provider starts | When the plan is judged, before anything is applied |
+| Refuses with | Exit code 6 | Exit code 5, and the plan is not saved |
+| Kept | In the files of the root | In the state, as signed versions |
 
 ## Pin a value for every resource
 
-Work in an empty directory. The root lives in `root`, and the policies live beside it. Every command names the root with `-C root`, which runs it as if started there. Wrap the provider in a definition and constrain the resource inside.
+Work in an empty directory. The root lives in `root`, and the identity that seals the state lives beside it in `people`. Every command names the root with `-C root`, which runs it as if started there. Wrap the provider in a definition and constrain the resource inside.
 
 ```cue file=root/main.cue title="root/main.cue" hl="5-7,9"
 package main
@@ -451,7 +440,7 @@ log
 
 The log of the removal names who applied it, and every apply names the versions that judged it. A policy does not stop a person who holds the state, who can write a new version or remove the policy, so the files that declare policies are reviewed like the rest of the root.
 
-A specification policy has its own limit. It binds the resources built through its provider. A root can declare another provider from `loc.#Provider` and build a resource through that one.
+A constraint on a provider has its own limit. It binds the resources built through that provider. A root can declare another provider from `loc.#Provider` and build a resource through that one.
 
 ```cue file=root/main.cue title="root/main.cue" status=unintended hl="10,22"
 package main
@@ -620,7 +609,7 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <txn>]
 ## Recap
 
 - A constraint on a provider definition binds every resource built through it. A conflict is an error before any provider starts.
-- A plan policy is a `pravo.#Policy` node. The apply writes it to the state as a signed version, and later applies are judged by it. A violation exits with code 5, and a refused plan is not saved.
+- A policy is a `pravo.#Policy` node. The apply writes it to the state as a signed version, and later applies are judged by it. A violation exits with code 5, and a refused plan is not saved.
 - A policy binds the applies of the state. Editing the state, running something other than pravo and calling the cloud directly are outside it.
 
 :::check

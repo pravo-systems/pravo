@@ -465,7 +465,7 @@ doc: "{\"a\":1}"
 n:   1
 ```
 
-Your own package is imported by module path and directory.
+Your own package is imported by the path of the CUE module and the directory.
 
 ```cue
 import "estate.example/platform"

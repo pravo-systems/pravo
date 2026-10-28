@@ -39,7 +39,7 @@ Both exit non-zero when the rule fails, and the job stops. The build of this pag
 | An attribute must be set. | A policy. | When a plan is made and when it is applied. |
 | A plan may not delete, or may change at most N resources. | A policy. | When a plan is made and when it is applied. |
 
-A constraint on the provider definition rejects a value that is set and wrong. It cannot require that a value is set. See [Policies](../concepts/policies.md) for the two kinds and [Write and roll out policies](../how-to/policies.md) for the full how-to. This page rewrites the second and third kinds, which are the ones that read plan JSON.
+A constraint on the provider definition rejects a value that is set and wrong. It cannot require that a value is set. See [Constraints and policies](../concepts/policies.md) for the two kinds and [Write and roll out policies](../how-to/policies.md) for the full how-to. This page rewrites the second and third kinds, which are the ones that read plan JSON.
 
 ## The plan document
 

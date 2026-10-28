@@ -47,9 +47,9 @@ file: pravo.#Output & {value: hello.filename}
 - The **address** of a resource is the CUE path where its struct sits: `pet`, `api.config`, `pets.eu`. `pravo state list` prints them. Flags and commands that name a resource take the address.
 - References between resources are plain CUE references (`pet.id`). They are the dependencies. `$depends_on` and `$lifecycle` carry the rest.
 - An **output** is `pravo.#Output & {value: ...}`. There is no top-level `output` field.
-- A **module** is a definition that contains resources, or a package of them. Instantiate it with `&`. There is no module block and nothing to wire: every field of the definition is an input, and CUE constraints are the validation.
+- There is no module block. A **definition** that contains resources is the unit of reuse: instantiate it with `&`, and nothing is wired. Every field of the definition is an input, and CUE constraints are the validation. A **package** shares it between roots. A **CUE module** (the tree under `cue.mod/module.cue`, `pravo mod`) shares it between repositories. Never call a definition, a package or an instance a module.
 
-More: `references/reference/spec-overview.md`, `spec-resources.md`, `spec-providers.md`, `spec-modules.md`, `spec-meta-fields.md`, `spec-outputs.md`.
+More: `references/reference/spec-overview.md`, `spec-resources.md`, `spec-providers.md`, `spec-reuse.md`, `spec-meta-fields.md`, `spec-outputs.md`.
 
 ## The things that go wrong when HCL habits are used
 
@@ -93,7 +93,7 @@ pravo destroy                       # destroys everything recorded; asks first
 - A line of the readers file carries a role: `reader`, `writer` or `admin`. `pravo protect roles` pins the roles in the state, signed by an admin, and from then on a reader may plan, store plans and approve, a writer may apply as well, and only an admin may rewrap the state, pin roles or remove a policy that asks for approvals. A checkout that edits its own readers file promotes nobody: the pinned roles decide, and a run signed by a key the roles do not list is refused with exit code 7. `pravo protect status` prints the version in force and your role.
 - `PRAVO_TRACES=on` records every span of a run under `.pravo/traces/`, provider calls and state reads and writes included, and the Traces section of the viewer reads them. The `OTEL_*` variables send the same spans to an OTLP collector. A value is never in a span.
 
-Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`, `discover show --exit-code`), 3 stale saved plan, or a stored plan that is stale, partly stale (the whole plan) or expired, 4 locked or reserved, 5 refused by a policy or a module lock, 6 invalid specification, 7 a state that failed verification. `references/reference/exit-codes.md` has the full table.
+Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`, `discover show --exit-code`), 3 stale saved plan, or a stored plan that is stale, partly stale (the whole plan) or expired, 4 locked or reserved, 5 refused by a policy or by the lock of a CUE module, 6 invalid specification, 7 a state that failed verification. `references/reference/exit-codes.md` has the full table.
 
 ## Safety for an agent
 
@@ -110,14 +110,14 @@ Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`, 
 
 | The question | Read |
 |---|---|
-| How is a resource, provider, module, output or setting written? | `references/reference/spec-overview.md` and the `spec-*.md` pages |
+| How is a resource, provider, shared definition, output or setting written? | `references/reference/spec-overview.md` and the `spec-*.md` pages |
 | What does a command do and which flags does it take? | `references/reference/plan.md`, `apply.md`, `state.md`, `validate-eval-fmt-gen.md`, `global-flags.md`, or `pravo COMMAND --help` |
 | What does an error mean? | `references/reference/errors.md` (grep the message), `exit-codes.md`, `references/how-to/debugging.md` |
 | How does evaluation, a plan, state or a provider behave? | `references/concepts/` |
 | First plan and apply | `references/how-to/quick-start.md` |
 | Several environments, secrets | `references/how-to/environments.md`, `secrets.md` |
 | A state the team shares, in a bucket or on an HTTP server | `references/how-to/keep-the-state-in-a-shared-store.md`, `references/reference/s3-stores.md`, `http-stores.md`, `state-format.md` |
-| Share code between roots or publish a module | `references/how-to/modules-in-a-repository.md`, `using-a-module.md`, `publishing-a-module.md` |
+| Share code between roots or publish a CUE module | `references/how-to/share-code-between-roots.md`, `using-a-module.md`, `publishing-a-module.md` |
 | Policies, and trying a rule on plans before it is in force | `references/how-to/policies.md`, `references/reference/policies-writing.md`, `policies-plan-document.md`, `policy.md` |
 | CI and pipelines | `references/how-to/ci.md` |
 | Storing a plan for a team, applying it later, approvals | `references/how-to/store-a-plan-and-apply-it-later.md`, `approve-a-plan.md`, `references/reference/plan.md`, `references/concepts/stored-plans-and-approvals.md` |

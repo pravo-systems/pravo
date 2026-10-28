@@ -44,7 +44,7 @@ File `service.cue`:
 ```cue
 package estate
 
-// A definition that contains resources. Its instance is a module.
+// A definition that contains resources. An instance holds them at its path.
 #Service: {
 	name: string
 	secret: $random.#Resource.random_integer & {min: 1000, max: 9999, seed: name}
