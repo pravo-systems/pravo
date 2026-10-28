@@ -1,7 +1,7 @@
 ---
 title: pravo version
 description: Print the version of pravo and the version of CUE that is built into it.
-order: 21
+order: 22
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'

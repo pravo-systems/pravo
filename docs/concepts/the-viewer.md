@@ -1,12 +1,12 @@
 ---
 title: The viewer
-description: "How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the six sections show, which values are withheld and why the viewer changes nothing."
+description: "How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the seven sections show, which values are withheld and why the viewer changes nothing."
 order: 12
 minutes: 12
 keywords: "serve browser graph group inventory plans discovery policies traces state inspector withheld read-only"
 ---
 
-`pravo serve` shows an estate in a browser. It joins what it can read by address: the specification, which it evaluates, the state, which it reads, the plans that people stored in the state, the runs that pravo recorded, and optionally a plan file. The result is one page with six sections, and the first of them is a graph of groups and resources. This page explains how the viewer builds that picture and what it leaves out. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows the steps, [The sections of the viewer](../reference/viewer-sections.md) lists every part, and [`pravo serve`](../reference/serve.md) is the command.
+`pravo serve` shows an estate in a browser. It joins what it can read by address: the specification, which it evaluates, the state, which it reads, the plans that people stored in the state, the runs that pravo recorded, and optionally a plan file. The result is one page with seven sections, and the first of them is a graph of groups and resources. This page explains how the viewer builds that picture and what it leaves out. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows the steps, [The sections of the viewer](../reference/viewer-sections.md) lists every part, and [`pravo serve`](../reference/serve.md) is the command.
 
 ## One address, several sources
 
