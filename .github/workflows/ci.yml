@@ -304,7 +304,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
         with:
-          key: tools
+          key: tools-tests
       - uses: ./.github/actions/tofu
         timeout-minutes: 3
         with:
@@ -313,7 +313,7 @@ jobs:
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
         with:
-          key: tools
+          key: tools-tests
 
   # Every command of every page of the documentation runs against the real
   # binary, and its output is compared with the page. The pages are dealt out to
@@ -339,7 +339,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
         with:
-          key: tools
+          key: capture
       - name: Cache the providers that the pages download
         uses: actions/cache@v6
         with:
@@ -355,7 +355,7 @@ jobs:
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
         with:
-          key: tools
+          key: capture
 
   # The recorded scenarios behind the landing page and the demos. They run
   # OpenTofu next to pravo.
@@ -376,7 +376,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
         with:
-          key: tools
+          key: capture
       - uses: ./.github/actions/tofu
         timeout-minutes: 3
         with:
@@ -391,7 +391,7 @@ jobs:
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
         with:
-          key: tools
+          key: capture
 
   # The OpenTofu listings of the documentation are valid, and the statements
   # about OpenTofu that the pages make still hold.
@@ -404,7 +404,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
         with:
-          key: tools
+          key: hclcheck
       - uses: ./.github/actions/tofu
         timeout-minutes: 3
         with:
@@ -419,7 +419,7 @@ jobs:
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
         with:
-          key: tools
+          key: hclcheck
 
   # The site builds, the phrase lint passes, every link resolves and the facts
   # on the landing page are the ones that the sources give.
@@ -432,14 +432,14 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
         with:
-          key: tools
+          key: site
       - run: go build -o bin/pravo ./cmd/pravo
       - run: go run ./tools/sitegen -pravo-bin bin/pravo
       - run: go run site/demos/facts/facts.go -check
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
         with:
-          key: tools
+          key: site
 
   # One check to require in the branch protection settings.
   ci:
