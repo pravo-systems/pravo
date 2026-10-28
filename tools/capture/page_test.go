@@ -219,7 +219,7 @@ func TestContainersAndParts(t *testing.T) {
 	if p.Blocks[2].Scope == 0 || p.Blocks[2].Scope == p.Blocks[3].Scope {
 		t.Errorf("solution and deep-dive share a scope: %d %d", p.Blocks[2].Scope, p.Blocks[3].Scope)
 	}
-	if p.Blocks[0].Scope != 0 || p.Blocks[5].Scope != 0 {
+	if p.Blocks[0].Scope != 0 || p.Blocks[6].Scope != 0 {
 		t.Errorf("main blocks have a scope")
 	}
 	if len(p.Warnings) != 1 || !strings.Contains(p.Warnings[0].Msg, "::hint") {
