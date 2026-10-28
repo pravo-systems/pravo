@@ -20,7 +20,8 @@ runs:
       run: |
         echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-    - uses: actions/cache/restore@v6
+    - id: restore
+      uses: actions/cache/restore@v6
       with:
         path: |
           ${{ steps.dirs.outputs.build }}
@@ -29,3 +30,6 @@ runs:
         restore-keys: |
           go-${{ runner.os }}-${{ inputs.key }}-${{ hashFiles('go.sum') }}-
           go-${{ runner.os }}-${{ inputs.key }}-
+    # The key that was found, if any: the save step saves again only when none was.
+    - shell: bash
+      run: echo "GO_CACHE_MATCHED=${{ steps.restore.outputs.cache-matched-key }}" >> "$GITHUB_ENV"

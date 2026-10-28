@@ -1,9 +1,10 @@
 name: Save the Go build cache
 description: >
   Saves the caches that the go action restored, so that the next run starts
-  from them: a run restores the newest entry of its key, and a pull request
-  falls back to the entries of main. Put it last in a job and give it the key
-  that the go action was given.
+  from them. On main it always does. A pull request restores the newest entry of
+  its key, or else one of main, and saves only when it found none: saving takes
+  several seconds of every job. Put it last in a job and give it the key that
+  the go action was given.
 inputs:
   key:
     description: The key that the go action was given.
@@ -12,12 +13,12 @@ runs:
   using: composite
   steps:
     - id: dirs
-      if: ${{ !cancelled() }}
+      if: ${{ !cancelled() && (github.ref == 'refs/heads/main' || env.GO_CACHE_MATCHED == '') }}
       shell: bash
       run: |
         echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
-    - if: ${{ !cancelled() }}
+    - if: ${{ !cancelled() && (github.ref == 'refs/heads/main' || env.GO_CACHE_MATCHED == '') }}
       uses: actions/cache/save@v6
       with:
         path: |

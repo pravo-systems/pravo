@@ -22,9 +22,35 @@ env:
   TOFU_VERSION: 1.13.1
 
 jobs:
+  # Which parts of the repository a pull request touches (tools/ci/changes.sh).
+  # The jobs that it cannot affect are skipped; main, tags and the workflows
+  # themselves run everything.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      all: ${{ steps.c.outputs.all }}
+      code: ${{ steps.c.outputs.code }}
+      binary: ${{ steps.c.outputs.binary }}
+      docs: ${{ steps.c.outputs.docs }}
+      site: ${{ steps.c.outputs.site }}
+      web: ${{ steps.c.outputs.web }}
+      hcl: ${{ steps.c.outputs.hcl }}
+      platform: ${{ steps.c.outputs.platform }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - id: c
+        env:
+          CI_EVENT: ${{ github.event_name }}
+        run: sh tools/ci/changes.sh
+
   # Formatting, vet, module hygiene, and a build for every platform that pravo
   # supports. The slow jobs below do not wait for this one: they all start at once.
   static:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -68,21 +94,24 @@ jobs:
   # about a minute once they are warm.
   lint:
     name: lint (${{ matrix.goos }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        goos: [linux, windows, darwin]
+        # The files of the other systems are linted when a change touches them.
+        goos: ${{ fromJSON(needs.changes.outputs.platform == 'true' && '["linux","windows","darwin"]' || '["linux"]') }}
     env:
       # The first release that was built with the Go version of go.mod. Change it
       # together with the line `go` of go.mod when that moves on.
       GOLANGCI_LINT_VERSION: v2.15.0
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: lint-${{ matrix.goos }}
       - name: Cache golangci-lint
         id: binary
         uses: actions/cache@v6
@@ -100,10 +129,16 @@ jobs:
           restore-keys: golangci-lint-cache-${{ matrix.goos }}-${{ hashFiles('go.sum', '.golangci.yml') }}-
       - name: golangci-lint
         run: GOOS=${{ matrix.goos }} ~/go/bin/golangci-lint run ./...
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: lint-${{ matrix.goos }}
 
   # ESLint and Stylelint (tools/_weblint) on the viewer and on the site.
   lint-web:
     name: lint (viewer and site)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -116,43 +151,45 @@ jobs:
       - run: npm --prefix tools/_weblint ci
       - run: npm --prefix tools/_weblint run lint
 
-  # The Go tests, split by package so that the long ones run side by side. On a
-  # pull request the stress tests of the engine run with -short, which keeps
-  # their shapes and cuts the number of trials; main and the release run them in full.
+  # The Go tests on Linux, split so that the long ones run side by side. A pull
+  # request runs only the packages that its change can reach through imports
+  # (tools/ci/gotest.sh), without the race detector, and the engine stress tests
+  # with -short, which keeps their shapes and cuts the number of trials. Main and
+  # the release run all of it, with -race.
   test:
     name: test (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      CI_EVENT: ${{ github.event_name }}
+      CI_ALL: ${{ needs.changes.outputs.all }}
       SHORT: ${{ github.event_name == 'pull_request' && '-short' || '' }}
+      RACE: ${{ github.event_name == 'pull_request' && ' ' || '-race' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: engine, race
-            os: ubuntu-latest
-            run: go test -race -count=1 $SHORT ./internal/engine
-          - name: state, race
-            os: ubuntu-latest
-            run: go test -race -count=1 ./internal/state/...
-          - name: cmd
-            os: ubuntu-latest
-            run: go test -count=1 ./cmd/...
-          - name: other packages
-            os: ubuntu-latest
-            run: go test -count=1 $(go list ./... | grep -v -E '/(internal/engine|internal/state|cmd|tools)(/|$)')
-          - name: state and cmd on macOS
-            os: macos-latest
-            run: go test -count=1 ./internal/state/... ./cmd/...
+          - {name: "engine 1/2", run: "sh tools/ci/gotest.sh engine 0 2 $RACE $SHORT", tmp: shm}
+          - {name: "engine 2/2", run: "sh tools/ci/gotest.sh engine 1 2 $RACE $SHORT", tmp: shm}
+          - {name: "state", run: "sh tools/ci/gotest.sh state $RACE"}
+          - {name: "cmd 1/2", run: "sh tools/ci/gotest.sh cmd 0 2"}
+          - {name: "cmd 2/2", run: "sh tools/ci/gotest.sh cmd 1 2"}
+          - {name: "serve 1/2", run: "sh tools/ci/gotest.sh serve 0 2"}
+          - {name: "serve 2/2", run: "sh tools/ci/gotest.sh serve 1 2"}
+          - {name: "other packages", run: "sh tools/ci/gotest.sh other"}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - uses: ./.github/actions/go
         with:
           key: test
       # The engine tests sync many small files. Other packages compare paths
       # under the temporary directory and expect the usual one.
       - name: Temporary files of the engine tests in memory
-        if: matrix.name == 'engine, race'
+        if: matrix.tmp == 'shm'
         run: echo "TMPDIR=/dev/shm" >> "$GITHUB_ENV"
       - run: ${{ matrix.run }}
       - if: ${{ !cancelled() }}
@@ -160,16 +197,21 @@ jobs:
         with:
           key: test
 
-  # The Go tests on Windows, where file operations are slow: the engine tests
-  # are dealt out to four jobs and everything else to two. Like the Linux tests,
-  # they run with -short on a pull request. The build and
-  # vet for Windows are in the static job. The documentation tools run a POSIX
-  # shell and are not part of this.
-  windows:
-    name: windows (${{ matrix.name }})
-    runs-on: windows-latest
+  # The same tests on Windows and macOS, where file operations and locks behave
+  # differently, and where the runners are slow to start. A pull request runs
+  # them when it changes a file for one system or a package that works with
+  # files, locks or processes; main and the release run them always. The build,
+  # vet and lint for Windows and macOS are in the jobs above and run every time.
+  # The documentation tools run a POSIX shell and are not part of this.
+  other-systems:
+    name: ${{ matrix.os }} (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || needs.changes.outputs.platform == 'true')
+    runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 30
     env:
+      CI_EVENT: ${{ github.event_name }}
+      CI_ALL: ${{ needs.changes.outputs.all }}
       SHORT: ${{ github.event_name == 'pull_request' && '-short' || '' }}
     defaults:
       run:
@@ -178,26 +220,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: "engine 1/4", run: "sh tools/ci/test-shard.sh ./internal/engine 0 4 -v -timeout 25m $SHORT"}
-          - {name: "engine 2/4", run: "sh tools/ci/test-shard.sh ./internal/engine 1 4 -v -timeout 25m $SHORT"}
-          - {name: "engine 3/4", run: "sh tools/ci/test-shard.sh ./internal/engine 2 4 -v -timeout 25m $SHORT"}
-          - {name: "engine 4/4", run: "sh tools/ci/test-shard.sh ./internal/engine 3 4 -v -timeout 25m $SHORT"}
-          - {name: "other packages 1/2", run: "go test -count=1 -timeout 25m $SHORT $(go list ./internal/... ./cmd/... | grep -v '/internal/engine$' | awk 'NR%2==0')"}
-          - {name: "other packages 2/2", run: "go test -count=1 -timeout 25m $SHORT $(go list ./internal/... ./cmd/... | grep -v '/internal/engine$' | awk 'NR%2==1')"}
+          - {os: windows, name: "engine 1/3", run: "sh tools/ci/gotest.sh engine 0 3 -v -timeout 25m $SHORT"}
+          - {os: windows, name: "engine 2/3", run: "sh tools/ci/gotest.sh engine 1 3 -v -timeout 25m $SHORT"}
+          - {os: windows, name: "engine 3/3", run: "sh tools/ci/gotest.sh engine 2 3 -v -timeout 25m $SHORT"}
+          - {os: windows, name: "other packages 1/2", run: "sh tools/ci/gotest.sh nonengine 0 2 -timeout 25m $SHORT"}
+          - {os: windows, name: "other packages 2/2", run: "sh tools/ci/gotest.sh nonengine 1 2 -timeout 25m $SHORT"}
+          - {os: macos, name: "state and cmd", run: "sh tools/ci/gotest.sh state && sh tools/ci/gotest.sh cmd"}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - uses: ./.github/actions/go
         with:
-          key: windows
+          key: tests
       - run: ${{ matrix.run }}
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
         with:
-          key: windows
+          key: tests
 
   # The tools of the documentation: capture, sitegen, hclcheck and the scale
   # benchmark. Their tests start the binary and some of them run tofu.
   tools:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -216,15 +262,18 @@ jobs:
           key: tools
 
   # Every command of every page of the documentation runs against the real
-  # binary, and its output is compared with the page. One job for each section.
+  # binary, and its output is compared with the page. The pages are dealt out to
+  # eight jobs.
   docs:
-    name: docs (${{ matrix.section }})
+    name: docs (${{ matrix.shard }}/8)
+    needs: changes
+    if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        section: [concepts, how-to, learn, migrate, reference]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
@@ -234,14 +283,16 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pravo
-          key: pravo-home-${{ runner.os }}-${{ matrix.section }}-${{ hashFiles('docs/**/*.md') }}
-          restore-keys: pravo-home-${{ runner.os }}-${{ matrix.section }}-
+          key: pravo-home-${{ runner.os }}-docs${{ matrix.shard }}-${{ hashFiles('docs/**/*.md') }}
+          restore-keys: pravo-home-${{ runner.os }}-docs${{ matrix.shard }}-
       - name: Install cue at the version that pravo embeds
         run: go install cuelang.org/go/cmd/cue@$(go list -m -f '{{.Version}}' cuelang.org/go)
       - name: Build pravo
         run: go build -o bin/pravo ./cmd/pravo
       - name: Check the pages
-        run: go run ./tools/capture -check -j 4 -bin bin/pravo ./docs/${{ matrix.section }}
+        run: |
+          pages=$(find docs/concepts docs/how-to docs/learn docs/migrate docs/reference -name '*.md' | sort | awk -v i=${{ matrix.shard }} '(NR-1)%8==i-1')
+          go run ./tools/capture -check -j 4 -bin bin/pravo $pages
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
         with:
@@ -250,8 +301,15 @@ jobs:
   # The recorded scenarios behind the landing page and the demos. They run
   # OpenTofu next to pravo.
   demos:
+    name: demos (${{ matrix.shard }}/3)
+    needs: changes
+    if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
@@ -264,10 +322,12 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ~/.pravo
-          key: pravo-home-${{ runner.os }}-demos-${{ hashFiles('site/demos/**/page.md') }}
-          restore-keys: pravo-home-${{ runner.os }}-demos-
+          key: pravo-home-${{ runner.os }}-demos${{ matrix.shard }}-${{ hashFiles('site/demos/**/page.md') }}
+          restore-keys: pravo-home-${{ runner.os }}-demos${{ matrix.shard }}-
       - run: go build -o bin/pravo ./cmd/pravo
-      - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos
+      - run: |
+          pages=$(find site/demos -name '*.md' | sort | awk -v i=${{ matrix.shard }} '(NR-1)%3==i-1')
+          [ -z "$pages" ] || go run ./tools/capture -check -j 2 -bin bin/pravo $pages
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
         with:
@@ -276,6 +336,8 @@ jobs:
   # The OpenTofu listings of the documentation are valid, and the statements
   # about OpenTofu that the pages make still hold.
   opentofu:
+    needs: changes
+    if: needs.changes.outputs.hcl == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -302,6 +364,8 @@ jobs:
   # The site builds, the phrase lint passes, every link resolves and the facts
   # on the landing page are the ones that the sources give.
   site:
+    needs: changes
+    if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -320,7 +384,7 @@ jobs:
   # One check to require in the branch protection settings.
   ci:
     if: always()
-    needs: [static, lint, lint-web, test, windows, tools, docs, demos, opentofu, site]
+    needs: [changes, static, lint, lint-web, test, other-systems, tools, docs, demos, opentofu, site]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed
