@@ -241,13 +241,16 @@ html:not(.js) .copy { display: none; }
 }
 .compare[data-count="1"] { --n: 1; }
 .compare[data-count="2"] { --n: 2; }
-.compare[data-count="3"] { --n: 3; }
+/* three listings: the first two stack on the left, the third stands on the right */
+.compare[data-count="3"] { --n: 2; }
+.compare[data-count="3"] > :nth-child(3) { grid-column: 2; grid-row: 1 / span 2; }
 .compare[data-count="4"] { --n: 2; }
 .compare > .code, .compare > .term { margin: 0; display: flex; flex-direction: column; }
 .compare > .code .code-body { flex: 1; }
 .compare .code-title { padding-right: 3.25rem; }
 @media (max-width: 51.24rem) {
   .compare { grid-template-columns: minmax(0, 1fr); }
+  .compare[data-count="3"] > :nth-child(3) { grid-column: auto; grid-row: auto; }
 }
 
 /* ---- tabs ---- */

@@ -490,7 +490,6 @@ html:not(.js) .copy-page { display: none; }
   color: var(--text-3);
 }
 .pager-title { font: 500 var(--fs-7)/1.2 var(--font-ui); letter-spacing: -.01em; }
-.pager-desc { font-size: var(--fs-4); color: var(--text-2); line-height: 1.4; }
 
 .mark-done {
   position: relative;
