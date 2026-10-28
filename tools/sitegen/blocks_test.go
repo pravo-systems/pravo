@@ -9,7 +9,7 @@ func TestCompare(t *testing.T) {
 	body := "```hcl title=\"main.tf\"\na = 1\n```\n\n```cue title=\"main.cue\"\na: 1\n```\n"
 	html, msgs := renderBody(t, ":::compare\n"+body+":::\n")
 	noErrors(t, msgs)
-	mustContain(t, html, `<div class="compare" data-count="2">`, `<span class="code-file">main.tf</span>`, `<span class="code-file">main.cue</span>`)
+	mustContain(t, html, `<div class="compare" data-count="2" style="--longest:5">`, `<span class="code-file">main.tf</span>`, `<span class="code-file">main.cue</span>`)
 	if strings.Count(html, `<figure class="code"`) != 2 {
 		t.Errorf("want two figures:\n%s", html)
 	}
@@ -384,5 +384,13 @@ func TestCheckQuestionWithPremise(t *testing.T) {
 	_, msgs = renderBody(t, ":::check\n::answer\nx\n:::\n")
 	if !hasError(msgs, "follows no question") {
 		t.Errorf("answer without a question: %v", msgs.errs)
+	}
+}
+
+func TestColumnsCountsTabsToTheNextStop(t *testing.T) {
+	for line, want := range map[string]int{"": 0, "a = 1": 5, "\tname: \"x\"": 13, "ab\tc": 5, "\t\t}": 9, "é: 1": 4} {
+		if got := columns(line); got != want {
+			t.Errorf("columns(%q) = %d, want %d", line, got, want)
+		}
 	}
 }

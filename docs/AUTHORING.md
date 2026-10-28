@@ -114,7 +114,7 @@ A container starts with `:::name arguments` on its own line and ends with `:::`.
 
 | Container | Use |
 |---|---|
-| `:::compare` | Two or more code blocks side by side, each with a `title` or a `file`. Stacked on phones. Typically HCL and CUE for the same intent. With three, the first two stack on the left and the third stands on the right; with four, two rows of two. |
+| `:::compare` | Two or more code blocks for the same intent, each with a `title` or a `file`. Typically HCL and CUE. They stand side by side when a column holds their longest line, and stack otherwise, so that no line is cut; the third of three takes the full width. |
 | `:::tabs NAME` | Two or more code blocks as tabs, one per `title`. A `run` block with its `out` block is one tab, titled `Terminal` unless it has a title. The optional name labels the tab list for screen readers. |
 | `:::predict Question text` | A question the reader answers before looking. The lines before `::reveal` are the premise, framed with the question: a listing that the question is about goes there as a fence, never inside the question. |
 | `:::exercise Title` | A task. The state of the workspace at that point is the start. |

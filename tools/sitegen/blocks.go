@@ -296,10 +296,13 @@ func topFences(lines []string) []fenceSpan {
 	return spans
 }
 
+// renderCompare lays the listings of a :::compare out side by side. The style
+// sheet puts them in columns at least as wide as their longest line, counted
+// in characters here, and stacks them when two such columns do not fit.
 func (r *renderer) renderCompare(d *directive) string {
 	p := d.parts[0]
 	spans := topFences(p.lines)
-	count := 0
+	count, longest := 0, 0
 	for _, sp := range spans {
 		fi, err := parseFenceInfo(sp.info)
 		if err != nil || fi.Hidden || fi.Out {
@@ -309,11 +312,28 @@ func (r *renderer) renderCompare(d *directive) string {
 		if fi.Title == "" && fi.File == "" {
 			r.errorf(p.line+sp.start, "every block in :::compare needs a title or a file name")
 		}
+		for _, l := range p.lines[sp.start+1 : sp.end] {
+			longest = max(longest, columns(l))
+		}
 	}
 	if count < 2 {
 		r.errorf(d.line, ":::compare needs at least two code blocks, found %d", count)
 	}
-	return fmt.Sprintf("<div class=\"compare\" data-count=\"%d\">\n%s\n</div>", count, r.sub(p))
+	return fmt.Sprintf("<div class=\"compare\" data-count=\"%d\" style=\"--longest:%d\">\n%s\n</div>", count, longest, r.sub(p))
+}
+
+// columns is the width of a line of a listing in characters, with a tab
+// reaching the next stop of four, as the listings are set.
+func columns(line string) int {
+	n := 0
+	for _, c := range line {
+		if c == '\t' {
+			n += 4 - n%4
+			continue
+		}
+		n++
+	}
+	return n
 }
 
 func (r *renderer) renderTabs(d *directive) string {
