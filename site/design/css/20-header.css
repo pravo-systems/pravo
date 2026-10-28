@@ -46,7 +46,7 @@
   mask: var(--i-mark) center / contain no-repeat;
 }
 .brand-name {
-  font: 500 1.5rem/1 var(--font-display);
+  font: 500 var(--fs-8)/1 var(--font-display);
   letter-spacing: -.02em;
   padding-bottom: .12rem;
 }
@@ -65,7 +65,7 @@
   align-items: center;
   padding-inline: .8rem;
   color: var(--text-2);
-  font: 500 .9rem/1 var(--font-sans);
+  font: 500 var(--fs-5)/1 var(--font-sans);
   text-decoration: none;
   transition: color var(--t-fast);
 }
@@ -104,7 +104,7 @@
   border-radius: var(--r);
   background: var(--surface);
   color: var(--text-3);
-  font: 400 .875rem/1 var(--font-sans);
+  font: 400 var(--fs-4)/1 var(--font-sans);
   text-align: left;
   transition: border-color var(--t-fast), color var(--t-fast);
 }
@@ -146,7 +146,7 @@
 /* buttons that need script are hidden until it runs */
 html:not(.js) #theme-toggle, html:not(.js) .search-open { display: none; }
 
-.site-header .btn { --cut: .55rem; min-height: 2.25rem; padding: .35rem 1rem; font-size: .86rem; margin-left: .25rem; }
+.site-header .btn { --cut: .55rem; min-height: 2.25rem; padding: .35rem 1rem; font-size: var(--fs-4); margin-left: .25rem; }
 
 /* reading progress hairline (doc pages) */
 .read-progress {
@@ -227,7 +227,7 @@ html:not(.js) #theme-toggle, html:not(.js) .search-open { display: none; }
 .foot-brand { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .9rem; margin: 0; }
 .foot-title {
   margin: 0;
-  font: 500 .72rem/1.3 var(--font-mono);
+  font: 500 var(--fs-2)/1.3 var(--font-ui);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -235,16 +235,16 @@ html:not(.js) #theme-toggle, html:not(.js) .search-open { display: none; }
 .foot-nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 0; }
 .foot-nav ul { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; margin: 0; padding: 0; list-style: none; }
 .foot-nav .foot-project { margin-left: 1.5rem; padding-left: 1.5rem; border-left: 1px solid var(--line-strong); }
-.foot-nav a { color: var(--text-2); font-size: .875rem; text-decoration: none; }
+.foot-nav a { color: var(--text-2); font-size: var(--fs-4); text-decoration: none; }
 .foot-nav a:hover { color: var(--text); text-decoration: underline; }
 @media (max-width: 41rem) { .foot-nav .foot-project { margin-left: 0; padding-left: 0; border-left: 0; flex-basis: 100%; } }
 /* the rule runs the full width of the sheet; the text keeps a readable measure */
-.site-footer .legal { margin: 1rem 0 0; padding: .9rem max(0px, calc(100% - 62rem)) 0 0; border-top: 1px solid var(--line); color: var(--text-3); font-size: .78rem; line-height: 1.55; }
-.site-footer .legal .applies { font-family: var(--font-mono); font-size: .72rem; }
+.site-footer .legal { margin: 1rem 0 0; padding: .9rem max(0px, calc(100% - 62rem)) 0 0; border-top: 1px solid var(--line); color: var(--text-3); font-size: var(--fs-3); line-height: 1.55; }
+.site-footer .legal .applies { font-family: var(--font-mono); font-size: var(--fs-2); }
 
 .repo-link {
   color: var(--text-2);
-  font: 500 .86rem/1 var(--font-sans);
+  font: 500 var(--fs-4)/1 var(--font-sans);
   text-decoration: none;
   padding: 0 .35rem;
 }
@@ -258,4 +258,4 @@ html:not(.js) #theme-toggle, html:not(.js) .search-open { display: none; }
 }
 
 /* moved-page stub: no chrome */
-.page-redirect { max-width: 40rem; margin: 4rem auto; padding: 0 var(--gutter); font-size: 1.05rem; }
+.page-redirect { max-width: 40rem; margin: 4rem auto; padding: 0 var(--gutter); font-size: var(--fs-6); }

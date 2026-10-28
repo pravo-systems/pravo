@@ -33,7 +33,7 @@
 }
 .side-group {
   margin: 1.75rem 0 .5rem;
-  font: 500 .68rem/1.3 var(--font-mono);
+  font: 500 var(--fs-1)/1.3 var(--font-ui);
   letter-spacing: .09em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -46,7 +46,7 @@
   padding: .36rem .6rem .36rem .8rem;
   border-left: 1px solid var(--line-strong);
   color: var(--text-2);
-  font-size: .9rem;
+  font-size: var(--fs-5);
   line-height: 1.35;
   text-decoration: none;
   transition: color var(--t-fast), background-color var(--t-fast), border-color var(--t-fast);
@@ -99,7 +99,7 @@
 .side-pinned a { padding-left: .8rem !important; }
 .side-pinned a::before { content: none !important; }
 .side-pinned a {
-  font: 500 .74rem/1.3 var(--font-mono) !important;
+  font: 500 var(--fs-2)/1.3 var(--font-mono) !important;
   letter-spacing: .02em;
   padding-block: .3rem !important;
 }
@@ -107,7 +107,7 @@
   display: inline-block;
   min-width: 1.9em;
   margin-right: .15em;
-  font: 600 .72rem/1 var(--font-mono);
+  font: 600 var(--fs-2)/1 var(--font-mono);
   letter-spacing: .02em;
   color: var(--accent);
 }
@@ -117,7 +117,7 @@
   padding: .7rem .8rem;
   border: 1px solid var(--line-strong);
   background: var(--surface);
-  font: 500 .72rem/1.3 var(--font-mono);
+  font: 500 var(--fs-2)/1.3 var(--font-mono);
   letter-spacing: .04em;
   color: var(--text-2);
 }
@@ -149,7 +149,7 @@
 }
 .toc-title {
   margin: 0 0 .8rem;
-  font: 500 .68rem/1.3 var(--font-mono);
+  font: 500 var(--fs-1)/1.3 var(--font-ui);
   letter-spacing: .09em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -161,12 +161,12 @@
   border-left: 1px solid var(--line);
   margin-left: -1px;
   color: var(--text-2);
-  font-size: .84rem;
+  font-size: var(--fs-4);
   line-height: 1.35;
   text-decoration: none;
   transition: color var(--t-fast), border-color var(--t-fast);
 }
-.doc-toc .toc-l3 a { padding-left: 1.5rem; font-size: .8rem; }
+.doc-toc .toc-l3 a { padding-left: 1.5rem; font-size: var(--fs-3); }
 .doc-toc a:hover { color: var(--text); }
 .doc-toc a[aria-current="true"], .doc-toc a.is-active {
   color: var(--text);
@@ -176,7 +176,7 @@
 }
 
 /* the 404 page: the address that was asked for, written by the script */
-.notfound-path { margin: 1.4rem 0 0; font: 400 .8rem/1.4 var(--font-mono); color: var(--text-3); overflow-wrap: anywhere; }
+.notfound-path { margin: 1.4rem 0 0; font: 400 var(--fs-3)/1.4 var(--font-mono); color: var(--text-3); overflow-wrap: anywhere; }
 .notfound-path:empty { display: none; }
 .page-notfound .doc-actions { margin-top: 1.5rem; }
 
@@ -188,19 +188,19 @@
   justify-content: space-between;
   cursor: pointer;
   padding: .7rem .9rem;
-  font: 500 .72rem/1.3 var(--font-mono);
+  font: 500 var(--fs-2)/1.3 var(--font-ui);
   letter-spacing: .09em;
   text-transform: uppercase;
   color: var(--text-2);
   list-style: none;
 }
 .toc-inline > summary::-webkit-details-marker { display: none; }
-.toc-inline > summary::after { content: "+"; content: "+" / ""; font-size: 1rem; line-height: 1; }
+.toc-inline > summary::after { content: "+"; content: "+" / ""; font-size: var(--fs-6); line-height: 1; }
 .toc-inline[open] > summary::after { content: "\2212"; content: "\2212" / ""; }
 .toc-inline nav { max-height: min(60vh, 28rem); overflow-y: auto; padding: .2rem .9rem 1rem; border-top: 1px solid var(--line); }
 .toc-inline ul { list-style: none; margin: .5rem 0 0; padding: 0; }
-.toc-inline a { display: block; padding: .38rem 0; color: var(--text-2); font-size: .9rem; line-height: 1.35; text-decoration: none; }
-.toc-inline .toc-l3 a { padding-left: 1rem; font-size: .85rem; }
+.toc-inline a { display: block; padding: .38rem 0; color: var(--text-2); font-size: var(--fs-5); line-height: 1.35; text-decoration: none; }
+.toc-inline .toc-l3 a { padding-left: 1rem; font-size: var(--fs-4); }
 .toc-inline a:hover { color: var(--text); text-decoration: underline; }
 @media (max-width: 68.74rem) { .toc-inline { display: block; } }
 
@@ -211,7 +211,7 @@
 }
 
 .doc-main > .doc:first-child { padding-top: 2.6rem; }
-.breadcrumb { margin-bottom: 1.75rem; font: 400 .74rem/1.4 var(--font-mono); color: var(--text-3); }
+.breadcrumb { margin-bottom: 1.75rem; font: 400 var(--fs-2)/1.4 var(--font-ui); color: var(--text-3); }
 .breadcrumb ol { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
 .breadcrumb a { color: var(--text-2); text-decoration: none; }
 .breadcrumb a:hover { color: var(--text); text-decoration: underline; }
@@ -228,19 +228,19 @@
 .doc-head .kicker { margin-bottom: 1.1rem; }
 .doc h1 {
   margin: 0;
-  font-size: clamp(2.35rem, 1.5rem + 3.2vw, 3.85rem);
+  font-size: var(--fs-10);
   line-height: 1.03;
   max-width: 22ch;
 }
 .doc-head .lede {
   margin: 1.4rem 0 0;
   max-width: 40rem;
-  font: 400 clamp(1.18rem, 1.05rem + .5vw, 1.4rem)/1.5 var(--font-display);
+  font: 400 var(--fs-lede)/1.5 var(--font-ui);
   color: var(--text-2);
   text-wrap: balance;
 }
 
-.doc .doc-actions { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; margin: 1.4rem 0 0; font: 500 .74rem/1 var(--font-mono); letter-spacing: .02em; }
+.doc .doc-actions { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; margin: 1.4rem 0 0; font: 500 var(--fs-2)/1 var(--font-ui); letter-spacing: .02em; }
 .doc-actions a { color: var(--text-2); text-decoration: none; padding: .45rem 0; }
 .doc-actions a:hover { color: var(--accent); text-decoration: underline; }
 .copy-page {
@@ -277,19 +277,19 @@ html:not(.js) .copy-page { display: none; }
 .doc-head .lesson-meta > div:first-child { flex: 0 0 7.5rem; }
 .doc-head .lesson-meta dt {
   margin: 0 0 .3rem;
-  font: 500 .66rem/1.3 var(--font-mono);
+  font: 500 var(--fs-1)/1.3 var(--font-ui);
   letter-spacing: .09em;
   text-transform: uppercase;
   color: var(--text-3);
 }
-.doc-head .lesson-meta dd { margin: 0; font-size: .93rem; line-height: 1.45; color: var(--text); }
+.doc-head .lesson-meta dd { margin: 0; font-size: var(--fs-5); line-height: 1.45; color: var(--text); }
 .doc-head .lesson-meta .meta-done dt { color: var(--accent); }
 /* One or two facts form a compact box; three or more fill the column. */
 .doc-head .lesson-meta:not(:has(> div:nth-child(3))) { width: fit-content; flex-wrap: nowrap; }
 .doc-head .lesson-meta:not(:has(> div:nth-child(3))) > div { flex: 0 0 auto; min-width: 7.5rem; }
 
 /* ---------- prose ---------- */
-.doc { font-size: 1.0625rem; line-height: 1.68; color: var(--text); }
+.doc { font-size: var(--fs-6); line-height: 1.68; color: var(--text); }
 .doc :where(p, li, dt, dd, h1, h2, h3, h4, summary, figcaption, blockquote, .callout-title) { overflow-wrap: anywhere; }
 .doc :where(td, th) { overflow-wrap: break-word; }
 .doc :where(h1, h2, h3, h4) code { font-size: .76em; padding: .04em .3em; vertical-align: .06em; }
@@ -311,7 +311,7 @@ html:not(.js) .copy-page { display: none; }
 .doc h2 {
   position: relative;
   margin: 3.4rem 0 1rem;
-  font-size: clamp(1.7rem, 1.25rem + 1.3vw, 2.2rem);
+  font-size: var(--fs-9);
   line-height: 1.12;
   padding-top: 1.3rem;
 }
@@ -325,26 +325,26 @@ html:not(.js) .copy-page { display: none; }
 .doc-head + h2, .doc > :first-child { margin-top: 0; }
 /* the cards of a hub page are raw HTML inside the article: the landing card, set for reading */
 .doc .cards { margin: 1.6rem 0 1.8rem; }
-.doc .card > h3 { margin: 0; font: 500 1.35rem/1.2 var(--font-display); letter-spacing: -.012em; }
-.doc .card > p { margin: 0; max-width: none; font-size: .95rem; line-height: 1.55; color: var(--text-2); }
+.doc .card > h3 { margin: 0; font: 500 var(--fs-8)/1.2 var(--font-ui); letter-spacing: -.012em; }
+.doc .card > p { margin: 0; max-width: none; font-size: var(--fs-5); line-height: 1.55; color: var(--text-2); }
 .doc .card .anchor::after, .doc .card .anchor-side { display: none; }
 @media (min-width: 60rem) {
   .doc h2::after {
     content: "\00a7"; content: "\00a7" / "";
     position: absolute;
     left: -2.1rem; top: 1.45rem;
-    font: 400 1.15rem/1 var(--font-display);
+    font: 400 var(--fs-7)/1 var(--font-display);
     color: var(--text-3);
   }
 }
 .doc h3 {
   margin: 2.4rem 0 .6rem;
-  font: 600 1.2rem/1.3 var(--font-sans);
+  font: 600 var(--fs-7)/1.3 var(--font-sans);
   letter-spacing: -.005em;
 }
 .doc h4 {
   margin: 1.8rem 0 .5rem;
-  font: 500 .76rem/1.3 var(--font-mono);
+  font: 500 var(--fs-2)/1.3 var(--font-ui);
   letter-spacing: .09em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -386,7 +386,7 @@ html:not(.js) .copy-page { display: none; }
   margin: 1.6rem 0;
   padding: .2rem 0 .2rem 1.25rem;
   border-left: 2px solid var(--line-strong);
-  font: italic 500 1.2rem/1.5 var(--font-display);
+  font: 400 var(--fs-7)/1.5 var(--font-ui);
   color: var(--text-2);
 }
 .doc blockquote p { margin-bottom: .5em; }
@@ -394,12 +394,12 @@ html:not(.js) .copy-page { display: none; }
 /* ---------- tables: hairline rules, mono header ---------- */
 .table-wrap { margin: 1.6rem 0; overflow-x: auto; border-top: 2px solid var(--text); border-bottom: 1px solid var(--line-strong); scrollbar-width: thin; }
 .doc > table { display: block; margin: 1.6rem 0; overflow-x: auto; border-top: 2px solid var(--text); border-bottom: 1px solid var(--line-strong); }
-.doc table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: .93rem; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.doc table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: var(--fs-5); line-height: 1.5; font-variant-numeric: tabular-nums; }
 .doc th {
   padding: .65rem .9rem;
   text-align: left;
   vertical-align: bottom;
-  font: 500 .68rem/1.3 var(--font-mono);
+  font: 500 var(--fs-1)/1.3 var(--font-ui);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -423,7 +423,7 @@ html:not(.js) .copy-page { display: none; }
 /* on a phone a table takes the width of the screen and its cells wrap; only a table that cannot
    shrink any further scrolls */
 @media (max-width: 40rem) {
-  .doc table { min-width: 0; font-size: .875rem; }
+  .doc table { min-width: 0; font-size: var(--fs-4); }
   .doc th, .doc td { padding-inline: .55rem; }
   /* three or more columns: one record per row, the first cell as its title, the rest labelled
      (site.js sets .is-stack and the labels; without it the table scrolls) */
@@ -436,7 +436,7 @@ html:not(.js) .copy-page { display: none; }
     content: attr(data-label);
     display: block;
     margin-bottom: .05rem;
-    font: 500 .68rem/1.5 var(--font-mono);
+    font: 500 var(--fs-1)/1.5 var(--font-ui);
     letter-spacing: .08em;
     text-transform: uppercase;
     color: var(--text-3);
@@ -480,13 +480,13 @@ html:not(.js) .copy-page { display: none; }
 .pager-prev:hover::after { transform: translateX(-4px) !important; }
 .pager-next { grid-column: 2; border-top: 2px solid var(--accent) !important; }
 .pager-label, .pager-kicker {
-  font: 500 .68rem/1.3 var(--font-mono);
+  font: 500 var(--fs-1)/1.3 var(--font-ui);
   letter-spacing: .09em;
   text-transform: uppercase;
   color: var(--text-3);
 }
-.pager-title { font: 500 1.28rem/1.2 var(--font-display); letter-spacing: -.01em; }
-.pager-desc { font-size: .88rem; color: var(--text-2); line-height: 1.4; }
+.pager-title { font: 500 var(--fs-7)/1.2 var(--font-ui); letter-spacing: -.01em; }
+.pager-desc { font-size: var(--fs-4); color: var(--text-2); line-height: 1.4; }
 
 .mark-done {
   position: relative;
@@ -498,7 +498,7 @@ html:not(.js) .copy-page { display: none; }
   border-radius: var(--r);
   background: var(--surface);
   color: var(--text);
-  font: 500 .9rem/1.2 var(--font-sans);
+  font: 500 var(--fs-5)/1.2 var(--font-sans);
   transition: background-color var(--t-fast), border-color var(--t-fast), color var(--t-fast);
 }
 .mark-done::before {
@@ -529,7 +529,7 @@ html:not(.js) .mark-done { display: none; }
 
 .doc-foot .applies {
   margin: 1.5rem 0 0;
-  font: 400 .74rem/1.4 var(--font-mono);
+  font: 400 var(--fs-2)/1.4 var(--font-mono);
   color: var(--text-3);
   letter-spacing: .02em;
 }
@@ -576,7 +576,7 @@ html:not(.js) .mark-done { display: none; }
     min-height: 2.5rem;
     padding: 0 .6rem 0 0;
     border: 0; background: none;
-    font: 500 .9rem/1 var(--font-sans);
+    font: 500 var(--fs-5)/1 var(--font-sans);
     color: var(--text);
   }
   html.js .drawer-open::before {
@@ -613,7 +613,7 @@ html:not(.js) .mark-done { display: none; }
 .contents-list { display: grid; grid-template-columns: minmax(0, 18rem) minmax(0, 1fr); gap: 0 2rem; margin: 0 0 1.5rem; max-width: 56rem; }
 .contents-list dt, .contents-list dd { margin: 0; padding: .6rem 0; border-top: 1px solid var(--line); }
 .contents-list dt { font-weight: 500; }
-.contents-list dd { color: var(--text-2); font-size: .93rem; }
+.contents-list dd { color: var(--text-2); font-size: var(--fs-5); }
 @media (max-width: 41rem) { .contents-list { grid-template-columns: 1fr; } .contents-list dd { border-top: 0; padding-top: 0; } }
 
 @media (pointer: coarse) {

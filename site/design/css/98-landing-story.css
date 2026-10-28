@@ -11,8 +11,8 @@
   .page-landing .site-footer { scroll-snap-align: end; }
   .views-band .band-head { margin-bottom: 1rem; }
   .views-band .band-head { max-width: none; }
-  .views-band .band-title { white-space: nowrap; font-size: clamp(1.9rem, 6.2vh, 3rem); }
-  .views-band .band-lede { max-width: none; font-size: 1rem; }
+  .views-band .band-title { white-space: nowrap; font-size: min(var(--fs-10), 6.2vh); }
+  .views-band .band-lede { max-width: none; font-size: var(--fs-6); }
   .vw-tabs button { padding: .6rem 1rem .75rem; }
   .vw-body { padding: .9rem 1.1rem; }
   .vw-p { grid-template-columns: minmax(0, calc((100svh - var(--header-h) - 18.5rem) * 1.6)) 19rem; justify-content: center; }
@@ -28,7 +28,7 @@
   .rail a[aria-current]::after { background: var(--accent); border-color: var(--accent); }
   .rail a[aria-current] { color: var(--text); }
   .rail i { display: none; }
-  .cue { position: absolute; z-index: 2; left: 50%; bottom: .9rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: .4rem; color: var(--text-3); text-decoration: none; font: 500 .62rem/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; }
+  .cue { position: absolute; z-index: 2; left: 50%; bottom: .9rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: .4rem; color: var(--text-3); text-decoration: none; font: 500 .62rem/1 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
   .cue::after { content: ""; width: 1px; height: 1.4rem; background: var(--accent); animation: cuedrop 1.8s var(--ease) infinite; transform-origin: 0 0; }
 }
 @keyframes cuedrop { 0% { transform: scaleY(0); } 60% { transform: scaleY(1); } 100% { transform: scaleY(1); opacity: 0; } }
@@ -56,22 +56,22 @@ html.js [data-band]:not(.in) .vw-win { clip-path: inset(0 100% 0 0); }
 
 /* a band that is taller than the screen gives up room, not content */
 @media (min-width: 60rem) and (min-height: 43rem) and (max-height: 62rem) {
-  [data-band] .band-title { font-size: clamp(1.9rem, 6.2vh, 3rem); }
+  [data-band] .band-title { font-size: min(var(--fs-10), 6.2vh); }
   [data-band] .band-title em { display: inline; }
-  [data-band] .band-lede { margin-top: .6rem; font-size: 1.08rem; }
+  [data-band] .band-lede { margin-top: .6rem; font-size: var(--fs-6); }
   .band-head { margin-bottom: 1rem !important; }
   .reach-band .band-lede { max-width: none; }
-  .reach-scenario { margin: 0 0 .5rem; font-size: .9rem; }
+  .reach-scenario { margin: 0 0 .5rem; font-size: var(--fs-5); }
   .reach-compare { gap: .75rem; }
   .reach-side { flex-flow: row wrap; align-items: baseline; gap: .2rem .8rem; padding: .55rem 1rem; }
   .reach-side .stats { margin: 0; }
   .reach-side .stat { display: flex; flex-direction: row-reverse; align-items: baseline; justify-content: flex-end; gap: .6rem; }
-  .reach-side .stat dd { font-size: 2rem; line-height: 1; }
-  .reach-caption { margin: .4rem 0 .9rem; font-size: .78rem; }
+  .reach-side .stat dd { font-size: var(--fs-9); line-height: 1; }
+  .reach-caption { margin: .4rem 0 .9rem; font-size: var(--fs-3); }
   .reach-sub { margin: 0 0 .5rem; }
   .reach-why .card { padding: .9rem 1.1rem; gap: .5rem; }
-  .reach-why .card-title { font-size: 1.25rem; }
-  .reach-why .card-text { font-size: .88rem; line-height: 1.45; }
+  .reach-why .card-title { font-size: var(--fs-7); }
+  .reach-why .card-text { font-size: var(--fs-4); line-height: 1.45; }
   .start-band > .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem 3rem; align-items: center; }
   .start-band .start-cards { grid-column: 1 / -1; }
   .start-cards .card-text { display: none; }

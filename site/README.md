@@ -84,9 +84,11 @@ Code windows, terminals and the stage are dark in both themes. Their tokens are 
 
 | Type | Face |
 |---|---|
-| `--font-display` | Newsreader 400 and 500, italic 500. `h1`, `h2`, ledes, stat numbers, card titles. Tracking -0.022em, `text-wrap: balance`. |
-| `--font-sans` | IBM Plex Sans 400, 400 italic, 500, 600. Body 17 px at 1.68 in documentation. |
-| `--font-mono` | IBM Plex Mono 400, 500, 600. Code at 13 px; kickers and labels 11 to 12 px in capitals with 0.08em tracking. |
+| `--font-display` | Newsreader 400 and 500, italic 500. The page title (`h1`), section titles (`h2`), the hero and big numbers, nothing else. Tracking -0.022em, `text-wrap: balance`. |
+| `--font-sans`, `--font-ui` | IBM Plex Sans 400, 400 italic, 500, 600. Body 16 px at 1.68 in documentation, ledes, card titles, labels, buttons, breadcrumbs. `--font-ui` is the name for "the words of the interface", as in the viewer. |
+| `--font-mono` | IBM Plex Mono 400, 500, 600. Code, identifiers and numbers. Mono is for what is typed or measured; labels are sans. |
+
+Sizes come from one scale: `--fs-1` to `--fs-5` (.66, .72, .78, .84, .9 rem) are the viewer's own values, then `--fs-6` 1 rem body, `--fs-7` 1.25 rem, `--fs-8` 1.5 rem, `--fs-lede`, and the fluid `--fs-9` (section titles), `--fs-10` (page and band titles) and `--fs-11` (hero). A style that needs another size adds a step here instead of writing a number.
 
 Layout: `--sheet` 84 rem, `--gutter` 16 to 32 px, `--header-h` 3.5 rem, `--side-w` 16 rem (14.5 rem under 80 rem), `--toc-w` 14.5 rem, `--measure` 41 rem for text blocks, `--r` 3 px. Breakpoints: the table of contents is hidden under 68.75 rem (1100 px); the sidebar becomes a drawer and the header gains a scrolling nav row under 60 rem; compare stacks under 51.25 rem; the header search collapses to an icon under 41 rem.
 
