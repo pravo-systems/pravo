@@ -150,8 +150,11 @@ func TestScreenshot(t *testing.T) {
 		}
 	})
 	opts := shotOptions{Min: 500 * time.Millisecond, Max: 15 * time.Second}
+	// Every shot starts a browser of its own, and on a loaded machine a start
+	// can outlast the wait for its DevTools port. The shots are retried once,
+	// as the program retries them.
 	shoot := func(path string) ([]string, error) {
-		return screenshot(context.Background(), chrome, profile, filepath.Join(dir, strings.Trim(path, "/")+".png"), srv.URL+path, 320, 200, opts)
+		return screenshotRetry(context.Background(), chrome, profile, filepath.Join(dir, strings.Trim(path, "/")+".png"), srv.URL+path, 320, 200, opts)
 	}
 
 	notes, err := shoot("/ok")
@@ -182,7 +185,7 @@ func TestScreenshot(t *testing.T) {
 		seen = v
 		return err
 	}
-	if _, err := screenshot(context.Background(), chrome, profile, filepath.Join(dir, "path.png"), srv.URL+"/path", 320, 200, replaced); err != nil {
+	if _, err := screenshotRetry(context.Background(), chrome, profile, filepath.Join(dir, "path.png"), srv.URL+"/path", 320, 200, replaced); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"project ~/estate/platform and ~/estate/platform/pravo.state", "127.0.0.1:8700", "|~/estate/platform|~/estate/platform"} {
