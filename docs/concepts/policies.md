@@ -1,8 +1,8 @@
 ---
-title: "Policies: two moments, one idea"
-description: "One idea at two moments: a constraint on a provider is checked at evaluation, a policy node against a plan. What each binds and what neither guarantees."
-order: 8
-minutes: 20
+title: "Constraints and policies"
+description: "A constraint on a provider is checked when the specification evaluates. A policy, a pravo.#Policy node, judges a plan and is kept in the state. What each binds and what neither guarantees."
+order: 9
+minutes: 22
 env:
   PRAVO_PASSPHRASE: an example passphrase
   PRAVO_CONFIG_DIR: people/ada
@@ -19,13 +19,13 @@ normalize:
     replace: '$1:<digest>'
 ---
 
-A policy is a rule written in CUE. pravo checks one kind of rule when it evaluates the specification. It checks another kind when it judges a plan. Both are values that unify with data.
+pravo refuses a change at two moments. A constraint on a provider definition is refused when the specification evaluates. CUE does that, as it does with every constraint. A policy is refused when a plan is judged: a `pravo.#Policy` node of the root, kept in the state as signed versions. Only the second is a policy.
 
-The two kinds do not do the same thing, and they bind different people. This page states what each does, when pravo checks it, and what neither can promise.
+The two do not do the same thing, and they bind different people. This page states what each does, when pravo checks it, and what neither can promise.
 
 ## Two moments
 
-| | Specification policy | Plan policy |
+| | Constraint on a provider | Policy |
 |---|---|---|
 | Written as | A constraint on the nested `#Resource` of a provider definition | A `pravo.#Policy` node whose `rule` is a CUE struct |
 | Named by | The provider struct that a resource is built through | Its path in the specification, such as `no_destroy` |
@@ -35,40 +35,7 @@ The two kinds do not do the same thing, and they bind different people. This pag
 | Can require that an attribute is set | No | Yes, for the changes that the plan makes |
 | Binds | Every resource built through a provider struct made from the definition | Every apply of the state |
 
-:::figure Two moments in one run. A specification policy is part of evaluation. A plan policy is stage 5, after the plan.
-<svg viewBox="0 0 780 112" role="img" aria-label="A row of six stages: evaluate, discover, graph, plan, judge, apply. A specification policy is checked inside evaluate and is named by the provider struct. A plan policy is checked at judge and is kept in the state." style="min-width:700px">
-<rect x="0" y="14" width="100" height="40" rx="2" style="fill:var(--key-wash);stroke:var(--key);stroke-width:1.6"/>
-<text x="50.0" y="39" text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:600">evaluate</text>
-<line x1="104" y1="34" x2="132" y2="34" style="stroke:var(--text-3);stroke-width:1.5"/>
-<polygon points="132,34 127,31.0 127,37.0" style="fill:var(--text-3)"/>
-<rect x="136" y="14" width="100" height="40" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.1"/>
-<text x="186.0" y="39" text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:400">discover</text>
-<line x1="240" y1="34" x2="268" y2="34" style="stroke:var(--text-3);stroke-width:1.5"/>
-<polygon points="268,34 263,31.0 263,37.0" style="fill:var(--text-3)"/>
-<rect x="272" y="14" width="100" height="40" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.1"/>
-<text x="322.0" y="39" text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:400">graph</text>
-<line x1="376" y1="34" x2="404" y2="34" style="stroke:var(--text-3);stroke-width:1.5"/>
-<polygon points="404,34 399,31.0 399,37.0" style="fill:var(--text-3)"/>
-<rect x="408" y="14" width="100" height="40" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.1"/>
-<text x="458.0" y="39" text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:400">plan</text>
-<line x1="512" y1="34" x2="540" y2="34" style="stroke:var(--text-3);stroke-width:1.5"/>
-<polygon points="540,34 535,31.0 535,37.0" style="fill:var(--text-3)"/>
-<rect x="544" y="14" width="100" height="40" rx="2" style="fill:var(--accent-wash);stroke:var(--accent);stroke-width:1.6"/>
-<text x="594.0" y="39" text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:600">judge</text>
-<line x1="648" y1="34" x2="676" y2="34" style="stroke:var(--text-3);stroke-width:1.5"/>
-<polygon points="676,34 671,31.0 671,37.0" style="fill:var(--text-3)"/>
-<rect x="680" y="14" width="100" height="40" rx="2" style="fill:var(--surface);stroke:var(--text-3);stroke-width:1.1"/>
-<text x="730.0" y="39" text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:400">apply</text>
-<line x1="50" y1="54" x2="50" y2="70" style="stroke:var(--key);stroke-width:1.4"/>
-<line x1="594" y1="54" x2="594" y2="70" style="stroke:var(--accent);stroke-width:1.4"/>
-<text x="0" y="86" style="fill:var(--text);font-size:12.5px;font-weight:600">specification policy</text>
-<text x="0" y="104" style="fill:var(--text-3);font-size:11px">checked inside evaluate</text>
-<text x="544" y="86" style="fill:var(--text);font-size:12.5px;font-weight:600">plan policy</text>
-<text x="544" y="104" style="fill:var(--text-3);font-size:11px">checked at judge</text>
-</svg>
-:::
-
-## Specification policy
+## A constraint on a provider
 
 A constraint written on the nested `#Resource` of a provider definition applies to every resource built through any struct made from it. Work in an empty directory.
 
@@ -165,11 +132,11 @@ pravo validate
 Success! 3 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 1 providers.
 ```
 
-A specification policy binds those who build from the platform provider. What makes it hold is that the platform controls which provider structs a root is built from. A rule that must hold however a resource was declared, or that requires a value, is a plan policy.
+The constraint binds those who build from the platform provider. What makes it hold is that the platform controls which provider structs a root is built from. A rule that must hold however a resource was declared, or that requires a value, is a policy.
 
-## Plan policy
+## A policy
 
-A plan policy is a node of the specification: `pravo.#Policy`, with a `rule` that is a CUE struct. The first apply that carries it writes it to the state as a signed, numbered version. After that every plan that changes a resource is judged by the versions in force, at the apply, under the locks, and the signed start of the apply lists the versions that judged it. No flag names a policy and no invocation can leave one out.
+A policy is a node of the specification: `pravo.#Policy`, with a `rule` that is a CUE struct. The first apply that carries it writes it to the state as a signed, numbered version. After that every plan that changes a resource is judged by the versions in force, at the apply, under the locks, and the signed start of the apply lists the versions that judged it. No flag names a policy and no invocation can leave one out.
 
 The rule is evaluated against the plan document, the data that `pravo plan --json` prints, without the fields that only the state, the clock or the invocation can give. A plan satisfies a policy when the rule unifies with the document and the result is concrete. Every policy judges every plan, and all of them must hold.
 
@@ -292,9 +259,13 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 {"kind":"apply","status":"applied","policies":["owner@1:<digest>"]}
 ```
 
+### Asking for approvals
+
+A rule refuses a plan or lets it through. It can also let a plan through on the condition that other people approve it first: a rule that sets `approvals: {min: N, role: "writer" | "admin", self: bool}` on the plans it matches makes the apply of such a plan wait until `N` distinct keys of that role or above have approved it, and the key that stored the plan does not count unless `self` says so. The approvals belong to a stored plan, so a plan that needs them is stored with `pravo plan --store`, approved by other keys with `pravo plan approve ID` and applied by its id. The refusal of an apply that waits is exit code 5, as a refusal by a rule is, and the signed finish of the apply that goes through names who approved. An admin needs no approval, and a plan that edits or removes a policy that asks for approvals needs an admin's approval of its own. [Stored plans and approvals](stored-plans-and-approvals.md#approvals) runs it with three people, and [Operating policies](../reference/policies-operations.md#ask-for-approvals) lists the rules.
+
 ### Typos in a rule
 
-The failures of a misspelt rule are quiet. A misspelt literal forbids nothing. A misspelt list template adds a field and forbids nothing. A misspelt field with a concrete value is a new field that holds. A misspelt field with a constraint is refused when the rule is added, because the document of an empty plan never sets the field. Test a rule against a fixture that it must refuse and a fixture that it must pass. [Writing policies](../reference/policies-writing.md#mistakes-that-forbid-nothing) runs each of the four.
+The failures of a misspelt rule are quiet. A misspelt literal forbids nothing. A misspelt list template adds a field and forbids nothing. A misspelt field with a concrete value is a new field that holds. A misspelt field with a constraint is refused when the rule is added, because the document of an empty plan never sets the field. Test a rule against a fixture that it must refuse and a fixture that it must pass. [Writing policies](../reference/policies-writing.md#mistakes-that-forbid-nothing) runs each of the four. The policy studio of [the viewer](the-viewer.md#the-seven-sections) holds a rule against every resource that exists and against one plan while you type it, and [`pravo policy test`](../reference/policy.md) does the same on the command line, so a rule can be tried on real plans before it is stored.
 
 ## The trust anchor
 
@@ -390,7 +361,7 @@ There is no environment variable and no flag that names or skips a policy. A rul
 ### What a policy does not guarantee
 
 - **Bypass.** A laptop with another binary, an agent shell with cloud credentials and a job that calls the cloud API directly are not checked. Every apply by pravo that reads the state judges. The log records the versions that judged each apply.
-- **Review.** A reader who can apply can write a new version of a policy. The signed version names who applied it, and review of the files that declare policies is the control. With [roles](../reference/protect.md#roles) a writer adds and edits a policy and only an admin removes one.
+- **Review.** A reader who can apply can write a new version of a policy. The signed version names who applied it, and review of the files that declare policies is the control. With [roles](signatures-and-roles.md#roles) a writer adds and edits a policy, only an admin removes one or changes one that asks for approvals, and a reader applies nothing.
 - **Facts chosen by the specification.** The specification decides the state location, the providers and their sources, and the addresses that `$from` and `$import` set. It also decides the refresh ages and the data sources. A `$lifecycle` setting such as `ignore_changes` keeps differences out of the plan. A policy judges the plan that these choices give.
 - **Provider code runs before any verdict.** Providers run with the credentials of the person who invokes pravo. Data sources and ephemeral resources run while the plan is computed.
 - **Plan files are unsigned.** A plan file holds no entry for an ephemeral resource or a function call. A rule about those entries is judged when the plan is made, and not when it is applied.
@@ -410,8 +381,9 @@ The policies bind the tool. They do not bind the process around it. An agent wit
 
 ## Recap
 
-- A specification policy is a constraint on a provider definition. It is checked when the specification evaluates and rejects a value that is set and wrong.
-- A plan policy is a node of the specification, kept in the state as signed versions. It judges every plan that changes a resource, can require a value, and is strict about absent, null and unknown values.
+- A constraint on a provider definition is checked when the specification evaluates and rejects a value that is set and wrong. It is a CUE constraint, not a policy.
+- A policy is a node of the specification, kept in the state as signed versions. It judges every plan that changes a resource, can require a value, and is strict about absent, null and unknown values.
+- A policy can ask for approvals of a stored plan by other keys, and an admin needs none.
 - The signed start of an apply lists the versions that judged it. Whoever can change the policy source, the job definition, the state or the credentials is not stopped by a policy.
 
 Next: [Secrets and ephemeral values](secrets-and-ephemeral-values.md) describes what a plan, the state and the log hold.

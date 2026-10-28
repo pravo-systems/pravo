@@ -1,7 +1,7 @@
 ---
 title: Upgrade pravo and providers
 description: Replace the pravo binary, move a provider to a newer version through the lock file, pin the archives of every platform and review the plan that follows.
-order: 13
+order: 1
 minutes: 12
 needs: "pravo on your PATH and network access to `registry.opentofu.org`. [Quick start](quick-start.md#1-install-pravo) for the binary."
 done_when: "`pravo init -upgrade` moves a provider to a newer version, `pravo providers lock` pins four platforms, and `pravo plan` is empty."
@@ -184,9 +184,9 @@ Providers:
 
 An archive that is already unpacked in the provider store is neither downloaded nor compared. Remove the hash from the lock file, and run `pravo init`, only when you expect the bytes to differ.
 
-## 7. Upgrade a module
+## 7. Upgrade a CUE module
 
-A module is locked in the same file, with a hash of its content. `pravo mod get <path>@<version>` moves it, and the next plan shows what the new version does. [Use a published module](using-a-module.md) walks through it.
+A CUE module that the root fetched is locked in the same file, with a hash of its content. `pravo mod get <path>@<version>` moves it, and the next plan shows what the new version does. [Use a published CUE module](using-a-module.md) walks through it.
 
 ## What next
 

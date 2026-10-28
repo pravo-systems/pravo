@@ -422,7 +422,7 @@ Removing a reader from the file stops future versions from being sealed to them.
 
 `pravo serve` has a Secrets section, opened with `e`. It lists each secret with its latest version, who set it and when, and which nodes of the specification read it. It shows no value: the server holds no key for the values, and it reads the part of the objects that is in the clear and the transactions that wrote them.
 
-It also says what is wrong. A secret that the specification reads and the state does not hold, a version that no signed transaction of a writer accounts for and a state that is not sealed are flagged, worst first, each with the command that mends it to copy. A state with nothing to flag shows one line, `all clear`. The tab carries a number only when something needs action. [The Secrets section](../reference/serve.md#the-secrets-section) lists the parts.
+It also says what is wrong. A secret that the specification reads and the state does not hold, a version that no signed transaction of a writer accounts for and a state that is not sealed are flagged, worst first, each with the command that mends it to copy. A state with nothing to flag shows one line, `all clear`. The tab carries a number only when something needs action. [The Secrets section](../reference/viewer-sections.md#the-secrets-section) lists the parts.
 
 The nodes that read a secret are in the graph, in the first column with the environment variables. A node's inspector says that its value is read from the sealed state and is never recorded.
 
@@ -430,5 +430,5 @@ The nodes that read a secret are in the graph, in the first column with the envi
 
 - [pravo secret](../reference/secret.md) lists every flag, the roles, the exit codes and the objects in the bucket.
 - [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) says where each kind of value may go and where it is recorded.
-- [What sealing protects](../concepts/sealed-state.md#secrets) says what the seal covers for secrets and what it leaves open.
+- [Signatures and roles](../concepts/signatures-and-roles.md#secrets) says what the seal covers for secrets and what it leaves open.
 - [Roles](../reference/protect.md#roles) says what a reader, a writer and an admin may do.

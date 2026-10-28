@@ -97,7 +97,7 @@ var sections = []struct{ Dir, Title, Blurb string }{
 	{"reference", "Reference", "One page for each command and each part of the specification, tables first."},
 	{"concepts", "Concepts", "How pravo behaves: evaluation, plans, state, providers, policies."},
 	{"how-to", "How-to", "One task each, for a reader who knows the basics."},
-	{"learn", "Learn", "The tutorial on pravo (track B) and the companion pages on CUE errors."},
+	{"learn", "Learn", "The tutorial on pravo (track B), the team track (track C) and the companion pages on CUE errors."},
 	{"migrate", "Migrate", "From OpenTofu or Terraform: a runbook with its lookups."},
 }
 

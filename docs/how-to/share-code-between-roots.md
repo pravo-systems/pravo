@@ -1,0 +1,255 @@
+---
+title: Share code between roots in one repository
+description: Keep shared definitions in one repository, run one root per environment and see how a change to shared code reaches every root.
+order: 2
+minutes: 12
+needs: B6 for a definition that receives its providers. An empty directory.
+done_when: "Two roots import one package, each applies into its own state, and an edit to the package shows up in the plan of both."
+level: intermediate
+normalize:
+  - pattern: '(?m)^Downloading .*\n'
+    replace: ''
+  - pattern: '\[txn [0-9TZ]+-[0-9a-f]{6}\]'
+    replace: '[txn <id>]'
+group: Specify
+---
+
+A repository holds shared definitions and one root per environment. Each root has its own plans and state. All roots import the same code by path. The repository is one CUE module, and a CUE module is the reach of an import: every package under its `cue.mod` can be imported by path. There is no module block and no `source`.
+
+Work in an empty directory. It stands for the repository. The commands are for a POSIX shell, and `-C dir` runs pravo as if it started in `dir`.
+
+## 1. The layout
+
+```text
+acme-infra/
+├── cue.mod/module.cue          the top of the code pravo can see
+├── lib/
+│   └── service/service.cue     shared code
+└── envs/
+    ├── dev/main.cue            a root: its own state and its own plans
+    └── prod/main.cue
+```
+
+A root is a directory that you run pravo in. pravo looks for the nearest `cue.mod` in that directory and then in each parent. Everything below the directory that holds `cue.mod` can be imported. Put `cue.mod` at the top of the repository.
+
+```cue file=cue.mod/module.cue title="cue.mod/module.cue"
+module: "example.com/acme-infra@v0"
+language: version: "v0.14.0"
+```
+
+The `module` line names the CUE module. Import paths start with it, and it has to look like a domain. Nothing needs to exist at that address.
+
+## 2. Write the shared definition
+
+A shared definition contains resources. It takes its providers as inputs and builds its resources through them.
+
+```cue file=lib/service/service.cue title="lib/service/service.cue" hl="9-10,16,18-21"
+package service
+
+import (
+	rnd "pravo.dev/providers/hashicorp/random"
+	loc "pravo.dev/providers/hashicorp/local"
+)
+
+#Service: {
+	random!: rnd.#Provider
+	local!:  loc.#Provider
+
+	name:  string & =~"^[a-z][a-z0-9-]*$"
+	port:  int & >1024 & <65536
+	owner: string
+
+	codename: random.#Resource.random_pet & {length: 2}
+
+	config: local.#Resource.local_file & {
+		filename: "out/\(name).conf"
+		content:  "service \(name)\ncodename \(codename.id)\nport \(port)\nowner \(owner)\n"
+	}
+
+	endpoint: "http://\(name).internal:\(port)"
+}
+```
+
+The definition declares no provider of its own. Each input is required (`!`): a root that leaves one out does not load. The root decides the version and the configuration.
+
+## 3. Write one root per environment
+
+Each root declares the providers once and passes them in. The import path starts with the name of the CUE module and follows the directories.
+
+```cue file=envs/dev/main.cue title="envs/dev/main.cue" hl="7,13"
+package dev
+
+import (
+	"pravo.dev/pravo"
+	rnd "pravo.dev/providers/hashicorp/random"
+	loc "pravo.dev/providers/hashicorp/local"
+	"example.com/acme-infra/lib/service"
+)
+
+$random: rnd.#Provider
+$local:  loc.#Provider
+
+api: service.#Service & {random: $random, local: $local, name: "api", port: 8080, owner: "platform"}
+
+api_endpoint: pravo.#Output & {value: api.endpoint}
+```
+
+`envs/prod/main.cue` is the same with `package prod` and its own port.
+
+```cue file=envs/prod/main.cue title="envs/prod/main.cue" hl="13"
+package prod
+
+import (
+	"pravo.dev/pravo"
+	rnd "pravo.dev/providers/hashicorp/random"
+	loc "pravo.dev/providers/hashicorp/local"
+	"example.com/acme-infra/lib/service"
+)
+
+$random: rnd.#Provider
+$local:  loc.#Provider
+
+api: service.#Service & {random: $random, local: $local, name: "api", port: 8443, owner: "platform"}
+
+api_endpoint: pravo.#Output & {value: api.endpoint}
+```
+
+## 4. Initialise from a root
+
+Run `pravo init` in a root, not at the top of the repository.
+
+```sh run
+pravo -C envs/dev init
+```
+
+```text out
+Configuration does not load yet; generating schemas for the declared providers first.
+Providers:
+  local = hashicorp/local v2.9.1
+  random = hashicorp/random v3.9.1
+Using the module at ../..
+Up to date cue.mod/gen/pravo.dev/providers/hashicorp/local (2 resource types, 3 data sources, 1 ephemeral, 1 functions)
+Up to date cue.mod/gen/pravo.dev/providers/hashicorp/random (10 resource types, 0 data sources, 2 ephemeral, 0 functions)
+
+pravo has been initialised. Run "pravo plan" to see what it would do.
+```
+
+`Using the module at ../..` says that pravo found the `cue.mod` above the root, the CUE module, and did not create a second one. The provider packages went to `cue.mod/gen` at the top, where every root shares them. The lock file and the state belong to the root.
+
+```sh run
+pravo -C envs/prod init > /dev/null
+ls envs/dev envs/prod
+```
+
+```text out
+envs/dev:
+main.cue
+pravo.lock.cue
+
+envs/prod:
+main.cue
+pravo.lock.cue
+```
+
+## 5. Apply each root
+
+```sh run
+pravo -C envs/dev apply -auto-approve | grep '^Apply complete'
+pravo -C envs/prod apply -auto-approve | grep '^Apply complete'
+pravo -C envs/dev output
+pravo -C envs/prod output
+pravo -C envs/dev state list
+```
+
+```text out
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
+api_endpoint: "http://api.internal:8080"
+api_endpoint: "http://api.internal:8443"
+api.codename
+api.config
+```
+
+The resources are at the path where the instance sits: `api.codename` and `api.config`. Those are the addresses in plans and in the state. The two roots share code and nothing else.
+
+## 6. Change the shared definition
+
+Add a line to the content in `lib/service/service.cue`.
+
+```cue file=lib/service/service.cue title="lib/service/service.cue" hl="20"
+package service
+
+import (
+	rnd "pravo.dev/providers/hashicorp/random"
+	loc "pravo.dev/providers/hashicorp/local"
+)
+
+#Service: {
+	random!: rnd.#Provider
+	local!:  loc.#Provider
+
+	name:  string & =~"^[a-z][a-z0-9-]*$"
+	port:  int & >1024 & <65536
+	owner: string
+
+	codename: random.#Resource.random_pet & {length: 2}
+
+	config: local.#Resource.local_file & {
+		filename: "out/\(name).conf"
+		content:  "service \(name)\ncodename \(codename.id)\nport \(port)\nowner \(owner)\ntier standard\n"
+	}
+
+	endpoint: "http://\(name).internal:\(port)"
+}
+```
+
+```sh run
+pravo -C envs/dev plan | grep -E '^(  #|Plan|Graph)'
+pravo -C envs/prod plan | grep -E '^(  #|Plan|Graph)'
+```
+
+```text out
+  # api.config (local_file) must be replaced
+Plan: 1 to add, 0 to change, 1 to destroy.
+Graph: planned 1 · skipped 1 · refreshed 2
+  # api.config (local_file) must be replaced
+Plan: 1 to add, 0 to change, 1 to destroy.
+Graph: planned 1 · skipped 1 · refreshed 2
+```
+
+One edit reached both roots, and each shows its own plan to review. The pet did not change, so pravo did not plan it.
+
+## 7. Shared code is part of a saved plan
+
+Save a plan in `dev`, then edit the package again before you apply it.
+
+```sh run exit=3
+pravo -C envs/dev plan -out change.plan > /dev/null
+sed 's/tier standard/tier premium/' lib/service/service.cue > service.tmp
+mv service.tmp lib/service/service.cue
+pravo -C envs/dev apply change.plan
+```
+
+```text out
+Error: saved plan is stale; run "pravo plan" again:
+  - the configuration changed since the plan was made (lib/service/service.cue changed)
+```
+
+The fingerprint of a saved plan covers every file that was loaded for the root, including packages elsewhere in the repository. A package that the root does not import does not change it. The exit code is 3. [B7](../learn/b07-changing-live-infrastructure.md) covers saved plans.
+
+## 8. What to commit
+
+- `cue.mod/module.cue`, the shared packages and each root's `main.cue`.
+- Each root's `pravo.lock.cue`.
+- Either `cue.mod/gen`, so that `pravo validate` works in a clean checkout, or a `pravo init` step in [CI](ci.md).
+- The state, in a place the team shares: [a bucket](keep-the-state-in-a-shared-store.md), one prefix per root.
+
+Keep one `cue.mod` per repository. A second `cue.mod` inside it starts a separate CUE module, and code on the other side cannot import across the boundary by path. Code that is shared between repositories, or that has its own release schedule, is [published as a CUE module](publishing-a-module.md) and [used by version](using-a-module.md).
+
+Addresses are paths. Renaming a field that holds an instance renames every resource inside it. [Rename, move and adopt resources](importing-and-moving.md) shows how to keep the objects.
+
+## What next
+
+- [Publish a CUE module](publishing-a-module.md) when a second repository needs the code.
+- [Run one specification in several environments](environments.md) is the alternative when the environments differ in values only.
+- [Reuse](../reference/spec-reuse.md) is the reference for definitions that contain resources and the packages that share them.

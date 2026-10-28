@@ -190,6 +190,13 @@ pravo drift --json
 
 `gone` means the provider found no object. `pending_changes` is the number of changes in the plan.
 
+The viewer reads the same mark. `pravo serve` draws `motd` with the outline of a record whose object is gone, and the inspector says gone where it said in sync, over the file name and content that the state still holds.
+
+:::figure `motd` after `pravo drift`: the record says that the object is gone, and the state still holds what the file had.
+<a class="shot shot-dark" href="../img/serve/b09-drift-dark.png"><img src="../img/serve/b09-drift-dark.png" width="1440" height="900" alt="The viewer with two files, banner and motd, of type local_file. motd is selected and drawn with a red dashed outline and the mark of a broken link. The inspector shows motd, a local_file, with the record gone, in red, the revision 2 and refreshed just now, and the History tab counts 2. The State tab lists the configured attributes: content, welcome, content_base64, null, directory_permission and file_permission, 0777 and computed, filename, motd.txt and required, and source, null. Under Sensitive, sensitive_content is withheld." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/b09-drift-light.png"><img src="../img/serve/b09-drift-light.png" width="1440" height="900" alt="The viewer with two files, banner and motd, of type local_file. motd is selected and drawn with a red dashed outline and the mark of a broken link. The inspector shows motd, a local_file, with the record gone, in red, the revision 2 and refreshed just now, and the History tab counts 2. The State tab lists the configured attributes: content, welcome, content_base64, null, directory_permission and file_permission, 0777 and computed, filename, motd.txt and required, and source, null. Under Sensitive, sensitive_content is withheld." loading="lazy"></a>
+:::
+
 ## Reconcile: restore
 
 The specification is right and the world is wrong. `pravo drift` left a mark on `motd`: the record says that the file is gone, and the plan acts on that without reading the file again.
@@ -322,4 +329,4 @@ Why does pravo plan print No changes after a file is deleted?
 The plan does not reach the resource, and the record is within the refresh age, so the plan does not read the file.
 :::
 
-The guide [CI](../how-to/ci.md) shows how a pipeline reads these exit codes. [B10](b10-policy.md) turns to rules about what a plan may do.
+The guide [CI](../how-to/ci.md) shows how a pipeline reads these exit codes. [B10](b10-find-what-nothing-manages.md) finds the objects of the cloud that no specification names.

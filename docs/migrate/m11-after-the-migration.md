@@ -211,7 +211,7 @@ git commit -m "Translate the estate from OpenTofu"
 
 Idea: a constraint is a type. A name that does not match is refused when the specification evaluates, before any provider starts. Lesson: [A5 Constraints narrow a value](../learn/a05-constraints-narrow-a-value.md).
 
-The module takes a list of note names. Only lowercase letters make a file name that the estate wants.
+The definition takes a list of note names. Only lowercase letters make a file name that the estate wants.
 
 ```cue file=notes.cue title="notes.cue" hl="8"
 package estate
@@ -491,11 +491,11 @@ Outputs: 3 outputs unchanged.
 git commit -am "Remove the moves that have been applied"
 ```
 
-## Commit 5. A package for the module
+## Commit 5. A package for the definition
 
 Idea: a definition that other roots can use is a package. The root imports it, and its resources keep their addresses. Lesson: [A13 Packages and the standard library](../learn/a13-packages-and-the-standard-library.md).
 
-The module path comes from `cue.mod/module.cue`. The package takes its provider as an input, as before.
+The import path starts with the name of the CUE module in `cue.mod/module.cue`. The package takes its provider as an input, as before.
 
 ```cue file=notes/notes.cue title="notes/notes.cue"
 package notes
@@ -550,7 +550,7 @@ Outputs: 3 outputs unchanged.
 
 ```sh
 git add -A
-git commit -m "Move the notes module into a package"
+git commit -m "Move the notes definition into a package"
 ```
 
 ## What to do next
@@ -561,8 +561,9 @@ Each of these is one more commit with the same check.
 - Write a rule for every entry once with a pattern, [A9 Patterns](../learn/a09-patterns.md).
 - Replace a repeated expression by a hidden field or a `let`, [A11 References, let and hidden fields](../learn/a11-references-let-hidden.md).
 - Replace a flag pair by a condition, [A12 Conditions and strings](../learn/a12-conditions-and-strings.md).
-- Put the rules of the platform on the provider definition, so that every resource built through it obeys, [B10 Policy](../learn/b10-policy.md).
+- Put the rules of the platform on the provider definition, so that every resource built through it obeys, [B11 Policy](../learn/b11-policy.md).
 - Build the three environments from one definition, [A14 Project](../learn/a14-project-three-environments.md).
+- Put the state where the team can reach it, seal it and give the members roles, [Track C](../learn/c01-one-state-two-people.md).
 
 ## Recap
 
@@ -580,4 +581,4 @@ Why is `$from` removed in its own commit?
 The move has been applied, so the field does nothing. A separate commit keeps the refactor and the cleanup apart, and each has an empty plan.
 :::
 
-Next: [How-to](../how-to/index.md) has the task-shaped pages for what you do every week, such as remote state, CI and policies.
+Next: [How-to](../how-to/index.md) has the task-shaped pages for what you do every week, such as a shared store, CI, roles and approvals.

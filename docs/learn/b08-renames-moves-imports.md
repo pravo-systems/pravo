@@ -200,6 +200,18 @@ Graph: planned 0 · skipped 2 · not read 2 · to move 1
 
 The plan lists the rename. It changes nothing in the world: `0 to add, 0 to change, 0 to destroy`, and it writes nothing to the state, which still holds the old address. The apply renames the record.
 
+Saved to a file and opened in the viewer, the plan draws the move: `primary` carries the badge of a move, and its Change tab says that no attribute changes. `server`, the record that the move renames, is drawn faint beside it until the apply.
+
+```sh
+pravo plan --out change.plan
+pravo serve --plan change.plan
+```
+
+:::figure The move as a plan. `primary` carries the badge of a move and nothing else changes; `server`, the old address, is drawn faint beside it.
+<a class="shot shot-dark" href="../img/serve/b08-move-dark.png"><img src="../img/serve/b08-move-dark.png" width="1440" height="900" alt="The viewer with the plan change.plan laid over the graph: a strip under the bar names the file, with 1 change. The resource primary, a random_integer, is selected and carries the badge of a move, with a dashed outline, and is wired to the file note, outlined in amber. Under it, server, the old address, is drawn faint with a crossed circle. The inspector shows primary with the plan action move, the record declared only and no revision, and its Change tab reads move and says no attribute is listed for this change. The status bar says planned 1 of 3, 2 not read." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/b08-move-light.png"><img src="../img/serve/b08-move-light.png" width="1440" height="900" alt="The viewer with the plan change.plan laid over the graph: a strip under the bar names the file, with 1 change. The resource primary, a random_integer, is selected and carries the badge of a move, with a dashed outline, and is wired to the file note, outlined in amber. Under it, server, the old address, is drawn faint with a crossed circle. The inspector shows primary with the plan action move, the record declared only and no revision, and its Change tab reads move and says no attribute is listed for this change. The status bar says planned 1 of 3, 2 not read." loading="lazy"></a>
+:::
+
 > [!NOTE]
 > A plan writes no record for a `$from` or an `$import`: it says what the apply will write. The apply writes it first. No object changes, and only the records move.
 
@@ -343,7 +355,7 @@ Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
 Graph: planned 0 · skipped 4 · not read 4 · to move 2
 ```
 
-Both records move when the plan is applied. This is how you rename a module instance, or move resources into one.
+Both records move when the plan is applied. This is how you rename an instance of a definition, or move resources into one.
 
 ```sh run
 pravo apply --auto-approve | grep '^Apply complete'

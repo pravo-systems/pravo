@@ -17,12 +17,24 @@ normalize:
 
 Two questions from Track A. Decide, then open the answer.
 
-:::predict A definition `#Bucket` declares the field `name`. You build `logs: #Bucket & {nmae: "logs"}`. Is it accepted?
+:::predict Is it accepted?
+A definition `#Bucket` declares the field `name`. You build:
+
+```cue
+logs: #Bucket & {nmae: "logs"}
+```
+
 ::reveal
 No. A definition is closed, so `nmae` is `field not allowed` ([A8](a08-definitions-reject-typos.md)).
 :::
 
-:::predict A file says only `size: int`. Does `pravo eval -c` accept it?
+:::predict Does `pravo eval -c` accept it?
+A file says only:
+
+```cue
+size: int
+```
+
 ::reveal
 No. `int` is a type and not a value, and `-c` demands a concrete value ([A2](a02-a-value-can-be-a-type.md)).
 :::

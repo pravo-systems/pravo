@@ -207,7 +207,7 @@ Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
-Every record below `names` moves to the same place below `ids`. This is how to rename a module instance, or to move a resource into a module. The instance carries the old path. pravo refuses a `$from` that cannot be a move.
+Every record below `names` moves to the same place below `ids`. This is how to rename an instance of a definition, or to move a resource into one. The instance carries the old path. pravo refuses a `$from` that cannot be a move.
 
 | Message | Cause |
 |---|---|
@@ -327,6 +327,6 @@ The `pravo state` commands take `-t`. They act on the state of the environment t
 ## What next
 
 - [B8, Renames, moves, imports](../learn/b08-renames-moves-imports.md) teaches the idea with exercises.
-- [Share code between roots in one repository](modules-in-a-repository.md) shows why a rename in shared code reaches every root.
+- [Share code between roots in one repository](share-code-between-roots.md) shows why a rename in shared code reaches every root.
 - [Write and roll out plan policies](policies.md) judges the plan that a move or an import produces.
 - [Moves and imports](../reference/spec-moves-and-imports.md), [pravo import](../reference/import.md) and [state](../reference/state.md) are the reference.

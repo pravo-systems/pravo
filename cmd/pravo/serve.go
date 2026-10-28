@@ -34,7 +34,7 @@ func serveCmd() *cobra.Command {
 		Short: "Show the specification, the state and a saved plan in a browser, read-only",
 		Long: `Serve a read-only viewer on the loopback interface and open it in the default browser.
 
-The viewer shows the specification and the state as a graph of namespaces and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top: a plan file, or the id of a plan stored in the state with "pravo plan --store". The plans stored in the state are listed in the viewer whether or not --plan is given, and any of them can be laid over the graph. It updates when the state, the specification, the plan file or the stored plans change.
+The viewer shows the specification and the state as a graph of groups and resources, with the attributes of each (sensitive ones withheld), the CUE that writes it, its provider schema and its history. With --plan it shows a saved plan on top: a plan file, or the id of a plan stored in the state with "pravo plan --store". The plans stored in the state are listed in the viewer whether or not --plan is given, and any of them can be laid over the graph. It updates when the state, the specification, the plan file or the stored plans change.
 
 A state that is sealed (see "pravo protect") is read with your reader identity, named by --identity or found as the other commands find it, and a sealed identity asks for its passphrase on the terminal before the server starts. Without an identity, or with one that is not a reader, the viewer lists the resources and shows no value; --identity none shows the state as someone with no key sees it. The State page shows who can read the state and suggests commands to copy. It runs none of them.
 
@@ -56,7 +56,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			}
 			v := &viewerState{name: flags.Identity, dir: dir, accessDir: loadReadersFile(dir, flags.AccessDir).Dir}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan, VerifyApprovals: v.verifyApprovals}
+			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.
@@ -536,31 +536,4 @@ func (v *viewerState) verifyPlan(ctx context.Context, st *state.Store, id, diges
 		out.Items = append(out.Items, it)
 	}
 	return out, true
-}
-
-// verifyApprovals reads the approvals of a stored plan against the readers file, for the plan
-// view. It is nil when nobody approved the plan or there is nothing to check them against.
-func (v *viewerState) verifyApprovals(ctx context.Context, st *state.Store, id, digest string) *serve.PlanApprovals {
-	readers, ok := attributionReaders(loadReadersFile(v.dir, v.accessDir))
-	if !ok {
-		return nil
-	}
-	approvals, err := engine.NewPlanStoreFor(st).Approvals(ctx, id, digest, readers)
-	if err != nil {
-		return &serve.PlanApprovals{Items: []serve.PlanApproval{}, Note: "not checked: the approvals could not be read"}
-	}
-	if len(approvals) == 0 {
-		return nil
-	}
-	out := &serve.PlanApprovals{Items: []serve.PlanApproval{}}
-	for _, a := range approvals {
-		it := serve.PlanApproval{Status: a.Status.Key(), At: a.At}
-		if a.Status == protect.SigVerified {
-			it.Signer, it.Role = a.Signer, a.Role.String()
-		} else {
-			it.Claimed = a.Claimed
-		}
-		out.Items = append(out.Items, it)
-	}
-	return out
 }

@@ -148,6 +148,15 @@ Graph: planned 0 · skipped 2 · not read 2 · to move 1
 
 The plan lists the rename. It changes nothing in the world: `0 to add, 0 to change, 0 to destroy`, and it writes nothing to the state, which still holds the old address. The apply renames the record.
 
+Saved to a file and opened in the viewer, the plan draws the move: `primary` carries the badge of a move, and its Change tab says that no attribute changes. `server`, the record that the move renames, is drawn faint beside it until the apply.
+
+```sh
+pravo plan --out change.plan
+pravo serve --plan change.plan
+```
+
+*Figure: The move as a plan. primary carries the badge of a move and nothing else changes; server, the old address, is drawn faint beside it.*
+
 > [!NOTE]
 > A plan writes no record for a `$from` or an `$import`: it says what the apply will write. The apply writes it first. No object changes, and only the records move.
 
@@ -305,7 +314,7 @@ Plan: 0 to add, 0 to change, 0 to destroy, 2 to move.
 Graph: planned 0 · skipped 4 · not read 4 · to move 2
 ```
 
-Both records move when the plan is applied. This is how you rename a module instance, or move resources into one.
+Both records move when the plan is applied. This is how you rename an instance of a definition, or move resources into one.
 
 ```sh
 pravo apply --auto-approve | grep '^Apply complete'

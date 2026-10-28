@@ -1,7 +1,7 @@
 ---
 title: pravo providers
 description: List the providers a root resolves, print a provider's schema, pin archive hashes for more platforms and copy a provider to a container registry.
-order: 9
+order: 11
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'

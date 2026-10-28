@@ -424,7 +424,7 @@ doc: "{\"a\":1}"
 n:   1
 ```
 
-Your own package is imported by module path and directory.
+Your own package is imported by the path of the CUE module and the directory.
 
 ```cue title="estate.cue"
 import "estate.example/platform"
@@ -444,7 +444,7 @@ subnet: platform.#Subnet & {zone: "a", cidr: "10.0.1.0/24"}
 | `pravo validate` | Checks the specification against provider schemas. |
 | `pravo fmt` | Rewrites the `.cue` files of the directory in the standard layout. |
 
-[C4](c4-eval-and-validate.md) explains each flag.
+[eval and validate](eval-and-validate.md) explains each flag.
 
 ```cue file=estate.cue
 package estate
@@ -469,7 +469,7 @@ name: "logs"
 
 ## Errors
 
-An error names the path, the reason and the places that took part. [C1](c1-reading-a-cue-error.md) reads one line by line. The [error catalogue](../reference/errors.md) lists the errors of pravo itself.
+An error names the path, the reason and the places that took part. [Reading a CUE error](reading-a-cue-error.md) reads one line by line. The [error catalogue](../reference/errors.md) lists the errors of pravo itself.
 
 | Message | Meaning | Lesson |
 |---|---|---|
@@ -483,5 +483,5 @@ An error names the path, the reason and the places that took part. [C1](c1-readi
 | `non-concrete value string in operand to ==` | A condition on a value that is still a type. | [A12](a12-conditions-and-strings.md) |
 | `imported and not used: "strings"` | An import that nothing uses. | [A13](a13-packages-and-the-standard-library.md) |
 | `does not satisfy net.IPCIDR` | A validator refused the value. | [A13](a13-packages-and-the-standard-library.md) |
-| `incomplete value string` | With `-c`: the field is still a type. | [C2](c2-why-is-my-value-incomplete.md) |
-| `no tag for "stage"` | `-t` names a tag that no field declares. | [C4](c4-eval-and-validate.md) |
+| `incomplete value string` | With `-c`: the field is still a type. | [Why is my value incomplete?](why-is-my-value-incomplete.md) |
+| `no tag for "stage"` | `-t` names a tag that no field declares. | [eval and validate](eval-and-validate.md) |

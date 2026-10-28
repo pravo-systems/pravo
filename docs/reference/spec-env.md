@@ -23,7 +23,7 @@ pravo reads five values for itself. Each is a struct built from a definition of 
 |---|---|---|
 | `pravo.#Env` | An environment variable. | Anywhere, the [`$settings`](spec-settings.md) block included. It is an ordinary value. |
 | `pravo.#SecretEnv` | An environment variable that is a secret. | Provider configuration, write-only attributes and other ephemeral resources. Never an output or an ordinary attribute. |
-| `pravo.#Secret` | A secret that the [sealed state](../concepts/sealed-state.md) keeps. | The same places as `pravo.#SecretEnv`. |
+| `pravo.#Secret` | A secret that the [sealed state](../concepts/signatures-and-roles.md#what-is-sealed) keeps. | The same places as `pravo.#SecretEnv`. |
 | `pravo.#SecretVersion` | The number of the version of such a secret. | Anywhere. It is an ordinary value. |
 | `pravo.#RemoteOutputs` | The outputs another root has recorded. | Anywhere. It is an ordinary value. |
 
@@ -230,7 +230,7 @@ version: int
 An output named with dots, such as `api.url`, is a quoted label: `net.outputs["api.url"]`.
 
 - Only `outputs.json` is read. The other root's resources are never opened. A bucket policy that allows `GetObject` on that one object gives a reader the outputs and nothing else. Nothing is created or locked in the other root's state.
-- If the other root's state is [sealed](../concepts/sealed-state.md), its `outputs.json` is sealed to its readers, and `meta.json` is read as well. The outputs are opened with the identity of the person running the command, which must be one of the readers of that state, and pravo looks for it only then. With several identity files and none named like the user, the one whose reader key has a lock in the current group of that state's `meta.json` is used, so that one identity directory serves roots with different readers. `--identity NAME` names one. A person who is not a reader gets exit code 5.
+- If the other root's state is [sealed](../concepts/signatures-and-roles.md), its `outputs.json` is sealed to its readers, and `meta.json` is read as well. The outputs are opened with the identity of the person running the command, which must be one of the readers of that state, and pravo looks for it only then. With several identity files and none named like the user, the one whose reader key has a lock in the current group of that state's `meta.json` is used, so that one identity directory serves roots with different readers. `--identity NAME` names one. A person who is not a reader gets exit code 5.
 - The outputs are read on every plan and apply. The value is an ordinary one, recorded wherever it is used. A change in the other root shows up as a change here at the next plan.
 - An output that the other root marked `sensitive` is not included. A root converted with `pravo state import-tfstate` keeps the mark that its OpenTofu state had.
 - pravo does not make this root wait for the other. Apply the producer first. The order between roots is yours to enforce, in CI for example.
@@ -395,4 +395,4 @@ Where a data source can look the object up in the real infrastructure, it does n
 - [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) does the same for `pravo.#Secret`, with versions, roles and a rotation.
 - [`pravo secret`](secret.md) sets, reads and removes the secrets that `pravo.#Secret` reads.
 - [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) says where an ephemeral value may go.
-- [Keep the state in a shared bucket](../how-to/remote-state.md) reads the outputs of another root from a bucket.
+- [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) reads the outputs of another root from a bucket.

@@ -258,7 +258,23 @@ web: replace
   - the provider cannot change content in place; replacement required
 ```
 
-`reaches: web` lists the resources that the change spreads to. For `web` the reason is `inputs depend on values known only after apply: port`. Apply the change:
+`reaches: web` lists the resources that the change spreads to. For `web` the reason is `inputs depend on values known only after apply: port`.
+
+The viewer draws the same account over the graph. Save the plan to a file and open it there, in a second terminal:
+
+```sh
+pravo plan --out change.plan
+pravo serve --plan change.plan
+```
+
+Both resources carry the badge of a replacement, and the Change tab of `web` lists the reasons that `why` gave, with the attribute that forces the replacement and its value before and after.
+
+:::figure The plan of the narrower range over the graph. Both resources are replaced, and the Change tab of `web` says why: its content depends on a value that is known only after apply.
+<a class="shot shot-dark" href="../img/serve/b02-plan-dark.png"><img src="../img/serve/b02-plan-dark.png" width="1440" height="900" alt="The viewer with the plan change.plan laid over the graph: a strip under the bar names the file, with the counts +2 and −2. The two resources, port and web, both carry the badge of a replacement, and web is selected. The inspector shows web, a local_file, with the plan action replace and the record in sync, and its Change tab: replace, destroyed and created again, with the reasons inputs depend on values known only after apply: port, refreshed because the record is older than its refresh age, no drift, and the provider cannot change content in place, replacement required. Forces replacement: content. Under it, content changed and forces replacement, with the old value port = 26720 and the new value known after apply, and the two checksums of the content changed the same way. The status bar says planned 2 of 2." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/b02-plan-light.png"><img src="../img/serve/b02-plan-light.png" width="1440" height="900" alt="The viewer with the plan change.plan laid over the graph: a strip under the bar names the file, with the counts +2 and −2. The two resources, port and web, both carry the badge of a replacement, and web is selected. The inspector shows web, a local_file, with the plan action replace and the record in sync, and its Change tab: replace, destroyed and created again, with the reasons inputs depend on values known only after apply: port, refreshed because the record is older than its refresh age, no drift, and the provider cannot change content in place, replacement required. Forces replacement: content. Under it, content changed and forces replacement, with the old value port = 26720 and the new value known after apply, and the two checksums of the content changed the same way. The status bar says planned 2 of 2." loading="lazy"></a>
+:::
+
+Apply the change:
 
 ```sh run
 pravo apply --auto-approve | tail -n 1

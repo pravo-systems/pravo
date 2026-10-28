@@ -36,11 +36,13 @@ Every other resource goes to its provider, which returns the planned state. From
 
 This stage writes only records that it refreshed, moved or imported, and the marks that a read leaves on a record whose object differs or is gone. [Plans](plans.md) covers it.
 
+The plan can leave the terminal. `plan --out` saves it to a file, and `plan --store` writes it into the state, where a colleague or a job finds it by its id and applies exactly those actions. [Stored plans and approvals](stored-plans-and-approvals.md) follows it from there.
+
 ### 5. Judge
 
-A policy is a `pravo.#Policy` node of the specification. The first apply that carries it writes it to the state as a signed version. For every plan that changes a resource, pravo unifies the rule of each version in force with the plan document. A plan that violates a policy ends the run with exit code 5. `apply` judges under the locks, before the transaction starts, and the signed start of the transaction lists the versions that judged. `plan` judges the same way, for feedback.
+A policy is a `pravo.#Policy` node of the specification. The first apply that carries it writes it to the state as a signed version. For every plan that changes a resource, pravo unifies the rule of each version in force with the plan document. A plan that violates a policy ends the run with exit code 5. `apply` judges under the locks, before the transaction starts, and the signed start of the transaction lists the versions that judged. `plan` judges the same way, for feedback. A policy can also let a plan through on the condition that other people approve it, which only a stored plan can collect: the apply waits with exit code 5 until enough keys have approved.
 
-When no policy is in force, this stage does nothing. [Policies](policies.md) covers both kinds of rule.
+When no policy is in force, this stage does nothing. [Constraints and policies](policies.md) covers both.
 
 ### 6. Apply
 
@@ -50,9 +52,9 @@ Each changed resource is planned a second time, now with the values of the resou
 
 ### 7. Record
 
-pravo writes each node when its change completes, with a new revision. When the graph is finished, it writes the outputs and the transaction and releases the locks. An interrupted apply leaves the nodes that were written before it stopped.
+pravo writes each node when its change completes, with a new revision. When the graph is finished, it writes the outputs and the transaction and releases the locks. An interrupted apply leaves the nodes that were written before it stopped. In a sealed state the values are encrypted to the readers, and the transaction is signed by the identity that ran it, so the log says who changed what and the signature can be checked later.
 
-[State](state.md) describes the records.
+[State](state.md) describes the records, and [Signatures and roles](signatures-and-roles.md) what sealing and signing protect.
 
 ## The parts of a run
 
@@ -167,17 +169,23 @@ Graph: planned 0 · skipped 2 · not read 2
 
 No policy is in force, so stage 5 prints nothing. With one, `plan` prints one `Policies` line after the plan and before any file is saved.
 
+## What a run leaves behind
+
+A run writes to the state and prints to the terminal, and it leaves two more things that other commands read. With `PRAVO_TRACES=on`, every command that did some work records its trace in `.pravo/traces`: one span for each stage, resource, provider call, request to the state and network call, with its timing and its outcome, and never an attribute value. [Traces](traces.md) explains what a span is, and the Traces section of the viewer draws a run as a timeline. The viewer itself, `pravo serve`, reads the specification, the state, the stored plans, the policies, the discoveries and the recorded runs and shows them in a browser, and writes nothing: [The viewer](the-viewer.md) explains what it makes of them. A program that drives pravo reads the same documents as JSON, through `--json`, the MCP server or the Go library: [The library and the machine interface](the-library-and-the-machine-interface.md).
+
 ## Where each command stops
 
 | Command | Stages | What else it does |
 |---|---|---|
 | `pravo validate` | 1 and 2 | Resolves the providers and reads their schemas. It starts no provider and opens no state. |
 | `pravo eval` | 1 and 2 | Opens the state and fills the recorded attributes of each resource into the value. |
-| `pravo plan` | 1 to 5 | `-out` saves the plan after the policies are satisfied. |
+| `pravo plan` | 1 to 5 | `-out` saves the plan after the policies are satisfied, and `--store` writes it into the state. |
 | `pravo drift`, `pravo why` | 1 to 4 | `drift` reads every record, or with `--due` the records past their refresh age. `why` prints the reasons of each change. |
 | `pravo apply` | 1 to 4, then 6 and 7 | Prints the plan and asks for `yes`. Stage 5 judges the plan it built. |
-| `pravo apply FILE` | 1 and 2, then 5 to 7 | Reads the saved plan in place of stages 3 and 4 and checks that it is current. Stage 6 builds the graph and plans each resource of the plan again. |
+| `pravo apply FILE`, `pravo apply ID` | 1 and 2, then 5 to 7 | Reads the saved plan, or the plan stored in the state, in place of stages 3 and 4 and checks that it is current. Stage 5 also checks the approvals a policy asked for. Stage 6 builds the graph and plans each resource of the plan again. |
 | `pravo destroy` | 1 and 2, then 4 to 7 | The plan is the list of records in the state, with no graph built from the specification. It is judged before the prompt. |
+| `pravo discover` | 1 and 2 | Runs the discoveries of the specification through their providers and writes what each found to the state. No plan is made. |
+| `pravo serve` | 1 and 2 | Reads the state, the stored plans, the policies, the discoveries and the recorded runs, and serves them. It starts no provider and writes nothing. |
 
 ## What each stage touches
 

@@ -92,11 +92,11 @@ pravo apply
 
 ## The viewer
 
-`pravo serve` shows the specification, the state and a saved plan of a root as an animated graph of namespaces and resources, in a browser. It listens on the loopback interface, needs the token that it prints, withholds sensitive values on the server and writes nothing.
+`pravo serve` shows the specification, the state and a saved plan of a root as an animated graph of groups and resources, in a browser. It listens on the loopback interface, needs the token that it prints, withholds sensitive values on the server and writes nothing.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/serve/overview-dark.png">
-  <img src="docs/img/serve/overview-light.png" alt="The pravo viewer as it opens. A filter box in the toolbar narrows the nodes. The graph fills the window and draws the namespaces that fit as lanes and the others as cards, joined by arrows. The inspector comes in when something is selected." width="1440" height="900">
+  <img src="docs/img/serve/overview-light.png" alt="The pravo viewer as it opens. A filter box in the toolbar narrows the nodes. The graph fills the window and draws the groups that fit as lanes and the others as cards, joined by arrows. The inspector comes in when something is selected." width="1440" height="900">
 </picture>
 
 ```sh
@@ -108,7 +108,7 @@ pravo serve --plan change.plan       # overlay a saved plan
 
 ## Sealed state
 
-`pravo protect init --encrypt` encrypts the attributes, outputs and stored plans of a state to a list of readers that the repository keeps in `.pravo/access/readers.txt`. `pravo id new` makes an identity and prints the line for that file. Addresses, types, names and dependencies stay readable, so the graph and the plans keep working. Protection is off by default, and a state that has it off is unchanged. `docs/how-to/seal-the-state.md` walks through it, and `docs/concepts/sealed-state.md` says what it protects and what it leaves open.
+`pravo protect init --encrypt` encrypts the attributes, outputs and stored plans of a state to a list of readers that the repository keeps in `.pravo/access/readers.txt`. `pravo id new` makes an identity and prints the line for that file. Addresses, types, names and dependencies stay readable, so the graph and the plans keep working. Protection is off by default, and a state that has it off is unchanged. `docs/how-to/seal-the-state.md` walks through it, and `docs/concepts/signatures-and-roles.md` says what it protects and what it leaves open.
 
 A sealed state also keeps secrets, as named values with a history: `pravo secret set NAME` writes a version, a specification reads it with `pravo.#Secret` and hands it to a provider, and the value is never written to a record, a plan or a log. Each change is a signed transaction, and the readers file can give keys the roles reader, writer and admin. `docs/how-to/store-secrets-in-the-state.md` walks through it, and `pravo serve` lists the secrets without a value.
 
@@ -148,11 +148,11 @@ A sealed state also keeps secrets, as named values with a history: `pravo secret
 | `tools/hclcheck/` | Runs the OpenTofu listings of the documentation through `tofu fmt`, `init` and `validate`. |
 | `tools/_weblint/` | ESLint and Stylelint for the viewer and the site. The underscore keeps the Go tools out of its `node_modules`. |
 | `tools/serveshots/` | Applies the estates in `scenarios/`, starts `pravo serve` and makes the screenshots of the documentation with headless Chrome. |
-| `tools/protogen/`, `tools/fakes3/`, `tools/fakeoci/` | Protocol message generator; an in-memory S3 bucket and an in-memory container registry for trying state and modules. |
+| `tools/protogen/`, `tools/fakes3/`, `tools/fakeoci/` | Protocol message generator; an in-memory S3 bucket and an in-memory container registry for trying state and CUE modules. |
 | `docs/` | Documentation sources. `docs/AUTHORING.md` fixes the format. |
 | `site/` | Site configuration, landing page, style sheet, scripts, recorded landing data. |
 | `examples/` | Four runnable roots. |
-| `templates/module/` | Template repository for a shared module. |
+| `templates/module/` | Template repository for a CUE module that other repositories fetch by version. |
 
 ## Contributing
 

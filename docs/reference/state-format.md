@@ -2,7 +2,7 @@
 title: State format
 description: "The files of the state graph: nodes, outputs, transactions, locks, stored plans and the metadata that identifies a store."
 order: 50
-group: Data and formats
+group: Formats and interfaces
 normalize:
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
@@ -281,7 +281,7 @@ Format 3 is the layout of format 2 with room for a seal. A state is sealed when 
 | `groups_used` | Written by an unseal: the highest number a group of the state ever had. A state that is sealed again numbers its groups from there. |
 | `history` | The last 50 changes of the seal: `sealed`, `rewrap`, `rewrap --all`, `recover`, `unsealed` and `gc`, with the names added and removed. `gc` records that groups were dropped, and names none. A change of the recovery is recorded as `recovery set 2/3` or `recovery removed`. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
 
-`meta.json` is not signed. A writer of the bucket who edits it to a lower format is noticed by the writers that have the repository: when `.pravo/access/readers.txt` exists and the state is not sealed, or does not exist yet, a command that writes refuses with exit code 5 and a command that reads warns. A writer without the repository does not notice. [What sealing protects](../concepts/sealed-state.md) says more.
+`meta.json` is not signed. A writer of the bucket who edits it to a lower format is noticed by the writers that have the repository: when `.pravo/access/readers.txt` exists and the state is not sealed, or does not exist yet, a command that writes refuses with exit code 5 and a command that reads warns. A writer without the repository does not notice. [Signatures and roles](../concepts/signatures-and-roles.md) says more.
 
 The public key and the threshold of the recovery recipient are also kept in the repository, in `.pravo/access/recovery.txt`, one line `x25519:KEY K/N`, and a writer compares it with `sealed.recovery` as it compares the readers file. A share file is one line, `pravo-share-1 KEYID INDEX K/N SHARE CHECK`, with the share in base64url and a short check that catches a mistyped line.
 
@@ -796,6 +796,6 @@ An object that a newer pravo wrote, with a larger `v`, is not read, and is repor
 ## See also
 
 - [State](../concepts/state.md) explains revisions, transactions and locks.
-- [Plans](../concepts/plans.md#stored-plans) explains the life of a stored plan.
+- [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) explains the life of a stored plan.
 - [`pravo state`](state.md) reads and edits the state.
-- [Keep the state in a shared bucket](../how-to/remote-state.md) moves a root to S3.
+- [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) moves a root to S3.

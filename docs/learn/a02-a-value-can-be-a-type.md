@@ -135,7 +135,7 @@ Read the error from left to right.
 - **Message.** `incomplete value bool` says that the field holds the constraint `bool`. It names the constraint after the word `value`.
 - **Location.** `./estate.cue:14:19` is the file, the line and the column of the constraint.
 
-[Incomplete](../reference/glossary.md#incomplete) does not mean wrong. It means not finished. [Why is my value incomplete?](c2-why-is-my-value-incomplete.md) lists the causes.
+[Incomplete](../reference/glossary.md#incomplete) does not mean wrong. It means not finished. [Why is my value incomplete?](why-is-my-value-incomplete.md) lists the causes.
 
 ## Exercise
 

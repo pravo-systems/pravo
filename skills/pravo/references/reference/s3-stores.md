@@ -71,4 +71,4 @@ The checks have been run against these servers. `ignored` means that the server 
 
 A store that fails the delete check cannot hold a state that more than one command writes, whatever else it honours: a lock that is reclaimed while its holder renews it is deleted although it has changed. `pravo state probe` names the check that fails. Amazon S3 and Cloudflare R2 are not in the table.
 
-[Remote state](../how-to/remote-state.md) sets up the bucket, and [State format](state-format.md#remote-layout) describes the objects.
+[Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) sets up the bucket, and [State format](state-format.md#remote-layout) describes the objects.

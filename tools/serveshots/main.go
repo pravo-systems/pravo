@@ -3,12 +3,15 @@
 // For each scenario in tools/serveshots/scenarios it copies the estate to a
 // temporary workspace, runs pravo init and pravo apply, makes the changes that
 // the shots need (a file edited and another deleted on disk and a pravo drift,
-// a resource added to the specification and one removed, a saved plan), starts
-// pravo serve on a free loopback port and opens the address of each shot in
-// headless Chrome at a device scale factor of 2. The PNGs are named by the shot
-// and written to the output directory, docs/img/serve in the module. The
-// program stops on a browser that fails, on an image that is blank or has the
-// wrong size, and on an error that the page logs to its console.
+// a resource added to the specification and one removed, a saved plan; for
+// the team, a state in a bucket that the program serves, sealed to three
+// people with roles, policies, plans stored and approved, a discovery and
+// recorded runs), starts pravo serve on a free loopback port and opens the
+// address of each shot in headless Chrome at a device scale factor of 2. The
+// PNGs are named by the shot, reduced to a palette of 256 colours and written
+// to the output directory, docs/img/serve in the module. The program stops on
+// a browser that fails, on an image that is blank or has the wrong size, and
+// on an error that the page logs to its console.
 //
 //	go run ./tools/serveshots -bin bin/pravo -out docs/img/serve
 //	go run ./tools/serveshots -bin bin/pravo -out docs/img/serve -only overview-dark
@@ -24,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -34,7 +38,7 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-const usage = `usage: serveshots -bin PATH -out DIR [-chrome PATH] [-only NAMES] [-work DIR] [-keep] [-wait D] [-v]
+const usage = `usage: serveshots -bin PATH -out DIR [-chrome PATH] [-fakeprovider PATH] [-only NAMES] [-work DIR] [-keep] [-wait D] [-colours N] [-v]
        serveshots -out DIR -placeholders [-only NAMES]
        serveshots -list
 
@@ -57,6 +61,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	bin := flags.String("bin", "", "pravo binary to run (required unless -placeholders or -list)")
 	out := flags.String("out", "", "directory for the PNGs")
 	chromePath := flags.String("chrome", "", "Chrome or Chromium binary (default: $CHROME, then the usual places)")
+	fakeProvider := flags.String("fakeprovider", "", "the fake provider binary for the team situation (default: built from the module with go build)")
+	colours := flags.Int("colours", defaultColours, "the colours of the palette each PNG is reduced to; 0 keeps the browser's PNG")
 	only := flags.String("only", "", "make only these shots or the shots of these scenarios, comma separated")
 	work := flags.String("work", "", "directory for the workspaces (default: a temporary directory, removed afterwards)")
 	keep := flags.Bool("keep", false, "keep the workspaces and print where they are")
@@ -113,6 +119,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "serveshots: %v\n", err)
 		return 2
 	}
+	if *colours < 0 || *colours > 256 {
+		fmt.Fprintf(stderr, "serveshots: -colours %d: a palette holds 1 to 256 colours\n", *colours)
+		return 2
+	}
 	if info, err := os.Stat(binAbs); err != nil || !info.Mode().IsRegular() {
 		fmt.Fprintf(stderr, "serveshots: -bin %s: no such file\n", *bin)
 		return 2
@@ -157,16 +167,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 		log = stderr
 	}
 	m := &maker{
-		ctx:    ctx,
-		runner: &pravoRunner{Bin: binAbs, Log: log},
-		bin:    binAbs,
-		chrome: chrome,
-		out:    outAbs,
-		work:   workDir,
-		opts:   shotOptions{Min: time.Second, Max: *wait},
-		log:    log,
-		spaces: map[string]*workspace{},
-		views:  map[string]*viewer{},
+		ctx:      ctx,
+		runner:   &pravoRunner{Bin: binAbs, Log: log},
+		bin:      binAbs,
+		chrome:   chrome,
+		provider: *fakeProvider,
+		out:      outAbs,
+		work:     workDir,
+		opts:     shotOptions{Min: time.Second, Max: *wait},
+		colours:  *colours,
+		log:      log,
+		spaces:   map[string]*workspace{},
+		views:    map[string]*viewer{},
 	}
 	defer m.close()
 
@@ -204,14 +216,20 @@ type maker struct {
 	runner *pravoRunner
 	bin    string
 	chrome string
-	out    string
-	work   string
-	opts   shotOptions
-	log    io.Writer
+	// provider is the fake provider binary, built when it is empty and a
+	// team situation needs it.
+	provider string
+	out      string
+	work     string
+	opts     shotOptions
+	colours  int
+	log      io.Writer
 	// spaces is keyed by scenario and kind of workspace ("platform/clean"),
 	// views by scenario and situation ("platform/plan").
 	spaces map[string]*workspace
 	views  map[string]*viewer
+	// store serves the bucket of the team situations, started with the first.
+	store *store
 }
 
 func (m *maker) logf(format string, args ...any) {
@@ -236,13 +254,27 @@ func (m *maker) workspace(sc scenario, situation string) (*workspace, error) {
 		w   *workspace
 		err error
 	)
+	// A scenario with a catalog lists it through the fake provider in every
+	// situation; the team situation builds the provider with its store.
+	provider := ""
+	if sc.hasCatalog() && kind != situationTeam {
+		if provider, err = m.fakeProvider(); err != nil {
+			return nil, fmt.Errorf("scenario %s, %s: %w", sc.Name, kind, err)
+		}
+	}
 	switch kind {
 	case situationClean:
-		w, err = prepareClean(m.ctx, m.runner, sc, dir)
+		w, err = prepareClean(m.ctx, m.runner, sc, dir, provider)
 	case situationStored:
-		w, err = prepareStored(m.ctx, m.runner, sc, dir)
+		w, err = prepareStored(m.ctx, m.runner, sc, dir, provider)
+	case situationTeam:
+		var deps teamDeps
+		deps, err = m.teamDeps()
+		if err == nil {
+			w, err = prepareTeam(m.ctx, m.runner, sc, dir, deps)
+		}
 	default:
-		w, err = prepareChanged(m.ctx, m.runner, sc, dir)
+		w, err = prepareChanged(m.ctx, m.runner, sc, dir, provider)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("scenario %s, %s: %w", sc.Name, kind, err)
@@ -266,7 +298,7 @@ func (m *maker) viewer(sc scenario, situation string) (*viewer, error) {
 		plan = w.Plan
 	}
 	m.logf("starting pravo serve for %s", key)
-	v, err := startViewer(m.ctx, m.bin, w.Dir, plan, m.log)
+	v, err := startViewer(m.ctx, m.bin, w.Dir, plan, w.Env, m.log)
 	if err != nil {
 		return nil, fmt.Errorf("scenario %s, %s: %w", sc.Name, situation, err)
 	}
@@ -293,13 +325,14 @@ func (m *maker) make(s Shot) (info imageInfo, notes []string, err error) {
 		return info, nil, err
 	}
 	profile := filepath.Join(m.work, "chrome-profile")
-	fragment, err := resolvePlans(s.URLFragment(), m.spaces[sc.Name+"/"+workspaceKind(s.Situation)].Plans)
+	fragment, err := resolveLabels(s.URLFragment(), m.spaces[sc.Name+"/"+workspaceKind(s.Situation)])
 	if err != nil {
 		return info, nil, fmt.Errorf("shot %s: %w", s.Name, err)
 	}
 	m.logf("shot %s: %s", s.Name, fragment)
 	opts := m.opts
 	opts.Replace = m.replacements(sc, s.Situation, v)
+	opts.Script = s.Script
 	notes, err = screenshotRetry(m.ctx, m.chrome, profile, tmp, v.open(fragment), s.Width, s.Height, opts)
 	if err != nil {
 		return info, notes, err
@@ -311,7 +344,59 @@ func (m *maker) make(s Shot) (info imageInfo, notes []string, err error) {
 	if err := checkTheme(info, s.Fragment.Theme); err != nil {
 		return info, notes, err
 	}
+	if err := shrinkPNG(tmp, m.colours); err != nil {
+		return info, notes, fmt.Errorf("shot %s: %w", s.Name, err)
+	}
+	if info.Bytes, err = fileSize(tmp); err != nil {
+		return info, notes, err
+	}
 	return info, notes, copyFile(tmp, target)
+}
+
+// teamDeps starts the store and builds the fake provider, once.
+func (m *maker) teamDeps() (teamDeps, error) {
+	if m.store == nil {
+		s, err := startStore()
+		if err != nil {
+			return teamDeps{}, err
+		}
+		m.store = s
+		m.logf("serving the bucket of the team on %s", s.Endpoint)
+	}
+	p, err := m.fakeProvider()
+	if err != nil {
+		return teamDeps{}, err
+	}
+	return teamDeps{Store: m.store, FakeProvider: p}, nil
+}
+
+// fakeProvider is the path of the fake provider, built once when none was
+// given.
+func (m *maker) fakeProvider() (string, error) {
+	if m.provider == "" {
+		m.logf("building the fake provider")
+		p, err := buildFakeProvider(m.ctx, filepath.Join(m.work, "bin"))
+		if err != nil {
+			return "", err
+		}
+		m.provider = p
+	}
+	p, err := filepath.Abs(m.provider)
+	if err != nil {
+		return "", err
+	}
+	if info, err := os.Stat(p); err != nil || !info.Mode().IsRegular() {
+		return "", fmt.Errorf("-fakeprovider %s: no such file", m.provider)
+	}
+	return p, nil
+}
+
+func fileSize(path string) (int64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
 }
 
 // replacements are the pairs of text that a picture shows in place of what
@@ -348,7 +433,7 @@ func (m *maker) replacements(sc scenario, situation string, v *viewer) [][2]stri
 // workspaceKind is the kind of workspace that a situation is made in.
 func workspaceKind(situation string) string {
 	switch situation {
-	case situationClean, situationStored:
+	case situationClean, situationStored, situationTeam:
 		return situation
 	}
 	return situationChanged
@@ -358,6 +443,9 @@ func workspaceKind(situation string) string {
 func (m *maker) close() {
 	for _, v := range m.views {
 		v.stop()
+	}
+	if m.store != nil {
+		m.store.stop()
 	}
 }
 
@@ -393,19 +481,24 @@ func validateShots(shots []Shot) error {
 			if !sc.hasStored() {
 				return fmt.Errorf("shot %s: scenario %s has no stored plans", s.Name, s.Scenario)
 			}
+		case situationTeam:
+			if !sc.hasTeam() {
+				return fmt.Errorf("shot %s: scenario %s has no team situation", s.Name, s.Scenario)
+			}
 		default:
 			return fmt.Errorf("shot %s: unknown situation %q", s.Name, s.Situation)
 		}
 		if err := s.Fragment.validate(); err != nil {
 			return fmt.Errorf("shot %s: %w", s.Name, err)
 		}
-		if actor, ok := strings.CutPrefix(s.Fragment.Plan, "@"); ok {
-			found := false
-			for _, sp := range sc.Stored {
-				found = found || sp.Actor == actor
+		if label, ok := strings.CutPrefix(s.Fragment.Plan, "@"); ok {
+			if (s.Situation != situationStored && s.Situation != situationTeam) || !slices.Contains(sc.planLabels(), label) {
+				return fmt.Errorf("shot %s: plan=@%s needs the stored or the team situation and a stored plan of that name", s.Name, label)
 			}
-			if s.Situation != situationStored || !found {
-				return fmt.Errorf("shot %s: plan=@%s needs the stored situation and a stored plan of that actor", s.Name, actor)
+		}
+		if label, ok := strings.CutPrefix(s.Fragment.Trace, "@"); ok {
+			if s.Situation != situationTeam || !slices.Contains(sc.traceLabels(), label) {
+				return fmt.Errorf("shot %s: trace=@%s needs the team situation and a recorded run of that name", s.Name, label)
 			}
 		}
 		if s.Fragment.Motion != "off" {

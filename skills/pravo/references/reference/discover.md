@@ -13,7 +13,7 @@ Run the discoveries of the specification, show what they found against the state
 | Starts providers | `discover` and `adopt --read`. The other subcommands read the state and start nothing. |
 | Writes | `discover`: one object for each discovery it runs, `discovery/runs/<name>.json`. Nothing else: no record, no transaction and no lock. |
 | Requires | A discovery in the specification, built from a provider that implements list resources. [Discovery](../concepts/discovery.md) explains what one is. |
-| Taught in | [Find what nothing manages](../how-to/find-what-nothing-manages.md). |
+| Taught in | [B10, Find what nothing manages](../learn/b10-find-what-nothing-manages.md). The guide [Find what nothing manages](../how-to/find-what-nothing-manages.md) adds a change of scope and a check from a schedule. |
 
 A discovery is written `name: $provider.#Discovery.<type> & {scope...}` and may set `$limit`, the most objects that one run keeps, and `$ack`, the list of what is known and left alone. `NAME` is the address of the struct, such as `servers` or `network.vpcs`. A name that no discovery has is an error that lists the names that exist. A discovery cannot be called `show` or `adopt`: a first argument that is one of them is the subcommand.
 
@@ -71,4 +71,4 @@ It is not sealed. `pravo state pull` and `pravo state push` copy it with the rec
 
 ## The viewer
 
-[`pravo serve`](serve.md#the-discovery-section) shows the same data in the Discovery section: each discovery as a card, the unmanaged objects first. It reads the runs and the specification and writes nothing. It offers the commands above as text.
+[`pravo serve`](viewer-sections.md#the-discovery-section) shows the same data in the Discovery section: each discovery as a card, the unmanaged objects first. It reads the runs and the specification and writes nothing. It offers the commands above as text.

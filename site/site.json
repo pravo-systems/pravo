@@ -27,7 +27,8 @@
         "Track A · CUE from zero",
         "Track A · Companions",
         "Track B · pravo",
-        "Track B · Labs and project"
+        "Track B · Labs and project",
+        "Track C · A team on one state"
       ]
     },
     {
@@ -47,8 +48,9 @@
       "groups": [
         "Get started",
         "Specify",
-        "Providers and state",
+        "Share and protect",
         "Operate",
+        "Observe",
         "Maintain"
       ]
     },
@@ -60,12 +62,13 @@
     {
       "id": "reference",
       "title": "Reference",
-      "blurb": "Lookup: one page per command and per specification topic.",
+      "blurb": "Lookup: one page per command, per part of the viewer, per specification topic and per format.",
       "groups": [
         "Commands",
+        "Viewer",
         "Language",
         "Policies",
-        "Data and formats",
+        "Formats and interfaces",
         "Lookup"
       ]
     }
@@ -73,7 +76,7 @@
   "search_suggest": [
     "how-to/quick-start.md",
     "migrate/index.md",
-    "learn/c1-reading-a-cue-error.md",
+    "learn/reading-a-cue-error.md",
     "reference/errors.md",
     "reference/glossary.md",
     "how-to/ci.md",

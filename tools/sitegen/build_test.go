@@ -79,7 +79,7 @@ func TestBuildTestdata(t *testing.T) {
 		`<p class="applies">pravo 0.1 · CUE 0.17</p>`,
 		`<div class="doc-toc">`, `<details class="toc-inline">`, `<p class="toc-title">On this page</p>`, `<li class="toc-l2"><a href="#constraints-that-agree">`,
 		`<footer class="site-footer">`, `<nav class="foot-nav" aria-label="Footer">`, `<span class="applies">pravo 0.1 · CUE 0.17</span> · pravo is an independent project`,
-		`<span class="pager-kicker">§ A2</span><span class="pager-title">Fields and structs</span><span class="pager-desc">A struct groups fields.`,
+		`<span class="pager-kicker">§ A2</span><span class="pager-title">Fields and structs</span></a>`,
 		`<script src="../assets/site.js" defer></script>`,
 		`<script src="../assets/widgets.js" defer></script>`,
 		`<link rel="alternate" type="text/markdown" href="a03-writing-a-field-twice.md">`,

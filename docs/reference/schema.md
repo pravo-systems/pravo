@@ -1,7 +1,7 @@
 ---
 title: pravo schema
 description: Print the CUE definition of a resource, data source, ephemeral resource or function type, with the provider's documentation.
-order: 11
+order: 13
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'

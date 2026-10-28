@@ -34,7 +34,7 @@ In the CUE column, `$p` stands for a provider struct such as `$aws`, and `pkg` f
 [Repetition](#repetition)
 
 ### Reuse
-A `module` becomes a definition, and a provider becomes an input.
+A `module` block becomes an instance of a definition, and a provider becomes an input.
 
 [Reuse](#reuse)
 
@@ -111,7 +111,7 @@ Success! 0 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs a
 |---|---|---|
 | `required_providers`, `provider`, `alias` | `$p: pkg.#Provider & {$version: "…"}` | One struct per configuration. |
 | `provider = aws.west` | `$west.#Resource.T & {…}` | The struct the resource is built through. |
-| `providers = {…}` on a module call | A required module input `provider!: pkg.#Provider` | The caller writes `provider: $west`. |
+| `providers = {…}` on a module call | A required input of the definition, `provider!: pkg.#Provider` | The caller writes `provider: $west`. |
 
 [M4, step 1](m4-translate-the-specification.md#step-1-providers) covers the version constraint and the lock file.
 
@@ -335,7 +335,7 @@ Keep the shape of the instances. A struct stays a struct and a list stays a list
 
 ## Reuse
 
-A module is a definition that holds resources. An instance of it is one more field, and its resources take the address `instance.resource`. A caller may set any field of an instance, and the definition still checks the result.
+pravo has no module block. What a module does in OpenTofu, a definition that holds resources does in pravo. An instance of it is one more field, and its resources take the address `instance.resource`. A caller may set any field of an instance, and the definition still checks the result. The word module names one thing in pravo: a CUE module, the tree of packages under `cue.mod/module.cue`, which `pravo mod` publishes and fetches by version. That is how a definition travels between repositories.
 
 ```hcl
 variable "name" {
@@ -371,7 +371,7 @@ module "web" {
 }
 ```
 
-File `module.cue`:
+File `service.cue`:
 
 ```cue
 package estate
@@ -411,10 +411,10 @@ Success! 8 resources, 0 data sources, 0 ephemeral, 0 function calls, 1 outputs a
 
 | OpenTofu | pravo | Note |
 |---|---|---|
-| `module` | A definition that holds resources | An instance `m: #M & {…}` gives its resources the address `m.res`. |
-| `providers = {…}` on a module call | A required module input `provider!: pkg.#Provider` | The caller writes `provider: $west`. |
+| `module` block | An instance of a definition that holds resources | `m: #M & {…}` gives its resources the address `m.res`. |
+| `providers = {…}` on a module call | A required input of the definition, `provider!: pkg.#Provider` | The caller writes `provider: $west`. |
 
-[B6](../learn/b06-modules-providers-credentials.md) teaches modules with providers, and [M4, step 7](m4-translate-the-specification.md#step-7-modules) translates a module call.
+[B6](../learn/b06-reuse-providers-credentials.md) teaches shared definitions with providers, and [M4, step 7](m4-translate-the-specification.md#step-7-module-blocks) translates a module block. A package from another repository comes from a published CUE module: [Use a published CUE module](../how-to/using-a-module.md).
 
 ## Order and lifecycle
 
@@ -563,7 +563,7 @@ Success! 0 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs a
 
 | OpenTofu | pravo | Note |
 |---|---|---|
-| `backend` | `$settings: pravo.#Settings & {state: {…}}` | A local directory or an S3-compatible bucket. No other backend. |
+| `backend` | `$settings: pravo.#Settings & {state: {…}}` | A local directory, an S3-compatible bucket or an HTTP server of your own: [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md). |
 | Workspaces, `terraform.workspace` | No equivalent | `@tag(env)` selects the environment. The state path can depend on it. |
 | `terraform_remote_state` | `pravo.#RemoteOutputs` | Reads the other root's `outputs.json`. Sensitive outputs are left out. |
 
@@ -647,6 +647,11 @@ greeting
 | `tofu workspace` | No equivalent | Use a tag. |
 | `tofu test` | No equivalent | |
 | No OpenTofu command | `pravo why ADDR`, `pravo schema TYPE`, `pravo mcp` | Explain a plan entry, print a resource definition, serve the commands to an agent. |
+| No OpenTofu command | `pravo plan --store`, `pravo plan list`, `pravo plan approve ID` | A plan in the state, which the team lists, reads, approves and applies by its id. |
+| No OpenTofu command | `pravo id`, `pravo protect` | An identity per person, a state sealed to a list of readers, a role per reader. |
+| No OpenTofu command | `pravo policy test` | A rule held against saved plans or the stored plans, with nothing applied. |
+| No OpenTofu command | `pravo discover` | The objects of a scope that nothing manages, to acknowledge or adopt. |
+| No OpenTofu command | `pravo serve` | The viewer: the estate as a graph, its history, the team's plans, drift, the policies and the recorded runs. |
 
 The [command map](command-map.md) lists the flags, the environment variables and the files as well.
 
@@ -743,7 +748,7 @@ Output:
 ## Recap
 
 - Every construct maps to a field, a definition, a comprehension or a `$` field; the rows with no equivalent name their replacement.
-- Commands keep their names, and flags move from `-var` to `-t`; `-target`, workspaces and taint have no counterpart.
+- Commands keep their names, and flags move from `-var` to `-t`; `-target`, workspaces and taint have no counterpart. Stored plans, sealing, roles, discovery and the viewer have no OpenTofu side, and [Track C](../learn/c01-one-state-two-people.md) teaches them.
 - Functions come from CUE packages; `merge` is `&`, and a conflict is an error.
 
 Next: [the worked example](m3-worked-example.md) runs the forms on a real stack.

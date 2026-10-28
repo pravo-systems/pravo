@@ -9,7 +9,7 @@
 import { isOut, isEnv, isSecret } from './model.js';
 import { h, clear } from './util.js';
 
-const ALIAS = { address: 'addr', name: 'addr', namespace: 'ns', module: 'ns', action: 'plan', changes: 'plan', age: 'refreshed', fields: 'field', attr: 'field', attribute: 'field', values: 'value' };
+const ALIAS = { address: 'addr', name: 'addr', namespace: 'ns', group: 'ns', module: 'ns', action: 'plan', changes: 'plan', age: 'refreshed', fields: 'field', attr: 'field', attribute: 'field', values: 'value' };
 export const COLUMNS = ['entity', 'type', 'provider', 'instance', 'mode', 'status', 'plan', 'ns', 'addr', 'field', 'value', 'refreshed'];
 
 // A language is the columns that a filter box knows and the other names for them. The Inventory has one; the Discovery section has its own
@@ -41,7 +41,7 @@ const HINTS = {
   mode: 'The mode of the block: managed, data, ephemeral, output',
   status: 'drifted, gone, orphan, declared, locked, sensitive',
   plan: 'What the plan does: any, create, update, replace, delete',
-  ns: 'A namespace and everything below it',
+  ns: 'A group and everything below it',
   addr: 'The whole address; * stands for any run',
   value: 'A value anywhere in the record: an id, an arn, a url; * stands for any run, as in value:*inventory*',
   field: 'A value in the record: path=value, as in settings.region=eu or tags.env=prod; a path alone matches the nodes that hold it',

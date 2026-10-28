@@ -168,6 +168,7 @@ export function detail(p, { onPlan, byId, text, changes, policies } = {}) {
   }
   // what else is known of the plan: the author and the age are in its row, and the reason is above
   body.push(h('dl', { class: 'meta rp-more' }, facts(p, text).filter(([k]) => k !== 'reason' && k !== 'made by').map(([k, v]) => [h('dt', null, k), h('dd', null, v)])));
+  if (text.plan && text.plan.approvals) body.push(...approvalsBox(p, text.plan.approvals));
   if (p.open) body.push(...planActions(p));
   else body.push(h('p', { class: 'rp-note dim' }, p.status === 'applied' ? 'Every change of this plan was applied.' : p.status === 'expired' ? 'This plan expired and will be collected.' : 'Make the plan again with pravo plan --store.'));
   return body;
@@ -336,7 +337,7 @@ export class Plans {
     const focus = at && (at.id ? ['id', at.id] : at.filter ? ['filter', at.filter] : at.fk ? ['fk', at.fk] : null);
     const caret = this.input === document.activeElement ? [this.input.selectionStart, this.input.selectionEnd] : null;
     const seg = (key, label, n) => h('button', { type: 'button', 'aria-pressed': String(mode === key), data: { filter: key }, 'data-tip': key === 'pending' ? 'Plans that can still be applied' : 'Every plan in the state, applied and expired too' }, label, h('em', null, String(n)));
-    const rows = shown.map((p, i) => this.row(p, p.id === sel, p.id === open, open ? p.id === open : i === 0, (s.reasons && s.reasons.get(p.id)) || '', hits.get(p.id)));
+    const rows = shown.map((p, i) => this.row(p, p.id === sel, p.id === open, open ? p.id === open : i === 0, (s.reasons && s.reasons.get(p.id)) || '', hits.get(p.id), approvalsIn(s.texts && s.texts.get(p.id))));
     const list = h('div', { class: 'rp-list', role: 'group', 'aria-label': 'Stored plans' }, rows);
     if (!shown.length) {
       list.append(f
@@ -365,14 +366,15 @@ export class Plans {
 
   // The title of a row is what the author wrote with the plan, which says more to a person than the id; the id is
   // the title of a plan that has no note, and the line under the title of one that has. When the finder names changes, the row
-  // names the first of them.
-  row(p, shown, expanded, tab, reason, hits) {
+  // names the first of them. The approvals come with the overlay of the plan, as the reason does, so the chip is there once it is read.
+  row(p, shown, expanded, tab, reason, hits, ap) {
     const overlaps = (p.overlaps || []).length;
-    const btn = h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (shown ? ' sel' : ''), type: 'button', 'aria-expanded': String(expanded), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) + (hits ? `. Matching changes: ${hits.slice(0, GLANCE).map((c) => c.addr).join(', ')}${hits.length > GLANCE ? ` and ${hits.length - GLANCE} more` : ''}` : '') },
+    const appr = approvalChip(ap);
+    const btn = h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (shown ? ' sel' : ''), type: 'button', 'aria-expanded': String(expanded), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) + (appr ? ', ' + appr.getAttribute('aria-label') : '') + (hits ? `. Matching changes: ${hits.slice(0, GLANCE).map((c) => c.addr).join(', ')}${hits.length > GLANCE ? ` and ${hits.length - GLANCE} more` : ''}` : '') },
       avatar(p.author),
       h('span', { class: 'rp-main' },
         h('span', { class: 'rp-l1' }, reason ? h('span', { class: 'rp-title', title: reason }, reason) : h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null),
-        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), expiryRing(p)),
+        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), appr, expiryRing(p)),
         hits ? h('span', { class: 'rp-l4', 'aria-hidden': 'true' },
           hits.slice(0, GLANCE).map((c) => { const a = actionOf(touchAction(c)); return h('span', { class: 'rp-ch' }, a ? h('i', { class: 'sq ' + a.cls }) : null, c.addr); }),
           hits.length > GLANCE ? h('span', { class: 'rp-chn' }, `+${hits.length - GLANCE} more`) : null) : null,
@@ -414,16 +416,56 @@ export function signedIcon(sg) {
   return h('span', { class: 'ps-sig ' + cls, role: 'img', 'aria-label': mark.textContent, 'data-tip': mark.textContent + '\n' + mark.title }, icon(glyph));
 }
 
-// approvalChip says who approved the plan, one square chip with their names and roles. An approval that does not
-// verify, or whose key the readers file does not list, is named in the tooltip and does not make the chip.
+// approvalChip says where the approvals of the plan stand, one square chip: what the policies in force still ask for,
+// in amber, or who approved it. An approval that does not verify, or whose key the readers file does not list, is
+// named in the tooltip and does not make the chip. A plan nobody approved that no policy asks approvals for has none.
 export function approvalChip(ap) {
-  if (!ap || ap.note) return null;
-  const ok = (ap.items || []).filter(it => it.status === 'verified');
-  if (!ok.length) return null;
-  const who = ok.map(it => it.signer + (it.role ? ' (' + it.role + ')' : '')).join(', ');
+  if (!ap) return null;
+  const ok = verifiedApprovals(ap);
+  const who = ok.map((it) => it.signer + (it.role ? ' (' + it.role + ')' : '')).join(', ');
   const skipped = (ap.items || []).length - ok.length;
-  const tip = 'Approved by ' + who + (skipped ? '\n' + skipped + ' more do not count: key not in the readers file, or the signature does not verify' : '');
-  return h('span', { class: 'b ps ps-applied ps-appr', role: 'img', 'aria-label': 'Approved by ' + who, 'data-tip': tip }, icon('check'), 'Approved \u00b7 ' + (ok.length === 1 ? ok[0].signer : ok.length));
+  const more = skipped ? '\n' + skipped + ' more do not count: key not in the readers file, or the signature does not verify' : '';
+  const open = (ap.needs || []).find((n) => !n.met);
+  if (open) {
+    const label = 'Awaiting ' + plural(open.min - open.have, 'approval');
+    return h('span', { class: 'b ps ps-chg ps-appr', role: 'img', 'aria-label': label, 'data-tip': needWords(open) + (ok.length ? '\nApproved so far by ' + who : '') + more }, icon('hold'), label);
+  }
+  if (!ok.length) return null;
+  const tip = 'Approved by ' + who + ((ap.needs || []).length ? '. What the policies ask for is met.' : '') + more;
+  return h('span', { class: 'b ps ps-done ps-appr', role: 'img', 'aria-label': 'Approved by ' + who, 'data-tip': tip }, icon('check'), 'Approved \u00b7 ' + (ok.length === 1 ? ok[0].signer : ok.length));
+}
+
+function verifiedApprovals(ap) { return ((ap && ap.items) || []).filter((it) => it.status === 'verified'); }
+
+// needWords says what one need of the policies asks for and how far the plan is, as the apply words its refusal.
+function needWords(n) {
+  const role = n.role === 'admin' ? 'an admin' : 'a writer or an admin';
+  return `The policies ask for ${plural(n.min, 'approval')} by ${role} (${(n.by || []).join(', ')}), and the plan has ${n.have}.` +
+    (n.self ? '' : ' The key that stored the plan does not count.') + ' An admin applies without approvals.';
+}
+
+// approvalsBox is what the detail says of the approvals of a stored plan: what the policies in force ask for and how far
+// the plan is, who approved it, and, while it waits, the command that approves it. The viewer never approves.
+function approvalsBox(p, ap) {
+  const ok = verifiedApprovals(ap);
+  const lines = (ap.needs || []).map((n) => h('li', { class: n.met ? 'ok' : 'chg' }, needWords(n)));
+  if (ap.note) lines.push(h('li', { class: 'dim' }, ap.note));
+  const skipped = (ap.items || []).length - ok.length;
+  const who = ok.length ? 'Approved by ' + ok.map((it) => it.signer + (it.role ? ' (' + it.role + ')' : '') + (it.at ? ', ' + relTime(it.at) : '')).join('; ') + '.' : (ap.needs || []).length ? 'Nobody has approved it yet.' : '';
+  const open = (ap.needs || []).some((n) => !n.met);
+  const out = [h('div', { class: 'rp-why rp-appr' + (open ? '' : ' met') }, h('b', null, open ? 'Waiting for approvals' : 'Approvals'),
+    lines.length ? h('ul', null, lines) : null,
+    who ? h('p', null, who, skipped ? h('span', { class: 'dim' }, ` ${skipped} more ${skipped === 1 ? 'does' : 'do'} not count: key not in the readers file, or the signature does not verify.`) : null) : null)];
+  if (open && p.open) out.push(approveCommand(p));
+  return out;
+}
+
+// approveCommand is the command that approves the plan, in the look of the command that applies it. Each member who
+// approves runs it as themselves.
+function approveCommand(p) {
+  const cmd = 'pravo plan approve ' + p.id;
+  return h('div', { class: 'cmdline' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, cmd),
+    h('button', { class: 'cpbtn', type: 'button', 'data-copy': cmd, 'data-fk': 'copy-approve', 'aria-label': 'Copy the command that approves ' + p.id, 'data-tip': 'Copy the command' }, icon('copy')));
 }
 
 export function planStrip(el, p, cb) {
@@ -453,3 +495,6 @@ export function planStrip(el, p, cb) {
     h('span', { class: 'grow' }),
     cb.onClear ? h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })) : null].filter(Boolean));
 }
+
+// approvalsIn is the approvals of a plan as its overlay carries them, or null before the overlay is read.
+export function approvalsIn(overlay) { return overlay && overlay.plan && overlay.plan.approvals ? overlay.plan.approvals : null; }

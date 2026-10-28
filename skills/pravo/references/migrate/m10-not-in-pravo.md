@@ -32,7 +32,7 @@ pravo has no workspaces, no `-target` and no provisioners. The same holds for th
 | DynamoDB lock table, `use_lockfile` | Per-resource locks are objects in the bucket, created with a conditional write. |
 | State encryption | Encrypt the bucket or the volume that holds `pravo.state`. |
 | HCP Terraform, `cloud` block | A pipeline that runs `pravo plan` and `pravo apply <planfile>`. |
-| Modules from a registry or a `git::` source | CUE modules: `pravo mod get`, then `import`. |
+| Modules from a registry or a `git::` source | A package in a CUE module: `pravo mod get`, then `import`. |
 
 The replacements for the first three rows are run below. The lookup of every command is in [Command map](command-map.md), and every construct is in [Construct matrix](construct-matrix.md).
 

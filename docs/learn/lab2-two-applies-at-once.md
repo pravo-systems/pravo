@@ -286,4 +286,4 @@ Where can you read the refusal of the CI job afterwards?
 In `pravo state log`. A refused apply is a transaction with the status `rejected`.
 :::
 
-A lock left behind by a command that crashed on another host is released with `pravo state unlock <address>`. `pravo state locks` marks the locks that may be reclaimed with `[stale]`, and `pravo state unlock --stale` releases all of them. A state shared by several machines is the subject of [Remote state](../how-to/remote-state.md).
+A lock left behind by a command that crashed on another host is released with `pravo state unlock <address>`. `pravo state locks` marks the locks that may be reclaimed with `[stale]`, and `pravo state unlock --stale` releases all of them. A state shared by several machines is the subject of [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md), and [Track C](c01-one-state-two-people.md) puts a team on one.

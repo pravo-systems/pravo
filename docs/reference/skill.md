@@ -1,7 +1,7 @@
 ---
 title: pravo skill
 description: Install or print the skill that teaches an AI agent to use pravo. It is built from this documentation and is part of the binary, so it matches the version that installed it.
-order: 15
+order: 16
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'

@@ -30,8 +30,8 @@ Use the matrix to read your preflight list from [M1](m1-before-you-start.md). Th
 | `data` | Supported | A struct built from `#Data`. |
 | `ephemeral` | Supported | A struct built from `#Ephemeral`. |
 | `output` | Partial | `pravo.#Output` with `value`, `description` and `sensitive`. No `depends_on`, no `precondition`. |
-| `module` | Partial | A definition, or a CUE package, that contains resources. No registry or `git::` source. No `depends_on` on a module. |
-| `moved` | Supported | `$from` on the resource, or on a group for a whole module. |
+| `module` | Partial | No module block. A definition, or a package of definitions, that contains resources; see [Reuse](../reference/spec-reuse.md). No `source`: a package from another repository comes in a CUE module, with `pravo mod get`. No `depends_on` on an instance. |
+| `moved` | Supported | `$from` on the resource, or on a group for a whole instance. |
 | `import` | Supported | `$import: "id"` on the resource. `pravo import` for one object. No generated configuration. |
 | `removed` | Not supported | `pravo state rm addr`. |
 | `check` | Not supported | A constraint on a field, or a plan policy. |
@@ -89,7 +89,7 @@ Use the matrix to read your preflight list from [M1](m1-before-you-start.md). Th
 | Providers on the OpenTofu registry | Supported | Plugin protocol 5 and 6. |
 | Providers from another registry host | Supported | The host is part of the import path. |
 | Providers from a container registry | Supported | `pravo providers copy` publishes a provider version to one. See [providers from a registry](../how-to/providers-from-a-registry.md). |
-| Modules from a registry | Not supported | CUE modules: `pravo mod get`, `import`. |
+| Modules from a registry | Not supported | A CUE module from a registry: `pravo mod get`, then `import`. |
 | `tofu test` | Not supported | `pravo validate`, `pravo eval -c`, a policy on a saved plan. |
 
 ## Spot check

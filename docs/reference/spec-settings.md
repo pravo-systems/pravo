@@ -326,6 +326,6 @@ Error: $settings.policy is not a setting (the block takes state and refresh)
 
 ## See also
 
-- [Keep the state in a shared bucket](../how-to/remote-state.md) moves a root to S3.
+- [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) moves a root to S3.
 - [Run one specification in several environments](../how-to/environments.md) computes the state path from a tag.
 - [State format](state-format.md) describes the files that `state.path` holds, and [Plans](../concepts/plans.md#refresh-age) explains the refresh age.

@@ -134,7 +134,7 @@ export class Inspector {
     const out = h('div', { class: 'ih-path', 'aria-label': 'Where it sits' });
     nss.forEach((m, i) => {
       if (i) out.append(h('span', { class: 'sep', 'aria-hidden': 'true' }, '.'));
-      out.append(h('a', { class: 'mseg', href: '#', data: { gons: m.path }, title: `Namespace ${m.path}` }, m.name));
+      out.append(h('a', { class: 'mseg', href: '#', data: { gons: m.path }, title: `Group ${m.path}` }, m.name));
     });
     if (last) { if (nss.length) out.append(h('span', { class: 'sep', 'aria-hidden': 'true' }, '.')); out.append(h('span', { class: 'cur' }, last)); }
     return out;
@@ -180,12 +180,12 @@ export class Inspector {
     this.noTabs();
     const a = ns.agg;
     this.header({
-      kick: 'Namespace',
+      kick: 'Group',
       title: ns.name,
       long: ns.name.length > 22,
       path: this.crumbs(ns.up && !ns.up.isRoot ? ns.up : null, model, null),
       copy: ns.path,
-      tags: [h('span', { class: 'b' }, plural(a.n, 'resource')), ns.kids.length ? h('span', { class: 'b' }, plural(ns.kids.length, 'sub-namespace')) : null, a.out ? h('span', { class: 'b' }, plural(a.out, 'output')) : null],
+      tags: [h('span', { class: 'b' }, plural(a.n, 'resource')), ns.kids.length ? h('span', { class: 'b' }, plural(ns.kids.length, 'subgroup')) : null, a.out ? h('span', { class: 'b' }, plural(a.out, 'output')) : null],
     });
     this.paint(namespacePanel(this, ns, model, collapsed));
     this.root.dataset.mode = 'namespace';

@@ -263,7 +263,7 @@ $local: #Resource: local_file: file_permission: "0600"
 
 A colon between names nests them. The line reads: in `$local`, in `#Resource`, in `local_file`, the field `file_permission` is `"0600"`. [A1](https://pravo.systems/learn/a01-your-data-is-already-cue.html) teaches the shorthand.
 
-This file is in the same package, so CUE merges it with `main.cue`. It says: every `local_file` built through `$local` has the permission `0600`. `main.cue` stays as it is. [B10, Policy on providers and on plans](../learn/b10-policy.md) covers rules of this kind.
+This file is in the same package, so CUE merges it with `main.cue`. It says: every `local_file` built through `$local` has the permission `0600`. `main.cue` stays as it is. [B11, Constraints on providers, policy on plans](https://pravo.systems/learn/b11-policy.html) covers rules of this kind. A rule of this kind is a constraint, not a policy: a policy is a rule that judges a plan.
 
 Apply the change and look at the mode of the file:
 
@@ -347,7 +347,7 @@ Read the error in four parts.
 - **Locations.** Each indented line is `file:line:column`. `rules.cue:3:49` is the rule, `override.cue:3:26` is the new value, and `main.cue:13:9` is the resource they both apply to. Your terminal prints the full path of each file. This site shortens it to `./`.
 - **Alternatives.** The schema allows a string or `null` for this field. pravo reports each alternative. The first error is the one to read.
 
-No provider started and nothing changed. `pravo plan` and `pravo apply` print the same error and stop. [A3, Writing a field twice](https://pravo.systems/learn/a03-writing-a-field-twice.html) teaches this in full. [Reading a CUE error](../learn/c1-reading-a-cue-error.md) explains the shape of the message.
+No provider started and nothing changed. `pravo plan` and `pravo apply` print the same error and stop. [A3, Writing a field twice](https://pravo.systems/learn/a03-writing-a-field-twice.html) teaches this in full. [Reading a CUE error](../learn/reading-a-cue-error.md) explains the shape of the message.
 
 Remove the file and validate again:
 

@@ -59,6 +59,12 @@ These commands have no counterpart in OpenTofu:
 | `pravo state import-tfstate f` | Converts an OpenTofu or Terraform state in format 4. |
 | `pravo gen` | Regenerates the CUE packages under `cue.mod/gen`. |
 | `pravo mcp` | Serves the commands to an agent over the Model Context Protocol. |
+| `pravo plan --store`, `pravo plan list`, `show`, `approve`, `pull`, `gc` | Keeps a plan in the state, where the team lists it, reads it, approves it and applies it by its id. |
+| `pravo id`, `pravo protect` | Makes an identity, seals the state to a list of readers, gives each reader a role. |
+| `pravo policy test` | Holds a rule against saved plans or the stored plans and applies nothing. |
+| `pravo discover` | Lists the objects of a scope that nothing manages, to acknowledge or adopt. |
+| `pravo serve` | Opens the viewer: the estate as a graph, its history, the team's plans, drift, the policies in force and the recorded runs. |
+| `pravo skill` | Installs the guide that an AI agent reads before it writes or runs pravo. |
 
 ## Flags
 
@@ -97,6 +103,8 @@ These commands have no counterpart in OpenTofu:
 | `TF_WORKSPACE` | None | `-t env=prod`. |
 | `TF_IN_AUTOMATION`, `TF_INPUT` | None | |
 | — | `PRAVO_ACTOR`, `PRAVO_REASON` | The same as `--actor` and `--reason`. |
+| — | `PRAVO_TRACES=on` | Records the trace of every command in `.pravo/traces`, for the Traces section of the viewer. |
+| — | `PRAVO_IDENTITY`, `PRAVO_PASSPHRASE` | The identity of a job, and the passphrase that unlocks a person's identity in a script. |
 | — | `PRAVO_RECORD`, `PRAVO_REPLAY` | Record provider calls to a file and replay them. |
 
 ## Files
@@ -108,7 +116,9 @@ These commands have no counterpart in OpenTofu:
 | `.terraform/providers` | `$PRAVO_HOME/providers` | Shared by every project. |
 | `.terraform/modules` | `cue.mod/module.cue` | CUE modules that `pravo mod get` adds are listed there and pinned in `pravo.lock.cue`. |
 | — | `cue.mod/gen` | The generated provider packages. Commit it, or run `pravo init`. |
-| `terraform.tfstate` | `pravo.state/` | A directory with one file per resource, `outputs.json` and a transaction log. |
+| `terraform.tfstate` | `pravo.state/` | A directory with one file per resource, `outputs.json` and a transaction log, or the same objects in a bucket or on an HTTP server. |
+| — | `.pravo/access/readers.txt` | The readers of a sealed state, one line each, with their roles. Commit it. |
+| — | `.pravo/traces/` | The recorded runs, with `PRAVO_TRACES=on`. It ignores itself in git. |
 | `terraform.tfvars` | None | A `.cue` file. |
 | `override.tf` | None | Unification: a second file that adds to a declaration. |
 
@@ -117,7 +127,7 @@ These commands have no counterpart in OpenTofu:
 Every pravo command in the tables exists. This prints the ones that answer `--help`:
 
 ```sh
-for c in init validate plan apply destroy show output import eval fmt providers schema why drift mcp mod gen version; do pravo $c --help > /dev/null 2>&1 && echo "pravo $c"; done
+for c in init validate plan apply destroy show output import eval fmt providers schema why drift mcp mod gen version serve discover protect id policy skill; do pravo $c --help > /dev/null 2>&1 && echo "pravo $c"; done
 ```
 
 Output:
@@ -141,6 +151,12 @@ pravo mcp
 pravo mod
 pravo gen
 pravo version
+pravo serve
+pravo discover
+pravo protect
+pravo id
+pravo policy
+pravo skill
 ```
 
 ```sh

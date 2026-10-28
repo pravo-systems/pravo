@@ -80,7 +80,7 @@ pravo.state/txn/<id>.json
 | `outputs.json` | The outputs recorded by the last apply. |
 | `txn/ID.json` | One recorded transaction. |
 | `locks/ADDRESS.lock` | A lock or a reservation, present while it is held. |
-| `plans/ID.plan.json`, `plans/ID.meta.json`, `plans/ID.progress.json` | A stored plan: the plan, its summary, and what was applied from it. They exist after `pravo plan --store` and until a collection removes them. See [Stored plans](plans.md#stored-plans). |
+| `plans/ID.plan.json`, `plans/ID.meta.json`, `plans/ID.progress.json` | A stored plan: the plan, its summary, and what was applied from it. They exist after `pravo plan --store` and until a collection removes them. See [Stored plans and approvals](stored-plans-and-approvals.md). |
 
 The lineage identifies the store for its whole life. A saved plan records it, and an apply refuses the plan when the lineage differs. A stored plan records it too, and a listing marks a plan stale when the lineage differs.
 
@@ -377,7 +377,7 @@ Output:
 No locks or reservations held.
 ```
 
-An actor is a label that pravo does not verify. A reservation coordinates the people and agents who tell the truth about who they are. [Policies](policies.md) says what that means for a rule.
+An actor is a label that pravo does not verify. A reservation coordinates the people and agents who tell the truth about who they are. [Constraints and policies](policies.md) says what that means for a rule.
 
 ## Outputs
 
@@ -431,9 +431,9 @@ $settings: pravo.#Settings & {state: pravo.#S3State & {
 
 The block is typed by backend. Local fields with an S3 backend, S3 fields with the local backend, and `backend: "s3"` without a `bucket` are errors at evaluation. A `bucket` with no `backend` means `s3`. Credentials come from the usual AWS chain: the environment, a profile, or a role. Static `access_key` and `secret_key` fields end up in the specification.
 
-Every property of the local store holds in a bucket. Each node is one object, written on its own. The bucket holds a log of transactions, a lock for each node and the stored plans. A lock is an object created with the `If-None-Match: *` conditional write. Two commands on different machines cannot both create it, so the store must honour that header, and `If-Match` on renew, release and reclaim. Stored plans use the same requests: a plan is created with `If-None-Match: *`, and its progress object is replaced and its objects are deleted with `If-Match`. [S3-compatible stores](../reference/s3-stores.md) says how to test a store. The prefix lets several roots share a bucket.
+Every property of the local store holds in a bucket. Each node is one object, written on its own. The bucket holds a log of transactions, a lock for each node, the stored plans and, when the state is sealed, its secrets. A lock is an object created with the `If-None-Match: *` conditional write. Two commands on different machines cannot both create it, so the store must honour that header, and `If-Match` on renew, release and reclaim. Stored plans use the same requests: a plan is created with `If-None-Match: *`, and its progress object is replaced and its objects are deleted with `If-Match`. [S3-compatible stores](../reference/s3-stores.md) says how to test a store. The prefix lets several roots share a bucket.
 
-`pravo state pull DIR` copies the configured graph into a local directory. `pravo state push DIR` copies a local directory into the configured backend, objects, transaction log and stored plans included.
+`pravo state pull DIR` copies the configured graph into a local directory. `pravo state push DIR` copies a local directory into the configured backend, objects, transaction log, stored plans and secrets included.
 
 ## Cost follows the change
 
@@ -469,7 +469,7 @@ Split a state for ownership, permissions or blast radius.
 - **Ownership and permissions.** A state is the unit of access. Whoever may write the bucket may write every record in it, and the records hold the attributes of the resources, secrets included. Teams that must not change each other's resources keep separate states.
 - **Blast radius.** A command acts on one state. `pravo destroy` deletes every node in it, and a wrong edit to the specification, or to the credentials of a provider, can reach every node that uses it. A policy can bound the blast radius of a plan; separate states bound what any command can touch.
 
-[Remote state](../how-to/remote-state.md) describes the bucket that one state lives in.
+[Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) describes the bucket that one state lives in.
 
 ## Recap
 

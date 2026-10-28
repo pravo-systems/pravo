@@ -226,16 +226,34 @@ type PlanInfo struct {
 	// Signatures says who stored a stored plan of a sealed state, as the readers file
 	// judges the signatures. Nil for a plan file, and for a state that is not sealed.
 	Signatures *PlanSignatures `json:"signatures,omitempty"`
-	// Approvals says who approved a stored plan of a sealed state ("pravo plan approve"). Nil for
-	// a plan file, a state that is not sealed, and a plan nobody approved.
+	// Approvals says who approved a stored plan of a sealed state ("pravo plan approve"), and what
+	// the policies in force ask of it. Nil for a plan file, a state that is not sealed, and a plan
+	// that nobody approved and no policy asks approvals for.
 	Approvals *PlanApprovals `json:"approvals,omitempty"`
 }
 
-// PlanApprovals are the approvals of a stored plan, as the readers file judges them. Note is set
-// when they could not be checked, and says why.
+// PlanApprovals are the approvals of a stored plan, as the readers file judges them, and what
+// the policies in force ask of the plan before it is applied. Note is set when they could not
+// be checked, and says why.
 type PlanApprovals struct {
 	Items []PlanApproval `json:"items"`
-	Note  string         `json:"note,omitempty"`
+	// Needs is what the plan must have approved, each need on its own, as "pravo apply" counts
+	// them. A plan that can no longer be applied, or that the policies in force refuse, has none.
+	Needs []PlanApprovalNeed `json:"needs,omitempty"`
+	Note  string             `json:"note,omitempty"`
+}
+
+// PlanApprovalNeed is one thing the policies ask: Min distinct keys of Role ("writer" or "admin")
+// or above must have approved the plan, and not the key that stored it unless Self. By names the
+// policy versions that ask. Have counts the approvals that meet it, and Met says whether enough
+// do. An admin applies without them.
+type PlanApprovalNeed struct {
+	Min  int      `json:"min"`
+	Role string   `json:"role"`
+	Self bool     `json:"self,omitempty"`
+	By   []string `json:"by"`
+	Have int      `json:"have"`
+	Met  bool     `json:"met"`
 }
 
 // PlanApproval is one approval. Status is "verified", "key_not_in_file" or "invalid"; Role is the

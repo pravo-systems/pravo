@@ -215,7 +215,7 @@ Saved plan created <time> by "pravo plan --out change.plan"
 ```
 :::
 
-The fingerprint also covers packages elsewhere in the module that the root imports. A package the root does not import has no effect on it.
+The fingerprint also covers packages elsewhere in the CUE module that the root imports. A package the root does not import has no effect on it.
 
 ## Apply in stages
 

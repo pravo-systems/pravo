@@ -119,8 +119,8 @@ const shellTemplates = `
 {{end}}{{.Content}}
 <footer class="doc-foot">
 {{if or .Prev .Next}}<nav class="pager" aria-label="Previous and next page">
-{{if .Prev}}<a class="pager-prev" rel="prev" href="{{.Prev.Href}}"><span class="pager-label">Previous</span>{{if .Prev.Kicker}}<span class="pager-kicker">{{.Prev.Kicker}}</span>{{end}}<span class="pager-title">{{.Prev.Title}}</span>{{if .Prev.Description}}<span class="pager-desc">{{.Prev.Description}}</span>{{end}}</a>
-{{end}}{{if .Next}}<a class="pager-next" rel="next" href="{{.Next.Href}}"><span class="pager-label">Next</span>{{if .Next.Kicker}}<span class="pager-kicker">{{.Next.Kicker}}</span>{{end}}<span class="pager-title">{{.Next.Title}}</span>{{if .Next.Description}}<span class="pager-desc">{{.Next.Description}}</span>{{end}}</a>
+{{if .Prev}}<a class="pager-prev" rel="prev" href="{{.Prev.Href}}"><span class="pager-label">Previous</span>{{if .Prev.Kicker}}<span class="pager-kicker">{{.Prev.Kicker}}</span>{{end}}<span class="pager-title">{{.Prev.Title}}</span></a>
+{{end}}{{if .Next}}<a class="pager-next" rel="next" href="{{.Next.Href}}"><span class="pager-label">Next</span>{{if .Next.Kicker}}<span class="pager-kicker">{{.Next.Kicker}}</span>{{end}}<span class="pager-title">{{.Next.Title}}</span></a>
 {{end}}</nav>
 {{end}}{{if .MarkDone}}<button class="mark-done" type="button" data-page="{{.PagePath}}">Mark as done</button>
 {{end}}{{if .Applies}}<p class="applies">{{.Applies}}</p>

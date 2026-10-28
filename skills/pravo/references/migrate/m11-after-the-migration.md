@@ -63,7 +63,7 @@ git commit -m "Translate the estate from OpenTofu"
 
 Idea: a constraint is a type. A name that does not match is refused when the specification evaluates, before any provider starts. Lesson: [A5 Constraints narrow a value](https://pravo.systems/learn/a05-constraints-narrow-a-value.html).
 
-The module takes a list of note names. Only lowercase letters make a file name that the estate wants.
+The definition takes a list of note names. Only lowercase letters make a file name that the estate wants.
 
 File `notes.cue`:
 
@@ -373,11 +373,11 @@ Outputs: 3 outputs unchanged.
 git commit -am "Remove the moves that have been applied"
 ```
 
-## Commit 5. A package for the module
+## Commit 5. A package for the definition
 
 Idea: a definition that other roots can use is a package. The root imports it, and its resources keep their addresses. Lesson: [A13 Packages and the standard library](https://pravo.systems/learn/a13-packages-and-the-standard-library.html).
 
-The module path comes from `cue.mod/module.cue`. The package takes its provider as an input, as before.
+The import path starts with the name of the CUE module in `cue.mod/module.cue`. The package takes its provider as an input, as before.
 
 File `notes/notes.cue`:
 
@@ -438,7 +438,7 @@ Outputs: 3 outputs unchanged.
 
 ```sh
 git add -A
-git commit -m "Move the notes module into a package"
+git commit -m "Move the notes definition into a package"
 ```
 
 ## What to do next
@@ -449,8 +449,9 @@ Each of these is one more commit with the same check.
 - Write a rule for every entry once with a pattern, [A9 Patterns](https://pravo.systems/learn/a09-patterns.html).
 - Replace a repeated expression by a hidden field or a `let`, [A11 References, let and hidden fields](https://pravo.systems/learn/a11-references-let-hidden.html).
 - Replace a flag pair by a condition, [A12 Conditions and strings](https://pravo.systems/learn/a12-conditions-and-strings.html).
-- Put the rules of the platform on the provider definition, so that every resource built through it obeys, [B10 Policy](../learn/b10-policy.md).
+- Put the rules of the platform on the provider definition, so that every resource built through it obeys, [B11 Policy](https://pravo.systems/learn/b11-policy.html).
 - Build the three environments from one definition, [A14 Project](https://pravo.systems/learn/a14-project-three-environments.html).
+- Put the state where the team can reach it, seal it and give the members roles, [Track C](../learn/c01-one-state-two-people.md).
 
 ## Recap
 
@@ -458,4 +459,4 @@ Each of these is one more commit with the same check.
 - A refactor commit leaves the plan empty or moving records only. A policy turns that rule into a check.
 - A new address is a move: `$from` names the old one, and it can go in a later commit.
 
-Next: [How-to](https://pravo.systems/how-to/index.html) has the task-shaped pages for what you do every week, such as remote state, CI and policies.
+Next: [How-to](https://pravo.systems/how-to/index.html) has the task-shaped pages for what you do every week, such as a shared store, CI, roles and approvals.

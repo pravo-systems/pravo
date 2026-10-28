@@ -24,7 +24,7 @@ size: conflicting values 11 and 3:
 | In another root's outputs | [Remote outputs](#remote-outputs) |
 | In plan, apply, the state or a saved plan | [Plans and state](#plans-and-state) |
 | In a policy | [Policies](#policies) |
-| In a module lock | [Modules](#modules) |
+| In the lock of a CUE module | [CUE modules](#cue-modules) |
 
 Work in an empty directory. The commands print paths in full. This page shows them relative to the directory.
 
@@ -183,7 +183,7 @@ exit=6
 
 ### An import that is the address of a provider
 
-A provider is imported from `pravo.dev/providers`, followed by its address. The address alone is read as a package of the CUE standard library, or as a module that does not exist. The error ends with a hint that names the path:
+A provider is imported from `pravo.dev/providers`, followed by its address. The address alone is read as a package of the CUE standard library, or as a CUE module that does not exist. The error ends with a hint that names the path:
 
 File `imports/main.cue`:
 
@@ -326,10 +326,10 @@ exit=6
 
 | Message | Cause | Fix |
 |---|---|---|
-| `size: conflicting values 11 and 3:` | Two declarations of one field disagree. | Read the positions: both declarations are listed. Remove one, or make the values agree. See [C1](../learn/c1-reading-a-cue-error.md). |
+| `size: conflicting values 11 and 3:` | Two declarations of one field disagree. | Read the positions: both declarations are listed. Remove one, or make the values agree. See [Reading a CUE error](../learn/reading-a-cue-error.md). |
 | `y: reference "z" not found:` | A name that no declaration defines. | Declare it, or fix the spelling. |
 | `imported and not used: "math":` | An import that no expression uses. | Remove the import. |
-| `pet.lenght: field not allowed:` | The attribute is not in the definition of the resource, and a definition is closed. | Fix the spelling. `pravo schema <type>` prints the attributes of a type. See [C3](../learn/c3-closed-or-open.md). |
+| `pet.lenght: field not allowed:` | The attribute is not in the definition of the resource, and a definition is closed. | Fix the spelling. `pravo schema <type>` prints the attributes of a type. See [Closed or open?](../learn/closed-or-open.md). |
 
 ### Tags and incomplete values
 
@@ -601,7 +601,7 @@ and build the resource through it: $aws.#Resource.random_pet & {...}
 exit=6
 ```
 
-A module that needs a provider from its caller declares the field as required, `provider!:`. An instance that leaves the field out stops the load:
+A definition that needs a provider from its caller declares the field as required, `provider!:`. An instance that leaves the field out stops the load:
 
 File `main.cue`:
 
@@ -638,8 +638,8 @@ exit=6
 | `$b: $version "~> 3.5" conflicts with "~> 3.6" on another hashicorp/random provider; one version of a provider is used` | Two provider structs of one source with different constraints. | Use one constraint. |
 | `provider random: version does not apply to protocol "tfplugin+reattach": pravo does not install or select what it connects to` | `$version` or `$path` with a reattached provider. | Remove it. See [Providers](spec-providers.md#protocol). |
 | `x was not built through a provider. Declare a provider, for example` | A resource written from `#Provider.#Resource...` directly. | Declare a provider struct and build the resource through it: `$aws.#Resource.<type>`. |
-| `provider docs.provider was not supplied: docs requires a hashicorp/random provider in its field provider.` | An instance of a module leaves out a provider input that the module marks required. | Pass a provider struct of the root: `docs: ... & {provider: $random}`. See [Modules](spec-modules.md#an-instance-that-passes-no-provider). |
-| `api.tls sets proxy, but api.tls is another name for the provider $tls, which does not set it.` | A module, or a struct built from a provider struct, sets a field that the provider it shares leaves unset. | Set the field on the struct that is passed in. See [Modules](spec-modules.md#configuration-in-the-module-and-in-the-caller). |
+| `provider docs.provider was not supplied: docs requires a hashicorp/random provider in its field provider.` | An instance of a definition leaves out a provider input that the definition marks required. | Pass a provider struct of the root: `docs: ... & {provider: $random}`. See [Reuse](spec-reuse.md#an-instance-that-passes-no-provider). |
+| `api.tls sets proxy, but api.tls is another name for the provider $tls, which does not set it.` | A definition, or a struct built from a provider struct, sets a field that the provider it shares leaves unset. | Set the field on the struct that is passed in. See [Reuse](spec-reuse.md#configuration-in-the-definition-and-in-the-caller). |
 | `provider registry.opentofu.org/hashicorp/ramdom was not found; check the name` | The registry has no provider of the name in the import path. | Fix the spelling of the path. |
 | `registry discovery for registry.opentofu.org: Get "https://registry.opentofu.org/.well-known/terraform.json": ...` | `pravo init` could not reach the registry. The words after the address name the cause. | Fix the proxy, firewall or network. See [the registry cannot be reached](#the-registry-cannot-be-reached). |
 
@@ -667,7 +667,7 @@ Configuration does not load yet; generating schemas for the declared providers f
 Error: provider registry.opentofu.org/hashicorp/ramdom was not found; check the name
 ```
 
-Remove the directory, because `init` reads every file of the module:
+Remove the directory, because `init` reads every file of the CUE module:
 
 ```sh
 rm -r typo
@@ -699,7 +699,7 @@ Error: registry discovery for registry.opentofu.org: Get "https://registry.opent
 
 A refused connection points to a proxy, a firewall or a missing network. Fix it and run `pravo init` again. After a successful `init`, `validate` and `plan` need no registry access.
 
-Remove the directory, because `init` reads every file of the module:
+Remove the directory, because `init` reads every file of the CUE module:
 
 ```sh
 rm -r offline
@@ -1534,17 +1534,17 @@ exit=1
 | `you are not a reader of this state (no identity found).` and `Readers are listed in .pravo/access/readers.txt. Ask one of them to add yours.` | A sealed state, and no identity that can open it: none was found, or the one found is not on the list (`identity ada is not a reader`). Exit code 5. An identity whose passphrase is missing or wrong, several identity files and none chosen, and a `--identity` that names no file give the same code and the first line only, with the reason in the parenthesis. `pravo state list` works without an identity. | Run `pravo id new --name NAME`, send the line it prints to a reader, who adds it to the readers file and runs `pravo protect rewrap`. See [pravo id and pravo protect](protect.md#the-identity). |
 | `.pravo/access/readers.txt and the state differ (dan added, fay removed). Run pravo protect rewrap.` | A command that writes a sealed state found that the readers file lists other readers than the state is sealed to. A command that only reads prints it as a warning. Exit code 5. | Run `pravo protect rewrap`. If nobody edited the file, compare it with `git log -p -- .pravo/access/readers.txt`. |
 | `the readers file was not found (looked in .pravo/access)` | A command that writes a sealed state, or `pravo protect init` or `rewrap`, found no readers file. Exit code 5 for a command that writes, and 6 for `protect`. | Check out the repository that holds `.pravo/access/readers.txt`, or name its directory with `--access-dir` or `PRAVO_ACCESS_DIR`. |
-| `the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file and the recovery file.` | A command that writes a state that is not sealed, in a repository that has a readers file. A command that only reads prints it as a warning. `protect check`, `init` and `status` are not stopped. Exit code 5. | Run `pravo protect status`. Seal the state with `pravo protect init --encrypt`, or remove the readers file if the state is not meant to be sealed. If the state was sealed before, put `meta.json` back from a version of the bucket: [sealed state](../concepts/sealed-state.md). |
+| `the repository lists readers in .pravo/access/readers.txt, but the state is not sealed: it has not been sealed yet, or its meta.json was changed. Run pravo protect status; to seal it, pravo protect init --encrypt; if the state is not meant to be sealed, remove the readers file and the recovery file.` | A command that writes a state that is not sealed, in a repository that has a readers file. A command that only reads prints it as a warning. `protect check`, `init` and `status` are not stopped. Exit code 5. | Run `pravo protect status`. Seal the state with `pravo protect init --encrypt`, or remove the readers file if the state is not meant to be sealed. If the state was sealed before, put `meta.json` back from a version of the bucket: [sealed state](../concepts/signatures-and-roles.md). |
 | `the repository lists readers in .pravo/access/readers.txt, but the state does not exist yet. Create it sealed with: pravo protect init --encrypt` | A command that writes found a readers file and no state. It creates nothing. A command that only reads prints it as a warning. Exit code 5. | Run `pravo protect init --encrypt`, which creates the state sealed. |
 | `.pravo/access/readers.txt: line 3: want 4 fields: NAME ssh-ed25519 BASE64 x25519:BASE64URL (got 3)` | A line of the readers file does not parse. The message never repeats the line. Exit code 6. | Replace the line with the one `pravo id show` prints. |
 | `your identity ada is not in .pravo/access/readers.txt. Sealing to a list you are not on would lock you out.` | `pravo protect init` was run by an identity that is not on the list. Exit code 5. | Add the line of the identity, or run the command as a reader. |
 | `the identity ada is sealed with a passphrase and stdin is not a terminal; set PRAVO_PASSPHRASE.` | A command needs the identity, which is sealed with a passphrase, and there is no terminal to ask on. | Set `PRAVO_PASSPHRASE` for the command, or use an identity made with `pravo id new --ci`. |
-| `identity ada-mac is unlocked by the ssh-agent, which is not reachable: no ssh-agent: SSH_AUTH_SOCK is not set and ssh_config names no IdentityAgent` | A command needs an identity that the ssh-agent unlocks, and none of `$PRAVO_SSH_AUTH_SOCK`, the `IdentityAgent` of the ssh configuration and `$SSH_AUTH_SOCK` names an agent that answers. See [Which ssh-agent](protect.md#which-ssh-agent). A command that writes a sealed state gives it in the parenthesis of `you are not a reader of this state`, with exit code 5. A command that only reads goes on without values and prints it as a warning. `pravo id new --unlock agent` stops with `the ssh-agent is not reachable`. | Start the agent and set `SSH_AUTH_SOCK`, or turn on the SSH agent of 1Password. Or open the state with another identity of yours: `--identity NAME`. |
+| `identity ada-mac is unlocked by the ssh-agent, which is not reachable: no ssh-agent: SSH_AUTH_SOCK is not set and ssh_config names no IdentityAgent` | A command needs an identity that the ssh-agent unlocks, and none of `$PRAVO_SSH_AUTH_SOCK`, the `IdentityAgent` of the ssh configuration and `$SSH_AUTH_SOCK` names an agent that answers. See [Which ssh-agent](id.md#which-ssh-agent). A command that writes a sealed state gives it in the parenthesis of `you are not a reader of this state`, with exit code 5. A command that only reads goes on without values and prints it as a warning. `pravo id new --unlock agent` stops with `the ssh-agent is not reachable`. | Start the agent and set `SSH_AUTH_SOCK`, or turn on the SSH agent of 1Password. Or open the state with another identity of yours: `--identity NAME`. |
 | `identity ada-mac is unlocked by the ssh-agent key SHA256:..., which the agent does not hold (is it locked, or is the key gone?)` | The agent answers and does not list the key: the vault is locked, the key was removed, or this is another agent. Same code as above. | Unlock the vault or add the key to the agent. If the key is gone for good, the identity cannot be opened: use another identity of yours. |
 | `identity ada-mac is unlocked by the ssh-agent: ssh-agent refused to sign` | The agent listed the key and refused the request, as when the approval was declined. Same code as above. | Run the command again and approve it. |
 | `the key from the ssh-agent does not open the identity file: it is damaged, or the agent signs differently now` | The agent signed and the signature opened nothing: the identity file was changed, or the agent holds another key under the same name. | Restore the file from a backup, or use another identity of yours. |
 | `the ssh-agent signs differently each time, so a key derived from its signature could not be derived again: use another key (SHA256:...)` | `pravo id new --unlock agent` asked the agent for the signature twice and got two. Nothing is written. Exit code 1. | Choose another key with `--agent-key`, or give the identity a passphrase. |
-| `the ssh-agent holds several ssh-ed25519 keys; choose one with --agent-key ...`, `no key of the ssh-agent matches "work"; it holds: ...` and `the ssh-agent at ~/Library/Group Containers/.../agent.sock holds no ssh-ed25519 key (is it locked, or is the key an RSA or ECDSA one?). ...` | `pravo id new --unlock agent` could not choose a key. The agent it asked is named in the message; if that is the agent of the system and not the one you meant, see [Which ssh-agent](protect.md#which-ssh-agent). The message lists the fingerprints and comments of the keys it found. Exit code 1. | Name one with `--agent-key`, by fingerprint or by part of its comment. Unlock the vault if the list is empty. |
+| `the ssh-agent holds several ssh-ed25519 keys; choose one with --agent-key ...`, `no key of the ssh-agent matches "work"; it holds: ...` and `the ssh-agent at ~/Library/Group Containers/.../agent.sock holds no ssh-ed25519 key (is it locked, or is the key an RSA or ECDSA one?). ...` | `pravo id new --unlock agent` could not choose a key. The agent it asked is named in the message; if that is the agent of the system and not the one you meant, see [Which ssh-agent](id.md#which-ssh-agent). The message lists the fingerprints and comments of the keys it found. Exit code 1. | Name one with `--agent-key`, by fingerprint or by part of its comment. Unlock the vault if the list is empty. |
 | `identity ada already exists at ~/.config/pravo/id/ada` | `pravo id new` never overwrites an identity. Exit code 1. | Choose another `--name`, or remove the file if you are sure that no state is sealed to its key. |
 | `no identity found: ~/.config/pravo/id holds several identities (ada dan) and none is named like you; choose one with --identity NAME` | The identity directory holds several files, none is named like the user, and none or more than one has a reader key with a lock in the current group of the state. When more than one has, the message names them. Exit code 5. | Pass `--identity NAME`, or set `PRAVO_IDENTITY`. See [pravo id and pravo protect](protect.md#the-identity). |
 | `--ci needs --name NAME: name the identity after the job, such as deploy-bot. ...` | `pravo id new --ci` was run without `--name`. Exit code 1. | Name the identity after the job: `pravo id new --ci --name deploy-bot --out FILE`. |
@@ -1717,9 +1717,9 @@ Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 
 The other refusals of a rule, before anything is applied, are in [The rule](policies-overview.md#the-rule).
 
-## Modules
+## CUE modules
 
-`pravo mod verify` compares the modules a root loads with `pravo.lock.cue`:
+`pravo mod verify` compares the CUE modules a root loads with `pravo.lock.cue`:
 
 ```sh
 echo 'modules: "example.com/x@v0": {version: "v0.1.0", hash: "h1:abc"}' >> pravo.lock.cue
@@ -1780,4 +1780,4 @@ with rnd imported from "pravo.dev/providers/hashicorp/random". See https://pravo
 
 - [Find out why a run fails](../how-to/debugging.md) reads an error step by step.
 - [Exit codes](exit-codes.md) lists the code of each kind of failure.
-- [Reading a CUE error](../learn/c1-reading-a-cue-error.md) teaches the shape of an evaluation error.
+- [Reading a CUE error](../learn/reading-a-cue-error.md) teaches the shape of an evaluation error.

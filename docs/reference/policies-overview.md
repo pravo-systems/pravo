@@ -37,7 +37,7 @@ A policy is a node of the specification: `pravo.#Policy`, with a `rule` that is 
 | Needs | A sealed state. A root that declares a policy on an unsealed state is refused with exit code 5. |
 | Refusal | Exit code 5. The plan is printed. Nothing is applied. |
 
-How a rule is written is on [Writing policies](policies-writing.md). Where each command judges is on [Operating policies](policies-operations.md), and what the receipt proves is on [What a policy guarantees](policies-operations.md#what-a-policy-guarantees). The idea is taught in [B10](../learn/b10-policy.md), and a rollout is in [Write and roll out policies](../how-to/policies.md).
+How a rule is written is on [Writing policies](policies-writing.md). Where each command judges is on [Operating policies](policies-operations.md), and what the receipt proves is on [What a policy guarantees](policies-operations.md#what-a-policy-guarantees). The idea is taught in [B11](../learn/b11-policy.md), and a rollout is in [Write and roll out policies](../how-to/policies.md).
 
 ## A policy and a plan
 
@@ -213,7 +213,7 @@ sed -n '/"signature"/,$p' infra/pravo.state/policy/no_destroy@00000001.json | se
 - A version is written with a put that fails if the object exists. A policy that changes gets the next number. A policy that is removed from the specification gets a version with empty text, a tombstone.
 - The first version raises `meta.json` to format 4. A pravo that does not know format 4 refuses the state.
 - The signature covers the state, the name, the number, the digest of the text and `at`. A version cannot be moved to another state.
-- A reader who can apply can write a version. The signature names who wrote it, and review of the specification is the control. With [roles](protect.md#roles) a writer writes a version and only an admin writes a removal.
+- A reader who can apply can write a version. The signature names who wrote it, and review of the specification is the control. With [roles](roles.md) a writer writes a version and only an admin writes a removal.
 - `pravo state pull` and `pravo state push` copy the versions with the rest.
 
 ## How a plan is judged
@@ -234,12 +234,12 @@ Under `--json` the error is also printed as an object on standard output, after 
 
 ## Two moments
 
-A specification policy is a constraint on the `#Resource` of a `#Provider` definition. It is checked when the specification evaluates. A policy node is a rule over the plan. It is checked when a plan is judged, by the versions in the state, so a change of the specification that weakens a rule is itself a change that review sees, and the version it writes is signed.
+A constraint on the `#Resource` of a `#Provider` definition is checked when the specification evaluates. It is a CUE constraint, not a policy. A policy is a rule over the plan. It is checked when a plan is judged, by the versions in the state, so a change of the specification that weakens a rule is itself a change that review sees, and the version it writes is signed.
 
-A specification policy rejects a value that is set and wrong. It does not require that an attribute is set, which is a rule for a policy node. See [Providers](spec-providers.md#provider-scoped-constraints). [Policies](../concepts/policies.md#two-moments) compares the two.
+A constraint rejects a value that is set and wrong. It does not require that an attribute is set, which is a rule for a policy. See [Providers](spec-providers.md#provider-scoped-constraints). [Constraints and policies](../concepts/policies.md#two-moments) compares the two.
 
 ## See also
 
 - [Write and roll out policies](../how-to/policies.md) takes a rule from a first draft to an apply job.
-- [Policies](../concepts/policies.md) explains the two moments and what a policy binds.
+- [Constraints and policies](../concepts/policies.md) explains the two moments and what a policy binds.
 - [Writing policies](policies-writing.md) lists the shapes that work.

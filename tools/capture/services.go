@@ -32,21 +32,40 @@ import (
 //   - it exits when standard input reaches end of file, so that a capture that
 //     dies cannot leave it behind. capture also kills the process group.
 
-// serviceDef describes a service that capture knows how to start.
+// serviceDef describes a service that capture knows how to start, or a tool
+// that it builds for the page and does not start.
 type serviceDef struct {
 	Name string // the name used in front matter and as the executable name
 	Pkg  string // the Go package that is built when -services is not given
+	// Tool marks an executable that a page uses and capture does not start:
+	// the fake provider, which pravo starts itself. Bin is the name it is
+	// built under, which a provider binary has to carry.
+	Tool bool
+	Bin  string
 }
 
 // Prefix is the start of the environment variables the service exports.
 func (d serviceDef) Prefix() string { return strings.ToUpper(d.Name) }
 
+// executable is the name of the file that the service is built as.
+func (d serviceDef) executable() string {
+	if d.Bin != "" {
+		return d.Bin
+	}
+	return d.Name
+}
+
 // knownServices are the services a page may name.
 var knownServices = map[string]serviceDef{
-	"fakes3":   {Name: "fakes3", Pkg: "./tools/fakes3"},
-	"fakehttp": {Name: "fakehttp", Pkg: "./tools/fakehttp"},
-	"fakeoci":  {Name: "fakeoci", Pkg: "./tools/fakeoci"},
+	"fakes3":       {Name: "fakes3", Pkg: "./tools/fakes3"},
+	"fakehttp":     {Name: "fakehttp", Pkg: "./tools/fakehttp"},
+	"fakeoci":      {Name: "fakeoci", Pkg: "./tools/fakeoci"},
+	"fakeprovider": {Name: "fakeprovider", Pkg: "./tools/fakeprovider", Tool: true, Bin: "terraform-provider-demo"},
 }
+
+// toolDir is the directory below the workspace that a tool keeps its objects
+// in: the fake provider reads and writes catalog.json there.
+const toolDir = "objects"
 
 func serviceNames() []string {
 	var names []string
@@ -69,10 +88,14 @@ const serviceHost = "127.0.0.1"
 // parseServiceSpec reads "fakes3" or "fakes3:9000".
 func parseServiceSpec(s string) (serviceSpec, error) {
 	name, port, hasPort := strings.Cut(strings.TrimSpace(s), ":")
-	if _, ok := knownServices[name]; !ok {
+	def, ok := knownServices[name]
+	if !ok {
 		return serviceSpec{}, fmt.Errorf("unknown service %q (known: %s)", name, strings.Join(serviceNames(), ", "))
 	}
 	spec := serviceSpec{Name: name}
+	if def.Tool && hasPort {
+		return serviceSpec{}, fmt.Errorf("%s is a program that pravo starts, not a server: it takes no port", name)
+	}
 	if hasPort {
 		n, err := strconv.Atoi(port)
 		if err != nil || n < 1 || n > 65535 {
@@ -92,7 +115,7 @@ func (s serviceSpec) String() string {
 
 // reHolder matches a placeholder such as {{FAKES3_PORT}}. Only the variables
 // of the known services are placeholders; any other {{text}} is left alone.
-var reHolder = regexp.MustCompile(`\{\{([A-Z][A-Z0-9]*)_(ADDR|URL|PORT)\}\}`)
+var reHolder = regexp.MustCompile(`\{\{([A-Z][A-Z0-9]*)_(ADDR|URL|PORT|BIN|DIR)\}\}`)
 
 // holderService returns the service a placeholder name belongs to, or "".
 func holderService(prefix string) string {
@@ -115,6 +138,17 @@ func serviceVars(name, addr string, pid int) [][2]string {
 		{prefix + "_URL", "http://" + addr},
 		{prefix + "_PORT", port},
 		{prefix + "_PID", strconv.Itoa(pid)},
+	}
+}
+
+// toolVars returns the variables of a tool that the page uses and capture does
+// not start: NAME_BIN, the executable, and NAME_DIR, the directory below the
+// workspace that it keeps its objects in.
+func toolVars(name, bin, dir string) [][2]string {
+	prefix := knownServices[name].Prefix()
+	return [][2]string{
+		{prefix + "_BIN", bin},
+		{prefix + "_DIR", dir},
 	}
 }
 
@@ -338,22 +372,36 @@ func buildServices(ctx context.Context, root string, names []string) (dir string
 		return "", nil, err
 	}
 	cleanup = func() { os.RemoveAll(dir) }
-	args := []string{"build", "-o", dir + string(filepath.Separator)}
+	// The servers are built together, each named after its package. A tool
+	// is built under the name it has to carry, one build each.
+	var builds [][]string
+	servers := []string{"build", "-o", dir + string(filepath.Separator)}
 	for _, n := range names {
-		args = append(args, knownServices[n].Pkg)
+		def := knownServices[n]
+		if def.Tool {
+			builds = append(builds, []string{"build", "-o", filepath.Join(dir, def.executable()), def.Pkg})
+			continue
+		}
+		servers = append(servers, def.Pkg)
 	}
-	cmd := exec.CommandContext(ctx, "go", args...)
-	cmd.Dir = root
-	if out, berr := cmd.CombinedOutput(); berr != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("building %s: %v\n%s", strings.Join(names, ", "), berr, strings.TrimSpace(string(out)))
+	if len(servers) > 3 {
+		builds = append([][]string{servers}, builds...)
+	}
+	for _, args := range builds {
+		cmd := exec.CommandContext(ctx, "go", args...)
+		cmd.Dir = root
+		if out, berr := cmd.CombinedOutput(); berr != nil {
+			cleanup()
+			return "", nil, fmt.Errorf("building %s: %v\n%s", strings.Join(names, ", "), berr, strings.TrimSpace(string(out)))
+		}
 	}
 	return dir, cleanup, nil
 }
 
 // serviceExecutable returns the path of the executable of a service in dir.
 func serviceExecutable(dir, name string) (string, error) {
-	for _, n := range []string{name, name + ".exe"} {
+	file := knownServices[name].executable()
+	for _, n := range []string{file, file + ".exe"} {
 		p := filepath.Join(dir, n)
 		if info, err := os.Stat(p); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
 			return p, nil

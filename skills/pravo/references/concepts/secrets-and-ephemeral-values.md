@@ -237,7 +237,7 @@ The kind is chosen where the variable is declared.
 
 ### Secrets of the sealed state
 
-A `pravo.#Secret` is an ephemeral value that comes from the [sealed state](sealed-state.md) of the root instead of the environment of the process. [`pravo secret set`](../reference/secret.md) keeps it there as a named secret with numbered versions, sealed to the same readers as the records. A run reads the latest version when it starts, or the version that `version` names, and stops before any provider starts when the secret is missing or was removed. The same rules decide where the value may go: provider configuration, a write-only attribute and another ephemeral resource.
+A `pravo.#Secret` is an ephemeral value that comes from the [sealed state](signatures-and-roles.md#what-is-sealed) of the root instead of the environment of the process. [`pravo secret set`](../reference/secret.md) keeps it there as a named secret with numbered versions, sealed to the same readers as the records. A run reads the latest version when it starts, or the version that `version` names, and stops before any provider starts when the secret is missing or was removed. The same rules decide where the value may go: provider configuration, a write-only attribute and another ephemeral resource.
 
 ```cue
 db_password: pravo.#Secret & {name: "prod/db_password"}
@@ -346,7 +346,7 @@ Apply complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <id>]
 
 ## Sensitive attributes and the state
 
-A provider marks an attribute sensitive in its schema. pravo prints it as `(sensitive)` in a plan. The state holds the attribute as the provider returned it, unless the state is [sealed](sealed-state.md), when it holds the attribute encrypted to a list of readers. Here is the private key of `deploy`, in the record.
+A provider marks an attribute sensitive in its schema. pravo prints it as `(sensitive)` in a plan. The state holds the attribute as the provider returned it, unless the state is [sealed](signatures-and-roles.md), when it holds the attribute encrypted to a list of readers. Here is the private key of `deploy`, in the record.
 
 ```sh
 pravo state show deploy | grep -c 'BEGIN OPENSSH PRIVATE KEY'
@@ -383,7 +383,7 @@ Output:
 1
 ```
 
-The plan document is the document that policies are judged against, and the document that `--json` hands to a program. A refusal by a policy quotes the offending value. [Policies](policies.md) says what that means for a rule over a sensitive attribute.
+The plan document is the document that policies are judged against, and the document that `--json` hands to a program. A refusal by a policy quotes the offending value. [Constraints and policies](policies.md) says what that means for a rule over a sensitive attribute.
 
 The files of the state are written with mode 0644, as the umask allows. A saved plan is written with mode 0600, and it holds the prior and planned values of every change. Treat both as sensitive.
 

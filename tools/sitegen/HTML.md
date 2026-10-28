@@ -221,7 +221,7 @@ A `run` block and the `out` block after it are one window. A `run` block without
 ### Compare and tabs
 
 ```html
-<div class="compare" data-count="2"><figure class="code">...</figure><figure class="code">...</figure></div>
+<div class="compare" data-count="2" style="--longest:42"><figure class="code">...</figure><figure class="code">...</figure></div>
 ```
 
 ```html
@@ -369,7 +369,7 @@ After writing, the generator reads every generated `.html` file and fails on: a 
 `site/README.md` describes the design system. Points that bind the generated HTML:
 
 - `assets/search.js` and `assets/timeline.js` sit next to `site.js` and load on demand (`search.js` on the first use of the search palette, `timeline.js` through `pravoUI.timeline(cb)` or from `widgets.js`). No `<script>` tag names them. A landing partial with an inline script that uses `pravoTimeline` runs it on `DOMContentLoaded` and calls `pravoUI.timeline`.
-- `data-count` on `.compare` is the number of windows. The counter attribute for stat tiles is `data-countup`.
+- `data-count` on `.compare` is the number of windows, and `--longest` in its `style` the width of their longest line in characters, with a tab counted to the next stop of four: the style sheet makes a column at least that wide and stacks the windows when two columns do not fit. The counter attribute for stat tiles is `data-countup`.
 - A search entry may carry its excerpt in `text` or `body`.
 - Classes set by the scripts, which the generator does not write: `is-ready` (tabs, marquee), `is-in` (reveal), `is-done` (progress), `is-copied`, `is-scrolled`, `is-lit`, `is-on`, `is-paused` (marquee), `is-stack` (a table of three or more columns without merged cells; its cells get `data-label`, the text of their column heading, and the style sheet sets it as a list of records under 40 rem). Elements inserted by the scripts: `.read-progress`, `.drawer-bar`, `.scrim`, `.progress-summary`, `.term-pop`, `dialog.search-dialog`, `button.marquee-toggle` (after the marquee, in its caption), `a.anchor-side` (when a heading has no permalink), `.sr-done` (the text "(done)" in a link to a finished page), a polite live region for copy results, and the `tabindex`, `role="group"` and `aria-label` of a code block, terminal or table that scrolls sideways.
 - `.code[data-ln]` shows line numbers from a CSS counter; the `.ln` span stays empty.

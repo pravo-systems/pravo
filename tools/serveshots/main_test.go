@@ -51,6 +51,7 @@ func TestRunFlags(t *testing.T) {
 		{[]string{}, "-out is required"},
 		{[]string{"-out", t.TempDir()}, "-bin is required"},
 		{[]string{"-out", t.TempDir(), "-bin", filepath.Join(t.TempDir(), "none")}, "no such file"},
+		{[]string{"-out", t.TempDir(), "-bin", filepath.Join(t.TempDir(), "none"), "-colours", "300"}, "a palette holds"},
 		{[]string{"-out", t.TempDir(), "-only", "nope", "-placeholders"}, "names no shot"},
 		{[]string{"extra"}, "unexpected argument"},
 	} {

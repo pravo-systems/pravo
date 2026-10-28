@@ -282,6 +282,6 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
 ## What next
 
 - [B4, Inputs, tags, environments](../learn/b04-inputs-tags-environments.md) teaches each part of this recipe.
-- [Remote state](remote-state.md) puts one prefix per environment in a shared bucket.
+- [Keep the state in a shared store](keep-the-state-in-a-shared-store.md) puts one prefix per environment in a shared bucket.
 - [CI](ci.md) runs one job per environment.
 - [Tags and variables](../reference/spec-tags-and-variables.md) and [Settings](../reference/spec-settings.md) are the reference for `@tag` and `$settings`.

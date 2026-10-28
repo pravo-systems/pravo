@@ -1,7 +1,7 @@
 ---
 title: pravo validate, eval, fmt and gen
 description: Check a specification without planning it, print its evaluated value, format the CUE files and regenerate the provider packages.
-order: 10
+order: 12
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'
@@ -18,7 +18,7 @@ keywords: "cue vet cue eval cue fmt validate"
 | `pravo fmt` | Formats the `.cue` files of the current directory in place. | no | the files that change |
 | `pravo gen` | Rewrites the packages under `cue.mod/gen` from the cached schemas, and generates a package that an import names and that does not exist yet. | no | `cue.mod/gen` |
 
-`validate` and `eval` also work on plain CUE that declares no provider and imports no generated package. Imports of the CUE standard library are fine. The file needs a `package` clause, and no `pravo init` is needed. Taught in [C4, eval and validate](../learn/c4-eval-and-validate.md), [A1, Your data is already CUE](../learn/a01-your-data-is-already-cue.md) and [B1, Providers and resources](../learn/b01-providers-and-resources.md).
+`validate` and `eval` also work on plain CUE that declares no provider and imports no generated package. Imports of the CUE standard library are fine. The file needs a `package` clause, and no `pravo init` is needed. Taught in [eval and validate](../learn/eval-and-validate.md), [A1, Your data is already CUE](../learn/a01-your-data-is-already-cue.md) and [B1, Providers and resources](../learn/b01-providers-and-resources.md).
 
 ### Flags
 
@@ -301,6 +301,6 @@ Generated cue.mod/gen/pravo.dev/providers/hashicorp/random (10 resource types, 0
 
 ## See also
 
-- [`pravo init`](init.md) creates the module and the generated packages.
+- [`pravo init`](init.md) creates the CUE module and the generated packages.
 - [`pravo schema`](schema.md) prints one type.
-- [Reading a CUE error](../learn/c1-reading-a-cue-error.md) explains the shape of an evaluation error.
+- [Reading a CUE error](../learn/reading-a-cue-error.md) explains the shape of an evaluation error.

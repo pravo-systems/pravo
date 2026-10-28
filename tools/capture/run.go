@@ -670,6 +670,20 @@ func (pr *pageRun) startServices() (stop func(), err error) {
 			stop()
 			return nil, fmt.Errorf("no executable for the service %s", spec.Name)
 		}
+		if knownServices[spec.Name].Tool {
+			// A tool is not started: pravo starts it. The page gets its path
+			// and a directory of its own for the objects the tool keeps.
+			dir := filepath.Join(pr.ws, toolDir)
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				stop()
+				return nil, err
+			}
+			for _, kv := range toolVars(spec.Name, bin, dir) {
+				pr.vars[kv[0]] = kv[1]
+				pr.env = append(pr.env, kv[0]+"="+kv[1])
+			}
+			continue
+		}
 		svc, err := startService(pr.ctx, bin, spec)
 		if err != nil {
 			stop()

@@ -30,7 +30,15 @@ CUE has no prefix. A [field](../reference/glossary.md#field) is a name, and you 
 ## Warm-up
 
 :::check From earlier lessons
-A pattern gives every bucket a name built from its key: `buckets: [Name=string]: {name: "estate-\(Name)"}`. What does `pravo eval` print for `buckets: logs: {}`?
+::question
+A pattern gives every bucket a name built from its key:
+
+```cue
+buckets: [Name=string]: {name: "estate-\(Name)"}
+buckets: logs: {}
+```
+
+What does `pravo eval` print for `logs`?
 ::answer
 The name `estate-logs`. The pattern from [A9](a09-patterns.md) applies to every entry, and `Name` stands for the key.
 

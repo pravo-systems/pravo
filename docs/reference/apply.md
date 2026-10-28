@@ -63,7 +63,7 @@ The [global flags](global-flags.md) apply. With `--json`, a plain apply needs `-
 | 1 | An error: the prompt was answered with anything but `yes`, a provider failed, the apply was interrupted, a flag does not combine with the form, `--only` names a node that has no change in the plan file, `--json` without `--auto-approve`, an id that no stored plan has, `-t` and `-T` that differ from the ones a stored plan was made with, or a stored plan that cannot be claimed for a reason other than a collection. |
 | 3 | The saved plan is stale, or an apply found that a resource is not what the plan said: a node that another command wrote since, or a provider that plans the resource differently. The reasons follow the error. A stored plan whose time to live ended before it was applied, or that a collection is removing, is refused with this code, and so is a stored plan that is [partly stale](#a-partly-stale-plan) when the apply includes a change that conflicts, as the whole plan does. |
 | 4 | Rejected: a node is locked or reserved by another actor, before anything changes, or a lock was taken over while the apply ran (`lock lost`). |
-| 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or a module does not match its lock. |
+| 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or a CUE module does not match its lock. |
 | 6 | The specification does not load or evaluate. |
 
 ## Examples
@@ -345,7 +345,7 @@ Apply complete! Resources: 2 added, 0 changed, 2 destroyed. [txn <txn>]
 
 ### Apply a stored plan
 
-`pravo plan --store` writes a plan into the state, and `pravo apply ID` applies it. The checks are those of a plan file: the configuration, the providers, the lineage of the state, and the revision and generation of every record the plan writes or reads. A difference is exit code 3 and changes nothing. The policies in force judge the whole plan, and `--only` applies a closed part. `--refresh`, `--full` and `--replace` are refused, as they are with a plan file: the plan decided them. [`pravo plan`](plan.md#store-a-plan) stores a plan, and [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md) follows two people through it.
+`pravo plan --store` writes a plan into the state, and `pravo apply ID` applies it. The checks are those of a plan file: the configuration, the providers, the lineage of the state, and the revision and generation of every record the plan writes or reads. A difference is exit code 3 and changes nothing. The policies in force judge the whole plan, and `--only` applies a closed part. `--refresh`, `--full` and `--replace` are refused, as they are with a plan file: the plan decided them. [`pravo plan`](plan.md#store-a-plan) stores a plan, and [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) follows two people through it.
 
 The root has no pending change. Store a plan that replaces `solo`, and apply it by its id.
 

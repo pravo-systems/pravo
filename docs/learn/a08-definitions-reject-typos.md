@@ -140,7 +140,7 @@ Read the error from the top.
 
 pravo prints no buckets at all. A specification with an error has no result, so the typo cannot reach a plan.
 
-When a definition refuses a field you meant to add, read [C3](c3-closed-or-open.md). It shows how to open a definition with `...` and how to extend one by embedding.
+When a definition refuses a field you meant to add, read [Closed or open?](closed-or-open.md). It shows how to open a definition with `...` and how to extend one by embedding.
 
 ## Exercise
 
@@ -283,4 +283,4 @@ Does `pravo eval` print `#Bucket`?
 No. A definition is a shape and is not part of the output. `pravo eval -e '#Bucket'` prints it.
 :::
 
-You have already used a definition. In Start, `$local.#Resource.local_file` is one that pravo generates from the provider's schema, and `rules.cue` narrowed it. Every resource is built from such a definition, so a misspelt attribute fails in `pravo validate` before any provider starts. [C3](c3-closed-or-open.md) shows that error on a real resource.
+You have already used a definition. In Start, `$local.#Resource.local_file` is one that pravo generates from the provider's schema, and `rules.cue` narrowed it. Every resource is built from such a definition, so a misspelt attribute fails in `pravo validate` before any provider starts. [Closed or open?](closed-or-open.md) shows that error on a real resource.

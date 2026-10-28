@@ -47,7 +47,7 @@ func TestViewerOpen(t *testing.T) {
 func TestStartViewer(t *testing.T) {
 	_, log := fake(t)
 	dir := t.TempDir()
-	v, err := startViewer(context.Background(), os.Args[0], dir, filepath.Join(dir, "change.plan"), nil)
+	v, err := startViewer(context.Background(), os.Args[0], dir, filepath.Join(dir, "change.plan"), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestStartViewer(t *testing.T) {
 
 func TestStartViewerWithoutAPlan(t *testing.T) {
 	_, log := fake(t)
-	v, err := startViewer(context.Background(), os.Args[0], t.TempDir(), "", nil)
+	v, err := startViewer(context.Background(), os.Args[0], t.TempDir(), "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestStartViewerWithoutAPlan(t *testing.T) {
 func TestStartViewerReadsATextLine(t *testing.T) {
 	fake(t)
 	t.Setenv("SERVESHOTS_FAKE_SERVE", "text")
-	v, err := startViewer(context.Background(), os.Args[0], t.TempDir(), "", nil)
+	v, err := startViewer(context.Background(), os.Args[0], t.TempDir(), "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestStartViewerReadsATextLine(t *testing.T) {
 func TestStartViewerReportsAServerThatExits(t *testing.T) {
 	fake(t)
 	t.Setenv("SERVESHOTS_FAKE_SERVE", "garbage")
-	_, err := startViewer(context.Background(), os.Args[0], t.TempDir(), "", nil)
+	_, err := startViewer(context.Background(), os.Args[0], t.TempDir(), "", nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "listening, somewhere") {
 		t.Errorf("error = %v", err)
 	}

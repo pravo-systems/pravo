@@ -36,7 +36,15 @@ A key can be computed. Parentheses make the key an expression: `(z.name)` uses t
 ## Warm-up
 
 :::check From earlier lessons
-A rule `buckets: [Name=string]: #Bucket & {name: Name}` holds the entry `logs: {name: "other"}`. Is it accepted?
+::question
+A rule sets the `name` of every bucket to its key, and one entry disagrees:
+
+```cue
+buckets: [Name=string]: #Bucket & {name: Name}
+buckets: logs: {name: "other"}
+```
+
+Is it accepted?
 ::answer
 No. The rule sets `name` to the key `logs`, and `"other"` disagrees ([A9](a09-patterns.md)).
 

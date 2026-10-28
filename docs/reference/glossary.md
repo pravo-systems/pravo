@@ -11,7 +11,7 @@ A term links to the lesson that teaches it, or to the page that describes it. A 
 | Group | Terms |
 |---|---|
 | CUE | [attribute](#attribute), [bottom](#bottom), [bound](#bound), [closed](#closed), [comprehension](#comprehension), [concrete](#concrete), [conflict](#conflict), [constraint](#constraint), [default](#default), [definition](#definition), [disjunction](#disjunction), [embedding](#embedding), [evaluation](#evaluation), [field](#field), [hidden field](#hidden-field), [import](#import), [incomplete](#incomplete), [interpolation](#interpolation), [let](#let), [list](#list), [open](#open), [optional field](#optional-field), [package](#package), [pattern](#pattern), [reference](#reference), [regular field](#regular-field), [required field](#required-field), [standard library](#standard-library), [struct](#struct), [tag](#tag), [type](#type), [unification](#unification) |
-| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [namespace](#namespace), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [secret](#secret), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
+| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [approval](#approval), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [group](#group), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [role](#role), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [secret](#secret), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
 
 ## Terms of CUE
 
@@ -25,7 +25,7 @@ Taught in [A6](../learn/a06-choices-and-defaults.md). See [Tags and variables](s
 
 The result of unifying two values that disagree, written `_|_`. It is an error. CUE reports it as `conflicting values` and lists the position of each declaration.
 
-Taught in [A3](../learn/a03-writing-a-field-twice.md). See [C1](../learn/c1-reading-a-cue-error.md).
+Taught in [A3](../learn/a03-writing-a-field-twice.md). See [Reading a CUE error](../learn/reading-a-cue-error.md).
 
 ### bound
 
@@ -37,7 +37,7 @@ Taught in [A5](../learn/a05-constraints-narrow-a-value.md).
 
 A struct that rejects a field it does not declare. Every definition is closed. The attributes of a resource are closed, so a misspelt attribute is `field not allowed`.
 
-Taught in [A8](../learn/a08-definitions-reject-typos.md). See [C3](../learn/c3-closed-or-open.md).
+Taught in [A8](../learn/a08-definitions-reject-typos.md). See [Closed or open?](../learn/closed-or-open.md).
 
 ### comprehension
 
@@ -49,7 +49,7 @@ Taught in [A10](../learn/a10-comprehensions.md). See [Resources](spec-resources.
 
 A value that is one definite value, such as `3` or `"dev"`, and not a type or a constraint such as `int` or `>=1`. `pravo eval -c` fails unless every value is concrete.
 
-Taught in [A2](../learn/a02-a-value-can-be-a-type.md). See [C2](../learn/c2-why-is-my-value-incomplete.md).
+Taught in [A2](../learn/a02-a-value-can-be-a-type.md). See [Why is my value incomplete?](../learn/why-is-my-value-incomplete.md).
 
 ### conflict
 
@@ -59,7 +59,7 @@ Taught in [A3](../learn/a03-writing-a-field-twice.md). See [Error catalogue](err
 
 ### constraint
 
-A value that allows some values and rejects the rest, such as `string`, `>=1` or `=~"^eu-"`. Unifying a constraint with a value keeps the value when it fits, and is an error when it does not.
+A value that allows some values and rejects the rest, such as `string`, `>=1` or `=~"^eu-"`. Unifying a constraint with a value keeps the value when it fits, and is an error when it does not. A constraint on the `#Resource` of a provider definition binds every resource built through that provider. It is checked when the specification evaluates, and it is not a [policy](#policy).
 
 Taught in [A5](../learn/a05-constraints-narrow-a-value.md).
 
@@ -71,7 +71,7 @@ Taught in [A6](../learn/a06-choices-and-defaults.md).
 
 ### definition
 
-A struct whose name starts with `#`, such as `#Service`. A definition is closed, and it declares nothing until a regular field instantiates it. A provider package is built from definitions.
+A struct whose name starts with `#`, such as `#Service`. A definition is closed, and it declares nothing until a regular field instantiates it. A provider package is built from definitions. A definition that contains resources is the unit of reuse: what a `module` block does in OpenTofu, an instance of such a definition does in pravo.
 
 Taught in [A8](../learn/a08-definitions-reject-typos.md). See [Generated packages](spec-generated-packages.md).
 
@@ -91,7 +91,7 @@ Taught in [A8](../learn/a08-definitions-reject-typos.md). See [Moves and imports
 
 Resolving references, expanding comprehensions, unifying values and selecting defaults until one value is left. `pravo eval` prints the result, and `pravo validate` checks it.
 
-See [C4](../learn/c4-eval-and-validate.md). See [Evaluation](../concepts/evaluation.md).
+See [eval and validate](../learn/eval-and-validate.md). See [Evaluation](../concepts/evaluation.md).
 
 ### field
 
@@ -115,7 +115,7 @@ Taught in [A13](../learn/a13-packages-and-the-standard-library.md).
 
 A value that is not concrete yet and that a command needs to be: a type with no value, or a field that no tag has filled. `pravo eval -c` reports `incomplete value string`.
 
-See [C2](../learn/c2-why-is-my-value-incomplete.md).
+See [Why is my value incomplete?](../learn/why-is-my-value-incomplete.md).
 
 ### interpolation
 
@@ -139,7 +139,7 @@ Taught in [A1](../learn/a01-your-data-is-already-cue.md).
 
 A struct that accepts fields it does not declare. The struct literals you write are open. A struct is closed only when it is a definition or when `close()` makes it so.
 
-See [C3](../learn/c3-closed-or-open.md).
+See [Closed or open?](../learn/closed-or-open.md).
 
 ### optional field
 
@@ -149,7 +149,7 @@ Taught in [A7](../learn/a07-required-optional-regular.md).
 
 ### package
 
-The files of one directory that begin with the same `package` clause, unified into one value. A root is one package. A file with no package clause, or with another one, is an error.
+The files of one directory that begin with the same `package` clause, unified into one value. A root is one package. A file with no package clause, or with another one, is an error. A package below the top of the CUE module can be imported by any root in the module, which is how a definition is shared.
 
 Taught in [A13](../learn/a13-packages-and-the-standard-library.md). See [The specification](spec-overview.md#what-makes-a-root).
 
@@ -233,6 +233,12 @@ Bringing an object that already exists under management. `$import: "<id>"` or `$
 
 Taught in [B8](../learn/b08-renames-moves-imports.md). See [Moves and imports](spec-moves-and-imports.md#import).
 
+### approval
+
+A signature of a [stored plan](#stored-plan), made with `pravo plan approve` by a [reader](#reader) whose [role](#role) suffices. A [policy](#policy) says how many approvals a plan needs before it is applied and who may give them. The key that stored the plan does not count unless the policy allows it, and an admin applies without them.
+
+Taught in [C6](../learn/c06-ask-for-approvals.md). See [Stored plans and approvals](../concepts/stored-plans-and-approvals.md).
+
 ### blast radius
 
 The number of distinct nodes that have a pending change, together with every node that depends on one of them. It is `summary.blast_radius` in the output of `plan --json`. A policy does not see it, because the judged document is built from the plan file alone.
@@ -267,7 +273,7 @@ See [Meta fields](spec-meta-fields.md#depends-on).
 
 A struct built from `#Discovery.<type>` of a provider that can list: a list resource type with the scope to list it in. `pravo discover` runs it, and the objects it finds that no record accounts for are shown for adoption. It manages nothing and is not a node of the graph.
 
-See [Discovery](../concepts/discovery.md) and [`pravo discover`](discover.md).
+Taught in [B10](../learn/b10-find-what-nothing-manages.md). See [Discovery](../concepts/discovery.md) and [`pravo discover`](discover.md).
 
 ### done when
 
@@ -291,13 +297,19 @@ See [Resources](spec-resources.md#ephemeral-resources).
 
 A value of an ephemeral resource, of `pravo.#SecretEnv` or of `pravo.#Secret`. It may be used in provider configuration, in write-only attributes and in other ephemeral resources, and nowhere that is recorded.
 
-Taught in [B6](../learn/b06-modules-providers-credentials.md). See [Environment](spec-env.md#secret-env).
+Taught in [B6](../learn/b06-reuse-providers-credentials.md). See [Environment](spec-env.md#secret-env).
 
 ### generated package
 
 A CUE package that `pravo init` writes under `cue.mod/gen/`: one for each provider, and `pravo.dev/pravo`. A specification imports them to build resources.
 
 See [Generated packages](spec-generated-packages.md).
+
+### group
+
+In the viewer, a struct of the specification that holds resources: an instance of a definition, an instance of a package or a plain struct. Every proper prefix of a node's address that holds a resource below it is a group. It is a place in the address, not a form of reuse: it needs no definition and takes no providers.
+
+See [The viewer](../concepts/the-viewer.md#groups).
 
 ### identity
 
@@ -325,7 +337,7 @@ Taught in [Lab 2](../learn/lab2-two-applies-at-once.md). See [State format](stat
 
 ### lock file
 
-`pravo.lock.cue`, written by `pravo init`. It holds the version of each provider and the hash of each archive, and the modules a root loads. Commit it.
+`pravo.lock.cue`, written by `pravo init`. It holds the version of each provider and the hash of each archive, and the CUE modules a root loads. Commit it.
 
 See [Compatibility](compatibility.md#providers-and-registries).
 
@@ -343,21 +355,15 @@ See [Meta fields](spec-meta-fields.md).
 
 ### module
 
-In CUE, the tree under a `cue.mod/module.cue` file, whose path begins every import path. In pravo, a definition or a package that contains resources and takes its providers as inputs.
+A CUE module: the tree of packages under a `cue.mod/module.cue` file. Its path begins every import path, and `pravo mod` publishes it to a registry, fetches it by version and locks its content. pravo has no module in the sense of a `module` block with a `source`, variables and outputs. That work is done by a [definition](#definition) that contains resources, shared through a [package](#package).
 
-Taught in [B6](../learn/b06-modules-providers-credentials.md). See [Modules](spec-modules.md).
+Taught in [A13](../learn/a13-packages-and-the-standard-library.md) and [B6](../learn/b06-reuse-providers-credentials.md). See [Reuse](spec-reuse.md) and [mod](mod.md).
 
 ### move
 
 Keeping the record of a resource when its address changes, by writing the old address in `$from`. The plan lists the rename, the apply makes it, and the object is left alone.
 
 Taught in [B8](../learn/b08-renames-moves-imports.md). See [Moves and imports](spec-moves-and-imports.md).
-
-### namespace
-
-In the viewer, a struct of the specification that holds resources: an instance of a definition, an instance of a package or a plain struct. Every proper prefix of a node's address that holds a resource below it is a namespace. It is not a [module](#module), which needs a definition or a package that takes providers as inputs.
-
-See [The viewer](../concepts/the-viewer.md#namespaces).
 
 ### node
 
@@ -399,7 +405,7 @@ See [State format](state-format.md#plans).
 
 A `pravo.#Policy` node of the specification whose rule is CUE text that a plan must satisfy. pravo keeps each version in the state, signed, and the signed start of an apply lists the versions that judged it. A specification cannot exempt a resource from it. A refusal is exit code 5.
 
-Taught in [B10](../learn/b10-policy.md). See [Policies](policies-overview.md).
+Taught in [B11](../learn/b11-policy.md). See [Policies](policies-overview.md).
 
 ### provider
 
@@ -417,7 +423,7 @@ See [Plans](../concepts/plans.md#scoped-plans).
 
 A person or a job that can open the values of a [sealed state](#sealed-state). A reader is a line of the [readers file](#readers-file) and has a lock for each data key of the state.
 
-See [What sealing protects](../concepts/sealed-state.md).
+See [Signatures and roles](../concepts/signatures-and-roles.md).
 
 ### readers file
 
@@ -449,6 +455,12 @@ A struct built through a provider from `#Resource.<type>`. pravo creates, update
 
 Taught in [B1](../learn/b01-providers-and-resources.md). See [Resources](spec-resources.md).
 
+### role
+
+What a key on the [readers file](#readers-file) may do with a [sealed state](#sealed-state). A reader opens the values and the secrets. A writer applies, stores plans and sets secrets as well. An admin changes the readers file, pins the roles, removes a secret and removes a policy that asks for approvals as well. The roles are pinned in the state, signed by an admin, so a checkout cannot promote its own key by editing its readers file.
+
+Taught in [C4](../learn/c04-readers-writers-admins.md). See [Roles](roles.md).
+
 ### root
 
 A directory that holds one CUE package, and the unit that pravo plans, applies and keeps a state for. Its location is where you run pravo, or what `-C` names.
@@ -471,7 +483,7 @@ See [Plans](../concepts/plans.md).
 
 A state whose attributes, outputs, stored plans and the values in command lines are encrypted to a list of [readers](#reader). Addresses, types, names, dependencies and revisions stay readable. It is format 3, or a later format that includes it.
 
-See [What sealing protects](../concepts/sealed-state.md).
+See [Signatures and roles](../concepts/signatures-and-roles.md).
 
 ### secret
 
@@ -501,7 +513,7 @@ Taught in [B3](../learn/b03-apply-outputs-state.md). See [State format](state-fo
 
 A plan that `pravo plan --store` wrote into the state, as objects below `plans/`. Anyone who can read the state can list it, show it and apply it by its [plan id](#plan-id). A listing judges it by the state alone, change by change, and a [collection](#collection) removes it when nobody needs it. An apply that fails records the changes it finished, and the plan is `partial`.
 
-Taught in [Share a plan before you apply it](../how-to/share-a-plan-before-you-apply-it.md). See [Plans](../concepts/plans.md#stored-plans).
+Taught in [C2](../learn/c02-store-a-plan.md). See [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) and [Stored plans and approvals](../concepts/stored-plans-and-approvals.md).
 
 ### transaction
 
@@ -513,7 +525,7 @@ See [State format](state-format.md#transactions).
 
 The rights that decide what a policy guarantees: write access to the policy source, to the job definition and environment, and to the state store, and the cloud credentials. pravo cannot see who holds them.
 
-See [Policies](../concepts/policies.md#the-trust-anchor).
+See [Constraints and policies](../concepts/policies.md#the-trust-anchor).
 
 ### unknown value
 
@@ -523,7 +535,7 @@ Taught in [B2](../learn/b02-reading-a-plan.md). See [The plan document](policies
 
 ### viewer
 
-The read-only web page that `pravo serve` runs on the loopback interface. It shows the specification, the state and a saved plan as a graph of [namespaces](#namespace) and resources. A node's presence says whether it is declared, recorded or both.
+The read-only web page that `pravo serve` runs on the loopback interface. It shows the specification, the state and a saved plan as a graph of [groups](#group) and resources. A node's presence says whether it is declared, recorded or both.
 
 See [The viewer](../concepts/the-viewer.md) and [`pravo serve`](serve.md).
 

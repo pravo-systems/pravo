@@ -200,7 +200,9 @@ func (s *Server) planFilePaths() []string {
 	return out
 }
 
-// looksLikePlanFile reads the first bytes of a file: a plan file is a JSON object that begins with its format.
+// looksLikePlanFile reads the first bytes of a file: a plan file is a JSON object that begins with its
+// format, and the plan file of a sealed state is an envelope that begins with its version and holds
+// what was sealed. The envelope opens for a reader of the state, and is counted as unreadable otherwise.
 func looksLikePlanFile(path string) bool {
 	fi, err := os.Stat(path)
 	if err != nil || fi.Size() > maxPlanFileSize || fi.Size() < 20 {
@@ -214,7 +216,14 @@ func looksLikePlanFile(path string) bool {
 	head := make([]byte, 512)
 	n, _ := f.Read(head)
 	head = bytes.TrimSpace(head[:n])
-	return len(head) > 0 && head[0] == '{' && bytes.Contains(head, []byte(`"format"`)) && bytes.Contains(head, []byte(`"created"`))
+	if len(head) == 0 || head[0] != '{' {
+		return false
+	}
+	if bytes.Contains(head, []byte(`"format"`)) && bytes.Contains(head, []byte(`"created"`)) {
+		return true
+	}
+	rest := bytes.TrimLeft(head[1:], " \t\r\n")
+	return bytes.HasPrefix(rest, []byte(`"v"`)) && bytes.Contains(head, []byte(`"sealed"`))
 }
 
 // readPlanFileAt reads a plan file, again only when it changed.

@@ -200,7 +200,7 @@ Every row above 0 is a decision. The table says what each construct becomes and 
 | `moved-blocks`, `import-blocks` | `$from` and `$import` on the resource, or `pravo import`. | [M5](m5-convert-the-state.md), [importing and moving](../how-to/importing-and-moving.md) |
 | `dynamic-blocks` | A comprehension in the body of the resource. | [M4](m4-translate-the-specification.md) |
 | `count` | A comprehension. Addresses change from `[0]` to `_0` in the converted state. | [M4](m4-translate-the-specification.md), [M5](m5-convert-the-state.md) |
-| `provider-passing` | A module input of type `#Provider`. | [M4](m4-translate-the-specification.md), [modules](../reference/spec-modules.md) |
+| `provider-passing` | An input of type `#Provider` on the definition. | [M4](m4-translate-the-specification.md), [reuse](../reference/spec-reuse.md) |
 | `sensitive-vars`, `tf-var-env` | `pravo.#SecretEnv` for a secret and `pravo.#Env` for the rest. | [M4](m4-translate-the-specification.md), [secrets](../how-to/secrets.md) |
 | `plan-json-checks` | A policy: a `pravo.#Policy` node of the root. | [M6](m6-rewrite-plan-checks.md), [policies](../how-to/policies.md) |
 

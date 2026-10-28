@@ -1,21 +1,21 @@
 <!-- Generated from docs/reference/protect.md by tools/skillgen. Do not edit. -->
 
-# pravo id and pravo protect
+# pravo protect
 
-Make an identity, seal the state to a list of readers, check that it holds, change the readers and collect old records. Commands, flags and exit codes.
+Seal the state to a list of readers, check that the seal holds, change the readers, set a recovery, take the seal off and collect old records. Commands, flags and exit codes.
 
 ## Quick reference
 
 | | |
 |---|---|
-| Synopsis | `pravo id new`, `pravo id show`, `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap`, `pravo protect roles`, `pravo protect recover`, `pravo protect unseal`, `pravo protect gc` |
+| Synopsis | `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap`, `pravo protect roles`, `pravo protect recover`, `pravo protect unseal`, `pravo protect gc` |
 | Changes infrastructure | No. |
-| Reads | The state, and `.pravo/access/readers.txt` in the repository. `id` reads and writes only identity files. |
-| Writes | `id new` writes an identity file. `protect init`, `protect rewrap`, `protect roles`, `protect recover`, `protect unseal` and `protect gc` write the state; `protect roles` also adds the `roles-genesis` line to the readers file; `protect unseal --remove-files` also deletes the readers file and the recovery file of the repository; a command that sets a recovery also writes `recovery-shares/` and `.pravo/access/recovery.txt`; `gc` writes the object `gc/marks.json` as well. `check` and `status` write nothing, and so does `gc --dry-run`. |
-| Prints | One line for each check, then a verdict. The line to add to the readers file. For `gc`, what it deleted and dropped. |
+| Reads | The state, `.pravo/access/readers.txt` in the repository, and the identity of the person who runs the command. |
+| Writes | `protect init`, `protect rewrap`, `protect roles`, `protect recover`, `protect unseal` and `protect gc` write the state; `protect roles` also adds the `roles-genesis` line to the readers file; `protect unseal --remove-files` also deletes the readers file and the recovery file of the repository; a command that sets a recovery also writes `recovery-shares/` and `.pravo/access/recovery.txt`; `gc` writes the object `gc/marks.json` as well. `check` and `status` write nothing, and so does `gc --dry-run`. |
+| Prints | One line for each check, then a verdict. For `gc`, what it deleted and dropped. |
 | Taught in | [Seal the state to a list of readers](../how-to/seal-the-state.md) and [Lab 3](https://pravo.systems/learn/lab3-the-leaked-bucket.html). |
 
-Protection is off by default. A state with protection off is unchanged: format 1, with the layout that every version of pravo reads. These commands turn protection on for one state, show where it stands and keep it in line with the list of readers. [What sealing protects](../concepts/sealed-state.md) says what the seal covers and what it leaves open.
+Protection is off by default. A state with protection off is unchanged: format 1, with the layout that every version of pravo reads. These commands turn protection on for one state, show where it stands and keep it in line with the list of readers. Each reader is an identity that [`pravo id`](id.md) makes, and each may have a [role](roles.md). [Signatures and roles](../concepts/signatures-and-roles.md) says what the seal covers and what it leaves open.
 
 A state has five formats. A sealed state is one in format 3 or above that has a sealed part in `meta.json`.
 
@@ -29,19 +29,17 @@ A state has five formats. A sealed state is one in format 3 or above that has a 
 
 `pravo protect init --encrypt` takes a state from format 1 to format 3. A pravo that does not know format 3 refuses the state with `state at LOCATION was written by a newer pravo (format 3)`.
 
-The format is the layout, and it only goes up. Whether the state is sealed is a matter of its `meta.json` having a sealed part. `pravo protect unseal` takes that part away and leaves the format at 3: the state is the same state, in the same lineage, with the layout of format 2 and no encryption. It is not a step back to an older format, and sealing it again is the same command as the first time.
+The format is the layout, and it only goes up. Whether the state is sealed is a matter of its `meta.json` having a sealed part. `pravo protect unseal` takes that part away and leaves the format where it is: the state is the same state, in the same lineage, with the immutable records of format 2 and no encryption. It is not a step back to an older format, and sealing it again is the same command as the first time.
 
 ### Subcommands
 
 | Subcommand | What it does | Reads the state | Writes the state | `--json` |
 |---|---|---|---|---|
-| `id new` | Makes an identity and prints the line for the readers file. | No. | No. | yes |
-| `id show` | Prints the keys and the line of an identity again. | No. | No. | yes |
 | `protect check` | Says whether the store can be sealed. | yes | No. | yes |
 | `protect init --encrypt` | Seals the state to the readers file. | yes | yes | no |
 | `protect status` | Says whether the state is sealed, to whom, and whether it verifies. | yes | No. | yes |
 | `protect rewrap` | Brings the keys of the state in line with the readers file. | yes | yes | yes |
-| `protect roles` | Stores the roles of the readers file in the state and pins them. | yes | yes | yes |
+| `protect roles` | Stores the roles of the readers file in the state and pins them. [Its own page](roles.md). | yes | yes | yes |
 | `protect recover` | Opens the state with the shares of its recovery key, and makes the readers those of the readers file. | yes | yes | yes |
 | `protect unseal` | Takes the seal off: writes everything in the open, and removes the sealed part of `meta.json`. | yes | yes | yes |
 | `protect gc` | Deletes the records that no pointer names, and the reader groups that nothing is sealed in. | yes | yes | yes |
@@ -50,15 +48,9 @@ The format is the layout, and it only goes up. Whether the state is sealed is a 
 
 | Flag | Command | Meaning |
 |---|---|---|
-| `--name NAME` | `id new`, `id show` | The name of the identity. For `new`, the default is the name of the operating system user (`$USER`, or `$USERNAME` on Windows), except with `--ci`, which requires `--name`. With neither variable set, `new` stops and asks for `--name`. For `show`, the default is the only identity, or the one named like the user. |
-| `--ssh FILE` | `id new` | Use the `ssh-ed25519` public key `FILE.pub`, or `FILE` if that is a public key, as the signing key. The private key is never read. |
-| `--ci` | `id new` | Make an identity for a job. It has no passphrase and is written to `--out`. It requires `--name`. |
-| `--out FILE` | `id new` | With `--ci`: the file to write the identity to. |
-| `--unlock MODE` | `id new` | What opens the identity file: `passphrase`, the default, or `agent`. `agent` seals the file under a key that the ssh-agent derives and asks for no passphrase. `--ci` refuses it. |
-| `--agent-key SELECTOR` | `id new` | With `--unlock agent`: the key of the ssh-agent, by its fingerprint (`SHA256:...`) or by part of its comment, which is the title of the item in 1Password. Required when the agent holds more than one `ssh-ed25519` key. |
 | `--access-dir DIR` | `protect` | The directory of the readers file, in place of `.pravo/access`. `$PRAVO_ACCESS_DIR` sets the same. A relative directory is relative to the root. |
 | `-t`, `--tag NAME=VALUE`, `-T` | `protect` | Select the state, as for `plan`: a root whose state path depends on a tag opens the state that the tag names. |
-| `--identity NAME` | every command that opens a state, and `id show` | The identity to open the state with, a file of the identity directory. A global flag, also written before the command. For `id show` it is another way to write `--name`. |
+| `--identity NAME` | every command that opens a state | The identity to open the state with, a file of the identity directory. A global flag, also written before the command. [`pravo id`](id.md#where-an-identity-is) says how the identity is found without it. |
 | `--allow-local` | `protect check`, `protect init` | Accept a state in a local directory. |
 | `--encrypt` | `protect init` | Required. Seal the attributes, outputs and stored plans to the readers. |
 | `--yes` | `protect init`, `protect recover`, `protect rewrap`, `protect roles`, `protect unseal` | Do not ask for confirmation. `rewrap` asks only before it replaces or removes a recovery recipient, since that makes the shares that were given out worth nothing. |
@@ -93,7 +85,7 @@ Whoever can merge a change to this file decides who may read. Writers take the l
 
 | Rule | |
 |---|---|
-| Fields | Four, separated by blanks: the name, `ssh-ed25519`, the SSH public key as `pravo id new` prints it without a comment, and the reader key. A fifth field, `role:reader`, `role:writer` or `role:admin`, gives the key a [role](#roles). |
+| Fields | Four, separated by blanks: the name, `ssh-ed25519`, the SSH public key as `pravo id new` prints it without a comment, and the reader key. A fifth field, `role:reader`, `role:writer` or `role:admin`, gives the key a [role](roles.md). A line `roles-genesis DIGEST` pins the roles, and `pravo protect roles` writes it. |
 | Name | Letters, digits, `.`, `_` and `-`, starting with a letter or a digit, at most 64 characters. A name is used once, without regard to case. |
 | Comments | A line that starts with `#` is skipped. A `#` after the last field starts a comment. Blank lines are skipped. |
 | Readers | At most 200 readers. The line that exceeds the limit is reported by its number. |
@@ -108,19 +100,7 @@ A state that is not sealed in a repository that has a readers file is refused in
 
 ## The identity
 
-An identity is a name, a signing key and a reader key. The reader key opens the sealed state. The signing key is part of the line in the readers file, and signs the transactions and the stored plans that the identity writes: see [Signatures](#signatures).
-
-| Where | What |
-|---|---|
-| `$PRAVO_CONFIG_DIR/id/NAME`, or `~/.config/pravo/id/NAME` | The identity file made by `id new`, when `$PRAVO_IDENTITY_DIR` is not set: mode 0600, in a directory of mode 0700. The reader key is sealed under a passphrase. On Windows the directory is `%AppData%\pravo`. |
-| `$PRAVO_IDENTITY_DIR` | The directory that holds identity files, in place of the `id` directory above. `id new` writes there as well, and makes the directory with mode 0700 when it is missing. |
-| `$PRAVO_IDENTITY` | The contents of an identity file, if the value starts with `{`, or the path of one. For a CI job. |
-
-The identity directory is not `~/.pravo`, which is the provider cache and may be deleted.
-
-pravo finds the identity in this order: `--identity NAME`, `$PRAVO_IDENTITY`, then the files of the identity directory. When there are several files, it uses the one named like the user. If none is, it uses the one file whose reader key has a lock in the current group of the state, which `meta.json` lists. For `protect init`, which has no locks yet, the reader key is one of the readers file. The reader key of an identity file is public: choosing reads no passphrase, and only the chosen identity is asked for its passphrase. If no file or more than one matches, the command stops with `no identity found: ... holds several identities (ada dan) and none is named like you`, and names the files that match when there are several. Name one with `--identity`. The same choice is made for the state of another root that `pravo.#RemoteOutputs` reads, by the locks in that state's `meta.json`. pravo looks only when the state is sealed, so a state with protection off never asks for a passphrase.
-
-A passphrase is asked for on the terminal without echo. Without a terminal it is read from `$PRAVO_PASSPHRASE` or `$PRAVO_IDENTITY_PASSPHRASE`, and a command with neither stops with `the identity ada is sealed with a passphrase and stdin is not a terminal; set PRAVO_PASSPHRASE.` An identity that the ssh-agent unlocks asks the agent once for each command and neither asks for a passphrase nor reads the variables. pravo removes `PRAVO_IDENTITY`, `PRAVO_PASSPHRASE` and `PRAVO_IDENTITY_PASSPHRASE` from its environment once it has read them, and provider processes are started without them. [`pravo mcp`](mcp.md) never asks on a terminal: the identity of a server comes from the environment it was started in.
+An identity is a name, a signing key and a reader key, made by [`pravo id new`](id.md). The reader key opens the sealed state. The signing key is part of the line in the readers file, and signs the transactions and the stored plans that the identity writes: see [Signatures](#signatures). A command that opens a sealed state finds the identity by `--identity NAME`, `$PRAVO_IDENTITY` or the files of the identity directory, and asks for its passphrase on the terminal or reads `$PRAVO_PASSPHRASE`; [where an identity is](id.md#where-an-identity-is) has the rules. A state with protection off never asks for one.
 
 ## Signatures
 
@@ -150,55 +130,13 @@ Without a readers file, or with one that is invalid, nothing is checked, and `st
 
 **What it does not cover.**
 
-- *The bodies of records.* A signature says which key ran a transaction, which addresses and revisions it changed, and, for an apply, which plan. It does not bind the values. In a sealed state a writer without a reader key cannot make a record at all; a reader can seal any record, and a signature does not say that a value is the one a run wrote. With [roles](#roles) the signature also covers the key of each record, so a record that a reader sealed is found.
+- *The bodies of records.* A signature says which key ran a transaction, which addresses and revisions it changed, and, for an apply, which plan. It does not bind the values. In a sealed state a writer without a reader key cannot make a record at all; a reader can seal any record, and a signature does not say that a value is the one a run wrote. With [roles](roles.md) the signature also covers the key of each record, so a record that a reader sealed is found.
 - *Deletion, replacement by an older copy and order.* An old signed transaction is as valid as a new one. Finding a deleted transaction or a state that was rolled back takes a ledger.
-- *Who may write.* Without roles every reader may sign. With [roles](#roles) a writer may.
+- *Who may write.* Without roles every reader may sign. With [roles](roles.md) a writer may.
 
 ## Roles
 
-A key has one of three roles, and the strength is linear: an admin may do what a writer may, and a writer what a reader may.
-
-| Role | May |
-|---|---|
-| `reader` | Open the state, read it, and plan (or ask `why`) without changing it. Store a plan with `plan --store`. Read a secret: `secret get`, `secret exec`, and a run that reads one. |
-| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. Set a secret with `secret set`. |
-| `admin` | Remove a policy. Remove a secret and forget its old values (`secret rm`, `secret purge`). Change who reads the state (`protect rewrap`), change roles (`protect roles`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). |
-
-The role is the fifth field of the line of the key in the readers file, which the repository holds:
-
-```text
-ada ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIQx7mT… x25519:7Hc3Kp… role:admin
-dan ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK2fPq… x25519:Qm41Zt… role:writer
-eve ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB8dYw… x25519:Vb92Nc… role:reader
-```
-
-Whoever can merge a change to this file decides the roles. A readers file in which no line has a role gives none, and every key may do everything, as before roles. As soon as one line has a role, a line without one is a reader. A pravo that does not know roles refuses a line with a fifth field, so it fails closed. A promotion needs no `rewrap`: the state holds the locks, and the roles are a separate thing, which the next paragraph describes.
-
-**Pinned roles.** The file alone has a gap: a reader who edits their own line in their own checkout becomes an admin for as long as that checkout lasts. `pravo protect roles` closes it. An admin runs it, and it stores the roles of the readers file in the state as `roles/00000001.json`, signed, and adds one line to the readers file:
-
-```text
-roles-genesis 5c1e…
-```
-
-The line is the SHA-256 of the first roles. Commit it with the file. From then on the roles in the state decide, and the roles in the file say what an admin asks for. A change of roles is a new version, made by `pravo protect roles` and signed by a key that is an admin in the version before it; the first version is signed by a key that is an admin in the readers file. So a reader who holds the data key and the credentials of the bucket cannot make a version that verifies, cannot replace the first one (its digest is the pin), and cannot delete the chain without every honest run refusing the state with exit 7. A key that is in the file and not in the roles of the state is a reader. A key that is dropped from the file is kept in the next version as a *former* key, `NAME SHA256:FINGERPRINT role:former`, and so is a key that signed a transaction before the roles were stored and that no one lists: `protect roles` shows those and asks first. What a former key, or a writer who was demoted, wrote stays valid only as far as an admin *vouched* for it. When `protect roles` stores a version, it lists the transactions that wrote the records now in the state and that were signed by a key that is not a writer in the new roles, and adds one line for each, `@vouch FINGERPRINT TRANSACTION DIGEST`; the digest covers everything that the finish signature covers, so a transaction rewritten in place is not the one that was vouched for. It prints `dan: vouched for 12 transactions (records they wrote stay valid)` before it asks, so an admin sees what is grandfathered. Offboarding someone therefore does not break the next `plan`, and a key that left cannot add anything afterwards: a record of a former key or of a demoted key that no vouch names is refused with exit 7, and so is one signed by a key that is in neither list (`signed by a key that was never in the roles`), which a holder of the data key could make for the purpose. Up to 5000 transactions are vouched for in one version; `protect roles` stops with a count when there are more. A key that left and kept the data key can still write to a bucket that its credentials reach, and honest runs refuse the result; remove its credentials and run `pravo protect rewrap --all` and `pravo protect gc` to stop it writing records that open. This applies once the roles are pinned. Before the line is committed the file decides, `protect status` says `from the readers file, not pinned`, and a record of a key that is not a writer is `not checked`. An object lock on `roles/` stops the deletion of the newest versions, which the pin cannot see.
-
-**What happens to a reader who plans.** The state is opened as it is and what the plan writes stays in memory: the refreshed records, the marks and the locks are not written to the bucket. The one thing a reader writes is a stored plan, with `plan --store`. A writer can apply it. The apply checks the plan as it checks any stored plan, against the revisions of the state and the fingerprint of the configuration, and the prompt says which key stored it. `plan --reserve` is for a writer.
-
-**What a reader who applies is told.** `your identity is a reader in .pravo/access/readers.txt, and a writer is needed to change the state.`, with exit code 5. The same for `protect rewrap`, `gc` and `unseal` and a writer: `an admin is needed to change who reads the state.` A key that is not in the file has no role, and is refused as well, when the file has roles. The shares of a recovery key are not an identity, so the roles do not apply to `protect recover`: K holders of shares can read the state together.
-
-**Policies.** A writer adds a policy and edits one. Only an admin removes one, because a removal is the change that lets a plan through that the policy would have stopped. An apply that removes a policy with a key that is not an admin is refused before it changes anything, with exit code 5. A version that was signed by a key whose role the file has lowered since reads as `role_changed` in the viewer and is accepted, as a version signed by a key that left reads as `key_not_in_file`: nothing says whether the key had the role when it signed.
-
-**Records are bound to the writer.** With roles, the transaction of a writer signs the key of every record it writes, in the finish signature. A reader holds the data key, and can seal a record that opens for everyone, but cannot make the transaction of a writer name it. `pravo protect status` prints a `Records` line, and `Untrusted:` and the address of a record that no verified transaction of a writer accounts for, and exits 7. `plan`, `apply` and `destroy` check every record before they read it: a writer who refreshed a record that a reader had sealed would give it a transaction of their own. Remove such a record with `pravo state rm`, or restore it from a version of the bucket. A record that was written before the roles began shows as `from before roles`. A record whose transaction is not in the state is untrusted: transactions are not collected, so do not delete them. One whose transaction is still running or was killed is `not checked`. A record whose transaction is signed by a former key or a demoted key is `vouched for by an admin` when the roles name its transaction, and untrusted when they do not. With the roles pinned, a record signed by a key that was never in the roles is untrusted; without the pin it is `not checked`, since a member who has left looks the same as a key that someone made.
-
-**What roles do not do.** They are checked by a pravo that reads the readers file and the roles in the state. Someone who holds the credentials of the bucket and the data key, and a pravo of their own, can write the bucket; the record they write is found by the next honest run, and not stopped. What stops it is the bucket. Give the keys of the bucket by role:
-
-| Role | Credentials on the bucket |
-|---|---|
-| `reader` | Get and list on the whole prefix. Put on `plans/`. |
-| `writer` | Get, put, delete and list on the prefix, except `meta.json`, `policy/`, `roles/` and `secret/`, where a writer has get and list and may put a new object under `policy/` and under `secret/`. |
-| `admin` | Everything on the prefix, `meta.json`, `policy/`, `roles/` and `secret/` included. |
-
-A job that only plans runs with the first row. The first secret of a state raises `meta.json` to format 5, which needs the put of an admin; a writer sets every later version with a put of a new object. `secret rm` writes a new object too, and `secret purge` and `rewrap --all` replace objects of `secret/`, so they need an admin's credentials as well as an admin's role.
+A key has one of three roles, `reader`, `writer` or `admin`, given as a fifth field of its line in the readers file, and `pravo protect roles` stores the roles in the state so that a copy of the file cannot promote its owner. [`pravo protect roles`](roles.md) has the roles, what each may do, what the command writes and what the bucket has to enforce. Here, what the other `protect` commands do with them: `rewrap`, `gc` and `unseal` need an admin, `status` prints a `Roles` line and a `Records` line, and `recover` ignores the roles, because the shares of a recovery key are not an identity.
 
 ## The recovery recipient
 
@@ -231,104 +169,9 @@ A recovery file that does not load stops a command that writes with exit code 6.
 
 Setting a recovery is a decision about trust. K holders of shares can read the state together, and nothing delays them: there is no waiting time and no approval, and the roles do not apply to shares. A recovery key that was used has been rebuilt on one machine, so replace it afterwards. The shares of a replaced key open nothing that is sealed from then on: replacing or removing the recovery makes a new data key, as removing a reader does, so a holder of old shares who kept a copy of the bucket opens what was in it and nothing written after. A reader may not hold the recovery key: `rewrap` refuses a readers file that lists it.
 
-## id new
-
-`pravo id new` makes a reader key and a signing key, writes the identity to `NAME` in the identity directory, and prints the line for the readers file. It asks for a passphrase twice, at least 8 characters. It touches no state, and anyone can run it at any time.
-
-```sh
-mkdir -p people
-pravo id new --name ada
-```
-
-Output:
-
-```text
-Identity ada created
-  signing  ssh-ed25519 SHA256:<fingerprint>  new key, kept in the identity file
-  reader   x25519:<key>  sealed with a passphrase in people/ada/id/ada
-
-Give whoever keeps .pravo/access/readers.txt this line, and nothing else:
-
-  ada ssh-ed25519 <ssh-key> x25519:<key>
-```
-
-The line is public and safe to paste into a chat or a pull request. Give it to whoever keeps the readers file.
-
-An identity is never overwritten. `pravo id new --name ada` for a name that exists stops with `identity ada already exists at PATH` and exit code 1, before it asks for a passphrase.
-
-`--ssh FILE` uses an `ssh-ed25519` public key as the signing key, so that there is no new signing key to manage. pravo reads `FILE.pub`, or `FILE` if that is itself a public key, and never reads a private key. Keys of other types are refused. Such an identity signs through the ssh-agent, which pravo finds [as ssh does](#which-ssh-agent), and the key has to be loaded in it; an agent that asks for a touch asks for it at each signature, which is two for a run.
-
-### Unlock with the ssh-agent
-
-`--unlock agent` seals the identity file under a key that the ssh-agent derives, so that opening it takes whatever the agent takes to sign, and no passphrase is set. With the SSH agent of 1Password that is an approval, which Touch ID can give. The agent must hold an `ssh-ed25519` key. If it holds one, pravo uses it. If it holds several, `--agent-key` names one by its fingerprint or by part of its comment.
-
-```sh
-pravo id new --name ada-mac --unlock agent --agent-key "pravo key"
-```
-
-The command prints the same lines as one with a passphrase, and the reader line says `sealed under ssh-agent key SHA256:<fingerprint>`. The line for the readers file is the same too: the readers file and `rewrap` do not know how an identity file is opened.
-
-The wrapping key is HKDF-SHA256 over the agent's signature of a challenge. The challenge holds the name of the identity, its reader key, the agent key and a random salt of 32 bytes that the file stores, so a signature made for one file opens no other. An Ed25519 signature of one message by one key is the same every time (RFC 8032), so the same signature opens the file each time. The challenge starts with a tag that the signatures of events never start with, so signing an event never yields the key.
-
-`id new` asks the agent for the signature twice and stops with `the ssh-agent signs differently each time` if the two differ, since a file sealed under a key that cannot be derived again could never be opened. Nothing is written then. Keys of other types are not offered.
-
-**The agent decides who can open the file.** Any process that the agent signs for opens it. 1Password asks before it lets an application use a key, and its settings say how long an approval lasts; `ssh-add -c` asks for each use; an agent that signs for every process of the user asks for nothing, and the file is then as open as the agent. The file holds no passphrase to guess, and a copy of it opens nothing without the key.
-
-**The key has to stay.** If the key is removed from the agent, the identity is lost with it. Keep a second reader that does not depend on the key: an identity with a passphrase, under another name. Adding it is the same as adding any reader; see [Seal the state to a list of readers](../how-to/seal-the-state.md#1-make-an-identity).
-
-A pravo that does not know this seal refuses the file with `identity uses kdf "ssh-agent-ed25519", which this pravo does not know`.
-
-### Which ssh-agent
-
-pravo finds the agent as ssh does, which is not always the one that `$SSH_AUTH_SOCK` names. ssh takes the `IdentityAgent` of its configuration first, and 1Password's setup writes its agent there, in `~/.ssh/config`, and leaves the variable to the agent of macOS, which holds no key. pravo looks in this order and uses the first that names one: `$PRAVO_SSH_AUTH_SOCK`, the `IdentityAgent` that `ssh -G` reports for a host with no entry of its own, and `$SSH_AUTH_SOCK`. On Windows, with none of them, it opens the pipe `\\.\pipe\openssh-ssh-agent`. `id new` names the agent it asked when the agent holds no key.
-
-### For a CI job
-
-A job has no person to type a passphrase. `--ci` makes an identity with no passphrase and writes it to the file named by `--out`, with mode 0600. It writes nothing to the identity directory. `--out` is required with `--ci` and refused without it. An existing file is not overwritten.
-
-```sh
-pravo id new --ci --name deploy-bot --out deploy-bot.identity
-```
-
-Output:
-
-```text
-Identity deploy-bot created for a job. It has no passphrase: protect the file.
-  private  deploy-bot.identity   (store it as the CI secret PRAVO_IDENTITY, then delete this file)
-  public   deploy-bot ssh-ed25519 <ssh-key> x25519:<key>
-```
-
-`--ci` requires `--name`, and `id new --ci` without it stops with exit code 1. A default taken from the operating system user would be the name of a person, and a name is used once in the readers file, so give each job a name of its own.
-
-Store the contents of the file as the secret `PRAVO_IDENTITY` of the job, then delete the file. Use one identity for each job, and never a person's identity in a job. Add the public line to the readers file and run `pravo protect rewrap`. The identity is the authority of the job in pravo and is not its cloud credential.
-
-## id show
-
-`pravo id show` prints the signing key, the reader key and the line for the readers file. It reads the public part of the file and does not ask for the passphrase or call the ssh-agent.
-
-```sh
-pravo id show
-```
-
-Output:
-
-```text
-Identity ada (people/ada/id/ada)
-  signing  ssh-ed25519 SHA256:<fingerprint>  new key, kept in the identity file
-  reader   x25519:<key>  sealed with a passphrase
-
-Give whoever keeps .pravo/access/readers.txt this line, and nothing else:
-
-  ada ssh-ed25519 <ssh-key> x25519:<key>
-```
-
-For an identity that the ssh-agent unlocks, the reader line says `sealed under ssh-agent key SHA256:<fingerprint>`.
-
-With `--json`, `id new` and `id show` print one document with `name`, `path`, `signing` (`alg`, `fingerprint`, `source`), `reader`, `line` and `unlock`. `unlock.by` is `passphrase`, `ssh-agent` or `none` (the file of a job). For `ssh-agent`, `unlock.key` is the fingerprint of the agent key, and `id new` adds `unlock.comment`.
-
 ## protect check
 
-`pravo protect check` reads the store and says whether it can be sealed. It writes nothing to the state. It tests the store harder than the probe that every command makes ([S3-compatible stores](s3-stores.md)): eight writers replace one object at once and exactly one must win, and a key that has just been written must be in the listing. It then lists what is running now.
+`pravo protect check` reads the store and says whether it can be sealed. It writes nothing to the state. It tests the store harder than the probe that every command makes ([S3-compatible stores](s3-stores.md)): eight writers replace one object at once and exactly one must win, and a key that has just been written must be in the listing. It then lists what is running now. The examples of this page run as ada, an identity made with [`pravo id new`](id.md), against an S3-compatible store on the loopback interface.
 
 File `main.cue`:
 
@@ -375,8 +218,6 @@ A state in a local directory is refused: its compare-and-swap is a lock of one u
 ## protect init
 
 `pravo protect init --encrypt` seals the state. It needs the readers file and an identity that is on it, because sealing to a list that you are not on would lock you out: the command stops with exit code 5 otherwise. A state that does not exist yet is created sealed, with no records.
-
-A state that holds the value of a secret is refused with exit code 5 before anything is asked: unsealing would write the values in the open. Remove each secret with `pravo secret rm NAME` and forget its values with `pravo secret purge NAME --keep 0` first; [`pravo secret list`](secret.md) shows them.
 
 It shows what it will do and asks `Proceed? [y/N]`. `--yes` answers it. Without a terminal and without `--yes` it refuses to ask. Nothing is written before the answer. The command does not run while a transaction is running or a lock is held. Run it while nobody plans or applies.
 
@@ -474,9 +315,13 @@ A record that does not match its name, a pointer that disagrees with its record,
 
 **Removing a reader.** A reader who is removed loses their lock in every group, and the state gets a new data key. Records are sealed under it as they are next written. Until then they stay under the old key. `--all` seals every record, the outputs, the stored plans and the sealed text of the errors of transactions again under the new key at once. A copy of the state that was made before the removal still opens with the removed reader's key, and the reader has read what they read. Replace the secrets they could read where they live.
 
-`--all` needs the state at rest: run it while nobody plans or applies. It seals again, in place, the value of every secret version that is sealed in another group, and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [`pravo protect gc`](#protect-gc) removes both. [What sealing protects](../concepts/sealed-state.md) lists what stays in the bucket.
+`--all` needs the state at rest: run it while nobody plans or applies. It seals again, in place, the value of every secret version that is sealed in another group, and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [`pravo protect gc`](#protect-gc) removes both. [Signatures and roles](../concepts/signatures-and-roles.md) lists what stays in the bucket.
 
 **The recovery.** `--recovery K/N` sets the recovery recipient of the state, or replaces it: a new key is made, split into N shares and written to `recovery-shares/`, the public key goes to `.pravo/access/recovery.txt`, and every group gets a lock for it. A replaced key loses its lock in every group and the state gets a new data key, so its shares open nothing that is written afterwards; a copy of the bucket made before still opens with them, so collect and destroy them. `--remove-recovery` takes the recovery out of the state and deletes the file; commit the deletion. Both ask first, unless `--yes` is given. `--remove-recovery` also deletes a recovery file when the state has no recovery. Without either flag, a recovery file that names a key that the state does not have is set in the state with no new shares, and a recovery lock that is missing from a group is made again. `--all` and a replacement of the recovery run as two steps when the recovery key opens the state; [`protect recover`](#protect-recover) does that for you.
+
+## protect roles
+
+`pravo protect roles` stores the roles of the readers file in the state, as a signed version, and pins the first one with a line in the readers file. [Its page](roles.md) has the roles, the command and an example.
 
 ## protect recover
 
@@ -509,7 +354,9 @@ The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap -
 
 ## protect unseal
 
-`pravo protect unseal` takes the seal off the state. It opens every record, the outputs and the stored plans with your key and writes them in the open, deletes the sealed records, and removes the sealed part of `meta.json`. The format stays 3, the lineage stays, and the history of the seal stays with an entry `unsealed`.
+`pravo protect unseal` takes the seal off the state. It opens every record, the outputs and the stored plans with your key and writes them in the open, deletes the sealed records, and removes the sealed part of `meta.json`. The format stays where it is, the lineage stays, and the history of the seal stays with an entry `unsealed`.
+
+A state that holds the value of a secret is refused with exit code 5 before anything is asked: unsealing would write the values in the open. Remove each secret with `pravo secret rm NAME` and forget its values with `pravo secret purge NAME --keep 0` first; [`pravo secret list`](secret.md) shows them.
 
 It shows what it will do and asks `Proceed? [y/N]`. `--yes` answers it. Without a terminal and without `--yes` it refuses to ask. Nothing is written before the answer. The command does not run while a transaction is running or a lock is held. It needs an identity that is a reader of every group that anything is sealed in, or K shares of the recovery key (`--share`, once for each), which open the state in place of an identity when no reader can and are a reader of every group. The shares open nothing afterwards; destroy them. If some records, outputs, plans or error texts are sealed in a group that your key cannot open, it says how many and stops before it writes.
 
@@ -587,7 +434,8 @@ A stored plan that an apply holds a claim on is left as it is. `--all` counts th
 ## See also
 
 - [Seal the state to a list of readers](../how-to/seal-the-state.md) walks through it.
-- [What sealing protects](../concepts/sealed-state.md) lists what the seal covers and what it leaves open.
+- [`pravo id`](id.md) makes the identities, and [`pravo protect roles`](roles.md) gives them roles.
+- [Signatures and roles](../concepts/signatures-and-roles.md) lists what the seal covers and what it leaves open.
 - [State format](state-format.md) describes the files of each format.
 - [Exit codes](exit-codes.md) lists code 7.
 - [Global flags, environment and exit codes](global-flags.md) lists the variables.

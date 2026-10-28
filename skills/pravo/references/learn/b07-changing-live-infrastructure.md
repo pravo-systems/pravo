@@ -166,7 +166,7 @@ Error: -t and -T cannot be combined with a saved plan; the plan carries its own 
 
 ## A plan applies only to what it was made for
 
-The fingerprint also covers packages elsewhere in the module that the root imports. A package the root does not import has no effect on it.
+The fingerprint also covers packages elsewhere in the CUE module that the root imports. A package the root does not import has no effect on it.
 
 ## Apply in stages
 

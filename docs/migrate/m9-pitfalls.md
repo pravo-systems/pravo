@@ -873,7 +873,7 @@ Cause: `-t` injects a string, a number or a boolean. A list is a value in a file
 
 ### A provider that was not passed
 
-A module takes its provider as an input. When the input is a plain field and the caller leaves it out, pravo reads the empty field as an unconfigured provider of its own.
+A shared definition takes its provider as an input. When the input is a plain field and the caller leaves it out, pravo reads the empty field as an unconfigured provider of its own.
 
 ```cue file=passed/main.cue title="passed/main.cue" status=unintended
 package passed

@@ -38,7 +38,8 @@
 .cell { padding: .52rem .8rem .58rem; min-width: 0; border-left: 1px solid var(--line); }
 .cell:first-child { border-left: 0; }
 .cl { display: block; margin-bottom: .32rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
-.cv { display: flex; align-items: center; gap: .38rem; font: 500 var(--fs-2)/1.2 var(--font-mono); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* a value that does not fit its cell wraps, as "declared only" does beside a plan column, rather than being cut */
+.cv { display: flex; align-items: center; gap: .38rem; font: 500 var(--fs-2)/1.2 var(--font-mono); color: var(--text); overflow-wrap: anywhere; min-width: 0; }
 .cv .i { width: .8rem; height: .8rem; }
 .cell.ok .cv { color: var(--accent); } .cell.chg .cv { color: var(--change); } .cell.bad .cv { color: var(--conflict); } .cell.lock .cv { color: var(--key); } .cell.dimv .cv { color: var(--text-3); font-weight: 400; }
 .cell.act-create .cv { color: var(--accent); } .cell.act-update .cv, .cell.act-replace .cv { color: var(--change); } .cell.act-delete .cv { color: var(--conflict); } .cell.act-read .cv { color: var(--key); }

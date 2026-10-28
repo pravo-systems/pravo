@@ -9,7 +9,7 @@ func TestCompare(t *testing.T) {
 	body := "```hcl title=\"main.tf\"\na = 1\n```\n\n```cue title=\"main.cue\"\na: 1\n```\n"
 	html, msgs := renderBody(t, ":::compare\n"+body+":::\n")
 	noErrors(t, msgs)
-	mustContain(t, html, `<div class="compare" data-count="2">`, `<span class="code-file">main.tf</span>`, `<span class="code-file">main.cue</span>`)
+	mustContain(t, html, `<div class="compare" data-count="2" style="--longest:5">`, `<span class="code-file">main.tf</span>`, `<span class="code-file">main.cue</span>`)
 	if strings.Count(html, `<figure class="code"`) != 2 {
 		t.Errorf("want two figures:\n%s", html)
 	}
@@ -357,5 +357,40 @@ func TestLinksAndGlossary(t *testing.T) {
 	mustContain(t, string(s.mustPage(t, "reference/via.md").Content), `<a href="glossary.html#constraint">old</a>`)
 	if s.gloss["constraint"].Def != "A restriction." {
 		t.Errorf("glossary: %+v", s.gloss)
+	}
+}
+
+func TestCheckQuestionWithPremise(t *testing.T) {
+	html, msgs := renderBody(t, ":::check\n::question\nA file reads:\n\n```cue\na: 1\n```\n\nIs it accepted?\n::answer\nYes.\n\nAnd this?\n::answer\nAlso.\n\n::question\nLast one?\n::answer\nIt is.\n:::\n")
+	noErrors(t, msgs)
+	mustContain(t, html,
+		`<div class="check-item">`, `<div class="check-premise">`, `<p>A file reads:</p>`, `<pre`,
+		`<summary>Is it accepted?</summary>`, `<p>Yes.</p>`,
+		`<summary>And this?</summary>`, `<p>Also.</p>`,
+		`<summary>Last one?</summary>`, `<p>It is.</p>`,
+	)
+	if strings.Count(html, "<details>") != 3 || strings.Count(html, "check-item") != 1 {
+		t.Errorf("want three questions and one premise:\n%s", html)
+	}
+
+	_, msgs = renderBody(t, ":::check\n::question\nA premise.\n\nNo question mark\n::answer\nx\n:::\n")
+	if !hasError(msgs, "ends in ?") {
+		t.Errorf("premise question without ?: %v", msgs.errs)
+	}
+	_, msgs = renderBody(t, ":::check\nQ?\n::question\nR?\n::answer\nx\n:::\n")
+	if !hasError(msgs, "no ::answer") {
+		t.Errorf("question upon question: %v", msgs.errs)
+	}
+	_, msgs = renderBody(t, ":::check\n::answer\nx\n:::\n")
+	if !hasError(msgs, "follows no question") {
+		t.Errorf("answer without a question: %v", msgs.errs)
+	}
+}
+
+func TestColumnsCountsTabsToTheNextStop(t *testing.T) {
+	for line, want := range map[string]int{"": 0, "a = 1": 5, "\tname: \"x\"": 13, "ab\tc": 5, "\t\t}": 9, "é: 1": 4} {
+		if got := columns(line); got != want {
+			t.Errorf("columns(%q) = %d, want %d", line, got, want)
+		}
 	}
 }

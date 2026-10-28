@@ -97,10 +97,9 @@ type Options struct {
 	SecretRules func(st *state.Store) (rules state.RecordRules, ok bool, problem string)
 	// VerifyPlan checks the signatures of a stored plan against the readers file, given the
 	// digest of the plan file as it was read. The second result is false when there is
-	// nothing to check: the state is not sealed. Nil means the same.
+	// nothing to check: the state is not sealed. Nil means the same. The approvals of such
+	// a plan are read against the readers that PolicyReaders gives.
 	VerifyPlan func(ctx context.Context, st *state.Store, id, digest string) (*PlanSignatures, bool)
-	// VerifyApprovals reads the approvals of a stored plan the same way; nil when there are none.
-	VerifyApprovals func(ctx context.Context, st *state.Store, id, digest string) *PlanApprovals
 	// AccessDir is the directory that holds readers.txt. When it is empty the
 	// viewer looks for .pravo/access in the project directory and its parents up
 	// to the repository.

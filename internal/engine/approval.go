@@ -71,6 +71,11 @@ func approvalNeed(e *Engine, doc cue.Value, force []state.PolicyVersion) (*Appro
 		if err := a.Decode(&spec); err != nil {
 			return nil, WithCode(ExitInvalid, fmt.Errorf("policy %s@%d sets approvals that are not concrete: %w", v.Name, v.Seq, err))
 		}
+		// The rule is judged standalone, without the schema of the specification, so the
+		// default of the schema, a writer, is supplied here.
+		if spec.Role == "" {
+			spec.Role = "writer"
+		}
 		role, err := protect.ParseRole("role:" + spec.Role)
 		if err != nil || role == protect.RoleReader || spec.Min < 1 {
 			return nil, WithCode(ExitInvalid, fmt.Errorf("policy %s@%d sets approvals min %d, role %q: want min of 1 or more and role writer or admin", v.Name, v.Seq, spec.Min, spec.Role))
@@ -149,6 +154,21 @@ func (ps *PlanStore) Approvals(ctx context.Context, id, digest string, readers [
 		}
 		out = append(out, a)
 	}
+	// The objects are listed by the id of the key that signed them, which says nothing
+	// to a reader. Give them in the order the approvals were made, and the objects that
+	// are not approvals last.
+	slices.SortStableFunc(out, func(a, b Approval) int {
+		if a.At.IsZero() != b.At.IsZero() {
+			if a.At.IsZero() {
+				return 1
+			}
+			return -1
+		}
+		if c := a.At.Compare(b.At); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Signer+a.Key, b.Signer+b.Key)
+	})
 	return out, nil
 }
 
@@ -271,4 +291,44 @@ func policyChangeNeed(set *state.PolicySet, plan *Plan) *ApprovalNeed {
 		need.By = append(need.By, fmt.Sprintf("a change to %s@%d", head.Name, head.Seq))
 	}
 	return need
+}
+
+// ApprovalNeeds is what a plan must have approved before an apply lets it through, as
+// the apply counts it, each need on its own: the admin that a change to a policy in
+// force that asks for approvals needs, and what the rules of the policies in force set
+// on the document of the plan when it changes a resource. A plan that the rules refuse
+// gets no need from them, and refused says so: the apply stops at the refusal. An admin
+// applies without approvals. The viewer shows the needs beside the approvals a stored
+// plan has.
+func (e *Engine) ApprovalNeeds(set *state.PolicySet, pf *PlanFile) (needs []ApprovalNeed, refused bool, err error) {
+	data, plan, err := e.PolicyDocument(pf)
+	if err != nil {
+		return nil, false, err
+	}
+	if need := policyChangeNeed(set, plan); need != nil {
+		needs = append(needs, *need)
+	}
+	force := set.InForce()
+	if len(force) == 0 || !pf.changesResources() {
+		return needs, false, nil
+	}
+	doc, err := buildDoc(e.Root.Ctx, data)
+	if err != nil {
+		return nil, false, err
+	}
+	if _, err := judgeVersions(e, doc, force); err != nil {
+		var coded *CodedError
+		if errors.As(err, &coded) && coded.Code == ExitRefused {
+			return needs, true, nil
+		}
+		return nil, false, err
+	}
+	need, err := approvalNeed(e, doc, force)
+	if err != nil {
+		return nil, false, err
+	}
+	if need != nil {
+		needs = append(needs, *need)
+	}
+	return needs, false, nil
 }
