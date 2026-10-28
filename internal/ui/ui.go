@@ -689,3 +689,5 @@ func FormatCUE(v cue.Value, indent string) string {
 	s := strings.TrimSpace(string(b))
 	return strings.ReplaceAll(s, "\n", "\n"+indent)
 }
+
+// ci-timing probe: removed again right after the run.
