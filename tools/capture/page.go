@@ -56,7 +56,7 @@ type mode int
 
 const (
 	modeMain     mode = iota // runs in the page workspace
-	modeIgnore               // ::hint, ::answer: neither written nor run
+	modeIgnore               // ::hint, ::answer, ::question: neither written nor run
 	modeSolution             // ::solution: runs in a copy of the workspace
 	modeIsolated             // :::deep-dive: runs in a copy of the workspace
 	modeReveal               // ::reveal: runs in a copy of the workspace, so the printed answer is verified
@@ -162,6 +162,7 @@ var parts = map[string]mode{
 	"hint":     modeIgnore,
 	"reveal":   modeReveal,
 	"answer":   modeIgnore,
+	"question": modeIgnore,
 	"solution": modeSolution,
 }
 
