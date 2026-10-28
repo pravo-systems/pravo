@@ -22,6 +22,31 @@ env:
   TOFU_VERSION: 1.13.1
 
 jobs:
+  # A pull request run that is not finished three minutes after it started is
+  # cancelled: a job that hangs or a cache that is cold should not hold the author
+  # for forty minutes. It leaves as soon as the ci job below is done. It cannot
+  # cancel a run of a fork, whose token may not write.
+  watchdog:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # Seconds a pull request run may take.
+      LIMIT: 180
+    steps:
+      - run: |
+          jobs="repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100"
+          end=$(( $(date +%s) + LIMIT - 10 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            [ "$(gh api "$jobs" --jq '[.jobs[] | select(.name == "ci") | .status] | first')" = completed ] && exit 0
+            sleep 2
+          done
+          echo "The run took longer than ${LIMIT} s: cancelling it"
+          gh run cancel ${{ github.run_id }} --repo ${{ github.repository }} || true
+
   # Which parts of the repository a pull request touches (tools/ci/changes.sh).
   # The jobs that it cannot affect are skipped; main, tags and the workflows
   # themselves run everything.
