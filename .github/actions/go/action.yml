@@ -27,7 +27,9 @@ runs:
               && "$dir.tmp/bin/go" version >/dev/null && mv "$dir.tmp" "$dir" || true
           fi
           if [ -x "$dir/bin/go" ]; then
+            # The go bin directory too, as setup-go adds it: go install puts cue there.
             echo "$dir/bin" >> "$GITHUB_PATH"
+            echo "$("$dir/bin/go" env GOPATH)/bin" >> "$GITHUB_PATH"
             echo "GOTOOLCHAIN=local" >> "$GITHUB_ENV"
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
