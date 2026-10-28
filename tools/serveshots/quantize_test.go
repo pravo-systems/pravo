@@ -14,8 +14,8 @@ import (
 func TestQuantizeKeepsFlatColours(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 40, 40))
 	colours := []color.RGBA{{20, 20, 24, 255}, {240, 240, 236, 255}, {90, 80, 200, 255}, {30, 160, 90, 255}}
-	for y := 0; y < 40; y++ {
-		for x := 0; x < 40; x++ {
+	for y := range 40 {
+		for x := range 40 {
 			img.Set(x, y, colours[(x/20)+2*(y/20)])
 		}
 	}
@@ -23,8 +23,8 @@ func TestQuantizeKeepsFlatColours(t *testing.T) {
 	if len(out.Palette) != len(colours) {
 		t.Fatalf("palette of %d colours, want %d", len(out.Palette), len(colours))
 	}
-	for y := 0; y < 40; y++ {
-		for x := 0; x < 40; x++ {
+	for y := range 40 {
+		for x := range 40 {
 			if got, want := out.At(x, y), colours[(x/20)+2*(y/20)]; got != want {
 				t.Fatalf("pixel %d,%d is %v, want %v", x, y, got, want)
 			}
@@ -37,15 +37,15 @@ func TestQuantizeKeepsFlatColours(t *testing.T) {
 func TestQuantizeKeepsARareHue(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 256, 64))
 	// 256 greys across, a gradient with more colours than the palette holds.
-	for y := 0; y < 64; y++ {
-		for x := 0; x < 256; x++ {
+	for y := range 64 {
+		for x := range 256 {
 			img.Set(x, y, color.RGBA{uint8(x), uint8(x), uint8(x), 255})
 		}
 	}
 	// 1024 greys of the gradient, and the gradient is 256 shades: add more
 	// shades so that a reduction has to happen.
-	for y := 0; y < 32; y++ {
-		for x := 0; x < 256; x++ {
+	for y := range 32 {
+		for x := range 256 {
 			img.Set(x, y, color.RGBA{uint8(x), uint8(x), uint8((x + 1) % 256), 255})
 		}
 	}
@@ -80,8 +80,8 @@ func abs(n int) int {
 
 func TestShrinkPNGRewritesTheFile(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
-	for y := 0; y < 64; y++ {
-		for x := 0; x < 64; x++ {
+	for y := range 64 {
+		for x := range 64 {
 			img.Set(x, y, color.RGBA{uint8(x * 4), uint8(y * 4), uint8((x + y) * 2), 255})
 		}
 	}

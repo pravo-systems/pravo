@@ -51,7 +51,7 @@ func (t *octree) insert(r, g, b uint8) {
 		t.root = &octNode{}
 	}
 	node := t.root
-	for depth := 0; depth < octreeDepth; depth++ {
+	for depth := range octreeDepth {
 		shift := 7 - depth
 		i := (int(r>>shift)&1)<<2 | (int(g>>shift)&1)<<1 | int(b>>shift)&1
 		if node.children[i] == nil {
@@ -170,7 +170,7 @@ func quantize(img image.Image, n int) *image.Paletted {
 	t := &octree{}
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		row := rgba.Pix[(y-b.Min.Y)*rgba.Stride:]
-		for x := 0; x < b.Dx(); x++ {
+		for x := range b.Dx() {
 			t.insert(row[x*4], row[x*4+1], row[x*4+2])
 		}
 	}
@@ -178,7 +178,7 @@ func quantize(img image.Image, n int) *image.Paletted {
 	out := image.NewPaletted(b, t.palette())
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		row := rgba.Pix[(y-b.Min.Y)*rgba.Stride:]
-		for x := 0; x < b.Dx(); x++ {
+		for x := range b.Dx() {
 			out.Pix[(y-b.Min.Y)*out.Stride+x] = uint8(t.lookup(row[x*4], row[x*4+1], row[x*4+2]))
 		}
 	}

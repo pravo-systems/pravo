@@ -57,14 +57,10 @@ func commandEnv(environ []string) []string {
 	return append(out, "NO_COLOR=1")
 }
 
-// run runs pravo in dir with the arguments. An exit status other than 0 is not
-// an error here: the caller decides. An error is a command that could not run
-// or did not finish.
-func (r *pravoRunner) run(ctx context.Context, dir string, args ...string) (result, error) {
-	return r.runEnv(ctx, dir, nil, args...)
-}
-
-// runEnv is run with variables added to the environment of the command.
+// runEnv runs pravo in dir with the arguments, and with variables added to the
+// environment of the command. An exit status other than 0 is not an error here:
+// the caller decides. An error is a command that could not run or did not
+// finish.
 func (r *pravoRunner) runEnv(ctx context.Context, dir string, env []string, args ...string) (result, error) {
 	timeout := r.Timeout
 	if timeout <= 0 {
