@@ -125,7 +125,7 @@ func (ps *PlanStore) Approve(ctx context.Context, id string) (*PlanSignature, er
 			return nil, fmt.Errorf("approving the plan: %w", err)
 		}
 		var old PlanSignature
-		if json.Unmarshal(cur, &old) == nil && old.Signature != nil && old.Signature.Key == sig.Key && bytes.Equal(cur, enc) == false {
+		if json.Unmarshal(cur, &old) == nil && old.Signature != nil && old.Signature.Key == sig.Key && !bytes.Equal(cur, enc) {
 			return &old, nil // approved before; the first approval stays
 		}
 	}
