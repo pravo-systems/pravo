@@ -118,7 +118,7 @@ Here is the table that answers the question for all three kinds.
 | `pravo eval -O` prints | `x: string` | `x!: string` | `x?: string` |
 | `pravo eval -c` | fails: incomplete value | fails: required but not present | no error |
 
-Once a value is set, all three kinds print `x: "a"`. [C2](c2-why-is-my-value-incomplete.md) lists every cause of an incomplete value.
+Once a value is set, all three kinds print `x: "a"`. [Why is my value incomplete?](why-is-my-value-incomplete.md) lists every cause of an incomplete value.
 
 ## Supply the values
 

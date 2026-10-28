@@ -388,7 +388,7 @@ changes.0: note: delete is not allowed:
 
 ## What a policy does not bind
 
-A policy binds the applies of this state. The way to lift a rule is to remove it from the root. A change to a policy is not judged by the rule, so the apply that removes it passes, and the state keeps a signed removal. With roles in the readers file, removing a policy is an admin's apply, and a rule that asks for approvals cannot be changed without an admin's approval; [D6](d06-ask-for-approvals.md) shows both. Here the state has one member, who is an admin. Restore `note`, remove `policy.cue`, and apply:
+A policy binds the applies of this state. The way to lift a rule is to remove it from the root. A change to a policy is not judged by the rule, so the apply that removes it passes, and the state keeps a signed removal. With roles in the readers file, removing a policy is an admin's apply, and a rule that asks for approvals cannot be changed without an admin's approval; [C6](c06-ask-for-approvals.md) shows both. Here the state has one member, who is an admin. Restore `note`, remove `policy.cue`, and apply:
 
 ```cue file=root/main.cue title="root/main.cue"
 package main
@@ -633,6 +633,6 @@ How do you lift a rule that refuses every plan?
 Remove the policy from the root and apply. A change to a policy is not judged, and the apply writes a signed removal.
 :::
 
-[D5, Write a plan policy](d05-write-a-plan-policy.md) teaches the shapes of a rule and tries them on saved plans with `pravo policy test`, and [D6](d06-ask-for-approvals.md) writes a rule that makes a plan wait for a second person. The how-to page [Write and roll out policies](../how-to/policies.md) rolls a rule out, and the reference describes [the plan document](../reference/plan-document.md).
+[C5, Write a plan policy](c05-write-a-plan-policy.md) teaches the shapes of a rule and tries them on saved plans with `pravo policy test`, and [C6](c06-ask-for-approvals.md) writes a rule that makes a plan wait for a second person. The how-to page [Write and roll out policies](../how-to/policies.md) rolls a rule out, and the reference describes [the plan document](../reference/plan-document.md).
 
 The [project](b11-project.md) combines every lesson of this track. [Lab 1](lab1-break-it-on-purpose.md) breaks a root ten ways to show the exit codes.

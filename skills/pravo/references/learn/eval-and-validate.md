@@ -1,4 +1,4 @@
-<!-- Generated from docs/learn/c4-eval-and-validate.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/learn/eval-and-validate.md by tools/skillgen. Do not edit. -->
 
 # eval and validate
 
@@ -191,7 +191,7 @@ bucket: {
 }
 ```
 
-The exit status is 0, and the output is the value. [C2](c2-why-is-my-value-incomplete.md) lists every cause of an incomplete value.
+The exit status is 0, and the output is the value. [Why is my value incomplete?](why-is-my-value-incomplete.md) lists every cause of an incomplete value.
 
 ## One expression with -e
 

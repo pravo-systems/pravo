@@ -172,16 +172,16 @@ One task each, for a reader who knows the basics.
 
 ## Learn
 
-The tutorial on pravo (track B) and the companion pages on CUE errors.
+The tutorial on pravo (track B), the team track (track C) and the companion pages on CUE errors.
 
 ### Track A · Companions
 
 | File | Covers | Size |
 |---|---|---|
-| [learn/c1-reading-a-cue-error.md](learn/c1-reading-a-cue-error.md) | The four parts of a pravo error, the three stages that produce one, and the messages you meet first. | 8 KB |
-| [learn/c2-why-is-my-value-incomplete.md](learn/c2-why-is-my-value-incomplete.md) | The three causes of an incomplete value, each with the error pravo prints, how to read it and the fix. | 11 KB |
-| [learn/c3-closed-or-open.md](learn/c3-closed-or-open.md) | Which structs refuse a field they do not declare, how definitions combine, and the real errors when they do not. | 9 KB |
-| [learn/c4-eval-and-validate.md](learn/c4-eval-and-validate.md) | What pravo eval and pravo validate check, what they print, and what the flags -c, -e and -O change. | 11 KB |
+| [learn/reading-a-cue-error.md](learn/reading-a-cue-error.md) | The four parts of a pravo error, the three stages that produce one, and the messages you meet first. | 8 KB |
+| [learn/why-is-my-value-incomplete.md](learn/why-is-my-value-incomplete.md) | The three causes of an incomplete value, each with the error pravo prints, how to read it and the fix. | 12 KB |
+| [learn/closed-or-open.md](learn/closed-or-open.md) | Which structs refuse a field they do not declare, how definitions combine, and the real errors when they do not. | 9 KB |
+| [learn/eval-and-validate.md](learn/eval-and-validate.md) | What pravo eval and pravo validate check, what they print, and what the flags -c, -e and -O change. | 11 KB |
 | [learn/cue-cheat-sheet.md](learn/cue-cheat-sheet.md) | Every construct of Track A on one page. Each has a short example and the output that pravo prints. | 15 KB |
 
 ### Track B · pravo
@@ -199,17 +199,17 @@ The tutorial on pravo (track B) and the companion pages on CUE errors.
 | [learn/b09-drift.md](learn/b09-drift.md) | Change a resource outside pravo, find the change with pravo drift, and reconcile it in both directions. | 7 KB |
 | [learn/b10-policy.md](learn/b10-policy.md) | A constraint on a provider binds every resource built through it, and a policy node judges what a plan does. | 16 KB |
 
-### Track D · A team on one state
+### Track C · A team on one state
 
 | File | Covers | Size |
 |---|---|---|
-| [learn/d01-one-state-two-people.md](learn/d01-one-state-two-people.md) | Keep the state in a store that a team shares, and see what two checkouts of one root share and what each keeps to itself. Who did what, and the mistake that makes two estates out of one. | 10 KB |
-| [learn/d02-store-a-plan.md](learn/d02-store-a-plan.md) | Put a plan in the state, so that the other person can list it, read it, see that it touches the same resource as theirs, and apply it by its id. What makes a stored plan stale, and when it goes away. | 9 KB |
-| [learn/d03-seal-the-state.md](learn/d03-seal-the-state.md) | A bucket that anyone on the team can read holds every password the providers returned. Make an identity, list the readers in the repository and seal the state, so that the bucket shows addresses and no values, and every change is signed by the key that made it. | 11 KB |
-| [learn/d04-readers-writers-admins.md](learn/d04-readers-writers-admins.md) | Everyone who can read a sealed state can change it, until the readers file says otherwise. Give each line a role, pin the roles in the state so that nobody promotes themselves in a copy of the file, and see what a reader, a writer and an admin may do. | 10 KB |
-| [learn/d05-write-a-plan-policy.md](learn/d05-write-a-plan-policy.md) | A rule is a shape that the plan document has to fit, in the CUE you already know. Read the document, write a rule as a shape, as a template over every change and as a message, try the rules on plan files before anything is in force, and put one in force. | 14 KB |
-| [learn/d06-ask-for-approvals.md](learn/d06-ask-for-approvals.md) | A rule that does not refuse a plan but makes it wait for a second person. Write it as a choice between two shapes, store the plan it catches, approve it with another key, apply it by its id, and see whose approval counts, what an admin may skip and what protects the rule itself. | 11 KB |
-| [learn/d07-read-a-run.md](learn/d07-read-a-run.md) | Turn the recording on and read what a command did, as a tree of spans with their timings. Find where the time went and where a failed run stopped, in the viewer and with jq, and see what a recorded run never holds. | 9 KB |
+| [learn/c01-one-state-two-people.md](learn/c01-one-state-two-people.md) | Keep the state in a store that a team shares, and see what two checkouts of one root share and what each keeps to itself. Who did what, and the mistake that makes two estates out of one. | 10 KB |
+| [learn/c02-store-a-plan.md](learn/c02-store-a-plan.md) | Put a plan in the state, so that the other person can list it, read it, see that it touches the same resource as theirs, and apply it by its id. What makes a stored plan stale, and when it goes away. | 9 KB |
+| [learn/c03-seal-the-state.md](learn/c03-seal-the-state.md) | A bucket that anyone on the team can read holds every password the providers returned. Make an identity, list the readers in the repository and seal the state, so that the bucket shows addresses and no values, and every change is signed by the key that made it. | 11 KB |
+| [learn/c04-readers-writers-admins.md](learn/c04-readers-writers-admins.md) | Everyone who can read a sealed state can change it, until the readers file says otherwise. Give each line a role, pin the roles in the state so that nobody promotes themselves in a copy of the file, and see what a reader, a writer and an admin may do. | 10 KB |
+| [learn/c05-write-a-plan-policy.md](learn/c05-write-a-plan-policy.md) | A rule is a shape that the plan document has to fit, in the CUE you already know. Read the document, write a rule as a shape, as a template over every change and as a message, try the rules on plan files before anything is in force, and put one in force. | 14 KB |
+| [learn/c06-ask-for-approvals.md](learn/c06-ask-for-approvals.md) | A rule that does not refuse a plan but makes it wait for a second person. Write it as a choice between two shapes, store the plan it catches, approve it with another key, apply it by its id, and see whose approval counts, what an admin may skip and what protects the rule itself. | 11 KB |
+| [learn/c07-read-a-run.md](learn/c07-read-a-run.md) | Turn the recording on and read what a command did, as a tree of spans with their timings. Find where the time went and where a failed run stopped, in the viewer and with jq, and see what a recorded run never holds. | 9 KB |
 
 ## Migrate
 

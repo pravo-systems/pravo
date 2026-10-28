@@ -374,7 +374,7 @@ changes.0: note: delete is not allowed:
 
 ## What a policy does not bind
 
-A policy binds the applies of this state. The way to lift a rule is to remove it from the root. A change to a policy is not judged by the rule, so the apply that removes it passes, and the state keeps a signed removal. With roles in the readers file, removing a policy is an admin's apply, and a rule that asks for approvals cannot be changed without an admin's approval; [D6](d06-ask-for-approvals.md) shows both. Here the state has one member, who is an admin. Restore `note`, remove `policy.cue`, and apply:
+A policy binds the applies of this state. The way to lift a rule is to remove it from the root. A change to a policy is not judged by the rule, so the apply that removes it passes, and the state keeps a signed removal. With roles in the readers file, removing a policy is an admin's apply, and a rule that asks for approvals cannot be changed without an admin's approval; [C6](c06-ask-for-approvals.md) shows both. Here the state has one member, who is an admin. Restore `note`, remove `policy.cue`, and apply:
 
 File `root/main.cue`:
 
@@ -565,6 +565,6 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <txn>]
 - A plan policy is a `pravo.#Policy` node. The apply writes it to the state as a signed version, and later applies are judged by it. A violation exits with code 5, and a refused plan is not saved.
 - A policy binds the applies of the state. Editing the state, running something other than pravo and calling the cloud directly are outside it.
 
-[D5, Write a plan policy](d05-write-a-plan-policy.md) teaches the shapes of a rule and tries them on saved plans with `pravo policy test`, and [D6](d06-ask-for-approvals.md) writes a rule that makes a plan wait for a second person. The how-to page [Write and roll out policies](../how-to/policies.md) rolls a rule out, and the reference describes [the plan document](../reference/plan-document.md).
+[C5, Write a plan policy](c05-write-a-plan-policy.md) teaches the shapes of a rule and tries them on saved plans with `pravo policy test`, and [C6](c06-ask-for-approvals.md) writes a rule that makes a plan wait for a second person. The how-to page [Write and roll out policies](../how-to/policies.md) rolls a rule out, and the reference describes [the plan document](../reference/plan-document.md).
 
 The [project](https://pravo.systems/learn/b11-project.html) combines every lesson of this track. [Lab 1](https://pravo.systems/learn/lab1-break-it-on-purpose.html) breaks a root ten ways to show the exit codes.

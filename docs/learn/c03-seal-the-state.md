@@ -2,9 +2,9 @@
 title: Seal the state
 description: A bucket that anyone on the team can read holds every password the providers returned. Make an identity, list the readers in the repository and seal the state, so that the bucket shows addresses and no values, and every change is signed by the key that made it.
 order: 63
-group: Track D · A team on one state
+group: Track C · A team on one state
 minutes: 15
-needs: D1
+needs: C1
 learn: What does the state hold that you would not put in a ticket? Who decides who may read a sealed state, and where is that decision kept? What does a signature on a transaction say?
 done_when: "The bucket holds no copy of the password, a person without an identity gets exit code 5 from pravo state show, and the log says signed by ada (verified)."
 level: intermediate
@@ -62,7 +62,7 @@ pravo can seal a state. The values of every record, the outputs and the stored p
 
 ## A password in the bucket
 
-Work in an empty directory. The team's root is `team/`, with the state in the in-memory bucket as in D1, and one resource that returns a secret. The people of this track are directories under `people/`, one identity each; `PRAVO_CONFIG_DIR` picks the one a command runs as, and the lesson sets it to Ada's.
+Work in an empty directory. The team's root is `team/`, with the state in the in-memory bucket as in C1, and one resource that returns a secret. The people of this track are directories under `people/`, one identity each; `PRAVO_CONFIG_DIR` picks the one a command runs as, and the lesson sets it to Ada's.
 
 ```cue file=team/main.cue title="team/main.cue"
 package team
@@ -216,7 +216,7 @@ The error says where the list is and what to do. A backup or an old version of a
 
 ## Every change is signed
 
-Ada changes the length and applies. The apply is a transaction, as in D1, and now it is signed by the identity that ran it: once when it starts and once when it ends.
+Ada changes the length and applies. The apply is a transaction, as in C1, and now it is signed by the identity that ran it: once when it starts and once when it ends.
 
 ```sh run
 sed -i 's/length: 16/length: 20/' team/main.cue
@@ -233,7 +233,7 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
     replace  secret  r1 -> r2
 ```
 
-`--actor` in D1 was a label that pravo wrote down. `signed by ada (verified)` is a fact that pravo checked: the signing key is the second field of Ada's line in the readers file, so the file that says who may read also says whose signatures to trust. The signature covers the event, which key ran which command and which records it changed at which revisions. It does not cover the values, and it cannot tell that a transaction was deleted from the bucket. [Signatures and roles](../concepts/signatures-and-roles.md#what-a-signature-binds) lists what it binds and what it leaves.
+`--actor` in C1 was a label that pravo wrote down. `signed by ada (verified)` is a fact that pravo checked: the signing key is the second field of Ada's line in the readers file, so the file that says who may read also says whose signatures to trust. The signature covers the event, which key ran which command and which records it changed at which revisions. It does not cover the values, and it cannot tell that a transaction was deleted from the bucket. [Signatures and roles](../concepts/signatures-and-roles.md#what-a-signature-binds) lists what it binds and what it leaves.
 
 The transaction from before the seal is unsigned, which is not an error. `pravo protect status` is the one screen to read when you are unsure where a state stands:
 
@@ -318,4 +318,4 @@ Why can a person who can write to the bucket not add themselves as a reader?
 Writers take the readers list from the checkout, not from the bucket, and a new reader needs an existing reader to run `rewrap`, which locks the data keys for them. Nobody can lock a key they do not hold.
 :::
 
-The how-to page [Seal the state](../how-to/seal-the-state.md) adds a CI job as a reader, a recovery recipient and the way back out. The next lesson, [Readers, writers, admins](d04-readers-writers-admins.md), says which readers may change the state.
+The how-to page [Seal the state](../how-to/seal-the-state.md) adds a CI job as a reader, a recovery recipient and the way back out. The next lesson, [Readers, writers, admins](c04-readers-writers-admins.md), says which readers may change the state.

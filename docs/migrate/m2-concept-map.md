@@ -775,7 +775,7 @@ pravo eval -t env=staging -e '[env, shout, joined, size]'
 ## Recap
 
 - Every construct maps to a field, a definition, a comprehension or a `$` field; the rows with no equivalent name their replacement.
-- Commands keep their names, and flags move from `-var` to `-t`; `-target`, workspaces and taint have no counterpart. Stored plans, sealing, roles, discovery and the viewer have no OpenTofu side, and [Track D](../learn/d01-one-state-two-people.md) teaches them.
+- Commands keep their names, and flags move from `-var` to `-t`; `-target`, workspaces and taint have no counterpart. Stored plans, sealing, roles, discovery and the viewer have no OpenTofu side, and [Track C](../learn/c01-one-state-two-people.md) teaches them.
 - Functions come from CUE packages; `merge` is `&`, and a conflict is an error.
 
 Next: [the worked example](m3-worked-example.md) runs the forms on a real stack.

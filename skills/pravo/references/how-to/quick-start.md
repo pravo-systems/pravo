@@ -347,7 +347,7 @@ Read the error in four parts.
 - **Locations.** Each indented line is `file:line:column`. `rules.cue:3:49` is the rule, `override.cue:3:26` is the new value, and `main.cue:13:9` is the resource they both apply to. Your terminal prints the full path of each file. This site shortens it to `./`.
 - **Alternatives.** The schema allows a string or `null` for this field. pravo reports each alternative. The first error is the one to read.
 
-No provider started and nothing changed. `pravo plan` and `pravo apply` print the same error and stop. [A3, Writing a field twice](https://pravo.systems/learn/a03-writing-a-field-twice.html) teaches this in full. [Reading a CUE error](../learn/c1-reading-a-cue-error.md) explains the shape of the message.
+No provider started and nothing changed. `pravo plan` and `pravo apply` print the same error and stop. [A3, Writing a field twice](https://pravo.systems/learn/a03-writing-a-field-twice.html) teaches this in full. [Reading a CUE error](../learn/reading-a-cue-error.md) explains the shape of the message.
 
 Remove the file and validate again:
 

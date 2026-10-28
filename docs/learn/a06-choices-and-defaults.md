@@ -225,7 +225,7 @@ bucket.class: incomplete value "standard" | "ia" | "glacier"
 
 :::
 
-`pravo eval` succeeds and prints the three choices without a default. The flag `-c` fails unless every value is [concrete](../reference/glossary.md#concrete). It reports `incomplete value`, because pravo cannot pick one choice. [C2](c2-why-is-my-value-incomplete.md) lists every cause of an incomplete value.
+`pravo eval` succeeds and prints the three choices without a default. The flag `-c` fails unless every value is [concrete](../reference/glossary.md#concrete). It reports `incomplete value`, because pravo cannot pick one choice. [Why is my value incomplete?](why-is-my-value-incomplete.md) lists every cause of an incomplete value.
 
 > [!PITFALL]
 > Mark the default once per field, in one place. Every other file writes a plain value or a plain list of choices.

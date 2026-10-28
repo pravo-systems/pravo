@@ -1,4 +1,4 @@
-<!-- Generated from docs/learn/c3-closed-or-open.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/learn/closed-or-open.md by tools/skillgen. Do not edit. -->
 
 # Closed or open?
 
@@ -446,4 +446,4 @@ The path is `note.filenmae`. The rule is the same one: the definition does not d
 | A value that fits two shapes | Embed both: `{#Named, #Tagged}` |
 | A struct that accepts extra fields | End the definition with `...`, or add a pattern |
 
-[A8](https://pravo.systems/learn/a08-definitions-reject-typos.html) introduced definitions. [C2](c2-why-is-my-value-incomplete.md) covers values that are unfinished and not refused.
+[A8](https://pravo.systems/learn/a08-definitions-reject-typos.html) introduced definitions. [Why is my value incomplete?](why-is-my-value-incomplete.md) covers values that are unfinished and not refused.

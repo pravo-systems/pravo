@@ -55,7 +55,7 @@ More: `references/reference/spec-overview.md`, `spec-resources.md`, `spec-provid
 
 1. **No HCL constructs.** `count` and `for_each` are CUE comprehensions: `for r in regions {"\(r)": $random.#Resource.random_pet & {prefix: r}}`. There are no variables blocks, no `locals`, no workspaces, no provisioners and no `-target`. `references/reference/not-in-pravo.md` lists each with its replacement.
 2. **Inputs are tagged fields.** `env: *"dev" | "prod" @tag(env)` and `pravo plan -t env=prod`. There is no variables file. Secrets never go in `-t`, which is written into saved and stored plans: read them with `pravo.#SecretEnv`.
-3. **Two values for one field are an error.** CUE unifies; it does not override. A definition is closed, so a misspelt field is an error. Constraints such as `int & >1024` fail before any provider starts (exit code 6). Read `references/learn/c1-reading-a-cue-error.md` before guessing at a fix.
+3. **Two values for one field are an error.** CUE unifies; it does not override. A definition is closed, so a misspelt field is an error. Constraints such as `int & >1024` fail before any provider starts (exit code 6). Read `references/learn/reading-a-cue-error.md` before guessing at a fix.
 4. **Renaming destroys and recreates** unless the move is declared. A rename is `$from: "old.address"` on the resource that has the new name. An existing object is adopted with `$import: "id"` or `pravo import ADDR ID`. See `references/reference/spec-moves-and-imports.md`.
 5. **A plan is not read-only.** It installs providers, writes the lock file, refreshes records whose refresh age ran out and marks drift. It creates, changes and destroys no infrastructure. Only `apply` and `destroy` do.
 6. **A plan looks at what the change reaches.** A resource it did not reach is "skipped" or "not read", and its real state was not asked. Drift in it is found by `pravo drift` (every record) or `pravo drift --due --limit N` (the oldest records past their refresh age). See `references/concepts/plans.md`.
@@ -124,7 +124,7 @@ Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`, 
 | Rename, move or adopt resources | `references/how-to/importing-and-moving.md` |
 | Drift and refresh age | `references/reference/why-and-drift.md`, `references/concepts/plans.md`, `what-a-plan-reaches.md` |
 | Moving from OpenTofu or Terraform | `references/migrate/` (start with `m1-before-you-start.md`; constructs in `construct-matrix.md`, commands in `command-map.md`) |
-| CUE itself | `references/learn/cue-cheat-sheet.md`, `references/learn/c1-reading-a-cue-error.md` |
+| CUE itself | `references/learn/cue-cheat-sheet.md`, `references/learn/reading-a-cue-error.md` |
 | The viewer: the graph, the history, the plans, the policy studio, the traces | `references/how-to/explore-your-estate.md`, `references/reference/serve.md`, `viewer-sections.md`, `viewer-keys-and-links.md`, `viewer-api.md`, `references/concepts/the-viewer.md` |
 | Objects that exist and that nothing manages | `references/how-to/find-what-nothing-manages.md`, `references/reference/discover.md`, `references/concepts/discovery.md` |
 | Sealing the state to a list of readers, identities, the readers file | `references/how-to/seal-the-state.md`, `references/reference/protect.md`, `id.md`, `references/concepts/signatures-and-roles.md` |

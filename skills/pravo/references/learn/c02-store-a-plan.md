@@ -1,4 +1,4 @@
-<!-- Generated from docs/learn/d02-store-a-plan.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/learn/c02-store-a-plan.md by tools/skillgen. Do not edit. -->
 
 # Store a plan
 
@@ -15,7 +15,7 @@ terraform apply tfplan          # on your machine, or wherever you carry the fil
 
 ## Store a plan
 
-Work in an empty directory, with the two checkouts of [D1](d01-one-state-two-people.md): Ada's root names the in-memory bucket, and Dan's checkout is a copy of it. Nothing is applied yet.
+Work in an empty directory, with the two checkouts of [C1](c01-one-state-two-people.md): Ada's root names the in-memory bucket, and Dan's checkout is a copy of it. Nothing is applied yet.
 
 File `ada/main.cue`:
 
@@ -249,4 +249,4 @@ Destroy complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <txn>]
 - Two plans that change one resource are not refused. Each is warned about the other, and the one that is applied second is stale: exit code 3, nothing changed.
 - A stored plan expires after seven days, or after `--ttl`, and `pravo plan gc` removes what nobody will apply, with an hour of grace for a plan that is stale.
 
-The how-to page [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) adds `plan pull`, the apply of a part of a plan and the pipeline that stores in one job and applies in another. [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) explains how a listing judges a plan and how an apply claims it. The next lesson, [Seal the state](d03-seal-the-state.md), takes the values out of the bucket, stored plans included.
+The how-to page [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) adds `plan pull`, the apply of a part of a plan and the pipeline that stores in one job and applies in another. [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) explains how a listing judges a plan and how an apply claims it. The next lesson, [Seal the state](c03-seal-the-state.md), takes the values out of the bucket, stored plans included.

@@ -1,4 +1,4 @@
-<!-- Generated from docs/learn/c2-why-is-my-value-incomplete.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/learn/why-is-my-value-incomplete.md by tools/skillgen. Do not edit. -->
 
 # Why is my value incomplete?
 
@@ -641,4 +641,4 @@ After the apply, pravo fills the recorded value in. Track B explains this in [B3
 - Cause 2: choices with no default. Write a value, mark one default, or pass a tag.
 - Cause 3: defaults that cancel or are removed. Keep one default that satisfies every bound.
 
-[C1](c1-reading-a-cue-error.md) explains how to read the errors above. [C3](c3-closed-or-open.md) covers the errors about fields that are not allowed.
+[Reading a CUE error](reading-a-cue-error.md) explains how to read the errors above. [Closed or open?](closed-or-open.md) covers the errors about fields that are not allowed.

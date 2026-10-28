@@ -1,4 +1,4 @@
-<!-- Generated from docs/learn/d03-seal-the-state.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/learn/c03-seal-the-state.md by tools/skillgen. Do not edit. -->
 
 # Seal the state
 
@@ -22,7 +22,7 @@ pravo can seal a state. The values of every record, the outputs and the stored p
 
 ## A password in the bucket
 
-Work in an empty directory. The team's root is `team/`, with the state in the in-memory bucket as in D1, and one resource that returns a secret. The people of this track are directories under `people/`, one identity each; `PRAVO_CONFIG_DIR` picks the one a command runs as, and the lesson sets it to Ada's.
+Work in an empty directory. The team's root is `team/`, with the state in the in-memory bucket as in C1, and one resource that returns a secret. The people of this track are directories under `people/`, one identity each; `PRAVO_CONFIG_DIR` picks the one a command runs as, and the lesson sets it to Ada's.
 
 File `team/main.cue`:
 
@@ -185,7 +185,7 @@ The error says where the list is and what to do. A backup or an old version of a
 
 ## Every change is signed
 
-Ada changes the length and applies. The apply is a transaction, as in D1, and now it is signed by the identity that ran it: once when it starts and once when it ends.
+Ada changes the length and applies. The apply is a transaction, as in C1, and now it is signed by the identity that ran it: once when it starts and once when it ends.
 
 ```sh
 sed -i 's/length: 16/length: 20/' team/main.cue
@@ -204,7 +204,7 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <txn>]
     replace  secret  r1 -> r2
 ```
 
-`--actor` in D1 was a label that pravo wrote down. `signed by ada (verified)` is a fact that pravo checked: the signing key is the second field of Ada's line in the readers file, so the file that says who may read also says whose signatures to trust. The signature covers the event, which key ran which command and which records it changed at which revisions. It does not cover the values, and it cannot tell that a transaction was deleted from the bucket. [Signatures and roles](../concepts/signatures-and-roles.md#what-a-signature-binds) lists what it binds and what it leaves.
+`--actor` in C1 was a label that pravo wrote down. `signed by ada (verified)` is a fact that pravo checked: the signing key is the second field of Ada's line in the readers file, so the file that says who may read also says whose signatures to trust. The signature covers the event, which key ran which command and which records it changed at which revisions. It does not cover the values, and it cannot tell that a transaction was deleted from the bucket. [Signatures and roles](../concepts/signatures-and-roles.md#what-a-signature-binds) lists what it binds and what it leaves.
 
 The transaction from before the seal is unsigned, which is not an error. `pravo protect status` is the one screen to read when you are unsure where a state stands:
 
@@ -248,4 +248,4 @@ Destroy complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <txn>]
 - The list is `.pravo/access/readers.txt` in the repository, and merging a change to it is the act of granting or removing read access. A line is a name and two public keys; the private keys stay with the person.
 - Every change to a sealed state is signed by the identity that ran it, and the readers file says whose signatures to trust. `--actor` is a label; `signed by ada (verified)` is a fact.
 
-The how-to page [Seal the state](../how-to/seal-the-state.md) adds a CI job as a reader, a recovery recipient and the way back out. The next lesson, [Readers, writers, admins](d04-readers-writers-admins.md), says which readers may change the state.
+The how-to page [Seal the state](../how-to/seal-the-state.md) adds a CI job as a reader, a recovery recipient and the way back out. The next lesson, [Readers, writers, admins](c04-readers-writers-admins.md), says which readers may change the state.

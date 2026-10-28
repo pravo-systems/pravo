@@ -2,9 +2,9 @@
 title: Store a plan
 description: Put a plan in the state, so that the other person can list it, read it, see that it touches the same resource as theirs, and apply it by its id. What makes a stored plan stale, and when it goes away.
 order: 62
-group: Track D · A team on one state
+group: Track C · A team on one state
 minutes: 15
-needs: D1
+needs: C1
 learn: Where does a plan go when the person who made it is not the person who applies it? How does pravo say that two plans want the same resource? When is a stored plan refused, and when is it removed?
 done_when: "Dan lists and reads the plan Ada stored, Ada applies it by its id, Dan's plan for the same resource is stale with exit code 3, and a plan that expired is collected."
 level: intermediate
@@ -39,7 +39,7 @@ terraform apply tfplan          # on your machine, or wherever you carry the fil
 
 ## Store a plan
 
-Work in an empty directory, with the two checkouts of [D1](d01-one-state-two-people.md): Ada's root names the in-memory bucket, and Dan's checkout is a copy of it. Nothing is applied yet.
+Work in an empty directory, with the two checkouts of [C1](c01-one-state-two-people.md): Ada's root names the in-memory bucket, and Dan's checkout is a copy of it. Nothing is applied yet.
 
 ```cue file=ada/main.cue title="ada/main.cue"
 package team
@@ -300,4 +300,4 @@ Why could Dan not apply Ada's plan from his checkout?
 His `main.cue` differs from the one the plan was made from. A plan is applied from the files it was read from, which in a repository means the same commit.
 :::
 
-The how-to page [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) adds `plan pull`, the apply of a part of a plan and the pipeline that stores in one job and applies in another. [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) explains how a listing judges a plan and how an apply claims it. The next lesson, [Seal the state](d03-seal-the-state.md), takes the values out of the bucket, stored plans included.
+The how-to page [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) adds `plan pull`, the apply of a part of a plan and the pipeline that stores in one job and applies in another. [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) explains how a listing judges a plan and how an apply claims it. The next lesson, [Seal the state](c03-seal-the-state.md), takes the values out of the bucket, stored plans included.

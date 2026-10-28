@@ -25,7 +25,7 @@ Taught in [A6](../learn/a06-choices-and-defaults.md). See [Tags and variables](s
 
 The result of unifying two values that disagree, written `_|_`. It is an error. CUE reports it as `conflicting values` and lists the position of each declaration.
 
-Taught in [A3](../learn/a03-writing-a-field-twice.md). See [C1](../learn/c1-reading-a-cue-error.md).
+Taught in [A3](../learn/a03-writing-a-field-twice.md). See [Reading a CUE error](../learn/reading-a-cue-error.md).
 
 ### bound
 
@@ -37,7 +37,7 @@ Taught in [A5](../learn/a05-constraints-narrow-a-value.md).
 
 A struct that rejects a field it does not declare. Every definition is closed. The attributes of a resource are closed, so a misspelt attribute is `field not allowed`.
 
-Taught in [A8](../learn/a08-definitions-reject-typos.md). See [C3](../learn/c3-closed-or-open.md).
+Taught in [A8](../learn/a08-definitions-reject-typos.md). See [Closed or open?](../learn/closed-or-open.md).
 
 ### comprehension
 
@@ -49,7 +49,7 @@ Taught in [A10](../learn/a10-comprehensions.md). See [Resources](spec-resources.
 
 A value that is one definite value, such as `3` or `"dev"`, and not a type or a constraint such as `int` or `>=1`. `pravo eval -c` fails unless every value is concrete.
 
-Taught in [A2](../learn/a02-a-value-can-be-a-type.md). See [C2](../learn/c2-why-is-my-value-incomplete.md).
+Taught in [A2](../learn/a02-a-value-can-be-a-type.md). See [Why is my value incomplete?](../learn/why-is-my-value-incomplete.md).
 
 ### conflict
 
@@ -91,7 +91,7 @@ Taught in [A8](../learn/a08-definitions-reject-typos.md). See [Moves and imports
 
 Resolving references, expanding comprehensions, unifying values and selecting defaults until one value is left. `pravo eval` prints the result, and `pravo validate` checks it.
 
-See [C4](../learn/c4-eval-and-validate.md). See [Evaluation](../concepts/evaluation.md).
+See [eval and validate](../learn/eval-and-validate.md). See [Evaluation](../concepts/evaluation.md).
 
 ### field
 
@@ -115,7 +115,7 @@ Taught in [A13](../learn/a13-packages-and-the-standard-library.md).
 
 A value that is not concrete yet and that a command needs to be: a type with no value, or a field that no tag has filled. `pravo eval -c` reports `incomplete value string`.
 
-See [C2](../learn/c2-why-is-my-value-incomplete.md).
+See [Why is my value incomplete?](../learn/why-is-my-value-incomplete.md).
 
 ### interpolation
 
@@ -139,7 +139,7 @@ Taught in [A1](../learn/a01-your-data-is-already-cue.md).
 
 A struct that accepts fields it does not declare. The struct literals you write are open. A struct is closed only when it is a definition or when `close()` makes it so.
 
-See [C3](../learn/c3-closed-or-open.md).
+See [Closed or open?](../learn/closed-or-open.md).
 
 ### optional field
 
@@ -237,7 +237,7 @@ Taught in [B8](../learn/b08-renames-moves-imports.md). See [Moves and imports](s
 
 A signature of a [stored plan](#stored-plan), made with `pravo plan approve` by a [reader](#reader) whose [role](#role) suffices. A [policy](#policy) says how many approvals a plan needs before it is applied and who may give them. The key that stored the plan does not count unless the policy allows it, and an admin applies without them.
 
-Taught in [D6](../learn/d06-ask-for-approvals.md). See [Stored plans and approvals](../concepts/stored-plans-and-approvals.md).
+Taught in [C6](../learn/c06-ask-for-approvals.md). See [Stored plans and approvals](../concepts/stored-plans-and-approvals.md).
 
 ### blast radius
 
@@ -459,7 +459,7 @@ Taught in [B1](../learn/b01-providers-and-resources.md). See [Resources](spec-re
 
 What a key on the [readers file](#readers-file) may do with a [sealed state](#sealed-state). A reader opens the values. A writer applies and stores plans as well. An admin changes the readers file, pins the roles and removes a policy that asks for approvals as well. The roles are pinned in the state, signed by an admin, so a checkout cannot promote its own key by editing its readers file.
 
-Taught in [D4](../learn/d04-readers-writers-admins.md). See [Roles](roles.md).
+Taught in [C4](../learn/c04-readers-writers-admins.md). See [Roles](roles.md).
 
 ### root
 
@@ -507,7 +507,7 @@ Taught in [B3](../learn/b03-apply-outputs-state.md). See [State format](state-fo
 
 A plan that `pravo plan --store` wrote into the state, as objects below `plans/`. Anyone who can read the state can list it, show it and apply it by its [plan id](#plan-id). A listing judges it by the state alone, change by change, and a [collection](#collection) removes it when nobody needs it. An apply that fails records the changes it finished, and the plan is `partial`.
 
-Taught in [D2](../learn/d02-store-a-plan.md). See [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) and [Stored plans and approvals](../concepts/stored-plans-and-approvals.md).
+Taught in [C2](../learn/c02-store-a-plan.md). See [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) and [Stored plans and approvals](../concepts/stored-plans-and-approvals.md).
 
 ### transaction
 

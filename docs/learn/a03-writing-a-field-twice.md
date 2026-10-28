@@ -168,7 +168,7 @@ Read the error from left to right.
 - **Values.** `false and true` are the two values that cannot both hold. The message does not say which came from where. Open both locations.
 - **Locations.** Each `file:line:column` points at one side. Line 7 of `estate.cue` holds `true`. Line 4 of `team.cue` holds `false`. The column is the start of the value.
 
-pravo stops at evaluation and prints no data. It reports one conflict at a time: fix this one and run the command again to see the next. [Reading a CUE error](c1-reading-a-cue-error.md) lists the messages you meet.
+pravo stops at evaluation and prints no data. It reports one conflict at a time: fix this one and run the command again to see the next. [Reading a CUE error](reading-a-cue-error.md) lists the messages you meet.
 
 Every pair of copies falls into one of these rows.
 

@@ -326,10 +326,10 @@ exit=6
 
 | Message | Cause | Fix |
 |---|---|---|
-| `size: conflicting values 11 and 3:` | Two declarations of one field disagree. | Read the positions: both declarations are listed. Remove one, or make the values agree. See [C1](../learn/c1-reading-a-cue-error.md). |
+| `size: conflicting values 11 and 3:` | Two declarations of one field disagree. | Read the positions: both declarations are listed. Remove one, or make the values agree. See [Reading a CUE error](../learn/reading-a-cue-error.md). |
 | `y: reference "z" not found:` | A name that no declaration defines. | Declare it, or fix the spelling. |
 | `imported and not used: "math":` | An import that no expression uses. | Remove the import. |
-| `pet.lenght: field not allowed:` | The attribute is not in the definition of the resource, and a definition is closed. | Fix the spelling. `pravo schema <type>` prints the attributes of a type. See [C3](../learn/c3-closed-or-open.md). |
+| `pet.lenght: field not allowed:` | The attribute is not in the definition of the resource, and a definition is closed. | Fix the spelling. `pravo schema <type>` prints the attributes of a type. See [Closed or open?](../learn/closed-or-open.md). |
 
 ### Tags and incomplete values
 
@@ -1773,4 +1773,4 @@ with rnd imported from "pravo.dev/providers/hashicorp/random". See https://pravo
 
 - [Find out why a run fails](../how-to/debugging.md) reads an error step by step.
 - [Exit codes](exit-codes.md) lists the code of each kind of failure.
-- [Reading a CUE error](../learn/c1-reading-a-cue-error.md) teaches the shape of an evaluation error.
+- [Reading a CUE error](../learn/reading-a-cue-error.md) teaches the shape of an evaluation error.

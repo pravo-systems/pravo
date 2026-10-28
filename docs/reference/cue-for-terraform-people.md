@@ -296,7 +296,7 @@ A directory is one package, named by its `package` clause, and `import` brings i
 
 ## Reading an error
 
-An error of evaluation names a path, the values that conflict or the rule that failed, and the positions in the files. `bucket.region: conflicting values "us-east-1" and "eu-west-1"` means two places set `bucket.region` and they differ, and the lines below name both. `incomplete value` means something is still a type and no data filled it. `field not allowed` means a definition did not declare the field. [Reading a CUE error](../learn/c1-reading-a-cue-error.md) and [Why is my value incomplete?](../learn/c2-why-is-my-value-incomplete.md) read one of each line by line.
+An error of evaluation names a path, the values that conflict or the rule that failed, and the positions in the files. `bucket.region: conflicting values "us-east-1" and "eu-west-1"` means two places set `bucket.region` and they differ, and the lines below name both. `incomplete value` means something is still a type and no data filled it. `field not allowed` means a definition did not declare the field. [Reading a CUE error](../learn/reading-a-cue-error.md) and [Why is my value incomplete?](../learn/why-is-my-value-incomplete.md) read one of each line by line.
 
 ## See also
 

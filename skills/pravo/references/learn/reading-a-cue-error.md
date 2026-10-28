@@ -1,4 +1,4 @@
-<!-- Generated from docs/learn/c1-reading-a-cue-error.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/learn/reading-a-cue-error.md by tools/skillgen. Do not edit. -->
 
 # Reading a CUE error
 
@@ -291,7 +291,7 @@ buckets.logs.retention_days: incomplete value int:
     ./estate.cue:3:32
 ```
 
-The message names the constraint that is left. [A2](https://pravo.systems/learn/a02-a-value-can-be-a-type.html) covers concrete values, and [Why is my value incomplete?](c2-why-is-my-value-incomplete.md) covers the causes.
+The message names the constraint that is left. [A2](https://pravo.systems/learn/a02-a-value-can-be-a-type.html) covers concrete values, and [Why is my value incomplete?](why-is-my-value-incomplete.md) covers the causes.
 
 The lessons that follow add three messages. A6 has `empty disjunction`, when a value matches none of the choices. A8 has `field not allowed`, when a name is not declared. A11 has `reference "bse" not found`, the same message as above for a misspelt name.
 

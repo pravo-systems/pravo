@@ -2,7 +2,7 @@
 title: One state, two people
 description: Keep the state in a store that a team shares, and see what two checkouts of one root share and what each keeps to itself. Who did what, and the mistake that makes two estates out of one.
 order: 61
-group: Track D · A team on one state
+group: Track C · A team on one state
 minutes: 12
 needs: B7 and Lab 2
 learn: Where does the state live when two people work on one root? What does the state record about who changed what? How does a checkout end up with an estate of its own?
@@ -100,7 +100,7 @@ $random: rnd.#Provider
 port: $random.#Resource.random_integer & {min: 20000, max: 29999, seed: "web"}
 ```
 
-Ada initialises the root and applies. `--actor` names her in the transaction and `--reason` says why. pravo records both and verifies neither; the lesson [Seal the state](d03-seal-the-state.md) adds a name that is verified.
+Ada initialises the root and applies. `--actor` names her in the transaction and `--reason` says why. pravo records both and verifies neither; the lesson [Seal the state](c03-seal-the-state.md) adds a name that is verified.
 
 ```sh run
 pravo -C ada init > /dev/null
@@ -349,4 +349,4 @@ What does `create pet r0 -> r1` in the log say?
 The transaction wrote the record of `pet`, which did not exist before, revision 0, and has revision 1 now. A plan that was made against revision 0 is stale.
 :::
 
-The how-to page [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) sets up a real bucket, moves an existing local state into it and lists what the credentials need. [State](../concepts/state.md) explains the records, the revisions and the locks. The next lesson, [Store a plan](d02-store-a-plan.md), puts a plan in the state so that the other person can read it before anyone applies it.
+The how-to page [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) sets up a real bucket, moves an existing local state into it and lists what the credentials need. [State](../concepts/state.md) explains the records, the revisions and the locks. The next lesson, [Store a plan](c02-store-a-plan.md), puts a plan in the state so that the other person can read it before anyone applies it.

@@ -99,7 +99,7 @@ note.filenam: field not allowed:
     ./bad.cue:3:7
 ```
 
-`field not allowed` means that a definition is closed and the field is not in it. A resource is built from a closed definition, so a typo is an error before any provider starts. [C3, Closed or open?](../learn/c3-closed-or-open.md) explains it.
+`field not allowed` means that a definition is closed and the field is not in it. A resource is built from a closed definition, so a typo is an error before any provider starts. [Closed or open?](../learn/closed-or-open.md) explains it.
 
 File `bad.cue`:
 
@@ -131,11 +131,11 @@ These messages come up most often.
 
 | Message | Meaning and fix |
 |---|---|
-| `conflicting values A and B` | Two files give a field two values. Read both places. [C1](../learn/c1-reading-a-cue-error.md) |
+| `conflicting values A and B` | Two files give a field two values. Read both places. [Reading a CUE error](../learn/reading-a-cue-error.md) |
 | `N errors in empty disjunction` | A field has alternatives and the value fits none. Read the first error. |
 | `field not allowed` | A closed definition does not have the field. Check the spelling. |
 | `reference "x" not found` | A name does not exist in the scope. |
-| `value depends on cfg, which is not concrete (is a -t tag missing?)` | A value still depends on a tag. Pass `-t`. [C2](../learn/c2-why-is-my-value-incomplete.md) |
+| `value depends on cfg, which is not concrete (is a -t tag missing?)` | A value still depends on a tag. Pass `-t`. [Why is my value incomplete?](../learn/why-is-my-value-incomplete.md) |
 | `$settings.state.path is not concrete` | The state path depends on a tag. Pass `-t env=...`. |
 | `a provider schema package is missing` | Run `pravo init`. |
 | `saved plan is stale` | The specification or the state changed after the plan. Plan again. Exit code 3. |
@@ -409,4 +409,4 @@ A real collector takes the standard `OTEL_EXPORTER_OTLP_ENDPOINT` variable. `TRA
 - [Run pravo in a pipeline](ci.md) lists the exit codes.
 - [Global flags](../reference/global-flags.md) and [why and drift](../reference/why-and-drift.md) are the reference for `-v`, `pravo why` and `pravo drift`.
 - [Telemetry](../reference/telemetry.md) lists every span, attribute and metric.
-- [C2, Why is my value incomplete?](../learn/c2-why-is-my-value-incomplete.md) covers the errors about values that are not yet concrete.
+- [Why is my value incomplete?](../learn/why-is-my-value-incomplete.md) covers the errors about values that are not yet concrete.

@@ -1,4 +1,4 @@
-<!-- Generated from docs/learn/d01-one-state-two-people.md by tools/skillgen. Do not edit. -->
+<!-- Generated from docs/learn/c01-one-state-two-people.md by tools/skillgen. Do not edit. -->
 
 # One state, two people
 
@@ -61,7 +61,7 @@ $random: rnd.#Provider
 port: $random.#Resource.random_integer & {min: 20000, max: 29999, seed: "web"}
 ```
 
-Ada initialises the root and applies. `--actor` names her in the transaction and `--reason` says why. pravo records both and verifies neither; the lesson [Seal the state](d03-seal-the-state.md) adds a name that is verified.
+Ada initialises the root and applies. `--actor` names her in the transaction and `--reason` says why. pravo records both and verifies neither; the lesson [Seal the state](c03-seal-the-state.md) adds a name that is verified.
 
 ```sh
 pravo -C ada init > /dev/null
@@ -283,4 +283,4 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <txn>]
 - Every change is a transaction that names its actor, its reason and the records it wrote with their revisions. `pravo state log` lists them, newest first.
 - A wrong prefix is not an error. It is an empty estate, and a plan that wants to create everything you already have is the sign of it.
 
-The how-to page [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) sets up a real bucket, moves an existing local state into it and lists what the credentials need. [State](../concepts/state.md) explains the records, the revisions and the locks. The next lesson, [Store a plan](d02-store-a-plan.md), puts a plan in the state so that the other person can read it before anyone applies it.
+The how-to page [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) sets up a real bucket, moves an existing local state into it and lists what the credentials need. [State](../concepts/state.md) explains the records, the revisions and the locks. The next lesson, [Store a plan](c02-store-a-plan.md), puts a plan in the state so that the other person can read it before anyone applies it.
