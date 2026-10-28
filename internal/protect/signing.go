@@ -21,9 +21,11 @@ import (
 // Domains of the signatures. They are part of the message and never change: a
 // signature that was made under one is not valid under another.
 const (
-	DomainTxnStart      = "pravo/v1/txn-start"
-	DomainTxnFinish     = "pravo/v1/txn-finish"
-	DomainPlan          = "pravo/v1/plan"
+	DomainTxnStart  = "pravo/v1/txn-start"
+	DomainTxnFinish = "pravo/v1/txn-finish"
+	DomainPlan      = "pravo/v1/plan"
+	// DomainPlanApproval signs the approval of a stored plan.
+	DomainPlanApproval  = "pravo/v1/plan-approval"
 	DomainPolicyVersion = "pravo/v1/policy-version"
 	// DomainRolesVersion signs a version of the roles stored in the state.
 	DomainRolesVersion = "pravo/v1/roles-version"

@@ -176,6 +176,9 @@ type ApplyStoredOptions struct {
 	// Selected is called before the apply starts when Only selects part of what
 	// is left, with the id of the plan, the number of changes selected and of changes left.
 	Selected func(id string, selected, left int)
+	// Tune, when set, may change the options of the engine before it is made: the
+	// readers file and the roles are the caller's to give.
+	Tune func(*EngineOptions)
 }
 
 // StoredApply is what applying a stored plan did.
@@ -262,7 +265,11 @@ func (w *Workspace) ApplyStored(ctx context.Context, ref string, o ApplyStoredOp
 		reason = meta.Reason
 	}
 	// A plan that policies judged is the receipt of the apply, and no collection removes it.
-	eng := w.Engine(EngineOptions{Refresh: RefreshNone, Reason: reason, Event: o.Event, Judged: func() { _ = ps.Keep(background, id) }})
+	eopts := EngineOptions{Refresh: RefreshNone, Reason: reason, Event: o.Event, Judged: func() { _ = ps.Keep(background, id) }}
+	if o.Tune != nil {
+		o.Tune(&eopts)
+	}
+	eng := w.Engine(eopts)
 	eng.SetPlan(id, pf.Digest)
 
 	res := &StoredApply{ID: id, Meta: meta, Again: meta.ApplyCommand()}

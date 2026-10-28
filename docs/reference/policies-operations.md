@@ -407,6 +407,23 @@ cue vet -c rule.cue fixture.json
 
 `pravo version` prints the CUE version of the binary. With a Go toolchain, `go install cuelang.org/go/cmd/cue@v0.17.1` installs that release; use the version that your `pravo version` prints. `-c` asks for a concrete result, which is what pravo asks. The messages carry the position in the fixture in place of `plan:1:N`. The document that `plan --json` prints has fields the judged document lacks, such as `summary.blast_radius`: see [The plan document in a policy](policies-plan-document.md#what-the-judged-document-leaves-out). A fixture is a plan document, and the document is not masked: scrub it, or write it by hand, before it goes into a repository.
 
+## Ask for approvals
+
+A rule can ask for approvals as well as refuse. A rule that sets `approvals` on the plan it matches makes the apply wait until enough keys have approved that plan. `min` is how many distinct keys, `role` the weakest role that counts (`"writer"`, the default, or `"admin"`), and `self` whether the key that stored the plan may approve it (`false` by default). A rule picks out the plans it asks for with a disjunction, since a rule cannot test the plan with `if` outside a list template:
+
+```cue
+// A plan that destroys anything needs two approvals, one of them from an admin.
+big_destroys: pravo.#Policy & {rule: {
+	{summary: destroy: 0} | {summary: destroy: >0, approvals: {min: 2, role: "admin"}}
+}}
+```
+
+When several policies ask, the strongest wins: the largest `min`, the highest `role`, and the key that stored the plan counts only if every one of them allows it. The approvals belong to a stored plan, so a plan that needs them is made with `pravo plan --store`, approved with [`pravo plan approve ID`](plan.md#approve-a-stored-plan) by other keys, and applied by its id. `pravo apply` of a file or without an id refuses such a plan, because there is nowhere to keep an approval. The refusal is exit code 5 and says how many approvals the plan has and how many it needs.
+
+An admin needs no approval, and a readers file without roles makes every key an admin, so a state with one member applies as it did before. A plan that edits or removes a policy that asks for approvals needs one admin's approval of its own, from a key other than the one that stored it, so that a writer cannot end the requirement with a plan that no rule judges. Adding a policy needs none.
+
+An approval is a signature over the digest of the plan, so it holds for that plan alone and a plan that is made again needs its own. Whether the key may approve is decided at apply from the readers file: a key that was demoted, or that is not in the readers file any more, stops counting. A state that is not sealed has no approvals, because it has no signatures. `pravo plan show ID` and the plan strip of [`pravo serve`](serve.md) name who approved.
+
 ## Exemptions
 
 A rule that must have exceptions says which objects are excepted. Key an exemption to the type, the provider and the recorded id, which belong to the object. Do not key it to `addr` or `name`: they are the author's labels and move with `$from`. The id is in `before`, which is absent for a create, so test its presence. The `ticket` has a seed, so its id is the same on every machine:

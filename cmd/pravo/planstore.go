@@ -22,7 +22,7 @@ const opportunisticGC = pravo.OpportunisticGC
 
 // planCommands are the subcommands of "pravo plan" that work on stored plans.
 func planCommands() []*cobra.Command {
-	return []*cobra.Command{planListCmd(), planShowCmd(), planPullCmd(), planGCCmd()}
+	return []*cobra.Command{planListCmd(), planShowCmd(), planPullCmd(), planApproveCmd(), planGCCmd()}
 }
 
 // parseSpan reads a length of time: a number and a unit, as in 90m, 36h or 7d.
@@ -340,6 +340,42 @@ file and not in the state.`,
 	}
 }
 
+func planApproveCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "approve <plan-id>",
+		Short: "Approve a stored plan",
+		Args:  cobra.ExactArgs(1),
+		Long: `Signs an approval of a stored plan with your identity. A policy can ask for
+approvals before a plan is applied (set approvals in its rule, see the policy
+reference), and the apply counts the approvals of keys in the readers file
+whose role suffices. The approval is for exactly this plan; a plan made again
+needs its own. Give the -t and -T that the plan was made with.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			st, ps, err := openPlanStore(ctx, true)
+			if err != nil {
+				return err
+			}
+			if st.Protection().Sealed == nil {
+				return errors.New("the state is not sealed: an approval is a signature (pravo protect init --encrypt)")
+			}
+			id, err := ps.Resolve(ctx, args[0])
+			if err != nil {
+				return err
+			}
+			obj, err := ps.Approve(ctx, id)
+			if err != nil {
+				return err
+			}
+			if flags.JSON {
+				return emitJSON(map[string]any{"id": id, "approved_by": obj.Signature.Signer, "at": obj.At})
+			}
+			out.Printf("Approved %s as %s.\n", id, safeName(obj.Signature.Signer))
+			return nil
+		},
+	}
+}
+
 func planGCCmd() *cobra.Command {
 	var dryRun bool
 	var olderThan string
@@ -594,6 +630,9 @@ func showStored(cmd *cobra.Command, ref string) error {
 	} else if sigs != nil {
 		out.Printf("  signed:  %s\n", planSigsText(sigs))
 	}
+	if text := storedPlanApprovals(ctx, s, entry.Meta.ID); text != "" {
+		out.Printf("  approved: %s\n", text)
+	}
 	if entry.Status.Open() || entry.Status == engine.PlanStale {
 		out.Printf("  %s\n", expiry(m))
 	}
@@ -675,6 +714,7 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	defer s.close()
 	o := pravo.ApplyStoredOptions{
 		Only: only,
+		Tune: s.readersInto,
 		Selected: func(id string, selected, left int) {
 			out.Printf("Applying %d of %d remaining changes from %s.\n", selected, left, id)
 		},

@@ -397,6 +397,7 @@ function renderPlans() {
     reason: p && reasons.get(p.id),
     onList: p ? () => openPlan(p.id) : null,
     signatures: p && S.graph && S.graph.plan && S.graph.plan.id === p.id ? S.graph.plan.signatures : null,
+    approvals: p && S.graph && S.graph.plan && S.graph.plan.id === p.id ? S.graph.plan.approvals : null,
     onClear: p ? () => selectPlan(null) : null,
   });
 }

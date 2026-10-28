@@ -156,6 +156,18 @@ func (s *session) close() {
 
 func (s *session) engine(opts engine.Options) *engine.Engine {
 	opts.Actor, opts.Reason = flags.Actor, flags.Reason
+	s.readersInto(&opts)
+	if flags.JSON && streamEvents && opts.Event == nil {
+		// Only commands that change things stream events; plan-like
+		// commands print a single document.
+		opts.Event = func(ev engine.Event) { emitLine(ev) }
+	}
+	return s.ws.Engine(opts)
+}
+
+// readersInto gives the options the readers that judge signatures, and the vouched
+// transactions of the roles in the state.
+func (s *session) readersInto(opts *engine.Options) {
 	rf := loadReadersFile(s.root.Dir, flags.AccessDir)
 	// The roles that decide are those in the state when the readers file pins them. A chain
 	// that does not verify was refused when the state was opened.
@@ -164,12 +176,6 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 		opts.Vouched, opts.StrictKeys = rs.Vouched, rs.Source == "state"
 	}
 	opts.Readers = rf.Readers
-	if flags.JSON && streamEvents && opts.Event == nil {
-		// Only commands that change things stream events; plan-like
-		// commands print a single document.
-		opts.Event = func(ev engine.Event) { emitLine(ev) }
-	}
-	return s.ws.Engine(opts)
 }
 
 // openState opens the configured state backend.

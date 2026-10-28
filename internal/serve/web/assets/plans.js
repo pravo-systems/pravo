@@ -414,9 +414,21 @@ export function signedIcon(sg) {
   return h('span', { class: 'ps-sig ' + cls, role: 'img', 'aria-label': mark.textContent, 'data-tip': mark.textContent + '\n' + mark.title }, icon(glyph));
 }
 
+// approvalChip says who approved the plan, one square chip with their names and roles. An approval that does not
+// verify, or whose key the readers file does not list, is named in the tooltip and does not make the chip.
+export function approvalChip(ap) {
+  if (!ap || ap.note) return null;
+  const ok = (ap.items || []).filter(it => it.status === 'verified');
+  if (!ok.length) return null;
+  const who = ok.map(it => it.signer + (it.role ? ' (' + it.role + ')' : '')).join(', ');
+  const skipped = (ap.items || []).length - ok.length;
+  const tip = 'Approved by ' + who + (skipped ? '\n' + skipped + ' more do not count: key not in the readers file, or the signature does not verify' : '');
+  return h('span', { class: 'b ps ps-applied ps-appr', role: 'img', 'aria-label': 'Approved by ' + who, 'data-tip': tip }, icon('check'), 'Approved \u00b7 ' + (ok.length === 1 ? ok[0].signer : ok.length));
+}
+
 export function planStrip(el, p, cb) {
   // a strip that says the same is left as it is: drawing it again takes the focus from the button that has it
-  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(p.policies || []), p.planned || 0, p.applied || 0, (p.touches || []).length, JSON.stringify(cb.signatures || null), !!cb.onClear, !!cb.onList, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
+  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(p.policies || []), p.planned || 0, p.applied || 0, (p.touches || []).length, JSON.stringify(cb.signatures || null), JSON.stringify(cb.approvals || null), !!cb.onClear, !!cb.onList, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
   clear(el);
@@ -436,6 +448,7 @@ export function planStrip(el, p, cb) {
     c,
     p.status === 'partial' && p.applied ? h('span', { class: 'ps-prog dim' }, `${p.applied} of ${p.planned} applied`) : null,
     h('span', { class: 'ps-by dim' }, p.author || null, signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
+    approvalChip(cb.approvals),
     expiryRing(p),
     h('span', { class: 'grow' }),
     cb.onClear ? h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })) : null].filter(Boolean));
