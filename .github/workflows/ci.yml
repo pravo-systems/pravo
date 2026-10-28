@@ -283,11 +283,10 @@ jobs:
       - uses: ./.github/actions/go
         with:
           key: tools
-      - uses: opentofu/setup-opentofu@v2
+      - uses: ./.github/actions/tofu
         timeout-minutes: 3
         with:
-          tofu_version: ${{ env.TOFU_VERSION }}
-          tofu_wrapper: false
+          version: ${{ env.TOFU_VERSION }}
       - run: go test -count=1 ./tools/...
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
@@ -356,11 +355,10 @@ jobs:
       - uses: ./.github/actions/go
         with:
           key: tools
-      - uses: opentofu/setup-opentofu@v2
+      - uses: ./.github/actions/tofu
         timeout-minutes: 3
         with:
-          tofu_version: ${{ env.TOFU_VERSION }}
-          tofu_wrapper: false
+          version: ${{ env.TOFU_VERSION }}
       - uses: actions/cache@v6
         with:
           path: ~/.pravo
@@ -385,11 +383,10 @@ jobs:
       - uses: ./.github/actions/go
         with:
           key: tools
-      - uses: opentofu/setup-opentofu@v2
+      - uses: ./.github/actions/tofu
         timeout-minutes: 3
         with:
-          tofu_version: ${{ env.TOFU_VERSION }}
-          tofu_wrapper: false
+          version: ${{ env.TOFU_VERSION }}
       - uses: actions/cache@v6
         with:
           path: ~/hclcheck-plugins
