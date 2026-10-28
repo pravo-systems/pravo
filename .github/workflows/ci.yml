@@ -52,7 +52,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
@@ -97,7 +97,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -145,7 +145,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -166,7 +166,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     env:
       CI_EVENT: ${{ github.event_name }}
       CI_ALL: ${{ needs.changes.outputs.all }}
@@ -213,7 +213,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || needs.changes.outputs.platform == 'true')
     runs-on: ${{ matrix.os }}-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     env:
       CI_EVENT: ${{ github.event_name }}
       CI_ALL: ${{ needs.changes.outputs.all }}
@@ -250,13 +250,14 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
         with:
           key: tools
       - uses: opentofu/setup-opentofu@v2
+        timeout-minutes: 3
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
@@ -274,7 +275,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -315,7 +316,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -329,6 +330,7 @@ jobs:
         with:
           key: tools
       - uses: opentofu/setup-opentofu@v2
+        timeout-minutes: 3
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
@@ -350,13 +352,14 @@ jobs:
     needs: changes
     if: needs.changes.outputs.hcl == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
         with:
           key: tools
       - uses: opentofu/setup-opentofu@v2
+        timeout-minutes: 3
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
@@ -378,7 +381,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.binary == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go
