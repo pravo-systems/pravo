@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -166,6 +167,15 @@ specification. With --json the definitions are returned as {"type":
 			for _, t := range targets {
 				if _, ok := s.providers.Resolved[t.local]; !ok {
 					return engine.WithCode(engine.ExitInvalid, fmt.Errorf("no provider %q for type %s; declare a provider struct for it, or name its address: NAMESPACE/TYPE/%s", t.local, t.typ, t.typ))
+				}
+				if t.bare {
+					var sources []registry.Source
+					for _, rp := range s.providers.Resolved {
+						sources = append(sources, rp.Req.Source)
+					}
+					if err := checkPrefix(t, sources); err != nil {
+						return engine.WithCode(engine.ExitInvalid, err)
+					}
 				}
 				ps, err := s.providers.Schema(cmd.Context(), t.local)
 				if err != nil {
@@ -466,6 +476,9 @@ type schemaTarget struct {
 	local string
 	typ   string
 	src   *registry.Source
+	// bare is set when the provider is only the prefix of the type
+	// (random_pet), which is a guess; the other forms name the provider.
+	bare bool
 }
 
 // parseSchemaArgs reads the arguments of "pravo schema". A type is written
@@ -492,6 +505,7 @@ func parseSchemaArgs(args []string) ([]schemaTarget, error) {
 		case len(parts) == 1:
 			if i := strings.IndexByte(arg, '_'); i > 0 {
 				t.local = arg[:i]
+				t.bare = true
 			}
 		default:
 			return nil, fmt.Errorf("%q is not a type: write random_pet, random/random_pet or hashicorp/random/random_pet", arg)
@@ -513,6 +527,23 @@ func parseSchemaArgs(args []string) ([]schemaTarget, error) {
 		seen[out[i].local] = out[i].src.String()
 	}
 	return out, nil
+}
+
+// checkPrefix refuses a type written with the prefix alone (random_pet) when
+// more than one provider of the specification has that name as its type: the
+// prefix would pick one of them without saying so.
+func checkPrefix(t schemaTarget, sources []registry.Source) error {
+	var same []string
+	for _, src := range sources {
+		if src.Type == t.local {
+			same = append(same, src.Display())
+		}
+	}
+	if len(same) < 2 {
+		return nil
+	}
+	sort.Strings(same)
+	return fmt.Errorf("%s is ambiguous: %d providers are named %q (%s); name the one you mean, as in %s/%s", t.arg, len(same), t.local, strings.Join(same, ", "), same[0], t.typ)
 }
 
 // rootlessSession installs and starts the providers that the targets name, in
