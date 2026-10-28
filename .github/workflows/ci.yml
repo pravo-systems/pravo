@@ -181,11 +181,14 @@ jobs:
           key: test
       - run: sh tools/ci/tests.sh ${{ matrix.shard }}
       # Each job compiles only its share of the packages, so on main the job below
-      # saves the cache instead.
+      # saves the cache instead, and a pull request saves only when it found none:
+      # what one job of the matrix saved would stand for all of them, and be
+      # restored before the complete entry of main.
       - if: ${{ always() && github.event_name == 'pull_request' }}
         uses: ./.github/actions/go-save
         with:
           key: test
+          heal: false
 
   # The cache that the test jobs of the pull requests start from. A job of the
   # matrix above has compiled the tests of its own packages only, and whichever

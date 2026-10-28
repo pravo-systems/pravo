@@ -12,6 +12,13 @@ inputs:
   key:
     description: The key that the go action was given.
     required: true
+  heal:
+    description: >
+      Whether a pull request saves again when the job had to build for more than a
+      minute. Off for the jobs that share a key but compile different packages: the
+      entry that one of them saved would stand for all, and a pull request restores
+      its own entry before the one of main, which is complete.
+    default: "true"
 runs:
   using: composite
   steps:
@@ -20,7 +27,7 @@ runs:
       run: |
         command -v go >/dev/null || exit 0
         if [ "${{ github.event_name }}" != pull_request ] || [ -z "${GO_CACHE_MATCHED:-}" ] \
-           || [ $(( $(date +%s) - ${GO_CACHE_STARTED:-0} )) -gt 60 ]; then
+           || { [ "${{ inputs.heal }}" = true ] && [ $(( $(date +%s) - ${GO_CACHE_STARTED:-0} )) -gt 60 ]; }; then
           echo "save=true" >> "$GITHUB_OUTPUT"
           echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
           echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
