@@ -226,6 +226,26 @@ type PlanInfo struct {
 	// Signatures says who stored a stored plan of a sealed state, as the readers file
 	// judges the signatures. Nil for a plan file, and for a state that is not sealed.
 	Signatures *PlanSignatures `json:"signatures,omitempty"`
+	// Approvals says who approved a stored plan of a sealed state ("pravo plan approve"). Nil for
+	// a plan file, a state that is not sealed, and a plan nobody approved.
+	Approvals *PlanApprovals `json:"approvals,omitempty"`
+}
+
+// PlanApprovals are the approvals of a stored plan, as the readers file judges them. Note is set
+// when they could not be checked, and says why.
+type PlanApprovals struct {
+	Items []PlanApproval `json:"items"`
+	Note  string         `json:"note,omitempty"`
+}
+
+// PlanApproval is one approval. Status is "verified", "key_not_in_file" or "invalid"; Role is the
+// role the readers file gives the key of an approval that verified.
+type PlanApproval struct {
+	Status  string    `json:"status"`
+	Signer  string    `json:"signer,omitempty"`
+	Claimed string    `json:"claimed,omitempty"`
+	Role    string    `json:"role,omitempty"`
+	At      time.Time `json:"at,omitempty"`
 }
 
 // PlanSignatures are the signatures of a stored plan. No Items and no Note is a plan with

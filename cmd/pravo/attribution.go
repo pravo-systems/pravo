@@ -141,6 +141,43 @@ func storedPlanSignatures(ctx context.Context, s *session, id string) ([]engine.
 	return sigs, ""
 }
 
+// storedPlanApprovals says who approved a stored plan, empty when nobody did or the
+// readers file cannot say.
+func storedPlanApprovals(ctx context.Context, s *session, id string) string {
+	if s.state.Protection().Sealed == nil {
+		return ""
+	}
+	root, err := loadRoot()
+	if err != nil {
+		return ""
+	}
+	readers, ok := attributionReaders(loadReadersFile(root.Dir, flags.AccessDir))
+	if !ok {
+		return ""
+	}
+	ps := engine.NewPlanStoreFor(s.state)
+	digest, err := ps.PlanDigest(ctx, id)
+	if err != nil {
+		return ""
+	}
+	approvals, err := ps.Approvals(ctx, id, digest, readers)
+	if err != nil || len(approvals) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, a := range approvals {
+		switch a.Status {
+		case protect.SigVerified:
+			parts = append(parts, fmt.Sprintf("%s (%s)", safeName(a.Signer), a.Role))
+		case protect.SigUnknownKey:
+			parts = append(parts, safeName(a.Claimed)+" (key not in the readers file, does not count)")
+		default:
+			parts = append(parts, "an approval that does not verify")
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
 func planSigsText(sigs []engine.PlanVerdict) string {
 	var parts []string
 	for _, v := range sigs {

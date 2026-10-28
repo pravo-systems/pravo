@@ -383,7 +383,18 @@ func (e *Engine) judgeApply(ctx context.Context, plan *Plan, writes bool) (*stat
 	}
 	refs, err := e.Judge(set, pf)
 	e.txn.SetPolicies(refs)
-	return set, err
+	if err != nil {
+		return set, err
+	}
+	doc, err := e.judgedDoc(pf)
+	if err != nil {
+		return nil, err
+	}
+	need, err := approvalNeed(e, doc, set.InForce())
+	if err != nil {
+		return nil, err
+	}
+	return set, e.checkApprovals(ctx, need)
 }
 
 // writePolicies writes the versions of the plan's entries, puts and edits before

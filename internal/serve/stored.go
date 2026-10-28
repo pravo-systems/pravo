@@ -435,6 +435,14 @@ func (m *model) cleanInfo(po *planOverlay) PlanInfo {
 		}
 		info.Signatures = &PlanSignatures{Items: items, Note: sg.Note}
 	}
+	if ap := info.Approvals; ap != nil {
+		items := make([]PlanApproval, len(ap.Items))
+		for i, it := range ap.Items {
+			it.Signer, it.Claimed = maskText(sec, it.Signer, maxText), maskText(sec, it.Claimed, maxText)
+			items[i] = it
+		}
+		info.Approvals = &PlanApprovals{Items: items, Note: ap.Note}
+	}
 	if len(info.Reasons) > 0 {
 		var omitted int
 		info.Reasons, omitted = m.capReasons(sec, info.Reasons)

@@ -11,7 +11,7 @@ Show the actions that apply takes. A plan changes no infrastructure, and it can 
 | Synopsis | `pravo plan [flags]` |
 | | `pravo plan --store [--ttl DURATION] [flags]` |
 | | `pravo plan list [--pending\|--all] [--touching ADDR]` |
-| | `pravo plan show ID`, `pravo plan pull ID FILE` |
+| | `pravo plan show ID`, `pravo plan pull ID FILE`, `pravo plan approve ID` |
 | | `pravo plan gc [--dry-run] [--older-than DURATION]` |
 | Changes infrastructure | No. |
 | Writes | Refreshed records to the state, a mark on a record whose object differs or is gone, and with `--reserve` a reservation. No record for a `$from` move or an `$import`: it lists them, and the apply writes them. With `--store`, the objects of a stored plan, and the removal of a few that nobody needs. Data sources and ephemeral resources run while the plan is made. |
@@ -583,6 +583,10 @@ Output:
 ```text
 Error: no such stored plan: plan-000000 (see: pravo plan list --all)
 ```
+
+### Approve a stored plan
+
+`pravo plan approve ID` signs an approval of a stored plan with your identity, in a [sealed state](../concepts/sealed-state.md). A [policy can ask for approvals](policies-operations.md#ask-for-approvals) before a plan is applied; the apply counts the approvals of keys in the readers file whose role suffices, and not the key that stored the plan unless the policy allows it. Give the `-t` and `-T` that the plan was made with. `--json` prints the plan id, the signer and the time.
 
 ### Collect stored plans
 

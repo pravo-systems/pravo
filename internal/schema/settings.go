@@ -108,6 +108,20 @@ package pravo
 	}
 	// The resolved version of each provider, by local name.
 	providers: [string]: string
+	// Set by a rule, not by the plan: the plan is applied only when the keys named here
+	// have approved it ("pravo plan approve"), whatever else the policies in force say.
+	// A rule sets it for the plans it picks out, with a disjunction (a rule cannot
+	// test the plan with "if" outside a list template):
+	//
+	//	{summary: destroy: 0} | {summary: destroy: >0, approvals: min: 2}
+	approvals?: {
+		// How many distinct keys must have approved.
+		min: int & >=1
+		// The weakest role that counts as an approver.
+		role: *"writer" | "admin"
+		// Whether the key that stored the plan may approve it.
+		self: *false | bool
+	}
 }
 
 // What a plan does to a node. A replacement is an action

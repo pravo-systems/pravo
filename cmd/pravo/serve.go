@@ -56,7 +56,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			}
 			v := &viewerState{name: flags.Identity, dir: dir, accessDir: loadReadersFile(dir, flags.AccessDir).Dir}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, VerifyPlan: v.verifyPlan}
+			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, VerifyPlan: v.verifyPlan, VerifyApprovals: v.verifyApprovals}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.
@@ -520,4 +520,31 @@ func (v *viewerState) verifyPlan(ctx context.Context, st *state.Store, id, diges
 		out.Items = append(out.Items, it)
 	}
 	return out, true
+}
+
+// verifyApprovals reads the approvals of a stored plan against the readers file, for the plan
+// view. It is nil when nobody approved the plan or there is nothing to check them against.
+func (v *viewerState) verifyApprovals(ctx context.Context, st *state.Store, id, digest string) *serve.PlanApprovals {
+	readers, ok := attributionReaders(loadReadersFile(v.dir, v.accessDir))
+	if !ok {
+		return nil
+	}
+	approvals, err := engine.NewPlanStoreFor(st).Approvals(ctx, id, digest, readers)
+	if err != nil {
+		return &serve.PlanApprovals{Items: []serve.PlanApproval{}, Note: "not checked: the approvals could not be read"}
+	}
+	if len(approvals) == 0 {
+		return nil
+	}
+	out := &serve.PlanApprovals{Items: []serve.PlanApproval{}}
+	for _, a := range approvals {
+		it := serve.PlanApproval{Status: a.Status.Key(), At: a.At}
+		if a.Status == protect.SigVerified {
+			it.Signer, it.Role = a.Signer, a.Role.String()
+		} else {
+			it.Claimed = a.Claimed
+		}
+		out.Items = append(out.Items, it)
+	}
+	return out
 }

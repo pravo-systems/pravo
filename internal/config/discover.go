@@ -450,7 +450,7 @@ func RuleText(v cue.Value) (string, error) {
 	if !v.Exists() {
 		return "", errors.New("rule is missing: write the rule as a CUE struct, such as rule: {summary: destroy: 0}")
 	}
-	if v.Kind() != cue.StructKind {
+	if v.IncompleteKind() != cue.StructKind {
 		return "", errors.New("rule must be a CUE struct, not a string of CUE: write rule: {summary: destroy: 0}")
 	}
 	// A rule that uses the standard library comes out as a file with its

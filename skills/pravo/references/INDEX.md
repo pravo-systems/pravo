@@ -13,7 +13,7 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/init.md](reference/init.md) | Install the providers a root needs, write the lock file and generate the CUE packages that a specification imports. | 10 KB |
-| [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, stored in the state, judged by a policy and applied later. | 32 KB |
+| [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, stored in the state, judged by a policy and applied later. | 33 KB |
 | [reference/apply.md](reference/apply.md) | Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in the state exactly as it was reviewed, in whole or in closed parts. | 30 KB |
 | [reference/destroy.md](reference/destroy.md) | Destroy every resource recorded in the state, dependents first, after a plan and a confirmation. | 7 KB |
 | [reference/show.md](reference/show.md) | Print a saved plan or a plan stored in the state, with the time, the command and the actor that made it, and a warning when it cannot be applied. | 10 KB |
@@ -56,7 +56,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/policies-overview.md](reference/policies-overview.md) | A policy is a node of the specification whose rule is a CUE struct. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply. | 11 KB |
 | [reference/policies-plan-document.md](reference/policies-plan-document.md) | What a rule is unified with. How absent, null and unknown values behave, and what the judged document leaves out of the one that plan --json prints. | 9 KB |
 | [reference/policies-writing.md](reference/policies-writing.md) | The four rules for writing a policy rule, each with a captured run, plan-wide rules, and the typos that forbid nothing. | 19 KB |
-| [reference/policies-operations.md](reference/policies-operations.md) | Where each command judges a policy, what a stale plan does, how to retire a policy, how to roll a rule out and test it, and what a policy does and does not guarantee. | 23 KB |
+| [reference/policies-operations.md](reference/policies-operations.md) | Where each command judges a policy, what a stale plan does, how to retire a policy, how to roll a rule out and test it, and what a policy does and does not guarantee. | 24 KB |
 | [reference/policy.md](reference/policy.md) | Hold a policy rule, or a draft of one, against stored plans and plan files before it is stored, and see which plans it would refuse and why. | 4 KB |
 
 ### Data and formats

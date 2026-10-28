@@ -577,7 +577,7 @@ func planObject(key string) (id, kind string, ok bool) {
 		return "", "", false
 	}
 	if m := sigObjectRe.FindStringSubmatch(name); m != nil {
-		return m[1], "sig", true
+		return m[1], "sig", true // a signature or an approval
 	}
 	for ext, k := range map[string]string{planExt: "plan", metaExt: "meta", progressExt: "progress"} {
 		if base, has := strings.CutSuffix(name, ext); has && planIDRe.MatchString(base) {

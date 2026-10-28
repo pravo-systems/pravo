@@ -133,6 +133,9 @@ func (s *Server) overlay(ctx context.Context, m *model, pf *engine.PlanFile, dis
 				po.info.Signatures = &PlanSignatures{Items: []PlanSignature{}, Note: "not checked: this identity cannot open the plan"}
 			} else if sigs, ok := verify(ctx, m.store, stored.Meta.ID, pf.Digest); ok {
 				po.info.Signatures = sigs
+				if ap := s.opts.VerifyApprovals; ap != nil {
+					po.info.Approvals = ap(ctx, m.store, stored.Meta.ID, pf.Digest)
+				}
 			}
 		}
 	}

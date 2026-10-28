@@ -38,9 +38,12 @@ const (
 	maxSigSize = 4 << 10
 )
 
-var sigObjectRe = regexp.MustCompile(`^(plan-[0-9a-f]{6,64})\.sig-([0-9a-f]{16})\.json$`)
+var sigObjectRe = regexp.MustCompile(`^(plan-[0-9a-f]{6,64})\.(?:sig|ok)-([0-9a-f]{16})\.json$`)
 
 func sigKey(id, keyID string) string { return PlanDir + "/" + id + ".sig-" + keyID + ".json" }
+
+// okKey is the key of the approval of the plan id by the key keyID (see approval.go).
+func okKey(id, keyID string) string { return PlanDir + "/" + id + ".ok-" + keyID + ".json" }
 
 // signatureID is the part of the name of a signature object that names the key.
 func signatureID(fingerprint string) string {
@@ -135,7 +138,7 @@ func (ps *PlanStore) collectOrphanSignatures(ctx context.Context) {
 		if !kinds["sig"] || kinds["plan"] || kinds["meta"] {
 			continue
 		}
-		keys, err := ps.sigObjects(ctx, id)
+		keys, err := ps.objectsWith(ctx, id, "")
 		if err != nil {
 			continue
 		}
@@ -155,13 +158,19 @@ func (ps *PlanStore) collectOrphanSignatures(ctx context.Context) {
 
 // sigObjects lists the keys of the signature objects of a plan.
 func (ps *PlanStore) sigObjects(ctx context.Context, id string) ([]string, error) {
+	return ps.objectsWith(ctx, id, ".sig-")
+}
+
+// objectsWith lists the keys of the objects of a plan whose name has infix: ".sig-" for
+// the signatures of its storing, ".ok-" for its approvals, "" for both.
+func (ps *PlanStore) objectsWith(ctx context.Context, id, infix string) ([]string, error) {
 	keys, err := ps.B.List(ctx, PlanDir)
 	if err != nil {
 		return nil, err
 	}
 	var out []string
 	for _, k := range keys {
-		if i, _, ok := planObject(k); ok && i == id && strings.Contains(k, ".sig-") {
+		if i, kind, ok := planObject(k); ok && i == id && kind == "sig" && strings.Contains(k, infix) {
 			out = append(out, k)
 		}
 	}
@@ -169,9 +178,9 @@ func (ps *PlanStore) sigObjects(ctx context.Context, id string) ([]string, error
 	return out, nil
 }
 
-// deleteSignatures removes the signature objects of a plan that is being removed.
+// deleteSignatures removes the signature and approval objects of a plan that is being removed.
 func (ps *PlanStore) deleteSignatures(ctx context.Context, id string) {
-	keys, err := ps.sigObjects(ctx, id)
+	keys, err := ps.objectsWith(ctx, id, "")
 	if err != nil {
 		return
 	}
@@ -191,7 +200,9 @@ type PlanVerdict struct {
 	// Signer is the name the readers file gives the key when the signature verified;
 	// Claimed is the name the object gives itself.
 	Signer, Claimed string
-	At              time.Time
+	// Key is the fingerprint of the signing key that the object names, verified or not.
+	Key string
+	At  time.Time
 }
 
 // PlanDigest returns the digest of a stored plan: the SHA-256 in hex of the plan file
@@ -227,7 +238,12 @@ func (ps *PlanStore) Signatures(ctx context.Context, id string, readers []protec
 // SignaturesOf checks the signatures of a stored plan against the readers, for a caller that
 // has the digest of the plan already (PlanFile.Digest).
 func (ps *PlanStore) SignaturesOf(ctx context.Context, id, digest string, readers []protect.Reader) ([]PlanVerdict, error) {
-	keys, err := ps.sigObjects(ctx, id)
+	return ps.verdicts(ctx, id, digest, readers, ".sig-", protect.DomainPlan, sigKey)
+}
+
+// verdicts checks the objects of a plan whose name has infix, each signed in domain.
+func (ps *PlanStore) verdicts(ctx context.Context, id, digest string, readers []protect.Reader, infix, domain string, keyOf func(id, keyID string) string) ([]PlanVerdict, error) {
+	keys, err := ps.objectsWith(ctx, id, infix)
 	if err != nil || len(keys) == 0 {
 		return nil, err
 	}
@@ -242,13 +258,13 @@ func (ps *PlanStore) SignaturesOf(ctx context.Context, id, digest string, reader
 		}
 		var obj PlanSignature
 		if len(data) > maxSigSize || json.Unmarshal(data, &obj) != nil || obj.V != sigVersion || obj.ID != id || obj.Signature == nil ||
-			k != sigKey(id, signatureID(obj.Signature.Key)) {
+			k != keyOf(id, signatureID(obj.Signature.Key)) {
 			// An object under the name of another key is not that key's signature.
 			out = append(out, PlanVerdict{Status: protect.SigInvalid})
 			continue
 		}
-		status, name := protect.VerifySignature(obj.Signature, readers, protect.DomainPlan, ps.lineage(), planSigParts(digest, obj.At)...)
-		out = append(out, PlanVerdict{Status: status, Signer: name, Claimed: obj.Signature.Signer, At: obj.At})
+		status, name := protect.VerifySignature(obj.Signature, readers, domain, ps.lineage(), planSigParts(digest, obj.At)...)
+		out = append(out, PlanVerdict{Status: status, Signer: name, Claimed: obj.Signature.Signer, Key: obj.Signature.Key, At: obj.At})
 	}
 	return out, nil
 }
