@@ -1,0 +1,11 @@
+# The test files that each job of CI runs for a package that is too long for one.
+# tools/ci/gotest.sh GROUP shard NAME runs the tests that these files define; the
+# shard whose files are * runs every other test of the group, so that a new test
+# file is run by one job whatever it is called.
+#
+# GROUP  NAME        FILES
+cmd      plans       planstore_test.go planpartly_test.go apply_partial_test.go storeprobe_test.go approval_test.go
+cmd      outcomes    unknown_outcome_test.go policy_test.go policytest_test.go eval_test.go discover_test.go declared_test.go hints_test.go
+cmd      sealing     unseal_test.go protect_sealed_test.go recovery_test.go protect_test.go protect_cancel_test.go protect_gc_test.go downgrade_test.go serve_sealed_test.go
+cmd      identities  identity_test.go identity_fifo_test.go id_test.go id_agent_test.go roles_test.go roles_chain_test.go access_test.go access_fifo_test.go notreader_test.go
+cmd      commands    *

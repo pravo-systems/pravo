@@ -1,0 +1,71 @@
+name: Go with a build cache
+description: >
+  Installs the Go of go.mod and restores the build and module caches that the
+  last run on main saved. setup-go's own cache is left off: it is saved once for
+  each go.sum, by whichever job gets there first, so the compiled packages of
+  the other platforms and of -race never make it in.
+inputs:
+  key:
+    description: Name of the cache. Jobs that compile the same things share one.
+    required: true
+runs:
+  using: composite
+  steps:
+    # On Linux the Go of go.mod comes straight from go.dev: setup-go copies it into
+    # the tool cache as well, which takes as long as the download. Anything that
+    # goes wrong, and the other systems, fall back to setup-go.
+    - id: fast
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        v=$(awk '$1 == "go" { print $2; exit }' go.mod)
+        dir=$HOME/.local/go$v
+        if [ "$(uname -m)" = x86_64 ] && [ -n "$v" ]; then
+          if [ ! -x "$dir/bin/go" ]; then
+            rm -rf "$dir.tmp"; mkdir -p "$dir.tmp"
+            curl -fsSL --retry 2 --connect-timeout 10 --max-time 60 "https://go.dev/dl/go$v.linux-amd64.tar.gz" | tar -xz -C "$dir.tmp" --strip-components=1 \
+              && "$dir.tmp/bin/go" version >/dev/null && mv "$dir.tmp" "$dir" || true
+          fi
+          if [ -x "$dir/bin/go" ]; then
+            # The go bin directory too, as setup-go adds it: go install puts cue there.
+            echo "$dir/bin" >> "$GITHUB_PATH"
+            echo "$("$dir/bin/go" env GOPATH)/bin" >> "$GITHUB_PATH"
+            echo "GOTOOLCHAIN=local" >> "$GITHUB_ENV"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+        fi
+    - if: runner.os != 'Linux' || steps.fast.outputs.ok != 'true'
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache: false
+    - id: dirs
+      shell: bash
+      run: |
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+    - id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: |
+          ${{ steps.dirs.outputs.build }}
+          ${{ steps.dirs.outputs.mod }}
+        key: go-${{ runner.os }}-${{ inputs.key }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ inputs.key }}-${{ hashFiles('go.sum') }}-
+          go-${{ runner.os }}-${{ inputs.key }}-
+    # Modules that the cache lacks come from the proxy, which now and then fails a
+    # download in the middle of a test run.
+    - shell: bash
+      run: |
+        for i in 1 2 3; do
+          go mod download && exit 0
+          sleep 3
+        done
+        exit 1
+    # The key that was found, if any, and when the job started to use it: the save
+    # step saves again when none was found, or when the job had to build a lot.
+    - shell: bash
+      run: |
+        echo "GO_CACHE_MATCHED=${{ steps.restore.outputs.cache-matched-key }}" >> "$GITHUB_ENV"
+        echo "GO_CACHE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
