@@ -54,6 +54,8 @@ The server never asks for a passphrase. The commands it runs open a [sealed stat
 
 `tags` is a list of `key=value` strings. `only`, `replace`, `addrs` and `types` are lists of strings. `due` and `include_skipped` are booleans, and `limit` is a whole number above zero. There is no tool that applies without a saved plan, and none that edits the state.
 
+No tool returns the value of a secret. [`pravo secret get`](secret.md#pravo-secret-get) and [`pravo secret exec`](secret.md#pravo-secret-exec) have none, and a plan or an apply that reads a secret of the sealed state hands it to a provider and records it nowhere. `pravo_state_log` lists the changes of the secrets with their names and the numbers of their versions.
+
 The plan document that `pravo_plan` returns lists the nodes the plan ran. With `include_skipped` it lists the nodes the plan left alone too, each with its address, mode, type and name. `pravo_drift` with `due` reads the records that are past their refresh age, the oldest first and at most `limit` of them, and plans nothing; `limit` without `due` is refused by the command.
 
 ### The positional-argument rule

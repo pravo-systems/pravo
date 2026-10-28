@@ -120,11 +120,12 @@ type GCGroup struct {
 	// names and that are kept (they may belong to a writer that has not yet
 	// pointed at them), Outputs says whether outputs.json is sealed in the group
 	// and Plans counts the sealed objects of stored plans. Summaries counts the
-	// texts of errors that transactions keep sealed.
+	// texts of errors that transactions keep sealed. Secrets counts the values of secrets.
 	Records, Spare int
 	Outputs        bool
 	Plans          int
 	Summaries      int
+	Secrets        int
 	// Dropped is set for a group that was removed from meta.json, or with DryRun
 	// would be.
 	Dropped bool
@@ -132,7 +133,7 @@ type GCGroup struct {
 
 // Referenced reports whether anything is sealed in the group.
 func (g GCGroup) Referenced() bool {
-	return g.Records+g.Spare+g.Plans+g.Summaries > 0 || g.Outputs
+	return g.Records+g.Spare+g.Plans+g.Summaries+g.Secrets > 0 || g.Outputs
 }
 
 // recHead is what GC needs of a record: whether it is what its name says it is,
@@ -602,6 +603,17 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 	for id, n := range summaries {
 		if g := refs[id]; g != nil {
 			g.Summaries = n
+		}
+	}
+	// The value of a secret is sealed in the group that was current when it was written, and
+	// only rewrap --all seals it again.
+	secrets, err := s.sealedSecrets(ctx)
+	if err != nil {
+		return refuse("the secrets could not all be read (" + err.Error() + "), so the groups were not counted")
+	}
+	for id, n := range secrets {
+		if g := refs[id]; g != nil {
+			g.Secrets = n
 		}
 	}
 

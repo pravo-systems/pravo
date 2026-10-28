@@ -9,7 +9,7 @@ A term links to the lesson that teaches it, or to the page that describes it. A 
 | Group | Terms |
 |---|---|
 | CUE | [attribute](#attribute), [bottom](#bottom), [bound](#bound), [closed](#closed), [comprehension](#comprehension), [concrete](#concrete), [conflict](#conflict), [constraint](#constraint), [default](#default), [definition](#definition), [disjunction](#disjunction), [embedding](#embedding), [evaluation](#evaluation), [field](#field), [hidden field](#hidden-field), [import](#import), [incomplete](#incomplete), [interpolation](#interpolation), [let](#let), [list](#list), [open](#open), [optional field](#optional-field), [package](#package), [pattern](#pattern), [reference](#reference), [regular field](#regular-field), [required field](#required-field), [standard library](#standard-library), [struct](#struct), [tag](#tag), [type](#type), [unification](#unification) |
-| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [namespace](#namespace), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
+| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [namespace](#namespace), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [secret](#secret), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
 
 ## Terms of CUE
 
@@ -287,7 +287,7 @@ See [Resources](spec-resources.md#ephemeral-resources).
 
 ### ephemeral value
 
-A value of an ephemeral resource or of `pravo.#SecretEnv`. It may be used in provider configuration, in write-only attributes and in other ephemeral resources, and nowhere that is recorded.
+A value of an ephemeral resource, of `pravo.#SecretEnv` or of `pravo.#Secret`. It may be used in provider configuration, in write-only attributes and in other ephemeral resources, and nowhere that is recorded.
 
 Taught in [B6](../learn/b06-modules-providers-credentials.md). See [Environment](spec-env.md#secret-env).
 
@@ -467,9 +467,15 @@ See [Plans](../concepts/plans.md).
 
 ### sealed state
 
-A state whose attributes, outputs, stored plans and the values in command lines are encrypted to a list of [readers](#reader). Addresses, types, names, dependencies and revisions stay readable. It is format 3.
+A state whose attributes, outputs, stored plans and the values in command lines are encrypted to a list of [readers](#reader). Addresses, types, names, dependencies and revisions stay readable. It is format 3, or a later format that includes it.
 
 See [What sealing protects](../concepts/sealed-state.md).
+
+### secret
+
+A named value that a [sealed state](#sealed-state) keeps for its readers, as a series of versions. `pravo secret set` writes a version, and a run reads one with `pravo.#Secret`, as an [ephemeral value](#ephemeral-value). The value is not written to a record, a plan or a log.
+
+See [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) and [`pravo secret`](secret.md).
 
 ### sensitive value
 

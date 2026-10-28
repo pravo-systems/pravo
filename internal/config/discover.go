@@ -325,22 +325,26 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		}
 		r.Resources = append(r.Resources, &Resource{Mode: "builtin", Type: kind, Name: name, Path: p, addr: p.String(), Builtin: true, Remote: &RemoteState{State: st, Dir: dir}})
 		return nil
-	case "env", "secret_env":
+	case "env", "secret_env", "secret", "secret_version":
 		if nested := findNested(v, p, 0); nested != "" {
-			return fmt.Errorf("%s is an environment variable, so it cannot contain %s, which is a resource", p, nested)
+			noun := "an environment variable"
+			if kind == "secret" || kind == "secret_version" {
+				noun = "a secret"
+			}
+			return fmt.Errorf("%s is %s, so it cannot contain %s, which is a resource", p, noun, nested)
 		}
 		name := path[len(path)-1].String()
 		if path[len(path)-1].Type() == cue.StringLabel {
 			name = path[len(path)-1].Unquoted()
 		}
 		mode := "builtin"
-		if kind == "secret_env" {
+		if kind == "secret_env" || kind == "secret" {
 			mode = "ephemeral" // the rules for ephemeral values keep it out of state
 		}
 		r.Resources = append(r.Resources, &Resource{Mode: mode, Type: kind, Name: name, Path: p, addr: p.String(), Builtin: true})
 		return nil
 	default:
-		return fmt.Errorf("%s: $kind is %q; want resource, data, ephemeral, call, provider, discovery, output, policy, env, secret_env or remote_outputs", p, kind)
+		return fmt.Errorf("%s: $kind is %q; want resource, data, ephemeral, call, provider, discovery, output, policy, env, secret_env, secret, secret_version or remote_outputs", p, kind)
 	}
 	srcText, ok := stringField(v, "$source")
 	if !ok {

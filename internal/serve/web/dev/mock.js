@@ -8,6 +8,8 @@
 //   &plan=plan-2f9c1a4e                   the server lays that stored plan itself (pravo serve --plan plan-2f9c1a4e)
 //   &discovery=NAME                       the Discovery view answers discovery.NAME.json: platform (five discoveries of every freshness), empty
 //   &policies=NAME                        the Policies view answers policies.NAME.json: platform (six policies in every status), empty
+//   &secrets=NAME                         the Secrets view answers secrets.NAME.json: platform (a version a reader wrote, a secret that was removed and one never set), clear (all clear), empty (sealed, none),
+//                                         unchecked (no readers file), unsealed (the specification reads secrets and the state is not sealed), off (not sealed, nothing reads one)
 //   &traces=NAME                          the Traces view answers traces.NAME.json: platform (an apply, a plan, an apply that failed and a drift check), empty
 //   &access=NAME                          the Access view answers access.NAME.json: platform (sealed, a reader), off, immutable,
 //                                         drift, locked (no identity: every record is sealed), notreader, missing (no readers file), migrating, invalid,
@@ -60,6 +62,17 @@ if (graph) {
 // ---- the Policies view: policies.NAME.json, the platform's unless the query says another ----
 const policiesName = params.get('policies') || (NAME === 'platform' ? 'platform' : 'empty');
 const policies = await fixture(`policies.${policiesName}.json`);
+// ---- the Secrets view: secrets.NAME.json, the platform's unless the query says another ----
+const secretsName = params.get('secrets') || (NAME === 'platform' ? 'platform' : 'off');
+let secrets = await fixture(`secrets.${secretsName}.json`);
+// the name of the secret that a node reads, from the document: the page that the server makes lists the reads, and so does the detail of a node
+function secretOf(addr) {
+  if (!secrets) return null;
+  const e = secrets.secrets.find((x) => x.used_by.some((u) => u.addr === addr));
+  if (e) return { name: e.name, use: e.used_by.find((u) => u.addr === addr), entry: e };
+  for (const i of secrets.issues) for (const it of i.items || []) if ((it.used_by || []).includes(addr)) return { name: it.name, use: { addr }, entry: null };
+  return null;
+}
 // ---- the Traces view: traces.NAME.json lists the runs, and trace.XXXXXXXX.json (the first eight digits of the id) is each one ----
 const tracesName = params.get('traces') || (NAME === 'platform' ? 'platform' : 'empty');
 let traces = (await fixture(`traces.${tracesName}.json`)) || { version: 1, dir: '.pravo/traces', traces: [] };
@@ -215,6 +228,32 @@ function synthOutput(n) {
 // what the server sends for a node that is never recorded: the schema of its type, and for an ephemeral resource what the specification sets,
 // for an environment variable its declaration and the value in the environment of the process
 function synthTransient(n, d, deps) {
+  if (n.type === 'secret' || n.type === 'secret_version') {
+    // what the server sends for a node that reads a secret: the schema, the name, no value, and what the state holds
+    const number = n.type === 'secret_version';
+    const r = secretOf(n.addr);
+    const e = r && r.entry;
+    d.provider = { key: '' };
+    d.schema = [{ name: 'name', type: 'string', kind: 'required', description: number ? 'The name of the secret.' : 'The name of the secret, such as prod/db_password.' },
+      number ? { name: 'version', type: 'number', kind: 'computed', description: 'The number of the version that a command reads. It is not secret: it is an ordinary value.' }
+        : { name: 'version', type: 'number', kind: 'optional', description: 'The version to read. Without it, the latest one.' },
+      ...(number ? [] : [{ name: 'value', type: 'string', kind: 'computed', sensitive: true, description: 'What the secret holds.' }])];
+    d.attrs = [{ name: 'name', type: 'string', kind: 'required', ...(r ? { value: r.name } : { unknown: true }) }];
+    const live = e && e.status === 'set';
+    if (number) d.attrs.push({ name: 'version', type: 'number', kind: 'computed', ...(live ? { value: e.version } : { unknown: true }) });
+    else {
+      if (r && r.use.pin) d.attrs.push({ name: 'version', type: 'number', kind: 'optional', value: r.use.pin });
+      d.attrs.push({ name: 'value', type: 'string', kind: 'computed', sensitive: true, redacted: 'sensitive' });
+      d.notes = (d.notes || []).concat('A secret shows no value. It is read from the sealed state each time a command runs, and it is kept out of the state, out of a saved plan and out of this page.');
+    }
+    if (!secrets || !secrets.sealed) d.notes = (d.notes || []).concat('The state is not sealed, so it cannot keep secrets, and a command that reads this one stops.');
+    else if (!e) d.notes = (d.notes || []).concat(`The state holds no secret named ${r ? r.name : '?'}, so a command that reads this one stops. Set it with "pravo secret set ${r ? r.name : 'NAME'}".`);
+    else if (e.status === 'removed') d.notes = (d.notes || []).concat(`The secret ${e.name} was removed, so a command that reads this one stops. Set it again with "pravo secret set ${e.name}".`);
+    else if (r.use.pin) d.notes = (d.notes || []).concat(`A command reads version ${r.use.pin}, as this node asks. The latest is version ${e.version}.`);
+    else d.notes = (d.notes || []).concat(`A command reads version ${e.version}, the latest of ${e.versions} version${e.versions === 1 ? '' : 's'}.`);
+    d.notes.push('A built-in value is evaluated when a command runs and is never recorded in the state.');
+    return;
+  }
   const env = n.type === 'env' || n.type === 'secret_env';
   if (env) {
     const secret = n.type === 'secret_env';
@@ -317,6 +356,15 @@ function synthSource(n) {
     const lines = text.map((t, i) => ({ no: start + i, text: t, mark: n.sensitive && i === 1 ? 'sensitive' : 'focus' }));
     return { version: 1, addr: n.addr, blocks: [{ role: 'definition', label: n.addr, file: f, kind: 'file', start_line: start, end_line: start + lines.length - 1, modified: new Date(Date.now() - 3 * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), lines }],
       contributions: [{ kind: 'file', where: `${f}:${start}-${start + lines.length - 1}`, note: 'writes the output' }, { kind: 'builtin', where: 'pravo.dev/pravo', note: 'the built-in package gives pravo.#Output' }] };
+  }
+  if (n.type === 'secret' || n.type === 'secret_version') {
+    const r = secretOf(n.addr);
+    const f = n.source ? n.source.file : 'main.cue';
+    const start = n.source ? n.source.line : 10;
+    const text = [`${n.name}: pravo.#${n.type === 'secret' ? 'Secret' : 'SecretVersion'} & {`, `\tname: ${JSON.stringify(r ? r.name : 'prod/secret')}`, ...(r && r.use.pin ? [`\tversion: ${r.use.pin}`] : []), '}'];
+    const lines = text.map((t, i) => ({ no: start + i, text: t, mark: 'focus' }));
+    return { version: 1, addr: n.addr, blocks: [{ role: 'definition', label: n.addr, file: f, kind: 'file', start_line: start, end_line: start + lines.length - 1, modified: new Date(Date.now() - 3 * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z'), lines }],
+      contributions: [{ kind: 'file', where: `${f}:${start}-${start + lines.length - 1}`, note: 'names the secret' }, { kind: 'builtin', where: 'pravo.dev/pravo', note: `the built-in package gives pravo.#${n.type === 'secret' ? 'Secret' : 'SecretVersion'}` }] };
   }
   const t = TPL[n.type] || GENERIC;
   const f = n.source ? n.source.file : 'main.cue';
@@ -424,6 +472,7 @@ window.fetch = async (input, init) => {
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
   if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
   if (p === '/api/policies') return policies ? json(200, shift(Object.assign({}, policies, { revision: graph.revision, policies: policies.policies.map((x) => Object.assign({}, x, { written: x.source ? { role: 'definition', file: x.source.file, kind: 'file', start_line: x.source.line, end_line: x.source.line + 9, lines: decl(x.name, x.rule || (x.versions[0] && x.versions[0].text) || 'summary: destroy: 0\n').split('\n').slice(2, -1).map((t, i) => ({ no: x.source.line + i, text: t })) } : undefined, rule: x.rule ? decl(x.name, x.rule) : x.rule, versions: x.versions.map((v) => (v.text ? Object.assign({}, v, { text: decl(x.name, v.text) }) : v)) })) }), by)) : json(404, { error: 'no such endpoint' });
+  if (p === '/api/secrets') return secrets ? json(200, shift(Object.assign({}, secrets, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
   if (p === '/api/studio/plan') {
     if (!init || init.method !== 'POST') return json(405, { error: 'method not allowed' });
     const name = url.searchParams.get('name') || 'plan file';
@@ -581,7 +630,7 @@ window.__mock = {
     if (others.length) plan.overlaps = others;
     stored = Object.assign({}, stored, { plans: [plan].concat(stored.plans) });
     for (const t of touches) { const n = g.nodes.find((x) => x.addr === t.addr); n.plans = [id].concat(n.plans || []); if (canApply(n) > 1) n.overlap = true; }
-    overlays.set(id, { version: 1, revision: '', plan: { file: id, id, status: 'pending', created: now, actor: plan.author, summary: { add: 0, change: 2, destroy: 0, read: 0, blast_radius: 6 }, planned: 2, total: g.nodes.filter((n) => n.mode !== 'output').length }, nodes: touches,
+    overlays.set(id, { version: 1, revision: '', plan: { file: id, id, status: 'pending', created: now, actor: plan.author, summary: { add: 0, change: 2, destroy: 0, read: 0, blast_radius: 6 }, planned: 2, total: g.nodes.filter((n) => n.mode === 'managed' || n.mode === 'data').length }, nodes: touches,
       reason: 'resize the queue', command: 'pravo plan --store --reason "resize the queue"', git_revision: 'e5a1b08' });
     g.revision = 'r-plans-' + (++mutations);
     graph = g;
@@ -616,6 +665,17 @@ window.__mock = {
     g.revision = 'r-access-' + (++mutations);
     graph = g;
     this.emit({ revision: g.revision, what: ['access'] });
+    return true;
+  },
+  // setSecrets swaps the Secrets document for another fixture, as a "pravo secret set" would, and sends the event for the transaction
+  async setSecrets(name) {
+    const d = await fixture(`secrets.${name}.json`);
+    if (!d) return false;
+    secrets = d;
+    const g = JSON.parse(JSON.stringify(graph));
+    g.revision = 'r-secrets-' + (++mutations);
+    graph = g;
+    this.emit({ revision: g.revision, what: ['state'] });
     return true;
   },
   // setDiscovery swaps the Discovery document for another fixture, as a run of "pravo discover" would, and sends the event

@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="assets/policies.css">
 <link rel="stylesheet" href="assets/studio.css">
 <link rel="stylesheet" href="assets/traces.css">
+<link rel="stylesheet" href="assets/secrets.css">
 <script type="module" src="assets/app.js"></script>
 </head>
 <body>
@@ -29,12 +30,13 @@
   </a>
   <span class="grow"></span>
   <nav class="sections" aria-label="Section">
-    <button type="button" class="sec-tab" id="sec-inventory" aria-pressed="true" aria-keyshortcuts="g"><span class="i i-stack" aria-hidden="true"></span><span class="lbl">Inventory</span></button>
-    <button type="button" class="sec-tab" id="sec-discovery" aria-pressed="false" aria-keyshortcuts="d"><span class="i i-radar" aria-hidden="true"></span><span class="lbl">Discovery</span><span class="cnt" id="sec-disc-count" hidden></span></button>
-    <button type="button" class="sec-tab" id="sec-policies" aria-pressed="false" aria-keyshortcuts="o"><span class="i i-policy" aria-hidden="true"></span><span class="lbl">Policies</span><span class="cnt" id="sec-pol-count" hidden></span></button>
-    <button type="button" class="sec-tab" id="sec-traces" aria-pressed="false" aria-keyshortcuts="r"><span class="i i-trace" aria-hidden="true"></span><span class="lbl">Traces</span></button>
-    <button type="button" class="sec-tab" id="sec-plans" aria-pressed="false" aria-keyshortcuts="p"><span class="i i-file" aria-hidden="true"></span><span class="lbl">Plans</span><span class="cnt" id="sec-plans-count" hidden></span></button>
-    <button type="button" class="sec-tab" id="sec-access" aria-pressed="false" aria-keyshortcuts="a"><span class="i i-lock" aria-hidden="true"></span><span class="lbl">State</span></button>
+    <button type="button" class="sec-tab" id="sec-inventory" aria-pressed="true" aria-keyshortcuts="g" data-tip="Inventory" data-key="g"><span class="i i-stack" aria-hidden="true"></span><span class="lbl">Inventory</span></button>
+    <button type="button" class="sec-tab" id="sec-discovery" aria-pressed="false" aria-keyshortcuts="d" data-tip="Discovery" data-key="d"><span class="i i-radar" aria-hidden="true"></span><span class="lbl">Discovery</span><span class="cnt" id="sec-disc-count" hidden></span></button>
+    <button type="button" class="sec-tab" id="sec-policies" aria-pressed="false" aria-keyshortcuts="o" data-tip="Policies" data-key="o"><span class="i i-policy" aria-hidden="true"></span><span class="lbl">Policies</span><span class="cnt" id="sec-pol-count" hidden></span></button>
+    <button type="button" class="sec-tab" id="sec-traces" aria-pressed="false" aria-keyshortcuts="r" data-tip="Traces" data-key="r"><span class="i i-trace" aria-hidden="true"></span><span class="lbl">Traces</span></button>
+    <button type="button" class="sec-tab" id="sec-plans" aria-pressed="false" aria-keyshortcuts="p" data-tip="Plans" data-key="p"><span class="i i-file" aria-hidden="true"></span><span class="lbl">Plans</span><span class="cnt" id="sec-plans-count" hidden></span></button>
+    <button type="button" class="sec-tab" id="sec-secrets" aria-pressed="false" aria-keyshortcuts="e" data-tip="Secrets" data-key="e"><span class="i i-key" aria-hidden="true"></span><span class="lbl">Secrets</span><span class="cnt" id="sec-sec-count" hidden></span></button>
+    <button type="button" class="sec-tab" id="sec-access" aria-pressed="false" aria-keyshortcuts="a" data-tip="State" data-key="a"><span class="i i-lock" aria-hidden="true"></span><span class="lbl">State</span></button>
   </nav>
   <div class="topright">
     <button class="search" id="search-btn" type="button" aria-label="Search and run actions" aria-keyshortcuts="/ Control+K Meta+K"><span class="i i-search" aria-hidden="true"></span><span class="lbl">Search</span><kbd>/</kbd></button>
@@ -110,6 +112,7 @@
     <div class="pane discovery-pane" id="discovery-pane" role="region" aria-label="Discovery" tabindex="-1" hidden></div>
     <div class="pane policies-pane" id="policies-pane" role="region" aria-label="Policies" tabindex="-1" hidden></div>
     <div class="pane traces-pane" id="traces-pane" role="region" aria-label="Traces" tabindex="-1" hidden></div>
+    <div class="pane secrets-pane" id="secrets-pane" role="region" aria-label="Secrets" tabindex="-1" hidden></div>
     <div class="pane access-pane" id="access-pane" role="region" aria-label="State" tabindex="-1" hidden></div>
   </main>
 

@@ -17,6 +17,7 @@ Protection is off by default, and a state with protection off is unchanged. `pra
 |---|---|---|
 | A record, `rec/SHA256` | The attributes and the private data of the provider, the hash of the configuration that made it and the configuration of its provider. | The address, type, name, provider, dependencies, revision, generation, the times and the transaction that wrote it. |
 | `outputs.json` | All of it. | Nothing. |
+| A secret, `secret/NAME@NUMBER.json` | The value and the note of a version. | The name, the number of the version, the time and the transaction that wrote it. |
 | A stored plan | The plan, and the command and tags that made it. | The id, the author, the actor, the reason, the times, the counts, the addresses and actions of the changes and the plans it overlaps. |
 | A transaction and a lock | The values of `-t`, `--tag`, `--webhook` and `-e` in the command line, which a lock and a transaction show as a tag. The original line is not kept. The text of the error of a run that failed or was rejected, which a transaction keeps for the readers, and what each change altered in the attributes of its record. | Everything else: the kind, the user, the host, the times, the status, the addresses and revisions it changed. The command shows each sealed value as `<sealed:a1b2c3d4>`. The summary of a failed run says that its text is sealed. |
 | `meta.json` | Nothing. | The format, the lineage, the names and reader keys of the readers, and the locks. |
@@ -37,6 +38,24 @@ The cost of opening does not depend on the number of readers. The number of lock
 ## Who decides who reads
 
 The list of readers comes from the repository and never from the bucket. A command that writes a sealed state compares the file with the readers recorded in the state, and stops if they differ. Whoever can merge a change to the file decides who may read, and the review of that change is the control. Someone who can only write to the bucket cannot make a command lock a data key for them, because the readers of a command come from the checked-out file.
+
+## Secrets
+
+A secret that the state keeps is sealed like a record: one object for each version, `secret/NAME@NUMBER.json`, with the value and its note encrypted to the readers of the state. [`pravo secret`](../reference/secret.md) sets, reads and removes them, and a run reads one with `pravo.#Secret` ([the specification](../reference/spec-env.md#secrets-of-the-sealed-state)). A state that holds a secret is in format 5.
+
+Each `secret` command is a transaction that the identity signs, and the finish signature covers the version it wrote, as it covers the key of a record. The history of a secret says who set each version, from which machine and for which reason. With [roles](../reference/protect.md#roles) only a writer sets a value and only an admin removes or forgets one, and a version that no signed transaction of such a key accounts for is refused with exit code 7. A reader holds the data key and can seal a value that opens for everyone, and cannot make a writer's transaction name it.
+
+What a secret does not get:
+
+**Every reader reads every secret.** There is no list of readers for one secret. A secret that some of the readers of a state should not read belongs in another state, with its own list of readers and its own prefix in the bucket.
+
+**A reader who leaves has read what they could open.** Removing the line, `pravo protect rewrap --all` and `pravo protect gc` leave nothing in the bucket that their key opens, and do not take back what they read. Set each secret they could read again at its source, and forget the old values with `pravo secret purge`. [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md#10-when-a-reader-leaves) lists the steps.
+
+**Reads are not recorded.** A read of a secret is a read of an object. The access log of the bucket is the only record that an identity fetched its ciphertext, and pravo keeps no audit of reads.
+
+**No freshness.** A signature does not say that a version is the newest. Someone who can write to the bucket can put an old object back. The check finds a missing newer version, because a verified transaction names it, and not an old object in its place. An object lock on `secret/` stops the replacement.
+
+**No expiry.** A secret has no lifetime, and no run is refused because of the clock. A rotation is a `pravo secret set`.
 
 ## What it does not do
 
@@ -78,7 +97,7 @@ These are limits of the version that exists. Each is a fact to plan around.
 
 **A state in a local directory is not shared.** The compare-and-swap of a directory is a lock of one user. `pravo protect check` refuses a local directory unless `--allow-local` says that only you use it.
 
-**Earlier versions of pravo refuse a sealed state.** They stop with `state at LOCATION was written by a newer pravo (format 3)`, and do not read or write it. A state that was unsealed stays in format 3, so they refuse that too.
+**Earlier versions of pravo refuse a sealed state.** They stop with `state at LOCATION was written by a newer pravo (format 3)`, and do not read or write it. A state that was unsealed stays in format 3, so they refuse that too. A state that holds a secret is in format 5, and a pravo that does not know secrets refuses it in the same way.
 
 **Sealing can be taken off, and it takes the protection with it.** `pravo protect unseal` writes every record, the outputs and the stored plans in the open. From then on anyone who can read the bucket can read every value. A copy of the bucket made while it was sealed still opens with the key of a reader. Values that sealing replaced by a tag in the command lines of old transactions are not restored. The state stays in the same lineage and the same format; see [protect unseal](../reference/protect.md#protect-unseal).
 
@@ -87,6 +106,7 @@ These are limits of the version that exists. Each is a fact to plan around.
 - Sealing encrypts attributes, private data, outputs, the values in stored plans and the values in command lines to a list of readers kept in the repository.
 - Addresses, types, names, dependencies and revisions stay readable. So do the names of the readers.
 - A removal protects what is written after it. It does not take back what a reader read.
+- A secret is a signed, versioned object in the sealed state. Every reader reads every secret, and a reader who leaves has read what they could open.
 - Sealing is confidentiality against a copy of the bucket. It is not access control for writers, and it does not detect a rollback. A lowered format is noticed by every command that has the repository, because the readers file says the state should be sealed.
 
 [Seal the state to a list of readers](../how-to/seal-the-state.md) does it step by step.

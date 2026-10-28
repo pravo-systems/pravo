@@ -110,6 +110,8 @@ pravo serve --plan change.plan       # overlay a saved plan
 
 `pravo protect init --encrypt` encrypts the attributes, outputs and stored plans of a state to a list of readers that the repository keeps in `.pravo/access/readers.txt`. `pravo id new` makes an identity and prints the line for that file. Addresses, types, names and dependencies stay readable, so the graph and the plans keep working. Protection is off by default, and a state that has it off is unchanged. `docs/how-to/seal-the-state.md` walks through it, and `docs/concepts/sealed-state.md` says what it protects and what it leaves open.
 
+A sealed state also keeps secrets, as named values with a history: `pravo secret set NAME` writes a version, a specification reads it with `pravo.#Secret` and hands it to a provider, and the value is never written to a record, a plan or a log. Each change is a signed transaction, and the readers file can give keys the roles reader, writer and admin. `docs/how-to/store-secrets-in-the-state.md` walks through it, and `pravo serve` lists the secrets without a value.
+
 ## The skill for agents
 
 `pravo skill install` writes a skill for AI agents to `~/.claude/skills/pravo`: a short guide and the documentation as Markdown, built from `docs/` by `go run ./tools/skillgen` and embedded in the binary, so that it matches the version that installs it. `docs/reference/skill.md` describes it. Each release carries it as `pravo-skill.zip`.

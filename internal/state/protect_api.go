@@ -27,12 +27,13 @@ import (
 // as an immutable object, rec/<sha256>, and resources/<address>.json as a small
 // pointer to it. Format 3 is format 2 with the records, the outputs, the stored
 // plans and the values of command lines sealed to a list of readers. Format 4 is
-// format 3 with policies (policy.go).
+// format 3 with policies (policy.go). Format 5 is format 4 with secrets (secret.go).
 const (
 	FormatImmutable = 2
 	FormatSealed    = 3
 	FormatPolicy    = 4
-	MaxFormat       = FormatPolicy
+	FormatSecret    = 5
+	MaxFormat       = FormatSecret
 )
 
 var (

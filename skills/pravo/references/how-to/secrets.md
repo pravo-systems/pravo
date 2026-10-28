@@ -307,10 +307,11 @@ Output:
 not found
 ```
 
-The provider keeps no copy of the key, so it cannot see that a key changed. Its description of `private_key_pem_wo_version` in `pravo schema tls_self_signed_cert` says to increment that number when the key is rotated.
+The provider keeps no copy of the key, so it cannot see that a key changed. Its description of `private_key_pem_wo_version` in `pravo schema tls_self_signed_cert` says to increment that number when the key is rotated. A secret that the sealed state keeps gives you the number: [Store secrets in the sealed state](store-secrets-in-the-state.md#4-hand-a-secret-to-a-provider) does this with `pravo.#SecretVersion`.
 
 ## What next
 
+- [Store secrets in the sealed state](store-secrets-in-the-state.md) keeps the secrets in the sealed state, with a history and roles, instead of in the environment of each job.
 - [Concepts: secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) describes how pravo orders ephemeral resources.
 - [Environments](environments.md) uses a tag for the environment name, which is configuration.
 - [Environment variables and remote outputs](../reference/spec-env.md) is the reference for `pravo.#Env` and `pravo.#SecretEnv`.

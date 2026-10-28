@@ -1,6 +1,6 @@
 ---
 name: pravo
-description: Use when writing, reviewing, running or debugging infrastructure with pravo, the CUE-based tool that drives OpenTofu and Terraform providers. Covers CUE specifications with provider structs and resources, the pravo commands (init, validate, plan, apply, destroy, drift, why, state, import, discover, eval, schema, mod, serve, mcp, id, protect), plan policies, state and locks, modules, migrating from OpenTofu or Terraform, and reading pravo errors and exit codes. Apply when a directory has a pravo.lock.cue or cue.mod/gen, when the user mentions pravo, pravo.state or pravo.dev/providers, or asks for CUE instead of HCL.
+description: Use when writing, reviewing, running or debugging infrastructure with pravo, the CUE-based tool that drives OpenTofu and Terraform providers. Covers CUE specifications with provider structs and resources, the pravo commands (init, validate, plan, apply, destroy, drift, why, state, import, discover, eval, schema, mod, serve, mcp, id, protect, secret), plan policies, state and locks, modules, migrating from OpenTofu or Terraform, and reading pravo errors and exit codes. Apply when a directory has a pravo.lock.cue or cue.mod/gen, when the user mentions pravo, pravo.state or pravo.dev/providers, or asks for CUE instead of HCL.
 ---
 
 # pravo
@@ -54,7 +54,7 @@ More: `references/reference/spec-overview.md`, `spec-resources.md`, `spec-provid
 ## The things that go wrong when HCL habits are used
 
 1. **No HCL constructs.** `count` and `for_each` are CUE comprehensions: `for r in regions {"\(r)": $random.#Resource.random_pet & {prefix: r}}`. There are no variables blocks, no `locals`, no workspaces, no provisioners and no `-target`. `references/reference/not-in-pravo.md` lists each with its replacement.
-2. **Inputs are tagged fields.** `env: *"dev" | "prod" @tag(env)` and `pravo plan -t env=prod`. There is no variables file. Secrets never go in `-t`, which is written into saved and stored plans: read them with `pravo.#SecretEnv`.
+2. **Inputs are tagged fields.** `env: *"dev" | "prod" @tag(env)` and `pravo plan -t env=prod`. There is no variables file. Secrets never go in `-t`, which is written into saved and stored plans: read them with `pravo.#SecretEnv`, or with `pravo.#Secret` when the sealed state keeps them.
 3. **Two values for one field are an error.** CUE unifies; it does not override. A definition is closed, so a misspelt field is an error. Constraints such as `int & >1024` fail before any provider starts (exit code 6). Read `references/learn/c1-reading-a-cue-error.md` before guessing at a fix.
 4. **Renaming destroys and recreates** unless the move is declared. A rename is `$from: "old.address"` on the resource that has the new name. An existing object is adopted with `$import: "id"` or `pravo import ADDR ID`. See `references/reference/spec-moves-and-imports.md`.
 5. **A plan is not read-only.** It installs providers, writes the lock file, refreshes records whose refresh age ran out and marks drift. It creates, changes and destroys no infrastructure. Only `apply` and `destroy` do.
@@ -97,7 +97,8 @@ Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`, 
 - Do not run `pravo apply`, `pravo destroy`, `pravo state rm`, `pravo state push`, `pravo state unlock` or `pravo plan gc` unless the user asked for that action on that root. Save the plan and show it.
 - Treat the plan as the thing to review: look for `destroy`, `replace` and `-/+` actions on resources that hold data.
 - A stored plan, like a plan file, holds sensitive values: do not print one in full. Whoever can read the state can read its plans.
-- Do not print values of sensitive attributes or outputs, and do not put secrets in a specification. `pravo.#SecretEnv` reads one from the environment without recording it.
+- Do not print values of sensitive attributes or outputs, and do not put secrets in a specification. `pravo.#SecretEnv` reads one from the environment without recording it, and `pravo.#Secret` reads one from the sealed state the same way.
+- `pravo secret list` and `pravo secret history NAME` show no value. `pravo secret get` and `pravo secret exec` do, so do not run them unless the user asked for that secret, and do not set, remove or purge a secret unprompted. A value is never an argument or a file in the repository: `pravo secret set NAME` reads it from standard input, an environment variable or a prompt.
 - An agent that calls pravo through tools should use `pravo mcp`, which is judged by the policies of the state like any command. The server applies only from saved plans, a plan file or the id of a stored plan with its `tags` (`pravo_plan` with `store` stores one, `pravo_plan_list` lists them), and refuses arguments that start with `-`. `references/how-to/agents-and-mcp.md` states what that does and does not protect.
 - `--actor` is a label that the caller types. It is not an identity.
 - Do not run `pravo protect init`, `pravo protect rewrap`, `pravo protect recover`, `pravo protect unseal`, `pravo protect gc` or `pravo id new` unless the user asked for it: they change who can read the state or delete from it. Never print an identity file, `PRAVO_IDENTITY`, a passphrase or a recovery share, and never commit `recovery-shares/`. Exit code 7 means that a record in the state does not match its name: stop and report it, do not apply.
@@ -112,6 +113,7 @@ Exit codes: 0 success, 1 error, 2 changes (`plan --detailed-exitcode`, `drift`, 
 | How does evaluation, a plan, state or a provider behave? | `references/concepts/` |
 | First plan and apply | `references/how-to/quick-start.md` |
 | Several environments, secrets, remote state | `references/how-to/environments.md`, `secrets.md`, `remote-state.md` |
+| Keep a secret in the sealed state, rotate it, hand it to a provider | `references/how-to/store-secrets-in-the-state.md`, `references/reference/secret.md` |
 | Share code between roots or publish a module | `references/how-to/modules-in-a-repository.md`, `using-a-module.md`, `publishing-a-module.md` |
 | Policies | `references/how-to/policies.md`, `references/reference/policies-writing.md`, `policies-plan-document.md` |
 | CI and pipelines | `references/how-to/ci.md` |

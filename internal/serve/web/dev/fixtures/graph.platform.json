@@ -52,6 +52,20 @@
    }
   },
   {
+   "addr": "api.api_token",
+   "mode": "ephemeral",
+   "type": "secret",
+   "name": "api_token",
+   "namespace": "api",
+   "presence": "both",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 208,
+    "col": 2,
+    "end_line": 211
+   }
+  },
+  {
    "addr": "api.cache",
    "mode": "managed",
    "type": "aws_elasticache_cluster",
@@ -156,6 +170,34 @@
     "line": 35,
     "col": 2,
     "end_line": 43
+   }
+  },
+  {
+   "addr": "api.db_secret",
+   "mode": "ephemeral",
+   "type": "secret",
+   "name": "db_secret",
+   "namespace": "api",
+   "presence": "both",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 200,
+    "col": 2,
+    "end_line": 202
+   }
+  },
+  {
+   "addr": "api.db_secret_version",
+   "mode": "builtin",
+   "type": "secret_version",
+   "name": "db_secret_version",
+   "namespace": "api",
+   "presence": "both",
+   "source": {
+    "file": "modules/api/main.cue",
+    "line": 204,
+    "col": 2,
+    "end_line": 206
    }
   },
   {
@@ -471,6 +513,20 @@
    }
   },
   {
+   "addr": "deploy_key",
+   "mode": "ephemeral",
+   "type": "secret",
+   "name": "deploy_key",
+   "namespace": "",
+   "presence": "both",
+   "source": {
+    "file": "main.cue",
+    "line": 88,
+    "col": 2,
+    "end_line": 90
+   }
+  },
+  {
    "addr": "edge.assoc",
    "mode": "managed",
    "type": "aws_wafv2_web_acl_association",
@@ -576,6 +632,20 @@
    "action": "delete",
    "revision": 2,
    "refreshed_at": "2026-10-15T14:02:11Z"
+  },
+  {
+   "addr": "edge.origin_secret",
+   "mode": "ephemeral",
+   "type": "secret",
+   "name": "origin_secret",
+   "namespace": "edge",
+   "presence": "both",
+   "source": {
+    "file": "modules/edge/main.cue",
+    "line": 82,
+    "col": 2,
+    "end_line": 84
+   }
   },
   {
    "addr": "edge.tg",
@@ -994,6 +1064,10 @@
  ],
  "edges": [
   {
+   "dependency": "api.api_token",
+   "dependent": "api.cache"
+  },
+  {
    "dependency": "api.cache",
    "dependent": "cache_endpoint"
   },
@@ -1024,6 +1098,14 @@
   {
    "dependency": "api.db_pass",
    "dependent": "db_password"
+  },
+  {
+   "dependency": "api.db_secret_version",
+   "dependent": "api.secret_version"
+  },
+  {
+   "dependency": "api.db_secret",
+   "dependent": "api.secret_version"
   },
   {
    "dependency": "api.db_subnets",
@@ -1110,6 +1192,10 @@
    "dependent": "summary"
   },
   {
+   "dependency": "deploy_key",
+   "dependent": "release_marker"
+  },
+  {
    "dependency": "edge.cert",
    "dependent": "edge.listener"
   },
@@ -1127,6 +1213,10 @@
   },
   {
    "dependency": "edge.lb",
+   "dependent": "edge.listener"
+  },
+  {
+   "dependency": "edge.origin_secret",
    "dependent": "edge.listener"
   },
   {
@@ -1319,7 +1409,7 @@
    "path": "api",
    "parent": "",
    "name": "api",
-   "resources": 18,
+   "resources": 21,
    "outputs": 1,
    "depth": 0,
    "declared": {
@@ -1358,7 +1448,7 @@
    "path": "edge",
    "parent": "",
    "name": "edge",
-   "resources": 9,
+   "resources": 10,
    "depth": 0,
    "declared": {
     "file": "main.cue",

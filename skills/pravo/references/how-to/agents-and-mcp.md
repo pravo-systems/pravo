@@ -277,6 +277,7 @@ For a boundary, use controls outside pravo:
 - **Credentials.** Give the agent credentials that can only read and plan. Keep the ones that change infrastructure in a separate job that applies reviewed plan files.
 - **The repository.** Require review for the policy nodes of the specification and for every job or tool configuration. Apply only from the main branch.
 - **The state store.** Limit who can write to the bucket or directory that holds the state. To keep the values in it from an agent that has no need of them, [seal the state](seal-the-state.md) and give the agent no identity: it can list addresses and cannot read an attribute.
+- **Secrets of the state.** A run that reads a secret from the sealed state needs the identity of a reader, and a reader can print every secret with `pravo secret get`. The MCP server has no tool that returns one, but an agent with a shell and that identity is not limited to the tools. Give an agent that must plan a specification which reads secrets an identity of its own, so that its key can be dropped from the readers file ([Store secrets in the sealed state](store-secrets-in-the-state.md#10-when-a-reader-leaves) shows the steps), and keep the secrets that it must not read in another state.
 - **Exceptions.** No flag turns a policy off. A change to a policy is a change to the specification, and review sees it.
 
 [Policies](../concepts/policies.md) explains the model, [pravo mcp](../reference/mcp.md) lists every tool and [pravo skill](../reference/skill.md) describes the skill.

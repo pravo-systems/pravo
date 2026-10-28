@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { MIN, H, D, iso, prune, Builder, planOf } = require('./gen-lib');
+const { MIN, H, D, iso, prune, Builder, planOf, resource } = require('./gen-lib');
 
 const out = (name, v) => fs.writeFileSync(path.join(__dirname, 'fixtures', name), JSON.stringify(v, null, 1) + '\n');
 const src = (file, line, end) => ({ file, line, col: 2, end_line: end });
@@ -79,6 +79,14 @@ function platform() {
   b.add('edge.dns', 'aws_route53_record', { action: 'create', source: src(E, 69, 76), refreshed: null, revision: 0 });
   b.add('edge.old_lb', 'aws_lb', { presence: 'state', action: 'delete', revision: 2, refreshed: 6 * D });
 
+  // the secrets of the sealed state that the specification reads (secrets.platform.json says the same of them): a node
+  // that is never recorded, and the number of the version of a secret, which is an ordinary value
+  b.transient('api.db_secret', 'secret', { source: src(A, 200, 202) });
+  b.transient('api.db_secret_version', 'secret_version', { mode: 'builtin', source: src(A, 204, 206) });
+  b.transient('api.api_token', 'secret', { source: src(A, 208, 211) });
+  b.transient('edge.origin_secret', 'secret', { source: src(E, 82, 84) });
+  b.transient('deploy_key', 'secret', { source: src('main.cue', 88, 90) });
+
   // edges: dependency -> dependent
   b.dep('network.vpc', 'network.igw');
   for (const n of ['lb', 'app', 'db']) b.dep('network.vpc', 'network.sg_' + n);
@@ -114,8 +122,13 @@ function platform() {
   b.deps('edge.listener', 'edge.lb', 'edge.tg', 'edge.cert');
   b.deps('edge.assoc', 'edge.lb', 'edge.waf');
   b.deps('edge.dns', 'edge.zone', 'edge.lb');
-  b.deps('release_marker', 'build_id', 'api.service');
+  b.deps('release_marker', 'build_id', 'api.service', 'deploy_key');
   b.deps('edge.old_lb', 'network.sg_lb');
+  // a secret reaches the write-only attributes of resources and nothing that is recorded; the number of its version
+  // is what makes the provider take a new one
+  b.deps('api.secret_version', 'api.db_secret', 'api.db_secret_version');
+  b.deps('api.cache', 'api.api_token');
+  b.deps('edge.listener', 'edge.origin_secret');
 
   // the outputs of the root are nodes too, joined to what they read; one reads other outputs, one is not declared any more
   b.output('url', { source: src('main.cue', 58, 61) });
@@ -251,7 +264,7 @@ function storedPlans(b, revision) {
       revision,
       plan: {
         file: d.id, id: d.id, status: d.status, created: iso(d.ago), actor: d.author, stale: d.status === 'stale' ? true : undefined, reasons: d.why,
-        summary: Object.assign({}, summary, { blast_radius: blast.size }), planned: touches.length, total: b.nodes.filter((n) => n.mode !== 'output').length, applied,
+        summary: Object.assign({}, summary, { blast_radius: blast.size }), planned: touches.length, total: b.nodes.filter(resource).length, applied,
       },
       nodes: touches.map((t) => ({ addr: t.addr, action: t.action, applied: t.applied })),
       warnings: d.status === 'stale' ? ['The plan is stale and can no longer be applied: ' + d.why.join('; ') + '.'] : undefined,

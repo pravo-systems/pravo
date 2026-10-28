@@ -12,7 +12,7 @@ normalize:
 |---|---|---|
 | Provider plugin protocol | 5 and 6 | pravo starts and talks to providers that speak either. |
 | Provider registry | `registry.opentofu.org` by default | pravo downloads provider archives from any registry that implements the provider registry protocol, and from OCI registries. |
-| State store | `format: 1`, `2` or `3` in `meta.json` | A new store is `1`. A store with a higher number than the running pravo reads is refused. See [State format](state-format.md#formats). |
+| State store | `format: 1` to `5` in `meta.json` | A new store is `1`. A store with a higher number than the running pravo reads is refused. See [State format](state-format.md#formats). |
 | Saved plan file | `format: 1` | A file with a higher number is refused. |
 | Plan document | `format: 1` | The layout of [the plan document](plan-document.md). |
 | JSON output | `--json` | One document on standard output, or one event per line for `apply` and `destroy`. |
@@ -65,7 +65,7 @@ The versions of the providers a root uses are in `pravo.lock.cue`, with the hash
 
 ## State and plan files
 
-A store with a format number above the highest the running pravo reads, which is 3, and a plan file with a number above the one it writes, are refused with a message. Nothing is read from it or changed in it.
+A store with a format number above the highest the running pravo reads, which is 5, and a plan file with a number above the one it writes, are refused with a message. Nothing is read from it or changed in it.
 
 ```cue file=main.cue
 package demo
@@ -103,18 +103,18 @@ Error: change.plan was written by a newer pravo (plan format 2)
 ```
 
 ```sh run exit=1
-echo '{"format":5,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
+echo '{"format":6,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
 pravo plan
 ```
 
 ```text out
-Error: state at ./pravo.state was written by a newer pravo (format 5)
+Error: state at ./pravo.state was written by a newer pravo (format 6)
 ```
 
 Restore the store, and try a file that is not a plan file:
 
 ```sh run
-sed -i.bak 's/"format":5/"format":1/' pravo.state/meta.json
+sed -i.bak 's/"format":6/"format":1/' pravo.state/meta.json
 ```
 
 

@@ -109,6 +109,9 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 			return res, fmt.Errorf("identity %s is not a reader of the state at %s: %w", o.Identity.Name, s.b.Name(), ErrNotReader)
 		}
 	}
+	if err := s.refuseSecrets(ctx); err != nil {
+		return res, err
+	}
 	if err := s.refuseUnopenable(ctx, o); err != nil {
 		return res, err
 	}

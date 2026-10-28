@@ -89,6 +89,12 @@ type Options struct {
 	// checked against, and false when there is no readers file to check them against.
 	// Nil means the same.
 	PolicyReaders func(st *state.Store) ([]protect.Reader, bool)
+	// SecretRules gives the rules that the signatures of the secret versions are judged by: the
+	// readers with their roles, the keys that left and were vouched for, and whether the roles
+	// are pinned in the state. The bool is false when there is no readers file to judge by, and
+	// the string says why the roles could not be used when they fail their check. Nil means no
+	// readers file.
+	SecretRules func(st *state.Store) (rules state.RecordRules, ok bool, problem string)
 	// VerifyPlan checks the signatures of a stored plan against the readers file, given the
 	// digest of the plan file as it was read. The second result is false when there is
 	// nothing to check: the state is not sealed. Nil means the same.
@@ -442,7 +448,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -475,6 +481,8 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusOK, m.disc.json)
 	case "/api/policies":
 		writeRaw(w, http.StatusOK, m.polJSON)
+	case "/api/secrets":
+		writeRaw(w, http.StatusOK, m.secsJSON)
 	case "/api/studio":
 		writeJSON(w, http.StatusOK, s.studio(m))
 	case "/api/studio/plan":

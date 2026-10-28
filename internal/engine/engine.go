@@ -121,6 +121,11 @@ type Engine struct {
 	// makes a run leave them open for its caller to close.
 	open     []*openEphemeral
 	keepOpen bool
+	// secretPins holds, by name, the version of each secret of the sealed state that the current
+	// run reads, so that the value of a pravo.#Secret and the number of a pravo.#SecretVersion
+	// belong together; secretMu guards it. See secretVersion.
+	secretMu   sync.Mutex
+	secretPins map[string]int
 	// traceID is the OpenTelemetry trace of the current run, if any.
 	traceID string
 	// runCtx is the context a plan or an apply was started with, so that what
@@ -649,6 +654,9 @@ func (e *Engine) resetRun(changes bool) {
 	}
 	e.targets = nil
 	e.stats = Stats{Total: e.countPlannable()}
+	e.secretMu.Lock()
+	e.secretPins = nil
+	e.secretMu.Unlock()
 }
 
 // countPlannable is the number of resources and data sources in the

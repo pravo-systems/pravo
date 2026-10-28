@@ -115,6 +115,11 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 	if err := atRest(st); err != nil {
 		return err
 	}
+	// The values of secrets are kept sealed and nowhere else; asking whether to write them in
+	// the open would only be followed by a refusal.
+	if err := st.SecretsHeld(p.ctx); err != nil {
+		return engine.WithCode(engine.ExitRefused, err)
+	}
 	names := protectedNames(prot)
 	files := p.repoFiles()
 	if !flags.JSON {
@@ -144,7 +149,7 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 	switch {
 	case errors.Is(err, state.ErrPlansInUse):
 		return engine.WithCode(engine.ExitLocked, err)
-	case errors.Is(err, state.ErrNotReader):
+	case errors.Is(err, state.ErrNotReader), errors.Is(err, state.ErrSecretsHeld):
 		return engine.WithCode(engine.ExitRefused, err)
 	case err != nil:
 		return err

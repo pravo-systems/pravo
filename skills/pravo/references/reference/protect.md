@@ -17,13 +17,15 @@ Make an identity, seal the state to a list of readers, check that it holds, chan
 
 Protection is off by default. A state with protection off is unchanged: format 1, with the layout that every version of pravo reads. These commands turn protection on for one state, show where it stands and keep it in line with the list of readers. [What sealing protects](../concepts/sealed-state.md) says what the seal covers and what it leaves open.
 
-A state has three formats, and a sealed state is a format 3 state that has a sealed part in `meta.json`.
+A state has five formats. A sealed state is one in format 3 or above that has a sealed part in `meta.json`.
 
 | Format | Name | What it is |
 |---|---|---|
 | 1 | off | One file for each resource, `resources/ADDRESS.json`. The default, and the only format earlier versions of pravo read. |
 | 2 | immutable records | Each record is an object named by the SHA-256 of its bytes, `rec/SHA256`, and never overwritten. `resources/ADDRESS.json` is a small pointer to it, replaced only by compare-and-swap. Nothing is encrypted. |
 | 3 | sealed | Format 2, and while the state is sealed, the attributes and private data of each record, the outputs, the stored plans and the values in command lines are encrypted to a list of readers. The address, type, name, dependencies and revision stay readable. A state that was unsealed stays in format 3, with nothing encrypted. |
+| 4 | policies | Format 3, with `policy/NAME@NUMBER.json`, the signed versions of the policies of the root. The first policy raises the state to it. |
+| 5 | secrets | Format 4, with `secret/NAME@NUMBER.json`, the versions of the secrets of the state, each sealed to the readers. The first secret raises the state to it. |
 
 `pravo protect init --encrypt` takes a state from format 1 to format 3. A pravo that does not know format 3 refuses the state with `state at LOCATION was written by a newer pravo (format 3)`.
 
@@ -158,9 +160,9 @@ A key has one of three roles, and the strength is linear: an admin may do what a
 
 | Role | May |
 |---|---|
-| `reader` | Open the state, read it, and plan (or ask `why`) without changing it. Store a plan with `plan --store`. |
-| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. |
-| `admin` | Remove a policy. Change who reads the state (`protect rewrap`), change roles (`protect roles`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). |
+| `reader` | Open the state, read it, and plan (or ask `why`) without changing it. Store a plan with `plan --store`. Read a secret: `secret get`, `secret exec`, and a run that reads one. |
+| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. Set a secret with `secret set`. |
+| `admin` | Remove a policy. Remove a secret and forget its old values (`secret rm`, `secret purge`). Change who reads the state (`protect rewrap`), change roles (`protect roles`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). |
 
 The role is the fifth field of the line of the key in the readers file, which the repository holds:
 
@@ -193,10 +195,10 @@ The line is the SHA-256 of the first roles. Commit it with the file. From then o
 | Role | Credentials on the bucket |
 |---|---|
 | `reader` | Get and list on the whole prefix. Put on `plans/`. |
-| `writer` | Get, put, delete and list on the prefix, except `meta.json`, `policy/` and `roles/`, where a writer has get and list and may put a new object under `policy/`. |
-| `admin` | Everything on the prefix, `meta.json`, `policy/` and `roles/` included. |
+| `writer` | Get, put, delete and list on the prefix, except `meta.json`, `policy/`, `roles/` and `secret/`, where a writer has get and list and may put a new object under `policy/` and under `secret/`. |
+| `admin` | Everything on the prefix, `meta.json`, `policy/`, `roles/` and `secret/` included. |
 
-A job that only plans runs with the first row.
+A job that only plans runs with the first row. The first secret of a state raises `meta.json` to format 5, which needs the put of an admin; a writer sets every later version with a put of a new object. `secret rm` writes a new object too, and `secret purge` and `rewrap --all` replace objects of `secret/`, so they need an admin's credentials as well as an admin's role.
 
 ## The recovery recipient
 
@@ -374,6 +376,8 @@ A state in a local directory is refused: its compare-and-swap is a lock of one u
 
 `pravo protect init --encrypt` seals the state. It needs the readers file and an identity that is on it, because sealing to a list that you are not on would lock you out: the command stops with exit code 5 otherwise. A state that does not exist yet is created sealed, with no records.
 
+A state that holds the value of a secret is refused with exit code 5 before anything is asked: unsealing would write the values in the open. Remove each secret with `pravo secret rm NAME` and forget its values with `pravo secret purge NAME --keep 0` first; [`pravo secret list`](secret.md) shows them.
+
 It shows what it will do and asks `Proceed? [y/N]`. `--yes` answers it. Without a terminal and without `--yes` it refuses to ask. Nothing is written before the answer. The command does not run while a transaction is running or a lock is held. Run it while nobody plans or applies.
 
 1. Every record is written once as the object `rec/SHA256`, and `resources/ADDRESS.json` becomes a pointer to it. A record is never overwritten again.
@@ -454,10 +458,11 @@ Unsettled    none
 | `You` | The identity and its reader key. `identity NAME is not a reader`. `not a reader of this state (no identity found)`. |
 | `Roles` | `off`, or `on` with the number of admins, writers and readers and your own role, and where they come from: `pinned, version N in the state`, `from the readers file, not pinned`, or `from the readers file; the state holds roles it does not pin`. A state whose roles do not verify, or are not the ones the file pins, exits 7. |
 | `Records` | Shown when the readers file has roles: how many records are bound to a transaction of a writer, how many are vouched for by an admin (the key left or was demoted), how many are from before roles, how many were not checked, and how many no transaction of a writer accounts for. Each of those is printed as `Untrusted:` and the command exits 7. |
+| `Secrets` | Shown when the state holds a secret: how many secrets and versions there are and how many versions are bound to a transaction of a writer, then, when there are any, how many are vouched for by an admin, not checked, from a transaction that did not finish, or accounted for by no transaction of a writer. Each of the last kind is printed as `Untrusted:` with the name and the number of the version, and the command exits 7. See [`pravo secret`](secret.md#roles). |
 | `Signatures` | For a sealed state: `41 of 43 transactions verified`, then the count of those signed with a key that is not in the readers file, of the unsigned ones, and of those whose signature does not verify. `not checked` without a readers file. |
 | `Unsettled` | `none`, or the number of interrupted transactions; `pravo state log` lists them. |
 
-With `--json`, `status` prints one document: `state` (`none` for a state that does not exist yet, `off`, `immutable`, `migrating`, `unsealing` or `sealed`), `format` (absent when there is no state), `store`, `records`, `checked`, `unsettled`, `untrusted`, `readers` (the names the state is sealed to), `readers_file` (`found`, `valid`, `matches`, `path`, `added`, `removed`), `signatures` (`verified`, `key_not_in_file`, `unsigned`, `invalid` and the ids in `invalid_transactions`, for a sealed state with a readers file), `recovery` (`k`, `n`, `key`, `locked`, and `file`: `match`, `differs`, `missing` or `invalid`, present only when the state has a recovery) and `you` for a sealed state, and `expects_sealed: true` when the repository lists readers and the state is not sealed, which includes a state that does not exist yet. A job that wants a verdict before it plans runs `pravo protect status --json | jq -e '.state == "sealed"'`.
+With `--json`, `status` prints one document: `state` (`none` for a state that does not exist yet, `off`, `immutable`, `migrating`, `unsealing` or `sealed`), `format` (absent when there is no state), `store`, `records`, `checked`, `unsettled`, `untrusted`, `readers` (the names the state is sealed to), `readers_file` (`found`, `valid`, `matches`, `path`, `added`, `removed`), `secrets` (when the state holds a secret: `secrets`, `versions`, `bound`, `vouched`, `unchecked`, `unconfirmed`, and `problems` with the name, the number and the reason of each version that is not accounted for), `signatures` (`verified`, `key_not_in_file`, `unsigned`, `invalid` and the ids in `invalid_transactions`, for a sealed state with a readers file), `recovery` (`k`, `n`, `key`, `locked`, and `file`: `match`, `differs`, `missing` or `invalid`, present only when the state has a recovery) and `you` for a sealed state, and `expects_sealed: true` when the repository lists readers and the state is not sealed, which includes a state that does not exist yet. A job that wants a verdict before it plans runs `pravo protect status --json | jq -e '.state == "sealed"'`.
 
 A record that does not match its name, a pointer that disagrees with its record, or a sealed value that does not open where it is, prints `Untrusted:` and the object, and the command exits 7.
 
@@ -469,7 +474,7 @@ A record that does not match its name, a pointer that disagrees with its record,
 
 **Removing a reader.** A reader who is removed loses their lock in every group, and the state gets a new data key. Records are sealed under it as they are next written. Until then they stay under the old key. `--all` seals every record, the outputs, the stored plans and the sealed text of the errors of transactions again under the new key at once. A copy of the state that was made before the removal still opens with the removed reader's key, and the reader has read what they read. Replace the secrets they could read where they live.
 
-`--all` needs the state at rest: run it while nobody plans or applies. It seals again and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [`pravo protect gc`](#protect-gc) removes both. [What sealing protects](../concepts/sealed-state.md) lists what stays in the bucket.
+`--all` needs the state at rest: run it while nobody plans or applies. It seals again, in place, the value of every secret version that is sealed in another group, and deletes the records that are sealed in another group and that no pointer names. It does not remove the old groups from `meta.json`, and the last record of a resource that was destroyed or removed with `state rm` stays in `rec/`, sealed under the group it was written in. [`pravo protect gc`](#protect-gc) removes both. [What sealing protects](../concepts/sealed-state.md) lists what stays in the bucket.
 
 **The recovery.** `--recovery K/N` sets the recovery recipient of the state, or replaces it: a new key is made, split into N shares and written to `recovery-shares/`, the public key goes to `.pravo/access/recovery.txt`, and every group gets a lock for it. A replaced key loses its lock in every group and the state gets a new data key, so its shares open nothing that is written afterwards; a copy of the bucket made before still opens with them, so collect and destroy them. `--remove-recovery` takes the recovery out of the state and deletes the file; commit the deletion. Both ask first, unless `--yes` is given. `--remove-recovery` also deletes a recovery file when the state has no recovery. Without either flag, a recovery file that names a key that the state does not have is set in the state with no new shares, and a recovery lock that is missing from a group is made again. `--all` and a replacement of the recovery run as two steps when the recovery key opens the state; [`protect recover`](#protect-recover) does that for you.
 
@@ -546,7 +551,7 @@ Some writers copy a record with the times it already had: `pravo protect rewrap 
 
 The command lists the pointers again right before it deletes, and deletes a record only if it still holds the bytes it judged, so a record that was named or replaced meanwhile stays. This part needs no key, and it does not need the state at rest. It can run while commands run, and two collections that run at the same time lose no mark that matters.
 
-**Groups.** `rewrap` leaves the old groups in `meta.json`, with a lock for each reader that is left, and a command opens one lock for each group. The data key of a reader who was removed still opens whatever is sealed in the group they were in. `gc` drops a group, other than the current one, when nothing is sealed in it: no record that a pointer names, no record that the first part spared, not `outputs.json`, no object of a stored plan, and no sealed text of the error of a transaction that failed. Run `pravo protect rewrap --all` first, so that everything is under the current group, and give a command that opened the state before the rewrap time to finish: while the last change of the readers is younger than 65 seconds, `gc` keeps every group and says so, because such a command still seals in the old group and a record sealed in a group that `meta.json` does not list any more stops the state from opening. A stored plan that an apply uses is left by `rewrap --all`, and keeps its group until the apply is done and `rewrap --all` runs again. A group with something in it is kept, and the command says what. A dropped group is gone from `meta.json` and the history gets the entry `gc`. A removed reader then holds a key that opens nothing that is left. A copy of the bucket made before still opens with it, and so does a version of `meta.json` that a bucket which keeps old versions of its objects holds: the deleted records stay there too until the lifecycle rules of the bucket remove them.
+**Groups.** The values of secrets count as sealed in the group they were written in, so a group that holds one is kept. `rewrap` leaves the old groups in `meta.json`, with a lock for each reader that is left, and a command opens one lock for each group. The data key of a reader who was removed still opens whatever is sealed in the group they were in. `gc` drops a group, other than the current one, when nothing is sealed in it: no record that a pointer names, no record that the first part spared, not `outputs.json`, no object of a stored plan, and no sealed text of the error of a transaction that failed. Run `pravo protect rewrap --all` first, so that everything is under the current group, and give a command that opened the state before the rewrap time to finish: while the last change of the readers is younger than 65 seconds, `gc` keeps every group and says so, because such a command still seals in the old group and a record sealed in a group that `meta.json` does not list any more stops the state from opening. A stored plan that an apply uses is left by `rewrap --all`, and keeps its group until the apply is done and `rewrap --all` runs again. A group with something in it is kept, and the command says what. A dropped group is gone from `meta.json` and the history gets the entry `gc`. A removed reader then holds a key that opens nothing that is left. A copy of the bucket made before still opens with it, and so does a version of `meta.json` that a bucket which keeps old versions of its objects holds: the deleted records stay there too until the lifecycle rules of the bucket remove them.
 
 This part needs an identity that is a reader, the readers file (a command that writes a sealed state compares it with the state, as above) and the state at rest: no transaction is running and no lock is held. With no identity, or one that is not a reader, `gc` collects the records, says `Groups were not looked at` and exits with 0. With a command running it collects the records and exits with 4. With a readers file that is missing, invalid or different from the state it collects the records and exits with 5 or 6, as any command that writes a sealed state does. `--dry-run` writes nothing, so it warns of the same readers file and exits with 0; a lock that is held still gives 4.
 

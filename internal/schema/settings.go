@@ -185,6 +185,40 @@ package pravo
 	value: string
 }
 
+// A secret that the sealed state of this root keeps, set with "pravo secret set".
+// It is ephemeral like #SecretEnv: it is never written to state or to a saved plan,
+// so it can be used in provider configuration, in write-only attributes and in
+// other ephemeral resources, and nowhere that is recorded. A run reads the latest
+// version of the secret when it starts, or the version asked for, and stops when
+// the secret is not there.
+//
+//	db: pravo.#Secret & {name: "prod/db_password"}
+#Secret: {
+	$kind: "secret"
+	// The name of the secret, such as prod/db_password.
+	name: string
+	// The version to read. Without it, the latest one.
+	version?: int & >=1
+	// What the secret holds.
+	value: string
+}
+
+// The number of the version of a secret that a run reads. The number is not
+// secret, so unlike #Secret this is an ordinary value, recorded where it is used.
+// Wire it to the version attribute next to a write-only attribute, such as
+// password_wo_version: a new version of the secret changes that attribute, and the
+// provider takes the new value. A run that uses both reads one version of the
+// secret.
+//
+//	rev: pravo.#SecretVersion & {name: "prod/db_password"}
+#SecretVersion: {
+	$kind: "secret_version"
+	// The name of the secret.
+	name: string
+	// The version a run reads.
+	version: int
+}
+
 // The outputs another root has recorded. Only its outputs.json is read, never
 // its resources, so a reader needs access to that one object. It is read on
 // every plan and apply, and its values are ordinary ones. An output that the

@@ -6,7 +6,7 @@
 // (what is being typed) is left out. A type, a provider or an address is matched whole, and * stands for any run of
 // characters: `type:aws_s3*`. A field term looks into the values of the records, which the server searches: `field:settings.region=eu`, and `value:vpc-0abc` looks for a value in any field. provider:aws is the provider type, whatever its instance, and instance:aws.west is that instance of it.
 
-import { isOut, isEnv } from './model.js';
+import { isOut, isEnv, isSecret } from './model.js';
 import { h, clear } from './util.js';
 
 const ALIAS = { address: 'addr', name: 'addr', namespace: 'ns', module: 'ns', action: 'plan', changes: 'plan', age: 'refreshed', fields: 'field', attr: 'field', attribute: 'field', values: 'value' };
@@ -25,15 +25,16 @@ export const providerType = (key) => (key || '').split('.')[0];
 export function entityOf(n) {
   if (isOut(n)) return 'output';
   if (isEnv(n)) return 'env';
+  if (isSecret(n)) return 'secret';
   return n.mode === 'managed' ? 'resource' : n.mode;
 }
 // ENTITY_LABEL is what the viewer calls an entity where it names a node: the kicker of the inspector
-export const ENTITY_LABEL = { resource: 'Resource', data: 'Data source', ephemeral: 'Ephemeral resource', output: 'Output', env: 'Environment variable', call: 'Call', builtin: 'Built-in value' };
-const ENTITY_ALIAS = { resources: 'resource', managed: 'resource', datasource: 'data', 'data-source': 'data', datasources: 'data', environment: 'env', outputs: 'output', ephemerals: 'ephemeral' };
-export const ENTITIES = ['resource', 'data', 'ephemeral', 'output', 'env'];
+export const ENTITY_LABEL = { resource: 'Resource', data: 'Data source', ephemeral: 'Ephemeral resource', output: 'Output', env: 'Environment variable', secret: 'Secret', call: 'Call', builtin: 'Built-in value' };
+const ENTITY_ALIAS = { resources: 'resource', managed: 'resource', datasource: 'data', 'data-source': 'data', datasources: 'data', environment: 'env', secrets: 'secret', outputs: 'output', ephemerals: 'ephemeral' };
+export const ENTITIES = ['resource', 'data', 'ephemeral', 'output', 'env', 'secret'];
 
 const HINTS = {
-  entity: 'resource, data (a data source), ephemeral, output, env (an environment variable)',
+  entity: 'resource, data (a data source), ephemeral, output, env (an environment variable), secret',
   type: 'The resource type: aws_s3_bucket, or aws_s3* for a run of them',
   provider: 'The provider type, as in provider:aws: every instance of it',
   instance: 'A provider instance, by its whole key: aws.$west, or aws for a provider that has one',
@@ -70,6 +71,7 @@ export const LEGACY_FILTERS = {
   declared: { col: 'status', value: 'declared' },
   outputs: { col: 'entity', value: 'output' },
   env: { col: 'entity', value: 'env' },
+  secret: { col: 'entity', value: 'secret' },
 };
 
 // fieldHits holds what the server answered for each field spec (path=value, as written): the addresses of the nodes. A spec

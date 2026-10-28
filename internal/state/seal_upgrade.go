@@ -644,5 +644,8 @@ func (s *Store) reseal(ctx context.Context, o RewrapOptions, res *RewrapResult) 
 	if err := s.resealSummaries(ctx, current); err != nil {
 		return n, err
 	}
+	if err := s.resealSecrets(ctx, current); err != nil {
+		return n, err
+	}
 	return n, s.sweepRecords(func(group string) bool { return group == current })
 }
