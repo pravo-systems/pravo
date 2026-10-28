@@ -9,11 +9,11 @@
 # (the cheat sheets and the labs), commands (the rest of the reference), and slow:
 # the pages that wait for a minute, found by the `sleep` of ten seconds or more in
 # them, and the lab that waits for a key. The slow ones have a job of their own
-# that a pull request runs when it changes what they are about (the slow flag of
+# that a pull request runs when it changes what they are about (the waits flag of
 # tools/ci/changes.sh) or one of the pages itself; main runs it always.
 #
 # A pull request that does not change the binary checks only the pages that it
-# changed. Set CI_EVENT, CI_BINARY and CI_SLOW as the workflow does.
+# changed. Set CI_EVENT, CI_BINARY and CI_WAITS as the workflow does.
 set -eu
 cd "$(dirname "$0")/../.."
 
@@ -60,7 +60,7 @@ fi
 pages=$(shard "$what")
 if [ "${CI_EVENT:-}" = pull_request ]; then
 	whole=${CI_BINARY:-false}
-	[ "$what" != slow ] || whole=${CI_SLOW:-false}
+	[ "$what" != slow ] || whole=${CI_WAITS:-false}
 	if [ "$whole" != true ]; then
 		changed=$(git diff --name-only HEAD^1 HEAD)
 		if [ -z "$changed" ]; then pages=""; else pages=$(echo "$pages" | { grep -x -F "$changed" || true; }); fi

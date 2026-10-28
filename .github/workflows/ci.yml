@@ -40,6 +40,7 @@ jobs:
       hcl: ${{ steps.c.outputs.hcl }}
       platform: ${{ steps.c.outputs.platform }}
       slow: ${{ steps.c.outputs.slow }}
+      waits: ${{ steps.c.outputs.waits }}
       limit: ${{ steps.c.outputs.limit }}
     steps:
       - uses: actions/checkout@v7
@@ -305,7 +306,7 @@ jobs:
     env:
       CI_EVENT: ${{ github.event_name }}
       CI_BINARY: ${{ needs.changes.outputs.binary }}
-      CI_SLOW: ${{ needs.changes.outputs.slow }}
+      CI_WAITS: ${{ needs.changes.outputs.waits }}
       SHARD: ${{ matrix.shard }}
     strategy:
       fail-fast: false
