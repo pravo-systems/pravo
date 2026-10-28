@@ -1,0 +1,31 @@
+name: Go with a build cache
+description: >
+  Installs the Go of go.mod and restores the build and module caches that the
+  last run on main saved. setup-go's own cache is left off: it is saved once for
+  each go.sum, by whichever job gets there first, so the compiled packages of
+  the other platforms and of -race never make it in.
+inputs:
+  key:
+    description: Name of the cache. Jobs that compile the same things share one.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache: false
+    - id: dirs
+      shell: bash
+      run: |
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache/restore@v6
+      with:
+        path: |
+          ${{ steps.dirs.outputs.build }}
+          ${{ steps.dirs.outputs.mod }}
+        key: go-${{ runner.os }}-${{ inputs.key }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ inputs.key }}-${{ hashFiles('go.sum') }}-
+          go-${{ runner.os }}-${{ inputs.key }}-

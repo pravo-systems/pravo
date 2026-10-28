@@ -29,9 +29,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: static
       - name: gofmt
         run: |
           unformatted=$(gofmt -l .)
@@ -48,9 +48,18 @@ jobs:
           git diff --exit-code go.mod go.sum
       - name: Build for every platform
         run: |
+          # All six at once: they share the module cache and compile different files.
+          pids=""
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-            GOOS=${target%/*} GOARCH=${target#*/} go build ./... && echo "built $target"
+            (GOOS=${target%/*} GOARCH=${target#*/} go build ./... && echo "built $target") &
+            pids="$pids $!"
           done
+          status=0
+          for pid in $pids; do wait "$pid" || status=1; done
+          exit $status
+      - uses: ./.github/actions/go-save
+        with:
+          key: static
 
   # golangci-lint (.golangci.yml) on the files of each platform that pravo
   # supports, next to the other jobs and waited for by none of them. The binary,
@@ -106,18 +115,22 @@ jobs:
       - run: npm --prefix tools/_weblint ci
       - run: npm --prefix tools/_weblint run lint
 
-  # The Go tests, split by package so that the long ones run side by side.
+  # The Go tests, split by package so that the long ones run side by side. On a
+  # pull request the stress tests of the engine run with -short, which keeps
+  # their shapes and cuts the number of trials; main and the release run them in full.
   test:
     name: test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    env:
+      SHORT: ${{ github.event_name == 'pull_request' && '-short' || '' }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: engine, race
             os: ubuntu-latest
-            run: go test -race -count=1 ./internal/engine
+            run: go test -race -count=1 $SHORT ./internal/engine
           - name: state, race
             os: ubuntu-latest
             run: go test -race -count=1 ./internal/state/...
@@ -132,19 +145,28 @@ jobs:
             run: go test -count=1 ./internal/state/... ./cmd/...
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: test
+      - name: Temporary files in memory
+        if: runner.os == 'Linux'
+        run: echo "TMPDIR=/dev/shm" >> "$GITHUB_ENV"
       - run: ${{ matrix.run }}
+      - uses: ./.github/actions/go-save
+        with:
+          key: test
 
   # The Go tests on Windows, where file operations are slow: the engine tests
-  # are dealt out to eight jobs, and everything else runs in one. The build and
+  # are dealt out to four jobs and everything else to two. Like the Linux tests,
+  # they run with -short on a pull request. The build and
   # vet for Windows are in the static job. The documentation tools run a POSIX
   # shell and are not part of this.
   windows:
     name: windows (${{ matrix.name }})
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      SHORT: ${{ github.event_name == 'pull_request' && '-short' || '' }}
     defaults:
       run:
         shell: bash
@@ -152,21 +174,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: "engine 1/8", run: "sh tools/ci/test-shard.sh ./internal/engine 0 8 -v -timeout 25m"}
-          - {name: "engine 2/8", run: "sh tools/ci/test-shard.sh ./internal/engine 1 8 -v -timeout 25m"}
-          - {name: "engine 3/8", run: "sh tools/ci/test-shard.sh ./internal/engine 2 8 -v -timeout 25m"}
-          - {name: "engine 4/8", run: "sh tools/ci/test-shard.sh ./internal/engine 3 8 -v -timeout 25m"}
-          - {name: "engine 5/8", run: "sh tools/ci/test-shard.sh ./internal/engine 4 8 -v -timeout 25m"}
-          - {name: "engine 6/8", run: "sh tools/ci/test-shard.sh ./internal/engine 5 8 -v -timeout 25m"}
-          - {name: "engine 7/8", run: "sh tools/ci/test-shard.sh ./internal/engine 6 8 -v -timeout 25m"}
-          - {name: "engine 8/8", run: "sh tools/ci/test-shard.sh ./internal/engine 7 8 -v -timeout 25m"}
-          - {name: "other packages", run: "go test -count=1 -timeout 25m $(go list ./internal/... ./cmd/... | grep -v '/internal/engine$')"}
+          - {name: "engine 1/4", run: "sh tools/ci/test-shard.sh ./internal/engine 0 4 -v -timeout 25m $SHORT"}
+          - {name: "engine 2/4", run: "sh tools/ci/test-shard.sh ./internal/engine 1 4 -v -timeout 25m $SHORT"}
+          - {name: "engine 3/4", run: "sh tools/ci/test-shard.sh ./internal/engine 2 4 -v -timeout 25m $SHORT"}
+          - {name: "engine 4/4", run: "sh tools/ci/test-shard.sh ./internal/engine 3 4 -v -timeout 25m $SHORT"}
+          - {name: "other packages 1/2", run: "go test -count=1 -timeout 25m $SHORT $(go list ./internal/... ./cmd/... | grep -v '/internal/engine$' | awk 'NR%2==0')"}
+          - {name: "other packages 2/2", run: "go test -count=1 -timeout 25m $SHORT $(go list ./internal/... ./cmd/... | grep -v '/internal/engine$' | awk 'NR%2==1')"}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: windows
       - run: ${{ matrix.run }}
+      - uses: ./.github/actions/go-save
+        with:
+          key: windows
 
   # The tools of the documentation: capture, sitegen, hclcheck and the scale
   # benchmark. Their tests start the binary and some of them run tofu.
@@ -175,14 +197,17 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: tools
       - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
       - run: go test -count=1 ./tools/...
+      - uses: ./.github/actions/go-save
+        with:
+          key: tools
 
   # Every command of every page of the documentation runs against the real
   # binary, and its output is compared with the page. One job for each section.
@@ -196,9 +221,9 @@ jobs:
         section: [concepts, how-to, learn, migrate, reference]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: tools
       - name: Cache the providers that the pages download
         uses: actions/cache@v6
         with:
@@ -211,6 +236,9 @@ jobs:
         run: go build -o bin/pravo ./cmd/pravo
       - name: Check the pages
         run: go run ./tools/capture -check -j 4 -bin bin/pravo ./docs/${{ matrix.section }}
+      - uses: ./.github/actions/go-save
+        with:
+          key: tools
 
   # The recorded scenarios behind the landing page and the demos. They run
   # OpenTofu next to pravo.
@@ -219,9 +247,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: tools
       - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
@@ -233,6 +261,9 @@ jobs:
           restore-keys: pravo-home-${{ runner.os }}-demos-
       - run: go build -o bin/pravo ./cmd/pravo
       - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos
+      - uses: ./.github/actions/go-save
+        with:
+          key: tools
 
   # The OpenTofu listings of the documentation are valid, and the statements
   # about OpenTofu that the pages make still hold.
@@ -241,9 +272,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: tools
       - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
@@ -255,6 +286,9 @@ jobs:
           restore-keys: hclcheck-plugins-
       - run: go run ./tools/hclcheck -j 4 -cache ~/hclcheck-plugins
       - run: sh tools/hclcheck/claims.sh
+      - uses: ./.github/actions/go-save
+        with:
+          key: tools
 
   # The site builds, the phrase lint passes, every link resolves and the facts
   # on the landing page are the ones that the sources give.
@@ -263,12 +297,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/go
         with:
-          go-version-file: go.mod
+          key: tools
       - run: go build -o bin/pravo ./cmd/pravo
       - run: go run ./tools/sitegen -pravo-bin bin/pravo
       - run: go run site/demos/facts/facts.go -check
+      - uses: ./.github/actions/go-save
+        with:
+          key: tools
 
   # One check to require in the branch protection settings.
   ci:
