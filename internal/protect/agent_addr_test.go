@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/env"
 )
@@ -56,6 +57,11 @@ func TestIdentityAgentOf(t *testing.T) {
 	}
 }
 
+// sshPatience is how long a test lets the real ssh take. The first start of ssh on a loaded
+// Windows runner can take longer than the time a run gives it, and the test is about what ssh
+// reports, not about how fast it starts.
+const sshPatience = 30 * time.Second
+
 // Against the real ssh, with a configuration of the test's own.
 func TestConfiguredAgentReadsTheSSHConfiguration(t *testing.T) {
 	if _, err := exec.LookPath("ssh"); err != nil {
@@ -71,20 +77,20 @@ func TestConfiguredAgentReadsTheSSHConfiguration(t *testing.T) {
 	}
 	sock := filepath.Join(dir, "Group Containers", "agent.sock")
 	named := write("named", "Host *\n\tIdentityAgent \""+sock+"\"\n")
-	if got := configuredAgent("-F", named); got != sock {
+	if got := configuredAgent(sshPatience, "-F", named); got != sock {
 		t.Errorf("a configuration that names an agent: %q, want %q", got, sock)
 	}
-	if got := configuredAgent("-F", write("none", "Host *\n\tIdentityAgent none\n")); got != "" {
+	if got := configuredAgent(sshPatience, "-F", write("none", "Host *\n\tIdentityAgent none\n")); got != "" {
 		t.Errorf("none: %q", got)
 	}
-	if got := configuredAgent("-F", write("empty", "Host *\n\tUser ada\n")); got != "" {
+	if got := configuredAgent(sshPatience, "-F", write("empty", "Host *\n\tUser ada\n")); got != "" {
 		t.Errorf("a configuration without one: %q", got)
 	}
 	// An entry for another host is not the entry of this one.
-	if got := configuredAgent("-F", write("other", "Host example.com\n\tIdentityAgent /run/other\n")); got != "" {
+	if got := configuredAgent(sshPatience, "-F", write("other", "Host example.com\n\tIdentityAgent /run/other\n")); got != "" {
 		t.Errorf("another host: %q", got)
 	}
-	if got := configuredAgent("-F", filepath.Join(dir, "missing")); got != "" {
+	if got := configuredAgent(sshPatience, "-F", filepath.Join(dir, "missing")); got != "" {
 		t.Errorf("a configuration that is not there: %q", got)
 	}
 }
