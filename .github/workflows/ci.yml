@@ -312,7 +312,7 @@ jobs:
       matrix:
         # The pages of each section (tools/ci/pages.sh); slow is the pages that wait
         # for a minute.
-        shard: [concepts, how-to, learn, labs, commands, slow]
+        shard: [concepts, cue, how-to, learn, labs, commands, slow]
     steps:
       - uses: actions/checkout@v7
         with:

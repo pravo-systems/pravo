@@ -4,10 +4,11 @@
 #   sh tools/ci/pages.sh SHARD     the pages of a shard
 #   sh tools/ci/pages.sh check     every page is in exactly one shard
 #
-# The shards are concepts (concepts, migration, the specification, the policies,
-# and the CUE lessons), how-to, learn (the lessons about pravo), labs (the cheat
-# sheets and the labs), commands (the rest of the reference), and slow: the pages that wait for a minute, found by the
-# `sleep` of ten seconds or more in them. The slow ones have a job of their own
+# The shards are concepts (the concepts and the migration), cue (the CUE lessons,
+# the specification and the policies), how-to, learn (the lessons about pravo), labs
+# (the cheat sheets and the labs), commands (the rest of the reference), and slow:
+# the pages that wait for a minute, found by the `sleep` of ten seconds or more in
+# them, and the lab that waits for a key. The slow ones have a job of their own
 # that a pull request runs when it changes what they are about (the slow flag of
 # tools/ci/changes.sh) or one of the pages itself; main runs it always.
 #
@@ -16,11 +17,16 @@
 set -eu
 cd "$(dirname "$0")/../.."
 
-slow() { find docs -name '*.md' | sort | xargs grep -l -E '^sleep [0-9]{2,}' || true; }
+# lab2 waits for the generation of an RSA key of 8192 bits, which takes between ten
+# seconds and a minute whatever the machine.
+slow() {
+	{ find docs -name '*.md' | xargs grep -l -E '^sleep [0-9]{2,}' || true; echo docs/learn/lab2-two-applies-at-once.md; } | sort
+}
 
 members() {
 	case $1 in
-	concepts) ls docs/concepts/*.md docs/migrate/*.md docs/learn/a*.md docs/learn/cue*.md docs/reference/spec-*.md docs/reference/policies-*.md docs/reference/policy.md ;;
+	concepts) ls docs/concepts/*.md docs/migrate/*.md ;;
+	cue) ls docs/learn/a*.md docs/learn/cue*.md docs/reference/spec-*.md docs/reference/policies-*.md docs/reference/policy.md ;;
 	how-to) ls docs/how-to/*.md ;;
 	learn) ls docs/learn/b*.md docs/learn/index.md ;;
 	labs) ls docs/learn/c[0-9]*.md docs/learn/lab*.md ;;
@@ -39,10 +45,10 @@ slowlist=$(mktemp)
 trap 'rm -f "$slowlist"' EXIT
 slow > "$slowlist"
 
-what=${1:?usage: sh tools/ci/pages.sh concepts|how-to|learn|labs|commands|slow|check}
+what=${1:?usage: sh tools/ci/pages.sh concepts|cue|how-to|learn|labs|commands|slow|check}
 if [ "$what" = check ]; then
 	status=0
-	listed=$( { for s in concepts how-to learn labs commands slow; do shard $s; done; } | sort)
+	listed=$( { for s in concepts cue how-to learn labs commands slow; do shard $s; done; } | sort)
 	dup=$(echo "$listed" | uniq -d)
 	[ -z "$dup" ] || { echo "pages: in more than one shard:"; echo "$dup"; status=1; }
 	# AUTHORING.md tells how to write a page and is not one.
