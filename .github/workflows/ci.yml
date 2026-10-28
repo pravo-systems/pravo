@@ -229,17 +229,17 @@ jobs:
         with:
           key: test
 
-  # The same tests on Windows and macOS, where file operations and locks behave
-  # differently, and where the runners are slow to start. A pull request runs
-  # them when it changes a file for one system or a package that works with
-  # files, locks or processes; main and the release run them always. The build,
-  # vet and lint for Windows and macOS are in the jobs above and run every time.
-  # The documentation tools run a POSIX shell and are not part of this.
+  # The same tests on Windows, where file operations and locks behave differently
+  # and the runners are slow. A pull request runs them when it changes a file for
+  # one system or a package that works with files, locks or processes; main and
+  # the release run them always. The build, vet and lint for Windows and macOS
+  # are in the jobs above and run every time. The documentation tools run a POSIX
+  # shell and are not part of this.
   other-systems:
-    name: ${{ matrix.os }} (${{ matrix.name }})
+    name: windows (${{ matrix.name }})
     needs: changes
     if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || needs.changes.outputs.platform == 'true')
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: windows-latest
     timeout-minutes: 20
     env:
       CI_EVENT: ${{ github.event_name }}
@@ -252,12 +252,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: windows, name: "engine: locks and applies", run: "sh tools/ci/gotest.sh engine in 'applylocks_test.go interrupt_test.go apply_scope_test.go' -v -timeout 25m $SHORT"}
-          - {os: windows, name: "engine: equivalence", run: "sh tools/ci/gotest.sh engine in 'equivalence_test.go' -v -timeout 25m $SHORT"}
-          - {os: windows, name: "engine: plans and discovery", run: "sh tools/ci/gotest.sh engine out 'applylocks_test.go interrupt_test.go apply_scope_test.go equivalence_test.go' -v -timeout 25m $SHORT"}
-          - {os: windows, name: "commands and viewer", run: "sh tools/ci/gotest.sh commands -timeout 25m $SHORT"}
-          - {os: windows, name: "state and libraries", run: "sh tools/ci/gotest.sh libraries -timeout 25m $SHORT"}
-          - {os: macos, name: "state and cmd", run: "sh tools/ci/gotest.sh state && sh tools/ci/gotest.sh cmd"}
+          - {name: "engine: locks and applies", run: "sh tools/ci/gotest.sh engine in 'applylocks_test.go interrupt_test.go apply_scope_test.go' -v -timeout 25m $SHORT"}
+          - {name: "engine: equivalence", run: "sh tools/ci/gotest.sh engine in 'equivalence_test.go' -v -timeout 25m $SHORT"}
+          - {name: "engine: plans and discovery", run: "sh tools/ci/gotest.sh engine out 'applylocks_test.go interrupt_test.go apply_scope_test.go equivalence_test.go' -v -timeout 25m $SHORT"}
+          - {name: "commands and viewer", run: "sh tools/ci/gotest.sh commands -timeout 25m $SHORT"}
+          - {name: "state and libraries", run: "sh tools/ci/gotest.sh libraries -timeout 25m $SHORT"}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -266,6 +265,29 @@ jobs:
         with:
           key: tests
       - run: ${{ matrix.run }}
+      - if: ${{ !cancelled() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: tests
+
+  # The tests of the packages that work with files and locks, on macOS. The
+  # runners are scarce: a job has waited five minutes for one. Only main and the
+  # release run it.
+  macos:
+    name: macos (state and cmd)
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      CI_EVENT: ${{ github.event_name }}
+      CI_ALL: ${{ needs.changes.outputs.all }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: tests
+      - run: sh tools/ci/gotest.sh state && sh tools/ci/gotest.sh cmd
       - if: ${{ !cancelled() }}
         uses: ./.github/actions/go-save
         with:
@@ -422,7 +444,7 @@ jobs:
   # One check to require in the branch protection settings.
   ci:
     if: always()
-    needs: [changes, static, lint, lint-web, test, other-systems, tools, docs, demos, opentofu, site]
+    needs: [changes, static, lint, lint-web, test, other-systems, macos, tools, docs, demos, opentofu, site]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed
