@@ -5,7 +5,8 @@
 #   sh tools/ci/pages.sh check     every page is in exactly one shard
 #
 # The shards are concepts (the concepts and the migration), cue (the CUE lessons,
-# the specification and the policies), how-to, learn (the lessons about pravo), labs
+# the specification and the policies), how-to, learn (the lessons about pravo and
+# the lessons of the team track), labs
 # (the cheat sheets and the labs), commands (the rest of the reference), and slow:
 # the pages that wait for a minute, found by the `sleep` of ten seconds or more in
 # them, and the lab that waits for a key. The slow ones have a job of their own
@@ -28,7 +29,7 @@ members() {
 	concepts) ls docs/concepts/*.md docs/migrate/*.md ;;
 	cue) ls docs/learn/a*.md docs/learn/cue*.md docs/reference/spec-*.md docs/reference/policies-*.md docs/reference/policy.md ;;
 	how-to) ls docs/how-to/*.md ;;
-	learn) ls docs/learn/b*.md docs/learn/index.md ;;
+	learn) ls docs/learn/b*.md docs/learn/d*.md docs/learn/index.md ;;
 	labs) ls docs/learn/c[0-9]*.md docs/learn/lab*.md ;;
 	commands) find docs/reference -name '*.md' ! -name 'spec-*' ! -name 'policies-*' ! -name policy.md ;;
 	*) echo "pages: unknown shard $1" >&2; exit 2 ;;
