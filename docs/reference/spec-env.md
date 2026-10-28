@@ -215,7 +215,7 @@ version: int
 
 - **One version for a run.** The first node of a run that names a secret without a version decides which version it is, and the other nodes follow. A value and the number that rotates it belong together even when someone sets the secret while the run goes.
 - **Read again at every plan and apply.** A plan file holds no value, and an apply from it reads the secret again. If a new version was set since the plan was made and the specification reads its number, the apply stops with exit code 3 and you make the plan again.
-- **A secret that cannot be read stops the run.** A secret that is not set, was removed, or whose version was purged stops it before any provider starts, with the command that mends it. A version that the [roles](protect.md#roles) refuse stops it with exit code 7.
+- **A secret that cannot be read stops the run.** A secret that is not set, was removed, or whose version was purged stops it before any provider starts, with the command that mends it. When several nodes read secrets that cannot be read, the message names the first of them by address. A version that the [roles](protect.md#roles) refuse stops it with exit code 7.
 - **Rotation.** A write-only attribute is never stored, so the provider cannot see that the value changed. Wire `#SecretVersion` to the number that sits next to it, such as `password_wo_version`, and a new version of the secret changes that attribute. [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) does this with a certificate.
 
 ## remote outputs

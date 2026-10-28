@@ -21,9 +21,13 @@ import (
 //  2. the IdentityAgent that `ssh -G` reports for a host with no entry of its own;
 //  3. $SSH_AUTH_SOCK.
 
+// agentProbeTimeout is how long a run waits for ssh to report its configuration. The agent may
+// not be needed, so a run that finds ssh slow goes on without the IdentityAgent.
+const agentProbeTimeout = 3 * time.Second
+
 // agentFromConfig is the IdentityAgent of the ssh configuration, found once for a
 // process. A test replaces it.
-var agentFromConfig = sync.OnceValue(func() string { return configuredAgent() })
+var agentFromConfig = sync.OnceValue(func() string { return configuredAgent(agentProbeTimeout) })
 
 // agentEnv is the environment the address of the agent is read from: the one
 // SetAgentEnv gave. The agent is reached from deep in the signing of a
@@ -50,14 +54,15 @@ func AgentAddress() string {
 	return e.Get("SSH_AUTH_SOCK")
 }
 
-// configuredAgent asks ssh for its IdentityAgent. args come before the host name
-// (a test gives -F). Any failure is "": there is no ssh to ask, or it has none.
-func configuredAgent(args ...string) string {
+// configuredAgent asks ssh for its IdentityAgent, and waits for it no longer than timeout. args
+// come before the host name (a test gives -F). Any failure is "": there is no ssh to ask, or it
+// has none, or it was too slow.
+func configuredAgent(timeout time.Duration, args ...string) string {
 	path, err := exec.LookPath("ssh")
 	if err != nil {
 		return ""
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, path, append(append([]string{"-G"}, args...), "pravo")...).Output()
 	if err != nil {
