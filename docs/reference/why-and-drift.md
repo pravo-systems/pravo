@@ -34,6 +34,7 @@ normalize:
 | `--store` | `drift` | off | With `--plan`: store the plan in the state, as [`pravo plan --store`](plan.md) does, to be listed, approved and applied by its id. It is an error without `--plan`. |
 | `--ttl SPAN` | `drift` | `7d` | With `--store`: keep the plan this long if it is not applied (`90m`, `36h`, `7d`). It is an error without `--store`. |
 | `--webhook URL` | `drift`, `plan approve`, `apply` | none | POST to `URL`: the report for a plain `drift`, an [event](#events) for `drift --plan`, `plan approve` and the apply of a stored plan. |
+| `--markdown` | `drift` | off | Print the report as Markdown for an issue or a comment: a table of the resources that changed and what happened, and with `--plan` the plan as [`pravo plan --markdown`](plan.md#markdown) prints it. No value is printed. Not with `--json`. |
 | `-t`, `--tag key=value`, `-T` | both | none | Tags, as for `pravo plan`. |
 
 The [global flags](global-flags.md) apply.

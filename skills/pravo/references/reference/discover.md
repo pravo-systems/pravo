@@ -40,6 +40,7 @@ For each discovery it prints the name, the type and the provider instance, the s
 | Flag | Default | Meaning |
 |---|---|---|
 | `--exit-code` | off | Exit 2 when an object that is shown is unmanaged. |
+| `--markdown` | off | Print the findings as Markdown for an issue or a comment: for each discovery its counts and a table of the unmanaged objects, each with the command that adopts it. Not with `--json`. |
 | `--managed` | off | List the managed objects too. |
 
 ## pravo discover adopt

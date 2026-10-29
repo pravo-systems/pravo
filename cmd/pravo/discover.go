@@ -141,6 +141,9 @@ With --exit-code the command exits 2 when any discovery shown has an unmanaged
 object, so that a schedule can tell someone.`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkMarkdown(); err != nil {
+				return err
+			}
 			s, err := newSession(cmd.Context(), sessionOptions{loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
@@ -165,7 +168,11 @@ object, so that a schedule can tell someone.`,
 			for _, v := range views {
 				unmanaged += v.Counts[engine.Unmanaged]
 			}
-			if flags.JSON {
+			if flags.Markdown {
+				if err := emitMarkdown(discoveryMarkdown(views)); err != nil {
+					return err
+				}
+			} else if flags.JSON {
 				names := make([]string, len(views))
 				for i, v := range views {
 					names[i] = v.Name
@@ -192,6 +199,7 @@ object, so that a schedule can tell someone.`,
 	}
 	cmd.Flags().BoolVar(&exitCode, "exit-code", false, "exit 2 when an unmanaged object is shown")
 	cmd.Flags().BoolVar(&managed, "managed", false, "list the managed objects too")
+	cmd.Flags().BoolVar(&flags.Markdown, "markdown", false, "print what was found as Markdown for an issue or a comment: names and counts, never values")
 	addTagFlags(cmd)
 	return cmd
 }

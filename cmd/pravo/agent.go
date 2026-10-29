@@ -367,6 +367,9 @@ The plan holds the pending changes of the specification too: apply it with
 instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 (a policy refused the plan). Exit code 2 still means drift was found.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkMarkdown(); err != nil {
+				return err
+			}
 			if due && (makePlan || store) {
 				return errors.New("--plan and --store do not go with --due: a plan reads every resource")
 			}
@@ -414,7 +417,11 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 					return err
 				}
 			}
-			if flags.JSON {
+			if flags.Markdown {
+				if err := emitMarkdown(driftMarkdown(report, proposal)); err != nil {
+					return err
+				}
+			} else if flags.JSON {
 				if proposal != nil {
 					err = emitJSON(proposal)
 				} else {
@@ -434,7 +441,7 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 					}
 				}
 			}
-			if proposal != nil && !flags.JSON {
+			if proposal != nil && !flags.JSON && !flags.Markdown {
 				proposal.print()
 			}
 			if len(report.Drifted) > 0 {
@@ -449,6 +456,7 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 	cmd.Flags().StringVar(&ttlText, "ttl", "", "with --store: keep the plan this long if it is not applied (90m, 36h, 7d; the default is 7d)")
 	cmd.Flags().BoolVar(&due, "due", false, "read only the records that are older than their refresh age, oldest first, and plan nothing")
 	cmd.Flags().IntVar(&limit, "limit", 0, "with --due: read at most this many records")
+	cmd.Flags().BoolVar(&flags.Markdown, "markdown", false, "print the report as Markdown for an issue or a comment: names and actions, never values")
 	addTagFlags(cmd)
 	return cmd
 }
@@ -467,6 +475,10 @@ func driftDue(cmd *cobra.Command, s *session, limit int, webhook string) error {
 		}
 	}
 	switch {
+	case flags.Markdown:
+		if err := emitMarkdown(dueMarkdown(rep)); err != nil {
+			return err
+		}
 	case flags.JSON:
 		if err := emitJSON(report); err != nil {
 			return err
