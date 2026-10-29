@@ -138,7 +138,7 @@ One task each, for a reader who knows the basics.
 |---|---|---|
 | [how-to/explore-your-estate.md](how-to/explore-your-estate.md) | Start pravo serve, read the graph, find a resource, open and close groups, read the source and the history of a resource, overlay a plan, read what your team planned, find drift, see the policies, read a recorded run, share a view and see who can read the state. | 35 KB |
 | [how-to/record-what-a-run-does.md](how-to/record-what-a-run-does.md) | Keep a trace of every command in the project, read it in the viewer as a timeline, find the slow resource and the call that failed, see the requests a run made over the network, and send the same spans to a collector. | 13 KB |
-| [how-to/ask-questions-about-your-estate.md](how-to/ask-questions-about-your-estate.md) | Turn on the read-only assistant of the viewer with environment variables, point it at Anthropic, OpenRouter or a model on your machine, ask in words, follow the links in an answer, read what was sent to the model and start a new chat. | 8 KB |
+| [how-to/ask-questions-about-your-estate.md](how-to/ask-questions-about-your-estate.md) | Turn on the read-only assistant of the viewer with environment variables, point it at Anthropic, OpenRouter or a model on your machine, ask in words, follow the links in an answer, read what was sent to the model and start a new chat. | 9 KB |
 | [how-to/debugging.md](how-to/debugging.md) | Read an evaluation error, ask pravo what it decided with -v, ask why a resource changes, check for drift and follow a run in a trace. | 15 KB |
 
 ### Operate

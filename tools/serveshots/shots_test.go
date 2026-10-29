@@ -78,6 +78,7 @@ var wantViews = []string{
 	"history", "plans-team", "policies", "policy-pending", "studio", "discovery", "traces", "trace-span", "traces-slowest", "members",
 	"b02-plan", "b03-state", "b05-groups", "b06-source", "b08-move", "b09-drift", "b10-discovery", "b11-policies", "c02-plans",
 	"c05-studio-shape", "c05-studio-template", "c05-studio-resources", "c05-studio-typo", "c06-waits", "c06-approved",
+	"ask-notice", "ask-answer", "ask-sent",
 }
 
 func TestShotListIsConsistent(t *testing.T) {
@@ -339,7 +340,7 @@ func TestTeamShotsNameStepsOfTheTeam(t *testing.T) {
 func TestStudioShotsTypeTheRulesOfTheScenario(t *testing.T) {
 	n := 0
 	for _, s := range allShots() {
-		if s.Script == "" || strings.Contains(s.Script, "const reason =") {
+		if s.Script == "" || s.Chat || strings.Contains(s.Script, "const reason =") {
 			continue
 		}
 		n++

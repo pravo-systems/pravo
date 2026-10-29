@@ -301,6 +301,9 @@ type Shot struct {
 	// into the policy studio. It is the body of an async function and may
 	// await; the page then gets to settle again.
 	Script string
+	// Chat starts the viewer with the assistant on, talking to the model that
+	// the program serves.
+	Chat bool
 }
 
 // scale is the device scale factor of every shot.
@@ -372,6 +375,12 @@ func allShots() []Shot {
 	scripted := func(script string, shots []Shot) []Shot {
 		for i := range shots {
 			shots[i].Script = script
+		}
+		return shots
+	}
+	chatty := func(shots []Shot) []Shot {
+		for i := range shots {
+			shots[i].Chat = true
 		}
 		return shots
 	}
@@ -473,6 +482,12 @@ func allShots() []Shot {
 		both("c06-waits", "c06-waits", situationTeam, Fragment{View: "plans", Plan: "@retire"}))...)
 	s = append(s, scripted(openPlanScript("retire the pet"),
 		both("c06-approved", "c06", situationTeam, Fragment{View: "plans", Plan: "@retire"}))...)
+	// The assistant, over the Plans section of the estate where three people
+	// stored a plan: the notice that a browser shows the first time, an answer
+	// to a question about the plans, and what was sent to the model for it.
+	s = append(s, chatty(scripted(askScript(false, false), both("ask-notice", "platform", situationStored, Fragment{View: "plans"})))...)
+	s = append(s, chatty(scripted(askScript(true, false), both("ask-answer", "platform", situationStored, Fragment{View: "plans"})))...)
+	s = append(s, chatty(scripted(askScript(true, true), both("ask-sent", "platform", situationStored, Fragment{View: "plans"})))...)
 	return s
 }
 

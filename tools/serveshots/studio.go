@@ -102,3 +102,43 @@ func withBound(text, from, to string) string {
 	}
 	return strings.Replace(text, from, to, 1)
 }
+
+// askScript is the script of a shot of the assistant. It opens the panel, with
+// the button that a person presses. With answer it takes the notice, types the
+// question and waits for the answer; with sent it opens what was sent.
+func askScript(answer, sent bool) string {
+	return scriptPrelude + fmt.Sprintf(askJS, answer, sent, jsString(chatQuestion))
+}
+
+func jsString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
+const askJS = `
+const answer = %t, sent = %t, question = %s;
+const btn = await until(() => { const b = document.getElementById('ask-btn'); return b && !b.hidden ? b : null; }, 'the Ask button');
+btn.click();
+if (!answer) {
+  await until(() => document.querySelector('#chat .note'), 'the notice');
+} else {
+  const on = await until(() => document.querySelector('#chat .note .btn.primary, #chat textarea'), 'the notice or the box');
+  if (on.tagName === 'BUTTON') on.click();
+  const ta = await until(() => document.querySelector('#chat textarea'), 'the box for the question');
+  ta.value = question;
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  await until(() => document.querySelector('#chat .go.on'), 'the send button');
+  document.querySelector('#chat .go').click();
+  await until(() => document.querySelector('#chat .a'), 'the answer');
+  if (sent) {
+    const led = await until(() => document.querySelector('#chat .ledger > summary'), 'what was sent');
+    led.click();
+    const row = await until(() => document.querySelector('#chat .ledger .row > summary'), 'a read');
+    row.click();
+    const log = document.querySelector('#chat .chat-log');
+    log.scrollTop = log.scrollHeight;
+  }
+}
+if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+return true;
+`

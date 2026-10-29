@@ -6,7 +6,7 @@ Turn on the read-only assistant of the viewer with environment variables, point 
 
 The viewer can answer a question in words: why a resource is replaced, what a change reaches, which plans wait for an approval, what the last run did. A language model writes the answer, and it can only read what the viewer already shows. It is off unless you turn it on. [The assistant](../concepts/the-assistant.md) explains what it reads, what leaves the machine and what it can never do, and [`pravo serve`](../reference/serve.md#the-assistant) lists the flags. This page turns it on, asks, and checks what was sent.
 
-`tools/capture` does not run this page, because it needs a key or a model that the documentation build does not have. The lines that `pravo serve` prints are from a run with the settings for a local model in step 1.
+`tools/capture` does not run this page, because it needs a key or a model that the documentation build does not have. The lines that `pravo serve` prints are from a run with the settings for a local model in step 1. The pictures are of the `platform` estate after three people stored a plan, and the model in them is a stand-in that `tools/serveshots` serves on the address of a local model. It makes one read of the stored plans and writes its answer from what that read returns, so the picture shows what the viewer really sent, and shows nothing of how a real model would phrase an answer.
 
 ## 1. Choose a provider
 
@@ -55,6 +55,8 @@ The first line is printed only when the assistant is on. It names the provider, 
 
 Press `c`, or choose the speech-bubble button in the bar. The first time, in each browser, the panel shows a notice instead of a chat: the provider, the model and the host; that the key is read from the environment of `pravo serve` and never reaches the page; what is sent, what is never sent, which reads the model has, and that every answer lists what was sent for it. Choose Turn on for this project to go on. The choice is kept in the browser, and not in the state or in the project, so that another browser asks again.
 
+*Figure: The notice that the panel shows the first time in a browser, over the Plans section of the platform estate.*
+
 ## 4. Ask
 
 The panel takes the place of the inspector at the right of every section. It shows what the question is about: the resource that is selected, the plan that is open, or the whole estate. A cross on the resource takes it out, and a question then does not assume it. Two buttons above the box offer a question to start from: for the whole estate, what needs attention and what changed last, and for a selected resource, what reaches it and why it is like this. Type a question and press Enter, or Shift-Enter for a new line.
@@ -63,11 +65,15 @@ While the model works, the panel lists each read as it happens, `node api.servic
 
 A command that would help is written in a box with a button that copies it, and under it, `Run it yourself. This page runs nothing.` The assistant has no way to run a command, and neither has the page.
 
+*Figure: An answer about the stored plans. The names are links, the command is a box to copy, and the line under it says what was sent.*
+
 Esc closes the panel, with the conversation kept. New chat, at the right of the line that names what the question is about, ends the conversation and clears the panel for another. Reloading the page does the same: the page keeps the conversation, and the server and the state keep nothing of it.
 
 ## 5. See what was sent
 
 Under each answer, a line reads `Sent to the model`, with how many reads the answer made and how many kilobytes they came to. Open it, and each read is a row that opens to the exact text that was sent to the provider for it. Where a value is withheld, the text holds the marker that the page shows and not the value. A read that was refused says so.
+
+*Figure: The read behind the answer, opened: the tool, its size and the text that went to the provider.*
 
 Use this to check a claim, and to decide whether the estate is one that you are willing to send to the provider: the addresses, the types, the values that are not sensitive, the text of plans and the names of runs are in the text.
 
