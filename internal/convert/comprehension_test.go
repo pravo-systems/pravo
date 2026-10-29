@@ -355,3 +355,28 @@ unused: json.Marshal({})
 		}
 	}
 }
+
+// A loop variable stands for what the source of its for clause holds: a task
+// named in a struct or list the loop walks over is a dependency of the entry
+// that reads the variable.
+func TestLoopVariableCarriesTheTasksOfItsSource(t *testing.T) {
+	const head = `
+env: {value: string | *"x"}
+pet: {id: string | null}
+`
+	cases := []struct {
+		name, src, path, want string
+	}{
+		{"struct value", `files: {for k, v in {a: env.value, b: "x"} {"\(k)": {content: v}}}`, "files.a", "env"},
+		{"unrelated entry", `files: {for k, v in {a: env.value, b: "x"} {"\(k)": {content: v}}}`, "files.b", "env"},
+		{"interpolation", `files: {for k, v in {a: "p-\(pet.id)"} {"\(k)": {content: "got \(v)"}}}`, "files.a", "pet"},
+		{"list", `files: {for i, v in [env.value] {"\(i)": {content: v}}}`, "files.\"0\"", "env"},
+		{"no task", `files: {for k, v in {a: "x"} {"\(k)": {content: v}}}`, "files.a", ""},
+	}
+	for _, c := range cases {
+		path := c.path
+		if got := depsOf(t, head+c.src+"\n", path, "env", "pet"); got != c.want {
+			t.Errorf("%s: dependencies = %q, want %q", c.name, got, c.want)
+		}
+	}
+}

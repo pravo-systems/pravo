@@ -94,6 +94,7 @@ func AnalyseWith(v cue.Value, resolve Resolver, self *cue.Path) RefInfo {
 	// task, or a value built from tasks, is a dependency on them wherever it is
 	// used, and one that is used twice is read once.
 	letSeen := map[*ast.LetClause]bool{}
+	loopSeen := map[*ast.ForClause]bool{}
 	var scanLet func(lc *ast.LetClause)
 	// walk visits v. A value that is a reference has operands, the container
 	// and the key of ports[z], that CUE used to reach what it refers to; they
@@ -140,6 +141,20 @@ func AnalyseWith(v cue.Value, resolve Resolver, self *cue.Path) RefInfo {
 		// is read instead.
 		if lc := letReference(v.Source()); lc != nil {
 			scanLet(lc)
+			return
+		}
+		// A loop variable is bound by the source of its for clause, and CUE shows
+		// no path for it: the source is read for the tasks it names.
+		if fc := loopReference(v.Source()); fc != nil && fc.Source != nil {
+			if !loopSeen[fc] {
+				loopSeen[fc] = true
+				var anc []cue.Selector
+				if self != nil {
+					anc = self.Selectors()
+				}
+				sc := &refScan{resolve: resolve, anc: anc, add: addTask, follow: func(p cue.Path) bool { return follow(p, 0) }, local: map[string]bool{}, let: scanLet}
+				ast.Walk(fc.Source, sc.visit, nil)
+			}
 			return
 		}
 		root, p := v.ReferencePath()
@@ -579,4 +594,23 @@ func letReference(n ast.Node) *ast.LetClause {
 			return nil
 		}
 	}
+}
+
+// loopReference returns the for clause that binds the name that src is, or
+// that src is the value of a field of; nil if src is not such a name.
+func loopReference(src ast.Node) *ast.ForClause {
+	if f, ok := src.(*ast.Field); ok {
+		src = f.Value
+	}
+	id, ok := src.(*ast.Ident)
+	if !ok {
+		return nil
+	}
+	if fc, ok := id.Node.(*ast.ForClause); ok {
+		return fc
+	}
+	if fc, ok := id.Scope.(*ast.ForClause); ok {
+		return fc
+	}
+	return nil
 }
