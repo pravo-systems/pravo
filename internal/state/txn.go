@@ -63,6 +63,12 @@ type Transaction struct {
 	// and the SHA-256 of the plan file in hex. They are signed with the rest.
 	PlanID     string `json:"plan,omitempty"`
 	PlanDigest string `json:"plan_digest,omitempty"`
+	// ConfigFingerprint is the fingerprint of the specification the run applied (see
+	// config.Root.Fingerprint), and SpecTags the digest of each tag the root was loaded
+	// with (SpecTagDigest). Together they say which specification a state runs; a
+	// promotion is made from them. They are signed with the start.
+	ConfigFingerprint string            `json:"config_fingerprint,omitempty"`
+	SpecTags          map[string]string `json:"spec_tags,omitempty"`
 	// Policies lists the versions of the policies that judged the plan, each as
 	// NAME@SEQ:SHA-256 of its text, sorted. It is signed with the start.
 	Policies []string `json:"policies,omitempty"`

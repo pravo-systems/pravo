@@ -390,6 +390,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	}
 	e.txn = e.State.Begin(kind, e.Opts.Command)
 	e.txn.SetPlan(e.planID, e.planDigest)
+	if fp, err := e.Root.Fingerprint(); err == nil {
+		e.txn.SetSpec(fp, e.Root.Tags)
+	}
 	e.mu.Lock()
 	e.completed = nil
 	e.mu.Unlock()

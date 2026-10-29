@@ -36,6 +36,7 @@ A team on one state: where the state lives, who reads it, who writes it, and how
 | Say who may change the state and who may only read and plan | [Give people roles](give-people-roles.md) | [Signatures and roles](../concepts/signatures-and-roles.md), [pravo protect roles](../reference/roles.md) |
 | Let a team list and read a plan before anyone applies it | [Store a plan and apply it later](store-a-plan-and-apply-it-later.md) | [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) |
 | Make a risky plan wait for another member's approval | [Approve a plan](approve-a-plan.md) | [Stored plans and approvals](../concepts/stored-plans-and-approvals.md#approvals) |
+| Let production take a specification only after staging ran it and a key vouched for it | [Promote a specification between environments](promote-between-environments.md) | [Ask for a promotion](../reference/policies-operations.md#ask-for-a-promotion) |
 
 ## Operate
 

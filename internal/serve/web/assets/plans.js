@@ -370,11 +370,12 @@ export class Plans {
   row(p, shown, expanded, tab, reason, hits, ap) {
     const overlaps = (p.overlaps || []).length;
     const appr = approvalChip(ap);
-    const btn = h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (shown ? ' sel' : ''), type: 'button', 'aria-expanded': String(expanded), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) + (appr ? ', ' + appr.getAttribute('aria-label') : '') + (hits ? `. Matching changes: ${hits.slice(0, GLANCE).map((c) => c.addr).join(', ')}${hits.length > GLANCE ? ` and ${hits.length - GLANCE} more` : ''}` : '') },
+    const prom = promotionChip(ap);
+    const btn = h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (shown ? ' sel' : ''), type: 'button', 'aria-expanded': String(expanded), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) + (appr ? ', ' + appr.getAttribute('aria-label') : '') + (prom ? ', ' + prom.getAttribute('aria-label') : '') + (hits ? `. Matching changes: ${hits.slice(0, GLANCE).map((c) => c.addr).join(', ')}${hits.length > GLANCE ? ` and ${hits.length - GLANCE} more` : ''}` : '') },
       avatar(p.author),
       h('span', { class: 'rp-main' },
         h('span', { class: 'rp-l1' }, reason ? h('span', { class: 'rp-title', title: reason }, reason) : h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null),
-        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), appr, expiryRing(p)),
+        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), appr, prom, expiryRing(p)),
         hits ? h('span', { class: 'rp-l4', 'aria-hidden': 'true' },
           hits.slice(0, GLANCE).map((c) => { const a = actionOf(touchAction(c)); return h('span', { class: 'rp-ch' }, a ? h('i', { class: 'sq ' + a.cls }) : null, c.addr); }),
           hits.length > GLANCE ? h('span', { class: 'rp-chn' }, `+${hits.length - GLANCE} more`) : null) : null,
@@ -435,6 +436,27 @@ export function approvalChip(ap) {
   return h('span', { class: 'b ps ps-done ps-appr', role: 'img', 'aria-label': 'Approved by ' + who, 'data-tip': tip }, icon('check'), 'Approved \u00b7 ' + (ok.length === 1 ? ok[0].signer : ok.length));
 }
 
+// promotionChip says where the promotion of the plan stands, one square chip: what the policies ask of the state before
+// this one and whether the attestation is there. A plan that no policy asks a promotion for has none.
+export function promotionChip(ap) {
+  const ps = (ap && ap.promotions) || [];
+  if (!ps.length) return null;
+  const open = ps.find((x) => !x.met);
+  if (open) {
+    const label = 'Awaiting promotion';
+    return h('span', { class: 'b ps ps-chg ps-prom', role: 'img', 'aria-label': label, 'data-tip': promotionWords(open) }, icon('hold'), label);
+  }
+  const names = ps.map((x) => x.from).join(', ');
+  return h('span', { class: 'b ps ps-done ps-prom', role: 'img', 'aria-label': 'Promoted from ' + names, 'data-tip': ps.map(promotionWords).join('\n') }, icon('check'), 'Promoted');
+}
+
+// promotionWords says what one policy asks of the state before and how it stands, as the apply words its refusal.
+function promotionWords(x) {
+  if (x.met) return `${x.from} holds an attestation by ${x.signer}, signed ${relTime(x.at)}. The policy ${x.by} is met.`;
+  const wait = x.wait_until ? ` It counts from ${stamp(x.wait_until)}.` : '';
+  return `The policy ${x.by} asks ${x.from} for an attestation that it runs this specification, and ${x.reason}.${wait}`;
+}
+
 function verifiedApprovals(ap) { return ((ap && ap.items) || []).filter((it) => it.status === 'verified'); }
 
 // needWords says what one need of the policies asks for and how far the plan is, as the apply words its refusal.
@@ -448,16 +470,34 @@ function needWords(n) {
 // the plan is, who approved it, and, while it waits, the command that approves it. The viewer never approves.
 function approvalsBox(p, ap) {
   const ok = verifiedApprovals(ap);
+  const promos = (ap.promotions || []);
+  const promoOpen = promos.some((x) => !x.met);
   const lines = (ap.needs || []).map((n) => h('li', { class: n.met ? 'ok' : 'chg' }, needWords(n)));
   if (ap.note) lines.push(h('li', { class: 'dim' }, ap.note));
   const skipped = (ap.items || []).length - ok.length;
   const who = ok.length ? 'Approved by ' + ok.map((it) => it.signer + (it.role ? ' (' + it.role + ')' : '') + (it.at ? ', ' + relTime(it.at) : '')).join('; ') + '.' : (ap.needs || []).length ? 'Nobody has approved it yet.' : '';
   const open = (ap.needs || []).some((n) => !n.met);
-  const out = [h('div', { class: 'rp-why rp-appr' + (open ? '' : ' met') }, h('b', null, open ? 'Waiting for approvals' : 'Approvals'),
-    lines.length ? h('ul', null, lines) : null,
-    who ? h('p', null, who, skipped ? h('span', { class: 'dim' }, ` ${skipped} more ${skipped === 1 ? 'does' : 'do'} not count: key not in the readers file, or the signature does not verify.`) : null) : null)];
+  const out = [];
+  if (promos.length) {
+    out.push(h('div', { class: 'rp-why rp-appr rp-prom' + (promoOpen ? '' : ' met') }, h('b', null, promoOpen ? 'Waiting for a promotion' : 'Promotion'),
+      h('ul', null, promos.map((x) => h('li', { class: x.met ? 'ok' : 'chg' }, promotionWords(x))))));
+  }
+  if ((ap.needs || []).length || (ap.items || []).length || ap.note || !promos.length) {
+    out.push(h('div', { class: 'rp-why rp-appr' + (open ? '' : ' met') }, h('b', null, open ? 'Waiting for approvals' : 'Approvals'),
+      lines.length ? h('ul', null, lines) : null,
+      who ? h('p', null, who, skipped ? h('span', { class: 'dim' }, ` ${skipped} more ${skipped === 1 ? 'does' : 'do'} not count: key not in the readers file, or the signature does not verify.`) : null) : null));
+  }
+  if (promoOpen && p.open) out.push(promoteCommand(promos.find((x) => !x.met)));
   if (open && p.open) out.push(approveCommand(p));
   return out;
+}
+
+// promoteCommand is the command that vouches for the specification in the state before this one, once that state runs
+// it. Whoever the policy pins runs it, with the tags of that state.
+function promoteCommand(x) {
+  const cmd = 'pravo promote attest -t env=<value>';
+  return h('div', { class: 'cmdline' }, h('span', { class: 'ps', 'aria-hidden': 'true' }, '$'), h('code', null, cmd), h('span', { class: 'dim' }, ' in ' + x.from),
+    h('button', { class: 'cpbtn', type: 'button', 'data-copy': cmd, 'data-fk': 'copy-promote', 'aria-label': 'Copy the command that vouches for the specification in ' + x.from, 'data-tip': 'Copy the command' }, icon('copy')));
 }
 
 // approveCommand is the command that approves the plan, in the look of the command that applies it. Each member who
@@ -491,6 +531,7 @@ export function planStrip(el, p, cb) {
     p.status === 'partial' && p.applied ? h('span', { class: 'ps-prog dim' }, `${p.applied} of ${p.planned} applied`) : null,
     h('span', { class: 'ps-by dim' }, p.author || null, signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
     approvalChip(cb.approvals),
+    promotionChip(cb.approvals),
     expiryRing(p),
     h('span', { class: 'grow' }),
     cb.onClear ? h('button', { class: 'ps-x', type: 'button', 'aria-label': 'Stop showing this plan', 'data-tip': 'Stop showing this plan', on: { click: cb.onClear } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })) : null].filter(Boolean));

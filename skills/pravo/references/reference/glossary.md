@@ -243,6 +243,12 @@ The optional, read-only helper of the [viewer](#viewer) that answers a question 
 
 See [The assistant](../concepts/the-assistant.md) and [Ask questions about your estate](../how-to/ask-questions-about-your-estate.md).
 
+### attestation
+
+A signed object in a [state](#state) that says the state runs a specification, named by its fingerprint and the digests of its tags. `pravo promote attest` writes it, and the [policy](#policy) of the environment after it reads it.
+
+See [Promote a specification between environments](../how-to/promote-between-environments.md) and [`pravo promote`](promote.md).
+
 ### blast radius
 
 The number of distinct nodes that have a pending change, together with every node that depends on one of them. It is `summary.blast_radius` in the output of `plan --json`. A policy does not see it, because the judged document is built from the plan file alone.
@@ -410,6 +416,12 @@ See [State format](state-format.md#plans).
 A `pravo.#Policy` node of the specification whose rule is CUE text that a plan must satisfy. pravo keeps each version in the state, signed, and the signed start of an apply lists the versions that judged it. A specification cannot exempt a resource from it. A refusal is exit code 5.
 
 Taught in [B11](https://pravo.systems/learn/b11-policy.html). See [Policies](policies-overview.md).
+
+### promotion
+
+The rule that a state takes a specification only after the state before it ran it and a pinned key vouched for it with an [attestation](#attestation). A policy asks for it with `promote`, and the refusal is exit code 5. An admin is not exempt.
+
+See [Ask for a promotion](policies-operations.md#ask-for-a-promotion).
 
 ### provider
 

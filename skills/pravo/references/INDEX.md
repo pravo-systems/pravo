@@ -33,8 +33,9 @@ One page for each command and each part of the specification, tables first.
 | [reference/protect.md](reference/protect.md) | Seal the state to a list of readers, check that the seal holds, change the readers, set a recovery, take the seal off and collect old records. Commands, flags and exit codes. | 52 KB |
 | [reference/roles.md](reference/roles.md) | Give each identity in the readers file a role, reader, writer or admin, and pin the roles in the state, so that nobody promotes themselves by editing a copy of the file. What each role may do, and what the bucket has to enforce. | 14 KB |
 | [reference/secret.md](reference/secret.md) | Set, read, list, remove and forget the secrets of a sealed state, and run a command with them in its environment. Subcommands, flags, roles and exit codes. | 17 KB |
-| [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
+| [reference/promote.md](reference/promote.md) | Vouch that a state runs a specification, and list the attestations a state holds. Subcommands, flags, what an attestation names, what the policy of the next state checks, and the exit codes. | 6 KB |
 | [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 15 KB |
+| [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
 
 ### Language
 
@@ -68,7 +69,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/policies-overview.md](reference/policies-overview.md) | A policy is a node of the specification whose rule is a CUE struct. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply. | 11 KB |
 | [reference/policies-plan-document.md](reference/policies-plan-document.md) | What a rule is unified with. How absent, null and unknown values behave, and what the judged document leaves out of the one that plan --json prints. | 9 KB |
 | [reference/policies-writing.md](reference/policies-writing.md) | The four rules for writing a policy rule, each with a captured run, plan-wide rules, and the typos that forbid nothing. | 19 KB |
-| [reference/policies-operations.md](reference/policies-operations.md) | Where each command judges a policy, what a stale plan does, how to retire a policy, how to roll a rule out and test it, and what a policy does and does not guarantee. | 29 KB |
+| [reference/policies-operations.md](reference/policies-operations.md) | Where each command judges a policy, what a stale plan does, how to retire a policy, how to roll a rule out and test it, and what a policy does and does not guarantee. | 31 KB |
 | [reference/policy.md](reference/policy.md) | Hold a policy rule, or a draft of one, against stored plans and plan files before it is stored, and see which plans it would refuse and why. | 4 KB |
 
 ### Formats and interfaces
@@ -89,7 +90,7 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/errors.md](reference/errors.md) | Every error a user is likely to meet, as pravo prints it: the symptom, the cause and the fix. | 74 KB |
-| [reference/glossary.md](reference/glossary.md) | The terms of CUE and of pravo, each with a definition of one or two sentences and a link to the lesson that teaches it. | 30 KB |
+| [reference/glossary.md](reference/glossary.md) | The terms of CUE and of pravo, each with a definition of one or two sentences and a link to the lesson that teaches it. | 31 KB |
 | [reference/faq.md](reference/faq.md) | Short, factual answers to the questions asked first. | 10 KB |
 | [reference/not-in-pravo.md](reference/not-in-pravo.md) | The commands, flags, blocks and files of OpenTofu and Terraform that pravo does not have, and what to use in each place. | 9 KB |
 
@@ -163,6 +164,7 @@ One task each, for a reader who knows the basics.
 | [how-to/give-people-roles.md](how-to/give-people-roles.md) | Say which readers of a sealed state may change it and which may only read and plan, pin the roles in the state so that nobody promotes themselves by editing a copy of the readers file, promote a member, take a member off, and give a CI job the role its work needs. | 14 KB |
 | [how-to/store-a-plan-and-apply-it-later.md](how-to/store-a-plan-and-apply-it-later.md) | Store a plan in the state so that a team can list it, read it, see who else plans the same resources, approve it where a policy asks for that, and apply it by its id. | 15 KB |
 | [how-to/approve-a-plan.md](how-to/approve-a-plan.md) | Make a plan wait for the approval of another member before it is applied. Write the rule, store the plan, approve it with a second key, apply it by its id, and see what an admin may skip and what a change to the rule itself needs. | 12 KB |
+| [how-to/promote-between-environments.md](how-to/promote-between-environments.md) | Let production take a specification only after staging ran it and a trusted key vouched for it. Write the policy, see the apply refused, attest in staging, apply in production, and see what the tags and the age of an attestation change. | 13 KB |
 
 ### Specify
 

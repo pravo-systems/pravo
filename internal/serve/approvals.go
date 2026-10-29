@@ -13,6 +13,62 @@ import (
 // asks approvals for. The caller holds the CUE lock of the specification: the needs decode
 // the plan.
 func (s *Server) approvalsOf(ctx context.Context, m *model, e *engine.PlanEntry, pf *engine.PlanFile) *PlanApprovals {
+	out := s.approvalsCore(ctx, m, e, pf)
+	if s.opts.PolicyReaders == nil || !e.Status.Open() {
+		return out
+	}
+	readers, ok := s.opts.PolicyReaders(m.store)
+	if !ok {
+		return out
+	}
+	proms, note := s.promotionsOf(ctx, m, pf, readers)
+	if len(proms) == 0 && note == "" {
+		return out
+	}
+	if out == nil {
+		out = &PlanApprovals{Items: []PlanApproval{}}
+	}
+	out.Promotions = proms
+	if out.Note == "" {
+		out.Note = note
+	}
+	return out
+}
+
+// promotionsOf is what the policies in force ask of the state before this one for a plan, and how each
+// stands: whether the attestation is there. The caller holds the CUE lock.
+func (s *Server) promotionsOf(ctx context.Context, m *model, pf *engine.PlanFile, readers []protect.Reader) ([]PlanPromotion, string) {
+	if m.spec.root == nil {
+		return nil, ""
+	}
+	set, err := m.store.PolicySet(ctx, readers)
+	if err != nil {
+		return nil, ""
+	}
+	eng, err := s.planEngine(m, pf)
+	if err != nil {
+		return nil, ""
+	}
+	checks, err := eng.PromotionChecks(ctx, set, pf)
+	if err != nil {
+		return nil, "not checked: " + m.scrubText(headline(err.Error()))
+	}
+	out := make([]PlanPromotion, 0, len(checks))
+	for _, c := range checks {
+		pp := PlanPromotion{From: c.Need.From, By: c.Need.By, Met: c.Met, Reason: m.scrubText(c.Reason), Signer: c.Signer}
+		if !c.At.IsZero() {
+			pp.At = &c.At
+		}
+		if !c.WaitUntil.IsZero() {
+			pp.WaitUntil = &c.WaitUntil
+		}
+		out = append(out, pp)
+	}
+	return out, ""
+}
+
+// approvalsCore is the approvals of a stored plan, without the promotions.
+func (s *Server) approvalsCore(ctx context.Context, m *model, e *engine.PlanEntry, pf *engine.PlanFile) *PlanApprovals {
 	if s.opts.PolicyReaders == nil {
 		return nil
 	}
