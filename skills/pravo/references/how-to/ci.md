@@ -53,6 +53,48 @@ no_destroy: pravo.#Policy & {
 }
 ```
 
+## Run pravo from a workflow
+
+`pravo-systems/pravo/actions/pravo` runs one command and reports it on GitHub. It installs pravo with `setup-pravo`, so name a `version` that has `--markdown`, or set `install: false` after your own install step.
+
+```yaml
+name: pravo
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 5 * * *"
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pravo-systems/pravo/actions/pravo@main
+        with:
+          command: plan
+          working-directory: app
+  drift:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pravo-systems/pravo/actions/pravo@main
+        with:
+          command: drift
+          working-directory: app
+          due-limit: "500"
+```
+
+`plan` stores the plan, keeps one comment on the pull request up to date and sets the outputs `plan-id`, `has-changes`, `exit-code` and `report`. A plan that a policy refuses is commented and fails the job. `apply` takes `plan-id` and turns the exit codes 3, 4 and 5 into a line that says what to do. `drift` and `discover` keep one open issue up to date with what they find and close it when nothing is left. They pass unless `fail-on-findings` is true. The credentials of the providers and the state are the workflow's: set them in `env`, or log in to the cloud in an earlier step.
+
+A review on GitHub is not an approval that pravo counts: an approval is a signature by a key in the readers file. Either approve with `pravo plan approve ID` on a machine that holds a key, or gate the `apply` job with a GitHub environment and give the job an identity that the policy accepts.
+
 ## 1. Check without credentials
 
 `pravo init` installs the providers and generates the packages that `validate`, `plan` and `apply` need. `pravo validate` evaluates the specification against them. It starts no provider and needs no credentials.

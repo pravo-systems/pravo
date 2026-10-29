@@ -45,7 +45,7 @@ else
 		skills/*) code=true; binary=true; docs=true ;;
 		tools/_weblint/*) web=true ;;
 		tools/hclcheck/*) code=true; hcl=true ;;
-		tools/*) code=true ;;
+		tools/*|actions/*) code=true ;;
 		internal/serve/web/*) code=true; binary=true; web=true ;;
 		design/*|*.md|LICENSE) ;;
 		*_test.go|*/testdata/*) code=true ;;
