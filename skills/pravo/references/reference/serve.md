@@ -57,6 +57,8 @@ The bar of the page names the identity the page is read as, and beside it, for a
 
 ## The assistant
 
+[Ask questions about your estate](../how-to/ask-questions-about-your-estate.md) turns it on and asks, and [The assistant](../concepts/the-assistant.md) explains what it reads and what leaves the machine.
+
 With `--chat`, or `PRAVO_CHAT` in the environment, the viewer has an **Ask** control (key `c`): a question in words, answered by a language model that can only read. Otherwise there is no control, no route and no connection to any provider. The assistant can be set up with the environment alone, and a flag overrides what the environment says:
 
 ```sh

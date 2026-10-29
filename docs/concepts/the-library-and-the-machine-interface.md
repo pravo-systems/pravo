@@ -1,7 +1,7 @@
 ---
 title: The library and the machine interface
 description: "The three ways a program uses pravo: the commands with --json and exit codes, the MCP server for an agent, and the Go library for a program that plans and applies on behalf of its users. What each gives, what each never does, and which is the stable surface."
-order: 15
+order: 16
 minutes: 8
 keywords: "json exit codes mcp agent go library embed sdk runner platform automation stable interface"
 ---
