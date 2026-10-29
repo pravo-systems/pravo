@@ -1614,6 +1614,7 @@ function wire() {
     onPlan: openPlan,
     onToggle: (on) => {
       $('insp').classList.toggle('chat-on', on);
+      if (on) $('app').dataset.chat = '1'; else delete $('app').dataset.chat;
       $('ask-btn').setAttribute('aria-pressed', on ? 'true' : 'false');
       showInspector();
       if (on) openDrawer(); else if (!S.sel && !S.proj) closeDrawer();
@@ -1642,7 +1643,7 @@ function wire() {
   $('btn-collapse').addEventListener('click', () => setAllNamespaces(true));
   $('btn-expand').addEventListener('click', () => setAllNamespaces(false));
   $('insp-btn').addEventListener('click', toggleInspector);
-  $('insp-close').addEventListener('click', () => { closeDrawer(); });
+  $('insp-close').addEventListener('click', () => { if (chatView && chatView.isOpen) chatView.close(); else closeDrawer(); });
   $('insp-size').addEventListener('click', toggleInspSize);
   document.addEventListener('click', (ev) => {
     const c = ev.target instanceof Element && ev.target.closest('[data-copy]');

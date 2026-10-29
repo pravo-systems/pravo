@@ -90,6 +90,22 @@ try {
     check(r.page <= 1, `${w}: the page scrolls sideways by ${r.page}`);
     check(r.cw > 200 && r.ch > 150, `${w}: the panel has room (${r.cw}x${r.ch})`);
   }
+  // a sidebar down to a tablet, on any section, and a sheet only on a phone
+  for (const [w, view] of [[1000, 'traces'], [800, 'plans'], [1000, 'graph'], [1440, 'traces']]) {
+    await b.size(w, 850);
+    await b.load(url('on', `&view=${view}`));
+    await wait(300);
+    await b.key('c');
+    await wait(150);
+    const r = await b.eval(`(() => { const c = document.getElementById('chat').getBoundingClientRect(); const m = document.querySelector('main.stage').getBoundingClientRect(); return { left: Math.round(c.left), top: Math.round(c.top), w: Math.round(c.width), h: Math.round(c.height), mainRight: Math.round(m.right), vh: innerHeight }; })()`);
+    check(r.left >= r.mainRight - 2 && r.top < 200 && r.h > 500, `${w} ${view}: the chat is a sidebar (${JSON.stringify(r)})`);
+  }
+  await b.size(390, 850);
+  await b.load(url('on', '&view=traces'));
+  await wait(300);
+  await b.key('c');
+  await wait(150);
+  check(await b.eval(`(() => { const c = document.getElementById('chat').getBoundingClientRect(); return c.top > 250 && c.width > 350; })()`), '390: on a phone the chat is a sheet under the page');
   check((await b.eval(`(window.__errors || []).length`)) === 0, 'no errors on the page');
 } finally {
   await b.close();

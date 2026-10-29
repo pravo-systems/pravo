@@ -94,3 +94,17 @@ button.ref, .ref { display: inline-flex; align-items: center; gap: .3rem; paddin
 @media (max-width: 68.75em) { .asktop kbd { display: none; } .asktop { padding: 0 .55rem; } }
 @media (max-width: 47.5em) { .asktop { padding: 0 .45rem; height: 2.1rem; } .asktop .i { width: .9rem; height: .9rem; } }
 @media (max-width: 40em) { .asktop { padding: 0 .35rem; } }
+
+/* The chat is a sidebar in every section and down to a tablet: a panel under a timeline or a graph is too short to read an
+   answer in, and the sections that have no inspector of their own (Traces, Secrets, ...) would have no room for one. Only a
+   phone gets the sheet. */
+@media (min-width: 47.51em) {
+  .app[data-chat="1"], .app[data-chat="1"][data-view] { grid-template-columns: minmax(0, 1fr) 24.5rem; grid-template-rows: minmax(0, 1fr); }
+  .app[data-chat="1"] .insp { grid-row: 1; grid-column: 2; display: flex; height: auto; border-left: 1px solid var(--line-strong); border-top: 0; box-shadow: none; animation: none; }
+  .app[data-chat="1"] .insp-bar { display: flex; }
+  .app[data-chat="1"] .insp-size { display: none; }
+  .app[data-chat="1"] .drawer-scrim { display: none; }
+}
+@media (min-width: 47.51em) and (max-width: 80em) {
+  .app[data-chat="1"], .app[data-chat="1"][data-view] { grid-template-columns: minmax(0, 1fr) 22.5rem; }
+}
