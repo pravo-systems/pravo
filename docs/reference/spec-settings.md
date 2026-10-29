@@ -122,19 +122,19 @@ Error: evaluating .:
 $settings.state: 4 errors in empty disjunction:
 $settings.state.backend: 2 errors in empty disjunction:
 $settings.state.backend: conflicting values "http" and "s3":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:234:10
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:248:17
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:251:32
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:239:10
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:253:17
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:256:32
     ./main.cue:5:12
     ./main.cue:6:19
 $settings.state.backend: conflicting values "local" and "s3":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:234:10
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:248:33
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:269:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:239:10
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:253:33
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:274:12
     ./main.cue:5:12
     ./main.cue:6:19
 $settings.state.path: field not allowed:
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:252:2
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:257:2
     ./main.cue:6:48
 ```
 
@@ -277,16 +277,16 @@ pravo validate
 Error: evaluating .:
 $settings.refresh: 3 errors in empty disjunction:
 $settings.refresh: conflicting values "always" and "soon":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:238:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:243:12
     ./main.cue:5:12
     ./main.cue:5:40
 $settings.refresh: conflicting values "never" and "soon":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:238:23
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:243:23
     ./main.cue:5:12
     ./main.cue:5:40
 $settings.refresh: invalid value "soon" (out of bound =~"^[0-9]+(ms|s|m|h|d)$"):
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:238:33
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:238:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:243:33
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:243:12
     ./main.cue:5:40
 ```
 

@@ -9,6 +9,7 @@ The CUE packages that pravo init writes under cue.mod/gen, one per provider and 
 | Import path | Contents |
 |---|---|
 | `pravo.dev/pravo` | `#Settings`, `#Output`, `#Env`, `#SecretEnv`, `#RemoteOutputs`, `#Movable` and the types of the `state` setting. |
+| `pravo.dev/policies` | The starter rules `#RequiredTags`, `#KeepTypes`, `#ChangeWindow` and `#Freeze`. See [the policy pack](policies-pack.md). |
 | `pravo.dev/providers/<namespace>/<type>` | One provider: `#Provider`, with `#Resource`, `#Data`, `#Ephemeral`, `#Discovery` and `#Function` as members, and `#Lifecycle`. |
 | `pravo.dev/providers/<host>/<namespace>/<type>` | A provider from a registry other than the default one. |
 
@@ -48,6 +49,7 @@ Up to date cue.mod/gen/pravo.dev/providers/hashicorp/null (1 resource types, 1 d
 Up to date cue.mod/gen/pravo.dev/providers/hashicorp/random (10 resource types, 0 data sources, 2 ephemeral, 0 functions)
 
 pravo has been initialised. Run "pravo plan" to see what it would do.
+cue.mod/gen/pravo.dev/policies/policies_gen.cue
 cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 cue.mod/gen/pravo.dev/providers/hashicorp/null/null__gen.cue
 cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue

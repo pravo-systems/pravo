@@ -47,6 +47,7 @@ The [global flags](global-flags.md) apply. A single dash works as well: `-upgrad
 | `cue.mod/module.cue` | The CUE module file. Written only when no module exists in the root or above it. The module name is `pravo.local/` and the name of the directory. |
 | `cue.mod/gen/pravo.dev/providers/<namespace>/<type>/` | One package per provider. It holds every resource, data source, ephemeral resource and function of that provider. |
 | `cue.mod/gen/pravo.dev/pravo/` | The package `pravo.dev/pravo`: `#Settings`, `#Output`, `#Env`, `#SecretEnv`, `#RemoteOutputs` and `#Movable`. |
+| `cue.mod/gen/pravo.dev/policies/` | The package `pravo.dev/policies`: the starter rules of [the policy pack](policies-pack.md). |
 | `pravo.lock.cue` | The provider versions and archive hashes in use, and the hash of each dependency module. Commit it. It is written in the layout of `pravo fmt`. |
 
 ## Where providers are kept
@@ -191,6 +192,7 @@ find cue.mod pravo.lock.cue -type f | sort
 ```
 
 ```text out
+cue.mod/gen/pravo.dev/policies/policies_gen.cue
 cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue
 cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue

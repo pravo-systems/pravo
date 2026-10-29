@@ -168,6 +168,7 @@ find cue.mod/gen -type f | sort
 ```
 
 ```text out
+cue.mod/gen/pravo.dev/policies/policies_gen.cue
 cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue
 cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue

@@ -143,6 +143,7 @@ find cue.mod -type f | sort
 cue.mod
 main.cue
 pravo.lock.cue
+cue.mod/gen/pravo.dev/policies/policies_gen.cue
 cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue
 cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue
