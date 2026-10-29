@@ -212,7 +212,23 @@ func (p *provider) UpgradeResourceState(_ context.Context, req *tfprotov6.Upgrad
 	return &tfprotov6.UpgradeResourceStateResponse{UpgradedState: &dv}, err
 }
 
+// ReadResource reports an object that is no longer in the catalog as gone, which is
+// how a test makes a resource drift: it removes the object from catalog.json.
 func (p *provider) ReadResource(_ context.Context, req *tfprotov6.ReadResourceRequest) (*tfprotov6.ReadResourceResponse, error) {
+	serverType := typeOf(req.TypeName)
+	if cur, err := req.CurrentState.Unmarshal(serverType); err == nil && !cur.IsNull() {
+		var m map[string]tftypes.Value
+		var id string
+		if cur.As(&m) == nil && m["id"].As(&id) == nil && id != "" {
+			p.mu.Lock()
+			objs := p.catalog()
+			p.mu.Unlock()
+			if len(objs) > 0 && !slices.ContainsFunc(objs, func(o object) bool { return o.ID == id }) {
+				gone, err := tfprotov6.NewDynamicValue(serverType, tftypes.NewValue(serverType, nil))
+				return &tfprotov6.ReadResourceResponse{NewState: &gone, Private: req.Private}, err
+			}
+		}
+	}
 	return &tfprotov6.ReadResourceResponse{NewState: req.CurrentState, Private: req.Private}, nil
 }
 

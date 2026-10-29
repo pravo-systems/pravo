@@ -16,8 +16,8 @@ normalize:
 
 | | `pravo why` | `pravo drift` |
 |---|---|---|
-| Synopsis | `pravo why ADDR... [--refresh=age\|expired\|false\|all]` | `pravo drift [--due [--limit N]] [--webhook URL]` |
-| Does | Makes a plan and explains, for each address, the action, the reasons and what the change reaches. | Reads the real state of every resource, whatever its refresh age, and reports the ones that changed or vanished. With `--due`, reads only the records that are older than their refresh age. |
+| Synopsis | `pravo why ADDR... [--refresh=age\|expired\|false\|all]` | `pravo drift [--due [--limit N]] [--plan [--store [--ttl SPAN]]] [--webhook URL]` |
+| Does | Makes a plan and explains, for each address, the action, the reasons and what the change reaches. | Reads the real state of every resource, whatever its refresh age, and reports the ones that changed or vanished. With `--due`, reads only the records that are older than their refresh age. With `--plan`, also makes the plan that puts the drifted resources right, and with `--store` keeps it for review. |
 | Changes infrastructure | No. | No. |
 | Writes | Refreshed records, as `pravo plan` does. | Refreshed records of resources that still exist, and a mark on every record that differs from its object or whose object is gone. |
 | Exit code 2 | never | drift found |
@@ -30,7 +30,10 @@ normalize:
 | `--refresh VALUE` | `why` | `age` | `age`, `expired`, `false` or `all`, with the meaning they have for [`pravo plan`](plan.md#refresh). `why` needs a value: `--refresh` alone is an error. |
 | `--due` | `drift` | off | Read only the records that are older than their refresh age, the oldest first, and plan nothing. A record that was never refreshed comes first. |
 | `--limit N` | `drift` | none | With `--due`: read at most `N` records. It is an error without `--due`. |
-| `--webhook URL` | `drift` | none | POST the report as JSON to `URL`. |
+| `--plan` | `drift` | off | Also make the plan that puts the drifted resources back as the specification has them. The plan is judged by the policies and never applied. It is an error with `--due`. |
+| `--store` | `drift` | off | With `--plan`: store the plan in the state, as [`pravo plan --store`](plan.md) does, to be listed, approved and applied by its id. It is an error without `--plan`. |
+| `--ttl SPAN` | `drift` | `7d` | With `--store`: keep the plan this long if it is not applied (`90m`, `36h`, `7d`). It is an error without `--store`. |
+| `--webhook URL` | `drift`, `plan approve`, `apply` | none | POST to `URL`: the report for a plain `drift`, an [event](#events) for `drift --plan`, `plan approve` and the apply of a stored plan. |
 | `-t`, `--tag key=value`, `-T` | both | none | Tags, as for `pravo plan`. |
 
 The [global flags](global-flags.md) apply.
@@ -317,8 +320,86 @@ pravo drift --actor drift-cron --webhook https://ops.example/hooks/pravo
 
 The webhook is called before the report is printed. A refused connection, or an answer with a status of 300 or more, ends the command with exit code 1 and no report. A scheduler runs `drift` and hands the report to whoever triages it.
 
+### A plan that puts the drift right
+
+`--plan` turns the report into a proposal. The run reads every resource as before, and the plan it made on the way is judged by the policies and shown, with what it adds, changes and destroys. Nothing is applied: the people who triage drift decide. Delete the server `batch` outside pravo and ask again.
+
+```sh
+pravo drift --plan
+```
+
+```text
+Drift. 1 of 2 resources changed outside pravo:
+  batch: create
+    - refresh found the real state differs from the state (drift)
+
+Putting it right adds 1, changes 0 and destroys 0. Run "pravo drift --plan --store" to keep that plan for review.
+```
+
+The plan is the plan that `pravo plan` would make now, with every record read. It holds the pending changes of the specification as well as the ones that put the drift right. To take the drift alone, apply it with `--only`, as [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) shows.
+
+With `--store` the plan is stored. It shows in `pravo plan list` and in the Plans section of [the viewer](../how-to/explore-your-estate.md), and `pravo apply plan-ID` applies it. Nothing in `drift` applies it.
+
+```sh
+pravo --actor drift-cron drift --plan --store --ttl 36h
+```
+
+```text
+Drift. 1 of 2 resources changed outside pravo:
+  batch: create
+    - refresh found the real state differs from the state (drift)
+
+Stored the plan as plan-89f9966a; unless it is applied it is removed after 36 hours. To apply exactly these actions, run:
+  pravo apply plan-89f9966a
+```
+
+A run that finds no drift makes no plan, stores nothing and sends no event. A run whose plan a policy refuses stores nothing: the report carries the verdict, and the event is `plan.refused`.
+
+With `--json`, the document is the report of `drift` with two more keys: `plan`, the document of `pravo plan --json`, and `stored`, which has the `id`, `expires` and `apply_command` of the stored plan. A refused plan has `refused`, the verdict, in place of `stored`.
+
+### Events
+
+`pravo drift --plan`, `pravo plan approve` and `pravo apply` of a stored plan send one document to the `--webhook`, whatever happened. The fields that do not apply to the event are left out.
+
+| `event` | Sent by | Meaning |
+|---|---|---|
+| `plan.drifted` | `drift --plan` | Drift was found and the plan that puts it right was made, but not stored. |
+| `plan.stored` | `drift --plan --store` | The plan is in the state, to be approved and applied by its id. |
+| `plan.approved` | `plan approve` | A member signed an approval of the plan. `by` names the key. |
+| `plan.applied` | `apply plan-ID` | The plan was applied. A plan with nothing left to apply sends nothing. |
+| `plan.refused` | `drift --plan`, `apply plan-ID` | A policy refused the plan, or the apply did not go through. `reason` says why. |
+
+| Field | Meaning |
+|---|---|
+| `time`, `root`, `actor` | When, in which root, and the `--actor` of the command. |
+| `plan` | `id`, `expires`, `apply_command` and the `summary` counts (`add`, `change`, `destroy`) of the stored plan. `plan.approved` has only the `id`. `plan.drifted` has no `plan`. |
+| `drifted` | The resources that changed outside pravo, as items of the report. Sent by `drift --plan`. |
+| `by` | Who approved. |
+| `reason` | Why the plan was refused. |
+
+```json
+{
+  "event": "plan.stored",
+  "time": "2026-10-29T12:16:51.179765552Z",
+  "root": "/srv/estate",
+  "actor": "drift-cron",
+  "plan": {
+    "id": "plan-89f9966a",
+    "expires": "2026-10-31T00:16:51.178574205Z",
+    "apply_command": "pravo apply plan-89f9966a",
+    "summary": {"add": 1, "change": 0, "destroy": 0}
+  },
+  "drifted": [
+    {"addr": "batch", "action": "create", "reasons": ["refresh found the real state differs from the state (drift)"], "gone": true}
+  ]
+}
+```
+
+The webhook is called before the command prints its own result. A refused connection, or an answer with a status of 300 or more, ends the command with exit code 1. The webhook only tells: no event applies anything, and no command applies a plan because an event was sent.
+
 ## See also
 
 - [`pravo plan`](plan.md) prints the whole plan.
+- [Let drift propose the fix](../how-to/let-drift-propose-the-fix.md) runs `drift --plan --store` on a schedule and tells a webhook.
 - [Plans](../concepts/plans.md) explains refresh ages and scoped plans.
 - [`pravo state`](state.md) shows the records that a refresh writes.

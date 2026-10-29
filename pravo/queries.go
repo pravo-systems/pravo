@@ -72,13 +72,22 @@ type DriftReport struct {
 // that no longer exist. What it reads is written back to the state, with a mark
 // on every record that differs or is gone, so that the next plan acts on it.
 func (w *Workspace) Drift(ctx context.Context) (*DriftReport, error) {
+	rep, _, err := w.DriftPlanned(ctx)
+	return rep, err
+}
+
+// DriftPlanned is Drift that also returns the plan it made on the way: a plan
+// of the refreshed estate, which puts every drifted resource back as the
+// specification has it. It holds the pending changes of the specification too.
+// The plan is not stored or applied; that is for the caller to offer.
+func (w *Workspace) DriftPlanned(ctx context.Context) (*DriftReport, *Planned, error) {
 	if err := w.needPlanning(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	eng := w.quiet(EngineOptions{Refresh: engine.RefreshAll})
 	plan, err := eng.Plan(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	view := eng.NewView(plan, engine.ViewOptions{})
 	rep := &DriftReport{Time: time.Now().UTC(), Root: w.root.Dir, Actor: w.cfg.Actor, Drifted: []DriftItem{}, Summary: view.Summary, Refreshed: view.Stats.Refreshed}
@@ -95,7 +104,7 @@ func (w *Workspace) Drift(ctx context.Context) (*DriftReport, error) {
 		}
 	}
 	sort.Slice(rep.Drifted, func(i, j int) bool { return rep.Drifted[i].Addr < rep.Drifted[j].Addr })
-	return rep, nil
+	return rep, &Planned{ws: w, eng: eng, plan: plan, opts: PlanOptions{Refresh: RefreshAll}}, nil
 }
 
 // DueDriftReport is what DriftDue found.
