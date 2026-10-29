@@ -57,7 +57,7 @@ func TestMarkdownOfAnEmptyPlan(t *testing.T) {
 
 func TestMarkdownStaysUnderTheLimit(t *testing.T) {
 	v := &View{Summary: Summary{Add: 5000}}
-	for i := 0; i < 5000; i++ {
+	for i := range 5000 {
 		v.Changes = append(v.Changes, ChangeView{Addr: strings.Repeat("a", 40) + string(rune('a'+i%26)), Type: "t", Action: ActionCreate,
 			After: map[string]any{"k": "v"}})
 	}
