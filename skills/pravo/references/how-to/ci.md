@@ -164,7 +164,7 @@ A pull request is easier to review with the plan in a comment. `--markdown` prin
 pravo plan --store --markdown --actor ci --reason "$REV" > comment.md
 ```
 
-A workflow posts `comment.md` on the pull request. The job that applies the plan after the merge runs `pravo apply ID`. See [`plan --markdown`](../reference/plan.md#markdown).
+A workflow posts `comment.md` on the pull request. The job that applies the plan after the merge runs `pravo apply ID`. See [`plan --markdown`](../reference/plan.md#markdown). `pravo drift --markdown` and `pravo discover show --markdown` print an issue body the same way.
 
 ## 4. Plan, then apply the file
 

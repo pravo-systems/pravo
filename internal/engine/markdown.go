@@ -207,3 +207,11 @@ func count(n int, noun string) string {
 	}
 	return fmt.Sprintf("%d %ss", n, noun)
 }
+
+// MDCode writes a name as inline code that cannot break a table cell. The
+// commands that print Markdown for a pull request share it.
+func MDCode(s string) string { return code(s) }
+
+// MDLine writes text on one line, with the characters that would break a table
+// cell escaped.
+func MDLine(s string) string { return mdLine(s) }
