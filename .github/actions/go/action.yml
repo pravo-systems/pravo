@@ -55,9 +55,12 @@ runs:
           go-${{ runner.os }}-${{ inputs.key }}-${{ hashFiles('go.sum') }}-
           go-${{ runner.os }}-${{ inputs.key }}-
     # Modules that the cache lacks come from the proxy, which now and then fails a
-    # download in the middle of a test run.
+    # download in the middle of a test run. A restored module cache that has lost
+    # files (a Windows run once found utilities/doc.go missing) is dropped first:
+    # go believes a directory that exists.
     - shell: bash
       run: |
+        go mod verify >/dev/null 2>&1 || go clean -modcache
         for i in 1 2 3; do
           go mod download && exit 0
           sleep 3
