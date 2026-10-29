@@ -477,6 +477,8 @@ window.fetch = async (input, init) => {
   if (!graph) return json(500, { error: 'no fixture for ' + NAME });
   const p = url.pathname;
   if (p === '/api/ping') return json(200, { ok: true, version: 1 });
+  if (p === '/api/chat/config') return json(200, params.get('chat') ? { enabled: true, provider: 'anthropic', model: 'claude-sonnet-5-5', host: 'api.anthropic.com', tools: ['overview', 'search', 'node', 'source', 'plans', 'plan', 'policies', 'discovery', 'secrets', 'access', 'traces', 'trace'] } : { enabled: false });
+  if (p === '/api/chat') return chatAnswer(init, params.get('chat'));
   if (p === '/api/graph') return json(200, graph);
   if (p === '/api/access') return access ? json(200, Object.assign({}, access, { revision: graph.revision })) : json(404, { error: 'no such endpoint' });
   if (p === '/api/discovery') return discovery ? json(200, shift(Object.assign({}, discovery, { revision: graph.revision }), by)) : json(404, { error: 'no such endpoint' });
@@ -701,3 +703,29 @@ window.__mock = {
   drop() { for (const s of sources) { s.readyState = 0; s.fire('error', {}); } },
   restore() { for (const s of sources) { s.readyState = 1; s.fire('open', {}); } },
 };
+
+// ---- the chat: a scripted answer, as a stream ----
+// chat=on answers; chat=slow stops after the reads (a screenshot of the working state); chat=error fails.
+function chatAnswer(init, mode) {
+  if (!mode) return json(404, { error: 'not found' });
+  const enc = new TextEncoder();
+  const ev = (o) => enc.encode('data: ' + JSON.stringify(o) + '\n\n');
+  const sent = [
+    { tool: 'node', args: { addr: 'api.db' }, body: '{"addr":"api.db","type":"aws_db_instance","attributes":{"identifier":"acme-db","password":"withheld (sensitive)"}}', bytes: 1130 },
+    { tool: 'plans', args: {}, body: '{"plans":[{"id":"plan-2f9c1a4e","status":"pending"}]}', bytes: 540 },
+  ];
+  const stream = new ReadableStream({
+    async start(c) {
+      c.enqueue(ev({ type: 'read', tool: 'node', args: '{"addr":"api.db"}' }));
+      await sleep(250);
+      c.enqueue(ev({ type: 'read', tool: 'plans', args: '{}' }));
+      await sleep(250);
+      if (mode === 'slow') return;
+      if (mode === 'error') { c.enqueue(ev({ type: 'error', text: 'The provider answered 529: overloaded.' })); c.close(); return; }
+      c.enqueue(ev({ type: 'text', text: '`api.db` is replaced in `plan-2f9c1a4e` because `identifier` changed, and the provider marks that attribute as forcing replacement.\n\nThe password is withheld, so I can not say whether it changes too. To see why in full, run:\n\n```\npravo why api.db\n```' }));
+      c.enqueue(ev({ type: 'done', sent }));
+      c.close();
+    },
+  });
+  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+}

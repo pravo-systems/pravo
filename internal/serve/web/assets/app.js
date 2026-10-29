@@ -14,6 +14,7 @@ import { DiscoveryView } from './discovery.js';
 import { TracesView } from './traces.js';
 import { PoliciesView } from './policies.js';
 import { SecretsView } from './secrets.js';
+import { ChatView } from './chat.js';
 import { Palette, Sheet } from './palette.js';
 import { compileQuery, QueryMenu, quoted, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
@@ -37,7 +38,7 @@ const S = {
   runs: [], // the runs that pravo recorded, read when the palette opens
   live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
-let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView, secretsView;
+let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView, secretsView, chatView;
 let booted = false;
 
 // ---------------------------------------------------------------------------------------------------------
@@ -708,7 +709,8 @@ function clearSelection() {
 function showInspector() {
   const m = S.model;
   // the inspector is there while something is selected, or the project is asked for
-  $('app').dataset.sel = S.sel || S.proj ? '1' : '';
+  $('app').dataset.sel = S.sel || S.proj || (chatView && chatView.isOpen) ? '1' : '';
+  if (chatView) chatView.refreshContext();
   $('proj-btn').setAttribute('aria-pressed', S.proj && !S.sel ? 'true' : 'false');
   if (!S.sel) { insp.showProject(m); return; }
   if (m.nodes.has(S.sel)) {
@@ -1469,6 +1471,7 @@ function onKey(ev) {
   if (ev.altKey || ns) return;
   const typing = isTyping(ev.target);
   if (k === 'Escape') {
+    if (chatView && chatView.isOpen && !typing) { chatView.close(); return; }
     if ($('app').classList.contains('insp-open')) { closeDrawer(); return; }
     if (S.proj && !S.sel && !typing) { setProject(false); return; }
     if (typing) { ev.target.blur(); return; }
@@ -1484,6 +1487,7 @@ function onKey(ev) {
   if (typing) return;
   if (k === '/') { ev.preventDefault(); palette.open(); return; }
   if (k === '?') { ev.preventDefault(); sheet.open(); return; }
+  if (k === 'c' && chatView && chatView.enabled) { ev.preventDefault(); chatView.toggle(); return; }
   if (k === 't') { toggleTheme(); return; }
   if (k === 'a') { setView(S.view === 'access' ? (S.lastResources || 'graph') : 'access'); return; }
   if (k === 'p') { setView(S.view === 'plans' ? (S.lastResources || 'graph') : 'plans'); return; }
@@ -1602,6 +1606,22 @@ function wire() {
     onOpen: (on) => { S.palette = on; if (on) refreshRuns(); },
   });
   sheet = new Sheet($('sheet'), { onOpen: () => {} });
+  chatView = new ChatView($('chat'), {
+    context: () => ({ addr: S.sel && S.model && S.model.nodes.has(S.sel) ? S.sel : '', plan: S.plan || '', view: S.view }),
+    isAddr: (a) => !!(S.model && S.model.nodes.has(a)),
+    isPlan: (id) => S.plans.some((p) => p.id === id),
+    onNode: (a) => { if (S.view !== 'graph' && S.view !== 'list') setView(S.lastResources || 'graph'); selectNode(a, { center: true }); },
+    onPlan: openPlan,
+    onToggle: (on) => {
+      $('insp').classList.toggle('chat-on', on);
+      if (on) $('app').dataset.chat = '1'; else delete $('app').dataset.chat;
+      $('ask-btn').setAttribute('aria-pressed', on ? 'true' : 'false');
+      showInspector();
+      if (on) openDrawer(); else if (!S.sel && !S.proj) closeDrawer();
+      if (gv) gv.resize();
+    },
+  });
+  $('ask-btn').addEventListener('click', () => chatView.toggle());
 
   $('view-graph').addEventListener('click', () => setView('graph'));
   $('view-list').addEventListener('click', () => setView('list'));
@@ -1623,7 +1643,7 @@ function wire() {
   $('btn-collapse').addEventListener('click', () => setAllNamespaces(true));
   $('btn-expand').addEventListener('click', () => setAllNamespaces(false));
   $('insp-btn').addEventListener('click', toggleInspector);
-  $('insp-close').addEventListener('click', () => { closeDrawer(); });
+  $('insp-close').addEventListener('click', () => { if (chatView && chatView.isOpen) chatView.close(); else closeDrawer(); });
   $('insp-size').addEventListener('click', toggleInspSize);
   document.addEventListener('click', (ev) => {
     const c = ev.target instanceof Element && ev.target.closest('[data-copy]');
@@ -1769,6 +1789,7 @@ async function boot() {
   renderDiscoveryTab();
   renderPoliciesTab();
   renderSecretsTab();
+  chatView.init().then((on) => { $('ask-btn').hidden = !on; });
 }
 
 async function load(frag) {
@@ -1849,7 +1870,7 @@ async function load(frag) {
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, discoveryView, tracesView, policiesView, secretsView, insp, palette, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, discoveryView, tracesView, policiesView, secretsView, insp, palette, chatView, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

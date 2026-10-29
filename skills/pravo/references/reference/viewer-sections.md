@@ -18,6 +18,8 @@ The viewer that [`pravo serve`](serve.md) starts is one page with seven sections
 
 The tab of Discovery carries the number of objects that ask to be adopted, the tab of Policies the number of policies that the next apply changes, and the tab of Secrets the number of problems it flags; a tab with nothing waiting carries no number. The bar also holds the search button, which opens the command palette, the theme button, and, when the state is sealed, the identity the page is read as: its name, or `not a reader`, `no identity` or `identity locked` beside it. The title of the browser tab names the project and the section, so that tabs of several estates tell apart.
 
+When the viewer is started with [the assistant](serve.md#the-assistant), a speech-bubble button in the bar, or `c`, opens [the Ask panel](#the-ask-panel) in the column at the right of any section. It is a panel and not an eighth section.
+
 A status bar runs along the bottom of every section: the revision of the data, when it was read, `live`, `reconnecting`, `offline` or `connecting`, and `read-only · localhost only`. In Inventory it also says `no plan loaded`, or the id of the plan laid over the graph with `planned N of M` and the number of resources the plan did not read.
 
 ## The Inventory section
@@ -303,3 +305,19 @@ The suggestions are: `seal` (for a state that is not sealed), `check why the sta
 The view is made for the keyboard and for a screen reader. Tab visits, in the order of the page, the button `Add a member`, each row of a member, which opens, and in it each card and each button that copies a key, each `name not usable` mark, the disclosure `Technical details`, each issue's button, each button that copies a fingerprint or the path of the access list, each suggestion, and the buttons that copy the steps of a suggestion that is open. Enter and Space open and close a suggestion, which says whether it is open; Esc leaves it as it is and hides the tip of a button. A button that copies is named for what it copies, and when the copy is done the page says `Copied` and the name of what was copied, or `Could not copy`. The skip link at the top of the page moves the focus to the view, and the next Tab goes to its first stop. The chips of the state, of You, of each member and of each verdict show their words, so that no state is told by colour alone.
 
 The list and the inspector mark a record that cannot be opened with the chip `sealed`. The inspector shows its address, type, dependencies and revision, and a note, and no attribute. The outputs of a state that cannot be opened show `sealed` and no value. A count that depends on what a record says, the drifted and the sensitive resources of the filter chips and of the project card, shows a dash with the title `sealed` where it would be zero, since a record that cannot be opened is not counted. A stored plan that cannot be opened is laid over the graph from its summary, which gives the address, the type and the action of each change, with the warning "The values of this plan are sealed." and no attribute change.
+
+## The Ask panel
+
+The Ask panel is drawn only when `pravo serve` was started with a provider named in `PRAVO_CHAT` or `--chat`. It opens with the button in the bar or `c`, and it takes the place of the inspector in the column at the right of every section. Below 760 px wide it is a sheet over the bottom of the page. Esc closes it, and the conversation stays until New chat or a reload.
+
+| Part | Holds |
+|---|---|
+| The head | `Ask`, the provider and the model, with the host that questions go to as the tip. The close button is at the right. |
+| The notice | Shown instead of the chat the first time in a browser: the provider, the model and the host, where the key is read from, what is sent, what is never sent, the reads that the model has and that every answer lists what was sent. `Turn on for this project` keeps the choice in the browser, and `Not now` closes the panel. |
+| About | What the question is about: the selected resource, the open plan or `the whole estate`. A cross on a resource takes it out. At the right, `reads only`, and once there is a conversation, the button `New chat`, which drops an answer that is still coming and clears the panel. |
+| The log | Your questions, each with the answer under it. While the model works, each read shows as a line, `node ADDRESS` or `plan ID`, and the last line says `writing the answer`. |
+| An answer | Text, lists and bold. A name in backticks that is a resource or a stored plan of the estate is a link that selects it or opens it in the Plans section, and any other name is plain text. A command is a box that copies it, under the line `Run it yourself. This page runs nothing.` |
+| Sent to the model | Under each answer, a disclosure with the number of reads and their size. Each read opens to the exact text that was sent to the provider for it, or to `refused`. |
+| The foot | Two buttons that offer a question to start from, the box for the question (Enter sends, Shift-Enter starts a line, 2000 characters at most) and a line that says that the panel reads the redacted views and cannot change anything. |
+
+A failure is one line with the provider's message and a `Try again` button. [Ask questions about your estate](../how-to/ask-questions-about-your-estate.md) walks through it, and [the routes](viewer-api.md) are `GET /api/chat/config` and `POST /api/chat`.

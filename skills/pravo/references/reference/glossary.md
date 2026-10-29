@@ -237,6 +237,12 @@ A signature of a [stored plan](#stored-plan), made with `pravo plan approve` by 
 
 Taught in [C6](../learn/c06-ask-for-approvals.md). See [Stored plans and approvals](../concepts/stored-plans-and-approvals.md).
 
+### assistant
+
+The optional, read-only helper of the [viewer](#viewer) that answers a question in words. A language model from a provider that you name reads the views that the page shows, with the same values withheld, and answers with links to the resources and plans of the estate. It has no tool that writes, and each answer lists what was sent to the model.
+
+See [The assistant](../concepts/the-assistant.md) and [Ask questions about your estate](../how-to/ask-questions-about-your-estate.md).
+
 ### blast radius
 
 The number of distinct nodes that have a pending change, together with every node that depends on one of them. It is `summary.blast_radius` in the output of `plan --json`. A policy does not see it, because the judged document is built from the plan file alone.

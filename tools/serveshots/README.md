@@ -54,6 +54,10 @@ A scenario is a CUE root in `scenarios/NAME`, embedded in the program, or files 
 
 A reference inside a comprehension to a loop variable that stands for a resource (`for s, svc in api.services { ... svc.id.hex ... }`) does not record the dependency, and an apply can fail with "still unknown at apply time". The scenarios write such references out.
 
+## The assistant
+
+The shots `ask-notice`, `ask-answer` and `ask-sent` start the viewer with the assistant on. The program serves a model on `127.0.0.1:11434`, the address of a local model, in the protocol of an openai-compatible provider (`chatstub.go`), and `PRAVO_CHAT`, `PRAVO_CHAT_ENDPOINT` and a key are set for the viewer. The model asks for the stored plans, which the viewer reads for real, and writes its answer from what came back: the picture holds the plans and the resources of the estate and not text that could drift from them. It says nothing of how a real model would answer. A port that is in use stops these shots with a message.
+
 ## Situations
 
 A shot is made from one of five situations of a scenario.

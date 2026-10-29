@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="assets/studio.css">
 <link rel="stylesheet" href="assets/traces.css">
 <link rel="stylesheet" href="assets/secrets.css">
+<link rel="stylesheet" href="assets/chat.css">
 <script type="module" src="assets/app.js"></script>
 </head>
 <body>
@@ -39,6 +40,7 @@
     <button type="button" class="sec-tab" id="sec-access" aria-pressed="false" aria-keyshortcuts="a" data-tip="State" data-key="a"><span class="i i-lock" aria-hidden="true"></span><span class="lbl">State</span></button>
   </nav>
   <div class="topright">
+    <button class="asktop" id="ask-btn" type="button" hidden aria-pressed="false" aria-label="Ask about this estate" aria-controls="chat" aria-keyshortcuts="c" data-tip="Ask about this estate" data-key="c"><span class="i i-ask" aria-hidden="true"></span><kbd>c</kbd></button>
     <button class="search" id="search-btn" type="button" aria-label="Search and run actions" aria-keyshortcuts="/ Control+K Meta+K"><span class="i i-search" aria-hidden="true"></span><span class="lbl">Search</span><kbd>/</kbd></button>
     <span class="me" id="me" hidden tabindex="0" role="note"></span>
     <button class="iconbtn" id="theme-btn" type="button" aria-label="Switch the theme" data-tip="Switch the theme" data-key="t"><span class="i i-moon" aria-hidden="true"></span></button>
@@ -125,6 +127,7 @@
     <div class="istrip" id="istrip" hidden></div>
     <div class="iplans" id="iplans" hidden></div>
     <div class="itabs" role="tablist" aria-label="Sections" hidden></div>
+    <section class="chat" id="chat" aria-label="Ask" hidden></section>
     <div class="ibody" id="ibody" role="tabpanel" tabindex="-1"><div class="isk" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></div>
   </aside>
   <div class="drawer-scrim" id="scrim" hidden></div>

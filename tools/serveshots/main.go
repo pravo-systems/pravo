@@ -230,6 +230,8 @@ type maker struct {
 	views  map[string]*viewer
 	// store serves the bucket of the team situations, started with the first.
 	store *store
+	// model answers the assistant, started with the first shot of it.
+	model *chatStub
 }
 
 func (m *maker) logf(format string, args ...any) {
@@ -284,8 +286,11 @@ func (m *maker) workspace(sc scenario, situation string) (*workspace, error) {
 }
 
 // viewer returns the server for the scenario and situation, started once.
-func (m *maker) viewer(sc scenario, situation string) (*viewer, error) {
+func (m *maker) viewer(sc scenario, situation string, chat bool) (*viewer, error) {
 	key := sc.Name + "/" + situation
+	if chat {
+		key += "/chat"
+	}
 	if v, ok := m.views[key]; ok {
 		return v, nil
 	}
@@ -297,8 +302,19 @@ func (m *maker) viewer(sc scenario, situation string) (*viewer, error) {
 	if situation == situationPlan {
 		plan = w.Plan
 	}
+	env := w.Env
+	if chat {
+		if m.model == nil {
+			if m.model, err = startChatStub(); err != nil {
+				return nil, err
+			}
+			m.logf("serving the model of the assistant on %s", chatAddr)
+		}
+		env = append(append([]string(nil), env...), chatEnv...)
+		env = append(env, "PRAVO_CHAT_API_KEY=stand-in")
+	}
 	m.logf("starting pravo serve for %s", key)
-	v, err := startViewer(m.ctx, m.bin, w.Dir, plan, w.Env, m.log)
+	v, err := startViewer(m.ctx, m.bin, w.Dir, plan, env, m.log)
 	if err != nil {
 		return nil, fmt.Errorf("scenario %s, %s: %w", sc.Name, situation, err)
 	}
@@ -313,7 +329,7 @@ func (m *maker) make(s Shot) (info imageInfo, notes []string, err error) {
 	if !ok {
 		return info, nil, fmt.Errorf("unknown scenario %q", s.Scenario)
 	}
-	v, err := m.viewer(sc, s.Situation)
+	v, err := m.viewer(sc, s.Situation, s.Chat)
 	if err != nil {
 		return info, nil, err
 	}
@@ -446,6 +462,9 @@ func (m *maker) close() {
 	}
 	if m.store != nil {
 		m.store.stop()
+	}
+	if m.model != nil {
+		m.model.stop()
 	}
 }
 

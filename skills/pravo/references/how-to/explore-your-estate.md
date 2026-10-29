@@ -296,6 +296,10 @@ The section has these parts, from the top. The banner says whether the state is 
 
 The viewer runs none of the commands and edits no file. Copy a command and run it in a terminal; a step that edits the readers file shows the line, and you add it. The view updates when the readers file or the state changes, so an edit in your checkout shows within a second or two. [Give people roles](give-people-roles.md) walks through the roles, and [The State section](../reference/viewer-sections.md#the-state-section) lists every part and every suggestion.
 
+## 16. Ask a question
+
+When the viewer is started with a provider named in `PRAVO_CHAT`, a speech-bubble button joins the bar, and `c` opens the Ask panel in the column at the right of every section. It answers a question about what the page shows, in words, with links to the resources and the stored plans that the answer names, and under each answer it lists the text that was sent to the model. It reads and writes nothing, and without a provider it is not drawn. [Ask questions about your estate](ask-questions-about-your-estate.md) turns it on.
+
 ## Recap
 
 - `pravo serve` shows the specification, the state, the stored plans, the policies, the discoveries and the recorded runs of one root. It reads and writes nothing.
@@ -306,6 +310,7 @@ The viewer runs none of the commands and edits no file. Copy a command and run i
 - The Traces section draws a recorded run as a timeline, with the provider calls and the network calls under each resource.
 - A value that is sensitive, or has a secret's name, or contains a secret, never reaches the page.
 - The State section shows who can read a sealed state, with which role, and what needs doing. It suggests commands, and the viewer runs none.
+- The Ask panel, key `c`, answers a question about the estate in words when the viewer is started with a provider named. It reads what the page shows, writes nothing and lists what it sent.
 - The fragment of the address holds the view, so a link reproduces it. Press `?` in the viewer for the shortcuts.
 
 Next: [The sections of the viewer](../reference/viewer-sections.md) lists every part of every section, and [The viewer](../concepts/the-viewer.md) explains what each mark means.

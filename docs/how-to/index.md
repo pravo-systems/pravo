@@ -59,6 +59,7 @@ See the estate, what the team planned, and what a run did.
 | I want to | Guide | Background |
 |---|---|---|
 | See the estate as a graph, with its history, the team's plans, drift and the policies in force | [Explore an estate in a browser](explore-your-estate.md) | [The viewer](../concepts/the-viewer.md) |
+| Ask a question about the estate in words, and read what was sent to the model | [Ask questions about your estate](ask-questions-about-your-estate.md) | [The assistant](../concepts/the-assistant.md) |
 | Keep a trace of every run, find the slow resource and the call that failed | [Record what a run does](record-what-a-run-does.md) | [Traces](../concepts/traces.md) |
 | Find out why an evaluation or a plan fails | [Find out why a run fails](debugging.md) | [Reading a CUE error](../learn/reading-a-cue-error.md) |
 

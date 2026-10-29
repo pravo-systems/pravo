@@ -65,7 +65,8 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `s` | Open the policy studio, or go back to the register when it is open. |
 | `r` | Switch between the Inventory and the Traces sections. |
 | `e` | Switch between the Inventory and the Secrets sections. |
-| Esc | Close the palette, the sheet or a drawer. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the group that a click opened, then clear the selection. |
+| `c` | Open or close the Ask panel, when the viewer was started with [the assistant](serve.md#the-assistant). |
+| Esc | Close the palette, the sheet, a drawer or the Ask panel. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the group that a click opened, then clear the selection. |
 
 ### In the graph
 

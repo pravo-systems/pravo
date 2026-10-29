@@ -1,7 +1,7 @@
 ---
 title: Find out why a run fails
 description: Read an evaluation error, ask pravo what it decided with -v, ask why a resource changes, check for drift and follow a run in a trace.
-order: 3
+order: 4
 minutes: 15
 needs: "[Reading a CUE error](../learn/reading-a-cue-error.md) for the shape of a CUE error. `jq`, and an empty directory."
 done_when: "You can name the file and line of an evaluation error, print the reason for a task from the debug log and follow a command in a trace."
