@@ -156,6 +156,15 @@ func TestPlanCommentsTheStoredPlan(t *testing.T) {
 	has(t, "the summary", r.summary, "Stored as `plan-0a1b2c3d`")
 }
 
+func TestPlanWithoutStoreDropsTheTTL(t *testing.T) {
+	r := run(t, map[string]string{"INPUT_COMMAND": "plan", "INPUT_STORE": "false", "INPUT_TTL": "36h"}, map[string]string{"stdout.md": planReport})
+	if r.code != 0 {
+		t.Fatalf("exit %d:\n%s", r.code, r.out)
+	}
+	has(t, "the pravo calls", r.pravo, "plan --markdown")
+	lacks(t, "the pravo calls", r.pravo, "--ttl", "--store")
+}
+
 func TestPlanUpdatesItsOwnComment(t *testing.T) {
 	marker := "<!-- pravo-action:plan:. -->"
 	comments := `[{"id":11,"body":"hello"},{"id":55,"body":"` + marker + `\n### old"}]`
