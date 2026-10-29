@@ -2,7 +2,7 @@
 // graph, the filter pills, the list, the inspector and the palette. It only reads: every request is a GET.
 
 import * as api from './api.js';
-import { buildModel, buildItems, firstView, touchedNamespaces, reveal, diffModels, CLUSTER_CAP, isChange, chain, isOut, isEnv, isSecret } from './model.js';
+import { buildModel, buildItems, firstView, touchedNamespaces, reveal, diffModels, CLUSTER_CAP, isChange, chain, isOut, isEnv, isSecret, tabsOf } from './model.js';
 import { layout } from './layout.js';
 import { GraphView, Minimap } from './graph.js';
 import { Pills } from './pills.js';
@@ -721,9 +721,9 @@ function showInspector() {
 }
 
 function effectiveTab(n) {
-  // an output has a value and a declaration only: the other tabs are not there for it
-  if (isOut(n)) return S.tab === 'source' ? 'source' : 'state';
-  if (S.tab && TABKEYS.includes(S.tab) && (S.tab !== 'change' || S.model.hasPlan)) return S.tab;
+  // a tab that the node could never fill is not there for it: the state shows instead
+  if (S.tab && tabsOf(n, S.model.hasPlan).includes(S.tab)) return S.tab;
+  if (S.tab && TABKEYS.includes(S.tab)) return 'state';
   return S.model.hasPlan && isChange(n.action) ? 'change' : 'state';
 }
 

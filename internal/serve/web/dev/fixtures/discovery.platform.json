@@ -338,6 +338,14 @@
           ],
           "reason": "nightly jobs; they come and go",
           "covers": 3
+        },
+        {
+          "ref": "$ack[1]",
+          "ids": [
+            "i-0decom1"
+          ],
+          "reason": "the old build host",
+          "covers": 0
         }
       ],
       "command": "pravo discover compute.instances",
