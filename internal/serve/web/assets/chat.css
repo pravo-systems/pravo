@@ -1,7 +1,7 @@
 /* ==========================================================================
    pravo serve: the Ask panel (chat.js). It takes the slot of the inspector while it is open.
    ========================================================================== */
-.insp.chat-on > :not(.chat):not(.insp-bar) { display: none !important; }
+.insp.chat-on > :not(.chat, .insp-bar) { display: none !important; }
 .insp.chat-on { display: flex !important; }
 .chat { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; font-size: var(--fs-4); }
 .chat-head { display: flex; align-items: center; gap: .6rem; padding: .7rem 3.4rem .7rem 1rem; border-bottom: 1px solid var(--line-strong); }
