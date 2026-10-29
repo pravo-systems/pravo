@@ -61,8 +61,6 @@ On GitHub Actions, `pravo-systems/setup-pravo` downloads the release archive for
 steps:
   - uses: actions/checkout@v4
   - uses: pravo-systems/setup-pravo@v1
-    with:
-      version: 0.1.0
   - run: pravo -C app validate
 ```
 
@@ -70,7 +68,7 @@ Set `verify-attestation: true` to check the signed provenance of the archive as 
 
 ## Run pravo from a workflow
 
-`pravo-systems/pravo-action` runs one command and reports it on GitHub. It installs pravo with `setup-pravo`, so name a `version` that has `--markdown`, or set `install: false` after your own install step.
+`pravo-systems/pravo-action` runs one command and reports it on GitHub. It installs pravo with `setup-pravo`, and uses the latest full release. Set `version` to pin one, or `install: false` after your own install step.
 
 ```yaml
 name: pravo
