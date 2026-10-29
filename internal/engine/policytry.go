@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -84,7 +85,7 @@ func CheckRule(ctx *cue.Context, name, text string) *RuleProblem {
 // file that the positions of its errors are in.
 func checkRuleValue(ctx *cue.Context, label, file string, rule cue.Value) *RuleProblem {
 	var nilEngine *Engine
-	data, _, err := nilEngine.PolicyDocument(&PlanFile{Format: PlanFileFormat, Providers: map[string]string{}})
+	data, _, err := nilEngine.PolicyDocument(&PlanFile{Format: PlanFileFormat, Providers: map[string]string{}}, time.Time{})
 	if err != nil {
 		return &RuleProblem{Stage: "empty", Message: err.Error()}
 	}

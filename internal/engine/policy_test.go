@@ -25,7 +25,7 @@ func TestTheJudgedDocumentComesFromThePlanFileAlone(t *testing.T) {
 	e := policyEngine()
 	e.Opts.Actor, e.Opts.Reason, e.traceID = "someone-else", "another reason", "trace-1"
 	made := time.Date(2026, 10, 1, 8, 30, 0, 0, time.UTC)
-	doc, err := e.judgedDoc(&PlanFile{Format: PlanFileFormat, Created: made, Actor: "ci", Reason: "nightly", GitRevision: "abc123", Providers: map[string]string{"local": "2.9.1"}})
+	doc, err := e.judgedDoc(&PlanFile{Format: PlanFileFormat, Created: made, Actor: "ci", Reason: "nightly", GitRevision: "abc123", Providers: map[string]string{"local": "2.9.1"}}, made.Add(36*time.Hour+500*time.Millisecond))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,6 +41,9 @@ func TestTheJudgedDocumentComesFromThePlanFileAlone(t *testing.T) {
 	}
 	if !strings.HasPrefix(str("created"), "2026-10-01T08:30:00") {
 		t.Errorf("created is the file's: %s", str("created"))
+	}
+	if str("now") != "2026-10-02T20:30:00Z" {
+		t.Errorf("now is the moment given, to the second: %s", str("now"))
 	}
 	changes := doc.LookupPath(cue.ParsePath("changes"))
 	if n, _ := changes.Len().Int64(); changes.Kind() != cue.ListKind || n != 0 {
@@ -139,7 +142,7 @@ func TestAKeptPlanIsNotCollected(t *testing.T) {
 // field the document gains must be added to #Plan, or every rule that reads it fails.
 func TestThePlanSchemaFitsTheJudgedDocument(t *testing.T) {
 	e := policyEngine()
-	doc, err := e.judgedDoc(&PlanFile{Format: PlanFileFormat, Created: time.Now(), Actor: "ci", Reason: "r", GitRevision: "abc", Providers: map[string]string{"local": "2.9.1"}})
+	doc, err := e.judgedDoc(&PlanFile{Format: PlanFileFormat, Created: time.Now(), Actor: "ci", Reason: "r", GitRevision: "abc", Providers: map[string]string{"local": "2.9.1"}}, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

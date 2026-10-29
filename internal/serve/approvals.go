@@ -2,6 +2,7 @@ package serve
 
 import (
 	"context"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -86,7 +87,7 @@ func (s *Server) approvalNeeds(ctx context.Context, m *model, pf *engine.PlanFil
 	if err != nil {
 		return nil, "not checked: the plan cannot be decoded"
 	}
-	needs, _, err := eng.ApprovalNeeds(set, pf)
+	needs, _, err := eng.ApprovalNeeds(set, pf, time.Now())
 	if err != nil {
 		return nil, "not checked: " + m.scrubText(headline(err.Error()))
 	}

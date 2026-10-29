@@ -17,6 +17,7 @@ A rule is unified with the plan document. It is the JSON that `pravo plan --json
 | The size of the plan | `summary.add`, `.change`, `.destroy`, `.read` | yes |
 | How much of the graph was walked | `stats.*` | yes |
 | The outputs | `outputs.<name>` | yes |
+| The moment of the judgement | `now` | yes |
 
 `mode` is `managed`, `data`, `ephemeral` or `call`. A value that pravo reads itself (`pravo.#Env`, `pravo.#SecretEnv`, `pravo.#RemoteOutputs`) produces no entry, so a rule over it never fires. `action` is `create`, `update`, `replace`, `delete`, `read`, `open`, `call`, `move` or `no-op`.
 
@@ -53,6 +54,7 @@ The document that a rule sees is the one `plan --json` prints with these differe
 | `changes[].applied` | cleared: a plan file that was applied in part is judged as a whole |
 | `changes` | an empty list, never `null` |
 | `created`, `actor`, `reason`, `git_revision`, `reservation`, `providers` | the values the plan file holds |
+| `now` | added: the moment the plan is judged, see [The clock](#the-clock) |
 
 The document has the rows of the plan: the nodes the plan ran. It has no entry for a node that the plan left alone, for an ephemeral resource that was opened, or for a function that was called, because a plan file holds none. A rule over attributes judges only the resources that a change touches.
 
@@ -81,6 +83,19 @@ db_password: $random.#Resource.random_password & {
 ```sh
 pravo -C infra init > /dev/null
 ```
+
+## The clock
+
+`now` is the one value in the judged document that does not come from the plan file. It is the moment the plan is judged, in UTC to the second, such as `2026-10-29T14:30:00Z`. A text of this form has a fixed width, so two of them compare as strings (`now >= "2026-12-24T00:00:00Z"`), and the standard library's `time` package reads it: `time.FormatString("Monday", now)` is the day of the week and `time.Split(now).hour` the hour.
+
+| Judged by | `now` is |
+|---|---|
+| `pravo apply` | The start of the transaction, which its signature covers. |
+| `pravo state verify` | The start of the transaction that is verified, so a verdict replays. |
+| `plan`, `show`, the viewer | The time of the command. |
+| `pravo policy test` | The time of the command, or `--at`. |
+
+A rule reads `now` inside a list template over `changes`, as the rules of [the policy pack](policies-pack.md) do. A plan with no change in it has no element for the rule to judge, so a window does not refuse an empty plan, and a plan with no resource change is not judged at all. A rule that tests `now` at the top level is not decided when the specification loads, and is refused for that.
 
 ## Absent, null and unknown
 

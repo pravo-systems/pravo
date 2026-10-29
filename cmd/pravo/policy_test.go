@@ -375,3 +375,41 @@ func TestApplyReportsThePolicyVersionsItWrote(t *testing.T) {
 		t.Errorf("policies = %s\n%s", got, text)
 	}
 }
+
+// A policy whose rule names a rule of pravo.dev/policies is stored as standalone text, and the
+// clock it reads is the start of the apply, so the receipt of a refused or allowed apply replays.
+func TestAPolicyFromThePackIsStoredStandaloneAndReadsTheClock(t *testing.T) {
+	r := newPolicyRoot(t, nil, "a")
+	spec := func(files ...string) {
+		var b strings.Builder
+		b.WriteString("package infra\n\nimport \"pravo.dev/pravo\"\nimport \"pravo.dev/policies\"\nimport loc \"pravo.dev/providers/hashicorp/local\"\n\n$local: loc.#Provider\n\n")
+		b.WriteString("freeze: pravo.#Policy & {rule: policies.#Freeze & {#from: \"2000-01-01T00:00:00Z\", #until: \"2999-01-01T00:00:00Z\"}}\n")
+		for _, f := range files {
+			fmt.Fprintf(&b, "%s: $local.#Resource.local_file & {filename: \"%s.txt\", content: \"x\"}\n", f, f)
+		}
+		if err := os.WriteFile(filepath.Join(r.dir, "main.cue"), []byte(b.String()), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	spec("a")
+	if text, code := runPravo(t, r.dir, "init"); code != 0 {
+		t.Fatalf("init: exit %d\n%s", code, text)
+	}
+	// The apply that adds the policy is not judged by it.
+	if text, code := r.apply(t); code != 0 {
+		t.Fatalf("first apply: exit %d\n%s", code, text)
+	}
+	force := r.policies(t).InForce()
+	if len(force) != 1 || strings.Contains(force[0].Text, "policies.") || strings.Contains(force[0].Text, "pravo.") || !strings.Contains(force[0].Text, "#until") {
+		t.Fatalf("the stored text is the rule itself, standalone:\n%+v", force)
+	}
+	spec("a", "b")
+	text, code := r.apply(t)
+	if code != 5 || !strings.Contains(text, "b: create during the freeze from 2000-01-01T00:00:00Z to 2999-01-01T00:00:00Z") {
+		t.Fatalf("an apply inside the freeze: exit %d\n%s", code, text)
+	}
+	plan := filepath.Join(t.TempDir(), "p.plan")
+	if text, code := runPravo(t, r.dir, "plan", "--out", plan); code != 5 {
+		t.Logf("plan: exit %d\n%s", code, text)
+	}
+}

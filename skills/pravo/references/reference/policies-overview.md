@@ -10,7 +10,7 @@ A policy is a node of the specification: `pravo.#Policy`, with a `rule` that is 
 |---|---|
 | Declared | A field of the specification with `$kind: "policy"`. Use `pravo.#Policy & {rule: …}`. |
 | Name | The path of the field. `no_destroy` in the root is the policy `no_destroy`. |
-| Rule | A CUE struct that is never empty, kept in the state as its formatted source. It may import the CUE standard library and nothing else. |
+| Rule | A CUE struct that is never empty, kept in the state as its formatted source. It may import the CUE standard library and nothing else, or name a rule of [the policy pack](policies-pack.md), whose text is copied in. |
 | Stored | `policy/NAME@SEQ.json` in the state. A version is written once and never replaced or deleted. |
 | In force | For each name, its latest version, unless that version is a removal. |
 | Judges | The changes of every plan that creates, updates, replaces or deletes a resource. |

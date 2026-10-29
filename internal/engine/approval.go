@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -300,8 +301,8 @@ func policyChangeNeed(set *state.PolicySet, plan *Plan) *ApprovalNeed {
 // gets no need from them, and refused says so: the apply stops at the refusal. An admin
 // applies without approvals. The viewer shows the needs beside the approvals a stored
 // plan has.
-func (e *Engine) ApprovalNeeds(set *state.PolicySet, pf *PlanFile) (needs []ApprovalNeed, refused bool, err error) {
-	data, plan, err := e.PolicyDocument(pf)
+func (e *Engine) ApprovalNeeds(set *state.PolicySet, pf *PlanFile, now time.Time) (needs []ApprovalNeed, refused bool, err error) {
+	data, plan, err := e.PolicyDocument(pf, now)
 	if err != nil {
 		return nil, false, err
 	}

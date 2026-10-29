@@ -310,7 +310,7 @@ func (s *Server) makeDoc(ctx context.Context, m *model, ref string, tr *engine.T
 	if err != nil {
 		return fail("unreadable", "The values of the plan cannot be decoded: "+m.scrubText(headline(err.Error()))+".")
 	}
-	data, plan, err := eng.PolicyDocument(pf)
+	data, plan, err := eng.PolicyDocument(pf, time.Now())
 	if err != nil {
 		return fail("unreadable", "The values of the plan cannot be decoded: "+m.scrubText(headline(err.Error()))+".")
 	}

@@ -153,29 +153,33 @@ func (e *Engine) checkNewPolicy(name, text string) error {
 
 // judgedDoc is the document a policy is judged against, made from the plan file alone.
 // It is the document of "plan --json" without what the file does not hold: the state
-// gives it no dependents and no blast radius, the clock no time, the invocation no actor
-// or reason, and the marks of an earlier stage are cleared.
-func (e *Engine) judgedDoc(pf *PlanFile) (cue.Value, error) {
-	data, _, err := e.PolicyDocument(pf)
+// gives it no dependents and no blast radius, the invocation no actor or reason, and the
+// marks of an earlier stage are cleared. The one thing the clock gives it is now.
+func (e *Engine) judgedDoc(pf *PlanFile, now time.Time) (cue.Value, error) {
+	data, _, err := e.PolicyDocument(pf, now)
 	if err != nil {
 		return cue.Value{}, err
 	}
 	return buildDoc(e.Root.Ctx, data)
 }
 
-// PolicyDocument is the JSON of the document that policies judge pf by, and the plan
-// it was made from.
-func (e *Engine) PolicyDocument(pf *PlanFile) ([]byte, *Plan, error) {
+// Clock is the text of the now of a policy document: UTC, to the second, as in
+// 2026-10-29T14:30:00Z. The text has a fixed width, so two of them compare as strings.
+func Clock(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05Z") }
+
+// PolicyDocument is the JSON of the document that policies judge pf by at the moment
+// now, and the plan it was made from.
+func (e *Engine) PolicyDocument(pf *PlanFile, now time.Time) ([]byte, *Plan, error) {
 	plan, err := e.newPlan(pf)
 	if err != nil {
 		return nil, nil, err
 	}
-	data, err := documentOf(pf, plan)
+	data, err := documentOf(pf, plan, now)
 	return data, plan, err
 }
 
-func documentOf(pf *PlanFile, plan *Plan) ([]byte, error) {
-	v := &View{Format: ViewFormat, Created: pf.Created, Actor: pf.Actor, Reason: pf.Reason, GitRevision: pf.GitRevision,
+func documentOf(pf *PlanFile, plan *Plan, now time.Time) ([]byte, error) {
+	v := &View{Format: ViewFormat, Created: pf.Created, Now: Clock(now), Actor: pf.Actor, Reason: pf.Reason, GitRevision: pf.GitRevision,
 		Destroy: pf.Destroy, Stats: pf.Stats, Changes: []ChangeView{}, Outputs: map[string]any{}, Reservation: pf.Reservation,
 		Providers: map[string]string{}}
 	for local, ver := range pf.Providers {
@@ -214,7 +218,7 @@ func marshalDoc(v *View) ([]byte, error) {
 // were in a plan, and answers which records a rule would refuse today. The changes are
 // the ones given, in order.
 func StateDoc(changes []ChangeView) (Doc, error) {
-	v := &View{Format: ViewFormat, Changes: changes, Outputs: map[string]any{}, Providers: map[string]string{}}
+	v := &View{Format: ViewFormat, Now: Clock(time.Now()), Changes: changes, Outputs: map[string]any{}, Providers: map[string]string{}}
 	if v.Changes == nil {
 		v.Changes = []ChangeView{}
 	}
@@ -256,12 +260,12 @@ func (pf *PlanFile) changesResources() bool {
 // apply selects, by the policies in force in set. It returns the versions that judged,
 // as a receipt lists them; none when no policy is in force or the file changes no
 // resource. A policy that is violated is an error of exit code 5.
-func (e *Engine) Judge(set *state.PolicySet, pf *PlanFile) ([]string, error) {
+func (e *Engine) Judge(set *state.PolicySet, pf *PlanFile, now time.Time) ([]string, error) {
 	force := set.InForce()
 	if len(force) == 0 || !pf.changesResources() {
 		return nil, nil
 	}
-	doc, err := e.judgedDoc(pf)
+	doc, err := e.judgedDoc(pf, now)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +311,7 @@ func (e *Engine) JudgePlan(ctx context.Context, plan *Plan) error {
 	if err != nil {
 		return err
 	}
-	refs, err := e.Judge(set, pf)
+	refs, err := e.Judge(set, pf, time.Now())
 	if err != nil {
 		return err
 	}
@@ -323,7 +327,7 @@ func (e *Engine) JudgeFile(ctx context.Context, pf *PlanFile) error {
 	if err != nil {
 		return err
 	}
-	_, err = e.Judge(set, pf)
+	_, err = e.Judge(set, pf, time.Now())
 	return err
 }
 
@@ -386,12 +390,13 @@ func (e *Engine) judgeApply(ctx context.Context, plan *Plan, writes bool) (*stat
 	if e.Opts.Judged != nil {
 		e.Opts.Judged()
 	}
-	refs, err := e.Judge(set, pf)
+	now := e.txn.Started()
+	refs, err := e.Judge(set, pf, now)
 	e.txn.SetPolicies(refs)
 	if err != nil {
 		return set, err
 	}
-	doc, err := e.judgedDoc(pf)
+	doc, err := e.judgedDoc(pf, now)
 	if err != nil {
 		return nil, err
 	}

@@ -68,6 +68,11 @@ package pravo
 	format: int
 	// When the plan was made, RFC 3339.
 	created: string
+	// The moment the plan is judged, UTC to the second, such as 2026-10-29T14:30:00Z.
+	// At an apply it is the start of the transaction, which the signature covers, so a
+	// judgement can be replayed with the same answer. Texts of this form compare as
+	// strings, and the standard library's time package reads them.
+	now: string
 	// The labels of --actor and --reason, and the revision of the repository.
 	actor?:        string
 	reason?:       string

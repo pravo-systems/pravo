@@ -367,7 +367,8 @@ func genPackage(src registry.Source) (importPath, pkgName string) {
 
 // writeGenerated writes the generated CUE packages under cue.mod/gen: one
 // per provider, holding every definition the provider offers, and
-// pravo.dev/pravo with the settings schema. Specifications import them.
+// pravo.dev/pravo with the settings schema and pravo.dev/policies with the
+// starter rules. Specifications import them.
 func (s *session) writeGenerated(verbose bool) error {
 	root := s.root
 	modDir, ok := root.ModuleDir()
@@ -416,7 +417,14 @@ func (s *session) writeGenerated(verbose bool) error {
 	if err := os.MkdirAll(pdir, 0o755); err != nil {
 		return err
 	}
-	_, err := pravo.WriteIfChanged(filepath.Join(pdir, "settings_gen.cue"), []byte(schema.SettingsPackage))
+	if _, err := pravo.WriteIfChanged(filepath.Join(pdir, "settings_gen.cue"), []byte(schema.SettingsPackage)); err != nil {
+		return err
+	}
+	qdir := filepath.Join(modDir, "gen", "pravo.dev", "policies")
+	if err := os.MkdirAll(qdir, 0o755); err != nil {
+		return err
+	}
+	_, err := pravo.WriteIfChanged(filepath.Join(qdir, "policies_gen.cue"), []byte(schema.PoliciesPackage))
 	return err
 }
 

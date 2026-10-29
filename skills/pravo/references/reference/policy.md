@@ -8,7 +8,7 @@ Hold a policy rule, or a draft of one, against stored plans and plan files befor
 
 | | |
 |---|---|
-| Synopsis | `pravo policy test [POLICY \| RULE.cue]... [--plan ID_OR_FILE]... [--all] [--in-force]` |
+| Synopsis | `pravo policy test [POLICY \| RULE.cue]... [--plan ID_OR_FILE]... [--all] [--in-force] [--at TIME]` |
 | Reads | The specification, the state and the plans named or stored. |
 | Writes | Nothing. No state, no lock, no plan. |
 | Taught in | [Operating policies](policies-operations.md#rolling-out-and-testing) |
@@ -32,6 +32,7 @@ With no argument every policy of the specification is tried.
 | `--plan ID_OR_FILE` | A stored plan, by id, or a plan file made by `plan --out`. A plan file of a sealed state opens with the key of a reader, so give the tags it was made with (`-t`, `-T`). Repeatable. With it, the plans that can be applied are not added. |
 | `--all` | Every stored plan, including applied, stale and expired ones. |
 | `--in-force` | Try the versions that the state holds instead of the text of the specification. Use it to ask what the policies of the state say about a plan. |
+| `--at TIME` | The moment the rules are tried at, an RFC 3339 time such as `2026-12-24T10:00:00Z`. It is the `now` of the plan document. The default is the time of the command. |
 
 The [tag flags](spec-tags-and-variables.md) and the [global flags](global-flags.md) apply. `--json` prints the report as one document.
 

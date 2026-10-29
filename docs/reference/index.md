@@ -88,6 +88,7 @@ A plan policy is a CUE rule that every plan of the state must satisfy, kept in t
 | [The plan document in a policy](policies-plan-document.md) | The fields a rule can see, and what absent, null and unknown mean. |
 | [Writing policies](policies-writing.md) | The shapes that work, and the typos that forbid nothing. |
 | [Operating policies](policies-operations.md) | Where each command judges, retiring a policy, exemptions, receipts, and asking for approvals. |
+| [The policy pack](policies-pack.md) | Starter rules for tags, kept types, change windows and freezes. |
 | [`pravo policy`](policy.md) | Try a rule against stored plans and plan files before it is stored. |
 
 ## Formats and interfaces

@@ -15,8 +15,10 @@ const ViewFormat = 1
 
 // View is the machine-readable form of a plan.
 type View struct {
-	Format      int               `json:"format"`
-	Created     time.Time         `json:"created"`
+	Format  int       `json:"format"`
+	Created time.Time `json:"created"`
+	// Now is the moment a policy judges the plan, in the judged document only; see Clock.
+	Now         string            `json:"now,omitempty"`
 	Actor       string            `json:"actor,omitempty"`
 	Reason      string            `json:"reason,omitempty"`
 	GitRevision string            `json:"git_revision,omitempty"`

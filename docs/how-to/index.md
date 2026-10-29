@@ -45,6 +45,7 @@ Run pravo from a pipeline, a program or an agent, under rules, and keep the esta
 |---|---|---|
 | Run pravo in a pipeline | [Run pravo in a pipeline](ci.md) | [Exit codes](../reference/exit-codes.md) |
 | Refuse plans that break a rule, or make them wait for an approval | [Write and roll out policies](policies.md) | [Constraints and policies](../concepts/policies.md), [B11, Constraints on providers, policy on plans](../learn/b11-policy.md) |
+| Start from ready-made rules: a change window, a freeze, required tags | [Start from the policy pack](start-from-the-policy-pack.md) | [The policy pack](../reference/policies-pack.md) |
 | Let an AI agent plan, under the policies and with a key of its own | [Let an agent plan and apply](agents-and-mcp.md) | [pravo mcp](../reference/mcp.md) |
 | Plan and apply from a Go program | [Embed pravo in your program](embed-pravo-in-your-program.md) | [The library and the machine interface](../concepts/the-library-and-the-machine-interface.md), [The Go library](../reference/library.md) |
 | Hand a secret from the environment to a provider, and keep it out of the state | [Keep secrets out of the state](secrets.md) | [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) |

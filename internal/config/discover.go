@@ -463,16 +463,25 @@ func RuleText(v cue.Value) (string, error) {
 	var decls []ast.Decl
 	switch n := v.Syntax(cue.Raw(), cue.Docs(true)).(type) {
 	case *ast.File:
+		alias := packAlias(n.Decls)
 		for _, d := range n.Decls {
 			if em, ok := d.(*ast.EmbedDecl); ok {
-				decls = append(decls, structsOf(em.Expr)...)
+				ds, err := structsOf(em.Expr, alias)
+				if err != nil {
+					return "", err
+				}
+				decls = append(decls, ds...)
 			} else {
 				decls = append(decls, d)
 			}
 		}
 	default:
-		decls = structsOf(n.(ast.Expr))
+		var err error
+		if decls, err = structsOf(n.(ast.Expr), ""); err != nil {
+			return "", err
+		}
 	}
+	decls = withImports(decls)
 	if decls == nil {
 		return "", errors.New("rule must be a CUE struct")
 	}
@@ -510,19 +519,36 @@ func RuleText(v cue.Value) (string, error) {
 
 // structsOf returns the fields of the structs written in an expression: of the
 // struct itself, or of each struct in a unification such as pravo.#Plan & {...},
-// where the schema is a reference and not part of what the author wrote.
-func structsOf(e ast.Expr) []ast.Decl {
+// where the schema is a reference and not part of what the author wrote. A reference
+// to a rule of the package of starter rules, which pack names, is replaced by the body
+// of that rule and the imports it needs.
+func structsOf(e ast.Expr, pack string) ([]ast.Decl, error) {
 	switch n := e.(type) {
 	case *ast.StructLit:
-		return append([]ast.Decl{}, n.Elts...)
+		return append([]ast.Decl{}, n.Elts...), nil
 	case *ast.BinaryExpr:
 		if n.Op == token.AND {
-			return append(structsOf(n.X), structsOf(n.Y)...)
+			x, err := structsOf(n.X, pack)
+			if err != nil {
+				return nil, err
+			}
+			y, err := structsOf(n.Y, pack)
+			return append(x, y...), err
 		}
 	case *ast.ParenExpr:
-		return structsOf(n.X)
+		return structsOf(n.X, pack)
+	case *ast.SelectorExpr:
+		id, ok := n.X.(*ast.Ident)
+		name, _ := n.Sel.(*ast.Ident)
+		if pack != "" && ok && id.Name == pack && name != nil {
+			body, imports, err := packRule(name.Name)
+			if err != nil {
+				return nil, err
+			}
+			return append([]ast.Decl{&ast.ImportDecl{Specs: imports}}, body...), nil
+		}
 	}
-	return nil
+	return nil, nil
 }
 
 // withoutPravoSchema takes the references to the schema of pravo, such as

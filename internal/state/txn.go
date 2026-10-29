@@ -90,6 +90,9 @@ func (s *Store) Begin(kind, command string) *Txn {
 	}}
 }
 
+// Started is when the transaction began, which the start signature covers.
+func (t *Txn) Started() time.Time { return t.t.Started }
+
 // ID returns the transaction id.
 func (t *Txn) ID() string { return t.t.ID }
 

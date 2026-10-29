@@ -120,7 +120,7 @@ func (e *Engine) VerifyReceipt(ctx context.Context, t *state.Transaction, pf *Pl
 	if err := e.omitted(ctx, set, t, listed); err != nil {
 		return nil, err
 	}
-	doc, err := e.judgedDoc(pf)
+	doc, err := e.judgedDoc(pf, t.Started)
 	if err != nil {
 		return nil, err
 	}

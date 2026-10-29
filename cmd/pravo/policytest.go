@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -67,6 +68,7 @@ type trialReport struct {
 func policyTestCmd() *cobra.Command {
 	var plans []string
 	var all, inForce bool
+	var at string
 	cmd := &cobra.Command{
 		Use:   "test [policy|rule.cue]...",
 		Short: "Hold policy rules against stored plans and plan files, and say which they would refuse",
@@ -87,20 +89,32 @@ The plans are the stored plans that can still be applied, or --all of them, and 
 --plan: the id of a stored plan or the path of a plan file. A plan that changes no
 resource is not judged by any policy.
 
+A rule that reads the clock is tried at the moment the plan document gives as "now": the
+time of the command, or --at, an RFC 3339 time, such as 2026-12-24T10:00:00Z.
+
 The command exits 5 when a rule would refuse a plan, 6 when a rule cannot be used, and
 0 otherwise.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPolicyTest(cmd.Context(), args, plans, all, inForce)
+			return runPolicyTest(cmd.Context(), args, plans, all, inForce, at)
 		},
 	}
 	cmd.Flags().StringArrayVar(&plans, "plan", nil, "a stored plan id or a plan file to try the rules on (repeatable); without it the stored plans that can be applied")
 	cmd.Flags().BoolVar(&all, "all", false, "try every stored plan, including applied, stale and expired ones")
 	cmd.Flags().BoolVar(&inForce, "in-force", false, "try the versions in force in the state, not the specification's text")
+	cmd.Flags().StringVar(&at, "at", "", "the moment the rules are tried at, an RFC 3339 time (default: now)")
 	addTagFlags(cmd)
 	return cmd
 }
 
-func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bool) error {
+func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bool, atText string) error {
+	at := time.Now()
+	if atText != "" {
+		t, err := time.Parse(time.RFC3339, atText)
+		if err != nil {
+			return engine.WithCode(engine.ExitInvalid, fmt.Errorf("--at %q is not an RFC 3339 time, such as 2026-12-24T10:00:00Z", atText))
+		}
+		at = t
+	}
 	s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 	if err != nil {
 		return err
@@ -111,7 +125,7 @@ func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bo
 		return engine.WithCode(engine.ExitInvalid, err)
 	}
 	eng := s.engine(engine.Options{})
-	trials, err := trialPlans(ctx, s, eng, planRefs, all)
+	trials, err := trialPlans(ctx, s, eng, planRefs, all, at)
 	if err != nil {
 		return err
 	}
@@ -259,14 +273,14 @@ func trialRules(ctx context.Context, s *session, args []string, inForce bool) ([
 }
 
 // trialPlans reads the plans to try, and the document each is judged by.
-func trialPlans(ctx context.Context, s *session, eng *engine.Engine, refs []string, all bool) ([]trialPlan, error) {
+func trialPlans(ctx context.Context, s *session, eng *engine.Engine, refs []string, all bool, at time.Time) ([]trialPlan, error) {
 	var out []trialPlan
 	add := func(ref, status string, pf *engine.PlanFile, err error) {
 		p := trialPlan{Ref: ref, Status: status}
 		if err == nil {
 			var data []byte
 			var plan *engine.Plan
-			if data, plan, err = eng.PolicyDocument(pf); err == nil {
+			if data, plan, err = eng.PolicyDocument(pf, at); err == nil {
 				p.Doc, p.Judged = engine.DocOf(data, plan), pf.ChangesResources()
 			}
 		}

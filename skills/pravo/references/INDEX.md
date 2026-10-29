@@ -66,9 +66,10 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/policies-overview.md](reference/policies-overview.md) | A policy is a node of the specification whose rule is a CUE struct. pravo keeps every version in the state, judges every plan with the versions in force, and signs the versions into the apply. | 11 KB |
-| [reference/policies-plan-document.md](reference/policies-plan-document.md) | What a rule is unified with. How absent, null and unknown values behave, and what the judged document leaves out of the one that plan --json prints. | 9 KB |
+| [reference/policies-plan-document.md](reference/policies-plan-document.md) | What a rule is unified with. How absent, null and unknown values behave, and what the judged document leaves out of the one that plan --json prints. | 10 KB |
 | [reference/policies-writing.md](reference/policies-writing.md) | The four rules for writing a policy rule, each with a captured run, plan-wide rules, and the typos that forbid nothing. | 19 KB |
 | [reference/policies-operations.md](reference/policies-operations.md) | Where each command judges a policy, what a stale plan does, how to retire a policy, how to roll a rule out and test it, and what a policy does and does not guarantee. | 29 KB |
+| [reference/policies-pack.md](reference/policies-pack.md) | The starter rules of pravo.dev/policies, the parameters of each, what each refuses, and how a rule that names one is stored. | 3 KB |
 | [reference/policy.md](reference/policy.md) | Hold a policy rule, or a draft of one, against stored plans and plan files before it is stored, and see which plans it would refuse and why. | 4 KB |
 
 ### Formats and interfaces
@@ -152,6 +153,7 @@ One task each, for a reader who knows the basics.
 | [how-to/secrets.md](how-to/secrets.md) | Read a secret from the environment with pravo.#SecretEnv, hand it to a provider and see where pravo allows the value and where it refuses. | 9 KB |
 | [how-to/importing-and-moving.md](how-to/importing-and-moving.md) | Rename a resource without recreating it, move a group of resources, adopt an object that already exists and forget one without destroying it. | 9 KB |
 | [how-to/find-what-nothing-manages.md](how-to/find-what-nothing-manages.md) | Declare a discovery, run it, read the objects that no record accounts for, acknowledge the ones that are meant to stay, adopt the rest and run it again when the scope changes. | 9 KB |
+| [how-to/start-from-the-policy-pack.md](how-to/start-from-the-policy-pack.md) | Import the starter rules of pravo.dev/policies, restrict changes to a window, freeze them for a period, and try a rule at another time with policy test --at. | 5 KB |
 | [how-to/store-secrets-in-the-state.md](how-to/store-secrets-in-the-state.md) | Keep a secret in the sealed state, hand it to a provider with pravo.#Secret, rotate it with pravo.#SecretVersion, and see who set each version. | 17 KB |
 
 ### Share and protect

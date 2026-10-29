@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const tryDoc = `{"format":1,"created":"2026-01-01T00:00:00Z","summary":{"add":1,"change":0,"destroy":1,"read":0},
+const tryDoc = `{"format":1,"created":"2026-01-01T00:00:00Z","now":"2026-01-01T00:00:00Z","summary":{"add":1,"change":0,"destroy":1,"read":0},
 "stats":{"total":2,"reached":2,"skipped":0,"refreshed":0,"fresh":0,"not_read":0,"drifted":0,"opened":0,"called":0,"imported":0,"moved":0},
 "changes":[{"addr":"a","mode":"managed","type":"t","name":"a","action":"create","after":{"n":1}},
 {"addr":"b","mode":"managed","type":"t","name":"b","action":"delete","before":{"n":2}}],
