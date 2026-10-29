@@ -69,7 +69,7 @@ pravo replaces the OpenTofu language (HCL), the OpenTofu evaluator and the OpenT
 
 ## Install, build and run
 
-Install a release with `curl -fsSL https://pravo.systems/install.sh | sh` on macOS and Linux, or `irm https://pravo.systems/install.ps1 | iex` in PowerShell on Windows. The archives, the checksums and the provenance attestations are on the [releases page](https://github.com/pravo-systems/pravo/releases).
+Install a release with `curl -fsSL https://pravo.systems/install.sh | sh` on macOS and Linux, or `irm https://pravo.systems/install.ps1 | iex` in PowerShell on Windows. The archives, the checksums and the provenance attestations are on the [releases page](https://github.com/pravo-systems/pravo/releases). On GitHub Actions, use `pravo-systems/setup-pravo@v1`, which installs a pinned version and checks its checksum.
 
 Go 1.26 or newer builds pravo from a checkout. The binary needs neither Go nor OpenTofu to run.
 
