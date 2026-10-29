@@ -162,7 +162,7 @@ func ReadPromotions(ctx context.Context, b Backend, fingerprint string) ([]Promo
 	var out []PromotionObject
 	for _, k := range keys {
 		m := promotionKeyRe.FindStringSubmatch(k)
-		if m == nil || (fingerprint != "" && m[1] != fingerprint) {
+		if len(m) == 0 || (fingerprint != "" && m[1] != fingerprint) {
 			continue
 		}
 		data, err := b.Get(ctx, k)
