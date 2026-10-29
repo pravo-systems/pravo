@@ -846,3 +846,36 @@ func TestListAndShowSayWhatStopsAPlan(t *testing.T) {
 		t.Errorf("show: exit %d:\n%s", code, text)
 	}
 }
+
+// plan and show print the plan as Markdown for a comment: the names of what
+// changes, the policy that refuses it and the stored id, and no value.
+func TestPlanAndShowMarkdown(t *testing.T) {
+	dir := localRoot(t, "hello: $local.#Resource.local_file & {filename: \"hello.txt\", content: \"secret-content\\n\"}\n")
+	text, code := runPravo(t, dir, "--actor", "ci", "plan", "--markdown", "--store")
+	if code != 0 {
+		t.Fatalf("plan --markdown --store exited %d:\n%s", code, text)
+	}
+	id := storedID.FindString(text)
+	for _, want := range []string{"### pravo plan: 1 to add, 0 to change, 0 to destroy", "by `ci`", "| create | `hello` | `local_file` |", "Stored as `" + id + "`", "pravo apply " + id} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the plan lacks %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "secret-content") || strings.Contains(text, "pravo will perform") {
+		t.Errorf("the plan has a value or the text form:\n%s", text)
+	}
+	shown, code := runPravo(t, dir, "show", id, "--markdown")
+	if code != 0 || !strings.Contains(shown, "### Stored plan "+id+": 1 to add") || !strings.Contains(shown, "pravo apply "+id) {
+		t.Errorf("show %s --markdown exited %d:\n%s", id, code, shown)
+	}
+	file := filepath.Join(dir, "p.plan")
+	if _, code := runPravo(t, dir, "plan", "--out", file); code != 0 {
+		t.Fatal("plan --out failed")
+	}
+	if shown, code = runPravo(t, dir, "show", file, "--markdown"); code != 0 || !strings.Contains(shown, "### Saved plan: 1 to add") {
+		t.Errorf("show FILE --markdown exited %d:\n%s", code, shown)
+	}
+	if text, code = runPravo(t, dir, "plan", "--markdown", "--json"); code == 0 || !strings.Contains(text, "give one of them") {
+		t.Errorf("--markdown with --json exited %d:\n%s", code, text)
+	}
+}

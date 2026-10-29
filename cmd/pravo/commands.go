@@ -205,6 +205,9 @@ func planCmd() *cobra.Command {
 		Short: "Show the changes required by the configuration",
 		Args:  noArgsBesidesSubcommands,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkMarkdown(); err != nil {
+				return err
+			}
 			mode, err := parseRefresh(refresh)
 			if err != nil {
 				return err
@@ -246,13 +249,15 @@ func planCmd() *cobra.Command {
 				savedOut = true
 				return eng.SavePlan(outFile, plan, flags.Tags, flags.SysTags)
 			}
-			if store && flags.JSON {
+			if flags.Markdown || (store && flags.JSON) {
 				policyErr, judged = eng.JudgePlan(cmd.Context(), plan), true
-				if policyErr == nil && planWorth(plan) {
+				if store && policyErr == nil && planWorth(plan) {
 					// The file is written before the plan is stored, as it is without
 					// --json: a plan that cannot be saved is not stored either.
 					if err := saveOut(); err != nil {
-						_ = emitJSON(view)
+						if flags.JSON {
+							_ = emitJSON(view)
+						}
 						return err
 					}
 					if stored, err = s.ws.StorePlan(cmd.Context(), eng, plan, pravo.StorePlanOptions{TTL: ttl}); err != nil {
@@ -260,7 +265,16 @@ func planCmd() *cobra.Command {
 					}
 				}
 			}
-			if flags.JSON {
+			if flags.Markdown {
+				opts := engine.MarkdownOptions{Refused: refusal(policyErr)}
+				if stored != nil {
+					opts.ID, opts.Expires, opts.Apply = stored.Meta.ID, stored.Meta.Expires, stored.Meta.ApplyCommand()
+				}
+				err = emitMarkdown(view.Markdown(opts))
+				if err != nil {
+					return err
+				}
+			} else if flags.JSON {
 				if stored != nil {
 					err = emitJSON(storedPlanDoc{View: view, Stored: storedInfoOf(stored)})
 				} else {
@@ -292,7 +306,7 @@ func planCmd() *cobra.Command {
 			if err := saveOut(); err != nil {
 				return err
 			}
-			if outFile != "" && !flags.JSON {
+			if outFile != "" && !flags.JSON && !flags.Markdown {
 				out.Println()
 				out.Printf("Saved the plan to %s. To apply exactly these actions, run:\n  pravo apply %s\n", outFile, outFile)
 			}
@@ -325,6 +339,7 @@ func planCmd() *cobra.Command {
 	cmd.Flags().StringVar(&outFile, "out", "", "save the plan to this file, to be applied later with \"pravo apply <file>\"")
 	cmd.Flags().BoolVar(&store, "store", false, "store the plan in the state, where others can list and apply it with \"pravo apply <plan-id>\"")
 	cmd.Flags().StringVar(&ttlText, "ttl", "", "with --store: keep the plan this long if it is not applied (90m, 36h, 7d; the default is 7d)")
+	cmd.Flags().BoolVar(&flags.Markdown, "markdown", false, "print the plan as Markdown for a comment on a pull request: names and actions, never values")
 	cmd.Flags().BoolVar(&detailed, "detailed-exitcode", false, "exit 2 when the plan has changes, 0 when it has none")
 	cmd.Flags().BoolVar(&includeSkipped, "include-skipped", false, "with --json, list the nodes the plan left alone too, each as an entry with its address, mode, type and name")
 	cmd.Flags().DurationVar(&reserve, "reserve", 0, "reserve the nodes with pending changes for this long (e.g. 15m), so other actors cannot plan or apply them meanwhile")
@@ -342,6 +357,9 @@ func showCmd() *cobra.Command {
 		Short: "Print a saved plan, or a plan stored in the state",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkMarkdown(); err != nil {
+				return err
+			}
 			if isStoredRef(args[0]) {
 				return showStored(cmd, args[0])
 			}
@@ -364,6 +382,18 @@ func showCmd() *cobra.Command {
 			} else if err != nil {
 				return err
 			}
+			if flags.Markdown {
+				v := eng.NewView(plan, engine.ViewOptions{})
+				v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
+				opts := engine.MarkdownOptions{Title: "Saved plan"}
+				if stale != nil {
+					opts.Notes = append(opts.Notes, "**This plan can no longer be applied:** "+strings.Join(stale.Reasons, "; "))
+				}
+				if err := eng.JudgeFile(cmd.Context(), pf); err != nil {
+					opts.Refused = refusal(err)
+				}
+				return emitMarkdown(v.Markdown(opts))
+			}
 			if flags.JSON {
 				v := eng.NewView(plan, engine.ViewOptions{})
 				v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
@@ -382,6 +412,7 @@ func showCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&flags.Markdown, "markdown", false, "print the plan as Markdown for a comment on a pull request: names and actions, never values")
 	// A plan in the state is found by the state, which the tags select.
 	addTagFlags(cmd)
 	return cmd

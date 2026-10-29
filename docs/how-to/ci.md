@@ -166,6 +166,14 @@ pravo -C app plan --json 2>/dev/null | jq -c '.summary, [.changes[] | select(.ac
 
 The `addr` of a change is the address of the resource. A pipeline can post the summary on a pull request or compare a number with a budget. `apply` prints one JSON event per line and ends with a summary. A plain `apply --json` that has changes to make needs `-auto-approve`, because there is no prompt.
 
+A pull request is easier to review with the plan in a comment. `--markdown` prints one that names what changes and never a value, and `--store` adds the id and the command that applies the plan:
+
+```text
+pravo plan --store --markdown --actor ci --reason "$REV" > comment.md
+```
+
+A workflow posts `comment.md` on the pull request. The job that applies the plan after the merge runs `pravo apply ID`. See [`plan --markdown`](../reference/plan.md#markdown).
+
 ## 4. Plan, then apply the file
 
 The plan job saves a plan. The apply job applies that file, and the apply judges it with the policies in the state.

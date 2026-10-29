@@ -47,6 +47,7 @@ keywords: "-target scoped plan saved plan -out stored plan plan id plan list pla
 | `--destroy` | off | Plan the destruction of every resource in the state. Refused while a declared resource in the state has [`prevent_destroy`](spec-meta-fields.md#prevent-destroy). |
 | `--replace ADDR` | none | Destroy and create `ADDR` again though the specification did not change. Repeatable, or comma-separated. Refused with `--destroy`. |
 | `--detailed-exitcode` | off | Exit with code 2 when the plan has changes. A new, changed or removed policy counts as a change. |
+| `--markdown` | off | Print the plan as Markdown for a comment on a pull request: the resources, the actions, the names of the attributes that change, the policy that refuses the plan and, with `--store`, the id and the command that applies it. No value is printed. Not with `--json`. See [Markdown](#markdown). |
 | `--include-skipped` | off | With `--json`, list the nodes the plan left alone too, as entries with their address, mode, type and name, the action `no-op` and `skipped`. See [The plan document](plan-document.md). |
 | `--reserve DURATION` | none | Reserve the nodes that have pending changes for `DURATION`, for example `15m`. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field. Repeatable. The subcommands take it too: the tags select the state. |
@@ -387,6 +388,25 @@ pravo plan --json 2>/dev/null | grep -A6 '"summary"'
 ```
 
 The fields are listed in [The plan document](plan-document.md).
+
+### Markdown
+
+`--markdown` prints the plan as a comment for a pull request. A table lists each change with its action, its address and its type. For an update it names the attributes that change, and for a replacement the ones that force it. It never prints a value, because the readers of a pull request are not always the readers of the state. The plan is judged before it is printed, so a refusal is part of the comment, and the exit code is 5 as always. With `--store` the comment says where the plan is stored and gives the command that applies it. The comment is kept under 60000 bytes, a little less than GitHub accepts, and says how many changes it left out.
+
+```sh run
+pravo plan --markdown 2>/dev/null
+```
+
+```text out
+### pravo plan: 2 to add, 0 to change, 2 to destroy
+
+| Action | Resource | Type | Details |
+|---|---|---|---|
+| replace | `base` | `random_integer` | changes `max`; replaced because of `max`; needed by 1 resource |
+| replace | `port` | `random_integer` | replaced because of `min` |
+```
+
+`pravo show` takes `--markdown` for a plan file or a stored plan. For a stored plan the comment adds the status, the signatures and the approvals.
 
 ### Store a plan
 

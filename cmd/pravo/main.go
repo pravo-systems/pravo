@@ -266,8 +266,8 @@ func newRootCmd() *cobra.Command {
 			if err := applyParallelism(e); err != nil {
 				return err
 			}
-			if flags.JSON {
-				// Human output moves to stderr; stdout carries JSON only.
+			if flags.JSON || flags.Markdown {
+				// Human output moves to stderr; stdout carries JSON or Markdown only.
 				out = ui.NewPrinter(os.Stderr, true)
 			} else {
 				out = ui.NewPrinter(os.Stdout, colourOff(flags.NoColor))
