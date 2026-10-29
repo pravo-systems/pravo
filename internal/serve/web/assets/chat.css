@@ -85,15 +85,14 @@ button.ref, .ref { display: inline-flex; align-items: center; gap: .3rem; paddin
 .asktop:hover { color: var(--text); border-color: var(--text-3); background: var(--surface-2); }
 .asktop[aria-pressed="true"] { border-color: var(--key); color: var(--text); background: var(--key-wash); }
 .asktop .i { width: .95rem; height: .95rem; }
-.asktop kbd { margin-left: .1rem; }
+.asktop { flex: none; width: 2.3rem; padding: 0; justify-content: center; }
+.asktop kbd { display: none; } /* the key is in the tip; the bar has no room for it */
 .i-ask { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.5 3h11v7.5H7L4 13.2v-2.7H2.5z' fill='none' stroke='black' stroke-width='1.5' stroke-linejoin='miter'/%3E%3C/svg%3E"); }
 
 .err .btn { flex: none; }
 @media (prefers-reduced-motion: reduce) { .ledger summary .i { transition: none; } }
-/* the control gives up its key, then its width, as the bar fills */
-@media (max-width: 68.75em) { .asktop kbd { display: none; } .asktop { padding: 0 .55rem; } }
-@media (max-width: 47.5em) { .asktop { padding: 0 .45rem; height: 2.1rem; } .asktop .i { width: .9rem; height: .9rem; } }
-@media (max-width: 40em) { .asktop { padding: 0 .35rem; } }
+/* the control stays an icon; the phone only shrinks it */
+@media (max-width: 47.5em) { .asktop { width: 2.1rem; height: 2.1rem; } .asktop .i { width: .9rem; height: .9rem; } }
 
 /* The chat is a sidebar in every section and down to a tablet: a panel under a timeline or a graph is too short to read an
    answer in, and the sections that have no inspector of their own (Traces, Secrets, ...) would have no room for one. Only a
