@@ -16,6 +16,18 @@ export const isEnv = (n) => n.type === 'env' || n.type === 'secret_env';
 // provider and no record, and is read when a command runs. Its value is never on the page.
 export const isSecret = (n) => !n.provider && (n.type === 'secret' || n.type === 'secret_version');
 
+// tabsOf lists the tabs of the inspector that a node can ever fill, so that none of them is an empty room. An output has a
+// value and a declaration. An ephemeral resource, a call and a variable are evaluated when a command runs and no transaction
+// writes them: no history, and no change in a plan. A call has no attributes, a variable and a secret a declaration that
+// is the same for all of them, so only an ephemeral resource has a schema to show. A secret keeps its versions in the History.
+export function tabsOf(n, hasPlan) {
+  if (isOut(n)) return ['state', 'source'];
+  if (isSecret(n)) return ['state', 'source', 'history'];
+  if (isEnv(n) || n.mode === 'call') return ['state', 'source'];
+  if (n.mode === 'ephemeral') return ['state', 'source', 'schema'];
+  return hasPlan ? ['state', 'source', 'schema', 'history', 'change'] : ['state', 'source', 'schema', 'history'];
+}
+
 const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 export const natural = (a, b) => collator.compare(a, b);
 

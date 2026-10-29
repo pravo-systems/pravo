@@ -112,6 +112,7 @@ func (m *model) buildSecrets(rev string) {
 	if f := m.srv.opts.SecretRules; f != nil {
 		rules, doc.Checked, rolesProblem = f(m.store)
 	}
+	m.secRules = rules
 	reads, unresolved := m.secretReads()
 	doc.Unresolved = unresolved
 
@@ -446,5 +447,26 @@ func (m *model) secretDetail(mn *mnode, d *Detail) {
 		d.Notes = append(d.Notes, fmt.Sprintf("A command reads version %d, as this node asks. The latest is version %d.", pin, e.Version))
 	default:
 		d.Notes = append(d.Notes, fmt.Sprintf("A command reads version %d, the latest of %s.", e.Version, countOf(e.Versions, "version", "versions")))
+	}
+	if known && valid && e != nil {
+		m.secretVersions(name, d)
+	}
+}
+
+// secretVersions lists every version of a secret for the History tab: when, by whom, and what became
+// of it. It opens no value, and the notes stay sealed: this page holds no key to read them.
+func (m *model) secretVersions(name string, d *Detail) {
+	hist, err := m.store.SecretHistory(m.store.Context(), name, m.secRules)
+	if err != nil {
+		d.Notes = append(d.Notes, "The versions of this secret cannot be listed: "+m.scrubText(cleanReason(err.Error()))+".")
+		return
+	}
+	for i := len(hist) - 1; i >= 0; i-- {
+		h := hist[i]
+		v := SecretVersion{Version: h.Seq, Kind: h.Kind, At: h.At, By: display(h.Signer()), Trust: string(h.Trust)}
+		if h.Trust == state.TrustProblem {
+			v.Problem = m.scrubText(cleanReason(h.Problem))
+		}
+		d.SecretVersions = append(d.SecretVersions, v)
 	}
 }

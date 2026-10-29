@@ -69,6 +69,8 @@ type model struct {
 	// secs is the secrets of the state set against the specification, and its bytes.
 	secs     *Secrets
 	secsJSON []byte
+	// secRules are the rules the versions of the secrets were judged by, for the history of one secret.
+	secRules state.RecordRules
 
 	// studio holds what the studio has worked out for this revision.
 	studio studioCache

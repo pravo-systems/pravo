@@ -252,6 +252,15 @@ function synthTransient(n, d, deps) {
     else if (r.use.pin) d.notes = (d.notes || []).concat(`A command reads version ${r.use.pin}, as this node asks. The latest is version ${e.version}.`);
     else d.notes = (d.notes || []).concat(`A command reads version ${e.version}, the latest of ${e.versions} version${e.versions === 1 ? '' : 's'}.`);
     d.notes.push('A built-in value is evaluated when a command runs and is never recorded in the state.');
+    // every version of the secret, newest first, with who set it; the last one of a removed secret is the removal
+    if (e) {
+      d.secret_versions = [];
+      for (let v = e.versions; v >= 1; v--) {
+        const at = new Date(Date.parse(e.at) - (e.versions - v) * 9 * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z');
+        const gone = e.status === 'removed' && v === e.versions;
+        d.secret_versions.push({ version: v, kind: gone ? 'removed' : 'value', at, by: e.by || 'dan', trust: 'ok', ...(e.bad && v === e.versions ? { trust: 'problem', problem: 'no key allowed to write accounts for the transaction that wrote it' } : {}) });
+      }
+    }
     return;
   }
   const env = n.type === 'env' || n.type === 'secret_env';
