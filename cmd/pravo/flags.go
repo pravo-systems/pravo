@@ -12,8 +12,10 @@ type rootFlags struct {
 	Tags    []string
 	SysTags bool
 	JSON    bool
-	Actor   string
-	Reason  string
+	// Markdown is the --markdown flag of plan and show: the plan as a comment.
+	Markdown bool
+	Actor    string
+	Reason   string
 	// Identity is the --identity flag: the name of a file in the identity
 	// directory, for every command that opens a sealed state. It takes
 	// precedence over $PRAVO_IDENTITY.

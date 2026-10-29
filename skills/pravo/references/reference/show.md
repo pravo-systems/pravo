@@ -14,7 +14,7 @@ Print a saved plan or a plan stored in the state, with the time, the command and
 | Reads | The plan file or the stored plan, the specification and the state. It starts no provider. |
 | Taught in | [B7, Changing live infrastructure](../learn/b07-changing-live-infrastructure.md). |
 
-`show` has no flags of its own besides `-t` and `-T`. A plan file carries its tags, so they do not apply to it. A stored plan is found through the state, which the tags select, so they must be the ones the plan was made with: see [The tags of a stored plan](apply.md#the-tags-of-a-stored-plan). `pravo plan show ID` is the same command. The [global flags](global-flags.md) apply.
+`show` has one flag of its own, `--markdown`, besides `-t` and `-T`. It prints the plan as a comment for a pull request, as [`pravo plan --markdown`](plan.md#markdown) does, with the status, the signatures and the approvals of a stored plan. A plan file carries its tags, so they do not apply to it. A stored plan is found through the state, which the tags select, so they must be the ones the plan was made with: see [The tags of a stored plan](apply.md#the-tags-of-a-stored-plan). `pravo plan show ID` is the same command. The [global flags](global-flags.md) apply.
 
 `ID` is `plan-` and eight hexadecimal digits, as `pravo plan --store` printed them. The first six digits are enough when no other plan starts with them. A file with that name is a file.
 

@@ -85,6 +85,28 @@ func emitJSON(v any) error {
 	return err
 }
 
+// emitMarkdown writes a Markdown document to stdout.
+func emitMarkdown(text string) error {
+	_, err := os.Stdout.WriteString(text)
+	return err
+}
+
+// checkMarkdown refuses --markdown with --json: stdout carries one of them.
+func checkMarkdown() error {
+	if flags.Markdown && flags.JSON {
+		return errors.New("--markdown and --json both write stdout: give one of them")
+	}
+	return nil
+}
+
+// refusal is the text of the error of a policy, or empty.
+func refusal(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
 // emitLine writes one NDJSON line to stdout.
 func emitLine(v any) {
 	b, err := jsonText(v, false)

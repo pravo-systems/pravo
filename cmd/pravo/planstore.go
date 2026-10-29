@@ -617,6 +617,31 @@ func showStored(cmd *cobra.Command, ref string) error {
 		return err
 	}
 	sigs, sigNote := storedPlanSignatures(ctx, s, entry.Meta.ID)
+	if flags.Markdown {
+		v := eng.NewView(plan, engine.ViewOptions{})
+		v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
+		m := entry.Meta
+		opts := engine.MarkdownOptions{Title: "Stored plan " + m.ID, Refused: ""}
+		if sigNote == "" && sigs != nil {
+			opts.Notes = append(opts.Notes, "Signed: "+planSigsText(sigs))
+		}
+		if text := storedPlanApprovals(ctx, s, m.ID); text != "" {
+			opts.Notes = append(opts.Notes, "Approved: "+text)
+		}
+		opts.Notes = append(opts.Notes, "Status: "+statusText(entry.Status)+".")
+		switch {
+		case stale != nil:
+			opts.Notes = append(opts.Notes, "**This plan can no longer be applied:** "+strings.Join(stale.Reasons, "; "))
+		case len(entry.Reasons) > 0:
+			opts.Notes = append(opts.Notes, "**This plan can no longer be applied:** "+strings.Join(entry.Reasons, "; "))
+		case entry.Status.Open():
+			opts.Apply = m.ApplyCommand()
+		}
+		if err := eng.JudgeFile(ctx, pf); err != nil {
+			opts.Refused = refusal(err)
+		}
+		return emitMarkdown(v.Markdown(opts))
+	}
 	if flags.JSON {
 		v := eng.NewView(plan, engine.ViewOptions{})
 		v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
