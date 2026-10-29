@@ -309,9 +309,12 @@ type Detail struct {
 	Reach   []string       `json:"reach,omitempty"`
 	Change  *Change        `json:"change,omitempty"`
 	History []HistoryEntry `json:"history,omitempty"`
-	Lock    *LockInfo      `json:"lock,omitempty"`
-	Times   Times          `json:"times"`
-	Notes   []string       `json:"notes,omitempty"`
+	// SecretVersions are the versions of a secret, newest first: the History of a secret node, which no
+	// transaction writes as a resource.
+	SecretVersions []SecretVersion `json:"secret_versions,omitempty"`
+	Lock           *LockInfo       `json:"lock,omitempty"`
+	Times          Times           `json:"times"`
+	Notes          []string        `json:"notes,omitempty"`
 }
 
 // ProviderRef is the provider instance of a node.
@@ -372,6 +375,16 @@ type AttrChange struct {
 	BeforeRedacted bool   `json:"before_redacted,omitempty"`
 	AfterRedacted  bool   `json:"after_redacted,omitempty"`
 	AfterUnknown   bool   `json:"after_unknown,omitempty"`
+}
+
+// SecretVersion is one version of a secret. Nothing in it is secret.
+type SecretVersion struct {
+	Version int       `json:"version"`
+	Kind    string    `json:"kind"` // "value", "removed" or "purged"
+	At      time.Time `json:"at"`
+	By      string    `json:"by,omitempty"`
+	Trust   string    `json:"trust,omitempty"`
+	Problem string    `json:"problem,omitempty"`
 }
 
 // HistoryEntry is a transaction that wrote the node.

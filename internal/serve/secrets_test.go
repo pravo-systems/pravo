@@ -418,6 +418,17 @@ func TestTheDetailOfASecretNode(t *testing.T) {
 		t.Errorf("notes: %q", notes("db"))
 	}
 
+	// The History tab of a secret lists its versions, newest first, and none of them has a value.
+	if vs := d.SecretVersions; len(vs) != 2 || vs[0].Version != 2 || vs[1].Version != 1 || vs[0].Kind != "value" || vs[0].By == "" {
+		t.Errorf("the versions of a secret: %+v", vs)
+	}
+	if vs := p.detail("deploy").SecretVersions; len(vs) != 2 || vs[0].Kind != "removed" {
+		t.Errorf("the versions of a secret that was removed: %+v", vs)
+	}
+	if vs := p.detail("unset").SecretVersions; len(vs) != 0 {
+		t.Errorf("a secret that is not set has no versions: %+v", vs)
+	}
+
 	// The node of the version number reads a number, which is no secret.
 	r := p.detail("dbrev")
 	if got := attrOf(t, r.Attrs, "version"); got.Value != float64(2) || got.Sensitive || got.Redacted != "" {

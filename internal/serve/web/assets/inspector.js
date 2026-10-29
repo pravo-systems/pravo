@@ -4,7 +4,7 @@
 
 import { h, clear, icon, relTime, stamp, copyButton, actionOf, plural, motionOn, splitPath, pathEl, baseName, nodeMark, signatureMark } from './util.js';
 import * as api from './api.js';
-import { isChange, chain, isOut, isEnv, isSecret } from './model.js';
+import { isChange, chain, isOut, isEnv, isSecret, tabsOf } from './model.js';
 import { entityOf, ENTITY_LABEL, facetHit } from './query.js';
 import { codeWindow, kindLabel } from './ui.js';
 import { StateView, withheld, unknownEl, timeRow } from './values.js';
@@ -213,10 +213,10 @@ export class Inspector {
     if (this.mode === 'node') this.render(true);
   }
 
-  // an output has a value and a declaration: no schema, no history, and a plan never changes it
+  // the tabs that the node can fill; a tab that could never hold anything is not offered
   tabList() {
-    if (this.node && isOut(this.node)) return TABS.filter((t) => t.key === 'state' || t.key === 'source');
-    return TABS.filter((t) => t.key !== 'change' || this.model.hasPlan);
+    const keys = tabsOf(this.node, this.model.hasPlan);
+    return TABS.filter((t) => keys.includes(t.key));
   }
 
   // ---- header, strip, tabs of a node ----
@@ -355,7 +355,7 @@ export class Inspector {
   counts(detail) {
     const set = (key, n) => { const el = this.tabs.querySelector(`#tab-${key} .tc`); if (el) { el.textContent = n ? String(n) : ''; el.parentNode.classList.toggle('counted', !!n); } };
     const c = detail.change;
-    set('history', (detail.history || []).length);
+    set('history', (detail.history || []).length || (detail.secret_versions || []).length);
     set('change', c ? (c.attrs || []).length : 0);
     this.placeInk(false);
   }
@@ -575,11 +575,34 @@ export class Inspector {
     return h('button', { class: 'linkbtn', type: 'button', data: { plan: id }, 'aria-label': `Lay ${id} over the graph` }, id);
   }
 
+  // the versions of a secret, newest first: no transaction writes the node, but each version is a write of the state's
+  secretHistoryPane(d) {
+    const list = d.secret_versions || [];
+    if (!list.length) return h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('stack'), h('p', null, 'The state holds no version of this secret.')));
+    const ol = h('ol', { class: 'timeline' });
+    for (const v of list) {
+      const bad = v.trust === 'problem';
+      const odd = bad || v.trust === 'unconfirmed' || v.trust === 'unchecked';
+      ol.append(h('li', { class: 'tl st-' + (bad ? 'failed' : 'done') },
+        h('span', { class: 'tl-mark', 'aria-hidden': 'true' }),
+        h('div', { class: 'tl-body' },
+          h('div', { class: 'tl-top' },
+            h('span', { class: 'kind' }, 'version ' + v.version),
+            h('span', { class: 'dim' }, v.kind === 'value' ? 'set' : v.kind),
+            h('time', { datetime: v.at, title: stamp(v.at) }, relTime(v.at))),
+          h('div', { class: 'tl-meta' }, v.by ? h('span', null, v.by) : null,
+            odd && !v.problem ? h('span', null, v.trust === 'unchecked' ? 'key not in the access list' : 'not finished') : null),
+          v.problem ? h('p', { class: 'reason' }, v.problem) : null)));
+    }
+    return h('div', { class: 'pane' }, h('section', { class: 'sec' }, ol),
+      h('p', { class: 'note quiet' }, icon('lock'), h('span', null, 'A version shows when and by whom it was set, never its value. Its note is sealed to the readers of the state.')));
+  }
+
   historyPane(d) {
+    if (d.node && isSecret(d.node)) return this.secretHistoryPane(d);
     const list = d.history || [];
     if (!list.length) {
-      const never = ['ephemeral', 'call', 'builtin'].includes(d.node && d.node.mode);
-      return h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('stack'), h('p', null, never ? 'No transaction can write this.' : 'No transaction wrote this resource.'), never ? h('small', null, 'It is evaluated when a command runs and never recorded in the state, so it has no history.') : null));
+      return h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('stack'), h('p', null, 'No transaction wrote this resource.')));
     }
     const ol = h('ol', { class: 'timeline' });
     for (const e of list) {
