@@ -158,7 +158,7 @@ func (t serverTools) Call(ctx context.Context, name string, args json.RawMessage
 				return "", fmt.Errorf("%s needs %q", name, p[0])
 			}
 		}
-		body, status, err := t.s.readAPI(spec.path, q)
+		body, status, err := t.s.readAPI(ctx, spec.path, q)
 		if err != nil {
 			return "", err
 		}
@@ -197,8 +197,8 @@ func clipTool(b []byte) string {
 // readAPI asks the page's own API, as the page does, in the process: the request
 // is a GET with the token of the run, so it goes through the same checks and the
 // same redaction.
-func (s *Server) readAPI(path string, q url.Values) ([]byte, int, error) {
-	req, err := http.NewRequest(http.MethodGet, path+"?"+q.Encode(), nil)
+func (s *Server) readAPI(ctx context.Context, path string, q url.Values) ([]byte, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, 0, err
 	}

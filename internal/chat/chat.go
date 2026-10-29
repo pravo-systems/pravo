@@ -143,7 +143,7 @@ func Run(ctx context.Context, p Provider, tools Tools, history []Message, lim Li
 	var added []Message
 	var ledger []Sent
 	calls, bytes := 0, 0
-	for round := 0; round < lim.Rounds; round++ {
+	for range lim.Rounds {
 		resp, err := p.Complete(ctx, Request{System: System, Messages: append(append([]Message{}, history...), added...), Tools: defs, MaxTokens: lim.MaxTokens})
 		if err != nil {
 			return added, ledger, err

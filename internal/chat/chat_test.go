@@ -44,7 +44,7 @@ func TestRunRefusesWhatIsNotOffered(t *testing.T) {
 func TestRunBoundsTheCalls(t *testing.T) {
 	tools := &fixedTools{}
 	var replies []Response
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		replies = append(replies, Response{Calls: []Call{{ID: "x", Name: "look"}}})
 	}
 	_, _, err := Run(context.Background(), &Script{Replies: replies}, tools, nil, Limits{Calls: 3}, func(Event) {})
@@ -59,13 +59,13 @@ func TestRunBoundsTheCalls(t *testing.T) {
 func TestAnthropicRoundTrip(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-api-key") != "k" || r.URL.Path != "/v1/messages" {
-			http.Error(w, "no", 401)
+			http.Error(w, "no", http.StatusUnauthorized)
 			return
 		}
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
 		if body["system"] == "" || body["tools"] == nil {
-			http.Error(w, "bad", 400)
+			http.Error(w, "bad", http.StatusBadRequest)
 			return
 		}
 		w.Write([]byte(`{"content":[{"type":"text","text":"hi"},{"type":"tool_use","id":"t1","name":"look","input":{"a":"b"}}]}`))
@@ -84,7 +84,7 @@ func TestAnthropicRoundTrip(t *testing.T) {
 func TestOpenAIRoundTripAndErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer k" {
-			http.Error(w, "secret-in-error", 401)
+			http.Error(w, "secret-in-error", http.StatusUnauthorized)
 			return
 		}
 		w.Write([]byte(`{"choices":[{"message":{"content":"ok","tool_calls":[{"id":"c","function":{"name":"look","arguments":"{}"}}]}}]}`))

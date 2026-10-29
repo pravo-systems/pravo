@@ -181,7 +181,7 @@ func TestChatRouteIsGuarded(t *testing.T) {
 	if status, _ := askChat(t, p, p.srv.Token(), `{}`, "application/json"); status != 404 {
 		t.Errorf("off: status %d", status)
 	}
-	if resp, body := p.do("GET", "/api/chat/config", map[string]string{"Authorization": "Bearer " + p.srv.Token()}); resp.StatusCode != 200 || !strings.Contains(string(body), `"enabled":false`) {
+	if resp, body := p.do("GET", "/api/chat/config", map[string]string{"Authorization": "Bearer " + p.srv.Token()}); resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"enabled":false`) {
 		t.Errorf("config off: %d %s", resp.StatusCode, body)
 	}
 	p.srv.opts.Chat = &ChatOptions{Provider: &chat.Script{}, Name: "fake", Model: "m", Host: "example.test"}
@@ -210,7 +210,7 @@ func TestChatRouteIsGuarded(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode != 403 {
+	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("foreign origin: status %d", resp.StatusCode)
 	}
 }

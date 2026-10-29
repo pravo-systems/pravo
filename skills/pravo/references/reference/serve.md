@@ -209,19 +209,24 @@ A state that is sealed (see "pravo protect") is read with your reader identity, 
 
 It also lists the runs that pravo recorded (.pravo/traces, or $PRAVO_TRACE_DIR) as a timeline of spans, so that a slow or failing run can be read without a collector.
 
+With --chat PROVIDER the viewer gets a read-only assistant (anthropic, or openai-compatible with --chat-endpoint, which can be a model on this machine). It is off otherwise. The key is read from ANTHROPIC_API_KEY, or PRAVO_CHAT_API_KEY, in the environment of this command and nowhere else. The assistant can only call the viewer's own read paths, so it sees values as the page shows them, with sensitive ones withheld; it cannot apply, approve or change anything, and each answer lists exactly what was sent to the provider.
+
 The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.
 
 Usage:
   pravo serve [flags]
 
 Flags:
-      --access-dir string   directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR
-  -h, --help                help for serve
-  -T, --inject-vars         inject system tag variables (os, arch, cwd, ...)
-      --no-open             do not open a browser
-      --plan string         a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-<id>)
-      --port int            the port to listen on (0 picks a free one)
-  -t, --tag stringArray     inject a value for an @tag() field: -t key=value
+      --access-dir string      directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR
+      --chat string            turn on the read-only assistant: anthropic or openai-compatible
+      --chat-endpoint string   the base URL of an openai-compatible provider, such as http://localhost:11434/v1
+      --chat-model string      the model the assistant asks (required with --chat)
+  -h, --help                   help for serve
+  -T, --inject-vars            inject system tag variables (os, arch, cwd, ...)
+      --no-open                do not open a browser
+      --plan string            a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-<id>)
+      --port int               the port to listen on (0 picks a free one)
+  -t, --tag stringArray        inject a value for an @tag() field: -t key=value
 
 Global Flags:
       --actor string      a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)

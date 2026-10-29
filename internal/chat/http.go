@@ -56,7 +56,7 @@ func New(c Config) (Provider, error) {
 		if err != nil || u.Host == "" {
 			return nil, fmt.Errorf("chat: %q is not an endpoint", c.Endpoint)
 		}
-		if u.Scheme != "https" && !(u.Scheme == "http" && loopback(u.Hostname())) {
+		if u.Scheme != "https" && (u.Scheme != "http" || !loopback(u.Hostname())) {
 			return nil, errors.New("chat: the endpoint has to be https, or http on this machine")
 		}
 		return &openai{c: c, base: strings.TrimRight(c.Endpoint, "/"), hc: client(u.Host)}, nil
