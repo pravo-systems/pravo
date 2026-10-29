@@ -26,9 +26,9 @@ The command runs until a signal ends it. The viewer is one page that the server 
 | `--plan FILE\|ID` | none | A plan to show on top of the graph: a saved plan file, or the id of a plan stored in the state, whole or its first six hexadecimal digits when no other plan starts with them. A file with that name is a file. The viewer reads the plan and never makes one. |
 | `--identity NAME` | the identity that the other commands find | The identity to read a sealed state with: a file of the identity directory. `none` reads the state as a person with no key sees it. It matters only for a state that is sealed. |
 | `--access-dir DIR` | `.pravo/access` | The directory that holds `readers.txt`. `$PRAVO_ACCESS_DIR` sets it too, and the flag wins. A relative directory is relative to the project directory. Without either, the viewer looks in `.pravo/access` of the project directory and of each parent up to the one that holds `.git`. |
-| `--chat PROVIDER` | off | Turn on [the assistant](#the-assistant): `anthropic`, or `openai-compatible` with `--chat-endpoint`. |
-| `--chat-model NAME` | none | The model the assistant asks. Required with `--chat`. |
-| `--chat-endpoint URL` | none | The base URL of an `openai-compatible` provider, such as `http://localhost:11434/v1` for a model on this machine. It has to be `https`, or `http` on this machine. |
+| `--chat PROVIDER` | `$PRAVO_CHAT`, else off | Turn on [the assistant](#the-assistant): `anthropic`, or `openai-compatible` with an endpoint. `PROVIDER:MODEL` names the model too, and `off` turns it off. |
+| `--chat-model NAME` | `$PRAVO_CHAT_MODEL` | The model the assistant asks. Required when the assistant is on. |
+| `--chat-endpoint URL` | `$PRAVO_CHAT_ENDPOINT` | The base URL of an `openai-compatible` provider, such as `http://localhost:11434/v1` for a model on this machine. It has to be `https`, or `http` on this machine. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field, as `pravo plan` does. Repeatable. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE into tags written `@tag(name,var=os)`. |
 
@@ -57,7 +57,15 @@ The bar of the page names the identity the page is read as, and beside it, for a
 
 ## The assistant
 
-With `--chat`, the viewer has an **Ask** control (key `c`): a question in words, answered by a language model that can only read. Without the flag there is no control, no route and no connection to any provider.
+With `--chat`, or `PRAVO_CHAT` in the environment, the viewer has an **Ask** control (key `c`): a question in words, answered by a language model that can only read. Otherwise there is no control, no route and no connection to any provider. The assistant can be set up with the environment alone, and a flag overrides what the environment says:
+
+```sh
+export PRAVO_CHAT=anthropic:claude-sonnet-5-5
+export ANTHROPIC_API_KEY=...
+pravo serve
+```
+
+A key alone turns nothing on, because `ANTHROPIC_API_KEY` is in many shells for other tools: the provider has to be named. For a model on this machine, set `PRAVO_CHAT=openai-compatible`, `PRAVO_CHAT_MODEL` and `PRAVO_CHAT_ENDPOINT`.
 
 The key comes from the environment of this command and from nowhere else: `ANTHROPIC_API_KEY` for `anthropic`, and `PRAVO_CHAT_API_KEY` for either provider (a local endpoint may need none). The page never holds it and no response carries it. The command prints one line when the assistant is on, with the provider, the model and the host that questions go to.
 
@@ -209,7 +217,7 @@ A state that is sealed (see "pravo protect") is read with your reader identity, 
 
 It also lists the runs that pravo recorded (.pravo/traces, or $PRAVO_TRACE_DIR) as a timeline of spans, so that a slow or failing run can be read without a collector.
 
-With --chat PROVIDER the viewer gets a read-only assistant (anthropic, or openai-compatible with --chat-endpoint, which can be a model on this machine). It is off otherwise. The key is read from ANTHROPIC_API_KEY, or PRAVO_CHAT_API_KEY, in the environment of this command and nowhere else. The assistant can only call the viewer's own read paths, so it sees values as the page shows them, with sensitive ones withheld; it cannot apply, approve or change anything, and each answer lists exactly what was sent to the provider.
+With --chat PROVIDER, or PRAVO_CHAT=PROVIDER in the environment, the viewer gets a read-only assistant (anthropic, or openai-compatible with --chat-endpoint, which can be a model on this machine). It is off otherwise, and a key alone turns nothing on. The model comes from --chat-model or PRAVO_CHAT_MODEL, the endpoint from --chat-endpoint or PRAVO_CHAT_ENDPOINT, and the key from PRAVO_CHAT_API_KEY or, for anthropic, ANTHROPIC_API_KEY, in the environment of this command and nowhere else. The assistant can only call the viewer's own read paths, so it sees values as the page shows them, with sensitive ones withheld; it cannot apply, approve or change anything, and each answer lists exactly what was sent to the provider.
 
 The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.
 
@@ -218,9 +226,9 @@ Usage:
 
 Flags:
       --access-dir string      directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR
-      --chat string            turn on the read-only assistant: anthropic or openai-compatible
-      --chat-endpoint string   the base URL of an openai-compatible provider, such as http://localhost:11434/v1
-      --chat-model string      the model the assistant asks (required with --chat)
+      --chat string            turn on the read-only assistant: anthropic or openai-compatible, or off ($PRAVO_CHAT, also provider:model)
+      --chat-endpoint string   the base URL of an openai-compatible provider, such as http://localhost:11434/v1 ($PRAVO_CHAT_ENDPOINT)
+      --chat-model string      the model the assistant asks ($PRAVO_CHAT_MODEL)
   -h, --help                   help for serve
   -T, --inject-vars            inject system tag variables (os, arch, cwd, ...)
       --no-open                do not open a browser
