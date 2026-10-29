@@ -53,6 +53,21 @@ no_destroy: pravo.#Policy & {
 }
 ```
 
+## Install pravo on the runner
+
+On GitHub Actions, `pravo-systems/setup-pravo` downloads the release archive for the runner, checks it against `SHA256SUMS` and puts `pravo` on `PATH`. Name a version in a pipeline that must not change under you. `latest` is the newest full release, and a pre-release installs only when named.
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: pravo-systems/setup-pravo@v1
+    with:
+      version: 0.1.0-rc9
+  - run: pravo -C app validate
+```
+
+Set `verify-attestation: true` to check the signed provenance of the archive as well. On another system, use the install script from the [quick start](quick-start.md#1-install-pravo).
+
 ## 1. Check without credentials
 
 `pravo init` installs the providers and generates the packages that `validate`, `plan` and `apply` need. `pravo validate` evaluates the specification against them. It starts no provider and needs no credentials.
