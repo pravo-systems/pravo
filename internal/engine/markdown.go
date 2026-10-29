@@ -134,7 +134,7 @@ func (c ChangeView) markdownDetails() string {
 			parts = append(parts, "changes "+codes(keys, 6))
 		}
 	}
-	if len(c.RequiresReplace) > 0 {
+	if c.Action == ActionReplace && len(c.RequiresReplace) > 0 {
 		parts = append(parts, "replaced because of "+codes(c.RequiresReplace, 6))
 	}
 	if c.Drifted {

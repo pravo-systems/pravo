@@ -9,13 +9,16 @@ import (
 func TestMarkdownNamesChangesAndNeverValues(t *testing.T) {
 	v := &View{
 		Actor: "ci", Reason: "bump the size", GitRevision: "0123456789ab",
-		Summary: Summary{Add: 1, Change: 1, Destroy: 1, BlastRadius: 4},
+		Summary: Summary{Add: 1, Change: 1, Destroy: 1, BlastRadius: 6},
 		Changes: []ChangeView{
 			{Addr: "db", Type: "aws_db_instance", Action: ActionUpdate,
 				Before:     map[string]any{"size": "small", "password": "hunter2", "name": "x"},
 				After:      map[string]any{"size": "large", "password": "hunter3", "name": "x"},
 				Dependents: []string{"app", "dns"}},
-			{Addr: "queue", Type: "aws_sqs_queue", Action: ActionCreate},
+			{Addr: "queue", Type: "aws_sqs_queue", Action: ActionCreate,
+				RequiresReplace: []string{"name", "id"}},
+			{Addr: "role", Type: "aws_iam_role", Action: ActionReplace,
+				RequiresReplace: []string{"path"}},
 			{Addr: "old|one", Type: "aws_s3_bucket", Action: ActionDelete, Drifted: true},
 			{Addr: "settled", Type: "aws_vpc", Action: ActionNoop},
 		},
@@ -31,8 +34,9 @@ func TestMarkdownNamesChangesAndNeverValues(t *testing.T) {
 		"**Refused by policy.** policy no_destroy refuses a delete",
 		"| update | `db` | `aws_db_instance` | changes `password`, `size`; needed by 2 resources |",
 		"| create | `queue` | `aws_sqs_queue` |  |",
+		"| replace | `role` | `aws_iam_role` | replaced because of `path` |",
 		"| delete | `old\\|one` | `aws_s3_bucket` | drifted |",
-		"The changes reach 4 resources.",
+		"The changes reach 6 resources.",
 		"- line one line two",
 		"Stored as `plan-0a1b2c3d`, removed on 2026-11-04 12:00 UTC unless it is applied.",
 		"```sh\npravo apply plan-0a1b2c3d\n```",
@@ -40,6 +44,9 @@ func TestMarkdownNamesChangesAndNeverValues(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("the comment lacks %q:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "replaced because of `name`") {
+		t.Errorf("a creation is described as a replacement:\n%s", got)
 	}
 	for _, leak := range []string{"hunter2", "hunter3", "small", "large", "settled"} {
 		if strings.Contains(got, leak) {
