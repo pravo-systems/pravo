@@ -437,6 +437,7 @@ func applyCmd() *cobra.Command {
 	var refresh string
 	var autoApprove, full bool
 	var only, replace []string
+	var webhook string
 	cmd := &cobra.Command{
 		Use:   "apply [planfile|plan-id]",
 		Short: "Create, update or destroy infrastructure to match the configuration, or apply a saved plan",
@@ -450,12 +451,15 @@ func applyCmd() *cobra.Command {
 					}
 				}
 			}
+			if webhook != "" && (len(args) == 0 || !isStoredRef(args[0])) {
+				return errors.New("--webhook applies to a stored plan: pravo apply <plan-id>")
+			}
 			if len(args) == 1 {
 				if len(replace) > 0 {
 					return errors.New("-replace is decided when the plan is made: use \"pravo plan -replace <addr> -out <file>\"")
 				}
 				if isStoredRef(args[0]) {
-					return applyStored(cmd, args[0], refresh, full, only)
+					return applyStored(cmd, args[0], refresh, full, only, webhook)
 				}
 				return applySaved(cmd, args[0], refresh, full, only)
 			}
@@ -467,6 +471,7 @@ func applyCmd() *cobra.Command {
 	}
 	cmd.Flags().StringSliceVar(&replace, "replace", nil, "destroy and create this resource again even though the specification did not change (repeatable)")
 	cmd.Flags().StringSliceVar(&only, "only", nil, "with a saved plan: apply only these resources (and nothing they depend on is left out); the rest of the plan stays in the file")
+	cmd.Flags().StringVar(&webhook, "webhook", "", "with a stored plan: POST a plan.applied event, or a plan.refused one when the apply fails, as JSON to this URL")
 	addRunFlags(cmd, &refresh, &full)
 	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "skip the interactive approval")
 	addTagFlags(cmd)

@@ -317,8 +317,8 @@ func whyCmd() *cobra.Command {
 // ---------- pravo drift ----------
 
 func driftCmd() *cobra.Command {
-	var webhook string
-	var due bool
+	var webhook, ttlText string
+	var due, makePlan, store bool
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "drift",
@@ -334,8 +334,36 @@ Exit code 2 means drift was found.
 
 With --due, drift visits every record and reads only the ones that are older
 than their refresh age, the oldest first, at most --limit of them. It plans
-nothing, so a scheduled run costs what it reads.`,
+nothing, so a scheduled run costs what it reads.
+
+With --plan, drift also makes the plan that puts the drifted resources back as
+the specification has them, and says what it would change. With --store the
+plan is stored, as "pravo plan --store" does, to be reviewed, approved and
+applied by its id; --ttl says how long it is kept. Drift never applies the plan.
+The plan holds the pending changes of the specification too: apply it with
+--only to take the drifted resources alone. With --webhook the event goes out
+instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
+(a policy refused the plan). Exit code 2 still means drift was found.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if due && (makePlan || store) {
+				return errors.New("--plan and --store do not go with --due: a plan reads every resource")
+			}
+			if store && !makePlan {
+				return errors.New("--store applies to --plan")
+			}
+			ttl := engine.DefaultPlanTTL
+			if cmd.Flags().Changed("ttl") {
+				if !store {
+					return errors.New("--ttl applies to --store")
+				}
+				var err error
+				if ttl, err = parseSpan("ttl", ttlText); err != nil {
+					return err
+				}
+				if ttl == 0 {
+					return fmt.Errorf("--ttl %s: want a length of time above zero", ttlText)
+				}
+			}
 			if limit != 0 && !due {
 				return errors.New("--limit applies to --due")
 			}
@@ -350,17 +378,27 @@ nothing, so a scheduled run costs what it reads.`,
 			if due {
 				return driftDue(cmd, s, limit, webhook)
 			}
-			report, err := s.ws.Drift(cmd.Context())
+			report, planned, err := s.ws.DriftPlanned(cmd.Context())
 			if err != nil {
 				return err
 			}
-			if webhook != "" {
+			var proposal *driftProposal
+			if makePlan {
+				if proposal, err = proposeFix(cmd.Context(), s, report, planned, store, ttl, webhook); err != nil {
+					return err
+				}
+			} else if webhook != "" {
 				if err := postJSON(cmd.Context(), webhook, report); err != nil {
 					return err
 				}
 			}
 			if flags.JSON {
-				if err := emitJSON(report); err != nil {
+				if proposal != nil {
+					err = emitJSON(proposal)
+				} else {
+					err = emitJSON(report)
+				}
+				if err != nil {
 					return err
 				}
 			} else if len(report.Drifted) == 0 {
@@ -374,6 +412,9 @@ nothing, so a scheduled run costs what it reads.`,
 					}
 				}
 			}
+			if proposal != nil && !flags.JSON {
+				proposal.print()
+			}
 			if len(report.Drifted) > 0 {
 				return engine.WithCode(engine.ExitChanges, errSilent)
 			}
@@ -381,6 +422,9 @@ nothing, so a scheduled run costs what it reads.`,
 		},
 	}
 	cmd.Flags().StringVar(&webhook, "webhook", "", "POST the drift report as JSON to this URL")
+	cmd.Flags().BoolVar(&makePlan, "plan", false, "also make the plan that puts the drifted resources back as the specification has them (it is not applied)")
+	cmd.Flags().BoolVar(&store, "store", false, "with --plan: store the plan in the state, where it shows in the viewer and can be approved and applied by its id")
+	cmd.Flags().StringVar(&ttlText, "ttl", "", "with --store: keep the plan this long if it is not applied (90m, 36h, 7d; the default is 7d)")
 	cmd.Flags().BoolVar(&due, "due", false, "read only the records that are older than their refresh age, oldest first, and plan nothing")
 	cmd.Flags().IntVar(&limit, "limit", 0, "with --due: read at most this many records")
 	addTagFlags(cmd)

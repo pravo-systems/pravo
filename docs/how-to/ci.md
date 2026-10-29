@@ -248,7 +248,7 @@ Drift. 1 of 4 resources changed outside pravo:
     - refresh found the real state differs from the state (drift)
 ```
 
-With `-webhook <url>` the report is also posted as JSON, so a scheduler can hand drift to whoever triages it.
+With `-webhook <url>` the report is also posted as JSON, so a scheduler can hand drift to whoever triages it. With `--plan --store` the job also stores the plan that puts the drift right, and the webhook receives an event with its id: [Let drift propose the fix](let-drift-propose-the-fix.md).
 
 `pravo drift` reads every record, and an estate of many records takes long to read. Two other jobs read fewer.
 

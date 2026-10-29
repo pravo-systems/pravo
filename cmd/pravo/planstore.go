@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -341,7 +342,8 @@ file and not in the state.`,
 }
 
 func planApproveCmd() *cobra.Command {
-	return &cobra.Command{
+	var webhook string
+	cmd := &cobra.Command{
 		Use:   "approve <plan-id>",
 		Short: "Approve a stored plan",
 		Args:  cobra.ExactArgs(1),
@@ -349,7 +351,8 @@ func planApproveCmd() *cobra.Command {
 approvals before a plan is applied (set approvals in its rule, see the policy
 reference), and the apply counts the approvals of keys in the readers file
 whose role suffices. The approval is for exactly this plan; a plan made again
-needs its own. Give the -t and -T that the plan was made with.`,
+needs its own. Give the -t and -T that the plan was made with. With --webhook
+a plan.approved event is POSTed to that URL.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			st, ps, err := openPlanStore(ctx, true)
@@ -367,6 +370,13 @@ needs its own. Give the -t and -T that the plan was made with.`,
 			if err != nil {
 				return err
 			}
+			if webhook != "" {
+				dir, _ := filepath.Abs(".")
+				ev := planEvent{Event: eventApproved, By: obj.Signature.Signer, Plan: &planEventPlan{ID: id}}
+				if err := sendPlanEvent(ctx, webhook, dir, ev); err != nil {
+					return err
+				}
+			}
 			if flags.JSON {
 				return emitJSON(map[string]any{"id": id, "approved_by": obj.Signature.Signer, "at": obj.At})
 			}
@@ -374,6 +384,8 @@ needs its own. Give the -t and -T that the plan was made with.`,
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&webhook, "webhook", "", "POST a plan.approved event as JSON to this URL")
+	return cmd
 }
 
 func planGCCmd() *cobra.Command {
@@ -701,7 +713,7 @@ func printConflicts(entry *engine.PlanEntry, stale *engine.ErrStalePlan) {
 
 // applyStored applies a plan that is stored in the state. The checks are those of
 // a plan file; besides them the plan must not have expired.
-func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []string) error {
+func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []string, webhook string) error {
 	ctx := cmd.Context()
 	streamEvents = true
 	if cmd.Flags().Changed("refresh") || full {
@@ -723,6 +735,18 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 		o.Event = func(ev engine.Event) { emitLine(ev) }
 	}
 	res, err := s.ws.ApplyStored(ctx, ref, o)
+	if webhook != "" && (err != nil || res != nil && !res.NothingLeft) {
+		ev := planEvent{Event: eventApplied, Plan: &planEventPlan{ID: ref}}
+		if res != nil && res.Meta != nil {
+			ev.Plan = storedEventPlan(res.Meta)
+		}
+		if err != nil {
+			ev.Event, ev.Reason = eventRefused, err.Error()
+		}
+		if hookErr := sendPlanEvent(ctx, webhook, s.ws.Root().Dir, ev); hookErr != nil && err == nil {
+			err = hookErr
+		}
+	}
 	if res != nil {
 		if res.Partial != nil {
 			reportPartial(res.Partial, res.ID)

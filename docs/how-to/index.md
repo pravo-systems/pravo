@@ -43,6 +43,7 @@ Run pravo from a pipeline, a program or an agent, under rules, and keep the esta
 
 | I want to | Guide | Background |
 |---|---|---|
+| Have drift store the plan that puts it right, and tell a webhook | [Let drift propose the fix](let-drift-propose-the-fix.md) | [B9, Drift](../learn/b09-drift.md), [`pravo why` and `pravo drift`](../reference/why-and-drift.md) |
 | Run pravo in a pipeline | [Run pravo in a pipeline](ci.md) | [Exit codes](../reference/exit-codes.md) |
 | Refuse plans that break a rule, or make them wait for an approval | [Write and roll out policies](policies.md) | [Constraints and policies](../concepts/policies.md), [B11, Constraints on providers, policy on plans](../learn/b11-policy.md) |
 | Let an AI agent plan, under the policies and with a key of its own | [Let an agent plan and apply](agents-and-mcp.md) | [pravo mcp](../reference/mcp.md) |
