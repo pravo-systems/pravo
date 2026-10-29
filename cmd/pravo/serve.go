@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/chat"
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/plog"
@@ -29,6 +30,7 @@ func serveCmd() *cobra.Command {
 	var port int
 	var noOpen bool
 	var planFile string
+	var chatProvider, chatModel, chatEndpoint string
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Show the specification, the state and a saved plan in a browser, read-only",
@@ -39,6 +41,8 @@ The viewer shows the specification and the state as a graph of groups and resour
 A state that is sealed (see "pravo protect") is read with your reader identity, named by --identity or found as the other commands find it, and a sealed identity asks for its passphrase on the terminal before the server starts. Without an identity, or with one that is not a reader, the viewer lists the resources and shows no value; --identity none shows the state as someone with no key sees it. The State page shows who can read the state and suggests commands to copy. It runs none of them.
 
 It also lists the runs that pravo recorded (.pravo/traces, or $PRAVO_TRACE_DIR) as a timeline of spans, so that a slow or failing run can be read without a collector.
+
+With --chat PROVIDER the viewer gets a read-only assistant (anthropic, or openai-compatible with --chat-endpoint, which can be a model on this machine). It is off otherwise. The key is read from ANTHROPIC_API_KEY, or PRAVO_CHAT_API_KEY, in the environment of this command and nowhere else. The assistant can only call the viewer's own read paths, so it sees values as the page shows them, with sensitive ones withheld; it cannot apply, approve or change anything, and each answer lists exactly what was sent to the provider.
 
 The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.`,
 		Args: noArgs,
@@ -84,6 +88,13 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 					opts.Tags, opts.SysTags = pf.Tags, pf.SysTags
 				}
 			}
+			if chatProvider != "" {
+				co, err := chatOptions(chatProvider, chatModel, chatEndpoint)
+				if err != nil {
+					return err
+				}
+				opts.Chat = co
+			}
 			srv, err := serve.New(opts)
 			if err != nil {
 				return err
@@ -94,6 +105,9 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 				return err
 			}
 			url := srv.URL(ln.Addr())
+			if opts.Chat != nil {
+				out.Printf("pravo serve: chat on: %s %s via %s (reads only, sends the viewer's redacted views)\n", opts.Chat.Name, opts.Chat.Model, opts.Chat.Host)
+			}
 			if d := srv.StateDescription(); d != "" {
 				out.Printf("pravo serve: reading state from %s\n", d)
 			}
@@ -115,9 +129,33 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 	cmd.Flags().IntVar(&port, "port", 0, "the port to listen on (0 picks a free one)")
 	cmd.Flags().BoolVar(&noOpen, "no-open", false, "do not open a browser")
 	cmd.Flags().StringVar(&planFile, "plan", "", "a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-2f9c1a4e)")
+	cmd.Flags().StringVar(&chatProvider, "chat", "", "turn on the read-only assistant: anthropic or openai-compatible")
+	cmd.Flags().StringVar(&chatModel, "chat-model", "", "the model the assistant asks (required with --chat)")
+	cmd.Flags().StringVar(&chatEndpoint, "chat-endpoint", "", "the base URL of an openai-compatible provider, such as http://localhost:11434/v1")
 	addTagFlags(cmd)
 	addAccessDirFlag(cmd)
 	return cmd
+}
+
+// chatOptions makes the assistant of the viewer. The key comes from the environment
+// of this process and is held by the provider only.
+func chatOptions(provider, model, endpoint string) (*serve.ChatOptions, error) {
+	key := os.Getenv("PRAVO_CHAT_API_KEY")
+	if key == "" && provider == "anthropic" {
+		key = os.Getenv("ANTHROPIC_API_KEY")
+	}
+	if model == "" {
+		return nil, errors.New("--chat needs --chat-model")
+	}
+	if endpoint != "" && provider != "openai-compatible" {
+		return nil, errors.New("--chat-endpoint is for --chat openai-compatible")
+	}
+	cfg := chat.Config{Provider: provider, Model: model, Endpoint: endpoint, Key: key}
+	p, err := chat.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &serve.ChatOptions{Provider: p, Name: provider, Model: model, Host: cfg.Host()}, nil
 }
 
 // viewerState opens the state for the viewer and says how it is protected. The

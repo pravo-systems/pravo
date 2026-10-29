@@ -41,6 +41,9 @@ The command runs until a signal ends it. The viewer is one page that the server 
 | `--plan FILE\|ID` | none | A plan to show on top of the graph: a saved plan file, or the id of a plan stored in the state, whole or its first six hexadecimal digits when no other plan starts with them. A file with that name is a file. The viewer reads the plan and never makes one. |
 | `--identity NAME` | the identity that the other commands find | The identity to read a sealed state with: a file of the identity directory. `none` reads the state as a person with no key sees it. It matters only for a state that is sealed. |
 | `--access-dir DIR` | `.pravo/access` | The directory that holds `readers.txt`. `$PRAVO_ACCESS_DIR` sets it too, and the flag wins. A relative directory is relative to the project directory. Without either, the viewer looks in `.pravo/access` of the project directory and of each parent up to the one that holds `.git`. |
+| `--chat PROVIDER` | off | Turn on [the assistant](#the-assistant): `anthropic`, or `openai-compatible` with `--chat-endpoint`. |
+| `--chat-model NAME` | none | The model the assistant asks. Required with `--chat`. |
+| `--chat-endpoint URL` | none | The base URL of an `openai-compatible` provider, such as `http://localhost:11434/v1` for a model on this machine. It has to be `https`, or `http` on this machine. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field, as `pravo plan` does. Repeatable. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE into tags written `@tag(name,var=os)`. |
 
@@ -67,6 +70,18 @@ The bar of the page names the identity the page is read as, and beside it, for a
 | 0 | The command was stopped by a signal. |
 | 1 | An error: a port that is not a number from 0 to 65535, a port that is in use, a plan file that cannot be read, an id that no stored plan has or that fits several, a state that cannot be opened, or an argument, since `serve` takes none. |
 
+## The assistant
+
+With `--chat`, the viewer has an **Ask** control (key `c`): a question in words, answered by a language model that can only read. Without the flag there is no control, no route and no connection to any provider.
+
+The key comes from the environment of this command and from nowhere else: `ANTHROPIC_API_KEY` for `anthropic`, and `PRAVO_CHAT_API_KEY` for either provider (a local endpoint may need none). The page never holds it and no response carries it. The command prints one line when the assistant is on, with the provider, the model and the host that questions go to.
+
+The model is offered twelve tools, and they are the reads the page itself makes: the overview of the estate, a search, one resource and the lines that write it, the stored plans and one plan, the policies, the discoveries, the secrets, the state's protection and the recorded runs. Each goes through the same code, and the same redaction, as the request of the page, so the model sees a value as the page shows it: a sensitive value is withheld, and a secret has a name and a version and never a value. It has no tool that applies, approves, stores, collects or locks anything, or that reads a secret, and a tool that is not in the list is refused before anything runs. A command that would help is written out for you to run: the page runs nothing.
+
+What leaves the machine is what a question needs, one tool answer at a time: resource addresses, types, values that are not sensitive, plan text and run names. These can be confidential to a company, so pick the provider for that, or a model on this machine. Every answer has a list, **Sent to the model**, with each read and the text that was sent for it. A question makes at most twelve reads and 128 KiB of them.
+
+The assistant can be wrong. Names it gives in backticks are links only when the estate has them, so an address it made up shows as plain text.
+
 ## What it follows
 
 The viewer follows the project. It watches the state, the files that the evaluation loaded, the plan file, the plans stored in the state, the readers file, the runs of the discoveries and the directory of the recorded runs, and when any of them changes the page fetches what changed again. A plan that is stored, approved, applied from or collected changes the state. A plan that nobody applies expires without any write, so the viewer counts the moment that the nearest expiry of a plan that can be applied, or is stale, passes as a change, once. For a bucket it lists `plans/` and reads the progress objects, up to eight at a time and only those that have the name of a plan, without keeping a request for the revision waiting. A specification that does not load is shown as the state alone, with the error as a warning.
@@ -77,6 +92,7 @@ The viewer follows the project. It watches the state, the files that the evaluat
 - It listens on no interface but loopback.
 - It runs no command that the State section or the Discovery section suggests, edits no readers file, and sends no key: no secret of an identity and no lock of the state is in a response. Reader keys and signing-key fingerprints are public and are sent.
 - It sends no value that the provider schema marks sensitive or write-only, no value of an attribute that the schema does not know, no value of an attribute that is named like a secret, no value that contains a string that the state keeps in a sensitive attribute, and no value of a sensitive output.
+- It sends nothing to a provider unless started with `--chat`, and then only what [the assistant](#the-assistant) reads for a question.
 - It opens no secret. The Secrets section reads the clear part of the versions and the transactions, holds no key for a value, and no response carries one.
 - It serves no file by path. A request names an address, and the server looks the address up in the specification that it loaded. A request for a recorded run names an id of a fixed form, and the server reads the file of that name in the directory of the recorded runs, and nothing else; a link in that directory is not followed.
 - It starts no provider. The values of a resource are shown with the provider schema that the last run cached, and a type whose schema is not cached has its values withheld.

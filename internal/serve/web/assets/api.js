@@ -1,4 +1,4 @@
-// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, and one POST: a plan file dropped on the studio, which the server judges and writes nowhere.
+// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, and two POSTs: a plan file dropped on the studio, which the server judges and writes nowhere, and a question to the chat, which only reads (README rule 12).
 
 export class Unauthorized extends Error {
   constructor() { super('unauthorized'); this.name = 'Unauthorized'; }
@@ -93,4 +93,32 @@ export function events(onChange, onState) {
   };
   open();
   return { close() { if (es) es.close(); }, reopen() { if (es) es.close(); open(); } };
+}
+
+export const chatConfig = () => get('/api/chat/config').catch((err) => { if (err && err.status === 404) return { enabled: false }; throw err; });
+
+// askChat sends the conversation and calls onEvent for each event of the answer: read, text, done or error. It resolves when the stream ends.
+export async function askChat(messages, context, onEvent, signal) {
+  let r;
+  try { r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', credentials: 'same-origin', body: JSON.stringify({ messages, context }), signal }); } catch (err) { if (err && err.name === 'AbortError') throw err; throw new Unreachable(); }
+  if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
+  if (!r.ok) {
+    let msg = r.statusText || `status ${r.status}`;
+    try { const j = await r.json(); if (j && j.error) msg = j.error; } catch { /* not JSON */ }
+    throw Object.assign(new Error(msg), { status: r.status });
+  }
+  const rd = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await rd.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const block = buf.slice(0, i);
+      buf = buf.slice(i + 2);
+      if (block.startsWith('data: ')) { try { onEvent(JSON.parse(block.slice(6))); } catch { /* a broken event is skipped */ } }
+    }
+  }
 }

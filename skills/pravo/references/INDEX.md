@@ -25,7 +25,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/providers.md](reference/providers.md) | List the providers a root resolves, print a provider's schema, pin archive hashes for more platforms and copy a provider to a container registry. | 6 KB |
 | [reference/validate-eval-fmt-gen.md](reference/validate-eval-fmt-gen.md) | Check a specification without planning it, print its evaluated value, format the CUE files and regenerate the provider packages. | 9 KB |
 | [reference/schema.md](reference/schema.md) | Print the CUE definition of a resource, data source, ephemeral resource or function type, with the provider's documentation. | 9 KB |
-| [reference/serve.md](reference/serve.md) | Start the viewer: a read-only page on the loopback interface that shows the specification, the state, the plans stored in it, the policies, the discoveries and the recorded runs. | 18 KB |
+| [reference/serve.md](reference/serve.md) | Start the viewer: a read-only page on the loopback interface that shows the specification, the state, the plans stored in it, the policies, the discoveries and the recorded runs. | 20 KB |
 | [reference/mcp.md](reference/mcp.md) | Serve pravo to an agent over the Model Context Protocol on stdio. Fourteen tools, applies only from saved plans, and plan policies the agent cannot remove. | 11 KB |
 | [reference/skill.md](reference/skill.md) | Install or print the skill that teaches an AI agent to use pravo. It is built from this documentation and is part of the binary, so it matches the version that installed it. | 6 KB |
 | [reference/mod.md](reference/mod.md) | Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file. | 6 KB |
@@ -59,7 +59,7 @@ One page for each command and each part of the specification, tables first.
 |---|---|---|
 | [reference/viewer-sections.md](reference/viewer-sections.md) | What each section of the viewer shows and how to read it: Inventory, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector. | 53 KB |
 | [reference/viewer-keys-and-links.md](reference/viewer-keys-and-links.md) | The keyboard of the viewer, the command palette, and every parameter of the address that reproduces a view: selection, tabs, open groups, filters, a plan over the graph, a policy, a run. | 11 KB |
-| [reference/viewer-api.md](reference/viewer-api.md) | The read-only JSON endpoints behind the viewer, for a script: the graph, one node, the stored plans, a plan over the graph, the discoveries, the policies, the studio, the recorded runs and the event stream. | 22 KB |
+| [reference/viewer-api.md](reference/viewer-api.md) | The read-only JSON endpoints behind the viewer, for a script: the graph, one node, the stored plans, a plan over the graph, the discoveries, the policies, the studio, the recorded runs and the event stream. | 23 KB |
 
 ### Policies
 

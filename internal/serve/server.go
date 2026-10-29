@@ -116,6 +116,8 @@ type Options struct {
 	TraceDir string
 	// Token is the secret of this run. A random one is made when it is empty.
 	Token string
+	// Chat turns the read-only chat on (README rule 12). Nil is off.
+	Chat *ChatOptions
 }
 
 // staleModelFor is how long the last model is served when the project cannot be
@@ -162,6 +164,9 @@ type Server struct {
 
 	// streams counts the open event streams.
 	streams atomic.Int32
+
+	// chatActive counts the questions being answered.
+	chatActive atomic.Int32
 }
 
 // New makes a server and builds its first model, so that a state that cannot be
@@ -352,7 +357,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The studio takes a plan file that a person drops on it: the one request that is not a GET. It judges and keeps nothing on disk.
-	if r.Method == http.MethodPost && r.URL.Path == "/api/studio/plan" {
+	if r.Method == http.MethodPost && (r.URL.Path == "/api/studio/plan" || r.URL.Path == "/api/chat") {
 		s.api(w, r)
 		return
 	}
@@ -435,6 +440,12 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.URL.Path {
+	case "/api/chat/config":
+		s.chatConfig(w)
+		return
+	case "/api/chat":
+		s.chatHandler(w, r)
+		return
 	case "/api/ping":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": APIVersion})
 		return
