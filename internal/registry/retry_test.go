@@ -2,16 +2,126 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
 func fastClient() *http.Client {
 	return &http.Client{Transport: &retryTransport{wait: func(int) time.Duration { return time.Millisecond }}}
+}
+
+type retryRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f retryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestRetryTransportHonoursRetryAfter(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		header string
+		date   bool
+		want   time.Duration
+	}{
+		{name: "seconds", header: "3", want: 3 * time.Second},
+		{name: "HTTP date", date: true, want: 3 * time.Second},
+		{name: "whitespace", header: " 3 ", want: 3 * time.Second},
+		{name: "shorter than backoff", header: "1", want: 2 * time.Second},
+		{name: "zero", header: "0", want: 2 * time.Second},
+		{name: "missing", want: 2 * time.Second},
+		{name: "invalid", header: "soon", want: 2 * time.Second},
+		{name: "past date", header: "Fri, 31 Dec 1999 00:00:00 GMT", want: 2 * time.Second},
+		{name: "negative", header: "-3", want: 2 * time.Second},
+		{name: "signed", header: "+3", want: 2 * time.Second},
+		{name: "fractional", header: "3.5", want: 2 * time.Second},
+		{name: "duration overflow", header: "9223372037", want: 2 * time.Second},
+		{name: "overflow", header: "9223372036854775807", want: 2 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				start := time.Now()
+				header := tc.header
+				if tc.date {
+					header = start.Add(tc.want).Format(http.TimeFormat)
+				}
+				calls := 0
+				tr := &retryTransport{
+					wait: func(int) time.Duration { return 2 * time.Second },
+					base: retryRoundTripper(func(*http.Request) (*http.Response, error) {
+						calls++
+						status := http.StatusOK
+						if calls == 1 {
+							status = http.StatusServiceUnavailable
+						}
+						return &http.Response{
+							StatusCode: status,
+							Header:     http.Header{"Retry-After": []string{header}},
+							Body:       io.NopCloser(strings.NewReader("")),
+						}, nil
+					}),
+				}
+				req, err := http.NewRequest(http.MethodGet, "https://registry.example.test", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				resp, err := tr.RoundTrip(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				resp.Body.Close()
+				if elapsed := time.Since(start); elapsed != tc.want {
+					t.Errorf("retried after %s, want %s", elapsed, tc.want)
+				}
+				if calls != 2 || resp.StatusCode != http.StatusOK {
+					t.Errorf("status %d after %d requests, want 200 after 2", resp.StatusCode, calls)
+				}
+			})
+		})
+	}
+}
+
+func TestRetryTransportRetryAfterCanBeCancelled(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		calls := 0
+		tr := &retryTransport{
+			wait: func(int) time.Duration { return time.Second },
+			base: retryRoundTripper(func(*http.Request) (*http.Response, error) {
+				calls++
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Header:     http.Header{"Retry-After": []string{"3600"}},
+					Body:       io.NopCloser(strings.NewReader("")),
+				}, nil
+			}),
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://registry.example.test", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			time.Sleep(time.Second)
+			cancel()
+		}()
+		start := time.Now()
+		if _, err := tr.RoundTrip(req); !errors.Is(err, context.Canceled) {
+			t.Errorf("error %v, want context.Canceled", err)
+		}
+		if elapsed := time.Since(start); elapsed != time.Second {
+			t.Errorf("cancelled after %s, want 1s", elapsed)
+		}
+		if calls != 1 {
+			t.Errorf("made %d requests, want 1", calls)
+		}
+	})
 }
 
 func TestRetryTransportRepeatsWhatMayPass(t *testing.T) {
