@@ -32,6 +32,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/root"
           go build -o "$RUNNER_TEMP/bin/pravo" ./cmd/pravo
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          export PATH="$RUNNER_TEMP/bin:$PATH"
           cat > "$RUNNER_TEMP/root/main.cue" <<'CUE'
           package demo
 
