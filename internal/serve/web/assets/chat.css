@@ -4,7 +4,7 @@
 .insp.chat-on > :not(.chat, .insp-bar) { display: none !important; }
 .insp.chat-on { display: flex !important; }
 .chat { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; font-size: var(--fs-4); }
-.chat-head { display: flex; align-items: center; gap: .6rem; padding: .7rem 3.4rem .7rem 1rem; border-bottom: 1px solid var(--line-strong); }
+.chat-head { display: flex; align-items: center; gap: .6rem; box-sizing: border-box; min-height: 3rem; padding: 0 3.4rem 0 1rem; border-bottom: 1px solid var(--line-strong); } /* tall enough to hold the close button */
 .chat-head h2 { margin: 0; font: 600 var(--fs-2)/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; }
 .chat-head .who { font: 400 var(--fs-2)/1 var(--font-mono); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-ctx { display: flex; align-items: center; gap: .5rem; padding: .55rem 1rem; border-bottom: 1px solid var(--line); background: var(--surface-2); font: 500 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
