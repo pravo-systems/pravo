@@ -115,6 +115,11 @@ type Vouch struct {
 	Digest string
 }
 
+// UnsignedKey stands in the Key of a Vouch for a transaction that has no finish signature:
+// one that ran before the state was sealed, or with no identity. An admin vouches for it by
+// id and digest, as for a key that left.
+const UnsignedKey = "unsigned"
+
 // VouchKey is the first field of the line of a vouch in the text of a version of the roles. No
 // name starts with it, so it cannot be mistaken for a key.
 const VouchKey = "@vouch"
@@ -214,8 +219,8 @@ func ParseRolesSet(text string) ([]Reader, []FormerKey, []Vouch, error) {
 	for n, line := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
 		f := strings.Fields(line)
 		if len(f) > 0 && f[0] == VouchKey {
-			if len(f) != 4 || !fingerprintRE.MatchString(f[1]) || !vouchTxnRE.MatchString(f[2]) || !digestRE.MatchString(f[3]) || seenVouch[f[2]] {
-				return nil, nil, nil, fmt.Errorf("roles line %d: want %s FINGERPRINT TXN DIGEST, once for each transaction", n+1, VouchKey)
+			if len(f) != 4 || (!fingerprintRE.MatchString(f[1]) && f[1] != UnsignedKey) || !vouchTxnRE.MatchString(f[2]) || !digestRE.MatchString(f[3]) || seenVouch[f[2]] {
+				return nil, nil, nil, fmt.Errorf("roles line %d: want %s FINGERPRINT|unsigned TXN DIGEST, once for each transaction", n+1, VouchKey)
 			}
 			seenVouch[f[2]] = true
 			vouches = append(vouches, Vouch{Key: f[1], Txn: f[2], Digest: f[3]})

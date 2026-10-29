@@ -181,6 +181,24 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			}
 			continue
 		}
+		if t.FinishSig == nil && t.StartSig == nil {
+			// Written with no identity, before the state was sealed or by a job that had none.
+			// Only the transaction an admin vouched for by id and digest is accepted.
+			vo, ok := rules.Vouched[t.ID]
+			if !ok || vo.Key != protect.UnsignedKey || vo.Digest != VouchDigest(lineage, t) {
+				problem(n.addr, "the transaction "+t.ID+" that wrote it is not signed, or its signature does not verify")
+				continue
+			}
+			switch c := changeOf(t, n.addr, n.revision); {
+			case c == nil:
+				problem(n.addr, "the transaction "+t.ID+" does not name revision "+strconv.Itoa(n.revision))
+			case c.Record != "" && c.Record != n.rec:
+				problem(n.addr, "the transaction "+t.ID+" signed another record for revision "+strconv.Itoa(n.revision))
+			default:
+				v.Vouched++
+			}
+			continue
+		}
 		verdict := VerifyTransaction(lineage, t, readers)
 		vouched := false
 		if vo, ok := rules.Vouched[t.ID]; ok && t.FinishSig != nil && vo.Key == t.FinishSig.Key && vo.Digest == VouchDigest(lineage, t) {

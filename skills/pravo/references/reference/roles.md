@@ -79,16 +79,19 @@ The shares of a recovery key are not an identity, so the roles do not apply to `
 
 ## Records are bound to the writer
 
-With roles, the transaction of a writer signs the key of every record it writes, in the finish signature. A reader holds the data key, and can seal a record that opens for everyone, but cannot make the transaction of a writer name it. `pravo protect status` prints a `Records` line, and `Untrusted:` and the address of a record that no verified transaction of a writer accounts for, and exits 7. `plan`, `apply` and `destroy` check every record before they read it: a writer who refreshed a record that a reader had sealed would give it a transaction of their own. Remove such a record with `pravo state rm`, or restore it from a version of the bucket.
+With roles, the transaction of a writer signs the key of every record it writes, in the finish signature. A reader holds the data key, and can seal a record that opens for everyone, but cannot make the transaction of a writer name it. `pravo protect status` prints a `Records` line, and `Untrusted:` and the address of a record that no verified transaction of a writer accounts for, and exits 7. `plan`, `apply` and `destroy` check every record before they read it: a writer who refreshed a record that a reader had sealed would give it a transaction of their own. Remove such a record with `pravo state rm`, or restore it from a version of the bucket. If it is there because the history was never signed, adopt it as below instead.
 
 | A record | Reads as |
 |---|---|
 | Written by a verified transaction of a writer | Bound. |
 | Written before the roles began | `from before roles`. |
+| Whose transaction no identity signed, such as a history written before the state was sealed | Untrusted until an admin vouches for it (below); then `vouched for by an admin`. |
 | Whose transaction is still running or was killed | `not checked`. |
 | Whose transaction is not in the state | Untrusted. Transactions are not collected, so do not delete them. |
 | Signed by a former key or a demoted key | `vouched for by an admin` when the roles name its transaction, untrusted when they do not. |
 | Signed by a key that was never in the roles | Untrusted with the roles pinned; `not checked` without the pin, since a member who has left looks the same as a key that someone made. |
+
+**A history that was never signed.** A state that was written with no identity and sealed afterwards, for example by a CI job that had none, holds finished transactions with no signature. Their records read as untrusted, since nothing says who wrote them. The first version of the roles vouches for those transactions by id, `@vouch unsigned TRANSACTION DIGEST`, and `protect roles` lists them (`unsigned: vouched for 40 transactions`) before it asks. A state whose roles are stored already is repaired in place, with no unseal and no import: an admin runs `pravo protect roles --adopt-unsigned`, which stores a new version of the roles with those lines. A later version needs the flag so that a transaction that someone with the credentials of the bucket writes unsigned, after the roles began, is not adopted in passing; without it the command prints how many it left out. The digest covers the whole transaction, so one rewritten after it was vouched for is untrusted again.
 
 ## What roles do not do
 

@@ -256,7 +256,7 @@ func secretsText(v state.SecretVerdict) string {
 	line := fmt.Sprintf("%s · %s", plural(v.Secrets, "secret", "secrets"), plural(v.Versions, "version", "versions"))
 	line += fmt.Sprintf(" · %d bound to a transaction of a writer", v.Bound)
 	if v.Vouched > 0 {
-		line += fmt.Sprintf(" · %d vouched for by an admin (the key left or was demoted)", v.Vouched)
+		line += fmt.Sprintf(" · %d vouched for by an admin", v.Vouched)
 	}
 	if v.Unchecked > 0 {
 		line += fmt.Sprintf(" · %d not checked (signed by a key that is not in the readers file)", v.Unchecked)
@@ -329,7 +329,7 @@ func rolesDoc(rf readersFile, rs state.RolesStatus, st *state.Store) map[string]
 func recordsText(v state.RecordVerdict) string {
 	line := fmt.Sprintf("%d bound to a transaction of a writer", v.Bound)
 	if v.Vouched > 0 {
-		line += fmt.Sprintf(" · %d vouched for by an admin (the key left or was demoted)", v.Vouched)
+		line += fmt.Sprintf(" · %d vouched for by an admin", v.Vouched)
 	}
 	if v.Earlier > 0 {
 		line += fmt.Sprintf(" · %d from before roles", v.Earlier)
