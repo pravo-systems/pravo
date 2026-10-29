@@ -108,6 +108,28 @@ package pravo
 	}
 	// The resolved version of each provider, by local name.
 	providers: [string]: string
+	// Set by a rule, not by the plan: the plan is applied only when the state before this
+	// one holds an attestation, signed by one of the pinned keys, that it runs the same
+	// specification ("pravo promote attest" writes it there). The tags that differ between
+	// the environments are listed in vary:
+	//
+	//	promote: {from: state: path: "state/staging", signers: ["SHA256:…"], vary: ["env"]}
+	//
+	// The state of an environment holds the policies its root declares, so a root that
+	// declares this one only when it is the production environment gates only that one.
+	promote?: {
+		// The state of the environment before this one, with the fields of state in $settings.
+		from: state: {...}
+		// The fingerprints of the keys whose attestation counts, as "pravo id show" prints them.
+		signers: [string, ...string]
+		// The lineage the state before must have, to keep an attestation of another state out.
+		lineage?: string
+		// The tags whose value differs between the environments. Every other tag must agree.
+		vary: [...string] | *[]
+		// How long an attestation must have stood before it counts, and how long it counts.
+		min_age?: =~"^[0-9]+(ms|s|m|h|d)$"
+		max_age?: =~"^[0-9]+(ms|s|m|h|d)$"
+	}
 	// Set by a rule, not by the plan: the plan is applied only when the keys named here
 	// have approved it ("pravo plan approve"), whatever else the policies in force say.
 	// A rule sets it for the plans it picks out, with a disjunction (a rule cannot

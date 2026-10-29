@@ -1,6 +1,8 @@
 package state
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strconv"
@@ -50,7 +52,63 @@ func txnStartParts(t *Transaction) [][]byte {
 	if len(t.Policies) > 0 {
 		parts = append(parts, policyList(t.Policies))
 	}
+	// The specification the run applied, framed by a prefix that no list of policies
+	// begins with.
+	if t.ConfigFingerprint != "" {
+		parts = append(parts, SpecPart(t.ConfigFingerprint, t.SpecTags))
+	}
 	return parts
+}
+
+// SpecPart is the part of a signed message that names a specification: its fingerprint
+// and the digest of each tag, by tag name.
+func SpecPart(fingerprint string, tags map[string]string) []byte {
+	var b strings.Builder
+	b.WriteString("spec\x00" + fingerprint + "\x00")
+	for _, name := range sortedKeys(tags) {
+		b.WriteString(name + "=" + tags[name] + "\n")
+	}
+	return []byte(b.String())
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// SpecTagDigest is the digest that stands for the value of a tag in a record of a
+// specification: the SHA-256 of the name and the value. The record shows that two
+// runs used the same value without showing it.
+func SpecTagDigest(name, value string) string {
+	sum := sha256.Sum256([]byte("pravo/v1/tag\x00" + name + "\x00" + value))
+	return hex.EncodeToString(sum[:])
+}
+
+// SpecTagDigests digests the tags of a root, each given as "name=value". A tag with no
+// "=" is a switch whose value is empty.
+func SpecTagDigests(tags []string) map[string]string {
+	out := map[string]string{}
+	for _, t := range tags {
+		name, value, _ := strings.Cut(t, "=")
+		out[name] = SpecTagDigest(name, value)
+	}
+	return out
+}
+
+// SetSpec records the specification an apply runs: the fingerprint of its root and the
+// tags the root was loaded with. It is called before Start.
+func (t *Txn) SetSpec(fingerprint string, tags []string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.t.ConfigFingerprint = fingerprint
+	t.t.SpecTags = nil
+	if fingerprint != "" && len(tags) > 0 {
+		t.t.SpecTags = SpecTagDigests(tags)
+	}
 }
 
 // txnFinishParts are the fields the second signature covers: the first's, and the

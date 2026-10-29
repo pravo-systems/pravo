@@ -240,7 +240,24 @@ type PlanApprovals struct {
 	// Needs is what the plan must have approved, each need on its own, as "pravo apply" counts
 	// them. A plan that can no longer be applied, or that the policies in force refuse, has none.
 	Needs []PlanApprovalNeed `json:"needs,omitempty"`
-	Note  string             `json:"note,omitempty"`
+	// Promotions is what the policies in force ask of the state before this one, and whether it
+	// holds the attestation that satisfies each: see "pravo promote".
+	Promotions []PlanPromotion `json:"promotions,omitempty"`
+	Note       string          `json:"note,omitempty"`
+}
+
+// PlanPromotion is one attestation a policy asks of the state before this one. From is where the
+// policy looks, By names the policy version, and Met says whether an attestation counts. Reason says
+// what is missing when it does not; Signer and At describe the attestation that counted, or the
+// nearest that did not. WaitUntil is when one that is too young starts to count.
+type PlanPromotion struct {
+	From      string     `json:"from"`
+	By        string     `json:"by"`
+	Met       bool       `json:"met"`
+	Reason    string     `json:"reason,omitempty"`
+	Signer    string     `json:"signer,omitempty"`
+	At        *time.Time `json:"at,omitempty"`
+	WaitUntil *time.Time `json:"wait_until,omitempty"`
 }
 
 // PlanApprovalNeed is one thing the policies ask: Min distinct keys of Role ("writer" or "admin")

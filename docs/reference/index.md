@@ -46,6 +46,7 @@ Every page opens with the synopsis, the flags with their defaults, and the exit 
 | `pravo protect` | Seals the state to a list of readers, checks it, changes the readers, sets a recovery, takes the seal off and collects old records. | [protect](protect.md) |
 | `pravo protect roles` | Gives each identity a role and pins the roles in the state. | [roles](roles.md) |
 | `pravo secret` | Sets, reads, lists, removes and forgets the secrets of a sealed state. Runs a command with secrets in its environment. | [secret](secret.md) |
+| `pravo promote` | Vouches that a state runs a specification, for the policy of the environment after it, and lists the attestations a state holds. | [promote](promote.md) |
 | `pravo version` | Prints the version of pravo and of CUE. | [version](version.md) |
 | Flags, environment, exit codes | The parts every command shares. | [global flags](global-flags.md) |
 

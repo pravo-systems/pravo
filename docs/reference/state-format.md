@@ -327,7 +327,7 @@ A command that began before a reader was removed looks at `meta.json` again when
 
 A signature is Ed25519 over a fixed prefix, `pravo/v1/signature` and a zero byte, and the SHA-256 of a message. The message is the count of its parts as a little-endian 64-bit number, and then each part framed by its length in the same way: the domain tag, the lineage of the state and the fields. The domains are `pravo/v1/txn-start`, `pravo/v1/txn-finish` and `pravo/v1/plan`, so that a signature made for one kind of event, or in one state, is valid nowhere else. A text field is the text as the log stores it, with each byte that is not valid UTF-8 as U+FFFD. Times are UTC RFC 3339 with nanoseconds, and numbers decimal.
 
-The fields of the start signature are, in this order: `id`, `kind`, `command`, `user`, `host`, `started`, `actor`, `reason`, `git_revision`, `version`, `plan`, `plan_digest`, `trace_id`, and, only when the apply judged a plan, `policies`: the sorted lines `NAME@SEQ:SHA-256`, joined by newlines, as one part. The finish signature has those, then `finished`, `status`, the number of changes, and for each change, in the order stored, `addr`, `action`, `before_revision` and `after_revision`. The fields of a plan's signature are the SHA-256 of the plan file in hex, and the time.
+The fields of the start signature are, in this order: `id`, `kind`, `command`, `user`, `host`, `started`, `actor`, `reason`, `git_revision`, `version`, `plan`, `plan_digest`, `trace_id`, and, only when the apply judged a plan, `policies`: the sorted lines `NAME@SEQ:SHA-256`, joined by newlines, as one part, and, only when the apply recorded one, `config_fingerprint` with the digests of the tags, as one part that begins with `spec` and a zero byte. The finish signature has those, then `finished`, `status`, the number of changes, and for each change, in the order stored, `addr`, `action`, `before_revision` and `after_revision`. The fields of a plan's signature are the SHA-256 of the plan file in hex, and the time.
 
 ### What a sealed state does not protect
 
@@ -462,7 +462,8 @@ jq 'del(.changes[].diff)' pravo.state/txn/*.json
   ],
   "actor": "ci",
   "reason": "example",
-  "version": "<version>"
+  "version": "<version>",
+  "config_fingerprint": "<fingerprint>"
 }
 ```
 
@@ -480,6 +481,7 @@ jq 'del(.changes[].diff)' pravo.state/txn/*.json
 | `diff_sealed` | Only in a sealed state: the `diff` of each change, by address, sealed under the kind `txn-diff` and bound to the id of the transaction, in place of the `diff` of the changes. The signatures do not cover it. A rewrap with `--all` seals it again, and an unseal writes it back into the changes. |
 | `actor`, `reason`, `git_revision`, `trace_id` | The labels of the run, when set. |
 | `version` | The version of the pravo that began the transaction. A transaction written by a pravo that did not record it has none. |
+| `config_fingerprint`, `spec_tags` | For an apply: the fingerprint of the specification, which hashes the names and bytes of the files of the root and `cue.mod/module.cue` and not the tags, and a digest of each tag, by name. [`pravo promote`](promote.md) attests to them. |
 | `plan`, `plan_digest` | For an apply from a plan: the id of the stored plan, empty for a plan file, and the SHA-256 of the plan file in hex. For a plain apply that judged a plan, the id is empty and the digest is that of the plan it built. |
 | `policies` | Only when the apply judged a plan: the policy versions that judged it, as sorted lines `NAME@SEQ:SHA-256`, where the digest is that of the text. They are part of the start signature. A rejected apply lists them too. |
 | `start_sig`, `finish_sig` | In a sealed state: `{"signer", "key", "sig"}`, the signatures of the identity that ran the command: `key` is the SSH fingerprint of its signing key, and `sig` the 64 bytes of Ed25519 in base64. The first covers what the run set out to do, the second what it did. See [Signatures](protect.md#signatures). |

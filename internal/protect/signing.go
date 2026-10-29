@@ -27,6 +27,8 @@ const (
 	// DomainPlanApproval signs the approval of a stored plan.
 	DomainPlanApproval  = "pravo/v1/plan-approval"
 	DomainPolicyVersion = "pravo/v1/policy-version"
+	// DomainPromotion signs the attestation that a state runs a specification.
+	DomainPromotion = "pravo/v1/promotion"
 	// DomainRolesVersion signs a version of the roles stored in the state.
 	DomainRolesVersion = "pravo/v1/roles-version"
 )

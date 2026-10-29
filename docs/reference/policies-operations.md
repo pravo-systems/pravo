@@ -517,6 +517,39 @@ An admin needs no approval, and a readers file without roles makes every key an 
 
 An approval is a signature over the digest of the plan, so it holds for that plan alone and a plan that is made again needs its own. Whether the key may approve is decided at apply from the readers file: a key that was demoted, or that is not in the readers file any more, stops counting. A state that is not sealed has no approvals, because it has no signatures. `pravo plan show ID` and the plan strip of [the viewer](viewer-sections.md#the-plans-section) name who approved.
 
+## Ask for a promotion
+
+A rule can also say that the plan may be applied only when another state ran the specification and a key vouched for it. `promote` is a field of the rule next to `approvals`, and a state that comes after another (production after staging) declares it. The rule is a plain struct, and a policy that applies to one environment is declared under `if env == "prod"`:
+
+```cue
+if env == "prod" {
+	promotion: pravo.#Policy & {
+		rule: promote: {
+			from: state: path: "state/staging"
+			signers: ["SHA256:..."]
+			lineage?: "..."
+			vary: ["env"]
+			min_age?: "48h"
+			max_age?: "14d"
+		}
+	}
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `from` | The state that comes before. It has the fields of `state` in `$settings`, so a directory and a bucket both work. Required. |
+| `signers` | The fingerprints (`SHA256:...`) of the keys whose attestation counts. At least one. Required. |
+| `lineage` | The lineage of the state in `from`, as `pravo promote attest` prints it. When given, an attestation from another state with the same path does not count. |
+| `vary` | The tags that may differ from the ones the attestation was made with. The others have to be equal. Defaults to none. |
+| `min_age` | A soak time: the attestation counts once it is this old. |
+| `max_age` | An expiry: the attestation counts until it is this old. |
+
+Durations are a number and `ms`, `s`, `m`, `h` or `d`. The check runs in `pravo apply`, before approvals, and an admin is not exempt: refusing is exit code 5. `pravo plan` prints a `Promotion:` line and does not refuse. An attestation is made with [`pravo promote attest`](promote.md) in the state that comes before.
+
+A plan that adds a policy is not judged by it, so a production state is in force of the rule from its first apply on. A plan that edits or removes a policy that asks for a promotion needs one admin's approval, as for approvals. Adding one needs none.
+
+
 Two more members join the state: dan and eve, both writers, while ada is an admin. [Roles](roles.md) are the fifth field of the readers file, and `rewrap` writes the locks of the new readers to `meta.json`:
 
 ```sh run hidden

@@ -441,7 +441,15 @@ func (m *model) cleanInfo(po *planOverlay) PlanInfo {
 			it.Signer, it.Claimed = maskText(sec, it.Signer, maxText), maskText(sec, it.Claimed, maxText)
 			items[i] = it
 		}
-		info.Approvals = &PlanApprovals{Items: items, Needs: ap.Needs, Note: ap.Note}
+		proms := make([]PlanPromotion, len(ap.Promotions))
+		for i, pr := range ap.Promotions {
+			pr.Signer, pr.Reason = maskText(sec, pr.Signer, maxText), maskText(sec, pr.Reason, maxText)
+			proms[i] = pr
+		}
+		if len(proms) == 0 {
+			proms = nil
+		}
+		info.Approvals = &PlanApprovals{Items: items, Needs: ap.Needs, Promotions: proms, Note: ap.Note}
 	}
 	if len(info.Reasons) > 0 {
 		var omitted int

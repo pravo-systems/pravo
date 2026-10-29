@@ -282,7 +282,7 @@ func policyChangeNeed(set *state.PolicySet, plan *Plan) *ApprovalNeed {
 			continue
 		}
 		head, ok := set.Head(en.Name)
-		if !ok || head.Tombstone() || head.Seq != en.Base || !asksForApprovals(head.Text) {
+		if !ok || head.Tombstone() || head.Seq != en.Base || (!asksForApprovals(head.Text) && !asksForPromotion(head.Text)) {
 			continue
 		}
 		if need == nil {

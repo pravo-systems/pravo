@@ -173,6 +173,10 @@ func (e *Engine) commandLine() string {
 // buildPlanFile makes the plan file of a plan: what SavePlan writes and what a
 // stored plan holds.
 func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFile, error) {
+	if tags == nil {
+		// A judging that builds the file itself has no tags of its own: the root was loaded with them.
+		tags = e.Root.Tags
+	}
 	pf := &PlanFile{
 		Format: PlanFileFormat, Created: time.Now().UTC(), Command: e.commandLine(), Lineage: e.State.Lineage(),
 		Tags: tags, SysTags: sysTags, Providers: map[string]string{}, Destroy: plan.Destroy, NoRefresh: plan.NoRefresh, Stats: plan.Stats,

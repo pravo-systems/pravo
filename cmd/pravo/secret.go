@@ -89,6 +89,8 @@ type secretRun struct {
 	st    *state.Store
 	rf    readersFile
 	rules state.RecordRules
+	// readers are the readers the roles of the state leave, the keys that judge a signature.
+	readers []protect.Reader
 }
 
 func openSecrets(cmd *cobra.Command, access secretAccess) (*secretRun, error) {
@@ -123,7 +125,7 @@ func openSecrets(cmd *cobra.Command, access secretAccess) (*secretRun, error) {
 		st.Close()
 		return nil, engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
 	}
-	return &secretRun{ctx: ctx, root: root, st: st, rf: rf, rules: recordRules(eff.Readers, rs)}, nil
+	return &secretRun{ctx: ctx, root: root, st: st, rf: rf, rules: recordRules(eff.Readers, rs), readers: eff.Readers}, nil
 }
 
 func (r *secretRun) close() { r.st.Close() }

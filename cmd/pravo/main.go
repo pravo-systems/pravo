@@ -295,7 +295,7 @@ func newRootCmd() *cobra.Command {
 	pf.StringVar(&flags.Reason, "reason", "", "why; recorded on transactions and plans ($PRAVO_REASON)")
 	pf.StringVar(&flags.Identity, "identity", "", identityUsage)
 	cmd.AddCommand(
-		initCmd(), planCmd(), applyCmd(), destroyCmd(), showCmd(), outputCmd(), stateCmd(), importCmd(), discoverCmd(),
+		initCmd(), planCmd(), applyCmd(), destroyCmd(), showCmd(), outputCmd(), stateCmd(), importCmd(), discoverCmd(), promoteCmd(),
 		providersCmd(), genCmd(), validateCmd(), evalCmd(), fmtCmd(), versionCmd(),
 		schemaCmd(), whyCmd(), driftCmd(), mcpCmd(), modCmd(), serveCmd(), skillCmd(), idCmd(), protectCmd(), policyCmd(), secretCmd(),
 	)

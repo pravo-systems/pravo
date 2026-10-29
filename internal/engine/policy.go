@@ -314,6 +314,19 @@ func (e *Engine) JudgePlan(ctx context.Context, plan *Plan) error {
 	if len(refs) > 0 {
 		e.Opts.Progress("Policies: %d satisfied.", len(refs))
 	}
+	if pf.changesResources() {
+		doc, err := e.judgedDoc(pf)
+		if err != nil {
+			return err
+		}
+		checks, err := e.promotionChecksOf(ctx, doc, set.InForce(), pf)
+		if err != nil {
+			return err
+		}
+		for _, c := range checks {
+			e.Opts.Progress("%s", c.Line())
+		}
+	}
 	return nil
 }
 
@@ -394,6 +407,13 @@ func (e *Engine) judgeApply(ctx context.Context, plan *Plan, writes bool) (*stat
 	doc, err := e.judgedDoc(pf)
 	if err != nil {
 		return nil, err
+	}
+	promotions, err := promotionNeeds(e, doc, set.InForce())
+	if err != nil {
+		return nil, err
+	}
+	if err := e.checkPromotion(ctx, promotions, pf); err != nil {
+		return set, err
 	}
 	need, err := approvalNeed(e, doc, set.InForce())
 	if err != nil {

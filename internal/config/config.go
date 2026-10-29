@@ -114,6 +114,8 @@ func LocalName(key string) string {
 
 // Root is a loaded configuration.
 type Root struct {
+	// Tags are the -t values the root was loaded with, as "name=value".
+	Tags []string
 	// ModRoot is the directory holding cue.mod: the root itself, or an
 	// ancestor when several roots share one module. "" when there is none.
 	ModRoot string
@@ -314,7 +316,7 @@ func loadPackage(abs string, files []string, opts LoadOptions, overlay map[strin
 		return nil, fmt.Errorf("invalid configuration:\n%s", cueerrors.Details(err, nil))
 	}
 	end(nil)
-	r := &Root{Dir: abs, PkgName: inst.PkgName, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath}
+	r := &Root{Dir: abs, PkgName: inst.PkgName, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath, Tags: opts.Tags}
 	end = opts.stage("extract resources")
 	r.collectTree(inst)
 	err := r.extract(opts)
@@ -758,6 +760,25 @@ func mentionsAny(e ast.Expr, names map[string]bool) bool {
 	}
 	ast.Walk(e, visit, nil)
 	return found
+}
+
+// ParseStateLocation reads the state location sb names, as a pravo.#RemoteOutputs
+// does: the settings of a bucket or a server, or a directory (made absolute against
+// dir). A policy rule that names the state of another environment reads it this way.
+func ParseStateLocation(sb cue.Value, label, dir string) (StateConfig, string, error) {
+	st, path, err := parseState(sb, label)
+	if err != nil {
+		return st, "", err
+	}
+	if !st.Remote() {
+		if path == "" {
+			return st, "", fmt.Errorf("%s needs a path (a state directory), an s3 bucket or an http url", label)
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(dir, path)
+		}
+	}
+	return st, path, nil
 }
 
 // parseState reads a state location, as it appears in $settings.state and in

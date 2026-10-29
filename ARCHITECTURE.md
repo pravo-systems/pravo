@@ -58,6 +58,7 @@ Files in `cmd/pravo/`:
 | `id.go`, `identity.go` | `id new` and `id show`; `resolveIdentity`, which finds the identity of the user (`--identity`, `PRAVO_IDENTITY`, the identity directory) and opens it with a passphrase. |
 | `protect.go`, `protect_readers.go`, `protect_check.go`, `protect_init.go`, `protect_status.go`, `protect_rewrap.go`, `protect_gc.go`, `access.go` | `protect`: `protect.go` holds the command, `protectRun` and how it opens the store; `protect_readers.go` the comparison of the readers file with a sealed state (`checkReadersFile`; `access.go` loads the file with `loadReadersFile`); then one file for each of `check`, `init`, `status`, `rewrap` and `gc`. `session.go` opens a sealed state with the identity and compares the readers file with the state. |
 | `secret.go`, `secret_list.go` | `secret`: `secret.go` holds the command, `openSecrets` (the open state and the rules that judge the signatures of its versions), `secretErr` and the exit codes, and `set`, `get`, `rm`, `purge` and `exec`; `secret_list.go` holds `list` and `history`. The value is read from a file, an environment variable, standard input or a prompt, never from an argument, and the command line of the transaction holds the name only. |
+| `promote.go` | `promote`: `attest` plans the specification against the sealed state and signs only when the plan changes nothing, then prints the `signers` and `lineage` lines that the policy of the next environment pins; `list` shows the attestations a state holds and whether each verifies. |
 | `flags.go` | `rootFlags`: the values of the global flags and of `--access-dir` as one value, `flags`. The output printer `out` is the other piece of per-run state. |
 | `helpers.go`, `webhook.go` | Small shared helpers (`noArgs`, `refreshValueHint`, `typesOf`); the drift webhook POST. |
 
@@ -82,6 +83,7 @@ Files of the store in `internal/state/`:
 | `locks.go` | Resource locks and reservations: `Lock`, `TryHold`, `Release`, staleness, `Locks`, `Suspects`, `Interrupted`. |
 | `txn.go` | `Transaction`, `Txn` and the recorded history. |
 | `secret.go`, `secret_write.go`, `secret_maint.go` | The secrets of a sealed state: the version objects and how they are read and judged (`secret.go`), `SetSecret`, `RemoveSecret` and `PurgeSecret` (`secret_write.go`), and what the maintenance of the store needs of them (`secret_maint.go`: the values to count for `gc` and `unseal`, the transactions to keep, `rewrap`, `Copy`). |
+| `promotion.go` | Attestations (`promotions/<fingerprint>.<key16>.json`): `Promote` signs one in the domain `pravo/v1/promotion` with the lineage of the state, `ReadPromotions` lists them, `Verify` checks the signature and the pinned signer. Transactions record `config_fingerprint` and `spec_tags` (`SetSpec`, signed with the start). |
 
 Files in `internal/serve/`:
 
