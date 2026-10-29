@@ -447,3 +447,80 @@ func TestTheViewerIsToldTheRolesOfThePinnedChain(t *testing.T) {
 		t.Fatalf("a wrong pin: %+v", f)
 	}
 }
+
+// unsign removes the signatures of the transaction that wrote addr, as if no identity had run it.
+func unsign(t *testing.T, s *sealed, addr string) {
+	t.Helper()
+	n := 0
+	for k, v := range s.f.Objects {
+		if !strings.HasPrefix(k, "prod/txn/") {
+			continue
+		}
+		var m map[string]any
+		if json.Unmarshal(v, &m) != nil {
+			continue
+		}
+		for _, c := range m["changes"].([]any) {
+			if c, ok := c.(map[string]any); ok && c["addr"] == addr {
+				delete(m, "start_sig")
+				delete(m, "finish_sig")
+				data, _ := json.Marshal(m)
+				s.f.Objects[k] = data
+				n++
+			}
+		}
+	}
+	if n == 0 {
+		t.Fatalf("no transaction wrote %s", addr)
+	}
+}
+
+func TestUnsignedHistoryIsAdoptedWhenTheRolesAreFirstStored(t *testing.T) {
+	s := plannableBucket(t)
+	writeAs(t, s, s.ada, "legacy")
+	unsign(t, s, "legacy")
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader")
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	if code != 0 || !strings.Contains(text, "unsigned: vouched for 1 transaction") {
+		t.Fatalf("protect roles over unsigned history: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 0 || !strings.Contains(text, "1 vouched for by an admin") {
+		t.Fatalf("status after adopting: exit %d\n%s", code, text)
+	}
+}
+
+func TestUnsignedHistoryOfALaterVersionNeedsTheFlag(t *testing.T) {
+	s := plannableBucket(t)
+	pin := pinnedRoles(t, s)
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
+	writeAs(t, s, s.ada, "legacy")
+	unsign(t, s, "legacy")
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 7 || !strings.Contains(text, "Untrusted: legacy:") {
+		t.Fatalf("status over unsigned history: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	if !strings.Contains(text, "--adopt-unsigned") {
+		t.Fatalf("protect roles without the flag: exit %d\n%s", code, text)
+	}
+	if _, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 7 {
+		t.Fatalf("still untrusted without the flag: exit %d", code)
+	}
+	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes", "--adopt-unsigned")
+	if code != 0 || !strings.Contains(text, "unsigned: vouched for 1 transaction") {
+		t.Fatalf("protect roles --adopt-unsigned: exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 0 || !strings.Contains(text, "1 vouched for by an admin") {
+		t.Fatalf("status after adopting: exit %d\n%s", code, text)
+	}
+	// A transaction rewritten after it was vouched for is not the one that was.
+	for k, v := range s.f.Objects {
+		if strings.HasPrefix(k, "prod/txn/") && strings.Contains(string(v), `"legacy"`) {
+			s.f.Objects[k] = []byte(strings.Replace(string(v), `"record":"`, `"record":"x`, 1))
+		}
+	}
+	if _, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 7 {
+		t.Fatalf("a rewritten unsigned transaction: exit %d", code)
+	}
+}

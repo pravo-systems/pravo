@@ -278,8 +278,12 @@ func (s *Store) PutRolesVersion(ctx context.Context, seq int, text string, at ti
 // everything its finish signature covers, the lineage, the signature and the key. The text
 // of an error and the diffs, which a rewrap rewrites, are not in it. It is empty for a
 // transaction with no finish signature.
+//
+// A finished transaction with no signature at all has a digest as well, over the same parts
+// and the key protect.UnsignedKey: it is what an admin vouches for when the state is
+// sealed over a history that no identity signed.
 func VouchDigest(lineage string, t *Transaction) string {
-	if t.FinishSig == nil {
+	if t.FinishSig == nil && (t.Finished == nil || t.StartSig != nil) {
 		return ""
 	}
 	h := sha256.New()
@@ -290,15 +294,20 @@ func VouchDigest(lineage string, t *Transaction) string {
 		h.Write(b)
 	}
 	put([]byte(lineage))
-	put([]byte(t.FinishSig.Key))
-	put(t.FinishSig.Sig)
+	if t.FinishSig == nil {
+		put([]byte(protect.UnsignedKey))
+		put(nil)
+	} else {
+		put([]byte(t.FinishSig.Key))
+		put(t.FinishSig.Sig)
+	}
 	for _, p := range txnFinishParts(t) {
 		put(p)
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// LiveSigners lists, for each finished and signed transaction that is the latest writer of a
+// LiveSigners lists, for each finished transaction (an unsigned one has the key protect.UnsignedKey) that is the latest writer of a
 // record in the state, the key that signed it and its VouchDigest. It reads each such
 // transaction once. A transaction that is gone, or has no finish signature, is left out.
 func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
@@ -342,7 +351,13 @@ func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
 			mu.Unlock()
 			return
 		}
-		if t.ID != list[i] || t.FinishSig == nil || t.Finished == nil {
+		if t.ID != list[i] || t.Finished == nil {
+			return
+		}
+		if t.FinishSig == nil {
+			if d := VouchDigest(s.Lineage(), &t); d != "" {
+				out[i] = protect.Vouch{Key: protect.UnsignedKey, Txn: t.ID, Digest: d}
+			}
 			return
 		}
 		out[i] = protect.Vouch{Key: t.FinishSig.Key, Txn: t.ID, Digest: VouchDigest(s.Lineage(), &t)}

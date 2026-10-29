@@ -238,7 +238,7 @@ Output:
 
 ```text
 Roles        on · 1 admin · 1 writer · 0 reader · pinned, version 3 in the state · you are an admin
-Records      0 bound to a transaction of a writer · 1 vouched for by an admin (the key left or was demoted) · 1 from before roles
+Records      0 bound to a transaction of a writer · 1 vouched for by an admin · 1 from before roles
 
 Error: you are not a reader of this state (identity dan is not a reader).
   Readers are listed in .pravo/access/readers.txt. Ask one of them to add yours.

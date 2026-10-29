@@ -18,7 +18,7 @@ import (
 // ---------- protect roles ----------
 
 func protectRolesCmd() *cobra.Command {
-	var yes bool
+	var yes, adoptUnsigned bool
 	cmd := &cobra.Command{
 		Use:   "roles",
 		Short: "Store the roles of the readers file in the state and pin them",
@@ -32,21 +32,27 @@ Every later version is signed by a key that is an admin in the version before it
 change of roles is this command, run by an admin, and then a commit of the readers file.
 
 It needs an identity that is a reader of the state, and that is an admin in the roles
-that decide now (the readers file for the first version). The readers file must give roles.`,
+that decide now (the readers file for the first version). The readers file must give roles.
+
+Transactions that no identity signed, such as a history written before the state was
+sealed, are vouched for by id when the first version is stored, and listed before you
+confirm. A later version does it only with --adopt-unsigned: the admin has seen the
+count, and a transaction written after the roles began is not adopted by accident.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := newProtectRun(cmd)
 			if err != nil {
 				return err
 			}
-			return p.roles(yes)
+			return p.roles(yes, adoptUnsigned)
 		},
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before the roles are stored")
+	cmd.Flags().BoolVar(&adoptUnsigned, "adopt-unsigned", false, "also vouch for the unsigned transactions that wrote records now in the state (the first version always does)")
 	return cmd
 }
 
-func (p *protectRun) roles(yes bool) error {
+func (p *protectRun) roles(yes, adoptUnsigned bool) error {
 	if err := p.rf.require(); err != nil {
 		return err
 	}
@@ -105,7 +111,7 @@ func (p *protectRun) roles(yes bool) error {
 		return err
 	}
 	next, nextFormer := protect.NextRoles(p.rf.Readers, before, beforeFormer, seen)
-	vouches, err := newVouches(p.ctx, st, chain, before, next, seen)
+	vouches, err := newVouches(p.ctx, st, chain, before, next, seen, adoptUnsigned)
 	if err != nil {
 		return err
 	}
@@ -131,6 +137,9 @@ func (p *protectRun) roles(yes bool) error {
 	sort.Strings(vouchKeys)
 	for _, k := range vouchKeys {
 		who := names[k]
+		if k == protect.UnsignedKey {
+			who = "unsigned"
+		}
 		if who == "" {
 			who = k
 		}
@@ -278,7 +287,7 @@ const maxVouches = 5000
 // a writer in next, when the key was a writer in before, when there were no roles yet, or when
 // the key is one of seen, which the admin has just been shown. A transaction that an earlier
 // version vouched for is left out.
-func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before, next []protect.Reader, seen []string) ([]protect.Vouch, error) {
+func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before, next []protect.Reader, seen []string, adoptUnsigned bool) ([]protect.Vouch, error) {
 	live, err := st.LiveSigners(ctx)
 	if err != nil {
 		return nil, err
@@ -301,17 +310,31 @@ func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, b
 	for _, fp := range seen {
 		unlisted[fp] = true
 	}
-	var out []protect.Vouch
+	var found []protect.Vouch
+	skipped := 0
 	for _, v := range live {
 		if done[v.Txn] || isWriter[v.Key] {
 			continue
 		}
+		if v.Key == protect.UnsignedKey {
+			if chain.Head() == nil || adoptUnsigned {
+				found = append(found, v)
+			} else {
+				skipped++
+			}
+			continue
+		}
 		if chain.Head() == nil || wasWriter[v.Key] || unlisted[v.Key] {
-			out = append(out, v)
+			found = append(found, v)
 		}
 	}
-	if len(out) > maxVouches {
-		return nil, fmt.Errorf("%d transactions would be vouched for, and one version of the roles holds %d. Remove the records of the keys that leave with pravo state rm, or have a writer apply them again, and run this again.", len(out), maxVouches)
+	if skipped > 0 {
+		if !flags.JSON {
+			out.Printf("Warning: %s that no identity signed wrote records in the state, and those records stay refused. Run this with --adopt-unsigned to vouch for them.\n", plural(skipped, "transaction", "transactions"))
+		}
 	}
-	return out, nil
+	if len(found) > maxVouches {
+		return nil, fmt.Errorf("%d transactions would be vouched for, and one version of the roles holds %d. Remove the records of the keys that leave with pravo state rm, or have a writer apply them again, and run this again.", len(found), maxVouches)
+	}
+	return found, nil
 }
