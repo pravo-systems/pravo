@@ -1,18 +1,21 @@
 name: Action
 
-# The pravo action (actions/pravo) runs against a pravo built from this commit:
+# The pravo action (pravo-systems/pravo-action@main) runs against a pravo built
+# from this commit:
 # plan stores a plan, apply applies it by its id, and drift finds nothing.
 # Nothing is posted: the comment and the issue are switched off, so the job
-# needs no token. The shell script itself is tested in tools/actiontest.
+# needs no token. The script itself is tested in the pravo-action repository.
 on:
   pull_request:
     paths:
-      - actions/pravo/**
+      - cmd/**
+      - pravo/**
       - .github/workflows/action.yml
   push:
     branches: [main]
     paths:
-      - actions/pravo/**
+      - cmd/**
+      - pravo/**
       - .github/workflows/action.yml
 
 permissions:
@@ -44,7 +47,7 @@ jobs:
           CUE
           pravo -C "$RUNNER_TEMP/root" init
       - id: plan
-        uses: ./actions/pravo
+        uses: pravo-systems/pravo-action@main
         with:
           command: plan
           install: "false"
@@ -55,14 +58,14 @@ jobs:
           test "${{ steps.plan.outputs.has-changes }}" = true
           test -n "${{ steps.plan.outputs.plan-id }}"
           grep -q 'create' "${{ steps.plan.outputs.report }}"
-      - uses: ./actions/pravo
+      - uses: pravo-systems/pravo-action@main
         with:
           command: apply
           install: "false"
           working-directory: ${{ runner.temp }}/root
           plan-id: ${{ steps.plan.outputs.plan-id }}
       - id: drift
-        uses: ./actions/pravo
+        uses: pravo-systems/pravo-action@main
         with:
           command: drift
           install: "false"
