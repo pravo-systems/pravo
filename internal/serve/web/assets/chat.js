@@ -111,8 +111,28 @@ export class ChatView {
     if (c.addr) bits.push(h('span', { class: 'x' }, c.addr, h('button', { type: 'button', 'aria-label': 'Do not use ' + c.addr, on: { click: () => { this.chipOff = c.addr; this.renderCtx(); } } }, icon('x'))));
     else if (c.plan) bits.push(h('span', { class: 'x', text: c.plan }));
     else bits.push(h('span', { class: 'x', text: 'the whole estate' }));
-    this.ctxEl.append('About ', ...bits, h('span', { class: 'grow' }), 'reads only');
+    const started = this.msgs.length || this.busy || this.err;
+    this.ctxEl.append('About ', ...bits, h('span', { class: 'grow' }),
+      started ? h('button', { class: 'newchat', type: 'button', title: 'Clear this conversation and ask something else', on: { click: () => this.reset() } }, 'New chat') : 'reads only');
     this.renderChips();
+  }
+
+  // reset ends the conversation: an answer that is still coming is dropped, and the page keeps nothing.
+  reset() {
+    if (this.ctl) this.ctl.abort();
+    this.ctl = null;
+    this.msgs = [];
+    this.reads = [];
+    this.busy = false;
+    this.err = '';
+    this.draft = '';
+    this.chipOff = null;
+    this.input.value = '';
+    this.sizeInput();
+    this.syncSend();
+    this.renderCtx();
+    this.renderLog();
+    this.input.focus();
   }
 
   renderChips() {
@@ -168,7 +188,7 @@ export class ChatView {
       if (i % 2 === 1) {
         const cmd = part.replace(/\n$/, '');
         if (!cmd.trim()) return;
-        out.push(h('div', { class: 'cmd' },
+        out.push(h('div', { class: 'chat-cmd' },
           h('div', { class: 'cmdline' }, h('span', { class: 'ps', text: '$' }), h('code', { text: cmd }), h('span', { class: 'grow' }),
             h('button', { class: 'cpbtn', type: 'button', 'aria-label': 'Copy the command', data: { copy: cmd } }, icon('copy'))),
           h('small', { text: 'Run it yourself. This page runs nothing.' })));
@@ -176,15 +196,34 @@ export class ChatView {
       }
       for (const para of part.split(/\n{2,}/)) {
         if (!para.trim()) continue;
-        out.push(h('p', null, ...para.trim().split(/(`[^`\n]+`)/).map((seg) => (seg.length > 2 && seg[0] === '`' && seg.endsWith('`') ? this.token(seg.slice(1, -1)) : seg))));
+        // lines that start with a dash, a star or a number are a list; the lines around them are paragraphs
+        let run = [], kind = '';
+        const flush = () => { if (run.length) out.push(h(kind, null, ...run.map((t) => h('li', null, ...this.inline(t))))); run = []; kind = ''; };
+        let text = [];
+        const flushText = () => { if (text.length) out.push(h('p', null, ...this.inline(text.join(' ')))); text = []; };
+        for (const line of para.trim().split('\n')) {
+          const m = /^\s*(?:([-*])|(\d+)[.)])\s+(.*)$/.exec(line);
+          if (m) { flushText(); const k = m[1] ? 'ul' : 'ol'; if (kind && kind !== k) flush(); kind = k; run.push(m[3]); }
+          else { flush(); text.push(line.trim()); }
+        }
+        flush(); flushText();
       }
     });
     return out;
   }
 
+  // inline turns `names`, **bold** and plain words into nodes.
+  inline(text) {
+    return String(text).split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/).filter(Boolean).map((seg) => {
+      if (seg.length > 2 && seg[0] === '`' && seg.endsWith('`')) return this.token(seg.slice(1, -1));
+      if (seg.length > 4 && seg.startsWith('**') && seg.endsWith('**')) return h('b', { text: seg.slice(2, -2) });
+      return seg;
+    });
+  }
+
   token(t) {
-    if (this.o.isAddr(t)) return h('button', { class: 'ref', type: 'button', title: 'Show ' + t, on: { click: () => this.o.onNode(t) } }, icon('stack'), t);
-    if (/^plan-[0-9a-f]{6,}$/.test(t) && this.o.isPlan(t)) return h('button', { class: 'ref plan', type: 'button', title: 'Show ' + t, on: { click: () => this.o.onPlan(t) } }, icon('file'), t);
+    if (this.o.isAddr(t)) return h('button', { class: 'ref', type: 'button', title: 'Show ' + t, on: { click: () => this.o.onNode(t) } }, t);
+    if (/^plan-[0-9a-f]{6,}$/.test(t) && this.o.isPlan(t)) return h('button', { class: 'ref plan', type: 'button', title: 'Show ' + t, on: { click: () => this.o.onPlan(t) } }, t);
     return h('code', { text: t });
   }
 
@@ -204,7 +243,7 @@ export class ChatView {
     this.busy = true;
     this.reads = [];
     this.syncSend();
-    this.renderChips();
+    this.renderCtx();
     this.renderLog();
     const turns = this.msgs.map((m) => ({ role: m.role, text: m.text }));
     const ctl = (this.ctl = new AbortController());
@@ -220,9 +259,11 @@ export class ChatView {
     } catch (e) {
       if (!(e && e.name === 'AbortError')) this.err = e && e.message ? e.message : 'The assistant could not be reached.';
     }
+    if (this.ctl !== null && this.ctl !== ctl) return; // a new chat was started while this one ended
     this.busy = false;
     this.ctl = null;
     this.syncSend();
+    this.renderCtx();
     this.renderLog();
   }
 }

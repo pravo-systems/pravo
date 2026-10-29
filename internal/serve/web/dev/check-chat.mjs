@@ -63,6 +63,11 @@ try {
   check(ans.plain.includes('identifier') && !ans.refs.includes('identifier'), 'a name that is not a resource of the estate is not a link');
   check(ans.cmd && !ans.runBtn, 'a command is a copy box and has no run control');
   check(ans.ledger === 2, `the ledger lists the two reads (${ans.ledger})`);
+  // a new chat clears the conversation and the button that did it
+  check(await b.eval(`!!document.querySelector('#chat .newchat')`), 'a conversation has a New chat button');
+  check(await b.eval(`(() => { document.querySelector('#chat .newchat').click(); const c = document.getElementById('chat'); return !c.querySelector('.a, .q') && !c.querySelector('.newchat'); })()`), 'New chat clears the conversation');
+  await b.eval(`(() => { const t = document.querySelector('#chat textarea'); t.value = 'what reaches it?'; t.dispatchEvent(new Event('input')); document.querySelector('#chat .go').click(); })()`);
+  await wait(900);
   // a link selects the node
   await b.eval(`document.querySelector('#chat .a button.ref:not(.plan)').click()`);
   await wait(200);

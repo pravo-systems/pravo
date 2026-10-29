@@ -17,13 +17,15 @@
 .q small { display: block; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-bottom: .35rem; }
 .a { background: var(--surface); border: 1px solid var(--line-strong); }
 .a .a-h { display: flex; justify-content: space-between; align-items: center; padding: .4rem .7rem; border-bottom: 1px solid var(--line); font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
-.a .a-b { padding: .75rem .8rem .8rem; line-height: 1.55; color: var(--text); }
-.a .a-b p { margin: 0 0 .65rem; } .a .a-b p:last-child { margin-bottom: 0; }
-.a code { font: 500 var(--fs-3)/1 var(--font-mono); background: var(--surface-2); padding: .08rem .3rem; border: 1px solid var(--line); }
-button.ref, .ref { display: inline-flex; align-items: center; gap: .3rem; padding: .16rem .4rem; margin: 0 .1rem; border: 1px solid color-mix(in srgb, var(--key) 45%, transparent); background: var(--key-wash); color: var(--key); font: 500 var(--fs-3)/1.2 var(--font-mono); cursor: pointer; text-decoration: none; }
+.a .a-b { padding: .85rem .9rem .95rem; line-height: 1.8; color: var(--text); }
+.a .a-b p, .a .a-b ul, .a .a-b ol { margin: 0 0 .8rem; } .a .a-b > :last-child { margin-bottom: 0; }
+.a .a-b ul, .a .a-b ol { padding-left: 1.2rem; } .a .a-b li { margin: 0 0 .35rem; padding-left: .2rem; }
+.a .a-b code { white-space: nowrap; font: 400 .86em/1 var(--font-mono); background: var(--surface-2); padding: .12em .35em; }
+/* a name in an answer is the colour of what it names, on a wash, with no frame: framed names that touch from line to line read as a wall */
+button.ref, .ref { display: inline; padding: .12em .35em; margin: 0; border: 0; background: var(--key-wash); color: var(--key); font: 500 .86em/1 var(--font-mono); cursor: pointer; text-decoration: none; overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .ref:hover { background: color-mix(in srgb, var(--key) 16%, transparent); }
-.ref.plan { --c: var(--change); border-color: color-mix(in srgb, var(--change) 45%, transparent); background: var(--change-wash); color: var(--change); }
-.ref.none { border-color: var(--line-strong); background: transparent; color: var(--text-2); cursor: default; }
+.ref.plan { background: var(--change-wash); color: var(--change); }
+.ref.none { background: transparent; color: var(--text-2); cursor: default; }
 .ref .i { width: .7rem; height: .7rem; }
 .ledger { border-top: 1px solid var(--line); }
 .ledger summary { list-style: none; display: flex; align-items: center; gap: .5rem; padding: .45rem .7rem; font: 500 var(--fs-2)/1 var(--font-ui); color: var(--text-3); cursor: pointer; }
@@ -44,9 +46,14 @@ button.ref, .ref { display: inline-flex; align-items: center; gap: .3rem; paddin
 .work .st { width: .5rem; height: .5rem; background: var(--accent); flex: none; }
 .work .st.run { background: transparent; border: 1px solid var(--accent); }
 .work .st.wait { background: transparent; border: 1px solid var(--line-strong); }
-.cmd { margin-top: .65rem; }
-.cmd .cmdline { display: flex; width: 100%; }
-.cmd small { display: block; font: 400 var(--fs-2)/1.4 var(--font-ui); color: var(--text-3); margin-top: .35rem; }
+.chat-cmd { margin: .9rem 0; }
+.chat-cmd .cmdline { display: flex; align-items: flex-start; width: 100%; box-sizing: border-box; padding: .75rem .7rem .75rem .9rem; line-height: 1.5; }
+.chat-cmd .cmdline code { flex: 1; min-width: 0; padding: 0; background: none; border: 0; color: var(--code-text); font: 400 var(--fs-3)/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-cmd .cmdline .ps { color: var(--code-dim); line-height: 1.5; }
+.chat-cmd .cmdline .grow { display: none; }
+.chat-cmd small { display: block; font: 400 var(--fs-2)/1.4 var(--font-ui); color: var(--text-3); margin-top: .4rem; }
+.newchat { padding: .3rem .55rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: 500 var(--fs-2)/1 var(--font-ui); letter-spacing: .04em; text-transform: none; }
+.newchat:hover { border-color: var(--accent); background: var(--accent-wash); }
 .chat-foot { border-top: 1px solid var(--line-strong); background: var(--surface); }
 .chips { display: flex; flex-wrap: wrap; gap: .4rem; padding: .7rem 1rem 0; }
 .chips button { padding: .38rem .55rem; border: 1px solid var(--line-strong); background: var(--surface); font: 500 var(--fs-3)/1.1 var(--font-ui); color: var(--text-2); text-align: left; }
