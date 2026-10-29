@@ -225,7 +225,8 @@ export class DiscoveryView {
     if (x.run) body.append(this.counts(x));
     if (x.run && x.run.status === 'truncated') body.append(h('p', { class: 'dv-problem soft' }, icon('bang'), h('span', null, `The list was cut off at the limit of ${fmt(x.limit)} objects, so there may be more.`)));
     body.append(this.rows(x));
-    if ((x.acks || []).length) body.append(this.acks(x));
+    const stale = this.stale(x);
+    if (stale) body.append(stale);
     return card;
   }
 
@@ -273,7 +274,7 @@ export class DiscoveryView {
     const groups = [
       ['unmanaged', 'Unmanaged', 'Nothing manages these. Adopt them, or acknowledge them if they are meant to stay as they are.'],
       ['adopting', 'Adopting', 'A resource of the specification names these in $import. The next plan reads them.'],
-      ['acknowledged', 'Acknowledged', 'Known, and left as they are.'],
+      ['acknowledged', 'Acknowledged', 'Known, and meant to stay as they are. An $ack entry of the discovery in the specification covers each of them.'],
     ];
     let any = false;
     for (const [status, title, why] of groups) {
@@ -288,7 +289,7 @@ export class DiscoveryView {
       out.append(h('div', { class: 'dv-group g-' + status },
         h('h4', { class: 'dv-gh' + (this.marks.status(status) ? ' hit' : '') }, title, h('span', { class: 'n' }, filtered ? `${list.length} of ${fmt(total)}` : fmt(total)),
           canAckAll ? h('button', { class: 'btn dv-ackbtn', type: 'button', 'aria-pressed': allOpen ? 'true' : 'false', 'data-fk': 'ackall:' + x.name, on: { click: () => { if (allOpen) this.ackAll.delete(x.name); else this.ackAll.add(x.name); this.redraw(); } } }, 'Acknowledge all') : null),
-        status === 'unmanaged' ? h('p', { class: 'dv-why' }, why) : null,
+        status !== 'adopting' ? h('p', { class: 'dv-why' }, why) : null,
         canAckAll && allOpen ? h('div', { class: 'dv-ackall' }, h('p', { class: 'dv-note' }, 'To leave all of them as they are, add this to the $ack list of the discovery and give the reason:'), snippet(x.ack_all, 'Copy the $ack entry for all of them', 'ackall-snip:' + x.name)) : null,
         h('ul', { class: 'dv-items' }, list.slice(0, n).map((it) => this.item(x, it))),
         list.length > n ? h('button', { class: 'btn dv-more', type: 'button', 'data-fk': 'more:' + key, on: { click: () => { this.shown.set(key, n + PAGE); this.redraw(); } } }, `Show ${Math.min(PAGE, list.length - n)} more of ${fmt(list.length - n)}`) : null));
@@ -388,17 +389,18 @@ export class DiscoveryView {
     return box;
   }
 
-  // acks lists the $ack entries of a discovery as the specification has them: which objects each covers and why.
-  acks(x) {
-    return h('details', { class: 'dv-acks' }, h('summary', null, `Acknowledged in the specification · ${x.acks.length}`),
-      h('ul', null, x.acks.map((a) => this.ack(a))));
-  }
-
-  ack(a) {
-    return h('li', { class: 'dv-ackrec' },
-      h('div', { class: 'top' }, h('code', null, a.ref),
-        a.covers >= 0 ? h('span', { class: 'b' }, `covers ${plural(a.covers, 'object')}`) : null),
-      h('div', { class: 'pats' }, (a.ids || []).map((p) => h('span', { class: 'pat' }, h('i', null, 'id'), h('code', null, p))), (a.names || []).map((p) => h('span', { class: 'pat' }, h('i', null, 'name'), h('code', null, p)))),
-      a.reason ? h('p', { class: 'rs' }, '“', a.reason, '”') : null);
+  // stale says which $ack entries of the specification cover no object of the last run. The rows of the acknowledged
+  // objects already show every other entry, with its reason, so only these have something to add.
+  stale(x) {
+    const list = (x.acks || []).filter((a) => a.covers === 0);
+    if (!list.length) return null;
+    const pats = (a) => [...(a.ids || []).map((p) => ['id', p]), ...(a.names || []).map((p) => ['name', p])];
+    return h('div', { class: 'dv-stale' },
+      h('p', { class: 'dv-note' }, list.length === 1
+        ? 'One $ack entry of the specification covers no object of the last run. Remove it, or check what it names:'
+        : `${list.length} $ack entries of the specification cover no object of the last run. Remove them, or check what they name:`),
+      h('ul', null, list.map((a) => h('li', null, h('code', null, a.ref),
+        pats(a).map(([k, p]) => h('span', { class: 'pat' }, h('i', null, k), h('code', null, p))),
+        a.reason ? h('span', { class: 'rs' }, '“', a.reason, '”') : null))));
   }
 }

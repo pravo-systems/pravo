@@ -502,7 +502,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 /* ---- shape: the corners of everything that has a border, in one place ----
    What is pressed takes --rad, chips and keys --rad-s, and cards, panels, banners, lists and windows --rad-p. Code windows keep their frame inside the corner of the panel that holds them. */
 :is(.btn, .filter, .sfbox, .rp-view, .navrow) { border-radius: var(--rad); }
-:is(.plrow, .dv-ackrec, .dv-notice, .dv-empty, .dv-none, .ac-empty, .ac-youline, .ac-verdict, .ac-warn, .note, .errbox, .rp-why, .dv-items, .dv-code, .ac-diff, .cmd, .cmdline, .tb) { border-radius: var(--rad-p); }
+:is(.plrow, .dv-notice, .dv-empty, .dv-none, .ac-empty, .ac-youline, .ac-verdict, .ac-warn, .note, .errbox, .rp-why, .dv-items, .dv-code, .ac-diff, .cmd, .cmdline, .tb) { border-radius: var(--rad-p); }
 :is(.tg, .kd, .kindpill, .rows .ver, .v-tag, .v-hash, .v-unk, .wh, .jhead .jl, .plovl, .dv-ack .b, .ac-who, .cw-role, .cw-tag, .hint code, .h .cnt, .itab .tc, .src-h .step, .grp-h .gc, .sf-count, .gtip .gchip) { border-radius: var(--rad-s); }
 :is(.cw, .tile, .tv-grid, .dv-head, .po-head, .se-head, .dv-card, .ac-banner, .ac-card, .ac-tablewrap) { border-radius: var(--rad-p); }
 :is(.cpbtn, .row-fx, .tv-row .cf button, .fatal .term, .fatal .fat-msg, .cw-skel, .iconbtn) { border-radius: var(--rad); }
