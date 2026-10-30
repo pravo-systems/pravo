@@ -224,12 +224,25 @@ func maskText(sec *secretSet, text string, n int) string {
 	return clip(out, n)
 }
 
-// maskCommand is maskText for a recorded command line.
-func maskCommand(sec *secretSet, cmd string, n int) string {
+// nameText bounds a text that names something: a person, a plan, a revision, a
+// host. It is not a value of any record, so it is not looked at for the values of
+// the state: a name that is the same as a sensitive string says nothing of that
+// string, and hiding it hides what a reader needs to know. maskText is for a text
+// that can quote a value, an error or a reason.
+func nameText(text string, n int) string {
+	if len(text) > maxFreeText {
+		text = strings.ToValidUTF8(text[:maxFreeText], "")
+	}
+	return clip(text, n)
+}
+
+// maskCommand is nameText for a recorded command line, less what it carries
+// that is a secret by the way it is given (see scrubCommand).
+func maskCommand(cmd string, n int) string {
 	if len(cmd) > maxFreeText {
 		cmd = strings.ToValidUTF8(cmd[:maxFreeText], "")
 	}
-	return clip(scrubCommand(cmd, sec), n)
+	return clip(scrubCommand(cmd), n)
 }
 
 // planList is the answer of /api/plans. It is worked out once for the model.
@@ -315,7 +328,7 @@ func (m *model) storedPlan(e *engine.PlanEntry) StoredPlan {
 	meta, prog := e.Meta, e.Progress
 	sp := StoredPlan{
 		ID: meta.ID, Status: string(e.Status), Open: e.Status.Open(),
-		Author: maskText(m.secrets, meta.Author, maxText), Created: meta.Created, Expires: meta.Expires,
+		Author: nameText(meta.Author, maxText), Created: meta.Created, Expires: meta.Expires,
 		Destroy: meta.Destroy, Summary: PlanCounts{Add: meta.Summary.Add, Change: meta.Summary.Change, Destroy: meta.Summary.Destroy, Read: meta.Summary.Read},
 		Planned: len(meta.Changes), Applied: e.AppliedCount(),
 		Applying: prog.ApplyRunning(time.Now()),
@@ -425,12 +438,12 @@ func (m *model) overlayOf(ctx context.Context, id string) (*planOverlay, error) 
 func (m *model) cleanInfo(po *planOverlay) PlanInfo {
 	info := po.info
 	sec := m.secretsFor(po)
-	info.Actor = maskText(sec, info.Actor, maxText)
+	info.Actor = nameText(info.Actor, maxText)
 	if sg := info.Signatures; sg != nil {
 		// The names come from the bucket for a signature that did not verify: bounded and masked.
 		items := make([]PlanSignature, len(sg.Items))
 		for i, it := range sg.Items {
-			it.Signer, it.Claimed = maskText(sec, it.Signer, maxText), maskText(sec, it.Claimed, maxText)
+			it.Signer, it.Claimed = nameText(it.Signer, maxText), nameText(it.Claimed, maxText)
 			items[i] = it
 		}
 		info.Signatures = &PlanSignatures{Items: items, Note: sg.Note}
@@ -438,7 +451,7 @@ func (m *model) cleanInfo(po *planOverlay) PlanInfo {
 	if ap := info.Approvals; ap != nil {
 		items := make([]PlanApproval, len(ap.Items))
 		for i, it := range ap.Items {
-			it.Signer, it.Claimed = maskText(sec, it.Signer, maxText), maskText(sec, it.Claimed, maxText)
+			it.Signer, it.Claimed = nameText(it.Signer, maxText), nameText(it.Claimed, maxText)
 			items[i] = it
 		}
 		info.Approvals = &PlanApprovals{Items: items, Needs: ap.Needs, Note: ap.Note}
@@ -457,7 +470,7 @@ func (m *model) cleanInfo(po *planOverlay) PlanInfo {
 				hints = append(hints, fmt.Sprintf("and %d more", len(info.Hints)-maxReasons))
 				break
 			}
-			hints = append(hints, maskText(sec, h, maxText))
+			hints = append(hints, nameText(h, maxText))
 		}
 		info.Hints = hints
 	}
@@ -482,8 +495,8 @@ func (m *model) planOverlayDoc(po *planOverlay) *PlanOverlay {
 	if len(doc.Warnings) == 0 {
 		doc.Warnings = nil
 	}
-	doc.Reason = maskText(sec, po.reason, maxText)
-	doc.Command = maskCommand(sec, po.command, maxText)
-	doc.GitRevision = maskText(sec, po.git, maxText)
+	doc.Reason = nameText(po.reason, maxText)
+	doc.Command = maskCommand(po.command, maxText)
+	doc.GitRevision = nameText(po.git, maxText)
 	return doc
 }

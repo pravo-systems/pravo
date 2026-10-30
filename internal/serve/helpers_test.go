@@ -75,7 +75,7 @@ $fake: {
 	}
 	file: $fake.#Resource.fake_file & {
 		path:    "/tmp/\(name)"
-		content: "id=\(db.name)"
+		content: "id=\(db.name)/\(db.blob)"
 	}
 }
 
@@ -93,7 +93,7 @@ hosts: {
 }
 
 host: {$kind: "output", value: "db.example"}
-leak: {$kind: "output", value: "id=a"}
+leak: {$kind: "output", value: "token=\(services.a.db.blob)"}
 `
 
 const lockCUE = `providers: "example.test/x/fake": {

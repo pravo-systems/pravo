@@ -54,7 +54,7 @@ func (m *model) sourceFor(mn *mnode, po *planOverlay) *Source {
 		src.Notes = append(src.Notes, "The schema of the type is not cached, so only literals assigned to attributes with a name that looks like a secret are masked.")
 	}
 	changed := m.changedTop(mn, po)
-	reader := &blockReader{ss: ss, sens: sens, secrets: m.secretsFor(po), changed: changed, notes: &src.Notes}
+	reader := &blockReader{ss: ss, sens: sens, secrets: m.secretsAt(po, mn.Addr), changed: changed, notes: &src.Notes}
 
 	if mn.Source != nil {
 		if b := reader.read("definition", "", mn.Source, true); b != nil {

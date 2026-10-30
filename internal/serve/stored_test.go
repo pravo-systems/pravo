@@ -444,21 +444,22 @@ func TestStoredPlanWithoutSchemas(t *testing.T) {
 	}
 }
 
-// A stored plan that mentions a secret of the state in the text a person wrote is
-// masked, and so is a command line that carries a value.
+// A command line that carries a value is masked by the way the value is given: a
+// tag, a flag named like a secret. The text a person wrote with the plan is not
+// a value of a record and is shown as written.
 func TestStoredPlanTextIsMasked(t *testing.T) {
 	p := newProject(t)
 	id := storePlan(t, p, stored{Author: "ana@acme", Reason: "rotate " + secretBlob, Git: "main", Command: "pravo plan --store -t password=hunter2hunter2 --api_token " + secretToken})
 	waitFor(t, "the plan", func() bool { return len(p.plans().Plans) == 1 })
 	o := p.overlay(id)
-	if strings.Contains(o.Reason, secretBlob) || !strings.Contains(o.Reason, "rotate") {
+	if o.Reason != "rotate "+secretBlob {
 		t.Errorf("reason %q", o.Reason)
 	}
 	if strings.Contains(o.Command, "hunter2") || strings.Contains(o.Command, secretToken) || !strings.Contains(o.Command, "pravo plan --store") {
 		t.Errorf("command %q", o.Command)
 	}
 	noSecrets(t, "list", p.get("/api/plans"), append(allSecrets, "hunter2hunter2")...)
-	noSecrets(t, "overlay", p.get("/api/plan?id="+id), append(allSecrets, "hunter2hunter2")...)
+	noSecrets(t, "overlay", p.get("/api/plan?id="+id), append(allSecrets[1:], "hunter2hunter2")...)
 }
 
 // pravo serve --plan ID: the stored plan is the plan of the graph, as a plan file
@@ -916,18 +917,21 @@ const newSecret = "new-blob-value-9999" // the new value of blob in the plan of 
 func TestStoredPlanNewSecretsMaskEveryResponse(t *testing.T) {
 	p := newProject(t)
 	id := storePlan(t, p, stored{Author: "ana@acme", Addrs: []string{"services.a.db", "services.b.file"}})
-	// A record that embeds the value in an attribute that is not sensitive, as a plan applied in part leaves.
-	r := *p.store.Get("shared")
-	r.Attributes = json.RawMessage(`{"name":"dsn=` + newSecret + `","port":5432}`)
-	if err := p.store.Set(&r, ""); err != nil {
+	// A record that the specification does not declare, so that there is no reference to follow: it reads the node of the
+	// plan, and embeds the value in an attribute that is not sensitive, as a plan applied in part leaves.
+	if err := p.store.Set(record("kept.copy", "fake_db", `{"name":"dsn=`+newSecret+`","port":5432}`, "services.a.db"), ""); err != nil {
 		t.Fatal(err)
 	}
-	// A line of the specification that embeds it.
-	writeSpec(t, p.dir, specCUE+"\nfreshfile: $fake.#Resource.fake_file & {path: \"/tmp/f\", content: \"dsn="+newSecret+"\"}\n")
+	// A node that reads the node of the plan and quotes the value in a line of the specification.
+	writeSpec(t, p.dir, specCUE+"\nfreshfile: $fake.#Resource.fake_file & {path: \"/tmp/f\", content: \"dsn="+newSecret+"\", port: services.a.db.port}\n")
+	r2 := record("freshfile", "fake_file", `{"path":"/tmp/f","content":"dsn=`+newSecret+`"}`, "services.a.db")
+	if err := p.store.Set(r2, ""); err != nil {
+		t.Fatal(err)
+	}
 	waitFor(t, "the new node and the record", func() bool {
 		return nodeOf(p.graph(), "freshfile") != nil && len(p.plans().Plans) == 1 && planOf(p.plans(), id).Status == "pending"
 	})
-	for _, path := range []string{"/api/detail?addr=shared", "/api/source?addr=freshfile"} {
+	for _, path := range []string{"/api/detail?addr=kept.copy", "/api/source?addr=freshfile"} {
 		if !strings.Contains(string(p.get(path)), newSecret) {
 			t.Fatalf("%s without a plan does not show the value: the test proves nothing", path)
 		}
@@ -936,9 +940,8 @@ func TestStoredPlanNewSecretsMaskEveryResponse(t *testing.T) {
 	noSecrets(t, "the overlay", p.get("/api/plan?id="+id), newSecret)
 }
 
-// The author, the reasons of a stale plan and the hints that an overlay sends are
-// masked against the secrets of that plan, in the overlay and in the graph of a
-// server started with the plan.
+// The reasons of a stale plan that an overlay sends are masked against the
+// secrets of that plan. The author and the hints are names, and are shown.
 func TestStoredPlanInfoIsMasked(t *testing.T) {
 	dir := t.TempDir()
 	writeSpec(t, dir, specCUE)
@@ -954,9 +957,8 @@ func TestStoredPlanInfoIsMasked(t *testing.T) {
 		} else {
 			raw = p.get("/api/graph")
 		}
-		noSecrets(t, name, raw, secretToken)
-		if !strings.Contains(string(raw), `"actor":"ana `) {
-			t.Errorf("%s: the actor is not there: %s", name, raw)
+		if !strings.Contains(string(raw), `"actor":"ana `+secretToken) {
+			t.Errorf("%s: the actor is not there as it was written: %s", name, raw)
 		}
 	}
 	// The reasons and the hints are bounded and masked with the secrets of the plan.
@@ -971,7 +973,7 @@ func TestStoredPlanInfoIsMasked(t *testing.T) {
 	for range maxReasons + 5 {
 		reasons = append(reasons, "reason plan-only-secret-77 "+strings.Repeat("x", 2*maxReason))
 	}
-	po := &planOverlay{secrets: sec, info: PlanInfo{Actor: "a plan-only-secret-77", Reasons: reasons, Hints: []string{"hint plan-only-secret-77"}}}
+	po := &planOverlay{secrets: sec, info: PlanInfo{Reasons: reasons}}
 	info := m.cleanInfo(po)
 	data, _ := json.Marshal(info)
 	if strings.Contains(string(data), "plan-only-secret-77") || len(info.Reasons) != maxReasons+1 || !strings.HasPrefix(info.Reasons[maxReasons], "and 5 more") {
@@ -985,7 +987,7 @@ func TestStoredPlanInfoIsMasked(t *testing.T) {
 }
 
 // The text that the author wrote with a plan is in the overlay and not in the
-// listing, and the overlay masks it against the values the plan writes.
+// listing. It is names, and the overlay shows it as written.
 func TestStoredPlanFreeTextIsOnlyInTheOverlay(t *testing.T) {
 	p := newProject(t)
 	id := storePlan(t, p, stored{Author: "ana@acme", Reason: "rotate to " + newSecret, Git: "rev-" + newSecret, Command: "pravo plan --store --note " + newSecret,
@@ -998,15 +1000,15 @@ func TestStoredPlanFreeTextIsOnlyInTheOverlay(t *testing.T) {
 		}
 	}
 	o := p.overlay(id)
-	if !strings.HasPrefix(o.Reason, "rotate to ") || strings.Contains(o.Reason, newSecret) || strings.Contains(o.GitRevision, newSecret) || strings.Contains(o.Command, newSecret) {
+	if o.Reason != "rotate to "+newSecret || o.GitRevision != "rev-"+newSecret || !strings.Contains(o.Command, "--note "+newSecret) {
 		t.Errorf("overlay text: %q %q %q", o.Reason, o.GitRevision, o.Command)
 	}
 	// Text of any length is bounded.
 	long := strings.Repeat("y", 5*maxText)
-	if got := maskText(newSecretSet(), long, maxText); len([]rune(got)) > maxText+1 {
+	if got := nameText(long, maxText); len([]rune(got)) > maxText+1 {
 		t.Errorf("a text of %d characters", len([]rune(got)))
 	}
-	if got := maskCommand(newSecretSet(), "pravo plan "+long, maxText); len([]rune(got)) > maxText+1 {
+	if got := maskCommand("pravo plan "+long, maxText); len([]rune(got)) > maxText+1 {
 		t.Errorf("a command of %d characters", len([]rune(got)))
 	}
 }

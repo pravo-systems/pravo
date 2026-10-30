@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,53 +44,128 @@ const (
 // of them: a file whose content embeds a password has no sensitive flag, and the
 // password is in it all the same. The set is filled while the model is built and
 // read by every request after; it is not changed then.
+//
+// Each string remembers the nodes it was found in. A value of the state carries
+// its sensitivity along the references that read it, so a reader of node X is
+// judged against the secrets of X and of what X reads, directly or not
+// (scopedTo), and not against a string that happens to be the same in a node
+// that has nothing to do with X: the region that an SSM parameter keeps in a
+// sensitive attribute says nothing of a bucket that is in the same region.
 type secretSet struct {
 	set  map[string]struct{}
 	list []string
+	// from lists the nodes that a string was found in. A string with no node
+	// ("") is judged for every reader.
+	from map[string][]string
+	// by lists the strings that were found in a node, by node, and pos is where
+	// a string is in list.
+	by  map[string][]string
+	pos map[string]int
 }
 
-func newSecretSet() *secretSet { return &secretSet{set: map[string]struct{}{}} }
+func newSecretSet() *secretSet {
+	return &secretSet{set: map[string]struct{}{}, from: map[string][]string{}, by: map[string][]string{}, pos: map[string]int{}}
+}
 
 // add records the strings of a withheld value, and the forms in which another
 // attribute is likely to embed them: percent-encoded in a connection string,
 // escaped inside a JSON document, base64 in user data, hex.
-func (s *secretSet) add(v any) {
+func (s *secretSet) add(v any) { s.addFrom("", v) }
+
+// addFrom is add for a value found in the node at addr.
+func (s *secretSet) addFrom(addr string, v any) {
 	switch x := v.(type) {
 	case string:
 		if len(x) >= minSecret && len(x) <= 1<<16 {
-			s.put(x)
+			s.put(x, addr)
 			for _, form := range embeddedForms(x) {
-				s.put(form)
+				s.put(form, addr)
 			}
 		}
 	case json.Number:
 		// A sensitive number, a PIN or a code, is a secret as a string is.
-		s.add(string(x))
+		s.addFrom(addr, string(x))
 	case []any:
 		for _, e := range x {
-			s.add(e)
+			s.addFrom(addr, e)
 		}
 	case map[string]any:
 		for _, e := range x {
-			s.add(e)
+			s.addFrom(addr, e)
 		}
 	}
+}
+
+// scopedTo returns the strings that were found in one of the nodes of scope, and
+// those that were found in no node in particular.
+func (s *secretSet) scopedTo(scope map[string]bool) *secretSet {
+	if s == nil {
+		return nil
+	}
+	var found []string
+	seen := map[string]bool{}
+	take := func(o string) {
+		for _, x := range s.by[o] {
+			if !seen[x] {
+				seen[x] = true
+				found = append(found, x)
+			}
+		}
+	}
+	take("")
+	// The scope is mostly larger than what a node holds, and a node holds little.
+	if len(scope) <= len(s.by) {
+		for o := range scope {
+			take(o)
+		}
+	} else {
+		for o := range s.by {
+			if scope[o] {
+				take(o)
+			}
+		}
+	}
+	// In the order of the set: a secret that holds another is replaced first.
+	sort.Slice(found, func(i, j int) bool { return s.pos[found[i]] < s.pos[found[j]] })
+	out := newSecretSet()
+	for _, x := range found {
+		for _, o := range s.from[x] {
+			if o == "" || scope[o] {
+				out.put(x, o)
+			}
+		}
+	}
+	return out
 }
 
 // clone returns a set that holds the same strings and that adding to does not
 // change this one.
 func (s *secretSet) clone() *secretSet {
-	c := &secretSet{set: make(map[string]struct{}, len(s.set)), list: append([]string(nil), s.list...)}
+	c := &secretSet{set: make(map[string]struct{}, len(s.set)), list: append([]string(nil), s.list...), from: make(map[string][]string, len(s.from)), by: make(map[string][]string, len(s.by)), pos: make(map[string]int, len(s.pos))}
 	for k := range s.set {
 		c.set[k] = struct{}{}
+	}
+	for k, v := range s.from {
+		c.from[k] = append([]string(nil), v...)
+	}
+	for k, v := range s.by {
+		c.by[k] = append([]string(nil), v...)
+	}
+	for k, v := range s.pos {
+		c.pos[k] = v
 	}
 	return c
 }
 
-func (s *secretSet) put(x string) {
+func (s *secretSet) put(x, addr string) {
 	if _, ok := s.set[x]; !ok {
 		s.set[x] = struct{}{}
+		s.pos[x] = len(s.list)
 		s.list = append(s.list, x)
+	}
+	if !slices.Contains(s.from[x], addr) {
+		s.from[x] = append(s.from[x], addr)
+		s.by[addr] = append(s.by[addr], x)
 	}
 }
 
@@ -227,8 +303,13 @@ type walk struct {
 	// secrets are the strings to withhold wherever they show. It is nil while the
 	// model is built and the set is not complete.
 	secrets *secretSet
-	// sink, when set, collects the strings of every value that is withheld.
-	sink *secretSet
+	// sink, when set, collects the strings of every value that is withheld, as
+	// found in the node at origin.
+	sink   *secretSet
+	origin string
+	// taint lists the top-level fields that read a withheld attribute of another
+	// node: they are withheld as derived, whatever their text.
+	taint map[string]bool
 	// build makes the walk return the attributes. A walk that only counts and
 	// collects leaves them out.
 	build bool
@@ -368,6 +449,11 @@ func (w *walk) attribute(a *schema.Attribute, v any, depth int) Attr {
 		w.withhold(&at, v, why)
 		return at
 	}
+	if depth == 0 && w.taint[a.Name] {
+		at.Redacted = "derived"
+		w.derived++
+		return at
+	}
 	if a.NestedType != nil {
 		w.nestedObject(&at, a.NestedType, v, depth)
 		return at
@@ -463,6 +549,11 @@ func (w *walk) blockAttr(nb *schema.NestedBlock, v any, depth int) Attr {
 	}
 	if guarded(nb.TypeName) {
 		w.withhold(&at, v, "name")
+		return at
+	}
+	if depth == 0 && w.taint[nb.TypeName] {
+		at.Redacted = "derived"
+		w.derived++
 		return at
 	}
 	one := func(name string, e any) Attr {
@@ -699,7 +790,7 @@ func (w *walk) withhold(at *Attr, v any, why string) {
 	at.Value, at.Children = nil, nil
 	w.withheld++
 	if w.sink != nil {
-		w.sink.add(v)
+		w.sink.addFrom(w.origin, v)
 	}
 }
 
@@ -712,11 +803,11 @@ var words = regexp.MustCompile(`\S+|\s+`)
 // that is a secret: the value of every tag given with -t (a tag has no schema
 // that says whether it is sensitive, and a tag is how a secret reaches a
 // specification), the value of a flag or a key=value word whose name says
-// secret, and any word that holds a sensitive string of the state. The command
+// secret. The command
 // is recorded with its arguments joined by spaces, so a value of several words
 // has lost its quotes: the words that follow a value that is withheld, up to the
 // next flag, are withheld with it.
-func scrubCommand(cmd string, secrets *secretSet) string {
+func scrubCommand(cmd string) string {
 	var b strings.Builder
 	var prev string // the previous word that was not white space
 	inValue := false
@@ -752,7 +843,6 @@ func scrubCommand(cmd string, secrets *secretSet) string {
 		if inValue && isFlag(bare) && out == w && !strings.Contains(bare, "=") {
 			inValue = false
 		}
-		out, _ = secrets.scrub(out)
 		b.WriteString(out)
 		prev = w
 	}

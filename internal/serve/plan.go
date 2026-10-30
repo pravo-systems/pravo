@@ -390,7 +390,7 @@ func (m *model) collectPlanSecrets() {
 // collectSecrets adds to the secrets of the overlay the sensitive values that its
 // plan would write.
 func (po *planOverlay) collectSecrets() {
-	for _, ch := range po.changes {
+	for addr, ch := range po.changes {
 		if ch == nil || ch.Schema == nil || ch.Schema.Block == nil {
 			continue
 		}
@@ -398,7 +398,7 @@ func (po *planOverlay) collectSecrets() {
 		if ch.Action == engine.ActionReplace && ch.PlannedCreate.Type() != nil {
 			after = ch.PlannedCreate
 		}
-		d := &differ{sink: po.secrets}
+		d := &differ{sink: po.secrets, origin: addr}
 		d.block("", ch.Schema.Block, before, after)
 	}
 }
@@ -421,9 +421,9 @@ func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
 	if ch == nil || ch.Schema == nil || ch.Schema.Block == nil {
 		return c
 	}
-	secrets := po.secrets
-	if secrets == nil {
-		secrets = m.secrets
+	secrets, taint := m.secretsAt(po, mn.Addr), map[string]bool(nil)
+	if t, ok := m.taintOf(mn.Addr); ok {
+		secrets, taint = m.secretsFor(po).scopedTo(map[string]bool{mn.Addr: true}), t
 	}
 	before, after := ch.Prior, ch.Planned
 	switch ch.Action {
@@ -436,7 +436,7 @@ func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
 	case engine.ActionNoop:
 		return c
 	}
-	d := &differ{secrets: secrets}
+	d := &differ{secrets: secrets, taint: taint}
 	d.block("", ch.Schema.Block, before, after)
 	c.Attrs = d.out
 	return c
@@ -450,8 +450,11 @@ type differ struct {
 	// sink, when set, collects the strings of every value that is withheld for
 	// what the attribute is: the plan holds new secrets that the state does not
 	// hold yet.
-	sink *secretSet
-	out  []AttrChange
+	sink   *secretSet
+	origin string
+	// taint lists the top-level fields that read a withheld attribute (see walk).
+	taint map[string]bool
+	out   []AttrChange
 }
 
 func (d *differ) full() bool { return len(d.out) >= maxAttrChanges }
@@ -496,11 +499,19 @@ func (d *differ) block(path string, b *schema.Block, before, after tftypes.Value
 		if d.full() {
 			return
 		}
+		if path == "" && d.taint[a.Name] {
+			d.leaf(a.Name, true, bm[a.Name], am[a.Name])
+			continue
+		}
 		d.attr(join(path, a.Name), a, bm[a.Name], am[a.Name])
 	}
 	for _, nb := range b.BlockTypes {
 		if d.full() {
 			return
+		}
+		if path == "" && d.taint[nb.TypeName] {
+			d.leaf(nb.TypeName, true, bm[nb.TypeName], am[nb.TypeName])
+			continue
 		}
 		d.nestedBlock(join(path, nb.TypeName), nb, bm[nb.TypeName], am[nb.TypeName])
 	}
@@ -660,8 +671,8 @@ func (d *differ) leaf(path string, redact bool, before, after tftypes.Value) {
 		ad = engine.ToData(after)
 	}
 	if redact && d.sink != nil {
-		d.sink.add(toJSONValue(bd))
-		d.sink.add(toJSONValue(ad))
+		d.sink.addFrom(d.origin, toJSONValue(bd))
+		d.sink.addFrom(d.origin, toJSONValue(ad))
 	}
 	if !redact && (d.secrets.leaksIn(toJSONValue(bd)) || d.secrets.leaksIn(toJSONValue(ad)) || hasGuardedKey(bd) || hasGuardedKey(ad)) {
 		redact = true

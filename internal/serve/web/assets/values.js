@@ -11,7 +11,7 @@ export const REDACTED = {
   sensitive: ['withheld', 'The provider schema marks this attribute sensitive.'],
   name: ['withheld', 'The name of this attribute looks like a secret, so the server does not send it.'],
   schema: ['withheld', 'The schema of this type is not cached, so nothing says which values are safe. Every value of it is withheld.'],
-  derived: ['withheld', 'The text contains a value that the state keeps in a sensitive attribute.'],
+  derived: ['withheld', 'The text holds a sensitive value of this resource or of one it reads.'],
   'write-only': ['write-only', 'A write-only attribute is never recorded in the state.'],
 };
 

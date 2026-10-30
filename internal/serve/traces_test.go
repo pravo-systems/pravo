@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -88,11 +89,41 @@ func TestTracesNameATransactionOnlyForAnApply(t *testing.T) {
 	}
 }
 
+// The message of an error and the text of a log record can quote a value of a
+// record, and are masked.
 func TestTracesMaskWhatTheStateKeepsSecret(t *testing.T) {
 	p := newProject(t)
-	runFile(t, p.dir, traceA, sampleRun("token "+secretToken))
+	rt := sampleRun("ship it")
+	rt.Spans[2].Events = []telemetry.EventData{{Name: "log " + secretToken, AtUS: 5, Attrs: map[string]any{"msg": "retry with " + secretToken}}}
+	runFile(t, p.dir, traceA, rt)
 	for _, path := range []string{"/api/traces", "/api/trace?id=" + traceA} {
-		noSecrets(t, path, p.get(path), allSecrets...)
+		noSecrets(t, path, p.get(path), secretToken)
+	}
+	var tr Trace
+	if err := json.Unmarshal(p.get("/api/trace?id="+traceA), &tr); err != nil {
+		t.Fatal(err)
+	}
+	if ev := tr.Spans[2].Events; len(ev) != 1 || fmt.Sprint(ev[0].Attrs["msg"]) != "retry with "+mask {
+		t.Errorf("events %+v", ev)
+	}
+}
+
+// What pravo recorded about a call, the name of the span, the host, the path, is
+// not a value of a record: a host that spells a sensitive value of the state, a
+// region held in a parameter, is shown as it is.
+func TestTracesKeepNamesThatAreSecretsElsewhere(t *testing.T) {
+	p := newProject(t)
+	rt := sampleRun("ship it")
+	host := "bucket.s3." + secretNested + ".amazonaws.com"
+	rt.Spans[3].Name = "GET " + host
+	rt.Spans[3].Attrs = map[string]any{"server.address": host, "url.path": "/" + secretNested + "/key"}
+	runFile(t, p.dir, traceA, rt)
+	var tr Trace
+	if err := json.Unmarshal(p.get("/api/trace?id="+traceA), &tr); err != nil {
+		t.Fatal(err)
+	}
+	if got := tr.Spans[3]; got.Name != "GET "+host || got.Attrs["server.address"] != host || got.Attrs["url.path"] != "/"+secretNested+"/key" {
+		t.Errorf("the call is %+v", got)
 	}
 }
 

@@ -62,7 +62,6 @@ func (s *Server) traceSecrets() *secretSet {
 
 func (s *Server) traces(w http.ResponseWriter, r *http.Request) {
 	dir := s.traceDir()
-	sec := s.traceSecrets()
 	list := &TraceList{Version: APIVersion, Dir: displayTraceDir(s.opts.Dir, dir), Traces: []TraceInfo{}}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -125,13 +124,13 @@ func (s *Server) traces(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.traceMu.Unlock()
-	// The texts a person wrote are masked against the secrets of the state, which can change between requests: not cached.
+	// The texts a person wrote are bounded and cleaned on every request: not cached.
 	for i := range list.Traces {
 		t := &list.Traces[i]
-		t.Reason = traceText(sec, t.Reason, 256)
-		t.Actor = traceText(sec, t.Actor, 128)
-		t.Command = traceText(sec, t.Command, 128)
-		t.Line = maskCommand(sec, t.Line, 600)
+		t.Reason = traceText(nil, t.Reason, 256)
+		t.Actor = traceText(nil, t.Actor, 128)
+		t.Command = traceText(nil, t.Command, 128)
+		t.Line = maskCommand(t.Line, 600)
 	}
 	sort.SliceStable(list.Traces, func(i, j int) bool { return list.Traces[i].Start > list.Traces[j].Start })
 	writeJSON(w, http.StatusOK, list)
@@ -154,8 +153,8 @@ func (s *Server) trace(w http.ResponseWriter, r *http.Request) {
 	}
 	sec := s.traceSecrets()
 	info := summarize(id, rt)
-	info.Reason, info.Actor, info.Command = traceText(sec, info.Reason, 256), traceText(sec, info.Actor, 128), traceText(sec, info.Command, 128)
-	info.Line = maskCommand(sec, info.Line, 600)
+	info.Reason, info.Actor, info.Command = traceText(nil, info.Reason, 256), traceText(nil, info.Actor, 128), traceText(nil, info.Command, 128)
+	info.Line = maskCommand(info.Line, 600)
 	out := &Trace{Version: APIVersion, TraceInfo: info, TraceID: rt.TraceID, Dropped: rt.Dropped, Spans: make([]TraceSpan, 0, len(rt.Spans))}
 	for _, sp := range rt.Spans {
 		if len(out.Spans) >= maxTraceSpans {
@@ -163,8 +162,8 @@ func (s *Server) trace(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		ts := TraceSpan{
-			ID: sp.ID, Parent: sp.Parent, Name: traceText(sec, sp.Name, 256), Kind: spanKind(sp.Name), Status: sp.Status,
-			Message: traceText(sec, sp.Message, traceTextMax), StartUS: sp.StartUS, DurUS: sp.DurUS, Attrs: traceAttrs(sec, sp.Attrs),
+			ID: sp.ID, Parent: sp.Parent, Name: traceText(nil, sp.Name, 256), Kind: spanKind(sp.Name), Status: sp.Status,
+			Message: traceText(sec, sp.Message, traceTextMax), StartUS: sp.StartUS, DurUS: sp.DurUS, Attrs: traceAttrs(nil, sp.Attrs),
 		}
 		for i, ev := range sp.Events {
 			if i >= maxTraceEvents {
@@ -275,7 +274,10 @@ func spanKind(name string) string {
 	return "other"
 }
 
-// traceText bounds, cleans and masks a text of a run.
+// traceText bounds and cleans a text of a run, and masks it against sec when
+// there is one. A name, an address, a host or a path that pravo recorded is not a
+// value of a record and is sent as it is (nil); the message of an error and the
+// text of a log record can quote one, and are masked.
 func traceText(sec *secretSet, s string, n int) string {
 	s = strings.ToValidUTF8(s, "?")
 	s = strings.Map(func(r rune) rune {
@@ -290,7 +292,7 @@ func traceText(sec *secretSet, s string, n int) string {
 	return maskText(sec, s, n)
 }
 
-// traceAttrs keeps the scalars of a span's attributes, and short lists of them, masked.
+// traceAttrs keeps the scalars of a span's attributes, and short lists of them, masked against sec when there is one.
 func traceAttrs(sec *secretSet, in map[string]any) map[string]any {
 	if len(in) == 0 {
 		return nil
@@ -308,7 +310,7 @@ func traceAttrs(sec *secretSet, in map[string]any) map[string]any {
 		switch v := in[k].(type) {
 		case string:
 			if k == "pravo.command_line" {
-				out[k] = maskCommand(sec, v, 600)
+				out[k] = maskCommand(v, 600)
 				break
 			}
 			out[traceText(sec, k, 128)] = traceText(sec, v, traceTextMax)

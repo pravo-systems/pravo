@@ -66,6 +66,8 @@ type specState struct {
 	abs map[string]string
 	// typeDefs caches where the definition of a resource's type is written.
 	typeDefs map[string]*Ref
+	// taint lists, by address and field, the attributes that the field reads: see taint.go.
+	taint map[string]map[string][]taintRef
 	// cueMu orders every use of the CUE values of root: the evaluation is not
 	// safe for concurrent use.
 	cueMu sync.Mutex
@@ -127,6 +129,7 @@ func loadSpec(opts Options, sig string) *specState {
 		}
 	}
 	ss.computeEdges()
+	ss.computeTaint()
 	for _, r := range root.Resources {
 		if _, ok := ss.refs[r.Address()]; ok {
 			continue

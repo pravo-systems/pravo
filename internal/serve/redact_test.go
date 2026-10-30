@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -210,5 +211,102 @@ func TestSecretSet(t *testing.T) {
 	}
 	if s.leaksIn("clean") || (*secretSet)(nil).leaks("x") {
 		t.Error("false positives")
+	}
+}
+
+// Sensitivity follows the references. A string that spells a sensitive value of a
+// node that the reader does not read says nothing of that node: it is shown. One
+// that the reader reads, directly or through another node, is withheld.
+func TestDerivedFollowsWhatANodeReads(t *testing.T) {
+	p := newProject(t)
+	// Reads nothing: its name is the same text as the blob of services.a.db.
+	if err := p.store.Set(record("extra.one", "fake_db", `{"name":"`+secretBlob+`","port":1}`), ""); err != nil {
+		t.Fatal(err)
+	}
+	// Reads shared, which reads services.a.db: two steps from the blob.
+	if err := p.store.Set(record("extra.two", "fake_db", `{"name":"via `+secretBlob+`","port":2}`, "shared"), ""); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the records", func() bool {
+		return nodeOf(p.graph(), "extra.one") != nil && nodeOf(p.graph(), "extra.two") != nil && p.detail("extra.two").DependsOn != nil
+	})
+	name := func(addr string) Attr {
+		for _, a := range p.detail(addr).Attrs {
+			if a.Name == "name" {
+				return a
+			}
+		}
+		t.Fatalf("%s has no name", addr)
+		return Attr{}
+	}
+	if a := name("extra.one"); a.Redacted != "" || a.Value != secretBlob {
+		t.Errorf("a node that reads nothing of the blob is judged by itself: %+v", a)
+	}
+	if a := name("extra.two"); a.Redacted != "derived" || a.Value != nil {
+		t.Errorf("a node that reads the blob through another is withheld: %+v", a)
+	}
+}
+
+func TestSecretSetScopedTo(t *testing.T) {
+	s := newSecretSet()
+	s.addFrom("a", "alpha-secret-1")
+	s.addFrom("b", "bravo-secret-2")
+	s.addFrom("", "global-secret-3")
+	s.addFrom("a", "bravo-secret-2")
+	got := s.scopedTo(map[string]bool{"a": true})
+	for text, want := range map[string]bool{"alpha-secret-1": true, "bravo-secret-2": true, "global-secret-3": true} {
+		if got.leaks(text) != want {
+			t.Errorf("scoped to a: leaks(%q) = %v", text, !want)
+		}
+	}
+	got = s.scopedTo(map[string]bool{"c": true})
+	if got.leaks("alpha-secret-1") || got.leaks("bravo-secret-2") || !got.leaks("global-secret-3") {
+		t.Errorf("scoped to c: %v", got.list)
+	}
+	if (*secretSet)(nil).scopedTo(nil) != nil {
+		t.Error("a nil set is nil")
+	}
+}
+
+// A field is derived when it reads a withheld attribute, by what it reads and not
+// by what its text spells: one that reads another attribute of the same node is
+// not, one whose text says nothing of the secret is, and so is one that reads a
+// derived field of another node.
+func TestDerivedFollowsTheAttributeThatIsRead(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE+`
+plain: $fake.#Resource.fake_file & {path: "/p", content: "n=\(services.a.db.name)"}
+hashed: $fake.#Resource.fake_file & {path: "/h", content: "h=\(services.a.db.blob)"}
+chained: $fake.#Resource.fake_file & {path: "/c", content: "again \(hashed.content)"}
+`)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	// The text of plain says "a" and the blob of services.a.db: coincidence, not a read.
+	for addr, content := range map[string]string{"plain": "n=a " + secretBlob, "hashed": "h=sha-0000", "chained": "again h=sha-0000"} {
+		path := "/" + addr[:1]
+		if err := st.Set(record(addr, "fake_file", `{"path":"`+path+`","content":"`+content+`"}`, "services.a.db"), ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := start(t, dir, st, Options{})
+	content := func(addr string) Attr {
+		for _, a := range p.detail(addr).Attrs {
+			if a.Name == "content" {
+				return a
+			}
+		}
+		t.Fatalf("%s has no content", addr)
+		return Attr{}
+	}
+	if a := content("plain"); a.Redacted != "" || a.Value != "n=a "+secretBlob {
+		t.Errorf("a field that reads the name is judged by itself: %+v", a)
+	}
+	for _, addr := range []string{"hashed", "chained"} {
+		if a := content(addr); a.Redacted != "derived" || a.Value != nil {
+			t.Errorf("%s reads the blob, directly or through a field that does: %+v", addr, a)
+		}
 	}
 }
