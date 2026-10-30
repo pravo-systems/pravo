@@ -298,6 +298,7 @@ func (e *Engine) readInputsOnce(ctx context.Context) ([]string, error) {
 // readInput reads the record of a node that the walk skipped without reading.
 // It reports whether the object differs from the record or is gone.
 func (e *Engine) readInput(ctx context.Context, ch *Change) (bool, error) {
+	ctx = plugin.WithResource(ctx, ch.Addr)
 	sr := e.State.Get(ch.Addr)
 	prov, err := e.Providers.Provider(ctx, ch.ProviderKey)
 	if err != nil {

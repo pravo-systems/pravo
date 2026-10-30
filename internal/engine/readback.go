@@ -8,6 +8,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -84,6 +85,7 @@ func (e *Engine) readBackOne(ctx context.Context, sr *state.Resource, s *schema.
 	ctx, cancel := context.WithTimeout(ctx, readBackTimeout)
 	defer cancel()
 	addr := sr.Address()
+	ctx = plugin.WithResource(ctx, addr)
 	prov, err := e.Providers.Provider(ctx, sr.ProviderKey)
 	if err != nil {
 		plog.Debug(ctx, "read back "+addr+": "+err.Error())

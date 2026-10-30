@@ -121,7 +121,7 @@ The address in `resource <address>` is the CUE path of the resource, such as `pe
 | `engine check policy` | `pravo.policies` |
 | `resource <address>` | `pravo.resource.address`, `pravo.resource.type`, `pravo.mode`, `pravo.provider`, `pravo.provider.instance`, `pravo.phase`, `pravo.action`, `pravo.skipped`, `pravo.refreshed`, `pravo.drifted`, `pravo.deferred` |
 | `mcp tools/call <tool>` | `mcp.tool`, `pravo.actor`, `pravo.exit_code` |
-| `provider <RPC>` | `rpc.system`, `rpc.service`, `rpc.method`, `pravo.provider`, `pravo.provider.instance` (the provider block it ran against, such as `aws.west`), `pravo.protocol`, `pravo.resource.type`, `pravo.warnings` |
+| `provider <RPC>` | `rpc.system`, `rpc.service`, `rpc.method`, `pravo.provider`, `pravo.provider.instance` (the provider block it ran against as the specification writes it, such as `$aws`), `pravo.resource.address` (the resource the call serves, when there is one), `pravo.protocol`, `pravo.resource.type`, `pravo.warnings` |
 
 A request to the state is a span of its own, so a run against a store on the network shows where its time went: a long `state list` is the size of the state, and a long `phase lock` is a store that is slow to take a lock. With an exporter on, a large state sends one span for each record that is read. They are in the recorded runs when `PRAVO_TRACES=on`.
 
@@ -132,7 +132,7 @@ jq -c 'select(.Name == "resource hello") | [.Attributes[] | {(.Key): .Value.Valu
 
 ```text out
 {"pravo.command":"pravo plan","pravo.version":"0.1.0-dev","pravo.actor":"","pravo.reason":"","pravo.json":false,"pravo.command_line":"pravo plan","pravo.exit_code":0}
-{"pravo.resource.address":"hello","pravo.resource.type":"local_file","pravo.mode":"managed","pravo.provider":"local","pravo.provider.instance":"local","pravo.phase":"plan","pravo.action":"create","pravo.skipped":false,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
+{"pravo.resource.address":"hello","pravo.resource.type":"local_file","pravo.mode":"managed","pravo.provider":"local","pravo.provider.instance":"$local","pravo.phase":"plan","pravo.action":"create","pravo.skipped":false,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
 ```
 
 Failures are recorded on the span that failed, with its error, so the first red span in a trace is where the run stopped.

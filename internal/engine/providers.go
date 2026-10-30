@@ -68,6 +68,18 @@ func (m *Providers) resolveReattach(local string, req *config.ProviderReq) (*Res
 	return &ResolvedProvider{Req: req, Version: "reattach", Protocol: config.ProtocolReattach, Reattach: ra}, nil
 }
 
+// instanceName is how the specification writes the provider instance key, such as "$aws", the path of its block. An implied
+// provider has no block and keeps its key.
+func (m *Providers) instanceName(key string) string {
+	if m == nil || m.Root == nil {
+		return key
+	}
+	if p, ok := m.Root.ProviderPath(key); ok {
+		return p.String()
+	}
+	return key
+}
+
 // Providers manages provider processes for one run.
 type Providers struct {
 	Root     *config.Root
@@ -382,7 +394,7 @@ func (m *Providers) instance(ctx context.Context, key string) (*instance, error)
 	if err != nil {
 		return nil, err
 	}
-	plugin.SetInstance(p, key)
+	plugin.SetInstance(p, m.instanceName(key))
 	plog.Debug(ctx, "provider started", "provider", key, "version", rp.Version, "path", rp.Path)
 	inst = &instance{p: p, key: key, reattached: rp.Reattached()}
 	m.instances[key] = inst
@@ -472,7 +484,7 @@ func (m *Providers) Provider(ctx context.Context, key string) (plugin.Provider, 
 	}
 	inst.cfg = true
 	plog.Debug(ctx, "configuring provider", "provider", key)
-	cctx, end := setup(ctx, "configure provider "+key, attribute.String("pravo.provider", local), attribute.String("pravo.provider.instance", key))
+	cctx, end := setup(ctx, "configure provider "+key, attribute.String("pravo.provider", local), attribute.String("pravo.provider.instance", m.instanceName(key)))
 	err = m.configure(cctx, inst, local)
 	end(err)
 	m.mu.Lock()

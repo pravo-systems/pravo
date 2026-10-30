@@ -10,6 +10,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
@@ -116,12 +117,13 @@ func (e *Engine) runTask(ctx context.Context, r *config.Resource, apply bool) er
 	if apply {
 		phase = "apply"
 	}
+	ctx = plugin.WithResource(ctx, r.Address())
 	ctx, span := telemetry.Tracer().Start(ctx, "resource "+r.Address(), trace.WithAttributes(
 		attribute.String("pravo.resource.address", r.Address()),
 		attribute.String("pravo.resource.type", r.Type),
 		attribute.String("pravo.mode", r.Mode),
 		attribute.String("pravo.provider", providerLocal(r.ProviderKey)),
-		attribute.String("pravo.provider.instance", r.ProviderKey),
+		attribute.String("pravo.provider.instance", e.Providers.instanceName(r.ProviderKey)),
 		attribute.String("pravo.phase", phase),
 	))
 	began := time.Now()

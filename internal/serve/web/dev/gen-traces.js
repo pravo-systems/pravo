@@ -96,8 +96,8 @@ function makeRun(opts) {
     const walk = span(planning ? 'phase evaluate and refresh' : 'phase apply changes', eng, begin + 52000, 0, { 'pravo.tasks': items.length });
     const cfg = span('setup configure provider aws', walk, begin + 52200, 0, { 'pravo.provider': 'aws' });
     for (const prov of ['aws', 'random', 'local']) {
-      const v = span('provider ValidateProviderConfig', cfg, begin + 52200, jit(3e3), { 'rpc.system': 'grpc', 'rpc.service': 'tfplugin.Provider', 'rpc.method': 'ValidateProviderConfig', 'pravo.provider': prov, 'pravo.provider.instance': prov, 'pravo.protocol': 6 });
-      const c2 = span('provider ConfigureProvider', cfg, v.start_us + v.dur_us, jit(prov === 'aws' ? 38e3 : 4e3), { 'rpc.system': 'grpc', 'rpc.service': 'tfplugin.Provider', 'rpc.method': 'ConfigureProvider', 'pravo.provider': prov, 'pravo.provider.instance': prov, 'pravo.protocol': 6 });
+      const v = span('provider ValidateProviderConfig', cfg, begin + 52200, jit(3e3), { 'rpc.system': 'grpc', 'rpc.service': 'tfplugin.Provider', 'rpc.method': 'ValidateProviderConfig', 'pravo.provider': prov, 'pravo.provider.instance': '$' + prov, 'pravo.protocol': 6 });
+      const c2 = span('provider ConfigureProvider', cfg, v.start_us + v.dur_us, jit(prov === 'aws' ? 38e3 : 4e3), { 'rpc.system': 'grpc', 'rpc.service': 'tfplugin.Provider', 'rpc.method': 'ConfigureProvider', 'pravo.provider': prov, 'pravo.provider.instance': '$' + prov, 'pravo.protocol': 6 });
       cfg.dur_us = Math.max(cfg.dur_us, c2.start_us + c2.dur_us - cfg.start_us);
     }
     const ready = begin + 60000;
@@ -115,7 +115,7 @@ function makeRun(opts) {
       const attrs = { 'pravo.resource.address': it.addr, 'pravo.resource.type': it.type, 'pravo.mode': it.mode, 'pravo.provider': it.type.split('_')[0], 'pravo.phase': mode, 'pravo.action': it.action || 'no-op', 'pravo.skipped': false, 'pravo.refreshed': mode === 'plan' && rd > 0, 'pravo.drifted': !!it.drifted, 'pravo.deferred': false };
       const rs = span('resource ' + it.addr, walk, at, 0, attrs);
       const rpc = (method, d, extra = {}) => {
-        const s = span('provider ' + method, rs, c, d, { 'rpc.system': 'grpc', 'rpc.service': 'tfplugin.Provider', 'rpc.method': method, 'pravo.provider': attrs['pravo.provider'], 'pravo.provider.instance': attrs['pravo.provider'], 'pravo.protocol': 6, 'pravo.resource.type': it.type, ...extra });
+        const s = span('provider ' + method, rs, c, d, { 'rpc.system': 'grpc', 'rpc.service': 'tfplugin.Provider', 'rpc.method': method, 'pravo.provider': attrs['pravo.provider'], 'pravo.provider.instance': '$' + attrs['pravo.provider'], 'pravo.protocol': 6, 'pravo.resource.type': it.type, 'pravo.resource.address': it.addr, ...extra });
         c += s.dur_us;
         if (attrs['pravo.provider'] === 'aws' && (method === 'ReadResource' || method === 'ApplyResourceChange')) net(s, it.type, method === 'ApplyResourceChange');
         return s;
