@@ -478,6 +478,10 @@ export function flow(args, G) {
   for (const e of args.edges) if (e.a !== e.b && home.has(e.a) && home.has(e.b)) E.push(e);
 
   const backSet = new Set();
+  // How the wires outside approach each lane, by lane and source: the second pass puts the ports of a lane that the
+  // lane itself has no preference for in that order, so that two wires into one lane do not cross at its border.
+  const approach = new Map();
+  let ties = false;
 
   // build lays out one lane (its sub-lanes first) and sets its size: w, h, and where its block stands in the box: ox, oy.
   function build(L, EL) {
@@ -873,6 +877,25 @@ export function flow(args, G) {
     orderLayers(layers, rounds);
     // what stands alone goes last in its column
     for (const v of isoV) { layers[v.layer].push(v); if (v.fol) for (const f of v.fol) layers[v.layer].push(f); }
+    // ports that feed the same nodes have no order of their own: they follow the order in which the wires come in
+    {
+      const L0 = layers[0];
+      for (let i = 0; i < L0.length && hasIN; ) {
+        const key = (v) => v.dn.map((d) => d.i).sort((p, q) => p - q).join(',');
+        let j = i + 1;
+        while (j < L0.length && key(L0[j]) === key(L0[i])) j++;
+        if (j - i > 1) {
+          ties = true;
+          const ap = (v) => approach.get(L.id + '|' + v.node.a);
+          const grp = L0.slice(i, j);
+          if (grp.every((v) => ap(v) !== undefined)) {
+            grp.sort((p, q) => ap(p) - ap(q));
+            for (let k = i; k < j; k++) L0[k] = grp[k - i];
+          }
+        }
+        i = j;
+      }
+    }
     for (const L2 of layers) for (let i = 0; i < L2.length; i++) L2[i].pos = i;
 
     // ---- heights ----
@@ -927,7 +950,7 @@ export function flow(args, G) {
     for (const [v, list] of arrivals) {
       list.sort((p, q) => p.from - q.from || p.s.ord - q.s.ord);
       const k = list.length;
-      if (v.kind === 'lane') list.forEach((r) => pin.set(r.s.a + '|' + r.c.id, topOf(v) + v.node.lane.inY.get(r.s.a)));
+      if (v.kind === 'lane') list.forEach((r) => { approach.set(v.node.lane.id + '|' + r.s.a, r.from); pin.set(r.s.a + '|' + r.c.id, topOf(v) + v.node.lane.inY.get(r.s.a)); });
       else if (v.kind !== 'item') list.forEach((r) => pin.set(r.s.a + '|' + r.c.id, v.y));
       else {
         // each wire arrives at the height that it comes in at when that is within the item, and the wires that would stand
@@ -1068,6 +1091,7 @@ export function flow(args, G) {
   }
 
   build(R, E);
+  if (ties && !lite) build(R, E);
 
   // ---- absolute positions ----
   const pos = new Map();
