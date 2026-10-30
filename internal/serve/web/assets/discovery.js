@@ -12,6 +12,7 @@
 import { h, clear, icon, plural, relTime, stamp, fmt } from './util.js';
 import * as api from './api.js';
 import { Pills } from './pills.js';
+import { cueText } from './ui.js';
 import { QueryMenu, addTerm, removeTerm } from './query.js';
 import * as dq from './dquery.js';
 
@@ -49,7 +50,7 @@ function command(text, placeholder, label, fk) {
 
 // snippet is a block of CUE with a button that copies it.
 function snippet(text, label, fk) {
-  return h('div', { class: 'dv-snip' }, h('pre', { class: 'dv-code' }, h('code', null, withParts(text))),
+  return h('div', { class: 'dv-snip' }, h('pre', { class: 'dv-code' }, h('code', null, cueText(text))),
     h('button', { class: 'cpbtn', type: 'button', 'data-copy': text, 'data-fk': fk, 'aria-label': label, 'data-tip': label }, icon('copy')));
 }
 
@@ -120,7 +121,7 @@ export class DiscoveryView {
   none(d) {
     return h('div', { class: 'dv-none' },
       h('p', null, 'A discovery asks a provider which objects exist in a scope, and shows the ones that nothing in the state accounts for. Write one in the specification:'),
-      h('pre', { class: 'dv-code' }, h('code', null, 'vms: $aws.#Discovery.aws_instance & {region: "eu-west-1"}')),
+      h('pre', { class: 'dv-code' }, h('code', null, cueText('vms: $aws.#Discovery.aws_instance & {region: "eu-west-1"}'))),
       h('p', { class: 'dv-note' }, 'Then run ', h('code', null, d.command), ' and come back.'));
   }
 

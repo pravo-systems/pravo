@@ -41,6 +41,8 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
 .dv-list { display: grid; gap: 1rem; }
 .dv-none { padding: 1rem 1.1rem; border: 1px dashed var(--line-strong); font-size: var(--fs-4); line-height: 1.55; }
 .dv-none p { margin: 0 0 .6rem; }
+.dv-none .dv-snip, .dv-none .dv-code { margin: .8rem 0 1rem; }
+.dv-none .dv-note { margin: 0; }
 
 /* ---- one discovery ---- */
 .dv-card { position: relative; display: grid; gap: .7rem; padding: .95rem 1.2rem 1rem; border: 1px solid var(--line-strong); background: var(--surface); min-width: 0; }

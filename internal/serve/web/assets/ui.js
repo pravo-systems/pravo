@@ -69,6 +69,22 @@ export function initTips() {
 
 const MARK_LABEL = { changed: 'changed', sensitive: 'sensitive' };
 
+// cueText is a text of CUE as the nodes of a <code> element, in the colours of the code windows. The parts that a person fills
+// in (words in angle brackets) keep their own mark.
+export function cueText(text) {
+  const lines = String(text).replace(/\n$/, '').split('\n');
+  const toks = tokenize(lines);
+  const out = [];
+  const put = (cls, str) => {
+    str.split(/(<[^<>\n]+>)/).forEach((part, k) => { if (!part) return; if (k % 2) out.push(h('span', { class: 'ph' }, part)); else out.push(cls ? h('span', { class: 'tk-' + cls }, part) : part); });
+  };
+  lines.forEach((l, i) => {
+    if (i) out.push('\n');
+    for (const t of toks[i]) put(t.t, t.text);
+  });
+  return out;
+}
+
 // codeWindow draws one block of lines.
 //   b:     { file, label, role, kind, start_line, end_line, lines: [{no, text, mark, dim}], modified }
 //   opts:  { json: bool, title: text, announce, newer: bool, relTime }

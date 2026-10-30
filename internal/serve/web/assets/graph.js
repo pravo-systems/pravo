@@ -33,6 +33,8 @@ const GLYPH = {
   glass: [['line', 'M4 2.8h8M4 13.2h8M5 2.8c0 3 3 3.4 3 5.2s-3 2.2-3 5.2M11 2.8c0 3-3 3.4-3 5.2s3 2.2 3 5.2']],
   // a secret: a key
   key: [['line', 'M2.4 5.4h5v5h-5zM7.4 8h6.4M11.2 8v2.6M13.8 8v1.8']],
+  // an instance of a template: a dashed frame round a solid square, as the template icon of the pages
+  tpl: [['line', 'M2.4 2.4h11.2v11.2H2.4z'], ['fill', 'M5.6 5.6h4.8v4.8H5.6z']],
   // an environment variable: a dollar sign
   env: [['line', 'M10.6 5.3C10.1 4.3 9.1 3.8 8 3.8c-1.4 0-2.4.7-2.4 1.8 0 2.4 4.9 1.2 4.9 3.8 0 1.1-1 1.9-2.5 1.9-1.1 0-2.1-.5-2.6-1.4M8 2.4v1.4M8 12.2v1.4']],
 };
@@ -67,7 +69,7 @@ function itemSig(x, ctx) {
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   const pi = plansIn(x, ctx);
-  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.look, x.h, x.kind === 'namespace' ? x.ns.kids.length : ''].join('|');
+  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.look, x.h, x.kind === 'namespace' ? x.ns.kids.length : '', x.kind === 'namespace' && x.ns.template ? x.ns.template.name : ''].join('|');
 }
 
 const trunc = (t, n) => (t.length > n ? t.slice(0, Math.max(1, n - 1)) + '…' : t);
@@ -721,7 +723,8 @@ export class GraphView {
     inn.append(tt);
     inn.append(planBadges(agg, W - 14, 14, true, bare));
     // the subtitle gives what fits, longest first
-    const markW = marks.reduce((w, [, c]) => w + String(c).length * 7 + 23, 0);
+    const tplm = isNs && it.ns.template;
+    const markW = marks.reduce((w, [, c]) => w + String(c).length * 7 + 23, 0) + (tplm ? 21 : 0);
     const room = chars(W - 38 - 14 - markW, 12);
     let opts;
     if (isNs) {
@@ -735,6 +738,13 @@ export class GraphView {
     } else opts = it.ns.name ? [`× ${agg.n} in ${it.ns.name}`, `× ${agg.n}`] : [`× ${agg.n}`];
     inn.append(s('text', { class: 'ty', x: 38, y: 45 }, opts.find((o) => o.length <= room) || trunc(opts[opts.length - 1], room)));
     let mx = W - 14;
+    if (tplm) {
+      mx -= 13;
+      const tg = s('g', { class: 'mkc mk-tpl' });
+      tg.append(s('title', null, `An instance of the template ${it.ns.template.title}`), glyph('tpl', mx, 33, 13, 'mk mk-tpl'));
+      inn.append(tg);
+      mx -= 8;
+    }
     for (const [m, count] of marks) {
       const t = String(count);
       mx -= t.length * 7 + 15;
@@ -787,11 +797,15 @@ export class GraphView {
     const lbl = s('text', { class: 'bandl', x: 20, y: 11 });
     const cnt = s('text', { class: 'bandc', x: 0, y: 11 });
     const hs = s('g', { class: 'hs' });
-    hs.append(glyph('chevD', 0, 0, 16, 'chv'), lbl, cnt, s('g', { class: 'lpb' }));
+    const tg = glyph('tpl', 0, 0, 16, 'mk-tpl');
+    const tt = s('title', null, '');
+    tg.append(tt);
+    tg.setAttribute('style', 'display:none');
+    hs.append(glyph('chevD', 0, 0, 16, 'chv'), lbl, tg, cnt, s('g', { class: 'lpb' }));
     head.append(hs);
     hg.append(hit, head);
     this.headLayer.append(hg);
-    const r = { g, hg, rect, hit, head, hs, lbl, cnt, box: null, leaving: false };
+    const r = { g, hg, rect, hit, head, hs, lbl, cnt, tg, tt, box: null, leaving: false };
     this.updateLane(r, L, ns);
     return r;
   }
@@ -805,10 +819,15 @@ export class GraphView {
     const count = agg ? (agg.n || !agg.out ? String(agg.n) : agg.out + ' out') + tpl : '';
     r.cnt.textContent = count;
     const w = label.length * 8.2 + 8;
-    r.cnt.setAttribute('x', 20 + w + 6);
     const pb = r.head.querySelector('.lpb');
     while (pb.firstChild) pb.removeChild(pb.firstChild);
-    const cw = agg ? count.length * 7.4 + 6 : 0;
+    // an instance of a template wears its mark before the count
+    const tmark = ns && ns.template ? 19 : 0;
+    r.tg.style.display = tmark ? '' : 'none';
+    r.tg.setAttribute('transform', `translate(${20 + w + 6} -1) scale(${14 / 16})`);
+    r.tt.textContent = tmark ? `An instance of the template ${ns.template.title}` : '';
+    r.cnt.setAttribute('x', 20 + w + 6 + tmark);
+    const cw = agg ? count.length * 7.4 + 6 + tmark : 0;
     if (agg && agg.plan) pb.append(planBadges(agg, 20 + w + 6 + cw + 10, 1, false));
     // how far the title may be scaled up before it outgrows the lane
     const textW = 20 + w + 6 + cw + 6;

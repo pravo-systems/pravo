@@ -8,7 +8,7 @@
 // changes the state, and every request of the page is a GET.
 
 import { h, clear, icon, debounce, fmt, plural, relTime } from './util.js';
-import { codeWindow } from './ui.js';
+import { codeWindow, cueText } from './ui.js';
 import * as api from './api.js';
 
 export const FOOTER = 'This page shows the templates and checks new instances. It writes nothing: the code is yours to paste.';
@@ -43,11 +43,20 @@ function refValue(x) {
   switch (x.value_state) {
     case 'known': return x.value;
     case 'unapplied': return 'known after apply';
-    case 'withheld': return 'withheld';
+    case 'withheld': return 'not shown here';
     case 'null': return 'null';
     case 'structured': return 'a list or an object';
     default: return '';
   }
+}
+
+// HIDDEN says why a list may show no value for some of its rows.
+const HIDDEN = 'Some rows show no value: the Inventory does not show it (the state is sealed or the attribute is sensitive). Picking one works all the same.';
+
+// rowValue is the value in a row of a picker. A value that is not shown is left out of the row: the note of the list says it once.
+function rowValue(x) {
+  if (x.value_state === 'withheld') return null;
+  return h('span', { class: 'tp-rv ' + x.value_state }, refValue(x));
 }
 
 // secretName is the name a secret has unless the person gives another: the template, the instance and the input.
@@ -119,7 +128,7 @@ export class TemplatesView {
   none() {
     return h('section', { class: 'tp-none' },
       h('p', null, 'The specification has no template. A definition becomes one when it embeds pravo.#Template and names itself:'),
-      h('pre', { class: 'tp-pre' }, h('code', null, MARKER_EXAMPLE)),
+      h('pre', { class: 'tp-pre' }, h('code', null, cueText(MARKER_EXAMPLE))),
       h('p', null, 'Its fields become the inputs of the form. The instances of the definition are listed under it.'));
   }
 
@@ -136,7 +145,6 @@ export class TemplatesView {
     return h('button', { type: 'button', class: 'tp-card' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', 'data-fk': 'card:' + t.name,
       on: { click: () => { this.sel = t.name; this.wizard = false; this.render({ templates: this.doc }); this.cb.onRoute && this.cb.onRoute(); } } },
       h('span', { class: 'tp-ct' }, t.title),
-      h('code', { class: 'tp-cd' }, t.definition),
       t.description ? h('span', { class: 'tp-cx' }, t.description) : null,
       h('span', { class: 'tp-cs' },
         h('b', null, fmt(t.instances.length)), ' ', t.instances.length === 1 ? 'instance' : 'instances',
@@ -158,30 +166,47 @@ export class TemplatesView {
       t.instances.length ? this.instancesTable(t) : h('p', { class: 'tp-note' }, 'Nothing is made from this template yet.'));
   }
 
+  // The inputs are a list, one entry each, so that a template with many of them reads the same: the name, what it takes, the default and the help wrap in the room there is.
   inputsTable(t) {
     if (!t.inputs.length) return h('p', { class: 'tp-note' }, 'The template takes no input.');
-    return h('div', { class: 'ac-tablewrap' },
-      h('table', { class: 'ac-table small tp-table' },
-        h('caption', { class: 'sr-only' }, `Inputs of ${t.title}`),
-        h('thead', null, h('tr', null, ['Input', 'Takes', 'Default', 'Help'].map((x) => h('th', { scope: 'col' }, x)))),
-        h('tbody', null, t.inputs.map((i) => h('tr', null,
-          h('th', { scope: 'row', 'data-label': 'Input' }, h('code', { class: 'nm' }, i.name), i.label && i.label !== i.name ? h('span', { class: 'dim' }, ' ' + i.label) : null, i.required ? h('span', { class: 'b chg', title: 'The instance must give it a value' }, 'required') : null),
-          h('td', { 'data-label': 'Takes' }, h('code', { class: 'tp-type' }, i.type || i.kind)),
-          h('td', { 'data-label': 'Default' }, i.default ? h('code', null, i.default) : h('span', { class: 'dim' }, '–')),
-          h('td', { 'data-label': 'Help' }, i.doc || h('span', { class: 'dim' }, '–')))))));
+    return h('ul', { class: 'tp-ins', 'aria-label': `Inputs of ${t.title}` }, t.inputs.map((i) => h('li', { class: 'tp-inp' },
+      h('div', { class: 'tp-inh' },
+        h('code', { class: 'nm' }, i.name), i.label && i.label !== i.name ? h('span', { class: 'tp-inl' }, i.label) : null,
+        i.required ? h('span', { class: 'b chg', title: 'The instance must give it a value' }, 'required') : null),
+      i.doc ? h('p', { class: 'tp-ind' }, i.doc) : null,
+      h('p', { class: 'tp-int' }, h('span', { class: 'tp-k' }, 'takes'), h('code', { class: 'tp-type' }, i.type || i.kind),
+        i.default ? [h('span', { class: 'tp-k' }, 'default'), h('code', null, i.default)] : null))));
   }
 
+  // An instance is a card, folded: its address, how much of it the state holds, and the first values it sets. Open, it lists
+  // every value it sets; what it leaves out takes the default. The button beside the address shows the group in the graph.
   instancesTable(t) {
-    const cols = t.inputs.slice(0, 4);
-    return h('div', { class: 'ac-tablewrap' },
-      h('table', { class: 'ac-table small tp-table' },
-        h('caption', { class: 'sr-only' }, `Instances of ${t.title}`),
-        h('thead', null, h('tr', null, [h('th', { scope: 'col' }, 'Instance'), ...cols.map((c) => h('th', { scope: 'col' }, c.name)), h('th', { scope: 'col' }, 'Resources')])),
-        h('tbody', null, t.instances.map((n) => h('tr', null,
-          h('th', { scope: 'row', 'data-label': 'Instance' },
-            h('button', { type: 'button', class: 'se-chip tp-inst', 'data-fk': 'inst:' + n.address, title: `Show ${n.address} in the graph`, on: { click: () => this.cb.onNamespace && this.cb.onNamespace(n.address) } }, h('code', null, n.address))),
-          ...cols.map((c) => h('td', { 'data-label': c.name }, n.values[c.name] !== undefined ? h('code', { class: 'tp-val' }, n.values[c.name]) : h('span', { class: 'dim' }, c.default ? 'default' : '–'))),
-          h('td', { 'data-label': 'Resources' }, h('div', { class: 'tp-rc' }, h('span', { class: 'tp-res' }, `${n.recorded} of ${n.resources}`), n.recorded < n.resources ? h('span', { class: 'b chg' }, n.recorded ? 'partly applied' : 'not applied') : null)))))));
+    const names = t.inputs.map((i) => i.name);
+    this.openInst = this.openInst || new Set();
+    return h('ul', { class: 'tp-insts', 'aria-label': `Instances of ${t.title}` }, t.instances.map((n) => {
+      const vals = names.filter((k) => n.values[k] !== undefined).map((k) => [k, n.values[k]]);
+      const rest = t.inputs.length - vals.length;
+      const key = t.name + ':' + n.address;
+      const open = this.openInst.has(key) || (t.instances.length === 1 && !this.openInst.has('-' + key));
+      const det = h('details', { class: 'tp-it', open: open ? true : null, 'data-fk': 'card:' + n.address, on: { toggle: (ev) => {
+        if (ev.target.open) { this.openInst.add(key); this.openInst.delete('-' + key); } else { this.openInst.delete(key); this.openInst.add('-' + key); }
+      } } },
+      h('summary', { class: 'tp-ith' },
+        h('span', { class: 'tp-chev', 'aria-hidden': 'true' }),
+        h('span', { class: 'tp-ibody' },
+          h('span', { class: 'tp-itop' },
+            h('code', { class: 'tp-ia' }, n.address),
+            h('span', { class: 'tp-res' }, `${n.recorded}/${n.resources}`),
+            n.recorded < n.resources ? h('span', { class: 'b chg' }, n.recorded ? 'partly applied' : 'not applied') : null),
+          vals.length ? h('span', { class: 'tp-peek' }, vals.slice(0, 3).map(([k, v]) => [h('i', null, k), ' ', v, '  ']).flat()) : h('span', { class: 'tp-peek dim' }, 'every input takes its default')),
+        h('button', { type: 'button', class: 'tp-show', 'data-fk': 'inst:' + n.address, title: 'Show in the graph', 'aria-label': `Show ${n.address} in the graph`,
+          on: { click: (ev) => { ev.preventDefault(); ev.stopPropagation(); this.cb.onNamespace && this.cb.onNamespace(n.address); } } }, icon('pick'))),
+      h('div', { class: 'tp-itb' },
+        vals.length ? h('dl', { class: 'tp-vals' }, vals.map(([k, v]) => h('div', null, h('dt', null, k), h('dd', null, h('code', null, v))))) : null,
+        rest > 0 && vals.length ? h('p', { class: 'tp-def' }, `${plural(rest, 'other input')} take the default.`) : null,
+        n.source ? h('p', { class: 'tp-def' }, 'Written at ', h('code', null, `${n.source.file}:${n.source.line}`)) : null));
+      return h('li', null, det);
+    }));
   }
 
   // ---- the wizard ----
@@ -231,6 +256,7 @@ export class TemplatesView {
       h('div', { class: 'tp-wbar' },
         h('button', { type: 'button', class: 'tp-back', 'data-fk': 'back', on: { click: () => this.closeWizard() } }, icon('back'), `${t.title} · ${t.definition}`),
         h('h3', { class: 'tp-wtitle' }, 'New instance')),
+      t.description ? h('p', { class: 'tp-desc tp-wdesc' }, t.description) : null,
       h('div', { class: 'tp-wcols' },
         h('form', { class: 'tp-form', 'aria-label': `A new ${t.title}`, on: { submit: (ev) => ev.preventDefault() } },
           this.field({ label: 'Name', help: 'The label of the instance. It is the last part of every address below it.', id: '@label', forId: 'label', required: true },
@@ -308,7 +334,7 @@ export class TemplatesView {
           on: { input: (ev) => { cur.text = ev.target.value; if (i.name === 'name') f.touchedName = true; this.changed(); } } }));
       }
       if (['string', 'int', 'number', 'bool'].includes(i.kind) && !i.long) {
-        row.append(h('button', { type: 'button', class: 'tp-gb', 'data-fk': 'graph:' + i.name, 'aria-expanded': this.refsFor === i.name ? 'true' : 'false', on: { click: () => this.toggleRefs(i, draw, holder) } }, icon('link'), 'From the graph'));
+        row.append(h('button', { type: 'button', class: 'tp-gb', 'data-fk': 'graph:' + i.name, 'aria-expanded': this.refsFor === i.name ? 'true' : 'false', title: 'Pick the value from the graph', 'aria-label': `Pick a value for ${i.label || i.name} from the graph`, on: { click: () => this.toggleRefs(i, draw, holder) } }, icon('pick')));
       }
     };
     draw();
@@ -357,11 +383,12 @@ export class TemplatesView {
           f.fields[i.name] = { text: e.expr, ref: true, value: e.value, value_state: e.value_state };
           draw();
           this.changed();
-        } } }, h('code', null, e.addr), h('span', { class: 'tp-rm' }, e.recorded ? null : h('span', { class: 'tp-rt' }, 'not applied'), h('span', { class: 'tp-rv ' + e.value_state }, refValue(e))))));
+        } } }, h('code', null, e.addr), h('span', { class: 'tp-rm' }, e.recorded ? null : h('span', { class: 'tp-rt' }, 'not applied'), rowValue(e)))));
       }
+      if (r.entities.some((e) => e.value_state === 'withheld')) note.textContent = [r.note, HIDDEN].filter(Boolean).join(' ');
     };
     q.addEventListener('input', debounce(load, 160));
-    row.append(h('p', { class: 'tp-note' }, icon('link'), h('span', null, `The ${i.entity.type} resources the estate declares. The instance reads `, h('code', null, i.entity.attr), ' of the one you pick, so it follows that resource.')), q, list, note);
+    row.append(h('p', { class: 'tp-note' }, icon('link'), h('span', null, `Pick one of the ${i.entity.type} resources of the estate. The instance reads its `, h('code', null, i.entity.attr), '.')), q, list, note);
     load();
   }
 
@@ -455,11 +482,13 @@ export class TemplatesView {
     clear(holder);
     const q = h('input', { type: 'search', class: 'tp-in tp-rq', placeholder: 'Find a value: network, id, hex…', 'aria-label': 'Find a value of the graph', 'data-fk': 'refq', autocomplete: 'off' });
     const list = h('ul', { class: 'tp-rl', role: 'listbox', 'aria-label': 'Values of the graph' });
-    holder.append(h('p', { class: 'tp-rh' }, 'These are attributes of resources the estate already declares. The instance will read the value when it is applied.'), q, list);
+    const hid = h('p', { class: 'tp-note', hidden: true }, HIDDEN);
+    holder.append(h('p', { class: 'tp-rh' }, 'Pick an attribute of a resource of the estate. The instance reads it from there, so it follows that resource.'), q, list, hid);
     const load = async () => {
       let r;
       try { r = await api.templateRefs(i.kind, q.value); } catch (err) { clear(list); list.append(h('li', { class: 'tp-ri none' }, 'Could not read the graph.')); return; }
       clear(list);
+      hid.hidden = !r.refs.some((x) => x.value_state === 'withheld');
       if (!r.refs.length) { list.append(h('li', { class: 'tp-ri none' }, 'No attribute of this kind matches.')); return; }
       for (const ref of r.refs) {
         list.append(h('li', { role: 'option' }, h('button', { type: 'button', class: 'tp-ri', 'data-fk': 'ref:' + ref.expr, on: { click: () => {
@@ -470,7 +499,7 @@ export class TemplatesView {
           this.changed();
           const b = this.root.querySelector(`[data-fk="${CSS.escape('graph:' + i.name)}"]`);
           if (b) b.focus({ preventScroll: true });
-        } } }, h('code', null, ref.expr), h('span', { class: 'tp-rm' }, h('span', { class: 'tp-rt' }, ref.type), h('span', { class: 'tp-rv ' + ref.value_state }, refValue(ref))))));
+        } } }, h('code', null, ref.expr), h('span', { class: 'tp-rm' }, h('span', { class: 'tp-rt' }, ref.type), rowValue(ref)))));
       }
     };
     q.addEventListener('input', debounce(load, 160));

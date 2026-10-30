@@ -757,6 +757,17 @@ function openNamespace(path) {
   announce(`Opened group ${ns.name}, ${plural(ns.agg.n, 'resource')}. Escape zooms out.`);
 }
 
+// showNamespace selects a group wherever it sits: the groups above it open first, as they do for a resource that is found,
+// so that it is in the picture. The group itself keeps the state it has.
+function showNamespace(path) {
+  const ns = S.model.namespaces.get(path);
+  if (!ns) return;
+  let changed = false;
+  for (const m of chain(ns).slice(0, -1)) if (S.collapsed.delete(m.path)) changed = true;
+  if (changed) { relayout({ stable: true }); renderSide(); }
+  selectNamespace(path, { center: true });
+}
+
 // backOut undoes the last openNamespace: the namespace closes and the camera returns to where it was.
 function backOut() {
   let t = S.trail.pop();
@@ -1586,7 +1597,7 @@ function wire() {
   });
   templatesView = new TemplatesView($('templates-pane'), {
     // an instance: the graph opens on its group
-    onNamespace: (path) => { setView(S.lastResources || 'graph'); selectNamespace(path, { center: true }); },
+    onNamespace: (path) => { setView(S.lastResources || 'graph'); showNamespace(path); },
     onRoute: () => syncFragment(),
   });
   tracesView = new TracesView($('traces-pane'), { onRoute: () => syncFragment() });
