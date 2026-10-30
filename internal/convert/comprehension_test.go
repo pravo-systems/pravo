@@ -380,3 +380,19 @@ pet: {id: string | null}
 		}
 	}
 }
+
+// A name read inside the value of a field of the same name is that field, not
+// the one outside: the error says so.
+func TestShadowedNameIsNamedInTheError(t *testing.T) {
+	v := cuecontext.New().CompileString(`
+stage: {value: string}
+files: {for k, v in {stage: stage.value} {"\(k)": {content: v}}}
+`)
+	got := shadowedName(v.LookupPath(cue.ParsePath("files.stage.content")))
+	if got != "stage" {
+		t.Errorf("shadowedName = %q, want stage", got)
+	}
+	if got := shadowedName(v.LookupPath(cue.ParsePath("stage"))); got != "" {
+		t.Errorf("shadowedName of an unrelated value = %q", got)
+	}
+}

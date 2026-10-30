@@ -614,3 +614,38 @@ func loopReference(src ast.Node) *ast.ForClause {
 	}
 	return nil
 }
+
+// shadowedName returns the name that a struct literal in the syntax of v
+// reads inside the value of a field of that name, as in {stage: stage.value}.
+// CUE resolves such a name to the field itself, not to the one outside, so the
+// value never settles. It returns "" if there is none.
+func shadowedName(v cue.Value) string {
+	src := v.Source()
+	if fc := loopReference(src); fc != nil && fc.Source != nil {
+		src = fc.Source
+	}
+	if src == nil {
+		return ""
+	}
+	found := ""
+	ast.Walk(src, func(n ast.Node) bool {
+		f, ok := n.(*ast.Field)
+		if !ok || found != "" {
+			return found == ""
+		}
+		label, ok := f.Label.(*ast.Ident)
+		if !ok || f.Value == nil {
+			return true
+		}
+		ast.Walk(f.Value, func(m ast.Node) bool {
+			if id, ok := m.(*ast.Ident); ok && id.Name == label.Name {
+				if _, ok := id.Scope.(*ast.StructLit); ok {
+					found = id.Name
+				}
+			}
+			return found == ""
+		}, nil)
+		return found == ""
+	}, nil)
+	return found
+}
