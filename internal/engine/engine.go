@@ -127,7 +127,7 @@ type Engine struct {
 	// run reads, so that the value of a pravo.#Secret and the number of a pravo.#SecretVersion
 	// belong together; secretMu guards it. See secretVersion.
 	secretMu   sync.Mutex
-	secretPins map[string]int
+	secretPins map[string]*secretPin
 	// traceID is the OpenTelemetry trace of the current run, if any.
 	traceID string
 	// runCtx is the context a plan or an apply was started with, so that what

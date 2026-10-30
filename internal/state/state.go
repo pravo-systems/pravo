@@ -715,7 +715,11 @@ func (s *Store) Refresh(r *Resource, txn string) error {
 		held = Version{Revision: prev.Revision, Generation: prev.Generation}
 	}
 	s.mu.Unlock()
+	// The read of the pointer and the look at the seal do not depend on each other.
+	sealed := make(chan struct{})
+	go func() { defer close(sealed); s.recheckSeal() }()
 	cur, found, err := s.head(addr)
+	<-sealed
 	if err != nil {
 		return err
 	}
