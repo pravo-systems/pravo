@@ -12,7 +12,7 @@ import { tokenize } from './cue.js';
 import { attachFolds, foldRanges, hiddenRows } from './fold.js';
 import * as api from './api.js';
 import { picker } from './picker.js';
-import { signerOf } from './plans.js';
+import { signerOf, statusChip, counts } from './plans.js';
 import { complete } from './complete.js';
 
 const DRAFT_KEY = 'pravo.studio.policies';
@@ -719,7 +719,7 @@ export class StudioView {
     const refusal = res && res.outcome === 'refused';
     const head = h('button', { type: 'button', class: 'studio-row mk-' + out.mark, 'aria-expanded': open ? 'true' : 'false', 'data-fk': 'studio:' + tp.ref,
       on: { click: () => { if (this.opened.has(tp.ref)) this.opened.delete(tp.ref); else this.opened.add(tp.ref); this.paintResults(); } } },
-      h('span', { class: 'studio-rn' }, h('b', null, label), meta ? h('span', { class: 'studio-rmeta' }, this.metaText(meta)) : null),
+      h('span', { class: 'studio-rn' }, h('b', null, label), meta ? this.metaLine(meta) : null),
       h('span', { class: 'studio-ro ' + out.cls }, out.label, refusal ? ` · ${plural((res.issues || []).length + (res.more || 0), 'reason')}` : ''),
       h('span', { class: 'chev' + (open ? ' open' : ''), 'aria-hidden': 'true' }, icon('chev')));
     return head;
@@ -737,6 +737,17 @@ export class StudioView {
 
   labelOf(ref) { const p = this.data && this.data.plans.find((x) => x.ref === ref); return p ? p.label : ref; }
   metaOf(ref) { return this.data && this.data.plans.find((x) => x.ref === ref); }
+
+  // metaLine is the line under the name of a plan in a row: the status as a chip and the counts as the Plans section
+  // draws them, with the author and the age between.
+  metaLine(m) {
+    const stored = m.kind !== 'upload' && m.kind !== 'file';
+    return h('span', { class: 'studio-rmeta' },
+      stored ? statusChip(m.status) : h('span', null, m.kind === 'upload' ? 'dropped' : 'file'),
+      m.author ? h('span', null, m.author) : null,
+      h('span', null, relTime(m.created)),
+      counts({ add: m.add, change: m.change, destroy: m.destroy }));
+  }
 
   metaText(m) {
     const bits = [];
