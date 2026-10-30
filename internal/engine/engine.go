@@ -264,6 +264,8 @@ func New(root *config.Root, st *state.Store, providers *Providers, schemas map[s
 		e.byPath[r.Path.String()] = r
 	}
 	st.SetActor(opts.Actor, opts.Reason, opts.GitRevision)
+	// In a sealed state the actor is the signing identity, whatever label was given.
+	e.Opts.Actor = st.Actor()
 	providers.ConfigValue = value
 	providers.ConfigConvert = func(key string, blk *schema.Block) (tftypes.Value, error) {
 		cfg, _, _, err := e.providerConfig(key, blk)

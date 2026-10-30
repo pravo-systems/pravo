@@ -387,7 +387,7 @@ Error: the plan violates the policy guard@2 (sha256:<digest>):
 changes.0.after.prefix: conflicting values null and !="" (mismatched types null and string):
     guard:14:2
     guard:16:12
-    plan:1:115
+    plan:1:129
 ```
 
 ## 7. Exempt by type
@@ -457,8 +457,8 @@ The plan job saves a plan. The apply job applies that file. Both are judged by t
 
 ```sh
 sed -i 's/min: 8000/min: 7000/' root/main.cue
-pravo -C root plan --out change.plan --actor ci --reason "move the port" | grep -E '^(Plan|Policies|Saved)'
-pravo -C root apply change.plan --actor ci | grep -E '^(Policies|Apply)'
+pravo -C root plan --out change.plan --reason "move the port" | grep -E '^(Plan|Policies|Saved)'
+pravo -C root apply change.plan | grep -E '^(Policies|Apply)'
 ```
 
 Output:
@@ -481,8 +481,8 @@ Output:
 
 ```text
 <txn>  apply    applied   <date> <time> <took>
-    pravo -C root apply change.plan --actor <sealed>
-    actor ci  move the port
+    pravo -C root apply change.plan
+    move the port
 guard@3:<digest>
 ```
 

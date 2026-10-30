@@ -93,7 +93,7 @@ Dan removes the resource and stores the plan. The approvals belong to the stored
 
 ```sh
 sed -i '/^pet:/d' main.cue
-PRAVO_CONFIG_DIR=people/dan pravo plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
+PRAVO_CONFIG_DIR=people/dan pravo plan --store 2>&1 | grep -E '^(Policies|Stored)'
 ```
 
 Output:
@@ -211,7 +211,7 @@ second_opinion: pravo.#Policy & {
 ```
 
 ```sh
-PRAVO_CONFIG_DIR=people/dan pravo plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
+PRAVO_CONFIG_DIR=people/dan pravo plan --store 2>&1 | grep -E '^(Policies|Stored)'
 ID=$(pravo plan list | awk 'NR==1 {print $1}')
 PRAVO_CONFIG_DIR=people/dan pravo apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
 sed -n '/^Error/,$p' apply.out

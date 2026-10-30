@@ -12,6 +12,7 @@ import { tokenize } from './cue.js';
 import { attachFolds, foldRanges, hiddenRows } from './fold.js';
 import * as api from './api.js';
 import { picker } from './picker.js';
+import { signerOf, statusChip, counts } from './plans.js';
 import { complete } from './complete.js';
 
 const DRAFT_KEY = 'pravo.studio.policies';
@@ -718,7 +719,7 @@ export class StudioView {
     const refusal = res && res.outcome === 'refused';
     const head = h('button', { type: 'button', class: 'studio-row mk-' + out.mark, 'aria-expanded': open ? 'true' : 'false', 'data-fk': 'studio:' + tp.ref,
       on: { click: () => { if (this.opened.has(tp.ref)) this.opened.delete(tp.ref); else this.opened.add(tp.ref); this.paintResults(); } } },
-      h('span', { class: 'studio-rn' }, h('b', null, label), meta ? h('span', { class: 'studio-rmeta' }, this.metaText(meta)) : null),
+      h('span', { class: 'studio-rn' }, h('b', null, label), meta ? this.metaLine(meta) : null),
       h('span', { class: 'studio-ro ' + out.cls }, out.label, refusal ? ` · ${plural((res.issues || []).length + (res.more || 0), 'reason')}` : ''),
       h('span', { class: 'chev' + (open ? ' open' : ''), 'aria-hidden': 'true' }, icon('chev')));
     return head;
@@ -736,6 +737,17 @@ export class StudioView {
 
   labelOf(ref) { const p = this.data && this.data.plans.find((x) => x.ref === ref); return p ? p.label : ref; }
   metaOf(ref) { return this.data && this.data.plans.find((x) => x.ref === ref); }
+
+  // metaLine is the line under the name of a plan in a row: the status as a chip and the counts as the Plans section
+  // draws them, with the author and the age between.
+  metaLine(m) {
+    const stored = m.kind !== 'upload' && m.kind !== 'file';
+    return h('span', { class: 'studio-rmeta' },
+      stored ? statusChip(m.status) : h('span', null, m.kind === 'upload' ? 'dropped' : 'file'),
+      m.author ? h('span', null, m.author) : null,
+      h('span', null, relTime(m.created)),
+      counts({ add: m.add, change: m.change, destroy: m.destroy }));
+  }
 
   metaText(m) {
     const bits = [];
@@ -756,7 +768,19 @@ export class StudioView {
     if (tp.state === 'judged' || tp.state === 'not-judged') out.push(this.docBlock(tp.ref));
     if (meta && meta.kind === 'stored') out.push(h('p', { class: 'studio-cmd' }, h('span', { class: 'k' }, 'plan'), h('code', null, meta.ref),
       h('button', { class: 'cpbtn', type: 'button', 'data-copy': meta.ref, 'aria-label': 'Copy the id of the plan', 'data-tip': 'Copy the id' }, icon('copy'))));
+    if (meta && meta.kind === 'stored') out.push(this.signedLine(meta));
     return out;
+  }
+
+  // signedLine says who signed a stored plan when that is not its author. The signature is checked when the row is opened,
+  // and not for the picker: the plan is read once, and the answer is kept.
+  signedLine(meta) {
+    const line = h('p', { class: 'studio-cmd', hidden: true }, h('span', { class: 'k' }, 'signed by'), h('code', null));
+    const show = (name) => { if (name) { line.lastChild.textContent = name; line.hidden = false; } };
+    this.signers = this.signers || new Map();
+    if (this.signers.has(meta.ref)) show(this.signers.get(meta.ref));
+    else api.plan(meta.ref).then((o) => { const name = signerOf(o, meta.author); this.signers.set(meta.ref, name); show(name); }).catch(() => {});
+    return line;
   }
 
   // issue is one reason for a refusal: where in the document, what CUE says, and what the document holds there.

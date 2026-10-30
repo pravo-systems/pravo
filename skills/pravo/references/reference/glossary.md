@@ -215,7 +215,7 @@ See [Discovery](../concepts/discovery.md#acknowledging).
 
 ### actor
 
-A label for who runs a command: a person, a job or an agent. It is set with `--actor` or `PRAVO_ACTOR` and recorded on transactions, locks, reservations and plans. pravo does not verify it.
+A label for who runs a command: a person, a job or an agent. It is set with `--actor` or `PRAVO_ACTOR` and recorded on transactions, locks, reservations and plans. pravo does not verify it. In a sealed state the actor is the name of the identity that signs, and a label is ignored.
 
 See [Global flags](global-flags.md).
 

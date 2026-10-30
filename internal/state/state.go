@@ -247,7 +247,7 @@ type Store struct {
 	// holds; zero until the first write, which always looks.
 	metaChecked time.Time
 
-	actor, reason, gitRevision, traceID string
+	actor, actorIgnored, reason, gitRevision, traceID string
 }
 
 // Open opens (or creates) a local store in the directory path. A path that
@@ -433,10 +433,28 @@ func (s *Store) Format() int {
 	return s.meta.Format
 }
 
-// SetActor records who is operating the store, for transactions and locks.
+// SetActor records who is operating the store, for transactions and locks. In a
+// sealed state the actor is the name of the identity that signs, and a label given
+// here is dropped: a label anyone can type would sit beside a signature that says
+// who really ran the command. ActorLabelIgnored says whether that happened.
 func (s *Store) SetActor(actor, reason, gitRevision string) {
-	s.actor, s.reason, s.gitRevision = actor, reason, gitRevision
+	s.reason, s.gitRevision = reason, gitRevision
+	s.actorIgnored = ""
+	if id := s.signingIdentity(); id != nil && id.Name != "" {
+		if actor != "" && actor != id.Name {
+			s.actorIgnored = actor
+			if warn := s.warnFunc(); warn != nil {
+				warn(fmt.Sprintf("--actor %q is ignored: this state is sealed, so the actor is %q, the identity that signs", actor, id.Name))
+			}
+		}
+		actor = id.Name
+	}
+	s.actor = actor
 }
+
+// ActorLabelIgnored is the label that SetActor dropped in favour of the name of the
+// signing identity, or "" when it dropped none.
+func (s *Store) ActorLabelIgnored() string { return s.actorIgnored }
 
 // cx is the context the store's requests to the backend run under.
 func (s *Store) cx() context.Context {

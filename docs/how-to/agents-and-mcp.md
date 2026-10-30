@@ -33,9 +33,9 @@ keywords: "mcp model context protocol agent tools"
 pravo gives a program or an agent data, exit codes and plan files. The commands that report a result print it with `--json` ([the list is in global flags](../reference/global-flags.md#json)), the stops that a pipeline must tell apart have their own exit codes, and a plan is a file that someone can review before it runs. This page uses those parts, runs the agent's tool server under a policy and states what none of it prevents.
 
 > [!WARNING]
-> pravo does not verify `--actor`. It is a label that the caller types, and another caller can type another one. What pravo does verify is the identity that opens a sealed state: it signs what it does, and its role bounds what it may do. Sections 1 to 5 are checks for a cooperating tool and a record of what happened. Section 6 gives the agent an identity of its own, which is the one boundary that pravo itself holds. None of it is a boundary against a caller that holds the cloud credentials, and the last section lists what to use for one.
+> In a state that is not sealed, `--actor` is a label that the caller types, and another caller can type another one. In a sealed state pravo ignores the label: the actor is the name of the identity that opens the state, which signs what it does, and its role bounds what it may do. This page seals its state, so the agent has an identity from the start. Sections 1 to 5 are checks for a cooperating tool and a record of what happened. Section 6 gives that identity the role of a reader, which is the one boundary that pravo itself holds. None of it is a boundary against a caller that holds the cloud credentials, and the last section lists what to use for one.
 
-Work in an empty directory. The root is `root/`. It declares a policy, `no_destroy`, and its state is sealed to one reader so that the policy can be signed.
+Work in an empty directory. The root is `root/`. It declares a policy, `no_destroy`, and its state is sealed to two readers, Ada and the agent, so that the policy can be signed and each of them has a name.
 
 ```cue file=root/main.cue title="root/main.cue"
 package agents
@@ -71,12 +71,14 @@ no_destroy: pravo.#Policy & {
 ```sh run hidden
 mkdir -p root/.pravo/access
 pravo -C root id new --name ada | grep '^  ada ssh' | sed 's/^  //' > root/.pravo/access/readers.txt
+pravo id new --ci --name agent --out agent.identity > /dev/null
+echo "$(PRAVO_IDENTITY="$(cat agent.identity)" pravo -C root id show | tail -n 1 | sed 's/^ *//')" >> root/.pravo/access/readers.txt
 pravo -C root init > /dev/null
 pravo -C root protect init --encrypt --yes --allow-local > /dev/null
 ```
 
 ```sh run
-pravo -C root apply -auto-approve --actor alice --reason "first apply" | grep '^Apply complete'
+pravo -C root apply -auto-approve --reason "first apply" | grep '^Apply complete'
 ```
 
 ```text out
@@ -109,7 +111,7 @@ The agent writes a resource by unifying a struct with `$random.#Resource.random_
 
 ## 2. Plan to a file and reserve
 
-The agent adds a resource `c` and saves a plan. `--actor` and `--reason` label it. `-reserve=15m` claims the nodes that have pending changes for fifteen minutes.
+The agent adds a resource `c` and saves a plan. It runs as its own identity: `PRAVO_IDENTITY` holds the identity, and `PRAVO_CONFIG_DIR=nobody` keeps pravo from finding Ada's key as well. `--reason` says why. `-reserve=15m` claims the nodes that have pending changes for fifteen minutes.
 
 ```cue file=root/c.cue title="root/c.cue"
 package agents
@@ -118,7 +120,7 @@ c: $random.#Resource.random_pet & {length: 2}
 ```
 
 ```sh run
-pravo -C root plan -out change.plan --actor agent --reason "a third name" -reserve=15m | grep -E '^(Plan|Reserved|Saved)'
+PRAVO_CONFIG_DIR=nobody PRAVO_IDENTITY="$(cat agent.identity)" pravo -C root plan -out change.plan --reason "a third name" -reserve=15m | grep -E '^(Plan|Reserved|Saved)'
 ```
 
 ```text out
@@ -127,7 +129,7 @@ Reserved 1 node until <time>.
 Saved the plan to change.plan. To apply exactly these actions, run:
 ```
 
-The plan file is a complete record of what runs. `pravo show change.plan` prints it with the label, and `--json` gives the same as data.
+The plan file is a complete record of what runs. `pravo show change.plan` prints it with the name of the actor, and `--json` gives the same as data.
 
 ```sh run
 pravo -C root show change.plan --json | jq -c '.plan.actor, .plan.reason, (.plan.changes[] | select(.action != "no-op") | {addr, action})'
@@ -141,30 +143,29 @@ pravo -C root show change.plan --json | jq -c '.plan.actor, .plan.reason, (.plan
 
 ## 3. Tell another actor to wait
 
-Another tool plans the same change under its own label.
+Ada plans the same change.
 
 ```sh run exit=4
-pravo -C root plan -refresh=false --actor bob
+pravo -C root plan -refresh=false
 ```
 
 ```text out
-Error: plan rejected: c is reserved by agent (pravo -C root plan --out change.plan --actor <sealed> --reason <sealed> --reserve=15m until <time>, since <time>)
+Error: plan rejected: c is reserved by agent (pravo -C root plan --out change.plan --reason <sealed> --reserve=15m until <time>, since <time>)
 ```
 
 Exit code 4 means that a node is locked or reserved. Two cooperating agents that work on separate parts of the graph do not collide, and an overlap is reported at plan time instead of halfway through an apply. `pravo state locks` lists the reservations, and `pravo state unlock <address>` releases one.
 
 ```sh run
 pravo -C root state locks
-pravo -C root state log | grep -E '^ +actor'
+pravo -C root state log | grep -c ' rejected '
 ```
 
 ```text out
-c  reserved by agent until <time>: pravo -C root plan --out change.plan --actor <sealed> --reason <sealed> --reserve=15m
-    actor bob
-    actor alice  first apply
+c  reserved by agent until <time>: pravo -C root plan --out change.plan --reason <sealed> --reserve=15m
+1
 ```
 
-The refused attempt is recorded too. A reservation is coordination, not protection: the owner is a name, anyone can release it, and the owner's own commands are not refused by it. The owner is the `--actor` label, or the name of the operating system user when there is none.
+The refused attempt is recorded too. A reservation is coordination, not protection: the owner is a name, anyone can release it, and the owner's own commands are not refused by it. In a sealed state the owner is the name of the identity that signs. Without a seal it is the `--actor` label, or the name of the operating system user when there is none.
 
 ## 4. Give the agent the tools
 
@@ -173,7 +174,7 @@ The refused attempt is recorded too. A reservation is coordination, not protecti
 A client configuration has this shape. The key names differ between clients.
 
 ```json
-{"mcpServers": {"pravo": {"command": "pravo", "args": ["mcp", "--actor", "agent"], "cwd": "/path/to/root"}}}
+{"mcpServers": {"pravo": {"command": "pravo", "args": ["mcp"], "cwd": "/path/to/root"}}}
 ```
 
 To see what the agent sees, run the server by hand. First the agent edits `a` in a way that forces a replacement.
@@ -200,7 +201,7 @@ The file holds the requests that a client sends: the handshake, a list of the to
 ```
 
 ```sh run
-pravo -C root mcp --actor agent < calls.jsonl > replies.jsonl
+PRAVO_CONFIG_DIR=nobody PRAVO_IDENTITY="$(cat agent.identity)" pravo -C root mcp < calls.jsonl > replies.jsonl
 jq -c 'select(.id == 2) | [.result.tools[].name]' replies.jsonl
 jq -c 'select(.id == 3 or .id == 4) | {id, isError: .result.isError, exit_code: .result.structuredContent.exit_code}' replies.jsonl
 ```
@@ -231,10 +232,10 @@ The tools take the options of the commands that a scheduled job uses. `pravo_pla
 
 ## 5. Ask why
 
-`pravo why` lists the reasons behind a change, so that a person or an agent can check a plan against what was intended. It plans while it explains, so it runs as the owner of the reservation.
+`pravo why` lists the reasons behind a change, so that a person or an agent can check a plan against what was intended. It plans while it explains, so it runs as the owner of the reservation, the agent.
 
 ```sh run
-pravo -C root why a --actor agent
+PRAVO_CONFIG_DIR=nobody PRAVO_IDENTITY="$(cat agent.identity)" pravo -C root why a
 ```
 
 ```text out
@@ -246,23 +247,19 @@ a: replace
 
 ## 6. Give the agent an identity of its own
 
-Everything so far takes the agent at its word. In a sealed state with [roles](give-people-roles.md), the identity that opens the state is not a word: it signs what it does, and its role says what it may do. Give the agent an identity with the role of a reader. It can then read, plan, ask why and store a plan, and it cannot apply, move or remove anything, whatever it types after `--actor`. A person, or the apply job, applies what it stored.
+Everything so far takes the agent at its word. In a sealed state with [roles](give-people-roles.md), the identity that opens the state is not a word: it signs what it does, and its role says what it may do. Give the agent an identity with the role of a reader. It can then read, plan, ask why and store a plan, and it cannot apply, move or remove anything, whatever label it types. A person, or the apply job, applies what it stored.
 
-First put `a` back as it was, so that the policy has nothing to refuse, and release the reservation of step 2. Then make the identity, as [a CI job gets one](seal-the-state.md#9-let-a-ci-job-read), and give ada the role of an admin and the agent the role of a reader:
+First put `a` back as it was, so that the policy has nothing to refuse, and release the reservation of step 2. Then give ada the role of an admin and the agent, whose identity was made [as a CI job gets one](seal-the-state.md#9-let-a-ci-job-read), the role of a reader:
 
 ```sh run
 sed -i.bak 's/length: 3/length: 2/' root/main.cue && rm root/main.cue.bak
 pravo -C root state unlock c
-pravo id new --ci --name agent --out agent.identity > /dev/null
-sed -i.bak 's/^ada \(.*\)$/ada \1 role:admin/' root/.pravo/access/readers.txt && rm root/.pravo/access/readers.txt.bak
-echo "$(PRAVO_IDENTITY="$(cat agent.identity)" pravo -C root id show | tail -n 1 | sed 's/^ *//') role:reader" >> root/.pravo/access/readers.txt
-pravo -C root protect rewrap | tail -n 1
+sed -i.bak -e 's/^ada \(.*\)$/ada \1 role:admin/' -e 's/^agent \(.*\)$/agent \1 role:reader/' root/.pravo/access/readers.txt && rm root/.pravo/access/readers.txt.bak
 pravo -C root protect roles --yes | tail -n 1
 ```
 
 ```text out
 Unlocked c
-meta.json updated
 Added roles-genesis <digest> to .pravo/access/readers.txt. Commit it: until it is in the repository the roles of the file decide.
 ```
 
@@ -276,7 +273,7 @@ The agent's identity is the secret of the agent's environment, `PRAVO_IDENTITY`,
 ```
 
 ```sh run
-PRAVO_CONFIG_DIR=nobody PRAVO_IDENTITY="$(cat agent.identity)" pravo -C root mcp --actor agent < calls-reader.jsonl > replies-reader.jsonl
+PRAVO_CONFIG_DIR=nobody PRAVO_IDENTITY="$(cat agent.identity)" pravo -C root mcp < calls-reader.jsonl > replies-reader.jsonl
 jq -c 'select(.id == 2 or .id == 3) | {id, isError: .result.isError, exit_code: .result.structuredContent.exit_code}' replies-reader.jsonl
 jq -r 'select(.id == 3) | .result.content[0].text' replies-reader.jsonl | grep '^Error'
 pravo -C root plan list
@@ -306,7 +303,7 @@ Where a policy asks for approvals, the stored plan waits for them as well, and t
 
 ## Instructions for the agent
 
-Paste this into the instructions of an agent that works in a pravo root. Every command in it is covered above. The label after `--actor` is recorded with each transaction. pravo does not verify it.
+Paste this into the instructions of an agent that works in a pravo root. Every command in it is covered above. In a state that is not sealed, the label after `--actor` is recorded with each transaction, and pravo does not verify it. In a sealed state the label is ignored: the identity names the actor.
 
 ```text title="prompt"
 You operate infrastructure with pravo in this directory.
@@ -315,7 +312,7 @@ You operate infrastructure with pravo in this directory.
 2. Validate until it exits 0: pravo validate
 3. Plan to a file and read every change: pravo plan --out change.plan --json
 4. Apply only that file: pravo apply change.plan
-5. Label every command: --actor agent --reason "<why>"
+5. Give every command a reason: --reason "<why>"
 
 Exit code 3 means the plan is stale: plan again.
 Exit code 4 means another actor holds a node: wait.

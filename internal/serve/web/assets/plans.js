@@ -92,6 +92,14 @@ export function counts(c, cls = '') {
   return h('span', { class: 'pcnt' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, parts);
 }
 
+// signerOf is the verified signer of a plan when it is not the author, from the signatures that the overlay of the plan
+// carries. The lists do not check signatures: a row shows the name once its overlay has been read, as it does the reason.
+export function signerOf(o, author) {
+  const sg = o && o.plan && o.plan.signatures;
+  const it = sg && !sg.note ? (sg.items || []).find((x) => x.status === 'verified' && x.signer) : null;
+  return it && it.signer !== author ? it.signer : null;
+}
+
 // describe is the label of a plan for a screen reader
 export function describe(p, reason) {
   const bits = [reason || p.id, reason ? p.id : null, statusLabel(p.status), `by ${p.author}`, relTime(p.created), countWords(planCounts(p), p.status === 'applied')];
@@ -137,6 +145,7 @@ export function facts(p, text) {
   text = text || {};
   return [
     ['made by', [p.author, h('span', { class: 'dim', title: stamp(p.created) }, ' · ' + relTime(p.created))]],
+    signerOf(text, p.author) ? ['signed by', signerOf(text, p.author)] : null,
     ['expires', h('span', { title: stamp(p.expires) }, p.status === 'expired' ? 'expired ' + relTime(p.expires) : relUntil(p.expires))],
     text.reason ? ['reason', text.reason] : null,
     text.command ? ['command', h('code', { class: 'cmd' }, text.command)] : null,
@@ -337,7 +346,7 @@ export class Plans {
     const focus = at && (at.id ? ['id', at.id] : at.filter ? ['filter', at.filter] : at.fk ? ['fk', at.fk] : null);
     const caret = this.input === document.activeElement ? [this.input.selectionStart, this.input.selectionEnd] : null;
     const seg = (key, label, n) => h('button', { type: 'button', 'aria-pressed': String(mode === key), data: { filter: key }, 'data-tip': key === 'pending' ? 'Plans that can still be applied' : 'Every plan in the state, applied and expired too' }, label, h('em', null, String(n)));
-    const rows = shown.map((p, i) => this.row(p, p.id === sel, p.id === open, open ? p.id === open : i === 0, (s.reasons && s.reasons.get(p.id)) || '', hits.get(p.id), approvalsIn(s.texts && s.texts.get(p.id))));
+    const rows = shown.map((p, i) => this.row(p, p.id === sel, p.id === open, open ? p.id === open : i === 0, (s.reasons && s.reasons.get(p.id)) || '', hits.get(p.id), approvalsIn(s.texts && s.texts.get(p.id)), signerOf(s.texts && s.texts.get(p.id), p.author)));
     const list = h('div', { class: 'rp-list', role: 'group', 'aria-label': 'Stored plans' }, rows);
     if (!shown.length) {
       list.append(f
@@ -367,14 +376,14 @@ export class Plans {
   // The title of a row is what the author wrote with the plan, which says more to a person than the id; the id is
   // the title of a plan that has no note, and the line under the title of one that has. When the finder names changes, the row
   // names the first of them. The approvals come with the overlay of the plan, as the reason does, so the chip is there once it is read.
-  row(p, shown, expanded, tab, reason, hits, ap) {
+  row(p, shown, expanded, tab, reason, hits, ap, signer) {
     const overlaps = (p.overlaps || []).length;
     const appr = approvalChip(ap);
     const btn = h('button', { class: 'rp ps-' + (STATUS[p.status] || STATUS.expired).cls + (shown ? ' sel' : ''), type: 'button', 'aria-expanded': String(expanded), tabIndex: tab ? 0 : -1, data: { id: p.id }, 'aria-label': describe(p, reason) + (appr ? ', ' + appr.getAttribute('aria-label') : '') + (hits ? `. Matching changes: ${hits.slice(0, GLANCE).map((c) => c.addr).join(', ')}${hits.length > GLANCE ? ` and ${hits.length - GLANCE} more` : ''}` : '') },
       avatar(p.author),
       h('span', { class: 'rp-main' },
         h('span', { class: 'rp-l1' }, reason ? h('span', { class: 'rp-title', title: reason }, reason) : h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null),
-        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), appr, expiryRing(p)),
+        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), signer ? h('span', { class: 'who dim', title: 'The signature of the storing verifies as ' + signer }, 'signed by ' + signer) : null, h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), appr, expiryRing(p)),
         hits ? h('span', { class: 'rp-l4', 'aria-hidden': 'true' },
           hits.slice(0, GLANCE).map((c) => { const a = actionOf(touchAction(c)); return h('span', { class: 'rp-ch' }, a ? h('i', { class: 'sq ' + a.cls }) : null, c.addr); }),
           hits.length > GLANCE ? h('span', { class: 'rp-chn' }, `+${hits.length - GLANCE} more`) : null) : null,
@@ -399,6 +408,15 @@ export class Plans {
     next.tabIndex = 0;
     next.focus();
   }
+}
+
+// byLine is what the strip says of the maker of a plan: the author, and the signer that the readers file names when the
+// signature verified and the name differs, since the label that a command was given is a claim and the signature is not.
+function byLine(author, sg) {
+  const it = sg && !sg.note ? (sg.items || []).find((x) => x.status === 'verified' && x.signer) : null;
+  if (!it || it.signer === author) return author || null;
+  if (!author) return it.signer;
+  return [author, h('span', { class: 'dim', title: 'The signature of the storing verifies as ' + it.signer }, ' \u00b7 signed by ' + it.signer)];
 }
 
 // The strip under the bar that says which plan is laid over the resources, with the way to its detail and the way back.
@@ -489,7 +507,7 @@ export function planStrip(el, p, cb) {
     p.status ? statusChip(p.status) : null,
     c,
     p.status === 'partial' && p.applied ? h('span', { class: 'ps-prog dim' }, `${p.applied} of ${p.planned} applied`) : null,
-    h('span', { class: 'ps-by dim' }, p.author || null, signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
+    h('span', { class: 'ps-by dim' }, byLine(p.author, cb.signatures), signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
     approvalChip(cb.approvals),
     expiryRing(p),
     h('span', { class: 'grow' }),

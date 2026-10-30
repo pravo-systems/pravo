@@ -335,7 +335,7 @@ A plan is not read-only. By the time a policy gives its verdict, pravo has:
 - taken the reservation, if `--reserve` was given. A refusal does not release it. It expires.
 
 ```sh
-pravo -C infra plan --reserve 15m --actor ci 2>&1 | grep -E '^(Reserved|Error)'
+pravo -C infra plan --reserve 15m 2>&1 | grep -E '^(Reserved|Error)'
 pravo -C infra state locks
 ```
 
@@ -344,9 +344,9 @@ Output:
 ```text
 Reserved 3 nodes until <time>.
 Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
-extra  reserved by ci until <time> pravo -C infra plan --reserve 15m --actor <sealed>
-pet  reserved by ci until <time> pravo -C infra plan --reserve 15m --actor <sealed>
-ticket  reserved by ci until <time> pravo -C infra plan --reserve 15m --actor <sealed>
+extra  reserved by ada until <time> pravo -C infra plan --reserve 15m
+pet  reserved by ada until <time> pravo -C infra plan --reserve 15m
+ticket  reserved by ada until <time> pravo -C infra plan --reserve 15m
 ```
 
 The reservation of the refused plan stays until it expires, and it keeps other actors out of those nodes. Release it by hand:
@@ -570,7 +570,7 @@ cat >> infra/main.cue <<'CUE'
 
 third: $random.#Resource.random_pet & {length: 2, keepers: owner: "ops"}
 CUE
-PRAVO_CONFIG_DIR=people/dan pravo -C infra plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
+PRAVO_CONFIG_DIR=people/dan pravo -C infra plan --store 2>&1 | grep -E '^(Policies|Stored)'
 ID=$(pravo -C infra plan list | awk 'NR==1 {print $1}')
 PRAVO_CONFIG_DIR=people/dan pravo -C infra apply "$ID" --auto-approve > apply.out 2>&1; echo "exit=$?"
 sed -n '/^Error/,$p' apply.out
@@ -614,7 +614,7 @@ summary: add: >=0
 
 ```sh
 ./set-rule.sh second_opinion policy/no-opinion.cue
-PRAVO_CONFIG_DIR=people/dan pravo -C infra plan --store --actor dan 2>&1 | grep -E '^(Policies|Stored)'
+PRAVO_CONFIG_DIR=people/dan pravo -C infra plan --store 2>&1 | grep -E '^(Policies|Stored)'
 ID=$(pravo -C infra plan list | awk 'NR==1 {print $1}')
 PRAVO_CONFIG_DIR=people/dan pravo -C infra apply "$ID" --auto-approve 2>&1 | sed -n '/^Error/,$p'
 ./set-rule.sh second_opinion policy/second-opinion.cue

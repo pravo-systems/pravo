@@ -198,7 +198,7 @@ exit=5
 A reader plans, and the plan stays in memory: the records it refreshed are not written back. The one thing a reader writes is a stored plan, from [C2](c02-store-a-plan.md), and a writer applies it:
 
 ```sh run
-PRAVO_CONFIG_DIR=people/eve pravo -C team plan --store --actor eve | grep '^Stored'
+PRAVO_CONFIG_DIR=people/eve pravo -C team plan --store | grep '^Stored'
 ID=$(pravo -C team plan list | awk 'NR==1 {print $1}')
 PRAVO_CONFIG_DIR=people/dan pravo -C team apply "$ID" --auto-approve | grep '^Apply complete'
 pravo -C team state log | grep 'signed by'

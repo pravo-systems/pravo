@@ -224,7 +224,7 @@ The `addr` of a change is the address of the resource. A pipeline can post the s
 A pull request is easier to review with the plan in a comment. `--markdown` prints one that names what changes and never a value, and `--store` adds the id and the command that applies the plan:
 
 ```text
-pravo plan --store --markdown --actor ci --reason "$REV" > comment.md
+pravo plan --store --markdown --reason "$REV" > comment.md
 ```
 
 A workflow posts `comment.md` on the pull request. The job that applies the plan after the merge runs `pravo apply ID`. See [`plan --markdown`](../reference/plan.md#markdown). `pravo drift --markdown` and `pravo discover show --markdown` print an issue body the same way.
@@ -234,7 +234,7 @@ A workflow posts `comment.md` on the pull request. The job that applies the plan
 The plan job saves a plan. The apply job applies that file, and the apply judges it with the policies in the state.
 
 ```sh run
-pravo -C app plan -out change.plan --actor ci --reason "build 42" | grep -E '^(Plan|Policies|Saved)'
+pravo -C app plan -out change.plan --reason "build 42" | grep -E '^(Plan|Policies|Saved)'
 ```
 
 ```text out
@@ -243,14 +243,14 @@ Policies: 1 satisfied.
 Saved the plan to change.plan. To apply exactly these actions, run:
 ```
 
-`--actor` and `--reason` are recorded on the plan and on the transaction. They are labels that the caller supplies and pravo does not verify. `pravo show` prints the plan with its label, and `--json` gives the same as data.
+`--reason` is recorded on the plan and on the transaction, and so is the actor. In a sealed state, as here, the actor is the name of the identity that signs, and `--actor` is ignored. Where the state is not sealed, `--actor` is a label that the caller supplies and pravo does not verify. `pravo show` prints the plan with its actor, and `--json` gives the same as data.
 
 ```sh run
 pravo -C app show change.plan | head -n 1
 ```
 
 ```text out
-Saved plan created <time> by "pravo -C app plan --out change.plan --actor ci --reason build 42" (actor ci)
+Saved plan created <time> by "pravo -C app plan --out change.plan --reason build 42" (actor ada)
 ```
 
 A saved plan is checked against the specification, the provider versions and the state it touches before anything runs. Change the specification after the plan was made.
@@ -273,7 +273,7 @@ Error: saved plan is stale; run "pravo plan" again:
 Exit code 3 means that the plan is stale. Plan again and apply the new file.
 
 ```sh run
-pravo -C app plan -out change.plan --actor ci --reason "build 43" > /dev/null
+pravo -C app plan -out change.plan --reason "build 43" > /dev/null
 pravo -C app apply change.plan
 ```
 
@@ -289,7 +289,7 @@ The apply judged the file under the locks, and the signed start of its transacti
 A plan file travels between jobs as an artifact. When the jobs share a state in a bucket, the plan job can store the plan in the state, and the apply job can name it by its id. With `--json`, the id is `stored.id` in the one document that the plan job prints. A plan with no changes is not stored and has no `stored` field.
 
 ```text
-plan job       pravo plan --store --json --actor ci --reason "$REV" > plan.json
+plan job       pravo plan --store --json --reason "$REV" > plan.json
                jq -r .stored.id plan.json
 apply job      pravo apply "$PLAN_ID"
 ```
@@ -464,11 +464,11 @@ The commands of this page, in the jobs that run them:
 ```text
 pull request   pravo init; test -z "$(pravo fmt)"; pravo validate
                PRAVO_REPLAY=recordings pravo plan --json > plan.json
-plan job       pravo plan -out change.plan --actor ci --reason "$REV"
-               or, with a shared state: pravo plan --store --json --actor ci --reason "$REV" | jq -r .stored.id
+plan job       pravo plan -out change.plan --reason "$REV"
+               or, with a shared state: pravo plan --store --json --reason "$REV" | jq -r .stored.id
 apply job      pravo apply change.plan
                or, once the approvals a policy asks for are there: pravo apply "$PLAN_ID"
-schedule       pravo drift --due --limit 500 --actor drift-cron
+schedule       pravo drift --due --limit 500
 ```
 
 `validate`, `plan` and `apply` need the generated packages under `cue.mod/gen`. A job runs `pravo init` first, or the repository commits `cue.mod/gen`. A policy is a node of the root, so a change to it is a change that review sees, and the version it writes is signed by whoever applies it. The apply job is defined where the authors of the roots cannot change it unreviewed.

@@ -330,3 +330,42 @@ func TestACopyOfATransactionIsNotListedTwice(t *testing.T) {
 		t.Errorf("%d transactions, %v", len(txns), err)
 	}
 }
+
+func TestTheActorOfASealedStateIsTheSigningIdentity(t *testing.T) {
+	skipWhenSealed(t)
+	b := testBackends()[0].make(t)
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	var warned []string
+	s.SetWarn(func(m string) { warned = append(warned, m) })
+
+	s.SetActor("mallory", "why", "")
+	if s.Actor() != "ada" || s.Owner() != "ada" || s.ActorLabelIgnored() != "mallory" {
+		t.Fatalf("actor %q owner %q ignored %q, want ada, ada, mallory", s.Actor(), s.Owner(), s.ActorLabelIgnored())
+	}
+	if len(warned) != 1 || !strings.Contains(warned[0], "mallory") {
+		t.Fatalf("warnings %q", warned)
+	}
+	if tx := txnOf(t, s, run(t, s, "applied", "")); tx.Actor != "ada" {
+		t.Errorf("transaction actor %q, want ada", tx.Actor)
+	}
+
+	// A label that names the identity, or none, is no reason to warn.
+	s.SetActor("ada", "", "")
+	s.SetActor("", "", "")
+	if len(warned) != 1 || s.ActorLabelIgnored() != "" || s.Actor() != "ada" {
+		t.Errorf("actor %q ignored %q warnings %q", s.Actor(), s.ActorLabelIgnored(), warned)
+	}
+}
+
+func TestTheActorOfAnUnsealedStateIsTheLabel(t *testing.T) {
+	skipWhenSealed(t)
+	st, err := OpenBackend(context.Background(), testBackends()[0].make(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.SetActor("ci", "", "")
+	if st.Actor() != "ci" || st.ActorLabelIgnored() != "" {
+		t.Errorf("actor %q ignored %q", st.Actor(), st.ActorLabelIgnored())
+	}
+}
