@@ -63,6 +63,17 @@ type Backend interface {
 	Local() bool
 }
 
+// ObjectVersion names an object and the version of it that a listing saw. The tag is
+// opaque: two listings that give the same tag for a key saw the same bytes.
+type ObjectVersion struct{ Key, Tag string }
+
+// VersionLister is implemented by a backend that says, in the listing itself, which
+// version of each object it holds. The store uses it to trust a snapshot of the
+// nodes (see snapshot.go) instead of reading each of them.
+type VersionLister interface {
+	ListVersions(ctx context.Context, prefix string) ([]ObjectVersion, error)
+}
+
 // LocalBackend keeps objects as files under a directory.
 type LocalBackend struct {
 	Dir string

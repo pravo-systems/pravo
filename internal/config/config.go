@@ -214,9 +214,11 @@ type StateConfig struct {
 	Region    string
 	Endpoint  string
 	PathStyle bool
-	Profile   string
-	AccessKey string
-	SecretKey string
+	// NoSnapshot is set by snapshot: false, which keeps the state from being read through a snapshot.
+	NoSnapshot bool
+	Profile    string
+	AccessKey  string
+	SecretKey  string
 	// URL, Token, Username and Password belong to the http backend.
 	URL      string
 	Token    string
@@ -831,6 +833,13 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		}
 		st.PathStyle = b
 	}
+	if sn := sb.LookupPath(cue.ParsePath("snapshot")); sn.Exists() {
+		b, err := sn.Bool()
+		if err != nil {
+			return st, "", fmt.Errorf("%s.snapshot: %w", label, err)
+		}
+		st.NoSnapshot = !b
+	}
 	switch st.Backend {
 	case "", "local", "s3", "http":
 	default:
@@ -841,7 +850,7 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		st.Backend = "s3"
 	}
 	if st.Backend != "s3" {
-		for _, f := range []string{"bucket", "prefix", "region", "endpoint", "profile", "access_key", "secret_key", "path_style"} {
+		for _, f := range []string{"bucket", "prefix", "region", "endpoint", "profile", "access_key", "secret_key", "path_style", "snapshot"} {
 			if sb.LookupPath(cue.ParsePath(f)).Exists() {
 				return st, "", fmt.Errorf("%s.%s belongs to the s3 backend: set backend: \"s3\", or remove it", label, f)
 			}

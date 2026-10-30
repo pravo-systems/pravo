@@ -104,6 +104,7 @@ func (r *keyring) set(keys *protect.Keys) {
 // backend and the identity the store was opened with belong to the caller and
 // stay as they are. Close may be called more than once.
 func (s *Store) Close() {
+	s.settleSnapshot()
 	s.mu.Lock()
 	s.closed = true
 	if s.meta.Sealed != nil {

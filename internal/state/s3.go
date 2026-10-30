@@ -39,6 +39,8 @@ type S3Config struct {
 	// PathStyle forces path-style addressing (bucket in the path rather than
 	// the host), which most compatible stores need.
 	PathStyle bool
+	// NoSnapshot keeps the state from being read through a snapshot.
+	NoSnapshot bool
 	// Profile selects a shared-configuration profile; credentials otherwise
 	// come from the usual chain (environment, shared files, instance role).
 	Profile string
@@ -154,6 +156,8 @@ type S3Backend struct {
 	bucket string
 	prefix string
 	name   string
+	// noSnapshot is set when the settings say snapshot: false.
+	noSnapshot bool
 }
 
 // NewS3Backend connects to the bucket. It does not create the bucket.
@@ -208,7 +212,7 @@ func NewS3Backend(ctx context.Context, cfg S3Config) (*S3Backend, error) {
 	if prefix != "" {
 		name += "/" + prefix
 	}
-	return &S3Backend{client: client, http: httpClient, bucket: cfg.Bucket, prefix: prefix, name: name}, nil
+	return &S3Backend{client: client, http: httpClient, bucket: cfg.Bucket, prefix: prefix, name: name, noSnapshot: cfg.NoSnapshot}, nil
 }
 
 func (b *S3Backend) Name() string { return b.name }
@@ -415,8 +419,21 @@ func (b *S3Backend) Delete(ctx context.Context, key string) error {
 // pages sends. The keys are returned in the byte order that S3 lists them in,
 // whatever the store did.
 func (b *S3Backend) List(ctx context.Context, prefix string) ([]string, error) {
+	objs, err := b.ListVersions(ctx, prefix)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(objs))
+	for i, o := range objs {
+		out[i] = o.Key
+	}
+	return out, nil
+}
+
+// ListVersions is List with the ETag that the listing gives for each key.
+func (b *S3Backend) ListVersions(ctx context.Context, prefix string) ([]ObjectVersion, error) {
 	full := b.key(strings.TrimSuffix(prefix, "/") + "/")
-	var out []string
+	var out []ObjectVersion
 	var token, startAfter *string
 	seen := map[string]bool{}
 	for {
@@ -438,7 +455,7 @@ func (b *S3Backend) List(ctx context.Context, prefix string) ([]string, error) {
 				return nil, fmt.Errorf("s3 list %s: the listing does not advance (the store sent %s again, with a new token)", prefix, k)
 			}
 			seen[k] = true
-			out = append(out, k)
+			out = append(out, ObjectVersion{Key: k, Tag: strings.Trim(aws.ToString(o.ETag), `"`)})
 		}
 		if res.IsTruncated == nil || !*res.IsTruncated {
 			break
@@ -452,8 +469,8 @@ func (b *S3Backend) List(ctx context.Context, prefix string) ([]string, error) {
 			return nil, fmt.Errorf("s3 list %s: the listing does not advance (the store sent a page that starts where the last one did)", prefix)
 		}
 	}
-	if !sort.StringsAreSorted(out) {
-		sort.Strings(out)
+	if !sort.SliceIsSorted(out, func(i, j int) bool { return out[i].Key < out[j].Key }) {
+		sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	}
 	return out, nil
 }

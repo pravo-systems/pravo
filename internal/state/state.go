@@ -189,6 +189,9 @@ type Store struct {
 	roles   *RolesChain
 	rolesAt time.Time
 
+	// snap is what the store remembers of the snapshot of its state (see snapshot.go).
+	snap snapshotState
+
 	b Backend
 	// ctx is the context of every call to the backend once the store is open. It
 	// carries the values of the context the store was opened with, not its
@@ -359,6 +362,17 @@ func (s *Store) rereadMeta(ctx context.Context, first []byte) bool {
 }
 
 func (s *Store) load() error {
+	if vl, ok := s.snapshotOn(); ok {
+		objs, err := vl.ListVersions(s.cx(), "resources")
+		if err != nil {
+			return err
+		}
+		objs = slices.DeleteFunc(objs, func(o ObjectVersion) bool { return !strings.HasSuffix(o.Key, ".json") })
+		if err := s.loadNodes(s.cx(), vl, objs); err != nil {
+			return err
+		}
+		return s.loadOutputs()
+	}
 	keys, err := s.b.List(s.cx(), "resources")
 	if err != nil {
 		return err
@@ -408,6 +422,11 @@ func (s *Store) load() error {
 			s.held[r.r.Address()] = r.h
 		}
 	}
+	return s.loadOutputs()
+}
+
+// loadOutputs reads the outputs of the state.
+func (s *Store) loadOutputs() error {
 	data, err := s.b.Get(s.cx(), "outputs.json")
 	if err == nil {
 		// A locked store lists the records and has no outputs.
@@ -829,6 +848,7 @@ func (s *Store) put(r *Resource, revision int, generation, txn string) error {
 	s.nodes[r.Address()] = r
 	s.held[r.Address()] = ref
 	s.index = nil
+	s.snap.written.Add(1)
 	return nil
 }
 
@@ -870,6 +890,7 @@ func (s *Store) Remove(addr string) (bool, error) {
 	delete(s.held, addr)
 	s.index = nil
 	s.mu.Unlock()
+	s.snap.written.Add(1)
 	return true, nil
 }
 

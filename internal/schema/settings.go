@@ -264,6 +264,7 @@ package pravo
 	region?:     string
 	endpoint?:   string
 	path_style?: bool
+	snapshot?:   bool
 	profile?:    string
 	access_key?: string
 	secret_key?: string
@@ -293,6 +294,9 @@ package pravo
 	endpoint?: string
 	// Force path-style addressing.
 	path_style?: bool
+	// Keep a snapshot of the state in the bucket so that opening it reads
+	// one object and a listing. Default true.
+	snapshot?: bool
 	// A shared-configuration profile.
 	profile?: string
 	// Static credentials. Prefer the environment or a profile: these end up
