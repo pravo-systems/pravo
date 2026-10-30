@@ -24,6 +24,9 @@ type StoreOptions struct {
 	// Identity is the key of a reader, for a state that is sealed. Nil opens a sealed
 	// state locked: it lists addresses and revisions and returns no value.
 	Identity *Identity
+	// Choose picks the identity from the readers of a sealed state when Identity is
+	// nil, without opening the state first to see them. An error opens it locked.
+	Choose func(readers []ReaderPublic) (*Identity, error)
 	// Env is the environment the credentials of a remote store come from
 	// (AWS_SESSION_TOKEN, PRAVO_STATE_TOKEN).
 	Env Env
@@ -50,6 +53,9 @@ func OpenStore(ctx context.Context, root *Root, o StoreOptions) (*Store, error) 
 
 func openStore(ctx context.Context, root *config.Root, o StoreOptions) (*state.Store, error) {
 	so := state.Options{Identity: o.Identity}
+	if o.Choose != nil {
+		so.Choose = func(p state.Protection) (*Identity, error) { return o.Choose(CurrentReaders(p)) }
+	}
 	switch {
 	case root.State.Remote():
 		b, err := RemoteBackend(ctx, root, o.Env)

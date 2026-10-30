@@ -65,6 +65,11 @@ type Options struct {
 	// Identity is the key to open a sealed state with. Nil means no key: a
 	// sealed state opens locked (see Store.Locked).
 	Identity *protect.Identity
+	// Choose picks the identity to open a sealed state with when Identity is nil,
+	// from what meta.json says of the state, so that a caller who has to look at the
+	// readers first does not open the state twice. An error, or a nil identity,
+	// opens the state locked.
+	Choose func(p Protection) (*protect.Identity, error)
 	// NewFormat is the format of a store that is created by this open. Zero
 	// means 1. It has no effect on a store that exists.
 	NewFormat int

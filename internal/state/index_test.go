@@ -329,7 +329,7 @@ func TestOpenReadsWithTheWidthOfTheBackend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := range 200 {
+	for i := range 600 {
 		mustSet(t, seed, node(fmt.Sprintf("r%03d", i)))
 	}
 	for _, c := range []struct {
@@ -345,8 +345,8 @@ func TestOpenReadsWithTheWidthOfTheBackend(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Len() != 200 {
-			t.Errorf("local %v: %d records read, want 200", c.local, s.Len())
+		if s.Len() != 600 {
+			t.Errorf("local %v: %d records read, want 600", c.local, s.Len())
 		}
 		if got := b.hi.Load(); got != c.want {
 			t.Errorf("local %v: %d reads at the same time, want %d", c.local, got, c.want)

@@ -1423,3 +1423,42 @@ func TestUpgradeToSealedSealsTheTextOfEarlierErrors(t *testing.T) {
 		})
 	}
 }
+
+// openCounter counts the listings of the records, which every open of a store makes once.
+type openCounter struct {
+	Backend
+	lists int
+}
+
+func (c *openCounter) List(ctx context.Context, prefix string) ([]string, error) {
+	if prefix == "resources" {
+		c.lists++
+	}
+	return c.Backend.List(ctx, prefix)
+}
+
+// A caller that chooses its identity from the readers of a sealed state is given
+// them by meta.json, and the state is read once, not once to see the readers and once
+// with the key.
+func TestChooseOpensASealedStateOnce(t *testing.T) {
+	ada := testIdentity(t, "ada")
+	b := &LocalBackend{Dir: t.TempDir()}
+	sealedStore(t, b, ada)
+	var seen int
+	cb := &openCounter{Backend: b}
+	s, err := OpenBackendWith(context.Background(), cb, Options{Choose: func(p Protection) (*protect.Identity, error) {
+		seen = len(p.Sealed.Groups)
+		return ada, nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seen == 0 || s.Locked() || cb.lists != 1 {
+		t.Errorf("groups seen %d, locked %v, %d listings; want the groups, an open store and one listing", seen, s.Locked(), cb.lists)
+	}
+	cb.lists = 0
+	s, err = OpenBackendWith(context.Background(), cb, Options{Choose: func(Protection) (*protect.Identity, error) { return nil, errors.New("no key") }})
+	if err != nil || !s.Locked() || cb.lists != 1 {
+		t.Errorf("a chooser that fails: err %v, locked %v, %d listings; want a locked store, one listing", err, s != nil && s.Locked(), cb.lists)
+	}
+}
