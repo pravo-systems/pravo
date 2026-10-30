@@ -422,7 +422,8 @@ function assignTracks(list) {
   const ov = (a, b) => a.lo < b.hi + M && b.lo < a.hi + M;
   const inside = (y, a) => y > a.lo + 0.5 && y < a.hi - 0.5;
   // the wires that a run of b on the right of a would cross
-  const cost = (a, b) => { let c = inside(b.yin, a) ? 1 : 0; for (const y of a.outs) if (inside(y, b)) c++; return c; };
+  // (and the two that would run along one another: a wire that goes out at the height at which b comes in)
+  const cost = (a, b) => { let c = inside(b.yin, a) ? 1 : 0; for (const y of a.outs) { if (inside(y, b)) c++; if (Math.abs(y - b.yin) < 3) c++; } return c; };
   list.sort((p, q) => p.lo - q.lo || p.ord - q.ord);
   const idx = list.map((_, i) => i);
   if (n <= 220) {
