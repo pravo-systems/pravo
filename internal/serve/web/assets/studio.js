@@ -764,7 +764,7 @@ export class StudioView {
   // signedLine says who signed a stored plan when that is not its author. The signature is checked when the row is opened,
   // and not for the picker: the plan is read once, and the answer is kept.
   signedLine(meta) {
-    const line = h('p', { class: 'studio-cmd', hidden: true }, h('span', { class: 'k' }, 'signed by'), h('span', null));
+    const line = h('p', { class: 'studio-cmd', hidden: true }, h('span', { class: 'k' }, 'signed by'), h('code', null));
     const show = (name) => { if (name) { line.lastChild.textContent = name; line.hidden = false; } };
     this.signers = this.signers || new Map();
     if (this.signers.has(meta.ref)) show(this.signers.get(meta.ref));
