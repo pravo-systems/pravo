@@ -889,6 +889,7 @@ export function flow(args, G) {
     // ---- where a wire leaves an item and where it arrives ----
     // a wire leaves an item at the height of the first run of the wire when that is within the item (so it goes straight out),
     // and at the middle of the item when it is not: the middle of the heights that its branches go to
+    const SOLO = 3; // the same for a source that has one wire: it follows the height at which that wire arrives
     const MARGIN = 8; // from the top or the bottom of an item to the nearest wire that touches it
     const within = (v, t) => Math.max(v.y - Math.max(v.h / 2 - MARGIN, 0), Math.min(v.y + Math.max(v.h / 2 - MARGIN, 0), t));
     const outAt = new Map();
@@ -947,6 +948,19 @@ export function flow(args, G) {
         const room = Math.max(v.h / 2 - MARGIN, 0);
         list.forEach((r, i) => pin.set(r.s.a + '|' + r.c.id, Math.round(Math.min(Math.max(ys[i], v.y - room + i * sp), v.y + room - (k - 1 - i) * sp) * 2) / 2));
       }
+    }
+
+    // a wire that has the whole of its source to itself leaves at the height that it arrives at, when that is within the source
+    // (the arrival was set apart from its neighbours, and a source of one wire follows it instead of leaving a jog)
+    for (const s of S.values()) {
+      const v = s.src.v;
+      if (v.kind !== 'item' || s.fw.length !== 1 || s.rs + 1 !== s.rmax) continue;
+      const c = s.fw[0];
+      if (c.v.layer !== s.rs + 1) continue;
+      const to = pin.get(s.a + '|' + c.id);
+      if (to === undefined) continue;
+      const room = Math.max(v.h / 2 - SOLO, 0);
+      outAt.set(s, Math.round(Math.max(v.y - room, Math.min(v.y + room, to)) * 2) / 2);
     }
 
     // ---- gutters ----
