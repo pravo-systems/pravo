@@ -178,23 +178,34 @@ export class TemplatesView {
         i.default ? [h('span', { class: 'tp-k' }, 'default'), h('code', null, i.default)] : null))));
   }
 
-  // An instance is a block: where it is, a button that shows it in the graph, and the values it sets. What it leaves out takes the default.
+  // An instance is a card, folded: its address, how much of it the state holds, and the first values it sets. Open, it lists
+  // every value it sets; what it leaves out takes the default. The button beside the address shows the group in the graph.
   instancesTable(t) {
-    const SHOWN = 6;
     const names = t.inputs.map((i) => i.name);
+    this.openInst = this.openInst || new Set();
     return h('ul', { class: 'tp-insts', 'aria-label': `Instances of ${t.title}` }, t.instances.map((n) => {
       const vals = names.filter((k) => n.values[k] !== undefined).map((k) => [k, n.values[k]]);
-      const dl = (rows) => h('dl', { class: 'tp-vals' }, rows.map(([k, v]) => h('div', null, h('dt', null, k), h('dd', null, h('code', null, v)))));
       const rest = t.inputs.length - vals.length;
-      return h('li', { class: 'tp-it' },
-        h('div', { class: 'tp-ith' },
-          h('code', { class: 'tp-ia' }, n.address),
-          h('span', { class: 'tp-res' }, `${n.recorded} of ${plural(n.resources, 'resource')}`),
-          n.recorded < n.resources ? h('span', { class: 'b chg' }, n.recorded ? 'partly applied' : 'not applied') : null,
-          h('button', { type: 'button', class: 'tp-show', 'data-fk': 'inst:' + n.address, title: `Show ${n.address} in the graph`, on: { click: () => this.cb.onNamespace && this.cb.onNamespace(n.address) } }, icon('pick'), 'Show in the graph')),
-        vals.length ? dl(vals.slice(0, SHOWN)) : null,
-        vals.length > SHOWN ? h('details', { class: 'tp-more' }, h('summary', null, `${vals.length - SHOWN} more values`), dl(vals.slice(SHOWN))) : null,
-        rest > 0 ? h('p', { class: 'tp-def' }, vals.length ? `${plural(rest, 'other input')} take the default.` : 'Every input takes its default.') : null);
+      const key = t.name + ':' + n.address;
+      const open = this.openInst.has(key) || (t.instances.length === 1 && !this.openInst.has('-' + key));
+      const det = h('details', { class: 'tp-it', open: open ? true : null, 'data-fk': 'card:' + n.address, on: { toggle: (ev) => {
+        if (ev.target.open) { this.openInst.add(key); this.openInst.delete('-' + key); } else { this.openInst.delete(key); this.openInst.add('-' + key); }
+      } } },
+      h('summary', { class: 'tp-ith' },
+        h('span', { class: 'tp-chev', 'aria-hidden': 'true' }),
+        h('span', { class: 'tp-ibody' },
+          h('span', { class: 'tp-itop' },
+            h('code', { class: 'tp-ia' }, n.address),
+            h('span', { class: 'tp-res' }, `${n.recorded}/${n.resources}`),
+            n.recorded < n.resources ? h('span', { class: 'b chg' }, n.recorded ? 'partly applied' : 'not applied') : null),
+          vals.length ? h('span', { class: 'tp-peek' }, vals.slice(0, 3).map(([k, v]) => [h('i', null, k), ' ', v, '  ']).flat()) : h('span', { class: 'tp-peek dim' }, 'every input takes its default')),
+        h('button', { type: 'button', class: 'tp-show', 'data-fk': 'inst:' + n.address, title: 'Show in the graph', 'aria-label': `Show ${n.address} in the graph`,
+          on: { click: (ev) => { ev.preventDefault(); ev.stopPropagation(); this.cb.onNamespace && this.cb.onNamespace(n.address); } } }, icon('pick'))),
+      h('div', { class: 'tp-itb' },
+        vals.length ? h('dl', { class: 'tp-vals' }, vals.map(([k, v]) => h('div', null, h('dt', null, k), h('dd', null, h('code', null, v))))) : null,
+        rest > 0 && vals.length ? h('p', { class: 'tp-def' }, `${plural(rest, 'other input')} take the default.`) : null,
+        n.source ? h('p', { class: 'tp-def' }, 'Written at ', h('code', null, `${n.source.file}:${n.source.line}`)) : null));
+      return h('li', null, det);
     }));
   }
 
