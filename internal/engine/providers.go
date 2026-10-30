@@ -22,6 +22,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // ResolvedProvider is a provider requirement resolved to a binary on disk.
@@ -364,8 +365,11 @@ func (m *Providers) Schemas(ctx context.Context) (map[string]*schema.ProviderSch
 // needed, without configuring it.
 func (m *Providers) instance(ctx context.Context, key string) (*instance, error) {
 	local := config.LocalName(key)
+	waiting := time.Now()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// A task that comes while another starts a provider waits here, for any provider.
+	telemetry.Waited(ctx, "wait for a provider to start", waiting, attribute.String("pravo.provider", local))
 	inst, ok := m.instances[key]
 	if ok {
 		return inst, nil
@@ -455,8 +459,10 @@ func (m *Providers) Provider(ctx context.Context, key string) (plugin.Provider, 
 		return nil, err
 	}
 
+	waiting := time.Now()
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
+	telemetry.Waited(ctx, "wait for provider "+key+" to be configured", waiting, attribute.String("pravo.provider", local))
 	if inst.cfg {
 		// Another provider may be recording its configuration just now.
 		m.mu.Lock()

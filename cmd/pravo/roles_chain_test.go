@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -522,5 +524,41 @@ func TestUnsignedHistoryOfALaterVersionNeedsTheFlag(t *testing.T) {
 	}
 	if _, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 7 {
 		t.Fatalf("a rewritten unsigned transaction: exit %d", code)
+	}
+}
+
+// A command asks for the chain of roles from several places; the chain is read once, and a
+// version the store writes is seen at once.
+func TestRolesChainIsReadOnceAndSeesItsOwnWrites(t *testing.T) {
+	s := plannableBucket(t)
+	pinnedRoles(t, s)
+	ctx := context.Background()
+	st, err := state.OpenBackendWith(ctx, s.backend(t), state.Options{Identity: s.ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gets atomic.Int64
+	s.f.Fault = func(r *http.Request) (int, string) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/roles/") {
+			gets.Add(1)
+		}
+		return 0, ""
+	}
+	first, err := st.RolesChain(ctx)
+	if err != nil || len(first.Versions) != 1 {
+		t.Fatalf("the chain: %v, %d versions", err, len(first.Versions))
+	}
+	if _, err := st.RolesChain(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := gets.Load(); n != 1 {
+		t.Errorf("%d reads of versions for two askings of a chain of one", n)
+	}
+	if err := st.PutRolesVersion(ctx, 2, protect.FormatRolesSet(rolesOf(t, s, protect.RoleAdmin, protect.RoleWriter), nil, nil), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	again, err := st.RolesChain(ctx)
+	if err != nil || len(again.Versions) != 2 {
+		t.Errorf("after a write: %v, %d versions, want 2", err, len(again.Versions))
 	}
 }

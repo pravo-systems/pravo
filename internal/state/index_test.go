@@ -317,11 +317,11 @@ func (b *widthBackend) Get(ctx context.Context, key string) ([]byte, error) {
 		}
 	}
 	defer b.inflight.Add(-1)
-	time.Sleep(3 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond) // long enough for every reader to start before the first ends
 	return b.Backend.Get(ctx, key)
 }
 
-// A store reads its records 8 at a time from a backend on this machine and 64
+// A store reads its records 8 at a time from a backend on this machine and 256
 // at a time from one that is not.
 func TestOpenReadsWithTheWidthOfTheBackend(t *testing.T) {
 	dir := t.TempDir()
@@ -329,7 +329,7 @@ func TestOpenReadsWithTheWidthOfTheBackend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := range 600 {
+	for i := range 800 {
 		mustSet(t, seed, node(fmt.Sprintf("r%03d", i)))
 	}
 	for _, c := range []struct {
@@ -345,8 +345,8 @@ func TestOpenReadsWithTheWidthOfTheBackend(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Len() != 600 {
-			t.Errorf("local %v: %d records read, want 600", c.local, s.Len())
+		if s.Len() != 800 {
+			t.Errorf("local %v: %d records read, want 800", c.local, s.Len())
 		}
 		if got := b.hi.Load(); got != c.want {
 			t.Errorf("local %v: %d reads at the same time, want %d", c.local, got, c.want)

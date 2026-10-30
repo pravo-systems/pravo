@@ -267,7 +267,7 @@ func spanKind(name string) string {
 		return "seal"
 	case strings.HasPrefix(name, "phase "):
 		return "phase"
-	case strings.HasPrefix(name, "setup "), strings.HasPrefix(name, "config "):
+	case strings.HasPrefix(name, "setup "), strings.HasPrefix(name, "config "), strings.HasPrefix(name, "wait "):
 		return "setup"
 	case strings.HasPrefix(name, "mcp "):
 		return "mcp"

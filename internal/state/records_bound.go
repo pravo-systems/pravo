@@ -104,18 +104,37 @@ func (s *Store) CheckRecordsWith(rules RecordRules, addrs ...string) RecordVerdi
 	if len(addrs) == 0 {
 		return RecordVerdict{}
 	}
-	cache := map[string]*Transaction{}
+	fetch := func(id string) *Transaction {
+		if data, err := s.b.Get(s.cx(), "txn/"+id+".json"); err == nil {
+			var got Transaction
+			if json.Unmarshal(data, &got) == nil && got.ID == id {
+				return &got
+			}
+		}
+		return nil
+	}
+	// The transactions that wrote the records are read together, not one after another.
+	seen := map[string]bool{}
+	var ids []string
+	s.mu.Lock()
+	for _, a := range addrs {
+		if r := s.nodes[a]; r != nil && r.Txn != "" && !seen[r.Txn] {
+			seen[r.Txn] = true
+			ids = append(ids, r.Txn)
+		}
+	}
+	s.mu.Unlock()
+	got := make([]*Transaction, len(ids))
+	s.each(len(ids), func(i int) { got[i] = fetch(ids[i]) })
+	cache := make(map[string]*Transaction, len(ids))
+	for i, id := range ids {
+		cache[id] = got[i]
+	}
 	return s.verifyRecords(func(id string) *Transaction {
 		if t, ok := cache[id]; ok {
 			return t
 		}
-		var t *Transaction
-		if data, err := s.b.Get(s.cx(), "txn/"+id+".json"); err == nil {
-			var got Transaction
-			if json.Unmarshal(data, &got) == nil && got.ID == id {
-				t = &got
-			}
-		}
+		t := fetch(id)
 		cache[id] = t
 		return t
 	}, rules, addrs)

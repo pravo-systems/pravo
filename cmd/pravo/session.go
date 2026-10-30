@@ -209,13 +209,28 @@ func openStateForPlan(ctx context.Context, root *config.Root) (*state.Store, err
 // allowLocked is set. A command that writes also needs a readers
 // file that matches the state; one that reads only warns.
 func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, planning bool) (st *state.Store, why *noKey, err error) {
+	// A sealed state is opened once: the store asks which identity to open it with when
+	// it has read meta.json, and the answer, or why there is none, is kept here.
+	var (
+		chosen  *protect.Identity
+		idErr   error
+		choseID bool
+	)
 	open := func(id *protect.Identity, overlay bool) (*state.Store, error) {
-		// The end of a transaction that could not be signed is shown, not failed on.
-		return pravo.OpenStore(ctx, root, pravo.StoreOptions{
+		so := pravo.StoreOptions{
 			Write: write, Overlay: overlay, Identity: id, Env: environment(),
 			CheckConditions: func(ctx context.Context, b state.Backend) error { return checkStoreConditions(ctx, root, b) },
 			Warn:            func(msg string) { out.Warning(msg) },
-		})
+		}
+		if id == nil {
+			so.Choose = func(readers []pravo.ReaderPublic) (*protect.Identity, error) {
+				choseID = true
+				chosen, idErr = resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: readers})
+				return chosen, idErr
+			}
+		}
+		// The end of a transaction that could not be signed is shown, not failed on.
+		return pravo.OpenStore(ctx, root, so)
 	}
 	// A repository that lists readers expects a sealed state, and a state that does
 	// not exist yet is not one. Whether it exists is looked at before the open, which
@@ -235,21 +250,14 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 	if missing {
 		return st, nil, nil // an empty state, read and not created
 	}
-	if !st.Locked() {
+	if !choseID && !st.Locked() {
 		return st, nil, checkReadersFile(root, st, write)
 	}
 	// The state is sealed.
-	id, idErr := resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
-	if idErr == nil {
-		keyed, err := open(id, false)
-		if err != nil && !errors.Is(err, state.ErrNotReader) {
-			return nil, nil, err
-		}
-		if err == nil {
-			st = keyed
-		}
+	id := chosen
+	if choseID && idErr == nil && !st.Locked() {
 		// A reader who plans works on the state in memory.
-		if msg, _ := roleProblem(loadReadersFile(root.Dir, flags.AccessDir), st, protect.RoleWriter, ""); write && planning && !st.Locked() && msg != "" {
+		if msg, _ := roleProblem(loadReadersFile(root.Dir, flags.AccessDir), st, protect.RoleWriter, ""); write && planning && msg != "" {
 			st.Close()
 			if st, err = open(id, true); err != nil {
 				return nil, nil, err

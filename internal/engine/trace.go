@@ -169,3 +169,11 @@ func (e *Engine) logTask(ctx context.Context, r *config.Resource, phase string, 
 	}
 	plog.Debug(ctx, "task", args...)
 }
+
+// lockCUE takes the lock of the CUE evaluation, which one task at a time holds. A wait
+// for it is a span of the context, so that a task that stands still shows why.
+func (e *Engine) lockCUE(ctx context.Context) {
+	waiting := time.Now()
+	e.cueMu.Lock()
+	telemetry.Waited(ctx, "wait for the CUE evaluation", waiting)
+}

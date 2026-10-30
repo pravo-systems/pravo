@@ -92,10 +92,33 @@ func (c *RolesChain) Head() *RolesVersion {
 // the version before it. It does not look at the pin; RolesFor does. An empty chain is no
 // error. A state that is not sealed has none.
 func (s *Store) RolesChain(ctx context.Context) (*RolesChain, error) {
-	chain := &RolesChain{}
 	if !s.sealedState() {
-		return chain, nil
+		return &RolesChain{}, nil
 	}
+	s.rolesMu.Lock()
+	cached, fresh := s.roles, s.roles != nil && time.Since(s.rolesAt) < rolesCacheFor
+	s.rolesMu.Unlock()
+	if fresh {
+		return cached, nil
+	}
+	chain, err := s.readRolesChain(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s.rolesMu.Lock()
+	s.roles, s.rolesAt = chain, time.Now()
+	s.rolesMu.Unlock()
+	return chain, nil
+}
+
+// rolesCacheFor is how long a chain that was read and verified is used again. A command
+// asks for the chain from several places, one after the other, and each reading is a
+// listing and a request for every version; a server that keeps a store open for hours
+// reads it again after this. A version this store writes drops the chain at once.
+const rolesCacheFor = 5 * time.Second
+
+func (s *Store) readRolesChain(ctx context.Context) (*RolesChain, error) {
+	chain := &RolesChain{}
 	keys, err := s.b.List(ctx, rolesDir)
 	if err != nil {
 		return nil, err
@@ -114,10 +137,16 @@ func (s *Store) RolesChain(ctx context.Context) (*RolesChain, error) {
 		if n != i+1 {
 			return nil, fmt.Errorf("%w: the roles have no version %d", ErrUntrusted, i+1)
 		}
-		data, err := s.b.Get(ctx, rolesKey(n))
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", rolesKey(n), err)
+	}
+	// The versions are read together and checked in order.
+	raw := make([][]byte, len(seqs))
+	errs := make([]error, len(seqs))
+	s.each(len(seqs), func(i int) { raw[i], errs[i] = s.b.Get(ctx, rolesKey(seqs[i])) })
+	for i, n := range seqs {
+		if errs[i] != nil {
+			return nil, fmt.Errorf("%s: %w", rolesKey(n), errs[i])
 		}
+		data := raw[i]
 		v := RolesVersion{Seq: n}
 		if err := json.Unmarshal(data, &v); err != nil {
 			return nil, fmt.Errorf("%w: %s: %v", ErrUntrusted, rolesKey(n), err)
@@ -257,6 +286,9 @@ func (s *Store) PutRolesVersion(ctx context.Context, seq int, text string, at ti
 		return err
 	}
 	created, err := s.b.PutIfAbsent(ctx, rolesKey(seq), data)
+	s.rolesMu.Lock()
+	s.roles = nil
+	s.rolesMu.Unlock()
 	if err != nil {
 		return Advise(err)
 	}

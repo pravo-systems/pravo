@@ -155,3 +155,47 @@ func traceAttrs(k, v string) trace.SpanStartOption {
 	return trace.WithAttributes(attribute.String(k, v))
 }
 func traceAttr(k, v string) trace.EventOption { return trace.WithAttributes(attribute.String(k, v)) }
+
+// A wait that a caller had to make is a span from when it began, so that the trace shows
+// what a task stood still for; a short wait leaves no span.
+func TestWaitedRecordsALongWaitAsASpan(t *testing.T) {
+	clearEnv(t)
+	dir := filepath.Join(t.TempDir(), "traces")
+	t.Setenv("PRAVO_TRACE_DIR", dir)
+	shutdown := Setup(context.Background(), "test", env.OS())
+	defer func() { localOnly = false; otel.SetTracerProvider(otel.GetTracerProvider()) }()
+
+	ctx, cmd := Tracer().Start(context.Background(), "pravo plan")
+	ctx, eng := Tracer().Start(ctx, "engine plan")
+	Waited(ctx, "wait for a long thing", time.Now().Add(-80*time.Millisecond))
+	Waited(ctx, "wait for a short thing", time.Now().Add(-time.Millisecond))
+	End(eng, nil)
+	End(cmd, nil)
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	if len(files) != 1 {
+		t.Fatalf("files %v", files)
+	}
+	var rt RunTrace
+	b, _ := os.ReadFile(files[0])
+	if err := json.Unmarshal(b, &rt); err != nil {
+		t.Fatal(err)
+	}
+	var found int
+	for _, s := range rt.Spans {
+		switch s.Name {
+		case "wait for a long thing":
+			found++
+			if s.DurUS < 70000 {
+				t.Errorf("the wait lasted %d µs, want about 80000", s.DurUS)
+			}
+		case "wait for a short thing":
+			t.Errorf("a wait of a millisecond is a span")
+		}
+	}
+	if found != 1 {
+		t.Errorf("%d spans for the long wait, want 1", found)
+	}
+}

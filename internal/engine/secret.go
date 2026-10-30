@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 
 	"cuelang.org/go/cue"
 
@@ -27,19 +28,45 @@ func (e *Engine) checkSecrets(ctx context.Context, nodes map[string]*node) error
 		}
 	}
 	sort.Slice(asking, func(i, j int) bool { return asking[i].Address() < asking[j].Address() })
+	type ask struct {
+		r      *config.Resource
+		name   string
+		pinned int
+	}
+	var asks []ask
 	for _, r := range asking {
 		e.cueMu.Lock()
 		name, pinned, known := secretAsked(r, e.current.LookupPath(r.Path))
 		e.cueMu.Unlock()
-		if !known {
-			continue
+		if known {
+			asks = append(asks, ask{r, name, pinned})
 		}
-		if _, err := e.secretHead(ctx, r, name, pinned); err != nil {
+	}
+	// The state answers every question at once, so a state far away costs one round trip and not
+	// one per secret; the answers are judged in the order of the addresses.
+	errs := make([]error, len(asks))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, secretCheckWidth)
+	for i, a := range asks {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			_, errs[i] = e.secretHead(ctx, a.r, a.name, a.pinned)
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+// secretCheckWidth is how many secrets checkSecrets asks the state about at once.
+const secretCheckWidth = 16
 
 // secretTask reads a version of a secret of the sealed state for a pravo.#Secret, which fills in
 // its value, or a pravo.#SecretVersion, which fills in the number of the version. Like envTask it
@@ -116,19 +143,28 @@ func (e *Engine) secretVersion(ctx context.Context, name string, pinned int, rul
 		return info.Seq, err
 	}
 	e.secretMu.Lock()
-	defer e.secretMu.Unlock()
-	if seq, ok := e.secretPins[name]; ok {
-		return seq, nil
-	}
-	info, err := e.State.SecretHead(ctx, name, 0, rules)
-	if err != nil {
-		return 0, err
-	}
 	if e.secretPins == nil {
-		e.secretPins = map[string]int{}
+		e.secretPins = map[string]*secretPin{}
 	}
-	e.secretPins[name] = info.Seq
-	return info.Seq, nil
+	p := e.secretPins[name]
+	if p == nil {
+		p = &secretPin{}
+		e.secretPins[name] = p
+	}
+	e.secretMu.Unlock()
+	p.once.Do(func() {
+		info, err := e.State.SecretHead(ctx, name, 0, rules)
+		p.seq, p.err = info.Seq, err
+	})
+	return p.seq, p.err
+}
+
+// secretPin is the version of one secret that a run settled on: the first node that asks decides,
+// and the others wait for that answer, not for the answers of other secrets.
+type secretPin struct {
+	once sync.Once
+	seq  int
+	err  error
 }
 
 // secretError says what is wrong with a secret that a node reads, and what to do about it.

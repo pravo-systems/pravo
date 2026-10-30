@@ -93,7 +93,7 @@ Switch to Slowest. The spans become a table, longest first, with a column `In it
 The kinds under the filter box narrow the view to one kind of span, `Providers` or `State`, and the box takes the terms of the Inventory's filter: `kind:provider`, `provider:random`, `type:local_file`, `is:error`, or a word from the name of a span. The file answers the same questions from the shell. The spans of the apply, counted by their kind:
 
 ```sh run
-jq -r '.spans[].name | split(" ")[0]' local/.pravo/traces/*.json | sort | uniq -c
+jq -r '.spans[].name | select(startswith("wait ") | not) | split(" ")[0]' local/.pravo/traces/*.json | sort | uniq -c
 ```
 
 ```text out
@@ -103,7 +103,7 @@ jq -r '.spans[].name | split(" ")[0]' local/.pravo/traces/*.json | sort | uniq -
       1 pravo
      18 provider
       4 resource
-     11 setup
+     15 setup
      22 state
 ```
 
