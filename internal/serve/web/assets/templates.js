@@ -8,7 +8,7 @@
 // changes the state, and every request of the page is a GET.
 
 import { h, clear, icon, debounce, fmt, plural, relTime } from './util.js';
-import { codeWindow, cueText } from './ui.js';
+import { codeWindow, cueText, busy } from './ui.js';
 import * as api from './api.js';
 
 export const FOOTER = 'This page shows the templates and checks new instances. It writes nothing: the code is yours to paste.';
@@ -348,7 +348,7 @@ export class TemplatesView {
   choiceControl(i, row, draw, cur) {
     const c = this.choices[i.name];
     if (!c) {
-      row.append(h('p', { class: 'tp-note' }, 'Reading ' + i.choices + '…'));
+      row.append(busy('Reading ' + i.choices));
       api.templateChoices(this.tpl.name, i.name).then((r) => { this.choices[i.name] = r; draw(); }, () => { this.choices[i.name] = { state: 'error', items: [], note: 'The values could not be read.' }; draw(); });
       return;
     }
