@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -228,7 +229,7 @@ func TestTemplateTryRefusesBadRequests(t *testing.T) {
 		}
 	}
 	resp, _ := p.do("POST", "/api/templates/try", nil)
-	if resp.StatusCode != 405 {
+	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("POST: %d", resp.StatusCode)
 	}
 }
@@ -248,7 +249,7 @@ func TestTemplateRefsSendNoValues(t *testing.T) {
 		t.Errorf("refs: %v", got)
 	}
 	resp, _ := p.do("GET", "/api/templates/refs?kind=object", nil)
-	if resp.StatusCode != 400 {
+	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("an unknown kind: %d", resp.StatusCode)
 	}
 }
