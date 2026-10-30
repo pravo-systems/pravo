@@ -355,3 +355,44 @@ unused: json.Marshal({})
 		}
 	}
 }
+
+// A loop variable stands for what the source of its for clause holds: a task
+// named in a struct or list the loop walks over is a dependency of the entry
+// that reads the variable.
+func TestLoopVariableCarriesTheTasksOfItsSource(t *testing.T) {
+	const head = `
+env: {value: string | *"x"}
+pet: {id: string | null}
+`
+	cases := []struct {
+		name, src, path, want string
+	}{
+		{"struct value", `files: {for k, v in {a: env.value, b: "x"} {"\(k)": {content: v}}}`, "files.a", "env"},
+		{"unrelated entry", `files: {for k, v in {a: env.value, b: "x"} {"\(k)": {content: v}}}`, "files.b", "env"},
+		{"interpolation", `files: {for k, v in {a: "p-\(pet.id)"} {"\(k)": {content: "got \(v)"}}}`, "files.a", "pet"},
+		{"list", `files: {for i, v in [env.value] {"\(i)": {content: v}}}`, "files.\"0\"", "env"},
+		{"no task", `files: {for k, v in {a: "x"} {"\(k)": {content: v}}}`, "files.a", ""},
+	}
+	for _, c := range cases {
+		path := c.path
+		if got := depsOf(t, head+c.src+"\n", path, "env", "pet"); got != c.want {
+			t.Errorf("%s: dependencies = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// A name read inside the value of a field of the same name is that field, not
+// the one outside: the error says so.
+func TestShadowedNameIsNamedInTheError(t *testing.T) {
+	v := cuecontext.New().CompileString(`
+stage: {value: string}
+files: {for k, v in {stage: stage.value} {"\(k)": {content: v}}}
+`)
+	got := shadowedName(v.LookupPath(cue.ParsePath("files.stage.content")))
+	if got != "stage" {
+		t.Errorf("shadowedName = %q, want stage", got)
+	}
+	if got := shadowedName(v.LookupPath(cue.ParsePath("stage"))); got != "" {
+		t.Errorf("shadowedName of an unrelated value = %q", got)
+	}
+}

@@ -79,6 +79,7 @@ func analyseFollowingOperands(v cue.Value, resolve Resolver, self *cue.Path, via
 	}
 	scanned := map[ast.Node]bool{}
 	letSeen := map[*ast.LetClause]bool{}
+	loopSeen := map[*ast.ForClause]bool{}
 	var scanLet func(lc *ast.LetClause)
 	var walk func(v cue.Value, depth int, nav bool)
 	follow := func(p cue.Path, depth int) bool {
@@ -112,6 +113,18 @@ func analyseFollowingOperands(v cue.Value, resolve Resolver, self *cue.Path, via
 		}
 		if lc := letReference(v.Source()); lc != nil {
 			scanLet(lc)
+			return
+		}
+		if fc := loopReference(v.Source()); fc != nil && fc.Source != nil {
+			if !loopSeen[fc] {
+				loopSeen[fc] = true
+				var anc []cue.Selector
+				if self != nil {
+					anc = self.Selectors()
+				}
+				sc := &refScan{resolve: resolve, anc: anc, add: addTask, follow: func(p cue.Path) bool { return follow(p, 0) }, local: map[string]bool{}, let: scanLet}
+				ast.Walk(fc.Source, sc.visit, nil)
+			}
 			return
 		}
 		root, p := v.ReferencePath()
