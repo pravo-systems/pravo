@@ -260,9 +260,9 @@ export class TemplatesView {
 
   field(o, ...control) {
     return h('div', { class: 'tp-field', 'data-field': o.id },
-      h('label', { class: 'tp-fl', for: 'tpf-' + (o.forId || o.id) }, h('span', { class: 'tp-fn' }, o.label), o.name ? h('code', { class: 'tp-fid', title: 'The field in the definition' }, o.name) : null, o.required ? h('span', { class: 'tp-req' }, 'required') : null, o.tag ? h('code', { class: 'tp-ftype' }, o.tag) : null),
-      ...control,
+      h('label', { class: 'tp-fl', for: 'tpf-' + (o.forId || o.id) }, h('span', { class: 'tp-fn' }, o.label), o.required ? h('span', { class: 'tp-req' }, 'required') : null, o.tag ? h('code', { class: 'tp-ftype' }, o.tag) : null),
       o.help ? h('p', { class: 'tp-help' }, o.help) : null,
+      ...control,
       h('p', { class: 'tp-err', 'data-err': o.id, hidden: true }));
   }
 
@@ -312,7 +312,7 @@ export class TemplatesView {
     };
     draw();
     const tag = i.secret ? 'secret' : i.choices ? 'from ' + i.choices.split('.')[0] : i.entity ? i.entity.type : i.kind === 'enum' ? 'one of' : i.kind === 'list' && i.elem ? 'list of ' + i.elem : i.long ? 'text' : i.type && i.type.length < 34 ? i.type : i.kind;
-    return this.field({ label: i.label || i.name, name: i.label && i.label !== i.name ? i.name : '', help: i.doc, id: i.name, required: i.required, tag }, row, holder);
+    return this.field({ label: i.label || i.name, help: i.doc, id: i.name, required: i.required, tag }, row, holder);
   }
 
   // ---- values that are not typed: choices, existing resources, lists, secrets ----
