@@ -109,6 +109,46 @@ func TestAReaderPlansWithoutWritingTheState(t *testing.T) {
 	}
 }
 
+func TestAReaderRunsDriftWithoutWritingTheState(t *testing.T) {
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
+	before := s.objects()
+
+	for _, args := range [][]string{{"drift"}, {"drift", "--due"}} {
+		text, code := runPravo(t, s.dir, append([]string{"--identity", "dan"}, args...)...)
+		if code != 0 {
+			t.Fatalf("a reader's %v: exit %d\n%s", args, code, text)
+		}
+	}
+	after := s.objects()
+	for k, v := range after {
+		if old, ok := before[k]; !ok || old != v {
+			t.Errorf("the drift of a reader wrote %s", k)
+		}
+	}
+	for k := range before {
+		if _, ok := after[k]; !ok {
+			t.Errorf("the drift of a reader deleted %s", k)
+		}
+	}
+}
+
+func TestAReaderStoresTheDriftPlan(t *testing.T) {
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
+	before := s.objects()
+
+	text, code := runPravo(t, s.dir, "--identity", "dan", "drift", "--plan", "--store")
+	if code != 0 {
+		t.Fatalf("a reader's drift --plan --store: exit %d\n%s", code, text)
+	}
+	for k, v := range s.objects() {
+		if old, ok := before[k]; (!ok || old != v) && !strings.Contains(k, "/plans/") {
+			t.Errorf("the stored drift plan of a reader wrote %s", k)
+		}
+	}
+}
+
 func TestAReaderStoresAPlanAndAWriterAppliesIt(t *testing.T) {
 	s := plannableBucket(t)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
