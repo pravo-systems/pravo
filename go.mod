@@ -40,6 +40,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.11.1
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.59.0
+	golang.org/x/term v0.47.0
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 )
@@ -50,7 +51,6 @@ require (
 	github.com/hashicorp/terraform-registry-address v0.4.0 // indirect
 	github.com/hashicorp/terraform-svchost v0.1.1 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
-	golang.org/x/term v0.47.0 // indirect
 )
 
 require (
