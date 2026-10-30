@@ -29,7 +29,7 @@ These flags belong to the command `pravo` and every subcommand accepts them.
 | `-v` | off | Log what pravo decides and does to stderr. See [The debug log](#the-debug-log). |
 | `-vv` | off | Finer detail, and the log of the providers. |
 | `--json` | off | Machine-readable output on stdout, progress on stderr. See [JSON](#json). |
-| `--actor LABEL` | `$PRAVO_ACTOR` | A label for who is acting. Recorded on transactions, locks, reservations and plans, and it is the author that `pravo plan list` shows for a stored plan. It is not verified. |
+| `--actor LABEL` | `$PRAVO_ACTOR` | A label for who is acting. Recorded on transactions, locks, reservations and plans, and it is the author that `pravo plan list` shows for a stored plan. It is not verified. In a sealed state the actor is the name of the identity that signs, and the flag is ignored with a warning. |
 | `--reason TEXT` | `$PRAVO_REASON` | Why. Recorded with the actor. On a plan, it is the note that the viewer and `pravo plan show` give. An apply of a saved or stored plan records the reason of the plan, unless it is given its own. |
 | `--identity NAME` | `$PRAVO_IDENTITY` | The identity file to read a sealed state with, from the identity directory. It wins over `$PRAVO_IDENTITY`, and it matters only for a state that is sealed. See [`pravo id and pravo protect`](protect.md#the-identity). |
 | `-h`, `--help` | | Print the help of the command. |
@@ -193,6 +193,8 @@ pravo -C text mod verify --json
 ### Actor and reason
 
 `--actor` and `--reason` are labels. pravo records them and does not check them. They appear in `pravo state log`, in `pravo state locks`, in `pravo show` and in the plan document. An actor is also the author of a plan that `pravo plan --store` writes into the state, and `pravo plan list` shows it; without a label, the author is the operating system user. An actor also owns the reservations it takes; without a label, the operating system user owns them.
+
+A sealed state has a verified name already, so it does not take a label. The actor of every transaction, lock, reservation and stored plan is the name of the identity that signs, and `--actor` is ignored: pravo prints a warning when the label differs. The viewer shows the signer that the readers file names beside a stored plan, and keeps the label that a command was given in a tooltip.
 
 ```sh run
 pravo -C app apply -auto-approve --actor ci --reason "first apply" > /dev/null

@@ -30,10 +30,11 @@ var processToken = func() string {
 
 // ClaimOwner names this process in the claims that it makes on stored plans: who
 // it acts as, where, and which process it is. actor, when not empty, replaces the
-// owner of the state.
+// owner of the state, except in a sealed state, where the owner is the identity
+// that signs and a label cannot stand in for it.
 func ClaimOwner(st *Store, actor string) string {
 	who := st.Owner()
-	if actor != "" {
+	if actor != "" && st.SigningKey() == "" {
 		who = actor
 	}
 	host, _ := os.Hostname()

@@ -401,6 +401,16 @@ export class Plans {
   }
 }
 
+// byLine is the name that the strip gives the maker of a plan: the signer the readers file names, when the signature
+// verified, since the label that a command was given is a claim and the signature is not. A label that differs stays
+// in the tooltip.
+function byLine(author, sg) {
+  const it = sg && !sg.note ? (sg.items || []).find((x) => x.status === 'verified' && x.signer) : null;
+  if (!it) return author || null;
+  if (!author || author === it.signer) return it.signer;
+  return h('span', { title: 'Label given to the command: ' + author + ' (not verified)' }, it.signer);
+}
+
 // The strip under the bar that says which plan is laid over the resources, with the way to its detail and the way back.
 // It is the one sign that the colours of the picture are a plan's, so it spans the page and does not hide in the picture.
 // signedIcon is the mark after the author: a check when the signature verifies, a sign of caution when it does not, or
@@ -489,7 +499,7 @@ export function planStrip(el, p, cb) {
     p.status ? statusChip(p.status) : null,
     c,
     p.status === 'partial' && p.applied ? h('span', { class: 'ps-prog dim' }, `${p.applied} of ${p.planned} applied`) : null,
-    h('span', { class: 'ps-by dim' }, p.author || null, signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
+    h('span', { class: 'ps-by dim' }, byLine(p.author, cb.signatures), signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
     approvalChip(cb.approvals),
     expiryRing(p),
     h('span', { class: 'grow' }),

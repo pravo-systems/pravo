@@ -274,11 +274,12 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 
 ### Fault 7: a plan that a policy refuses
 
-A policy version is signed by whoever applies it, so the state must be sealed. Make an identity, list it as a reader, and seal the state.
+A policy version is signed by whoever applies it, so the state must be sealed. Make two identities, Ada and Bob, list both as readers, and seal the state.
 
 ```sh run
 mkdir -p .pravo/access
 pravo id new --name ada | grep '^  ada ssh' | sed 's/^  //' > .pravo/access/readers.txt
+PRAVO_CONFIG_DIR=people/bob pravo id new --name bob | grep '^  bob ssh' | sed 's/^  //' >> .pravo/access/readers.txt
 pravo protect init --encrypt --yes --allow-local > /dev/null
 ```
 
@@ -350,7 +351,7 @@ extra: $local.#Resource.local_file & {
 
 ### Fault 8: a resource that someone else reserved
 
-Add one more resource. Ana plans it and reserves it for fifteen minutes. A reservation is a claim in the state, and it needs no running process.
+Add one more resource. Ada plans it and reserves it for fifteen minutes. A reservation is a claim in the state, and it needs no running process.
 
 ```cue file=late.cue title="late.cue"
 package main
@@ -362,7 +363,7 @@ late: $local.#Resource.local_file & {
 ```
 
 ```sh run
-pravo plan --reserve 15m --actor ana
+pravo plan --reserve 15m
 ```
 
 ```text out
@@ -384,25 +385,25 @@ pravo state locks
 ```
 
 ```text out
-late  reserved by ana until <time>: pravo plan --reserve 15m --actor <sealed>
+late  reserved by ada until <time>: pravo plan --reserve 15m
 ```
 
-Bob tries to apply. The actor label is not verified, and it is how reservations tell people apart.
+Bob tries to apply. Reservations tell people apart by the identity that signs, so Bob's identity cannot use Ada's claim.
 
 ```sh run exit=4
-pravo apply --auto-approve --actor bob
+PRAVO_CONFIG_DIR=people/bob pravo apply --auto-approve
 ```
 
 ```text out
 ...
-Error: plan rejected: late is reserved by ana (pravo plan --reserve 15m --actor <sealed> until <time>, since <time>)
+Error: plan rejected: late is reserved by ada (pravo plan --reserve 15m until <time>, since <time>)
 ```
 
-Exit code 4 is a resource that another actor holds. Ana releases the claim, and Bob applies.
+Exit code 4 is a resource that another actor holds. Ada releases the claim, and Bob applies.
 
 ```sh run
 pravo state unlock late
-pravo apply --auto-approve --actor bob
+PRAVO_CONFIG_DIR=people/bob pravo apply --auto-approve
 ```
 
 ```text out

@@ -344,7 +344,7 @@ exit=5
 Error: the plan violates the policy long_passwords@1 (sha256:<digest>):
 changes.0.after.length: invalid value 12 (out of bound >=16):
     long_passwords:5:12
-    plan:1:137
+    plan:1:151
 ```
 
 The refusal names the version of the policy, the digest of its text, the path in the document and the line of the rule. A plan that holds is applied, and the transaction keeps a receipt: the versions and digests of the policies that judged it, so that the log says not only who applied but under which rules.
