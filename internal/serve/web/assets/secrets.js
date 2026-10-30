@@ -10,6 +10,7 @@
 // every command comes from the server and is shown as text.
 
 import { h, clear, icon, relTime, stamp, fmt } from './util.js';
+import { cueText } from './ui.js';
 
 export const FOOTER = 'This page shows the secrets. It runs nothing and writes nothing, and it never shows a value.';
 
@@ -179,7 +180,7 @@ export class SecretsView {
       h('p', null, 'No secret is stored. A member with a writer’s key sets one:'),
       this.command('pravo secret set db_password'),
       h('p', null, 'The specification reads it by name:'),
-      h('div', { class: 'cmdline se-cmd' }, h('code', null, spec),
+      h('div', { class: 'cmdline se-cmd' }, h('code', null, cueText(spec)),
         h('button', { class: 'cpbtn', type: 'button', 'data-copy': spec, 'aria-label': 'Copy the line of the specification', 'data-tip': 'Copy the line' }, icon('copy'))));
   }
 

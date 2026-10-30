@@ -8,7 +8,7 @@
 // changes the state, and every request of the page is a GET.
 
 import { h, clear, icon, debounce, fmt, plural, relTime } from './util.js';
-import { codeWindow } from './ui.js';
+import { codeWindow, cueText } from './ui.js';
 import * as api from './api.js';
 
 export const FOOTER = 'This page shows the templates and checks new instances. It writes nothing: the code is yours to paste.';
@@ -128,7 +128,7 @@ export class TemplatesView {
   none() {
     return h('section', { class: 'tp-none' },
       h('p', null, 'The specification has no template. A definition becomes one when it embeds pravo.#Template and names itself:'),
-      h('pre', { class: 'tp-pre' }, h('code', null, MARKER_EXAMPLE)),
+      h('pre', { class: 'tp-pre' }, h('code', null, cueText(MARKER_EXAMPLE))),
       h('p', null, 'Its fields become the inputs of the form. The instances of the definition are listed under it.'));
   }
 
