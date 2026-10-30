@@ -128,3 +128,7 @@ export async function askChat(messages, context, onEvent, signal) {
     }
   }
 }
+// templateChoices lists the values that an input of a template offers, as the node that holds them has them in the state.
+export const templateChoices = (template, input) => get('/api/templates/choices?template=' + encodeURIComponent(template) + '&input=' + encodeURIComponent(input));
+// templateEntities lists the resources of the type that an input of a template refers to.
+export const templateEntities = (template, input, q) => get('/api/templates/entities?template=' + encodeURIComponent(template) + '&input=' + encodeURIComponent(input) + '&q=' + encodeURIComponent(q || ''));

@@ -56,8 +56,14 @@ plain: $fake.#Resource.fake_db & {name: "plain"}
 // templateProject is a project whose specification has a template with two instances.
 func templateProject(t *testing.T) *project {
 	t.Helper()
+	return templateProjectOf(t, templateSpecCUE, `{"name":"one","port":5432}`)
+}
+
+// templateProjectOf is a project with the given specification, and a record of boxes.one.db with the given attributes.
+func templateProjectOf(t *testing.T, spec, attrs string) *project {
+	t.Helper()
 	dir := t.TempDir()
-	writeSpec(t, dir, templateSpecCUE)
+	writeSpec(t, dir, spec)
 	pkg := filepath.Join(dir, "cue.mod", "gen", "pravo.dev", "pravo", "settings_gen.cue")
 	if err := os.MkdirAll(filepath.Dir(pkg), 0o755); err != nil {
 		t.Fatal(err)
@@ -70,7 +76,7 @@ func templateProject(t *testing.T) *project {
 		t.Fatal(err)
 	}
 	txn := st.Begin("apply", "pravo apply")
-	r := record("boxes.one.db", "fake_db", `{"name":"one","port":5432}`)
+	r := record("boxes.one.db", "fake_db", attrs)
 	if err := st.Set(r, txn.ID()); err != nil {
 		t.Fatal(err)
 	}

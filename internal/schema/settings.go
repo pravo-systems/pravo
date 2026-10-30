@@ -334,6 +334,33 @@ package pravo
 		// The inputs the form asks for, in order. Without it, the form asks for
 		// the fields of the definition that hold no resource.
 		inputs?: [...string]
+		// How the form asks for an input that its type does not say.
+		//
+		//	ask: {
+		//		notes:   {long: true}
+		//		region:  {choices: "regions.outputs"}
+		//		network: {entity: {type: "random_id", attr: "hex"}}
+		//		key:     {secret: true}
+		//	}
+		ask?: [string]: {
+			// A long text: the form gives it a text area.
+			long?: bool
+			// A value kept as a secret. The form never takes the value: it asks
+			// where the secret comes from, and the code reads it with pravo.#Secret
+			// or pravo.#SecretEnv.
+			secret?: bool
+			// The values to choose from: the path of an attribute that holds them,
+			// as the state has it, such as regions.outputs of a data source. A list
+			// offers its items, a map its keys. Write the same bound in the field
+			// (region: or([for k, _ in regions.outputs {k}])) and a plan checks it.
+			choices?: string
+			// An existing resource of this type, read through one of its attributes.
+			entity?: {
+				type: string
+				attr: string
+			}
+			...
+		}
 	}
 	// The definition goes on with its own fields.
 	...

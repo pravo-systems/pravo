@@ -1,8 +1,11 @@
 package serve
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -68,6 +71,21 @@ type TemplateInput struct {
 	Default string `json:"default,omitempty"`
 	// Options are the CUE of each value an enum allows.
 	Options []string `json:"options,omitempty"`
+	// Elem is the kind of the items of a list of strings or numbers, empty for another list.
+	Elem string `json:"elem,omitempty"`
+	// Long asks for a text area, and Secret says that the value is a secret that the form never takes: it asks where the
+	// secret comes from. Choices is the path of the attribute that holds the values to choose from, Entity the type of
+	// resource to pick one of, and the attribute to read of it. These come from $template.ask.
+	Long    bool            `json:"long,omitempty"`
+	Secret  bool            `json:"secret,omitempty"`
+	Choices string          `json:"choices,omitempty"`
+	Entity  *TemplateEntity `json:"entity,omitempty"`
+}
+
+// TemplateEntity says which resources an input picks from, and what it reads of the one it picks.
+type TemplateEntity struct {
+	Type string `json:"type"`
+	Attr string `json:"attr"`
 }
 
 // TemplateInstance is one struct made from a template.
@@ -315,6 +333,10 @@ func templateInputs(dv cue.Value) []TemplateInput {
 				in.Kind, in.Options = "enum", opts
 			}
 		}
+		if in.Kind == "list" {
+			in.Elem = listElem(fv)
+		}
+		in.applyAsk(dv.LookupPath(cue.ParsePath("$template.ask")).LookupPath(cue.MakePath(cue.Str(name))))
 		byName[name] = in
 		natural = append(natural, name)
 	}
@@ -335,6 +357,56 @@ func templateInputs(dv cue.Value) []TemplateInput {
 		out = []TemplateInput{}
 	}
 	return out
+}
+
+// listElem is the kind of the items of a list field: string, int or number, and empty when they are anything else. The
+// field may be a disjunction with a default, such as *[] | [...string].
+func listElem(fv cue.Value) string {
+	vs := []cue.Value{fv}
+	if op, args := fv.Expr(); op == cue.OrOp {
+		vs = append(vs, args...)
+	}
+	for _, v := range vs {
+		if e := v.LookupPath(cue.MakePath(cue.AnyIndex)); e.Exists() {
+			if k := tplKindOf(e); k == "string" || k == "int" || k == "number" {
+				return k
+			}
+		}
+	}
+	// the items of an open list are not reachable through a path, so the text of the type says
+	if b, err := format.Node(fv.Syntax(cue.Raw())); err == nil {
+		t := string(b)
+		for _, k := range []string{"string", "int", "number"} {
+			if strings.Contains(t, "[...("+k+")]") || strings.Contains(t, "[..."+k+"]") {
+				return k
+			}
+		}
+	}
+	return ""
+}
+
+// applyAsk reads how the template says the form asks for the input.
+func (in *TemplateInput) applyAsk(ask cue.Value) {
+	if !ask.Exists() {
+		return
+	}
+	if b, err := ask.LookupPath(cue.ParsePath("long")).Bool(); err == nil && b && (in.Kind == "string" || in.Kind == "any") {
+		in.Long = true
+	}
+	if b, err := ask.LookupPath(cue.ParsePath("secret")).Bool(); err == nil && b && in.Kind == "string" {
+		in.Secret = true
+	}
+	if c, ok := stringAt(ask, "choices"); ok && c != "" && !in.Secret && len(c) <= 200 {
+		in.Choices = c
+		if in.Kind == "any" {
+			in.Kind = "string" // a bound on the values that the data source gives is not known yet, so the type is not either
+		}
+	}
+	if t, ok := stringAt(ask, "entity.type"); ok && t != "" && !in.Secret && in.Choices == "" {
+		if a, ok := stringAt(ask, "entity.attr"); ok && a != "" && len(t) <= 120 && len(a) <= 120 {
+			in.Entity = &TemplateEntity{Type: t, Attr: a}
+		}
+	}
 }
 
 // holdsResource reports whether a field is a resource or has one below it.
@@ -406,6 +478,8 @@ type TemplateTry struct {
 	Problems []TemplateProblem `json:"problems"`
 	// Creates are the resources the snippet adds.
 	Creates []TemplateCreate `json:"creates"`
+	// Secrets are the secrets the snippet reads, each declared in the snippet; the value of one is never in it.
+	Secrets []TemplateSecret `json:"secrets,omitempty"`
 	// Policy is what the policies say of an approximate plan that creates those resources.
 	Policy *TemplatePolicy `json:"policy,omitempty"`
 	Took   int64           `json:"took_ms"`
@@ -508,9 +582,101 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 		values[field] = vs[0]
 	}
 
+	// The inputs that are secrets: the form sends where the secret comes from and its name, never a value.
+	alias, hasImport := "pravo", false
+	if tpl.File != "" {
+		if b, err := os.ReadFile(filepath.Join(s.opts.Dir, filepath.FromSlash(tpl.File))); err == nil && len(b) < 1<<20 {
+			if a, ok := importOf(string(b), pravoPath); ok {
+				alias, hasImport = a, true
+			}
+		}
+	}
+	var secrets []TemplateSecret
+	var decls []string
+	for key, vs := range q {
+		field, ok := strings.CutPrefix(key, "s.")
+		if !ok || len(vs) == 0 || strings.TrimSpace(vs[0]) == "" {
+			continue
+		}
+		in := tpl.input(field)
+		if in == nil || !in.Secret {
+			writeError(w, http.StatusBadRequest, "the template has no secret input "+strconv.Quote(clip(field, 60)))
+			return
+		}
+		source, name := "state", strings.TrimSpace(vs[0])
+		if q.Get("sk."+field) == "env" {
+			source = "env"
+		}
+		if (source == "state" && !secretNameOK.MatchString(name)) || (source == "env" && !envNameOK.MatchString(name)) {
+			problems = append(problems, TemplateProblem{Field: field, Message: "not a name a " + map[string]string{"state": "secret", "env": "variable"}[source] + " can have"})
+			continue
+		}
+		sec, decl, expr := secretDecl(alias, label, in, source, name)
+		if _, taken := m.spec.byPath[sec.Decl]; taken {
+			problems = append(problems, TemplateProblem{Field: "@label", Message: "The secret would be declared as " + sec.Decl + ", which the specification already has. Another name avoids it."})
+			continue
+		}
+		if source == "state" {
+			if m.secs == nil || !m.secs.Sealed {
+				problems = append(problems, TemplateProblem{Field: field, Message: "The state is not sealed, so it cannot keep a secret. Read it from an environment variable, or seal the state."})
+				continue
+			}
+			for _, e := range m.secs.Secrets {
+				if e.Name == name && e.Status == "set" {
+					sec.Exists = true
+				}
+			}
+			sec.Command = "pravo secret set " + name
+		}
+		values[field] = expr
+		secrets = append(secrets, sec)
+		note := "// " + in.Name + " is read from the secret " + name + " of the state."
+		if source == "state" && !sec.Exists {
+			note = "// " + in.Name + " reads the secret " + name + ".\n// Set it before the apply: " + sec.Command
+		} else if source == "env" {
+			note = "// " + in.Name + " is read from the environment variable " + name + "\n// when pravo runs."
+		}
+		decls = append(decls, note+"\n"+decl)
+	}
+	sort.Slice(secrets, func(i, j int) bool { return secrets[i].Input < secrets[j].Input })
+	sort.Strings(decls)
+
+	// A value that the template offers choices for must be one of them, as far as the state knows them.
+	for _, in := range tpl.Inputs {
+		raw, ok := values[in.Name]
+		if !ok || in.Choices == "" || len(problems) > 0 {
+			continue
+		}
+		var want string
+		if json.Unmarshal([]byte(raw), &want) != nil {
+			continue
+		}
+		ch := m.choicesOf(in.Name, in.Choices)
+		if ch.State != "ok" {
+			continue
+		}
+		found := false
+		for _, c := range ch.Items {
+			if c.Value == want {
+				found = true
+			}
+		}
+		if !found {
+			problems = append(problems, TemplateProblem{Field: in.Name, Message: strconv.Quote(want) + " is not one of the values that " + ch.Node + " holds"})
+		}
+	}
+
 	target := cue.MakePath(append(append([]cue.Selector{}, atSels...), cue.Str(label))...)
-	out := &TemplateTry{Version: APIVersion, Template: tpl.Name, File: tpl.File, Address: target.String(), State: "valid", Problems: []TemplateProblem{}, Creates: []TemplateCreate{}}
-	out.Snippet = templateSnippet(tpl, atSels, label, values)
+	out := &TemplateTry{Version: APIVersion, Template: tpl.Name, File: tpl.File, Address: target.String(), State: "valid", Problems: []TemplateProblem{}, Creates: []TemplateCreate{}, Secrets: secrets}
+	body := templateSnippet(tpl, atSels, label, values, decls)
+	importLine := ""
+	if len(secrets) > 0 {
+		importLine = "import " + importName(alias) + "\"" + pravoPath + "\"\n"
+	}
+	out.Snippet = body
+	if importLine != "" && !hasImport {
+		out.Snippet = importLine + "\n" + body
+	}
 	if len(problems) == 0 {
 		for _, in := range tpl.Inputs {
 			if _, ok := values[in.Name]; in.Required && !ok {
@@ -545,7 +711,7 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 
 	s.tplMu.Lock()
 	lo := config.LoadOptions{Tags: s.opts.Tags, SysTags: s.opts.SysTags, Env: s.opts.Env,
-		Extra: map[string]string{previewFile: "package " + m.spec.root.PkgName + "\n\n" + out.Snippet}}
+		Extra: map[string]string{previewFile: "package " + m.spec.root.PkgName + "\n\n" + importLine + body}}
 	root, err := config.Load(s.opts.Dir, lo)
 	s.tplMu.Unlock()
 	if err != nil {
@@ -572,7 +738,7 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 }
 
 // templateSnippet is the CUE of an instance: the path, the definition and the values that were given.
-func templateSnippet(tpl *TemplateEntry, at []cue.Selector, label string, values map[string]string) string {
+func templateSnippet(tpl *TemplateEntry, at []cue.Selector, label string, values map[string]string, decls []string) string {
 	var b strings.Builder
 	for _, sel := range at {
 		b.WriteString(cueLabel(sel.Unquoted()) + ": ")
@@ -589,7 +755,20 @@ func templateSnippet(tpl *TemplateEntry, at []cue.Selector, label string, values
 		b.WriteString("\n")
 	}
 	b.WriteString("}\n")
+	for _, d := range decls {
+		b.WriteString("\n" + d + "\n")
+	}
 	return b.String()
+}
+
+const pravoPath = "pravo.dev/pravo"
+
+// importName is what precedes the path in an import: nothing for the name the package has already.
+func importName(alias string) string {
+	if alias == "pravo" || alias == "" {
+		return ""
+	}
+	return alias + " "
 }
 
 func cueLabel(l string) string {

@@ -7,7 +7,7 @@
 // shows what CUE and the policies say. It shows the CUE; a person pastes it. Nothing here writes a file, runs a command or
 // changes the state, and every request of the page is a GET.
 
-import { h, clear, icon, debounce, fmt, plural } from './util.js';
+import { h, clear, icon, debounce, fmt, plural, relTime } from './util.js';
 import { codeWindow } from './ui.js';
 import * as api from './api.js';
 
@@ -22,7 +22,13 @@ const MARKER_EXAMPLE = `#Service: pravo.#Template & {
 
 // cueValue turns what a person typed for an input into CUE.
 function cueValue(input, f) {
-  if (!f || f.text === undefined || f.text === '') return '';
+  if (!f) return '';
+  if (input.secret) return '';
+  if (f.items) {
+    if (!f.items.length) return '';
+    return '[' + f.items.map((x) => (input.elem === 'string' ? JSON.stringify(x) : x)).join(', ') + ']';
+  }
+  if (f.text === undefined || f.text === '') return '';
   if (f.ref) return f.text;
   switch (input.kind) {
     case 'string': return JSON.stringify(f.text);
@@ -30,6 +36,13 @@ function cueValue(input, f) {
     case 'bool': return f.text;
     default: return f.text;
   }
+}
+
+// secretName is the name a secret has unless the person gives another: the template, the instance and the input.
+function secretName(source, tpl, label, input) {
+  const l = label || 'name';
+  if (source === 'env') return (l + '_' + input).toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+  return `${tpl}/${l}/${input}`;
 }
 
 export class TemplatesView {
@@ -46,6 +59,8 @@ export class TemplatesView {
     this.ctl = null;
     this.out = null;    // the elements the wizard redraws
     this.refsFor = '';  // the input whose graph picker is open
+    this.choices = {};  // the values that the inputs with choices offer, by input
+    this.vault = null;  // whether the state keeps secrets, and the names it holds
     this.check = debounce(() => this.runCheck(), 260);
   }
 
@@ -166,6 +181,8 @@ export class TemplatesView {
     this.wizard = true;
     this.result = null;
     this.refsFor = '';
+    this.choices = {};
+    this.vault = null;
     this.render({ templates: this.doc });
     this.cb.onRoute && this.cb.onRoute();
     const first = this.root.querySelector('[data-fk="label"]');
@@ -205,7 +222,7 @@ export class TemplatesView {
         h('form', { class: 'tp-form', 'aria-label': `A new ${t.title}`, on: { submit: (ev) => ev.preventDefault() } },
           this.field({ label: 'Name', help: 'The label of the instance. It is the last part of every address below it.', id: '@label', forId: 'label', required: true },
             h('input', { type: 'text', class: 'tp-in', 'data-fk': 'label', id: 'tpf-label', value: f.label, placeholder: 'checkout', autocomplete: 'off', spellcheck: 'false',
-              on: { input: (ev) => { f.label = ev.target.value.trim(); this.syncName(); this.changed(); } } })),
+              on: { input: (ev) => { f.label = ev.target.value.trim(); this.syncName(); this.syncSecrets(); this.changed(); } } })),
           this.field({ label: 'Put it in', help: 'The struct the instance joins. Instances of this template already sit in these.', id: 'at' }, atSel),
           h('div', { class: 'tp-rule', 'aria-hidden': 'true' }),
           t.inputs.map((i) => this.inputField(i))),
@@ -241,14 +258,19 @@ export class TemplatesView {
     const f = this.form;
     const st = () => f.fields[i.name] || (f.fields[i.name] = { text: '', ref: false });
     const row = h('div', { class: 'tp-ctl' });
+    const holder = h('div', { class: 'tp-refs', hidden: true });
     const draw = () => {
       clear(row);
       const cur = st();
+      if (i.secret) { this.secretControl(i, row, draw); return; }
       if (cur.ref) {
         row.append(h('div', { class: 'tp-refval' }, icon('link'), h('code', null, cur.text),
-          h('button', { type: 'button', class: 'tp-x', 'aria-label': `Type a value for ${i.name} instead`, title: 'Type a value instead', on: { click: () => { f.fields[i.name] = { text: '', ref: false }; draw(); this.changed(); } } }, icon('x'))));
+          h('button', { type: 'button', class: 'tp-x', 'aria-label': `Choose another value for ${i.name}`, title: 'Choose another', on: { click: () => { f.fields[i.name] = { text: '', ref: false }; draw(); this.changed(); } } }, icon('x'))));
         return;
       }
+      if (i.choices) { this.choiceControl(i, row, draw, cur); return; }
+      if (i.entity) { this.entityControl(i, row, draw); return; }
+      if (i.kind === 'list' && i.elem) { this.chipsControl(i, row, cur); return; }
       if (i.kind === 'enum' || i.kind === 'bool') {
         const opts = i.kind === 'bool' ? ['true', 'false'] : i.options;
         const dflt = i.default;
@@ -260,6 +282,9 @@ export class TemplatesView {
             return h('button', { type: 'button', class: 'tp-sb' + (isDefault ? ' dflt' : ''), 'aria-pressed': chosen || isDefault ? 'true' : 'false', title: isDefault ? 'The default' : null, 'data-fk': `${i.name}=${label}`,
               on: { click: () => { cur.text = dflt === o ? '' : o; draw(); this.changed(); } } }, label);
           })));
+      } else if (i.long) {
+        row.append(h('textarea', { class: 'tp-in tp-ta', id: 'tpf-' + i.name, 'data-fk': 'in:' + i.name, rows: 4, placeholder: i.default && i.default !== '""' ? `default ${i.default}` : 'A few lines of text', spellcheck: 'true', value: cur.text,
+          on: { input: (ev) => { cur.text = ev.target.value; this.changed(); } } }));
       } else if (i.kind === 'object' || i.kind === 'list' || i.kind === 'any') {
         row.append(h('textarea', { class: 'tp-in tp-ta', id: 'tpf-' + i.name, rows: 3, placeholder: 'CUE', spellcheck: 'false', value: cur.text,
           on: { input: (ev) => { cur.text = ev.target.value; this.changed(); } } }));
@@ -268,14 +293,130 @@ export class TemplatesView {
           inputmode: i.kind === 'int' || i.kind === 'number' ? 'numeric' : null, placeholder: i.default ? `default ${i.default}` : i.required ? 'needed' : '',
           on: { input: (ev) => { cur.text = ev.target.value; if (i.name === 'name') f.touchedName = true; this.changed(); } } }));
       }
-      if (['string', 'int', 'number', 'bool'].includes(i.kind)) {
+      if (['string', 'int', 'number', 'bool'].includes(i.kind) && !i.long) {
         row.append(h('button', { type: 'button', class: 'tp-gb', 'data-fk': 'graph:' + i.name, 'aria-expanded': this.refsFor === i.name ? 'true' : 'false', on: { click: () => this.toggleRefs(i, draw, holder) } }, icon('link'), 'From the graph'));
       }
     };
-    const holder = h('div', { class: 'tp-refs', hidden: true });
     draw();
-    const wrap = this.field({ label: i.name, help: i.doc, id: i.name, required: i.required, tag: i.kind === 'enum' ? 'one of' : i.type && i.type.length < 34 ? i.type : i.kind }, row, holder);
-    return wrap;
+    const tag = i.secret ? 'secret' : i.choices ? 'from ' + i.choices.split('.')[0] : i.entity ? i.entity.type : i.kind === 'enum' ? 'one of' : i.kind === 'list' && i.elem ? 'list of ' + i.elem : i.long ? 'text' : i.type && i.type.length < 34 ? i.type : i.kind;
+    return this.field({ label: i.name, help: i.doc, id: i.name, required: i.required, tag }, row, holder);
+  }
+
+  // ---- values that are not typed: choices, existing resources, lists, secrets ----
+
+  // choiceControl offers the values that a node of the graph holds, as the state has them.
+  choiceControl(i, row, draw, cur) {
+    const c = this.choices[i.name];
+    if (!c) {
+      row.append(h('p', { class: 'tp-note' }, 'Reading ' + i.choices + '…'));
+      api.templateChoices(this.tpl.name, i.name).then((r) => { this.choices[i.name] = r; draw(); }, () => { this.choices[i.name] = { state: 'error', items: [], note: 'The values could not be read.' }; draw(); });
+      return;
+    }
+    if (c.state === 'ok') {
+      const sel = h('select', { class: 'tp-in tp-sel', id: 'tpf-' + i.name, 'data-fk': 'in:' + i.name, 'aria-label': i.name,
+        on: { change: (ev) => { cur.text = ev.target.value; cur.pick = ev.target.value; this.changed(); } } },
+      h('option', { value: '' }, i.required ? 'Choose…' : 'Choose, or leave it out'),
+      c.items.map((x) => h('option', { value: x.value, selected: cur.pick === x.value ? true : null }, x.label ? `${x.value} — ${x.label}` : x.value)));
+      row.append(sel);
+      const age = c.read_at ? relTime(c.read_at) : '';
+      row.append(h('p', { class: 'tp-note ok' }, icon('check'), h('span', null, `${plural(c.items.length, 'value')} that `, h('code', null, c.node), ' holds' + (age ? `, read ${age}` : '') + '. A plan checks the choice against what it reads then.')));
+    } else {
+      row.append(h('input', { type: 'text', class: 'tp-in', id: 'tpf-' + i.name, 'data-fk': 'in:' + i.name, value: cur.pick || '', autocomplete: 'off', spellcheck: 'false', placeholder: 'needed',
+        on: { input: (ev) => { cur.pick = ev.target.value; cur.text = ev.target.value; this.changed(); } } }));
+      row.append(h('p', { class: 'tp-note warn' }, icon('bang'), (c.note || 'The values could not be read.') + ' Type one; a plan checks it.'));
+    }
+  }
+
+  // entityControl lists the resources of a type that the estate declares; a click writes the reference to one of them.
+  entityControl(i, row, draw) {
+    const f = this.form;
+    const list = h('ul', { class: 'tp-rl tp-el', role: 'listbox', 'aria-label': `Existing ${i.entity.type}` });
+    const note = h('p', { class: 'tp-note' });
+    const q = h('input', { type: 'search', class: 'tp-in tp-rq', placeholder: `Find a ${i.entity.type}`, 'aria-label': `Find a ${i.entity.type}`, 'data-fk': 'entq:' + i.name, autocomplete: 'off' });
+    const load = async () => {
+      let r;
+      try { r = await api.templateEntities(this.tpl.name, i.name, q.value); } catch (err) { clear(list); note.textContent = 'The resources could not be listed.'; return; }
+      clear(list);
+      note.textContent = r.note || '';
+      for (const e of r.entities) {
+        list.append(h('li', { role: 'option' }, h('button', { type: 'button', class: 'tp-ri tp-er', 'data-fk': 'ent:' + e.addr, on: { click: () => {
+          f.fields[i.name] = { text: e.expr, ref: true };
+          draw();
+          this.changed();
+        } } }, h('code', null, e.addr), h('span', { class: 'tp-rt' }, e.recorded ? i.entity.type : i.entity.type + ' · not applied'))));
+      }
+    };
+    q.addEventListener('input', debounce(load, 160));
+    row.append(h('p', { class: 'tp-note' }, icon('link'), h('span', null, `The ${i.entity.type} resources the estate declares. The instance reads `, h('code', null, i.entity.attr), ' of the one you pick, so it follows that resource.')), q, list, note);
+    load();
+  }
+
+  // chipsControl is a list of values: each is added with Enter or a comma, and a click on one takes it away.
+  chipsControl(i, row, cur) {
+    cur.items = cur.items || [];
+    const chips = h('ul', { class: 'tp-chips', 'aria-label': `Values of ${i.name}` });
+    const input = h('input', { type: 'text', class: 'tp-in tp-chipin', id: 'tpf-' + i.name, 'data-fk': 'in:' + i.name, autocomplete: 'off', spellcheck: 'false', placeholder: 'Type a value, then Enter' });
+    const paint = () => {
+      clear(chips);
+      cur.items.forEach((x, n) => chips.append(h('li', null, h('span', { class: 'tp-chip' }, h('code', null, x),
+        h('button', { type: 'button', class: 'tp-x', 'aria-label': `Take out ${x}`, 'data-fk': `chip-x:${i.name}:${n}`, on: { click: () => { cur.items.splice(n, 1); paint(); this.changed(); } } }, icon('x'))))));
+    };
+    const add = () => {
+      const v = input.value.trim().replace(/,$/, '').trim();
+      if (!v) return;
+      if (i.elem !== 'string' && Number.isNaN(Number(v))) { input.setCustomValidity('A number'); input.reportValidity(); return; }
+      input.setCustomValidity('');
+      if (!cur.items.includes(v)) cur.items.push(v);
+      input.value = '';
+      paint();
+      this.changed();
+    };
+    input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ',') { ev.preventDefault(); add(); } else if (ev.key === 'Backspace' && !input.value && cur.items.length) { cur.items.pop(); paint(); this.changed(); } });
+    input.addEventListener('blur', add);
+    paint();
+    row.append(chips, input);
+  }
+
+  // secretControl asks where a secret comes from and what it is called. It never takes the value: the code reads the secret
+  // with pravo.#Secret or pravo.#SecretEnv, and the value is set with a command, away from this page.
+  secretControl(i, row, draw) {
+    const f = this.form;
+    const t = this.tpl;
+    const cur = f.fields[i.name] || (f.fields[i.name] = { text: '', ref: false });
+    if (!cur.secret) cur.secret = { source: 'state', name: '', touched: false };
+    const sc = cur.secret;
+    if (this.vault === null) {
+      this.vault = { sealed: false, names: [], loading: true };
+      api.secrets().then((r) => { this.vault = { sealed: !!r.sealed, names: (r.secrets || []).filter((x) => x.status === 'set').map((x) => x.name) }; if (!sc.touched && !this.vault.sealed) sc.source = 'env'; sc.name = sc.touched ? sc.name : secretName(sc.source, t.name, f.label, i.name); draw(); this.changed(); },
+        () => { this.vault = { sealed: false, names: [] }; sc.source = 'env'; sc.name = secretName('env', t.name, f.label, i.name); draw(); this.changed(); });
+    }
+    if (!sc.touched) sc.name = secretName(sc.source, t.name, f.label, i.name);
+    const vault = this.vault;
+    const seg = h('div', { class: 'tp-seg', role: 'group', 'aria-label': 'Where the secret comes from' },
+      h('button', { type: 'button', class: 'tp-sb', 'data-fk': `src:${i.name}:state`, 'aria-pressed': sc.source === 'state' ? 'true' : 'false', disabled: vault.sealed ? null : true, title: vault.sealed ? null : 'The state is not sealed, so it keeps no secret',
+        on: { click: () => { sc.source = 'state'; if (!sc.touched) sc.name = secretName('state', t.name, f.label, i.name); draw(); this.changed(); } } }, 'Sealed state'),
+      h('button', { type: 'button', class: 'tp-sb', 'data-fk': `src:${i.name}:env`, 'aria-pressed': sc.source === 'env' ? 'true' : 'false',
+        on: { click: () => { sc.source = 'env'; if (!sc.touched) sc.name = secretName('env', t.name, f.label, i.name); draw(); this.changed(); } } }, 'Environment variable'));
+    const name = h('input', { type: 'text', class: 'tp-in tp-mono', id: 'tpf-' + i.name, 'data-fk': 'secret:' + i.name, value: sc.name, autocomplete: 'off', spellcheck: 'false', 'aria-label': sc.source === 'env' ? 'Name of the variable' : 'Name of the secret',
+      on: { input: (ev) => { sc.name = ev.target.value.trim(); sc.touched = true; this.changed(); } } });
+    row.append(h('div', { class: 'tp-lock' }, icon('lock'), h('span', null, 'A secret. This page never takes its value.')), seg, name);
+    if (sc.source === 'state' && vault.names.length) {
+      row.append(h('div', { class: 'tp-have' }, h('span', { class: 'tp-hl' }, 'Already in the state'),
+        vault.names.slice(0, 6).map((n) => h('button', { type: 'button', class: 'tp-sb tp-hv', 'data-fk': 'have:' + n, 'aria-pressed': sc.name === n ? 'true' : 'false',
+          on: { click: () => { sc.name = n; sc.touched = true; draw(); this.changed(); } } }, n))));
+    }
+  }
+
+  // syncSecrets renames the secrets that the person has not named, as the label changes.
+  syncSecrets() {
+    const f = this.form;
+    for (const i of this.tpl.inputs) {
+      const sc = i.secret && f.fields[i.name] && f.fields[i.name].secret;
+      if (!sc || sc.touched) continue;
+      sc.name = secretName(sc.source, this.tpl.name, f.label, i.name);
+      const el = this.root.querySelector('#tpf-' + i.name);
+      if (el) el.value = sc.name;
+    }
   }
 
   // syncName keeps the input called name equal to the label until the person types in it.
@@ -339,6 +480,11 @@ export class TemplatesView {
     q.set('name', f.label || '');
     q.set('at', f.at || '');
     for (const i of t.inputs) {
+      if (i.secret) {
+        const sf = f.fields[i.name];
+        if (sf && sf.secret && sf.secret.name) { q.set('s.' + i.name, sf.secret.name); q.set('sk.' + i.name, sf.secret.source); }
+        continue;
+      }
       const v = cueValue(i, f.fields[i.name]);
       if (v) q.set('v.' + i.name, v);
     }
@@ -409,6 +555,11 @@ export class TemplatesView {
     if (r.creates && r.creates.length) {
       rows.push(this.check_('', `Adds ${plural(r.creates.length, 'resource')}`, null, r.creates.map((c) => `${c.address}  ·  ${c.type}`), true));
     }
+    // the secrets the code reads
+    if (r.secrets && r.secrets.length) {
+      const missing = r.secrets.filter((x) => x.source === 'state' && !x.exists);
+      rows.push(this.secretCheck(missing.length ? 'chg' : 'ok', missing.length ? 'A secret is not set yet' : r.secrets.length === 1 ? 'The secret is in place' : 'The secrets are in place', r.secrets));
+    }
     // the policies
     if (r.policy) {
       const p = r.policy;
@@ -431,6 +582,20 @@ export class TemplatesView {
         h('h5', { class: 'tp-chead' }, title),
         text ? h('p', { class: 'tp-ctext' }, text) : null,
         items && items.length ? h('ul', { class: 'tp-ci' + (mono ? ' mono' : '') }, items.slice(0, 12).map((x) => h('li', null, mono ? h('code', null, x) : x))) : null));
+  }
+
+  secretCheck(tone, title, secrets) {
+    return h('section', { class: 'tp-check' + (tone ? ' ' + tone : ''), role: 'group', 'aria-label': title },
+      h('span', { class: 'tp-dot', 'aria-hidden': 'true' }),
+      h('div', { class: 'tp-cb' },
+        h('h5', { class: 'tp-chead' }, title),
+        h('ul', { class: 'tp-sec' }, secrets.map((x) => h('li', null,
+          h('div', { class: 'tp-sl' }, h('code', null, x.input), h('span', { class: 'tp-arrow', 'aria-hidden': 'true' }, '←'), h('code', null, x.name),
+            h('span', { class: 'tp-ps' }, x.source === 'env' ? 'environment variable' : 'sealed state'),
+            x.source === 'state' ? h('span', { class: 'tp-po ' + (x.exists ? 'yes' : 'no') }, x.exists ? 'set' : 'not set') : null),
+          x.source === 'state' && !x.exists ? h('div', { class: 'tp-cmd' }, h('code', null, x.command),
+            h('button', { type: 'button', class: 'btn tp-copy sm', 'data-copy': x.command, 'data-fk': 'copy-cmd:' + x.input }, icon('copy'), 'Copy')) : null))),
+        h('p', { class: 'tp-ctext tp-approx' }, 'The code declares the secret and reads its value; the value itself is never typed here. The template must pass it only to a write-only attribute, to provider configuration or to an ephemeral resource.')));
   }
 
   policyCheck(tone, title, note, items) {
