@@ -2,7 +2,7 @@ package state
 
 import (
 	"context"
-	"crypto/md5" //nolint:gosec // a tag that says whether the bytes changed
+	"crypto/md5"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -13,7 +13,6 @@ import (
 type taggedBackend struct {
 	Backend
 	gets atomic.Int64
-	off  bool
 }
 
 func (b *taggedBackend) Get(ctx context.Context, key string) ([]byte, error) {
@@ -22,7 +21,7 @@ func (b *taggedBackend) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 func (b *taggedBackend) ListVersions(ctx context.Context, prefix string) ([]ObjectVersion, error) {
-	keys, err := b.Backend.List(ctx, prefix)
+	keys, err := b.List(ctx, prefix)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +31,7 @@ func (b *taggedBackend) ListVersions(ctx context.Context, prefix string) ([]Obje
 		if err != nil {
 			return nil, err
 		}
-		out[i] = ObjectVersion{Key: k, Tag: fmt.Sprintf("%x", md5.Sum(data))} //nolint:gosec // see the import
+		out[i] = ObjectVersion{Key: k, Tag: fmt.Sprintf("%x", md5.Sum(data))}
 	}
 	return out, nil
 }
