@@ -38,7 +38,7 @@ export function ticks(v0, v1, want = 8) {
 // (the span or null), `depth`, `self`, `row` and `idx` (its place in the array). A span whose parent is not in the
 // run is a root: the run continued the trace of its caller.
 export function build(trace) {
-  const spans = (trace.spans || []).map((x, idx) => ({ ...x, pid: x.parent || '', idx, end: x.start_us + x.dur_us, kids: [], parent: null, depth: 0, self: 0, row: 0, h: 1, rel: 0 }));
+  const spans = (trace.spans || []).map((x, idx) => ({ ...x, pid: x.parent || '', idx, end: x.start_us + x.dur_us, kids: [], parent: null, depth: 0, self: 0, row: 0, h: 1, rel: 0, reach: 0 }));
   const byId = new Map(spans.map((x) => [x.id, x]));
   const roots = [];
   for (const sp of spans) {
@@ -74,6 +74,9 @@ export function build(trace) {
 function packLanes(roots) {
   const pack = (sp) => {
     for (const k of sp.kids) pack(k);
+    // a child can outlive its parent (a request that is still on the wire when the call that sent it returns): the
+    // subtree takes the lane up to the last of its spans, or the next span in the lane would be drawn over it
+    sp.reach = sp.kids.reduce((m, k) => Math.max(m, k.reach), sp.end);
     sp.h = 1 + lanes(sp.kids);
   };
   // lanes places a list of spans, sorted by start, into the first lane that is free when each starts; a lane is as tall
@@ -84,7 +87,7 @@ function packLanes(roots) {
       let lane = ls.find((l) => l.end <= k.start_us);
       if (!lane) { lane = { end: -Infinity, h: 0, items: [] }; ls.push(lane); }
       lane.items.push(k);
-      lane.end = k.end;
+      lane.end = k.reach;
       lane.h = Math.max(lane.h, k.h);
     }
     let base = 0;
