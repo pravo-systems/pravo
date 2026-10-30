@@ -56,6 +56,8 @@ export class TracesView {
     this.tip = null;
     this.raf = 0;
     this.errorsOnly = false;
+    this.dtab = 'attrs'; // the tab of the inspector, kept from one span to the next
+    this.runsOpen = false;
   }
 
   // ---- the address ----
@@ -155,7 +157,8 @@ export class TracesView {
 
   pick(id, user = true) {
     if (user) this.follow = !!(this.list && this.list.traces[0] && this.list.traces[0].id === id);
-    if (id === this.id) return;
+    this.runsOpen = false;
+    if (id === this.id) { this.render(); return; }
     this.load(id, false).then(() => { this.render(); this.cb.onRoute && this.cb.onRoute(); });
   }
 
@@ -171,12 +174,18 @@ export class TracesView {
     const list = this.list;
     const body = !list ? h('p', { class: 'tr-empty' }, this.error ? '' : 'Reading the runs')
       : !list.traces.length ? this.none(list)
-        : h('div', { class: 'tr-layout' }, this.runs(list), this.main());
+        : h('div', { class: 'tr-layout' }, this.main());
+    const cur = list && list.traces.find((t) => t.id === this.id);
+    this.root.classList.toggle('wb', !!(list && list.traces.length && this.model));
     this.root.append(h('div', { class: 'tr' },
       h('header', { class: 'tr-head' },
         h('div', { class: 'tr-bhead' }, h('h2', { class: 'tr-title', id: 'tr-h-title' }, 'Traces'),
-          list && list.traces.length ? h('span', { class: 'b' }, plural(list.traces.length, 'run')) : null),
-        h('p', { class: 'tr-lede' }, 'With PRAVO_TRACES=on, every command that does some work is recorded as a trace: the spans of the command, its setup, the stages of the engine, each resource, each call to a provider and each request to the state, with the time each took. Open one to see where a run spent its time or where it stopped.')),
+          list && list.traces.length ? h('div', { class: 'tr-runsmenu' },
+            h('button', { class: 'tr-runsbtn', type: 'button', 'aria-expanded': this.runsOpen ? 'true' : 'false', 'data-fk': 'runs', on: { click: () => { this.runsOpen = !this.runsOpen; this.render(); } } },
+              h('span', { class: 'tr-rb1' }, cur ? (cur.line || cur.command) : 'Choose a run'), cur ? h('span', { class: 'tr-rb2' }, relTime(cur.start)) : null,
+              h('span', { class: 'b' }, plural(list.traces.length, 'run')), icon('chev')),
+            this.runsOpen ? this.runs(list) : null) : null),
+        !list || !list.traces.length ? h('p', { class: 'tr-lede' }, 'With PRAVO_TRACES=on, every command that does some work is recorded as a trace: the spans of the command, its setup, the stages of the engine, each resource, each call to a provider and each request to the state, with the time each took. Open one to see where a run spent its time or where it stopped.') : null),
       this.error ? h('p', { class: 'tr-warn', role: 'alert' }, icon('bang'), h('span', null, this.error)) : null,
       this.notFound ? h('p', { class: 'tr-warn', role: 'note' }, icon('bang'), h('span', null, 'The run in the address is not in the directory any more.')) : null,
       body,
@@ -563,9 +572,9 @@ export class TracesView {
     if (!this.tip) { this.tip = h('div', { class: 'tr-tip', role: 'tooltip' }); document.body.append(this.tip); }
     const t = this.tip;
     clear(t);
-    t.append(h('b', null, labelOf(sp)), h('span', { class: 'tr-tk' }, KIND[sp.kind] || 'span'),
-      h('span', null, `${fmtDur(sp.dur_us)}${sp.self !== sp.dur_us ? ` · ${fmtDur(sp.self)} in itself` : ''} · at ${fmtDur(sp.start_us)}`));
-    if (sp.status === 'error') t.append(h('span', { class: 'tr-te' }, sp.message ? sp.message.slice(0, 160) : 'failed'));
+    t.append(h('div', { class: 'tr-t1' }, h('span', { class: 'tr-sw k-' + sp.kind, 'aria-hidden': 'true' }), h('b', null, labelOf(sp))),
+      h('div', { class: 'tr-t2' }, `${KIND[sp.kind] || 'span'}  ·  ${fmtDur(sp.dur_us)}${sp.self !== sp.dur_us ? `  ·  ${fmtDur(sp.self)} in itself` : ''}  ·  at ${fmtDur(sp.start_us)}`));
+    if (sp.status === 'error') t.append(h('div', { class: 'tr-te' }, sp.message ? sp.message.slice(0, 160) : 'failed'));
     t.hidden = false;
     const w = t.offsetWidth, hh = t.offsetHeight;
     let x = ev.clientX + 14, y = ev.clientY + 16;
@@ -627,60 +636,75 @@ export class TracesView {
     }
   }
 
-  // ---- the detail of a span ----
+  // ---- the inspector: the span that is selected, beside the timeline ----
 
   detail() {
     const sp = this.sel && this.model.byId.get(this.sel);
-    if (!sp) return h('div', { class: 'tr-detail empty' }, h('p', { class: 'tr-note' }, this.mode === 'flame' ? 'Click a span to see what it did, how long it took, and what was in it.' : 'Click a span to see what it did and what was in it.'));
+    if (!sp) return h('aside', { class: 'tr-detail empty', 'aria-label': 'Span inspector' },
+      h('p', { class: 'tr-note' }, 'Click a span to inspect it here. The arrow keys step from span to span, and the inspector follows.'));
     const total = this.doc.duration_us || 1;
     const chain = pathOf(sp);
     const crumbs = h('ol', { class: 'tr-crumbs', 'aria-label': 'Where the span is' });
     chain.forEach((c, i) => crumbs.append(h('li', null, i === chain.length - 1 ? h('span', { 'aria-current': 'true' }, labelOf(c)) : h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, labelOf(c)))));
     const attrs = Object.entries(sp.attrs || {}).sort(([a], [b]) => a.localeCompare(b));
-    const slow = sp.kids.slice().sort((a, b) => b.dur_us - a.dur_us).slice(0, 5);
-    const stat = (k, v, sub) => h('div', { class: 'st' }, h('dt', null, k), h('dd', null, h('b', null, v), sub ? h('span', null, sub) : null));
+    const events = sp.events || [];
+    const kids = sp.kids.slice().sort((a, b) => b.dur_us - a.dur_us);
+    const tabs = [['attrs', 'Attributes', attrs.length], ['events', 'Events', events.length], ['parts', 'Parts', kids.length]].filter((t) => t[2]);
+    const tab = tabs.find((t) => t[0] === this.dtab) ? this.dtab : tabs.length ? tabs[0][0] : '';
+    const meta = (k, v, sub) => h('div', { class: 'tr-m' }, h('span', { class: 'k' }, k), h('b', null, v), sub ? h('span', { class: 'sub' }, sub) : null);
+    const pct = Math.min(100, (sp.dur_us / total) * 100);
     const copy = sp.kind === 'resource' && sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : '';
-    return h('div', { class: 'tr-detail' + (sp.status === 'error' ? ' bad' : ''), 'aria-label': `The span ${labelOf(sp)}`, role: 'region' },
+    const fit = this.mode === 'flame'
+      ? h('button', { class: 'tr-tool', type: 'button', title: 'Zoom the timeline to this span', on: { click: () => this.zoomTo(sp) } }, 'Fit')
+      : h('button', { class: 'tr-tool', type: 'button', title: 'Show this span in the timeline', on: { click: () => { this.setMode('flame'); this.zoomTo(sp); } } }, 'Timeline');
+    let body;
+    if (tab === 'attrs') body = this.attrsPanel(attrs);
+    else if (tab === 'events') body = h('ol', { class: 'tr-events' }, events.map((e) => h('li', null, h('span', { class: 'at' }, '+' + fmtDur(Math.max(0, e.at_us - sp.start_us))), h('span', { class: 'en' }, e.name),
+      e.attrs && Object.keys(e.attrs).length ? h('span', { class: 'ea' }, Object.entries(e.attrs).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(',') : v}`).join(' ')) : null)));
+    else if (tab === 'parts') body = h('ol', { class: 'tr-kids' }, kids.map((c) => h('li', null,
+      h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, h('span', { class: 'tr-sw k-' + c.kind, 'aria-hidden': 'true' }), h('span', { class: 'nm' }, labelOf(c))),
+      h('span', { class: 'kd' }, h('span', { class: 'kb', style: `--w:${Math.max(1, Math.min(100, (c.dur_us / Math.max(sp.dur_us, 1)) * 100))}%` }), fmtDur(c.dur_us)))));
+    else body = h('p', { class: 'tr-note' }, 'This span has no attributes, events or parts.');
+    return h('aside', { class: 'tr-detail' + (sp.status === 'error' ? ' bad' : ''), 'aria-label': `The span ${labelOf(sp)}` },
       h('div', { class: 'tr-dhead' },
         h('span', { class: 'tr-sw k-' + sp.kind, 'aria-hidden': 'true' }),
-        h('h3', { class: 'tr-dname' }, labelOf(sp)),
-        h('span', { class: 'b' }, KIND[sp.kind] || 'span'),
-        sp.status === 'error' ? h('span', { class: 'b bad' }, icon('bang'), 'failed') : null,
+        h('h3', { class: 'tr-dname', title: labelOf(sp) }, labelOf(sp)),
         h('span', { class: 'grow' }),
         copy ? h('button', { class: 'cpbtn', type: 'button', 'data-copy': copy, 'aria-label': 'Copy the address', 'data-tip': 'Copy the address' }, icon('copy')) : null,
-        this.mode === 'flame' ? h('button', { class: 'linkbtn', type: 'button', on: { click: () => this.zoomTo(sp) } }, 'Fit in the timeline') : h('button', { class: 'linkbtn', type: 'button', on: { click: () => { this.setMode('flame'); this.zoomTo(sp); } } }, 'Show in the timeline'),
-        h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Close the detail', on: { click: () => this.select(null) } }, icon('x'))),
-      crumbs,
-      sp.status === 'error' && sp.message ? h('pre', { class: 'tr-err' }, sp.message) : null,
+        fit,
+        h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Close the inspector', title: 'Close ( Esc )', on: { click: () => this.select(null) } }, icon('x'))),
+      h('div', { class: 'tr-dsub' },
+        h('span', { class: 'b' }, KIND[sp.kind] || 'span'),
+        sp.status === 'error' ? h('span', { class: 'b bad' }, icon('bang'), 'failed') : null,
+        crumbs),
+      h('div', { class: 'tr-metas' },
+        meta('Took', fmtDur(sp.dur_us), `${pct.toFixed(sp.dur_us / total < 0.1 ? 1 : 0)}% of the run`),
+        meta('In itself', fmtDur(sp.self), sp.kids.length ? `${Math.round((sp.self / Math.max(sp.dur_us, 1)) * 100)}%` : 'no parts'),
+        meta('From', fmtDur(sp.start_us), 'to ' + fmtDur(sp.end))),
       h('div', { class: 'tr-where', role: 'img', 'aria-label': `From ${fmtDur(sp.start_us)} to ${fmtDur(sp.end)} of ${fmtDur(total)}` },
-        h('span', { class: 'tr-wb k-' + sp.kind + (sp.status === 'error' ? ' err' : ''), style: `left:${Math.min(99.5, (sp.start_us / total) * 100)}%;width:max(3px,${Math.min(100, (sp.dur_us / total) * 100)}%)` })),
-      h('dl', { class: 'tr-stats' },
-        stat('Took', fmtDur(sp.dur_us), `${(Math.min(100, (sp.dur_us / total) * 100)).toFixed(sp.dur_us / total < 0.1 ? 1 : 0)}% of the run`),
-        stat('In itself', fmtDur(sp.self), sp.kids.length ? `${Math.round((sp.self / Math.max(sp.dur_us, 1)) * 100)}% of its time` : 'no parts'),
-        stat('Started', fmtDur(sp.start_us), 'into the run'),
-        stat('Ended', fmtDur(sp.end), phaseOf(sp) ? 'in ' + phaseOf(sp) : '')),
-      h('div', { class: 'tr-cols' },
-        attrs.length ? h('section', { 'aria-label': 'Attributes' }, h('h4', null, 'Attributes'),
-          this.match ? h('p', { class: 'tr-af' }, h('b', null, plural(this.model.spans.filter(this.match).length, 'span')), ` of ${fmt(this.model.spans.length)} match the filter `,
-            h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.setQuery('') } }, 'Clear the filter')) : null,
-          h('ul', { class: 'tr-attrs' }, attrs.map(([k, v]) => {
-            const val = Array.isArray(v) ? v.join(',') : String(v);
-            const spec = `${k}=${val}`;
-            const isOn = (neg) => parseQuery(this.q || '', LANG).terms.some((t) => t.col === 'attr' && t.neg === neg && t.values.includes(spec.toLowerCase()));
-            const only = isOn(false), hide = isOn(true);
-            // a button that is on takes the term out again; one that is off puts it in, and takes the other sign out
-            const term = (neg, on) => () => this.setQuery(on ? removeValues(this.q || '', 'attr', [spec], LANG, neg) : addTerm(this.q || '', 'attr', spec, neg, LANG));
-            const btn = (label, neg, on, tip) => h('button', { type: 'button', class: 'tr-f' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', 'aria-label': `${label}: ${k} ${val}`, title: on ? `${tip} (click to remove)` : tip, on: { click: term(neg, on) } }, on ? '\u2713 ' + label : label);
-            return h('li', { class: only ? 'f-only' : hide ? 'f-hide' : '' }, h('span', { class: 'ak' }, k), val === '' ? h('span', { class: 'av none', title: 'The attribute is set and holds an empty string' }, 'empty') : h('span', { class: 'av' }, val),
-              h('span', { class: 'af' }, btn('Only', false, only, 'Keep only the spans with this'), btn('Hide', true, hide, 'Leave out the spans with this')));
-          }))) : null,
-        sp.events && sp.events.length ? h('section', { 'aria-label': 'Events' }, h('h4', null, 'Events'),
-          h('ol', { class: 'tr-events' }, sp.events.map((e) => h('li', null, h('span', { class: 'at' }, '+' + fmtDur(Math.max(0, e.at_us - sp.start_us))), h('span', { class: 'en' }, e.name),
-            e.attrs && Object.keys(e.attrs).length ? h('span', { class: 'ea' }, Object.entries(e.attrs).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(',') : v}`).join(' ')) : null)))) : null,
-        slow.length ? h('section', { 'aria-label': 'Slowest parts' }, h('h4', null, sp.kids.length > slow.length ? `Slowest of ${sp.kids.length} parts` : 'Parts'),
-          h('ol', { class: 'tr-kids' }, slow.map((c) => h('li', null,
-            h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, h('span', { class: 'tr-sw k-' + c.kind, 'aria-hidden': 'true' }), labelOf(c)),
-            h('span', { class: 'kd' }, h('span', { class: 'kb', style: `--w:${Math.max(1, Math.min(100, (c.dur_us / Math.max(sp.dur_us, 1)) * 100))}%` }), fmtDur(c.dur_us)))))) : null));
+        h('span', { class: 'tr-wb k-' + sp.kind + (sp.status === 'error' ? ' err' : ''), style: `left:${Math.min(99.5, (sp.start_us / total) * 100)}%;width:max(3px,${pct}%)` })),
+      sp.status === 'error' && sp.message ? h('pre', { class: 'tr-err' }, sp.message) : null,
+      tabs.length ? h('div', { class: 'tr-tabs', role: 'tablist', 'aria-label': 'What to show of the span' },
+        tabs.map(([k, label, n]) => h('button', { type: 'button', role: 'tab', class: 'tr-tab', 'aria-selected': k === tab ? 'true' : 'false', 'data-fk': 'dtab-' + k,
+          on: { click: () => { this.dtab = k; const old = this.root.querySelector('.tr-detail'); if (old) old.replaceWith(this.detail()); } } }, label, h('em', null, fmt(n))))) : null,
+      h('div', { class: 'tr-dbody', role: tabs.length ? 'tabpanel' : null }, body));
+  }
+
+  attrsPanel(attrs) {
+    return h('div', null,
+      this.match ? h('p', { class: 'tr-af' }, h('b', null, plural(this.model.spans.filter(this.match).length, 'span')), ` of ${fmt(this.model.spans.length)} match the filter `,
+        h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.setQuery('') } }, 'Clear the filter')) : null,
+      h('ul', { class: 'tr-attrs' }, attrs.map(([k, v]) => {
+        const val = Array.isArray(v) ? v.join(',') : String(v);
+        const spec = `${k}=${val}`;
+        const isOn = (neg) => parseQuery(this.q || '', LANG).terms.some((t) => t.col === 'attr' && t.neg === neg && t.values.includes(spec.toLowerCase()));
+        const only = isOn(false), hide = isOn(true);
+        // a button that is on takes the term out again; one that is off puts it in, and takes the other sign out
+        const term = (neg, on) => () => this.setQuery(on ? removeValues(this.q || '', 'attr', [spec], LANG, neg) : addTerm(this.q || '', 'attr', spec, neg, LANG));
+        const btn = (label, neg, on, tip) => h('button', { type: 'button', class: 'tr-f' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', 'aria-label': `${label}: ${k} ${val}`, title: on ? `${tip} (click to remove)` : tip, on: { click: term(neg, on) } }, on ? '✓ ' + label : label);
+        return h('li', { class: only ? 'f-only' : hide ? 'f-hide' : '' }, h('span', { class: 'ak' }, k), val === '' ? h('span', { class: 'av none', title: 'The attribute is set and holds an empty string' }, 'empty') : h('span', { class: 'av' }, val),
+          h('span', { class: 'af' }, btn('Only', false, only, 'Keep only the spans with this'), btn('Hide', true, hide, 'Leave out the spans with this')));
+      })));
   }
 
   // resize redraws the timeline for a new width.
