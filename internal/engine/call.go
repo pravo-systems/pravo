@@ -51,7 +51,7 @@ func (e *Engine) callTask(ctx context.Context, r *config.Resource, v cue.Value, 
 			return nil, fmt.Errorf("%s: args must be a list: %w", addr, err)
 		}
 	}
-	conv := &convert.Converter{Strict: strict, Self: r.Path, Resolve: e.resolver(), IsEphemeral: e.isEphemeral}
+	conv := &convert.Converter{Strict: strict, Self: r.Path, Resolve: e.resolver(), IsEphemeral: e.ephemeralCheck()}
 	if ref, ok := conv.EphemeralRef(argsV); ok {
 		e.cueMu.Unlock()
 		return nil, fmt.Errorf("%s: args reference %s; function results may be recorded in state, so ephemeral values cannot be passed to a function", addr, ref)

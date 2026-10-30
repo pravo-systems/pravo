@@ -114,6 +114,8 @@ type Engine struct {
 	changes map[string]*Change
 	deps    map[string][]string
 	byPath  map[string]*config.Resource
+	// hasEphemeral is set when the specification has an ephemeral resource.
+	hasEphemeral bool
 	// now is the clock that records are aged against; nil is the wall clock.
 	now   func() time.Time
 	stats Stats
@@ -262,6 +264,7 @@ func New(root *config.Root, st *state.Store, providers *Providers, schemas map[s
 	st.BindRecords(protect.RolesOn(opts.Readers))
 	for _, r := range root.Resources {
 		e.byPath[r.Path.String()] = r
+		e.hasEphemeral = e.hasEphemeral || r.Mode == "ephemeral"
 	}
 	st.SetActor(opts.Actor, opts.Reason, opts.GitRevision)
 	// In a sealed state the actor is the signing identity, whatever label was given.

@@ -175,6 +175,16 @@ func TestSecretIsKeptOutOfWhatIsRecorded(t *testing.T) {
 			cue:       "sec: {name: \"prod/token\", value: string}\na: " + thing("a", `content: "token-\(sec.value)"`) + "\n",
 			resources: []string{"a"}, secrets: []string{"sec"},
 		},
+		"an attribute through a definition input": {
+			cue: "sec: {name: \"prod/token\", value: string}\n#T: {token: string, a: " + thing("a", `content: token`) + "}\n" +
+				"inst: #T & {token: sec.value}\n",
+			resources: []string{"inst.a"}, secrets: []string{"sec"},
+		},
+		"an attribute built from a definition input": {
+			cue: "sec: {name: \"prod/token\", value: string}\n#T: {token: string, a: " + thing("a", `content: "token-\(token)"`) + "}\n" +
+				"inst: #T & {token: sec.value}\n",
+			resources: []string{"inst.a"}, secrets: []string{"sec"},
+		},
 		"an output": {
 			cue:       "sec: {name: \"prod/token\", value: string}\nshown: {value: sec.value}\n",
 			outputs:   []string{"shown"},

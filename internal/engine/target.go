@@ -40,7 +40,7 @@ func (e *Engine) providerConfig(key string, blk *schema.Block) (tftypes.Value, *
 	if !cv.Exists() {
 		cv = e.Root.Ctx.CompileString("{}")
 	}
-	conv := &convert.Converter{Resolve: e.resolver(), IsEphemeral: e.isEphemeral, AllowEphemeral: true}
+	conv := &convert.Converter{Resolve: e.resolver(), IsEphemeral: e.ephemeralCheck(), AllowEphemeral: true}
 	cfg := conv.Block("provider "+key, blk, cv)
 	return cfg, conv, cv, conv.Err()
 }
