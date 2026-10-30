@@ -78,11 +78,12 @@ function reorder(layer, up) {
 }
 
 // transpose swaps two neighbours in a column whenever that takes crossings away
-function transpose(layers) {
+function transpose(layers, fix0) {
   let swapped = true;
   for (let pass = 0; swapped && pass < 12; pass++) {
     swapped = false;
     for (const L of layers) {
+      if (fix0 && L === layers[0]) continue;
       for (let i = 0; i + 1 < L.length; i++) {
         const u = L[i], v = L[i + 1];
         if (u.glue || v.glue || u.fol || v.fol) continue;
@@ -95,7 +96,7 @@ function transpose(layers) {
   }
 }
 
-function orderLayers(layers, rounds) {
+function orderLayers(layers, rounds, fix0) {
   const setPos = () => { for (const L of layers) for (let i = 0; i < L.length; i++) L[i].pos = i; };
   setPos();
   let best = countCrossings(layers);
@@ -104,8 +105,8 @@ function orderLayers(layers, rounds) {
   let stale = 0;
   for (let it = 0; it < rounds && best > 0 && stale < 5; it++) {
     for (let l = 1; l < layers.length; l++) reorder(layers[l], true);
-    for (let l = layers.length - 2; l >= 0; l--) reorder(layers[l], false);
-    transpose(layers);
+    for (let l = layers.length - 2; l >= (fix0 ? 1 : 0); l--) reorder(layers[l], false);
+    transpose(layers, fix0);
     const c = countCrossings(layers);
     if (c < best) { best = c; snap = layers.map((L) => L.slice()); stale = 0; } else stale++;
   }
@@ -419,9 +420,10 @@ function assignTracks(list) {
   if (!n) return 0;
   const M = 4;
   const ov = (a, b) => a.lo < b.hi + M && b.lo < a.hi + M;
-  const inside = (y, a) => y > a.lo + 0.5 && y < a.hi - 0.5;
+  const inside = (y, a) => y > a.lo - 3 && y < a.hi + 3 && !(y <= a.lo + 0.5 && y >= a.lo - 0.5) && !(y >= a.hi - 0.5 && y <= a.hi + 0.5);
   // the wires that a run of b on the right of a would cross
-  const cost = (a, b) => { let c = inside(b.yin, a) ? 1 : 0; for (const y of a.outs) if (inside(y, b)) c++; return c; };
+  // (and the two that would run along one another: a wire that goes out at the height at which b comes in)
+  const cost = (a, b) => { let c = inside(b.yin, a) ? 1 : 0; for (const y of a.outs) { if (inside(y, b)) c++; if (Math.abs(y - b.yin) < 3) c++; } return c; };
   list.sort((p, q) => p.lo - q.lo || p.ord - q.ord);
   const idx = list.map((_, i) => i);
   if (n <= 220) {
@@ -434,6 +436,20 @@ function assignTracks(list) {
       }
     }
     idx.sort((p, q) => score[p] - score[q] || p - q);
+  }
+  // the scores see each pair on its own; two lines that would cross fewer wires, or run clear of one another, if they changed
+  // places (with the lines between them) change places
+  const pr = (l, r) => (ov(list[l], list[r]) ? cost(list[l], list[r]) : 0);
+  for (let pass = 0, moved = true; moved && pass < 30; pass++) {
+    moved = false;
+    for (let p = 0; p + 1 < n; p++) {
+      for (let q = p + 1; q < n && q <= p + 8; q++) {
+        const x = idx[p], y = idx[q];
+        let d = pr(y, x) - pr(x, y);
+        for (let k = p + 1; k < q; k++) { const m = idx[k]; d += pr(y, m) + pr(m, x) - pr(x, m) - pr(m, y); }
+        if (d < 0) { idx[p] = y; idx[q] = x; moved = true; }
+      }
+    }
   }
   const placed = [];
   let T = 0;
@@ -478,6 +494,10 @@ export function flow(args, G) {
   for (const e of args.edges) if (e.a !== e.b && home.has(e.a) && home.has(e.b)) E.push(e);
 
   const backSet = new Set();
+  // How the wires outside approach each lane, by lane and source: the second pass puts the ports of a lane that the
+  // lane itself has no preference for in that order, so that two wires into one lane do not cross at its border.
+  const approach = new Map();
+  let ties = false, pass2 = false;
 
   // build lays out one lane (its sub-lanes first) and sets its size: w, h, and where its block stands in the box: ox, oy.
   function build(L, EL) {
@@ -870,7 +890,12 @@ export function flow(args, G) {
     let edgeCount = 0;
     for (const v of V) edgeCount += v.dn.length;
     const rounds = typeof args.sweeps === 'number' && args.sweeps > 0 ? args.sweeps : Math.max(3, Math.min(24, Math.round(300000 / (edgeCount + 50))));
-    orderLayers(layers, rounds);
+    // the ports where wires come in stand in the order in which the wires outside approach them, when that is known
+    const ap = (v) => approach.get(L.id + '|' + v.node.a);
+    const fix0 = hasIN && pass2 && layers[0].every((v) => ap(v) !== undefined);
+    if (hasIN && ins.length > 1) ties = true;
+    if (fix0) layers[0].sort((p, q) => ap(p) - ap(q));
+    orderLayers(layers, rounds, fix0);
     // what stands alone goes last in its column
     for (const v of isoV) { layers[v.layer].push(v); if (v.fol) for (const f of v.fol) layers[v.layer].push(f); }
     for (const L2 of layers) for (let i = 0; i < L2.length; i++) L2[i].pos = i;
@@ -927,7 +952,7 @@ export function flow(args, G) {
     for (const [v, list] of arrivals) {
       list.sort((p, q) => p.from - q.from || p.s.ord - q.s.ord);
       const k = list.length;
-      if (v.kind === 'lane') list.forEach((r) => pin.set(r.s.a + '|' + r.c.id, topOf(v) + v.node.lane.inY.get(r.s.a)));
+      if (v.kind === 'lane') list.forEach((r) => { approach.set(v.node.lane.id + '|' + r.s.a, r.from); pin.set(r.s.a + '|' + r.c.id, topOf(v) + v.node.lane.inY.get(r.s.a)); });
       else if (v.kind !== 'item') list.forEach((r) => pin.set(r.s.a + '|' + r.c.id, v.y));
       else {
         // each wire arrives at the height that it comes in at when that is within the item, and the wires that would stand
@@ -1068,6 +1093,7 @@ export function flow(args, G) {
   }
 
   build(R, E);
+  if (ties && !lite) { pass2 = true; build(R, E); }
 
   // ---- absolute positions ----
   const pos = new Map();

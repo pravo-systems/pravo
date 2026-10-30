@@ -209,7 +209,7 @@ export function badges(routes, counts, boxes = []) {
     for (const p of placed) if (p.x0 - AIR < x1 && p.x1 + AIR > x0 && p.y0 - AIR < y1 && p.y1 + AIR > y0) return false;
     return true;
   };
-  for (const e of list) {
+  const choose = (e) => {
     let best = null, bestAny = null;
     for (const [cx, cy, extra] of e.cands) {
       const x0 = cx - e.hw, x1 = cx + e.hw, y0 = cy - e.hh, y1 = cy + e.hh;
@@ -217,9 +217,30 @@ export function badges(routes, counts, boxes = []) {
       if (!bestAny || cost < bestAny.cost) bestAny = { cx, cy, cost, x0, y0, x1, y1 };
       if ((!best || cost < best.cost) && free(x0, y0, x1, y1)) best = { cx, cy, cost, x0, y0, x1, y1 };
     }
-    const at = best || bestAny;
-    placed.push(at);
-    out.set(e.key, [at.cx, at.cy]);
+    return { at: best || bestAny, ok: !!best };
+  };
+  const put1 = (e, at) => { at.e = e; placed.push(at); out.set(e.key, [at.cx, at.cy]); };
+  const crowded = [];
+  for (const e of list) {
+    const r = choose(e);
+    put1(e, r.at);
+    if (!r.ok) crowded.push(e);
+  }
+  // a count that found no free place asks the ones that stand in its way to move: it chooses first, and they choose again
+  for (const e of crowded) {
+    const cur = placed.find((p) => p.e === e);
+    const near = (a, b) => a.x0 - AIR < b.x1 && a.x1 + AIR > b.x0 && a.y0 - AIR < b.y1 && a.y1 + AIR > b.y0;
+    const blockers = placed.filter((p) => p !== cur && near(p, cur));
+    const keep = placed.slice(), keepOut = new Map(out);
+    for (const b of blockers.concat(cur)) placed.splice(placed.indexOf(b), 1);
+    const again = [e].concat(blockers.map((b) => b.e));
+    let all = true;
+    for (const x of again) {
+      const r = choose(x);
+      put1(x, r.at);
+      if (!r.ok) all = false;
+    }
+    if (!all) { placed.length = 0; placed.push(...keep); for (const [k, v] of keepOut) out.set(k, v); }
   }
   return out;
 }
