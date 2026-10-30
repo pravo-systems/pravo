@@ -141,7 +141,7 @@ export function buildModel(graph, plans) {
   const stored = plans || [];
   return {
     graph: g, nodes, list, namespaces, root, edges, counts, planned, hasPlan: !!g.plan, specError, nres: counts.all, nout,
-    plans: stored, planById: new Map(stored.map((p) => [p.id, p])), authors: new Map(stored.map((p) => [p.id, p.author])), signers: new Map(stored.filter((p) => p.signer).map((p) => [p.id, p.signer])),
+    plans: stored, planById: new Map(stored.map((p) => [p.id, p])), authors: new Map(stored.map((p) => [p.id, p.author])),
   };
 }
 

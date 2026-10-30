@@ -9,7 +9,7 @@ import { entityOf, ENTITY_LABEL, facetHit } from './query.js';
 import { codeWindow, kindLabel } from './ui.js';
 import { StateView, withheld, unknownEl, timeRow } from './values.js';
 import { projectPanel, namespacePanel } from './panels.js';
-import { avatar, statusChip, conflictAt, signedBy } from './plans.js';
+import { avatar, statusChip, conflictAt } from './plans.js';
 
 const TABS = [
   { key: 'state', label: 'State' },
@@ -294,9 +294,7 @@ export class Inspector {
       // the stored plans that can still be applied and change this resource, on a row of their own: each is a way to lay it over the graph
       const chips = open.slice(0, 4).map((id) => {
         const author = model.authors.get(id) || '?';
-        const signer = model.signers.get(id);
-        const by = signer && signer !== author ? `${author}, signed by ${signer}` : author;
-        return h('button', { class: 'plchip', type: 'button', data: { plan: id }, 'aria-label': `Lay ${id} by ${by} over the graph`, 'data-tip': `${id}\nby ${by}\nClick to lay it over the graph` }, avatar(author));
+        return h('button', { class: 'plchip', type: 'button', data: { plan: id }, 'aria-label': `Lay ${id} by ${author} over the graph`, 'data-tip': `${id}\nby ${author}\nClick to lay it over the graph` }, avatar(author));
       });
       if (open.length > 4) chips.push(h('span', { class: 'plmore' }, '+' + (open.length - 4)));
       // a row of its own under the strip, and not a cell of it: the cells keep the room that they have
@@ -647,8 +645,8 @@ export class Inspector {
         const touch = p && (p.touches || []).find((t) => t.addr === node.addr);
         const a = touch && actionOf(touch.action);
         const stuck = !!(touch && touch.conflict);
-        return h('li', null, h('button', { class: 'plrow' + (id === cur ? ' on' : ''), type: 'button', data: { plan: id }, 'aria-pressed': String(id === cur), 'aria-label': `${id}${p ? ' by ' + p.author + (signedBy(p) ? ', signed by ' + signedBy(p) : '') : ''}${a ? ', ' + a.label : ''}${stuck ? ', conflicts with the state' : ''}` },
-          avatar(p ? p.author : '?'), h('code', null, id), p ? h('span', { class: 'pa' }, p.author, signedBy(p) ? h('span', { class: 'dim' }, ' \u00b7 signed by ' + signedBy(p)) : null) : null,
+        return h('li', null, h('button', { class: 'plrow' + (id === cur ? ' on' : ''), type: 'button', data: { plan: id }, 'aria-pressed': String(id === cur), 'aria-label': `${id}${p ? ' by ' + p.author : ''}${a ? ', ' + a.label : ''}${stuck ? ', conflicts with the state' : ''}` },
+          avatar(p ? p.author : '?'), h('code', null, id), p ? h('span', { class: 'pa' }, p.author) : null,
           a ? h('span', { class: 'act' }, h('i', { class: 'sq ' + a.cls }), a.label) : null,
           h('span', { class: 'plst' }, stuck ? h('span', { class: 'b chg', 'data-tip': 'The state moved on under this resource, or under one that this change has to be applied with. The plan cannot apply it now.' }, 'conflict') : null, p ? statusChip(p.status) : null)));
       })),

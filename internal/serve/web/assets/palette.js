@@ -248,7 +248,7 @@ export class Palette {
         return row('', nodeMark(r.n, this.model.hasPlan), this.hl(r.n.addr, r.cs), h('span', { class: 'pal-r' }, r.n.type));
       case 'plan': {
         const p = r.p;
-        return row('', icon('file'), this.hl(p.id, r.cs), h('span', { class: 'pal-r' }, `${String(p.status).replace(/-/g, ' ')} · ${p.author}${p.signer && p.signer !== p.author ? ' · signed by ' + p.signer : ''}`));
+        return row('', icon('file'), this.hl(p.id, r.cs), h('span', { class: 'pal-r' }, `${String(p.status).replace(/-/g, ' ')} · ${p.author}`));
       }
       case 'run': {
         const x = r.run;
