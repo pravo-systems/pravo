@@ -93,7 +93,9 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 				return err
 			}
 			opts.Chat = co
+			_, end := telemetry.Span(cmd.Context(), "setup read the specification and the state")
 			srv, err := serve.New(opts)
+			end(err)
 			stopProgress() // the server runs until it is stopped; what it does per request is not progress
 			if err != nil {
 				return err
