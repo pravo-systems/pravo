@@ -64,7 +64,9 @@ type TemplateInput struct {
 	Kind string `json:"kind"`
 	// Type is the CUE of the field, such as `*8080 | int & >1024`.
 	Type string `json:"type,omitempty"`
-	// Doc is the comment above the field.
+	// Label is what the form calls the input when the template says so in ask; Doc is the comment above the field, or the
+	// description that ask gives instead.
+	Label    string `json:"label,omitempty"`
 	Doc      string `json:"doc,omitempty"`
 	Required bool   `json:"required,omitempty"`
 	// Default is the CUE of the default, empty when there is none.
@@ -389,6 +391,12 @@ func listElem(fv cue.Value) string {
 func (in *TemplateInput) applyAsk(ask cue.Value) {
 	if !ask.Exists() {
 		return
+	}
+	if l, ok := stringAt(ask, "label"); ok && strings.TrimSpace(l) != "" {
+		in.Label = clip(oneLine(l), 80)
+	}
+	if d, ok := stringAt(ask, "description"); ok && strings.TrimSpace(d) != "" {
+		in.Doc = clip(strings.TrimSpace(d), 600)
 	}
 	if b, err := ask.LookupPath(cue.ParsePath("long")).Bool(); err == nil && b && (in.Kind == "string" || in.Kind == "any") {
 		in.Long = true

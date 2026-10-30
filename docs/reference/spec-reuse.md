@@ -401,7 +401,7 @@ The marker `$template` is an ordinary field. It passes into every instance when 
 
 ### Inputs that are not typed in
 
-`$template.ask` says more of an input than its type does. It names the inputs, and an input that it does not name is a typed one.
+`$template.ask` says more of an input than its type does. It names the inputs, and an input that it does not name is a typed one. Every input may also have a `label`, which the form shows instead of the name of the field, and a `description`, which it shows instead of the comment above the field. Without them the form shows the name and the comment.
 
 ```cue
 #Service: pravo.#Template & {
@@ -412,8 +412,8 @@ The marker `$template` is an ordinary field. It passes into every instance when 
 			region: {choices: regions.outputs}
 			// A resource of the estate to refer to.
 			network: {entity: {type: "random_id", attr: "hex"}}
-			// A long text.
-			notes: {long: true}
+			// A long text, with a label and a description of its own.
+			notes: {long: true, label: "Notes for on-call", description: "Who to page, and in what order."}
 		}
 	}
 	region:  or([for k, _ in regions.outputs {k}])

@@ -164,7 +164,7 @@ export class TemplatesView {
         h('caption', { class: 'sr-only' }, `Inputs of ${t.title}`),
         h('thead', null, h('tr', null, ['Input', 'Takes', 'Default', 'Help'].map((x) => h('th', { scope: 'col' }, x)))),
         h('tbody', null, t.inputs.map((i) => h('tr', null,
-          h('th', { scope: 'row', 'data-label': 'Input' }, h('code', { class: 'nm' }, i.name), i.required ? h('span', { class: 'b chg', title: 'The instance must give it a value' }, 'required') : null),
+          h('th', { scope: 'row', 'data-label': 'Input' }, h('code', { class: 'nm' }, i.name), i.label && i.label !== i.name ? h('span', { class: 'dim' }, ' ' + i.label) : null, i.required ? h('span', { class: 'b chg', title: 'The instance must give it a value' }, 'required') : null),
           h('td', { 'data-label': 'Takes' }, h('code', { class: 'tp-type' }, i.type || i.kind)),
           h('td', { 'data-label': 'Default' }, i.default ? h('code', null, i.default) : h('span', { class: 'dim' }, '–')),
           h('td', { 'data-label': 'Help' }, i.doc || h('span', { class: 'dim' }, '–')))))));
@@ -260,7 +260,7 @@ export class TemplatesView {
 
   field(o, ...control) {
     return h('div', { class: 'tp-field', 'data-field': o.id },
-      h('label', { class: 'tp-fl', for: 'tpf-' + (o.forId || o.id) }, h('span', { class: 'tp-fn' }, o.label), o.required ? h('span', { class: 'tp-req' }, 'required') : null, o.tag ? h('code', { class: 'tp-ftype' }, o.tag) : null),
+      h('label', { class: 'tp-fl', for: 'tpf-' + (o.forId || o.id) }, h('span', { class: 'tp-fn' }, o.label), o.name ? h('code', { class: 'tp-fid', title: 'The field in the definition' }, o.name) : null, o.required ? h('span', { class: 'tp-req' }, 'required') : null, o.tag ? h('code', { class: 'tp-ftype' }, o.tag) : null),
       ...control,
       o.help ? h('p', { class: 'tp-help' }, o.help) : null,
       h('p', { class: 'tp-err', 'data-err': o.id, hidden: true }));
@@ -312,7 +312,7 @@ export class TemplatesView {
     };
     draw();
     const tag = i.secret ? 'secret' : i.choices ? 'from ' + i.choices.split('.')[0] : i.entity ? i.entity.type : i.kind === 'enum' ? 'one of' : i.kind === 'list' && i.elem ? 'list of ' + i.elem : i.long ? 'text' : i.type && i.type.length < 34 ? i.type : i.kind;
-    return this.field({ label: i.name, help: i.doc, id: i.name, required: i.required, tag }, row, holder);
+    return this.field({ label: i.label || i.name, name: i.label && i.label !== i.name ? i.name : '', help: i.doc, id: i.name, required: i.required, tag }, row, holder);
   }
 
   // ---- values that are not typed: choices, existing resources, lists, secrets ----
@@ -326,7 +326,7 @@ export class TemplatesView {
       return;
     }
     if (c.state === 'ok') {
-      const sel = h('select', { class: 'tp-in tp-sel', id: 'tpf-' + i.name, 'data-fk': 'in:' + i.name, 'aria-label': i.name,
+      const sel = h('select', { class: 'tp-in tp-sel', id: 'tpf-' + i.name, 'data-fk': 'in:' + i.name, 'aria-label': i.label || i.name,
         on: { change: (ev) => { cur.text = ev.target.value; cur.pick = ev.target.value; this.changed(); } } },
       h('option', { value: '' }, i.required ? 'Choose…' : 'Choose, or leave it out'),
       c.items.map((x) => h('option', { value: x.value, selected: cur.pick === x.value ? true : null }, x.label ? `${x.value} — ${x.label}` : x.value)));
@@ -556,7 +556,7 @@ export class TemplatesView {
     const rows = [];
     // the specification
     if (r.state === 'valid') rows.push(this.check_('ok', 'The specification loads with it', 'Every constraint of the template holds for these values.'));
-    else if (r.state === 'incomplete') rows.push(this.check_('chg', 'Not complete yet', null, r.problems.map((p) => `${p.field}: ${p.message}`)));
+    else if (r.state === 'incomplete') rows.push(this.check_('chg', 'Not complete yet', null, r.problems.map((p) => `${(this.tpl.inputs.find((x) => x.name === p.field) || {}).label || p.field}: ${p.message}`)));
     else if (r.state === 'exists') rows.push(this.check_('bad', `${r.address} is taken`, 'Choose another name.'));
     else rows.push(this.check_('bad', r.problems.length === 1 ? 'The specification refuses it' : `The specification refuses it · ${r.problems.length} problems`, null, r.problems.map((p) => p.message)));
     for (const p of r.state === 'incomplete' ? [] : r.problems || []) {

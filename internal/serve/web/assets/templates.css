@@ -76,6 +76,7 @@ body:has(.app[data-view="templates"]) .planstrip, body:has(.app[data-view="templ
 .tp-fl { display: flex; align-items: baseline; flex-wrap: wrap; gap: .2rem .6rem; }
 .tp-fn { font: 600 var(--fs-3)/1.2 var(--font-ui); color: var(--text); }
 .tp-req { font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.tp-fid { font: 400 var(--fs-2)/1 var(--font-mono); color: var(--text-3); }
 .tp-ftype { margin-left: auto; color: var(--text-3); max-width: 100%; }
 .tp-help { margin: 0; font-size: var(--fs-2); line-height: 1.45; color: var(--text-3); text-wrap: pretty; }
 .tp-err { margin: 0; font-size: var(--fs-2); line-height: 1.4; color: var(--conflict); }

@@ -337,12 +337,16 @@ package pravo
 		// How the form asks for an input that its type does not say.
 		//
 		//	ask: {
-		//		notes:   {long: true}
+		//		notes:   {long: true, label: "Notes for on-call"}
 		//		region:  {choices: regions.outputs}
 		//		network: {entity: {type: "random_id", attr: "hex"}}
 		//		key:     {secret: true}
 		//	}
 		ask?: [string]: {
+			// What the form calls the input, and the text under it. Without them
+			// the form shows the name of the field and the comment above it.
+			label?:       string
+			description?: string
 			// A long text: the form gives it a text area.
 			long?: bool
 			// A value kept as a secret. The form never takes the value: it asks

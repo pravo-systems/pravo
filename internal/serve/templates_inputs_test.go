@@ -20,7 +20,7 @@ const askSpecCUE = templateSpecCUE + `
 			zone:     {choices: boxes.one.db.zones}
 			tag:      {choices: boxes.one.db.tags}
 			owner_db: {entity: {type: "fake_db", attr: "name"}}
-			notes:    {long: true}
+			notes:    {long: true, label: "Notes for on-call", description: "Who to page, and in what order."}
 			key:      {secret: true}
 		}
 	}
@@ -83,6 +83,13 @@ func TestTemplateAskShapesTheInputs(t *testing.T) {
 	}
 	if k := by["key"]; !k.Secret {
 		t.Errorf("key: %+v", k)
+	}
+	// A label and a description of ask replace the field name and the comment; without them the form falls back to both.
+	if n := by["notes"]; n.Label != "Notes for on-call" || n.Doc != "Who to page, and in what order." {
+		t.Errorf("notes label: %+v", n)
+	}
+	if n := by["name"]; n.Label != "" {
+		t.Errorf("name has no label: %+v", n)
 	}
 	if n := by["name"]; n.Long || n.Secret || n.Choices != "" || n.Entity != nil {
 		t.Errorf("name takes no hint: %+v", n)
