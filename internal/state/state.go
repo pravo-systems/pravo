@@ -189,6 +189,9 @@ type Store struct {
 	roles   *RolesChain
 	rolesAt time.Time
 
+	// snap is what the store remembers of the snapshot of its state (see snapshot.go).
+	snap snapshotState
+
 	b Backend
 	// ctx is the context of every call to the backend once the store is open. It
 	// carries the values of the context the store was opened with, not its
@@ -845,6 +848,7 @@ func (s *Store) put(r *Resource, revision int, generation, txn string) error {
 	s.nodes[r.Address()] = r
 	s.held[r.Address()] = ref
 	s.index = nil
+	s.snap.written.Add(1)
 	return nil
 }
 
@@ -886,6 +890,7 @@ func (s *Store) Remove(addr string) (bool, error) {
 	delete(s.held, addr)
 	s.index = nil
 	s.mu.Unlock()
+	s.snap.written.Add(1)
 	return true, nil
 }
 

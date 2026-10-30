@@ -3,8 +3,11 @@ package state
 import (
 	"context"
 	"encoding/json"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // snapshotKey is the object that holds a copy of every node of the state, so that
@@ -64,36 +67,37 @@ func (s *Store) loadSnapshot(ctx context.Context) map[string]snapshotEntry {
 	return out
 }
 
-// loadNodes reads the nodes at the listed keys, from the snapshot where it is still
-// true and from the backend otherwise, and writes a new snapshot when much of it was not.
-func (s *Store) loadNodes(ctx context.Context, vl VersionLister, objs []ObjectVersion) error {
-	var (
-		snap map[string]snapshotEntry
-		wg   sync.WaitGroup
-	)
-	wg.Add(1)
-	go func() { defer wg.Done(); snap = s.loadSnapshot(ctx) }()
-	wg.Wait()
-	type res struct {
-		r   *Resource
-		h   nodeRef
-		raw nodeBytes
-		err error
-	}
-	results := make([]res, len(objs))
+// snapshotState is what a store remembers of the snapshot between its open and its close.
+type snapshotState struct {
+	// entries are the nodes of the state as the open found them, with the tag the listing gave.
+	entries []snapshotEntry
+	// missed is how many nodes the open did not take from the snapshot.
+	missed int
+	// written counts the nodes that this process has written or removed since the open.
+	written atomic.Int64
+	// kept is set when this process has written the snapshot, so that Close does not do it twice.
+	kept bool
+	// on is set by an open that could use snapshots.
+	on bool
+}
+
+// readListed reads the nodes at the listed keys, from snap where it is still true and from the
+// backend otherwise. The results are in the order of objs.
+func (s *Store) readListed(ctx context.Context, objs []ObjectVersion, snap map[string]snapshotEntry) (results []listed, missed int, err error) {
+	results = make([]listed, len(objs))
 	width := readWidthLocal
 	if !s.b.Local() {
 		width = readWidthRemote
 	}
 	var (
-		wg2    sync.WaitGroup
-		next   atomic.Int64
-		missed atomic.Int64
+		wg   sync.WaitGroup
+		next atomic.Int64
+		miss atomic.Int64
 	)
 	for range min(width, len(objs)) {
-		wg2.Add(1)
+		wg.Add(1)
 		go func() {
-			defer wg2.Done()
+			defer wg.Done()
 			for {
 				i := int(next.Add(1)) - 1
 				if i >= len(objs) {
@@ -103,32 +107,111 @@ func (s *Store) loadNodes(ctx context.Context, vl VersionLister, objs []ObjectVe
 				if e, ok := snap[objs[i].Key]; ok && e.Tag == objs[i].Tag && objs[i].Tag != "" {
 					pre = &nodeBytes{ptr: e.Ptr, rec: e.Rec}
 				} else {
-					missed.Add(1)
+					miss.Add(1)
 				}
 				r, h, raw, err := s.readNodeRaw(ctx, objs[i].Key, pre)
-				results[i] = res{r, h, raw, err}
+				results[i] = listed{r, h, raw, err}
 			}
 		}()
 	}
-	wg2.Wait()
+	wg.Wait()
+	for _, r := range results {
+		if r.err != nil {
+			return nil, 0, r.err
+		}
+	}
+	return results, int(miss.Load()), nil
+}
+
+type listed struct {
+	r   *Resource
+	h   nodeRef
+	raw nodeBytes
+	err error
+}
+
+func entriesOf(objs []ObjectVersion, results []listed) []snapshotEntry {
 	var entries []snapshotEntry
 	for i, r := range results {
-		if r.err != nil {
-			return r.err
+		if r.r != nil && r.raw.ptr != nil {
+			entries = append(entries, snapshotEntry{Key: objs[i].Key, Tag: objs[i].Tag, Ptr: r.raw.ptr, Rec: r.raw.rec})
 		}
+	}
+	return entries
+}
+
+// putSnapshot uploads a snapshot of entries. A store that refuses it is read as before.
+func (s *Store) putSnapshot(ctx context.Context, entries []snapshotEntry) bool {
+	data, err := json.Marshal(snapshot{V: 1, Lineage: s.meta.Lineage, Nodes: entries})
+	if err != nil {
+		return false
+	}
+	return s.b.Put(ctx, snapshotKey, data) == nil
+}
+
+// loadNodes reads the nodes at the listed keys, from the snapshot where it is still true and
+// from the backend otherwise. It writes a snapshot when there is none: after that the
+// command that changes the state keeps it up to date (see settleSnapshot).
+func (s *Store) loadNodes(ctx context.Context, vl VersionLister, objs []ObjectVersion) error {
+	snap := s.loadSnapshot(ctx)
+	results, missed, err := s.readListed(ctx, objs, snap)
+	if err != nil {
+		return err
+	}
+	for _, r := range results {
 		if r.r != nil {
 			s.nodes[r.r.Address()] = r.r
 			s.held[r.r.Address()] = r.h
-			if r.raw.ptr != nil {
-				entries = append(entries, snapshotEntry{Key: objs[i].Key, Tag: objs[i].Tag, Ptr: r.raw.ptr, Rec: r.raw.rec})
-			}
 		}
 	}
-	// Only a store that may write keeps the snapshot, and only when it is worth the upload.
-	if len(entries) >= snapshotMin && (snap == nil || int(missed.Load())*snapshotRewriteBelow > len(entries)) && s.writable() == nil {
-		if data, err := json.Marshal(snapshot{V: 1, Lineage: s.meta.Lineage, Nodes: entries}); err == nil {
-			_ = s.b.Put(ctx, snapshotKey, data) // a hint: a store that refuses it is read as before
+	entries := entriesOf(objs, results)
+	s.snap.on, s.snap.entries, s.snap.missed = true, entries, missed
+	if snap == nil && len(entries) >= snapshotMin && s.writable() == nil {
+		if s.snap.kept = s.putSnapshot(ctx, entries); s.snap.kept {
+			s.snap.missed = 0
 		}
 	}
 	return nil
 }
+
+// settleSnapshot is the end of a command that may have changed the state: when what it wrote
+// and what the open had to read afresh are more than one node in snapshotRewriteBelow, it
+// lists the nodes again, reads only those that are not what the snapshot recorded, and
+// uploads a snapshot that is true again. It never fails the command.
+func (s *Store) settleSnapshot() {
+	s.mu.Lock()
+	n, closed := len(s.nodes), s.closed
+	s.mu.Unlock()
+	if !s.snap.on || closed || n < snapshotMin || s.writable() != nil {
+		return
+	}
+	if (s.snap.missed+int(s.snap.written.Load()))*snapshotRewriteBelow <= n {
+		return
+	}
+	vl, ok := s.snapshotOn()
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.cx(), settleTimeout)
+	defer cancel()
+	objs, err := vl.ListVersions(ctx, "resources")
+	if err != nil {
+		return
+	}
+	objs = slices.DeleteFunc(objs, func(o ObjectVersion) bool { return !strings.HasSuffix(o.Key, ".json") })
+	old := make(map[string]snapshotEntry, len(s.snap.entries))
+	for _, e := range s.snap.entries {
+		old[e.Key] = e
+	}
+	results, _, err := s.readListed(ctx, objs, old)
+	if err != nil {
+		return
+	}
+	if entries := entriesOf(objs, results); len(entries) >= snapshotMin && s.putSnapshot(ctx, entries) {
+		s.snap.kept, s.snap.missed, s.snap.entries = true, 0, entries
+		s.snap.written.Store(0)
+	}
+}
+
+// settleTimeout bounds the work that settleSnapshot does when a command ends.
+const settleTimeout = 2 * time.Minute

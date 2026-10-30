@@ -89,3 +89,55 @@ func TestASnapshotMakesAnOpenReadFewObjects(t *testing.T) {
 		t.Fatalf("an open with a damaged snapshot holds %d nodes, want %d", s4.Len(), n)
 	}
 }
+
+func TestACommandThatChangesManyNodesLeavesASnapshotThatIsTrue(t *testing.T) {
+	dir := t.TempDir()
+	seed, err := OpenWith(dir, Options{NewFormat: FormatImmutable})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const n = 120
+	for i := range n {
+		mustSet(t, seed, node(fmt.Sprintf("r%03d", i)))
+	}
+	open := func() (*Store, *taggedBackend) {
+		lb, err := NewLocalBackend(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b := &taggedBackend{Backend: lb}
+		s, err := OpenBackend(context.Background(), b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s, b
+	}
+	s1, _ := open() // no snapshot yet: written at the open
+	// One node changes: under the threshold, so the end of the command leaves the snapshot alone.
+	one := node("r001")
+	one.Attributes = []byte(`{"c":1}`)
+	mustSet(t, s1, one)
+	before, _ := seed.b.Get(context.Background(), snapshotKey)
+	s1.Close()
+	if after, _ := seed.b.Get(context.Background(), snapshotKey); string(after) != string(before) {
+		t.Fatal("one changed node rewrote the snapshot")
+	}
+	// Ten change: over one in twenty, so the end of the command makes it true again.
+	s2, _ := open()
+	for i := range 10 {
+		r := node(fmt.Sprintf("r%03d", 10+i))
+		r.Attributes = []byte(`{"c":2}`)
+		mustSet(t, s2, r)
+	}
+	s2.Close()
+	s3, b3 := open()
+	if s3.Len() != n {
+		t.Fatalf("holds %d nodes, want %d", s3.Len(), n)
+	}
+	if s3.snap.missed != 0 {
+		t.Fatalf("the open after a big change still read %d nodes afresh", s3.snap.missed)
+	}
+	if g := b3.gets.Load(); g > 8 {
+		t.Fatalf("the open after a big change read %d objects", g)
+	}
+}
