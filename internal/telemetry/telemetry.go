@@ -292,6 +292,20 @@ func Span(ctx context.Context, name string, attrs ...attribute.KeyValue) (contex
 	return ctx, func(err error) { End(span, err) }
 }
 
+// Waited records, after the fact, a span for time that a caller spent waiting for
+// something another goroutine held, from since until now, so that the wait does not
+// show in a trace as a gap. A wait shorter than minWait leaves no span.
+func Waited(ctx context.Context, name string, since time.Time, attrs ...attribute.KeyValue) {
+	if time.Since(since) < minWait {
+		return
+	}
+	_, span := Tracer().Start(ctx, name, trace.WithTimestamp(since), trace.WithAttributes(attrs...))
+	span.End()
+}
+
+// minWait is the shortest wait that Waited records.
+const minWait = 20 * time.Millisecond
+
 // End finishes a span, recording err if there is one.
 func End(span trace.Span, err error) {
 	if err != nil {

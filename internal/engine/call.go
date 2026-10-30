@@ -38,7 +38,7 @@ func (e *Engine) callTask(ctx context.Context, r *config.Resource, v cue.Value, 
 	addr := r.Address()
 	ch := &Change{Addr: addr, Mode: r.Mode, Type: r.Type, Name: r.Name, ProviderKey: r.ProviderKey, Action: ActionCall, Deps: e.deps[addr]}
 
-	e.cueMu.Lock()
+	e.lockCUE(ctx)
 	argsV := v.LookupPath(cue.MakePath(cue.Str("args")))
 	var elems []cue.Value
 	if argsV.Exists() {

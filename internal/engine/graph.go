@@ -370,7 +370,9 @@ func release(n *node, ready chan<- *node, closed bool) {
 func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 	e.current, e.seeded = e.Value, false
 	e.pending, e.pendingOrder = nil, nil
+	_, endGraph := setup(ctx, "build task graph")
 	nodes, err := e.buildGraph()
+	endGraph(err)
 	if err != nil {
 		return e.current, err
 	}
@@ -381,7 +383,10 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 			n.pending = len(n.deps)
 		}
 	}
-	if err := e.checkSecrets(ctx, nodes); err != nil {
+	sctx, endSecrets := setup(ctx, "check secrets")
+	err = e.checkSecrets(sctx, nodes)
+	endSecrets(err)
+	if err != nil {
 		return e.current, err
 	}
 	ctx, cancel := context.WithCancel(ctx)

@@ -183,6 +183,11 @@ type meta struct {
 
 // Store is an open state graph.
 type Store struct {
+	// roles is the chain of roles read last, and rolesAt when (see RolesChain).
+	rolesMu sync.Mutex
+	roles   *RolesChain
+	rolesAt time.Time
+
 	b Backend
 	// ctx is the context of every call to the backend once the store is open. It
 	// carries the values of the context the store was opened with, not its
