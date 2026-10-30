@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
 // Format is the format of a new store, and the layout that every released pravo
@@ -310,7 +311,11 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 	}
 	if s.meta.Sealed != nil {
 		if o.Identity == nil && o.Choose != nil {
-			if id, err := o.Choose(s.Protection()); err == nil {
+			// Finding the identity can wait on an agent, a keychain or a passphrase typed by a person.
+			_, end := telemetry.Span(ctx, "setup choose identity")
+			id, err := o.Choose(s.Protection())
+			end(err)
+			if err == nil {
 				o.Identity = id
 			}
 		}
