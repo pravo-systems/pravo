@@ -170,7 +170,7 @@ export class TracesView {
     clear(this.root);
     this.plot = this.canvas = this.ruler = null;
     const list = this.list;
-    const body = !list ? (this.error ? h('p', { class: 'tr-empty' }) : busy('Reading the runs', { block: true, hint: 'The first read opens every recorded run to count its spans. It is kept after that.' }))
+    const body = !list ? (this.error ? h('p', { class: 'tr-empty' }) : busy('Reading the runs', { block: true }))
       : !list.traces.length ? this.none(list)
         : h('div', { class: 'tr-layout' }, this.runs(list), this.main());
     this.root.append(h('div', { class: 'tr' },
@@ -223,7 +223,7 @@ export class TracesView {
   }
 
   main() {
-    if (this.loading && !this.model) return h('section', { class: 'tr-main' }, busy('Reading the run', { block: true, hint: 'A long run has many spans to draw.' }));
+    if (this.loading && !this.model) return h('section', { class: 'tr-main' }, busy('Reading the run', { block: true }));
     if (!this.model) return h('section', { class: 'tr-main' }, h('p', { class: 'tr-empty' }, 'Choose a run.'));
     const d = this.doc;
     return h('section', { class: 'tr-main', 'aria-label': `The run ${d.command}` },

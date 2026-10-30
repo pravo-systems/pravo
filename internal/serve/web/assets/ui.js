@@ -180,25 +180,12 @@ export function textBlock(text, o = {}) {
 
 // ---------------------------------------------------------------------------------------------------------
 // busy: what a pane shows while it waits for the server. A square track with a bar that sweeps along it, the
-// words for what is being read, and, once the wait is long enough to notice, the seconds it has lasted and the
-// hint, if there is one, for why.
+// words for what is being read.
 
 export function busy(label, o = {}) {
-  const secs = h('span', { class: 'busy-t', hidden: true });
-  const hint = o.hint ? h('p', { class: 'busy-h', hidden: true }, o.hint) : null;
-  const el = h('div', { class: 'busy' + (o.block ? ' block' : ''), role: 'status', 'aria-live': 'polite' },
-    h('div', { class: 'busy-r' }, h('span', { class: 'busy-tick' }), h('span', { class: 'busy-l' }, label), secs),
-    h('div', { class: 'busy-bar', 'aria-hidden': 'true' }, h('i')),
-    hint);
-  const t0 = Date.now();
-  const timer = setInterval(() => {
-    if (!el.isConnected) { if (Date.now() - t0 > 60000) clearInterval(timer); return; }
-    const n = Math.floor((Date.now() - t0) / 1000);
-    secs.hidden = n < 2;
-    secs.textContent = n + ' s';
-    if (hint) hint.hidden = n < 5;
-  }, 500);
-  return el;
+  return h('div', { class: 'busy' + (o.block ? ' block' : ''), role: 'status', 'aria-live': 'polite' },
+    h('div', { class: 'busy-r' }, h('span', { class: 'busy-tick' }), h('span', { class: 'busy-l' }, label)),
+    h('div', { class: 'busy-bar', 'aria-hidden': 'true' }, h('i')));
 }
 
 export { motionOn };
