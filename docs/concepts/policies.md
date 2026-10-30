@@ -265,7 +265,7 @@ A rule refuses a plan or lets it through. It can also let a plan through on the 
 
 ### Typos in a rule
 
-The failures of a misspelt rule are quiet. A misspelt literal forbids nothing. A misspelt list template adds a field and forbids nothing. A misspelt field with a concrete value is a new field that holds. A misspelt field with a constraint is refused when the rule is added, because the document of an empty plan never sets the field. Test a rule against a fixture that it must refuse and a fixture that it must pass. [Writing policies](../reference/policies-writing.md#mistakes-that-forbid-nothing) runs each of the four. The policy studio of [the viewer](the-viewer.md#the-seven-sections) holds a rule against every resource that exists and against one plan while you type it, and [`pravo policy test`](../reference/policy.md) does the same on the command line, so a rule can be tried on real plans before it is stored.
+The failures of a misspelt rule are quiet. A misspelt literal forbids nothing. A misspelt list template adds a field and forbids nothing. A misspelt field with a concrete value is a new field that holds. A misspelt field with a constraint is refused when the rule is added, because the document of an empty plan never sets the field. Test a rule against a fixture that it must refuse and a fixture that it must pass. [Writing policies](../reference/policies-writing.md#mistakes-that-forbid-nothing) runs each of the four. The policy studio of [the viewer](the-viewer.md#the-eight-sections) holds a rule against every resource that exists and against one plan while you type it, and [`pravo policy test`](../reference/policy.md) does the same on the command line, so a rule can be tried on real plans before it is stored.
 
 ## The trust anchor
 

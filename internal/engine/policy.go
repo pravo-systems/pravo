@@ -230,6 +230,27 @@ func StateDoc(changes []ChangeView) (Doc, error) {
 	return d, nil
 }
 
+// ProposedDoc is the document of a plan that would create every one of the changes, each
+// with the values the specification gives it and none that a provider would fill in. It is
+// an approximation of the plan that pasting a piece of specification would make, for a rule
+// to be tried on before any provider is asked. The changes are the ones given, in order.
+func ProposedDoc(changes []ChangeView) (Doc, error) {
+	v := &View{Format: ViewFormat, Changes: changes, Outputs: map[string]any{}, Providers: map[string]string{}}
+	if v.Changes == nil {
+		v.Changes = []ChangeView{}
+	}
+	v.Summary.Add = len(changes)
+	data, err := marshalDoc(v)
+	if err != nil {
+		return Doc{}, err
+	}
+	d := Doc{JSON: data}
+	for _, c := range changes {
+		d.Addrs = append(d.Addrs, c.Addr)
+	}
+	return d, nil
+}
+
 // buildDoc turns the JSON of a document into a value of ctx.
 func buildDoc(ctx *cue.Context, data []byte) (cue.Value, error) {
 	expr, err := cuejson.Extract("plan", data)

@@ -730,7 +730,8 @@ export class GraphView {
       const nss = kids ? `${kids} ${kids === 1 ? 'group' : 'groups'}` : '';
       const out = agg.out ? `${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
       const join = (...p) => p.filter(Boolean).join(' · ');
-      opts = [...new Set([join(res, nss, out), join(res, nss), join(res, out), res || out, String(agg.n || agg.out)])];
+      const tp = it.ns.template ? it.ns.template.title : '';
+      opts = [...new Set([...(tp ? [join(res, tp), join(tp)] : []), join(res, nss, out), join(res, nss), join(res, out), res || out, String(agg.n || agg.out)])];
     } else opts = it.ns.name ? [`× ${agg.n} in ${it.ns.name}`, `× ${agg.n}`] : [`× ${agg.n}`];
     inn.append(s('text', { class: 'ty', x: 38, y: 45 }, opts.find((o) => o.length <= room) || trunc(opts[opts.length - 1], room)));
     let mx = W - 14;
@@ -800,7 +801,8 @@ export class GraphView {
     r.lbl.textContent = label;
     const agg = ns ? ns.agg : null;
     // a lane that holds outputs only counts them
-    const count = agg ? (agg.n || !agg.out ? String(agg.n) : agg.out + ' out') : '';
+    const tpl = ns && ns.template ? ' · ' + ns.template.title : '';
+    const count = agg ? (agg.n || !agg.out ? String(agg.n) : agg.out + ' out') + tpl : '';
     r.cnt.textContent = count;
     const w = label.length * 8.2 + 8;
     r.cnt.setAttribute('x', 20 + w + 6);

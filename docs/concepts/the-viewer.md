@@ -1,12 +1,12 @@
 ---
 title: The viewer
-description: "How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the seven sections show, which values are withheld and why the viewer changes nothing."
+description: "How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the eight sections show, which values are withheld and why the viewer changes nothing."
 order: 12
 minutes: 12
 keywords: "serve browser graph group inventory plans discovery policies traces state inspector withheld read-only"
 ---
 
-`pravo serve` shows an estate in a browser. It joins what it can read by address: the specification, which it evaluates, the state, which it reads, the plans that people stored in the state, the runs that pravo recorded, and optionally a plan file. The result is one page with seven sections, and the first of them is a graph of groups and resources. This page explains how the viewer builds that picture and what it leaves out. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows the steps, [The sections of the viewer](../reference/viewer-sections.md) lists every part, and [`pravo serve`](../reference/serve.md) is the command.
+`pravo serve` shows an estate in a browser. It joins what it can read by address: the specification, which it evaluates, the state, which it reads, the plans that people stored in the state, the runs that pravo recorded, and optionally a plan file. The result is one page with eight sections, and the first of them is a graph of groups and resources. This page explains how the viewer builds that picture and what it leaves out. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows the steps, [The sections of the viewer](../reference/viewer-sections.md) lists every part, and [`pravo serve`](../reference/serve.md) is the command.
 
 ## One address, several sources
 
@@ -220,13 +220,14 @@ A record that the viewer cannot open is listed with its address, type, dependenc
 
 With a readers file, the viewer also judges signatures. The History tab says who signed each transaction, the Plans section who stored each plan, and the Policies section who applied each version of a policy, each as `signed by NAME` when the signature verifies against a key of the file. A signature that does not verify is said so, and a version of a policy that is not trusted is not shown as in force. The viewer verifies and reports. It decides nothing: a writer that opens the state makes the same checks and refuses what fails them.
 
-## The seven sections
+## The eight sections
 
-The bar at the top switches between seven sections, and each keeps its own view in the address, so that a link reproduces it.
+The bar at the top switches between eight sections, and each keeps its own view in the address, so that a link reproduces it.
 
 | Section | What it is for | What it does not do |
 |---|---|---|
 | Inventory | The graph and the list of everything the specification declares and the state records, with the inspector. | Makes no plan, writes no record. |
+| Templates | The definitions of the specification that are templates, with a form that gives the CUE of a new instance, checked against the specification and the policies, and the instances that exist. | Applies nothing and writes no file. The CUE is shown and a person pastes it. |
 | Plans | The plans stored in the state: who made each, where it stands, what it changes, and the command that applies it. | Applies, approves, claims and removes nothing. |
 | Discovery | What the discoveries of the specification found, and which objects nothing manages, with the resource that adopts each and the entry that acknowledges it. | Runs no discovery, which would start a provider. |
 | Policies | The policies in force, as signed versions, what the next apply adds, changes or removes, and the policy studio, which tries a rule on the resources and on a plan before it is stored. | Stores no policy. A rule you like still goes into the specification and is applied. |
@@ -234,7 +235,9 @@ The bar at the top switches between seven sections, and each keeps its own view 
 | Secrets | The secrets that a sealed state keeps: each by name, with its latest version, who set it and when, and the nodes that read it, with a check that a signed record of a writer stands behind every version. | Shows no value, and holds no key that could open one. |
 | State | Where the state is kept, how it is sealed, who can read it, what role each key has, and what needs doing, with the commands to copy. | Runs no command and edits no file. A line to add to the readers file is shown as a line, and you add it. |
 
-[The sections of the viewer](../reference/viewer-sections.md) lists every part of each. Four of them deserve a word here, because each is the window on a concept of its own.
+[The sections of the viewer](../reference/viewer-sections.md) lists every part of each. Five of them deserve a word here, because each is the window on a concept of its own.
+
+**Templates.** A template is a definition that says it is one, and an instance is an ordinary group of resources that carries the same mark. The viewer reads the inputs of the template from the definition itself, so the types, the defaults, the comments and the constraints of the fields are the form. When a person fills it in, the server loads the specification with the new CUE laid over it in memory, which is the check that the constraints hold, and tries each policy on an approximate plan, which says whether the apply would be refused. It shows the CUE and does nothing with it: the viewer changes nothing, so the paste is yours. An instance stays in the graph as any group does, and the mark ties it to its template, so that the catalog lists the instances of each. [The Templates section](../reference/viewer-sections.md#the-templates-section) lists the parts of the page.
 
 **Discovery.** A discovery lists objects that exist and that no node of the graph is. The viewer does not put them in the graph, and it does not list them with the resources: a graph of what the specification declares and the state records would then hold nodes that nobody wrote, and a count of resources would include them. They have a section of their own, which reads the last run of each discovery from the state and sets it against the records, the `$import` declarations and the `$ack` entries of the specification, as [Discovery](discovery.md#what-each-object-is) describes. The unmanaged objects are shown in the amber that the rest of the page keeps for a change that is wanted, each with the means to adopt it, and the tab says how many ask to be adopted. [Filtering the objects](../reference/viewer-sections.md#filtering-the-objects) lists the columns of its filter.
 

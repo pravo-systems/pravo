@@ -375,6 +375,34 @@ With `prefix: "eu-"` the same root validates.
 
 A constraint rejects a value that is set and wrong. It does not reject an attribute that is left out. An unset attribute with no reference to another resource is sent to the provider as null. A rule that an attribute is present is a rule for a policy. See [Providers](spec-providers.md#provider-scoped-constraints) and [Policies](policies-overview.md).
 
+## Templates
+
+A definition that embeds `pravo.#Template` is a template. [The viewer](viewer-sections.md#the-templates-section) lists it in a catalog, builds a form from its inputs and gives the CUE of a new instance to paste. The form is made from the definition: the type, the default, the comment and the constraint of each input field are read from it, so a definition with constraints needs nothing more.
+
+```cue
+#Service: pravo.#Template & {
+	$template: {
+		name:  "service"
+		title: "Web service"
+		// The fields the form asks for, in order. Without it the form asks for
+		// every field that holds no resource.
+		inputs: ["name", "env"]
+	}
+	// Lowercase letters and dashes.
+	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
+	env:  *"dev" | "staging" | "prod"
+	secret: $random.#Resource.random_password & {length: 24}
+}
+
+services: web: #Service & {name: "web", env: "prod"}
+```
+
+The marker `$template` is an ordinary field. It passes into every instance when the definition is instantiated with `&`, so `services.web` carries `$template: name: "service"`, and that is how the viewer knows which template an instance came from. An instance is a group like any other: its resources have the addresses `services.web.secret`, and nothing about it differs in a plan. `$template` has `name` and, optionally, `title`, `description` and `inputs`. The definition is open, so a template adds fields of its own.
+
+A new instance is checked before it is pasted: the viewer loads the specification with the CUE laid over it in memory, and tries the policies on an approximate plan. The check writes nothing.
+
+The package `pravo.dev/pravo` is written by [`pravo init`](init.md), so a root made before `#Template` was added has to run it again.
+
 ## See also
 
 - [Share code between roots in one repository](../how-to/share-code-between-roots.md), [Publish a CUE module](../how-to/publishing-a-module.md) and [Use a published CUE module](../how-to/using-a-module.md) cover the three ways to share code.

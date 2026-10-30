@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -147,5 +148,37 @@ func TestThePlanSchemaFitsTheJudgedDocument(t *testing.T) {
 	plan := pkg.LookupPath(cue.MakePath(cue.Def("Plan")))
 	if err := plan.Unify(doc).Validate(cue.Concrete(true)); err != nil {
 		t.Fatalf("#Plan does not fit the judged document: %v", cueerrors.Details(err, nil))
+	}
+}
+
+// ProposedDoc is the document of a plan that creates every change, and a rule is judged by it as by a real plan.
+func TestProposedDocCountsCreates(t *testing.T) {
+	d, err := ProposedDoc([]ChangeView{
+		{Addr: "a", Mode: "managed", Type: "t", Name: "a", Action: ActionCreate, After: map[string]any{"owner": "alice"}},
+		{Addr: "b", Mode: "managed", Type: "t", Name: "b", Action: ActionCreate},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Addrs) != 2 || d.Addrs[0] != "a" {
+		t.Errorf("addrs: %v", d.Addrs)
+	}
+	var v struct {
+		Summary struct{ Add, Destroy int }
+		Changes []struct {
+			Action string
+			After  map[string]any
+		}
+	}
+	if err := json.Unmarshal(d.JSON, &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Summary.Add != 2 || v.Summary.Destroy != 0 || len(v.Changes) != 2 || v.Changes[0].Action != "create" || v.Changes[0].After["owner"] != "alice" {
+		t.Errorf("doc: %s", d.JSON)
+	}
+	// No change is an empty list, never null.
+	d, err = ProposedDoc(nil)
+	if err != nil || !strings.Contains(string(d.JSON), `"changes":[]`) {
+		t.Errorf("empty: %s %v", d.JSON, err)
 	}
 }

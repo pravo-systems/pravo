@@ -75,6 +75,10 @@ type model struct {
 	// studio holds what the studio has worked out for this revision.
 	studio studioCache
 
+	// tpl is the catalog of templates, built the first time it is asked for.
+	tplOnce sync.Once
+	tpl     *Templates
+
 	txOnce sync.Once
 	txns   []state.Transaction
 
@@ -389,6 +393,16 @@ func (m *model) linkNamespaces() {
 	for _, p := range m.nsList {
 		ns := m.namespaces[p]
 		ns.Declared, ns.Definition = m.spec.namespaceRefs(p)
+	}
+	// an instance of a template says so
+	if m.spec.root != nil {
+		for _, t := range m.catalog(false).Templates {
+			for _, in := range t.Instances {
+				if ns := m.namespaces[in.Address]; ns != nil {
+					ns.Template = &NamespaceTemplate{Name: t.Name, Title: t.Title}
+				}
+			}
+		}
 	}
 }
 

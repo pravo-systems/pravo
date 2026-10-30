@@ -828,3 +828,31 @@ Other: $local.#Resource.local_file & {filename: "b"}
 		t.Fatal(err)
 	}
 }
+
+// Extra files are laid over the package for one load: what they declare is loaded, and nothing is written.
+func TestLoadWithExtraFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.cue"), []byte("package x\n"+defs+"\nmotd: $local.#Resource.local_file & {filename: \"motd\"}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	extra := map[string]string{"zz_preview.cue": "package x\n\nnote: $local.#Resource.local_file & {filename: \"note\"}\n"}
+	r, err := Load(dir, LoadOptions{Extra: extra})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Resource("motd") == nil || r.Resource("note") == nil {
+		t.Errorf("resources: %v", r.Resources)
+	}
+	// Nothing was written, and a load without the extra files does not see them.
+	if _, err := os.Stat(filepath.Join(dir, "zz_preview.cue")); err == nil {
+		t.Error("the extra file was written")
+	}
+	r, err = Load(dir, LoadOptions{})
+	if err != nil || r.Resource("note") != nil {
+		t.Errorf("without extra: %v %v", r.Resources, err)
+	}
+	// A broken extra file is an error of the load.
+	if _, err := Load(dir, LoadOptions{Extra: map[string]string{"zz_preview.cue": "package x\n\nmotd: 1\n"}}); err == nil {
+		t.Error("a conflicting extra file loaded")
+	}
+}

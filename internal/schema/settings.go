@@ -22,6 +22,31 @@ package pravo
 	$from?: string
 }
 
+// Embed #Template in a definition to make it a template: the viewer lists it in
+// its catalog, builds a form from its inputs and shows the instances that were
+// made from it. An instance is an ordinary struct of resources; the marker
+// travels into it and ties it to the template.
+//
+//	#Service: pravo.#Template & {
+//		$template: {name: "service", title: "Service"}
+//		name: string
+//		...
+//	}
+#Template: {
+	$template: {
+		// What the instances are called in the catalog and in the links.
+		name: string
+		// A short title, and a sentence on what an instance is for.
+		title?:       string
+		description?: string
+		// The inputs the form asks for, in order. Without it, the form asks for
+		// the fields of the definition that hold no resource.
+		inputs?: [...string]
+	}
+	// The definition goes on with its own fields.
+	...
+}
+
 // A value the root publishes. It is recorded in state when the plan is
 // applied and printed by "pravo output"; its name is the path it sits at.
 //
