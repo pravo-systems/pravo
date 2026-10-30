@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/pravo-systems/pravo/internal/telemetry"
@@ -62,6 +64,9 @@ func (s *Server) traceSecrets() *secretSet {
 
 func (s *Server) traces(w http.ResponseWriter, r *http.Request) {
 	dir := s.traceDir()
+	// The first run shown is masked against the secrets of the state, so the model is
+	// built while the files are read, not after.
+	go func() { _, _ = s.current() }()
 	list := &TraceList{Version: APIVersion, Dir: displayTraceDir(s.opts.Dir, dir), Traces: []TraceInfo{}}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -97,20 +102,46 @@ func (s *Server) traces(w http.ResponseWriter, r *http.Request) {
 	cache := s.traceSums.entries
 	s.traceMu.Unlock()
 	keep := map[string]bool{}
-	for _, f := range files {
+	// A file that is new or changed is read for its summary. The first request reads
+	// them all, so they are read side by side: the time is the reading, not the list.
+	got := make([]traceEntry, len(files))
+	var todo []int
+	for i, f := range files {
 		keep[f.id] = true
 		s.traceMu.Lock()
 		e, hit := cache[f.id]
 		s.traceMu.Unlock()
-		if !hit || e.size != f.size || e.mod != f.mod {
-			e = traceEntry{size: f.size, mod: f.mod}
-			if rt, err := readTrace(dir, f.id); err == nil {
-				e.info, e.ok = summarize(f.id, rt), true
-			}
-			s.traceMu.Lock()
-			cache[f.id] = e
-			s.traceMu.Unlock()
+		if hit && e.size == f.size && e.mod == f.mod {
+			got[i] = e
+		} else {
+			todo = append(todo, i)
 		}
+	}
+	var wg sync.WaitGroup
+	next := make(chan int)
+	for w := 0; w < min(len(todo), runtime.GOMAXPROCS(0)); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range next {
+				f := files[i]
+				e := traceEntry{size: f.size, mod: f.mod}
+				if info, err := readTraceSummary(dir, f.id); err == nil {
+					e.info, e.ok = info, true
+				}
+				got[i] = e
+				s.traceMu.Lock()
+				cache[f.id] = e
+				s.traceMu.Unlock()
+			}
+		}()
+	}
+	for _, i := range todo {
+		next <- i
+	}
+	close(next)
+	wg.Wait()
+	for _, e := range got {
 		if !e.ok {
 			list.Unreadable++
 			continue
@@ -178,18 +209,7 @@ func (s *Server) trace(w http.ResponseWriter, r *http.Request) {
 
 // readTrace reads the file of a run. The id has the form of one and is never a path.
 func readTrace(dir, id string) (*telemetry.RunTrace, error) {
-	name := filepath.Join(dir, id+".json")
-	fi, err := os.Lstat(name)
-	if err != nil {
-		return nil, err
-	}
-	if !fi.Mode().IsRegular() {
-		return nil, errors.New("not a file")
-	}
-	if fi.Size() > maxTraceFile {
-		return nil, fmt.Errorf("the file is %d MiB, over the limit of %d", fi.Size()>>20, maxTraceFile>>20)
-	}
-	data, err := os.ReadFile(name)
+	data, err := readTraceFile(dir, id)
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +221,69 @@ func readTrace(dir, id string) (*telemetry.RunTrace, error) {
 		return nil, errors.New("not a recorded run of this format")
 	}
 	return &rt, nil
+}
+
+// readTraceFile is the bytes of the file of a run, if it is a file of a size that is read.
+func readTraceFile(dir, id string) ([]byte, error) {
+	name := filepath.Join(dir, id+".json")
+	fi, err := os.Lstat(name)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, errors.New("not a file")
+	}
+	if fi.Size() > maxTraceFile {
+		return nil, fmt.Errorf("the file is %d MiB, over the limit of %d", fi.Size()>>20, maxTraceFile>>20)
+	}
+	return os.ReadFile(name)
+}
+
+// readTraceSummary is readTrace and summarize for the list, which looks at the
+// names, the status and the attributes of a few spans only. The events and the
+// attributes of the others are skipped, not built.
+func readTraceSummary(dir, id string) (TraceInfo, error) {
+	data, err := readTraceFile(dir, id)
+	if err != nil {
+		return TraceInfo{}, err
+	}
+	var doc struct {
+		Version    int    `json:"version"`
+		Start      string `json:"start"`
+		DurationUS int64  `json:"duration_us"`
+		Spans      []struct {
+			ID     string          `json:"id"`
+			Parent string          `json:"parent"`
+			Name   string          `json:"name"`
+			Status string          `json:"status"`
+			Attrs  json.RawMessage `json:"attrs"`
+		} `json:"spans"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return TraceInfo{}, errors.New("not a recorded run")
+	}
+	if doc.Version != telemetry.TraceFormat || len(doc.Spans) == 0 {
+		return TraceInfo{}, errors.New("not a recorded run of this format")
+	}
+	rt := &telemetry.RunTrace{Start: doc.Start, DurationUS: doc.DurationUS, Spans: make([]telemetry.SpanData, len(doc.Spans))}
+	have := make(map[string]bool, len(doc.Spans))
+	for _, sp := range doc.Spans {
+		have[sp.ID] = true
+	}
+	rooted := false
+	for i, sp := range doc.Spans {
+		d := telemetry.SpanData{ID: sp.ID, Parent: sp.Parent, Name: sp.Name, Status: sp.Status}
+		// only the first root, the resources and the engine spans are read for their attributes
+		root := !rooted && (sp.Parent == "" || !have[sp.Parent])
+		if root {
+			rooted = true
+		}
+		if k := spanKind(sp.Name); (root || k == "resource" || k == "engine") && len(sp.Attrs) > 0 {
+			_ = json.Unmarshal(sp.Attrs, &d.Attrs)
+		}
+		rt.Spans[i] = d
+	}
+	return summarize(id, rt), nil
 }
 
 // summarize reads the root span and the engine spans of a run.
