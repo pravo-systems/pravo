@@ -27,6 +27,16 @@ const sp = (id, parent, name, start, dur, extra = {}) => ({ id, parent, name, ki
   for (const a of t.spans) for (const b of t.spans) if (a !== b && a.row === b.row && a.start_us < b.end && b.start_us < a.end) check(false, `${a.id} and ${b.id} overlap on row ${a.row}`);
   check(Math.max(...all) < t.rows, 'rows are counted');
 }
+// a child that outlives its parent keeps the lane of the parent, so that the next span does not land on it
+{
+  const t = build({ spans: [
+    sp('a', '', 'pravo apply', 0, 100),
+    sp('b', 'a', 'provider ReadResource', 10, 20), sp('c', 'b', 'network POST', 12, 60),
+    sp('d', 'a', 'provider ReadResource', 40, 20), sp('e', 'd', 'network POST', 42, 30),
+  ] });
+  for (const x of t.spans) for (const y of t.spans) if (x !== y && x.row === y.row && x.start_us < y.end && y.start_us < x.end) check(false, `${x.id} and ${y.id} overlap on row ${x.row}`);
+  check(t.byId.get('d').row !== t.byId.get('b').row, 'the second call is not in the lane of a call that is still running');
+}
 // a parent that is not in the run makes a root; a cycle does not lose spans
 {
   const t = build({ spans: [sp('a', 'zz', 'pravo plan', 0, 10), sp('b', 'a', 'engine plan', 1, 5)] });
