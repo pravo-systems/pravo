@@ -362,7 +362,7 @@ func (s *Store) rereadMeta(ctx context.Context, first []byte) bool {
 }
 
 func (s *Store) load() error {
-	if vl, ok := s.snapshotOn(); ok {
+	if vl, _, ok := s.snapshotOn(); ok {
 		objs, err := vl.ListVersions(s.cx(), "resources")
 		if err != nil {
 			return err

@@ -150,3 +150,29 @@ func (b *overlayBackend) List(ctx context.Context, prefix string) ([]string, err
 	sort.Strings(keys)
 	return keys, nil
 }
+
+// ListsVersions is true while nothing has been written to the overlay and the backend
+// under it lists versions: only then does the listing of the backend say what the store
+// would find. A reader who plans opens the store before it writes anything.
+func (b *overlayBackend) ListsVersions() bool {
+	vl, _, ok := versionLister(b.Backend)
+	if !ok || vl == nil {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.objects) == 0 && len(b.deleted) == 0
+}
+
+// ListVersions lists the versions of the backend under the overlay.
+func (b *overlayBackend) ListVersions(ctx context.Context, prefix string) ([]ObjectVersion, error) {
+	vl, _, ok := versionLister(b.Backend)
+	if !ok || !b.ListsVersions() {
+		return nil, errors.New("the overlay holds writes that the listing of the backend does not")
+	}
+	return vl.ListVersions(ctx, prefix)
+}
+
+// ReadOnlyView says that nothing written through the overlay reaches the backend, so that no
+// snapshot is kept through it.
+func (b *overlayBackend) ReadOnlyView() {}

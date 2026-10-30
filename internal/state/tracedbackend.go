@@ -124,20 +124,26 @@ func (t *tracedBackend) ListVersions(ctx context.Context, prefix string) ([]Obje
 	return objs, err
 }
 
-// versionLister is b as a VersionLister, if it is one under any wrapper.
-func versionLister(b Backend) (VersionLister, bool) {
+// versionLister is b as a VersionLister, if it is one under any wrapper, and whether the
+// store may keep a snapshot through it. A backend may refuse to list versions (ListsVersions
+// reports false: the s3 setting snapshot: false, or a wrapper whose store does not), and a
+// backend that is a view that must not be written (ReadOnlyView: the viewer, a reader who
+// plans) is read through the snapshot and never given one.
+func versionLister(b Backend) (vl VersionLister, keep bool, ok bool) {
 	inner := b
-	if t, ok := b.(*tracedBackend); ok {
+	if t, isT := b.(*tracedBackend); isT {
 		inner = t.Backend
 	}
-	if s3, ok := inner.(*S3Backend); ok && s3.noSnapshot {
-		return nil, false
+	l, isL := inner.(VersionLister)
+	if !isL {
+		return nil, false, false
 	}
-	if _, ok := inner.(VersionLister); !ok {
-		return nil, false
+	if c, isC := inner.(interface{ ListsVersions() bool }); isC && !c.ListsVersions() {
+		return nil, false, false
 	}
-	if t, ok := b.(*tracedBackend); ok {
-		return t, true
+	_, view := inner.(interface{ ReadOnlyView() })
+	if t, isT := b.(*tracedBackend); isT {
+		return t, !view, true
 	}
-	return inner.(VersionLister), true
+	return l, !view, true
 }

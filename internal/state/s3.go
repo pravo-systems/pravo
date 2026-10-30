@@ -430,6 +430,9 @@ func (b *S3Backend) List(ctx context.Context, prefix string) ([]string, error) {
 	return out, nil
 }
 
+// ListsVersions reports whether the settings allow a snapshot (snapshot: false turns it off).
+func (b *S3Backend) ListsVersions() bool { return !b.noSnapshot }
+
 // ListVersions is List with the ETag that the listing gives for each key.
 func (b *S3Backend) ListVersions(ctx context.Context, prefix string) ([]ObjectVersion, error) {
 	full := b.key(strings.TrimSuffix(prefix, "/") + "/")
