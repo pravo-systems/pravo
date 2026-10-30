@@ -352,13 +352,20 @@ function straighten(layers, V, y) {
   // a wire may leave and arrive anywhere on the side of an item but its corners, so two items stand level enough when they are
   // not further apart than that
   const reach = (v) => (v.kind === 'item' ? Math.max(v.h / 2 - 8, 0) : 0);
+  // a lane takes its wires in at the heights of its ports, which are not at its middle: the wires that come in stand level with
+  // the middle of the ports (the one in the middle of them when there are several), and so do the wires that go out
+  const mid = (m, h) => { if (!m || !m.size) return 0; const a = [...m.values()].sort((p, q) => p - q); return a[(a.length - 1) >> 1] - h / 2; };
+  const inO = new Float64Array(n), outO = new Float64Array(n);
+  for (const v of V) if (v.kind === 'lane' && v.node && v.node.lane) { inO[v.i] = mid(v.node.lane.inY, v.h); outO[v.i] = mid(v.node.lane.outY, v.h); }
+  // the height at which a wire from v arrives at w, less the height at which it leaves v, when v and w stand where they do
+  const gap = (v, w) => (y[w.i] + inO[w.i]) - (y[v.i] + outO[v.i]);
   const above = new Array(n), below = new Array(n);
   for (const L of layers) L.forEach((v, i) => { above[v.i] = i ? L[i - 1] : null; below[v.i] = i + 1 < L.length ? L[i + 1] : null; });
   let lo = Infinity, hi = -Infinity;
   for (const v of V) { lo = Math.min(lo, y[v.i] - v.h / 2); hi = Math.max(hi, y[v.i] + v.h / 2); }
   for (let pass = 0; pass < 24; pass++) {
     for (let i = 0; i < n; i++) up[i] = i;
-    for (const v of V) for (const w of v.dn) if (Math.abs(y[v.i] - y[w.i]) < EPS) up[find(v.i)] = find(w.i);
+    for (const v of V) for (const w of v.dn) if (Math.abs(gap(v, w)) < EPS) up[find(v.i)] = find(w.i);
     const members = new Map();
     for (const v of V) { const r = find(v.i); let a = members.get(r); if (!a) members.set(r, (a = [])); a.push(v); }
     const gid = new Int32Array(n);
@@ -372,8 +379,8 @@ function straighten(layers, V, y) {
       const offs = [];
       let upRoom = Infinity, downRoom = Infinity, top = Infinity, bot = -Infinity;
       for (const v of g) {
-        for (const w of v.up) if (gid[w.i] !== k) offs.push([y[w.i] - y[v.i], reach(v) + reach(w)]);
-        for (const w of v.dn) if (gid[w.i] !== k) offs.push([y[w.i] - y[v.i], reach(v) + reach(w)]);
+        for (const w of v.up) if (gid[w.i] !== k) offs.push([-gap(w, v), reach(v) + reach(w)]);
+        for (const w of v.dn) if (gid[w.i] !== k) offs.push([gap(v, w), reach(v) + reach(w)]);
         const a = above[v.i], b = below[v.i];
         if (a && gid[a.i] !== k) upRoom = Math.min(upRoom, y[v.i] - y[a.i] - sepOf(a, v));
         if (b && gid[b.i] !== k) downRoom = Math.min(downRoom, y[b.i] - y[v.i] - sepOf(v, b));
@@ -400,12 +407,20 @@ function straighten(layers, V, y) {
     }
     if (!moved) break;
   }
-  // what stands level stands exactly level
+  // what stands level stands exactly level: each group is set from its first member along the wires that make it level
   for (let i = 0; i < n; i++) up[i] = i;
-  for (const v of V) for (const w of v.dn) if (Math.abs(y[v.i] - y[w.i]) < EPS) up[find(v.i)] = find(w.i);
-  const base = new Map();
-  for (const v of V) { const r = find(v.i); if (!base.has(r)) base.set(r, y[v.i]); }
-  for (const v of V) y[v.i] = base.get(find(v.i));
+  for (const v of V) for (const w of v.dn) if (Math.abs(gap(v, w)) < EPS) up[find(v.i)] = find(w.i);
+  const done = new Uint8Array(n);
+  for (const r of V) {
+    if (done[r.i]) continue;
+    done[r.i] = 1;
+    const stack = [r];
+    while (stack.length) {
+      const v = stack.pop();
+      for (const w of v.dn) if (!done[w.i] && find(w.i) === find(r.i) && Math.abs(gap(v, w)) < EPS) { y[w.i] = y[v.i] + outO[v.i] - inO[w.i]; done[w.i] = 1; stack.push(w); }
+      for (const w of v.up) if (!done[w.i] && find(w.i) === find(r.i) && Math.abs(gap(w, v)) < EPS) { y[w.i] = y[v.i] + inO[v.i] - outO[w.i]; done[w.i] = 1; stack.push(w); }
+    }
+  }
 }
 
 // ---- lines of a gutter ----
