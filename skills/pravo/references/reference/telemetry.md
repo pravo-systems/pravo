@@ -134,7 +134,7 @@ Output:
 
 ```text
 {"pravo.command":"pravo plan","pravo.version":"0.1.0-dev","pravo.actor":"","pravo.reason":"","pravo.json":false,"pravo.command_line":"pravo plan","pravo.exit_code":0}
-{"pravo.resource.address":"hello","pravo.resource.type":"local_file","pravo.mode":"managed","pravo.provider":"local","pravo.provider.instance":"local","pravo.phase":"plan","pravo.action":"create","pravo.skipped":false,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
+{"pravo.resource.address":"hello","pravo.resource.type":"local_file","pravo.mode":"managed","pravo.provider":"local","pravo.provider.instance":"$local","pravo.phase":"plan","pravo.action":"create","pravo.skipped":false,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
 ```
 
 Failures are recorded on the span that failed, with its error, so the first red span in a trace is where the run stopped.
