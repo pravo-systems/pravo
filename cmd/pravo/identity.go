@@ -49,8 +49,13 @@ var (
 		fd := os.Stdin.Fd()
 		return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
 	}
-	askPassphrase = func(prompt string) ([]byte, error) { return protect.PassphraseFromTerminal(prompt, false) }
-	unsetEnv      = os.Unsetenv
+	askPassphrase = func(prompt string) ([]byte, error) {
+		if spinner != nil {
+			defer spinner.Hold()()
+		}
+		return protect.PassphraseFromTerminal(prompt, false)
+	}
+	unsetEnv = os.Unsetenv
 )
 
 // The secret environment variables are removed from the environment once they
@@ -102,7 +107,7 @@ func resolveIdentity(o identityOptions) (*protect.Identity, error) {
 			return nil, fmt.Errorf("identity %s: %w", src.path, err)
 		}
 		if warning != "" {
-			fmt.Fprintln(os.Stderr, "Warning: "+warning)
+			fmt.Fprintln(stderr(), "Warning: "+warning)
 		}
 	}
 	defer clear(data)

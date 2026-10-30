@@ -23,6 +23,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/progress"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 	"github.com/pravo-systems/pravo/internal/ui"
 )
@@ -49,14 +50,20 @@ func main() {
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 	finished := make(chan struct{})
 	go watchSignals(sigs, finished, cancel, interrupt, os.Stderr, func(code int) {
+		stopProgress()
 		plugin.CleanupClients()
 		os.Exit(code)
 	}, interruptGrace)
+	if progress.Wanted(env.OS().Get) {
+		spinner = progress.New(os.Stderr)
+		telemetry.Watch(spinner)
+	}
 	shutdownTelemetry := telemetry.Setup(ctx, Version, env.OS())
 	// A trace started by the caller (a CI job, the MCP server) continues here.
 	ctx = telemetry.ParentFromEnv(ctx, environment())
 	root := newRootCmd()
 	err := root.ExecuteContext(ctx)
+	stopProgress()
 	plugin.CleanupClients()
 	code := 0
 	if err != nil {
@@ -248,6 +255,27 @@ func normaliseArgs(args []string) []string {
 	return out
 }
 
+// spinner draws what a command is doing on a terminal; nil when stderr is not
+// one, in CI and when asked not to.
+var spinner *progress.Tracker
+
+func stopProgress() {
+	if spinner != nil {
+		spinner.Stop()
+	}
+}
+
+// showsProgress lists the commands that work for long enough, and print their
+// result only at the end, to show what they are doing meanwhile. serve shows it
+// until the server is up.
+func showsProgress(cmd *cobra.Command) bool {
+	switch strings.Fields(cmd.CommandPath())[1:][0] {
+	case "plan", "apply", "destroy", "drift", "discover", "init", "import", "validate", "why", "serve":
+		return true
+	}
+	return false
+}
+
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "pravo",
@@ -271,6 +299,11 @@ func newRootCmd() *cobra.Command {
 				out = ui.NewPrinter(os.Stderr, true)
 			} else {
 				out = ui.NewPrinter(os.Stdout, colourOff(flags.NoColor))
+			}
+			if spinner != nil && flags.Verbose == 0 && showsProgress(cmd) {
+				// The status line gives way to whatever the command prints.
+				out.Out = spinner.Guard(out.Out)
+				spinner.Start(!colourOff(flags.NoColor))
 			}
 			if flags.Actor == "" {
 				flags.Actor = e.Get("PRAVO_ACTOR")
@@ -341,4 +374,13 @@ func cueVersion() string {
 		}
 	}
 	return ""
+}
+
+// stderr is where a command writes a warning while it works: the status line is
+// taken off the screen first.
+func stderr() io.Writer {
+	if spinner != nil {
+		return spinner.Guard(os.Stderr)
+	}
+	return os.Stderr
 }
