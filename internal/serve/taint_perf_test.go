@@ -21,7 +21,7 @@ func TestTaintCostOnAChainedEstate(t *testing.T) {
 	b.WriteString(strings.SplitN(specCUE, "// A reusable unit.", 2)[0])
 	b.WriteString("\nestate: {\n")
 	for i := range n {
-		prev := ""
+		var prev string
 		if i > 0 {
 			prev = fmt.Sprintf(`, port: estate.n%d.port, tags: {up: estate.n%d.tags.up}`, i-1, i-1)
 		} else {
