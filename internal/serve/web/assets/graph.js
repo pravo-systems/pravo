@@ -91,7 +91,12 @@ export function nodeClasses(n, ctx) {
 
 // authorsOf lists the authors of the open stored plans that change a node, one for each plan, newest first
 export function authorsOf(n, ctx) {
-  return (n.plans || []).map((id) => ({ id, author: (ctx.authors && ctx.authors.get(id)) || '?' }));
+  return (n.plans || []).map((id) => ({ id, author: (ctx.authors && ctx.authors.get(id)) || '?', signer: ctx.signers && ctx.signers.get(id) }));
+}
+
+// whoIs names the maker of a plan in a tooltip: the author, and the signer when that is another name
+function whoIs(p) {
+  return p.signer && p.signer !== p.author ? `${p.author}, signed by ${p.signer}` : p.author;
 }
 
 // plansIn says which open stored plans change something inside a namespace or a group of siblings: the authors, one for
@@ -114,7 +119,7 @@ export function plansIn(it, ctx) {
 export function describeNode(n, ctx) {
   const bits = [isOut(n) ? `${n.name}, output` : `${n.name}, ${n.type}`];
   if (n.action) bits.push(n.action === 'no-op' ? 'no change planned' : 'plan: ' + n.action);
-  if ((n.plans || []).length) bits.push(`${n.overlap ? 'overlap: ' : ''}changed by ${authorsOf(n, ctx || {}).map((p) => `${p.id} of ${p.author}`).join(', ')}`);
+  if ((n.plans || []).length) bits.push(`${n.overlap ? 'overlap: ' : ''}changed by ${authorsOf(n, ctx || {}).map((p) => `${p.id} of ${whoIs(p)}`).join(', ')}`);
   if (n.drifted) bits.push('drifted');
   if (n.gone) bits.push('gone');
   if (n.locked) bits.push('locked');
@@ -268,7 +273,7 @@ export class GraphView {
     const prevVis = this.vis, prevLay = this.lay;
     this.vis = vis;
     this.lay = lay;
-    this.ctx = { hasPlan: !!opts.hasPlan, authors: opts.authors || new Map() };
+    this.ctx = { hasPlan: !!opts.hasPlan, authors: opts.authors || new Map(), signers: opts.signers || new Map() };
     const animate = !!opts.animate && !first && !this.reduced;
     this.stopTween();
     const moves = { items: [], lanes: [], edges: [] };
@@ -1036,7 +1041,7 @@ export class GraphView {
     if (n.overlap) chips.push(h('span', { class: 'gchip ovl' }, 'overlap'));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
     const authors = authorsOf(n, this.ctx);
-    if (authors.length) out.push(h('div', { class: 'gtip-plans' }, authors.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${p.author} · ${p.id}`)), h('div', { class: 'dim' }, 'Click a disc to open its plan')));
+    if (authors.length) out.push(h('div', { class: 'gtip-plans' }, authors.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${whoIs(p)} · ${p.id}`)), h('div', { class: 'dim' }, 'Click a disc to open its plan')));
     out.push(h('div', { class: 'gtip-meta' }, isO ? `reads ${n.deps.length} · read by ${n.used.length}` : `${n.deps.length} ${n.deps.length === 1 ? 'dependency' : 'dependencies'} · ${n.used.length} ${n.used.length === 1 ? 'dependent' : 'dependents'}`));
     return out;
   }
@@ -1044,7 +1049,7 @@ export class GraphView {
   // tipPlans names the open plans that change something inside a card, and how many resources they change
   tipPlans(out, pin) {
     if (!pin.list.length) return;
-    out.push(h('div', { class: 'gtip-plans' }, pin.list.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${p.author} \u00b7 ${p.id}`)),
+    out.push(h('div', { class: 'gtip-plans' }, pin.list.map((p) => h('div', null, h('span', { class: 'au au' + hueOf(p.author) }, initials(p.author)), ` ${whoIs(p)} \u00b7 ${p.id}`)),
       h('div', { class: 'dim' }, `${plural(pin.resources, 'resource')} changed by open plans${pin.overlap ? ', two of them by more than one' : ''}`), h('div', { class: 'dim' }, 'Click a disc to open its plan')));
   }
 

@@ -591,9 +591,13 @@ type StoredPlan struct {
 	// line, the git revision) is not in a listing: it can quote a value that the
 	// plan writes and the state does not hold yet, which only the plan says, so
 	// PlanOverlay carries it, masked against the plan's own values.
-	Status  string     `json:"status"`
-	Open    bool       `json:"open,omitempty"`
-	Author  string     `json:"author"`
+	Status string `json:"status"`
+	Open   bool   `json:"open,omitempty"`
+	Author string `json:"author"`
+	// Signer is the name that the readers file gives the key that signed the storing of
+	// the plan, when that signature verified. It is empty for a state that is not sealed
+	// and for a plan that this identity cannot open or that nobody verifiably signed.
+	Signer  string     `json:"signer,omitempty"`
 	Created time.Time  `json:"created"`
 	Expires time.Time  `json:"expires"`
 	Destroy bool       `json:"destroy,omitempty"`

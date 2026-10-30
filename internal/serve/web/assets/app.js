@@ -513,7 +513,7 @@ function relayout(o = {}) {
   S.lay = lay;
   S.layoutMs = performance.now() - t0;
   S.shaped = sh.fit.w > 0; // false while the canvas is hidden (the list view): the layout is made again when it shows
-  gv.setScene(vis, lay, { animate: o.animate !== false, intro: !!o.intro, hasPlan: S.model.hasPlan, authors: S.model.authors });
+  gv.setScene(vis, lay, { animate: o.animate !== false, intro: !!o.intro, hasPlan: S.model.hasPlan, authors: S.model.authors, signers: S.model.signers });
   applyMatch();
   applySelection(false);
   renderStatus();

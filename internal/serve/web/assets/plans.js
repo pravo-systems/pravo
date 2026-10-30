@@ -92,9 +92,15 @@ export function counts(c, cls = '') {
   return h('span', { class: 'pcnt' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, parts);
 }
 
+// signedBy is the verified signer of a plan when it is not the author: the name is shown beside the author, and not
+// instead of it, since the author is a label that the command was given and the signer is a fact.
+export function signedBy(p) {
+  return p && p.signer && p.signer !== p.author ? p.signer : null;
+}
+
 // describe is the label of a plan for a screen reader
 export function describe(p, reason) {
-  const bits = [reason || p.id, reason ? p.id : null, statusLabel(p.status), `by ${p.author}`, relTime(p.created), countWords(planCounts(p), p.status === 'applied')];
+  const bits = [reason || p.id, reason ? p.id : null, statusLabel(p.status), `by ${p.author}${signedBy(p) ? ', signed by ' + signedBy(p) : ''}`, relTime(p.created), countWords(planCounts(p), p.status === 'applied')];
   if (conflictCount(p)) bits.push(plural(conflictCount(p), 'change') + (conflictCount(p) === 1 ? ' conflicts' : ' conflict'));
   if ((p.overlaps || []).length) bits.push('overlaps ' + plural(p.overlaps.length, 'other plan'));
   if (p.applying) bits.push('an apply is running');
@@ -137,6 +143,7 @@ export function facts(p, text) {
   text = text || {};
   return [
     ['made by', [p.author, h('span', { class: 'dim', title: stamp(p.created) }, ' · ' + relTime(p.created))]],
+    signedBy(p) ? ['signed by', signedBy(p)] : null,
     ['expires', h('span', { title: stamp(p.expires) }, p.status === 'expired' ? 'expired ' + relTime(p.expires) : relUntil(p.expires))],
     text.reason ? ['reason', text.reason] : null,
     text.command ? ['command', h('code', { class: 'cmd' }, text.command)] : null,
@@ -374,7 +381,7 @@ export class Plans {
       avatar(p.author),
       h('span', { class: 'rp-main' },
         h('span', { class: 'rp-l1' }, reason ? h('span', { class: 'rp-title', title: reason }, reason) : h('code', { class: 'rp-id' }, p.id), overlaps ? h('span', { class: 'rp-ovl', 'data-tip': 'Changes resources that ' + plural(overlaps, 'other plan') + ' changes' }, icon('overlap')) : null),
-        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), appr, expiryRing(p)),
+        h('span', { class: 'rp-l2' }, statusChip(p.status), h('span', { class: 'who', title: p.author }, p.author), signedBy(p) ? h('span', { class: 'who dim', title: 'The signature of the storing verifies as ' + signedBy(p) }, 'signed by ' + signedBy(p)) : null, h('span', { class: 'when', title: stamp(p.created) }, relTime(p.created)), counts(planCounts(p)), appr, expiryRing(p)),
         hits ? h('span', { class: 'rp-l4', 'aria-hidden': 'true' },
           hits.slice(0, GLANCE).map((c) => { const a = actionOf(touchAction(c)); return h('span', { class: 'rp-ch' }, a ? h('i', { class: 'sq ' + a.cls }) : null, c.addr); }),
           hits.length > GLANCE ? h('span', { class: 'rp-chn' }, `+${hits.length - GLANCE} more`) : null) : null,
@@ -401,14 +408,13 @@ export class Plans {
   }
 }
 
-// byLine is the name that the strip gives the maker of a plan: the signer the readers file names, when the signature
-// verified, since the label that a command was given is a claim and the signature is not. A label that differs stays
-// in the tooltip.
+// byLine is what the strip says of the maker of a plan: the author, and the signer that the readers file names when the
+// signature verified and the name differs, since the label that a command was given is a claim and the signature is not.
 function byLine(author, sg) {
   const it = sg && !sg.note ? (sg.items || []).find((x) => x.status === 'verified' && x.signer) : null;
-  if (!it) return author || null;
-  if (!author || author === it.signer) return it.signer;
-  return h('span', { title: 'Label given to the command: ' + author + ' (not verified)' }, it.signer);
+  if (!it || it.signer === author) return author || null;
+  if (!author) return it.signer;
+  return [author, h('span', { class: 'dim', title: 'The signature of the storing verifies as ' + it.signer }, ' \u00b7 signed by ' + it.signer)];
 }
 
 // The strip under the bar that says which plan is laid over the resources, with the way to its detail and the way back.

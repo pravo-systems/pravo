@@ -54,6 +54,10 @@ type storedPlans struct {
 	// shows again, an apply that left its claim stops counting as running.
 	lapse time.Time
 
+	// signers keeps the verified signer of each plan that the listing asked for.
+	signMu  sync.Mutex
+	signers map[string]string
+
 	listOnce sync.Once
 	list     *PlanList
 
@@ -315,7 +319,7 @@ func (m *model) storedPlan(e *engine.PlanEntry) StoredPlan {
 	meta, prog := e.Meta, e.Progress
 	sp := StoredPlan{
 		ID: meta.ID, Status: string(e.Status), Open: e.Status.Open(),
-		Author: maskText(m.secrets, meta.Author, maxText), Created: meta.Created, Expires: meta.Expires,
+		Author: maskText(m.secrets, meta.Author, maxText), Signer: m.planSigner(meta.ID), Created: meta.Created, Expires: meta.Expires,
 		Destroy: meta.Destroy, Summary: PlanCounts{Add: meta.Summary.Add, Change: meta.Summary.Change, Destroy: meta.Summary.Destroy, Read: meta.Summary.Read},
 		Planned: len(meta.Changes), Applied: e.AppliedCount(),
 		Applying: prog.ApplyRunning(time.Now()),
@@ -338,6 +342,38 @@ func (m *model) storedPlan(e *engine.PlanEntry) StoredPlan {
 		sp.Touches = append(sp.Touches, PlanChange{Addr: t.Addr, Action: string(t.Action), Applied: done, Conflict: conflict && !done})
 	}
 	return sp
+}
+
+// planSigner is the name of the verified signer of a stored plan, for the listing, or "".
+// The plan is read to get its digest, so the answer is kept: a stored plan does not change.
+func (m *model) planSigner(id string) string {
+	verify := m.srv.opts.VerifyPlan
+	if verify == nil || m.store == nil {
+		return ""
+	}
+	sp := m.stored
+	sp.signMu.Lock()
+	defer sp.signMu.Unlock()
+	if name, ok := sp.signers[id]; ok {
+		return name
+	}
+	name := ""
+	ctx := m.store.Context()
+	if pf, err := sp.readFile(ctx, id); err == nil {
+		if sigs, ok := verify(ctx, m.store, id, pf.Digest); ok && sigs != nil {
+			for _, it := range sigs.Items {
+				if it.Status == "verified" && it.Signer != "" {
+					name = maskText(m.secrets, it.Signer, maxText)
+					break
+				}
+			}
+		}
+	}
+	if sp.signers == nil {
+		sp.signers = map[string]string{}
+	}
+	sp.signers[id] = name
+	return name
 }
 
 // partlyStale says what a partly stale plan cannot do and what it can: the

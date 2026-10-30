@@ -198,7 +198,7 @@ Output:
 
 `--actor` and `--reason` are labels. pravo records them and does not check them. They appear in `pravo state log`, in `pravo state locks`, in `pravo show` and in the plan document. An actor is also the author of a plan that `pravo plan --store` writes into the state, and `pravo plan list` shows it; without a label, the author is the operating system user. An actor also owns the reservations it takes; without a label, the operating system user owns them.
 
-A sealed state has a verified name already, so it does not take a label. The actor of every transaction, lock, reservation and stored plan is the name of the identity that signs, and `--actor` is ignored: pravo prints a warning when the label differs. The viewer shows the signer that the readers file names beside a stored plan, and keeps the label that a command was given in a tooltip.
+A sealed state has a verified name already, so it does not take a label. The actor of every transaction, lock, reservation and stored plan is the name of the identity that signs, and `--actor` is ignored: pravo prints a warning when the label differs. Where a stored plan has a verified signer whose name differs from its author, which an older plan can, the viewer shows `signed by NAME` beside the author.
 
 ```sh
 pravo -C app apply -auto-approve --actor ci --reason "first apply" > /dev/null

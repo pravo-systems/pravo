@@ -96,6 +96,10 @@ func TestThePlanViewSaysWhoSignedAStoredPlan(t *testing.T) {
 	}})
 	id := storePlan(t, p, stored{Author: "ana@acme", Addrs: []string{"services.a.db"}})
 	waitFor(t, "the stored plan", func() bool { return len(p.plans().Plans) == 1 })
+	// The listing names the verified signer beside the author, and the unopenable plan has none.
+	if sp := planOf(p.plans(), id); sp == nil || sp.Author != "ana@acme" || sp.Signer != "ada" {
+		t.Errorf("listed plan %+v, want author ana@acme and signer ada", sp)
+	}
 	o := p.overlay(id)
 	sg := o.Plan.Signatures
 	if sg == nil || len(sg.Items) != 3 || sg.Items[0].Status != "verified" || sg.Items[0].Signer != "ada" || sg.Items[2].Status != "invalid" {
@@ -107,6 +111,9 @@ func TestThePlanViewSaysWhoSignedAStoredPlan(t *testing.T) {
 	// A plan this process cannot open is not checked, and the view says why.
 	sealedID := storePlan(t, p, stored{Author: "ana@acme", Addrs: []string{"services.b.file"}, Sealed: true})
 	waitFor(t, "the sealed plan", func() bool { return len(p.plans().Plans) == 2 })
+	if sp := planOf(p.plans(), sealedID); sp == nil || sp.Signer != "" {
+		t.Errorf("a plan that cannot be opened lists %+v, want no signer", sp)
+	}
 	if sg := p.overlay(sealedID).Plan.Signatures; sg == nil || len(sg.Items) != 0 || !strings.Contains(sg.Note, "cannot open") {
 		t.Errorf("a sealed plan: %+v", sg)
 	}
