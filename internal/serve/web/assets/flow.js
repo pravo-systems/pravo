@@ -78,11 +78,12 @@ function reorder(layer, up) {
 }
 
 // transpose swaps two neighbours in a column whenever that takes crossings away
-function transpose(layers) {
+function transpose(layers, fix0) {
   let swapped = true;
   for (let pass = 0; swapped && pass < 12; pass++) {
     swapped = false;
     for (const L of layers) {
+      if (fix0 && L === layers[0]) continue;
       for (let i = 0; i + 1 < L.length; i++) {
         const u = L[i], v = L[i + 1];
         if (u.glue || v.glue || u.fol || v.fol) continue;
@@ -95,7 +96,7 @@ function transpose(layers) {
   }
 }
 
-function orderLayers(layers, rounds) {
+function orderLayers(layers, rounds, fix0) {
   const setPos = () => { for (const L of layers) for (let i = 0; i < L.length; i++) L[i].pos = i; };
   setPos();
   let best = countCrossings(layers);
@@ -104,8 +105,8 @@ function orderLayers(layers, rounds) {
   let stale = 0;
   for (let it = 0; it < rounds && best > 0 && stale < 5; it++) {
     for (let l = 1; l < layers.length; l++) reorder(layers[l], true);
-    for (let l = layers.length - 2; l >= 0; l--) reorder(layers[l], false);
-    transpose(layers);
+    for (let l = layers.length - 2; l >= (fix0 ? 1 : 0); l--) reorder(layers[l], false);
+    transpose(layers, fix0);
     const c = countCrossings(layers);
     if (c < best) { best = c; snap = layers.map((L) => L.slice()); stale = 0; } else stale++;
   }
@@ -481,7 +482,7 @@ export function flow(args, G) {
   // How the wires outside approach each lane, by lane and source: the second pass puts the ports of a lane that the
   // lane itself has no preference for in that order, so that two wires into one lane do not cross at its border.
   const approach = new Map();
-  let ties = false;
+  let ties = false, pass2 = false;
 
   // build lays out one lane (its sub-lanes first) and sets its size: w, h, and where its block stands in the box: ox, oy.
   function build(L, EL) {
@@ -874,28 +875,14 @@ export function flow(args, G) {
     let edgeCount = 0;
     for (const v of V) edgeCount += v.dn.length;
     const rounds = typeof args.sweeps === 'number' && args.sweeps > 0 ? args.sweeps : Math.max(3, Math.min(24, Math.round(300000 / (edgeCount + 50))));
-    orderLayers(layers, rounds);
+    // the ports where wires come in stand in the order in which the wires outside approach them, when that is known
+    const ap = (v) => approach.get(L.id + '|' + v.node.a);
+    const fix0 = hasIN && pass2 && layers[0].every((v) => ap(v) !== undefined);
+    if (hasIN && ins.length > 1) ties = true;
+    if (fix0) layers[0].sort((p, q) => ap(p) - ap(q));
+    orderLayers(layers, rounds, fix0);
     // what stands alone goes last in its column
     for (const v of isoV) { layers[v.layer].push(v); if (v.fol) for (const f of v.fol) layers[v.layer].push(f); }
-    // ports that feed the same nodes have no order of their own: they follow the order in which the wires come in
-    {
-      const L0 = layers[0];
-      for (let i = 0; i < L0.length && hasIN; ) {
-        const key = (v) => v.dn.map((d) => d.i).sort((p, q) => p - q).join(',');
-        let j = i + 1;
-        while (j < L0.length && key(L0[j]) === key(L0[i])) j++;
-        if (j - i > 1) {
-          ties = true;
-          const ap = (v) => approach.get(L.id + '|' + v.node.a);
-          const grp = L0.slice(i, j);
-          if (grp.every((v) => ap(v) !== undefined)) {
-            grp.sort((p, q) => ap(p) - ap(q));
-            for (let k = i; k < j; k++) L0[k] = grp[k - i];
-          }
-        }
-        i = j;
-      }
-    }
     for (const L2 of layers) for (let i = 0; i < L2.length; i++) L2[i].pos = i;
 
     // ---- heights ----
@@ -1091,7 +1078,7 @@ export function flow(args, G) {
   }
 
   build(R, E);
-  if (ties && !lite) build(R, E);
+  if (ties && !lite) { pass2 = true; build(R, E); }
 
   // ---- absolute positions ----
   const pos = new Map();
