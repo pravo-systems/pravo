@@ -84,7 +84,7 @@ Each kind of span carries the facts that are useful at that level and nothing el
 | Kind | One span for | Carries |
 |---|---|---|
 | command | The command. | The command line, the actor and the reason, the version, the exit code. |
-| setup | A step that readies the command: loading the specification, opening the state, resolving, installing and starting a provider, reading its schema. | The provider, its version and source, the backend of the state. |
+| setup | A step that readies the command: loading the specification, opening the state, resolving, installing and starting a provider, reading its schema, building the graph of tasks. A task that stood still for more than 20 ms, for a provider to start or to be configured or for the CUE evaluation, has a `wait for ...` span of that time, so that a pause in a trace is never unexplained. | The provider, its version and source, the backend of the state. |
 | engine | The plan, the apply, a discovery, a policy check. | The transaction, the counts of a plan or an apply, how many resources were planned, skipped, refreshed, not read. |
 | phase | A stage of the engine: locking, evaluating and refreshing, applying changes, recording outputs, finishing the transaction. | How many tasks the stage ran. |
 | resource | One resource in one phase. | Its address, type, mode, provider and instance, the action, whether it was skipped, refreshed, drifted or deferred. |

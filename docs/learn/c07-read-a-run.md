@@ -75,7 +75,7 @@ The file is JSON, and `jq` reads it. The first span is the command, and every ot
 ```sh run
 F=$(ls .pravo/traces/*.json)
 jq -r '.spans[0].name' "$F"
-jq -r '.spans[].name | split(" ")[0]' "$F" | sort | uniq -c
+jq -r '.spans[].name | select(startswith("wait ") | not) | split(" ")[0]' "$F" | sort | uniq -c
 ```
 
 ```text out
@@ -86,11 +86,11 @@ pravo apply
       1 pravo
      18 provider
       4 resource
-     11 setup
+     15 setup
      22 state
 ```
 
-Eighty spans for two resources. `engine` is the plan and the apply; `phase` the stages inside each, evaluate, refresh, apply changes; `resource` one span per resource per stage; `provider` the calls to the providers; `state` the requests to the state store. The spans of one resource, with their durations in microseconds, show what an apply of a resource is made of:
+Eighty-three spans for two resources. (A run can have `wait` spans too, for a task that stood still for a provider to start; the count leaves them out.) `engine` is the plan and the apply; `phase` the stages inside each, evaluate, refresh, apply changes; `resource` one span per resource per stage; `provider` the calls to the providers; `state` the requests to the state store. The spans of one resource, with their durations in microseconds, show what an apply of a resource is made of:
 
 ```sh run
 F=$(ls .pravo/traces/*.json)

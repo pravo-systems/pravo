@@ -63,10 +63,10 @@ engine plan
 pravo plan
 ```
 
-Those are the spans of the command, the engine, the resource and the provider calls. The run has more: the stages of loading and of the engine, and each request to the state. A count of the spans by the first word of their names:
+Those are the spans of the command, the engine, the resource and the provider calls. The run has more: the stages of loading and of the engine, and each request to the state. A count of the spans by the first word of their names, leaving out the `wait` spans, which a run has only when a task stood still for more than 20 ms (for a provider to start or to be configured, or for the CUE evaluation) and which depend on timing:
 
 ```sh
-jq -r .Name trace.jsonl | cut -d' ' -f1 | sort | uniq -c
+jq -r .Name trace.jsonl | grep -v '^wait ' | cut -d' ' -f1 | sort | uniq -c
 ```
 
 Output:
@@ -78,7 +78,7 @@ Output:
       1 pravo
       4 provider
       1 resource
-      8 setup
+     10 setup
       7 state
 ```
 

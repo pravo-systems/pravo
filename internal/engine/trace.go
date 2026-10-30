@@ -175,5 +175,5 @@ func (e *Engine) logTask(ctx context.Context, r *config.Resource, phase string, 
 func (e *Engine) lockCUE(ctx context.Context) {
 	waiting := time.Now()
 	e.cueMu.Lock()
-	telemetry.Waited(ctx, "setup wait for the CUE evaluation", waiting)
+	telemetry.Waited(ctx, "wait for the CUE evaluation", waiting)
 }

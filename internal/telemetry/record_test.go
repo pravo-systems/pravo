@@ -167,8 +167,8 @@ func TestWaitedRecordsALongWaitAsASpan(t *testing.T) {
 
 	ctx, cmd := Tracer().Start(context.Background(), "pravo plan")
 	ctx, eng := Tracer().Start(ctx, "engine plan")
-	Waited(ctx, "setup wait for a long thing", time.Now().Add(-80*time.Millisecond))
-	Waited(ctx, "setup wait for a short thing", time.Now().Add(-time.Millisecond))
+	Waited(ctx, "wait for a long thing", time.Now().Add(-80*time.Millisecond))
+	Waited(ctx, "wait for a short thing", time.Now().Add(-time.Millisecond))
 	End(eng, nil)
 	End(cmd, nil)
 	if err := shutdown(context.Background()); err != nil {
@@ -186,12 +186,12 @@ func TestWaitedRecordsALongWaitAsASpan(t *testing.T) {
 	var found int
 	for _, s := range rt.Spans {
 		switch s.Name {
-		case "setup wait for a long thing":
+		case "wait for a long thing":
 			found++
 			if s.DurUS < 70000 {
 				t.Errorf("the wait lasted %d µs, want about 80000", s.DurUS)
 			}
-		case "setup wait for a short thing":
+		case "wait for a short thing":
 			t.Errorf("a wait of a millisecond is a span")
 		}
 	}

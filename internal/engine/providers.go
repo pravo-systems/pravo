@@ -369,7 +369,7 @@ func (m *Providers) instance(ctx context.Context, key string) (*instance, error)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// A task that comes while another starts a provider waits here, for any provider.
-	telemetry.Waited(ctx, "setup wait for a provider to start", waiting, attribute.String("pravo.provider", local))
+	telemetry.Waited(ctx, "wait for a provider to start", waiting, attribute.String("pravo.provider", local))
 	inst, ok := m.instances[key]
 	if ok {
 		return inst, nil
@@ -462,7 +462,7 @@ func (m *Providers) Provider(ctx context.Context, key string) (plugin.Provider, 
 	waiting := time.Now()
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
-	telemetry.Waited(ctx, "setup wait for provider "+key+" to be configured", waiting, attribute.String("pravo.provider", local))
+	telemetry.Waited(ctx, "wait for provider "+key+" to be configured", waiting, attribute.String("pravo.provider", local))
 	if inst.cfg {
 		// Another provider may be recording its configuration just now.
 		m.mu.Lock()
