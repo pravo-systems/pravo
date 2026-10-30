@@ -89,7 +89,6 @@ grep -E '^#[A-Za-z0-9]+:' cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 
 ```text out
 #Movable: {
-#Template: {
 #Output: {
 #Policy: {
 #Plan: {
@@ -106,6 +105,7 @@ grep -E '^#[A-Za-z0-9]+:' cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 #LocalState: {
 #S3State: {
 #HTTPState: {
+#Template: {
 ```
 
 ## The provider package

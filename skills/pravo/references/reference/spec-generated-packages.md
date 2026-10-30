@@ -93,7 +93,6 @@ Output:
 
 ```text
 #Movable: {
-#Template: {
 #Output: {
 #Policy: {
 #Plan: {
@@ -110,6 +109,7 @@ Output:
 #LocalState: {
 #S3State: {
 #HTTPState: {
+#Template: {
 ```
 
 ## The provider package
