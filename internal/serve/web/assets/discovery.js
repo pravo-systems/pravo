@@ -12,7 +12,7 @@
 import { h, clear, icon, plural, relTime, stamp, fmt } from './util.js';
 import * as api from './api.js';
 import { Pills } from './pills.js';
-import { cueText } from './ui.js';
+import { cueText, busy } from './ui.js';
 import { QueryMenu, addTerm, removeTerm } from './query.js';
 import * as dq from './dquery.js';
 
@@ -361,7 +361,7 @@ export class DiscoveryView {
     const a = this.adopt.get(k);
     const box = h('div', { class: 'dv-detail', role: 'group', 'aria-label': (mode === 'ack' ? 'Acknowledging ' : 'Adopting ') + (it.name || it.id) });
     if (!a) {
-      box.append(h('p', { class: 'dv-note' }, 'Reading…'));
+      box.append(busy('Reading the resource'));
       return box;
     }
     if (a.error) {

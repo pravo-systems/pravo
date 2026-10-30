@@ -41,9 +41,12 @@ function parseJSON(v) {
 
 // plain: an environment variable has no provider to fill anything in, so its attributes are all the page and none is computed
 const bucketOf = (a, plain) => {
-  if (a.redacted || a.sensitive) return 'sensitive';
   const k = (a.kind || '').split(',');
-  if (!plain && k.includes('computed') && !k.includes('optional') && !k.includes('required')) return 'computed';
+  const computed = !plain && k.includes('computed') && !k.includes('optional') && !k.includes('required');
+  // withheld only because it reads a sensitive value: the toggle still decides whether it is listed
+  if (computed && a.redacted === 'derived' && !a.sensitive) return 'computed';
+  if (a.redacted || a.sensitive) return 'sensitive';
+  if (computed) return 'computed';
   return 'configured';
 };
 

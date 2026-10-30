@@ -178,4 +178,14 @@ export function textBlock(text, o = {}) {
   return h('div', { class: 'tb' + (o.json ? ' json' : '') }, body);
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// busy: what a pane shows while it waits for the server. A square track with a bar that sweeps along it, the
+// words for what is being read.
+
+export function busy(label, o = {}) {
+  return h('div', { class: 'busy' + (o.block ? ' block' : ''), role: 'status', 'aria-live': 'polite' },
+    h('div', { class: 'busy-r' }, h('span', { class: 'busy-tick' }), h('span', { class: 'busy-l' }, label)),
+    h('div', { class: 'busy-bar', 'aria-hidden': 'true' }, h('i')));
+}
+
 export { motionOn };

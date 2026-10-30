@@ -129,7 +129,6 @@ func loadSpec(opts Options, sig string) *specState {
 		}
 	}
 	ss.computeEdges()
-	ss.computeTaint()
 	for _, r := range root.Resources {
 		if _, ok := ss.refs[r.Address()]; ok {
 			continue
@@ -282,7 +281,9 @@ func (ss *specState) computeEdges() {
 	deps := map[string]map[string]bool{}
 	for _, r := range root.Resources {
 		v := root.Value.LookupPath(r.Path)
-		ds, _ := convert.Dependencies(v, r.Path, res)
+		rec := &taintRecorder{specResolver: res}
+		ds, _ := convert.Dependencies(v, r.Path, rec)
+		ss.recordTaint(r.Address(), rec)
 		set := deps[r.Address()]
 		if set == nil {
 			set = map[string]bool{}
@@ -330,7 +331,9 @@ func (ss *specState) computeEdges() {
 		set := map[string]bool{}
 		deps[o.Name] = set
 		p := o.ValuePath()
-		ds, _ := convert.Dependencies(root.Value.LookupPath(p), p, outRes)
+		rec := &taintRecorder{specResolver: outRes, fixed: "value"}
+		ds, _ := convert.Dependencies(root.Value.LookupPath(p), p, rec)
+		ss.recordTaint(o.Name, rec)
 		for _, d := range ds {
 			if dr, ok := outRes.byPath[d.String()]; ok {
 				set[dr.Address()] = true

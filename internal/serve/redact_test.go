@@ -310,3 +310,20 @@ chained: $fake.#Resource.fake_file & {path: "/c", content: "again \(hashed.conte
 		}
 	}
 }
+
+func TestSecretSetOwnToKeepsWhatTheProviderMade(t *testing.T) {
+	s := newSecretSet()
+	s.addFrom("p", "eu-north-1") // typed into the node
+	s.addFrom("p", "generated-secret-1")
+	s.addMade("p", "generated-secret-1")
+	s.addFrom("", "global-secret-2")
+	own := s.ownTo("p")
+	for text, want := range map[string]bool{"eu-north-1": false, "generated-secret-1": true, "global-secret-2": true} {
+		if own.leaks(text) != want {
+			t.Errorf("ownTo(p).leaks(%q) = %v", text, !want)
+		}
+	}
+	if s.ownTo("q").leaks("generated-secret-1") {
+		t.Error("what one node made is not looked for in another by ownTo")
+	}
+}

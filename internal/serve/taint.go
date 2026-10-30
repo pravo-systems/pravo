@@ -3,7 +3,6 @@ package serve
 import (
 	"cuelang.org/go/cue"
 
-	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
@@ -23,11 +22,20 @@ import (
 // passes on.
 type taintRef struct{ task, attr string }
 
-// taintRecorder is the resolver of the analysis, noting what it resolves.
+// taintRecorder is the resolver of the analysis, noting what it resolves and in
+// which top-level field of the body (convert.FieldObserver). What the analysis
+// reads of the body as a whole, before it looks at the fields, is not noted: the
+// fields are walked after it, and each reads what is below it. fixed, when set,
+// is the one field that everything is noted under: an output has a value and no
+// fields.
 type taintRecorder struct {
 	*specResolver
-	refs []taintRef
+	fixed string
+	cur   string
+	byFld map[string][]taintRef
 }
+
+func (r *taintRecorder) SetField(name string) { r.cur = name }
 
 func (r *taintRecorder) addr(task cue.Path) string {
 	if res, ok := r.byPath[task.String()]; ok {
@@ -39,6 +47,20 @@ func (r *taintRecorder) addr(task cue.Path) string {
 	return ""
 }
 
+func (r *taintRecorder) note(ref taintRef) {
+	field := r.fixed
+	if field == "" {
+		field = r.cur
+	}
+	if field == "" {
+		return
+	}
+	if r.byFld == nil {
+		r.byFld = map[string][]taintRef{}
+	}
+	r.byFld[field] = append(r.byFld[field], ref)
+}
+
 func (r *taintRecorder) Task(p cue.Path) (cue.Path, cue.Path, bool) {
 	task, alias, ok := r.specResolver.Task(p)
 	if ok {
@@ -46,82 +68,54 @@ func (r *taintRecorder) Task(p cue.Path) (cue.Path, cue.Path, bool) {
 		if rel := p.Selectors()[len(task.Selectors()):]; len(rel) > 0 && rel[0].LabelType() == cue.StringLabel {
 			ref.attr = rel[0].Unquoted()
 		}
-		r.refs = append(r.refs, ref)
+		r.note(ref)
 	}
 	return task, alias, ok
-}
-
-// reads returns what the analysis resolved, less the task that the path of a
-// reference names the way to: the analysis resolves db for db.port as well, and a
-// reference to one attribute reads that attribute and not the task. A field that
-// reads an attribute of a task and passes the same task on as a whole in the same
-// value is read as the attribute only.
-func (r *taintRecorder) reads() []taintRef {
-	named := map[string]bool{}
-	for _, ref := range r.refs {
-		if ref.attr != "" {
-			named[ref.task] = true
-		}
-	}
-	var out []taintRef
-	seen := map[taintRef]bool{}
-	for _, ref := range r.refs {
-		if (ref.attr == "" && named[ref.task]) || seen[ref] {
-			continue
-		}
-		seen[ref] = true
-		out = append(out, ref)
-	}
-	return out
 }
 
 func (r *taintRecorder) Below(p cue.Path) []cue.Path {
 	below := r.specResolver.Below(p)
 	for _, t := range below {
-		r.refs = append(r.refs, taintRef{task: r.addr(t)})
+		r.note(taintRef{task: r.addr(t)})
 	}
 	return below
 }
 
-// computeTaint finds the attributes that each declared resource field and each
-// declared output reads. It keeps what a field reads of other tasks and of its own
-// resource, and nothing of a field that reads none.
-func (ss *specState) computeTaint() {
-	ss.taint = map[string]map[string][]taintRef{}
-	root := ss.root
-	res := newSpecResolver(root)
-	for _, r := range root.Resources {
-		v := root.Value.LookupPath(r.Path)
-		it, err := v.Fields()
-		if err != nil {
-			continue
+// reads returns what the analysis resolved for each field, less the task that
+// the path of a reference names the way to: the analysis resolves db for db.port as
+// well, and a reference to one attribute reads that attribute and not the task. A
+// field that reads an attribute of a task and passes the same task on as a whole in
+// the same value is read as the attribute only.
+func (r *taintRecorder) reads() map[string][]taintRef {
+	out := map[string][]taintRef{}
+	for field, refs := range r.byFld {
+		named := map[string]bool{}
+		for _, ref := range refs {
+			if ref.attr != "" {
+				named[ref.task] = true
+			}
 		}
-		addr := r.Address()
-		for it.Next() {
-			sel := it.Selector()
-			if sel.LabelType() != cue.StringLabel {
+		seen := map[taintRef]bool{}
+		for _, ref := range refs {
+			if (ref.attr == "" && named[ref.task]) || seen[ref] {
 				continue
 			}
-			rec := &taintRecorder{specResolver: res}
-			convert.Dependencies(it.Value(), cue.MakePath(append(r.Path.Selectors(), sel)...), rec)
-			refs := rec.reads()
-			if len(refs) == 0 {
-				continue
-			}
-			if ss.taint[addr] == nil {
-				ss.taint[addr] = map[string][]taintRef{}
-			}
-			ss.taint[addr][sel.Unquoted()] = refs
+			seen[ref] = true
+			out[field] = append(out[field], ref)
 		}
 	}
-	outRes := newSpecResolver(root).withOutputs()
-	for _, o := range root.Outputs {
-		p := o.ValuePath()
-		rec := &taintRecorder{specResolver: outRes}
-		convert.Dependencies(root.Value.LookupPath(p), p, rec)
-		if refs := rec.reads(); len(refs) > 0 {
-			ss.taint[o.Name] = map[string][]taintRef{"value": refs}
+	return out
+}
+
+// recordTaint keeps what the fields of a declared resource, or the value of an
+// output (field "value"), read of the tasks. It is filled by computeEdges, which
+// runs the analysis for the edges: one walk gives both.
+func (ss *specState) recordTaint(addr string, rec *taintRecorder) {
+	if refs := rec.reads(); len(refs) > 0 {
+		if ss.taint == nil {
+			ss.taint = map[string]map[string][]taintRef{}
 		}
+		ss.taint[addr] = refs
 	}
 }
 
@@ -280,7 +274,7 @@ func (m *model) taintOf(addr string) (map[string]bool, bool) {
 // it computes; any other is judged by the strings of what it reads (secretsAt).
 func (m *model) walkFor(po *planOverlay, addr string, build bool) *walk {
 	if t, ok := m.taintOf(addr); ok {
-		return &walk{secrets: m.secretsFor(po).scopedTo(map[string]bool{addr: true}), taint: t, build: build}
+		return &walk{secrets: m.ownText(po, addr), taint: t, build: build}
 	}
 	return &walk{secrets: m.secretsAt(po, addr), build: build}
 }
