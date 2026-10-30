@@ -654,7 +654,8 @@ export class TracesView {
     const tab = tabs.find((t) => t[0] === this.dtab) ? this.dtab : tabs.length ? tabs[0][0] : '';
     const meta = (k, v, sub) => h('div', { class: 'tr-m' }, h('span', { class: 'k' }, k), h('b', null, v), sub ? h('span', { class: 'sub' }, sub) : null);
     const pct = Math.min(100, (sp.dur_us / total) * 100);
-    const copy = sp.kind === 'resource' && sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : '';
+    const forAddr = sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : '';
+    const copy = sp.kind === 'resource' || sp.kind === 'provider' ? forAddr : '';
     const fit = this.mode === 'flame'
       ? h('button', { class: 'tr-tool', type: 'button', title: 'Zoom the timeline to this span', on: { click: () => this.zoomTo(sp) } }, 'Fit')
       : h('button', { class: 'tr-tool', type: 'button', title: 'Show this span in the timeline', on: { click: () => { this.setMode('flame'); this.zoomTo(sp); } } }, 'Timeline');
@@ -678,6 +679,7 @@ export class TracesView {
         h('span', { class: 'b' }, KIND[sp.kind] || 'span'),
         sp.status === 'error' ? h('span', { class: 'b bad' }, icon('bang'), 'failed') : null,
         crumbs),
+      sp.kind === 'provider' && forAddr ? h('div', { class: 'tr-metas' }, meta('For resource', forAddr, sp.attrs['pravo.resource.type'])) : null,
       h('div', { class: 'tr-metas' },
         meta('Took', fmtDur(sp.dur_us), `${pct.toFixed(sp.dur_us / total < 0.1 ? 1 : 0)}% of the run`),
         meta('In itself', fmtDur(sp.self), sp.kids.length ? `${Math.round((sp.self / Math.max(sp.dur_us, 1)) * 100)}%` : 'no parts'),

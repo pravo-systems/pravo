@@ -24,7 +24,7 @@ func (e *Engine) Discover(ctx context.Context, d *config.Discovery) (*state.Disc
 	e.runCtx = ctx
 	defer e.State.SetContext(ctx)
 	ctx, span := telemetry.Tracer().Start(ctx, "engine discover "+d.Name, trace.WithAttributes(append(e.runAttrs(),
-		attribute.String("pravo.discovery.name", d.Name), attribute.String("pravo.discovery.type", d.Type), attribute.String("pravo.provider", providerLocal(d.ProviderKey)), attribute.String("pravo.provider.instance", d.ProviderKey))...))
+		attribute.String("pravo.discovery.name", d.Name), attribute.String("pravo.discovery.type", d.Type), attribute.String("pravo.provider", providerLocal(d.ProviderKey)), attribute.String("pravo.provider.instance", e.Providers.instanceName(d.ProviderKey)))...))
 	e.State.SetContext(ctx)
 	run, err := e.discover(ctx, d)
 	if run != nil {

@@ -14,6 +14,13 @@ import (
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
+type resourceKey struct{}
+
+// WithResource says that the provider calls made under ctx serve the resource at addr, its CUE path, so that their spans name it.
+func WithResource(ctx context.Context, addr string) context.Context {
+	return context.WithValue(ctx, resourceKey{}, addr)
+}
+
 // Traced wraps a Provider so that every RPC is an OpenTelemetry span and a
 // duration measurement. It adds the resource type and provider name, never
 // values.
@@ -68,7 +75,7 @@ func (t *Traced) pop(ctx context.Context) {
 	}
 }
 
-// SetInstance says which instance of the provider p is, so that its spans name it. It does nothing for a provider that is
+// SetInstance says which instance of the provider p is, as the specification writes it ("$aws"), so that its spans name it. It does nothing for a provider that is
 // not traced.
 func SetInstance(p Provider, key string) {
 	if t, ok := p.(*Traced); ok {
@@ -93,6 +100,9 @@ func (t *Traced) begin(ctx context.Context, method, typ string) (context.Context
 	}
 	if typ != "" {
 		attrs = append(attrs, attribute.String("pravo.resource.type", typ))
+	}
+	if addr, ok := ctx.Value(resourceKey{}).(string); ok && addr != "" {
+		attrs = append(attrs, attribute.String("pravo.resource.address", addr))
 	}
 	ctx, span := telemetry.Tracer().Start(ctx, "provider "+method, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
 	start := time.Now()
