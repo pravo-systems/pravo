@@ -227,6 +227,10 @@ func TestPlanOverlay(t *testing.T) {
 		t.Fatalf("create change %+v", c)
 	}
 	for _, a := range c.Attrs {
+		// content reads the sensitive blob of the database, so the plan does not show it.
+		if a.Path == "content" && a.AfterRedacted && a.Before == nil && a.After == nil {
+			continue
+		}
 		if a.Before != nil || a.After == nil {
 			t.Errorf("create: %+v", a)
 		}

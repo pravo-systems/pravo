@@ -307,6 +307,9 @@ type walk struct {
 	// found in the node at origin.
 	sink   *secretSet
 	origin string
+	// taint lists the top-level fields that read a withheld attribute of another
+	// node: they are withheld as derived, whatever their text.
+	taint map[string]bool
 	// build makes the walk return the attributes. A walk that only counts and
 	// collects leaves them out.
 	build bool
@@ -446,6 +449,11 @@ func (w *walk) attribute(a *schema.Attribute, v any, depth int) Attr {
 		w.withhold(&at, v, why)
 		return at
 	}
+	if depth == 0 && w.taint[a.Name] {
+		at.Redacted = "derived"
+		w.derived++
+		return at
+	}
 	if a.NestedType != nil {
 		w.nestedObject(&at, a.NestedType, v, depth)
 		return at
@@ -541,6 +549,11 @@ func (w *walk) blockAttr(nb *schema.NestedBlock, v any, depth int) Attr {
 	}
 	if guarded(nb.TypeName) {
 		w.withhold(&at, v, "name")
+		return at
+	}
+	if depth == 0 && w.taint[nb.TypeName] {
+		at.Redacted = "derived"
+		w.derived++
 		return at
 	}
 	one := func(name string, e any) Attr {

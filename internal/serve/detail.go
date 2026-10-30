@@ -55,7 +55,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		case err != nil:
 			d.Notes = append(d.Notes, "The attributes of the record cannot be read: "+err.Error()+".")
 		case mn.sch != nil:
-			w := &walk{secrets: sec, build: true}
+			w := m.walkFor(po, addr, true)
 			d.Attrs = w.block(mn.sch.Block, attrs, 0)
 			if w.derived > 0 {
 				d.Notes = append(d.Notes, fmt.Sprintf("%d %s withheld: %s a sensitive value of this resource or of one it reads.",

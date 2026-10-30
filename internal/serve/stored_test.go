@@ -917,10 +917,9 @@ const newSecret = "new-blob-value-9999" // the new value of blob in the plan of 
 func TestStoredPlanNewSecretsMaskEveryResponse(t *testing.T) {
 	p := newProject(t)
 	id := storePlan(t, p, stored{Author: "ana@acme", Addrs: []string{"services.a.db", "services.b.file"}})
-	// A record that embeds the value in an attribute that is not sensitive, as a plan applied in part leaves.
-	r := *p.store.Get("shared")
-	r.Attributes = json.RawMessage(`{"name":"dsn=` + newSecret + `","port":5432}`)
-	if err := p.store.Set(&r, ""); err != nil {
+	// A record that the specification does not declare, so that there is no reference to follow: it reads the node of the
+	// plan, and embeds the value in an attribute that is not sensitive, as a plan applied in part leaves.
+	if err := p.store.Set(record("kept.copy", "fake_db", `{"name":"dsn=`+newSecret+`","port":5432}`, "services.a.db"), ""); err != nil {
 		t.Fatal(err)
 	}
 	// A node that reads the node of the plan and quotes the value in a line of the specification.
@@ -932,7 +931,7 @@ func TestStoredPlanNewSecretsMaskEveryResponse(t *testing.T) {
 	waitFor(t, "the new node and the record", func() bool {
 		return nodeOf(p.graph(), "freshfile") != nil && len(p.plans().Plans) == 1 && planOf(p.plans(), id).Status == "pending"
 	})
-	for _, path := range []string{"/api/detail?addr=shared", "/api/source?addr=freshfile"} {
+	for _, path := range []string{"/api/detail?addr=kept.copy", "/api/source?addr=freshfile"} {
 		if !strings.Contains(string(p.get(path)), newSecret) {
 			t.Fatalf("%s without a plan does not show the value: the test proves nothing", path)
 		}

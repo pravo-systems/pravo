@@ -75,7 +75,7 @@ $fake: {
 	}
 	file: $fake.#Resource.fake_file & {
 		path:    "/tmp/\(name)"
-		content: "id=\(db.name)"
+		content: "id=\(db.name)/\(db.blob)"
 	}
 }
 

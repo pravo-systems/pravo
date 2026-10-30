@@ -421,7 +421,10 @@ func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
 	if ch == nil || ch.Schema == nil || ch.Schema.Block == nil {
 		return c
 	}
-	secrets := m.secretsAt(po, mn.Addr)
+	secrets, taint := m.secretsAt(po, mn.Addr), map[string]bool(nil)
+	if t, ok := m.taintOf(mn.Addr); ok {
+		secrets, taint = m.secretsFor(po).scopedTo(map[string]bool{mn.Addr: true}), t
+	}
 	before, after := ch.Prior, ch.Planned
 	switch ch.Action {
 	case engine.ActionReplace:
@@ -433,7 +436,7 @@ func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
 	case engine.ActionNoop:
 		return c
 	}
-	d := &differ{secrets: secrets}
+	d := &differ{secrets: secrets, taint: taint}
 	d.block("", ch.Schema.Block, before, after)
 	c.Attrs = d.out
 	return c
@@ -449,7 +452,9 @@ type differ struct {
 	// hold yet.
 	sink   *secretSet
 	origin string
-	out    []AttrChange
+	// taint lists the top-level fields that read a withheld attribute (see walk).
+	taint map[string]bool
+	out   []AttrChange
 }
 
 func (d *differ) full() bool { return len(d.out) >= maxAttrChanges }
@@ -494,11 +499,19 @@ func (d *differ) block(path string, b *schema.Block, before, after tftypes.Value
 		if d.full() {
 			return
 		}
+		if path == "" && d.taint[a.Name] {
+			d.leaf(a.Name, true, bm[a.Name], am[a.Name])
+			continue
+		}
 		d.attr(join(path, a.Name), a, bm[a.Name], am[a.Name])
 	}
 	for _, nb := range b.BlockTypes {
 		if d.full() {
 			return
+		}
+		if path == "" && d.taint[nb.TypeName] {
+			d.leaf(nb.TypeName, true, bm[nb.TypeName], am[nb.TypeName])
+			continue
 		}
 		d.nestedBlock(join(path, nb.TypeName), nb, bm[nb.TypeName], am[nb.TypeName])
 	}

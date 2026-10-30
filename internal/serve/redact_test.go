@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -264,5 +265,48 @@ func TestSecretSetScopedTo(t *testing.T) {
 	}
 	if (*secretSet)(nil).scopedTo(nil) != nil {
 		t.Error("a nil set is nil")
+	}
+}
+
+// A field is derived when it reads a withheld attribute, by what it reads and not
+// by what its text spells: one that reads another attribute of the same node is
+// not, one whose text says nothing of the secret is, and so is one that reads a
+// derived field of another node.
+func TestDerivedFollowsTheAttributeThatIsRead(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE+`
+plain: $fake.#Resource.fake_file & {path: "/p", content: "n=\(services.a.db.name)"}
+hashed: $fake.#Resource.fake_file & {path: "/h", content: "h=\(services.a.db.blob)"}
+chained: $fake.#Resource.fake_file & {path: "/c", content: "again \(hashed.content)"}
+`)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	// The text of plain says "a" and the blob of services.a.db: coincidence, not a read.
+	for addr, content := range map[string]string{"plain": "n=a " + secretBlob, "hashed": "h=sha-0000", "chained": "again h=sha-0000"} {
+		path := "/" + addr[:1]
+		if err := st.Set(record(addr, "fake_file", `{"path":"`+path+`","content":"`+content+`"}`, "services.a.db"), ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := start(t, dir, st, Options{})
+	content := func(addr string) Attr {
+		for _, a := range p.detail(addr).Attrs {
+			if a.Name == "content" {
+				return a
+			}
+		}
+		t.Fatalf("%s has no content", addr)
+		return Attr{}
+	}
+	if a := content("plain"); a.Redacted != "" || a.Value != "n=a "+secretBlob {
+		t.Errorf("a field that reads the name is judged by itself: %+v", a)
+	}
+	for _, addr := range []string{"hashed", "chained"} {
+		if a := content(addr); a.Redacted != "derived" || a.Value != nil {
+			t.Errorf("%s reads the blob, directly or through a field that does: %+v", addr, a)
+		}
 	}
 }

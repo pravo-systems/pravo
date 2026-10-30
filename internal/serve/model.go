@@ -39,6 +39,8 @@ type model struct {
 	locks      map[string]state.Lock
 	secrets    *secretSet
 	// scopes caches scopeOf.
+	// derived lists, by node, the fields that read a withheld attribute: see taint.go.
+	derived map[string]map[string]bool
 	scopeMu sync.Mutex
 	scopes  map[string]map[string]bool
 	plan    *planOverlay
@@ -210,6 +212,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	}
 	m.linkNamespaces()
 	m.linkEdges()
+	m.computeTaint()
 	m.graph.Outputs = m.outputs(outs)
 	for _, ms := range sortedMissing(missing) {
 		warnings = append(warnings, fmt.Sprintf("The schema of provider %s is not cached, so the values of %d %s are withheld. Run \"pravo init\" to fetch it.",
@@ -715,7 +718,7 @@ func (m *model) outputs(set *outputSet) []Output {
 				o.Unknown = true
 				break
 			}
-			if m.scoped(m.secrets, n).leaksIn(dv["v"]) {
+			if _, known := m.taintOf(n); known && m.derived[n]["value"] || !known && m.scoped(m.secrets, n).leaksIn(dv["v"]) {
 				o.Sensitive, o.Redacted = true, "derived"
 			} else {
 				o.Value = bound(dv["v"], 0)
