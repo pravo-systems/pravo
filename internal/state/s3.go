@@ -50,7 +50,7 @@ type S3Config struct {
 // and in all. The upgrade runs up to 32 workers; with the default of ten per
 // host every worker beyond the tenth opens, and then closes, a connection per
 // request, which leaves a socket in TIME_WAIT for each of them.
-const idleConns = 64
+const idleConns = 256
 
 // The client sends a request again when the store says that it is busy (500,
 // 502, 503 with SlowDown, 504 and 429), when another conditional write to the

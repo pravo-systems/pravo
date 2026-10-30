@@ -221,22 +221,10 @@ func (w *Workspace) open(ctx context.Context) error {
 // openState is the default Config.OpenState: the store of the root, opened with
 // the identity of Config.Identity when the state is sealed.
 func (w *Workspace) openState(ctx context.Context, root *Root, mode StateMode) (*Store, error) {
-	o := StoreOptions{Write: mode == StateWrite, Env: w.cfg.Env, Warn: w.cfg.Warn}
+	o := StoreOptions{Write: mode == StateWrite, Env: w.cfg.Env, Warn: w.cfg.Warn, Choose: w.cfg.Identity}
 	st, err := OpenStore(ctx, root, o)
 	if err != nil {
 		return nil, err
-	}
-	if st.Locked() && w.cfg.Identity != nil {
-		if id, err := w.cfg.Identity(CurrentReaders(st.Protection())); err == nil {
-			o.Identity = id
-			keyed, err := OpenStore(ctx, root, o)
-			if err != nil && !errors.Is(err, state.ErrNotReader) {
-				return nil, err
-			}
-			if err == nil {
-				st = keyed
-			}
-		}
 	}
 	if st.Locked() && mode == StateWrite {
 		return nil, engine.WithCode(engine.ExitRefused, errors.New("the state is sealed, and this process has no identity that is one of its readers"))

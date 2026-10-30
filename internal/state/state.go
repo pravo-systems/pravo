@@ -60,7 +60,7 @@ const revisionWidth = 16
 // another is a round trip.
 const (
 	readWidthLocal  = 8
-	readWidthRemote = 64
+	readWidthRemote = 256
 )
 
 // HeartbeatInterval is how often a running command renews the locks it
@@ -304,6 +304,11 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 		return nil, fmt.Errorf("opening state at %s: %w", b.Name(), err)
 	}
 	if s.meta.Sealed != nil {
+		if o.Identity == nil && o.Choose != nil {
+			if id, err := o.Choose(s.Protection()); err == nil {
+				o.Identity = id
+			}
+		}
 		err := s.openSealed(o.Identity)
 		if errors.Is(err, ErrUntrusted) && s.rereadMeta(ctx, data) {
 			// meta.json was replaced since it was read, and what was read of it may
