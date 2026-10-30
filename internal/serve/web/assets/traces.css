@@ -141,7 +141,7 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-work { display: grid; gap: .9rem; min-width: 0; }
 .tr-wbar, .tr-wview { min-width: 0; }
 @media (min-width: 84rem) {
-  .tr-work { grid-template-columns: minmax(0, 1fr) 26rem; grid-template-areas: "bar side" "view side"; grid-template-rows: auto 1fr; }
+  .tr-work { grid-template: "bar side" auto "view side" 1fr / minmax(0, 1fr) 26rem; }
   .tr-wbar { grid-area: bar; } .tr-wview { grid-area: view; }
   .tr-work > .tr-detail { grid-area: side; align-self: start; }
   .tr-detail:not(.empty) { bottom: auto; top: 0; max-height: calc(100vh - 7rem); box-shadow: none; }
