@@ -61,6 +61,15 @@ type Alias struct {
 	Task cue.Path
 }
 
+// FieldObserver is a Resolver that wants to know in which field of a task body the
+// references that it resolves are read. Dependencies tells it the name of the
+// top-level field before it analyses what is below it, and the empty name for the
+// body itself, so that one walk gives both the tasks a body reads and the field
+// that reads each.
+type FieldObserver interface {
+	SetField(name string)
+}
+
 // HasTaskRef reports whether the expression depends on another task.
 func (r RefInfo) HasTaskRef() bool { return len(r.TaskRefs) > 0 }
 
@@ -256,6 +265,11 @@ func SourceTasks(v cue.Value, self cue.Path, resolve Resolver) []cue.Path {
 func dependencies(v cue.Value, self cue.Path, resolve Resolver, deep bool) (deps []cue.Path, aliases []Alias) {
 	seen := map[string]bool{}
 	aliasSeen := map[string]bool{}
+	obs, _ := resolve.(FieldObserver)
+	if obs != nil {
+		obs.SetField("")
+		defer obs.SetField("")
+	}
 	var visit func(v cue.Value, depth int)
 	visit = func(v cue.Value, depth int) {
 		if depth > 32 {
@@ -283,7 +297,17 @@ func dependencies(v cue.Value, self cue.Path, resolve Resolver, deep bool) (deps
 		case cue.StructKind:
 			if it, err := v.Fields(); err == nil {
 				for it.Next() {
+					if obs != nil && depth == 0 {
+						if sel := it.Selector(); sel.LabelType() == cue.StringLabel {
+							obs.SetField(sel.Unquoted())
+						} else {
+							obs.SetField("")
+						}
+					}
 					visit(it.Value(), depth+1)
+					if obs != nil && depth == 0 {
+						obs.SetField("")
+					}
 				}
 			}
 		case cue.ListKind:

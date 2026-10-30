@@ -244,12 +244,36 @@ func (m *model) secretsAt(po *planOverlay, addr string) *secretSet {
 
 // scoped is sec as it applies to the node at addr. An output that the state records
 // and the specification does not declare has no references to follow, so what it
-// holds is judged against every string.
+// holds is judged against every string; so is a node that reads a data source.
 func (m *model) scoped(sec *secretSet, addr string) *secretSet {
 	if mn := m.nodes[addr]; mn != nil && mn.isOutput() && mn.out == nil {
 		return sec
 	}
+	if m.readsData(addr) {
+		return sec
+	}
 	return sec.scopedTo(m.scopeOf(addr))
+}
+
+// readsData reports whether the node at addr is, or reads, a data source. A data
+// source reads from outside the graph, such as a file that a resource wrote, so
+// it can hold any sensitive value without a reference to the node that made it.
+func (m *model) readsData(addr string) bool {
+	for n := range m.scopeOf(addr) {
+		if dn := m.nodes[n]; dn != nil && dn.Mode == "data" {
+			return true
+		}
+	}
+	return false
+}
+
+// ownText is what a declared node is judged against by text, besides its taint:
+// its own strings, or every string when it reads a data source.
+func (m *model) ownText(po *planOverlay, addr string) *secretSet {
+	if m.readsData(addr) {
+		return m.secretsFor(po)
+	}
+	return m.secretsFor(po).ownTo(addr)
 }
 
 // scopeOf is the node at addr and every node it reads, directly or not: the

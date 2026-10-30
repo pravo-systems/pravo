@@ -60,9 +60,6 @@ func TestTaintCostOnAChainedEstate(t *testing.T) {
 	m.spec.computeEdges()
 	edges := time.Since(began)
 	began = time.Now()
-	m.spec.computeTaint()
-	taint := time.Since(began)
-	began = time.Now()
 	m.computeTaint()
 	fix := time.Since(began)
 	began = time.Now()
@@ -73,6 +70,6 @@ func TestTaintCostOnAChainedEstate(t *testing.T) {
 		m.detail(m.nodes[fmt.Sprintf("estate.n%d", i)])
 	}
 	det := time.Since(began) / 200
-	t.Logf("%d chained resources: first model %s; edges %s; references per field %s; derived fields %s; field index %s; one detail %s; %d nodes have a derived field",
-		n, first.Round(time.Millisecond), edges.Round(time.Millisecond), taint.Round(time.Millisecond), fix.Round(time.Millisecond), idx.Round(time.Millisecond), det.Round(time.Microsecond), len(m.derived))
+	t.Logf("%d chained resources: first model %s; edges and references per field %s; derived fields %s; field index %s; one detail %s; %d nodes have a derived field",
+		n, first.Round(time.Millisecond), edges.Round(time.Millisecond), fix.Round(time.Millisecond), idx.Round(time.Millisecond), det.Round(time.Microsecond), len(m.derived))
 }

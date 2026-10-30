@@ -423,7 +423,7 @@ func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
 	}
 	secrets, taint := m.secretsAt(po, mn.Addr), map[string]bool(nil)
 	if t, ok := m.taintOf(mn.Addr); ok {
-		secrets, taint = m.secretsFor(po).scopedTo(map[string]bool{mn.Addr: true}), t
+		secrets, taint = m.ownText(po, mn.Addr), t
 	}
 	before, after := ch.Prior, ch.Planned
 	switch ch.Action {
@@ -673,6 +673,9 @@ func (d *differ) leaf(path string, redact bool, before, after tftypes.Value) {
 	if redact && d.sink != nil {
 		d.sink.addFrom(d.origin, toJSONValue(bd))
 		d.sink.addFrom(d.origin, toJSONValue(ad))
+		// A plan does not say who typed a value, so it is judged as before.
+		d.sink.addMade(d.origin, toJSONValue(bd))
+		d.sink.addMade(d.origin, toJSONValue(ad))
 	}
 	if !redact && (d.secrets.leaksIn(toJSONValue(bd)) || d.secrets.leaksIn(toJSONValue(ad)) || hasGuardedKey(bd) || hasGuardedKey(ad)) {
 		redact = true

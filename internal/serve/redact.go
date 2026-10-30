@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/url"
 	"regexp"
 	"slices"
@@ -61,10 +62,16 @@ type secretSet struct {
 	// a string is in list.
 	by  map[string][]string
 	pos map[string]int
+	// made lists, by node, the strings that the node's own provider produced: a
+	// sensitive attribute that is not set in the specification. A node is judged
+	// against these in its own attributes and not against what a user typed into
+	// it, which a provider has no reason to echo: the value of an SSM parameter
+	// says nothing of its ARN.
+	made map[string]map[string]bool
 }
 
 func newSecretSet() *secretSet {
-	return &secretSet{set: map[string]struct{}{}, from: map[string][]string{}, by: map[string][]string{}, pos: map[string]int{}}
+	return &secretSet{set: map[string]struct{}{}, from: map[string][]string{}, by: map[string][]string{}, pos: map[string]int{}, made: map[string]map[string]bool{}}
 }
 
 // add records the strings of a withheld value, and the forms in which another
@@ -141,7 +148,7 @@ func (s *secretSet) scopedTo(scope map[string]bool) *secretSet {
 // clone returns a set that holds the same strings and that adding to does not
 // change this one.
 func (s *secretSet) clone() *secretSet {
-	c := &secretSet{set: make(map[string]struct{}, len(s.set)), list: append([]string(nil), s.list...), from: make(map[string][]string, len(s.from)), by: make(map[string][]string, len(s.by)), pos: make(map[string]int, len(s.pos))}
+	c := &secretSet{set: make(map[string]struct{}, len(s.set)), list: append([]string(nil), s.list...), from: make(map[string][]string, len(s.from)), by: make(map[string][]string, len(s.by)), pos: make(map[string]int, len(s.pos)), made: make(map[string]map[string]bool, len(s.made))}
 	for k := range s.set {
 		c.set[k] = struct{}{}
 	}
@@ -154,7 +161,42 @@ func (s *secretSet) clone() *secretSet {
 	for k, v := range s.pos {
 		c.pos[k] = v
 	}
+	for k, v := range s.made {
+		c.made[k] = maps.Clone(v)
+	}
 	return c
+}
+
+// addMade is addFrom for a value that the provider of the node made.
+func (s *secretSet) addMade(addr string, v any) {
+	t := newSecretSet()
+	t.addFrom(addr, v)
+	if len(t.list) == 0 {
+		return
+	}
+	if s.made[addr] == nil {
+		s.made[addr] = map[string]bool{}
+	}
+	for _, x := range t.list {
+		s.made[addr][x] = true
+	}
+}
+
+// ownTo is what a declared node is judged against in its own attributes: the
+// strings it made, and those found in no node in particular.
+func (s *secretSet) ownTo(addr string) *secretSet {
+	if s == nil {
+		return nil
+	}
+	out := newSecretSet()
+	for _, x := range s.list {
+		for _, o := range s.from[x] {
+			if o == "" || o == addr && s.made[addr][x] {
+				out.put(x, o)
+			}
+		}
+	}
+	return out
 }
 
 func (s *secretSet) put(x, addr string) {
@@ -791,6 +833,9 @@ func (w *walk) withhold(at *Attr, v any, why string) {
 	w.withheld++
 	if w.sink != nil {
 		w.sink.addFrom(w.origin, v)
+		if at.Kind != "required" && at.Kind != "optional" {
+			w.sink.addMade(w.origin, v)
+		}
 	}
 }
 
