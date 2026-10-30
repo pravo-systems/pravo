@@ -135,6 +135,19 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-more { display: flex; align-items: baseline; gap: .8rem; padding: .6rem .8rem; font-size: var(--fs-2); }
 
 /* ---- the span ---- */
+/* The detail of a span is never a scroll away from the chart. On a wide page it is a panel beside the chart that stays in view
+   while the page scrolls; on a narrow one it is a drawer pinned to the bottom of the page. Either way the chart keeps its place,
+   and the detail scrolls inside itself when it is taller than its room. */
+.tr-work { display: grid; gap: .9rem; min-width: 0; }
+.tr-wbar, .tr-wview { min-width: 0; }
+@media (min-width: 84rem) {
+  .tr-work { grid-template-columns: minmax(0, 1fr) 26rem; grid-template-areas: "bar side" "view side"; grid-template-rows: auto 1fr; }
+  .tr-wbar { grid-area: bar; } .tr-wview { grid-area: view; }
+  .tr-work > .tr-detail { grid-area: side; align-self: start; }
+  .tr-detail:not(.empty) { bottom: auto; top: 0; max-height: calc(100vh - 7rem); box-shadow: none; }
+  .tr-detail .tr-cols { grid-template-columns: minmax(0, 1fr); }
+}
+.tr-detail:not(.empty) { position: sticky; bottom: 0; z-index: 3; max-height: min(44vh, 28rem); overflow: auto; box-shadow: 0 -1px 0 var(--line-strong), var(--shadow-1); }
 .tr-detail { display: grid; gap: .95rem; padding: 1rem 1.2rem 1.15rem; border: 1px solid var(--line-strong); background: var(--surface); min-width: 0; }
 .tr-detail.empty { border-style: dashed; background: transparent; padding: .6rem .9rem; }
 .tr-detail.empty p { margin: 0; }

@@ -228,9 +228,10 @@ export class TracesView {
     return h('section', { class: 'tr-main', 'aria-label': `The run ${d.command}` },
       this.summary(d),
       this.notices(d),
-      this.toolbar(),
-      this.mode === 'table' ? this.table() : this.flame(),
-      this.detail());
+      h('div', { class: 'tr-work' },
+        h('div', { class: 'tr-wbar' }, this.toolbar()),
+        h('div', { class: 'tr-wview' }, this.mode === 'table' ? this.table() : this.flame()),
+        this.detail()));
   }
 
   summary(d) {
@@ -552,10 +553,7 @@ export class TracesView {
     if (old) old.replaceWith(this.detail());
     this.root.querySelectorAll('.tr-table tbody tr').forEach((tr) => tr.classList.toggle('sel', tr.dataset.id === this.sel));
     if (this.sel && this.mode === 'flame') this.revealRow(this.model.byId.get(this.sel));
-    const now = this.root.querySelector('.tr-detail');
-    // in the timeline the page stays where it is: moving it would take the bar from under the pointer, and a double click
-    // would hit what is below
-    if (this.sel && now && now.scrollIntoView && this.mode !== 'flame') now.scrollIntoView({ block: 'nearest' });
+    // the detail is pinned to the bottom of the page (traces.css), so the page never has to move to show it
     this.cb.onRoute && this.cb.onRoute();
   }
 
