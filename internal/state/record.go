@@ -131,37 +131,63 @@ func readPause(attempt int) time.Duration { return time.Duration(attempt+1) * ti
 // pointer, whatever the format of the store says, so that a store that is
 // half converted can be read.
 func (s *Store) readNode(ctx context.Context, key string) (*Resource, nodeRef, error) {
+	r, h, _, err := s.readNodeRaw(ctx, key, nil)
+	return r, h, err
+}
+
+// nodeBytes are the two objects that a node of format 2 or later is read from.
+type nodeBytes struct{ ptr, rec []byte }
+
+// readNodeRaw is readNode, and returns the objects it read. A node whose pointer
+// and record are held in pre is read from them first, and from the backend if
+// they do not verify: pre is a hint and nothing that it holds is trusted.
+func (s *Store) readNodeRaw(ctx context.Context, key string, pre *nodeBytes) (*Resource, nodeRef, nodeBytes, error) {
+	if pre != nil {
+		if r, h, raw, err := s.readNodeFrom(ctx, key, pre); err == nil {
+			return r, h, raw, nil
+		}
+	}
+	return s.readNodeFrom(ctx, key, nil)
+}
+
+func (s *Store) readNodeFrom(ctx context.Context, key string, pre *nodeBytes) (*Resource, nodeRef, nodeBytes, error) {
 	for attempt := 0; ; attempt++ {
-		data, err := s.b.Get(ctx, key)
-		if err != nil {
-			return nil, nodeRef{}, fmt.Errorf("reading %s: %w", key, err)
+		var data []byte
+		var have []byte
+		if pre != nil {
+			data, have = pre.ptr, pre.rec
+		} else {
+			var err error
+			if data, err = s.b.Get(ctx, key); err != nil {
+				return nil, nodeRef{}, nodeBytes{}, fmt.Errorf("reading %s: %w", key, err)
+			}
 		}
 		p, isPtr, err := parsePointer(data)
 		if err != nil {
-			return nil, nodeRef{}, fmt.Errorf("reading state node %s: %w", key, err)
+			return nil, nodeRef{}, nodeBytes{}, fmt.Errorf("reading state node %s: %w", key, err)
 		}
 		if !isPtr {
 			if s.sealedState() && !s.mayHoldPlain() {
-				return nil, nodeRef{}, untrusted(key, "is a whole record, and the state is sealed")
+				return nil, nodeRef{}, nodeBytes{}, untrusted(key, "is a whole record, and the state is sealed")
 			}
 			var r Resource
 			if err := json.Unmarshal(data, &r); err != nil {
-				return nil, nodeRef{}, fmt.Errorf("reading state node %s: %w", key, err)
+				return nil, nodeRef{}, nodeBytes{}, fmt.Errorf("reading state node %s: %w", key, err)
 			}
-			return &r, nodeRef{Version: Version{Revision: r.Revision, Generation: r.Generation}}, nil
+			return &r, nodeRef{Version: Version{Revision: r.Revision, Generation: r.Generation}}, nodeBytes{}, nil
 		}
-		r, group, err := s.readRecord(ctx, key, p)
+		r, group, rec, err := s.readRecord(ctx, key, p, have)
 		if errors.Is(err, errRecordGone) && attempt+1 < readAttempts {
 			time.Sleep(readPause(attempt))
 			continue
 		}
 		if errors.Is(err, errRecordGone) {
-			return nil, nodeRef{}, untrusted(key, "the record "+p.Record+" is not in the state")
+			return nil, nodeRef{}, nodeBytes{}, untrusted(key, "the record "+p.Record+" is not in the state")
 		}
 		if err != nil {
-			return nil, nodeRef{}, err
+			return nil, nodeRef{}, nodeBytes{}, err
 		}
-		return r, nodeRef{Version: Version{Revision: p.Revision, Generation: p.Generation}, Record: p.Record, Group: group}, nil
+		return r, nodeRef{Version: Version{Revision: p.Revision, Generation: p.Generation}, Record: p.Record, Group: group}, nodeBytes{ptr: data, rec: rec}, nil
 	}
 }
 
@@ -199,31 +225,33 @@ func checkPointer(key string, p pointer) error {
 // readRecord fetches the record that p names and verifies it: its bytes against
 // its name, and its address, revision and generation against the pointer. group is
 // the group the record is sealed in, empty if it is not sealed.
-func (s *Store) readRecord(ctx context.Context, key string, p pointer) (r *Resource, group string, err error) {
+func (s *Store) readRecord(ctx context.Context, key string, p pointer, have []byte) (r *Resource, group string, data []byte, err error) {
 	if err := checkPointer(key, p); err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
-	data, err := s.b.Get(ctx, p.Record)
-	if errors.Is(err, ErrNotFound) {
-		return nil, "", errRecordGone
-	}
-	if err != nil {
-		return nil, "", fmt.Errorf("reading %s: %w", p.Record, err)
+	if data = have; data == nil {
+		data, err = s.b.Get(ctx, p.Record)
+		if errors.Is(err, ErrNotFound) {
+			return nil, "", nil, errRecordGone
+		}
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("reading %s: %w", p.Record, err)
+		}
 	}
 	if recKey(data) != p.Record {
-		return nil, "", untrusted(p.Record, "does not match its name ("+p.Address+")")
+		return nil, "", nil, untrusted(p.Record, "does not match its name ("+p.Address+")")
 	}
 	r, group, err = s.decodeRecord(data)
 	if err != nil {
 		if errors.Is(err, ErrUntrusted) || errors.Is(err, ErrNotReader) {
-			return nil, "", fmt.Errorf("%s (%s): %w", p.Record, p.Address, err)
+			return nil, "", nil, fmt.Errorf("%s (%s): %w", p.Record, p.Address, err)
 		}
-		return nil, "", fmt.Errorf("reading %s (%s): %w", p.Record, p.Address, err)
+		return nil, "", nil, fmt.Errorf("reading %s (%s): %w", p.Record, p.Address, err)
 	}
 	if r.Address() != p.Address || r.Revision != p.Revision || r.Generation != p.Generation {
-		return nil, "", untrusted(key, "the pointer and the record "+p.Record+" disagree ("+p.Address+")")
+		return nil, "", nil, untrusted(key, "the pointer and the record "+p.Record+" disagree ("+p.Address+")")
 	}
-	return r, group, nil
+	return r, group, data, nil
 }
 
 // Advise adds to an error of ErrUnknownOutcome what the user is to do about it.

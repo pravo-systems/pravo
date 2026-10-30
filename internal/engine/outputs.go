@@ -219,7 +219,7 @@ func RemoteBackend(ctx context.Context, st config.StateConfig, e env.Env) (state
 func s3ConfigFor(st config.StateConfig, e env.Env) state.S3Config {
 	c := state.S3Config{
 		Bucket: st.Bucket, Prefix: st.Prefix, Region: st.Region, Endpoint: st.Endpoint,
-		PathStyle: st.PathStyle, Profile: st.Profile, AccessKey: st.AccessKey, SecretKey: st.SecretKey,
+		PathStyle: st.PathStyle, NoSnapshot: st.NoSnapshot, Profile: st.Profile, AccessKey: st.AccessKey, SecretKey: st.SecretKey,
 		SessionToken: e.Get("AWS_SESSION_TOKEN"),
 	}
 	if c.Region == "" {

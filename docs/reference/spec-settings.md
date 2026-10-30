@@ -130,7 +130,7 @@ $settings.state.backend: conflicting values "http" and "s3":
 $settings.state.backend: conflicting values "local" and "s3":
     ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:234:10
     ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:248:33
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:269:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:270:12
     ./main.cue:5:12
     ./main.cue:6:19
 $settings.state.path: field not allowed:
@@ -166,7 +166,7 @@ The graph can live in an S3 bucket or in any store that speaks the S3 API. The l
 | `region` | Region to sign for. Default: the AWS configuration, then `us-east-1`. |
 | `endpoint` | Service URL of an S3-compatible store. Implies path-style addressing. |
 | `path_style` | Forces path-style addressing: `host/bucket/key`. |
-| `profile` | A shared-configuration profile. |
+| `snapshot` | `false` keeps pravo from reading the state through `snapshot.json`, an object that holds a copy of every resource, which makes opening a state with thousands of resources one read and a listing. Default: `true`. See [State format](state-format.md). |
 | `access_key`, `secret_key` | Static credentials, used when both are set. They are stored in the configuration. |
 
 Without static credentials, pravo uses the AWS credential chain: environment variables, the shared files, then an instance or task role. A lock is an object created with a conditional write. See [State format](state-format.md#locks-and-reservations).

@@ -280,7 +280,7 @@ func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, 
 			group string
 		)
 		if isPtr {
-			if r, group, err = s.readRecord(ctx, key, p); errors.Is(err, errRecordGone) {
+			if r, group, _, err = s.readRecord(ctx, key, p, nil); errors.Is(err, errRecordGone) {
 				continue
 			} else if err != nil {
 				return false, err

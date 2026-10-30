@@ -111,3 +111,33 @@ func (t *tracedBackend) List(ctx context.Context, prefix string) ([]string, erro
 	end(err, attribute.Int("pravo.state.keys", len(keys)))
 	return keys, err
 }
+
+// ListVersions is a listing that carries the tags; a backend that cannot give them gives no listing.
+func (t *tracedBackend) ListVersions(ctx context.Context, prefix string) ([]ObjectVersion, error) {
+	vl, ok := t.Backend.(VersionLister)
+	if !ok {
+		return nil, errors.New("the backend does not list versions")
+	}
+	ctx, end := t.begin(ctx, "list", prefix)
+	objs, err := vl.ListVersions(ctx, prefix)
+	end(err, attribute.Int("pravo.state.keys", len(objs)))
+	return objs, err
+}
+
+// versionLister is b as a VersionLister, if it is one under any wrapper.
+func versionLister(b Backend) (VersionLister, bool) {
+	inner := b
+	if t, ok := b.(*tracedBackend); ok {
+		inner = t.Backend
+	}
+	if s3, ok := inner.(*S3Backend); ok && s3.noSnapshot {
+		return nil, false
+	}
+	if _, ok := inner.(VersionLister); !ok {
+		return nil, false
+	}
+	if t, ok := b.(*tracedBackend); ok {
+		return t, true
+	}
+	return inner.(VersionLister), true
+}
