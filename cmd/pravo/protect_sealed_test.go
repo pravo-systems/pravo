@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -962,5 +963,25 @@ func TestASealedStateSealsTheValueAfterAFlagInTheCommandLine(t *testing.T) {
 	listed, code = runPravo(t, e.dir, "plan", "list", "--all", "--json")
 	if code != 0 || strings.Contains(listed, "ci-bot-7 plan") || strings.Contains(listed, secretB) || !strings.Contains(listed, "--actor <sealed:") || !strings.Contains(listed, " plan --store --no-color -t k=<sealed:") {
 		t.Errorf("without a key: exit %d\n%s", code, listed)
+	}
+}
+
+// A command reads the records of a sealed state once. It used to open the state locked
+// to see the readers and again with the key, which read every record twice.
+func TestASealedStateIsReadOnceByACommand(t *testing.T) {
+	s := sealedBucket(t)
+	var lists atomic.Int64
+	s.f.Fault = func(r *http.Request) (int, string) {
+		if r.URL.Query().Get("list-type") == "2" && strings.HasSuffix(r.URL.Query().Get("prefix"), "/resources/") {
+			lists.Add(1)
+		}
+		return 0, ""
+	}
+	text, code := runPravo(t, s.dir, "state", "show", "net.vpc")
+	if code != 0 || !strings.Contains(text, secretA) {
+		t.Fatalf("exit %d, want the value of a sealed record:\n%s", code, text)
+	}
+	if n := lists.Load(); n != 1 {
+		t.Errorf("the records were listed %d times, want once", n)
 	}
 }
