@@ -356,7 +356,7 @@ export class TemplatesView {
           f.fields[i.name] = { text: e.expr, ref: true, value: e.value, value_state: e.value_state };
           draw();
           this.changed();
-        } } }, h('code', null, e.addr), h('span', { class: 'tp-rt' }, e.recorded ? i.entity.type : i.entity.type + ' · not applied'), h('span', { class: 'tp-rv ' + e.value_state }, refValue(e)))));
+        } } }, h('code', null, e.addr), h('span', { class: 'tp-rm' }, e.recorded ? null : h('span', { class: 'tp-rt' }, 'not applied'), h('span', { class: 'tp-rv ' + e.value_state }, refValue(e))))));
       }
     };
     q.addEventListener('input', debounce(load, 160));
@@ -469,7 +469,7 @@ export class TemplatesView {
           this.changed();
           const b = this.root.querySelector(`[data-fk="${CSS.escape('graph:' + i.name)}"]`);
           if (b) b.focus({ preventScroll: true });
-        } } }, h('code', null, ref.expr), h('span', { class: 'tp-rt' }, ref.type), h('span', { class: 'tp-rv ' + ref.value_state }, refValue(ref)))));
+        } } }, h('code', null, ref.expr), h('span', { class: 'tp-rm' }, h('span', { class: 'tp-rt' }, ref.type), h('span', { class: 'tp-rv ' + ref.value_state }, refValue(ref))))));
       }
     };
     q.addEventListener('input', debounce(load, 160));
