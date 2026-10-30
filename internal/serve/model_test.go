@@ -147,12 +147,12 @@ func TestGraph(t *testing.T) {
 	for _, e := range g.Edges {
 		edges[e.Dependency+" -> "+e.Dependent] = true
 	}
-	for _, e := range []string{"services.a.db -> services.a.file", "services.b.db -> services.b.file", "services.a.db -> shared", "services.b.db -> old.thing"} {
+	for _, e := range []string{"services.a.db -> services.a.file", "services.b.db -> services.b.file", "services.a.db -> shared", "services.b.db -> old.thing", "services.a.db -> leak"} {
 		if !edges[e] {
 			t.Errorf("no edge %s; have %v", e, edges)
 		}
 	}
-	if len(edges) != 4 {
+	if len(edges) != 5 {
 		t.Errorf("%d edges: %v", len(edges), edges)
 	}
 
@@ -298,7 +298,7 @@ func TestDetailUnknownAndBadRequests(t *testing.T) {
 		t.Errorf("an orphan depends on %v", d.DependsOn)
 	}
 	d = p.detail("services.a.db")
-	if len(d.UsedBy) != 2 || len(d.Reach) != 2 {
+	if len(d.UsedBy) != 3 || len(d.Reach) != 2 {
 		t.Errorf("services.a.db: used by %v, reach %v", d.UsedBy, d.Reach)
 	}
 	if len(d.History) != 1 || d.History[0].Kind != "apply" || d.History[0].Action != "create" || d.History[0].RevAfter != 1 {

@@ -190,8 +190,8 @@ type Output struct {
 	Name      string `json:"name"`
 	Sensitive bool   `json:"sensitive,omitempty"`
 	// Redacted is "" when the value is sent, else "sensitive" (the output is
-	// marked so), "derived" (the value contains a sensitive value of the
-	// state) or "sealed" (the state is sealed and this process cannot open the
+	// marked so), "derived" (the value holds a sensitive value of what
+	// it reads) or "sealed" (the state is sealed and this process cannot open the
 	// value). Sensitive is set in all three cases.
 	Redacted string `json:"redacted,omitempty"`
 	Value    any    `json:"value,omitempty"`

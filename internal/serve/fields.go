@@ -29,7 +29,6 @@ const maxFieldValue = 512
 func (m *model) fields() *fieldIndex {
 	m.fieldsOnce.Do(func() {
 		idx := &fieldIndex{rows: make(map[string][]fieldRow)}
-		sec := m.secretsFor(m.plan)
 		type job struct {
 			addr string
 			mn   *mnode
@@ -71,7 +70,7 @@ func (m *model) fields() *fieldIndex {
 					if err != nil {
 						continue
 					}
-					w := &walk{secrets: sec, build: true}
+					w := &walk{secrets: m.secretsAt(m.plan, j.addr), build: true}
 					attrs := w.block(j.mn.sch.Block, rec, 0)
 					for i := range attrs {
 						j.rows = flattenAttr(j.rows, attrs[i].Name, &attrs[i])

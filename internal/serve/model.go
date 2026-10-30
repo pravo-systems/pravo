@@ -38,7 +38,10 @@ type model struct {
 	deps, used map[string][]string
 	locks      map[string]state.Lock
 	secrets    *secretSet
-	plan       *planOverlay
+	// scopes caches scopeOf.
+	scopeMu sync.Mutex
+	scopes  map[string]map[string]bool
+	plan    *planOverlay
 	// stored are the plans in the state, whether or not one of them is the plan.
 	stored *storedPlans
 	// definitions counts the nodes written by the same lines, by "file:line:col".
@@ -205,9 +208,9 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 			m.countNode(mn, missing)
 		}
 	}
-	m.graph.Outputs = m.outputs(outs)
 	m.linkNamespaces()
 	m.linkEdges()
+	m.graph.Outputs = m.outputs(outs)
 	for _, ms := range sortedMissing(missing) {
 		warnings = append(warnings, fmt.Sprintf("The schema of provider %s is not cached, so the values of %d %s are withheld. Run \"pravo init\" to fetch it.",
 			ms.name, ms.count, plural(ms.count, "resource", "resources")))
@@ -574,10 +577,10 @@ func (m *model) countNode(mn *mnode, missing map[string]*missingSchema) {
 		}
 		// Nothing says which values are the secrets, so all of them count: a value
 		// elsewhere that holds one of these is withheld.
-		m.secrets.add(attrs)
+		m.secrets.addFrom(mn.Addr, attrs)
 		return
 	}
-	w := &walk{sink: m.secrets}
+	w := &walk{sink: m.secrets, origin: mn.Addr}
 	w.block(mn.sch.Block, attrs, 0)
 	mn.Sensitive = w.withheld
 }
@@ -685,7 +688,7 @@ func (m *model) outputs(set *outputSet) []Output {
 			continue
 		}
 		if dv, err := decodeAttrs(json.RawMessage(`{"v":` + string(val) + `}`)); err == nil {
-			m.secrets.add(dv["v"])
+			m.secrets.addFrom(n, dv["v"])
 		}
 	}
 	out := make([]Output, 0, len(list))
@@ -712,7 +715,7 @@ func (m *model) outputs(set *outputSet) []Output {
 				o.Unknown = true
 				break
 			}
-			if m.secrets.leaksIn(dv["v"]) {
+			if m.scoped(m.secrets, n).leaksIn(dv["v"]) {
 				o.Sensitive, o.Redacted = true, "derived"
 			} else {
 				o.Value = bound(dv["v"], 0)

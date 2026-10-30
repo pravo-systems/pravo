@@ -30,7 +30,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		return m.outputDetail(mn, po)
 	}
 	addr := mn.Addr
-	sec := m.secretsFor(po)
+	sec := m.secretsAt(po, addr)
 	d := &Detail{Version: APIVersion, Node: mn.Node, Attrs: []Attr{}, DependsOn: nonNil(m.deps[addr]), UsedBy: nonNil(m.used[addr])}
 	if po != m.plan {
 		d.Node.Action = ""
@@ -58,8 +58,8 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 			w := &walk{secrets: sec, build: true}
 			d.Attrs = w.block(mn.sch.Block, attrs, 0)
 			if w.derived > 0 {
-				d.Notes = append(d.Notes, fmt.Sprintf("%d %s withheld: %s a sensitive value that the state keeps in another attribute.",
-					w.derived, plural(w.derived, "value is", "values are"), plural(w.derived, "it contains", "they contain")))
+				d.Notes = append(d.Notes, fmt.Sprintf("%d %s withheld: %s a sensitive value of this resource or of one it reads.",
+					w.derived, plural(w.derived, "value is", "values are"), plural(w.derived, "it holds", "they hold")))
 			}
 		default:
 			d.Attrs = withholdAll(attrs)
@@ -102,9 +102,9 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 			if t.Kind == "plan" && c.Action != "drift" {
 				continue // a plan reads the node, and may refresh its record; it does not write it, but a read that found it changed outside pravo is news
 			}
-			entry := HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: maskWith(sec, t.User), Actor: maskWith(sec, t.Actor),
-				Command: scrubCommand(t.Command, sec), Reason: maskWith(sec, t.Reason), Action: c.Action, RevBefore: c.Before, RevAfter: c.After,
-				Plan: maskWith(sec, t.PlanID), GitRevision: maskWith(sec, t.GitRevision)}
+			entry := HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: t.User, Actor: t.Actor,
+				Command: scrubCommand(t.Command), Reason: t.Reason, Action: c.Action, RevBefore: c.Before, RevAfter: c.After,
+				Plan: t.PlanID, GitRevision: t.GitRevision}
 			if diffs, sealed := m.store.TxnDiffs(t); sealed {
 				entry.AttrsSealed = true
 			} else if df, ok := diffs[addr]; ok {
@@ -113,7 +113,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 			if verify := m.srv.opts.VerifyTxn; verify != nil {
 				t := t
 				if status, signer := verify(m.store, &t); status != "" {
-					entry.Signature, entry.Signer = status, maskWith(sec, signer)
+					entry.Signature, entry.Signer = status, signer
 				}
 			}
 			d.History = append(d.History, entry)
@@ -128,7 +128,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		if kind == "" {
 			kind = "lock"
 		}
-		d.Lock = &LockInfo{Kind: kind, User: maskWith(sec, l.User), Host: maskWith(sec, l.Host), Command: scrubCommand(l.Command, sec), Actor: maskWith(sec, l.Actor), Since: l.Since, Expires: l.Expires}
+		d.Lock = &LockInfo{Kind: kind, User: l.User, Host: l.Host, Command: scrubCommand(l.Command), Actor: l.Actor, Since: l.Since, Expires: l.Expires}
 		if l.Stale {
 			d.Notes = append(d.Notes, "The lock is stale: its holder is gone or has not renewed it, and the next command may take it over.")
 		}
@@ -163,7 +163,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 // apply has recorded it, it is not known.
 func (m *model) outputDetail(mn *mnode, po *planOverlay) *Detail {
 	addr := mn.Addr
-	sec := m.secretsFor(po)
+	sec := m.secretsAt(po, addr)
 	d := &Detail{Version: APIVersion, Node: mn.Node, Attrs: []Attr{}, DependsOn: nonNil(m.deps[addr]), UsedBy: nonNil(m.used[addr]), SchemaKnown: true}
 	d.Node.Action = ""
 	at := Attr{Name: "value", Type: "output"}
@@ -190,7 +190,7 @@ func (m *model) outputDetail(mn *mnode, po *planOverlay) *Detail {
 	}
 	d.Attrs = append(d.Attrs, at)
 	if text := m.outputDescription(mn); text != "" {
-		d.Attrs = append(d.Attrs, Attr{Name: "description", Type: "string", Value: clip(maskWith(sec, text), maxText)})
+		d.Attrs = append(d.Attrs, Attr{Name: "description", Type: "string", Value: clip(text, maxText)})
 	}
 	switch {
 	case mn.Presence == "state" && m.spec.root != nil:
@@ -236,10 +236,47 @@ func (m *model) secretsFor(po *planOverlay) *secretSet {
 	return m.secrets
 }
 
-// maskWith masks the sensitive strings of a set in a text.
-func maskWith(sec *secretSet, text string) string {
-	out, _ := sec.scrub(text)
-	return out
+// secretsAt is secretsFor for what a reader of the node at addr can hold: the
+// strings found in the node and in what it reads, directly or not.
+func (m *model) secretsAt(po *planOverlay, addr string) *secretSet {
+	return m.scoped(m.secretsFor(po), addr)
+}
+
+// scoped is sec as it applies to the node at addr. An output that the state records
+// and the specification does not declare has no references to follow, so what it
+// holds is judged against every string.
+func (m *model) scoped(sec *secretSet, addr string) *secretSet {
+	if mn := m.nodes[addr]; mn != nil && mn.isOutput() && mn.out == nil {
+		return sec
+	}
+	return sec.scopedTo(m.scopeOf(addr))
+}
+
+// scopeOf is the node at addr and every node it reads, directly or not: the
+// nodes whose sensitive values a value of the node may be built from.
+func (m *model) scopeOf(addr string) map[string]bool {
+	m.scopeMu.Lock()
+	defer m.scopeMu.Unlock()
+	if sc, ok := m.scopes[addr]; ok {
+		return sc
+	}
+	sc := map[string]bool{addr: true}
+	todo := []string{addr}
+	for len(todo) > 0 {
+		n := todo[len(todo)-1]
+		todo = todo[:len(todo)-1]
+		for _, d := range m.deps[n] {
+			if !sc[d] {
+				sc[d] = true
+				todo = append(todo, d)
+			}
+		}
+	}
+	if m.scopes == nil {
+		m.scopes = map[string]map[string]bool{}
+	}
+	m.scopes[addr] = sc
+	return sc
 }
 
 func nonNil(l []string) []string {

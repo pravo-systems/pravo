@@ -160,7 +160,7 @@ func (m *model) choicesOf(input, path string) TemplateChoices {
 		out.Note = "The record of " + mn.Addr + " cannot be read."
 		return out
 	}
-	w := &walk{secrets: m.secretsFor(m.plan), build: true}
+	w := &walk{secrets: m.secretsAt(m.plan, mn.Addr), build: true}
 	at := Attr{Children: w.block(mn.sch.Block, attrs, 0)}
 	for _, sel := range rest {
 		name := sel.Unquoted()
@@ -282,7 +282,7 @@ func (m *model) valueOf(mn *mnode, attr string) (string, string) {
 	if err != nil {
 		return "", valueWithheld
 	}
-	w := &walk{secrets: m.secretsFor(m.plan), build: true}
+	w := &walk{secrets: m.secretsAt(m.plan, mn.Addr), build: true}
 	for _, a := range w.block(mn.sch.Block, attrs, 0) {
 		if a.Name != attr {
 			continue

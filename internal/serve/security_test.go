@@ -375,10 +375,14 @@ func TestHistoryAndLocksAreScrubbed(t *testing.T) {
 	}
 	waitFor(t, "the transaction and the reservation", func() bool { d := p.detail("shared"); return len(d.History) > 1 && d.Lock != nil })
 	body := p.get("/api/detail?addr=shared")
-	for _, s := range []string{tagSecret, keySecret, secretBlob} {
+	for _, s := range []string{tagSecret, keySecret} {
 		if strings.Contains(string(body), s) {
 			t.Errorf("the detail sends %q: %s", s, body)
 		}
+	}
+	// The words of a person are not values of a record: a reason that is the same text as a secret of the state is shown as written.
+	if !strings.Contains(string(body), "because "+secretBlob) {
+		t.Errorf("the reason is not shown as written: %s", body)
 	}
 	d := p.detail("shared")
 	var cmd string
@@ -398,8 +402,6 @@ func TestHistoryAndLocksAreScrubbed(t *testing.T) {
 }
 
 func TestScrubCommand(t *testing.T) {
-	s := newSecretSet()
-	s.add("hunter2hunter2")
 	for in, want := range map[string]string{
 		"pravo apply":            "pravo apply",
 		"pravo apply  -t  a=b":   "pravo apply  -t  a=" + mask,
@@ -414,11 +416,11 @@ func TestScrubCommand(t *testing.T) {
 		"pravo apply --password x":                      "pravo apply --password " + mask,
 		"pravo apply --api_key=x":                       "pravo apply --api_key=" + mask,
 		"pravo apply -replace db.main":                  "pravo apply -replace db.main",
-		"pravo import db.main hunter2hunter2":           "pravo import db.main " + mask,
-		"pravo import db.main id-hunter2hunter2-suffix": "pravo import db.main id-" + mask + "-suffix",
-		"pravo apply -t\ta=b\n":                         "pravo apply -t\ta=" + mask + "\n",
-		"":                                              "",
-		"pravo apply --tag":                             "pravo apply --tag",
+		// What a word is does not make it a secret, even when the same text is a secret elsewhere.
+		"pravo import db.main hunter2hunter2": "pravo import db.main hunter2hunter2",
+		"pravo apply -t\ta=b\n":               "pravo apply -t\ta=" + mask + "\n",
+		"":                                    "",
+		"pravo apply --tag":                   "pravo apply --tag",
 		// A short flag clustered with others that take no argument, which pflag accepts.
 		"pravo -v plan --store -vt pw=hunter2value": "pravo -v plan --store -vt pw=" + mask,
 		"pravo plan -Tt owner=SECRETV1":             "pravo plan -Tt owner=" + mask,
@@ -430,7 +432,7 @@ func TestScrubCommand(t *testing.T) {
 		"pravo plan -out plan.pravo":                "pravo plan -out plan.pravo",
 		"pravo plan -vtaa -T":                       "pravo plan -vtaa -T",
 	} {
-		if got := scrubCommand(in, s); got != want {
+		if got := scrubCommand(in); got != want {
 			t.Errorf("scrubCommand(%q) = %q, want %q", in, got, want)
 		}
 	}
@@ -454,6 +456,10 @@ vault: {
 		t.Fatal(err)
 	}
 	seed(t, st)
+	// The node holds the value, so the lines that quote it are judged against it.
+	if err := st.Set(record("vault.v", "fake_db", `{"name":"v","blob":"`+secretBlob+`"}`), ""); err != nil {
+		t.Fatal(err)
+	}
 	p := start(t, dir, st, Options{})
 	body := p.get("/api/graph")
 	var g Graph
@@ -818,8 +824,10 @@ func TestShapeMismatchDoesNotUnmaskSensitiveValues(t *testing.T) {
 	noSecrets(t, "graph", p.get("/api/graph"), a, b, c, d, e)
 }
 
-// The value of a sensitive output is a secret: an attribute that holds it is
-// withheld although its schema marks nothing, and so is an output that holds it.
+// The value of a sensitive output is a secret for what reads the output: an
+// output that holds it is withheld. A record that reads nothing of it is not: it
+// is judged by what it reads, and a string that is the same as the value of an
+// output says nothing of where the string came from.
 func TestSensitiveOutputsAreSecrets(t *testing.T) {
 	const outSecret = "only-in-the-output-9f8e7d6c"
 	dir := t.TempDir()
@@ -842,7 +850,19 @@ func TestSensitiveOutputsAreSecrets(t *testing.T) {
 	}
 	p := start(t, dir, st, Options{})
 	noSecrets(t, "graph", p.get("/api/graph"), outSecret)
-	noSecrets(t, "detail", p.get("/api/detail?addr=shared"), outSecret)
+	var url *Attr
+	for _, a := range p.detail("shared").Attrs {
+		if a.Name == "tags" {
+			for i := range a.Children {
+				if a.Children[i].Name == "url" {
+					url = &a.Children[i]
+				}
+			}
+		}
+	}
+	if url == nil || url.Redacted != "" || !strings.Contains(fmt.Sprint(url.Value), outSecret) {
+		t.Errorf("a record that does not read the output is judged by what it reads: %+v", url)
+	}
 	g := p.graph()
 	for _, o := range g.Outputs {
 		switch o.Name {

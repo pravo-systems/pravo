@@ -93,7 +93,7 @@ hosts: {
 }
 
 host: {$kind: "output", value: "db.example"}
-leak: {$kind: "output", value: "id=a"}
+leak: {$kind: "output", value: "token=\(services.a.db.blob)"}
 `
 
 const lockCUE = `providers: "example.test/x/fake": {

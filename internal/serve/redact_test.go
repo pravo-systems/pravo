@@ -212,3 +212,57 @@ func TestSecretSet(t *testing.T) {
 		t.Error("false positives")
 	}
 }
+
+// Sensitivity follows the references. A string that spells a sensitive value of a
+// node that the reader does not read says nothing of that node: it is shown. One
+// that the reader reads, directly or through another node, is withheld.
+func TestDerivedFollowsWhatANodeReads(t *testing.T) {
+	p := newProject(t)
+	// Reads nothing: its name is the same text as the blob of services.a.db.
+	if err := p.store.Set(record("extra.one", "fake_db", `{"name":"`+secretBlob+`","port":1}`), ""); err != nil {
+		t.Fatal(err)
+	}
+	// Reads shared, which reads services.a.db: two steps from the blob.
+	if err := p.store.Set(record("extra.two", "fake_db", `{"name":"via `+secretBlob+`","port":2}`, "shared"), ""); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the records", func() bool {
+		return nodeOf(p.graph(), "extra.one") != nil && nodeOf(p.graph(), "extra.two") != nil && p.detail("extra.two").DependsOn != nil
+	})
+	name := func(addr string) Attr {
+		for _, a := range p.detail(addr).Attrs {
+			if a.Name == "name" {
+				return a
+			}
+		}
+		t.Fatalf("%s has no name", addr)
+		return Attr{}
+	}
+	if a := name("extra.one"); a.Redacted != "" || a.Value != secretBlob {
+		t.Errorf("a node that reads nothing of the blob is judged by itself: %+v", a)
+	}
+	if a := name("extra.two"); a.Redacted != "derived" || a.Value != nil {
+		t.Errorf("a node that reads the blob through another is withheld: %+v", a)
+	}
+}
+
+func TestSecretSetScopedTo(t *testing.T) {
+	s := newSecretSet()
+	s.addFrom("a", "alpha-secret-1")
+	s.addFrom("b", "bravo-secret-2")
+	s.addFrom("", "global-secret-3")
+	s.addFrom("a", "bravo-secret-2")
+	got := s.scopedTo(map[string]bool{"a": true})
+	for text, want := range map[string]bool{"alpha-secret-1": true, "bravo-secret-2": true, "global-secret-3": true} {
+		if got.leaks(text) != want {
+			t.Errorf("scoped to a: leaks(%q) = %v", text, !want)
+		}
+	}
+	got = s.scopedTo(map[string]bool{"c": true})
+	if got.leaks("alpha-secret-1") || got.leaks("bravo-secret-2") || !got.leaks("global-secret-3") {
+		t.Errorf("scoped to c: %v", got.list)
+	}
+	if (*secretSet)(nil).scopedTo(nil) != nil {
+		t.Error("a nil set is nil")
+	}
+}
