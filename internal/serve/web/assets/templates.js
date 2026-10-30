@@ -38,6 +38,18 @@ function cueValue(input, f) {
   }
 }
 
+// refValue says in words what the state holds for an attribute that a reference reads.
+function refValue(x) {
+  switch (x.value_state) {
+    case 'known': return x.value;
+    case 'unapplied': return 'known after apply';
+    case 'withheld': return 'withheld';
+    case 'null': return 'null';
+    case 'structured': return 'a list or an object';
+    default: return '';
+  }
+}
+
 // secretName is the name a secret has unless the person gives another: the template, the instance and the input.
 function secretName(source, tpl, label, input) {
   const l = label || 'name';
@@ -265,6 +277,7 @@ export class TemplatesView {
       if (i.secret) { this.secretControl(i, row, draw); return; }
       if (cur.ref) {
         row.append(h('div', { class: 'tp-refval' }, icon('link'), h('code', null, cur.text),
+          cur.value_state ? h('span', { class: 'tp-rv ' + cur.value_state, title: 'What the state holds now. An apply may produce another value.' }, '= ', h('code', null, refValue(cur))) : null,
           h('button', { type: 'button', class: 'tp-x', 'aria-label': `Choose another value for ${i.name}`, title: 'Choose another', on: { click: () => { f.fields[i.name] = { text: '', ref: false }; draw(); this.changed(); } } }, icon('x'))));
         return;
       }
@@ -340,10 +353,10 @@ export class TemplatesView {
       note.textContent = r.note || '';
       for (const e of r.entities) {
         list.append(h('li', { role: 'option' }, h('button', { type: 'button', class: 'tp-ri tp-er', 'data-fk': 'ent:' + e.addr, on: { click: () => {
-          f.fields[i.name] = { text: e.expr, ref: true };
+          f.fields[i.name] = { text: e.expr, ref: true, value: e.value, value_state: e.value_state };
           draw();
           this.changed();
-        } } }, h('code', null, e.addr), h('span', { class: 'tp-rt' }, e.recorded ? i.entity.type : i.entity.type + ' · not applied'))));
+        } } }, h('code', null, e.addr), h('span', { class: 'tp-rt' }, e.recorded ? i.entity.type : i.entity.type + ' · not applied'), h('span', { class: 'tp-rv ' + e.value_state }, refValue(e)))));
       }
     };
     q.addEventListener('input', debounce(load, 160));
@@ -449,14 +462,14 @@ export class TemplatesView {
       if (!r.refs.length) { list.append(h('li', { class: 'tp-ri none' }, 'No attribute of this kind matches.')); return; }
       for (const ref of r.refs) {
         list.append(h('li', { role: 'option' }, h('button', { type: 'button', class: 'tp-ri', 'data-fk': 'ref:' + ref.expr, on: { click: () => {
-          f.fields[i.name] = { text: ref.expr, ref: true };
+          f.fields[i.name] = { text: ref.expr, ref: true, value: ref.value, value_state: ref.value_state };
           this.refsFor = '';
           holder.hidden = true; clear(holder);
           draw();
           this.changed();
           const b = this.root.querySelector(`[data-fk="${CSS.escape('graph:' + i.name)}"]`);
           if (b) b.focus({ preventScroll: true });
-        } } }, h('code', null, ref.expr), h('span', { class: 'tp-rt' }, ref.type))));
+        } } }, h('code', null, ref.expr), h('span', { class: 'tp-rt' }, ref.type), h('span', { class: 'tp-rv ' + ref.value_state }, refValue(ref)))));
       }
     };
     q.addEventListener('input', debounce(load, 160));

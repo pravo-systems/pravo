@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -59,6 +60,9 @@ type TemplateEntityRow struct {
 	Provider  string `json:"provider,omitempty"`
 	// Recorded says that the state holds the resource, that is, an apply has made it.
 	Recorded bool `json:"recorded"`
+	// Value and ValueState say what the state holds for the attribute now.
+	Value      string `json:"value,omitempty"`
+	ValueState string `json:"value_state"`
 }
 
 // TemplateSecret is a secret that an instance reads, as the code of the instance declares it.
@@ -243,7 +247,9 @@ func (m *model) entitiesOf(input string, ent *TemplateEntity, q string) Template
 		if len(out.Entities) >= maxEntities {
 			break
 		}
-		out.Entities = append(out.Entities, TemplateEntityRow{Addr: addr, Expr: expr, Namespace: mn.Namespace, Provider: mn.Provider, Recorded: mn.rec != nil})
+		row := TemplateEntityRow{Addr: addr, Expr: expr, Namespace: mn.Namespace, Provider: mn.Provider, Recorded: mn.rec != nil}
+		row.Value, row.ValueState = m.valueOf(mn, ent.Attr)
+		out.Entities = append(out.Entities, row)
 	}
 	switch {
 	case seen == 0:
@@ -252,6 +258,55 @@ func (m *model) entitiesOf(input string, ent *TemplateEntity, q string) Template
 		out.Note = ent.Type + " has no attribute " + ent.Attr + " that can be read."
 	}
 	return out
+}
+
+// Value states: what the state holds for an attribute that a reference reads.
+const (
+	valueKnown      = "known"      // Value is what the last plan or apply recorded
+	valueUnapplied  = "unapplied"  // the resource has no record: the value is known after the apply
+	valueWithheld   = "withheld"   // the Inventory does not show it, so this does not either
+	valueNull       = "null"       // recorded as null
+	valueStructured = "structured" // a list or an object: not shown here
+)
+
+// valueOf reads one attribute of a node as the Inventory shows it: the value the state holds now, through the redacting
+// walk. It is a snapshot of the last plan or apply, not what a later apply will produce.
+func (m *model) valueOf(mn *mnode, attr string) (string, string) {
+	switch {
+	case mn.rec == nil:
+		return "", valueUnapplied
+	case mn.Sealed || mn.sch == nil || mn.sch.Block == nil:
+		return "", valueWithheld
+	}
+	attrs, err := decodeAttrs(mn.rec.Attributes)
+	if err != nil {
+		return "", valueWithheld
+	}
+	w := &walk{secrets: m.secretsFor(m.plan), build: true}
+	for _, a := range w.block(mn.sch.Block, attrs, 0) {
+		if a.Name != attr {
+			continue
+		}
+		switch {
+		case a.Redacted != "":
+			return "", valueWithheld
+		case a.Unknown:
+			return "", valueUnapplied
+		case a.Null:
+			return "", valueNull
+		case len(a.Children) > 0:
+			return "", valueStructured
+		}
+		v := fmt.Sprint(a.Value)
+		if _, ok := a.Value.(string); ok {
+			v = strconv.Quote(v)
+		}
+		if len(v) > 120 {
+			v = v[:120] + "…"
+		}
+		return v, valueKnown
+	}
+	return "", valueNull
 }
 
 // secretDecl builds the code that reads a secret for an input: the declaration, and the expression the input holds.

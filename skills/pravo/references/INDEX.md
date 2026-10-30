@@ -50,14 +50,14 @@ One page for each command and each part of the specification, tables first.
 | [reference/spec-env.md](reference/spec-env.md) | pravo.#Env and pravo.#SecretEnv read environment variables, pravo.#Secret reads the sealed state, and pravo.#RemoteOutputs reads the outputs of another root. | 14 KB |
 | [reference/spec-meta-fields.md](reference/spec-meta-fields.md) | The $-prefixed fields that resources, data sources and ephemeral resources accept in addition to the provider schema. | 8 KB |
 | [reference/spec-tags-and-variables.md](reference/spec-tags-and-variables.md) | Inputs are fields with a @tag attribute. -t and -T inject their values. Defaults and constraints are plain CUE. | 7 KB |
-| [reference/spec-reuse.md](reference/spec-reuse.md) | pravo has no module block. A definition that contains resources is instantiated with &, a package shares it between roots and a CUE module between repositories. | 17 KB |
+| [reference/spec-reuse.md](reference/spec-reuse.md) | pravo has no module block. A definition that contains resources is instantiated with &, a package shares it between roots and a CUE module between repositories. | 18 KB |
 | [reference/spec-generated-packages.md](reference/spec-generated-packages.md) | The CUE packages that pravo init writes under cue.mod/gen, one per provider and one for pravo itself. | 10 KB |
 
 ### Viewer
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/viewer-sections.md](reference/viewer-sections.md) | What each section of the viewer shows and how to read it: Inventory, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector. | 59 KB |
+| [reference/viewer-sections.md](reference/viewer-sections.md) | What each section of the viewer shows and how to read it: Inventory, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector. | 60 KB |
 | [reference/viewer-keys-and-links.md](reference/viewer-keys-and-links.md) | The keyboard of the viewer, the command palette, and every parameter of the address that reproduces a view: selection, tabs, open groups, filters, a plan over the graph, a policy, a run. | 11 KB |
 | [reference/viewer-api.md](reference/viewer-api.md) | The read-only JSON endpoints behind the viewer, for a script: the graph, one node, the stored plans, a plan over the graph, the discoveries, the policies, the studio, the recorded runs and the event stream. | 26 KB |
 

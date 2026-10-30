@@ -396,7 +396,7 @@ func (in *TemplateInput) applyAsk(ask cue.Value) {
 	if b, err := ask.LookupPath(cue.ParsePath("secret")).Bool(); err == nil && b && in.Kind == "string" {
 		in.Secret = true
 	}
-	if c, ok := stringAt(ask, "choices"); ok && c != "" && !in.Secret && len(c) <= 200 {
+	if c, ok := choicesPath(ask); ok && !in.Secret && len(c) <= 200 {
 		in.Choices = c
 		if in.Kind == "any" {
 			in.Kind = "string" // a bound on the values that the data source gives is not known yet, so the type is not either
@@ -457,6 +457,28 @@ func stringAt(v cue.Value, path string) (string, bool) {
 	}
 	s, err := f.String()
 	return s, err == nil
+}
+
+// choicesPath reads where the values to choose from are: a reference to the attribute, or its path as a string.
+func choicesPath(ask cue.Value) (string, bool) {
+	c := ask.LookupPath(cue.ParsePath("choices"))
+	if !c.Exists() {
+		return "", false
+	}
+	if s, err := c.String(); err == nil {
+		return s, s != ""
+	}
+	// The schema is a conjunct of the field, so the reference is one of the operands.
+	vals := []cue.Value{c}
+	if op, args := c.Expr(); op == cue.AndOp {
+		vals = append(vals, args...)
+	}
+	for _, v := range vals {
+		if _, p := v.ReferencePath(); p.Err() == nil && len(p.Selectors()) > 0 {
+			return p.String(), true
+		}
+	}
+	return "", false
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
@@ -960,10 +982,13 @@ type TemplateRef struct {
 	Addr string `json:"addr"`
 	Attr string `json:"attr"`
 	Type string `json:"type"`
+	// Value and ValueState say what the state holds for it now, as the Inventory would show it.
+	Value      string `json:"value,omitempty"`
+	ValueState string `json:"value_state"`
 }
 
 // templateRefsHandler answers GET /api/templates/refs?kind=string&q=TEXT: attributes of the resources of the estate that
-// have the kind, by the names of the schemas. It sends no value.
+// have the kind, by the names of the schemas, each with the value that the state holds as the Inventory shows it.
 func (s *Server) templateRefsHandler(w http.ResponseWriter, r *http.Request, m *model) {
 	q := strings.ToLower(r.URL.Query().Get("q"))
 	if len(q) > 80 {
@@ -994,7 +1019,9 @@ func (s *Server) templateRefsHandler(w http.ResponseWriter, r *http.Request, m *
 			if q != "" && !strings.Contains(strings.ToLower(expr), q) {
 				continue
 			}
-			out.Refs = append(out.Refs, TemplateRef{Expr: expr, Addr: addr, Attr: a.Name, Type: mn.res.Type})
+			ref := TemplateRef{Expr: expr, Addr: addr, Attr: a.Name, Type: mn.res.Type}
+			ref.Value, ref.ValueState = m.valueOf(mn, a.Name)
+			out.Refs = append(out.Refs, ref)
 			if len(out.Refs) >= 40 {
 				writeJSON(w, http.StatusOK, out)
 				return

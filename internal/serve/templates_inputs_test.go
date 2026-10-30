@@ -17,8 +17,8 @@ const askSpecCUE = templateSpecCUE + `
 		name:   "pool"
 		inputs: ["name", "zone", "tag", "owner_db", "hosts", "notes", "key"]
 		ask: {
-			zone:     {choices: "boxes.one.db.zones"}
-			tag:      {choices: "boxes.one.db.tags"}
+			zone:     {choices: boxes.one.db.zones}
+			tag:      {choices: boxes.one.db.tags}
 			owner_db: {entity: {type: "fake_db", attr: "name"}}
 			notes:    {long: true}
 			key:      {secret: true}
@@ -134,9 +134,19 @@ func TestTemplateChoicesSayWhyTheyAreEmpty(t *testing.T) {
 	if c.State != "unread" || len(c.Items) != 0 || c.Node != "boxes.two.db" || !strings.Contains(c.Note, "no record") {
 		t.Errorf("unrecorded: %+v", c)
 	}
-	p = templateProjectOf(t, strings.Replace(askSpecCUE, "boxes.one.db.zones", "nowhere.at.all", 1), `{"name":"one"}`)
+	// The path may also be written as a string, which CUE does not check; the form says that no node is there.
+	p = templateProjectOf(t, strings.Replace(askSpecCUE, "boxes.one.db.zones", `"nowhere.at.all"`, 1), `{"name":"one"}`)
 	if c := p.choices("zone"); c.State != "missing" || len(c.Items) != 0 {
 		t.Errorf("no such node: %+v", c)
+	}
+}
+
+// A reference to something that is not in the specification is a mistake that CUE reports when it loads, so it never
+// reaches the form.
+func TestTemplateChoicesReferenceIsCheckedByCUE(t *testing.T) {
+	p := templateProjectOf(t, strings.Replace(askSpecCUE, "boxes.one.db.zones", "bxes.one.db.zones", 1), `{"name":"one"}`)
+	if cat := p.templates(); cat.SpecOK {
+		t.Errorf("a reference to nothing loads: %+v", cat)
 	}
 }
 
@@ -175,6 +185,12 @@ func TestTemplateEntitiesListDeclaredResources(t *testing.T) {
 		}
 		if e.Addr == "boxes.two.db" && e.Recorded {
 			t.Errorf("boxes.two.db is not recorded: %+v", e)
+		}
+		if e.Addr == "boxes.one.db" && (e.Value != `"one"` || e.ValueState != "known") {
+			t.Errorf("the value of boxes.one.db: %+v", e)
+		}
+		if e.Addr == "boxes.two.db" && (e.Value != "" || e.ValueState != "unapplied") {
+			t.Errorf("the value of boxes.two.db: %+v", e)
 		}
 	}
 	for _, want := range []string{"boxes.one.db.name", "boxes.two.db.name", "plain.name"} {

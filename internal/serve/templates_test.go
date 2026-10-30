@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -240,19 +241,43 @@ func TestTemplateTryRefusesBadRequests(t *testing.T) {
 	}
 }
 
-// The picker offers the names of attributes that resources declare, never a value.
-func TestTemplateRefsSendNoValues(t *testing.T) {
-	p := templateProject(t)
-	var refs TemplateRefs
-	if err := json.Unmarshal(p.get("/api/templates/refs?kind=string&q=plain"), &refs); err != nil {
-		t.Fatal(err)
+// The picker offers attributes that resources declare, with the value that the state holds as the Inventory shows it: a
+// value that the Inventory withholds is withheld here, and a resource that is not applied has none yet.
+func TestTemplateRefsShowWhatTheStateHolds(t *testing.T) {
+	p := templateProjectOf(t, templateSpecCUE, fmt.Sprintf(dbAttrs, "one"))
+	get := func(q string) []TemplateRef {
+		var refs TemplateRefs
+		if err := json.Unmarshal(p.get("/api/templates/refs?kind=string&q="+q), &refs); err != nil {
+			t.Fatal(err)
+		}
+		return refs.Refs
 	}
-	var got []string
-	for _, r := range refs.Refs {
-		got = append(got, r.Expr)
+	byExpr := map[string]TemplateRef{}
+	for _, r := range get("") {
+		byExpr[r.Expr] = r
 	}
-	if len(got) == 0 || got[0] != "plain.name" {
-		t.Errorf("refs: %v", got)
+	if r := byExpr["boxes.one.db.name"]; r.Value != `"one"` || r.ValueState != "known" {
+		t.Errorf("a recorded value: %+v", r)
+	}
+	if r := byExpr["plain.name"]; r.Value != "" || r.ValueState != "unapplied" {
+		t.Errorf("a resource that is not applied: %+v", r)
+	}
+	// The name says secret, so the Inventory withholds it, and so does the picker.
+	if r, ok := byExpr["boxes.one.db.api_token"]; !ok || r.Value != "" || r.ValueState != "withheld" {
+		t.Errorf("a withheld value: %+v (offered: %v)", r, ok)
+	}
+	// An attribute that the schema marks sensitive is not offered at all.
+	if _, ok := byExpr["boxes.one.db.blob"]; ok {
+		t.Error("a sensitive attribute is offered")
+	}
+	body := p.get("/api/templates/refs?kind=string")
+	for _, secret := range []string{secretBlob, secretToken, secretWrite} {
+		if strings.Contains(string(body), secret) {
+			t.Errorf("a secret is in the answer: %s", secret)
+		}
+	}
+	if len(get("plain")) == 0 || get("plain")[0].Expr != "plain.name" {
+		t.Errorf("filtered: %v", get("plain"))
 	}
 	resp, _ := p.do("GET", "/api/templates/refs?kind=object", nil)
 	if resp.StatusCode != http.StatusBadRequest {

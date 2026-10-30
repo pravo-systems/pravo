@@ -409,7 +409,7 @@ The marker `$template` is an ordinary field. It passes into every instance when 
 		name: "service"
 		ask: {
 			// Values to choose from, read from a node of the graph.
-			region: {choices: "regions.outputs"}
+			region: {choices: regions.outputs}
 			// A resource of the estate to refer to.
 			network: {entity: {type: "random_id", attr: "hex"}}
 			// A long text.
@@ -425,14 +425,14 @@ The marker `$template` is an ordinary field. It passes into every instance when 
 
 | Hint | The form shows | The code holds |
 |---|---|---|
-| `choices: "NODE.ATTR"` | A list of the values that the state holds at that path. A list offers its items, and a map its keys, with the value as the label. A value that the Inventory withholds is not offered. | The value that was picked, as a string. |
+| `choices: NODE.ATTR` | A list of the values that the state holds at the attribute that the reference points to. A list offers its items, and a map its keys, with the value as the label. A value that the Inventory withholds is not offered. | The value that was picked, as a string. |
 | `entity: {type, attr}` | The managed resources of that type that the specification declares, with a search. A sensitive or write-only attribute is never offered. | The reference, such as `core.network_id.hex`, so the instance follows the resource. |
 | `long: true` | A text area. | The text, as one CUE string. |
 | `secret: true` | A choice of where the secret comes from, and its name. It takes no value. | The input reads the `value` of a secret that the code declares. See below. |
 
 A list of strings or of numbers is a row of chips without any hint.
 
-The hint helps the form; the constraint stays in the definition. `region` above is a disjunction over what the data source `regions` reports, so a plan reads the data source and refuses a region that it does not list. The list in the form is what the state recorded at the last plan, and a value that is not in it is refused in the form before the code is pasted. A node that has no record yet has nothing to offer, and the form says so and takes a typed value.
+The hint helps the form; the constraint stays in the definition. `region` above is a disjunction over what the data source `regions` reports, so a plan reads the data source and refuses a region that it does not list. The list in the form is what the state recorded at the last plan, and a value that is not in it is refused in the form before the code is pasted. `choices` is a reference, so CUE checks that it names something: a misspelt node is an error of `pravo validate`, as for any reference. The path written as a string, `"regions.outputs"`, also works but nothing checks it, and the form only says that no node is there. A node that has no record yet has nothing to offer, and the form says so and takes a typed value.
 
 A secret input never takes its value on the page. The form asks for the source, `pravo.#Secret` of a sealed state or `pravo.#SecretEnv` for an environment variable, and for a name. The code that it writes declares the secret next to the instance and passes `value` to the input:
 
@@ -447,6 +447,8 @@ edge_signing_key: pravo.#Secret & {name: "certificate/edge/signing_key"}
 ```
 
 The form says whether the sealed state holds the secret already, and gives the command that sets it when it does not. The template has to pass the input only to a write-only attribute, to the configuration of a provider or to an ephemeral resource, as with any secret: [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) says where a secret may go.
+
+A root made before `choices` took a reference has to run [`pravo init`](init.md) again, because the package that it holds says that `choices` is a string.
 
 A new instance is checked before it is pasted: the viewer loads the specification with the CUE laid over it in memory, and tries the policies on an approximate plan. The check writes nothing.
 

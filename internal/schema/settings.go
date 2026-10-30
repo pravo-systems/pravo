@@ -338,7 +338,7 @@ package pravo
 		//
 		//	ask: {
 		//		notes:   {long: true}
-		//		region:  {choices: "regions.outputs"}
+		//		region:  {choices: regions.outputs}
 		//		network: {entity: {type: "random_id", attr: "hex"}}
 		//		key:     {secret: true}
 		//	}
@@ -349,11 +349,13 @@ package pravo
 			// where the secret comes from, and the code reads it with pravo.#Secret
 			// or pravo.#SecretEnv.
 			secret?: bool
-			// The values to choose from: the path of an attribute that holds them,
-			// as the state has it, such as regions.outputs of a data source. A list
-			// offers its items, a map its keys. Write the same bound in the field
+			// The values to choose from: a reference to the attribute that holds
+			// them, such as regions.outputs of a data source. CUE checks that it
+			// exists, and the form reads it from the state. A list offers its items,
+			// a map its keys. Write the same bound in the field
 			// (region: or([for k, _ in regions.outputs {k}])) and a plan checks it.
-			choices?: string
+			// The path as a string, "regions.outputs", also works but is not checked.
+			choices?: _
 			// An existing resource of this type, read through one of its attributes.
 			entity?: {
 				type: string
