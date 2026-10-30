@@ -922,12 +922,29 @@ func (g *suggester) addReader() Suggestion {
 		// With one reader the card is the answer to the risk the page has just told of, so it leads with it.
 		addWhy = "With one member and no recovery key, nobody can open the state again if that member loses their key or its passphrase. A backup member makes a key and sends the line it prints. A current member adds the line, commits it and rewraps."
 	}
+	who := "the new member, then any member"
+	line := "<the line pravo id new printed>"
+	member := "On the machine of a current member:"
+	steps := []SuggestionStep{note("On the machine of the new member:"), fill("pravo id new --name <name>")}
+	roles := g.a.Roles != nil && g.a.Roles.State != "off"
+	if roles {
+		// With roles, rewrap needs an admin, a line without a role is a reader, and a role is the
+		// state's only once an admin has stored it.
+		addWhy += " Roles are on, so an admin does this: the line needs a role, and the role counts once the admin has saved the roles in the state."
+		who = "the new member, then an admin"
+		line += " role:writer"
+		member = "On the machine of an admin:"
+	}
+	steps = append(steps, note(member), SuggestionStep{Kind: "add-line", File: g.file, Text: line, Placeholder: true})
+	if roles {
+		steps = append(steps, note("Make the last word role:reader, role:writer or role:admin, whatever the new member needs. A CI job that applies is a writer."))
+	}
+	steps = append(append(steps, gitSteps(g.file, "Add a member")...), g.protectCmd("rewrap"))
+	if roles {
+		steps = append(steps, note("Then save the role in the state, signed. It lists what changes and asks first:"), g.protectCmd("roles"))
+	}
 	return Suggestion{ID: "add-reader", Title: g.addTitle, Why: addWhy,
-		Who: "the new member, then any member", Kind: "member-add",
-		Steps: append(append([]SuggestionStep{note("On the machine of the new member:"), fill("pravo id new --name <name>"),
-			note("On the machine of a current member:"),
-			{Kind: "add-line", File: g.file, Text: "<the line pravo id new printed>", Placeholder: true}},
-			gitSteps(g.file, "Add a member")...), g.protectCmd("rewrap"))}
+		Who: who, Kind: "member-add", Steps: steps}
 }
 
 // removals makes a card for each reader in the file who can be removed, up to

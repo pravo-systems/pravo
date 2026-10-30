@@ -123,8 +123,8 @@
   {
    "id": "add-reader",
    "title": "Add a member",
-   "why": "The new member makes a key and sends the line it prints (a CI job is a member too, with a key of its own). A current member adds the line, commits it and rewraps.",
-   "who": "the new member, then any member",
+   "why": "The new member makes a key and sends the line it prints (a CI job is a member too, with a key of its own). A current member adds the line, commits it and rewraps. Roles are on, so an admin does this: the line needs a role, and the role counts once the admin has saved the roles in the state.",
+   "who": "the new member, then an admin",
    "kind": "member-add",
    "steps": [
     {
@@ -138,13 +138,17 @@
     },
     {
      "kind": "note",
-     "text": "On the machine of a current member:"
+     "text": "On the machine of an admin:"
     },
     {
      "kind": "add-line",
-     "text": "\u003cthe line pravo id new printed\u003e",
+     "text": "\u003cthe line pravo id new printed\u003e role:writer",
      "file": ".pravo/access/readers.txt",
      "placeholder": true
+    },
+    {
+     "kind": "note",
+     "text": "Make the last word role:reader, role:writer or role:admin, whatever the new member needs. A CI job that applies is a writer."
     },
     {
      "kind": "command",
@@ -161,6 +165,14 @@
     {
      "kind": "command",
      "text": "pravo protect rewrap"
+    },
+    {
+     "kind": "note",
+     "text": "Then save the role in the state, signed. It lists what changes and asks first:"
+    },
+    {
+     "kind": "command",
+     "text": "pravo protect roles"
     }
    ]
   },

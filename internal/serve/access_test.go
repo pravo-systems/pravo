@@ -1408,6 +1408,30 @@ func TestRolesOfTheAccessDocument(t *testing.T) {
 	}
 }
 
+// With roles on, adding a member is for an admin: the line carries a role, and the role
+// is saved in the state after the rewrap. With roles off the card is the plain one.
+func TestAddMemberWithRoles(t *testing.T) {
+	in := func(f Facts) *Access {
+		return buildAccess(accessInput{rev: "r", location: "x", backend: "s3", format: 3, records: 5, facts: f, path: "/p/.pravo/access/readers.txt", dir: "/p"})
+	}
+	f := sealedFacts()
+	f.Roles = fixRoles("state")
+	add := suggestion(*in(f), "add-reader")
+	if add == nil || add.Who != "the new member, then an admin" || !strings.Contains(add.Why, "Roles are on") {
+		t.Fatalf("add-reader with roles: %+v", add)
+	}
+	if got, want := stepTexts(add, "command"), []string{"pravo id new --name <name>", "git add .pravo/access/readers.txt", "git commit -m 'Add a member'", "git push", "pravo protect rewrap", "pravo protect roles"}; !equalStrings(got, want) {
+		t.Errorf("commands %q, want %q", got, want)
+	}
+	if got, want := stepTexts(add, "add-line"), []string{"<the line pravo id new printed> role:writer"}; !equalStrings(got, want) {
+		t.Errorf("line %q, want %q", got, want)
+	}
+	plain := suggestion(*in(sealedFacts()), "add-reader")
+	if plain == nil || plain.Who != "the new member, then any member" || strings.Contains(plain.Why, "Roles are on") {
+		t.Errorf("add-reader without roles: %+v", plain)
+	}
+}
+
 // Only what needs attention is listed, worst first, and a sealed state with nothing to flag says so.
 func TestAccessIssues(t *testing.T) {
 	in := func(f Facts) *Access {
