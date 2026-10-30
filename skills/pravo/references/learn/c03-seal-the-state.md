@@ -142,7 +142,7 @@ Now `curl` is the leaked bucket. Every object, searched for the password:
 PW=$(pravo state show secret --json | jq -r .node.attributes.result)
 for k in $(curl -s "$FAKES3_URL/northwind-state?list-type=2&prefix=prod/" | grep -o '<Key>[^<]*' | sed 's/<Key>//'); do
   curl -s "$FAKES3_URL/northwind-state/$k"
-done | grep -c -F "$PW" || true
+done | grep -c -F -e "$PW" || true
 ```
 
 Output:
