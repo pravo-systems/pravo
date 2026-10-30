@@ -313,6 +313,70 @@ package pravo
 	username?: string
 	password?: string
 }
+
+// Embed #Template in a definition to make it a template: the viewer lists it in
+// its catalog, builds a form from its inputs and shows the instances that were
+// made from it. An instance is an ordinary struct of resources; the marker
+// travels into it and ties it to the template.
+//
+//	#Service: pravo.#Template & {
+//		$template: {name: "service", title: "Service"}
+//		name: string
+//		...
+//	}
+#Template: {
+	$template: {
+		// What the instances are called in the catalog and in the links.
+		name: string
+		// A short title, and a sentence on what an instance is for.
+		title?:       string
+		description?: string
+		// The inputs the form asks for, in order, and how it asks for each. Every
+		// key is a field of the definition. Without inputs, the form asks for the
+		// fields that hold no resource, and takes their type, default and comment.
+		//
+		//	inputs: {
+		//		name:    {}
+		//		owner:   {label: "Owning team", description: "Who gets paged."}
+		//		region:  {choices: regions.outputs}
+		//		network: {entity: {type: "random_id", attr: "hex"}}
+		//		notes:   {label: "Notes for on-call", as: "text"}
+		//		key:     {as: "secret"}
+		//	}
+		inputs?: [Name=string]: #TemplateInput
+	}
+	// The definition goes on with its own fields.
+	...
+}
+
+// How a template's form asks for one input. Without a hint the form follows the
+// type of the field. At most one of choices, entity and as.
+#TemplateInput: {
+	// What the form calls the input, and the text under it. Without them the
+	// form shows the name of the field and the comment above it.
+	label?:       string
+	description?: string
+	*{} | {
+		// The values to choose from: a reference to the attribute that holds
+		// them, such as regions.outputs of a data source. CUE checks that it
+		// exists, and the form reads it from the state. A list offers its items,
+		// a map its keys. Write the same bound in the field
+		// (region: or([for k, _ in regions.outputs {k}])) and a plan checks it.
+		// The path as a string, "regions.outputs", also works but is not checked.
+		choices: _
+	} | {
+		// An existing resource of this type, read through one of its attributes.
+		entity: {
+			type: string
+			attr: string
+		}
+	} | {
+		// "text" is a text area. "secret" is a value kept as a secret: the form
+		// never takes it, it asks where it comes from, and the code reads it with
+		// pravo.#Secret or pravo.#SecretEnv.
+		as: "text" | "secret"
+	}
+}
 `
 
 // PlanDocumentSource is the part of the pravo package that describes what a policy

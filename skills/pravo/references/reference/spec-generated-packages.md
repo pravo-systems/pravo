@@ -8,7 +8,7 @@ The CUE packages that pravo init writes under cue.mod/gen, one per provider and 
 
 | Import path | Contents |
 |---|---|
-| `pravo.dev/pravo` | `#Settings`, `#Output`, `#Env`, `#SecretEnv`, `#RemoteOutputs`, `#Movable` and the types of the `state` setting. |
+| `pravo.dev/pravo` | `#Settings`, `#Output`, `#Env`, `#SecretEnv`, `#RemoteOutputs`, `#Movable`, `#Template`, `#TemplateInput` and the types of the `state` setting. |
 | `pravo.dev/providers/<namespace>/<type>` | One provider: `#Provider`, with `#Resource`, `#Data`, `#Ephemeral`, `#Discovery` and `#Function` as members, and `#Lifecycle`. |
 | `pravo.dev/providers/<host>/<namespace>/<type>` | A provider from a registry other than the default one. |
 
@@ -83,6 +83,7 @@ Run `pravo init` before the first `plan`. Commit `cue.mod/gen` and `pravo.lock.c
 | `#Secret`, `#SecretVersion` | A secret of the sealed state, and the number of its version. See [Secrets of the sealed state](spec-env.md#secrets-of-the-sealed-state). |
 | `#RemoteOutputs` | The outputs of another root. |
 | `#Movable` | Embedded in a definition so that its instances accept `$from`. See [Moves and imports](spec-moves-and-imports.md#from-on-a-group). |
+| `#Template`, `#TemplateInput` | Embedded in a definition to make it a template, which the viewer offers as a form, and how the form asks for one of its inputs. See [Templates](spec-reuse.md#templates). |
 
 ```sh
 grep -E '^#[A-Za-z0-9]+:' cue.mod/gen/pravo.dev/pravo/settings_gen.cue
@@ -108,6 +109,8 @@ Output:
 #LocalState: {
 #S3State: {
 #HTTPState: {
+#Template: {
+#TemplateInput: {
 ```
 
 ## The provider package

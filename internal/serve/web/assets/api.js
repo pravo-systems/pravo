@@ -45,6 +45,12 @@ export const discovery = () => get('/api/discovery').catch((err) => { if (err &&
 export const policies = () => get('/api/policies').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, checked: false, in_force: 0, pending: 0, policies: [], command: 'pravo apply' }; throw err; });
 // secrets is the secrets of the sealed state, in the clear: their names, versions and signers, never a value, set against the nodes that read them; a server that does not know them says the state keeps none.
 export const secrets = () => get('/api/secrets').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, sealed: false, checked: false, secrets: [], issues: [], problems: 0 }; throw err; });
+// templates is the templates of the specification with their inputs and instances; a server that does not know them has none.
+export const templates = () => get('/api/templates').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', spec_ok: true, templates: [] }; throw err; });
+// templateTry loads the specification with the code of a new instance laid over it in memory, and answers what CUE and the policies say. Nothing is written.
+export const templateTry = (params, signal) => get('/api/templates/try?' + params.toString(), signal);
+// templateRefs lists attributes of the resources of the estate that an input of a kind could read. It carries no value.
+export const templateRefs = (kind, q) => get('/api/templates/refs?kind=' + encodeURIComponent(kind) + '&q=' + encodeURIComponent(q || ''));
 // studio is what a rule can be tried on (the stored plans and the plan files of the project), the policies and examples to start from, and the schema of the plan document.
 export const studio = () => get('/api/studio');
 // tryRule holds the policies of a text against plans. Nothing is written: it is a GET, as every request of the page is.
@@ -122,3 +128,7 @@ export async function askChat(messages, context, onEvent, signal) {
     }
   }
 }
+// templateChoices lists the values that an input of a template offers, as the node that holds them has them in the state.
+export const templateChoices = (template, input) => get('/api/templates/choices?template=' + encodeURIComponent(template) + '&input=' + encodeURIComponent(input));
+// templateEntities lists the resources of the type that an input of a template refers to.
+export const templateEntities = (template, input, q) => get('/api/templates/entities?template=' + encodeURIComponent(template) + '&input=' + encodeURIComponent(input) + '&q=' + encodeURIComponent(q || ''));

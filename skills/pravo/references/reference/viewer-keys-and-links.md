@@ -12,7 +12,7 @@ A fragment looks like `#/?sel=api.services.billing.config&tab=source&collapse=ne
 
 | Parameter | Value | Meaning |
 |---|---|---|
-| `view` | `graph`, `list`, `plans`, `discovery`, `policies`, `traces`, `secrets` or `state` | The section, and for the Inventory whether the graph or the list is shown. `table` and `access` are older names of `list` and `state`, and a link that has them still opens. |
+| `view` | `graph`, `list`, `plans`, `discovery`, `policies`, `templates`, `traces`, `secrets` or `state` | The section, and for the Inventory whether the graph or the list is shown. `table` and `access` are older names of `list` and `state`, and a link that has them still opens. |
 | `sel` | An address, or the path of a group | The selected node or group. It opens the groups and the cluster that hide the node, unless `collapse` names a group that holds it. |
 | `tab` | `state`, `source`, `schema`, `history` or `change` | The tab of the inspector. `change` shows what the plan over the graph does to the node. |
 | `collapse` | Group paths, or `all` | Groups drawn as one card, on top of the first view. |
@@ -22,6 +22,8 @@ A fragment looks like `#/?sel=api.services.billing.config&tab=source&collapse=ne
 | `plan` | `plan-` and the hexadecimal digits of an id, or `none` | A stored plan laid over the graph, by its whole id. The page writes it when you choose a plan, and leaves it out when the plan is the one that `--plan ID` laid. `none` takes off the plan that `--plan ID` laid. An id that the state does not hold is told in a notice and ignored. |
 | `plq` | Text | The finder of the Plans section: words, and terms of the form `column:value`. About the plan: `status`, `by`, `id`, `reason`, `created`, `expires`, `overlap`. About its changes: `action`, `resource`, `ns`, `type`, `provider`, `change`. |
 | `dq` | Text | The filter box of the Discovery section: words, and terms of the form `column:value` ([the columns](viewer-sections.md#filtering-the-objects)). |
+| `tpl` | A template name | The template that the Templates section opens, by the `name` in its marker. |
+| `tn` | `1` | The wizard of that template, which makes a new instance. |
 | `pol` | Text | The policy that is open in the Policies section, by its name. |
 | `ps` | `1` | The policy studio, the second page of the Policies section. |
 | `trace` | A run id: 32 hexadecimal digits, a hyphen and 16 more | The recorded run that the Traces section opens. Without it the newest is open. A run that is not in the directory is told in a notice and ignored. |
@@ -65,6 +67,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `s` | Open the policy studio, or go back to the register when it is open. |
 | `r` | Switch between the Inventory and the Traces sections. |
 | `e` | Switch between the Inventory and the Secrets sections. |
+| `m` | Switch between the Inventory and the Templates sections. |
 | `c` | Open or close the Ask panel, when the viewer was started with [the assistant](serve.md#the-assistant). |
 | Esc | Close the palette, the sheet, a drawer or the Ask panel. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the group that a click opened, then clear the selection. |
 

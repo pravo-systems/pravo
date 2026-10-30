@@ -131,10 +131,12 @@ type Server struct {
 	// planMeta keeps the summaries of the stored plans between the models.
 	planMeta *engine.PlanMetaCache
 	opts     Options
-	token    string
-	cookie   string
-	schemas  *cacheStore
-	watch    *watcher
+	// tplMu orders the loads of the specification that the template wizard makes.
+	tplMu   sync.Mutex
+	token   string
+	cookie  string
+	schemas *cacheStore
+	watch   *watcher
 
 	// buildMu orders the builds of models, and guards spec, plan and failedAt.
 	buildMu     sync.Mutex
@@ -458,7 +460,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -501,6 +503,16 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		s.tryHandler(w, r, m)
 	case "/api/studio/doc":
 		s.docHandler(w, r, m)
+	case "/api/templates":
+		writeJSON(w, http.StatusOK, m.templates())
+	case "/api/templates/try":
+		s.templateTryHandler(w, r, m)
+	case "/api/templates/refs":
+		s.templateRefsHandler(w, r, m)
+	case "/api/templates/choices":
+		s.templateChoicesHandler(w, r, m)
+	case "/api/templates/entities":
+		s.templateEntitiesHandler(w, r, m)
 	case "/api/adopt":
 		s.adopt(w, r, m)
 	case "/api/plan":

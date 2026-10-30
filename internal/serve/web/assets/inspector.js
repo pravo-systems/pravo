@@ -185,7 +185,7 @@ export class Inspector {
       long: ns.name.length > 22,
       path: this.crumbs(ns.up && !ns.up.isRoot ? ns.up : null, model, null),
       copy: ns.path,
-      tags: [h('span', { class: 'b' }, plural(a.n, 'resource')), ns.kids.length ? h('span', { class: 'b' }, plural(ns.kids.length, 'subgroup')) : null, a.out ? h('span', { class: 'b' }, plural(a.out, 'output')) : null],
+      tags: [ns.template ? h('button', { type: 'button', class: 'b ok tplb', title: `An instance of the template ${ns.template.title}. Open the template.`, on: { click: () => this.cb.onTemplate && this.cb.onTemplate(ns.template.name) } }, icon('template'), 'template · ' + ns.template.title) : null, h('span', { class: 'b' }, plural(a.n, 'resource')), ns.kids.length ? h('span', { class: 'b' }, plural(ns.kids.length, 'subgroup')) : null, a.out ? h('span', { class: 'b' }, plural(a.out, 'output')) : null],
     });
     this.paint(namespacePanel(this, ns, model, collapsed));
     this.root.dataset.mode = 'namespace';

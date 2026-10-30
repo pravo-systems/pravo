@@ -163,6 +163,14 @@ type Namespace struct {
 	// definition it instantiates is written, when that can be told.
 	Declared   *Ref `json:"declared,omitempty"`
 	Definition *Ref `json:"definition,omitempty"`
+	// Template names the template that the namespace is an instance of, when it carries the marker.
+	Template *NamespaceTemplate `json:"template,omitempty"`
+}
+
+// NamespaceTemplate is the template an instance was made from.
+type NamespaceTemplate struct {
+	Name  string `json:"name"`
+	Title string `json:"title"`
 }
 
 // Ref is a position in a file of the evaluation. File is the display path: a

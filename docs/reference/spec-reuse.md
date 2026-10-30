@@ -375,6 +375,90 @@ With `prefix: "eu-"` the same root validates.
 
 A constraint rejects a value that is set and wrong. It does not reject an attribute that is left out. An unset attribute with no reference to another resource is sent to the provider as null. A rule that an attribute is present is a rule for a policy. See [Providers](spec-providers.md#provider-scoped-constraints) and [Policies](policies-overview.md).
 
+## Templates
+
+A definition that embeds `pravo.#Template` is a template. [The viewer](viewer-sections.md#the-templates-section) lists it in a catalog, builds a form from its inputs and gives the CUE of a new instance to paste. The form is made from the definition: the type, the default, the comment and the constraint of each input field are read from it, so a definition with constraints needs nothing more.
+
+```cue
+#Service: pravo.#Template & {
+	$template: {
+		name:  "service"
+		title: "Web service"
+		// The fields the form asks for, in order. Without it the form asks for
+		// every field that holds no resource.
+		inputs: {name: {}, env: {}}
+	}
+	// Lowercase letters and dashes.
+	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
+	env:  *"dev" | "staging" | "prod"
+	secret: $random.#Resource.random_password & {length: 24}
+}
+
+services: web: #Service & {name: "web", env: "prod"}
+```
+
+The marker `$template` is an ordinary field. It passes into every instance when the definition is instantiated with `&`, so `services.web` carries `$template: name: "service"`, and that is how the viewer knows which template an instance came from. An instance is a group like any other: its resources have the addresses `services.web.secret`, and nothing about it differs in a plan. `$template` has `name` and, optionally, `title`, `description` and `inputs`. The definition is open, so a template adds fields of its own.
+
+### Inputs that are not typed in
+
+`$template.inputs` is one struct with an entry for each input. The key is a field of the definition, and the order of the keys is the order of the form. An entry says more of an input than its type does, and an empty entry, `name: {}`, says nothing. Every entry may have a `label`, which the form shows instead of the name of the field, and a `description`, which it shows above the input instead of the comment of the field. Without them the form shows the name and the comment.
+
+```cue
+#Service: pravo.#Template & {
+	$template: {
+		name: "service"
+		inputs: {
+			name: {}
+			// Values to choose from, read from a node of the graph.
+			region: {choices: regions.outputs}
+			// A resource of the estate to refer to.
+			network: {entity: {type: "random_id", attr: "hex"}}
+			// A long text, with a label and a description of its own.
+			notes: {as: "text", label: "Notes for on-call", description: "Who to page, and in what order."}
+			tags:  {}
+		}
+	}
+	name:    string
+	region:  or([for k, _ in regions.outputs {k}])
+	network: string
+	notes:   *"" | string
+	tags:    *[] | [...string]
+}
+```
+
+An entry is closed and says at most one of `choices`, `entity` and `as`, so a misspelt key, or two of them, is an error of `pravo validate` with the line. A key that is not a field of the definition, or that names a field that holds a resource or is fixed to a value, is shown on the page of the template in the viewer.
+
+| Entry | The form shows | The code holds |
+|---|---|---|
+| `choices: NODE.ATTR` | A list of the values that the state holds at the attribute that the reference points to. A list offers its items, and a map its keys, with the value as the label. A value that the Inventory withholds is not offered. | The value that was picked, as a string. |
+| `entity: {type, attr}` | The managed resources of that type that the specification declares, with a search. A sensitive or write-only attribute is never offered. | The reference, such as `core.network_id.hex`, so the instance follows the resource. |
+| `as: "text"` | A text area. | The text, as one CUE string. |
+| `as: "secret"` | A choice of where the secret comes from, and its name. It takes no value. | The input reads the `value` of a secret that the code declares. See below. |
+
+A list of strings or of numbers is a row of chips with an empty entry.
+
+The entry helps the form; the constraint stays in the definition. `region` above is a disjunction over what the data source `regions` reports, so a plan reads the data source and refuses a region that it does not list. The list in the form is what the state recorded at the last plan, and a value that is not in it is refused in the form before the code is pasted. `choices` is a reference, so CUE checks that it names something: a misspelt node is an error of `pravo validate`, as for any reference. The path written as a string, `"regions.outputs"`, also works but nothing checks it, and the form only says that no node is there. A node that has no record yet has nothing to offer, and the form says so and takes a typed value.
+
+A secret input never takes its value on the page. The form asks for the source, `pravo.#Secret` of a sealed state or `pravo.#SecretEnv` for an environment variable, and for a name. The code that it writes declares the secret next to the instance and passes `value` to the input:
+
+```cue
+certs: edge: #Certificate & {
+	common_name: "edge.example.com"
+	signing_key: edge_signing_key.value
+}
+
+// Set it before the apply: pravo secret set certificate/edge/signing_key
+edge_signing_key: pravo.#Secret & {name: "certificate/edge/signing_key"}
+```
+
+The form says whether the sealed state holds the secret already, and gives the command that sets it when it does not. The template has to pass the input only to a write-only attribute, to the configuration of a provider or to an ephemeral resource, as with any secret: [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) says where a secret may go.
+
+A root made before `inputs` took a struct has to run [`pravo init`](init.md) again, because the package that it holds describes the older form.
+
+A new instance is checked before it is pasted: the viewer loads the specification with the CUE laid over it in memory, and tries the policies on an approximate plan. The check writes nothing.
+
+The package `pravo.dev/pravo` is written by [`pravo init`](init.md), so a root made before `#Template` was added has to run it again.
+
 ## See also
 
 - [Share code between roots in one repository](../how-to/share-code-between-roots.md), [Publish a CUE module](../how-to/publishing-a-module.md) and [Use a published CUE module](../how-to/using-a-module.md) cover the three ways to share code.

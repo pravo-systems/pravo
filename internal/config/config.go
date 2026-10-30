@@ -238,6 +238,10 @@ type LoadOptions struct {
 	// loader reads (CUE_REGISTRY, CUE_CACHE_DIR, HOME). It is empty unless set;
 	// the environment of the process is never consulted.
 	Env env.Env
+	// Extra holds files that are laid over the package for this load only, by name
+	// relative to the package directory. Nothing is written. The viewer uses it to
+	// load the specification as it would be with a snippet pasted in.
+	Extra map[string]string
 }
 
 // stage starts the span of a stage of loading.
@@ -262,7 +266,7 @@ func Load(dir string, opts LoadOptions) (*Root, error) {
 	}
 	opts.Env = RegistryEnv(opts.Env, abs)
 	if overlay := pruneOverlay(abs, opts.Env); len(overlay) > 0 {
-		if r, err := loadPackage(abs, files, opts, overlay); err == nil {
+		if r, err := loadPackage(abs, files, opts, extraOverlay(abs, overlay, opts.Extra)); err == nil {
 			r.Pruned = true
 			return r, nil
 		}
@@ -270,7 +274,22 @@ func Load(dir string, opts LoadOptions) (*Root, error) {
 		// type that the scan missed is found, and how the message names a position
 		// in the file on disk.
 	}
-	return loadPackage(abs, files, opts, nil)
+	return loadPackage(abs, files, opts, extraOverlay(abs, nil, opts.Extra))
+}
+
+// extraOverlay adds the files of LoadOptions.Extra to an overlay.
+func extraOverlay(abs string, overlay map[string]load.Source, extra map[string]string) map[string]load.Source {
+	if len(extra) == 0 {
+		return overlay
+	}
+	out := make(map[string]load.Source, len(overlay)+len(extra))
+	for k, v := range overlay {
+		out[k] = v
+	}
+	for name, text := range extra {
+		out[filepath.Join(abs, name)] = load.FromString(text)
+	}
+	return out
 }
 
 // pruneOverlay is the overlay of the generated provider packages without the

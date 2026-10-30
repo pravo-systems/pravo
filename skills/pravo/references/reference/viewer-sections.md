@@ -4,11 +4,12 @@
 
 What each section of the viewer shows and how to read it: Inventory, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector.
 
-The viewer that [`pravo serve`](serve.md) starts is one page with seven sections. The bar at the top switches between them, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
+The viewer that [`pravo serve`](serve.md) starts is one page with eight sections. The bar at the top switches between them, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
 
 | Section | Shows | Key | Link |
 |---|---|---|---|
 | Inventory | Every resource, data source, ephemeral resource, call and output of the specification and of the state, as a graph or a list, with an inspector for the selection. | `g` switches the graph and the list | `view=graph`, `view=list` |
+| Templates | The definitions of the specification that are templates, a form for each that gives the CUE of a new instance, and the instances that exist. Writes nothing. | `m` | `view=templates` |
 | Plans | The plans stored in the state: who made each, where it stands, what it changes, and the command that applies it. | `p` | `view=plans` |
 | Discovery | What the discoveries of the specification found, and which objects nothing manages. | `d` | `view=discovery` |
 | Policies | The policies in force, what the next apply writes, and the studio that tries a rule on plans. | `o`, and `s` for the studio | `view=policies` |
@@ -18,7 +19,7 @@ The viewer that [`pravo serve`](serve.md) starts is one page with seven sections
 
 The tab of Discovery carries the number of objects that ask to be adopted, the tab of Policies the number of policies that the next apply changes, and the tab of Secrets the number of problems it flags; a tab with nothing waiting carries no number. The bar also holds the search button, which opens the command palette, the theme button, and, when the state is sealed, the identity the page is read as: its name, or `not a reader`, `no identity` or `identity locked` beside it. The title of the browser tab names the project and the section, so that tabs of several estates tell apart.
 
-When the viewer is started with [the assistant](serve.md#the-assistant), a speech-bubble button in the bar, or `c`, opens [the Ask panel](#the-ask-panel) in the column at the right of any section. It is a panel and not an eighth section.
+When the viewer is started with [the assistant](serve.md#the-assistant), a speech-bubble button in the bar, or `c`, opens [the Ask panel](#the-ask-panel) in the column at the right of any section. It is a panel and not a ninth section.
 
 A status bar runs along the bottom of every section: the revision of the data, when it was read, `live`, `reconnecting`, `offline` or `connecting`, and `read-only · localhost only`. In Inventory it also says `no plan loaded`, or the id of the plan laid over the graph with `planned N of M` and the number of resources the plan did not read.
 
@@ -251,6 +252,24 @@ The Traces section shows the runs that pravo recorded in the project. With `PRAV
 *Figure: The slowest spans of the same run as a table, longest first, with the time each spent in itself.*
 
 The values in a trace are the ones that a trace has anywhere: addresses, types, actions, counts, outcomes and error messages, never attribute values. The viewer masks them as it masks every other text that it shows, so an error message that quotes a secret of the state does not show it. A directory that holds a file that is not a run of this version shows its count and not the file. [The keys of the timeline](viewer-keys-and-links.md#in-the-timeline) move the selection and the view.
+
+## The Templates section
+
+The Templates section lists the templates of the specification and makes the CUE of a new instance. A template is a definition that embeds `pravo.#Template`; [Templates](spec-reuse.md#templates) says how one is written. Its link is `view=templates`, and its key is `m`. The tab carries no number. The page writes nothing: it shows CUE, and a person pastes it into the specification.
+
+| Part | Holds |
+|---|---|
+| The catalog | One card for each template: its title, the definition that makes it, its description, and how many instances and inputs it has. Only the templates written in the root are listed. A template that a package defines is listed once a definition of the root embeds it. |
+| The template | Where the definition is written, a table of its inputs with the type, the default and the comment of each, and a table of its instances: the address, the values it sets, and how many of its resources the state holds, `3 of 3`, or `not applied` while it holds none. A click on an address shows the group in the Inventory. The link is `tpl=NAME`. |
+| The wizard | Opened by New instance, with `tn=1` in the link. A name for the instance, the struct it joins (`services`, where its siblings are, or the top level), and one field for each input. An enum is a row of buttons, and the constraint of the field is written beside it. From the graph lists attributes that resources of the estate declare, such as `core.network_id.hex`, and writes the reference, so that the new instance reads the value when it is applied. Each row shows what the state holds for the attribute now, and so does the field once the reference is picked, as `core.network_id.hex = "9013400b"`. A resource that has no record says `known after apply`, and a value that the Inventory withholds is withheld here. The value is a snapshot of the last plan or apply, not what a later apply will produce. A template can ask for other controls in [`$template.inputs`](spec-reuse.md#inputs-that-are-not-typed-in): a list of values that a node of the graph holds, a picker of existing resources, a text area, and a secret. A list of strings is a row of chips. |
+| The code | The CUE of the instance, as it would be pasted, with a button that copies it and the file that most instances are written in. |
+| The checks | Three cards under the code, which follow each value as it is typed. The first says whether the specification loads with the code laid over it, and CUE's message for a value it refuses, under the field. The second lists the resources the code would add. The third gives the verdict of each policy in force on an approximate plan, in which every new resource is a create and only the values that the code sets are known. A rule that reads a value that a provider decides is reported as not decided, never as a pass. |
+
+A secret input never takes a value. The form asks where the secret is read from, the sealed state or an environment variable, and what it is called, and the code declares it. A card under the code says whether the sealed state holds the secret and gives `pravo secret set NAME` to copy when it does not. The Sealed state choice is off while the state is not sealed.
+
+An input that is a reference cannot be checked against its constraint until the plan runs, because its value is not known before then; the picker says so. The checks load the specification in memory with the code laid over it, so a long specification takes a moment to answer, and nothing is written to disk or to the state.
+
+In the Inventory, a group that was made from a template carries the title of the template under its name and a tag in the inspector that opens the template.
 
 ## The Secrets section
 
