@@ -423,7 +423,7 @@ func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
 	}
 	secrets, taint := m.secretsAt(po, mn.Addr), map[string]bool(nil)
 	if t, ok := m.taintOf(mn.Addr); ok {
-		secrets, taint = m.secretsFor(po).scopedTo(map[string]bool{mn.Addr: true}), t
+		secrets, taint = m.ownText(po, mn.Addr), t
 	}
 	before, after := ch.Prior, ch.Planned
 	switch ch.Action {

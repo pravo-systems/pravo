@@ -274,7 +274,7 @@ func (m *model) taintOf(addr string) (map[string]bool, bool) {
 // it computes; any other is judged by the strings of what it reads (secretsAt).
 func (m *model) walkFor(po *planOverlay, addr string, build bool) *walk {
 	if t, ok := m.taintOf(addr); ok {
-		return &walk{secrets: m.secretsFor(po).scopedTo(map[string]bool{addr: true}), taint: t, build: build}
+		return &walk{secrets: m.ownText(po, addr), taint: t, build: build}
 	}
 	return &walk{secrets: m.secretsAt(po, addr), build: build}
 }
