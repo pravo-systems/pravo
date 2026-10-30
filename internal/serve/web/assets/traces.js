@@ -9,6 +9,7 @@
 import { h, s as svg, clear, icon, plural, relTime, stamp, clamp, fmt } from './util.js';
 import * as api from './api.js';
 import { build, fmtDur, ticks, path as pathOf, matcher, labelOf, LANG } from './trace-model.js';
+import { busy } from './ui.js';
 import { Pills } from './pills.js';
 import { QueryMenu, removeTerm, addTerm, removeValues, parseQuery } from './query.js';
 import { suggest, tally, hasKind, hasErrors, toggleKind, toggleErrors } from './tquery.js';
@@ -172,7 +173,7 @@ export class TracesView {
     clear(this.root);
     this.plot = this.canvas = this.ruler = null;
     const list = this.list;
-    const body = !list ? h('p', { class: 'tr-empty' }, this.error ? '' : 'Reading the runs')
+    const body = !list ? (this.error ? h('p', { class: 'tr-empty' }) : busy('Reading the runs', { block: true }))
       : !list.traces.length ? this.none(list)
         : h('div', { class: 'tr-layout' }, this.main());
     const cur = list && list.traces.find((t) => t.id === this.id);
@@ -231,7 +232,7 @@ export class TracesView {
   }
 
   main() {
-    if (this.loading && !this.model) return h('section', { class: 'tr-main' }, h('p', { class: 'tr-empty' }, 'Reading the run'));
+    if (this.loading && !this.model) return h('section', { class: 'tr-main' }, busy('Reading the run', { block: true }));
     if (!this.model) return h('section', { class: 'tr-main' }, h('p', { class: 'tr-empty' }, 'Choose a run.'));
     const d = this.doc;
     return h('section', { class: 'tr-main', 'aria-label': `The run ${d.command}` },
