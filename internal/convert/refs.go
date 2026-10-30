@@ -69,6 +69,14 @@ func (r RefInfo) HasTaskRef() bool { return len(r.TaskRefs) > 0 }
 // position) and reports references to tasks and to incomplete non-task
 // values. References into self are ignored.
 func AnalyseWith(v cue.Value, resolve Resolver, self *cue.Path) RefInfo {
+	return analyse(v, resolve, self, false)
+}
+
+// analyse is AnalyseWith. With deep set it follows a reference to a plain field
+// whether or not that field is concrete yet: once a task has filled in its
+// values, a field built from it is concrete, and only the chain of references
+// still says where the value came from.
+func analyse(v cue.Value, resolve Resolver, self *cue.Path, deep bool) RefInfo {
 	if resolve == nil {
 		resolve = ResolverFunc(func(cue.Path) (cue.Path, cue.Path, bool) { return cue.Path{}, cue.Path{}, false })
 	}
@@ -189,10 +197,10 @@ func AnalyseWith(v cue.Value, resolve Resolver, self *cue.Path) RefInfo {
 					// below it as a source and validate everything it holds.
 					target := root.LookupPath(p)
 					if !nav && target.Exists() {
-						if d, _ := target.Default(); d.Validate(cue.Concrete(true)) != nil {
+						if d, _ := target.Default(); deep || d.Validate(cue.Concrete(true)) != nil {
 							before := len(info.TaskRefs)
 							walk(target, depth+1, false)
-							if len(below) == 0 && len(info.TaskRefs) == before && info.Incomplete == nil {
+							if !deep && len(below) == 0 && len(info.TaskRefs) == before && info.Incomplete == nil {
 								pp := p
 								info.Incomplete = &pp
 							}
@@ -234,6 +242,18 @@ func AnalyseWith(v cue.Value, resolve Resolver, self *cue.Path) RefInfo {
 // tasks it references, whether or not the referenced values are concrete,
 // together with the alias prefixes used to reach them.
 func Dependencies(v cue.Value, self cue.Path, resolve Resolver) (deps []cue.Path, aliases []Alias) {
+	return dependencies(v, self, resolve, false)
+}
+
+// SourceTasks is Dependencies, but follows every reference to a plain field to
+// what the field is built from, concrete or not. It answers which tasks a value
+// came from after their results were filled in.
+func SourceTasks(v cue.Value, self cue.Path, resolve Resolver) []cue.Path {
+	deps, _ := dependencies(v, self, resolve, true)
+	return deps
+}
+
+func dependencies(v cue.Value, self cue.Path, resolve Resolver, deep bool) (deps []cue.Path, aliases []Alias) {
 	seen := map[string]bool{}
 	aliasSeen := map[string]bool{}
 	var visit func(v cue.Value, depth int)
@@ -241,7 +261,7 @@ func Dependencies(v cue.Value, self cue.Path, resolve Resolver) (deps []cue.Path
 		if depth > 32 {
 			return
 		}
-		info := AnalyseWith(v, resolve, &self)
+		info := analyse(v, resolve, &self, deep)
 		for _, t := range info.TaskRefs {
 			if !seen[t.String()] {
 				seen[t.String()] = true

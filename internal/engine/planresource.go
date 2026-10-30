@@ -146,7 +146,7 @@ func (e *Engine) startPlan(r *config.Resource, v cue.Value, strict bool) (*resou
 		e.onConvert(addr, strict)
 	}
 	e.cueMu.Lock()
-	conv := &convert.Converter{Strict: strict, Self: r.Path, Resolve: e.resolver(), IsEphemeral: e.isEphemeral}
+	conv := &convert.Converter{Strict: strict, Self: r.Path, Resolve: e.resolver(), IsEphemeral: e.ephemeralCheck()}
 	cfg := conv.Block(addr, s.Block, v)
 	cbd, prevent, ignore, age := lifecycle(v)
 	e.cueMu.Unlock()

@@ -137,6 +137,16 @@ func (e *Engine) isEphemeral(p cue.Path) bool {
 	return ok && r.Mode == "ephemeral"
 }
 
+// ephemeralCheck is isEphemeral for a converter, or nil when the specification
+// has no ephemeral resource: following the references of every value for one is
+// work that a specification without any does not need.
+func (e *Engine) ephemeralCheck() func(cue.Path) bool {
+	if e.hasEphemeral {
+		return e.isEphemeral
+	}
+	return nil
+}
+
 // buildGraph computes dependencies for every declared task from the
 // references in its body, independent of whether values are known yet. A
 // cycle among the tasks is an error: nothing could run first. The graph is
