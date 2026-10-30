@@ -102,7 +102,7 @@ func (c *Converter) unknownOrNull(path string, v cue.Value, t tftypes.Type) tfty
 	if info.Incomplete != nil || (v.Err() != nil && v.Exists()) {
 		err := IncompleteError(path, v, info)
 		if c.Resolve != nil {
-			if name := shadowedName(c.Resolve.Value(cue.Path{})); name != "" {
+			if name := shadowedName(c.Resolve.Value(cue.Path{})); name != "" && strings.Contains(err.Error(), "undefined as "+name+" is incomplete") {
 				err = fmt.Errorf("%w\n(%s inside {%s: ...} is the field %s of that struct, not %s outside it; rename the key, or bind the outer one first with let)", err, name, name, name, name)
 			}
 		}
