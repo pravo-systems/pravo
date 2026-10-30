@@ -119,7 +119,7 @@ func (s *Server) traces(w http.ResponseWriter, r *http.Request) {
 	}
 	var wg sync.WaitGroup
 	next := make(chan int)
-	for w := 0; w < min(len(todo), runtime.GOMAXPROCS(0)); w++ {
+	for range min(len(todo), runtime.GOMAXPROCS(0)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
