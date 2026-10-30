@@ -331,45 +331,51 @@ package pravo
 		// A short title, and a sentence on what an instance is for.
 		title?:       string
 		description?: string
-		// The inputs the form asks for, in order. Without it, the form asks for
-		// the fields of the definition that hold no resource.
-		inputs?: [...string]
-		// How the form asks for an input that its type does not say.
+		// The inputs the form asks for, in order, and how it asks for each. Every
+		// key is a field of the definition. Without inputs, the form asks for the
+		// fields that hold no resource, and takes their type, default and comment.
 		//
-		//	ask: {
-		//		notes:   {long: true, label: "Notes for on-call"}
+		//	inputs: {
+		//		name:    {}
+		//		owner:   {label: "Owning team", description: "Who gets paged."}
 		//		region:  {choices: regions.outputs}
 		//		network: {entity: {type: "random_id", attr: "hex"}}
-		//		key:     {secret: true}
+		//		notes:   {label: "Notes for on-call", as: "text"}
+		//		key:     {as: "secret"}
 		//	}
-		ask?: [string]: {
-			// What the form calls the input, and the text under it. Without them
-			// the form shows the name of the field and the comment above it.
-			label?:       string
-			description?: string
-			// A long text: the form gives it a text area.
-			long?: bool
-			// A value kept as a secret. The form never takes the value: it asks
-			// where the secret comes from, and the code reads it with pravo.#Secret
-			// or pravo.#SecretEnv.
-			secret?: bool
-			// The values to choose from: a reference to the attribute that holds
-			// them, such as regions.outputs of a data source. CUE checks that it
-			// exists, and the form reads it from the state. A list offers its items,
-			// a map its keys. Write the same bound in the field
-			// (region: or([for k, _ in regions.outputs {k}])) and a plan checks it.
-			// The path as a string, "regions.outputs", also works but is not checked.
-			choices?: _
-			// An existing resource of this type, read through one of its attributes.
-			entity?: {
-				type: string
-				attr: string
-			}
-			...
-		}
+		inputs?: [Name=string]: #TemplateInput
 	}
 	// The definition goes on with its own fields.
 	...
+}
+
+// How a template's form asks for one input. Without a hint the form follows the
+// type of the field. At most one of choices, entity and as.
+#TemplateInput: {
+	// What the form calls the input, and the text under it. Without them the
+	// form shows the name of the field and the comment above it.
+	label?:       string
+	description?: string
+	*{} | {
+		// The values to choose from: a reference to the attribute that holds
+		// them, such as regions.outputs of a data source. CUE checks that it
+		// exists, and the form reads it from the state. A list offers its items,
+		// a map its keys. Write the same bound in the field
+		// (region: or([for k, _ in regions.outputs {k}])) and a plan checks it.
+		// The path as a string, "regions.outputs", also works but is not checked.
+		choices: _
+	} | {
+		// An existing resource of this type, read through one of its attributes.
+		entity: {
+			type: string
+			attr: string
+		}
+	} | {
+		// "text" is a text area. "secret" is a value kept as a secret: the form
+		// never takes it, it asks where it comes from, and the code reads it with
+		// pravo.#Secret or pravo.#SecretEnv.
+		as: "text" | "secret"
+	}
 }
 `
 

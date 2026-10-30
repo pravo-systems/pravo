@@ -36,7 +36,7 @@ $fake: {
 		name:        "box"
 		title:       "Box"
 		description: "A database in a box."
-		inputs: ["name", "port", "tier"]
+		inputs: {name: {}, port: {}, tier: {}}
 	}
 	// Lowercase letters only.
 	name: string & =~"^[a-z]+$"

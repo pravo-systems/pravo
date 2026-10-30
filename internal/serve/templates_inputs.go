@@ -14,7 +14,7 @@ import (
 )
 
 // The inputs of a template that are not typed in: values to choose from that a node of the graph holds, existing
-// resources to refer to, and secrets. A template says which in $template.ask; the form takes the choice and the
+// resources to refer to, and secrets. A template says which in $template.inputs; the form takes the choice and the
 // server reads the rest. Nothing a template does not name is read, and what is read is shown as the Inventory shows
 // it: a value that is withheld there is withheld here.
 

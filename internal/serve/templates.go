@@ -47,6 +47,8 @@ type TemplateEntry struct {
 	Source *Ref `json:"source,omitempty"`
 	// Inputs are what the wizard asks for, in order.
 	Inputs []TemplateInput `json:"inputs"`
+	// Problems are what is wrong with the way the template describes its inputs.
+	Problems []string `json:"problems,omitempty"`
 	// Resources is how many resources one instance holds.
 	Resources int `json:"resources"`
 	// Instances are the instances in the specification, by address.
@@ -77,7 +79,7 @@ type TemplateInput struct {
 	Elem string `json:"elem,omitempty"`
 	// Long asks for a text area, and Secret says that the value is a secret that the form never takes: it asks where the
 	// secret comes from. Choices is the path of the attribute that holds the values to choose from, Entity the type of
-	// resource to pick one of, and the attribute to read of it. These come from $template.ask.
+	// resource to pick one of, and the attribute to read of it. These come from $template.inputs.
 	Long    bool            `json:"long,omitempty"`
 	Secret  bool            `json:"secret,omitempty"`
 	Choices string          `json:"choices,omitempty"`
@@ -164,7 +166,7 @@ func (m *model) buildTemplates() []TemplateEntry {
 		}
 		e.Description, _ = stringAt(dv, "$template.description")
 		e.Source = m.spec.refOf(dv)
-		e.Inputs = templateInputs(dv)
+		e.Inputs, e.Problems = templateInputs(dv)
 		byName[name] = len(out)
 		out = append(out, e)
 	}
@@ -265,15 +267,15 @@ func (m *model) buildTemplates() []TemplateEntry {
 }
 
 // templateInputs reads the fields of a template definition that a person fills in: those that hold no resource and
-// are not fixed to a value. The list in $template.inputs, when concrete, picks and orders them.
-func templateInputs(dv cue.Value) []TemplateInput {
+// are not fixed to a value. The struct $template.inputs, when there is one, picks and orders them and says how the form
+// asks for each; its keys that are not such a field are returned as problems.
+func templateInputs(dv cue.Value) ([]TemplateInput, []string) {
 	var order []string
-	if l := dv.LookupPath(cue.ParsePath("$template.inputs")); l.Exists() {
-		if it, err := l.List(); err == nil {
+	spec := dv.LookupPath(cue.ParsePath("$template.inputs"))
+	if spec.Exists() {
+		if it, err := spec.Fields(cue.Optional(true)); err == nil {
 			for it.Next() {
-				if s, err := it.Value().String(); err == nil {
-					order = append(order, s)
-				}
+				order = append(order, it.Selector().Unquoted())
 			}
 		}
 	}
@@ -281,7 +283,7 @@ func templateInputs(dv cue.Value) []TemplateInput {
 	var natural []string
 	fs, err := dv.Fields(cue.Optional(true))
 	if err != nil {
-		return []TemplateInput{}
+		return []TemplateInput{}, nil
 	}
 	for fs.Next() {
 		sel := fs.Selector()
@@ -338,16 +340,24 @@ func templateInputs(dv cue.Value) []TemplateInput {
 		if in.Kind == "list" {
 			in.Elem = listElem(fv)
 		}
-		in.applyAsk(dv.LookupPath(cue.ParsePath("$template.ask")).LookupPath(cue.MakePath(cue.Str(name))))
+		in.applyAsk(spec.LookupPath(cue.MakePath(cue.Str(name))))
 		byName[name] = in
 		natural = append(natural, name)
 	}
 	seen := map[string]bool{}
 	var out []TemplateInput
+	var problems []string
 	for _, n := range order {
+		// A definition that nothing instantiates is not evaluated far enough to refuse an entry that names two sources.
+		ev := spec.LookupPath(cue.MakePath(cue.Str(n)))
+		if err := ev.Validate(); err != nil {
+			problems = append(problems, "inputs."+n+": "+headline(cueerrors.Details(err, nil)))
+		}
 		if in, ok := byName[n]; ok && !seen[n] {
 			seen[n] = true
 			out = append(out, in)
+		} else if !ok {
+			problems = append(problems, "inputs."+n+" is not a field of the definition that a person fills in: it does not exist, holds a resource, or is fixed to a value.")
 		}
 	}
 	if len(order) == 0 {
@@ -358,7 +368,7 @@ func templateInputs(dv cue.Value) []TemplateInput {
 	if out == nil {
 		out = []TemplateInput{}
 	}
-	return out
+	return out, problems
 }
 
 // listElem is the kind of the items of a list field: string, int or number, and empty when they are anything else. The
@@ -387,10 +397,14 @@ func listElem(fv cue.Value) string {
 	return ""
 }
 
-// applyAsk reads how the template says the form asks for the input.
+// applyAsk reads how the template says the form asks for the input: the entry of $template.inputs.
 func (in *TemplateInput) applyAsk(ask cue.Value) {
 	if !ask.Exists() {
 		return
+	}
+	// An entry that gives no source is a disjunction that still has the empty entry as its default.
+	if d, ok := ask.Default(); ok {
+		ask = d
 	}
 	if l, ok := stringAt(ask, "label"); ok && strings.TrimSpace(l) != "" {
 		in.Label = clip(oneLine(l), 80)
@@ -398,11 +412,15 @@ func (in *TemplateInput) applyAsk(ask cue.Value) {
 	if d, ok := stringAt(ask, "description"); ok && strings.TrimSpace(d) != "" {
 		in.Doc = clip(strings.TrimSpace(d), 600)
 	}
-	if b, err := ask.LookupPath(cue.ParsePath("long")).Bool(); err == nil && b && (in.Kind == "string" || in.Kind == "any") {
-		in.Long = true
-	}
-	if b, err := ask.LookupPath(cue.ParsePath("secret")).Bool(); err == nil && b && in.Kind == "string" {
-		in.Secret = true
+	switch as, _ := stringAt(ask, "as"); as {
+	case "text":
+		if in.Kind == "string" || in.Kind == "any" {
+			in.Long = true
+		}
+	case "secret":
+		if in.Kind == "string" {
+			in.Secret = true
+		}
 	}
 	if c, ok := choicesPath(ask); ok && !in.Secret && len(c) <= 200 {
 		in.Choices = c

@@ -15,13 +15,14 @@ const askSpecCUE = templateSpecCUE + `
 #Pool: pravo.#Template & {
 	$template: {
 		name:   "pool"
-		inputs: ["name", "zone", "tag", "owner_db", "hosts", "notes", "key"]
-		ask: {
+		inputs: {
+			name:     {}
 			zone:     {choices: boxes.one.db.zones}
 			tag:      {choices: boxes.one.db.tags}
 			owner_db: {entity: {type: "fake_db", attr: "name"}}
-			notes:    {long: true, label: "Notes for on-call", description: "Who to page, and in what order."}
-			key:      {secret: true}
+			hosts:    {label: "Allowed hosts", description: "Other names it answers to."}
+			notes:    {as: "text", label: "Notes for on-call", description: "Who to page, and in what order."}
+			key:      {as: "secret"}
 		}
 	}
 	name:     string & =~"^[a-z]+$"
@@ -52,7 +53,7 @@ func (p *project) tryPool(name string, q url.Values) TemplateTry {
 	return out
 }
 
-// What the template says in $template.ask shows in the inputs, and nothing else changes them.
+// What the template says in $template.inputs shows in the inputs, and nothing else changes them.
 func TestTemplateAskShapesTheInputs(t *testing.T) {
 	p := askProject(t)
 	var pool *TemplateEntry
@@ -87,6 +88,10 @@ func TestTemplateAskShapesTheInputs(t *testing.T) {
 	// A label and a description of ask replace the field name and the comment; without them the form falls back to both.
 	if n := by["notes"]; n.Label != "Notes for on-call" || n.Doc != "Who to page, and in what order." {
 		t.Errorf("notes label: %+v", n)
+	}
+	// An entry with only a label and a description, and no source, still gives both.
+	if h := by["hosts"]; h.Label != "Allowed hosts" || h.Doc != "Other names it answers to." {
+		t.Errorf("hosts label: %+v", h)
 	}
 	if n := by["name"]; n.Label != "" {
 		t.Errorf("name has no label: %+v", n)
@@ -314,5 +319,62 @@ func TestTemplateTryDeclaresASecret(t *testing.T) {
 	q.Set("name", "a")
 	if resp, body := p.do("GET", "/api/templates/try?"+q.Encode(), nil); strings.Contains(string(body), "hunter2") {
 		t.Errorf("a typed secret value is echoed: %d %s", resp.StatusCode, body)
+	}
+}
+
+// An entry of inputs is closed and says one thing: a misspelt hint, or two sources for one input, is refused by CUE
+// when the specification loads.
+func TestTemplateInputsAreClosed(t *testing.T) {
+	for name, bad := range map[string]string{
+		"a hint that does not exist": `notes:    {as: "text", label: "Notes for on-call", description: "Who to page, and in what order."}`,
+		"two sources":                `notes:    {as: "text", label: "Notes for on-call", description: "Who to page, and in what order."}`,
+	} {
+		repl := map[string]string{
+			"a hint that does not exist": `notes:    {longg: true}`,
+			"two sources":                `notes:    {as: "secret", choices: boxes.one.name}`,
+		}[name]
+		p := templateProjectOf(t, strings.Replace(askSpecCUE, bad, repl, 1), `{"name":"one"}`)
+		cat := p.templates()
+		if !cat.SpecOK {
+			continue // CUE refused it when it loaded
+		}
+		// Nothing instantiates the definition, so CUE did not look far enough; the catalog says what is wrong.
+		found := false
+		for _, tpl := range cat.Templates {
+			for _, pr := range tpl.Problems {
+				found = found || strings.HasPrefix(pr, "inputs.notes:")
+			}
+		}
+		if !found {
+			t.Errorf("%s is not reported: %+v", name, cat.Templates)
+		}
+	}
+}
+
+// The order of the form is the order of inputs, and a key that is not a field is reported on the template.
+func TestTemplateInputsOrderAndUnknownKeys(t *testing.T) {
+	spec := strings.Replace(askSpecCUE, "			name:     {}\n			zone:", "			zone:", 1)
+	spec = strings.Replace(spec, "			notes:", "			name:     {}\n			notes:", 1)
+	spec = strings.Replace(spec, "			key:      {as: \"secret\"}\n", "			key:      {as: \"secret\"}\n			nowhere:  {}\n", 1)
+	p := templateProjectOf(t, spec, `{"name":"one"}`)
+	var pool *TemplateEntry
+	cat := p.templates()
+	for i := range cat.Templates {
+		if cat.Templates[i].Name == "pool" {
+			pool = &cat.Templates[i]
+		}
+	}
+	if pool == nil {
+		t.Fatalf("no pool: %+v", cat)
+	}
+	var got []string
+	for _, in := range pool.Inputs {
+		got = append(got, in.Name)
+	}
+	if want := "zone tag owner_db hosts name notes key"; strings.Join(got, " ") != want {
+		t.Errorf("order %v, want %s", got, want)
+	}
+	if len(pool.Problems) != 1 || !strings.Contains(pool.Problems[0], "inputs.nowhere") {
+		t.Errorf("problems: %v", pool.Problems)
 	}
 }

@@ -151,6 +151,7 @@ export class TemplatesView {
           h('p', { class: 'tp-dsub' }, h('code', null, t.definition), t.source ? h('span', { class: 'tp-where' }, ' written at ', h('code', null, `${t.source.file}:${t.source.line}`)) : null)),
         h('button', { type: 'button', class: 'btn tp-new', 'data-fk': 'new', on: { click: () => this.openWizard() } }, icon('plus'), 'New instance')),
       t.description ? h('p', { class: 'tp-desc' }, t.description) : null,
+      t.problems && t.problems.length ? this.check_('chg', 'The inputs are not described correctly', 'Fix these in $template.inputs of the definition.', t.problems) : null,
       h('h4', { class: 'h' }, 'Inputs'),
       this.inputsTable(t),
       h('h4', { class: 'h' }, `Instances · ${t.instances.length}`),
