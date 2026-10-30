@@ -116,9 +116,14 @@ func (c *Converter) EphemeralRef(v cue.Value) (cue.Path, bool) { return c.epheme
 
 // ephemeralRef returns the first ephemeral resource the value refers to.
 func (c *Converter) ephemeralRef(v cue.Value) (cue.Path, bool) {
-	deps, _ := Dependencies(v, c.Self, c.Resolve)
-	for _, d := range deps {
-		if c.IsEphemeral != nil && c.IsEphemeral(d) {
+	if c.IsEphemeral == nil {
+		return cue.Path{}, false
+	}
+	// A value built from a field of a definition, such as an input that was
+	// given an ephemeral value, is concrete once that value is filled in; its
+	// references still lead back to the ephemeral resource.
+	for _, d := range SourceTasks(v, c.Self, c.Resolve) {
+		if c.IsEphemeral(d) {
 			return d, true
 		}
 	}
