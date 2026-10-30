@@ -163,7 +163,7 @@ func (s *Server) trace(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		ts := TraceSpan{
-			ID: sp.ID, Parent: sp.Parent, Name: traceText(sec, sp.Name, 256), Kind: spanKind(sp.Name), Status: sp.Status,
+			ID: sp.ID, Parent: sp.Parent, Name: traceName(sec, sp.Name), Kind: spanKind(sp.Name), Status: sp.Status,
 			Message: traceText(sec, sp.Message, traceTextMax), StartUS: sp.StartUS, DurUS: sp.DurUS, Attrs: traceAttrs(sec, sp.Attrs),
 		}
 		for i, ev := range sp.Events {
@@ -275,6 +275,32 @@ func spanKind(name string) string {
 	return "other"
 }
 
+// traceName is traceText for the name of a span. The host of a network span is left as it
+// is: it is sent in the clear (in DNS and in the server name of the TLS handshake), so it
+// holds no secret, and a short sensitive value that is also a word of a host, such as the
+// region that a parameter holds, would hide a part of every request of the run.
+func traceName(sec *secretSet, name string) string {
+	if rest, ok := strings.CutPrefix(name, "network "); ok {
+		if method, host, ok := strings.Cut(rest, " "); ok && isHostName(host) {
+			return "network " + traceText(sec, method, 16) + " " + traceText(newSecretSet(), host, 253)
+		}
+	}
+	return traceText(sec, name, 256)
+}
+
+// isHostName reports whether s reads as the host of a request, with a port or not.
+func isHostName(s string) bool {
+	if s == "" || len(s) > 253 {
+		return false
+	}
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == ':' || r == '[' || r == ']') {
+			return false
+		}
+	}
+	return true
+}
+
 // traceText bounds, cleans and masks a text of a run.
 func traceText(sec *secretSet, s string, n int) string {
 	s = strings.ToValidUTF8(s, "?")
@@ -309,6 +335,10 @@ func traceAttrs(sec *secretSet, in map[string]any) map[string]any {
 		case string:
 			if k == "pravo.command_line" {
 				out[k] = maskCommand(sec, v, 600)
+				break
+			}
+			if k == "server.address" && isHostName(v) {
+				out[k] = traceText(newSecretSet(), v, 253)
 				break
 			}
 			out[traceText(sec, k, 128)] = traceText(sec, v, traceTextMax)

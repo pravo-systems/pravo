@@ -96,6 +96,43 @@ func TestTracesMaskWhatTheStateKeepsSecret(t *testing.T) {
 	}
 }
 
+// The host of a request is sent in the clear and is not masked, even when a word of it is
+// a sensitive value of the state; the rest of the request is.
+func TestTracesKeepTheHostOfARequestAndMaskTheRest(t *testing.T) {
+	p := newProject(t)
+	host := "bucket-" + secretToken + ".s3.amazonaws.com"
+	rt := sampleRun("")
+	rt.Spans = append(rt.Spans, telemetry.SpanData{ID: "00000000000000b1", Parent: "82f7f202630ca525", Name: "network GET " + host, StartUS: 12000, DurUS: 1000,
+		Attrs: map[string]any{"server.address": host, "url.path": "/state/" + secretToken + "/x.json", "http.request.method": "GET"}})
+	runFile(t, p.dir, traceA, rt)
+	body := string(p.get("/api/trace?id=" + traceA))
+	var got struct {
+		Spans []struct {
+			Name  string
+			Attrs map[string]any
+		}
+	}
+	if err := json.Unmarshal([]byte(body), &got); err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, sp := range got.Spans {
+		if !strings.HasPrefix(sp.Name, "network ") {
+			continue
+		}
+		found = true
+		if sp.Name != "network GET "+host || sp.Attrs["server.address"] != host {
+			t.Errorf("the host is masked: %q, %v", sp.Name, sp.Attrs["server.address"])
+		}
+		if path, _ := sp.Attrs["url.path"].(string); strings.Contains(path, secretToken) || !strings.Contains(path, mask) {
+			t.Errorf("the path is not masked: %q", path)
+		}
+	}
+	if !found {
+		t.Fatal("no network span in the answer")
+	}
+}
+
 func TestTracesRefuseWhatIsNotARun(t *testing.T) {
 	p := newProject(t)
 	for _, id := range []string{"", "x", "../../etc/passwd", traceA + "/..", strings.ToUpper(traceA), traceA + ".json"} {
