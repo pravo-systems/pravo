@@ -437,13 +437,18 @@ function assignTracks(list) {
     }
     idx.sort((p, q) => score[p] - score[q] || p - q);
   }
-  // the scores see each pair on its own; neighbours that would cross fewer wires the other way round change places
+  // the scores see each pair on its own; two lines that would cross fewer wires, or run clear of one another, if they changed
+  // places (with the lines between them) change places
+  const pr = (l, r) => (ov(list[l], list[r]) ? cost(list[l], list[r]) : 0);
   for (let pass = 0, moved = true; moved && pass < 30; pass++) {
     moved = false;
-    for (let k = 0; k + 1 < n; k++) {
-      const a = list[idx[k]], b = list[idx[k + 1]];
-      if (!ov(a, b) || cost(b, a) >= cost(a, b)) continue;
-      idx[k] = idx[k + 1]; idx[k + 1] = list.indexOf(a); moved = true;
+    for (let p = 0; p + 1 < n; p++) {
+      for (let q = p + 1; q < n && q <= p + 8; q++) {
+        const x = idx[p], y = idx[q];
+        let d = pr(y, x) - pr(x, y);
+        for (let k = p + 1; k < q; k++) { const m = idx[k]; d += pr(y, m) + pr(m, x) - pr(x, m) - pr(m, y); }
+        if (d < 0) { idx[p] = y; idx[q] = x; moved = true; }
+      }
     }
   }
   const placed = [];
