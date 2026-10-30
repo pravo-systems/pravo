@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -136,10 +137,13 @@ func (t *Tracker) loop() {
 	}
 }
 
+// write draws; a terminal that cannot be written to has nothing to be told.
+func (t *Tracker) write(s string) { _, _ = io.WriteString(t.w, s) }
+
 // eraseLocked clears the status line if one is drawn.
 func (t *Tracker) eraseLocked() {
 	if t.drawn {
-		io.WriteString(t.w, clearLine+showCur)
+		t.write(clearLine + showCur)
 		t.drawn = false
 	}
 }
@@ -159,9 +163,9 @@ func (t *Tracker) drawLocked() {
 		spin = "\x1b[36m" + spin + "\x1b[0m"
 	}
 	if !t.drawn {
-		io.WriteString(t.w, hideCur)
+		t.write(hideCur)
 	}
-	io.WriteString(t.w, clearLine+spin+" "+line)
+	t.write(clearLine + spin + " " + line)
 	t.drawn = true
 }
 
@@ -219,7 +223,7 @@ func (t *Tracker) statusLocked() string {
 			parts = append(parts, "Working")
 			since = res.start
 		}
-		count := fmt.Sprintf("%d", t.done)
+		count := strconv.Itoa(t.done)
 		if total > 0 {
 			count = fmt.Sprintf("%d/%d", t.done, total)
 		}
