@@ -77,6 +77,7 @@ type Tracker struct {
 	order   []trace.SpanID // start order of the active spans
 	done    int            // resource tasks finished in the current phase
 	running bool
+	held    int  // prompts waiting for the user: nothing is drawn meanwhile
 	drawn   bool // a status line is on the screen
 	atStart bool // the cursor is at the start of a line
 	color   bool
@@ -149,7 +150,7 @@ func (t *Tracker) eraseLocked() {
 }
 
 func (t *Tracker) drawLocked() {
-	if !t.running || !t.atStart || time.Since(t.began) < delay {
+	if !t.running || t.held > 0 || !t.atStart || time.Since(t.began) < delay {
 		return
 	}
 	line := t.statusLocked()
@@ -167,6 +168,16 @@ func (t *Tracker) drawLocked() {
 	}
 	t.write(clearLine + spin + " " + line)
 	t.drawn = true
+}
+
+// Hold takes the status line off the screen until the returned function is
+// called, for a prompt that writes to the terminal on its own.
+func (t *Tracker) Hold() (release func()) {
+	t.mu.Lock()
+	t.held++
+	t.eraseLocked()
+	t.mu.Unlock()
+	return func() { t.mu.Lock(); t.held--; t.mu.Unlock() }
 }
 
 // Guard returns a writer that takes the status line off the screen before w is

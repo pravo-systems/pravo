@@ -266,10 +266,11 @@ func stopProgress() {
 }
 
 // showsProgress lists the commands that work for long enough, and print their
-// result only at the end, to show what they are doing meanwhile.
+// result only at the end, to show what they are doing meanwhile. serve shows it
+// until the server is up.
 func showsProgress(cmd *cobra.Command) bool {
 	switch strings.Fields(cmd.CommandPath())[1:][0] {
-	case "plan", "apply", "destroy", "drift", "discover", "init", "import", "validate", "why":
+	case "plan", "apply", "destroy", "drift", "discover", "init", "import", "validate", "why", "serve":
 		return true
 	}
 	return false

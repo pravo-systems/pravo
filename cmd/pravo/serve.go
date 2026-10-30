@@ -94,6 +94,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			}
 			opts.Chat = co
 			srv, err := serve.New(opts)
+			stopProgress() // the server runs until it is stopped; what it does per request is not progress
 			if err != nil {
 				return err
 			}
