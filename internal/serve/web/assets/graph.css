@@ -224,6 +224,7 @@
 .node .in, .ns-item .in, .cluster-item .in, .ctl-item .in { transform-box: fill-box; transform-origin: center; }
 .node .in, .ns-item .in, .cluster-item .in { transition: transform .18s var(--ease); }
 .node.hov .in, .ns-item.hov .in, .cluster-item.hov .in { transform: translateY(-1.5px); }
+.zone { fill: transparent; stroke: none; }
 .node.enter .in, .ns-item.enter .in, .cluster-item.enter .in, .ctl-item.enter .in { animation: pop .45s var(--ease) backwards; }
 .lane.enter, .lane-head.enter { animation: fadein .4s ease backwards; }
 .ge.enter { animation: fadein .5s ease .2s backwards; }
