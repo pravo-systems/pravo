@@ -673,6 +673,9 @@ func (d *differ) leaf(path string, redact bool, before, after tftypes.Value) {
 	if redact && d.sink != nil {
 		d.sink.addFrom(d.origin, toJSONValue(bd))
 		d.sink.addFrom(d.origin, toJSONValue(ad))
+		// A plan does not say who typed a value, so it is judged as before.
+		d.sink.addMade(d.origin, toJSONValue(bd))
+		d.sink.addMade(d.origin, toJSONValue(ad))
 	}
 	if !redact && (d.secrets.leaksIn(toJSONValue(bd)) || d.secrets.leaksIn(toJSONValue(ad)) || hasGuardedKey(bd) || hasGuardedKey(ad)) {
 		redact = true

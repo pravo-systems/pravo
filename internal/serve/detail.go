@@ -273,7 +273,7 @@ func (m *model) ownText(po *planOverlay, addr string) *secretSet {
 	if m.readsData(addr) {
 		return m.secretsFor(po)
 	}
-	return m.secretsFor(po).scopedTo(map[string]bool{addr: true})
+	return m.secretsFor(po).ownTo(addr)
 }
 
 // scopeOf is the node at addr and every node it reads, directly or not: the
