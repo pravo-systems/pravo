@@ -350,7 +350,9 @@ func driftCmd() *cobra.Command {
 reports drift: resources whose real state differs from the state, and
 resources that no longer exist. Refreshed state is written back to the
 state, with a mark on every record that differs or is gone, so the next
-plan, saved plan and apply act on it. With -webhook the report is also
+plan, saved plan and apply act on it. A reader of a sealed state can run it
+too: what it reads stays in memory, no mark is written, and only a plan stored
+with --plan --store reaches the bucket. With -webhook the report is also
 POSTed as JSON, which lets a scheduler hand drift to whoever triages it.
 Exit code 2 means drift was found.
 
@@ -395,7 +397,7 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 			if limit < 0 {
 				return fmt.Errorf("--limit %d: want a number above zero", limit)
 			}
-			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true})
+			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
 			}

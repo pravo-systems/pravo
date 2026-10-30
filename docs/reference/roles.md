@@ -83,7 +83,7 @@ The line is the SHA-256 of the first roles. Commit it with the file. From then o
 
 ## What a reader can do
 
-The state is opened as it is and what a plan writes stays in memory: the refreshed records, the marks and the locks are not written to the bucket. The one thing a reader writes is a stored plan, with `plan --store`. A writer can apply it. The apply checks the plan as it checks any stored plan, against the revisions of the state and the fingerprint of the configuration, and the prompt says which key stored it. `plan --reserve` is for a writer.
+The state is opened as it is and what a plan writes stays in memory: the refreshed records, the marks and the locks are not written to the bucket. `pravo drift` works the same way: a reader gets the report without the marks, and `drift --plan --store` stores the plan that puts the drift right. The one thing a reader writes is a stored plan, with `plan --store`. A writer can apply it. The apply checks the plan as it checks any stored plan, against the revisions of the state and the fingerprint of the configuration, and the prompt says which key stored it. `plan --reserve` is for a writer.
 
 ## What is refused
 
