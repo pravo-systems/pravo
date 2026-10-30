@@ -124,6 +124,20 @@ func protocol(signal string) string {
 
 var errOnce sync.Once
 
+// recordOnly samples a span so that processors see it and no exporter takes it.
+type recordOnly struct{}
+
+func (recordOnly) ShouldSample(p sdktrace.SamplingParameters) sdktrace.SamplingResult {
+	return sdktrace.SamplingResult{Decision: sdktrace.RecordOnly, Tracestate: trace.SpanContextFromContext(p.ParentContext).TraceState()}
+}
+func (recordOnly) Description() string { return "RecordOnly" }
+
+var watcher atomic.Pointer[sdktrace.SpanProcessor]
+
+// Watch hands every span to p, whether or not an exporter is configured. It is
+// called before Setup, and nothing it sees leaves the process.
+func Watch(p sdktrace.SpanProcessor) { watcher.Store(&p) }
+
 // Setup installs the OpenTelemetry providers configured by the environment
 // and returns a function that flushes and shuts them down. Failures to
 // export never fail a command; a single warning goes to stderr.
@@ -131,10 +145,12 @@ func Setup(ctx context.Context, version string, e env.Env) (shutdown func(contex
 	Configure(e)
 	noop := func(context.Context) error { return nil }
 	record := recordingEnabled()
-	if !Enabled() && !record {
+	watch := watcher.Load()
+	if !Enabled() && !record && watch == nil {
 		return noop
 	}
-	localOnly = tracesExporter() == "none"
+	// A watcher alone changes nothing a command prints, so it does not make the trace local.
+	localOnly = tracesExporter() == "none" && (Enabled() || record)
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
 		errOnce.Do(func() {
 			fmt.Fprintf(os.Stderr, "pravo: telemetry export problem (further ones are not shown): %v\n", err)
@@ -186,6 +202,15 @@ func Setup(ctx context.Context, version string, e env.Env) (shutdown func(contex
 	}
 	if record {
 		tpOpts = append(tpOpts, sdktrace.WithSpanProcessor(&recorder{}))
+	}
+	if watch != nil {
+		tpOpts = append(tpOpts, sdktrace.WithSpanProcessor(*watch))
+		if !Enabled() && !record {
+			// Nothing exports the spans, so a caller that did not sample its trace (a
+			// TRACEPARENT ending in -00) is not a reason to hide them from the watcher.
+			tpOpts = append(tpOpts, sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.AlwaysSample(),
+				sdktrace.WithRemoteParentNotSampled(recordOnly{}), sdktrace.WithLocalParentNotSampled(recordOnly{}))))
+		}
 	}
 	if len(tpOpts) > 1 {
 		tp := sdktrace.NewTracerProvider(tpOpts...)

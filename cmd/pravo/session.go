@@ -226,7 +226,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 		if write {
 			return nil, nil, engine.WithCode(engine.ExitRefused, errors.New(problem))
 		}
-		fmt.Fprintln(os.Stderr, "Warning: "+problem)
+		fmt.Fprintln(stderr(), "Warning: "+problem)
 		missing = true
 	}
 	if st, err = open(nil, false); err != nil {
@@ -263,7 +263,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 			return nil, why, engine.WithCode(engine.ExitRefused, why.error(root))
 		}
 		if idErr != nil && !errors.Is(idErr, errNoIdentity) {
-			fmt.Fprintln(os.Stderr, "Warning: "+idErr.Error())
+			fmt.Fprintln(stderr(), "Warning: "+idErr.Error())
 		}
 	}
 	return st, why, checkReadersFile(root, st, write && !st.Locked() && !overlay)

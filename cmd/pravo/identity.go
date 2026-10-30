@@ -102,7 +102,7 @@ func resolveIdentity(o identityOptions) (*protect.Identity, error) {
 			return nil, fmt.Errorf("identity %s: %w", src.path, err)
 		}
 		if warning != "" {
-			fmt.Fprintln(os.Stderr, "Warning: "+warning)
+			fmt.Fprintln(stderr(), "Warning: "+warning)
 		}
 	}
 	defer clear(data)
