@@ -705,6 +705,10 @@ func (s *Server) current() (*model, error) {
 	old := s.cur
 	s.cur = nm
 	s.mu.Unlock()
+	// The history of the nodes is read from the transactions, which the first click on a node would otherwise wait for.
+	if nm.store != nil {
+		go nm.transactions()
+	}
 	if old != nil && old.store != nil && old.store != nm.store {
 		// The keys of the store that was replaced are wiped once the requests that
 		// hold its model are done.
