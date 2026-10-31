@@ -15,19 +15,20 @@ const minDiffSecret = 6
 // recordDiff notes in the transaction what a change did to the attributes of a
 // record. The state keeps nothing of past attributes but this, so it keeps no
 // value that is or may hold a secret.
-func (e *Engine) recordDiff(addr string, sch *schema.Schema, before, after json.RawMessage) {
+func (e *Engine) recordDiff(addr string, sch *schema.Schema, before, after json.RawMessage, derived map[string]bool) {
 	if e.txn == nil {
 		return
 	}
-	e.txn.RecordDiff(addr, before, after, diffWithhold(sch, before, after))
+	e.txn.RecordDiff(addr, before, after, diffWithhold(sch, derived, before, after))
 }
 
 // diffWithhold decides which attributes of a diff are left out. An attribute is
 // withheld when the schema marks it, or anything inside it, sensitive or
 // write-only; when its name, or a key inside it, says it is a secret; or when it
-// holds a string that a withheld attribute of either record holds. Without a
-// schema every attribute is withheld.
-func diffWithhold(sch *schema.Schema, before, after json.RawMessage) func(string, json.RawMessage, json.RawMessage) bool {
+// holds a string that a withheld attribute of either record holds. An attribute
+// that the plan marks as derived from a withheld one (derived) is withheld too,
+// whatever its text. Without a schema every attribute is withheld.
+func diffWithhold(sch *schema.Schema, derived map[string]bool, before, after json.RawMessage) func(string, json.RawMessage, json.RawMessage) bool {
 	if sch == nil || sch.Block == nil {
 		return func(string, json.RawMessage, json.RawMessage) bool { return true }
 	}
@@ -40,7 +41,7 @@ func diffWithhold(sch *schema.Schema, before, after json.RawMessage) func(string
 	}
 	flagged := func(name string, v json.RawMessage) bool {
 		sensitive, known := names[name]
-		return !known || sensitive || schema.NameGuard.MatchString(name) || hasGuardedKey(v)
+		return !known || sensitive || derived[name] || schema.NameGuard.MatchString(name) || hasGuardedKey(v)
 	}
 	var secrets []string
 	for _, rec := range []json.RawMessage{before, after} {

@@ -256,9 +256,9 @@ func (m *model) scopeOf(addr string) map[string]bool {
 		}
 		for _, refs := range m.spec.taint[n] {
 			for _, r := range refs {
-				if r.task != "" && !sc[r.task] && m.nodes[r.task] != nil {
-					sc[r.task] = true
-					todo = append(todo, r.task)
+				if r.Task != "" && !sc[r.Task] && m.nodes[r.Task] != nil {
+					sc[r.Task] = true
+					todo = append(todo, r.Task)
 				}
 			}
 		}

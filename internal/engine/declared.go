@@ -170,7 +170,7 @@ func (e *Engine) commitImports(plan *Plan) error {
 			return fmt.Errorf("%s: cannot import: %w", ch.Addr, err)
 		}
 		e.txn.Record(ch.Addr, "import", 0, n.Revision)
-		e.recordDiff(ch.Addr, ch.Schema, nil, n.Attributes)
+		e.recordDiff(ch.Addr, ch.Schema, nil, n.Attributes, ch.Derived)
 		e.Opts.Progress("%s: imported", ch.Addr)
 		e.touched(ch.Addr)
 	}

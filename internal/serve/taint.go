@@ -3,9 +3,9 @@ package serve
 import (
 	"cuelang.org/go/cue"
 
-	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 // Sensitivity follows references. A field of a resource that reads an attribute
@@ -18,115 +18,20 @@ import (
 // attributes that are withheld by their schema, their name or their type, which
 // fields are derived (model.computeTaint).
 
-// taintRef is an attribute that a field reads. attr is empty when the field
-// reads the task as a whole: a container that it iterates, or a task that it
-// passes on.
-type taintRef struct{ task, attr string }
+// taintRef is an attribute that a field reads (sensitivity.Ref).
+type taintRef = sensitivity.Ref
 
-// taintRecorder is the resolver of the analysis, noting what it resolves and in
-// which top-level field of the body (convert.FieldObserver). What the analysis
-// reads of the body as a whole, before it looks at the fields, is not noted: the
-// fields are walked after it, and each reads what is below it. fixed, when set,
-// is the one field that everything is noted under: an output has a value and no
-// fields.
-type taintRecorder struct {
-	*specResolver
-	fixed string
-	cur   string
-	byFld map[string][]taintRef
-}
-
-func (r *taintRecorder) SetField(name string) { r.cur = name }
-
-func (r *taintRecorder) addr(task cue.Path) string {
-	if res, ok := r.byPath[task.String()]; ok {
-		return res.Address()
-	}
-	if o, ok := r.outputs[task.String()]; ok {
-		return o.Name
-	}
-	return ""
-}
-
-func (r *taintRecorder) note(ref taintRef) {
-	field := r.fixed
-	if field == "" {
-		field = r.cur
-	}
-	if field == "" {
-		return
-	}
-	if r.byFld == nil {
-		r.byFld = map[string][]taintRef{}
-	}
-	r.byFld[field] = append(r.byFld[field], ref)
-}
-
-func (r *taintRecorder) Task(p cue.Path) (cue.Path, cue.Path, bool) {
-	task, alias, ok := r.specResolver.Task(p)
-	if ok {
-		ref := taintRef{task: r.addr(task)}
-		if rel := p.Selectors()[len(task.Selectors()):]; len(rel) > 0 && rel[0].LabelType() == cue.StringLabel {
-			ref.attr = rel[0].Unquoted()
-		}
-		r.note(ref)
-	}
-	return task, alias, ok
-}
-
-func (r *taintRecorder) Below(p cue.Path) []cue.Path {
-	below := r.specResolver.Below(p)
-	for _, t := range below {
-		r.note(taintRef{task: r.addr(t)})
-	}
-	return below
-}
-
-// reads returns what the analysis resolved for each field, less the task that
-// the path of a reference names the way to: the analysis resolves db for db.port as
-// well, and a reference to one attribute reads that attribute and not the task. A
-// field that reads an attribute of a task and passes the same task on as a whole in
-// the same value is read as the attribute only.
-func (r *taintRecorder) reads() map[string][]taintRef {
-	out := map[string][]taintRef{}
-	for field, refs := range r.byFld {
-		named := map[string]bool{}
-		for _, ref := range refs {
-			if ref.attr != "" {
-				named[ref.task] = true
-			}
-		}
-		seen := map[taintRef]bool{}
-		for _, ref := range refs {
-			if (ref.attr == "" && named[ref.task]) || seen[ref] {
-				continue
-			}
-			seen[ref] = true
-			out[field] = append(out[field], ref)
-		}
-	}
-	return out
-}
-
-// taintOf runs the analysis that says where a value came from, and notes what each
-// field of v reads (fixed, when set, is the one field that everything is noted
-// under). It is not the one that gives the edges: that follows a reference to a
-// plain field only while the field is not concrete yet, as ordering needs, and a
-// string that a person typed into an attribute is concrete from the start. A value
-// is withheld for the attribute it came from, however many fields of the
-// specification it was passed on through (the parameter of a definition, a name that
-// stands for an attribute), so every reference to a plain field is followed to what
-// it is built from (convert.SourceTasks).
-func taintOf(v cue.Value, self cue.Path, res *specResolver, fixed string) *taintRecorder {
-	rec := &taintRecorder{specResolver: res, fixed: fixed}
-	convert.SourceTasks(v, self, rec)
-	return rec
+// taintOf runs the analysis that says where a value came from and returns what
+// each field of v reads (sensitivity.Record); fixed, when set, is the one field
+// that everything is noted under.
+func taintOf(v cue.Value, self cue.Path, res *specResolver, fixed string) map[string][]taintRef {
+	return sensitivity.Record(v, self, res, res.addrOf, fixed)
 }
 
 // recordTaint keeps what the fields of a declared resource, or the value of an
 // output (field "value"), read of the tasks (computeEdges).
-func (ss *specState) recordTaint(addr string, rec *taintRecorder) {
-	if refs := rec.reads(); len(refs) > 0 {
+func (ss *specState) recordTaint(addr string, refs map[string][]taintRef) {
+	if len(refs) > 0 {
 		if ss.taint == nil {
 			ss.taint = map[string]map[string][]taintRef{}
 		}
@@ -134,31 +39,8 @@ func (ss *specState) recordTaint(addr string, rec *taintRecorder) {
 	}
 }
 
-// reads says what a field that reads r is withheld for.
-func (r taintRef) reads() string {
-	if r.attr == "" {
-		return "It reads " + r.task + ", a part of which is withheld."
-	}
-	return "It reads " + r.task + "." + r.attr + ", which is withheld."
-}
-
-// topSensitive lists the attributes and blocks of a type that are withheld by
-// what they are, or that hold something that is: the schema marks them, their
-// name says so, or a nested attribute or block does.
-func topSensitive(b *schema.Block) map[string]bool {
-	out := map[string]bool{}
-	for _, a := range b.Attributes {
-		if withholdReason(a.Name, a.Sensitive, a.WriteOnly) != "" || nestedSensitive(a.NestedType, 0) {
-			out[a.Name] = true
-		}
-	}
-	for _, nb := range b.BlockTypes {
-		if guarded(nb.TypeName) || blockHoldsSensitive(nb.Block, 0) {
-			out[nb.TypeName] = true
-		}
-	}
-	return out
-}
+// topSensitive lists the attributes and blocks of a type that are withheld by what they are.
+func topSensitive(b *schema.Block) map[string]bool { return sensitivity.TopSensitive(b) }
 
 // withMarked adds to the fields that the schema withholds the ones that hold a withheld value only in the record: a key
 // of a map that says it is a secret (tags.db_password), which the schema, that does not know the keys, cannot name. A
@@ -181,35 +63,6 @@ func withMarked(t, marked map[string]bool) map[string]bool {
 		return t
 	}
 	return out
-}
-
-func nestedSensitive(o *schema.Object, depth int) bool {
-	if o == nil || depth > maxDepth {
-		return false
-	}
-	for _, a := range o.Attributes {
-		if withholdReason(a.Name, a.Sensitive, a.WriteOnly) != "" || nestedSensitive(a.NestedType, depth+1) {
-			return true
-		}
-	}
-	return false
-}
-
-func blockHoldsSensitive(b *schema.Block, depth int) bool {
-	if b == nil || depth > maxDepth {
-		return false
-	}
-	for _, a := range b.Attributes {
-		if withholdReason(a.Name, a.Sensitive, a.WriteOnly) != "" || nestedSensitive(a.NestedType, depth+1) {
-			return true
-		}
-	}
-	for _, nb := range b.BlockTypes {
-		if guarded(nb.TypeName) || blockHoldsSensitive(nb.Block, depth+1) {
-			return true
-		}
-	}
-	return false
 }
 
 // computeTaint works out which fields of the declared nodes are derived from a
@@ -275,28 +128,8 @@ func (m *model) computeTaint() {
 		}
 		return d[attr] || e[attr]
 	}
-	for changed, pass := true, 0; changed && pass <= len(m.order); pass++ {
-		changed = false
-		for _, addr := range m.order {
-			for field, refs := range m.spec.taint[addr] {
-				if m.derived[addr][field] {
-					continue
-				}
-				for _, r := range refs {
-					if r.task != "" && sensitive(r.task, r.attr) {
-						if m.derived[addr] == nil {
-							m.derived[addr] = map[string]bool{}
-							m.because[addr] = map[string]string{}
-						}
-						m.derived[addr][field] = true
-						m.because[addr][field] = r.reads()
-						changed = true
-						break
-					}
-				}
-			}
-		}
-	}
+	seed := sensitivity.Derived{Fields: m.derived, Because: m.because}
+	sensitivity.Derive(m.order, m.spec.taint, seed, func(task, attr string, _ sensitivity.Derived) bool { return sensitive(task, attr) })
 }
 
 // findEchoes lists, for each data source that the specification declares, the

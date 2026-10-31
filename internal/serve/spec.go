@@ -222,6 +222,17 @@ type specResolver struct {
 	below   map[string][]cue.Path
 }
 
+// addrOf names the node at the path of a task, or "" when it is none.
+func (r *specResolver) addrOf(task cue.Path) string {
+	if res, ok := r.byPath[task.String()]; ok {
+		return res.Address()
+	}
+	if o, ok := r.outputs[task.String()]; ok {
+		return o.Name
+	}
+	return ""
+}
+
 func newSpecResolver(root *config.Root) *specResolver {
 	r := &specResolver{root: root, byPath: map[string]*config.Resource{}, outputs: map[string]*config.Output{}, below: map[string][]cue.Path{}}
 	for _, res := range root.Resources {

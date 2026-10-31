@@ -69,7 +69,7 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 	}
 	if e.txn != nil {
 		e.txn.Record(ch.Addr, action, before, n.Revision)
-		e.recordDiff(ch.Addr, ch.Schema, priorAttrs, n.Attributes)
+		e.recordDiff(ch.Addr, ch.Schema, priorAttrs, n.Attributes, ch.Derived)
 	}
 	return nil
 }

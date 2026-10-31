@@ -414,6 +414,7 @@ func (e *Engine) newPlan(pf *PlanFile) (*Plan, error) {
 		}
 		plan.Changes = append(plan.Changes, ch)
 	}
+	e.markDerived(plan.Changes)
 	plan.Write = plan.writeAddrs()
 	return plan, nil
 }

@@ -25,7 +25,7 @@ func TestDiffWithholdsWhatMayHoldASecret(t *testing.T) {
 		`"url":"db://u:old-blob-value@h","settings":{"region":"eu","key":"old-nested"},"rule":[{"cidr":"10/8","pin":"old-pin-1"}]}`)
 	after := json.RawMessage(`{"name":"b","port":2,"blob":"new-blob-value","payload":"new-payload","api_token":"new-token-1","tags":{"owner":"y","db_password":"new-map-pass"},` +
 		`"url":"db://u:new-blob-value@h","settings":{"region":"us","key":"new-nested"},"rule":[{"cidr":"10/9","pin":"new-pin-1"}]}`)
-	d := state.DiffOf(before, after, diffWithhold(diffSchema(), before, after))
+	d := state.DiffOf(before, after, diffWithhold(diffSchema(), nil, before, after))
 	if d == nil {
 		t.Fatal("no diff")
 	}
@@ -44,8 +44,32 @@ func TestDiffWithholdsWhatMayHoldASecret(t *testing.T) {
 		}
 	}
 	// With no schema nothing says what is safe.
-	d = state.DiffOf(before, after, diffWithhold(nil, before, after))
+	d = state.DiffOf(before, after, diffWithhold(nil, nil, before, after))
 	if len(d.Before) != 0 || len(d.After) != 0 || len(d.Withheld) != 9 {
 		t.Errorf("without a schema: %+v", d)
+	}
+}
+
+// An attribute that the plan marks as derived from a withheld one is left out of the diff, whatever its text.
+func TestDiffWithholdsAFieldThatReadsAWithheldAttribute(t *testing.T) {
+	before := json.RawMessage(`{"name":"a","port":1}`)
+	after := json.RawMessage(`{"name":"b","port":2}`)
+	plain := state.DiffOf(before, after, diffWithhold(diffSchema(), nil, before, after))
+	if plain == nil || string(plain.After["port"]) != "2" {
+		t.Fatalf("port is not kept when nothing is derived: %+v", plain)
+	}
+	d := state.DiffOf(before, after, diffWithhold(diffSchema(), map[string]bool{"port": true}, before, after))
+	if d == nil {
+		t.Fatal("no diff")
+	}
+	if d.Withheld["port"] != "both" {
+		t.Errorf("port is not withheld: %+v", d)
+	}
+	raw, _ := json.Marshal(d)
+	if strings.Contains(string(raw), `"port":2`) {
+		t.Errorf("the diff keeps a derived field: %s", raw)
+	}
+	if string(d.After["name"]) != `"b"` {
+		t.Errorf("name is not kept: %+v", d)
 	}
 }

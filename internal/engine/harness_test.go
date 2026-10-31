@@ -554,7 +554,7 @@ func (f *fakeProvider) ImportResourceState(_ context.Context, typ string, target
 	t := types[typ]
 	st := tftypes.NewValue(t, map[string]tftypes.Value{
 		"id": tftypes.NewValue(tftypes.String, id), "name": tftypes.NewValue(tftypes.String, "obj-"+id),
-		"content": tftypes.NewValue(tftypes.String, content),
+		"content": tftypes.NewValue(tftypes.String, content), "pin": tftypes.NewValue(tftypes.String, nil),
 	})
 	return []plugin.ImportedResource{{TypeName: typ, State: st}}, nil, nil
 }
@@ -635,6 +635,7 @@ func fakeSchema() *schema.ProviderSchema {
 		}}},
 		Resources: map[string]*schema.Schema{"fake_thing": {Block: &schema.Block{Attributes: []*schema.Attribute{
 			attr("id", false, false, true), attr("name", true, false, false), attr("content", false, true, false),
+			{Name: "pin", TypeJSON: json.RawMessage(`"string"`), Optional: true, Sensitive: true},
 		}}}},
 		DataSources: map[string]*schema.Schema{"fake_data": {Block: &schema.Block{Attributes: []*schema.Attribute{
 			attr("id", false, false, true), attr("name", true, false, false), attr("content", false, false, true),

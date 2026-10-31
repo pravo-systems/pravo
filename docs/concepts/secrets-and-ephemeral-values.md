@@ -18,11 +18,14 @@ pravo handles four kinds of value that need care. A provider marks some attribut
 |---|---|---|---|---|
 | An attribute of a resource or data source | Recorded | Recorded | Printed | Present |
 | An attribute that the provider marks sensitive | Recorded as returned | Recorded | `(sensitive)` | Present, not masked |
+| An attribute that reads a sensitive one, such as the `content` of a file that embeds a password | Recorded as returned | Recorded | `(sensitive)` | Present, not masked |
 | A value read with `pravo.#Env` | Wherever it is used | Wherever it is used | Where it is used | Where it is used |
 | The number of a version, read with `pravo.#SecretVersion` | Wherever it is used | Wherever it is used | Where it is used | Where it is used |
 | An output | Recorded | Recorded when it is known | Printed | Present |
 | An output with `sensitive: true` | Recorded, wrapped as `$sensitive` | Recorded when it is known | `(sensitive)` | Present, not masked |
 | An ephemeral value | Never | Never | Never | Never |
+
+A field is hidden for what it reads, not for what its text spells: pravo follows the references of the specification, so a field that is built from a sensitive attribute, directly or through other fields, is hidden in the printed plan and in the history of the state, and the same field is hidden in the [viewer](the-viewer.md). The text of two unrelated values that happen to be equal does not hide either.
 
 Hiding a value is a matter of display. `(sensitive)` keeps a value out of a terminal, a log and a review. It does not keep the value out of the state, the saved plan or the plan document. An ephemeral value is the one kind that pravo keeps out of all of them.
 

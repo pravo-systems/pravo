@@ -456,6 +456,7 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		return nil, err
 	}
 	plan.Changes = append(plan.Changes, orphans...)
+	e.markDerived(plan.Changes)
 	plan.Hints = e.renameHints(plan.Changes)
 	for _, o := range e.Root.Outputs {
 		plan.Outputs[o.Name] = canonicalOutput(final.LookupPath(o.ValuePath()))

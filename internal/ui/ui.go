@@ -469,6 +469,11 @@ func (p *Printer) renderChange(b *strings.Builder, c *engine.Change, indent stri
 		return
 	}
 	sens := sensitiveFunc(c.Schema.Block)
+	if len(c.Derived) > 0 {
+		// A field built from a withheld attribute is withheld as that attribute is.
+		schemaSens := sens
+		sens = func(path []string) bool { return (len(path) > 0 && c.Derived[path[0]]) || schemaSens(path) }
+	}
 	switch c.Action {
 	case engine.ActionCreate:
 		p.renderValue(b, "+", Green, c.Planned, indent, sens, nil, nil)
