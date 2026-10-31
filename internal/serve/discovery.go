@@ -243,7 +243,7 @@ func (m *model) adoptFor(name, key string) (*Adopt, bool) {
 		root = &config.Root{}
 	}
 	snippet := engine.FormatCUE(engine.AdoptSnippet(root, v, item.Listed, ""))
-	out := &Adopt{Discovery: clipName(name), Key: clipName(item.Key), ID: clipName(item.ID), Status: string(item.Status), Snippet: m.scrubText(snippet)}
+	out := &Adopt{Discovery: clipName(name), Key: clipName(item.Key), ID: clipName(item.ID), Status: string(item.Status), Snippet: m.scrubTags(snippet)}
 	if item.Status == engine.Unmanaged {
 		out.Ack = m.scrubTags(engine.FormatCUE(engine.AckEntry(name, []string{engine.EscapeGlob(item.ID)}, nil, "<why>")))
 	}
