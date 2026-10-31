@@ -221,6 +221,9 @@ type rpEstate struct {
 	byAddr  map[string]*rpNode
 	outputs []*rpOutput
 	madeAll []string
+	// aliases are plain fields of the specification that stand for an attribute of a node (_al0: a.b.value): an expression
+	// reads the attribute through the name, and the ordering of the tasks sees no dependency in that.
+	aliases []string
 	derived map[string]map[string]bool // top-level field read from a withheld attribute, or a derived or seeded field
 	seeded  map[string]map[string]bool // top-level field of a data source that rule 4 withholds
 	noRead  map[string]map[string]bool // top-level field of a data source that only rule 3 withholds: no expression reads it
@@ -506,7 +509,7 @@ func (g *rpGen) compose(n *rpNode, field string, cs []rpCand, maxParts int) *rpV
 		n.addDep(c.node.addr)
 	}
 	if k == 1 && picked[0].secret && strings.HasPrefix(picked[0].text, "Pw") && g.pct(40) {
-		v.cue, v.text = picked[0].cue, picked[0].text
+		v.cue, v.text = g.viaAlias(picked[0].cue), picked[0].text
 		return v
 	}
 	prefix := n.addr + "-" + field + "="
@@ -518,12 +521,23 @@ func (g *rpGen) compose(n *rpNode, field string, cs []rpCand, maxParts int) *rpV
 			b.WriteString("/")
 			v.text += "/"
 		}
-		b.WriteString(`\(` + c.cue + `)`)
+		b.WriteString(`\(` + g.viaAlias(c.cue) + `)`)
 		v.text += c.text
 	}
 	b.WriteString(`"`)
 	v.cue = b.String()
 	return v
+}
+
+// viaAlias is the expression, or a name for it that the specification declares once: a fifth of the references go through
+// one.
+func (g *rpGen) viaAlias(cue string) string {
+	if !g.pct(20) {
+		return cue
+	}
+	name := "_al" + strconv.Itoa(len(g.e.aliases))
+	g.e.aliases = append(g.e.aliases, name+": "+cue)
+	return name
 }
 
 // valOrRef is a public literal, or an expression that reads other nodes (secret ones too when allowSecret).
@@ -735,7 +749,7 @@ func (g *rpGen) addHidden() {
 		case "plain":
 			attr = "blob"
 		}
-		cue := s.addr + "." + attr
+		cue := g.viaAlias(s.addr + "." + attr)
 		via.f["content"] = &rpVal{cue: `"` + via.addr + `-content=\(` + cue + `)"`, text: via.addr + "-content=" + s.f[attr].text, reads: []rpRef{{s.addr, attr}}}
 		via.addDep(s.addr)
 		g.e.judge(via)
@@ -969,6 +983,9 @@ func (n *rpNode) attrsJSONAt(old bool) string {
 func (e *rpEstate) specText() string {
 	var b strings.Builder
 	b.WriteString(rpSpecHeader)
+	for _, a := range e.aliases {
+		b.WriteString(a + "\n")
+	}
 	for _, n := range e.nodes {
 		if n.declared {
 			b.WriteString(n.spec())

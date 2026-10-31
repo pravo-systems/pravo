@@ -233,7 +233,10 @@ func (m *model) outputDescription(mn *mnode) string {
 }
 
 // scopeOf is the node at addr and every node it reads, directly or not: the
-// nodes whose sensitive values a value of the node may be built from.
+// nodes whose sensitive values a value of the node may be built from. What a node
+// reads is what the graph draws (its dependencies) and what its values came from
+// (the specification passes an attribute on through the parameter of a definition,
+// and the ordering of the tasks sees no dependency in that).
 func (m *model) scopeOf(addr string) map[string]bool {
 	m.scopeMu.Lock()
 	defer m.scopeMu.Unlock()
@@ -249,6 +252,14 @@ func (m *model) scopeOf(addr string) map[string]bool {
 			if !sc[d] {
 				sc[d] = true
 				todo = append(todo, d)
+			}
+		}
+		for _, refs := range m.spec.taint[n] {
+			for _, r := range refs {
+				if r.task != "" && !sc[r.task] && m.nodes[r.task] != nil {
+					sc[r.task] = true
+					todo = append(todo, r.task)
+				}
 			}
 		}
 	}

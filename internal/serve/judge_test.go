@@ -472,3 +472,67 @@ fixed: #Stack & {pw: "plain"}
 		t.Errorf("the password is sent: %s", body)
 	}
 }
+
+// The same, with a data source in the instance that reads back the file a resource of it wrote: the password reaches the
+// data source by no reference at all, and the node it came from is two steps away, behind a parameter.
+func TestJudgeFollowsAParameterOfADefinitionToADataSource(t *testing.T) {
+	spec := judgeSpecCUE + `
+#Chain: {
+	pw: string
+	file: $fake.#Resource.fake_file & {path: "/tmp/chain", content: "pw=\(pw)"}
+	read: $fake.#Data.fake_file_read & {path: file.path}
+	user: $fake.#Resource.fake_db & {name: "user", zones: [read.content]}
+	other: $fake.#Resource.fake_db & {name: "other", tags: {k: "plain"}}
+}
+chain: #Chain & {pw: db.blob}
+`
+	dir := t.TempDir()
+	writeSpec(t, dir, spec)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	read := record("chain.read", "fake_file_read", `{"path":"/tmp/chain","content":"pw=`+typedPW+`"}`, "chain.file")
+	read.Mode = "data"
+	for _, r := range []*state.Resource{
+		record("db", "fake_db", `{"name":"db","blob":"`+typedPW+`"}`),
+		record("chain.file", "fake_file", `{"path":"/tmp/chain","content":"pw=`+typedPW+`"}`),
+		read,
+		record("chain.user", "fake_db", `{"name":"user","zones":["pw=`+typedPW+`"]}`, "chain.read"),
+		record("chain.other", "fake_db", `{"name":"other","tags":{"k":"plain"}}`),
+	} {
+		if err := st.Set(r, txn.ID()); err != nil {
+			t.Fatal(err)
+		}
+		txn.Record(r.Address(), "create", 0, r.Revision)
+	}
+	if err := txn.Finish("applied", "created", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{Schemas: judgeLookup})
+	for _, w := range []struct {
+		addr, attr string
+		shown      bool
+	}{
+		{"chain.file", "content", false},
+		{"chain.file", "path", true},
+		{"chain.read", "content", false},
+		{"chain.read", "path", true},
+		{"chain.user", "zones", false},
+		{"chain.user", "name", true},
+		{"chain.other", "tags", true},
+	} {
+		if a := judgeAttr(t, p.detail(w.addr), w.attr); attrShown(a) != w.shown {
+			t.Errorf("%s.%s: shown = %v, want %v: %s", w.addr, w.attr, attrShown(a), w.shown, attrText(a))
+		}
+	}
+	var bodies []string
+	for _, n := range p.graph().Nodes {
+		bodies = append(bodies, string(p.get("/api/detail?addr="+queryEscape(n.Addr))))
+	}
+	bodies = append(bodies, string(p.get("/api/fields?spec=content")), string(p.get("/api/fields?spec=zones")))
+	if all := strings.Join(bodies, "\n"); strings.Contains(all, typedPW) {
+		t.Error("the password is sent")
+	}
+}
