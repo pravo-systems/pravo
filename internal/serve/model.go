@@ -213,7 +213,6 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	m.linkNamespaces()
 	m.linkEdges()
 	m.computeTaint()
-	m.releasePublic()
 	m.graph.Outputs = m.outputs(outs)
 	for _, ms := range sortedMissing(missing) {
 		warnings = append(warnings, fmt.Sprintf("The schema of provider %s is not cached, so the values of %d %s are withheld. Run \"pravo init\" to fetch it.",
@@ -265,30 +264,6 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	m.buildPolicies(rev)
 	m.buildSecrets(rev)
 	return m
-}
-
-// releasePublic drops from the secrets the strings that a declared node shows in an attribute that nothing withholds:
-// they are public, and a data source, which is judged against every string, would otherwise lose every value that
-// holds one (a region, an account id).
-func (m *model) releasePublic() {
-	open := map[string]bool{}
-	for _, addr := range m.order {
-		mn := m.nodes[addr]
-		if mn.rec == nil || mn.Sealed || mn.sch == nil || transient(mn.Mode) || mn.isOutput() {
-			continue
-		}
-		if _, ok := m.taintOf(addr); !ok {
-			continue
-		}
-		attrs, err := decodeAttrs(mn.rec.Attributes)
-		if err != nil {
-			continue
-		}
-		w := m.walkFor(nil, addr, false)
-		w.open = open
-		w.block(mn.sch.Block, attrs, 0)
-	}
-	m.secrets = m.secrets.without(open)
 }
 
 // sealedCount is the number of records that are sealed and cannot be opened.

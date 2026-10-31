@@ -199,30 +199,21 @@ func (s *secretSet) ownTo(addr string) *secretSet {
 	return out
 }
 
-// without returns the set minus the strings that are shown elsewhere. A value that a plain attribute of the state
-// holds is not a secret, whatever a sensitive attribute elsewhere keeps: the region of an SSM parameter is the region
-// of everything in it, and masking it takes away what the viewer shows anyway.
-func (s *secretSet) without(open map[string]bool) *secretSet {
-	if s == nil || len(open) == 0 {
-		return s
-	}
-	out := newSecretSet()
-	for _, x := range s.list {
-		if open[x] {
-			continue
-		}
-		for _, o := range s.from[x] {
-			out.put(x, o)
-		}
+// withMade is the strings found in the nodes of scope and those that any provider made: a sensitive attribute that no
+// specification set. A node that reads from outside the graph can hold what a provider generated, which no reference
+// leads to; what a person typed into the specification reaches it only along a reference, which scope follows.
+func (s *secretSet) withMade(scope map[string]bool) *secretSet {
+	out := s.scopedTo(scope)
+	if s == nil {
+		return out
 	}
 	for addr, strs := range s.made {
 		for x := range strs {
-			if _, ok := out.set[x]; ok {
-				if out.made[addr] == nil {
-					out.made[addr] = map[string]bool{}
-				}
-				out.made[addr][x] = true
+			out.put(x, addr)
+			if out.made[addr] == nil {
+				out.made[addr] = map[string]bool{}
 			}
+			out.made[addr][x] = true
 		}
 	}
 	return out
@@ -384,8 +375,6 @@ type walk struct {
 	// build makes the walk return the attributes. A walk that only counts and
 	// collects leaves them out.
 	build bool
-	// open, when set, collects the strings that the walk shows: a leaf of an attribute that nothing withholds.
-	open map[string]bool
 	// withheld counts the values that were withheld for what they are: by the
 	// schema, by the name or because the schema does not know them. derived counts
 	// those withheld for what they contain.
@@ -788,9 +777,6 @@ func (w *walk) scalar(at *Attr, v any) {
 			at.Redacted = "derived"
 			w.derived++
 			return
-		}
-		if w.open != nil {
-			w.open[x] = true
 		}
 		if !w.build {
 			return
