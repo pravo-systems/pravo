@@ -74,6 +74,7 @@ export class StateView {
     this.changed = changed;
     const attrs = d.attrs || [];
     this.buckets = { configured: [], sensitive: [], computed: [] };
+    this.setNames = new Set(d.spec_set || []);
     const plain = !!d.node && (isEnv(d.node) || isSecret(d.node));
     for (const a of attrs) this.buckets[bucketOf(a, plain)].push(a);
     const wrap = h('div', { class: 'state' });
@@ -138,8 +139,8 @@ export class StateView {
       const list = this.buckets[key];
       if (!list.length) continue;
       const hidden = key === 'computed' && !this.showComputed && !q && !(this.hit && list.some((a) => this.hits(a, a.name)));
-      // configured attributes that the specification leaves unset (null) are listed on request
-      const unset = key === 'configured' && !q && !this.showUnset && !(this.hit && list.some((a) => this.hits(a, a.name))) ? list.filter((a) => a.null && !(a.children || []).length) : [];
+      // configured attributes that the specification does not set are listed on request
+      const unset = key === 'configured' && !q && !this.showUnset && !(this.hit && list.some((a) => this.hits(a, a.name))) ? list.filter((a) => this.isUnset(a)) : [];
       const rows = h('div', { class: 'attrs', role: 'list', 'aria-label': title });
       let n = 0;
       if (!hidden) {
@@ -153,12 +154,19 @@ export class StateView {
           ? h('button', { class: 'grp-hide', type: 'button', on: { click: () => this.toggleComputed() } }, icon('eye-off'), `${plural(list.length, 'computed attribute')} hidden`, h('b', null, 'Show'))
           : unset.length
             ? [rows, h('button', { class: 'grp-hide', type: 'button', on: { click: () => { this.showUnset = true; this.drawKeep(); } } }, icon('eye-off'), `${plural(unset.length, 'unset attribute')} hidden`, h('b', null, 'Show'))]
-            : key === 'configured' && this.showUnset && list.some((a) => a.null && !(a.children || []).length) && !q
+            : key === 'configured' && this.showUnset && list.some((a) => this.isUnset(a)) && !q
               ? [rows, h('button', { class: 'grp-hide', type: 'button', on: { click: () => { this.showUnset = false; this.drawKeep(); } } }, icon('eye-off'), 'Unset attributes shown', h('b', null, 'Hide'))]
               : rows));
     }
     if (q && !shown) host.append(h('div', { class: 'blank' }, icon('search'), h('p', null, 'No attribute or value matches.')));
     if (this.count) this.count.textContent = q ? `${shown} of ${total}` : '';
+  }
+
+  // isUnset: a top-level attribute that the specification does not set. The record holds what the provider filled in as
+  // well (an empty string, a zero, false), so when the specification is known it decides; else only a null counts.
+  isUnset(a) {
+    if (this.d.spec_known) return !this.setNames.has(a.name);
+    return !!a.null && !(a.children || []).length;
   }
 
   toggleComputed() {
