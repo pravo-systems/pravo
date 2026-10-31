@@ -97,6 +97,9 @@ type Change struct {
 	ImportID       string
 	ImportIdentity bool
 	MovedFrom      string
+	// Derived lists the top-level fields whose value is built from something that is
+	// withheld, so that nothing that prints the change shows them (markDerived).
+	Derived map[string]bool
 	// Reasons explains why the change is planned, for "pravo why".
 	Reasons []string
 

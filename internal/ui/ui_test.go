@@ -199,3 +199,25 @@ func TestNoGraphLineWithoutResources(t *testing.T) {
 		t.Errorf("a root without resources has a graph line:\n%s", got)
 	}
 }
+
+// A field that the plan marks as derived from a withheld attribute prints as (sensitive), whether the change creates,
+// updates or deletes the resource.
+func TestRenderPlanWithholdsADerivedField(t *testing.T) {
+	derived := map[string]bool{"content": true}
+	plan := &engine.Plan{Changes: []*engine.Change{
+		{Addr: "made", Type: "local_file", Action: engine.ActionCreate, Schema: pageBlock(), Planned: page("pw=hunter22-made", "t"), Derived: derived},
+		{Addr: "changed", Type: "local_file", Action: engine.ActionUpdate, Schema: pageBlock(), Prior: page("pw=hunter22-before", "t"), Planned: page("pw=hunter22-after", "t2"), Derived: derived},
+		{Addr: "gone", Type: "local_file", Action: engine.ActionDelete, Schema: pageBlock(), Prior: page("pw=hunter22-gone", "t"), Derived: derived},
+		{Addr: "plain", Type: "local_file", Action: engine.ActionCreate, Schema: pageBlock(), Planned: page("not a secret", "t")},
+	}}
+	got := render(plan)
+	if strings.Contains(got, "hunter22") {
+		t.Errorf("the plan shows a derived field:\n%s", got)
+	}
+	if !strings.Contains(got, "not a secret") {
+		t.Errorf("the plan hides a field that reads nothing withheld:\n%s", got)
+	}
+	if !strings.Contains(got, "(sensitive)") {
+		t.Errorf("the plan does not say that a field is withheld:\n%s", got)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"cuelang.org/go/cue"
 
 	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -28,9 +29,9 @@ func oracleTaint(ss *specState) map[string]map[string]map[taintRef]bool {
 			if sel.LabelType() != cue.StringLabel {
 				continue
 			}
-			rec := &taintRecorder{specResolver: res, fixed: sel.Unquoted()}
+			rec := sensitivity.NewRecorder(res, res.addrOf, sel.Unquoted())
 			convert.Dependencies(it.Value(), cue.MakePath(append(r.Path.Selectors(), sel)...), rec)
-			for field, refs := range rec.reads() {
+			for field, refs := range rec.Reads() {
 				if out[r.Address()] == nil {
 					out[r.Address()] = map[string]map[taintRef]bool{}
 				}

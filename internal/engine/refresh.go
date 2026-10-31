@@ -153,7 +153,7 @@ func (e *Engine) persistRead(addr string, sr *state.Resource, sch *schema.Schema
 	before := n.Revision
 	if e.recordRefresh(addr, action, before, &n) && action == "drift" {
 		// What the provider found differs from what the record said: keep how.
-		e.recordDiff(addr, sch, sr.Attributes, attrs)
+		e.recordDiff(addr, sch, sr.Attributes, attrs, nil)
 	}
 }
 
