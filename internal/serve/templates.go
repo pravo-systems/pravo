@@ -763,8 +763,10 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 	root, err := config.Load(s.opts.Dir, lo)
 	s.tplMu.Unlock()
 	if err != nil {
+		// Loading reads no state: what the error quotes is what the form sent and what the
+		// specification says, and a value that merely equals a sensitive string is not one.
 		out.State = "invalid"
-		out.Problems = append(out.Problems, templateProblems(m.scrubText(errorText(err)), out.Address)...)
+		out.Problems = append(out.Problems, templateProblems(errorText(err), out.Address)...)
 		out.Took = time.Since(began).Milliseconds()
 		writeJSON(w, http.StatusOK, out)
 		return
