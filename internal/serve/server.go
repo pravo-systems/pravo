@@ -275,6 +275,8 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	wctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go s.watch.run(wctx)
+	// The first request would otherwise pay for building the model: a few seconds on a real state.
+	go func() { _, _ = s.current() }()
 
 	srv := &http.Server{Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute,
 		ErrorLog: log.New(io.Discard, "", 0)}
