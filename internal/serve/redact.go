@@ -53,11 +53,11 @@ const (
 // person typed into a sensitive attribute is not: the same text is a region, a
 // port or a word in a hundred other places, and it says nothing of them. It
 // travels along references, which the taint follows, and along the dependencies of
-// a node that reads from outside the graph, which scopedTo follows.
+// a node that reads from outside the graph, which withMade follows.
 //
 // Each string remembers the nodes it was found in, so that a reader of node X is
 // judged against the strings of X and of what X reads, directly or not
-// (scopedTo), and not against a string that happens to be the same in a node that
+// (withMade), and not against a string that happens to be the same in a node that
 // has nothing to do with X: the region that an SSM parameter keeps in a sensitive
 // attribute says nothing of a bucket that is in the same region.
 type secretSet struct {
@@ -113,16 +113,6 @@ func (s *secretSet) addFrom(addr string, v any) {
 			s.addFrom(addr, e)
 		}
 	}
-}
-
-// scopedTo returns the strings that were found in one of the nodes of scope, and
-// those that were found in no node in particular. The result is for looking at text
-// (leaks, scrub): a string is not added to it.
-func (s *secretSet) scopedTo(scope map[string]bool) *secretSet {
-	if s == nil {
-		return nil
-	}
-	return s.view(s.placesIn(scope, ""))
 }
 
 // placesIn lists where the strings are that were found in one of the nodes of

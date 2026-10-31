@@ -247,23 +247,28 @@ func TestDerivedFollowsWhatANodeReads(t *testing.T) {
 	}
 }
 
-func TestSecretSetScopedTo(t *testing.T) {
+func TestSecretSetWithMadeIsScoped(t *testing.T) {
 	s := newSecretSet()
 	s.addFrom("a", "alpha-secret-1")
 	s.addFrom("b", "bravo-secret-2")
 	s.addFrom("", "global-secret-3")
 	s.addFrom("a", "bravo-secret-2")
-	got := s.scopedTo(map[string]bool{"a": true})
+	got := s.withMade(map[string]bool{"a": true}, "")
 	for text, want := range map[string]bool{"alpha-secret-1": true, "bravo-secret-2": true, "global-secret-3": true} {
 		if got.leaks(text) != want {
 			t.Errorf("scoped to a: leaks(%q) = %v", text, !want)
 		}
 	}
-	got = s.scopedTo(map[string]bool{"c": true})
+	got = s.withMade(map[string]bool{"c": true}, "")
 	if got.leaks("alpha-secret-1") || got.leaks("bravo-secret-2") || !got.leaks("global-secret-3") {
 		t.Errorf("scoped to c: %v", got.list)
 	}
-	if (*secretSet)(nil).scopedTo(nil) != nil {
+	// The node itself can be left out: its own strings are not among those a value of it is looked at for.
+	got = s.withMade(map[string]bool{"a": true, "b": true}, "a")
+	if got.leaks("alpha-secret-1") || !got.leaks("bravo-secret-2") || !got.leaks("global-secret-3") {
+		t.Errorf("scoped to b, a left out: %v", got.list)
+	}
+	if (*secretSet)(nil).withMade(nil, "") != nil {
 		t.Error("a nil set is nil")
 	}
 }

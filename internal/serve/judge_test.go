@@ -330,7 +330,7 @@ func TestOnlyTheJudgeChoosesTheStrings(t *testing.T) {
 	// The methods that pick strings out of the set belong to the judge, and to the file that defines them. The set
 	// itself is held by the model, and by the code that collects strings into it, scrubs a sentence with it or lays a
 	// plan over it; every other file asks the judge (m.judge, m.literals) for what a value is held against.
-	picks := []string{".withMade(", ".madeOnly(", ".scopedTo(", ".ownTo(", ".ownWithMade(", ".declaredText(", ".undeclaredText("}
+	picks := []string{".withMade(", ".madeOnly(", ".placesIn(", ".declaredText(", ".undeclaredText("}
 	holders := []string{"m.secrets", "secretsFor("}
 	mayPick := map[string]bool{"redact.go": true, "judge.go": true}
 	mayHold := map[string]bool{"redact.go": true, "judge.go": true, "model.go": true, "plan.go": true, "stored.go": true, "studio.go": true, "policies.go": true, "traces.go": true}
