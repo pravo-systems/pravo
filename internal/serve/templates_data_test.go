@@ -14,7 +14,7 @@ func TestTemplateChoicesReadADataSource(t *testing.T) {
 	spec += "\nzones: $fake.#Data.fake_zones & {state: \"available\"}\n"
 	rec := record("zones", "fake_zones", `{"state":"eu-north-1","names":["eu-north-1a","eu-north-1b","eu-north-1c"]}`)
 	rec.Mode = "data"
-	p := templateProjectOf(t, spec, `{"name":"one","blob":"eu-north-1","settings":{"region":"eu-north-1"}}`, rec)
+	p := templateProjectOf(t, spec, `{"name":"one","pin_code":"eu-north-1","settings":{"region":"eu-north-1"}}`, rec)
 	c := p.choices("zone")
 	if c.State != "ok" || len(c.Items) != 3 || c.Items[0].Value != "eu-north-1a" {
 		t.Errorf("zones: %+v", c)
