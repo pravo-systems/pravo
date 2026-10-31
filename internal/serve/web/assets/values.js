@@ -66,6 +66,7 @@ export class StateView {
     this.ctx = ctx;
     this.q = '';
     this.showComputed = store.get('pravo.computed') === '1';
+    this.showUnset = false;
   }
 
   render(d, changed) {
@@ -137,18 +138,24 @@ export class StateView {
       const list = this.buckets[key];
       if (!list.length) continue;
       const hidden = key === 'computed' && !this.showComputed && !q && !(this.hit && list.some((a) => this.hits(a, a.name)));
+      // configured attributes that the specification leaves unset (null) are listed on request
+      const unset = key === 'configured' && !q && !this.showUnset && !(this.hit && list.some((a) => this.hits(a, a.name))) ? list.filter((a) => a.null && !(a.children || []).length) : [];
       const rows = h('div', { class: 'attrs', role: 'list', 'aria-label': title });
       let n = 0;
       if (!hidden) {
-        for (const a of list) if (this.row(rows, a, a.name, 0, null)) n++;
+        for (const a of list) if (!unset.includes(a) && this.row(rows, a, a.name, 0, null)) n++;
       }
       if (q && !n) continue;
       shown += hidden ? 0 : n;
       host.append(h('section', { class: 'grp g-' + key },
-        h('header', { class: 'grp-h' }, h('h3', null, title), h('span', { class: 'gc' }, String(q ? n : list.length)), h('span', { class: 'gh' }, hint)),
+        h('header', { class: 'grp-h' }, h('h3', null, title), h('span', { class: 'gc' }, String(q ? n : list.length - unset.length)), h('span', { class: 'gh' }, hint)),
         hidden
           ? h('button', { class: 'grp-hide', type: 'button', on: { click: () => this.toggleComputed() } }, icon('eye-off'), `${plural(list.length, 'computed attribute')} hidden`, h('b', null, 'Show'))
-          : rows));
+          : unset.length
+            ? [rows, h('button', { class: 'grp-hide', type: 'button', on: { click: () => { this.showUnset = true; this.drawKeep(); } } }, icon('eye-off'), `${plural(unset.length, 'unset attribute')} hidden`, h('b', null, 'Show'))]
+            : key === 'configured' && this.showUnset && list.some((a) => a.null && !(a.children || []).length) && !q
+              ? [rows, h('button', { class: 'grp-hide', type: 'button', on: { click: () => { this.showUnset = false; this.drawKeep(); } } }, icon('eye-off'), 'Unset attributes shown', h('b', null, 'Hide'))]
+              : rows));
     }
     if (q && !shown) host.append(h('div', { class: 'blank' }, icon('search'), h('p', null, 'No attribute or value matches.')));
     if (this.count) this.count.textContent = q ? `${shown} of ${total}` : '';
