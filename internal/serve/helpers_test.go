@@ -111,6 +111,7 @@ func fakeSchemas() Schemas {
 	db := block(
 		&schema.Attribute{Name: "name", TypeJSON: str, Required: true},
 		&schema.Attribute{Name: "blob", TypeJSON: str, Optional: true, Sensitive: true},
+		&schema.Attribute{Name: "pin_code", TypeJSON: str, Optional: true, Computed: true, Sensitive: true},
 		&schema.Attribute{Name: "api_token", TypeJSON: str, Optional: true},
 		&schema.Attribute{Name: "port", TypeJSON: num, Optional: true, Computed: true},
 		&schema.Attribute{Name: "payload", TypeJSON: str, Optional: true, WriteOnly: true},
