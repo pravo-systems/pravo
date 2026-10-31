@@ -16,11 +16,11 @@ import (
 const maxHistoryAttrs = 100
 
 // historyAttrs fills the attribute changes of an entry from the diff its
-// transaction recorded for the node. The values are redacted as the record is: a
-// value that the schema or the name withholds, or that holds a sensitive string
-// of the state, is reported as changed and not shown. Without the schema every
-// value is withheld.
-func historyAttrs(e *HistoryEntry, d state.Diff, sch *schema.Schema, secrets *secretSet) {
+// transaction recorded for the node. The values are judged as the record is (j):
+// a value that the schema or the name withholds, that reads a withheld attribute,
+// or that holds a sensitive string, is reported as changed and not shown. Without
+// the schema every value is withheld.
+func historyAttrs(e *HistoryEntry, d state.Diff, sch *schema.Schema, j judgement) {
 	if d.Omitted {
 		e.AttrsOmitted = true
 		return
@@ -38,7 +38,7 @@ func historyAttrs(e *HistoryEntry, d state.Diff, sch *schema.Schema, secrets *se
 			e.AttrsOmitted = true
 			return
 		}
-		df := &differ{secrets: secrets}
+		df := &differ{secrets: j.text, taint: j.fields}
 		df.block("", sch.Block, before, after)
 		out = df.out
 	}

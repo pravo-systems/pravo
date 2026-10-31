@@ -70,7 +70,7 @@ func (m *model) fields() *fieldIndex {
 					if err != nil {
 						continue
 					}
-					w := m.walkFor(m.plan, j.addr, true)
+					w := m.judge(m.plan, j.addr).walk(true)
 					attrs := w.block(j.mn.sch.Block, rec, 0)
 					for i := range attrs {
 						j.rows = flattenAttr(j.rows, attrs[i].Name, &attrs[i])

@@ -247,23 +247,28 @@ func TestDerivedFollowsWhatANodeReads(t *testing.T) {
 	}
 }
 
-func TestSecretSetScopedTo(t *testing.T) {
+func TestSecretSetWithMadeIsScoped(t *testing.T) {
 	s := newSecretSet()
 	s.addFrom("a", "alpha-secret-1")
 	s.addFrom("b", "bravo-secret-2")
 	s.addFrom("", "global-secret-3")
 	s.addFrom("a", "bravo-secret-2")
-	got := s.scopedTo(map[string]bool{"a": true})
+	got := s.withMade(map[string]bool{"a": true}, "")
 	for text, want := range map[string]bool{"alpha-secret-1": true, "bravo-secret-2": true, "global-secret-3": true} {
 		if got.leaks(text) != want {
 			t.Errorf("scoped to a: leaks(%q) = %v", text, !want)
 		}
 	}
-	got = s.scopedTo(map[string]bool{"c": true})
+	got = s.withMade(map[string]bool{"c": true}, "")
 	if got.leaks("alpha-secret-1") || got.leaks("bravo-secret-2") || !got.leaks("global-secret-3") {
 		t.Errorf("scoped to c: %v", got.list)
 	}
-	if (*secretSet)(nil).scopedTo(nil) != nil {
+	// The node itself can be left out: its own strings are not among those a value of it is looked at for.
+	got = s.withMade(map[string]bool{"a": true, "b": true}, "a")
+	if got.leaks("alpha-secret-1") || !got.leaks("bravo-secret-2") || !got.leaks("global-secret-3") {
+		t.Errorf("scoped to b, a left out: %v", got.list)
+	}
+	if (*secretSet)(nil).withMade(nil, "") != nil {
 		t.Error("a nil set is nil")
 	}
 }
@@ -311,19 +316,58 @@ chained: $fake.#Resource.fake_file & {path: "/c", content: "again \(hashed.conte
 	}
 }
 
-func TestSecretSetOwnToKeepsWhatTheProviderMade(t *testing.T) {
+// madeOnly is what every value is looked at for: the strings a provider made and the
+// ones found in no node in particular. What a person typed into a node says nothing of
+// the other nodes' values, whatever node it was typed into.
+func TestSecretSetMadeOnlyKeepsWhatTheProviderMade(t *testing.T) {
 	s := newSecretSet()
 	s.addFrom("p", "eu-north-1") // typed into the node
 	s.addFrom("p", "generated-secret-1")
 	s.addMade("p", "generated-secret-1")
+	s.addFrom("q", "typed-secret-in-q")
 	s.addFrom("", "global-secret-2")
-	own := s.ownTo("p")
-	for text, want := range map[string]bool{"eu-north-1": false, "generated-secret-1": true, "global-secret-2": true} {
-		if own.leaks(text) != want {
-			t.Errorf("ownTo(p).leaks(%q) = %v", text, !want)
+	made := s.madeOnly()
+	for text, want := range map[string]bool{"eu-north-1": false, "typed-secret-in-q": false, "generated-secret-1": true, "global-secret-2": true} {
+		if made.leaks(text) != want {
+			t.Errorf("madeOnly().leaks(%q) = %v", text, !want)
 		}
 	}
-	if s.ownTo("q").leaks("generated-secret-1") {
-		t.Error("what one node made is not looked for in another by ownTo")
+	// A string added later is seen: the cache is dropped.
+	s.addMade("q", "generated-by-q-3")
+	if !s.madeOnly().leaks("generated-by-q-3") {
+		t.Error("a string made after the first call is not looked for")
+	}
+	if (*secretSet)(nil).madeOnly() != nil {
+		t.Error("a nil set is nil")
+	}
+}
+
+// A secret that holds another is replaced first, whichever was found first: replacing the shorter one first leaves the rest of
+// the longer in the text.
+func TestSecretSetScrubReplacesALongerSecretFirst(t *testing.T) {
+	for _, order := range [][]string{{"abcdef", "abcdef-ghijkl-mnopqr"}, {"abcdef-ghijkl-mnopqr", "abcdef"}} {
+		s := newSecretSet()
+		for _, x := range order {
+			s.add(x)
+		}
+		got, changed := s.scrub("token=abcdef-ghijkl-mnopqr end, short=abcdef")
+		if want := "token=" + mask + " end, short=" + mask; !changed || got != want {
+			t.Errorf("%v: scrub = %q, %v; want %q", order, got, changed, want)
+		}
+	}
+}
+
+// A generated password has & and < in it, and an XML document or an HTML page writes them as entities.
+func TestSecretSetFindsTheXMLFormOfASecret(t *testing.T) {
+	const pw = `Zq7r&T2v<N9x!K4m#B6w'"`
+	s := newSecretSet()
+	s.addFrom("pw", pw)
+	for _, text := range []string{
+		"<password>Zq7r&amp;T2v&lt;N9x!K4m#B6w&apos;&quot;</password>",
+		"<p>Zq7r&amp;T2v&lt;N9x!K4m#B6w&#39;&#34;</p>",
+	} {
+		if !s.leaks(text) {
+			t.Errorf("not found in %q", text)
+		}
 	}
 }

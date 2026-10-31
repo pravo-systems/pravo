@@ -398,7 +398,7 @@ func (po *planOverlay) collectSecrets() {
 		if ch.Action == engine.ActionReplace && ch.PlannedCreate.Type() != nil {
 			after = ch.PlannedCreate
 		}
-		d := &differ{sink: po.secrets, origin: addr}
+		d := &differ{sink: po.secrets, origin: addr, made: ch.Mode == "managed"}
 		d.block("", ch.Schema.Block, before, after)
 	}
 }
@@ -421,10 +421,7 @@ func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
 	if ch == nil || ch.Schema == nil || ch.Schema.Block == nil {
 		return c
 	}
-	secrets, taint := m.secretsAt(po, mn.Addr), map[string]bool(nil)
-	if t, ok := m.taintOf(mn.Addr); ok {
-		secrets, taint = m.ownText(po, mn.Addr), t
-	}
+	j := m.judge(po, mn.Addr)
 	before, after := ch.Prior, ch.Planned
 	switch ch.Action {
 	case engine.ActionReplace:
@@ -436,7 +433,7 @@ func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
 	case engine.ActionNoop:
 		return c
 	}
-	d := &differ{secrets: secrets, taint: taint}
+	d := &differ{secrets: j.text, taint: j.fields}
 	d.block("", ch.Schema.Block, before, after)
 	c.Attrs = d.out
 	return c
@@ -452,6 +449,9 @@ type differ struct {
 	// hold yet.
 	sink   *secretSet
 	origin string
+	// made says that the plan is for a managed resource: what it computes and
+	// withholds is a string its provider makes (see walk.made).
+	made bool
 	// taint lists the top-level fields that read a withheld attribute (see walk).
 	taint map[string]bool
 	out   []AttrChange
@@ -518,8 +518,8 @@ func (d *differ) block(path string, b *schema.Block, before, after tftypes.Value
 }
 
 func (d *differ) attr(path string, a *schema.Attribute, before, after tftypes.Value) {
-	if withholdReason(a.Name, a.Sensitive, a.WriteOnly) != "" {
-		d.leaf(path, true, before, after)
+	if why := withholdReason(a.Name, a.Sensitive, a.WriteOnly); why != "" {
+		d.leafOf(path, true, d.made && why == "sensitive" && kindOf(a) == "computed", before, after)
 		return
 	}
 	if o := a.NestedType; o != nil {
@@ -652,6 +652,11 @@ func (d *differ) value(path string, t tftypes.Type, before, after tftypes.Value)
 
 // leaf reports one value that differs.
 func (d *differ) leaf(path string, redact bool, before, after tftypes.Value) {
+	d.leafOf(path, redact, false, before, after)
+}
+
+// leafOf is leaf for a value that a provider made, when made says so.
+func (d *differ) leafOf(path string, redact, made bool, before, after tftypes.Value) {
 	if d.full() {
 		return
 	}
@@ -673,9 +678,10 @@ func (d *differ) leaf(path string, redact bool, before, after tftypes.Value) {
 	if redact && d.sink != nil {
 		d.sink.addFrom(d.origin, toJSONValue(bd))
 		d.sink.addFrom(d.origin, toJSONValue(ad))
-		// A plan does not say who typed a value, so it is judged as before.
-		d.sink.addMade(d.origin, toJSONValue(bd))
-		d.sink.addMade(d.origin, toJSONValue(ad))
+		if made {
+			d.sink.addMade(d.origin, toJSONValue(bd))
+			d.sink.addMade(d.origin, toJSONValue(ad))
+		}
 	}
 	if !redact && (d.secrets.leaksIn(toJSONValue(bd)) || d.secrets.leaksIn(toJSONValue(ad)) || hasGuardedKey(bd) || hasGuardedKey(ad)) {
 		redact = true

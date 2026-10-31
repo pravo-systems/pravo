@@ -183,6 +183,9 @@ func (s *Server) trace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sec := s.traceSecrets()
+	// A name, a host or a path is not a value of a record, so what the state keeps as typed (a region) is no reason to
+	// hide it; a string that a provider made is unguessable and is hidden wherever it shows.
+	made := spanText(sec)
 	info := summarize(id, rt)
 	info.Reason, info.Actor, info.Command = traceText(nil, info.Reason, 256), traceText(nil, info.Actor, 128), traceText(nil, info.Command, 128)
 	info.Line = maskCommand(info.Line, 600)
@@ -193,8 +196,8 @@ func (s *Server) trace(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		ts := TraceSpan{
-			ID: sp.ID, Parent: sp.Parent, Name: traceText(nil, sp.Name, 256), Kind: spanKind(sp.Name), Status: sp.Status,
-			Message: traceText(sec, sp.Message, traceTextMax), StartUS: sp.StartUS, DurUS: sp.DurUS, Attrs: traceAttrs(nil, sp.Attrs),
+			ID: sp.ID, Parent: sp.Parent, Name: traceText(made, sp.Name, 256), Kind: spanKind(sp.Name), Status: sp.Status,
+			Message: traceText(sec, sp.Message, traceTextMax), StartUS: sp.StartUS, DurUS: sp.DurUS, Attrs: traceAttrs(made, sp.Attrs),
 		}
 		for i, ev := range sp.Events {
 			if i >= maxTraceEvents {

@@ -281,9 +281,8 @@ func (ss *specState) computeEdges() {
 	deps := map[string]map[string]bool{}
 	for _, r := range root.Resources {
 		v := root.Value.LookupPath(r.Path)
-		rec := &taintRecorder{specResolver: res}
-		ds, _ := convert.Dependencies(v, r.Path, rec)
-		ss.recordTaint(r.Address(), rec)
+		ds, _ := convert.Dependencies(v, r.Path, res)
+		ss.recordTaint(r.Address(), taintOf(v, r.Path, res, ""))
 		set := deps[r.Address()]
 		if set == nil {
 			set = map[string]bool{}
@@ -331,9 +330,9 @@ func (ss *specState) computeEdges() {
 		set := map[string]bool{}
 		deps[o.Name] = set
 		p := o.ValuePath()
-		rec := &taintRecorder{specResolver: outRes, fixed: "value"}
-		ds, _ := convert.Dependencies(root.Value.LookupPath(p), p, rec)
-		ss.recordTaint(o.Name, rec)
+		v := root.Value.LookupPath(p)
+		ds, _ := convert.Dependencies(v, p, outRes)
+		ss.recordTaint(o.Name, taintOf(v, p, outRes, "value"))
 		for _, d := range ds {
 			if dr, ok := outRes.byPath[d.String()]; ok {
 				set[dr.Address()] = true

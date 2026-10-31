@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"html"
 	"maps"
 	"net/url"
 	"regexp"
@@ -13,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -46,35 +48,43 @@ const (
 // password is in it all the same. The set is filled while the model is built and
 // read by every request after; it is not changed then.
 //
-// Each string remembers the nodes it was found in. A value of the state carries
-// its sensitivity along the references that read it, so a reader of node X is
-// judged against the secrets of X and of what X reads, directly or not
-// (scopedTo), and not against a string that happens to be the same in a node
-// that has nothing to do with X: the region that an SSM parameter keeps in a
-// sensitive attribute says nothing of a bucket that is in the same region.
+// There are two kinds of string, and the judge (judge.go) treats them apart. What
+// a provider made, a sensitive attribute that only the provider fills in, is
+// unguessable: it is looked for in every value, whatever route it took. What a
+// person typed into a sensitive attribute is not: the same text is a region, a
+// port or a word in a hundred other places, and it says nothing of them. It
+// travels along references, which the taint follows, and along the dependencies of
+// a node that reads from outside the graph, which withMade follows.
+//
+// Each string remembers the nodes it was found in, so that a reader of node X is
+// judged against the strings of X and of what X reads, directly or not
+// (withMade), and not against a string that happens to be the same in a node that
+// has nothing to do with X: the region that an SSM parameter keeps in a sensitive
+// attribute says nothing of a bucket that is in the same region.
 type secretSet struct {
 	set  map[string]struct{}
 	list []string
 	// from lists the nodes that a string was found in. A string with no node
 	// ("") is judged for every reader.
 	from map[string][]string
-	// by lists the strings that were found in a node, by node, and pos is where
-	// a string is in list.
-	by  map[string][]string
+	// by lists the strings that were found in a node, by node, as their places in
+	// list, and pos is where a string is in list.
+	by  map[string][]int
 	pos map[string]int
-	// made lists, by node, the strings that the node's own provider produced: a
-	// sensitive attribute that is not set in the specification. A node is judged
-	// against these in its own attributes and not against what a user typed into
-	// it, which a provider has no reason to echo: the value of an SSM parameter
-	// says nothing of its ARN.
+	// made lists, by node, the strings that the provider of a managed resource
+	// produced: the value of an attribute that is sensitive, computed and not
+	// optional (random_password.result). Nothing a person typed is among them.
 	made map[string]map[string]bool
-	// generated lists, by node, the strings of an attribute that only the provider fills in: no specification field
-	// can have been the source of them. made is wider (an attribute the specification may set, left empty, is made).
-	generated map[string]map[string]bool
+
+	// madeText and madePos cache madeOnly and the places of the made strings. Adding
+	// a string drops them.
+	mu       sync.Mutex
+	madeText *secretSet
+	madePos  []int
 }
 
 func newSecretSet() *secretSet {
-	return &secretSet{set: map[string]struct{}{}, from: map[string][]string{}, by: map[string][]string{}, pos: map[string]int{}, made: map[string]map[string]bool{}, generated: map[string]map[string]bool{}}
+	return &secretSet{set: map[string]struct{}{}, from: map[string][]string{}, by: map[string][]int{}, pos: map[string]int{}, made: map[string]map[string]bool{}}
 }
 
 // add records the strings of a withheld value, and the forms in which another
@@ -106,52 +116,45 @@ func (s *secretSet) addFrom(addr string, v any) {
 	}
 }
 
-// scopedTo returns the strings that were found in one of the nodes of scope, and
-// those that were found in no node in particular.
-func (s *secretSet) scopedTo(scope map[string]bool) *secretSet {
-	if s == nil {
-		return nil
-	}
-	var found []string
-	seen := map[string]bool{}
-	take := func(o string) {
-		for _, x := range s.by[o] {
-			if !seen[x] {
-				seen[x] = true
-				found = append(found, x)
-			}
-		}
-	}
-	take("")
+// placesIn lists where the strings are that were found in one of the nodes of
+// scope other than skip, and in no node in particular.
+func (s *secretSet) placesIn(scope map[string]bool, skip string) []int {
+	places := append([]int(nil), s.by[""]...)
 	// The scope is mostly larger than what a node holds, and a node holds little.
 	if len(scope) <= len(s.by) {
 		for o := range scope {
-			take(o)
+			if o != skip {
+				places = append(places, s.by[o]...)
+			}
 		}
 	} else {
-		for o := range s.by {
-			if scope[o] {
-				take(o)
+		for o, found := range s.by {
+			if scope[o] && o != skip {
+				places = append(places, found...)
 			}
 		}
 	}
-	// In the order of the set: a secret that holds another is replaced first.
-	sort.Slice(found, func(i, j int) bool { return s.pos[found[i]] < s.pos[found[j]] })
-	out := newSecretSet()
-	for _, x := range found {
-		for _, o := range s.from[x] {
-			if o == "" || scope[o] {
-				out.put(x, o)
-			}
-		}
+	return places
+}
+
+// view is the strings at these places of the set, in the order of the set: a secret
+// that holds another is replaced first. It takes no more than a pass over the places,
+// which is what a set of every node of a large state needs, one per node. A view is
+// for looking at text: adding a string to it is a mistake.
+func (s *secretSet) view(places []int) *secretSet {
+	slices.Sort(places)
+	places = slices.Compact(places)
+	list := make([]string, len(places))
+	for i, p := range places {
+		list[i] = s.list[p]
 	}
-	return out
+	return &secretSet{list: list}
 }
 
 // clone returns a set that holds the same strings and that adding to does not
 // change this one.
 func (s *secretSet) clone() *secretSet {
-	c := &secretSet{set: make(map[string]struct{}, len(s.set)), list: append([]string(nil), s.list...), from: make(map[string][]string, len(s.from)), by: make(map[string][]string, len(s.by)), pos: make(map[string]int, len(s.pos)), made: make(map[string]map[string]bool, len(s.made)), generated: make(map[string]map[string]bool, len(s.generated))}
+	c := &secretSet{set: make(map[string]struct{}, len(s.set)), list: append([]string(nil), s.list...), from: make(map[string][]string, len(s.from)), by: make(map[string][]int, len(s.by)), pos: make(map[string]int, len(s.pos)), made: make(map[string]map[string]bool, len(s.made))}
 	for k := range s.set {
 		c.set[k] = struct{}{}
 	}
@@ -159,7 +162,7 @@ func (s *secretSet) clone() *secretSet {
 		c.from[k] = append([]string(nil), v...)
 	}
 	for k, v := range s.by {
-		c.by[k] = append([]string(nil), v...)
+		c.by[k] = append([]int(nil), v...)
 	}
 	for k, v := range s.pos {
 		c.pos[k] = v
@@ -167,25 +170,7 @@ func (s *secretSet) clone() *secretSet {
 	for k, v := range s.made {
 		c.made[k] = maps.Clone(v)
 	}
-	for k, v := range s.generated {
-		c.generated[k] = maps.Clone(v)
-	}
 	return c
-}
-
-// addGenerated is addFrom for a value of an attribute that only the provider fills in.
-func (s *secretSet) addGenerated(addr string, v any) {
-	t := newSecretSet()
-	t.addFrom(addr, v)
-	if len(t.list) == 0 {
-		return
-	}
-	if s.generated[addr] == nil {
-		s.generated[addr] = map[string]bool{}
-	}
-	for _, x := range t.list {
-		s.generated[addr][x] = true
-	}
 }
 
 // addMade is addFrom for a value that the provider of the node made.
@@ -199,48 +184,58 @@ func (s *secretSet) addMade(addr string, v any) {
 		s.made[addr] = map[string]bool{}
 	}
 	for _, x := range t.list {
+		s.put(x, addr)
 		s.made[addr][x] = true
 	}
+	s.madeText, s.madePos = nil, nil
 }
 
-// ownTo is what a declared node is judged against in its own attributes: the
-// strings it made, and those found in no node in particular.
-func (s *secretSet) ownTo(addr string) *secretSet {
+// madeOnly is the strings that a provider made, and those found in no node in
+// particular: what every value of every node is judged against, since a
+// provider-made string is unguessable and can have taken any route to a value
+// (a file that a data source reads back, an attribute that its provider echoes).
+// It is worked out once.
+func (s *secretSet) madeOnly() *secretSet {
 	if s == nil {
 		return nil
 	}
-	out := newSecretSet()
-	for _, x := range s.list {
-		for _, o := range s.from[x] {
-			if o == "" || o == addr && s.made[addr][x] {
-				out.put(x, o)
-			}
-		}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.madeText == nil {
+		s.madeText = s.view(append(append([]int(nil), s.by[""]...), s.madePlaces()...))
 	}
-	return out
+	return s.madeText
 }
 
-// withMade is the strings found in the nodes of scope and those that any provider generated: a sensitive attribute that
-// only the provider fills in. A node that reads from outside the graph can hold what a provider generated, which no reference
-// leads to; what a person typed into the specification reaches it only along a reference, which scope follows.
-func (s *secretSet) withMade(scope map[string]bool) *secretSet {
-	out := s.scopedTo(scope)
+// withMade is the strings found in the nodes of scope other than skip, and those
+// that a provider made anywhere. A node that reads from outside the graph can hold
+// what a provider generated, which no reference leads to; what a person typed into
+// the specification reaches it only along the dependencies, which scope follows.
+func (s *secretSet) withMade(scope map[string]bool, skip string) *secretSet {
 	if s == nil {
-		return out
+		return nil
 	}
-	for addr, strs := range s.generated {
-		for x := range strs {
-			out.put(x, addr)
-			if out.generated[addr] == nil {
-				out.generated[addr] = map[string]bool{}
+	s.mu.Lock()
+	made := s.madePlaces()
+	s.mu.Unlock()
+	return s.view(append(s.placesIn(scope, skip), made...))
+}
+
+// madePlaces lists where the strings are that providers made. The caller holds mu.
+func (s *secretSet) madePlaces() []int {
+	if s.madePos == nil {
+		s.madePos = []int{}
+		for _, strs := range s.made {
+			for x := range strs {
+				s.madePos = append(s.madePos, s.pos[x])
 			}
-			out.generated[addr][x] = true
 		}
 	}
-	return out
+	return s.madePos
 }
 
 func (s *secretSet) put(x, addr string) {
+	s.madeText, s.madePos = nil, nil
 	if _, ok := s.set[x]; !ok {
 		s.set[x] = struct{}{}
 		s.pos[x] = len(s.list)
@@ -248,7 +243,7 @@ func (s *secretSet) put(x, addr string) {
 	}
 	if !slices.Contains(s.from[x], addr) {
 		s.from[x] = append(s.from[x], addr)
-		s.by[addr] = append(s.by[addr], x)
+		s.by[addr] = append(s.by[addr], s.pos[x])
 	}
 }
 
@@ -273,12 +268,17 @@ func embeddedForms(x string) []string {
 		add(jsonInner(x, false))
 		add(hex.EncodeToString([]byte(x)))
 		add(strings.ToUpper(hex.EncodeToString([]byte(x))))
+		add(html.EscapeString(x))
+		add(xmlEntities.Replace(x))
 	}
 	for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.URLEncoding} {
 		out = append(out, base64Forms(enc, []byte(x))...)
 	}
 	return out
 }
+
+// xmlEntities writes a secret as it reads inside an XML document (a generated password has & and < in it).
+var xmlEntities = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;", "'", "&apos;")
 
 // jsonInner is the secret as it reads inside a JSON string.
 func jsonInner(x string, escapeHTML bool) string {
@@ -327,14 +327,21 @@ func (s *secretSet) scrub(text string) (string, bool) {
 	if s == nil || len(text) < minSecret {
 		return text, false
 	}
-	changed := false
+	var hits []string
 	for _, sec := range s.list {
 		if len(sec) <= len(text) && strings.Contains(text, sec) {
-			text = strings.ReplaceAll(text, sec, mask)
-			changed = true
+			hits = append(hits, sec)
 		}
 	}
-	return text, changed
+	if len(hits) == 0 {
+		return text, false
+	}
+	// A secret that holds another is replaced first: the shorter one would leave the rest of the longer in the text.
+	sort.SliceStable(hits, func(i, j int) bool { return len(hits[i]) > len(hits[j]) })
+	for _, sec := range hits {
+		text = strings.ReplaceAll(text, sec, mask)
+	}
+	return text, true
 }
 
 // leaks reports whether text contains a sensitive string of the state.
@@ -396,6 +403,25 @@ type walk struct {
 	// build makes the walk return the attributes. A walk that only counts and
 	// collects leaves them out.
 	build bool
+	// made says that the record is one of a managed resource, so that a sensitive
+	// value of a computed attribute that the sink collects is a string its provider
+	// made (the value of a data source is read from outside, and says nothing of
+	// who made it). kind is the kind of the attribute that is being rendered.
+	made bool
+	kind string
+	// hits, when set, collects the top-level fields that hold a string of secrets:
+	// top is the one being rendered. The taint seeds its fields from them.
+	hits map[string]bool
+	top  string
+	// marks, when set, collects the top-level fields that hold a value withheld for what it is, however deep: the schema
+	// does not know the keys of a map, so a key that says it is a secret is found only in the record. The taint seeds its
+	// fields from them.
+	marks *map[string]bool
+	// because says, by top-level field, what a derived field reads, and textWhy what
+	// the text of a value that is withheld for what it holds is: a derived value
+	// carries the sentence (Attr.Why), so that the page can say why.
+	because map[string]string
+	textWhy string
 	// withheld counts the values that were withheld for what they are: by the
 	// schema, by the name or because the schema does not know them. derived counts
 	// those withheld for what they contain.
@@ -479,6 +505,9 @@ func (w *walk) block(b *schema.Block, rec map[string]any, depth int) []Attr {
 	seen := make(map[string]bool, len(b.Attributes)+len(b.BlockTypes))
 	for _, a := range b.Attributes {
 		seen[a.Name] = true
+		if depth == 0 {
+			w.top = a.Name
+		}
 		at := w.attribute(a, rec[a.Name], depth)
 		if w.build {
 			out = append(out, at)
@@ -486,16 +515,19 @@ func (w *walk) block(b *schema.Block, rec map[string]any, depth int) []Attr {
 	}
 	for _, nb := range b.BlockTypes {
 		seen[nb.TypeName] = true
+		if depth == 0 {
+			w.top = nb.TypeName
+		}
 		at := w.blockAttr(nb, rec[nb.TypeName], depth)
 		if w.build {
 			out = append(out, at)
 		}
 	}
-	return append(out, w.extra(rec, seen)...)
+	return append(out, w.extra(rec, seen, depth)...)
 }
 
 // extra renders the values of a record that the schema has no attribute for.
-func (w *walk) extra(rec map[string]any, seen map[string]bool) []Attr {
+func (w *walk) extra(rec map[string]any, seen map[string]bool, depth int) []Attr {
 	var names []string
 	for k := range rec {
 		if !seen[k] {
@@ -506,6 +538,9 @@ func (w *walk) extra(rec map[string]any, seen map[string]bool) []Attr {
 	var out []Attr
 	for _, k := range names {
 		at := Attr{Name: k}
+		if depth == 0 {
+			w.top = k
+		}
 		if rec[k] == nil {
 			at.Null = true
 		} else {
@@ -520,6 +555,8 @@ func (w *walk) extra(rec map[string]any, seen map[string]bool) []Attr {
 
 func (w *walk) attribute(a *schema.Attribute, v any, depth int) Attr {
 	at := Attr{Name: a.Name, Kind: kindOf(a), Sensitive: a.Sensitive, Deprecated: a.Deprecated}
+	defer func(k string) { w.kind = k }(w.kind)
+	w.kind = at.Kind
 	if w.build {
 		at.Type = attrType(a)
 		at.Description = clip(a.Description, maxDescription)
@@ -533,7 +570,7 @@ func (w *walk) attribute(a *schema.Attribute, v any, depth int) Attr {
 		return at
 	}
 	if depth == 0 && w.taint[a.Name] {
-		at.Redacted = "derived"
+		at.Redacted, at.Why = "derived", w.because[a.Name]
 		w.derived++
 		return at
 	}
@@ -612,12 +649,14 @@ func (w *walk) attrsOf(attrs []*schema.Attribute, m map[string]any, depth int) [
 			out = append(out, at)
 		}
 	}
-	return append(out, w.extra(m, seen)...)
+	return append(out, w.extra(m, seen, depth)...)
 }
 
 // blockAttr renders a nested block type.
 func (w *walk) blockAttr(nb *schema.NestedBlock, v any, depth int) Attr {
 	at := Attr{Name: nb.TypeName}
+	defer func(k string) { w.kind = k }(w.kind)
+	w.kind = ""
 	if nb.MinItems > 0 {
 		at.Kind = "required"
 	}
@@ -635,7 +674,7 @@ func (w *walk) blockAttr(nb *schema.NestedBlock, v any, depth int) Attr {
 		return at
 	}
 	if depth == 0 && w.taint[nb.TypeName] {
-		at.Redacted = "derived"
+		at.Redacted, at.Why = "derived", w.because[nb.TypeName]
 		w.derived++
 		return at
 	}
@@ -795,8 +834,11 @@ func (w *walk) scalar(at *Attr, v any) {
 	switch x := v.(type) {
 	case string:
 		if w.secrets.leaks(x) {
-			at.Redacted = "derived"
+			at.Redacted, at.Why = "derived", w.textWhy
 			w.derived++
+			if w.hits != nil {
+				w.hits[w.top] = true
+			}
 			return
 		}
 		if !w.build {
@@ -818,7 +860,19 @@ func (w *walk) scalar(at *Attr, v any) {
 	default:
 		at.Redacted = "schema"
 		w.withheld++
+		w.mark()
 	}
+}
+
+// mark notes the top-level field that is being rendered as one that holds a value withheld for what it is.
+func (w *walk) mark() {
+	if w.marks == nil {
+		return
+	}
+	if *w.marks == nil {
+		*w.marks = map[string]bool{}
+	}
+	(*w.marks)[w.top] = true
 }
 
 // elements renders the elements of a list or set, up to the limit.
@@ -872,13 +926,11 @@ func (w *walk) withhold(at *Attr, v any, why string) {
 	at.Redacted = why
 	at.Value, at.Children = nil, nil
 	w.withheld++
+	w.mark()
 	if w.sink != nil {
 		w.sink.addFrom(w.origin, v)
-		if at.Kind != "required" && at.Kind != "optional" {
+		if w.made && why == "sensitive" && w.kind == "computed" {
 			w.sink.addMade(w.origin, v)
-		}
-		if at.Kind == "computed" {
-			w.sink.addGenerated(w.origin, v)
 		}
 	}
 }

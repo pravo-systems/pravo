@@ -30,7 +30,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		return m.outputDetail(mn, po)
 	}
 	addr := mn.Addr
-	sec := m.secretsAt(po, addr)
+	j, lit := m.judge(po, addr), m.literals(po, addr)
 	d := &Detail{Version: APIVersion, Node: mn.Node, Attrs: []Attr{}, DependsOn: nonNil(m.deps[addr]), UsedBy: nonNil(m.used[addr])}
 	if po != m.plan {
 		d.Node.Action = ""
@@ -55,11 +55,11 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		case err != nil:
 			d.Notes = append(d.Notes, "The attributes of the record cannot be read: "+err.Error()+".")
 		case mn.sch != nil:
-			w := m.walkFor(po, addr, true)
+			w := j.walk(true)
 			d.Attrs = w.block(mn.sch.Block, attrs, 0)
 			if w.derived > 0 {
-				d.Notes = append(d.Notes, fmt.Sprintf("%d %s withheld: %s a sensitive value of this resource or of one it reads.",
-					w.derived, plural(w.derived, "value is", "values are"), plural(w.derived, "it holds", "they hold")))
+				d.Notes = append(d.Notes, fmt.Sprintf("%d %s withheld because %s a sensitive value: hover one to see what.",
+					w.derived, plural(w.derived, "value is", "values are"), plural(w.derived, "it reads or holds", "they read or hold")))
 			}
 		default:
 			d.Attrs = withholdAll(attrs)
@@ -67,7 +67,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 		}
 	}
 	if rec == nil {
-		m.unrecorded(mn, d, sec)
+		m.unrecorded(mn, d, lit)
 	} else if set, ok := m.specSet(mn); ok {
 		d.SpecKnown, d.SpecSet = true, set
 	}
@@ -89,7 +89,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 			}
 			if len(e.conflict) > 0 {
 				d.Notes = append(d.Notes, "This change conflicts with the state and is left out of the part of the plan that can be applied: "+
-					maskText(sec, strings.Join(e.conflict, "; "), maxReason)+".")
+					maskText(lit, strings.Join(e.conflict, "; "), maxReason)+".")
 			}
 		}
 		if d.Change.Attrs == nil && po.changes == nil && d.Change.Action != "no-op" {
@@ -110,7 +110,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 			if diffs, sealed := m.store.TxnDiffs(t); sealed {
 				entry.AttrsSealed = true
 			} else if df, ok := diffs[addr]; ok {
-				historyAttrs(&entry, df, mn.sch, sec)
+				historyAttrs(&entry, df, mn.sch, j)
 			}
 			if verify := m.srv.opts.VerifyTxn; verify != nil {
 				t := t
@@ -165,13 +165,18 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 // apply has recorded it, it is not known.
 func (m *model) outputDetail(mn *mnode, po *planOverlay) *Detail {
 	addr := mn.Addr
-	sec := m.secretsAt(po, addr)
 	d := &Detail{Version: APIVersion, Node: mn.Node, Attrs: []Attr{}, DependsOn: nonNil(m.deps[addr]), UsedBy: nonNil(m.used[addr]), SchemaKnown: true}
 	d.Node.Action = ""
 	at := Attr{Name: "value", Type: "output"}
+	j := m.judge(po, addr)
 	switch {
 	case mn.output.Sensitive:
 		at.Sensitive, at.Redacted = true, mn.output.Redacted
+		if at.Redacted == "derived" {
+			if at.Why = j.because["value"]; at.Why == "" {
+				at.Why = j.textWhy
+			}
+		}
 	case mn.recorded == nil:
 		at.Unknown = true
 	default:
@@ -183,7 +188,7 @@ func (m *model) outputDetail(mn *mnode, po *planOverlay) *Detail {
 		case v == nil:
 			at.Null = true
 		default:
-			w := &walk{secrets: sec, build: true}
+			w := j.walk(true)
 			w.free(&at, v, 0, nil)
 			if at.Redacted != "" {
 				at.Sensitive = true
@@ -227,59 +232,11 @@ func (m *model) outputDescription(mn *mnode) string {
 	return text
 }
 
-// secretsFor is the set of sensitive strings that a response about the plan po is
-// judged against: those of the state and the ones the plan would write. A plan
-// that has none of its own (the plan of the graph, which adds its secrets to the
-// model's set, or no plan) is judged against the model's.
-func (m *model) secretsFor(po *planOverlay) *secretSet {
-	if po != nil && po.secrets != nil {
-		return po.secrets
-	}
-	return m.secrets
-}
-
-// secretsAt is secretsFor for what a reader of the node at addr can hold: the
-// strings found in the node and in what it reads, directly or not.
-func (m *model) secretsAt(po *planOverlay, addr string) *secretSet {
-	return m.scoped(m.secretsFor(po), addr)
-}
-
-// scoped is sec as it applies to the node at addr. An output that the state records
-// and the specification does not declare has no references to follow, so what it
-// holds is judged against every string; so is a node that reads a data source.
-func (m *model) scoped(sec *secretSet, addr string) *secretSet {
-	if mn := m.nodes[addr]; mn != nil && mn.isOutput() && mn.out == nil {
-		return sec
-	}
-	if m.readsData(addr) {
-		return sec.withMade(m.scopeOf(addr))
-	}
-	return sec.scopedTo(m.scopeOf(addr))
-}
-
-// readsData reports whether the node at addr is, or reads, a data source. A data
-// source reads from outside the graph, such as a file that a resource wrote, so
-// it can hold any sensitive value without a reference to the node that made it.
-func (m *model) readsData(addr string) bool {
-	for n := range m.scopeOf(addr) {
-		if dn := m.nodes[n]; dn != nil && dn.Mode == "data" {
-			return true
-		}
-	}
-	return false
-}
-
-// ownText is what a declared node is judged against by text, besides its taint:
-// its own strings, or every string when it reads a data source.
-func (m *model) ownText(po *planOverlay, addr string) *secretSet {
-	if m.readsData(addr) {
-		return m.secretsFor(po).withMade(m.scopeOf(addr))
-	}
-	return m.secretsFor(po).ownTo(addr)
-}
-
 // scopeOf is the node at addr and every node it reads, directly or not: the
-// nodes whose sensitive values a value of the node may be built from.
+// nodes whose sensitive values a value of the node may be built from. What a node
+// reads is what the graph draws (its dependencies) and what its values came from
+// (the specification passes an attribute on through the parameter of a definition,
+// and the ordering of the tasks sees no dependency in that).
 func (m *model) scopeOf(addr string) map[string]bool {
 	m.scopeMu.Lock()
 	defer m.scopeMu.Unlock()
@@ -295,6 +252,14 @@ func (m *model) scopeOf(addr string) map[string]bool {
 			if !sc[d] {
 				sc[d] = true
 				todo = append(todo, d)
+			}
+		}
+		for _, refs := range m.spec.taint[n] {
+			for _, r := range refs {
+				if r.task != "" && !sc[r.task] && m.nodes[r.task] != nil {
+					sc[r.task] = true
+					todo = append(todo, r.task)
+				}
 			}
 		}
 	}

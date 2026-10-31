@@ -125,10 +125,11 @@ type Node struct {
 	// does not count for Overlap. Both are as of the revision of the graph.
 	Plans   []string `json:"plans,omitempty"`
 	Overlap bool     `json:"overlap,omitempty"`
-	// Sensitive counts the attributes of the record whose values are withheld,
-	// the ones that hold a value and not null. For an output it is 1 when the
-	// value is withheld: the output is marked sensitive, or its value holds a
-	// sensitive value of the state.
+	// Sensitive counts the values of the record that are withheld, the ones that
+	// hold a value and not null: those the schema or the name withholds, and
+	// those that read or hold a sensitive value (redacted "derived"). For an
+	// output it is 1 when the value is withheld: the output is marked sensitive,
+	// or its value reads or holds a sensitive value of the state.
 	Sensitive int `json:"sensitive,omitempty"`
 	// NoSchema is set when the schema of the node's type is not cached, so that
 	// every value of the record is withheld and Sensitive says nothing.
@@ -356,7 +357,9 @@ type Attr struct {
 	// attribute), "write-only" or "derived" (the text contains a value that the
 	// state holds in a sensitive attribute: a file whose content embeds a
 	// password). A value that is null is never withheld: null says nothing.
-	Redacted    string `json:"redacted,omitempty"`
+	Redacted string `json:"redacted,omitempty"`
+	// Why says, for a value that is "derived", what it reads or what its text holds, in a sentence.
+	Why         string `json:"why,omitempty"`
 	Unknown     bool   `json:"unknown,omitempty"`
 	Null        bool   `json:"null,omitempty"`
 	Value       any    `json:"value,omitempty"`
