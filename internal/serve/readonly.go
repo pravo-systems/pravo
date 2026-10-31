@@ -48,6 +48,25 @@ func (b *readOnlyBackend) List(ctx context.Context, prefix string) ([]string, er
 	return b.b.List(ctx, prefix)
 }
 
+// ListsVersions and ListVersions let the viewer read a state through its snapshot when the
+// backend under it lists versions.
+func (b *readOnlyBackend) ListsVersions() bool {
+	l, ok := b.b.(interface{ ListsVersions() bool })
+	_, isL := b.b.(state.VersionLister)
+	return isL && (!ok || l.ListsVersions())
+}
+
+func (b *readOnlyBackend) ListVersions(ctx context.Context, prefix string) ([]state.ObjectVersion, error) {
+	vl, ok := b.b.(state.VersionLister)
+	if !ok {
+		return nil, errors.New("the backend does not list versions")
+	}
+	return vl.ListVersions(ctx, prefix)
+}
+
+// ReadOnlyView says that the viewer never writes, so that no snapshot is kept through it.
+func (b *readOnlyBackend) ReadOnlyView() {}
+
 const metaKey = "meta.json"
 
 func (b *readOnlyBackend) Get(ctx context.Context, key string) ([]byte, error) {

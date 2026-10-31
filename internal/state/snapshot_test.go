@@ -141,3 +141,48 @@ func TestACommandThatChangesManyNodesLeavesASnapshotThatIsTrue(t *testing.T) {
 		t.Fatalf("the open after a big change read %d objects", g)
 	}
 }
+
+// A reader who plans opens the state through an overlay: it takes the snapshot that a writer
+// kept, and keeps none of its own.
+func TestAnOverlayReadsTheSnapshotAndKeepsNone(t *testing.T) {
+	dir := t.TempDir()
+	seed, err := OpenWith(dir, Options{NewFormat: FormatImmutable})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const n = 120
+	for i := range n {
+		mustSet(t, seed, node(fmt.Sprintf("r%03d", i)))
+	}
+	open := func(overlay bool) (*Store, *taggedBackend) {
+		lb, err := NewLocalBackend(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b := &taggedBackend{Backend: lb}
+		var ob Backend = b
+		if overlay {
+			ob = OverlayBackend(b)
+		}
+		s, err := OpenBackend(context.Background(), ob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s, b
+	}
+	// Without a snapshot the overlay writes none to the backend.
+	if s, _ := open(true); s.Len() != n {
+		t.Fatalf("overlay open holds %d nodes, want %d", s.Len(), n)
+	}
+	if _, err := seed.b.Get(context.Background(), snapshotKey); err == nil {
+		t.Fatal("a reader's overlay kept a snapshot in the state")
+	}
+	open(false) // a writer keeps one
+	s, b := open(true)
+	if s.Len() != n {
+		t.Fatalf("overlay open holds %d nodes, want %d", s.Len(), n)
+	}
+	if g := b.gets.Load(); g > 8 {
+		t.Fatalf("an overlay open with a snapshot read %d objects", g)
+	}
+}

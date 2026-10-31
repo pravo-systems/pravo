@@ -43,9 +43,9 @@ type snapshotEntry struct {
 
 // snapshotOn reports whether the store reads and keeps snapshots: for a backend that lists
 // versions, unless the settings turn it off (snapshot: false).
-func (s *Store) snapshotOn() (VersionLister, bool) {
+func (s *Store) snapshotOn() (vl VersionLister, keep bool, ok bool) {
 	if s.meta.Format < FormatImmutable {
-		return nil, false
+		return nil, false, false
 	}
 	return versionLister(s.b)
 }
@@ -166,7 +166,7 @@ func (s *Store) loadNodes(ctx context.Context, vl VersionLister, objs []ObjectVe
 	}
 	entries := entriesOf(objs, results)
 	s.snap.on, s.snap.entries, s.snap.missed = true, entries, missed
-	if snap == nil && len(entries) >= snapshotMin && s.writable() == nil {
+	if _, keep, _ := s.snapshotOn(); keep && snap == nil && len(entries) >= snapshotMin && s.writable() == nil {
 		if s.snap.kept = s.putSnapshot(ctx, entries); s.snap.kept {
 			s.snap.missed = 0
 		}
@@ -188,8 +188,8 @@ func (s *Store) settleSnapshot() {
 	if (s.snap.missed+int(s.snap.written.Load()))*snapshotRewriteBelow <= n {
 		return
 	}
-	vl, ok := s.snapshotOn()
-	if !ok {
+	vl, keep, ok := s.snapshotOn()
+	if !ok || !keep {
 		return
 	}
 	ctx, cancel := context.WithTimeout(s.cx(), settleTimeout)
