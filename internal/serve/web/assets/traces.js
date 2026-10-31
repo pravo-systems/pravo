@@ -84,6 +84,7 @@ export class TracesView {
   // open is called when the section is shown: the list is read again, and the run that is open with it.
   async open() {
     this.active = true;
+    if (!this.list) this.render(); // the indicator, while the first list is read
     await this.reload();
   }
 
