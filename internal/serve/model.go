@@ -725,7 +725,7 @@ func (m *model) outputs(set *outputSet) []Output {
 				o.Unknown = true
 				break
 			}
-			if _, known := m.taintOf(n); known && (m.derived[n]["value"] || m.readsData(n) && m.secrets.leaksIn(dv["v"])) || !known && m.scoped(m.secrets, n).leaksIn(dv["v"]) {
+			if _, known := m.taintOf(n); known && (m.derived[n]["value"] || m.readsData(n) && m.secrets.withMade(m.scopeOf(n)).leaksIn(dv["v"])) || !known && m.scoped(m.secrets, n).leaksIn(dv["v"]) {
 				o.Sensitive, o.Redacted = true, "derived"
 			} else {
 				o.Value = bound(dv["v"], 0)

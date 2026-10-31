@@ -91,6 +91,11 @@ func templateProjectOf(t *testing.T, spec, attrs string, more ...*state.Resource
 	if err := txn.Finish("applied", "1 created", true); err != nil {
 		t.Fatal(err)
 	}
+	if strings.Contains(spec, "zoneName:") {
+		if err := st.SetOutputs(map[string]json.RawMessage{"zoneName": json.RawMessage(`"eu-north-1a"`)}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return start(t, dir, st, Options{})
 }
 

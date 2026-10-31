@@ -11,12 +11,25 @@ import (
 func TestTemplateChoicesReadADataSource(t *testing.T) {
 	spec := strings.Replace(askSpecCUE, "boxes.one.db.zones", "zones.names", 1)
 	spec = strings.Replace(spec, "$fake: {", "$fake: {\n\t#Data: fake_zones: {\n\t\t$kind: \"data\", $type: \"fake_zones\", $source: \"example.test/x/fake\"\n\t\tstate?: string\n\t\t...\n\t}", 1)
-	spec += "\nzones: $fake.#Data.fake_zones & {state: \"available\"}\n"
+	spec += "\nzones: $fake.#Data.fake_zones & {state: \"available\"}\nzoneName: {$kind: \"output\", value: zones.names[0]}\n"
 	rec := record("zones", "fake_zones", `{"state":"eu-north-1","names":["eu-north-1a","eu-north-1b","eu-north-1c"]}`)
 	rec.Mode = "data"
 	p := templateProjectOf(t, spec, `{"name":"one","pin_code":"eu-north-1","settings":{"region":"eu-north-1"}}`, rec)
 	c := p.choices("zone")
 	if c.State != "ok" || len(c.Items) != 3 || c.Items[0].Value != "eu-north-1a" {
 		t.Errorf("zones: %+v", c)
+	}
+	// The output that reads the data source is judged as the data source is.
+	found := false
+	for _, o := range p.graph().Outputs {
+		if o.Name == "zoneName" {
+			found = true
+			if o.Redacted != "" || o.Value != "eu-north-1a" {
+				t.Errorf("zoneName: %+v", o)
+			}
+		}
+	}
+	if !found {
+		t.Error("no output zoneName")
 	}
 }
