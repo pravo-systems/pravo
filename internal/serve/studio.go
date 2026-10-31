@@ -119,10 +119,10 @@ func (s *Server) studio(m *model) *Studio {
 			}
 			wp := StudioPolicy{Name: p.Name, Status: p.Status, Description: m.clipText(desc[p.Name])}
 			if t.inForce != "" {
-				wp.InForce = m.scrubText(policyDeclaration(p.Name, wp.Description, clip(t.inForce, maxPolicyText)))
+				wp.InForce = m.scrubTags(policyDeclaration(p.Name, wp.Description, clip(t.inForce, maxPolicyText)))
 			}
 			if t.declared != "" {
-				wp.Declared = m.scrubText(policyDeclaration(p.Name, wp.Description, clip(t.declared, maxPolicyText)))
+				wp.Declared = m.scrubTags(policyDeclaration(p.Name, wp.Description, clip(t.declared, maxPolicyText)))
 			}
 			studio.Policies = append(studio.Policies, wp)
 		}

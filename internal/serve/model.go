@@ -242,9 +242,9 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	m.graph.Version = APIVersion
 	m.graph.Revision = rev
 	m.graph.Project = m.project()
-	// What the specification could not be loaded for, and every other sentence,
-	// can quote a value: a tag that was given on the command line, a literal.
-	m.graph.Project.SpecError = m.scrubText(m.graph.Project.SpecError)
+	// What the specification could not be loaded for can quote a tag that was given on
+	// the command line; every other sentence can quote a value of the state.
+	m.graph.Project.SpecError = m.scrubTags(m.graph.Project.SpecError)
 	for i := range warnings {
 		warnings[i] = m.scrubText(warnings[i])
 	}
@@ -288,12 +288,19 @@ func (m *model) scrubTextWith(sec *secretSet, text string) string {
 		return text
 	}
 	out, _ := sec.scrub(text)
+	return m.scrubTags(out)
+}
+
+// scrubTags masks the tags that were given on the command line under a name that
+// says they are secrets. It is what a sentence about loading the specification
+// is judged by: loading reads no state, so no string of the state can be in it.
+func (m *model) scrubTags(text string) string {
 	for _, t := range m.srv.opts.Tags {
 		if k, v, ok := strings.Cut(t, "="); ok && len(v) >= 4 && guarded(k) {
-			out = strings.ReplaceAll(out, v, mask)
+			text = strings.ReplaceAll(text, v, mask)
 		}
 	}
-	return out
+	return text
 }
 
 // headline picks the line of a load error that says what is wrong: the hint
