@@ -259,6 +259,7 @@ func (m *model) computeTaint() {
 			base[addr] = tops{all: true}
 		}
 	}
+	m.echoTextless()
 	sensitive := func(task, attr string) bool {
 		if b, ok := base[task]; ok {
 			if b.all || (attr != "" && b.set[attr]) || (attr == "" && len(b.set) > 0) {
@@ -317,6 +318,90 @@ func (m *model) findEchoes() {
 		w.block(mn.sch.Block, attrs, 0)
 		if len(w.hits) > 0 {
 			m.echoes[addr] = w.hits
+		}
+	}
+}
+
+// textless says that the node holds a secret in no record: a pravo.#Secret, a
+// pravo.#SecretEnv or a managed resource with a write-only attribute. Nothing
+// of it can be looked for as text.
+func (m *model) textless(mn *mnode) bool {
+	if mn.res != nil && mn.res.Builtin && (mn.res.Type == "secret" || mn.res.Type == "secret_env") {
+		return true
+	}
+	return mn.Mode != "data" && mn.sch != nil && blockWriteOnly(mn.sch.Block, 0)
+}
+
+func blockWriteOnly(b *schema.Block, depth int) bool {
+	if b == nil || depth > maxDepth {
+		return false
+	}
+	for _, a := range b.Attributes {
+		if a.WriteOnly || objectWriteOnly(a.NestedType, depth+1) {
+			return true
+		}
+	}
+	for _, nb := range b.BlockTypes {
+		if blockWriteOnly(nb.Block, depth+1) {
+			return true
+		}
+	}
+	return false
+}
+
+func objectWriteOnly(o *schema.Object, depth int) bool {
+	if o == nil || depth > maxDepth {
+		return false
+	}
+	for _, a := range o.Attributes {
+		if a.WriteOnly || objectWriteOnly(a.NestedType, depth+1) {
+			return true
+		}
+	}
+	return false
+}
+
+// echoTextless withholds every field that a data source reads from outside the
+// graph (a computed one), when a node whose secret has no text is among what it
+// depends on: the data source may read that secret back from a file, and there is
+// no string to find it by. The field is derived, so what reads it is withheld too.
+func (m *model) echoTextless() {
+	var held map[string]bool
+	for _, addr := range m.order {
+		mn := m.nodes[addr]
+		if mn.Mode != "data" || mn.res == nil || mn.rec == nil || mn.sch == nil || mn.Sealed || mn.undecoded {
+			continue
+		}
+		if held == nil {
+			held = map[string]bool{}
+			for _, a := range m.order {
+				if n := m.nodes[a]; n != nil && m.textless(n) {
+					held[a] = true
+				}
+			}
+			if len(held) == 0 {
+				return
+			}
+		}
+		found := false
+		for dep := range m.scopeOf(addr) {
+			if dep != addr && held[dep] {
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+		for _, a := range mn.sch.Block.Attributes {
+			if a.Computed {
+				if m.derived[addr] == nil {
+					m.derived[addr] = map[string]bool{}
+					m.because[addr] = map[string]string{}
+				}
+				m.derived[addr][a.Name] = true
+				m.because[addr][a.Name] = "It is read from outside, and a secret that has no text (a write-only value or a pravo.#Secret) is among what it depends on."
+			}
 		}
 	}
 }

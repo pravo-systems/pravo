@@ -139,6 +139,9 @@ var rcTypes = []rcType{
 		rcA("name", rcString, "R"), rcA("engine", rcString, "OC"), rcA("password", rcString, "OS"), rcA("url", rcString, "O"),
 		rcA("comment", rcString, "O"), rcA("description", rcString, "O"), rcA("endpoint", rcString, "C"), rcA("id", rcString, "C"),
 		rcA("pin_code", rcString, "OCS")}},
+	// rc_wo takes a token that the provider never stores (write-only), as aws_db_instance does with password_wo.
+	{name: "rc_wo", attrs: []rcAttrDef{
+		rcA("name", rcString, "R"), rcA("token", rcString, "OW"), rcA("id", rcString, "C")}},
 	// rc_vault holds collections that the provider made and marks sensitive as a whole.
 	{name: "rc_vault", attrs: []rcAttrDef{
 		rcA("name", rcString, "R"), rcA("issued", rcMap, "CS"), rcA("pins", rcList, "CS"), rcA("bundle", rcObj, "CS"), rcA("id", rcString, "C")}},
@@ -1741,4 +1744,79 @@ func TestRCSourceMasksATypedLiteralInTheClosureOnly(t *testing.T) {
 	if b := body("other"); !strings.Contains(b, rcHunter) {
 		t.Errorf("/api/source other (no dependency on db) masks a literal that is no secret of its closure: %.300s", b)
 	}
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// S20: a node that is not applied yet has no record, so no string of it is known. The source view still masks the
+// literal of a sensitive attribute, and so a repeat of that literal in another attribute of the same block.
+
+const rcP20Spec = `
+unapplied: $fake.#Resource.aws_ssm_parameter & {
+	name:        "/app/unapplied"
+	type:        "String"
+	value:       "typed-before-apply-731"
+	description: "holds typed-before-apply-731 for now"
+}
+`
+
+func TestRCSourceOfAnUnappliedNodeMasksARepeatOfAMaskedLiteral(t *testing.T) {
+	p := rcProj(t, rcP20Spec, false, nil, nil)
+	b := string(p.get("/api/source?addr=" + queryEscape("unapplied")))
+	if strings.Contains(b, "typed-before-apply-731") {
+		t.Errorf("/api/source of a node with no record sends the literal of its sensitive value: %s", b[max(0, strings.Index(b, "typed-before-apply-731")-80):][:200])
+	}
+	if !strings.Contains(b, "/app/unapplied") {
+		t.Errorf("/api/source of a node with no record masks the name too: %.400s", b)
+	}
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// S21: a write-only attribute is in no record, so its text is not known. A data source that reads a file which holds
+// it back has fields of unknown content: what it reads from outside is withheld, and so is what reads those fields.
+
+const rcP21Spec = `
+vault: $fake.#Resource.rc_wo & {
+	name:  "main"
+	token: "wo-typed-token-5521"
+}
+
+file: $fake.#Resource.local_file & {
+	filename: "out/wo.env"
+	content:  "t=\(vault.token)"
+}
+
+back: $fake.#Data.local_file & {filename: file.filename}
+
+unrelated: $fake.#Data.local_file & {filename: "out/other.txt"}
+
+reader: $fake.#Resource.local_file & {
+	filename: "out/copy.env"
+	content:  back.content
+}
+
+backOut: {$kind: "output", value: back.content}
+`
+
+func TestRCWriteOnlyValueReadBackByADataSource(t *testing.T) {
+	content := "t=wo-typed-token-5521"
+	md5 := "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+	recs := []*state.Resource{
+		rcRec("vault", "rc_wo", rcM{"id": "v1", "name": "main", "token": nil}),
+		rcRec("file", "local_file", rcM{"id": "f1", "filename": "out/wo.env", "content": content, "file_permission": "0777", "content_md5": md5}, "vault"),
+		rcData("back", "local_file", rcM{"id": "f1", "filename": "out/wo.env", "content": content, "content_base64": nil, "content_md5": md5}, "file"),
+		rcData("unrelated", "local_file", rcM{"id": "f9", "filename": "out/other.txt", "content": "plain text", "content_base64": nil, "content_md5": md5}),
+		rcRec("reader", "local_file", rcM{"id": "f2", "filename": "out/copy.env", "content": content, "file_permission": "0777", "content_md5": md5}, "back"),
+	}
+	p := rcProj(t, rcP21Spec, false, recs, map[string]string{"backOut": `"` + content + `"`})
+	rcCheck(t, p, []rcWant{
+		{"vault", "token", "null"},
+		{"file", "content", "withheld:derived"},
+		{"back", "content", "withheld"},
+		{"back", "filename", "shown=out/wo.env"},
+		{"reader", "content", "withheld:derived"},
+		{"reader", "filename", "shown=out/copy.env"},
+		// a data source that does not depend on the write-only node reads nothing of it
+		{"unrelated", "content", "shown=plain text"},
+	})
+	rcSweep(t, p, "wo-typed-token-5521")
 }

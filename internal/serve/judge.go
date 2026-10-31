@@ -97,6 +97,12 @@ func (m *model) undeclaredText(sec *secretSet, addr string) *secretSet {
 	return sec.withMade(m.scopeOf(addr), "")
 }
 
+// spanText is what the name and the attributes of a span of a run are held
+// against: a name, a host or a path is not a value of a record, so what the state
+// keeps as typed (a region) is no reason to hide it; a string that a provider made
+// is unguessable and is hidden wherever it shows.
+func spanText(sec *secretSet) *secretSet { return sec.madeOnly() }
+
 // echoText is what the record of a data source is looked at for when the taint is
 // worked out, which is before any plan is laid over the model.
 func (m *model) echoText(addr string) *secretSet { return m.declaredText(m.secrets, addr) }

@@ -741,3 +741,20 @@ broken: $fake.#Resource.fake_db & {name: "broken", blob: "`+typedPW+`" & =~"^x"}
 		t.Errorf("the sentence quotes the password: %s", p.graph().Project.SpecError)
 	}
 }
+
+// The name, the host and the path of a call are shown as recorded, but a string that a provider made is unguessable and is
+// hidden wherever it shows, a path that carries it included.
+func TestTraceSpansHideWhatAProviderMade(t *testing.T) {
+	p := judgeProject(t)
+	rt := sampleRun("ship it")
+	rt.Spans[3].Name = "POST hooks.example.test/" + madePW
+	rt.Spans[3].Attrs = map[string]any{"server.address": "hooks.example.test", "url.path": "/bot" + madePW + "/send/" + typedRegion}
+	runFile(t, p.dir, traceA, rt)
+	body := string(p.get("/api/trace?id=" + traceA))
+	if strings.Contains(body, madePW) {
+		t.Errorf("the trace holds the generated password: %s", body)
+	}
+	if !strings.Contains(body, "/send/"+typedRegion) {
+		t.Errorf("the typed region is hidden in a path: %s", body)
+	}
+}

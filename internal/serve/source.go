@@ -368,6 +368,30 @@ func (r *blockReader) mask(pf *parsedFile, field *ast.Field, text string) (strin
 			return true
 		}, nil)
 	}
+	// A node that is not applied has no record, so none of its strings is
+	// known. What the block itself gives to a sensitive attribute is: a repeat
+	// of it in another literal of the block is masked as well.
+	repeats := newSecretSet()
+	ast.Walk(field, func(n ast.Node) bool {
+		if x, ok := n.(*ast.Field); ok {
+			name, _, err := ast.LabelName(x.Label)
+			if err != nil {
+				name = labelText(x.Label)
+			}
+			if r.sens[name] || guarded(name) {
+				ast.Walk(x.Value, func(c ast.Node) bool {
+					if l, ok := c.(*ast.BasicLit); ok && l.Kind == token.STRING {
+						if s, err := unquote(l.Value); err == nil {
+							repeats.add(s)
+						}
+					}
+					return true
+				}, nil)
+				return false
+			}
+		}
+		return true
+	}, nil)
 	ast.Walk(field, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.Field:
@@ -380,8 +404,8 @@ func (r *blockReader) mask(pf *parsedFile, field *ast.Field, text string) (strin
 				return false
 			}
 		case *ast.BasicLit:
-			if x.Kind == token.STRING && r.secrets != nil && len(r.secrets.list) > 0 {
-				if s, err := unquote(x.Value); err == nil && r.secrets.leaks(s) {
+			if x.Kind == token.STRING {
+				if s, err := unquote(x.Value); err == nil && ((r.secrets != nil && len(r.secrets.list) > 0 && r.secrets.leaks(s)) || (len(repeats.list) > 0 && repeats.leaks(s))) {
 					add(x)
 				}
 			}
