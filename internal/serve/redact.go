@@ -199,6 +199,26 @@ func (s *secretSet) ownTo(addr string) *secretSet {
 	return out
 }
 
+// withMade is the strings found in the nodes of scope and those that any provider made: a sensitive attribute that no
+// specification set. A node that reads from outside the graph can hold what a provider generated, which no reference
+// leads to; what a person typed into the specification reaches it only along a reference, which scope follows.
+func (s *secretSet) withMade(scope map[string]bool) *secretSet {
+	out := s.scopedTo(scope)
+	if s == nil {
+		return out
+	}
+	for addr, strs := range s.made {
+		for x := range strs {
+			out.put(x, addr)
+			if out.made[addr] == nil {
+				out.made[addr] = map[string]bool{}
+			}
+			out.made[addr][x] = true
+		}
+	}
+	return out
+}
+
 func (s *secretSet) put(x, addr string) {
 	if _, ok := s.set[x]; !ok {
 		s.set[x] = struct{}{}

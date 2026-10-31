@@ -250,7 +250,7 @@ func (m *model) scoped(sec *secretSet, addr string) *secretSet {
 		return sec
 	}
 	if m.readsData(addr) {
-		return sec
+		return sec.withMade(m.scopeOf(addr))
 	}
 	return sec.scopedTo(m.scopeOf(addr))
 }
@@ -271,7 +271,7 @@ func (m *model) readsData(addr string) bool {
 // its own strings, or every string when it reads a data source.
 func (m *model) ownText(po *planOverlay, addr string) *secretSet {
 	if m.readsData(addr) {
-		return m.secretsFor(po)
+		return m.secretsFor(po).withMade(m.scopeOf(addr))
 	}
 	return m.secretsFor(po).ownTo(addr)
 }

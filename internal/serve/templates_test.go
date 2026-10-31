@@ -61,7 +61,7 @@ func templateProject(t *testing.T) *project {
 }
 
 // templateProjectOf is a project with the given specification, and a record of boxes.one.db with the given attributes.
-func templateProjectOf(t *testing.T, spec, attrs string) *project {
+func templateProjectOf(t *testing.T, spec, attrs string, more ...*state.Resource) *project {
 	t.Helper()
 	dir := t.TempDir()
 	writeSpec(t, dir, spec)
@@ -82,6 +82,12 @@ func templateProjectOf(t *testing.T, spec, attrs string) *project {
 		t.Fatal(err)
 	}
 	txn.Record(r.Address(), "create", 0, r.Revision)
+	for _, m := range more {
+		if err := st.Set(m, txn.ID()); err != nil {
+			t.Fatal(err)
+		}
+		txn.Record(m.Address(), "read", 0, m.Revision)
+	}
 	if err := txn.Finish("applied", "1 created", true); err != nil {
 		t.Fatal(err)
 	}
