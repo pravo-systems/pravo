@@ -512,3 +512,19 @@ func TestHistoryShowsADriftThatAPlanFound(t *testing.T) {
 		t.Errorf("a refresh that found nothing is in the history: %+v", h)
 	}
 }
+
+// The record holds what a provider filled in; the detail says which attributes the specification sets.
+func TestDetailSaysWhatTheSpecificationSets(t *testing.T) {
+	p := newProject(t)
+	d := p.detail("services.a.db")
+	if !d.SpecKnown || len(d.SpecSet) == 0 {
+		t.Fatalf("spec_known %v, spec_set %v", d.SpecKnown, d.SpecSet)
+	}
+	have := map[string]bool{}
+	for _, n := range d.SpecSet {
+		have[n] = true
+	}
+	if !have["name"] || !have["blob"] || !have["port"] || have["pin_code"] || have["api_token"] {
+		t.Errorf("spec_set %v: want name, blob and port; not pin_code, which the schema alone declares, nor api_token", d.SpecSet)
+	}
+}

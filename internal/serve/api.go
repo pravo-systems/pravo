@@ -312,6 +312,10 @@ type Detail struct {
 	Schema    []Attr   `json:"schema,omitempty"`
 	DependsOn []string `json:"depends_on"`
 	UsedBy    []string `json:"used_by"`
+	// SpecSet lists the attributes that the specification sets on the node, when it loads and declares the node
+	// (SpecKnown): the record also holds what the provider filled in, which the specification never set.
+	SpecSet   []string `json:"spec_set,omitempty"`
+	SpecKnown bool     `json:"spec_known,omitempty"`
 	// Reach lists everything a change to the node can reach: the transitive
 	// dependents recorded in the state.
 	Reach   []string       `json:"reach,omitempty"`

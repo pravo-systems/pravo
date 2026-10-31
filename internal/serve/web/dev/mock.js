@@ -305,6 +305,10 @@ function synthDetail(n) {
   if (n.mode === 'output') return synthOutput(n);
   const g = graph;
   const attrs = synthAttrs(n);
+  // the record holds zero values that the provider filled in; the specification sets the required attributes, the name and the tags
+  const filled = n.presence === 'both' && n.type.startsWith('aws_') && !n.sealed ? [{ name: 'archive_policy', type: 'string', kind: 'optional,computed', value: '' }, { name: 'fifo_topic', type: 'bool', kind: 'optional,computed', value: false }] : [];
+  const setNames = attrs.filter((a) => (a.kind || '').includes('required') || ['name', 'tags'].includes(a.name)).map((a) => a.name).sort();
+  attrs.push(...filled);
   const deps = g.edges.filter((e) => e.dependent === n.addr).map((e) => e.dependency).sort();
   const used = g.edges.filter((e) => e.dependency === n.addr).map((e) => e.dependent).sort();
   const out = new Map();
@@ -318,7 +322,7 @@ function synthDetail(n) {
   if (n.presence === 'state') notes.push('This resource is in the state but no longer declared. The next apply destroys it.');
   if (n.presence === 'spec') notes.push('This resource is declared and not created yet. The values below are the planned ones; the rest is known after apply.');
   if (n.gone) notes.push('The object does not exist at the provider any more. The next plan creates it again.');
-  const d = { version: 1, node: { ...n, deps: undefined, used: undefined, ns: undefined }, provider: provRef(n), attrs, schema_known: n.type !== 'aws_wafv2_web_acl', depends_on: deps, used_by: used, times };
+  const d = { version: 1, node: { ...n, deps: undefined, used: undefined, ns: undefined }, provider: provRef(n), attrs, schema_known: n.type !== 'aws_wafv2_web_acl', ...(filled.length ? { spec_known: true, spec_set: setNames } : {}), depends_on: deps, used_by: used, times };
   if (n.sealed) { d.attrs = []; d.schema_known = true; notes.push('The attributes of this record are sealed, and no identity was given. Start the viewer with pravo serve --identity NAME. Resources are listed and no value is shown.'); }
   if (!d.schema_known) d.attrs = attrs.map((a) => ({ name: a.name, type: a.type, kind: a.kind, redacted: 'schema' }));
   if (seen.size) d.reach = [...seen].sort();
