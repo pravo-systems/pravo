@@ -88,7 +88,7 @@ func (m *model) buildPolicies(rev string) {
 			info.Status = "removed"
 		}
 		if isDeclared && info.Status != "in-force" {
-			info.Rule = m.scrubText(policyDeclaration(info.Name, "", clip(rule, maxPolicyText)))
+			info.Rule = m.scrubTags(policyDeclaration(info.Name, "", clip(rule, maxPolicyText)))
 		}
 		if live {
 			doc.InForce++
@@ -100,7 +100,7 @@ func (m *model) buildPolicies(rev string) {
 			v := vs[i]
 			vi := PolicyVersionInfo{Seq: v.Seq, Ref: v.Ref(), Digest: v.Digest(), At: v.At, Removal: v.Tombstone()}
 			if !v.Tombstone() {
-				vi.Text = m.scrubText(policyDeclaration(info.Name, "", clip(v.Text, maxPolicyText)))
+				vi.Text = m.scrubTags(policyDeclaration(info.Name, "", clip(v.Text, maxPolicyText)))
 			}
 			if doc.Checked {
 				vi.Signature = v.Status.Key()
@@ -160,7 +160,7 @@ func (m *model) policySource(ref *Ref) *SourceBlock {
 		return nil
 	}
 	for i := range b.Lines {
-		b.Lines[i].Text = m.scrubText(b.Lines[i].Text)
+		b.Lines[i].Text = m.scrubTags(b.Lines[i].Text)
 	}
 	return b
 }

@@ -75,6 +75,12 @@ func (m *model) buildDiscovery(rev string) {
 	m.disc.json, _ = json.Marshal(doc)
 }
 
+// clipName is clipText for a text that names something: a discovery, a key, an id, a
+// person, a reason a reader wrote. It is not looked at for the values of the state.
+func clipName(s string) string {
+	return clip(stripControl(nameText(s, maxDiscoveryText)), maxDiscoveryText)
+}
+
 func (m *model) clipText(s string) string {
 	return clip(stripControl(m.scrubText(s)), maxDiscoveryText)
 }
@@ -109,14 +115,14 @@ func (m *model) fieldList(values map[string]any) []Field {
 		if v == nil {
 			continue
 		}
-		out = append(out, Field{Name: m.clipText(n), Value: m.clipText(state.IdentityValue(v))})
+		out = append(out, Field{Name: clipName(n), Value: clipName(state.IdentityValue(v))})
 	}
 	return out
 }
 
 func (m *model) discoveryInfo(v *engine.DiscoveryView, specOK bool) DiscoveryInfo {
 	info := DiscoveryInfo{
-		Name: m.clipText(v.Name), Type: v.Type, Provider: v.Provider, Instance: v.ProviderKey, Declared: v.Declared,
+		Name: clipName(v.Name), Type: v.Type, Provider: v.Provider, Instance: v.ProviderKey, Declared: v.Declared,
 		Freshness: string(v.Freshness), Problem: m.clipText(v.ScopeErr), Scope: m.fieldList(v.Scope), Limit: v.Limit,
 		Counts: DiscoveryCounts{
 			Unmanaged: v.Counts[engine.Unmanaged], Adopting: v.Counts[engine.Adopting],
@@ -135,13 +141,13 @@ func (m *model) discoveryInfo(v *engine.DiscoveryView, specOK bool) DiscoveryInf
 		for _, it := range v.Unmanaged() {
 			ids = append(ids, engine.EscapeGlob(it.ID))
 		}
-		info.AckAll = m.scrubText(engine.FormatCUE(engine.AckEntry(v.Name, ids, nil, "<why>")))
+		info.AckAll = m.scrubTags(engine.FormatCUE(engine.AckEntry(v.Name, ids, nil, "<why>")))
 	}
 	if ref := m.spec.discRefs[v.Name]; ref != nil && v.Declared {
 		info.Source = ref
 	}
 	if r := v.Run; r != nil {
-		ri := &RunInfo{Started: r.Started, Finished: r.Finished, Actor: m.clipText(r.Actor), Status: r.Status, Total: len(r.Items)}
+		ri := &RunInfo{Started: r.Started, Finished: r.Finished, Actor: clipName(r.Actor), Status: r.Status, Total: len(r.Items)}
 		for _, w := range r.Warnings {
 			if len(ri.Warnings) == 10 {
 				break
@@ -159,8 +165,8 @@ func (m *model) discoveryInfo(v *engine.DiscoveryView, specOK bool) DiscoveryInf
 			continue
 		}
 		info.Items = append(info.Items, DiscoveredInfo{
-			Key: m.clipText(it.Key), ID: m.clipText(it.ID), Name: m.clipText(it.Name), Status: string(it.Status),
-			By: m.clipText(it.By), Reason: m.clipText(it.Reason), Identity: m.fieldList(it.Identity),
+			Key: clipName(it.Key), ID: clipName(it.ID), Name: clipName(it.Name), Status: string(it.Status),
+			By: clipName(it.By), Reason: clipName(it.Reason), Identity: m.fieldList(it.Identity),
 		})
 	}
 	for _, a := range v.Acks {
@@ -177,11 +183,11 @@ func (m *model) ackInfo(a *config.Ack, v *engine.DiscoveryView) AckInfo {
 				out = append(out, fmt.Sprintf("… and %d more", len(in)-i))
 				break
 			}
-			out = append(out, m.clipText(p))
+			out = append(out, clipName(p))
 		}
 		return out
 	}
-	info := AckInfo{Ref: a.Ref(), IDs: pats(a.IDs), Names: pats(a.Names), Reason: m.clipText(a.Reason), Covers: -1}
+	info := AckInfo{Ref: a.Ref(), IDs: pats(a.IDs), Names: pats(a.Names), Reason: clipName(a.Reason), Covers: -1}
 	if v != nil && v.Run != nil {
 		info.Covers = 0
 		for _, l := range v.Run.Items {
@@ -224,7 +230,7 @@ func (m *model) adoptFor(name, key string) (*Adopt, bool) {
 	for i := range v.Items {
 		// The page names an object by the key it was sent, which the document
 		// shows masked and without control characters.
-		if v.Items[i].Status != engine.Managed && m.clipText(v.Items[i].Key) == key {
+		if v.Items[i].Status != engine.Managed && clipName(v.Items[i].Key) == key {
 			item = &v.Items[i]
 			break
 		}
@@ -237,9 +243,9 @@ func (m *model) adoptFor(name, key string) (*Adopt, bool) {
 		root = &config.Root{}
 	}
 	snippet := engine.FormatCUE(engine.AdoptSnippet(root, v, item.Listed, ""))
-	out := &Adopt{Discovery: m.clipText(name), Key: m.clipText(item.Key), ID: m.clipText(item.ID), Status: string(item.Status), Snippet: m.scrubText(snippet)}
+	out := &Adopt{Discovery: clipName(name), Key: clipName(item.Key), ID: clipName(item.ID), Status: string(item.Status), Snippet: m.scrubTags(snippet)}
 	if item.Status == engine.Unmanaged {
-		out.Ack = m.scrubText(engine.FormatCUE(engine.AckEntry(name, []string{engine.EscapeGlob(item.ID)}, nil, "<why>")))
+		out.Ack = m.scrubTags(engine.FormatCUE(engine.AckEntry(name, []string{engine.EscapeGlob(item.ID)}, nil, "<why>")))
 	}
 	if item.Status == engine.Adopting {
 		out.Steps = append(out.Steps, SuggestionStep{Kind: "note", Text: item.By + " already names this object in $import. The next plan reads it and an apply records it."})

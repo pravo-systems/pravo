@@ -197,6 +197,15 @@ func TestTemplateTryChecksWithoutWriting(t *testing.T) {
 	if bad.State != "invalid" || len(bad.Problems) == 0 || bad.Problems[0].Field != "port" || !strings.Contains(bad.Problems[0].Message, "out of bound") {
 		t.Errorf("invalid: %+v", bad)
 	}
+	// What the form sent is quoted back as it is, even when it equals a sensitive string of the state.
+	echo := p.tryTemplate("three", "boxes", map[string]string{"name": `"three"`, "port": `"` + secretBlob + `"`})
+	echoed := false
+	for _, pr := range echo.Problems {
+		echoed = echoed || strings.Contains(pr.Message, secretBlob)
+	}
+	if echo.State != "invalid" || !echoed {
+		t.Errorf("a value of the form that equals a sensitive string is masked: %+v", echo)
+	}
 	for _, pr := range bad.Problems {
 		if strings.Contains(pr.Message, "zz_pravo_template_preview") {
 			t.Errorf("the message names the preview file: %q", pr.Message)
