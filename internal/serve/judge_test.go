@@ -536,3 +536,54 @@ chain: #Chain & {pw: db.blob}
 		t.Error("the password is sent")
 	}
 }
+
+// An entry of a map whose key says it is a secret (tags.db_password) is withheld in its own record by its name, and what
+// reads it is withheld as what reads any withheld attribute is. The schema does not know the keys of a map: the record is
+// where they are found out.
+func TestJudgeFollowsAnEntryThatIsNamedLikeASecret(t *testing.T) {
+	const entryPW = "entry-secret-pw-91"
+	spec := judgeSpecCUE + `
+entryHolder: $fake.#Resource.fake_db & {name: "holder", tags: {db_password: "` + entryPW + `", owner: "team"}}
+entryReader: $fake.#Resource.fake_db & {name: "reader", zones: [entryHolder.tags.db_password]}
+entryName:   $fake.#Resource.fake_db & {name: "named", zones: [entryHolder.name]}
+`
+	dir := t.TempDir()
+	writeSpec(t, dir, spec)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	for _, r := range []*state.Resource{
+		record("entryHolder", "fake_db", `{"name":"holder","tags":{"db_password":"`+entryPW+`","owner":"team"}}`),
+		record("entryReader", "fake_db", `{"name":"reader","zones":["`+entryPW+`"]}`, "entryHolder"),
+		record("entryName", "fake_db", `{"name":"named","zones":["holder"]}`, "entryHolder"),
+	} {
+		if err := st.Set(r, txn.ID()); err != nil {
+			t.Fatal(err)
+		}
+		txn.Record(r.Address(), "create", 0, r.Revision)
+	}
+	if err := txn.Finish("applied", "created", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{Schemas: judgeLookup})
+	for _, w := range []struct {
+		addr, attr string
+		shown      bool
+	}{
+		{"entryHolder", "tags", false}, // the entry is withheld in its own record
+		{"entryHolder", "name", true},
+		{"entryReader", "zones", false}, // reads the entry
+		{"entryReader", "name", true},
+		{"entryName", "zones", true}, // reads another attribute of the same node
+	} {
+		if a := judgeAttr(t, p.detail(w.addr), w.attr); attrShown(a) != w.shown {
+			t.Errorf("%s.%s: shown = %v, want %v: %s", w.addr, w.attr, attrShown(a), w.shown, attrText(a))
+		}
+	}
+	body := string(p.get("/api/detail?addr=entryReader")) + string(p.get("/api/fields?spec=zones")) + string(p.get("/api/graph"))
+	if strings.Contains(body, entryPW) {
+		t.Errorf("the secret of the map entry is sent: %s", body)
+	}
+}

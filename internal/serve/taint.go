@@ -160,6 +160,29 @@ func topSensitive(b *schema.Block) map[string]bool {
 	return out
 }
 
+// withMarked adds to the fields that the schema withholds the ones that hold a withheld value only in the record: a key
+// of a map that says it is a secret (tags.db_password), which the schema, that does not know the keys, cannot name. A
+// reference into such a field reads it whole, as the grain is the top-level field. t is shared and is not changed.
+func withMarked(t, marked map[string]bool) map[string]bool {
+	var out map[string]bool
+	for f := range marked {
+		if t[f] {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]bool, len(t)+len(marked))
+			for k := range t {
+				out[k] = true
+			}
+		}
+		out[f] = true
+	}
+	if out == nil {
+		return t
+	}
+	return out
+}
+
 func nestedSensitive(o *schema.Object, depth int) bool {
 	if o == nil || depth > maxDepth {
 		return false
@@ -228,7 +251,7 @@ func (m *model) computeTaint() {
 				t = topSensitive(mn.sch.Block)
 				bySchema[mn.sch.Block] = t
 			}
-			if len(t) > 0 {
+			if t = withMarked(t, mn.marked); len(t) > 0 {
 				base[addr] = tops{set: t}
 			}
 		case mn.rec != nil && !transient(mn.Mode) && !mn.Sealed && mn.sch == nil:

@@ -400,6 +400,10 @@ type walk struct {
 	// top is the one being rendered. The taint seeds its fields from them.
 	hits map[string]bool
 	top  string
+	// marks, when set, collects the top-level fields that hold a value withheld for what it is, however deep: the schema
+	// does not know the keys of a map, so a key that says it is a secret is found only in the record. The taint seeds its
+	// fields from them.
+	marks *map[string]bool
 	// because says, by top-level field, what a derived field reads, and textWhy what
 	// the text of a value that is withheld for what it holds is: a derived value
 	// carries the sentence (Attr.Why), so that the page can say why.
@@ -897,6 +901,12 @@ func (w *walk) withhold(at *Attr, v any, why string) {
 	at.Redacted = why
 	at.Value, at.Children = nil, nil
 	w.withheld++
+	if w.marks != nil {
+		if *w.marks == nil {
+			*w.marks = map[string]bool{}
+		}
+		(*w.marks)[w.top] = true
+	}
 	if w.sink != nil {
 		w.sink.addFrom(w.origin, v)
 		if w.made && why == "sensitive" && w.kind == "computed" {

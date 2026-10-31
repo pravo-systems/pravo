@@ -121,6 +121,10 @@ type mnode struct {
 	// undecoded is set when the values of the record could not be read when the model
 	// was built (nested too deeply, not JSON): working that out again costs as much.
 	undecoded bool
+	// marked lists the top-level fields of the record that hold a value withheld for
+	// what it is, however deep (the walk of countNode): what the schema marks, and
+	// what only the record shows, such as a key of a map that says it is a secret.
+	marked map[string]bool
 }
 
 // isOutput reports whether the node is an output of the root.
@@ -606,7 +610,7 @@ func (m *model) countNode(mn *mnode, missing map[string]*missingSchema) {
 		m.secrets.addFrom(mn.Addr, attrs)
 		return
 	}
-	w := &walk{sink: m.secrets, origin: mn.Addr, made: mn.Mode == "managed"}
+	w := &walk{sink: m.secrets, origin: mn.Addr, made: mn.Mode == "managed", marks: &mn.marked}
 	w.block(mn.sch.Block, attrs, 0)
 	mn.Sensitive = w.withheld
 }
