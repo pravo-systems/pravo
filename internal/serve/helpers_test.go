@@ -129,9 +129,13 @@ func fakeSchemas() Schemas {
 		&schema.Attribute{Name: "path", TypeJSON: str, Required: true},
 		&schema.Attribute{Name: "content", TypeJSON: str, Optional: true},
 	)
+	zones := block(
+		&schema.Attribute{Name: "state", TypeJSON: str, Optional: true},
+		&schema.Attribute{Name: "names", TypeJSON: json.RawMessage(`["list","string"]`), Computed: true},
+	)
 	return ProviderSchemas{PS: &schema.ProviderSchema{
 		Resources:   map[string]*schema.Schema{"fake_db": db, "fake_file": file},
-		DataSources: map[string]*schema.Schema{}, Ephemerals: map[string]*schema.Schema{}, Functions: map[string]*schema.Function{},
+		DataSources: map[string]*schema.Schema{"fake_zones": zones}, Ephemerals: map[string]*schema.Schema{}, Functions: map[string]*schema.Function{},
 	}}
 }
 

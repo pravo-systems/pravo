@@ -251,10 +251,10 @@
 .v-hash.done { color: var(--accent); border-color: var(--accent); }
 .v-tags { display: inline-flex; flex-wrap: wrap; gap: .25rem; }
 .v-tag { padding: .1rem .42rem; border: 1px solid var(--line-strong); background: var(--surface-2); font-size: var(--fs-2); overflow-wrap: anywhere; }
-.wh { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; padding: .12rem .45rem; color: var(--key); border: 1px dashed color-mix(in srgb, var(--key) 45%, transparent); background: var(--key-wash); cursor: help; max-width: 100%; }
-.wh .i { width: .75rem; height: .75rem; }
-.wh .wh-dots { letter-spacing: .08em; opacity: .55; font-size: var(--fs-2); }
-.wh b { font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.wh { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; padding: .12rem .45rem; color: var(--key); border: 1px dashed color-mix(in srgb, var(--key) 45%, transparent); background: var(--key-wash); cursor: help; max-width: 100%; min-width: 0; overflow: hidden; }
+.wh .i { width: .75rem; height: .75rem; flex: none; }
+.wh .wh-dots { letter-spacing: .08em; opacity: .55; font-size: var(--fs-2); min-width: 0; overflow: hidden; }
+.wh b { flex: none; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; }
 .wh.warn { color: var(--change); border-color: color-mix(in srgb, var(--change) 45%, transparent); background: var(--change-wash); }
 .jval, .ltxt { display: block; }
 .jhead { display: inline-flex; align-items: center; gap: .45rem; color: var(--text-2); font-size: var(--fs-2); margin-bottom: .4rem; }
