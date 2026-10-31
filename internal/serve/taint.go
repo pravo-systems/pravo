@@ -119,6 +119,14 @@ func (ss *specState) recordTaint(addr string, rec *taintRecorder) {
 	}
 }
 
+// reads says what a field that reads r is withheld for.
+func (r taintRef) reads() string {
+	if r.attr == "" {
+		return "It reads " + r.task + ", a part of which is withheld."
+	}
+	return "It reads " + r.task + "." + r.attr + ", which is withheld."
+}
+
 // topSensitive lists the attributes and blocks of a type that are withheld by
 // what they are, or that hold something that is: the schema marks them, their
 // name says so, or a nested attribute or block does.
@@ -169,12 +177,20 @@ func blockHoldsSensitive(b *schema.Block, depth int) bool {
 // computeTaint works out which fields of the declared nodes are derived from a
 // withheld attribute, by following what each field reads until nothing changes.
 // A node that the specification does not declare has no references to follow, and
-// is judged by text (secretsAt).
+// is judged by text (judge).
+//
+// A data source reads from outside the graph, so a field of it can hold a string
+// that no reference leads to; the fields that do (echoes) are found by the walk
+// that renders them, and they are withheld like a sensitive attribute for whatever
+// reads them.
 func (m *model) computeTaint() {
 	m.derived = map[string]map[string]bool{}
+	m.echoes = map[string]map[string]bool{}
+	m.because = map[string]map[string]string{}
 	if m.spec.root == nil || len(m.spec.taint) == 0 {
 		return
 	}
+	m.findEchoes()
 	type tops struct {
 		set map[string]bool
 		all bool
@@ -211,11 +227,11 @@ func (m *model) computeTaint() {
 				return true
 			}
 		}
-		d := m.derived[task]
+		d, e := m.derived[task], m.echoes[task]
 		if attr == "" {
-			return len(d) > 0
+			return len(d) > 0 || len(e) > 0
 		}
-		return d[attr]
+		return d[attr] || e[attr]
 	}
 	for changed, pass := true, 0; changed && pass <= len(m.order); pass++ {
 		changed = false
@@ -228,13 +244,38 @@ func (m *model) computeTaint() {
 					if r.task != "" && sensitive(r.task, r.attr) {
 						if m.derived[addr] == nil {
 							m.derived[addr] = map[string]bool{}
+							m.because[addr] = map[string]string{}
 						}
 						m.derived[addr][field] = true
+						m.because[addr][field] = r.reads()
 						changed = true
 						break
 					}
 				}
 			}
+		}
+	}
+}
+
+// findEchoes lists, for each data source that the specification declares, the
+// top-level fields of its record that hold a string of what it depends on or a
+// string that a provider made. The walk is the one that renders the record, with
+// the text the judge gives it, so that a field is an echo exactly when the page
+// withholds some value inside it.
+func (m *model) findEchoes() {
+	for _, addr := range m.order {
+		mn := m.nodes[addr]
+		if mn.Mode != "data" || mn.res == nil || mn.rec == nil || mn.sch == nil || mn.Sealed {
+			continue
+		}
+		attrs, err := decodeAttrs(mn.rec.Attributes)
+		if err != nil {
+			continue
+		}
+		w := &walk{secrets: m.echoText(addr), hits: map[string]bool{}}
+		w.block(mn.sch.Block, attrs, 0)
+		if len(w.hits) > 0 {
+			m.echoes[addr] = w.hits
 		}
 	}
 }
@@ -266,15 +307,4 @@ func (m *model) taintOf(addr string) (map[string]bool, bool) {
 		return nil, false
 	}
 	return m.derived[addr], true
-}
-
-// walkFor is the walk that renders the values of the node at addr. A node that the
-// specification declares is judged by what its fields read (taintOf), and by its
-// own strings, since a provider may echo a sensitive value into an attribute that
-// it computes; any other is judged by the strings of what it reads (secretsAt).
-func (m *model) walkFor(po *planOverlay, addr string, build bool) *walk {
-	if t, ok := m.taintOf(addr); ok {
-		return &walk{secrets: m.ownText(po, addr), taint: t, build: build}
-	}
-	return &walk{secrets: m.secretsAt(po, addr), build: build}
 }

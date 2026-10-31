@@ -311,19 +311,28 @@ chained: $fake.#Resource.fake_file & {path: "/c", content: "again \(hashed.conte
 	}
 }
 
-func TestSecretSetOwnToKeepsWhatTheProviderMade(t *testing.T) {
+// madeOnly is what every value is looked at for: the strings a provider made and the
+// ones found in no node in particular. What a person typed into a node says nothing of
+// the other nodes' values, whatever node it was typed into.
+func TestSecretSetMadeOnlyKeepsWhatTheProviderMade(t *testing.T) {
 	s := newSecretSet()
 	s.addFrom("p", "eu-north-1") // typed into the node
 	s.addFrom("p", "generated-secret-1")
 	s.addMade("p", "generated-secret-1")
+	s.addFrom("q", "typed-secret-in-q")
 	s.addFrom("", "global-secret-2")
-	own := s.ownTo("p")
-	for text, want := range map[string]bool{"eu-north-1": false, "generated-secret-1": true, "global-secret-2": true} {
-		if own.leaks(text) != want {
-			t.Errorf("ownTo(p).leaks(%q) = %v", text, !want)
+	made := s.madeOnly()
+	for text, want := range map[string]bool{"eu-north-1": false, "typed-secret-in-q": false, "generated-secret-1": true, "global-secret-2": true} {
+		if made.leaks(text) != want {
+			t.Errorf("madeOnly().leaks(%q) = %v", text, !want)
 		}
 	}
-	if s.ownTo("q").leaks("generated-secret-1") {
-		t.Error("what one node made is not looked for in another by ownTo")
+	// A string added later is seen: the cache is dropped.
+	s.addMade("q", "generated-by-q-3")
+	if !s.madeOnly().leaks("generated-by-q-3") {
+		t.Error("a string made after the first call is not looked for")
+	}
+	if (*secretSet)(nil).madeOnly() != nil {
+		t.Error("a nil set is nil")
 	}
 }

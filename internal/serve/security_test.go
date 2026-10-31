@@ -490,7 +490,10 @@ vault: {
 }
 
 // A sensitive value that only the plan holds is a secret like those of the
-// state: another attribute of the plan that embeds it is withheld.
+// state, for what looks for secrets by text: a node that the specification does not
+// declare is held against the strings of the nodes it depends on, the plan's
+// among them. (A declared node is judged by what its fields read: see
+// TestPlanFieldThatReadsASensitiveAttributeIsDerived.)
 func TestPlanSecretsAreDerived(t *testing.T) {
 	p := newProject(t)
 	m, err := p.srv.current()
@@ -511,16 +514,21 @@ func TestPlanSecretsAreDerived(t *testing.T) {
 		return tftypes.NewValue(obj, attrs)
 	}
 	const fresh = "brand-new-plan-secret-42"
-	before := val(map[string]any{"name": "n", "blob": "old-blob-value-1"})
-	after := val(map[string]any{"name": "n", "blob": fresh, "zones": []tftypes.Value{tftypes.NewValue(tftypes.String, "z-"+fresh)}})
-	other := &engine.Change{Addr: "services.a.file", Mode: "managed", Type: "fake_db", Action: engine.ActionUpdate, Schema: sch, Prior: before, Planned: after}
-	m.plan = &planOverlay{entries: map[string]*planEntry{"services.a.file": {action: "update"}}, changes: map[string]*engine.Change{"services.a.file": other}}
-	if got := m.changeOf(m.nodes["services.a.file"]); got == nil || !containsSecret(got, fresh) {
-		// Without the collection, the derived rule does not know the new secret.
-		t.Logf("before the collection the embed is not seen: %v", got != nil)
+	change := func(addr string, after map[string]any) *engine.Change {
+		return &engine.Change{Addr: addr, Mode: "managed", Type: "fake_db", Action: engine.ActionUpdate, Schema: sch,
+			Prior: val(map[string]any{"name": "n", "blob": "old-blob-value-1"}), Planned: val(after)}
+	}
+	// services.b.db is given a new password; old.thing, which is recorded and not declared and depends on it,
+	// quotes it in another attribute.
+	m.plan = &planOverlay{
+		entries: map[string]*planEntry{"services.b.db": {action: "update"}, "old.thing": {action: "update"}},
+		changes: map[string]*engine.Change{
+			"services.b.db": change("services.b.db", map[string]any{"name": "n", "blob": fresh}),
+			"old.thing":     change("old.thing", map[string]any{"name": "n", "zones": []tftypes.Value{tftypes.NewValue(tftypes.String, "z-"+fresh)}}),
+		},
 	}
 	m.collectPlanSecrets()
-	ch := m.changeOf(m.nodes["services.a.file"])
+	ch := m.changeOf(m.nodes["old.thing"])
 	if ch == nil {
 		t.Fatal("no change")
 	}
@@ -542,9 +550,68 @@ func TestPlanSecretsAreDerived(t *testing.T) {
 	}
 }
 
-func containsSecret(c *Change, s string) bool {
+// A field of a declared node that reads a sensitive attribute is withheld in a plan
+// as it is in the record, whatever its text says and whether or not the state holds
+// the secret yet.
+func TestPlanFieldThatReadsASensitiveAttributeIsDerived(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE+`
+selfish: $fake.#Resource.fake_db & {name: "selfish", blob: "brand-new-plan-secret-42", zones: ["z-\(blob)", "eu"]}
+`)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	p := start(t, dir, st, Options{})
+	m, err := p.srv.current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sch := fakeSchemas().Type("managed", "fake_db")
+	obj := sch.Block.Type()
+	val := func(blob string, zones ...string) tftypes.Value {
+		attrs := map[string]tftypes.Value{}
+		for name, typ := range obj.AttributeTypes {
+			attrs[name] = tftypes.NewValue(typ, nil)
+		}
+		attrs["name"] = tftypes.NewValue(tftypes.String, "selfish")
+		if blob != "" {
+			attrs["blob"] = tftypes.NewValue(tftypes.String, blob)
+		}
+		var list []tftypes.Value
+		for _, z := range zones {
+			list = append(list, tftypes.NewValue(tftypes.String, z))
+		}
+		if list != nil {
+			attrs["zones"] = tftypes.NewValue(obj.AttributeTypes["zones"], list)
+		}
+		return tftypes.NewValue(obj, attrs)
+	}
+	ch := &engine.Change{Addr: "selfish", Mode: "managed", Type: "fake_db", Action: engine.ActionCreate, Schema: sch,
+		Prior: val(""), Planned: val("brand-new-plan-secret-42", "z-brand-new-plan-secret-42", "eu")}
+	m.plan = &planOverlay{entries: map[string]*planEntry{"selfish": {action: "create"}}, changes: map[string]*engine.Change{"selfish": ch}}
+	m.collectPlanSecrets()
+	if m.nodes["selfish"] == nil {
+		t.Fatal("no node selfish")
+	}
+	c := m.changeOf(m.nodes["selfish"])
 	data, _ := json.Marshal(c)
-	return strings.Contains(string(data), s)
+	if strings.Contains(string(data), "brand-new-plan-secret-42") {
+		t.Errorf("the change sends the new secret: %s", data)
+	}
+	var seen bool
+	for _, a := range c.Attrs {
+		if a.Path == "zones" {
+			seen = true
+			if !a.AfterRedacted {
+				t.Errorf("zones reads the sensitive attribute and is not withheld: %+v", a)
+			}
+		}
+	}
+	if !seen {
+		t.Errorf("zones is not in the change: %s", data)
+	}
 }
 
 // A number can be a secret too: a PIN.

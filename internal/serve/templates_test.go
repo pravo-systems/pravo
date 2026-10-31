@@ -60,8 +60,12 @@ func templateProject(t *testing.T) *project {
 	return templateProjectOf(t, templateSpecCUE, `{"name":"one","port":5432}`)
 }
 
+// outputsOf are the outputs that a project records.
+type outputsOf map[string]string
+
 // templateProjectOf is a project with the given specification, and a record of boxes.one.db with the given attributes.
-func templateProjectOf(t *testing.T, spec, attrs string, more ...*state.Resource) *project {
+// More records, and the outputs, follow.
+func templateProjectOf(t *testing.T, spec, attrs string, more ...any) *project {
 	t.Helper()
 	dir := t.TempDir()
 	writeSpec(t, dir, spec)
@@ -82,17 +86,28 @@ func templateProjectOf(t *testing.T, spec, attrs string, more ...*state.Resource
 		t.Fatal(err)
 	}
 	txn.Record(r.Address(), "create", 0, r.Revision)
+	outs := map[string]json.RawMessage{}
 	for _, m := range more {
-		if err := st.Set(m, txn.ID()); err != nil {
-			t.Fatal(err)
+		switch x := m.(type) {
+		case *state.Resource:
+			if err := st.Set(x, txn.ID()); err != nil {
+				t.Fatal(err)
+			}
+			txn.Record(x.Address(), "read", 0, x.Revision)
+		case outputsOf:
+			for name, value := range x {
+				raw, _ := json.Marshal(value)
+				outs[name] = raw
+			}
+		default:
+			t.Fatalf("templateProjectOf: cannot record a %T", m)
 		}
-		txn.Record(m.Address(), "read", 0, m.Revision)
 	}
 	if err := txn.Finish("applied", "1 created", true); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(spec, "zoneName:") {
-		if err := st.SetOutputs(map[string]json.RawMessage{"zoneName": json.RawMessage(`"eu-north-1a"`)}); err != nil {
+	if len(outs) > 0 {
+		if err := st.SetOutputs(outs); err != nil {
 			t.Fatal(err)
 		}
 	}

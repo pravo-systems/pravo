@@ -11,13 +11,15 @@ export const REDACTED = {
   sensitive: ['withheld', 'The provider schema marks this attribute sensitive.'],
   name: ['withheld', 'The name of this attribute looks like a secret, so the server does not send it.'],
   schema: ['withheld', 'The schema of this type is not cached, so nothing says which values are safe. Every value of it is withheld.'],
-  derived: ['withheld', 'The text holds a sensitive value of this resource or of one it reads.'],
+  derived: ['withheld', 'It reads a withheld value, or its text holds a secret.'],
   'write-only': ['write-only', 'A write-only attribute is never recorded in the state.'],
 };
 
-// withheld draws a value that the server did not send: a quiet locked chip that says why, on hover and on focus.
-export function withheld(kind) {
-  const [label, why] = REDACTED[kind] || REDACTED.sensitive;
+// withheld draws a value that the server did not send: a quiet locked chip that says why, on hover and on focus. A
+// derived value brings its own sentence (what it reads, or what its text holds).
+export function withheld(kind, because) {
+  const [label, general] = REDACTED[kind] || REDACTED.sensitive;
+  const why = because || general;
   return h('span', { class: 'wh' + (kind === 'schema' ? ' warn' : ''), tabIndex: 0, 'data-tip': `Withheld by the server\n${why}\nThis page has the name and the type, never the content.`, 'aria-label': `${label}. ${why}` },
     icon('lock'), h('span', { class: 'wh-dots', 'aria-hidden': 'true' }, '••••••••'), h('b', null, label));
 }
@@ -259,7 +261,7 @@ export class StateView {
 
   // value returns { el, block, copy } for one attribute.
   value(a, kids, path) {
-    if (a.redacted) return { el: withheld(a.redacted) };
+    if (a.redacted) return { el: withheld(a.redacted, a.why) };
     if (a.sensitive) return { el: withheld('sensitive') };
     if (a.unknown) return { el: unknownEl() };
     if (a.null) return { el: nullEl() };

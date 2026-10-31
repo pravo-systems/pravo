@@ -38,9 +38,13 @@ type model struct {
 	deps, used map[string][]string
 	locks      map[string]state.Lock
 	secrets    *secretSet
-	// scopes caches scopeOf.
 	// derived lists, by node, the fields that read a withheld attribute: see taint.go.
-	derived map[string]map[string]bool
+	// echoes lists, by data source, the fields that hold a string of what it depends
+	// on: a reader of one of them reads a withheld value.
+	derived, echoes map[string]map[string]bool
+	// because says, for a derived field, which attribute it reads that is withheld.
+	because map[string]map[string]string
+	// scopes caches scopeOf.
 	scopeMu sync.Mutex
 	scopes  map[string]map[string]bool
 	plan    *planOverlay
@@ -212,8 +216,8 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	}
 	m.linkNamespaces()
 	m.linkEdges()
+	m.collectOutputSecrets()
 	m.computeTaint()
-	m.graph.Outputs = m.outputs(outs)
 	for _, ms := range sortedMissing(missing) {
 		warnings = append(warnings, fmt.Sprintf("The schema of provider %s is not cached, so the values of %d %s are withheld. Run \"pravo init\" to fetch it.",
 			ms.name, ms.count, plural(ms.count, "resource", "resources")))
@@ -233,6 +237,10 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 		warnings = append(warnings, m.plan.warnings...)
 		m.collectPlanSecrets()
 	}
+	// What a page of the model says of a node is judged against the secrets of the state
+	// and of the plan, as the detail of the node is.
+	m.countWithheld()
+	m.graph.Outputs = m.outputs(outs)
 	m.resources = 0
 	for _, a := range m.order {
 		if mode := m.nodes[a].Mode; mode == "managed" || mode == "data" {
@@ -590,9 +598,29 @@ func (m *model) countNode(mn *mnode, missing map[string]*missingSchema) {
 		m.secrets.addFrom(mn.Addr, attrs)
 		return
 	}
-	w := &walk{sink: m.secrets, origin: mn.Addr}
+	w := &walk{sink: m.secrets, origin: mn.Addr, made: mn.Mode == "managed"}
 	w.block(mn.sch.Block, attrs, 0)
 	mn.Sensitive = w.withheld
+}
+
+// countWithheld sets the count of withheld values of each record to what the page
+// withholds: the values that the schema, the name or the type withhold, and those
+// that the judge withholds for what they read or hold. It is the walk that
+// renders the record, so that the lock on a node and the values under it agree.
+func (m *model) countWithheld() {
+	for _, addr := range m.order {
+		mn := m.nodes[addr]
+		if mn.rec == nil || transient(mn.Mode) || mn.Sealed || mn.sch == nil {
+			continue
+		}
+		attrs, err := decodeAttrs(mn.rec.Attributes)
+		if err != nil {
+			continue
+		}
+		w := m.judge(nil, addr).walk(false)
+		w.block(mn.sch.Block, attrs, 0)
+		mn.Sensitive = w.withheld + w.derived
+	}
 }
 
 func providerName(mn *mnode) string {
@@ -662,6 +690,31 @@ func outputNode(addr string, st outputState) Node {
 	return n
 }
 
+// collectOutputSecrets adds to the secrets the value of every sensitive output: it
+// is a secret like those of the records, and an attribute that holds it is
+// withheld, whatever its schema says. It runs before the taint, which judges the
+// data sources by these strings too.
+func (m *model) collectOutputSecrets() {
+	if m.acc.locked {
+		return // sealed: the names stay, no value is read
+	}
+	declared := map[string]bool{}
+	if m.spec.root != nil {
+		for _, o := range m.spec.root.Outputs {
+			declared[o.Name] = o.Sensitive
+		}
+	}
+	for n, raw := range m.store.Outputs() {
+		val, recSens := engine.UnwrapOutput(raw)
+		if !recSens && !declared[n] {
+			continue
+		}
+		if dv, err := decodeAttrs(json.RawMessage(`{"v":` + string(val) + `}`)); err == nil {
+			m.secrets.addFrom(n, dv["v"])
+		}
+	}
+}
+
 // outputs lists the declared and the recorded outputs, and sets what the nodes of
 // the outputs hold. A sensitive one has no value, and neither has one that holds a
 // sensitive value of the state.
@@ -686,21 +739,6 @@ func (m *model) outputs(set *outputSet) []Output {
 		list = append(list, n)
 	}
 	sort.Strings(list)
-	// The value of a sensitive output is a secret like those of the records: an
-	// attribute that holds it is withheld, whatever its schema says.
-	for _, n := range list {
-		raw, isRecorded := recorded[n]
-		if !isRecorded {
-			continue
-		}
-		val, recSens := engine.UnwrapOutput(raw)
-		if !recSens && !declared[n] {
-			continue
-		}
-		if dv, err := decodeAttrs(json.RawMessage(`{"v":` + string(val) + `}`)); err == nil {
-			m.secrets.addFrom(n, dv["v"])
-		}
-	}
 	out := make([]Output, 0, len(list))
 	for _, n := range list {
 		o := Output{Name: n}
@@ -725,7 +763,7 @@ func (m *model) outputs(set *outputSet) []Output {
 				o.Unknown = true
 				break
 			}
-			if _, known := m.taintOf(n); known && (m.derived[n]["value"] || m.readsData(n) && m.secrets.ownWithMade(n).leaksIn(dv["v"])) || !known && m.scoped(m.secrets, n).leaksIn(dv["v"]) {
+			if j := m.judge(nil, n); j.fields["value"] || j.text.leaksIn(dv["v"]) {
 				o.Sensitive, o.Redacted = true, "derived"
 			} else {
 				o.Value = bound(dv["v"], 0)
