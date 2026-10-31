@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -135,6 +136,55 @@ func (m *model) specArgs(mn *mnode) (args map[string]any, unknown map[string]boo
 		args[name] = dv["v"]
 	}
 	return args, unknown, true
+}
+
+// specSet lists the attributes that the specification sets on a node. The generated package gives every attribute of the
+// type a field (a computed one is "string | null"), so a field counts as set when something other than a generated file
+// wrote a part of it.
+func (m *model) specSet(mn *mnode) ([]string, bool) {
+	ss := m.spec
+	if ss.root == nil || mn.res == nil {
+		return nil, false
+	}
+	ss.cueMu.Lock()
+	defer ss.cueMu.Unlock()
+	v := ss.root.Value.LookupPath(mn.res.Path)
+	if !v.Exists() {
+		return nil, false
+	}
+	it, err := v.Fields(cue.Optional(false), cue.Hidden(false), cue.Definitions(false))
+	if err != nil {
+		return nil, false
+	}
+	var set []string
+	for it.Next() {
+		sel := it.Selector()
+		if sel.LabelType() != cue.StringLabel || strings.HasPrefix(sel.Unquoted(), "$") {
+			continue
+		}
+		if ss.writtenBySpec(it.Value(), 0) {
+			set = append(set, sel.Unquoted())
+		}
+	}
+	sort.Strings(set)
+	return set, true
+}
+
+// writtenBySpec reports whether a part of v is written in a file that is not generated.
+func (ss *specState) writtenBySpec(v cue.Value, depth int) bool {
+	if op, args := v.Expr(); op == cue.AndOp && depth < 12 {
+		for _, a := range args {
+			if ss.writtenBySpec(a, depth+1) {
+				return true
+			}
+		}
+		return false
+	}
+	pos := v.Pos()
+	if src := v.Source(); src != nil && src.Pos().IsValid() {
+		pos = src.Pos()
+	}
+	return pos.IsValid() && pos.Filename() != "" && ss.fileKind(pos.Filename()) != "generated"
 }
 
 // envSchema is the declaration of pravo.#Env and pravo.#SecretEnv, which the

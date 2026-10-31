@@ -524,7 +524,7 @@ func TestDetailSaysWhatTheSpecificationSets(t *testing.T) {
 	for _, n := range d.SpecSet {
 		have[n] = true
 	}
-	if !have["name"] || have["id"] {
-		t.Errorf("spec_set %v: want name, not the computed id", d.SpecSet)
+	if !have["name"] || !have["blob"] || !have["port"] || have["pin_code"] || have["api_token"] {
+		t.Errorf("spec_set %v: want name, blob and port; not pin_code, which the schema alone declares, nor api_token", d.SpecSet)
 	}
 }

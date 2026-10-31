@@ -68,15 +68,8 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 	}
 	if rec == nil {
 		m.unrecorded(mn, d, sec)
-	} else if args, unknown, ok := m.specArgs(mn); ok {
-		d.SpecKnown = true
-		for k := range args {
-			d.SpecSet = append(d.SpecSet, k)
-		}
-		for k := range unknown {
-			d.SpecSet = append(d.SpecSet, k)
-		}
-		sort.Strings(d.SpecSet)
+	} else if set, ok := m.specSet(mn); ok {
+		d.SpecKnown, d.SpecSet = true, set
 	}
 	if mn.schNote != "" {
 		d.Notes = append(d.Notes, mn.schNote)
