@@ -118,6 +118,9 @@ type mnode struct {
 	out      *config.Output
 	output   Output
 	recorded json.RawMessage
+	// undecoded is set when the values of the record could not be read when the model
+	// was built (nested too deeply, not JSON): working that out again costs as much.
+	undecoded bool
 }
 
 // isOutput reports whether the node is an output of the root.
@@ -241,6 +244,10 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	// and of the plan, as the detail of the node is.
 	m.countWithheld()
 	m.graph.Outputs = m.outputs(outs)
+	// The scopes of the nodes were worked out to judge every one of them; a page needs those of the node it shows.
+	m.scopeMu.Lock()
+	m.scopes = nil
+	m.scopeMu.Unlock()
 	m.resources = 0
 	for _, a := range m.order {
 		if mode := m.nodes[a].Mode; mode == "managed" || mode == "data" {
@@ -583,6 +590,7 @@ func sortedMissing(m map[string]*missingSchema) []*missingSchema {
 func (m *model) countNode(mn *mnode, missing map[string]*missingSchema) {
 	attrs, err := decodeAttrs(mn.rec.Attributes)
 	if err != nil {
+		mn.undecoded = true
 		return
 	}
 	if mn.sch == nil {
@@ -610,14 +618,19 @@ func (m *model) countNode(mn *mnode, missing map[string]*missingSchema) {
 func (m *model) countWithheld() {
 	for _, addr := range m.order {
 		mn := m.nodes[addr]
-		if mn.rec == nil || transient(mn.Mode) || mn.Sealed || mn.sch == nil {
+		if mn.rec == nil || transient(mn.Mode) || mn.Sealed || mn.sch == nil || mn.undecoded {
+			continue
+		}
+		j := m.judge(nil, addr)
+		if len(j.fields) == 0 && (j.text == nil || len(j.text.list) == 0) {
+			// Nothing but the marks withholds a value of it, and the count has them.
 			continue
 		}
 		attrs, err := decodeAttrs(mn.rec.Attributes)
 		if err != nil {
 			continue
 		}
-		w := m.judge(nil, addr).walk(false)
+		w := j.walk(false)
 		w.block(mn.sch.Block, attrs, 0)
 		mn.Sensitive = w.withheld + w.derived
 	}

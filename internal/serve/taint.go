@@ -3,6 +3,7 @@ package serve
 import (
 	"cuelang.org/go/cue"
 
+	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
@@ -107,9 +108,23 @@ func (r *taintRecorder) reads() map[string][]taintRef {
 	return out
 }
 
+// taintOf runs the analysis that says where a value came from, and notes what each
+// field of v reads (fixed, when set, is the one field that everything is noted
+// under). It is not the one that gives the edges: that follows a reference to a
+// plain field only while the field is not concrete yet, as ordering needs, and a
+// string that a person typed into an attribute is concrete from the start. A value
+// is withheld for the attribute it came from, however many fields of the
+// specification it was passed on through (the parameter of a definition, a name that
+// stands for an attribute), so every reference to a plain field is followed to what
+// it is built from (convert.SourceTasks).
+func taintOf(v cue.Value, self cue.Path, res *specResolver, fixed string) *taintRecorder {
+	rec := &taintRecorder{specResolver: res, fixed: fixed}
+	convert.SourceTasks(v, self, rec)
+	return rec
+}
+
 // recordTaint keeps what the fields of a declared resource, or the value of an
-// output (field "value"), read of the tasks. It is filled by computeEdges, which
-// runs the analysis for the edges: one walk gives both.
+// output (field "value"), read of the tasks (computeEdges).
 func (ss *specState) recordTaint(addr string, rec *taintRecorder) {
 	if refs := rec.reads(); len(refs) > 0 {
 		if ss.taint == nil {
@@ -265,7 +280,7 @@ func (m *model) computeTaint() {
 func (m *model) findEchoes() {
 	for _, addr := range m.order {
 		mn := m.nodes[addr]
-		if mn.Mode != "data" || mn.res == nil || mn.rec == nil || mn.sch == nil || mn.Sealed {
+		if mn.Mode != "data" || mn.res == nil || mn.rec == nil || mn.sch == nil || mn.Sealed || mn.undecoded {
 			continue
 		}
 		attrs, err := decodeAttrs(mn.rec.Attributes)

@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -360,5 +361,114 @@ func TestOnlyTheJudgeChoosesTheStrings(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// A field is withheld for the attribute it reads, however the expression reads it: through a let, a comprehension, a
+// condition, a function, an interpolation or a field of another node that is itself derived. A field that reads only
+// what is public is shown, and so is one that spells the secret and reads nothing.
+func TestJudgeFollowsHowAFieldReads(t *testing.T) {
+	type reading struct {
+		name, expr string
+		withheld   bool
+	}
+	readings := []reading{
+		{"direct", `{k: db.blob}`, true},
+		{"let", `{let x = db.blob, k: x}`, true},
+		{"comprehension", `{for i, v in [db.blob] {"k\(i)": v}}`, true},
+		{"condition", `{if len(db.blob) > 3 {k: "yes"}}`, true},
+		{"function", `{k: strings.ToUpper(db.blob)}`, true},
+		{"marshal", `{k: json.Marshal({a: db.blob})}`, true},
+		{"encode", `{k: base64.Encode(null, db.blob)}`, true},
+		{"interpolation", `{k: "pre-\(db.blob)-post"}`, true},
+		{"list", `{k: list.Concat([[db.blob]])[0]}`, true},
+		{"derived field", `{k: direct.tags.k}`, true},
+		{"local", `{k: loc.s}`, true},
+		{"hidden field", `{k: _h}`, true},
+		{"public attribute", `{k: db.name}`, false},
+		{"public condition", `{if db.port > 1 {k: "yes"}}`, false},
+		{"spelled", `{k: "` + typedPW + `"}`, false},
+	}
+	spec := "package demo\n\nimport (\n\t\"encoding/json\"\n\t\"encoding/base64\"\n\t\"list\"\n\t\"strings\"\n)\n" + strings.TrimPrefix(judgeSpecCUE, "package demo\n")
+	name := func(r reading) string { return strings.ReplaceAll(r.name, " ", "_") }
+	// A name for an attribute, and a field that holds it: the string is a literal of the specification, which the ordering
+	// of the tasks has no reason to follow.
+	spec += "\nloc: {s: db.blob}\n_h: db.blob\n"
+	for _, r := range readings {
+		spec += fmt.Sprintf("\nr_%s: $fake.#Resource.fake_db & {name: %q, tags: %s}\n", name(r), name(r), r.expr)
+	}
+	dir := t.TempDir()
+	writeSpec(t, dir, strings.ReplaceAll(spec, "direct.tags", "r_direct.tags"))
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	recs := []*state.Resource{record("db", "fake_db", `{"name":"db","port":5,"blob":"`+typedPW+`"}`)}
+	for _, r := range readings {
+		// The text of every field says nothing of the secret: what withholds it is what it reads.
+		recs = append(recs, record("r_"+name(r), "fake_db", fmt.Sprintf(`{"name":%q,"tags":{"k":"opaque"}}`, name(r)), "db"))
+	}
+	for _, r := range recs {
+		if err := st.Set(r, txn.ID()); err != nil {
+			t.Fatal(err)
+		}
+		txn.Record(r.Address(), "create", 0, r.Revision)
+	}
+	if err := txn.Finish("applied", "created", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{Schemas: judgeLookup})
+	for _, r := range readings {
+		a := judgeAttr(t, p.detail("r_"+name(r)), "tags")
+		if withheld := !attrShown(a); withheld != r.withheld {
+			t.Errorf("%s (%s): withheld = %v, want %v: %s", r.name, r.expr, withheld, r.withheld, attrText(a))
+		}
+	}
+}
+
+// A definition is the unit of reuse, and what it is given can be an attribute of another node: the parameter is a plain
+// field of the instance, and the nodes of the instance read the attribute through it. The string is concrete in the
+// specification, so the ordering of the tasks sees no dependency; the value still came from the attribute.
+func TestJudgeFollowsAParameterOfADefinition(t *testing.T) {
+	spec := judgeSpecCUE + `
+#Stack: {
+	pw: string
+	in: $fake.#Resource.fake_db & {name: "in", tags: {k: pw}}
+	out: $fake.#Resource.fake_db & {name: "out", tags: {k: "fixed"}}
+}
+given: #Stack & {pw: db.blob}
+fixed: #Stack & {pw: "plain"}
+`
+	dir := t.TempDir()
+	writeSpec(t, dir, spec)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	for _, r := range []*state.Resource{
+		record("db", "fake_db", `{"name":"db","blob":"`+typedPW+`"}`),
+		record("given.in", "fake_db", `{"name":"in","tags":{"k":"`+typedPW+`"}}`),
+		record("given.out", "fake_db", `{"name":"out","tags":{"k":"fixed"}}`),
+		record("fixed.in", "fake_db", `{"name":"in","tags":{"k":"plain"}}`),
+		record("fixed.out", "fake_db", `{"name":"out","tags":{"k":"fixed"}}`),
+	} {
+		if err := st.Set(r, txn.ID()); err != nil {
+			t.Fatal(err)
+		}
+		txn.Record(r.Address(), "create", 0, r.Revision)
+	}
+	if err := txn.Finish("applied", "created", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{Schemas: judgeLookup})
+	for addr, shown := range map[string]bool{"given.in": false, "given.out": true, "fixed.in": true, "fixed.out": true} {
+		if a := judgeAttr(t, p.detail(addr), "tags"); attrShown(a) != shown {
+			t.Errorf("%s.tags: shown = %v, want %v: %s", addr, attrShown(a), shown, attrText(a))
+		}
+	}
+	if body := string(p.get("/api/detail?addr=given.in")) + string(p.get("/api/fields?spec=k")); strings.Contains(body, typedPW) {
+		t.Errorf("the password is sent: %s", body)
 	}
 }
