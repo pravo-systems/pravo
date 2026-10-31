@@ -347,10 +347,45 @@ func stateChanges(m *model) []engine.ChangeView {
 		if len(raw) == 0 || string(raw) == "null" || jsonDepth(raw) > maxRawDepth {
 			continue
 		}
+		raw, ok := m.judgedRecord(mn)
+		if !ok {
+			continue
+		}
 		out = append(out, engine.ChangeView{Addr: a, Mode: mn.rec.Mode, Type: mn.rec.Type, Name: mn.rec.Name, Action: engine.ActionUpdate,
 			Provider: mn.rec.ProviderKey, Before: raw, After: raw, Dependencies: mn.rec.Dependencies})
 	}
 	return out
+}
+
+// judgedRecord is the record of a node as a policy of the studio reads it: each top-level field that holds a value which the
+// judge withholds (by the schema, by its name, by what it reads, by what its text holds) is the mask. A rule can ask a
+// document a question (a pattern, a length) and the answer says what the value is, so the value is not in the document.
+func (m *model) judgedRecord(mn *mnode) (json.RawMessage, bool) {
+	attrs, err := decodeAttrs(mn.rec.Attributes)
+	if err != nil {
+		return nil, false
+	}
+	if mn.sch == nil || mn.sch.Block == nil {
+		for k, v := range attrs {
+			if v != nil {
+				attrs[k] = mask // nothing says which values are safe
+			}
+		}
+	} else {
+		// The walk that only counts sees every element of a long list, as the one that renders does not.
+		j := m.judge(nil, mn.Addr)
+		var marked map[string]bool
+		w := j.walk(false)
+		w.marks, w.hits = &marked, map[string]bool{}
+		w.block(mn.sch.Block, attrs, 0)
+		for k := range attrs {
+			if j.fields[k] || marked[k] || w.hits[k] {
+				attrs[k] = mask
+			}
+		}
+	}
+	raw, err := json.Marshal(attrs)
+	return raw, err == nil
 }
 
 // stateDoc is the document of the state as a plan that updates each resource to what it holds: what a policy would see

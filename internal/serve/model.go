@@ -261,9 +261,9 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 	m.graph.Version = APIVersion
 	m.graph.Revision = rev
 	m.graph.Project = m.project()
-	// What the specification could not be loaded for can quote a tag that was given on
-	// the command line; every other sentence can quote a value of the state.
-	m.graph.Project.SpecError = m.scrubTags(m.graph.Project.SpecError)
+	// CUE quotes the literal it evaluated when the specification does not load, and a
+	// literal that a person typed into a sensitive attribute is a string of the state.
+	m.graph.Project.SpecError = m.scrubText(m.graph.Project.SpecError)
 	for i := range warnings {
 		warnings[i] = m.scrubText(warnings[i])
 	}
@@ -783,7 +783,7 @@ func (m *model) outputs(set *outputSet) []Output {
 			if j := m.judge(nil, n); j.fields["value"] || j.text.leaksIn(dv["v"]) {
 				o.Sensitive, o.Redacted = true, "derived"
 			} else {
-				o.Value = bound(dv["v"], 0)
+				o.Value = bound(maskGuarded(dv["v"], 0), 0)
 			}
 		}
 		out = append(out, o)
@@ -798,6 +798,33 @@ func (m *model) outputs(set *outputSet) []Output {
 		}
 	}
 	return out
+}
+
+// maskGuarded is the value with the mask for each entry whose key says it is a secret (api_token): the page of an output
+// withholds such an entry, and the graph sends the value as the page shows it.
+func maskGuarded(v any, depth int) any {
+	if depth > maxDepth {
+		return v
+	}
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			if e != nil && guarded(k) {
+				out[k] = mask
+			} else {
+				out[k] = maskGuarded(e, depth+1)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = maskGuarded(e, depth+1)
+		}
+		return out
+	}
+	return v
 }
 
 // bound cuts a value down to what a page shows: text of at most maxText bytes

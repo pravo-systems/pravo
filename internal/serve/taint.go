@@ -266,6 +266,9 @@ func (m *model) computeTaint() {
 			}
 		}
 		d, e := m.derived[task], m.echoes[task]
+		if mn := m.nodes[task]; mn != nil && transient(mn.Mode) && len(d) > 0 {
+			return true // a call computes what it gives from what it is given, and nothing says which of it from which
+		}
 		if attr == "" {
 			return len(d) > 0 || len(e) > 0
 		}

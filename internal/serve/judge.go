@@ -64,7 +64,7 @@ func (m *model) judge(po *planOverlay, addr string) judgement {
 		}
 		return judgement{fields: fields, text: m.declaredText(sec, addr), because: m.because[addr], textWhy: why}
 	}
-	return judgement{text: m.undeclaredText(sec, addr), textWhy: "The text holds a secret of a node this one depends on, or one that a provider made."}
+	return judgement{text: m.undeclaredText(sec, addr), textWhy: "The text holds a secret of this node or of one it depends on, or one that a provider made."}
 }
 
 // walk returns the walk that renders the values of the node with this judgement.
@@ -84,15 +84,17 @@ func (m *model) declaredText(sec *secretSet, addr string) *secretSet {
 	return sec.madeOnly()
 }
 
-// undeclaredText is declaredText for a node that has no references to follow: the
-// strings of the nodes it depends on, as the state records them, for every kind of
-// node. An output that the state records and the specification does not declare
-// has not even those, so what it holds is judged against every string.
+// undeclaredText is declaredText for a node that has no references to follow: its own
+// strings and those of the nodes it depends on, as the state records them, for every
+// kind of node. With nothing to say which field was set from which, a connection
+// string that holds the password of the same record is what it looks like. An output
+// that the state records and the specification does not declare has not even those,
+// so what it holds is judged against every string.
 func (m *model) undeclaredText(sec *secretSet, addr string) *secretSet {
 	if mn := m.nodes[addr]; mn != nil && mn.isOutput() {
 		return sec
 	}
-	return sec.withMade(m.scopeOf(addr), addr)
+	return sec.withMade(m.scopeOf(addr), "")
 }
 
 // echoText is what the record of a data source is looked at for when the taint is

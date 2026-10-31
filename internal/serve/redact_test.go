@@ -341,3 +341,33 @@ func TestSecretSetMadeOnlyKeepsWhatTheProviderMade(t *testing.T) {
 		t.Error("a nil set is nil")
 	}
 }
+
+// A secret that holds another is replaced first, whichever was found first: replacing the shorter one first leaves the rest of
+// the longer in the text.
+func TestSecretSetScrubReplacesALongerSecretFirst(t *testing.T) {
+	for _, order := range [][]string{{"abcdef", "abcdef-ghijkl-mnopqr"}, {"abcdef-ghijkl-mnopqr", "abcdef"}} {
+		s := newSecretSet()
+		for _, x := range order {
+			s.add(x)
+		}
+		got, changed := s.scrub("token=abcdef-ghijkl-mnopqr end, short=abcdef")
+		if want := "token=" + mask + " end, short=" + mask; !changed || got != want {
+			t.Errorf("%v: scrub = %q, %v; want %q", order, got, changed, want)
+		}
+	}
+}
+
+// A generated password has & and < in it, and an XML document or an HTML page writes them as entities.
+func TestSecretSetFindsTheXMLFormOfASecret(t *testing.T) {
+	const pw = `Zq7r&T2v<N9x!K4m#B6w'"`
+	s := newSecretSet()
+	s.addFrom("pw", pw)
+	for _, text := range []string{
+		"<password>Zq7r&amp;T2v&lt;N9x!K4m#B6w&apos;&quot;</password>",
+		"<p>Zq7r&amp;T2v&lt;N9x!K4m#B6w&#39;&#34;</p>",
+	} {
+		if !s.leaks(text) {
+			t.Errorf("not found in %q", text)
+		}
+	}
+}

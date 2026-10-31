@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"html"
 	"maps"
 	"net/url"
 	"regexp"
@@ -267,12 +268,17 @@ func embeddedForms(x string) []string {
 		add(jsonInner(x, false))
 		add(hex.EncodeToString([]byte(x)))
 		add(strings.ToUpper(hex.EncodeToString([]byte(x))))
+		add(html.EscapeString(x))
+		add(xmlEntities.Replace(x))
 	}
 	for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.URLEncoding} {
 		out = append(out, base64Forms(enc, []byte(x))...)
 	}
 	return out
 }
+
+// xmlEntities writes a secret as it reads inside an XML document (a generated password has & and < in it).
+var xmlEntities = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;", "'", "&apos;")
 
 // jsonInner is the secret as it reads inside a JSON string.
 func jsonInner(x string, escapeHTML bool) string {
@@ -321,14 +327,21 @@ func (s *secretSet) scrub(text string) (string, bool) {
 	if s == nil || len(text) < minSecret {
 		return text, false
 	}
-	changed := false
+	var hits []string
 	for _, sec := range s.list {
 		if len(sec) <= len(text) && strings.Contains(text, sec) {
-			text = strings.ReplaceAll(text, sec, mask)
-			changed = true
+			hits = append(hits, sec)
 		}
 	}
-	return text, changed
+	if len(hits) == 0 {
+		return text, false
+	}
+	// A secret that holds another is replaced first: the shorter one would leave the rest of the longer in the text.
+	sort.SliceStable(hits, func(i, j int) bool { return len(hits[i]) > len(hits[j]) })
+	for _, sec := range hits {
+		text = strings.ReplaceAll(text, sec, mask)
+	}
+	return text, true
 }
 
 // leaks reports whether text contains a sensitive string of the state.
@@ -847,7 +860,19 @@ func (w *walk) scalar(at *Attr, v any) {
 	default:
 		at.Redacted = "schema"
 		w.withheld++
+		w.mark()
 	}
+}
+
+// mark notes the top-level field that is being rendered as one that holds a value withheld for what it is.
+func (w *walk) mark() {
+	if w.marks == nil {
+		return
+	}
+	if *w.marks == nil {
+		*w.marks = map[string]bool{}
+	}
+	(*w.marks)[w.top] = true
 }
 
 // elements renders the elements of a list or set, up to the limit.
@@ -901,12 +926,7 @@ func (w *walk) withhold(at *Attr, v any, why string) {
 	at.Redacted = why
 	at.Value, at.Children = nil, nil
 	w.withheld++
-	if w.marks != nil {
-		if *w.marks == nil {
-			*w.marks = map[string]bool{}
-		}
-		(*w.marks)[w.top] = true
-	}
+	w.mark()
 	if w.sink != nil {
 		w.sink.addFrom(w.origin, v)
 		if w.made && why == "sensitive" && w.kind == "computed" {

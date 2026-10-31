@@ -587,3 +587,157 @@ entryName:   $fake.#Resource.fake_db & {name: "named", zones: [entryHolder.name]
 		t.Errorf("the secret of the map entry is sent: %s", body)
 	}
 }
+
+// judgeReviewProject is a state with the shapes a red team found: an output with a key that says it is a secret, a node the
+// specification does not declare whose connection string holds its own password, a short password, and a call that gets
+// a password.
+func judgeReviewProject(t *testing.T) *project {
+	t.Helper()
+	spec := judgeSpecCUE + `
+$fake: #Function: upper: {
+	$kind:   "call"
+	$type:   "upper"
+	$source: "example.test/x/fake"
+	args: [string]
+	result: string | null
+}
+tok:     {$kind: "output", value: {api_token: "abcdef-123456", plain: "x-visible"}}
+shortdb: $fake.#Resource.fake_db & {name: "shortdb", blob: "pw-12"}
+up:      $fake.#Function.upper & {args: [db.blob]}
+fromUp:  $fake.#Resource.fake_db & {name: "from-up", zones: [up.result]}
+`
+	dir := t.TempDir()
+	writeSpec(t, dir, spec)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	for _, r := range []*state.Resource{
+		record("db", "fake_db", `{"name":"db","blob":"`+typedPW+`"}`),
+		record("shortdb", "fake_db", `{"name":"shortdb","blob":"pw-12"}`),
+		record("orphan", "fake_db", `{"name":"orphan","blob":"`+typedPW+`","tags":{"url":"pg://u:`+typedPW+`@h"}}`),
+		record("fromUp", "fake_db", `{"name":"from-up","zones":["`+strings.ToUpper(typedPW)+`"]}`, "db"),
+	} {
+		if err := st.Set(r, txn.ID()); err != nil {
+			t.Fatal(err)
+		}
+		txn.Record(r.Address(), "create", 0, r.Revision)
+	}
+	if err := txn.Finish("applied", "created", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetOutputs(map[string]json.RawMessage{"tok": json.RawMessage(`{"api_token":"abcdef-123456","plain":"x-visible"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	return start(t, dir, st, Options{Schemas: judgeLookup})
+}
+
+// An output with an entry that is named like a secret is sent by the graph as the page of the output shows it: the entry
+// withheld and the rest shown.
+func TestJudgeWithholdsAGuardedKeyOfAnOutputInTheGraphToo(t *testing.T) {
+	p := judgeReviewProject(t)
+	var got *Output
+	for _, o := range p.graph().Outputs {
+		if o.Name == "tok" {
+			o := o
+			got = &o
+		}
+	}
+	if got == nil || got.Redacted != "" {
+		t.Fatalf("the output is withheld whole: %+v", got)
+	}
+	if value, ok := got.Value.(map[string]any); !ok || value["plain"] != "x-visible" || value["api_token"] != mask {
+		t.Errorf("the graph sends %+v", got.Value)
+	}
+	var withheld bool
+	for _, c := range judgeAttr(t, p.detail("tok"), "value").Children {
+		withheld = withheld || (c.Name == "api_token" && c.Redacted != "")
+	}
+	if !withheld {
+		t.Errorf("the page of the output shows the entry")
+	}
+	if body := string(p.get("/api/graph")) + string(p.get("/api/detail?addr=tok")) + string(p.get("/api/fields?spec=api_token")); strings.Contains(body, "abcdef-123456") {
+		t.Error("the secret entry of the output is sent")
+	}
+}
+
+// A node that the specification does not declare is held against its own strings too: nothing says which field was set from
+// which, and a connection string holds the password of its record.
+func TestJudgeHoldsAnUndeclaredNodeAgainstItsOwnStrings(t *testing.T) {
+	p := judgeReviewProject(t)
+	d := p.detail("orphan")
+	if attrShown(judgeAttr(t, d, "tags")) {
+		t.Errorf("the connection string of the node is shown: %s", attrText(judgeAttr(t, d, "tags")))
+	}
+	if !attrShown(judgeAttr(t, d, "name")) {
+		t.Errorf("the name of the node is withheld: %s", attrText(judgeAttr(t, d, "name")))
+	}
+}
+
+// What a call gives is computed from what it is given.
+func TestJudgeWithholdsWhatACallGivesFromAPassword(t *testing.T) {
+	p := judgeReviewProject(t)
+	if g := p.graph(); g.Project.SpecError != "" {
+		t.Fatalf("the specification does not load: %s", g.Project.SpecError)
+	}
+	if a := judgeAttr(t, p.detail("fromUp"), "zones"); attrShown(a) {
+		t.Errorf("the result of the call is shown: %s", attrText(a))
+	}
+	if a := judgeAttr(t, p.detail("fromUp"), "name"); !attrShown(a) {
+		t.Errorf("the name is withheld: %s", attrText(a))
+	}
+	if strings.Contains(string(p.get("/api/detail?addr=fromUp"))+string(p.get("/api/fields?spec=zones")), strings.ToUpper(typedPW)) {
+		t.Error("the result of the call is sent")
+	}
+}
+
+// The policy studio gives a rule the record with each field the judge withholds as the mask: a rule can ask a pattern of a
+// value, and the answer says what it is. A password shorter than the least that is looked for as text is withheld by its
+// schema all the same.
+func TestStudioDocumentOfTheStateHoldsNoWithheldValue(t *testing.T) {
+	p := judgeReviewProject(t)
+	var doc StudioDoc
+	if err := json.Unmarshal(p.get("/api/studio/doc?ref=state"), &doc); err != nil || len(doc.Outline) == 0 {
+		t.Fatalf("the document of the state: %v %+v", err, doc)
+	}
+	var all strings.Builder
+	for i := range doc.Outline {
+		all.Write(p.get(fmt.Sprintf("/api/studio/doc?ref=state&i=%d", i)))
+	}
+	for _, secret := range []string{"pw-12", typedPW, strings.ToUpper(typedPW)} {
+		if strings.Contains(all.String(), secret) {
+			t.Errorf("the document holds %q", secret)
+		}
+	}
+	if !strings.Contains(all.String(), "shortdb") {
+		t.Errorf("the document holds no value at all: %s", all.String())
+	}
+}
+
+// CUE quotes the literal it evaluated when the specification does not load, and a literal that a person typed into a
+// sensitive attribute is a string of the state: the sentence is masked as a warning is.
+func TestJudgeMasksTheSentenceOfASpecificationThatDoesNotLoad(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, judgeSpecCUE+`
+broken: $fake.#Resource.fake_db & {name: "broken", blob: "`+typedPW+`" & =~"^x"}
+`)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	r := record("db", "fake_db", `{"name":"db","blob":"`+typedPW+`"}`)
+	if err := st.Set(r, txn.ID()); err != nil {
+		t.Fatal(err)
+	}
+	txn.Record(r.Address(), "create", 0, r.Revision)
+	if err := txn.Finish("applied", "created", true); err != nil {
+		t.Fatal(err)
+	}
+	p := start(t, dir, st, Options{Schemas: judgeLookup})
+	waitFor(t, "the specification error", func() bool { return p.graph().Project.SpecError != "" })
+	if body := string(p.get("/api/graph")); strings.Contains(body, typedPW) {
+		t.Errorf("the sentence quotes the password: %s", p.graph().Project.SpecError)
+	}
+}
