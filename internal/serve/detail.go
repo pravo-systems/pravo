@@ -273,7 +273,7 @@ func (m *model) readsData(addr string) bool {
 // its own strings, or every string when it reads a data source.
 func (m *model) ownText(po *planOverlay, addr string) *secretSet {
 	if m.readsData(addr) {
-		return m.secretsFor(po).withMade(m.scopeOf(addr))
+		return m.secretsFor(po).ownWithMade(addr)
 	}
 	return m.secretsFor(po).ownTo(addr)
 }
