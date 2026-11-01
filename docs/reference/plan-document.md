@@ -177,6 +177,7 @@ Every entry has `addr`, `mode`, `type`, `name` and `action`.
 | `dependencies` | when there are any | The addresses this change depends on. |
 | `dependents` | for a pending change, when there are any | The addresses that depend on it in the state. |
 | `warnings` | when there are any | The summaries of the provider's warnings. |
+| `template` | when a template instance holds the node | `name`, the name in the `$template` marker of the nearest struct above the node, and `instance`, the address of that struct. See [Templates](spec-reuse.md#templates). |
 
 A boolean that is false is left out. A field marked "when there are any" is left out when empty.
 

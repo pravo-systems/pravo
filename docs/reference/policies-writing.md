@@ -502,6 +502,66 @@ Policies: 1 satisfied.
 
 The default `*false | bool` supplies `false` where the field is omitted and takes the document's `true` where it is there. The same holds for `deferred`, `skipped`, `refreshed`, `drifted` and `applied`.
 
+## Rules for the instances of a template
+
+A change of a node that a [template](spec-reuse.md#templates) instance holds names it in `template`: `name` is the name in the `$template` marker of the nearest struct above the node, and `instance` is the address of that struct. A rule reads it like any field that may be absent, after a presence test, and so holds the instances of one template to a rule without matching their addresses.
+
+```cue file=policy/template.cue
+// A pet in an instance of the template pair has two words.
+changes: [...{
+	type: string
+	template?: {name: string, instance: string}
+	if template != _|_ {
+		if template.name == "pair" && type == "random_pet" {
+			after: length: 2
+		}
+	}
+}]
+```
+
+Two instances of `#Pair`, one with two words and one with three:
+
+```cue file=pair.cue title="added to infra/main.cue"
+#Pair: pravo.#Template & {
+	$template: name: "pair"
+	words: int
+	pet: $random.#Resource.random_pet & {length: words}
+}
+
+pairs: short: #Pair & {words: 2}
+pairs: long: #Pair & {words: 3}
+```
+
+Each change of the plan names the instance it belongs to:
+
+```sh run
+./set-rule.sh policy/template.cue
+cat pair.cue >> infra/main.cue
+pravo -C infra plan --json 2>/dev/null | jq -c 'select(.changes) | .changes[] | {addr, template}'
+```
+
+```text out
+{"addr":"pairs.short.pet","template":{"name":"pair","instance":"pairs.short"}}
+{"addr":"pairs.long.pet","template":{"name":"pair","instance":"pairs.long"}}
+```
+
+The rule refuses the pet with three words, and only that one:
+
+```sh run
+pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
+```
+
+```text out
+Error: the plan violates the policy check@N (sha256:72bded88f82e):
+changes.1.after.length: conflicting values 2 and 3:
+    check:8:2
+    check:10:3
+    check:12:13
+    plan:1:N
+```
+
+The change of a node outside every instance has no `template`, and neither has the delete of a whole instance, which the specification does not hold any more. A node that leaves an instance that is still there is deleted under the template of the instance.
+
 ## Plan-wide rules
 
 `summary` and `stats` hold counts, and a bound on them limits a plan as a whole. A replacement counts as an addition and as a destruction:

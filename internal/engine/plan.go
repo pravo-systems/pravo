@@ -102,6 +102,8 @@ type Change struct {
 	Derived map[string]bool
 	// Reasons explains why the change is planned, for "pravo why".
 	Reasons []string
+	// Template is the template instance that holds the node, when one does.
+	Template *TemplateRef
 
 	// PriorRevision is the revision of the node's record when the plan was made,
 	// after the plan wrote what its own reads found: 0 when the node has no

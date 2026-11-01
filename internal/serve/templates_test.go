@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -326,5 +327,21 @@ func TestTemplatesCatalogIsEmptyWithoutTemplates(t *testing.T) {
 	cat := p.templates()
 	if !cat.SpecOK || len(cat.Templates) != 0 {
 		t.Errorf("catalog: %+v", cat)
+	}
+}
+
+// The policy studio judges the state with the template of each resource, as a plan names it, so that a rule that asks
+// for one is tried on what exists.
+func TestStudioJudgesTheStateWithTheTemplates(t *testing.T) {
+	p := templateProject(t)
+	// Without the template in the document, the instance that the schema asks for would be missing.
+	held := p.try("changes: [...{template: name: \"box\", ...}]\n", "state")
+	if tp := held.Plans[0]; tp.State != "judged" || tp.Draft == nil || tp.Draft.Outcome != engine.RuleHolds {
+		t.Fatalf("a rule that the template of the resource fits: %+v %+v", tp, tp.Draft)
+	}
+	refused := p.try("changes: [...{template: name: \"queue\", ...}]\n", "state")
+	tp := refused.Plans[0]
+	if tp.Draft == nil || tp.Draft.Outcome != engine.RuleRefused || len(tp.Draft.Issues) != 1 || tp.Draft.Issues[0].Path != "changes.0.template.name" {
+		t.Fatalf("a rule that asks for another template: %+v %+v", tp, tp.Draft)
 	}
 }
