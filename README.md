@@ -205,10 +205,6 @@ go run ./tools/serveshots -bin bin/pravo -out docs/img/serve
 
 </details>
 
-## About
-
-pravo is built by Marcin Wyszynski, who co-founded Spacelift and OpenTofu. Ten years of running Terraform and OpenTofu left notes on what to do differently; pravo is the result, written with Claude from those notes. Try it, and [say what you found](https://github.com/pravo-systems/pravo/issues).
-
 ## License
 
 Apache-2.0. The protocol definitions under `internal/tfplugin/proto` are copied from the terraform-plugin-go repository and are licensed MPL-2.0. pravo is an independent project, affiliated with neither the OpenTofu project nor HashiCorp.
