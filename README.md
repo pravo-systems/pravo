@@ -1,75 +1,134 @@
-<img src="site/assets/logo.svg" alt="" width="56" height="56" align="left">
+<p align="center">
+  <img src="site/assets/logo.svg" alt="" width="64" height="64">
+</p>
 
-# pravo
+<h1 align="center">pravo</h1>
 
-pravo specifies infrastructure in [CUE](https://cuelang.org) and runs the OpenTofu providers you already use, unchanged. Two values for one field must agree, so a conflict between values you write is an error before any provider starts.
+<p align="center">
+  <strong>Terraform, reimagined.</strong><br>
+  Same providers, same plan/apply loop. Rebuilt for scale, speed, security and discoverability.
+</p>
 
-## Example
+<p align="center">
+  <a href="https://pravo.systems">Website</a> ·
+  <a href="docs/how-to/quick-start.md">Quick start</a> ·
+  <a href="docs/migrate/index.md">Migrate from OpenTofu or Terraform</a> ·
+  <a href="docs/learn/index.md">Learn CUE and pravo</a> ·
+  <a href="https://github.com/pravo-systems/pravo/releases">Releases</a>
+</p>
 
-A specification is the set of `.cue` files in one directory. This one declares a provider, an environment with a default, and one resource:
+pravo specifies infrastructure in [CUE](https://cuelang.org) and runs the OpenTofu providers you already use, unchanged. It keeps the plan and apply loop and rebuilds what surrounds it for a team: a state kept per resource, sealed and signed; plans that read only what a change reaches; and a viewer in the browser for the estate, its plans, its policies and its runs.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/serve/readme-dark.png">
+  <img src="docs/img/serve/readme-light.png" alt="The pravo viewer with a saved plan laid over the graph. The groups network, api and edge are joined by arrows from left to right, and the outputs admin_token and endpoint sit at the right. Each group counts the resources that the plan creates, replaces and destroys inside it, and the resources that the plan leaves alone are dimmed." width="1440">
+</picture>
+
+<p align="center"><sub><code>pravo serve</code> with a saved plan over the graph. Each group counts what the plan creates, replaces and destroys inside it, and what the plan leaves alone is dimmed.</sub></p>
+
+pravo is experimental. It drives real OpenTofu providers, and its behaviour is documented and tested end to end.
+
+## Try it
+
+```sh
+curl -fsSL https://pravo.systems/install.sh | sh      # macOS and Linux
+irm https://pravo.systems/install.ps1 | iex           # PowerShell on Windows
+```
+
+The archives, checksums and provenance attestations are on the [releases page](https://github.com/pravo-systems/pravo/releases). The [quick start](docs/how-to/quick-start.md) writes one file, plans it, applies it, changes it and destroys it in a few minutes, with no cloud account.
+
+## A specification in CUE
+
+A specification is the `.cue` files of one directory. This one writes a definition once and makes two instances of it:
 
 ```cue
-package infra
+package estate
 
 import loc "pravo.dev/providers/hashicorp/local"
 
-// The default is "dev". -t env=prod selects the other value; nothing else is accepted.
-env: *"dev" | "prod" @tag(env)
-
 $local: loc.#Provider
 
-hello: $local.#Resource.local_file & {filename: "hello-\(env).txt", content: "hello from \(env)\n"}
+// A definition: two fields and the file they render.
+#Service: {
+	name: string
+	port: int & >=1024 & <=65535
+	file: $local.#Resource.local_file & {
+		filename: "\(name).env"
+		content:  "PORT=\(port)\n"
+	}
+}
+
+api: #Service & {name: "api", port: 8080}
+web: #Service & {name: "web", port: 8081}
 ```
 
-`pravo init` installs the provider and generates its CUE package. `pravo plan` prints what an apply would do. `pravo apply` does it. The output is abridged where it shows `...`.
+`pravo init` installs the provider and generates its CUE package. `pravo plan` prints what an apply would do, and `pravo apply` does it. The output is abridged where it shows `...`.
 
 ```text
-$ pravo init
-Configuration does not load yet; generating schemas for the declared providers first.
-Created cue.mod/module.cue
-Providers:
-  local = hashicorp/local v2.9.1
-...
-pravo has been initialised. Run "pravo plan" to see what it would do.
-
-$ pravo plan -t env=prod
+$ pravo plan
 pravo will perform the following actions:
 
-  # hello (local_file) will be created
-  + hello: {
-  +     content:              "hello from prod\n"
+  # api.file (local_file) will be created
+  + api: file: {
+  +     content:              "PORT=8080\n"
 ...
-  +     filename:             "hello-prod.txt"
+  +     filename:             "api.env"
   +     id:                   (known after apply)
     }
 
-Plan: 1 to add, 0 to change, 0 to destroy.
-Graph: planned 1
-
-$ pravo apply -t env=prod -auto-approve
+  # web.file (local_file) will be created
+  + web: file: {
+  +     content:              "PORT=8081\n"
 ...
-hello: Creation complete after 0s [id=421ed0d3d33f878272c9215e5388263188a47bd9]
+  +     filename:             "web.env"
+  +     id:                   (known after apply)
+    }
 
-Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn 20261020T023802Z-fd74bb]
-
-$ pravo plan -t env=qa
-Error: evaluating .:
-env: 2 errors in empty disjunction:
-env: conflicting values "dev" and "qa":
-    ./main.cue:6:7
-env: conflicting values "prod" and "qa":
-    ./main.cue:6:15
+Plan: 2 to add, 0 to change, 0 to destroy.
+Graph: planned 2
 ```
 
-The last command exits with status 6 and starts no provider. `env` accepts `"dev"` or `"prod"`. The value `qa` is neither, so each alternative fails, and each error gives the position in `main.cue` where that alternative is written.
+Every value is checked against every constraint written for it before any provider starts. Set the port of `web` to `80` and the plan stops with exit status 6, naming the bound and both places in the file:
 
-## Scope
+```text
+$ pravo plan
+Error: evaluating /home/you/estate:
+web.port: invalid value 80 (out of bound >=1024):
+    /home/you/estate/main.cue:10:14
+    /home/you/estate/main.cue:18:37
+```
 
-pravo replaces the OpenTofu language (HCL), the OpenTofu evaluator and the OpenTofu state format. It does not replace providers. It speaks the provider plugin protocol, versions 5 and 6, so the providers on the OpenTofu registry run as they are. pravo has no workspaces, no `-target` and no provisioners; `docs/reference/not-in-pravo.md` names what to use in their place.
+A definition that holds resources is how code is shared in pravo: it is used through instances and shared through CUE packages and CUE modules. pravo has no `module` block. [Reuse](docs/reference/spec-reuse.md) covers the rest.
 
-## Install, build and run
+## Built for teams
 
-Install a release with `curl -fsSL https://pravo.systems/install.sh | sh` on macOS and Linux, or `irm https://pravo.systems/install.ps1 | iex` in PowerShell on Windows. The archives, the checksums and the provenance attestations are on the [releases page](https://github.com/pravo-systems/pravo/releases). On GitHub Actions, use `pravo-systems/setup-pravo@v1`, which installs a pinned version and checks its checksum.
+**See it.** `pravo serve` opens a read-only viewer on your machine: the graph of groups and resources, plans, history, state, secrets, policies, templates and traces in one place, with nothing to host. It listens on the loopback interface, needs the token that it prints, withholds sensitive values on the server and writes nothing. [Explore your estate](docs/how-to/explore-your-estate.md)
+
+**Change one resource, read one resource.** A plan starts at your change, follows the recorded dependencies and reads only what the change reaches. Change one value in an estate of 2,001 resources, and OpenTofu reads all 2,001 from the cloud while pravo reads one. Applies that do not overlap run at the same time, started by different people, and an overlapping apply is refused, not queued. `pravo drift` finds drift in what no plan reached. [What a plan reaches](docs/concepts/what-a-plan-reaches.md)
+
+**Sealed and signed state.** `pravo protect init --encrypt` encrypts the attributes, outputs and stored plans of a state to the readers that `.pravo/access/readers.txt` lists, and every change is a signed transaction. Addresses, types and dependencies stay readable, so the graph and the plans keep working. Keys carry the role reader, writer or admin, and the secrets a team shares live in the state as values with a history, never written to a record, a plan or a log. [Seal the state](docs/how-to/seal-the-state.md) · [Signatures and roles](docs/concepts/signatures-and-roles.md) · [Store secrets in the state](docs/how-to/store-secrets-in-the-state.md)
+
+**Rules that are written down.** A policy is a `pravo.#Policy` that lives in the state and judges every plan. Policies are versioned and signed, each apply names the versions that judged it, and the policy studio in the viewer tries a rule on a plan before it is in force. [Constraints and policies](docs/concepts/policies.md)
+
+**Self-service that stays code.** A platform team writes a pattern once, as a definition that embeds `pravo.#Template`. Anyone with a checkout fills in its form in the viewer and gets the CUE of a new instance, checked against the specification and every policy in force before it is pasted. One person prepares the plan with a reader key, and someone with a writer key applies it. An instance is worked out from its template, not copied, so a change to the template reaches every instance at the next plan. [Templates and self-service](docs/concepts/templates.md) · [Offer a template](docs/how-to/offer-a-template.md)
+
+**Take over what exists.** `pravo discover` lists the objects that exist in a scope and sets them against the state, and `pravo discover adopt` writes the resource that brings an object under management. [Find what nothing manages](docs/how-to/find-what-nothing-manages.md)
+
+**Where the time went.** Every run records its spans and the network requests that a provider makes while it works. The viewer shows them with nothing to set up, and any OpenTelemetry collector can receive them. [Traces](docs/concepts/traces.md)
+
+## What stays the same
+
+pravo replaces the OpenTofu language (HCL), the OpenTofu evaluator and the OpenTofu state format. It does not replace providers: it speaks the provider plugin protocol, versions 5 and 6, so the providers on the OpenTofu registry run as they are. `pravo init` downloads them from `registry.opentofu.org` into `~/.pravo` (`$PRAVO_HOME`).
+
+[Migrate](docs/migrate/index.md) is a gated runbook: translate the HCL, convert the state file and plan until the plan is empty. Every step before your first apply leaves your infrastructure and your OpenTofu state as they are. pravo has no workspaces, no `-target` and no provisioners, and [Not in pravo](docs/reference/not-in-pravo.md) names what to use in their place.
+
+## In CI, for agents and in your programs
+
+- **GitHub Actions.** `pravo-systems/setup-pravo@v1` installs a pinned version and checks its checksum. `pravo-systems/pravo-action@v1` runs a plan, an apply, a drift check or a discovery and reports it on GitHub. [Run pravo in a pipeline](docs/how-to/ci.md)
+- **Agents.** `pravo skill install` writes a skill to `~/.claude/skills/pravo`, built from these docs and embedded in the binary, so that an agent writes CUE and not HCL. `pravo mcp` serves the commands over the Model Context Protocol. [Let an agent plan and apply](docs/how-to/agents-and-mcp.md)
+- **Programs.** With `--json`, a command prints a JSON document. The documents and the exit codes are the stable surface. `github.com/pravo-systems/pravo/pravo` is a Go package that opens a workspace, plans, applies, stores plans and checks drift; it is v0 and unstable, and `examples/embed` uses it. [The library and the machine interface](docs/concepts/the-library-and-the-machine-interface.md)
+
+## Build from source
 
 Go 1.26 or newer builds pravo from a checkout. The binary needs neither Go nor OpenTofu to run.
 
@@ -78,8 +137,6 @@ go build -o bin/pravo ./cmd/pravo
 export PATH="$PWD/bin:$PATH"
 pravo version
 ```
-
-`pravo init` downloads providers from `registry.opentofu.org` into `~/.pravo` (`$PRAVO_HOME`) and generates the CUE packages that a specification imports.
 
 The roots in `examples/` need no cloud account. They use `hashicorp/random`, `hashicorp/local`, `hashicorp/null` and `hashicorp/tls`, and the functions of `hashicorp/kubernetes`, which need no cluster.
 
@@ -90,50 +147,41 @@ pravo plan
 pravo apply
 ```
 
-## The viewer
+## Contributing
 
-`pravo serve` shows the specification, the state and a saved plan of a root as an animated graph of groups and resources, in a browser. It listens on the loopback interface, needs the token that it prints, withholds sensitive values on the server and writes nothing.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/serve/overview-dark.png">
-  <img src="docs/img/serve/overview-light.png" alt="The pravo viewer as it opens. A filter box in the toolbar narrows the nodes. The graph fills the window and draws the groups that fit as lanes and the others as cards, joined by arrows. The inspector comes in when something is selected." width="1440" height="900">
-</picture>
+`ARCHITECTURE.md` describes how pravo is built. The documentation lives in `docs/` as Markdown, and `docs/AUTHORING.md` fixes its structure, its voice and its extensions.
 
 ```sh
-pravo serve                          # in a root that has been applied
-pravo serve --plan change.plan       # overlay a saved plan
+go test ./...
+go test -short ./...         # skips the tests that build the binary or run sitegen
+golangci-lint run ./...      # with the Go version of go.mod
+
+# ESLint and Stylelint for the viewer and the site
+npm --prefix tools/_weblint ci
+npm --prefix tools/_weblint run lint
+
+# Run the commands of a page against the real binary and compare the output
+go run ./tools/capture -check docs/how-to/quick-start.md
+
+# Build the site into site/public, lint it and check every link
+go run ./tools/sitegen -pravo-bin bin/pravo
+
+# Make the pictures of the viewer, the one above included
+go run ./tools/serveshots -bin bin/pravo -out docs/img/serve
 ```
 
-A definition that embeds `pravo.#Template` becomes a form in its Templates section: anyone with a checkout fills it in, the viewer checks the new instance against the specification and the policies in memory, and gives the CUE to paste; a reader key prepares the plan and a writer key applies it (`docs/how-to/add-an-instance-from-a-template.md`). `docs/how-to/explore-your-estate.md` walks through it, and `docs/reference/serve.md` is the reference. The pictures are made by `go run ./tools/serveshots -bin bin/pravo -out docs/img/serve`.
+`.github/workflows/ci.yml` runs on every push to `main` and on every pull request: formatting, vet and a build for every platform, the linters, the Go tests, the tools, every page of the documentation, the demos, the OpenTofu listings and the site. The job `ci` passes when all of them do, and is the one check to require.
 
-## Sealed state
-
-`pravo protect init --encrypt` encrypts the attributes, outputs and stored plans of a state to a list of readers that the repository keeps in `.pravo/access/readers.txt`. `pravo id new` makes an identity and prints the line for that file. Addresses, types, names and dependencies stay readable, so the graph and the plans keep working. Protection is off by default, and a state that has it off is unchanged. `docs/how-to/seal-the-state.md` walks through it, and `docs/concepts/signatures-and-roles.md` says what it protects and what it leaves open.
-
-A sealed state also keeps secrets, as named values with a history: `pravo secret set NAME` writes a version, a specification reads it with `pravo.#Secret` and hands it to a provider, and the value is never written to a record, a plan or a log. Each change is a signed transaction, and the readers file can give keys the roles reader, writer and admin. `docs/how-to/store-secrets-in-the-state.md` walks through it, and `pravo serve` lists the secrets without a value.
-
-## The skill for agents
-
-`pravo skill install` writes a skill for AI agents to `~/.claude/skills/pravo`: a short guide and the documentation as Markdown, built from `docs/` by `go run ./tools/skillgen` and embedded in the binary, so that it matches the version that installs it. `docs/reference/skill.md` describes it. Each release carries it as `pravo-skill.zip`.
-
-## Using pravo as a library
-
-`github.com/pravo-systems/pravo/pravo` is a Go package with what the commands do: open a workspace, plan, apply, store plans, check drift. It is v0 and unstable. `examples/embed` is a small program that uses it; the package documentation (`go doc ./pravo`) has the rest.
-
-## Documentation
-
-- `docs/` holds the Markdown sources: Learn (CUE from zero, then pravo), Migrate (from OpenTofu or Terraform), How-to, Concepts and Reference. Begin with `docs/how-to/quick-start.md`.
-- `go run ./tools/sitegen` renders `docs/` and the landing page in `site/` into `site/public/`. Open `site/public/index.html` from the file system, or serve the directory.
-- `ARCHITECTURE.md` describes how pravo is built, for contributors.
-
-## Layout
+<details>
+<summary>Layout of the repository</summary>
 
 | Path | Contents |
 |---|---|
 | `cmd/pravo/` | The command line, the JSON output and the MCP server. |
+| `pravo/` | The public Go package: workspaces, plans, applies, stored plans, drift. |
 | `internal/config/` | Loads a root; finds resources, providers and outputs; fingerprints a root. |
 | `internal/convert/` | CUE values to provider values and back; known, unknown and null; reference analysis. |
-| `internal/engine/` | Dependency graph, scheduler, plan, apply, saved and stored plans, plan policies. |
+| `internal/engine/` | Dependency graph, scheduler, plan, apply, saved and stored plans, policies. |
 | `internal/state/` | The state store: records, transactions, locks; local and S3 backends. |
 | `internal/plugin/` | Provider processes; plugin protocol 5 and 6 adapters; recording and replay. |
 | `internal/tfplugin/` | Protocol definitions (`.proto`, MPL-2.0), generated messages, client stubs. |
@@ -141,47 +189,21 @@ A sealed state also keeps secrets, as named values with a history: `pravo secret
 | `internal/schema/` | Provider schema model and the CUE generator. |
 | `internal/tfstate/` | Converts an OpenTofu state file to state records. |
 | `internal/ui/`, `internal/plog/`, `internal/telemetry/` | Plan rendering, the debug log, OpenTelemetry. |
-| `internal/serve/` | The read-only web viewer behind `pravo serve`: the server, the JSON contract in `api.go` and the interface in `web/`. |
+| `internal/serve/` | The read-only viewer behind `pravo serve`: the server, the JSON contract in `api.go` and the interface in `web/`. |
 | `internal/fakes3/` | In-memory S3-compatible server for tests. |
 | `tools/sitegen/` | Documentation site generator, its HTML contract and the contrast check. |
 | `tools/capture/` | Runs the examples in the documentation and compares their output. |
 | `tools/hclcheck/` | Runs the OpenTofu listings of the documentation through `tofu fmt`, `init` and `validate`. |
 | `tools/_weblint/` | ESLint and Stylelint for the viewer and the site. The underscore keeps the Go tools out of its `node_modules`. |
 | `tools/serveshots/` | Applies the estates in `scenarios/`, starts `pravo serve` and makes the screenshots of the documentation with headless Chrome. |
+| `tools/skillgen/` | Builds the skill for agents from `docs/`. |
 | `tools/protogen/`, `tools/fakes3/`, `tools/fakeoci/` | Protocol message generator; an in-memory S3 bucket and an in-memory container registry for trying state and CUE modules. |
-| `docs/` | Documentation sources. `docs/AUTHORING.md` fixes the format. |
+| `docs/` | Documentation sources. |
 | `site/` | Site configuration, landing page, style sheet, scripts, recorded landing data. |
-| `examples/` | Four runnable roots. |
+| `examples/` | Runnable roots, and `examples/embed`, a program that uses the Go package. |
 | `templates/module/` | Template repository for a CUE module that other repositories fetch by version. |
 
-## Contributing
-
-Tests:
-
-```sh
-go test ./...
-go test -short ./...    # skips the tests that build the binary or run sitegen
-```
-
-Linters. `.golangci.yml` configures golangci-lint for the Go code, and `tools/_weblint` has ESLint and Stylelint for the JavaScript and CSS of the viewer and the site. Each exclusion in them has the reason beside it.
-
-```sh
-golangci-lint run ./...                  # a build made with the Go version of go.mod
-npm --prefix tools/_weblint ci            # once
-npm --prefix tools/_weblint run lint
-```
-
-Documentation. `docs/AUTHORING.md` fixes the structure, the voice and the Markdown extensions. `tools/capture` runs every command on a page against the real binary and compares the output beside it:
-
-```sh
-go run ./tools/capture -check docs/how-to/quick-start.md     # one page
-go run ./tools/capture -check ./docs                  # every page
-go run ./tools/capture -update docs/how-to/quick-start.md    # rewrite the output blocks from a run
-go run ./tools/hclcheck                              # validate every OpenTofu listing with tofu
-go run ./tools/sitegen -pravo-bin bin/pravo           # build the site, lint it, check every link
-```
-
-Continuous integration. `.github/workflows/ci.yml` runs on every push to `main` and on every pull request. Its jobs start together and run side by side: formatting, vet and a build for every platform; golangci-lint for each of Linux, Windows and macOS, and ESLint and Stylelint for the viewer and the site; the Go tests split by package, with the race detector on the engine and the state; the tools; the documentation, one job for each section; the demos; the OpenTofu listings; and the site. The job `ci` passes when all of them do, and is the one check to require.
+</details>
 
 ## License
 

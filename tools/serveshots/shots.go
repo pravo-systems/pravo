@@ -396,6 +396,11 @@ func allShots() []Shot {
 	// Nothing is selected, so the inspector shows the project: this is the page
 	// as it opens.
 	s = append(s, both("overview", "platform", situationClean, Fragment{})...)
+	// The picture of the README: the saved plan of the changed estate laid
+	// over the graph, every group closed, nothing selected. The viewport is as
+	// wide as the others and only as tall as the graph needs at that width, so
+	// that the picture is the graph and not the canvas around it.
+	s = append(s, sized(1440, 540, both("readme", "platform", situationPlan, Fragment{}))...)
 	s = append(s, both("groups-collapsed", "platform", situationClean, Fragment{Sel: billingConfig, Tab: "state", Collapse: []string{"network", "edge"}})...)
 	s = append(s, both("groups-expanded", "fleet", situationClean, Fragment{
 		Sel:      euProd,

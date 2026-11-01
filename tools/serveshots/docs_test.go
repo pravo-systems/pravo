@@ -103,7 +103,8 @@ func TestImageDirectoryHoldsTheShots(t *testing.T) {
 
 // An img tag of a page states the size of the viewport of its shot, so that
 // the page does not shift when the picture loads. The picture itself is twice
-// as large.
+// as large. README.md states the width alone: GitHub narrows a picture to the
+// column and keeps a height attribute, which squeezes the picture sideways.
 func TestImageTagsStateTheViewportSize(t *testing.T) {
 	root := repoRoot(t)
 	sizes := map[string][2]int{}
@@ -126,8 +127,12 @@ func TestImageTagsStateTheViewportSize(t *testing.T) {
 			for _, a := range sizeRe.FindAllStringSubmatch(m[0], -1) {
 				got[a[1]], _ = strconv.Atoi(a[2])
 			}
-			if got["width"] != want[0] || got["height"] != want[1] {
-				rel, _ := filepath.Rel(root, f)
+			rel, _ := filepath.Rel(root, f)
+			if rel == "README.md" {
+				if got["width"] != want[0] || got["height"] != 0 {
+					t.Errorf("%s: %s.png has width=%d height=%d, want width=%d and no height", rel, m[1], got["width"], got["height"], want[0])
+				}
+			} else if got["width"] != want[0] || got["height"] != want[1] {
 				t.Errorf("%s: %s.png has width=%d height=%d, the shot is %dx%d", rel, m[1], got["width"], got["height"], want[0], want[1])
 			}
 			if !strings.Contains(m[0], `alt="`) || strings.Contains(m[0], `alt=""`) {
@@ -220,7 +225,9 @@ func TestClusterThresholdAgreesWithTheInterface(t *testing.T) {
 
 // A shot that comes as a dark and a light picture is linked in one figure with
 // the classes shot-dark and shot-light, which the style sheet of the site uses
-// to show the picture that matches the theme of the page.
+// to show the picture that matches the theme of the page. README.md, which
+// GitHub shows without that style sheet, gives the pair in a picture element
+// whose dark source follows the colour scheme of the reader.
 func TestPairedShotsAreLinkedWithTheThemeClasses(t *testing.T) {
 	root := repoRoot(t)
 	var text strings.Builder
@@ -243,6 +250,10 @@ func TestPairedShotsAreLinkedWithTheThemeClasses(t *testing.T) {
 			continue
 		}
 		pairs++
+		if strings.Contains(all, `<source media="(prefers-color-scheme: dark)" srcset="docs/img/serve/`+base+`-dark.png">`) &&
+			strings.Contains(all, `<img src="docs/img/serve/`+base+`-light.png"`) {
+			continue
+		}
 		for _, theme := range []string{"dark", "light"} {
 			want := `class="shot shot-` + theme + `" href="../img/serve/` + base + "-" + theme + `.png"`
 			if !strings.Contains(all, want) {
