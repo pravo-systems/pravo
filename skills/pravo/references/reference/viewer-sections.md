@@ -2,7 +2,7 @@
 
 # The sections of the viewer
 
-What each section of the viewer shows and how to read it: Inventory, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector.
+What each section of the viewer shows and how to read it: Inventory, Templates, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector.
 
 The viewer that [`pravo serve`](serve.md) starts is one page with eight sections. The bar at the top switches between them, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
 
@@ -264,6 +264,10 @@ The Templates section lists the templates of the specification and makes the CUE
 | The wizard | Opened by New instance, with `tn=1` in the link. A name for the instance, the struct it joins (`services`, where its siblings are, or the top level), and one field for each input. An enum is a row of buttons, and the constraint of the field is written beside it. The picker button beside a field lists attributes that resources of the estate declare, such as `core.network_id.hex`, and writes the reference, so that the new instance reads the value when it is applied. Each row shows what the state holds for the attribute now, and so does the field once the reference is picked, as `core.network_id.hex = "9013400b"`. A resource that has no record says `known after apply`. A value that the Inventory withholds is left out of the row, and the list says so once. The value is a snapshot of the last plan or apply, not what a later apply will produce. A template can ask for other controls in [`$template.inputs`](spec-reuse.md#inputs-that-are-not-typed-in): a list of values that a node of the graph holds, a picker of existing resources, a text area, and a secret. A list of strings is a row of chips. |
 | The code | The CUE of the instance, as it would be pasted, with a button that copies it and the file that most instances are written in. |
 | The checks | Three cards under the code, which follow each value as it is typed. The first says whether the specification loads with the code laid over it, and CUE's message for a value it refuses, under the field. The second lists the resources the code would add. The third gives the verdict of each policy in force on an approximate plan, in which every new resource is a create and only the values that the code sets are known. A rule that reads a value that a provider decides is reported as not decided, never as a pass. |
+
+*Figure: The catalog with the Web service open: its inputs, each with its constraint and default, and its two instances.*
+
+*Figure: The wizard with a value that the template refuses: the message of CUE under the field, and the first check red.*
 
 A secret input never takes a value. The form asks where the secret is read from, the sealed state or an environment variable, and what it is called, and the code declares it. A card under the code says whether the sealed state holds the secret and gives `pravo secret set NAME` to copy when it does not. The Sealed state choice is off while the state is not sealed.
 

@@ -27,14 +27,15 @@ Read them in this order. Later pages use terms that earlier pages define.
 9. [Constraints and policies](policies.md). A constraint on a provider, checked at evaluation, and a policy on a plan, kept in the state: what each binds, and what neither guarantees.
 10. [Secrets and ephemeral values](secrets-and-ephemeral-values.md). How sensitive and short-lived values travel through plans, state and outputs, and how a sealed state keeps a secret of its own.
 11. [Signatures and roles](signatures-and-roles.md). What a sealed state encrypts, what a signature binds, what a role allows, and what none of the three does.
+12. [Templates and self-service](templates.md). How a template turns a definition into a form, why an instance follows its template, which checks a new instance meets, and who needs which key to ask for one and to make it.
 
 **Reading an estate**
 
-12. [The viewer](the-viewer.md). How `pravo serve` joins the specification, the state, the stored plans and the recorded runs into one page, what a group is to it, and which values it withholds.
-13. [Traces](traces.md). What a run records about itself: the spans, the network calls under them, and what a span never contains.
-14. [Discovery](discovery.md). How a discovery lists the objects that exist, tells the unmanaged ones from the rest and notices that its scope changed.
-15. [The assistant](the-assistant.md). What the read-only assistant of the viewer reads, what it can never do, what leaves the machine and how far an answer can be trusted.
-16. [The library and the machine interface](the-library-and-the-machine-interface.md). The commands with `--json`, the MCP server and the Go library: what each gives a program, and which is the stable surface.
+13. [The viewer](the-viewer.md). How `pravo serve` joins the specification, the state, the stored plans and the recorded runs into one page, what a group is to it, and which values it withholds.
+14. [Traces](traces.md). What a run records about itself: the spans, the network calls under them, and what a span never contains.
+15. [Discovery](discovery.md). How a discovery lists the objects that exist, tells the unmanaged ones from the rest and notices that its scope changed.
+16. [The assistant](the-assistant.md). What the read-only assistant of the viewer reads, what it can never do, what leaves the machine and how far an answer can be trusted.
+17. [The library and the machine interface](the-library-and-the-machine-interface.md). The commands with `--json`, the MCP server and the Go library: what each gives a program, and which is the stable surface.
 
 ## Where each idea is taught
 
@@ -49,7 +50,8 @@ Read them in this order. Later pages use terms that earlier pages define.
 | Policies | [B11, Constraints on providers, policy on plans](../learn/b11-policy.md) and [C5, Write a plan policy](../learn/c05-write-a-plan-policy.md) |
 | Secrets and ephemeral values | [B6, Reuse, providers, credentials](../learn/b06-reuse-providers-credentials.md) |
 | Signatures and roles | [C3, Seal the state](../learn/c03-seal-the-state.md) and [C4, Readers, writers, admins](../learn/c04-readers-writers-admins.md) |
-| The viewer | [Explore an estate in a browser](../how-to/explore-your-estate.md) shows every section. [C5, Write a plan policy](../learn/c05-write-a-plan-policy.md) tries a rule in the policy studio, and [C7, Read a run](../learn/c07-read-a-run.md) reads a run in the Traces section. |
+| Templates and self-service | [C8, Self-service from a template](../learn/c08-self-service-from-a-template.md) |
+| The viewer | [Explore an estate in a browser](../how-to/explore-your-estate.md) shows every section. [C5, Write a plan policy](../learn/c05-write-a-plan-policy.md) tries a rule in the policy studio, [C7, Read a run](../learn/c07-read-a-run.md) reads a run in the Traces section, and [C8, Self-service from a template](../learn/c08-self-service-from-a-template.md) fills in a form of the Templates section. |
 | Traces | [C7, Read a run](../learn/c07-read-a-run.md) |
 | The assistant | None. [Ask questions about your estate](../how-to/ask-questions-about-your-estate.md) shows it. |
 | Discovery | [B10, Find what nothing manages](../learn/b10-find-what-nothing-manages.md) |

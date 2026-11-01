@@ -1,7 +1,7 @@
 ---
 title: Discovery
 description: How a discovery lists the objects that exist in a scope, what it keeps in the state, how the unmanaged ones are told from the rest, and when to run it again.
-order: 14
+order: 15
 minutes: 9
 keywords: "list resource inventory unmanaged orphan adopt import drift cloud console shadow"
 ---

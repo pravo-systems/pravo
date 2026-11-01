@@ -246,4 +246,4 @@ Why is the name of the pet not in the trace file of the apply that created it?
 A trace records addresses, types, actions, counts and timings, and no attribute value. The id a provider returned is a value.
 :::
 
-The how-to page [Record what a run does](../how-to/record-what-a-run-does.md) adds the requests over the network and a collector. [Traces](../concepts/traces.md) explains the spans, and [Telemetry](../reference/telemetry.md) lists every variable, span and attribute. This is the last lesson of the track: the [index](index.md) says where to go from here.
+The how-to page [Record what a run does](../how-to/record-what-a-run-does.md) adds the requests over the network and a collector. [Traces](../concepts/traces.md) explains the spans, and [Telemetry](../reference/telemetry.md) lists every variable, span and attribute. The last lesson of the track, [Self-service from a template](c08-self-service-from-a-template.md), lets a reader ask for a new service that a writer makes.

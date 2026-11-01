@@ -78,6 +78,7 @@ var wantViews = []string{
 	"history", "plans-team", "policies", "policy-pending", "studio", "discovery", "traces", "trace-span", "traces-slowest", "members",
 	"b02-plan", "b03-state", "b05-groups", "b06-source", "b08-move", "b09-drift", "b10-discovery", "b11-policies", "c02-plans",
 	"c05-studio-shape", "c05-studio-template", "c05-studio-resources", "c05-studio-typo", "c06-waits", "c06-approved",
+	"templates-catalog", "templates-form", "templates-refused", "templates-instance",
 	"ask-notice", "ask-answer", "ask-sent",
 }
 
@@ -340,7 +341,7 @@ func TestTeamShotsNameStepsOfTheTeam(t *testing.T) {
 func TestStudioShotsTypeTheRulesOfTheScenario(t *testing.T) {
 	n := 0
 	for _, s := range allShots() {
-		if s.Script == "" || s.Chat || strings.Contains(s.Script, "const reason =") {
+		if s.Script == "" || s.Chat || strings.Contains(s.Script, "const reason =") || strings.Contains(s.Script, "tpf-label") {
 			continue
 		}
 		n++
@@ -422,4 +423,40 @@ func TestPlanShotsOpenAPlanOfTheScenario(t *testing.T) {
 	if got := openPlanScript("ask for nothing"); !strings.Contains(got, `const reason = "ask for nothing";`) || !strings.Contains(got, "const until =") {
 		t.Errorf("openPlanScript = %s", got)
 	}
+}
+
+// A script that fills in the wizard of the Templates section runs where the
+// fragment opens the wizard of a template that the scenario declares, and
+// waits for the first check to say what the shot shows.
+func TestWizardShotsFillInATemplateOfTheScenario(t *testing.T) {
+	n := 0
+	for _, s := range allShots() {
+		if !strings.Contains(s.Script, "tpf-label") {
+			continue
+		}
+		n++
+		if s.Fragment.View != "templates" || !s.Fragment.TN || s.Fragment.Tpl == "" {
+			t.Errorf("%s fills in a form that its fragment does not open: %+v", s.Name, s.Fragment)
+			continue
+		}
+		data, err := scenarioFS.ReadFile("scenarios/" + s.Scenario + "/service.cue")
+		if err != nil || !strings.Contains(string(data), `name:        "`+s.Fragment.Tpl+`"`) {
+			t.Errorf("%s opens the template %q, which service.cue of %s does not name (%v)", s.Name, s.Fragment.Tpl, s.Scenario, err)
+		}
+	}
+	if n == 0 {
+		t.Error("no shot fills in the wizard")
+	}
+	got := wizardScript("web", map[string]string{"owner": "team-a"}, map[string]string{"env": "prod"}, "invalid")
+	for _, want := range []string{`"tpf-owner"`, `"team-a"`, `data-fk=\"env=prod\"`, `const tone = "bad";`, "const until ="} {
+		if !strings.Contains(got, want) {
+			t.Errorf("wizardScript lacks %s:\n%s", want, got)
+		}
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("wizardScript with want \"maybe\": no panic")
+		}
+	}()
+	wizardScript("web", nil, nil, "maybe")
 }

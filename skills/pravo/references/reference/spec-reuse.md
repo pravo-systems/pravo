@@ -498,4 +498,5 @@ The package `pravo.dev/pravo` is written by [`pravo init`](init.md), so a root m
 
 - [Share code between roots in one repository](../how-to/share-code-between-roots.md), [Publish a CUE module](../how-to/publishing-a-module.md) and [Use a published CUE module](../how-to/using-a-module.md) cover the three ways to share code.
 - [`pravo mod`](mod.md) lists the commands for CUE modules.
+- [Templates and self-service](../concepts/templates.md) explains templates, [Offer a template to your team](../how-to/offer-a-template.md) writes one, and [Make a new instance from a template](../how-to/add-an-instance-from-a-template.md) uses one.
 - [Providers](spec-providers.md#passing-a-provider-into-a-definition) describes the provider input.

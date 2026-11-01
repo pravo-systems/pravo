@@ -395,4 +395,5 @@ A policy can ask that a plan is approved before it is applied: by one or more ke
 - [`pravo plan`](../reference/plan.md) lists every flag and subcommand, and the fields of the JSON document.
 - [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) explains the life of a stored plan.
 - [Run pravo in a pipeline](ci.md) stores a plan in one job and applies it in another.
+- [Make a new instance from a template](add-an-instance-from-a-template.md) has a reader store the plan of a new service that a writer applies.
 - [State format](../reference/state-format.md#plans) lists the objects of a stored plan.

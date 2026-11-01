@@ -1,0 +1,28 @@
+/* ==========================================================================
+   99 landing: self-service. Three cards beside the tabs of the hero: the
+   template, the form of the viewer and the plan of the code it gave.
+   ========================================================================== */
+
+.self-band .band-title em { font-style: italic; color: var(--accent); }
+.self-split { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); align-items: start; }
+@media (max-width: 59.99rem) { .self-split { grid-template-columns: minmax(0, 1fr); } }
+.self-cards { grid-template-columns: minmax(0, 1fr); }
+.self-cards .card { padding: 1.15rem 1.3rem 1.2rem; gap: .45rem; }
+.self-cards .card-title { font-size: var(--fs-7); }
+.self-cards .card-text { font-size: var(--fs-4); line-height: 1.5; }
+.self-stage { min-width: 0; }
+.self-stack .hs-p { align-self: start; }
+.self-stack .hs-p .code, .self-stack .hs-p .term { height: auto; }
+/* the template is longer than the picture is tall: it scrolls inside its window */
+.self-stack .code-body { max-height: 25rem; overflow: auto; }
+.self-stack .vw-win::before { inset: -5px; }
+@media (min-width: 60rem) and (min-height: 43rem) and (max-height: 62rem) {
+  .self-stack .code-body { max-height: calc(100svh - var(--header-h) - 24rem); }
+  .self-cards .card { padding: .85rem 1.1rem .9rem; }
+  .self-cards .card-text { font-size: var(--fs-3); }
+}
+/* the picture is the wizard alone, cut from a shot of the viewer */
+.self-stack .vw-shot { aspect-ratio: 2160 / 1072; }
+@media (max-width: 30rem) {
+  .self-stack .hs-tabs button { padding: .65rem .6rem; gap: .35rem; letter-spacing: .04em; }
+}

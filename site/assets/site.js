@@ -451,11 +451,9 @@
     b.forEach(function (n) { io.observe(n); });
   })();
 
-  /* ---------- the hero: the file and the plan on tabs ---------- */
-  (function () {
-    var h = $("[data-htabs]");
-    if (!h) return;
-    var tabs = $$("[role=tab]", h);
+  /* ---------- the hero and the self-service band: files, a form and a plan on tabs ---------- */
+  $$("[data-htabs]").forEach(function (h) {
+    var tabs = $$("[role=tab]", h), n = tabs.length;
     function pick(i, f) {
       tabs.forEach(function (t, j) {
         t.setAttribute("aria-selected", i === j);
@@ -467,10 +465,11 @@
     tabs.forEach(function (t, i) {
       t.addEventListener("click", function () { pick(i); });
       t.addEventListener("keydown", function (e) {
-        if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); pick(1 - i, 1); }
+        if (e.key === "ArrowRight") { e.preventDefault(); pick((i + 1) % n, 1); }
+        if (e.key === "ArrowLeft") { e.preventDefault(); pick((i + n - 1) % n, 1); }
       });
     });
-  })();
+  });
 
   /* ---------- the viewer showcase: tabs, arrow keys, auto-advance ---------- */
   (function () {

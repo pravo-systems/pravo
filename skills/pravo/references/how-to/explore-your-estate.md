@@ -2,9 +2,9 @@
 
 # Explore an estate in a browser
 
-Start pravo serve, read the graph, find a resource, open and close groups, read the source and the history of a resource, overlay a plan, read what your team planned, find drift, see the policies, read a recorded run, share a view and see who can read the state.
+Start pravo serve, read the graph, find a resource, open and close groups, read the source and the history of a resource, overlay a plan, read what your team planned, find drift, see the policies, read a recorded run, share a view, see who can read the state and ask for an instance from a template.
 
-`pravo serve` shows one root in a browser: the specification, the state, the plans that people stored in the state, the policies in force, the discoveries, the secrets of a sealed state and the runs that pravo recorded. It reads and never writes. This page starts the viewer and walks through its seven sections, one task at a time. [The viewer](../concepts/the-viewer.md) explains what the viewer makes of what it reads, [The sections of the viewer](../reference/viewer-sections.md) lists every part of every section, and [`pravo serve`](../reference/serve.md) lists the flags.
+`pravo serve` shows one root in a browser: the specification, the state, the plans that people stored in the state, the policies in force, the discoveries, the secrets of a sealed state the templates the team offers and the runs that pravo recorded. It reads and never writes. This page starts the viewer and walks through its eight sections, one task at a time. [The viewer](../concepts/the-viewer.md) explains what the viewer makes of what it reads, [The sections of the viewer](../reference/viewer-sections.md) lists every part of every section, and [`pravo serve`](../reference/serve.md) lists the flags.
 
 The pictures come from the `platform` estate. It has 47 resources in three groups, `network`, `api` and `edge`, built from the `random`, `local` and `null` providers, so it needs no cloud account. `api.services.billing` is an instance of the definition `#Service`, which a second package, `kit`, defines. The estate is in `tools/serveshots/scenarios/platform` of the pravo source tree, and the steps work in any root. The pictures of the plans and of the drift were taken after three edits, a resource added, a resource removed and a port changed, and count 48 resources: one is declared and not created yet, and one is recorded and not declared. The pictures of the history, the traces and the members come from the same estate in a bucket, sealed to three people.
 
@@ -22,9 +22,9 @@ Stop the viewer with Ctrl-C. It has written nothing, so there is nothing to clea
 
 ## 2. Read the graph
 
-*Figure: The platform estate as the viewer opens it. The bar at the top switches between the seven sections, the filter box is in the toolbar, the graph fills the window and draws the groups that fit as lanes and the others as cards, and nothing is selected, so there is no inspector.*
+*Figure: The platform estate as the viewer opens it. The bar at the top switches between the sections, the filter box is in the toolbar, the graph fills the window and draws the groups that fit as lanes and the others as cards, and nothing is selected, so there is no inspector.*
 
-The bar at the top names the project and switches between the sections: Inventory, Plans, Discovery, Policies, Traces and State. A tab carries a number when something in it waits for you, such as objects that ask to be adopted or policies that the next apply changes. The bar also opens the search, switches the theme and, for a sealed state, names the identity the page is read as. The toolbar under it belongs to the Inventory: Graph or List, Collapse and Expand for every group, the filter box and the zoom buttons. The inspector comes in at the right when you select a resource or a group, and goes when you clear the selection; the button at the right of the toolbar, or `i`, shows the project in it. A status bar at the foot says which plan is laid over the graph, the revision of the data, when the viewer last read it and whether the connection that pushes changes is live.
+The bar at the top names the project and switches between the sections: Inventory, Templates, Plans, Discovery, Policies, Traces, Secrets and State. A tab carries a number when something in it waits for you, such as objects that ask to be adopted or policies that the next apply changes. The bar also opens the search, switches the theme and, for a sealed state, names the identity the page is read as. The toolbar under it belongs to the Inventory: Graph or List, Collapse and Expand for every group, the filter box and the zoom buttons. The inspector comes in at the right when you select a resource or a group, and goes when you clear the selection; the button at the right of the toolbar, or `i`, shows the project in it. A status bar at the foot says which plan is laid over the graph, the revision of the data, when the viewer last read it and whether the connection that pushes changes is live.
 
 The graph has one box for each resource and one lane for each open group. A lane is titled with the name of its group and the number of resources below it. A group that is closed is a card: its name, its resource count, the marks on its resources and one small cell for each resource. An arrow runs from a dependency to the resource that uses it, so data flows along the arrows, from left to right. Select a resource, and its dependencies and dependents stay bright while the rest of the graph dims. Rest the pointer on a box for a moment, or move to it with the arrow keys, and a small card gives its address, its type, its marks and how many dependencies and dependents it has.
 
@@ -300,12 +300,21 @@ The viewer runs none of the commands and edits no file. Copy a command and run i
 
 When the viewer is started with a provider named in `PRAVO_CHAT`, a speech-bubble button joins the bar, and `c` opens the Ask panel in the column at the right of every section. It answers a question about what the page shows, in words, with links to the resources and the stored plans that the answer names, and under each answer it lists the text that was sent to the model. It reads and writes nothing, and without a provider it is not drawn. [Ask questions about your estate](ask-questions-about-your-estate.md) turns it on.
 
+## 17. Ask for a new instance from a template
+
+The Templates tab of the bar, or `m`, lists the definitions of the root that are templates: patterns that the team offers, such as a web service, each with its inputs and the instances that exist. New instance opens a form built from the definition, with a field for each input. While you type, three checks follow each value: the specification loads with the new code laid over it in memory, the code adds the resources it lists, and every policy in force holds on an approximate plan. The page gives the CUE to paste and writes nothing.
+
+*Figure: The form of a new Web service, with the code to paste and its three checks.*
+
+[Make a new instance from a template](add-an-instance-from-a-template.md) takes the code from the form to an applied instance, and [Offer a template to your team](offer-a-template.md) writes a template.
+
 ## Recap
 
 - `pravo serve` shows the specification, the state, the stored plans, the policies, the discoveries and the recorded runs of one root. It reads and writes nothing.
 - The first view opens the groups that fit. Click a card to open a group, and open a cluster to see its members.
 - The Source tab shows the definition and the instance that write a resource, the History tab who changed it, and the Change tab what a plan changes.
 - The Plans section lists the plans that your team stored in the state. A disc on a resource names who plans to change it, and a ring marks two plans on one resource. The viewer copies the command that applies a plan and applies nothing.
+- The Templates section turns each template into a form, checks a new instance against the specification and the policies as you type, and gives the code to paste.
 - The Policies section shows the rules in force and what the next apply writes, and the studio tries a rule on the resources and on a plan before it is stored.
 - The Traces section draws a recorded run as a timeline, with the provider calls and the network calls under each resource.
 - A value that is sensitive, or has a secret's name, or contains a secret, never reaches the page.

@@ -405,8 +405,9 @@ const (
 	landingJSBudget = 8000
 	// landingTotalBudget is the most gzipped bytes of everything the landing
 	// page loads except fonts: the page, the style sheet, the scripts and the
-	// images.
-	landingTotalBudget = 50000
+	// images. It was 50,000 until the self-service band, whose template,
+	// plan and three cards add about 1.4 KB to index.html.
+	landingTotalBudget = 52000
 )
 
 // loadedWithLanding lists the scripts that the scripts of the landing page

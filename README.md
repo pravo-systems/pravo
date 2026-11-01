@@ -104,7 +104,7 @@ pravo serve                          # in a root that has been applied
 pravo serve --plan change.plan       # overlay a saved plan
 ```
 
-`docs/how-to/explore-your-estate.md` walks through it, and `docs/reference/serve.md` is the reference. The pictures are made by `go run ./tools/serveshots -bin bin/pravo -out docs/img/serve`.
+A definition that embeds `pravo.#Template` becomes a form in its Templates section: anyone with a checkout fills it in, the viewer checks the new instance against the specification and the policies in memory, and gives the CUE to paste; a reader key prepares the plan and a writer key applies it (`docs/how-to/add-an-instance-from-a-template.md`). `docs/how-to/explore-your-estate.md` walks through it, and `docs/reference/serve.md` is the reference. The pictures are made by `go run ./tools/serveshots -bin bin/pravo -out docs/img/serve`.
 
 ## Sealed state
 

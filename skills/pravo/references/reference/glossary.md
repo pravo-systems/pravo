@@ -521,9 +521,9 @@ Taught in [C2](../learn/c02-store-a-plan.md). See [Store a plan and apply it lat
 
 ### template
 
-A definition that embeds `pravo.#Template`. The viewer lists it in its catalog, builds a form from its inputs and gives the CUE of a new instance to paste. An instance is an ordinary group of resources that carries the marker `$template`, which ties it to its template.
+A definition that embeds `pravo.#Template`. The viewer lists it in its catalog, builds a form from its inputs and gives the CUE of a new instance to paste. An instance is an ordinary group of resources that carries the marker `$template`, which ties it to its template, and each change of a plan names the instance that holds it as `template`. A change to the template reaches every instance at the next plan.
 
-See [Templates](spec-reuse.md#templates) and [The Templates section](viewer-sections.md#the-templates-section).
+Taught in [C8](../learn/c08-self-service-from-a-template.md). See [Templates and self-service](../concepts/templates.md), [Templates](spec-reuse.md#templates) and [The Templates section](viewer-sections.md#the-templates-section).
 
 ### transaction
 

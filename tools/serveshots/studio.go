@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 )
 
@@ -139,6 +140,61 @@ if (!answer) {
     log.scrollTop = log.scrollHeight;
   }
 }
+if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+return true;
+`
+
+// wizardScript is the script of a shot of the wizard of the Templates section,
+// which the fragment opens: it types the name of the instance and the text
+// inputs, presses the buttons of the enum inputs, as a person does, and waits
+// for the checks to come back with the first check in the state want, "valid"
+// or "invalid". No fragment carries the values of the form.
+func wizardScript(label string, text, enums map[string]string, want string) string {
+	if want != "valid" && want != "invalid" {
+		panic(fmt.Sprintf("wizardScript: want %q", want))
+	}
+	type kv struct{ K, V string }
+	sorted := func(m map[string]string) []kv {
+		var out []kv
+		for k, v := range m {
+			out = append(out, kv{k, v})
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].K < out[j].K })
+		return out
+	}
+	var b strings.Builder
+	for _, f := range sorted(text) {
+		fmt.Fprintf(&b, "type(await until(() => document.getElementById(%s), 'the field %s'), %s);\n", jsString("tpf-"+f.K), f.K, jsString(f.V))
+	}
+	for _, f := range sorted(enums) {
+		fmt.Fprintf(&b, "(await until(() => document.querySelector(%s), 'the button %s')).click();\n", jsString(`.tp-sb[data-fk="`+f.K+"="+f.V+`"]`), f.K+"="+f.V)
+	}
+	tone := "ok"
+	if want == "invalid" {
+		tone = "bad"
+	}
+	return scriptPrelude + fmt.Sprintf(wizardJS, jsString(label), b.String(), jsString(tone))
+}
+
+// wizardJS types into a field with the setter of the element, so that the
+// page sees an input event as it does from the keyboard, and waits until the
+// checks are not busy and the first of them has the tone it wants; a form
+// that the specification accepts also waits for the verdict of the policies.
+const wizardJS = `
+const type = (el, text) => {
+  const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+};
+type(await until(() => document.getElementById('tpf-label'), 'the name of the instance'), %s);
+%s
+const tone = %s;
+await until(() => {
+  const c = document.querySelector('.tp-checks');
+  if (!c || c.classList.contains('busy')) return null;
+  const first = c.querySelector('.tp-check');
+  return first && first.classList.contains(tone) && c.querySelectorAll('.tp-check').length >= (tone === 'ok' ? 3 : 1) ? c : null;
+}, 'the checks');
 if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 return true;
 `

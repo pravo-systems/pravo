@@ -50,14 +50,14 @@ One page for each command and each part of the specification, tables first.
 | [reference/spec-env.md](reference/spec-env.md) | pravo.#Env and pravo.#SecretEnv read environment variables, pravo.#Secret reads the sealed state, and pravo.#RemoteOutputs reads the outputs of another root. | 14 KB |
 | [reference/spec-meta-fields.md](reference/spec-meta-fields.md) | The $-prefixed fields that resources, data sources and ephemeral resources accept in addition to the provider schema. | 8 KB |
 | [reference/spec-tags-and-variables.md](reference/spec-tags-and-variables.md) | Inputs are fields with a @tag attribute. -t and -T inject their values. Defaults and constraints are plain CUE. | 7 KB |
-| [reference/spec-reuse.md](reference/spec-reuse.md) | pravo has no module block. A definition that contains resources is instantiated with &, a package shares it between roots and a CUE module between repositories. | 18 KB |
+| [reference/spec-reuse.md](reference/spec-reuse.md) | pravo has no module block. A definition that contains resources is instantiated with &, a package shares it between roots and a CUE module between repositories. | 19 KB |
 | [reference/spec-generated-packages.md](reference/spec-generated-packages.md) | The CUE packages that pravo init writes under cue.mod/gen, one per provider and one for pravo itself. | 11 KB |
 
 ### Viewer
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/viewer-sections.md](reference/viewer-sections.md) | What each section of the viewer shows and how to read it: Inventory, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector. | 60 KB |
+| [reference/viewer-sections.md](reference/viewer-sections.md) | What each section of the viewer shows and how to read it: Inventory, Templates, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector. | 60 KB |
 | [reference/viewer-keys-and-links.md](reference/viewer-keys-and-links.md) | The keyboard of the viewer, the command palette, and every parameter of the address that reproduces a view: selection, tabs, open groups, filters, a plan over the graph, a policy, a run. | 11 KB |
 | [reference/viewer-api.md](reference/viewer-api.md) | The read-only JSON endpoints behind the viewer, for a script: the graph, one node, the stored plans, a plan over the graph, the discoveries, the policies, the studio, the recorded runs and the event stream. | 26 KB |
 
@@ -110,6 +110,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/policies.md](concepts/policies.md) | A constraint on a provider is checked when the specification evaluates. A policy, a pravo.#Policy node, judges a plan and is kept in the state. What each binds and what neither guarantees. | 19 KB |
 | [concepts/secrets-and-ephemeral-values.md](concepts/secrets-and-ephemeral-values.md) | Which values pravo records in state, saved plans and outputs, what an ephemeral value is, where it may go, and what hiding a value does and does not do. | 15 KB |
 | [concepts/signatures-and-roles.md](concepts/signatures-and-roles.md) | What a sealed state encrypts and who can open it, what a signature binds, what a role allows, and what none of the three does. Confidentiality against a copy of the bucket, the provenance of every change, and who may change what. | 29 KB |
+| [concepts/templates.md](concepts/templates.md) | How a template turns a definition into a form, why an instance follows its template, which checks a new instance meets before and after it is pasted, and who needs which key. | 8 KB |
 | [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the eight sections show, which values are withheld and why the viewer changes nothing. | 40 KB |
 | [concepts/traces.md](concepts/traces.md) | What a run of pravo records about itself: one trace of spans per command, the calls to the providers and the network calls under them, where the time went and where a run stopped, and what a span never contains. | 12 KB |
 | [concepts/discovery.md](concepts/discovery.md) | How a discovery lists the objects that exist in a scope, what it keeps in the state, how the unmanaged ones are told from the rest, and when to run it again. | 9 KB |
@@ -136,7 +137,7 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/explore-your-estate.md](how-to/explore-your-estate.md) | Start pravo serve, read the graph, find a resource, open and close groups, read the source and the history of a resource, overlay a plan, read what your team planned, find drift, see the policies, read a recorded run, share a view and see who can read the state. | 35 KB |
+| [how-to/explore-your-estate.md](how-to/explore-your-estate.md) | Start pravo serve, read the graph, find a resource, open and close groups, read the source and the history of a resource, overlay a plan, read what your team planned, find drift, see the policies, read a recorded run, share a view, see who can read the state and ask for an instance from a template. | 36 KB |
 | [how-to/record-what-a-run-does.md](how-to/record-what-a-run-does.md) | Keep a trace of every command in the project, read it in the viewer as a timeline, find the slow resource and the call that failed, see the requests a run made over the network, and send the same spans to a collector. | 13 KB |
 | [how-to/ask-questions-about-your-estate.md](how-to/ask-questions-about-your-estate.md) | Turn on the read-only assistant of the viewer with environment variables, point it at Anthropic, OpenRouter or a model on your machine, ask in words, follow the links in an answer, read what was sent to the model and start a new chat. | 9 KB |
 | [how-to/debugging.md](how-to/debugging.md) | Read an evaluation error, ask pravo what it decided with -v, ask why a resource changes, check for drift and follow a run in a trace. | 15 KB |
@@ -154,6 +155,13 @@ One task each, for a reader who knows the basics.
 | [how-to/find-what-nothing-manages.md](how-to/find-what-nothing-manages.md) | Declare a discovery, run it, read the objects that no record accounts for, acknowledge the ones that are meant to stay, adopt the rest and run it again when the scope changes. | 9 KB |
 | [how-to/let-drift-propose-the-fix.md](how-to/let-drift-propose-the-fix.md) | Run drift on a schedule so that it stores the plan that puts the drift right, tells a webhook, and leaves the approval and the apply to people. | 7 KB |
 | [how-to/store-secrets-in-the-state.md](how-to/store-secrets-in-the-state.md) | Keep a secret in the sealed state, hand it to a provider with pravo.#Secret, rotate it with pravo.#SecretVersion, and see who set each version. | 17 KB |
+
+### Self-service
+
+| File | Covers | Size |
+|---|---|---|
+| [how-to/offer-a-template.md](how-to/offer-a-template.md) | Turn a definition into a template that the viewer offers as a form. Order and label its inputs, let constraints refuse bad values, hold its instances to a policy, and change it for every instance at once. | 13 KB |
+| [how-to/add-an-instance-from-a-template.md](how-to/add-an-instance-from-a-template.md) | Ask for a new instance of a pattern that the platform team offers. Fill in the form of the viewer, read its checks, paste the code, store the plan with a reader key, and find the instance once a writer has applied it. | 8 KB |
 
 ### Share and protect
 
@@ -221,6 +229,7 @@ The tutorial on pravo (track B), the team track (track C) and the companion page
 | [learn/c05-write-a-plan-policy.md](learn/c05-write-a-plan-policy.md) | A rule is a shape that the plan document has to fit, in the CUE you already know. Read the document, write rules in the policy studio of the viewer, where each is held against the plans you saved and against the resources of the state as you type, keep them as files for the pipeline, and put one in force. | 17 KB |
 | [learn/c06-ask-for-approvals.md](learn/c06-ask-for-approvals.md) | A rule that does not refuse a plan but makes it wait for a second person. Write it as a choice between two shapes, store the plan it catches, approve it with another key, apply it by its id, and see whose approval counts, what an admin may skip and what protects the rule itself. | 11 KB |
 | [learn/c07-read-a-run.md](learn/c07-read-a-run.md) | Turn the recording on and read what a command did, as a tree of spans with their timings. Find where the time went and where a failed run stopped, in the viewer and with jq, and see what a recorded run never holds. | 9 KB |
+| [learn/c08-self-service-from-a-template.md](learn/c08-self-service-from-a-template.md) | Turn a definition the team already uses into a template, hold its instances to a policy, and let someone with a reader key ask for a new instance through the form of the viewer. The reader prepares the plan, a writer applies it, and a change to the template reaches every instance. | 12 KB |
 
 ## Migrate
 

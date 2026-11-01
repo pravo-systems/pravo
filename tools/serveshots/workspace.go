@@ -515,7 +515,11 @@ func (w *workspace) step(ctx context.Context, r *pravoRunner, st teamStep, as fu
 			}
 		}
 		if st.Kind == "change" {
-			if _, err := w.traced(ctx, r, "apply:"+st.Label, as(st.Actor), "apply", id, "-auto-approve", "--actor", st.Actor, "--reason", st.Reason); err != nil {
+			by := st.Actor
+			if st.ApplyBy != "" {
+				by = st.ApplyBy
+			}
+			if _, err := w.traced(ctx, r, "apply:"+st.Label, as(by), "apply", id, "-auto-approve", "--actor", by, "--reason", st.Reason); err != nil {
 				return err
 			}
 		}

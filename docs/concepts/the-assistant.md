@@ -1,7 +1,7 @@
 ---
 title: The assistant
 description: "What the read-only assistant of the viewer is, which reads it has and which it has not, what leaves the machine and what never does, how values stay withheld, and what an answer can and cannot be trusted for."
-order: 15
+order: 16
 minutes: 9
 keywords: "ai chat llm assistant model provider openrouter ollama anthropic privacy redaction prompt injection read-only tools sent to the model"
 ---

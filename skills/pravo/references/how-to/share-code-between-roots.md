@@ -263,3 +263,4 @@ Addresses are paths. Renaming a field that holds an instance renames every resou
 - [Publish a CUE module](publishing-a-module.md) when a second repository needs the code.
 - [Run one specification in several environments](environments.md) is the alternative when the environments differ in values only.
 - [Reuse](../reference/spec-reuse.md) is the reference for definitions that contain resources and the packages that share them.
+- [Offer a template to your team](offer-a-template.md) turns a shared definition into a form that anyone on the team can fill in.
