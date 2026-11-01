@@ -3408,13 +3408,13 @@ html:not(.js) .bl-nojs { display: block; }
    ========================================================================== */
 
 .mig-band { --band-pad: clamp(3.5rem, 7vw, 6.5rem); }
-.mig-split { gap: clamp(2rem, 4vw, 3.75rem); }
+.mig-split { grid-template-columns: minmax(0, 1fr); gap: clamp(2rem, 4vw, 3rem); }
 .mig-col { min-width: 0; }
 .mig-col .stage-caption { max-width: 40rem; }
 .mig-col .stage-caption code { font-size: .9em; }
 
 /* the two files */
-.mig-files { --stage-h: 43.5rem; }
+.mig-files { --stage-h: 38rem; }
 .mig-tab { display: inline-flex; align-items: center; }
 .mig-tab[data-link]::before {
   content: "";
@@ -3430,7 +3430,15 @@ html:not(.js) .bl-nojs { display: block; }
 .mig-code .line { position: relative; transition: background-color 150ms linear, box-shadow 150ms linear; }
 .mig-code .line[data-g] { box-shadow: inset 2px 0 0 rgba(154, 169, 255, .16); }
 .mig-code .line.is-linked { background: var(--code-hl); box-shadow: inset 2px 0 0 var(--code-key); }
-.mig-foot { gap: .5rem 1rem; min-height: 2.9rem; }
+.mig-foot { flex-wrap: nowrap; gap: .5rem 1rem; }
+.mig-files .mig-foot { min-height: 3.2rem; }
+/* The note and the jump button keep their room whatever they say, so that linking a pair never moves what
+   sits below the window: a block that moves under the pointer makes the pair flicker. */
+@media (max-width: 41rem) {
+  .mig-files .mig-foot { flex-direction: column; align-items: stretch; min-height: 7.6rem; }
+  .mig-note { min-height: 4.5em; }
+  .mig-jump { align-self: flex-start; }
+}
 .mig-note { min-width: 0; font: 400 var(--fs-2)/1.5 var(--font-ui); color: var(--code-dim); }
 .mig-note b { font-weight: 600; color: var(--code-text); }
 .mig-note code { padding: 0; border: 0; background: none; font-size: inherit; color: var(--code-text); }
@@ -3446,32 +3454,14 @@ html:not(.js) .bl-nojs { display: block; }
   white-space: nowrap;
   transition: background-color var(--t-fast);
 }
-.mig-jump:empty { display: none; }
-.mig-jump:not(.is-on) { visibility: hidden; }
+.mig-jump { min-height: 1.9rem; }
+.mig-jump:not(.is-on), .mig-jump:empty { visibility: hidden; }
 .mig-jump:hover { background: var(--code-hl); }
 
-/* On a sheet too narrow for two columns but wide enough for two windows, the files stand side by side and
-   the tabs are not needed: both sides of a pair are visible at once. */
-@media (min-width: 60rem) and (max-width: 74.99rem) {
-  .mig-split { grid-template-columns: minmax(0, 1fr); }
-  .mig-files .tab-list, .mig-jump { display: none; }
-  .mig-files .tabs.is-ready, .mig-files .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .mig-files .tab-panel[hidden] { display: block !important; }
-  .mig-files .tabs.is-ready .tab-panel[data-title]::before {
-    content: attr(data-title);
-    display: block;
-    padding: .72rem 1rem;
-    border-bottom: 1px solid var(--code-edge);
-    background: var(--code-bar);
-    color: var(--code-text);
-    font: 500 var(--fs-2)/1.2 var(--font-mono);
-  }
-  .mig-files .tab-panel + .tab-panel { border-left: 1px solid var(--code-edge); }
-  .mig-files .code-title { top: .5rem; right: .75rem; }
-}
-
 /* the pairs: buttons that select the lines that correspond */
+.mig-col .mig-pairs { padding-left: 0; }
 .mig-pairs { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 0; padding: 0; list-style: none; }
+.mig-pairs li { margin: 0; padding: 0; }
 .mig-pair {
   display: inline-flex;
   align-items: center;
