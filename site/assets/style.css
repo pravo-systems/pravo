@@ -3904,16 +3904,17 @@ html:not(.js) .bl-nojs { display: block; }
 /* ---------- runbook: the steps of a migration as nodes on a line ---------- */
 .runbook { margin: 0 0 2.25rem; padding: .95rem 0 1.05rem; border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line); }
 .rb-label { margin: 0 0 .95rem; font: 500 var(--fs-1)/1.3 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
-.rb-list { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 1.2rem 0; margin: 0; padding: 0; list-style: none; }
-.rb-step { position: relative; min-width: 0; padding-right: .9rem; }
-.rb-in { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; color: var(--text); text-decoration: none; }
+.rb-list { display: block; margin: 0; padding: 0; list-style: none; }
+.rb-step { position: relative; min-width: 0; padding: 0 0 .95rem; }
+.rb-step:last-child { padding-bottom: 0; }
+.rb-in { display: grid; grid-template-columns: 22px auto minmax(0, 1fr); align-items: baseline; column-gap: .55rem; color: var(--text); text-decoration: none; }
 a.rb-in:hover .rb-t { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: .18em; }
-.rb-node { position: relative; display: block; width: 22px; height: 22px; margin-bottom: .4rem; }
+.rb-node { position: relative; display: block; width: 22px; height: 22px; margin: 0; align-self: center; grid-row: span 2; }
 .rb-node::before, .rb-node::after { content: ""; position: absolute; left: 50%; top: 50%; transform: rotate(45deg); }
 .rb-node::before { width: 10px; height: 10px; margin: -5px 0 0 -5px; border: 2px solid var(--text-3); background: var(--bg); }
 .rb-node::after { width: 0; height: 0; margin: 0; background: var(--accent); transition: width var(--t-fast) var(--ease), height var(--t-fast) var(--ease), margin var(--t-fast) var(--ease); }
-.rb-step::after { content: ""; position: absolute; left: 24px; top: 10px; right: 0; height: 2px; background: var(--line-strong); }
-.rb-step.rb-end::after { display: none; }
+.rb-step::after { content: ""; position: absolute; left: 10px; top: 24px; width: 2px; height: calc(100% - 24px); background: var(--line-strong); }
+.rb-step:last-child::after { display: none; }
 .rb-n { font: 600 var(--fs-1)/1.2 var(--font-mono); letter-spacing: .06em; color: var(--text-3); }
 .rb-t { font: 500 var(--fs-4)/1.3 var(--font-sans); }
 .rb-past .rb-node::before { border-color: var(--accent); background: var(--accent); }
@@ -3922,7 +3923,7 @@ a.rb-in:hover .rb-t { text-decoration: underline; text-decoration-color: var(--a
 .rb-here .rb-node::after { width: 4px; height: 4px; margin: -2px 0 0 -2px; }
 .rb-here .rb-n { color: var(--accent); }
 .rb-here .rb-t { font-weight: 600; }
-.rb-g { margin-top: .15rem; font-size: var(--fs-2); line-height: 1.4; color: var(--text-2); }
+.rb-g { grid-column: 2 / -1; margin-top: 0; font-size: var(--fs-2); line-height: 1.4; color: var(--text-2); }
 .rb-g code { font-size: .9em; }
 .rb-here .rb-g { color: var(--text); }
 .rb-ahead .rb-t { color: var(--text-2); }
@@ -3930,15 +3931,10 @@ a.rb-in:hover .rb-t { text-decoration: underline; text-decoration-color: var(--a
 .rb-lookup-l { margin-right: .7rem; font: 600 var(--fs-1)/1.3 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
 .rb-lookup a { margin-right: 1rem; color: var(--text); text-decoration: none; white-space: nowrap; }
 .rb-lookup a:hover { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: .18em; }
-@media (max-width: 40rem) {
-  .rb-list { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .rb-step { padding: 0 0 .95rem; }
-  .rb-in { display: grid; grid-template-columns: 22px auto minmax(0, 1fr); align-items: baseline; column-gap: .55rem; }
-  .rb-node { margin: 0; align-self: center; grid-row: span 2; }
-  .rb-g { grid-column: 2 / -1; margin-top: 0; }
-  .rb-step::after { left: 10px; top: 24px; right: auto; width: 2px; height: calc(100% - 24px); }
-  .rb-step.rb-end::after { display: block; }
-  .rb-step:last-child::after { display: none; }
+@media (min-width: 40.01rem) {
+  .rb-in { grid-template-columns: 22px 3rem minmax(0, 17rem) minmax(0, 1fr); column-gap: .6rem; }
+  .rb-node { grid-row: auto; }
+  .rb-g { grid-column: 4; }
 }
 @media (prefers-reduced-motion: reduce) { .rb-node::after { transition: none; } }
 @media print { .runbook { break-inside: avoid; } }
