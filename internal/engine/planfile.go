@@ -99,14 +99,15 @@ type savedDiag struct {
 }
 
 type savedChange struct {
-	Reasons     []string `json:"reasons,omitempty"`
-	Addr        string   `json:"addr"`
-	Mode        string   `json:"mode"`
-	Type        string   `json:"type"`
-	Name        string   `json:"name"`
-	Action      Action   `json:"action"`
-	ProviderKey string   `json:"provider_key"`
-	ConfigHash  string   `json:"config_hash,omitempty"`
+	Reasons     []string     `json:"reasons,omitempty"`
+	Template    *TemplateRef `json:"template,omitempty"`
+	Addr        string       `json:"addr"`
+	Mode        string       `json:"mode"`
+	Type        string       `json:"type"`
+	Name        string       `json:"name"`
+	Action      Action       `json:"action"`
+	ProviderKey string       `json:"provider_key"`
+	ConfigHash  string       `json:"config_hash,omitempty"`
 
 	Config        []byte `json:"config,omitempty"`
 	Prior         []byte `json:"prior,omitempty"`
@@ -208,7 +209,7 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 			ConfigHash: ch.ConfigHash, PriorPrivate: ch.PriorPrivate, PlannedPrivate: ch.PlannedPrivate, CreatePrivate: ch.CreatePrivate,
 			Deps: ch.Deps, CreateBeforeDestroy: ch.CreateBeforeDestroy, PreventDestroy: ch.PreventDestroy,
 			Deferred: ch.Deferred, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Kept: ch.Kept, Drifted: ch.Drifted, Forced: ch.Forced, Fresh: ch.Fresh,
-			Imported: ch.Imported, ImportID: ch.ImportID, ImportIdentity: ch.ImportIdentity, MovedFrom: ch.MovedFrom, Reasons: ch.Reasons,
+			Imported: ch.Imported, ImportID: ch.ImportID, ImportIdentity: ch.ImportIdentity, MovedFrom: ch.MovedFrom, Reasons: ch.Reasons, Template: ch.Template,
 		}
 		sc.PriorRevision, sc.PriorGeneration = ch.PriorRevision, ch.PriorGeneration
 		if ch.Action == ActionMove {
@@ -496,7 +497,7 @@ func (e *Engine) restoreChange(sc savedChange) (*Change, error) {
 		Deps: sc.Deps, CreateBeforeDestroy: sc.CreateBeforeDestroy, PreventDestroy: sc.PreventDestroy,
 		Deferred: sc.Deferred, Skipped: sc.Skipped, Refreshed: sc.Refreshed, Kept: sc.Kept, Drifted: sc.Drifted, Forced: sc.Forced, Fresh: sc.Fresh,
 		Applied: sc.Applied, AppliedTxn: sc.AppliedTxn, Imported: sc.Imported, ImportID: sc.ImportID, ImportIdentity: sc.ImportIdentity, MovedFrom: sc.MovedFrom,
-		Reasons: sc.Reasons, PriorRevision: sc.PriorRevision, PriorGeneration: sc.PriorGeneration,
+		Reasons: sc.Reasons, Template: sc.Template, PriorRevision: sc.PriorRevision, PriorGeneration: sc.PriorGeneration,
 	}
 	if sc.Action == ActionMove {
 		return ch, nil

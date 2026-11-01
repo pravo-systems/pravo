@@ -772,6 +772,7 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 		return
 	}
 	var changes []engine.ChangeView
+	marked := engine.TemplateCache{}
 	for _, res := range root.Resources {
 		if _, had := m.spec.byPath[res.Address()]; had {
 			continue
@@ -779,7 +780,7 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 		out.Creates = append(out.Creates, TemplateCreate{Address: res.Address(), Type: res.Type})
 		if res.Mode == "managed" {
 			changes = append(changes, engine.ChangeView{Addr: res.Address(), Mode: "managed", Type: res.Type, Name: res.Name, Action: engine.ActionCreate,
-				Provider: res.ProviderKey, After: configured(root.Value.LookupPath(res.Path))})
+				Provider: res.ProviderKey, After: configured(root.Value.LookupPath(res.Path)), Template: engine.TemplateOf(root.Value, res.Path, marked)})
 		}
 	}
 	out.Policy = s.previewPolicies(m, changes)

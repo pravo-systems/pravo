@@ -154,6 +154,13 @@ package pravo
 	drifted?:    bool
 	dependencies?: [...string]
 	warnings?: [...string]
+	// The template instance that holds the node: the name in the $template marker of
+	// the nearest struct above it, and the address of that struct. Absent for a node
+	// outside every instance, and for a node of an instance that the plan removes whole.
+	template?: {
+		name:     string
+		instance: string
+	}
 }
 
 // The value of an environment variable, read when the run starts. It is an

@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"cuelang.org/go/cue"
+
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
@@ -357,6 +359,27 @@ func stateChanges(m *model) []engine.ChangeView {
 	return out
 }
 
+// markTemplates names, on each change, the template instance that holds its node in the specification, as a
+// plan does, so that a rule that asks for a template judges the state as it would judge a plan.
+func (m *model) markTemplates(changes []engine.ChangeView) {
+	if m.spec == nil || m.spec.root == nil {
+		return
+	}
+	m.spec.cueMu.Lock()
+	defer m.spec.cueMu.Unlock()
+	marked := engine.TemplateCache{}
+	for i := range changes {
+		a := changes[i].Addr
+		p := cue.ParsePath(a)
+		if r := m.spec.byPath[a]; r != nil {
+			p = r.Path
+		} else if p.Err() != nil {
+			continue
+		}
+		changes[i].Template = engine.TemplateOf(m.spec.root.Value, p, marked)
+	}
+}
+
 // judgedRecord is the record of a node as a policy of the studio reads it: each top-level field that holds a value which the
 // judge withholds (by the schema, by its name, by what it reads, by what its text holds) is the mask. A rule can ask a
 // document a question (a pattern, a length) and the answer says what the value is, so the value is not in the document.
@@ -392,6 +415,7 @@ func (m *model) judgedRecord(mn *mnode) (json.RawMessage, bool) {
 // of every resource if one day a plan touched it.
 func stateDoc(m *model, tr *engine.Trier) *studioDoc {
 	changes := stateChanges(m)
+	m.markTemplates(changes)
 	if len(changes) == 0 {
 		return &studioDoc{state: "not-judged", note: "The state holds no resource whose values this identity can read."}
 	}

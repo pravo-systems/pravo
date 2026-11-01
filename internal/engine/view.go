@@ -82,6 +82,8 @@ type ChangeView struct {
 	Dependencies    []string `json:"dependencies,omitempty"`
 	Dependents      []string `json:"dependents,omitempty"`
 	Warnings        []string `json:"warnings,omitempty"`
+	// Template is the template instance that holds the node, when one does.
+	Template *TemplateRef `json:"template,omitempty"`
 }
 
 // ReservationView describes the reservation a plan holds on its nodes.
@@ -210,7 +212,7 @@ func addOutputs(v *View, plan *Plan) {
 func changeViewOf(ch *Change) ChangeView {
 	cv := ChangeView{Addr: ch.Addr, Mode: ch.Mode, Type: ch.Type, Name: ch.Name, Action: ch.Action, Provider: ch.ProviderKey,
 		Reasons: ch.Reasons, Deferred: ch.Deferred, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Drifted: ch.Drifted,
-		Applied: ch.Applied, Dependencies: ch.Deps}
+		Applied: ch.Applied, Dependencies: ch.Deps, Template: ch.Template}
 	for _, p := range ch.RequiresReplace {
 		if steps := p.Steps(); len(steps) > 0 {
 			if n, ok := steps[0].(tftypes.AttributeName); ok {
