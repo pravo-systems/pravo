@@ -72,7 +72,7 @@ func TestFragmentValidate(t *testing.T) {
 // Each comes as a dark and a light picture, and docs/img/serve holds exactly
 // those.
 var wantViews = []string{
-	"overview", "groups-collapsed", "groups-expanded", "clusters", "source", "sensitive", "palette", "narrow",
+	"overview", "readme", "groups-collapsed", "groups-expanded", "clusters", "source", "sensitive", "palette", "narrow",
 	"list", "drift", "plan",
 	"plans", "plans-list", "plans-finder", "plan-expired", "state-unsealed",
 	"history", "plans-team", "policies", "policy-pending", "studio", "discovery", "traces", "trace-span", "traces-slowest", "members",
@@ -103,6 +103,8 @@ func TestShotSizes(t *testing.T) {
 	for _, s := range allShots() {
 		w, h := 1440, 900
 		switch {
+		case strings.HasPrefix(s.Name, "readme-"):
+			h = 540
 		case strings.HasPrefix(s.Name, "source-"):
 			h = 1000
 		case strings.HasPrefix(s.Name, "trace-span-"):
