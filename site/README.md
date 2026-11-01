@@ -7,9 +7,9 @@ Static site: HTML from `tools/sitegen`, one style sheet, four shared scripts and
 | Path | Purpose |
 |---|---|
 | `site.json` | Site configuration read by `tools/sitegen`. `tools/sitegen/README.md` describes it. |
-| `landing/NN-name.html` | Bands of the front page, one `<section class="band"><div class="wrap">` per file, in file name order: the hero, rebuilt for teams, plans and applies, the viewer, where to start and about. |
+| `landing/NN-name.html` | Bands of the front page, one `<section class="band"><div class="wrap">` per file, in file name order: the hero, rebuilt for teams, plans and applies, the viewer, self-service, where to start and about. |
 | `data/*.json` | Recorded output and values read from the sources. A partial or a demo reads them with `{{data file.path}}` and `{{json file.path}}`. Not copied to the output. |
-| `demos/NAME/` | One interactive demo, or the hero of the front page. `NAME/page.md` is a capture page; `build.sh` runs `tools/capture -update`, `-check` and `-json site/data/NAME.json` on it and then a Go program that derives the rest. A demo ends in `NAME/embed.html`, which a page of the documentation embeds with `:::demo NAME`. `demos/facts/facts.go` reads the state format and the plugin protocols from their sources into `data/facts.json`. |
+| `demos/NAME/` | One interactive demo, or the hero or the self-service band of the front page (`site/landing/13-self-service.html`, rendered from `demos/self-service`). `NAME/page.md` is a capture page; `build.sh` runs `tools/capture -update`, `-check` and `-json site/data/NAME.json` on it and then a Go program that derives the rest. A demo ends in `NAME/embed.html`, which a page of the documentation embeds with `:::demo NAME`. `demos/facts/facts.go` reads the state format and the plugin protocols from their sources into `data/facts.json`. |
 | `assets/style.css` | The built style sheet. Generated; edit the parts under `design/css/`. |
 | `assets/site.js` | Theme, header, drawer, heading anchors, tables and figures on phones, copy, tabs, scroll-spy, progress, glossary popovers, reveal, counters, pointer light, search loader. |
 | `assets/search.js` | Search palette. Loaded by `site.js` on first use. |
@@ -228,17 +228,17 @@ The landing page loads `index.html`, the style sheet, two scripts and three imag
 
 | Asset | Published | Gzipped | Source gzipped |
 |---|---|---|---|
-| `index.html` | 28,450 | 7,745 | 7,745 |
-| `assets/style.css` | 131,810 | 25,939 | 34,605 |
-| `assets/site.js` | 17,256 | 5,885 | 8,541 |
-| `assets/download.js` | 1,790 | 909 | 1,198 |
+| `index.html` | 34,505 | 8,129 | 8,129 |
+| `assets/style.css` | 145,580 | 28,404 | 37,921 |
+| `assets/site.js` | 18,909 | 6,301 | 9,071 |
+| `assets/download.js` | 1,790 | 909 | 1,199 |
 | `assets/logo.svg` | 805 | 390 | 390 |
 | `assets/apple-touch-icon.png` | 3,497 | 3,433 | 3,433 |
 | `favicon.ico` | 3,588 | 3,565 | 3,565 |
-| JavaScript, 2 files | 19,046 | 6,794 | 9,739 |
-| Everything but fonts, 7 files | 187,196 | 47,866 | 59,477 |
+| JavaScript, 2 files | 20,699 | 7,210 | 10,270 |
+| Everything but fonts, 7 files | 208,674 | 51,131 | 63,708 |
 | Budget, JavaScript | | 8,000 | 8,000 |
-| Budget, everything but fonts | | 50,000 | 50,000 |
+| Budget, everything but fonts | | 52,000 | 52,000 |
 
 Published is the file in `site/public/`; source gzipped is the same build with `-minify=false`. `index.html` is not minified.
 

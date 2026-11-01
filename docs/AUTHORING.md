@@ -6,7 +6,7 @@ This file is for people who write documentation. It is not published. It fixes t
 
 | Section | Directory | Purpose |
 |---|---|---|
-| Learn | `docs/learn/` | Track A, CUE from zero (A1 to A14), with four companion pages and a cheat sheet. Track B, pravo (B1 to B11), three labs and the project B12. Track C, a team on one state (C1 to C7). |
+| Learn | `docs/learn/` | Track A, CUE from zero (A1 to A14), with four companion pages and a cheat sheet. Track B, pravo (B1 to B11), three labs and the project B12. Track C, a team on one state (C1 to C8). |
 | Migrate | `docs/migrate/` | From OpenTofu or Terraform: an index with the gate demo, a runbook (M1 to M11) and three annexes. |
 | How-to | `docs/how-to/` | Task-shaped pages for a reader who knows the basics: how to do one thing. The group Get started holds the quick start: install, a first plan, a change, a conflict and a destroy, with no cloud account. |
 | Concepts | `docs/concepts/` | Explanation of how pravo behaves, with diagrams. Behaviour only. |
@@ -29,6 +29,7 @@ URLs are stable. A page that moves keeps a stub (`redirect: new-page.md` in its 
 - The lowercase name `pravo` everywhere. "OpenTofu" first; "Terraform" or "legacy Terraform" only as the name of the audience's tool.
 - The recorded resources are the *state*. A rule that judges a plan is a *policy*. The setting that decides when a record is read from its provider again is the *refresh age*. `docs/reference/glossary.md` defines the rest.
 - *Module* means a CUE module, the tree of packages under `cue.mod/module.cue` that `pravo mod` publishes and fetches. Write "CUE module" where a page first says it. What a `module` block does in OpenTofu is done by a *definition* that contains resources, used through an *instance* and shared through a *package*. Never call a definition, a package or an instance a module, and say once per page that teaches reuse that pravo has no module block.
+- A *template* is a definition that embeds `pravo.#Template` and names itself in `$template`; an *instance* of it is a group built from it. A template is not a module and not a form: the viewer shows a form built from it. A plan of a new instance is *prepared* (stored) by one role and *applied* by another; do not call that an approval, which is the separate step that a policy asks for with `approvals`.
 - A feature that pravo does not have is stated as a fact with its replacement: "pravo has no workspaces. Select the environment with `-t env=prod`." No reason, no apology, no defence.
 - No history, no former names, no "no longer", "previously", "formerly", "instead of the old", no migrations from earlier versions of pravo, no stories about why a decision was taken. The build fails when a line matches `tools/sitegen/banned.txt`. The list is a net: a sentence that tells the history of a decision is wrong whether or not a rule catches it.
 - No claim without a run. Every output is captured from the real binary. No command, flag or behaviour that does not exist.

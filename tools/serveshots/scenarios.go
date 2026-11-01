@@ -114,6 +114,9 @@ type teamStep struct {
 	ApproveBy []string
 	// File is the plan file that a save writes, in the root.
 	File string
+	// ApplyBy is the person who applies the plan of a change, when it is not
+	// the person who stored it: a reader stores a plan that a writer applies.
+	ApplyBy string
 }
 
 // diskChange changes a file in the workspace the way a person would outside
@@ -341,6 +344,31 @@ edge: waf: rules: $local.#Resource.local_file & {
 		},
 	},
 	{
+		// Templates and self-service: the Web service template of the how-to
+		// pages, with its two instances and the policy that holds the passwords
+		// of every instance to special characters. The state is a local
+		// directory, sealed to ada, an admin, dan, a writer, and eve, a reader.
+		Name:      "templates",
+		Resources: 4,
+		Team: &teamSetup{
+			People: []person{{"ada", "admin"}, {"dan", "writer"}, {"eve", "reader"}},
+		},
+	},
+	{
+		// The same estate once eve asked for the checkout service: she stored
+		// the plan of the pasted code, and dan applied it by its id.
+		Name:      "templates-checkout",
+		Base:      "templates",
+		Resources: 4,
+		Team: &teamSetup{
+			People: []person{{"ada", "admin"}, {"dan", "writer"}, {"eve", "reader"}},
+			Steps: []teamStep{
+				{Kind: "change", Actor: "eve", ApplyBy: "dan", Reason: "the checkout service", Label: "checkout",
+					Edits: []edit{{File: "main.cue", Old: "", New: checkoutInstance}}},
+			},
+		},
+	},
+	{
 		// C6, the same plan before anyone approved it: what it waits for, and
 		// the command that approves it. The files are those of c06.
 		Name:      "c06-waits",
@@ -355,6 +383,16 @@ edge: waf: rules: $local.#Resource.local_file & {
 		},
 	},
 }
+
+// checkoutInstance is the code that the form of the Web service gives for the
+// checkout service, as the how-to page pastes it.
+const checkoutInstance = `
+services: checkout: #Service & {
+	name:  "checkout"
+	owner: "team-checkout"
+	env:   "prod"
+}
+`
 
 // findScenario returns the scenario with the name.
 func findScenario(name string) (scenario, bool) {

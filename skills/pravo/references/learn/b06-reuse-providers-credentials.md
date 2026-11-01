@@ -598,4 +598,4 @@ Destroy complete! Resources: 0 added, 0 changed, 9 destroyed. [txn <txn>]
 
 Cloud providers follow the same pattern: configure the provider in the root and pass it in. The how-to pages cover credentials, registries and sharing: [Secrets](../how-to/secrets.md), [Providers from a registry](../how-to/providers-from-a-registry.md), [Share code between roots in one repository](../how-to/share-code-between-roots.md) and [Publish a CUE module](../how-to/publishing-a-module.md).
 
-[B7](b07-changing-live-infrastructure.md) saves a plan and applies it in stages.
+A definition that the team shares can also be offered as a form in the viewer: [C8, Self-service from a template](c08-self-service-from-a-template.md) makes one. [B7](b07-changing-live-infrastructure.md) saves a plan and applies it in stages.

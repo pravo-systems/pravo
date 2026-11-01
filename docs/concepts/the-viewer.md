@@ -1,7 +1,7 @@
 ---
 title: The viewer
 description: "How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the eight sections show, which values are withheld and why the viewer changes nothing."
-order: 12
+order: 13
 minutes: 12
 keywords: "serve browser graph group inventory plans discovery policies traces state inspector withheld read-only"
 ---
@@ -239,7 +239,7 @@ The bar at the top switches between eight sections, and each keeps its own view 
 
 [The sections of the viewer](../reference/viewer-sections.md) lists every part of each. Five of them deserve a word here, because each is the window on a concept of its own.
 
-**Templates.** A template is a definition that says it is one, and an instance is an ordinary group of resources that carries the same mark. The viewer reads the inputs of the template from the definition itself, so the types, the defaults, the comments and the constraints of the fields are the form. When a person fills it in, the server loads the specification with the new CUE laid over it in memory, which is the check that the constraints hold, and tries each policy on an approximate plan, which says whether the apply would be refused. It shows the CUE and does nothing with it: the viewer changes nothing, so the paste is yours. An instance stays in the graph as any group does, and the mark ties it to its template, so that the catalog lists the instances of each. [The Templates section](../reference/viewer-sections.md#the-templates-section) lists the parts of the page.
+**Templates.** A template is a definition that says it is one, and an instance is an ordinary group of resources that carries the same mark. The viewer reads the inputs of the template from the definition itself, so the types, the defaults, the comments and the constraints of the fields are the form. When a person fills it in, the server loads the specification with the new CUE laid over it in memory, which is the check that the constraints hold, and tries each policy on an approximate plan, which says whether the apply would be refused. It shows the CUE and does nothing with it: the viewer changes nothing, so the paste is yours. An instance stays in the graph as any group does, and the mark ties it to its template, so that the catalog lists the instances of each. [The Templates section](../reference/viewer-sections.md#the-templates-section) lists the parts of the page, and [Templates and self-service](templates.md) follows a request from the form to the apply.
 
 **Discovery.** A discovery lists objects that exist and that no node of the graph is. The viewer does not put them in the graph, and it does not list them with the resources: a graph of what the specification declares and the state records would then hold nodes that nobody wrote, and a count of resources would include them. They have a section of their own, which reads the last run of each discovery from the state and sets it against the records, the `$import` declarations and the `$ack` entries of the specification, as [Discovery](discovery.md#what-each-object-is) describes. The unmanaged objects are shown in the amber that the rest of the page keeps for a change that is wanted, each with the means to adopt it, and the tab says how many ask to be adopted. [Filtering the objects](../reference/viewer-sections.md#filtering-the-objects) lists the columns of its filter.
 

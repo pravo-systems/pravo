@@ -381,7 +381,7 @@ jobs:
           key: pravo-home-${{ runner.os }}-demos-${{ hashFiles('site/demos/**/page.md') }}
           restore-keys: pravo-home-${{ runner.os }}-demos-
       - run: go build -o bin/pravo ./cmd/pravo
-      - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos/hero site/demos/idea site/demos/facts site/demos/blast site/demos/migrate
+      - run: go run ./tools/capture -check -j 2 -bin bin/pravo site/demos/hero site/demos/idea site/demos/self-service site/demos/facts site/demos/blast site/demos/migrate
       - if: ${{ always() }}
         uses: ./.github/actions/go-save
         with:

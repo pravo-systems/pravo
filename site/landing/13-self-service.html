@@ -1,0 +1,100 @@
+<section class="band self-band" id="self-service" data-band="self-service"><div class="wrap">
+<div class="band-head">
+<p class="kicker">Self-service</p>
+<h2 class="band-title">Self-service that <em>stays code.</em></h2>
+<p class="band-lede">A platform team writes a pattern once, as a definition. Anyone with a checkout fills in its form in the viewer and gets the code of a new instance. One person prepares the plan with a reader key, and someone with a writer key applies it.</p>
+</div>
+<div class="split self-split">
+<div class="cards self-cards">
+<a class="card spot" href="concepts/templates.html">
+<span class="card-kicker">01 · The form</span>
+<h3 class="card-title">The definition is the form</h3>
+<p class="card-text">The types, defaults, comments and constraints of the fields become the form. There is no second schema to keep in step.</p>
+</a>
+<a class="card spot" href="how-to/add-an-instance-from-a-template.html">
+<span class="card-kicker">02 · The checks</span>
+<h3 class="card-title">Checked before it is pasted</h3>
+<p class="card-text">The viewer loads the specification with the new code in memory and tries every policy in force. The plan judges it again.</p>
+</a>
+<a class="card spot" href="learn/c08-self-service-from-a-template.html">
+<span class="card-kicker">03 · The instances</span>
+<h3 class="card-title">Instances follow their template</h3>
+<p class="card-text">An instance is worked out from its template, not copied. Change the template, and the next plan changes every instance.</p>
+</a>
+</div>
+<div class="stage-wrap self-stage">
+<div class="hero-stack self-stack" role="group" aria-label="A template, the form that the viewer builds from it, and the plan of the code it gives" data-htabs>
+<div class="hs-tabs" role="tablist" aria-label="Template, form and plan"><button role="tab" id="st-code" aria-controls="sp-code" aria-selected="true"><b>01</b>service.cue</button><button role="tab" id="st-form" aria-controls="sp-form" aria-selected="false" tabindex="-1"><b>02</b>New instance</button><button role="tab" id="st-term" aria-controls="sp-term" aria-selected="false" tabindex="-1"><b>03</b>pravo plan</button></div>
+<div class="hs-body">
+<div class="hs-p on" id="sp-code" role="tabpanel" aria-labelledby="st-code">
+<figure class="code" data-lang="cue" data-status="valid" data-ln>
+<figcaption class="code-title"><span class="code-file">service.cue</span><span class="code-badge" title="Accepted">valid</span></figcaption>
+<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> estate
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-kw">import</span> <span class="tok-str">&#34;pravo.dev/pravo&#34;</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-def">#Service</span>: pravo.<span class="tok-def">#Template</span> <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">$template</span>: {
+</span><span class="line"><span class="ln"></span>		<span class="tok-id">name</span>:        <span class="tok-str">&#34;service&#34;</span>
+</span><span class="line"><span class="ln"></span>		<span class="tok-id">title</span>:       <span class="tok-str">&#34;Web service&#34;</span>
+</span><span class="line"><span class="ln"></span>		<span class="tok-id">description</span>: <span class="tok-str">&#34;A service with a generated secret and a rendered config file.&#34;</span>
+</span><span class="line"><span class="ln"></span>		<span class="tok-id">inputs</span>: {
+</span><span class="line"><span class="ln"></span>			<span class="tok-id">name</span>: {}
+</span><span class="line"><span class="ln"></span>			<span class="tok-id">owner</span>: {<span class="tok-id">label</span>: <span class="tok-str">&#34;Owning team&#34;</span>, <span class="tok-id">description</span>: <span class="tok-str">&#34;The team that gets paged for it. It starts with team-.&#34;</span>}
+</span><span class="line"><span class="ln"></span>			<span class="tok-id">env</span>: {}
+</span><span class="line"><span class="ln"></span>			<span class="tok-id">port</span>: {}
+</span><span class="line"><span class="ln"></span>		}
+</span><span class="line"><span class="ln"></span>	}
+</span><span class="line"><span class="ln"></span>	<span class="tok-com">// Lowercase letters, digits and dashes. It names the config file.</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">name</span>: <span class="tok-type">string</span> <span class="tok-op">&amp;</span> <span class="tok-op">=~</span><span class="tok-str">&#34;^[a-z][a-z0-9-]{2,30}$&#34;</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-com">// The team that answers for the service.</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">owner</span>: <span class="tok-type">string</span> <span class="tok-op">&amp;</span> <span class="tok-op">=~</span><span class="tok-str">&#34;^team-&#34;</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-com">// Where it runs.</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">env</span>: <span class="tok-op">*</span><span class="tok-str">&#34;dev&#34;</span> <span class="tok-op">|</span> <span class="tok-str">&#34;staging&#34;</span> <span class="tok-op">|</span> <span class="tok-str">&#34;prod&#34;</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-com">// The port it listens on.</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">port</span>: <span class="tok-op">*</span><span class="tok-num">8080</span> <span class="tok-op">|</span> <span class="tok-type">int</span> <span class="tok-op">&amp;</span> <span class="tok-op">&gt;</span><span class="tok-num">1024</span> <span class="tok-op">&amp;</span> <span class="tok-op">&lt;</span><span class="tok-num">65536</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">secret</span>: $random.<span class="tok-def">#Resource</span>.random_password <span class="tok-op">&amp;</span> {<span class="tok-id">length</span>: <span class="tok-num">24</span>}
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">config</span>: $local.<span class="tok-def">#Resource</span>.local_file <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>		<span class="tok-id">filename</span>: <span class="tok-str">&#34;out/</span><span class="tok-op">\(</span>name<span class="tok-op">)</span><span class="tok-str">.env&#34;</span>
+</span><span class="line"><span class="ln"></span>		<span class="tok-id">content</span>:  <span class="tok-str">&#34;OWNER=</span><span class="tok-op">\(</span>owner<span class="tok-op">)</span><span class="tok-str">\nENV=</span><span class="tok-op">\(</span>env<span class="tok-op">)</span><span class="tok-str">\nPORT=</span><span class="tok-op">\(</span>port<span class="tok-op">)</span><span class="tok-str">\n&#34;</span>
+</span><span class="line"><span class="ln"></span>	}
+</span><span class="line"><span class="ln"></span>}
+</span></code></pre></div>
+<button class="copy" type="button" aria-label="Copy service.cue"></button>
+</figure>
+</div>
+<div class="hs-p" id="sp-form" role="tabpanel" aria-labelledby="st-form">
+<div class="vw-win"><div class="vw-bar"><span>localhost</span><span>read-only</span></div><div class="vw-shot"><img class="view-light" src="assets/shots/self-service-light.webp" width="2160" height="1072" alt="The form of a new Web service in the viewer: the name checkout, the owning team team-checkout and the env prod. Beside it the code to paste and three checks: the specification loads with it, it adds two resources, and every policy in force holds." loading="lazy"><img class="view-dark" src="assets/shots/self-service-dark.webp" width="2160" height="1072" alt="" loading="lazy"></div></div>
+</div>
+<div class="hs-p" id="sp-term" role="tabpanel" aria-labelledby="st-term">
+<figure class="term" data-exit="0" data-ran="0.1">
+<figcaption class="code-title"><span class="code-file">terminal</span></figcaption>
+<div class="term-body">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo plan</span></div>
+<pre class="term-out"><code>pravo will perform the following actions:
+
+<span class="out-dim">  # services.checkout.secret (random_password) will be created</span>
+<span class="out-add">  + services: checkout: secret: {</span>
+<span class="out-dim">...</span>
+<span class="out-add">  +     special:     true</span>
+<span class="out-dim">...</span>
+<span class="out-dim">  # services.checkout.config (local_file) will be created</span>
+<span class="out-add">  + services: checkout: config: {</span>
+<span class="out-add">  +     content:              &#34;OWNER=team-checkout\nENV=prod\nPORT=8080\n&#34;</span>
+<span class="out-dim">...</span>
+<span class="out-add">  +     filename:             &#34;out/checkout.env&#34;</span>
+<span class="out-dim">...</span>
+Plan: <span class="out-add">2 to add</span>, <span class="out-change">0 to change</span>, <span class="out-destroy">0 to destroy</span>.
+Graph: planned 2 · skipped 4 · not read 4
+Policies: 1 satisfied.</code></pre>
+</div>
+<button class="copy" type="button" data-copy="pravo plan" aria-label="Copy command">Copy</button>
+</figure>
+</div>
+</div>
+</div>
+<p class="stage-caption">The template, the form that the viewer builds from it, and the plan of the code it gave, made by a reader. Recorded from {{data self-service.version.0}} with {{data self-service.version.1}}.</p>
+</div>
+</div>
+</div></section>

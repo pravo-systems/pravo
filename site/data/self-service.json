@@ -1,0 +1,31 @@
+{
+  "blocks": [
+    {
+      "block": 2,
+      "command": "mkdir -p .pravo/access\ncat > main.cue <<'CUE'\npackage estate\n\nimport (\n\tloc \"pravo.dev/providers/hashicorp/local\"\n\trnd \"pravo.dev/providers/hashicorp/random\"\n)\n\n$local:  loc.#Provider & {$version: \"~> 2.5\"}\n$random: rnd.#Provider & {$version: \"~> 3.6\"}\n\nservices: web: #Service & {name: \"web\", owner: \"team-shop\"}\nservices: api: #Service & {name: \"api\", owner: \"team-shop\", env: \"prod\"}\nCUE\ncat > policy.cue <<'CUE'\npackage estate\n\nimport \"pravo.dev/pravo\"\n\nservice_secrets: pravo.#Policy & {\n\tdescription: \"The password of every Web service has special characters.\"\n\trule: changes: [...{\n\t\ttype: string\n\t\ttemplate?: {name: string, instance: string}\n\t\tif template != _|_ {\n\t\t\tif template.name == \"service\" && type == \"random_password\" {\n\t\t\t\tafter: special: true\n\t\t\t}\n\t\t}\n\t}]\n}\nCUE\nPRAVO_CONFIG_DIR=people/ada pravo id new --name ada > /dev/null\nPRAVO_CONFIG_DIR=people/dan pravo id new --name dan > /dev/null\nPRAVO_CONFIG_DIR=people/eve pravo id new --name eve > /dev/null\n{\n  echo \"$(PRAVO_CONFIG_DIR=people/ada pravo id show | tail -n 1 | sed 's/^ *//') role:admin\"\n  echo \"$(PRAVO_CONFIG_DIR=people/dan pravo id show | tail -n 1 | sed 's/^ *//') role:writer\"\n  echo \"$(PRAVO_CONFIG_DIR=people/eve pravo id show | tail -n 1 | sed 's/^ *//') role:reader\"\n} > .pravo/access/readers.txt\nexport PRAVO_CONFIG_DIR=people/ada\npravo init > /dev/null\npravo protect init --encrypt --yes --allow-local > /dev/null\npravo protect roles --yes > /dev/null\npravo apply --auto-approve > /dev/null",
+      "exit": 0,
+      "expect_exit": 0,
+      "hidden": true,
+      "line": 49,
+      "ok": true,
+      "output": "",
+      "stage": "main"
+    },
+    {
+      "block": 4,
+      "command": "pravo plan",
+      "exit": 0,
+      "expect_exit": 0,
+      "line": 112,
+      "ok": true,
+      "output": "pravo will perform the following actions:\n\n  # services.checkout.secret (random_password) will be created\n  + services: checkout: secret: {\n  +     bcrypt_hash: (sensitive)\n  +     id:          (known after apply)\n  +     length:      24\n  +     lower:       true\n  +     min_lower:   0\n  +     min_numeric: 0\n  +     min_special: 0\n  +     min_upper:   0\n  +     number:      true\n  +     numeric:     true\n  +     result:      (sensitive)\n  +     special:     true\n  +     upper:       true\n    }\n\n  # services.checkout.config (local_file) will be created\n  + services: checkout: config: {\n  +     content:              \"OWNER=team-checkout\\nENV=prod\\nPORT=8080\\n\"\n  +     content_base64sha256: (known after apply)\n  +     content_base64sha512: (known after apply)\n  +     content_md5:          (known after apply)\n  +     content_sha1:         (known after apply)\n  +     content_sha256:       (known after apply)\n  +     content_sha512:       (known after apply)\n  +     directory_permission: \"0777\"\n  +     file_permission:      \"0777\"\n  +     filename:             \"out/checkout.env\"\n  +     id:                   (known after apply)\n    }\n\nPlan: 2 to add, 0 to change, 0 to destroy.\nGraph: planned 2 · skipped 4 · not read 4\nPolicies: 1 satisfied.",
+      "stage": "main"
+    }
+  ],
+  "page": "site/demos/self-service/page.md",
+  "title": "Self-service scenario",
+  "version": [
+    "pravo 0.1.0-dev",
+    "cue v0.17.1"
+  ]
+}

@@ -50,7 +50,7 @@ If you write CUE already, begin Track B at [B1, Providers and resources](b01-pro
 |---|---|---|---|
 | **Track A · CUE from zero** | [A1](a01-your-data-is-already-cue.md) to [A14](a14-project-three-environments.md) and five companion pages | about 2 hours | One definition that produces three environments, checked by `pravo eval`. |
 | **Track B · pravo** | [B1](b01-providers-and-resources.md) to [B11](b11-policy.md), three labs and a [project](b12-project.md) | about 2 hours, plus the labs | A specification that you plan, apply, change, move, check against a policy and destroy. |
-| **Track C · A team on one state** | [C1](c01-one-state-two-people.md) to [C7](c07-read-a-run.md) | under 2 hours | A sealed state in a shared store that three people work on, with roles, a policy, an approval and a recorded run. |
+| **Track C · A team on one state** | [C1](c01-one-state-two-people.md) to [C8](c08-self-service-from-a-template.md) | about 2 hours | A sealed state in a shared store that three people work on, with roles, a policy, an approval, a recorded run and a template that a reader asks for instances of. |
 
 Do Track A first. Track B assumes the CUE that Track A teaches. The [quick start](../how-to/quick-start.md) runs a plan before you know any CUE, and Track A explains what you saw there.
 
@@ -72,7 +72,7 @@ The [glossary](../reference/glossary.md) defines every term. Track A defines at 
 - A terminal, a text editor and an empty directory. A1 to A5 build on one directory. Each later lesson says where to work.
 - For Track A, nothing else. `pravo eval` and `pravo validate` evaluate plain CUE, so almost every example needs no provider, no account and no network. A10 and three of the companion pages each run one example with a provider from [Quick start](../how-to/quick-start.md). `pravo init` fetches it once.
 - For Track B, providers that run on your machine. A lesson that needs more says so in its header, under "Needs".
-- For Track C, an S3-compatible bucket, or `tools/fakes3` from a checkout of pravo's source: an in-memory server that needs no account. [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md#1-provide-a-bucket) starts it. C7 runs on a local state and needs neither.
+- For Track C, an S3-compatible bucket, or `tools/fakes3` from a checkout of pravo's source: an in-memory server that needs no account. [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md#1-provide-a-bucket) starts it. C7 and C8 run on a local state and need neither.
 
 Examples use a POSIX shell. The output in the lessons comes from a real run of the examples. Ids and times are normalised, and absolute paths are shortened to `./`. Your terminal prints the full path.
 

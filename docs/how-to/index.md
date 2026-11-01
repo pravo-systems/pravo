@@ -1,6 +1,6 @@
 ---
 title: How-to
-description: Task-shaped pages for a reader who knows the basics. Each page shows how to do one thing and stops there, in six groups, from a first plan to a team on one sealed state.
+description: Task-shaped pages for a reader who knows the basics. Each page shows how to do one thing and stops there, in seven groups, from a first plan to a team on one sealed state and the patterns it offers.
 ---
 
 How-to pages are for when you know the basics and need to do one thing: share the state, run a pipeline, give someone a role, read a recorded run. Each shows the task and stops there. It does not teach the ideas behind the steps; the last column links to the lesson or the concept page that does. New to pravo? [Learn](../learn/index.md) teaches it in order, and the [Quick start](quick-start.md) takes twelve minutes.
@@ -36,6 +36,15 @@ A team on one state: where the state lives, who reads it, who writes it, and how
 | Say who may change the state and who may only read and plan | [Give people roles](give-people-roles.md) | [Signatures and roles](../concepts/signatures-and-roles.md), [pravo protect roles](../reference/roles.md) |
 | Let a team list and read a plan before anyone applies it | [Store a plan and apply it later](store-a-plan-and-apply-it-later.md) | [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) |
 | Make a risky plan wait for another member's approval | [Approve a plan](approve-a-plan.md) | [Stored plans and approvals](../concepts/stored-plans-and-approvals.md#approvals) |
+
+## Self-service
+
+A platform team offers a pattern, such as a web service, as a template. Anyone with a checkout asks for an instance through a form of the viewer, a reader key prepares the plan, and a writer key applies it. The request stays code.
+
+| I want to | Guide | Background |
+|---|---|---|
+| Offer a pattern to my team as a form, with checks on every value | [Offer a template to your team](offer-a-template.md) | [Templates and self-service](../concepts/templates.md) |
+| Ask for a new instance of a pattern without the right to change the estate | [Make a new instance from a template](add-an-instance-from-a-template.md) | [C8, Self-service from a template](../learn/c08-self-service-from-a-template.md) |
 
 ## Operate
 

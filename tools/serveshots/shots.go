@@ -57,6 +57,10 @@ type Fragment struct {
 	// the policy studio of the section.
 	Pol    string
 	Studio bool
+	// Tpl is the template that the Templates section opens, by its name, and
+	// TN opens its wizard.
+	Tpl string
+	TN  bool
 	// Trace is the recorded run that the Traces section opens: its id, or
 	// "@LABEL" for a run of the team. Span is the span it selects: its id, or
 	// "@NAME" for the first span of that name. TV is "table" for the table
@@ -76,12 +80,12 @@ type Fragment struct {
 var (
 	fragmentTabs   = []string{"state", "source", "schema", "history", "change"}
 	fragmentThemes = []string{"light", "dark"}
-	fragmentViews  = []string{"graph", "list", "state", "plans", "discovery", "policies", "traces"}
+	fragmentViews  = []string{"graph", "list", "state", "plans", "discovery", "policies", "templates", "traces"}
 )
 
 // String is the fragment without the leading #, in the order of the deep-link
 // table: sel, tab, collapse, expand, theme, q, dq, plq, plan, view, pol, ps,
-// trace, span, tv, tq, motion, zoom, and then palette, pq and help.
+// tpl, tn, trace, span, tv, tq, motion, zoom, and then palette, pq and help.
 // Values are URL-encoded, and a list is written comma separated with each
 // element encoded.
 func (f Fragment) String() string {
@@ -114,6 +118,10 @@ func (f Fragment) String() string {
 	add("pol", f.Pol)
 	if f.Studio {
 		add("ps", "1")
+	}
+	add("tpl", f.Tpl)
+	if f.TN {
+		add("tn", "1")
 	}
 	add("trace", f.Trace)
 	add("span", f.Span)
@@ -482,6 +490,17 @@ func allShots() []Shot {
 		both("c06-waits", "c06-waits", situationTeam, Fragment{View: "plans", Plan: "@retire"}))...)
 	s = append(s, scripted(openPlanScript("retire the pet"),
 		both("c06-approved", "c06", situationTeam, Fragment{View: "plans", Plan: "@retire"}))...)
+	// Templates and self-service: the catalog with the Web service open, the
+	// form of the checkout service filled in as eve fills it, the same form
+	// with an owner that the template refuses, and the instance in the
+	// Inventory once dan applied the plan that eve stored.
+	s = append(s, both("templates-catalog", "templates", situationTeam, Fragment{View: "templates", Tpl: "service"})...)
+	wizard := Fragment{View: "templates", Tpl: "service", TN: true}
+	s = append(s, scripted(wizardScript("checkout", map[string]string{"owner": "team-checkout"}, map[string]string{"env": "prod"}, "valid"),
+		both("templates-form", "templates", situationTeam, wizard))...)
+	s = append(s, scripted(wizardScript("checkout", map[string]string{"owner": "checkout"}, map[string]string{"env": "prod"}, "invalid"),
+		both("templates-refused", "templates", situationTeam, wizard))...)
+	s = append(s, both("templates-instance", "templates-checkout", situationTeam, Fragment{Sel: "services.checkout"})...)
 	// The assistant, over the Plans section of the estate where three people
 	// stored a plan: the notice that a browser shows the first time, an answer
 	// to a question about the plans, and what was sent to the model for it.

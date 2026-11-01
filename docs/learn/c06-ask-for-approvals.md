@@ -312,4 +312,4 @@ Why could Dan not end the rule by rewriting it to ask for nothing?
 A change to a policy that asks for approvals needs an approval by an admin, from a key other than the one that stored the change. Eve, a writer, approved and it did not count.
 :::
 
-The how-to page [Approve a plan](../how-to/approve-a-plan.md) puts the flow in a pipeline and lists what an approval does not do. [Stored plans and approvals](../concepts/stored-plans-and-approvals.md#approvals) explains how the approvals are stored and checked. The last lesson of the track, [Read a run](c07-read-a-run.md), looks inside a command to see where its time went and where it stopped.
+The how-to page [Approve a plan](../how-to/approve-a-plan.md) puts the flow in a pipeline and lists what an approval does not do. [Stored plans and approvals](../concepts/stored-plans-and-approvals.md#approvals) explains how the approvals are stored and checked. The next lesson, [Read a run](c07-read-a-run.md), looks inside a command to see where its time went and where it stopped.

@@ -1,7 +1,7 @@
 ---
 title: Traces
 description: "What a run of pravo records about itself: one trace of spans per command, the calls to the providers and the network calls under them, where the time went and where a run stopped, and what a span never contains."
-order: 13
+order: 14
 minutes: 9
 keywords: "trace span timeline telemetry opentelemetry otlp network capture proxy recorded runs PRAVO_TRACES debugging slow"
 ---

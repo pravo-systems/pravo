@@ -1,0 +1,43 @@
+<section class="band self-band" id="self-service" data-band="self-service"><div class="wrap">
+<div class="band-head">
+<p class="kicker">Self-service</p>
+<h2 class="band-title">Self-service that <em>stays code.</em></h2>
+<p class="band-lede">A platform team writes a pattern once, as a definition. Anyone with a checkout fills in its form in the viewer and gets the code of a new instance. One person prepares the plan with a reader key, and someone with a writer key applies it.</p>
+</div>
+<div class="split self-split">
+<div class="cards self-cards">
+<a class="card spot" href="concepts/templates.html">
+<span class="card-kicker">01 · The form</span>
+<h3 class="card-title">The definition is the form</h3>
+<p class="card-text">The types, defaults, comments and constraints of the fields become the form. There is no second schema to keep in step.</p>
+</a>
+<a class="card spot" href="how-to/add-an-instance-from-a-template.html">
+<span class="card-kicker">02 · The checks</span>
+<h3 class="card-title">Checked before it is pasted</h3>
+<p class="card-text">The viewer loads the specification with the new code in memory and tries every policy in force. The plan judges it again.</p>
+</a>
+<a class="card spot" href="learn/c08-self-service-from-a-template.html">
+<span class="card-kicker">03 · The instances</span>
+<h3 class="card-title">Instances follow their template</h3>
+<p class="card-text">An instance is worked out from its template, not copied. Change the template, and the next plan changes every instance.</p>
+</a>
+</div>
+<div class="stage-wrap self-stage">
+<div class="hero-stack self-stack" role="group" aria-label="A template, the form that the viewer builds from it, and the plan of the code it gives" data-htabs>
+<div class="hs-tabs" role="tablist" aria-label="Template, form and plan"><button role="tab" id="st-code" aria-controls="sp-code" aria-selected="true"><b>01</b>service.cue</button><button role="tab" id="st-form" aria-controls="sp-form" aria-selected="false" tabindex="-1"><b>02</b>New instance</button><button role="tab" id="st-term" aria-controls="sp-term" aria-selected="false" tabindex="-1"><b>03</b>pravo plan</button></div>
+<div class="hs-body">
+<div class="hs-p on" id="sp-code" role="tabpanel" aria-labelledby="st-code">
+{{fig template ln}}
+</div>
+<div class="hs-p" id="sp-form" role="tabpanel" aria-labelledby="st-form">
+<div class="vw-win"><div class="vw-bar"><span>localhost</span><span>read-only</span></div><div class="vw-shot"><img class="view-light" src="assets/shots/self-service-light.webp" width="2160" height="1072" alt="The form of a new Web service in the viewer: the name checkout, the owning team team-checkout and the env prod. Beside it the code to paste and three checks: the specification loads with it, it adds two resources, and every policy in force holds." loading="lazy"><img class="view-dark" src="assets/shots/self-service-dark.webp" width="2160" height="1072" alt="" loading="lazy"></div></div>
+</div>
+<div class="hs-p" id="sp-term" role="tabpanel" aria-labelledby="st-term">
+{{fig plan}}
+</div>
+</div>
+</div>
+<p class="stage-caption">The template, the form that the viewer builds from it, and the plan of the code it gave, made by a reader. Recorded from {{data self-service.version.0}} with {{data self-service.version.1}}.</p>
+</div>
+</div>
+</div></section>
