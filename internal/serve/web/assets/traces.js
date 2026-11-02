@@ -223,7 +223,7 @@ export class TracesView {
         'aria-label': `${t.command}, ${relTime(t.start)}, ${fmtDur(t.duration_us)}${failed ? ', failed' : ''}`, on: { click: () => this.pick(t.id) } },
       h('span', { class: 'tr-st', 'aria-hidden': 'true' }),
       h('span', { class: 'tr-r1' }, h('span', { class: 'tr-cmd' }, t.line || t.command), h('span', { class: 'tr-dur' }, fmtDur(t.duration_us))),
-      h('span', { class: 'tr-r2' }, h('span', null, relTime(t.start)), h('span', null, t.resources ? plural(t.resources, 'resource') : plural(t.span_count, 'span')), failed ? h('span', { class: 'tr-bad' }, 'failed') : t.errors ? h('span', { class: 'tr-warn' }, plural(t.errors, 'span') + ' failed on the way') : null),
+      h('span', { class: 'tr-r2' }, h('span', null, relTime(t.start)), h('span', null, t.resources ? plural(t.resources, 'resource') : plural(t.span_count, 'span')), failed ? h('span', { class: 'tr-bad' }, 'failed') : t.errors ? h('span', { class: 'tr-onway' }, plural(t.errors, 'span') + ' failed on the way') : null),
       t.reason ? h('span', { class: 'tr-r3' }, t.reason) : null));
     });
     return h('nav', { class: 'tr-runs', 'aria-label': 'Recorded runs' },
