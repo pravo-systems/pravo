@@ -1122,7 +1122,7 @@ type TraceInfo struct {
 	DurationUS int64  `json:"duration_us"`
 	// Exit is the exit code of the command, -1 when the run does not say.
 	Exit int `json:"exit"`
-	// Status is "ok" or "error": error when a span failed.
+	// Status is "ok" for exit code 0, "error" for any other, "unfinished" without one.
 	Status string `json:"status"`
 	// SpanCount, Errors and Resources count the spans, the failed spans and the
 	// distinct resources that the run planned or applied.
