@@ -84,7 +84,8 @@ type Upstream struct {
 // EnvironmentRecord is one version of the record of the environment that a state serves.
 type EnvironmentRecord struct {
 	// Seq comes from the name of the object: 1 for the first version.
-	Seq  int    `json:"-"`
+	Seq int `json:"-"`
+	// Name is empty in a version that says the state serves no environment any more.
 	Name string `json:"name"`
 	// After lists the environments it follows, by name.
 	After     []Upstream         `json:"after,omitempty"`
@@ -97,6 +98,9 @@ type EnvironmentRecord struct {
 
 // AfterNames lists the environments the record follows.
 func (r *EnvironmentRecord) AfterNames() []string {
+	if r == nil {
+		return nil
+	}
 	out := make([]string, len(r.After))
 	for i, u := range r.After {
 		out[i] = u.Name
@@ -107,6 +111,9 @@ func (r *EnvironmentRecord) AfterNames() []string {
 // Lineage is the lineage the record holds for the state of the environment name, empty
 // when none was read yet.
 func (r *EnvironmentRecord) Lineage(name string) string {
+	if r == nil {
+		return ""
+	}
 	for _, u := range r.After {
 		if u.Name == name {
 			return u.Lineage
@@ -194,7 +201,9 @@ func (s *Store) environmentVersion(ctx context.Context, readers []protect.Reader
 		return nil, fmt.Errorf("%s: %w", key, err)
 	}
 	r := &EnvironmentRecord{Seq: seq}
-	if err := json.Unmarshal(data, r); err != nil || r.Name == "" {
+	// A version after the first may name no environment: the specification declares none
+	// any more, and an admin recorded that.
+	if err := json.Unmarshal(data, r); err != nil || (r.Name == "" && seq == 1) {
 		return nil, fmt.Errorf("%w: %s is not a version of the record of the environment", ErrUntrusted, key)
 	}
 	if !s.sealedState() {
@@ -614,4 +623,23 @@ func (s *Store) Promotions(ctx context.Context, fingerprint string) ([]Promotion
 		out = append(out, o)
 	}
 	return out, nil
+}
+
+// dropEnvironmentAdvice removes the record of the environment and the notes of what the state
+// runs that it wrote before it was sealed. They carry no signature, and a sealed state trusts
+// only signed ones: its next apply writes them again, signed. A state that is not sealed has
+// no promotions.
+func (s *Store) dropEnvironmentAdvice(ctx context.Context) error {
+	for _, prefix := range []string{environmentDir, RunDir} {
+		keys, err := s.b.List(ctx, prefix)
+		if err != nil {
+			return err
+		}
+		for _, k := range keys {
+			if err := s.b.Delete(ctx, k); err != nil && !errors.Is(err, ErrNotFound) {
+				return Advise(err)
+			}
+		}
+	}
+	return nil
 }

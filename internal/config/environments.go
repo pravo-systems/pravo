@@ -459,6 +459,7 @@ func (e EnvironmentSettings) Where() string {
 // the run; the selector in them is replaced for each environment. A specification
 // without environments gives none.
 func ReadEnvironmentSettings(dir string, opts LoadOptions) ([]EnvironmentSettings, error) {
+	opts.declaredOnly = true
 	src, err := readSettingsSource(dir, opts)
 	if err != nil {
 		return nil, err
@@ -470,7 +471,7 @@ func readEnvironmentSettings(abs string, envs []Environment, opts LoadOptions) [
 	out := make([]EnvironmentSettings, 0, len(envs))
 	for _, e := range envs {
 		o := opts
-		o.Tags, o.environment, o.Extra = WithEnvironment(opts.Tags, e.Name), "", nil
+		o.Tags, o.environment, o.Extra, o.declaredOnly = WithEnvironment(opts.Tags, e.Name), "", nil, false
 		es := EnvironmentSettings{Environment: e}
 		r, notes, err := loadSettings(abs, o, false)
 		if err != nil {

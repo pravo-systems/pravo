@@ -144,6 +144,9 @@ type Root struct {
 	// Environment is the environment the root was loaded for: the one -t env= names, or
 	// the default row. Empty when the specification declares no environments.
 	Environment string
+	// Tags are the tags the specification was evaluated with, as "name=value": the -t
+	// values without the selector of the environment.
+	Tags []string
 	// Refresh is the default refresh age from $settings.refresh.
 	Refresh string
 	// Moves are the $from declarations: the record at From now belongs to
@@ -261,6 +264,9 @@ type LoadOptions struct {
 	// environment is the environment that Load picked, for the settings that are read
 	// again while the package loads: Tags no longer holds the selector then.
 	environment string
+	// declaredOnly reads $environments without selecting one of them, for a command that
+	// looks at them all.
+	declaredOnly bool
 }
 
 // stage starts the span of a stage of loading.
@@ -322,6 +328,7 @@ func Load(dir string, opts LoadOptions) (*Root, error) {
 		}
 		return nil, err
 	}
+	r.Tags = opts.Tags
 	if envs != nil {
 		r.Environments, r.Environment = envs, env
 		r.Sources = slices.DeleteFunc(r.Sources, func(f string) bool { return f == filepath.Join(abs, envOverlayName) })
@@ -745,6 +752,9 @@ func readSettingsSource(dir string, opts LoadOptions) (*settingsSource, error) {
 	}
 	if src.envs, err = parseEnvironments(ev.LookupPath(cue.MakePath(cue.Str("$environments")))); err != nil {
 		return nil, err
+	}
+	if opts.declaredOnly {
+		return src, nil
 	}
 	if src.env, err = selectEnvironment(src.envs, envName, envGiven); err != nil {
 		return nil, err

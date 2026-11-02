@@ -34,6 +34,8 @@ type session struct {
 	schemas   map[string]*schema.ProviderSchema
 	value     cue.Value
 	state     *state.Store
+	// envs holds the settings of the environments of the root once they are read.
+	envs *environmentsOf
 }
 
 type sessionOptions struct {
@@ -176,6 +178,12 @@ func (s *session) readersInto(opts *engine.Options) {
 		opts.Vouched, opts.StrictKeys = rs.Vouched, rs.Source == "state"
 	}
 	opts.Readers = rf.Readers
+	if s.root.Environment != "" && opts.UpstreamReaders == nil {
+		if s.envs == nil {
+			s.envs = &environmentsOf{root: s.root}
+		}
+		opts.UpstreamReaders = s.envs.readers
+	}
 }
 
 // openState opens the configured state backend.

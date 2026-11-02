@@ -317,6 +317,13 @@ func (e *Engine) JudgePlan(ctx context.Context, plan *Plan) error {
 	if plan.Destroy && len(plan.Changes) == 0 {
 		return nil
 	}
+	if !plan.Destroy {
+		if line, err := e.EnvironmentLine(ctx); err != nil {
+			return err
+		} else if line != "" {
+			e.Opts.Progress("%s", line)
+		}
+	}
 	set, err := e.policySet(ctx)
 	if err != nil {
 		return err

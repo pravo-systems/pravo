@@ -331,12 +331,13 @@ func newRootCmd() *cobra.Command {
 		initCmd(), planCmd(), applyCmd(), destroyCmd(), showCmd(), outputCmd(), stateCmd(), importCmd(), discoverCmd(),
 		providersCmd(), genCmd(), validateCmd(), evalCmd(), fmtCmd(), versionCmd(),
 		schemaCmd(), whyCmd(), driftCmd(), mcpCmd(), modCmd(), serveCmd(), skillCmd(), idCmd(), protectCmd(), policyCmd(), secretCmd(),
+		promoteCmd(), environmentsCmd(),
 	)
 	return cmd
 }
 
 const (
-	tagUsage     = "inject a value for an @tag() field: -t key=value"
+	tagUsage     = "inject a value for an @tag() field: -t key=value; -t env=NAME names an environment of $environments"
 	sysTagsUsage = "inject system tag variables (os, arch, cwd, ...)"
 )
 
