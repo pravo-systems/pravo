@@ -352,7 +352,7 @@ export class TracesView {
     this.bindPlot();
     return h('div', { class: 'tr-chart' },
       this.plot,
-      h('p', { class: 'tr-hint' }, 'Ctrl or ⌘ and scroll zoom. Drag moves along the run. Double click a span to fit it. Beside each attribute, Only and Hide filter by it.'));
+      h('p', { class: 'tr-hint' }, 'Ctrl or ⌘ and scroll zoom. Drag moves along the run. Double click a span to focus on it. Beside each attribute, Only and Hide filter by it.'));
   }
 
   layoutPlot() {
@@ -659,7 +659,7 @@ export class TracesView {
     const forAddr = sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : '';
     const copy = sp.kind === 'resource' || sp.kind === 'provider' ? forAddr : '';
     const fit = this.mode === 'flame'
-      ? h('button', { class: 'tr-tool', type: 'button', title: 'Zoom the timeline to this span', on: { click: () => this.zoomTo(sp) } }, 'Fit')
+      ? h('button', { class: 'tr-tool', type: 'button', title: 'Zoom the timeline in on this span ( Enter )', on: { click: () => this.zoomTo(sp) } }, 'Focus')
       : h('button', { class: 'tr-tool', type: 'button', title: 'Show this span in the timeline', on: { click: () => { this.setMode('flame'); this.zoomTo(sp); } } }, 'Timeline');
     let body;
     if (tab === 'attrs') body = this.attrsPanel(attrs);
@@ -687,7 +687,7 @@ export class TracesView {
         meta('In itself', fmtDur(sp.self), sp.kids.length ? `${Math.round((sp.self / Math.max(sp.dur_us, 1)) * 100)}%` : 'no parts'),
         meta('From', fmtDur(sp.start_us), 'to ' + fmtDur(sp.end))),
       h('div', { class: 'tr-where', role: 'img', 'aria-label': `From ${fmtDur(sp.start_us)} to ${fmtDur(sp.end)} of ${fmtDur(total)}` },
-        h('span', { class: 'tr-wb k-' + sp.kind + (sp.status === 'error' ? ' err' : ''), style: `left:${Math.min(99.5, (sp.start_us / total) * 100)}%;width:max(3px,${pct}%)` })),
+        h('span', { class: 'tr-wb k-' + sp.kind + (sp.status === 'error' ? ' failed' : ''), style: `--l:${Math.min(100, Math.max(0, (sp.start_us / total) * 100))}%;--w:${pct}%` })),
       sp.status === 'error' && sp.message ? h('pre', { class: 'tr-err' }, sp.message) : null,
       tabs.length ? h('div', { class: 'tr-tabs', role: 'tablist', 'aria-label': 'What to show of the span' },
         tabs.map(([k, label, n]) => h('button', { type: 'button', role: 'tab', class: 'tr-tab', 'aria-selected': k === tab ? 'true' : 'false', 'data-fk': 'dtab-' + k,

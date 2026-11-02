@@ -127,7 +127,7 @@ With the focus in the list:
 | Shift and Left arrow or Right arrow | Move along the run. |
 | `+`, `-` | Zoom the timeline. |
 | `0` | Fit the whole run. |
-| Enter | Fit the timeline to the selection. |
+| Enter | Focus the timeline on the selection. |
 | Esc | Clear the selection. |
 | Click a bar | Select the span. A double click fits the timeline to it. |
 | Drag | Move along the run. |
