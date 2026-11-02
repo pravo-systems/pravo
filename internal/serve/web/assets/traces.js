@@ -223,7 +223,7 @@ export class TracesView {
         'aria-label': `${t.command}, ${relTime(t.start)}, ${fmtDur(t.duration_us)}${failed ? ', failed' : ''}`, on: { click: () => this.pick(t.id) } },
       h('span', { class: 'tr-st', 'aria-hidden': 'true' }),
       h('span', { class: 'tr-r1' }, h('span', { class: 'tr-cmd' }, t.line || t.command), h('span', { class: 'tr-dur' }, fmtDur(t.duration_us))),
-      h('span', { class: 'tr-r2' }, h('span', null, relTime(t.start)), h('span', null, t.resources ? plural(t.resources, 'resource') : plural(t.span_count, 'span')), failed ? h('span', { class: 'tr-bad' }, 'failed') : null),
+      h('span', { class: 'tr-r2' }, h('span', null, relTime(t.start)), h('span', null, t.resources ? plural(t.resources, 'resource') : plural(t.span_count, 'span')), failed ? h('span', { class: 'tr-bad' }, 'failed') : t.errors ? h('span', { class: 'tr-warn' }, plural(t.errors, 'span') + ' failed on the way') : null),
       t.reason ? h('span', { class: 'tr-r3' }, t.reason) : null));
     });
     return h('nav', { class: 'tr-runs', 'aria-label': 'Recorded runs' },
@@ -251,7 +251,9 @@ export class TracesView {
     return h('div', { class: 'tr-sum' + (failed ? ' bad' : '') },
       h('div', { class: 'tr-sumhead' },
         h('h3', { class: 'tr-name' }, d.line || d.command),
-        failed ? h('span', { class: 'b bad' }, icon('bang'), `${plural(d.errors, 'span')} failed`) : h('span', { class: 'b ok' }, icon('check'), 'no span failed'),
+        failed ? h('span', { class: 'b bad' }, icon('bang'), d.errors ? `failed · ${plural(d.errors, 'span')} failed` : 'failed')
+          : d.errors ? h('span', { class: 'b chg', 'data-tip': 'The command finished. These spans failed on the way, as a call that was tried again.' }, icon('bang'), `${plural(d.errors, 'span')} failed on the way`)
+            : h('span', { class: 'b ok' }, icon('check'), 'no span failed'),
         d.exit >= 0 ? h('span', { class: 'b' }, `exit ${d.exit}`) : null),
       h('ul', { class: 'tr-facts' },
         fact('Started', h('span', { 'data-tip': stamp(d.start) }, relTime(d.start))),

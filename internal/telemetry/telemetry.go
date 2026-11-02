@@ -9,6 +9,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -331,9 +332,17 @@ func Waited(ctx context.Context, name string, since time.Time, attrs ...attribut
 // minWait is the shortest wait that Waited records.
 const minWait = 20 * time.Millisecond
 
-// End finishes a span, recording err if there is one.
+// End finishes a span, recording err if there is one. A span whose work was canceled did
+// not fail: whoever asked for it stopped waiting, as a provider does with a request it no
+// longer needs, and a run that is stopped fails by its own exit code. It carries the
+// attribute pravo.canceled and an event instead of the status of an error.
 func End(span trace.Span, err error) {
-	if err != nil {
+	switch {
+	case err == nil:
+	case errors.Is(err, context.Canceled):
+		span.SetAttributes(attribute.Bool("pravo.canceled", true))
+		span.AddEvent("canceled", trace.WithAttributes(attribute.String("message", err.Error())))
+	default:
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 	}

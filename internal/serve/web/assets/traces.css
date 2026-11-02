@@ -52,6 +52,7 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-dur { font: 400 var(--fs-2)/1 var(--font-mono); color: var(--text-2); white-space: nowrap; }
 .tr-r2 { display: flex; flex-wrap: wrap; gap: .1rem .7rem; font-size: var(--fs-1); color: var(--text-3); }
 .tr-bad { color: var(--conflict); font-weight: 600; }
+.tr-warn { color: var(--change); }
 .tr-r3 { font-size: var(--fs-2); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- the run ---- */

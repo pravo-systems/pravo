@@ -54,7 +54,7 @@ The file is named by the trace and its first span, and it is written in the dire
 pravo -C local serve
 ```
 
-Press `r`, or open Traces from the bar. The runs are listed newest first, with the command, the age, how long it took and the resources it handled, and a red mark for a run in which a span failed. The newest is open: its head says the exit code, the transaction an apply wrote, the actor and the reason, and under it the timeline draws the run.
+Press `r`, or open Traces from the bar. The runs are listed newest first, with the command, the age, how long it took and the resources it handled, and a red mark for a run whose command failed. The newest is open: its head says the exit code, the transaction an apply wrote, the actor and the reason, and under it the timeline draws the run.
 
 *Figure: The Traces section with the first apply of an estate open as a timeline: the state is opened, the engine plans, then applies, each resource holds the calls to its provider, and each request to the state store holds the network call it made.*
 
