@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -58,9 +59,16 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			if err != nil {
 				return err
 			}
-			v := &viewerState{name: flags.Identity, dir: dir, accessDir: loadReadersFile(dir, flags.AccessDir).Dir}
+			// The directory of the readers file that the flag or the variable names; without one,
+			// each environment reads the one its settings name, else the one found by default.
+			explicit := flags.AccessDir
+			if explicit == "" {
+				explicit, _ = environment().Lookup("PRAVO_ACCESS_DIR")
+			}
+			v := &viewerState{name: flags.Identity, dir: dir, accessDir: loadReadersFile(dir, flags.AccessDir).Dir, explicitAccess: explicit}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: v.accessDir, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan}
+			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: explicit, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan,
+				Environments: viewerEnvironments}
 			if isStoredRef(planFile) {
 				// The id of a plan in the state (a file of that name wins). The plan is
 				// looked up when the state is read, with the tags given here.
@@ -191,8 +199,13 @@ type viewerState struct {
 	// name is the --identity flag: a name, "none", or empty.
 	name string
 	dir  string
-	// accessDir is the directory of the readers file.
-	accessDir string
+	// accessDir is the directory of the readers file, and explicitAccess the one that the flag
+	// or $PRAVO_ACCESS_DIR names, empty without one.
+	accessDir      string
+	explicitAccess string
+	// root is the root of the state opened last: its settings name the readers file of the
+	// environment the page reads.
+	root *config.Root
 
 	mu       sync.Mutex
 	resolved bool
@@ -327,6 +340,9 @@ func (v *viewerState) resolve(readers ...protect.ReaderPublic) error {
 // that turns out to be sealed asks for the identity, so that a plain state never
 // asks for a passphrase.
 func (v *viewerState) open(ctx context.Context, root *config.Root) (*state.Store, error) {
+	v.mu.Lock()
+	v.root = root
+	v.mu.Unlock()
 	var b state.Backend
 	switch root.State.Backend {
 	case "s3", "http":
@@ -541,7 +557,7 @@ func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, 
 	if st.Protection().Sealed == nil {
 		return "", ""
 	}
-	readers, ok := attributionReaders(loadReadersFile(v.dir, v.accessDir))
+	readers, ok := attributionReaders(v.readersFile())
 	if !ok {
 		return "", ""
 	}
@@ -552,7 +568,7 @@ func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, 
 // policyReaders gives the readers that the signatures of the policy versions are checked
 // against, for the policies view. A repository with no readers file has none.
 func (v *viewerState) policyReaders(st *state.Store) ([]protect.Reader, bool) {
-	return attributionReaders(loadReadersFile(v.dir, v.accessDir))
+	return attributionReaders(v.readersFile())
 }
 
 // secretRules gives the rules that the signatures of the secret versions are judged by, for
@@ -560,7 +576,7 @@ func (v *viewerState) policyReaders(st *state.Store) ([]protect.Reader, bool) {
 // the refusal of unknown keys when the roles are pinned in the state. A repository with no
 // readers file has none; roles that fail their check are no rules, and the string says why.
 func (v *viewerState) secretRules(st *state.Store) (state.RecordRules, bool, string) {
-	rf := loadReadersFile(v.dir, v.accessDir)
+	rf := v.readersFile()
 	if !rf.Found || rf.Err != nil {
 		return state.RecordRules{}, false, ""
 	}
@@ -578,7 +594,7 @@ func (v *viewerState) verifyPlan(ctx context.Context, st *state.Store, id, diges
 	if st.Protection().Sealed == nil {
 		return nil, false
 	}
-	rf := loadReadersFile(v.dir, v.accessDir)
+	rf := v.readersFile()
 	readers, ok := attributionReaders(rf)
 	if !ok {
 		return &serve.PlanSignatures{Items: []serve.PlanSignature{}, Note: notChecked(rf)}, true
@@ -598,4 +614,59 @@ func (v *viewerState) verifyPlan(ctx context.Context, st *state.Store, id, diges
 		out.Items = append(out.Items, it)
 	}
 	return out, true
+}
+
+// readersFile is the readers file of the state the viewer reads: the one that --access-dir or
+// $PRAVO_ACCESS_DIR names, else the one the settings of its environment name, else the one found
+// by default.
+func (v *viewerState) readersFile() readersFile {
+	v.mu.Lock()
+	root := v.root
+	v.mu.Unlock()
+	if root == nil {
+		return loadReadersFile(v.dir, v.accessDir)
+	}
+	return loadReadersFileFrom(v.dir, v.explicitAccess, root.AccessDir)
+}
+
+// viewerEnvironments reads the ladder for the Environments page of the viewer, as "pravo
+// environments" does: without a key, writing nothing.
+func viewerEnvironments(ctx context.Context, root *config.Root) (*serve.Environments, error) {
+	rel, err := engine.ReleaseOf(root)
+	if err != nil {
+		return nil, err
+	}
+	rows := readEnvironmentRows(ctx, root, rel)
+	next := nextStep(root, rows)
+	doc := &serve.Environments{Next: next, Release: serve.EnvironmentRelease{Fingerprint: rel.Fingerprint, Tags: []string{}}, Environments: []serve.EnvironmentEntry{}}
+	for name := range rel.Tags {
+		doc.Release.Tags = append(doc.Release.Tags, name)
+	}
+	sort.Strings(doc.Release.Tags)
+	depth := map[string]int{}
+	for i, r := range rows {
+		e := serve.EnvironmentEntry{Name: r.j.Name, After: r.j.After, Default: r.j.Default, State: r.j.State, Sealed: r.j.Sealed,
+			Release: r.j.Release, OtherTags: r.otherTags, Problem: r.j.Problem}
+		for _, a := range r.j.After {
+			if d := depth[a] + 1; d > e.Depth {
+				e.Depth = d
+			}
+		}
+		depth[e.Name] = e.Depth
+		if n := r.j.Runs; n != nil {
+			e.Runs = &serve.EnvironmentRun{Fingerprint: n.Fingerprint, GitRevision: n.GitRevision, At: n.At, By: n.By, Verified: n.Verified}
+		}
+		if p := r.j.Promoted; p != nil {
+			e.Promoted = &serve.EnvironmentPromotion{Kind: p.Kind, By: p.By, At: p.At, Note: p.Note}
+		}
+		switch e.Release {
+		case "promoted", "waived", "ready":
+			doc.Waiting++
+		}
+		if !r.runs && next == stepCommand(root, rows, i) {
+			e.Command = next
+		}
+		doc.Environments = append(doc.Environments, e)
+	}
+	return doc, nil
 }

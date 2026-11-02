@@ -1,0 +1,92 @@
+/* The Environments view and the environment button of the top bar. Tokens only, so that it follows the theme. Square
+   throughout: the ladder is a flow from left to right, a box for each environment and a line between the steps. */
+
+/* a ladder: three squares on a rising line, like the marks of the graph */
+.i-ladder { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 10.5h3v3h-3zM6.5 6.5h3v3h-3zM11.5 2.5h3v3h-3z' fill='black'/%3E%3Cpath d='M4.5 12h2.8V9.5M9.5 8h2.8V5.5' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E"); }
+
+/* ---- the button of the top bar: which environment the page reads, and how many wait for a step ---- */
+.envsw { position: relative; display: inline-flex; align-items: center; gap: .45rem; align-self: stretch; margin-left: .9rem; padding: 0 .7rem; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); background: none; color: var(--text-2); font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; transition: color var(--t-fast), background var(--t-fast); }
+.envsw:hover { color: var(--text); background: var(--surface-2); }
+.envsw[aria-pressed="true"] { color: var(--text); background: var(--accent-wash); }
+.envsw .i { width: .95rem; height: .95rem; color: var(--text-3); }
+.envsw[aria-pressed="true"] .i { color: var(--accent); }
+.envsw .nm { font: 500 var(--fs-3)/1 var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--text); }
+.envsw .cnt { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.1rem; padding: 0 .3rem; font: 600 var(--fs-1)/1 var(--font-mono); letter-spacing: 0; color: var(--surface); background: var(--change); }
+:root[data-theme="dark"] .envsw .cnt { color: var(--bg); }
+.envsw .cnt[hidden] { display: none; }
+
+.envs-pane { overflow: auto; padding: var(--page-pad); }
+.envs-pane :is(button, [tabindex]) { scroll-margin: .5rem; }
+.ev { display: grid; gap: 1.6rem; width: 100%; max-width: 72rem; margin: 0 auto; }
+.ev .h { margin: 0 0 .8rem; }
+.ev-sec { min-width: 0; }
+.ev code { font: 400 var(--fs-2)/1.4 var(--font-mono); overflow-wrap: anywhere; }
+.ev .dim { color: var(--text-3); }
+.ev-empty { margin: 0; padding: .8rem 1rem; border: 1px dashed var(--line-strong); color: var(--text-2); font-size: var(--fs-3); max-width: 46rem; }
+
+/* ---- the page: it has the whole width, and none of the Inventory's filters, plan or counts ---- */
+[data-view="environments"] .toolbar, [data-view="environments"] #pills { display: none; }
+body:has(.app[data-view="environments"]) .planstrip, body:has(.app[data-view="environments"]) #st-plan, body:has(.app[data-view="environments"]) #st-notread { display: none; }
+.app[data-view="environments"] { grid-template-columns: minmax(0, 1fr); }
+.app[data-view="environments"] .insp { display: none; }
+
+.ev-head { --hc: var(--accent); }
+.ev-head.chg { --hc: var(--change); }
+.ev-ladder { margin-left: .7rem; font: 500 var(--fs-3)/1 var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.ev-lede { margin: .45rem 0 0; max-width: 50rem; color: var(--text-2); font-size: var(--fs-5); line-height: 1.55; text-wrap: pretty; }
+
+/* ---- the ladder: columns of boxes, by step, with a line and an arrowhead between them ---- */
+.ev-lad { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: .4rem; }
+.ev-col { display: flex; flex-direction: column; gap: .8rem; flex: none; }
+.ev-flow { position: relative; flex: none; width: 2.4rem; align-self: stretch; }
+.ev-flow::before { content: ""; position: absolute; top: 1.35rem; left: .2rem; right: .45rem; border-top: 1px solid var(--line-strong); }
+.ev-arrow { position: absolute; top: 1.35rem; right: .2rem; width: 0; height: 0; margin-top: -.3rem; border-top: .3rem solid transparent; border-bottom: .3rem solid transparent; border-left: .45rem solid var(--line-strong); }
+
+.ev-box { --c: var(--line-strong); display: grid; gap: .55rem; align-content: start; width: 17rem; padding: .75rem .85rem .85rem; border: 1px solid var(--line-strong); border-top: 3px solid var(--c); background: var(--surface); }
+.ev-box.ok { --c: var(--accent); }
+.ev-box.chg { --c: var(--change); }
+.ev-box.bad { --c: var(--conflict); }
+.ev-box.reading { outline: 1px solid var(--accent); outline-offset: 2px; }
+.ev-name { display: flex; align-items: baseline; flex-wrap: wrap; gap: .35rem .5rem; }
+.ev-name code { font: 600 var(--fs-4)/1.2 var(--font-mono); color: var(--text); }
+.ev-tag { padding: .16rem .38rem; border: 1px solid var(--line-strong); font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.ev-tag.on { border-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--accent); background: var(--accent-wash); }
+.ev-after { margin: -.2rem 0 0; font-size: var(--fs-2); color: var(--text-3); }
+.ev-after code { color: var(--text-2); }
+.ev-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .25rem .7rem; margin: 0; padding: .5rem 0 0; border-top: 1px dashed var(--line); }
+.ev-f { display: contents; }
+.ev-f dt { font: 600 var(--fs-1)/1.5 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+.ev-f dd { margin: 0; min-width: 0; font-size: var(--fs-3); color: var(--text); overflow-wrap: anywhere; }
+.ev-st { display: flex; align-items: baseline; gap: .45rem; margin: 0; font-size: var(--fs-3); line-height: 1.45; color: var(--text-2); }
+.ev-st.ok { color: var(--accent); }
+.ev-st.chg { color: var(--change); }
+.ev-st.bad { color: var(--conflict); }
+.ev-st .i { flex: none; width: .85rem; height: .85rem; margin-top: .1rem; }
+.ev-dot { flex: none; width: .5rem; height: .5rem; background: currentColor; transform: translateY(-.05rem); }
+.ev-note { margin: 0; font-size: var(--fs-2); line-height: 1.45; color: var(--text-3); }
+.ev-open { justify-self: start; padding: .35rem .7rem; font-size: var(--fs-2); }
+.ev-cmd { display: flex; gap: .6rem; width: fit-content; max-width: 100%; padding: .4rem .3rem .4rem .7rem; font-size: var(--fs-2); box-shadow: none; }
+.ev-cmd code { min-width: 0; overflow-wrap: anywhere; }
+.ev-box .ev-cmd { width: 100%; }
+
+.ev-rel { margin: 0 0 .6rem; font-size: var(--fs-4); color: var(--text-2); }
+.ev-foot { margin: 0; padding-top: .8rem; border-top: 1px solid var(--line); font: 400 var(--fs-2)/1.4 var(--font-mono); color: var(--text-3); }
+
+@media (max-width: 47.5em) {
+  .envs-pane { padding: .75rem .75rem 2rem; }
+  .ev-lad { flex-direction: column; overflow-x: visible; }
+  .ev-flow { width: auto; height: 1.6rem; }
+  .ev-flow::before { inset: .2rem auto .45rem 1.2rem; border-top: 0; border-left: 1px solid var(--line-strong); }
+  .ev-arrow { inset: auto auto .2rem calc(1.2rem - .3rem); margin-top: 0; border-left: .3rem solid transparent; border-right: .3rem solid transparent; border-top: .45rem solid var(--line-strong); border-bottom: 0; }
+  .ev-box { width: 100%; }
+  .envsw { margin-left: .4rem; padding: 0 .45rem; }
+  .envsw .k { display: none; }
+}
+/* A phone has room for the mark only, as for the sections: the name is in the label of the button and on the page, and a
+   count sits over the mark. The tabs give up a little of their padding for it. */
+@media (max-width: 40em) {
+  .envsw { margin-left: 0; padding: 0 .35rem; }
+  .envsw .nm { display: none; }
+  .envsw .cnt { position: absolute; top: .4rem; right: -.05rem; min-width: .95rem; height: .85rem; padding: 0 .2rem; font-size: .5625rem; }
+  .top:has(.envsw:not([hidden])) .sec-tab { padding-inline: .2rem; }
+}

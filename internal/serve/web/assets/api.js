@@ -1,4 +1,4 @@
-// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, and two POSTs: a plan file dropped on the studio, which the server judges and writes nowhere, and a question to the chat, which only reads (README rule 12).
+// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, and three POSTs: a plan file dropped on the studio, which the server judges and writes nowhere, a question to the chat, which only reads (README rule 12), and the environment to read, which changes what the server loads and writes nothing.
 
 export class Unauthorized extends Error {
   constructor() { super('unauthorized'); this.name = 'Unauthorized'; }
@@ -66,6 +66,18 @@ export const studioDoc = (ref, i) => get('/api/studio/doc?ref=' + encodeURICompo
 export async function uploadPlan(name, bytes) {
   let r;
   try { r = await fetch('/api/studio/plan?name=' + encodeURIComponent(name), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', Accept: 'application/json' }, body: bytes, credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
+  let j = null;
+  try { j = await r.json(); } catch { /* not JSON */ }
+  if (!r.ok) throw Object.assign(new Error((j && j.error) || r.statusText || `status ${r.status}`), { status: r.status });
+  return j;
+}
+// environments is the ladder of a specification that declares $environments: what each environment runs and how the release of the directory stands there; a server that does not know them has none.
+export const environments = () => get('/api/environments').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', selected: '', ladder: '', release: { fingerprint: '', tags: [] }, environments: [], next: '', waiting: 0 }; throw err; });
+// switchEnvironment makes the server read another environment: its specification and its state, as a command run with -t env=NAME does. Nothing is written.
+export async function switchEnvironment(name) {
+  let r;
+  try { r = await fetch('/api/environment?name=' + encodeURIComponent(name), { method: 'POST', headers: { Accept: 'application/json' }, credentials: 'same-origin' }); } catch { throw new Unreachable(); }
   if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
   let j = null;
   try { j = await r.json(); } catch { /* not JSON */ }

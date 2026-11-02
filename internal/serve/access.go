@@ -14,6 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -81,9 +82,16 @@ func defaultAccessDir(dir string) string {
 	return here
 }
 
-// accessPath is the readers file the viewer reads and the watcher signs.
-func (s *Server) accessPath() string {
+// accessPath is the readers file the viewer reads and the watcher signs: the directory of the
+// options, else the one $settings.access.dir names, else the default.
+func (s *Server) accessPath(root *config.Root) string {
 	dir := s.opts.AccessDir
+	if dir == "" && root != nil && root.AccessDir != "" {
+		dir = root.AccessDir
+		if !filepath.IsAbs(dir) {
+			dir = filepath.Join(root.Dir, dir)
+		}
+	}
 	switch {
 	case dir == "":
 		dir = defaultAccessDir(s.opts.Dir)

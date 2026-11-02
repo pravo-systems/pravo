@@ -191,7 +191,7 @@ type promoteOpts struct {
 func promoteCmd() *cobra.Command {
 	var o promoteOpts
 	cmd := &cobra.Command{
-		Use:   "promote ENVIRONMENT",
+		Use:   "promote <environment>",
 		Short: "Let the release that the environments before one run into it",
 		Long: `An environment whose row in $environments names others in $after takes only a release that
 was promoted into it. promote reads the newest note of each environment it follows, which needs no

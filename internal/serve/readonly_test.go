@@ -24,6 +24,8 @@ func session(t *testing.T, p *project) {
 	}
 	p.get("/api/search?q=db")
 	p.get("/api/access")
+	p.get("/api/environments")
+	p.do("POST", "/api/environment?name=nowhere", nil)
 	// The stored plans, each laid over the graph and asked about in its nodes.
 	for _, sp := range p.plans().Plans {
 		p.get("/api/plan?id=" + sp.ID)

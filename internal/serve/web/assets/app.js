@@ -14,6 +14,7 @@ import { DiscoveryView } from './discovery.js';
 import { TracesView } from './traces.js';
 import { PoliciesView } from './policies.js';
 import { SecretsView } from './secrets.js';
+import { EnvironmentsView } from './environments.js';
 import { TemplatesView } from './templates.js';
 import { ChatView } from './chat.js';
 import { Palette, Sheet } from './palette.js';
@@ -30,7 +31,7 @@ const root = document.documentElement;
 const S = {
   // graph is what the page draws; raw is what the server sent, and the stored plan that is laid over it (plan, with
   // its overlay when the server did not lay it itself) makes the difference
-  graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null, access: null, discovery: null, policies: null, secrets: null, templates: null,
+  graph: null, raw: null, plans: [], plan: null, overlay: null, model: null, vis: null, lay: null, access: null, discovery: null, policies: null, secrets: null, templates: null, environments: null,
   view: 'graph', sel: null, tab: null, q: '', dq: '', plq: '',
   collapsed: new Set(), auto: new Set(), clusters: new Map(), trail: [],
   theme: null, motion: true, reach: false, zoom: 'fit',
@@ -39,7 +40,7 @@ const S = {
   runs: [], // the runs that pravo recorded, read when the palette opens
   live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
-let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, chatView;
+let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, environmentsView, chatView;
 let booted = false;
 
 // ---------------------------------------------------------------------------------------------------------
@@ -146,7 +147,7 @@ function readFragment() {
     plq: p.plq || '',
     q: Object.hasOwn(LEGACY_FILTERS, p.filter) ? addTerm(p.q || '', LEGACY_FILTERS[p.filter].col, LEGACY_FILTERS[p.filter].value, false) : p.q || '',
     // an address from before the view was renamed says table, or tree
-    view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'policies' ? 'policies' : p.view === 'secrets' ? 'secrets' : p.view === 'templates' ? 'templates' : p.view === 'traces' ? 'traces' : 'graph',
+    view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'policies' ? 'policies' : p.view === 'secrets' ? 'secrets' : p.view === 'templates' ? 'templates' : p.view === 'traces' ? 'traces' : p.view === 'environments' ? 'environments' : 'graph',
     trace: /^[0-9a-f]{32}-[0-9a-f]{16}$/.test(p.trace || '') ? p.trace : '',
     span: /^[0-9a-f]{16}$/.test(p.span || '') ? p.span : '',
     pol: (p.pol || '').slice(0, 512),
@@ -316,16 +317,16 @@ function wantedPlan(f) {
 // fetchAll reads the graph and the stored plans of one revision and, when the plan to show is a stored plan that
 // the server did not lay itself, its overlay. want is a plan id, 'none', or undefined for the page's own choice.
 async function fetchAll(want) {
-  let raw, list, access, discovery, policies, secrets, templates;
+  let raw, list, access, discovery, policies, secrets, templates, environments;
   // the Access and Discovery views do not stop the page: a document that cannot be read leaves the view saying so
   const soft = (err) => {
     if (err instanceof api.Unauthorized || err instanceof api.Unreachable) throw err;
     return null;
   };
   for (let i = 0; ; i++) {
-    [raw, list, access, discovery, policies, secrets, templates] = await Promise.all([api.graph(), api.plans(), api.access().catch(soft), api.discovery().catch(soft), api.policies().catch(soft), api.secrets().catch(soft), api.templates().catch(soft)]);
+    [raw, list, access, discovery, policies, secrets, templates, environments] = await Promise.all([api.graph(), api.plans(), api.access().catch(soft), api.discovery().catch(soft), api.policies().catch(soft), api.secrets().catch(soft), api.templates().catch(soft), api.environments().catch(soft)]);
     const same = (x) => !x || !x.revision || x.revision === raw.revision;
-    if ((same(list) && same(access) && same(discovery) && same(policies) && same(secrets)) || i >= 2) break; // the project changed between the requests
+    if ((same(list) && same(access) && same(discovery) && same(policies) && same(secrets) && same(environments)) || i >= 2) break; // the project changed between the requests
   }
   const plans = list.plans || [];
   const own = ownPlan(raw);
@@ -347,7 +348,7 @@ async function fetchAll(want) {
     plan = own;
     overlay = plan ? await read(plan) : null;
   }
-  return { raw, plans, access, discovery, policies, secrets, templates, plan, overlay, gone, failed };
+  return { raw, plans, access, discovery, policies, secrets, templates, environments, plan, overlay, gone, failed };
 }
 
 // the overlay of the plan that is laid over the graph, which has what the author wrote with it
@@ -943,6 +944,7 @@ const TITLES = {
   secrets: 'pravo serve: the secrets that the sealed state keeps, and the nodes that read them',
   templates: 'pravo serve: the templates of the specification, their instances, and a form for a new one',
   traces: 'pravo serve: the recorded runs of pravo, as timelines of spans',
+  environments: 'pravo serve: the environments of the specification, what each runs, and the release climbing the ladder',
 };
 
 function setView(v) {
@@ -957,6 +959,7 @@ function setView(v) {
   $('policies-pane').hidden = v !== 'policies';
   $('secrets-pane').hidden = v !== 'secrets';
   $('templates-pane').hidden = v !== 'templates';
+  $('envs-pane').hidden = v !== 'environments';
   if (v !== 'traces' && tracesView) tracesView.close();
   if (v === 'graph' || v === 'list') S.lastResources = v;
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
@@ -969,20 +972,22 @@ function setView(v) {
   $('sec-secrets').setAttribute('aria-pressed', v === 'secrets' ? 'true' : 'false');
   $('sec-templates').setAttribute('aria-pressed', v === 'templates' ? 'true' : 'false');
   $('sec-access').setAttribute('aria-pressed', v === 'access' ? 'true' : 'false');
+  $('env-btn').setAttribute('aria-pressed', v === 'environments' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'list' ? 'Skip to the list' : v === 'plans' ? 'Skip to the plans' : v === 'discovery' ? 'Skip to the discoveries' : v === 'traces' ? 'Skip to the traces' : v === 'policies' ? 'Skip to the policies' : v === 'secrets' ? 'Skip to the secrets' : v === 'templates' ? 'Skip to the templates' : 'Skip to the state';
+  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'list' ? 'Skip to the list' : v === 'plans' ? 'Skip to the plans' : v === 'discovery' ? 'Skip to the discoveries' : v === 'traces' ? 'Skip to the traces' : v === 'policies' ? 'Skip to the policies' : v === 'secrets' ? 'Skip to the secrets' : v === 'templates' ? 'Skip to the templates' : v === 'environments' ? 'Skip to the environments' : 'Skip to the state';
   if (v === 'list') renderList();
   else if (v === 'access') renderAccess();
   else if (v === 'discovery') renderDiscovery();
   else if (v === 'policies') renderPolicies();
   else if (v === 'secrets') renderSecrets();
   else if (v === 'templates') renderTemplates();
+  else if (v === 'environments') renderEnvironments();
   else if (v === 'traces') tracesView.open();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   setDocTitle();
   syncFragment();
-  announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : v === 'traces' ? 'Traces' : v === 'policies' ? 'Policies' : v === 'secrets' ? 'Secrets' : v === 'templates' ? 'Templates' : 'Inventory, graph view');
+  announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : v === 'traces' ? 'Traces' : v === 'policies' ? 'Policies' : v === 'secrets' ? 'Secrets' : v === 'templates' ? 'Templates' : v === 'environments' ? 'Environments' : 'Inventory, graph view');
 }
 
 // openPlan goes to the Plans page with the detail of a plan open under its row.
@@ -1026,6 +1031,38 @@ function renderTemplates() {
 
 function renderSecrets() {
   secretsView.render({ secrets: S.secrets });
+}
+
+function renderEnvironments() {
+  environmentsView.render({ environments: S.environments });
+}
+
+// renderEnvButton names on the bar the environment the page reads, and counts the environments where someone has a step
+// to take for the release of this directory: a number only when something waits, as on the tabs. A specification without
+// environments has no button.
+function renderEnvButton() {
+  const p = S.graph && S.graph.project;
+  const envs = (p && p.environments) || [];
+  const btn = $('env-btn');
+  btn.hidden = !envs.length;
+  $('env-name').textContent = (p && p.environment) || '';
+  const n = S.environments ? S.environments.waiting : 0;
+  const el = $('env-count');
+  el.hidden = !(n > 0);
+  el.textContent = n > 99 ? '99+' : String(n);
+  btn.setAttribute('aria-label', envs.length ? `Environments: reading ${p.environment}${n > 0 ? `, ${n} waiting for a step` : ''}` : 'Environments');
+}
+
+// switchEnvironment makes the server read another environment, and reads the project again.
+async function switchEnvironment(name) {
+  try {
+    await api.switchEnvironment(name);
+  } catch (err) {
+    toast(`Could not open ${name}: ${err.message || err}`, 'error', 6000);
+    return;
+  }
+  toast(`Reading ${name}`, 'info', 3200, 'The specification and the state of that environment.');
+  await refresh();
 }
 
 // renderSecretsTab shows on the tab how many things the page flags: a number only when something is wrong, as the other
@@ -1104,7 +1141,7 @@ function renderHeader() {
 }
 
 // the tab says where the page is: the project, then the section, so that several estates in several tabs tell apart
-const SECTION = { graph: 'Inventory', list: 'Inventory', plans: 'Plans', discovery: 'Discovery', traces: 'Traces', policies: 'Policies', secrets: 'Secrets', templates: 'Templates', access: 'State' };
+const SECTION = { graph: 'Inventory', list: 'Inventory', plans: 'Plans', discovery: 'Discovery', traces: 'Traces', policies: 'Policies', secrets: 'Secrets', templates: 'Templates', environments: 'Environments', access: 'State' };
 function setDocTitle() {
   const dir = S.graph && S.graph.project && S.graph.project.dir;
   document.title = dir ? `${baseName(dir)} \u00b7 ${SECTION[S.view] || 'Inventory'} \u00b7 pravo serve` : 'pravo serve';
@@ -1219,7 +1256,7 @@ function toggleInspSize() {
 // ---------------------------------------------------------------------------------------------------------
 // live updates
 
-const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock', plans: 'the stored plans', access: 'the access list', discovery: 'the discoveries' };
+const WHAT = { state: 'the state', spec: 'the specification', plan: 'the plan', locks: 'a lock', plans: 'the stored plans', access: 'the access list', discovery: 'the discoveries', env: 'the environment' };
 let pendingWhat = new Set();
 
 async function refresh() {
@@ -1250,6 +1287,7 @@ async function refresh() {
   S.policies = r.policies;
   S.secrets = r.secrets;
   S.templates = r.templates;
+  S.environments = r.environments;
   S.plan = r.plan;
   S.overlay = r.overlay;
   const g = shown(r.raw);
@@ -1281,9 +1319,11 @@ async function refresh() {
   if (S.view === 'policies') renderPolicies();
   if (S.view === 'secrets') renderSecrets();
   if (S.view === 'templates') renderTemplates();
+  if (S.view === 'environments') renderEnvironments();
   renderDiscoveryTab();
   renderPoliciesTab();
   renderSecretsTab();
+  renderEnvButton();
   renderPlansTab();
   const flash = [...d.changed, ...d.added].map((a) => S.vis.rep.get(a)).filter(Boolean);
   gv.flash(new Set(flash));
@@ -1451,6 +1491,9 @@ function paletteActions() {
   if (S.view !== 'plans') add('Go to', 'Go to Plans', ['p'], into('plans'), { icon: 'file', words: 'stored plans' });
   if (S.view !== 'templates') add('Go to', 'Go to Templates', ['m'], into('templates'), { icon: 'template', words: 'templates catalog blueprints wizard instance new form create' });
   if (S.view !== 'secrets') add('Go to', 'Go to Secrets', ['e'], into('secrets'), { icon: 'key', words: 'secrets vault sealed values passwords tokens credentials keys' });
+  const envs = (S.graph && S.graph.project && S.graph.project.environments) || [];
+  if (envs.length && S.view !== 'environments') add('Go to', 'Go to Environments', ['v'], into('environments'), { icon: 'ladder', words: 'environments ladder promote promotion release dev staging prod stage' });
+  for (const name of envs) if (name !== S.graph.project.environment) add('Environments', `Read the environment ${name}`, [], () => switchEnvironment(name), { icon: 'ladder', words: 'environment switch open ' + name });
   if (S.view !== 'access') add('Go to', 'Go to State', ['a'], into('access'), { icon: 'lock', words: 'access members readers sealed roles' });
   if (res) {
     if (S.view === 'list') add('View', 'Show the graph', ['g'], into('graph'), { words: 'view' });
@@ -1520,9 +1563,10 @@ function onKey(ev) {
   if (k === 'o') { setView(S.view === 'policies' ? (S.lastResources || 'graph') : 'policies'); return; }
   if (k === 'e') { setView(S.view === 'secrets' ? (S.lastResources || 'graph') : 'secrets'); return; }
   if (k === 'm') { setView(S.view === 'templates' ? (S.lastResources || 'graph') : 'templates'); return; }
+  if (k === 'v' && !$('env-btn').hidden) { setView(S.view === 'environments' ? (S.lastResources || 'graph') : 'environments'); return; }
   if (k === 's' && S.view === 'policies') { policiesView.toggleStudio(); return; }
   if (k === 'r') { setView(S.view === 'traces' ? (S.lastResources || 'graph') : 'traces'); return; }
-  if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates') return; // the keys below are for the resources
+  if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates' || S.view === 'environments') return; // the keys below are for the resources
   if (k === 'g') { setView(S.view === 'graph' ? 'list' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
@@ -1595,6 +1639,7 @@ function wire() {
     // a state that is not sealed: sealing is on the State page
     onState: () => setView('access'),
   });
+  environmentsView = new EnvironmentsView($('envs-pane'), { onSwitch: (name) => switchEnvironment(name) });
   templatesView = new TemplatesView($('templates-pane'), {
     // an instance: the graph opens on its group
     onNamespace: (path) => { setView(S.lastResources || 'graph'); showNamespace(path); },
@@ -1624,7 +1669,7 @@ function wire() {
       const there = !away && S.sel === key && (S.view === 'list' || kind === 'namespace' || !!(S.vis && itemOf(key) && gv.visible(itemOf(key), 60)));
       if (!there) pushReturn();
       S.foundAt = key;
-      if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates') setView(S.lastResources || 'graph'); // a resource is found among the resources
+      if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates' || S.view === 'environments') setView(S.lastResources || 'graph'); // a resource is found among the resources
       if (kind === 'namespace') {
         const ns = S.model.namespaces.get(key);
         for (const m of chain(ns)) S.collapsed.delete(m.path);
@@ -1657,11 +1702,12 @@ function wire() {
 
   $('view-graph').addEventListener('click', () => setView('graph'));
   $('view-list').addEventListener('click', () => setView('list'));
-  $('sec-inventory').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates') setView(S.lastResources || 'graph'); });
+  $('sec-inventory').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates' || S.view === 'environments') setView(S.lastResources || 'graph'); });
   $('sec-discovery').addEventListener('click', () => setView('discovery'));
   $('sec-traces').addEventListener('click', () => setView('traces'));
   $('sec-policies').addEventListener('click', () => setView('policies'));
   $('sec-secrets').addEventListener('click', () => setView('secrets'));
+  $('env-btn').addEventListener('click', () => setView(S.view === 'environments' ? (S.lastResources || 'graph') : 'environments'));
   $('sec-templates').addEventListener('click', () => setView('templates'));
   $('sec-plans').addEventListener('click', () => setView('plans'));
   $('sec-access').addEventListener('click', () => setView('access'));
@@ -1686,7 +1732,7 @@ function wire() {
   initTips();
   // the skip link goes to the graph, or to the list in the list view; it must not write #canvas into the address, which is the view
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else if (S.view === 'discovery') $('discovery-pane').focus(); else if (S.view === 'traces') $('traces-pane').focus(); else if (S.view === 'policies') $('policies-pane').focus(); else if (S.view === 'secrets') $('secrets-pane').focus(); else if (S.view === 'templates') $('templates-pane').focus(); else list.scroller.focus(); });
+  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else if (S.view === 'discovery') $('discovery-pane').focus(); else if (S.view === 'traces') $('traces-pane').focus(); else if (S.view === 'policies') $('policies-pane').focus(); else if (S.view === 'secrets') $('secrets-pane').focus(); else if (S.view === 'templates') $('templates-pane').focus(); else if (S.view === 'environments') $('envs-pane').focus(); else list.scroller.focus(); });
   // the mark at the top left goes back to the start: nothing selected, no filter, the first view (not the address "#/", which would drop the theme and the motion setting too)
   const brand = document.querySelector('.brand');
   if (brand) brand.addEventListener('click', (ev) => {
@@ -1823,6 +1869,7 @@ async function boot() {
   renderDiscoveryTab();
   renderPoliciesTab();
   renderSecretsTab();
+  renderEnvButton();
   chatView.init().then((on) => { $('ask-btn').hidden = !on; });
 }
 
@@ -1848,6 +1895,7 @@ async function load(frag) {
   S.policies = r.policies;
   S.secrets = r.secrets;
   S.templates = r.templates;
+  S.environments = r.environments;
   S.plan = r.plan;
   S.overlay = r.overlay;
   setModel(shown(r.raw), frag);
@@ -1906,7 +1954,7 @@ async function load(frag) {
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, insp, palette, chatView, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, environmentsView, insp, palette, chatView, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

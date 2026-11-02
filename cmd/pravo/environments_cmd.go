@@ -268,17 +268,21 @@ func readEnvironmentRows(ctx context.Context, root *config.Root, rel engine.Rele
 // in the first environment that does not run it and may take it, or the promotion into it.
 func nextStep(root *config.Root, rows []envRow) string {
 	for i, r := range rows {
-		if r.runs {
-			continue
+		if !r.runs {
+			return stepCommand(root, rows, i)
 		}
-		env := root.Environments[i]
-		switch {
-		case len(env.After) == 0, r.j.Release == "promoted", r.j.Release == "waived", !r.j.Sealed && r.j.State != "":
-			return engine.ApplyCommand(root, env.Name)
-		}
-		return engine.PromoteCommand(root, env.Name)
 	}
 	return "nothing: every environment runs this directory"
+}
+
+// stepCommand is the command that moves the release into the environment of row i.
+func stepCommand(root *config.Root, rows []envRow, i int) string {
+	r, env := rows[i], root.Environments[i]
+	switch {
+	case len(env.After) == 0, r.j.Release == "promoted", r.j.Release == "waived", !r.j.Sealed && r.j.State != "":
+		return engine.ApplyCommand(root, env.Name)
+	}
+	return engine.PromoteCommand(root, env.Name)
 }
 
 // ---------- environments record ----------
@@ -370,7 +374,7 @@ func recordText(rec *state.EnvironmentRecord) string {
 
 func environmentsDiffCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "diff ENV ENV",
+		Use:   "diff <environment> <environment>",
 		Short: "Compare what the specification declares in two environments",
 		Long: `Evaluates the specification once for each environment and compares the resources it declares:
 which ones only one of them has, and the fields whose values differ. It compares the specification,

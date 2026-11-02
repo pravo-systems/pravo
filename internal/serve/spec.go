@@ -71,6 +71,8 @@ type specState struct {
 	// cueMu orders every use of the CUE values of root: the evaluation is not
 	// safe for concurrent use.
 	cueMu sync.Mutex
+	// env is the environment the specification was loaded for, empty without one.
+	env string
 }
 
 // loadSpec loads the specification of the project. A specification that does

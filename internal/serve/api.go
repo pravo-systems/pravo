@@ -45,6 +45,10 @@ type Project struct {
 	// shows the state alone: every node has Presence "state".
 	SpecError string    `json:"spec_error,omitempty"`
 	LoadedAt  time.Time `json:"loaded_at"`
+	// Environment is the environment of $environments the page reads, and Environments all of
+	// them in the order of the ladder. Both are empty for a specification without any.
+	Environment  string   `json:"environment,omitempty"`
+	Environments []string `json:"environments,omitempty"`
 }
 
 // StateInfo describes the state that is read.

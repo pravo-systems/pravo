@@ -1,5 +1,5 @@
 // The view is in the URL fragment: #/?sel=ADDR&tab=state&collapse=A,B&expand=C&theme=dark&q=TEXT
-// &plan=plan-2f9c1a4e&view=graph|list|state|plans|discovery|policies|secrets|templates|traces&tpl=NAME&tn=1&pol=NAME&ps=1&trace=ID&span=ID&tv=table&tz=START-END&tq=TEXT&motion=off&zoom=fit. Values are URL-encoded and lists are comma separated.
+// &plan=plan-2f9c1a4e&view=graph|list|state|plans|discovery|policies|secrets|templates|traces|environments&tpl=NAME&tn=1&pol=NAME&ps=1&trace=ID&span=ID&tv=table&tz=START-END&tq=TEXT&motion=off&zoom=fit. Values are URL-encoded and lists are comma separated.
 
 export function parseFragment(hash) {
   let t = (hash || '').replace(/^#/, '');

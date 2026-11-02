@@ -21,7 +21,7 @@ import (
 // named in an event. "plan" is the plan file of --plan, "plans" the plans stored
 // in the state, "access" the readers file, "discovery" what the discoveries
 // found and the acknowledgements of it, "traces" the recorded runs.
-var components = []string{"state", "spec", "plan", "locks", "plans", "access", "discovery", "traces"}
+var components = []string{"state", "spec", "plan", "locks", "plans", "access", "discovery", "traces", "env"}
 
 // fullScanEvery is how often, in polls, a state directory of many records is
 // read entry by entry. In between, the directories themselves are looked at:
@@ -55,6 +55,7 @@ type watcher struct {
 	access   string // the readers file, "" for none
 	traces   string // the directory of the recorded runs, "" for none
 	remote   int    // polls since the remote state was looked at
+	env      string // the environment the page reads
 
 	// The stored plans are signed by what is written: the base. A plan that is
 	// not applied expires without anything being written, so the nearest expiry of
@@ -88,6 +89,14 @@ func (w *watcher) revision() string {
 func (w *watcher) setSpecFiles(files []string) {
 	w.mu.Lock()
 	w.files = files
+	w.mu.Unlock()
+}
+
+// setEnvironment tells the watcher which environment the page reads: another one is another
+// revision.
+func (w *watcher) setEnvironment(name string) {
+	w.mu.Lock()
+	w.env = name
 	w.mu.Unlock()
 }
 
@@ -160,6 +169,7 @@ func (w *watcher) sampleLocked(remote []string) (string, map[string]string) {
 	}
 	next["plans"] = w.plansBase + "#" + strconv.Itoa(w.epoch)
 	next["discovery"] = w.discoveryBase
+	next["env"] = w.env
 	next["traces"] = ""
 	if w.traces != "" {
 		next["traces"] = dirSignature(w.traces, true)
