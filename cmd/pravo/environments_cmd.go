@@ -27,11 +27,11 @@ func environmentsCmd() *cobra.Command {
 		Aliases: []string{"envs"},
 		Short:   "Show what each environment of the specification runs, and the next step of the release",
 		Long: `Reads the state of each environment that $environments declares, without a key and without a
-provider, and shows the ladder: which environment follows which, what each runs (the specification
+provider, and shows the promotion flow: which environment follows which, what each runs (the specification
 by its id, and the git revision it was applied from), since when and by whom, and how the release of
 this directory stands in each. The last line is the next command to type.
 
-  pravo environments                 the ladder, for the release of this directory
+  pravo environments                 the promotion flow, for the release of this directory
   pravo environments -t image=1.4    for the release with these tags
   pravo environments diff staging prod
   pravo environments record --env prod
@@ -51,8 +51,8 @@ bucket these credentials cannot read) is shown as such, and the others still are
 }
 
 // loadAnyEnvironment loads the specification for the environment that -t names, else for its
-// default, else for the first of the ladder: what a command that looks at every environment
-// needs of it is the same in each (the release, the ladder).
+// default, else for the first of the promotion flow: what a command that looks at every environment
+// needs of it is the same in each (the release, the promotion flow).
 func loadAnyEnvironment() (*config.Root, error) {
 	tags := flags.Tags
 	if _, ok := config.EnvironmentOf(tags); !ok {
@@ -142,9 +142,9 @@ func showEnvironments(cmd *cobra.Command) error {
 		for i, r := range rows {
 			envs[i] = r.j
 		}
-		return emitJSON(map[string]any{"ladder": config.LadderText(root.Environments), "release": releaseJSON(root, rel), "environments": envs, "next": next})
+		return emitJSON(map[string]any{"flow": config.FlowText(root.Environments), "release": releaseJSON(root, rel), "environments": envs, "next": next})
 	}
-	out.Println(config.LadderText(root.Environments))
+	out.Println(config.FlowText(root.Environments))
 	out.Println()
 	table := [][]string{{"ENV", "FOLLOWS", "RUNS", "GIT", "SINCE", "BY", ""}}
 	for _, r := range rows {
@@ -213,7 +213,7 @@ func status(r envRow) string {
 	return strings.Join(parts, "; ")
 }
 
-// readEnvironmentRows reads the state of each environment in the order of the ladder.
+// readEnvironmentRows reads the state of each environment in the order of the promotion flow.
 func readEnvironmentRows(ctx context.Context, root *config.Root, rel engine.Release) []envRow {
 	envs := &environmentsOf{root: root}
 	rows := make([]envRow, 0, len(root.Environments))

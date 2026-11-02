@@ -563,7 +563,7 @@ func ApplyCommand(root *config.Root, env string) string {
 }
 
 // Steps are the commands that bring the release of the root to the environment to, in the
-// order of the ladder: apply it in each first environment that leads there, then promote it
+// order of the promotion flow: apply it in each first environment that leads there, then promote it
 // into each one after and apply it there. The last step is the promotion into to.
 func Steps(root *config.Root, to string) string {
 	need := map[string]bool{to: true}

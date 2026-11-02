@@ -11,20 +11,20 @@ import (
 )
 
 // The environments of a specification that declares $environments. The viewer reads one of them
-// at a time: the one that --env NAME named, else the default, else the first of the ladder. The
+// at a time: the one that --env NAME named, else the default, else the first of the promotion flow. The
 // page can switch to another, which loads the specification for it and opens its state, as a
 // command run with --env NAME would; nothing is written. The Environments page shows the
-// ladder: what each environment runs and how the release of the directory stands in each, which
+// promotion flow: what each environment runs and how the release of the directory stands in each, which
 // the command (Options.Environments) reads from the states without a key.
 
 // Environments is the answer of GET /api/environments.
 type Environments struct {
 	Version  int    `json:"version"`
 	Revision string `json:"revision"`
-	// Selected is the environment the page reads, and Ladder the environments in order, as
+	// Selected is the environment the page reads, and Flow the environments in order, as
 	// "dev → staging → {prod-eu, prod-us}".
 	Selected string `json:"selected"`
-	Ladder   string `json:"ladder"`
+	Flow     string `json:"flow"`
 	// Release is the specification of the directory, by its fingerprint, with the names of the
 	// tags it is read with (never their values).
 	Release      EnvironmentRelease `json:"release"`
@@ -45,12 +45,12 @@ type EnvironmentRelease struct {
 	Tags        []string `json:"tags"`
 }
 
-// EnvironmentEntry is one environment of the ladder.
+// EnvironmentEntry is one environment of the promotion flow.
 type EnvironmentEntry struct {
 	Name    string   `json:"name"`
 	After   []string `json:"after"`
 	Default bool     `json:"default,omitempty"`
-	// Depth is the step of the ladder: 0 for an environment that follows none.
+	// Depth is the step of the promotion flow: 0 for an environment that follows none.
 	Depth int `json:"depth"`
 	// State is where its state is kept; Sealed whether it is sealed.
 	State  string `json:"state,omitempty"`
@@ -104,7 +104,7 @@ func (s *Server) loadOptions() Options {
 	if _, given := config.EnvironmentOf(o.Tags); given {
 		return o
 	}
-	// No environment was named: the default one, else the first of the ladder, so that a
+	// No environment was named: the default one, else the first of the promotion flow, so that a
 	// specification whose environments have no default still shows.
 	list, err := config.ReadEnvironmentSettings(o.Dir, config.LoadOptions{Tags: o.Tags, SysTags: o.SysTags, Env: o.Env})
 	if err != nil || len(list) == 0 {
@@ -135,14 +135,14 @@ func (m *model) environmentsJSON(ctx context.Context) []byte {
 		case m.srv.opts.Environments == nil:
 			doc.Error = "the environments are not read by this viewer"
 		default:
-			doc.Selected, doc.Ladder = root.Environment, config.LadderText(root.Environments)
+			doc.Selected, doc.Flow = root.Environment, config.FlowText(root.Environments)
 			m.spec.cueMu.Lock()
 			got, err := m.srv.opts.Environments(ctx, root)
 			m.spec.cueMu.Unlock()
 			if err != nil {
 				doc.Error = m.scrubText(cleanReason(err.Error()))
 			} else if got != nil {
-				got.Version, got.Revision, got.Selected, got.Ladder = doc.Version, doc.Revision, doc.Selected, doc.Ladder
+				got.Version, got.Revision, got.Selected, got.Flow = doc.Version, doc.Revision, doc.Selected, doc.Flow
 				got.Next = m.scrubText(got.Next)
 				for i := range got.Environments {
 					e := &got.Environments[i]

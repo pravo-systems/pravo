@@ -944,7 +944,7 @@ const TITLES = {
   secrets: 'pravo serve: the secrets that the sealed state keeps, and the nodes that read them',
   templates: 'pravo serve: the templates of the specification, their instances, and a form for a new one',
   traces: 'pravo serve: the recorded runs of pravo, as timelines of spans',
-  environments: 'pravo serve: the environments of the specification, what each runs, and the release climbing the ladder',
+  environments: 'pravo serve: the environments of the specification, what each runs, and the release moving along the promotion flow',
 };
 
 function setView(v) {
@@ -1074,7 +1074,7 @@ function renderEnvButton() {
 
 // The menu of the environment button: one row for each environment, the one the page reads marked, and how the release
 // of this directory stands in each, so that a switch is one choice and the graph stays where it was. The page of the
-// ladder is its last row. Arrows move along the rows, Escape and a click elsewhere close it.
+// promotion flow is its last row. Arrows move along the rows, Escape and a click elsewhere close it.
 function envMenuOpen() { return !!$('env-menu'); }
 
 function closeEnvMenu(focus = false) {
@@ -1118,7 +1118,7 @@ function openEnvMenu() {
   const ladder = h('button', {
     type: 'button', class: 'em-row em-page', role: 'menuitem',
     on: { click: pick(() => setView(onPage ? (S.lastResources || 'graph') : 'environments')) },
-  }, icon('ladder'), h('span', { class: 'em-tx' }, h('span', { class: 'em-pg' }, onPage ? 'Back to the resources' : 'Open the ladder'), h('span', { class: 'em-ln' }, onPage ? 'the graph of the environment the page reads' : 'what each runs, and the next promotion')));
+  }, icon('ladder'), h('span', { class: 'em-tx' }, h('span', { class: 'em-pg' }, onPage ? 'Back to the resources' : 'Open the promotion flow'), h('span', { class: 'em-ln' }, onPage ? 'the graph of the environment the page reads' : 'what each runs, and the next promotion')));
   const btn = $('env-btn');
   const r = btn.getBoundingClientRect();
   const menu = h('div', { class: 'env-menu', id: 'env-menu', role: 'menu', 'aria-label': 'Environments', style: `left:${Math.round(r.left)}px; top:${Math.round(r.bottom)}px` },
@@ -1256,7 +1256,7 @@ function renderBanners() {
   const res = S.model ? S.model.list.filter((n) => n.mode === 'managed') : [];
   const env = p.environment || '';
   if (!p.spec_error && res.length && res.every((n) => n.presence === 'spec') && !dismissed.has('empty:' + env)) {
-    // the command of the ladder when this environment is the next step, which carries the tags of the release
+    // the command of the promotion flow when this environment is the next step, which carries the tags of the release
     const entry = env && S.environments ? (S.environments.environments || []).find((e) => e.name === env) : null;
     const cmd = entry && entry.command ? entry.command : !env ? 'pravo apply' : entry && (entry.after || []).length ? `pravo promote ${env}` : `pravo apply --env ${env}`;
     box.append(banner('info', 'status', [h('b', null, env ? `Nothing in ${env} is created yet.` : 'Nothing is created yet.'),

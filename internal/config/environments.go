@@ -159,7 +159,7 @@ func topEnvironments(files []*ast.File) bool {
 // parseEnvironments reads the evaluated $environments and checks it: every row is a
 // struct, every $after names another row, the rows that follow one another make no
 // circle, and at most one row is the default. The rows are returned in the order of the
-// ladder: an environment after every one it follows, and otherwise in the order written.
+// promotion flow: an environment after every one it follows, and otherwise in the order written.
 func parseEnvironments(v cue.Value) ([]Environment, error) {
 	const label = "$environments"
 	if v.IncompleteKind() != cue.StructKind {
@@ -243,16 +243,16 @@ func parseEnvironments(v cue.Value) ([]Environment, error) {
 			seen[a] = true
 		}
 	}
-	ordered, err := ladderOrder(envs)
+	ordered, err := flowOrder(envs)
 	if err != nil {
 		return nil, err
 	}
 	return ordered, nil
 }
 
-// ladderOrder sorts the environments so that each comes after every one it follows, and
+// flowOrder sorts the environments so that each comes after every one it follows, and
 // otherwise keeps the order they were written in. A circle is an error that names it.
-func ladderOrder(envs []Environment) ([]Environment, error) {
+func flowOrder(envs []Environment) ([]Environment, error) {
 	placed := map[string]bool{}
 	var out []Environment
 	for len(out) < len(envs) {
@@ -408,7 +408,7 @@ func (r *Root) Current() (Environment, bool) {
 	return r.Env(r.Environment)
 }
 
-// Followers lists the environments whose $after names env, in ladder order.
+// Followers lists the environments whose $after names env, in the order of the promotion flow.
 func (r *Root) Followers(env string) []string {
 	var out []string
 	for _, e := range r.Environments {
@@ -421,13 +421,13 @@ func (r *Root) Followers(env string) []string {
 	return out
 }
 
-// EnvironmentNames lists the environments in ladder order.
+// EnvironmentNames lists the environments in the order of the promotion flow.
 func (r *Root) EnvironmentNames() []string { return names(r.Environments) }
 
-// LadderText draws the order of the environments on one line, as "dev → staging → prod",
+// FlowText draws the order of the environments on one line, as "dev → staging → prod",
 // with the branches of a fan-out in braces: "dev → staging → {prod-eu, prod-us}". It is
 // empty for a root without environments.
-func LadderText(envs []Environment) string {
+func FlowText(envs []Environment) string {
 	if len(envs) == 0 {
 		return ""
 	}

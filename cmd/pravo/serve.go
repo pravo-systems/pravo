@@ -629,7 +629,7 @@ func (v *viewerState) readersFile() readersFile {
 	return loadReadersFileFrom(v.dir, v.explicitAccess, root.AccessDir)
 }
 
-// viewerEnvironments reads the ladder for the Environments page of the viewer, as "pravo
+// viewerEnvironments reads the promotion flow for the Environments page of the viewer, as "pravo
 // environments" does: without a key, writing nothing.
 func viewerEnvironments(ctx context.Context, root *config.Root) (*serve.Environments, error) {
 	rel, err := engine.ReleaseOf(root)

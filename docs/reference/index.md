@@ -38,7 +38,7 @@ Every page opens with the synopsis, the flags with their defaults, and the exit 
 | `pravo providers` | Lists providers, pins hashes, copies a provider to a registry. | [providers](providers.md) |
 | `pravo validate`, `eval`, `fmt`, `gen` | Checks the specification, prints its value, formats the files, regenerates the packages. | [validate, eval, fmt and gen](validate-eval-fmt-gen.md) |
 | `pravo schema` | Prints the definition of one resource type. | [schema](schema.md) |
-| `pravo environments` | Shows what each environment runs and how the release of this directory stands there. Compares two environments, records the place of a state in the ladder. | [environments](environments.md) |
+| `pravo environments` | Shows what each environment runs and how the release of this directory stands there. Compares two environments, records the place of a state in the promotion flow. | [environments](environments.md) |
 | `pravo promote` | Brings the release that the environments before one run into it, withdraws a promotion, waives the check. | [promote](promote.md) |
 | `pravo serve` | Starts the viewer: the estate, the stored plans, the discoveries, the policies, the secrets and the recorded runs in a browser. Reads and writes nothing. | [serve](serve.md) |
 | `pravo mcp` | Serves pravo to an agent over the Model Context Protocol. | [mcp](mcp.md) |
@@ -77,7 +77,7 @@ The fields and definitions that a specification uses, and the CUE behind them.
 | [Environment variables and remote outputs](spec-env.md) | Environment values, secret environment values, the secrets of a sealed state and the outputs of another root. |
 | [Meta fields](spec-meta-fields.md) | `$lifecycle`, `$depends_on` and the other `$` fields of a resource. |
 | [Tags and variables](spec-tags-and-variables.md) | `@tag()` fields and how a command fills them. |
-| [Environments](spec-environments.md) | `$environments` and `$environment`: the environments one specification is applied to, the ladder of `$after`, the gate and the record of each state. |
+| [Environments](spec-environments.md) | `$environments` and `$environment`: the environments one specification is applied to, the promotion flow of `$after`, the gate and the record of each state. |
 | [Reuse](spec-reuse.md) | Definitions that hold resources, the packages that share them, and what a `module` block becomes. |
 | [Generated packages](spec-generated-packages.md) | The packages under `cue.mod/gen`. |
 

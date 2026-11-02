@@ -11,7 +11,7 @@ A term links to the lesson that teaches it, or to the page that describes it. A 
 | Group | Terms |
 |---|---|
 | CUE | [attribute](#attribute), [bottom](#bottom), [bound](#bound), [closed](#closed), [comprehension](#comprehension), [concrete](#concrete), [conflict](#conflict), [constraint](#constraint), [default](#default), [definition](#definition), [disjunction](#disjunction), [embedding](#embedding), [evaluation](#evaluation), [field](#field), [hidden field](#hidden-field), [import](#import), [incomplete](#incomplete), [interpolation](#interpolation), [let](#let), [list](#list), [open](#open), [optional field](#optional-field), [package](#package), [pattern](#pattern), [reference](#reference), [regular field](#regular-field), [required field](#required-field), [standard library](#standard-library), [struct](#struct), [tag](#tag), [type](#type), [unification](#unification) |
-| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [approval](#approval), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [environment](#environment), [generated package](#generated-package), [group](#group), [identity](#identity), [input](#input), [ladder](#ladder), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [promotion](#promotion), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [release](#release), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [role](#role), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [secret](#secret), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [template](#template), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [viewer](#viewer), [waiver](#waiver), [write-only attribute](#write-only-attribute) |
+| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [approval](#approval), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [environment](#environment), [generated package](#generated-package), [group](#group), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [promotion](#promotion), [promotion flow](#promotion-flow), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [release](#release), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [role](#role), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [secret](#secret), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [template](#template), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [viewer](#viewer), [waiver](#waiver), [write-only attribute](#write-only-attribute) |
 
 ## Terms of CUE
 
@@ -335,12 +335,6 @@ A resource or data source that another resource reads. A plan looks at the input
 
 See [Plans](../concepts/plans.md#scoped-plans).
 
-### ladder
-
-The order of the [environments](#environment) that `$after` makes: each environment takes the [release](#release) that the ones before it run. `pravo environments` prints it as `dev → staging → prod`.
-
-See [Environments](spec-environments.md#the-ladder).
-
 ### lineage
 
 An identifier chosen when a state store is created. A saved plan records it, and the plan is refused against a store with another lineage.
@@ -430,6 +424,12 @@ Taught in [B11](../learn/b11-policy.md). See [Policies](policies-overview.md).
 A signature, kept in the [state](#state) of an [environment](#environment), that lets a [release](#release) into it. It carries the signed notes that the environments before run the release, and an apply checks it and them before it changes anything. `pravo promote` writes it; a [waiver](#waiver) is a promotion without the notes.
 
 See [Promote a release from one environment to the next](../how-to/promote-a-release.md) and [pravo promote](promote.md).
+
+### promotion flow
+
+The order of the [environments](#environment) that `$after` makes: each environment takes the [release](#release) that the ones it follows run. An environment may follow several, and several may follow one, so the flow can fork and join. `pravo environments` prints it as `dev → staging → prod`.
+
+See [Environments](spec-environments.md#the-promotion-flow).
 
 ### provider
 

@@ -131,7 +131,7 @@ func TestALadderTakesOnlyWhatWasPromoted(t *testing.T) {
 
 	text = l.must(t, "ada", "environments", "--json")
 	var ladder struct {
-		Ladder       string
+		Flow         string
 		Environments []struct {
 			Name    string
 			Release string
@@ -139,7 +139,7 @@ func TestALadderTakesOnlyWhatWasPromoted(t *testing.T) {
 		}
 		Next string
 	}
-	if err := json.Unmarshal([]byte(text), &ladder); err != nil || ladder.Ladder != "dev → staging → prod" || len(ladder.Environments) != 3 {
+	if err := json.Unmarshal([]byte(text), &ladder); err != nil || ladder.Flow != "dev → staging → prod" || len(ladder.Environments) != 3 {
 		t.Fatalf("environments --json: %v\n%s", err, text)
 	}
 	for _, e := range ladder.Environments {

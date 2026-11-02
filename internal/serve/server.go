@@ -118,7 +118,7 @@ type Options struct {
 	Token string
 	// Chat turns the read-only chat on (README rule 12). Nil is off.
 	Chat *ChatOptions
-	// Environments reads the ladder of a specification that declares $environments: what the
+	// Environments reads the promotion flow of a specification that declares $environments: what the
 	// state of each environment runs and how the release of the directory stands there. It
 	// opens the states without a key and writes nothing. Nil leaves the page without it.
 	Environments func(ctx context.Context, root *config.Root) (*Environments, error)

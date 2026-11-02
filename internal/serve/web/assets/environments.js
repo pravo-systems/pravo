@@ -1,4 +1,4 @@
-// The Environments view: the ladder of a specification that declares $environments, as a flow from left to right. Each
+// The Environments view: the promotion flow of a specification that declares $environments, as a flow from left to right. Each
 // environment is a box: what its state runs (the specification by its id, the git revision, since when and by whom) and
 // how the release of this directory stands there. The page reads one environment at a time, the one marked here; a box
 // opens another, which the server loads as a command run with --env NAME does.
@@ -8,7 +8,7 @@
 
 import { h, clear, icon, relTime, stamp } from './util.js';
 
-export const FOOTER = 'This page reads the state of each environment without a key. It runs nothing and writes nothing: a promotion is signed with pravo promote.';
+export const FOOTER = 'This page suggests commands. It runs nothing and writes nothing.';
 
 // STATUS is how a box words the release of this directory, and the tone of its mark: ok when it runs it, chg when someone
 // has a step to take.
@@ -50,13 +50,13 @@ export class EnvironmentsView {
     if (!d || d.error || !(d.environments || []).length) {
       const why = !d ? 'The environments could not be read. The rest of the page is unaffected.'
         : d.error ? d.error
-          : 'This specification declares no environments. A row of $environments for each, with $after naming the one it follows, makes a ladder that a release climbs.';
+          : 'This specification declares no environments. A row of $environments for each, with $after naming the one it follows, makes a promotion flow that a release moves along.';
       this.root.append(h('div', { class: 'ev' }, this.head(d), h('p', { class: 'ev-empty' }, why), h('p', { class: 'ev-foot' }, FOOTER)));
       return;
     }
     this.root.append(h('div', { class: 'ev' },
       this.head(d),
-      this.ladder(d),
+      this.flow(d),
       this.next(d),
       h('p', { class: 'ev-foot' }, FOOTER)));
     this.root.scrollTop = top;
@@ -65,12 +65,12 @@ export class EnvironmentsView {
   head(d) {
     const waiting = d ? d.waiting : 0;
     return h('header', { class: 'ev-head' + (waiting ? ' chg' : '') },
-      h('h2', { class: 'ev-title', id: 'ev-h' }, 'Environments', d && d.ladder ? h('span', { class: 'ev-ladder' }, d.ladder) : null),
+      h('h2', { class: 'ev-title', id: 'ev-h' }, 'Environments', d && d.flow ? h('span', { class: 'ev-order' }, d.flow) : null),
       h('p', { class: 'ev-lede' }, 'One specification, applied to each environment in turn. An environment that follows another takes only a release that was promoted into it: signed by a writer of its state, carrying the signed note that the one before runs it.'));
   }
 
-  // ladder is the environments in columns by their step, left to right, with the line of the flow between the columns.
-  ladder(d) {
+  // flow is the environments in columns by their step, left to right, with the line of the flow between the columns.
+  flow(d) {
     const cols = [];
     for (const e of d.environments) (cols[e.depth] = cols[e.depth] || []).push(e);
     const parts = [];
@@ -78,8 +78,8 @@ export class EnvironmentsView {
       if (i > 0) parts.push(h('div', { class: 'ev-flow', 'aria-hidden': 'true' }, h('span', { class: 'ev-arrow' })));
       parts.push(h('div', { class: 'ev-col' }, (col || []).map((e) => this.box(e, d))));
     });
-    return h('section', { class: 'ev-sec', 'aria-labelledby': 'ev-h-ladder' },
-      h('h3', { id: 'ev-h-ladder', class: 'h' }, 'The ladder'),
+    return h('section', { class: 'ev-sec', 'aria-labelledby': 'ev-h-flow' },
+      h('h3', { id: 'ev-h-flow', class: 'h' }, 'The promotion flow'),
       h('div', { class: 'ev-lad', role: 'list' }, parts));
   }
 
@@ -132,7 +132,7 @@ export class EnvironmentsView {
     const done = !/^pravo /.test(d.next || '');
     return h('section', { class: 'ev-sec', 'aria-labelledby': 'ev-h-next' },
       h('h3', { id: 'ev-h-next', class: 'h' }, 'Next'),
-      h('p', { class: 'ev-rel' }, 'This directory is ', h('code', { title: d.release.fingerprint }, shortID(d.release.fingerprint)), tags, '.'),
+      h('p', { class: 'ev-rel' }, 'The release in this directory is ', h('code', { title: `${d.release.fingerprint}\nThe fingerprint of the specification in this directory. An environment runs this release when its last apply was made from the same specification and tags.` }, shortID(d.release.fingerprint)), tags, '.'),
       done ? h('p', { class: 'ev-rel' }, d.next.charAt(0).toUpperCase() + d.next.slice(1) + '.') : this.command(d.next));
   }
 

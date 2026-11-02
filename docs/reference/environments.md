@@ -1,6 +1,6 @@
 ---
 title: pravo environments
-description: Show what the state of each environment runs and how the release of this directory stands there, compare two environments, and record the place of a state in the ladder.
+description: Show what the state of each environment runs and how the release of this directory stands there, compare two environments, and record the place of a state in the promotion flow.
 order: 22
 group: Commands
 normalize:
@@ -29,7 +29,7 @@ keywords: "envs ladder release dev staging prod diff compare record workspace li
 
 ## pravo environments
 
-`pravo environments` reads the state of each environment, in the order of the ladder, and prints a row for each:
+`pravo environments` reads the state of each environment, in the order of the promotion flow, and prints a row for each:
 
 | Column | Meaning |
 |---|---|
@@ -61,7 +61,7 @@ Then it prints the release of this directory, with its tags, and the next comman
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE. |
 | `--access-dir DIR` | none | The directory of the readers file of the default environment, or of the one `--env` names. Every other environment reads the file that its `$settings.access.dir` names, else `.pravo/access`. |
 
-With `--json` it prints `{"ladder", "release", "environments", "next"}`: the ladder as text, the release (`fingerprint` and the names of its `tags`), one object for each environment (`name`, `after`, `default`, `state`, `sealed`, `runs`, `release`, `promoted`, `problem`) and the next command.
+With `--json` it prints `{"flow", "release", "environments", "next"}`: the promotion flow as text, the release (`fingerprint` and the names of its `tags`), one object for each environment (`name`, `after`, `default`, `state`, `sealed`, `runs`, `release`, `promoted`, `problem`) and the next command.
 
 ## pravo environments diff
 
@@ -140,7 +140,7 @@ Comparing dev with prod:
 
 | Code | When |
 |---|---|
-| 0 | The ladder was printed, even when an environment cannot be read. `diff` and `record` succeeded. |
+| 0 | The promotion flow was printed, even when an environment cannot be read. `diff` and `record` succeeded. |
 | 1 | An error, such as a flag or a state that `record` cannot write. |
 | 3 | `record` found that another command changed the record first. Run it again. |
 | 5 | `record` refused: the state does not exist, or the identity is not an admin of a state that has a record. |

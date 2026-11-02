@@ -174,7 +174,7 @@ $settings: state: path: "state/\($environment.$name)"
 	if got := strings.Join(r.EnvironmentNames(), ","); got != "dev,staging,prod-eu,prod-us,audit" {
 		t.Errorf("order %s", got)
 	}
-	if got := LadderText(r.Environments); got != "dev → staging → {prod-eu, prod-us} → audit" {
+	if got := FlowText(r.Environments); got != "dev → staging → {prod-eu, prod-us} → audit" {
 		t.Errorf("ladder %q", got)
 	}
 	if got := strings.Join(r.Followers("staging"), ","); got != "prod-eu,prod-us" {

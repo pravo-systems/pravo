@@ -56,9 +56,9 @@ A [`pravo.#RemoteOutputs`](spec-env.md#remote-outputs) reads the state of anothe
 
 A [discovery](../concepts/discovery.md#with-environments) runs in the environment that `--env` names and keeps its findings in that environment's state. `pravo discover adopt` writes the resource that adopts an object inside a condition on `$environment.$name`.
 
-## The ladder
+## The promotion flow
 
-`$after` orders the environments into a ladder. An environment may follow several, and several may follow one:
+`$after` orders the environments into a promotion flow. An environment may follow several, and several may follow one:
 
 File `main.cue`:
 
@@ -138,7 +138,7 @@ A state that is not sealed takes any release: it has no signatures to check. The
 
 ## The record of an environment
 
-Each state of an environment keeps a record of its place in the ladder, as a chain of signed versions below `environment/`: the environment it serves, the environments it follows, and the lineage of each of their states. The first apply writes it.
+Each state of an environment keeps a record of its place in the promotion flow, as a chain of signed versions below `environment/`: the environment it serves, the environments it follows, and the lineage of each of their states. The first apply writes it.
 
 An apply is refused with exit code 5 when:
 

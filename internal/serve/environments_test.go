@@ -23,7 +23,7 @@ $settings: state: path: "state/\($environment.$name)"
 `
 
 // envProject is a project whose specification declares dev and prod: dev holds the seeded
-// records and prod one record of its own. The ladder the command would read is a stub that notes
+// records and prod one record of its own. The promotion flow the command would read is a stub that notes
 // the environment of each call.
 func envProject(t *testing.T) (*project, *[]string) {
 	t.Helper()
@@ -74,7 +74,7 @@ func (p *project) environments() Environments {
 	return e
 }
 
-// The page reads one environment at a time: the default, else the first of the ladder. A POST
+// The page reads one environment at a time: the default, else the first of the promotion flow. A POST
 // switches it to another that the specification declares, which loads the specification for it
 // and opens its state; nothing else changes it.
 func TestTheViewerReadsOneEnvironmentAtATime(t *testing.T) {
@@ -88,7 +88,7 @@ func TestTheViewerReadsOneEnvironmentAtATime(t *testing.T) {
 	}
 
 	e := p.environments()
-	if e.Selected != "dev" || e.Ladder != "dev → prod" || len(e.Environments) != 2 || e.Waiting != 1 || !strings.HasPrefix(e.Next, "pravo promote prod -t blob=") {
+	if e.Selected != "dev" || e.Flow != "dev → prod" || len(e.Environments) != 2 || e.Waiting != 1 || !strings.HasPrefix(e.Next, "pravo promote prod -t blob=") {
 		t.Fatalf("environments: %+v", e)
 	}
 	// A problem is text from a state, and a command carries the tags: both are masked as any other text.
@@ -124,7 +124,7 @@ func TestTheViewerReadsOneEnvironmentAtATime(t *testing.T) {
 		t.Fatalf("environments: selected %q, want prod", e.Selected)
 	}
 	if !contains(*calls, "prod") {
-		t.Fatalf("the ladder was read for %v, never for prod", *calls)
+		t.Fatalf("the promotion flow was read for %v, never for prod", *calls)
 	}
 }
 

@@ -1,7 +1,7 @@
 /* The Environments view and the environment button of the top bar. Tokens only, so that it follows the theme. Square
-   throughout: the ladder is a flow from left to right, a box for each environment and a line between the steps. */
+   throughout: the promotion flow is a flow from left to right, a box for each environment and a line between the steps. */
 
-/* a ladder: three squares on a rising line, like the marks of the graph */
+/* a promotion flow: three squares on a rising line, like the marks of the graph */
 .i-ladder { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 10.5h3v3h-3zM6.5 6.5h3v3h-3zM11.5 2.5h3v3h-3z' fill='black'/%3E%3Cpath d='M4.5 12h2.8V9.5M9.5 8h2.8V5.5' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E"); }
 
 /* ---- the button of the top bar: which environment the page reads, and how many wait for a step ---- */
@@ -64,10 +64,10 @@ body:has(.app[data-view="environments"]) .planstrip, body:has(.app[data-view="en
 
 .ev-head { --hc: var(--accent); }
 .ev-head.chg { --hc: var(--change); }
-.ev-ladder { margin-left: .7rem; font: 500 var(--fs-3)/1 var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.ev-order { margin-left: .7rem; font: 500 var(--fs-3)/1 var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--text-3); }
 .ev-lede { margin: .45rem 0 0; max-width: 50rem; color: var(--text-2); font-size: var(--fs-5); line-height: 1.55; text-wrap: pretty; }
 
-/* ---- the ladder: columns of boxes, by step, with a line and an arrowhead between them ---- */
+/* ---- the promotion flow: columns of boxes, by step, with a line and an arrowhead between them ---- */
 .ev-lad { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: .4rem; }
 .ev-col { display: flex; flex-direction: column; gap: .8rem; flex: none; }
 .ev-flow { position: relative; flex: none; width: 2.4rem; align-self: stretch; }

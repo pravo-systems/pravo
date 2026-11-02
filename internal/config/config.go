@@ -139,7 +139,7 @@ type Root struct {
 	// AccessDir is $settings.access.dir: the directory of the readers file of this
 	// root's state, as written (relative to Dir unless absolute). Empty when unset.
 	AccessDir string
-	// Environments are the rows of $environments, in the order of the ladder (see
+	// Environments are the rows of $environments, in the order of the promotion flow (see
 	// environments.go). Nil for a specification that declares none.
 	Environments []Environment
 	// Environment is the environment the root was loaded for: the one -t env= names, or

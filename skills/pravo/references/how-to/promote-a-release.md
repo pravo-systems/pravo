@@ -16,7 +16,7 @@ Each environment has a readers file of its own, so a writer of dev is not a writ
 > [!NOTE]
 > The states on this page are directories, so that the page runs on one machine, and the two people are two identity directories that `PRAVO_CONFIG_DIR` picks. A team keeps each state in a bucket ([Keep the state in a shared store](keep-the-state-in-a-shared-store.md)). A command without a prefix is ada's.
 
-## 1. Declare the ladder
+## 1. Declare the promotion flow
 
 Prod follows dev. `access.dir` gives each environment the directory of its readers file.
 
@@ -245,6 +245,6 @@ A writer who is not an admin cannot waive. Dev is behind prod now, and the next 
 ## What next
 
 - [pravo promote](../reference/promote.md) lists every flag, the checks of the apply and the exit codes.
-- [Environments](../reference/spec-environments.md) describes `$after`, a list of environments to follow and the record that each state keeps of its place in the ladder.
+- [Environments](../reference/spec-environments.md) describes `$after`, a list of environments to follow and the record that each state keeps of its place in the promotion flow.
 - [Give people roles](give-people-roles.md) pins the roles of each readers file in its state.
 - [CI](ci.md) runs one job per environment.

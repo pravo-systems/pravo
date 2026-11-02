@@ -72,8 +72,8 @@ export async function uploadPlan(name, bytes) {
   if (!r.ok) throw Object.assign(new Error((j && j.error) || r.statusText || `status ${r.status}`), { status: r.status });
   return j;
 }
-// environments is the ladder of a specification that declares $environments: what each environment runs and how the release of the directory stands there; a server that does not know them has none.
-export const environments = () => get('/api/environments').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', selected: '', ladder: '', release: { fingerprint: '', tags: [] }, environments: [], next: '', waiting: 0 }; throw err; });
+// environments is the promotion flow of a specification that declares $environments: what each environment runs and how the release of the directory stands there; a server that does not know them has none.
+export const environments = () => get('/api/environments').catch((err) => { if (err && err.status === 404) return { version: 1, revision: '', selected: '', flow: '', release: { fingerprint: '', tags: [] }, environments: [], next: '', waiting: 0 }; throw err; });
 // switchEnvironment makes the server read another environment: its specification and its state, as a command run with --env NAME does. Nothing is written.
 export async function switchEnvironment(name) {
   let r;
