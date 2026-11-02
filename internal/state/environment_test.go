@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -79,7 +80,7 @@ func TestLatestRun(t *testing.T) {
 	}
 	// A note a year ahead.
 	future := *n
-	future.ID = time.Now().Add(365*24*time.Hour).UTC().Format("20060102T150405Z") + "-abcdef"
+	future.ID = newRunID(time.Now().Add(365 * 24 * time.Hour))
 	data, _ := indentJSON(future)
 	if err := b.Put(ctx, RunDir+"/"+future.ID+".json", data); err != nil {
 		t.Fatal(err)
@@ -204,5 +205,23 @@ func TestEnvironmentObjectsLeaveMetaAlone(t *testing.T) {
 		From: []PromotionSource{{Environment: "staging", Lineage: "abc", Run: &RunNote{ID: "x"}}}}
 	if err := asBob.PutPromotion(ctx, p); err != nil {
 		t.Fatalf("promotion: %v", err)
+	}
+}
+
+// Notes written within one second come back in the order they were written: the newest is
+// the last one.
+func TestLatestRunWithinASecond(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	s := sealedStore(t, testBackends()[0].make(t), testIdentity(t, "ada"))
+	for i := range 20 {
+		txn := "t" + strconv.Itoa(i)
+		if err := s.PutRunNote(ctx, &RunNote{Environment: "prod", Fingerprint: strings.Repeat("a", 32), Txn: txn}); err != nil {
+			t.Fatal(err)
+		}
+		n, _, err := s.LatestRun(ctx, time.Now())
+		if err != nil || n == nil || n.Txn != txn {
+			t.Fatalf("after %s the newest note is %+v (%v)", txn, n, err)
+		}
 	}
 }

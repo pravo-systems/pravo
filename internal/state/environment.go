@@ -70,7 +70,7 @@ var ErrEnvironmentChanged = errors.New("the record of the environment changed si
 
 var (
 	environmentKeyRe = regexp.MustCompile(`^environment/([0-9]{8})\.json$`)
-	runKeyRe         = regexp.MustCompile(`^runs/([0-9]{8}T[0-9]{6}Z-[0-9a-f]{6})\.json$`)
+	runKeyRe         = regexp.MustCompile(`^runs/([0-9]{8}T[0-9]{6}\.[0-9]{9}Z-[0-9a-f]{6})\.json$`)
 	promotionKeyRe   = regexp.MustCompile(`^promotions/([0-9a-f]{32})\.([0-9a-f]{16})\.([0-9a-f]{16})\.(promoted|waived|revoked)\.json$`)
 )
 
@@ -393,11 +393,20 @@ func (n *RunNote) Verify(lineage string, readers []protect.Reader) (protect.SigS
 	return protect.VerifySignature(n.Signature, readers, protect.DomainRun, lineage, runParts(n)...)
 }
 
-// When is the time in the id of a note or a transaction: the second it was made in.
-func When(id string) (time.Time, bool) {
-	sec, _, _ := strings.Cut(id, "-")
-	t, err := time.Parse("20060102T150405Z", sec)
+// runWhen is the time in the id of a run note.
+func runWhen(id string) (time.Time, bool) {
+	at, _, _ := strings.Cut(id, "-")
+	t, err := time.Parse(runIDTime, at)
 	return t, err == nil
+}
+
+// runIDTime is the time at the start of the id of a run note. It has a fixed width down to the
+// nanosecond, so that the names sort in the order the notes were written, also for two applies
+// within one second.
+const runIDTime = "20060102T150405.000000000Z"
+
+func newRunID(at time.Time) string {
+	return at.UTC().Format(runIDTime) + "-" + newID(3)
 }
 
 // PutRunNote writes the note, signed in a sealed state, and sets its id and version.
@@ -405,7 +414,7 @@ func (s *Store) PutRunNote(ctx context.Context, n *RunNote) error {
 	if err := s.writable(); err != nil {
 		return err
 	}
-	n.V, n.ID, n.At = runVersion, newTxnID(), n.At.UTC()
+	n.V, n.ID, n.At = runVersion, newRunID(time.Now()), n.At.UTC()
 	if n.At.IsZero() {
 		n.At = time.Now().UTC()
 	}
@@ -447,7 +456,7 @@ func (s *Store) LatestRun(ctx context.Context, now time.Time) (note *RunNote, ig
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(ids)))
 	for _, id := range ids {
-		if t, ok := When(id); !ok || t.After(now.Add(FutureSkew)) {
+		if t, ok := runWhen(id); !ok || t.After(now.Add(FutureSkew)) {
 			ignored = append(ignored, RunDir+"/"+id+".json")
 			continue
 		}

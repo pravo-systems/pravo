@@ -805,7 +805,7 @@ In a sealed state with roles, a version that changes the name or the environment
 | Field | Meaning |
 |---|---|
 | `v` | The layout, 1. |
-| `id` | The id of the note, as in its name. |
+| `id` | The id of the note, as in its name: the time it was written, in UTC to the nanosecond (`20261102T170400.048426595Z`), a dash and six hexadecimal digits. The newest note is the one whose name sorts last. |
 | `environment` | The environment the state serves. |
 | `fingerprint` | The fingerprint of the specification that was applied: 32 hexadecimal digits. |
 | `tags` | The SHA-256 of each tag that the run was given, other than `env`, by name. The values are not in the note. |
