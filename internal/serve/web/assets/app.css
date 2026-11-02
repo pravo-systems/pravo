@@ -416,14 +416,14 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .drawer-scrim { display: block; position: fixed; z-index: 55; inset: 52px 0 30px; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(2px); animation: ui-fade .2s ease; }
   .brand small { display: none; }
 }
-/* The sections keep their icons, and the label for a screen reader and for the tip, when the bar has no room for seven words: below 88em
-   the tab that is open keeps its word and the others their mark and their count, and below 62em none keeps its word. */
-@media (max-width: 88em) {
-  .sec-tab:not([aria-pressed="true"]) .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-}
+/* The sections keep their icons, and the label for a screen reader and for the tip, when the bar has no room for eight words. The
+   page measures the bar (fitBar in app.js): with room, every tab shows its word; with less, the tab that is open keeps its word
+   and the others their mark and their count (fit-1); with less still, none keeps its word (fit-2). A tab under the pointer or the
+   focus of the keyboard shows its word, so the marks can be read by passing over them. */
+.top.fit-1 .sec-tab:not([aria-pressed="true"], :hover, :focus-visible) .lbl,
+.top.fit-2 .sec-tab:not(:hover, :focus-visible) .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 62em) {
   .sec-tab { padding-inline: .8rem; }
-  .sec-tab .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 @media (max-width: 47.5em) {
   .me .role { display: none; }

@@ -104,11 +104,6 @@ body:has(.app[data-view="environments"]) .planstrip, body:has(.app[data-view="en
 .ev-rel { margin: 0 0 .6rem; font-size: var(--fs-4); color: var(--text-2); }
 .ev-foot { margin: 0; padding-top: .8rem; border-top: 1px solid var(--line); font: 400 var(--fs-2)/1.4 var(--font-mono); color: var(--text-3); }
 
-/* The button of the environment takes the width of about one label, so with it the other tabs give up their words sooner
-   than at 88em: the bar keeps the search, the identity and the theme in view. */
-@media (max-width: 100em) {
-  .top:has(.envsw:not([hidden])) .sec-tab:not([aria-pressed="true"]) .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-}
 @media (max-width: 47.5em) {
   .envs-pane { padding: .75rem .75rem 2rem; }
   .ev-lad { flex-direction: column; overflow-x: visible; }
