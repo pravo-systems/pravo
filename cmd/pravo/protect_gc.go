@@ -109,7 +109,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 	}
 	// A state that is not sealed in a repository that lists readers may have been
 	// downgraded in the bucket: a collection that deletes is a writer, as any other.
-	if rf := loadReadersFile(p.root.Dir, flags.AccessDir); expectsSealed(prot, rf) {
+	if rf := readersOf(p.root); expectsSealed(prot, rf) {
 		problem := downgradeProblem(rf)
 		if !dryRun {
 			return engine.WithCode(engine.ExitRefused, errors.New(problem))

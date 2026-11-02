@@ -198,7 +198,7 @@ func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bo
 func trialRules(ctx context.Context, s *session, args []string, inForce bool) ([]trialRule, error) {
 	var declared, held map[string]trialRule
 	if inForce {
-		set, err := s.state.PolicySet(ctx, loadReadersFile(s.root.Dir, flags.AccessDir).Readers)
+		set, err := s.state.PolicySet(ctx, readersOf(s.root).Readers)
 		if err != nil {
 			return nil, err
 		}

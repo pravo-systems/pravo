@@ -28,12 +28,16 @@ import (
 // pointer to it. Format 3 is format 2 with the records, the outputs, the stored
 // plans and the values of command lines sealed to a list of readers. Format 4 is
 // format 3 with policies (policy.go). Format 5 is format 4 with secrets (secret.go).
+// Format 6 is format 5 with the signed objects of environments: the record of the
+// environment the state serves, the notes of what it runs and promotions
+// (environment.go).
 const (
-	FormatImmutable = 2
-	FormatSealed    = 3
-	FormatPolicy    = 4
-	FormatSecret    = 5
-	MaxFormat       = FormatSecret
+	FormatImmutable   = 2
+	FormatSealed      = 3
+	FormatPolicy      = 4
+	FormatSecret      = 5
+	FormatEnvironment = 6
+	MaxFormat         = FormatEnvironment
 )
 
 var (

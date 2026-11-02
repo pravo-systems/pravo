@@ -72,7 +72,7 @@ func newProtectRun(cmd *cobra.Command) (*protectRun, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &protectRun{ctx: cmd.Context(), root: root, rf: loadReadersFile(root.Dir, flags.AccessDir)}, nil
+	return &protectRun{ctx: cmd.Context(), root: root, rf: readersOf(root)}, nil
 }
 
 // needAdmin refuses an identity that is not an admin in the readers file of the repository.

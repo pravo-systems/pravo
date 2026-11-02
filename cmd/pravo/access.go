@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -86,7 +87,19 @@ func (rf readersFile) problem() string {
 // symbolic link that leaves the access directory. An error never holds a line of
 // the file.
 func loadReadersFile(rootDir, flagDir string) readersFile {
-	dirs := accessDirs(rootDir, flagDir)
+	return loadReadersFileFrom(rootDir, flagDir, "")
+}
+
+// readersOf finds the readers file of the root: --access-dir, $PRAVO_ACCESS_DIR, then
+// $settings.access.dir, then the directories loadReadersFile looks in.
+func readersOf(root *config.Root) readersFile {
+	return loadReadersFileFrom(root.Dir, flags.AccessDir, root.AccessDir)
+}
+
+// loadReadersFileFrom is loadReadersFile with the directory that the settings name, which
+// comes after the flag and the variable.
+func loadReadersFileFrom(rootDir, flagDir, settingsDir string) readersFile {
+	dirs := accessDirs(rootDir, flagDir, settingsDir)
 	rf := readersFile{Dir: dirs[0], Path: filepath.Join(dirs[0], readersFileName)}
 	for _, d := range dirs {
 		p := filepath.Join(d, readersFileName)
@@ -116,10 +129,13 @@ func loadReadersFile(rootDir, flagDir string) readersFile {
 }
 
 // accessDirs lists the directories the readers file is looked for in.
-func accessDirs(rootDir, flagDir string) []string {
+func accessDirs(rootDir, flagDir, settingsDir string) []string {
 	explicit := flagDir
 	if explicit == "" {
 		explicit = os.Getenv("PRAVO_ACCESS_DIR")
+	}
+	if explicit == "" {
+		explicit = settingsDir
 	}
 	if explicit != "" {
 		if !filepath.IsAbs(explicit) {

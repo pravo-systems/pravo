@@ -124,7 +124,7 @@ func storedPlanSignatures(ctx context.Context, s *session, id string) ([]engine.
 	if err != nil {
 		return nil, ""
 	}
-	rf := loadReadersFile(root.Dir, flags.AccessDir)
+	rf := readersOf(root)
 	readers, ok := attributionReaders(rf)
 	if !ok {
 		return nil, notChecked(rf)
@@ -151,7 +151,7 @@ func storedPlanApprovals(ctx context.Context, s *session, id string) string {
 	if err != nil {
 		return ""
 	}
-	readers, ok := attributionReaders(loadReadersFile(root.Dir, flags.AccessDir))
+	readers, ok := attributionReaders(readersOf(root))
 	if !ok {
 		return ""
 	}

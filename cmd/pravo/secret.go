@@ -97,7 +97,7 @@ func openSecrets(cmd *cobra.Command, access secretAccess) (*secretRun, error) {
 	if err != nil {
 		return nil, err
 	}
-	rf := loadReadersFile(root.Dir, flags.AccessDir)
+	rf := readersOf(root)
 	if access == secretWrite && stateMissing(ctx, root) {
 		// Opening a store for writing would make one, and a first writer makes it in the clear.
 		if rf.Found {

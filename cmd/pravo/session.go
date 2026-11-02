@@ -168,7 +168,7 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 // readersInto gives the options the readers that judge signatures, and the vouched
 // transactions of the roles in the state.
 func (s *session) readersInto(opts *engine.Options) {
-	rf := loadReadersFile(s.root.Dir, flags.AccessDir)
+	rf := readersOf(s.root)
 	// The roles that decide are those in the state when the readers file pins them. A chain
 	// that does not verify was refused when the state was opened.
 	if eff, rs, err := rf.withRoles(s.state); err == nil {
@@ -236,7 +236,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 	// not exist yet is not one. Whether it exists is looked at before the open, which
 	// would make it, in format 1.
 	missing, overlay := false, false
-	if rf := loadReadersFile(root.Dir, flags.AccessDir); rf.Found && stateMissing(ctx, root) {
+	if rf := readersOf(root); rf.Found && stateMissing(ctx, root) {
 		problem := missingStateProblem(rf)
 		if write {
 			return nil, nil, engine.WithCode(engine.ExitRefused, errors.New(problem))
@@ -257,7 +257,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 	id := chosen
 	if choseID && idErr == nil && !st.Locked() {
 		// A reader who plans works on the state in memory.
-		if msg, _ := roleProblem(loadReadersFile(root.Dir, flags.AccessDir), st, protect.RoleWriter, ""); write && planning && msg != "" {
+		if msg, _ := roleProblem(readersOf(root), st, protect.RoleWriter, ""); write && planning && msg != "" {
 			st.Close()
 			if st, err = open(id, true); err != nil {
 				return nil, nil, err
@@ -306,7 +306,7 @@ type noKey struct {
 }
 
 func (k *noKey) error(root *config.Root) error {
-	return notReaderError(loadReadersFile(root.Dir, flags.AccessDir), k.id, k.err)
+	return notReaderError(readersOf(root), k.id, k.err)
 }
 
 // remoteBackend opens the bucket or the server that the root keeps its state on.
@@ -457,7 +457,7 @@ func (s *session) warnStaleSchemas() {
 // that holds a record which no verified transaction of a writer names (see
 // state.Store.VerifyRecords). It checks every record, reading each transaction once.
 func checkBoundRecords(root *config.Root, st *state.Store) error {
-	rf := loadReadersFile(root.Dir, flags.AccessDir)
+	rf := readersOf(root)
 	if !rf.Found || rf.Err != nil || st.Locked() || !isSealed(st.Protection()) {
 		return nil
 	}

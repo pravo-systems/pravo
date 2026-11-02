@@ -29,6 +29,12 @@ const (
 	DomainPolicyVersion = "pravo/v1/policy-version"
 	// DomainRolesVersion signs a version of the roles stored in the state.
 	DomainRolesVersion = "pravo/v1/roles-version"
+	// DomainEnvironment signs a version of the record of the environment a state serves.
+	DomainEnvironment = "pravo/v1/environment"
+	// DomainRun signs the note of what a state runs after an apply.
+	DomainRun = "pravo/v1/run"
+	// DomainPromotion signs a promotion of a release into an environment.
+	DomainPromotion = "pravo/v1/promotion"
 )
 
 // Signature is a signature as it is stored beside what it signs. Signer is the

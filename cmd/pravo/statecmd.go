@@ -291,7 +291,7 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 			readers, checked := []protect.Reader(nil), false
 			if prot := st.Protection(); prot.Sealed != nil {
 				if root, err := loadRoot(); err == nil {
-					readers, checked = attributionReaders(loadReadersFile(root.Dir, flags.AccessDir))
+					readers, checked = attributionReaders(readersOf(root))
 				}
 			}
 			verdicts := make([]state.TxnVerdict, len(txns))
