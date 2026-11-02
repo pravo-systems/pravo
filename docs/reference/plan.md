@@ -82,7 +82,7 @@ The [global flags](global-flags.md) apply. A single dash works as well: `-refres
 | 1 | An error: a provider failed, `--replace` names a resource that cannot be replaced, an argument was given: `plan` takes none, `--ttl` without `--store`, an id that no stored plan has. |
 | 2 | With `--detailed-exitcode`: the plan has changes. |
 | 4 | Rejected: another actor holds a lock or a reservation on a node. |
-| 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or a CUE module does not match its lock. |
+| 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or a CUE module does not match its lock. The record of the state names another environment, or other environments before it, than the specification does. |
 | 6 | The specification does not load or evaluate. |
 
 ## Examples

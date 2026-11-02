@@ -1,12 +1,12 @@
 ---
 title: The sections of the viewer
-description: "What each section of the viewer shows and how to read it: Inventory, Templates, Plans, Discovery, Policies with the studio, Traces, Secrets and State, part by part, with the filter columns and the tabs of the inspector."
+description: "What each section of the viewer shows and how to read it: Inventory, Templates, Plans, Discovery, Policies with the studio, Traces, Secrets, State and Environments, part by part, with the filter columns and the tabs of the inspector."
 order: 30
 group: Viewer
-keywords: "viewer sections inventory templates form wizard graph list inspector plans discovery policies studio traces secrets state members filter columns tabs"
+keywords: "viewer sections inventory templates form wizard graph list inspector plans discovery policies studio traces secrets state environments ladder members filter columns tabs"
 ---
 
-The viewer that [`pravo serve`](serve.md) starts is one page with eight sections. The bar at the top switches between them, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
+The viewer that [`pravo serve`](serve.md) starts is one page with eight sections, and a ninth, Environments, for a specification that declares `$environments`. The bar at the top switches between them, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
 
 | Section | Shows | Key | Link |
 |---|---|---|---|
@@ -18,10 +18,11 @@ The viewer that [`pravo serve`](serve.md) starts is one page with eight sections
 | Traces | The runs that pravo recorded, as a timeline of spans. | `r` | `view=traces` |
 | Secrets | The secrets that a sealed state keeps, each with its latest version, who set it and the nodes that read it, and whether a signed record of a writer stands behind every version. Never a value. | `e` | `view=secrets` |
 | State | Where the state is kept, how it is protected, who can read it and what needs doing. | `a` | `view=state` |
+| Environments | For a specification that declares `$environments`: the ladder, what the state of each environment runs, how the release of the directory stands there, and the command that moves it along. | `v` | `view=environments` |
 
-The tab of Discovery carries the number of objects that ask to be adopted, the tab of Policies the number of policies that the next apply changes, and the tab of Secrets the number of problems it flags; a tab with nothing waiting carries no number. The bar also holds the search button, which opens the command palette, the theme button, and, when the state is sealed, the identity the page is read as: its name, or `not a reader`, `no identity` or `identity locked` beside it. The title of the browser tab names the project and the section, so that tabs of several estates tell apart.
+The tab of Discovery carries the number of objects that ask to be adopted, the tab of Policies the number of policies that the next apply changes, and the tab of Secrets the number of problems it flags; a tab with nothing waiting carries no number. A specification that declares `$environments` adds a button to the bar, beside the name of the project: it names the environment the page reads, with the number of environments where someone has a step to take for the release, and opens the Environments section. The bar also holds the search button, which opens the command palette, the theme button, and, when the state is sealed, the identity the page is read as: its name, or `not a reader`, `no identity` or `identity locked` beside it. The title of the browser tab names the project and the section, so that tabs of several estates tell apart.
 
-When the viewer is started with [the assistant](serve.md#the-assistant), a speech-bubble button in the bar, or `c`, opens [the Ask panel](#the-ask-panel) in the column at the right of any section. It is a panel and not a ninth section.
+When the viewer is started with [the assistant](serve.md#the-assistant), a speech-bubble button in the bar, or `c`, opens [the Ask panel](#the-ask-panel) in the column at the right of any section. It is a panel and not a section.
 
 A status bar runs along the bottom of every section: the revision of the data, when it was read, `live`, `reconnecting`, `offline` or `connecting`, and `read-only · localhost only`. In Inventory it also says `no plan loaded`, or the id of the plan laid over the graph with `planned N of M` and the number of resources the plan did not read.
 
@@ -405,6 +406,20 @@ The suggestions are: `seal` (for a state that is not sealed), `check why the sta
 The view is made for the keyboard and for a screen reader. Tab visits, in the order of the page, the button `Add a member`, each row of a member, which opens, and in it each card and each button that copies a key, each `name not usable` mark, the disclosure `Technical details`, each issue's button, each button that copies a fingerprint or the path of the access list, each suggestion, and the buttons that copy the steps of a suggestion that is open. Enter and Space open and close a suggestion, which says whether it is open; Esc leaves it as it is and hides the tip of a button. A button that copies is named for what it copies, and when the copy is done the page says `Copied` and the name of what was copied, or `Could not copy`. The skip link at the top of the page moves the focus to the view, and the next Tab goes to its first stop. The chips of the state, of You, of each member and of each verdict show their words, so that no state is told by colour alone.
 
 The list and the inspector mark a record that cannot be opened with the chip `sealed`. The inspector shows its address, type, dependencies and revision, and a note, and no attribute. The outputs of a state that cannot be opened show `sealed` and no value. A count that depends on what a record says, the drifted and the sensitive resources of the filter chips and of the project card, shows a dash with the title `sealed` where it would be zero, since a record that cannot be opened is not counted. A stored plan that cannot be opened is laid over the graph from its summary, which gives the address, the type and the action of each change, with the warning "The values of this plan are sealed." and no attribute change.
+
+## The Environments section
+
+The Environments section is there for a specification that declares [`$environments`](spec-environments.md). Its link is `view=environments`, and its key is `v`; the button of the bar that names the environment opens it too. It has no toolbar of the Inventory and no inspector.
+
+The page reads one environment at a time: the one that `-t env=NAME` named when the viewer was started, else the default, else the first of the ladder. Every other section shows that environment: its specification and its state. A box of the ladder opens another one, which the server loads as a command run with `-t env=NAME` does, and keeps until it stops. Nothing is written, and the address does not hold the choice.
+
+| Part | Holds |
+|---|---|
+| The title block | The title, the ladder as text, such as `dev → staging → prod`, and a sentence that says what a ladder is. A square before the title is amber when an environment waits for a step. |
+| The ladder | A box for each environment, in columns from left to right by their place in the ladder, with a line from each column to the next. A box holds the name, `reading` on the one the page reads and `default` on the default, the environments it follows, and what its state runs: the release by its id, the git revision, since when and by whom. Under it, how the release of this directory stands there: `runs this directory`, `promoted, waiting for an apply`, `waived, waiting for an apply` or `ready to promote`, with who and when, and the reason of a waiver. A state that cannot be read here, or whose record or note does not hold, says why in red. A box that is the next step shows the command to copy, and a box that the page does not read has a button, `Read this environment`. |
+| Next | The release of this directory, by its id and the names of its tags, and the command that moves it one step along, to copy, or a line that says that every environment runs it. |
+
+The server reads the state of each environment as [`pravo environments`](environments.md) does: without a key, and with the same judgement of each note and promotion. The commands are text to copy, the footer says `This page reads the state of each environment without a key. It runs nothing and writes nothing: a promotion is signed with pravo promote.`, and a tag whose name says that it is a secret is masked in a command.
 
 ## The Ask panel
 

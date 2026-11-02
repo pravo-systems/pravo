@@ -38,6 +38,8 @@ Every page opens with the synopsis, the flags with their defaults, and the exit 
 | `pravo providers` | Lists providers, pins hashes, copies a provider to a registry. | [providers](providers.md) |
 | `pravo validate`, `eval`, `fmt`, `gen` | Checks the specification, prints its value, formats the files, regenerates the packages. | [validate, eval, fmt and gen](validate-eval-fmt-gen.md) |
 | `pravo schema` | Prints the definition of one resource type. | [schema](schema.md) |
+| `pravo environments` | Shows what each environment runs and how the release of this directory stands there. Compares two environments, records the place of a state in the ladder. | [environments](environments.md) |
+| `pravo promote` | Brings the release that the environments before one run into it, withdraws a promotion, waives the check. | [promote](promote.md) |
 | `pravo serve` | Starts the viewer: the estate, the stored plans, the discoveries, the policies, the secrets and the recorded runs in a browser. Reads and writes nothing. | [serve](serve.md) |
 | `pravo mcp` | Serves pravo to an agent over the Model Context Protocol. | [mcp](mcp.md) |
 | `pravo skill` | Installs or prints the skill that teaches an agent to use pravo. | [skill](skill.md) |
@@ -55,7 +57,7 @@ What `pravo serve` shows, in three pages.
 
 | Page | Covers |
 |---|---|
-| [The sections of the viewer](viewer-sections.md) | Inventory, Plans, Discovery, Policies, Traces and State: every part of each, the filters, the inspector, the policy studio, the timeline. |
+| [The sections of the viewer](viewer-sections.md) | Inventory, Templates, Plans, Discovery, Policies, Traces, Secrets, State and Environments: every part of each, the filters, the inspector, the policy studio, the timeline. |
 | [Keys and links of the viewer](viewer-keys-and-links.md) | Every parameter of the address that reproduces a view, the command palette and the keyboard. |
 | [The API of the viewer](viewer-api.md) | The endpoints a script reads, with the token. |
 
@@ -72,9 +74,10 @@ The fields and definitions that a specification uses, and the CUE behind them.
 | [Providers](spec-providers.md) | Provider declarations and their `$` fields. |
 | [Moves and imports](spec-moves-and-imports.md) | `$from` and `$import`. |
 | [Outputs](spec-outputs.md) | `pravo.#Output`. |
-| [Environment and remote outputs](spec-env.md) | Environment values, secret environment values, the secrets of a sealed state and the outputs of another root. |
+| [Environment variables and remote outputs](spec-env.md) | Environment values, secret environment values, the secrets of a sealed state and the outputs of another root. |
 | [Meta fields](spec-meta-fields.md) | `$lifecycle`, `$depends_on` and the other `$` fields of a resource. |
 | [Tags and variables](spec-tags-and-variables.md) | `@tag()` fields and how a command fills them. |
+| [Environments](spec-environments.md) | `$environments` and `$environment`: the environments one specification is applied to, the ladder of `$after`, the gate and the record of each state. |
 | [Reuse](spec-reuse.md) | Definitions that hold resources, the packages that share them, and what a `module` block becomes. |
 | [Generated packages](spec-generated-packages.md) | The packages under `cue.mod/gen`. |
 

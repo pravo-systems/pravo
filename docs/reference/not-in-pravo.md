@@ -74,7 +74,7 @@ Error: unknown flag: --raw
 | `moved`, `import`, `removed` blocks | Absent. | `$from` and `$import` on the resource. `pravo state rm ADDR` forgets a record without destroying the object. See [Moves and imports](spec-moves-and-imports.md). |
 | `module` block, `source`, `version` | Absent. | A definition or a package, instantiated with `&`. A shared definition takes its providers as inputs. A package from another repository comes in a CUE module, with `pravo mod get`. See [Reuse](spec-reuse.md). |
 | `provider` aliases and the `provider` meta-argument | Absent. | A provider struct for each configuration. A resource is built through the one it uses. See [Providers](spec-providers.md). |
-| `data "terraform_remote_state"` | Absent. | `pravo.#RemoteOutputs`. See [Environment and remote outputs](spec-env.md#remote-outputs). |
+| `data "terraform_remote_state"` | Absent. | `pravo.#RemoteOutputs`. See [Environment variables and remote outputs](spec-env.md#remote-outputs). |
 | `terraform_data` | Absent. | `null_resource` of `hashicorp/null`. |
 | Built-in functions | Absent. | CUE expressions and the standard library. See the [function map](../migrate/function-map.md). |
 | Provisioners and `connection` | Absent. | Cloud-init through `user_data`, or a resource of a provider that runs commands, such as `scottwinkler/shell`. A provider function or data source reads a value from a script. |

@@ -1,7 +1,7 @@
 ---
 title: Generated packages
 description: The CUE packages that pravo init writes under cue.mod/gen, one per provider and one for pravo itself.
-order: 30
+order: 31
 group: Language
 normalize:
   - pattern: '(?m)^Downloading .*\n'
@@ -75,9 +75,10 @@ Run `pravo init` before the first `plan`. Commit `cue.mod/gen` and `pravo.lock.c
 |---|---|
 | `#Settings` | `$settings: pravo.#Settings & {...}`. See [Settings](spec-settings.md). |
 | `#StateSettings`, `#LocalState`, `#S3State`, `#StateFields` | The types of the `state` key. |
+| `#Environments`, `#Environment` | `$environments: pravo.#Environments & {...}` and the shape of one of its rows. See [Environments](spec-environments.md). |
 | `#Output` | `name: pravo.#Output & {value: ...}`. See [Outputs](spec-outputs.md). |
 | `#Policy` | A rule over plans, kept in the state. See [Policies](policies-overview.md). |
-| `#Env`, `#SecretEnv` | Environment variables. See [Environment and remote outputs](spec-env.md). |
+| `#Env`, `#SecretEnv` | Environment variables. See [Environment variables and remote outputs](spec-env.md). |
 | `#Secret`, `#SecretVersion` | A secret of the sealed state, and the number of its version. See [Secrets of the sealed state](spec-env.md#secrets-of-the-sealed-state). |
 | `#RemoteOutputs` | The outputs of another root. |
 | `#Movable` | Embedded in a definition so that its instances accept `$from`. See [Moves and imports](spec-moves-and-imports.md#from-on-a-group). |
@@ -100,6 +101,8 @@ grep -E '^#[A-Za-z0-9]+:' cue.mod/gen/pravo.dev/pravo/settings_gen.cue
 #SecretVersion: {
 #RemoteOutputs: {
 #Settings: {
+#Environments: [Name=string]: #Environment
+#Environment: {
 #StateSettings: #StateFields & (#LocalState | #S3State | #HTTPState)
 #StateFields: {
 #LocalState: {

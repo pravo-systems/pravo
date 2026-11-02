@@ -8,7 +8,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 
 | Path | Contents |
 |---|---|
-| `meta.json` | The format number and the lineage of the store, and in formats 3 to 5 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
+| `meta.json` | The format number and the lineage of the store, and in formats 3 to 6 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
 | `resources/<addr>.json` | One node for each resource or data source, named by its address. In format 1 it holds the whole record. In formats 2 and 3 it is a pointer to a record. |
 | `rec/<sha256>` | In formats 2 and 3, one record, named by the SHA-256 of its bytes. It is written once and never changed. |
 | `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. While the state is sealed, the whole object is sealed. |
@@ -17,6 +17,9 @@ pravo records what it manages in a state graph, not a state file. Every resource
 | `txn/<id>.json` | One recorded transaction. |
 | `policy/<name>@<seq>.json` | In format 4, one version of a policy: its text, the time and the signature of whoever applied it. Written once and never changed. See [Format 4](#format-4-policies). |
 | `secret/<name>@<seq>.json` | In format 5, one version of a secret: a value sealed to the readers, a removal or a purged value. Written once; a purge replaces it by a stub in place. See [Format 5](#format-5-secrets). |
+| `environment/<seq>.json` | In a state of an environment, one version of its record: the environment it serves and the ones it follows. Signed in format 6. See [Format 6](#format-6-environments). |
+| `runs/<id>.json` | In a state of an environment, a note that a complete apply left it running a release. Signed in format 6. |
+| `promotions/<fp>.<tags>.<key>.<kind>.json` | In format 6, a promotion of a release into the environment, a waiver or a withdrawal. Written once. |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |
 | `plans/<id>.plan.json`, `plans/<id>.meta.json`, `plans/<id>.progress.json` | A stored plan: the plan, its summary and what was applied from it. See [Plans](#plans). |
 | `discovery/runs/<name>.json` | What the last run of one discovery found. Replaced by the next run. See [Discoveries](#discoveries). |
@@ -100,7 +103,7 @@ Output:
 
 | Field | Meaning |
 |---|---|
-| `format` | The version of the store layout: `1` to `5`. A new store is `1`. |
+| `format` | The version of the store layout: `1` to `6`. A new store is `1`. |
 | `lineage` | An identifier chosen when the store was created. A saved plan records it. |
 | `created` | When the store was created. |
 
@@ -108,14 +111,14 @@ pravo refuses a store with a higher format number:
 
 ```sh
 cp pravo.state/meta.json meta.json.bak
-echo '{"format":6,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
+echo '{"format":7,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
 pravo plan
 ```
 
 Output:
 
 ```text
-Error: state at ./pravo.state was written by a newer pravo (format 6)
+Error: state at ./pravo.state was written by a newer pravo (format 7)
 ```
 
 ```sh
@@ -126,7 +129,7 @@ A command that writes the state, such as `plan` or `apply`, creates the director
 
 ## Formats
 
-`meta.json` says in which of five formats a store is kept.
+`meta.json` says in which of six formats a store is kept.
 
 | Format | Layout |
 |---|---|
@@ -135,8 +138,9 @@ A command that writes the state, such as `plan` or `apply`, creates the director
 | 3 | Sealed state. Format 2, with the values of each record, the outputs and the stored plans encrypted to a list of readers. |
 | 4 | Policies. Format 3, with `policy/<name>@<seq>.json`, the signed versions of the policies of the root. |
 | 5 | Secrets. Format 4, with `secret/<name>@<seq>.json`, the versions of the secrets of the state. |
+| 6 | Environments. Format 5, with the signed record of the environment the state serves, the notes of what it runs and the promotions into it. |
 
-A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all five. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
+A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all six. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
 
 ## Format 2: immutable records
 
@@ -267,6 +271,7 @@ The upgrade to format 3 runs in this order, and a command that finds it half don
 3. It seals `outputs.json`, and the stored plans, in place.
 4. It deletes every record that no pointer names and that is not sealed, which removes the earlier revisions of format 2 that held values in plain text.
 5. It replaces `meta.json` again without `migration`, and adds an entry to `history`.
+6. It deletes the record of the environment and the notes of what the state runs, which were written without a signature. The next apply writes them again, signed.
 
 The state must be at rest: the upgrade refuses while a lock is held, and a transaction that is recorded as running and holds none is one that a killed command left.
 
@@ -772,9 +777,41 @@ The object is not signed. A command of `pravo secret` is a transaction of the ki
 
 `pravo protect rewrap --all` writes a value again under the current group and leaves the `commit` as it is, so the signatures stay valid. `pravo state pull` and `push` carry the versions. A version that exists on both sides must have the same transaction and the same commit, and the bytes of the source win, since a rewrap and a purge change the bytes of a version. A copy that finds a version in the destination that the source lacks, or that would bring back a value the destination purged, is refused and copies nothing more.
 
+## Format 6: environments
+
+A state that serves an environment of [`$environments`](spec-environments.md) keeps three kinds of object beside its records. In a sealed state each is signed, with the identity of whoever wrote it, and the first one raises `meta.json` to format 6, which a pravo that does not know format 6 refuses. In a state that is not sealed they are written without a signature, as advice: they catch a state that a setting points at by mistake, and they hold nobody to anything.
+
+**The record of the environment** is a series of versions `environment/<seq>.json`, where `<seq>` has eight digits and counts from 1 without a gap. Each is written with a put that fails when the object exists. The first apply writes version 1; `pravo environments record` writes the next.
+
+| Field | Meaning |
+|---|---|
+| `name` | The environment the state serves. Empty in a version that says it serves none. |
+| `after` | The environments it follows, each `{"name", "lineage"}`. The lineage of the state of that environment is filled in by the first promotion that reads it. |
+| `at` | When the version was written. |
+| `signature` | `{"signer", "key", "sig"}` over the number, the name, the environments followed with their lineages and the time. |
+
+In a sealed state with roles, a version that changes the name or the environments followed is signed by an admin; a writer signs only a version that fills in a lineage. A version without a signature, one whose signer the readers file does not list, a missing number or a key that is not of this form is refused with exit code 7.
+
+**A note of what the state runs** is an object `runs/<id>.json`, written after each apply that applied the whole specification and finished, and after one that found nothing to change. It is written once.
+
+| Field | Meaning |
+|---|---|
+| `v` | The layout, 1. |
+| `id` | The id of the note, as in its name. |
+| `environment` | The environment the state serves. |
+| `fingerprint` | The fingerprint of the specification that was applied: 32 hexadecimal digits. |
+| `tags` | The SHA-256 of each tag that the run was given, other than `env`, by name. The values are not in the note. |
+| `git_revision` | The git revision of the working tree, with `-dirty` when it had changes. |
+| `txn` | The transaction of the apply. |
+| `at` | When it was written. A note dated more than five minutes after the clock of the reader is ignored. |
+| `admitted` | How the release was let in: the kind (`promoted` or `waived`), who signed it, the key, the time and the note. |
+| `signature` | Over every field above. |
+
+**A promotion** is an object `promotions/<fp>.<tags>.<key>.<kind>.json`: the fingerprint of the release, 16 hexadecimal digits of the digest of its tags, 16 of the digest of the key that signed it, and its kind, `promoted`, `waived` or `revoked`. It is written once. It has `v`, `kind`, `environment`, `fingerprint`, `tags`, `at`, `note` and `signature`, and a promotion of the kind `promoted` has `from`: for each environment followed, its name, the lineage of its state and its note, copied with the signature it has there. An apply checks the signature of the promotion against the readers file of this state, and each note against the readers file of the environment it comes from, so it opens no other state. A withdrawal ends every promotion of the same release signed before it.
+
 ## Remote layout
 
-On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 to 5, `policy/<name>@<seq>.json` in formats 4 and 5, `secret/<name>@<seq>.json` in format 5, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions, the policy versions, the secret versions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
+On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 to 6, `policy/<name>@<seq>.json` in formats 4 to 6, `secret/<name>@<seq>.json` in formats 5 and 6, `environment/<seq>.json`, `runs/<id>.json` and `promotions/<fp>.<tags>.<key>.<kind>.json` in a state of an environment, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions, the policy versions, the secret versions, the record of the environment, the notes of what the state runs, the promotions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
 
 ## Discoveries
 

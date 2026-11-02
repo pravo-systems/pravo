@@ -1,6 +1,6 @@
 ---
 title: Inputs, tags, environments
-description: Run one specification as dev, staging and prod. Use a constrained field, a tag and a state path derived from it.
+description: Run one specification as dev, staging and prod. Declare the environments, select one with a tag and derive the state path from it.
 order: 34
 group: Track B · pravo
 minutes: 12
@@ -44,7 +44,7 @@ A variable with a `validation` block can list the allowed environment names, but
 
 ## The idea
 
-pravo has no workspaces. Select the environment with `-t env=prod`, on every command. The name is one field, the restriction is part of the field, and the state path is computed from it.
+pravo has no workspaces. Declare the environments in the specification, and select one with `-t env=prod`, on every command. The names are the keys of one struct, each key has a row of what differs, and the state path is computed from the name.
 
 :::compare
 ```hcl title="main.tf"
@@ -60,15 +60,18 @@ variable "env" {
 ```
 
 ```cue title="CUE"
-env: *"dev" | "prod" @tag(env)
+$environments: {
+	dev: {$default: true}
+	prod: {}
+}
 ```
 :::
 
-The field has three parts. The disjunction `"dev" | "prod"` lists the allowed values, as in [A6](a06-choices-and-defaults.md). The `*` marks `"dev"` as the default. The attribute `@tag(env)` lets `-t env=...` fill the field. A tag here is an input to the specification. It is not a label on a cloud resource.
+`$environments` is a struct with one field for each environment. Its keys are the allowed names, as the alternatives of the disjunction in the warm-up are. `$default: true` marks the environment that a command without a tag uses, as `*` marks a default. `-t env=prod` selects a row, and before pravo evaluates the rest of the specification it fills the field `$environment` with that row and with `$name`, the name of the row. A tag here is an input to the specification. It is not a label on a cloud resource.
 
 ## Write the specification
 
-Work in an empty directory. Five short files. `main.cue` holds the environment and the state path. `sizes.cue` holds what differs between environments, as data.
+Work in an empty directory. Four short files. `main.cue` holds the environments, what differs between them, and the state path.
 
 ```cue file=main.cue
 package estate
@@ -82,21 +85,14 @@ import (
 $random: rnd.#Provider
 $local:  loc.#Provider
 
-// The environment: dev unless -t env=... says otherwise.
-env: *"dev" | "prod" @tag(env)
+// The environments, and what differs between them. dev unless -t env=... says otherwise.
+$environments: pravo.#Environments & {
+	dev: {workers: 1, $default: true}
+	prod: {workers: 3}
+}
 
 // One state directory per environment.
-$settings: pravo.#Settings & {state: path: "state/\(env)"}
-```
-
-```cue file=sizes.cue
-package estate
-
-// What differs between environments.
-sizes: {dev: 1, prod: 3}
-
-// The row of the environment that is selected.
-size: sizes[env]
+$settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
 ```
 
 ```cue file=port.cue
@@ -105,7 +101,7 @@ package estate
 port: $random.#Resource.random_integer & {
 	min:  20000
 	max:  29999
-	seed: env
+	seed: $environment.$name
 }
 ```
 
@@ -113,8 +109,8 @@ port: $random.#Resource.random_integer & {
 package estate
 
 web: $local.#Resource.local_file & {
-	filename: "\(env).conf"
-	content:  "env = \(env)\nport = \(port.result)\nworkers = \(size)\n"
+	filename: "\($environment.$name).conf"
+	content:  "env = \($environment.$name)\nport = \(port.result)\nworkers = \($environment.workers)\n"
 }
 ```
 
@@ -127,7 +123,9 @@ web_file: pravo.#Output & {value: web.filename}
 web_port: pravo.#Output & {value: port.result}
 ```
 
-`$settings` is the block of pravo's own settings for the root. `pravo.#Settings` is a generated definition, so a misspelt setting is `field not allowed`, as for a resource. Its `state.path` field says where the state lives. The default is `pravo.state`. Here it depends on `env`.
+A row holds your own fields, here `workers`. A field that starts with `$` belongs to pravo. `pravo.#Environments` is a generated definition that checks the shape of the struct.
+
+`$settings` is the block of pravo's own settings for the root. `pravo.#Settings` is a generated definition too, so a misspelt setting is `field not allowed`, as for a resource. Its `state.path` field says where the state lives. The default is `pravo.state`. Here it depends on the name of the environment.
 
 ```sh run
 pravo init
@@ -143,13 +141,13 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
 
 ## Select an environment
 
-`pravo eval -e` prints one expression. Ask for the environment and its size with each tag:
+`pravo eval -e` prints one expression. Ask for the name of the environment and its workers with each tag:
 
 ```sh run
-pravo eval -e env
-pravo eval -e env -t env=prod
-pravo eval -e size
-pravo eval -e size -t env=prod
+pravo eval -e '$environment.$name'
+pravo eval -e '$environment.$name' -t env=prod
+pravo eval -e '$environment.workers'
+pravo eval -e '$environment.workers' -t env=prod
 ```
 
 ```text out
@@ -159,7 +157,7 @@ pravo eval -e size -t env=prod
 3
 ```
 
-Without a tag, `env` takes its default. With `-t env=prod`, the field is `"prod"`, and `size` reads the row of that name.
+Without a tag, the row marked `$default: true` is selected. With `-t env=prod`, `$environment` is the row of prod.
 
 ## Apply two environments
 
@@ -199,7 +197,7 @@ The addresses are the same in both, `port` and `web`. They are paths in the spec
 
 ## Every command names its environment
 
-pravo keeps no current environment. Each command evaluates the specification again with the tags it receives. A command without `-t` gets the defaults.
+pravo keeps no current environment. Each command evaluates the specification again with the tags it receives. A command without `-t` gets the default.
 
 ```sh run
 pravo plan | grep -E '^(No changes|Graph)'
@@ -229,24 +227,17 @@ pravo state query 'resources.port.attributes.result' -t env=prod
 
 ## Break it: an environment that does not exist
 
-The field allows two values. Ask for a third. pravo rejects it when it evaluates the specification, before any provider starts.
+The struct has two keys. Ask for a third. pravo rejects it before it evaluates the specification, so before any provider starts.
 
 ```sh run exit=6 status=rejected
 pravo plan -t env=qa
 ```
 
 ```text out
-Error: evaluating .:
-env: 2 errors in empty disjunction:
-env: conflicting values "dev" and "qa":
-    ./main.cue:13:7
-env: conflicting values "prod" and "qa":
-    ./main.cue:13:15
+Error: "qa" is not an environment of this specification; the environments are dev and prod (pass -t env=NAME)
 ```
 
-Read it as path, values, location. The path is `env`. The message says `2 errors in empty disjunction`: pravo tried each alternative, and none accepts `"qa"`. Each `conflicting values` line compares one alternative with `"qa"`. The position under it is that alternative in `main.cue`: `"dev"` first, then `"prod"`.
-
-The error is the same in `validate`, `eval`, `apply` and every other command that evaluates the specification. Check that no provider ran:
+The message names the value you gave and the ones that are declared. The error is the same in `validate`, `eval`, `apply` and every other command that evaluates the specification. Check that no provider ran:
 
 ```sh run
 pravo plan -t env=qa -v 2>&1 | grep 'provider started' || echo 'no provider started'
@@ -260,14 +251,26 @@ no provider started
 
 Give prod four workers. Only the row of prod changes.
 
-```cue file=sizes.cue hl="4"
+```cue file=main.cue hl="15"
 package estate
 
-// What differs between environments.
-sizes: {dev: 1, prod: 4}
+import (
+	"pravo.dev/pravo"
+	rnd "pravo.dev/providers/hashicorp/random"
+	loc "pravo.dev/providers/hashicorp/local"
+)
 
-// The row of the environment that is selected.
-size: sizes[env]
+$random: rnd.#Provider
+$local:  loc.#Provider
+
+// The environments, and what differs between them. dev unless -t env=... says otherwise.
+$environments: pravo.#Environments & {
+	dev: {workers: 1, $default: true}
+	prod: {workers: 4}
+}
+
+// One state directory per environment.
+$settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
 ```
 
 ```sh run
@@ -314,22 +317,22 @@ workers = 4
 ## Exercise
 
 :::exercise Add staging
-Add a third environment, `staging`, with two workers. It needs one edit in `main.cue` and one in `sizes.cue`. Then apply it.
+Add a third environment, `staging`, with two workers. It needs one edit in `main.cue`. Then apply it.
 
 When you are done, this must print `ok`:
 
 ```sh title="check"
-pravo eval -e size -t env=staging | grep -qx 2 && pravo plan -t env=qa 2>&1 | grep -q 'empty disjunction' && test -f staging.conf && echo ok
+pravo eval -e '$environment.workers' -t env=staging | grep -qx 2 && pravo plan -t env=qa 2>&1 | grep -q 'not an environment' && test -f staging.conf && echo ok
 ```
 
 ::hint
-Add `"staging"` to the disjunction of `env` and a row to `sizes`. Keep `"dev"` as the default.
+Add a row to `$environments`. Keep `$default: true` on dev.
 
 ::hint
-`pravo validate` accepts a missing row. `pravo eval -e size -t env=staging` reports it as `undefined field: staging`. [A6](a06-choices-and-defaults.md) covers the disjunction.
+`pravo validate` checks every environment, and names a row that misses a field the others have. [Environments](../reference/spec-environments.md) describes the rows.
 
 ::solution
-```cue file=main.cue hl="13"
+```cue file=main.cue hl="15"
 package estate
 
 import (
@@ -341,21 +344,15 @@ import (
 $random: rnd.#Provider
 $local:  loc.#Provider
 
-// The environment: dev unless -t env=... says otherwise.
-env: *"dev" | "staging" | "prod" @tag(env)
+// The environments, and what differs between them. dev unless -t env=... says otherwise.
+$environments: pravo.#Environments & {
+	dev: {workers: 1, $default: true}
+	staging: {workers: 2}
+	prod: {workers: 4}
+}
 
 // One state directory per environment.
-$settings: pravo.#Settings & {state: path: "state/\(env)"}
-```
-
-```cue file=sizes.cue hl="4"
-package estate
-
-// What differs between environments.
-sizes: {dev: 1, staging: 2, prod: 4}
-
-// The row of the environment that is selected.
-size: sizes[env]
+$settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
 ```
 
 ```sh run
@@ -376,8 +373,8 @@ staging
 ```
 
 ```sh run check
-pravo eval -e size -t env=staging | grep -qx 2
-pravo plan -t env=qa 2>&1 | grep -q 'empty disjunction'
+pravo eval -e '$environment.workers' -t env=staging | grep -qx 2
+pravo plan -t env=qa 2>&1 | grep -q 'not an environment'
 test -f staging.conf
 ```
 :::
@@ -398,9 +395,9 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
 
 ## Recap
 
-- An input is a field with a default, a constraint and `@tag(name)`. `-t name=value` fills it.
-- The state path is computed from the environment, so each environment has its own state and the same addresses.
-- A value outside the constraint is refused at evaluation, and a saved plan carries the tags it was made with.
+- The environments are the keys of `$environments`, and each row holds what differs. `-t env=NAME` selects a row, which the rest of the specification reads as `$environment`.
+- The state path is computed from the name, so each environment has its own state and the same addresses.
+- A name that is not declared is refused before evaluation, and a saved plan carries the tags it was made with.
 
 :::check
 What does pravo remember between commands about the current environment?
@@ -412,6 +409,6 @@ Why can a plan made with `-t env=prod` not be applied with `-t env=dev`?
 The saved plan carries its own tags. It can only be applied to the environment it was made for.
 :::
 
-Reference: [Tags and variables](../reference/spec-tags-and-variables.md), [Settings](../reference/spec-settings.md) and the how-to [Environments](../how-to/environments.md).
+Reference: [Environments](../reference/spec-environments.md), [Tags and variables](../reference/spec-tags-and-variables.md), [Settings](../reference/spec-settings.md) and the how-to [Run one specification in several environments](../how-to/environments.md). An environment can also take only the releases that another one runs: [Promote a release from one environment to the next](../how-to/promote-a-release.md).
 
 [B5](b05-many-resources-from-one-rule.md) generates many resources from one rule.

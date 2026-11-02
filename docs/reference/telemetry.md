@@ -79,7 +79,7 @@ jq -r .Name trace.jsonl | grep -v '^wait ' | cut -d' ' -f1 | sort | uniq -c
       4 provider
       1 resource
      10 setup
-      7 state
+      8 state
 ```
 
 The spans end in this order: what is under a span ends before it, and the command ends last. Their nesting:

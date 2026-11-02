@@ -237,7 +237,7 @@ env: conflicting values "staging" and "qa":
 | `.tfvars`, `-var-file` | No equivalent | Pass each value with `-t key=value`. |
 :::
 
-[M4, step 2](m4-translate-the-specification.md#step-2-variables) translates variables with lists, maps and defaults, and [Environment and remote outputs](../reference/spec-env.md) describes `#Env` and `#SecretEnv`.
+[M4, step 2](m4-translate-the-specification.md#step-2-variables) translates variables with lists, maps and defaults, and [Environment variables and remote outputs](../reference/spec-env.md) describes `#Env` and `#SecretEnv`.
 
 ## Names and results
 

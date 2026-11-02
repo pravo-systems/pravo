@@ -528,7 +528,7 @@ pravo plan
 ```
 
 ```text out
-Error: $settings.policy is not a setting (the block takes state and refresh)
+Error: $settings.policy is not a setting (the block takes state, access and refresh)
 ```
 
 ```sh run

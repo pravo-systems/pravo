@@ -1,7 +1,7 @@
 ---
 title: Reuse
 description: pravo has no module block. A definition that contains resources is instantiated with `&`, a package shares it between roots and a CUE module between repositories.
-order: 29
+order: 30
 group: Language
 normalize:
   - pattern: '(?m)^Downloading .*\n'

@@ -1,7 +1,7 @@
 ---
 title: Global flags, environment and exit codes
 description: The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed.
-order: 23
+order: 25
 group: Commands
 normalize:
   - pattern: '(?m)^Downloading .*\n'

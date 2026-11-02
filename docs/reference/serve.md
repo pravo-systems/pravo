@@ -250,7 +250,7 @@ Flags:
       --no-open                do not open a browser
       --plan string            a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-<id>)
       --port int               the port to listen on (0 picks a free one)
-  -t, --tag stringArray        inject a value for an @tag() field: -t key=value
+  -t, --tag stringArray        inject a value for an @tag() field: -t key=value; -t env=NAME names an environment of $environments
 
 Global Flags:
       --actor string      a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)

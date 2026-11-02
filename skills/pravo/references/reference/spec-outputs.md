@@ -155,7 +155,7 @@ Output:
 }
 ```
 
-Another root reads the outputs of this one with `pravo.#RemoteOutputs`. A sensitive output is not included. See [Environment and remote outputs](spec-env.md#remote-outputs).
+Another root reads the outputs of this one with `pravo.#RemoteOutputs`. A sensitive output is not included. See [Environment variables and remote outputs](spec-env.md#remote-outputs).
 
 ## Rules
 
@@ -211,5 +211,5 @@ Name the keys differently from the resources they read.
 ## See also
 
 - [`pravo output`](output.md) prints the recorded outputs.
-- [Environment and remote outputs](spec-env.md#remote-outputs) reads the outputs of another root.
+- [Environment variables and remote outputs](spec-env.md#remote-outputs) reads the outputs of another root.
 - [Secrets and ephemeral values](../concepts/secrets-and-ephemeral-values.md) says what a sensitive output hides.

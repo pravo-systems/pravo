@@ -15,7 +15,9 @@ An input is an ordinary field with the attribute `@tag(name)`. `-t name=value` s
 | `-t name=value` | Sets the field tagged `name`. Repeatable. |
 | `-T` | Injects the system tags. |
 
-These commands take `-t` and `-T`: `init`, `gen`, `validate`, `eval`, `plan`, `apply`, `destroy`, `drift`, `output`, `import`, `providers`, `schema`, `why` and every `pravo state` subcommand. The state commands evaluate the specification to find the state, so `-t env=prod` selects the state of `prod`. A saved plan carries its tags, so `show` takes none, and `apply FILE` refuses them. There is no variables file. A set of values goes into a `.cue` file of the package.
+These commands take `-t` and `-T`: `init`, `gen`, `validate`, `eval`, `plan`, `apply`, `destroy`, `drift`, `output`, `import`, `providers`, `schema`, `why`, `environments`, `promote` and every `pravo state` subcommand. The state commands evaluate the specification to find the state, so `-t env=prod` selects the state of `prod`. A saved plan carries its tags, so `show` takes none, and `apply FILE` refuses them. There is no variables file. A set of values goes into a `.cue` file of the package.
+
+A specification that declares `$environments` keeps `env` for itself: `-t env=NAME` selects a row of `$environments`, and a field that carries `@tag(env)` is refused ([Environments](spec-environments.md#selecting-an-environment)). The examples on this page declare no environments, so `env` is an ordinary tag here.
 
 Work in an empty directory.
 
@@ -255,6 +257,7 @@ The error names the import that nothing uses. Remove it, or use it, and the spec
 
 ## See also
 
-- [Run one specification in several environments](../how-to/environments.md) builds an environment table on a tag.
-- [Environment and remote outputs](spec-env.md) reads credentials and other environment variables.
+- [Environments](spec-environments.md) declares the environments that one specification is applied to, with a row of values for each.
+- [Run one specification in several environments](../how-to/environments.md) is the recipe.
+- [Environment variables and remote outputs](spec-env.md) reads credentials and other environment variables.
 - [`pravo eval`](validate-eval-fmt-gen.md#pravo-eval) prints the value of a field.
