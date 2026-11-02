@@ -211,7 +211,7 @@ func TestTheRecordOfAnEnvironmentHoldsItsLadder(t *testing.T) {
 	// An edit that makes prod follow dev is not taken by the state until an admin records it.
 	l.write(t, `"dev"`)
 	text, code := l.as(t, "ada", "plan", "-t", "env=prod")
-	if code != 5 || !strings.Contains(text, "The record of this state says that prod follows staging, and the specification says it follows dev") ||
+	if code != 5 || !strings.Contains(text, "the record of this state says that prod follows staging, and the specification says it follows dev") ||
 		!strings.Contains(text, "pravo environments record -t env=prod") {
 		t.Fatalf("plan after the edit: exit %d\n%s", code, text)
 	}
@@ -248,7 +248,7 @@ func TestALadderWithoutASealWarns(t *testing.T) {
 		t.Fatal(err)
 	}
 	text, code = runPravo(t, l.dir, "plan", "-t", "env=prod")
-	if code != 5 || !strings.Contains(text, "This state serves the environment staging, and this run is for prod") {
+	if code != 5 || !strings.Contains(text, "this state serves the environment staging, and this run is for prod") {
 		t.Fatalf("plan of a copied state: exit %d\n%s", code, text)
 	}
 }
@@ -280,6 +280,34 @@ limit: $environment.replicas & <=3
 	}
 	if text, code = runPravo(t, l.dir, "validate", "-t", "env=staging"); code != 0 {
 		t.Fatalf("validate staging: exit %d\n%s", code, text)
+	}
+
+	// A row that misses a field the others have, or holds a value that is not concrete, is
+	// found by validate, before a plan of that environment would wait for it.
+	rows := `package estate
+
+$environments: dev: zone: "a"
+$environments: staging: zone: "b"
+$environments: prod: zone: string
+`
+	if err := os.WriteFile(filepath.Join(l.dir, "limit.cue"), []byte(rows), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	text, code = runPravo(t, l.dir, "validate")
+	if code != 6 || !strings.Contains(text, "$environments.prod.zone has no value") {
+		t.Fatalf("validate with a row that is not concrete: exit %d\n%s", code, text)
+	}
+	rows = `package estate
+
+$environments: dev: zone: "a"
+$environments: prod: zone: "c"
+`
+	if err := os.WriteFile(filepath.Join(l.dir, "limit.cue"), []byte(rows), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	text, code = runPravo(t, l.dir, "validate")
+	if code != 6 || !strings.Contains(text, "not valid in staging: $environments.staging has no zone, which dev and prod have") {
+		t.Fatalf("validate with a row that misses a field: exit %d\n%s", code, text)
 	}
 }
 

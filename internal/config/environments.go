@@ -107,8 +107,9 @@ func WithoutEnvironment(tags []string) []string {
 	return rest
 }
 
-// envTagField finds a field that carries @tag(env) in the files, and returns where.
-func envTagField(files []*ast.File) string {
+// envTagField finds a field that carries @tag(env) in the files, and returns where, relative
+// to the directory of the root.
+func envTagField(dir string, files []*ast.File) string {
 	where := ""
 	for _, f := range files {
 		ast.Walk(f, func(n ast.Node) bool {
@@ -125,7 +126,12 @@ func envTagField(files []*ast.File) string {
 			}
 			name, _, _ := strings.Cut(body, ",")
 			if strings.TrimSpace(name) == EnvTag {
-				where = a.Pos().String()
+				p := a.Pos()
+				file := p.Filename()
+				if rel, err := filepath.Rel(dir, file); err == nil && !strings.HasPrefix(rel, "..") {
+					file = "./" + filepath.ToSlash(rel)
+				}
+				where = fmt.Sprintf("%s:%d:%d", file, p.Line(), p.Column())
 			}
 			return true
 		}, nil)
@@ -268,16 +274,58 @@ func ladderOrder(envs []Environment) ([]Environment, error) {
 			}
 		}
 		if !progress {
-			var circle []string
-			for _, e := range envs {
-				if !placed[e.Name] {
-					circle = append(circle, e.Name)
-				}
-			}
-			return nil, fmt.Errorf("$environments: %s follow one another in a circle through $after, so none of them can be first", joinAnd(circle))
+			return nil, fmt.Errorf("$environments: %s follow one another in a circle through $after, so none of them can be first", joinAnd(circleOf(envs, placed)))
 		}
 	}
 	return out, nil
+}
+
+// circleOf finds a circle among the environments that are not placed: an environment that
+// cannot be placed follows one that cannot either, so the walk from any of them comes back to
+// an environment it has seen. Those after the circle, which wait for it, are left out. The
+// names are in the order they were written in.
+func circleOf(envs []Environment, placed map[string]bool) []string {
+	byName := map[string]Environment{}
+	for _, e := range envs {
+		byName[e.Name] = e
+	}
+	var path []string
+	seen := map[string]int{}
+	for _, e := range envs {
+		if placed[e.Name] {
+			continue
+		}
+		for cur := e.Name; ; {
+			if i, ok := seen[cur]; ok {
+				in := map[string]bool{}
+				for _, n := range path[i:] {
+					in[n] = true
+				}
+				var out []string
+				for _, e := range envs {
+					if in[e.Name] {
+						out = append(out, e.Name)
+					}
+				}
+				return out
+			}
+			seen[cur] = len(path)
+			path = append(path, cur)
+			next := ""
+			for _, a := range byName[cur].After {
+				if !placed[a] {
+					next = a
+					break
+				}
+			}
+			if next == "" {
+				break
+			}
+			cur = next
+		}
+		break
+	}
+	return path
 }
 
 func names(envs []Environment) []string {
@@ -497,7 +545,11 @@ func (r *Root) checkEnvironments(opts LoadOptions) error {
 		}
 		loc := e.Location()
 		if other, ok := seen[loc]; ok {
-			return fmt.Errorf("the environments %s and %s keep their state in one place, %s: each environment needs a state of its own, so write the name into $settings.state, such as path: \"state/\\($environment.$name)\" or prefix: \"app/\\($environment.$name)\"", other, e.Name, e.Where())
+			where := e.Where()
+			if rel, err := filepath.Rel(r.Dir, where); err == nil && e.State.Backend != "s3" && e.State.Backend != "http" && !strings.HasPrefix(rel, "..") {
+				where = filepath.ToSlash(rel)
+			}
+			return fmt.Errorf("the environments %s and %s keep their state in one place, %s: each environment needs a state of its own, so write the name into $settings.state, such as path: \"state/\\($environment.$name)\" or prefix: \"app/\\($environment.$name)\"", other, e.Name, where)
 		}
 		seen[loc] = e.Name
 	}

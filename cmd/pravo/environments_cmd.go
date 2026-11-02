@@ -153,6 +153,7 @@ func showEnvironments(cmd *cobra.Command) error {
 		}
 		if n := r.j.Runs; n != nil {
 			row[2], row[3], row[4] = engine.ShortID(n.Fingerprint), shortRev(n.GitRevision), ago(&n.At)
+			row[5] = "-"
 			if n.By != "" {
 				row[5] = safeName(n.By)
 			}
@@ -255,7 +256,7 @@ func readEnvironmentRows(ctx context.Context, root *config.Root, rel engine.Rele
 				r.j.Promoted = &admitJSON{Kind: c.Admission.Kind, By: c.Admission.By, At: c.Admission.At, Note: c.Admission.Note}
 			}
 		}
-		if !r.runs && r.j.Release == "" && len(after) > 0 && !slices.ContainsFunc(after, func(a string) bool { return !runs[a] }) {
+		if !r.runs && r.j.Release == "" && len(after) > 0 && s.Sealed && !slices.ContainsFunc(after, func(a string) bool { return !runs[a] }) {
 			r.j.Release = "ready"
 		}
 		s.close()
@@ -457,19 +458,18 @@ func declaredIn(ctx context.Context, env string) (*declared, error) {
 func jsonOf(v cue.Value) any {
 	data, err := v.MarshalJSON()
 	if err != nil {
-		switch v.IncompleteKind() {
-		case cue.StructKind:
-			out := map[string]any{}
-			it, err := v.Fields(cue.Optional(false))
-			if err != nil {
-				return unknownValue
-			}
-			for it.Next() {
-				out[it.Selector().String()] = jsonOf(it.Value())
-			}
-			return out
+		if v.IncompleteKind() != cue.StructKind {
+			return unknownValue
 		}
-		return unknownValue
+		out := map[string]any{}
+		it, err := v.Fields(cue.Optional(false))
+		if err != nil {
+			return unknownValue
+		}
+		for it.Next() {
+			out[it.Selector().String()] = jsonOf(it.Value())
+		}
+		return out
 	}
 	var x any
 	if json.Unmarshal(data, &x) != nil {

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -678,7 +679,7 @@ func readSettingsSource(dir string, opts LoadOptions) (*settingsSource, error) {
 		}
 	}
 	if withEnvs {
-		if where := envTagField(src.files); where != "" {
+		if where := envTagField(abs, src.files); where != "" {
 			return nil, fmt.Errorf("%s: a field carries @tag(%s), and $environments selects the environment with -t %s=NAME: remove the tag, and read the name as $environment.$name", where, EnvTag, EnvTag)
 		}
 	}
@@ -966,7 +967,7 @@ func parseAccess(ab cue.Value) (string, error) {
 		return "", fmt.Errorf("$settings.access.dir: %w", err)
 	}
 	if strings.TrimSpace(s) == "" {
-		return "", fmt.Errorf("$settings.access.dir is empty: leave it out to use .pravo/access")
+		return "", errors.New("$settings.access.dir is empty: leave it out to use .pravo/access")
 	}
 	return s, nil
 }

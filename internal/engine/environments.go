@@ -162,16 +162,9 @@ func (e *Engine) checkEnvironment(ctx context.Context) (*state.EnvironmentRecord
 		return nil, err
 	}
 	if p := RecordProblem(e.Root, rec); p != "" {
-		return rec, refused("%s.\nIf the specification is right, an admin makes the record say so:\n\n    %s", capitalise(p), RecordCommand(e.Root))
+		return rec, refused("%s.\n\nIf the specification is right, an admin makes the record say so:\n\n    %s", p, RecordCommand(e.Root))
 	}
 	return rec, nil
-}
-
-func capitalise(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // gateOf lists the environments the run's environment follows: those of the record, which is

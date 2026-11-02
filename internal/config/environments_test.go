@@ -108,6 +108,7 @@ func TestEnvironmentErrors(t *testing.T) {
 		{"after typo", `dev: {$default: true}, prod: {$after: "stagin"}`, "", nil, `$environments.prod.$after names "stagin", which is not an environment (they are dev and prod)`},
 		{"self", `dev: {$default: true, $after: "dev"}`, "", nil, "$environments.dev.$after names dev itself"},
 		{"circle", `a: {$after: "b", $default: true}, b: {$after: "a"}, c: {}`, "", nil, "a and b follow one another in a circle"},
+		{"circle with a follower", `x: {$after: "b"}, a: {$after: "b", $default: true}, b: {$after: "a"}, c: {}`, "", nil, "$environments: a and b follow one another in a circle"},
 		{"bad name", `"my env": {$default: true}`, "", nil, "an environment is named with letters"},
 		{"empty list", `dev: {$default: true}, prod: {$after: []}`, "", nil, "$after is an empty list"},
 		{"shared state", `dev: {$default: true}, prod: {}`, `$settings: state: path: "state"`, nil, "the environments dev and prod keep their state in one place"},

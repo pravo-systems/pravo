@@ -598,7 +598,7 @@ func (s *Store) Promotions(ctx context.Context, fingerprint string) ([]Promotion
 	var out []PromotionObject
 	for _, k := range keys {
 		m := promotionKeyRe.FindStringSubmatch(k)
-		if m == nil || (fingerprint != "" && m[1] != fingerprint) {
+		if len(m) != 5 || (fingerprint != "" && m[1] != fingerprint) {
 			continue
 		}
 		data, err := s.b.Get(ctx, k)

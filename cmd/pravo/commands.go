@@ -1178,6 +1178,57 @@ func validateCmd() *cobra.Command {
 
 // validateEnvironments validates the specification in each environment, and says for each what
 // it declares or why it is not valid.
+// rowProblem checks the row of one environment in $environments against the others: a field
+// that another row has and this one does not, or a value that is not concrete, is found here
+// rather than in a plan of that environment, where it would stop the run or wait for the apply.
+// The fields of pravo, which begin with $, are left out.
+func rowProblem(v cue.Value, envs []config.Environment, name string) string {
+	all := v.LookupPath(cue.MakePath(cue.Str("$environments")))
+	if !all.Exists() {
+		return ""
+	}
+	fields := func(row cue.Value) []string {
+		var out []string
+		it, err := row.Fields()
+		if err != nil {
+			return nil
+		}
+		for it.Next() {
+			if l := it.Selector().String(); !strings.HasPrefix(l, "$") {
+				out = append(out, l)
+			}
+		}
+		return out
+	}
+	mine := fields(all.LookupPath(cue.MakePath(cue.Str(name))))
+	holders := map[string][]string{}
+	var order []string
+	for _, e := range envs {
+		if e.Name == name {
+			continue
+		}
+		for _, f := range fields(all.LookupPath(cue.MakePath(cue.Str(e.Name)))) {
+			if !slices.Contains(mine, f) {
+				if _, ok := holders[f]; !ok {
+					order = append(order, f)
+				}
+				holders[f] = append(holders[f], e.Name)
+			}
+		}
+	}
+	if len(order) > 0 {
+		f := order[0]
+		return fmt.Sprintf("$environments.%s has no %s, which %s %s", name, f, joinAnd(holders[f]), map[bool]string{true: "has", false: "have"}[len(holders[f]) == 1])
+	}
+	row := all.LookupPath(cue.MakePath(cue.Str(name)))
+	for _, f := range mine {
+		if err := row.LookupPath(cue.ParsePath(f)).Validate(cue.Concrete(true)); err != nil {
+			return fmt.Sprintf("$environments.%s.%s has no value: %s", name, f, firstLine(err))
+		}
+	}
+	return ""
+}
+
 func validateEnvironments(cmd *cobra.Command, list []config.EnvironmentSettings) error {
 	saved := flags.Tags
 	defer func() { flags.Tags = saved }()
@@ -1208,6 +1259,9 @@ func validateEnvironments(cmd *cobra.Command, list []config.EnvironmentSettings)
 			if err := engine.CheckGraph(s.root, s.value); err != nil {
 				return err
 			}
+			if p := rowProblem(s.value, s.root.Environments, es.Name); p != "" {
+				return errors.New(p)
+			}
 			r.Resources, r.DataSources, r.Outputs = countMode(s.root, "managed"), countMode(s.root, "data"), len(s.root.Outputs)
 			return nil
 		}()
@@ -1227,20 +1281,34 @@ func validateEnvironments(cmd *cobra.Command, list []config.EnvironmentSettings)
 		}
 		return nil
 	}
-	var errs []string
+	// An error that several environments share, such as a mistake in $environments itself, is
+	// written once, with the environments it is about.
+	var texts []string
+	byText := map[string][]string{}
 	for _, r := range results {
 		switch {
 		case r.Valid:
 			out.Printf("%s %s: %d resources, %d data sources, %d outputs.\n", out.C(ui.Green, "✓"), r.Environment, r.Resources, r.DataSources, r.Outputs)
 		default:
 			out.Printf("%s %s\n", out.C(ui.Red, "✗"), r.Environment)
-			errs = append(errs, r.Environment+": "+r.Error)
+			text := strings.TrimSuffix(r.Error, "\n(evaluated for the environment "+r.Environment+")")
+			if _, ok := byText[text]; !ok {
+				texts = append(texts, text)
+			}
+			byText[text] = append(byText[text], r.Environment)
 		}
 		if r.Settings != "" {
 			out.Printf("  %s\n", out.C(ui.Dim, "its settings cannot be read here: "+r.Settings))
 		}
 	}
 	if len(failed) > 0 {
+		if len(texts) == 1 {
+			return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the specification is not valid in %s: %s", joinAnd(failed), texts[0]))
+		}
+		errs := make([]string, len(texts))
+		for i, t := range texts {
+			errs[i] = joinAnd(byText[t]) + ": " + t
+		}
 		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the specification is not valid in %s:\n\n%s", joinAnd(failed), strings.Join(errs, "\n\n")))
 	}
 	names := make([]string, len(results))

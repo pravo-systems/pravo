@@ -149,6 +149,12 @@ func (s *Store) updateMeta(fn func(m *meta) error) error {
 
 // setFormat raises the format in meta.json.
 func (s *Store) setFormat(format int) error {
+	// The format only goes up, so a state already at it is left alone: meta.json is written
+	// by the first object of a kind, and a writer whose credentials cannot put it writes the
+	// later ones.
+	if s.Format() >= format {
+		return nil
+	}
 	return s.updateMeta(func(m *meta) error {
 		if m.Format < format {
 			m.Format = format

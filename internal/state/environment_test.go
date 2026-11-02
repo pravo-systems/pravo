@@ -161,3 +161,48 @@ func TestEnvironmentObjectsUnsealed(t *testing.T) {
 		t.Errorf("a promotion needs a seal: %v", err)
 	}
 }
+
+// metaGuard refuses every write of meta.json, as a bucket does for a writer's credentials.
+type metaGuard struct{ Backend }
+
+func (b metaGuard) Put(ctx context.Context, key string, data []byte) error {
+	if key == "meta.json" {
+		return errors.New("access denied to meta.json")
+	}
+	return b.Backend.Put(ctx, key, data)
+}
+
+func (b metaGuard) ReplaceIf(ctx context.Context, key string, update func([]byte) ([]byte, bool)) (bool, error) {
+	if key == "meta.json" {
+		return false, errors.New("access denied to meta.json")
+	}
+	return b.Backend.ReplaceIf(ctx, key, update)
+}
+
+// Only the first signed object raises the format. A writer whose credentials cannot put
+// meta.json writes every later record, note and promotion.
+func TestEnvironmentObjectsLeaveMetaAlone(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	b := testBackends()[0].make(t)
+	ada, bob := testIdentity(t, "ada"), testIdentity(t, "bob")
+	s := sealedStore(t, b, ada, bob)
+	if err := s.PutEnvironmentRecord(ctx, 1, EnvironmentRecord{Name: "prod", After: []Upstream{{Name: "staging"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if s.Format() != FormatEnvironment {
+		t.Fatalf("format %d", s.Format())
+	}
+	asBob := openIdentity(t, metaGuard{b}, bob)
+	if err := asBob.PutEnvironmentRecord(ctx, 2, EnvironmentRecord{Name: "prod", After: []Upstream{{Name: "staging", Lineage: "abc"}}}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	if err := asBob.PutRunNote(ctx, &RunNote{Environment: "prod", Fingerprint: strings.Repeat("a", 32), Txn: "t1"}); err != nil {
+		t.Fatalf("note: %v", err)
+	}
+	p := &Promotion{Kind: PromotionPromoted, Environment: "prod", Fingerprint: strings.Repeat("a", 32),
+		From: []PromotionSource{{Environment: "staging", Lineage: "abc", Run: &RunNote{ID: "x"}}}}
+	if err := asBob.PutPromotion(ctx, p); err != nil {
+		t.Fatalf("promotion: %v", err)
+	}
+}

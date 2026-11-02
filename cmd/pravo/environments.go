@@ -299,7 +299,7 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 			return secretErr(err)
 		}
 		if p := engine.RecordProblem(root, rec); p != "" {
-			return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s.\nIf the specification is right, an admin makes the record say so:\n\n    %s", capital(p), engine.RecordCommand(root)))
+			return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s.\n\nIf the specification is right, an admin makes the record say so:\n\n    %s", p, engine.RecordCommand(root)))
 		}
 		gate := (&envState{es: config.EnvironmentSettings{Environment: mustCurrent(root)}, Record: rec}).after()
 		if len(gate) == 0 {
@@ -380,7 +380,7 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 		if !flags.JSON {
 			out.Println(line)
 			if o.signOnly {
-				out.Printf("\n    %s\n", engine.ApplyCommand(root, env))
+				out.Printf("Apply it there with:\n\n    %s\n", engine.ApplyCommand(root, env))
 			}
 		}
 		return nil
@@ -406,7 +406,7 @@ func readUpstream(ctx context.Context, envs *environmentsOf, root *config.Root, 
 	s := envs.open(ctx, up)
 	defer s.close()
 	steps := func(why string) error {
-		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s does not run this release: %s.\nRun these, skipping a step that is already done:\n\n%s", up, why, engine.Steps(root, env)))
+		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s does not run this release: %s.\n\nRun these, skipping a step that is already done:\n\n%s", up, why, engine.Steps(root, env)))
 	}
 	switch {
 	case s.Err != nil:
@@ -416,7 +416,7 @@ func readUpstream(ctx context.Context, envs *environmentsOf, root *config.Root, 
 	case !s.Sealed:
 		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is not sealed, so it keeps no signed note of what it runs. Seal it: pravo protect init --encrypt -t %s=%s\nAn admin can promote without it: pravo promote %s --waive \"reason\"", up, config.EnvTag, up, env))
 	case s.NoteProblem != "":
-		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("%s, so it does not show what %s runs", capital(s.NoteProblem), up))
+		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("%s, so it does not show what %s runs", s.NoteProblem, up))
 	}
 	if want := rec.Lineage(up); want != "" && want != s.st.Lineage() {
 		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is another than the one %s follows: its settings point at a state that its record does not name.\nIf the settings are right, an admin makes the record of %s say so:\n\n    pravo environments record -t %s=%s", up, env, env, config.EnvTag, env))
@@ -440,14 +440,6 @@ func sharedReaders(envs *environmentsOf, env string, gate []string) string {
 		}
 	}
 	return ""
-}
-
-// capital starts a sentence with a capital letter.
-func capital(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func joinAnd(items []string) string {
