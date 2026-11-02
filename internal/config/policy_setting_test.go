@@ -9,7 +9,7 @@ import (
 // no field for them.
 func TestSettingsHasNoPolicies(t *testing.T) {
 	_, err := loadSpec(t, `$settings: norms: plan: summary: blast_radius: <=5`)
-	if err == nil || !strings.Contains(err.Error(), "is not a setting") || !strings.Contains(err.Error(), "state and refresh") {
+	if err == nil || !strings.Contains(err.Error(), "is not a setting") || !strings.Contains(err.Error(), "state, access and refresh") {
 		t.Fatalf("expected an unknown-setting error, got %v", err)
 	}
 	if _, err := loadSpec(t, `$settings: policy: summary: blast_radius: <=5`); err == nil {

@@ -18,7 +18,7 @@ import (
 
 // reservedTop lists the top-level fields that are not searched for
 // resources: they have a meaning of their own.
-var reservedTop = map[string]bool{"$settings": true}
+var reservedTop = map[string]bool{"$settings": true, "$environments": true, "$environment": true}
 
 // discover finds every resource in the evaluated specification. A resource
 // is any struct that carries the identity fields of a generated definition:
