@@ -1052,6 +1052,7 @@ function renderEnvButton() {
   const el = $('env-count');
   el.hidden = !(n > 0);
   el.textContent = n > 99 ? '99+' : String(n);
+  btn.dataset.tip = n > 0 ? `Environments: ${n} waiting for a promotion or an apply` : 'Environments';
   btn.setAttribute('aria-label', switching ? `Environments: opening ${switching}` : envs.length ? `Environments: reading ${p.environment}${n > 0 ? `, ${n} waiting for a step` : ''}` : 'Environments');
 }
 
@@ -1101,11 +1102,11 @@ function openEnvMenu() {
   const ladder = h('button', {
     type: 'button', class: 'em-row em-page', role: 'menuitem',
     on: { click: pick(() => setView(onPage ? (S.lastResources || 'graph') : 'environments')) },
-  }, icon('ladder'), h('span', { class: 'em-tx' }, h('span', { class: 'em-pg' }, onPage ? 'Back to the resources' : 'Open the promotion flow'), h('span', { class: 'em-ln' }, onPage ? 'the graph of the environment the page reads' : 'what each runs, and the next promotion')));
+  }, icon('flow'), h('span', { class: 'em-tx' }, h('span', { class: 'em-pg' }, onPage ? 'Back to the resources' : 'Open the promotion flow'), h('span', { class: 'em-ln' }, onPage ? 'the graph of the environment the page reads' : 'what each runs, and the next promotion')));
   const btn = $('env-btn');
   const r = btn.getBoundingClientRect();
   const menu = h('div', { class: 'env-menu', id: 'env-menu', role: 'menu', 'aria-label': 'Environments', style: `left:${Math.round(r.left)}px; top:${Math.round(r.bottom)}px` },
-    h('p', { class: 'em-h', 'aria-hidden': 'true' }, 'Read the environment'), rows, h('hr', { class: 'em-sep' }), ladder);
+    h('p', { class: 'em-h', 'aria-hidden': 'true' }, 'Read the environment', S.environments && S.environments.flow ? h('span', { class: 'em-fl' }, S.environments.flow) : null), rows, h('hr', { class: 'em-sep' }), ladder);
   menu.addEventListener('keydown', (ev) => {
     const items = [...menu.querySelectorAll('.em-row')];
     const i = items.indexOf(document.activeElement);
@@ -1620,8 +1621,8 @@ function paletteActions() {
   if (S.view !== 'templates') add('Go to', 'Go to Templates', ['m'], into('templates'), { icon: 'template', words: 'templates catalog blueprints wizard instance new form create' });
   if (S.view !== 'secrets') add('Go to', 'Go to Secrets', ['e'], into('secrets'), { icon: 'key', words: 'secrets vault sealed values passwords tokens credentials keys' });
   const envs = (S.graph && S.graph.project && S.graph.project.environments) || [];
-  if (envs.length && S.view !== 'environments') add('Go to', 'Go to Environments', ['v'], into('environments'), { icon: 'ladder', words: 'environments ladder promote promotion release dev staging prod stage' });
-  for (const name of envs) if (name !== S.graph.project.environment) add('Environments', `Read the environment ${name}`, [], () => switchEnvironment(name), { icon: 'ladder', words: 'environment switch open ' + name });
+  if (envs.length && S.view !== 'environments') add('Go to', 'Go to Environments', ['v'], into('environments'), { icon: 'flow', words: 'environments ladder promote promotion release dev staging prod stage' });
+  for (const name of envs) if (name !== S.graph.project.environment) add('Environments', `Read the environment ${name}`, [], () => switchEnvironment(name), { icon: 'flow', words: 'environment switch open ' + name });
   if (S.view !== 'access') add('Go to', 'Go to State', ['a'], into('access'), { icon: 'lock', words: 'access members readers sealed roles' });
   if (res) {
     if (S.view === 'list') add('View', 'Show the graph', ['g'], into('graph'), { words: 'view' });

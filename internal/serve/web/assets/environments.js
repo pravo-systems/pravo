@@ -10,14 +10,19 @@ import { h, clear, icon, relTime, stamp } from './util.js';
 
 export const FOOTER = 'This page suggests commands. It runs nothing and writes nothing.';
 
-// STATUS is how a box words the release of this directory, and the tone of its mark: ok when it runs it, chg when someone
-// has a step to take.
-const STATUS = {
-  runs: ['ok', 'runs this directory'],
-  promoted: ['chg', 'promoted, waiting for an apply'],
-  waived: ['chg', 'waived, waiting for an apply'],
-  ready: ['chg', 'ready to promote'],
-};
+
+// statusOf words how the release of this directory stands in an environment, naming where it comes from: the
+// environments that this one follows, whose notes a promotion carries.
+export function statusOf(e) {
+  const from = (e.after || []).join(' and ');
+  switch (e.release) {
+    case 'runs': return ['ok', 'runs this directory'];
+    case 'ready': return ['chg', from ? `ready to promote from ${from}` : 'ready to apply'];
+    case 'promoted': return ['chg', from ? `promoted from ${from}, waiting for an apply` : 'promoted, waiting for an apply'];
+    case 'waived': return ['chg', 'let in by a waiver, waiting for an apply'];
+    default: return ['', ''];
+  }
+}
 
 const shortID = (fp) => String(fp || '').slice(0, 12);
 const shortRev = (rev) => (rev && rev.length > 7 ? rev.slice(0, 7) + (rev.endsWith('-dirty') ? '-dirty' : '') : rev || '');
@@ -27,7 +32,7 @@ const shortRev = (rev) => (rev && rev.length > 7 ? rev.slice(0, 7) + (rev.endsWi
 export function menuLine(e) {
   if (!e) return ['', ''];
   if (e.problem) return ['bad', e.problem];
-  const [tone, words] = STATUS[e.release] || ['', ''];
+  const [tone, words] = statusOf(e);
   if (words) return [tone, words];
   if (e.runs) return ['', `runs ${shortID(e.runs.fingerprint)}${e.runs.at ? ', ' + relTime(e.runs.at) : ''}`];
   return ['', 'nothing applied yet'];
@@ -85,7 +90,7 @@ export class EnvironmentsView {
 
   box(e, d) {
     const reading = e.name === d.selected;
-    const [tone, words] = STATUS[e.release] || ['', ''];
+    const [tone, words] = statusOf(e);
     const facts = [];
     const fact = (k, v, title) => facts.push(h('div', { class: 'ev-f' }, h('dt', null, k), h('dd', { title: title || null }, v)));
     if (e.runs) {
