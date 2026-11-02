@@ -35,7 +35,7 @@ const CHANGING = new Set(['create', 'update', 'replace', 'delete', 'move', 'impo
 export const isChange = (a) => CHANGING.has(a);
 
 // n counts the resources of a namespace, out its outputs
-const zero = () => ({ n: 0, out: 0, plan: 0, create: 0, update: 0, replace: 0, delete: 0, read: 0, drifted: 0, gone: 0, sensitive: 0, locked: 0, orphan: 0, spec: 0 });
+const zero = () => ({ n: 0, out: 0, plan: 0, create: 0, update: 0, replace: 0, delete: 0, read: 0, drifted: 0, gone: 0, sensitive: 0, locked: 0, orphan: 0, spec: 0, managed: 0, decl: 0 });
 
 // FILTERS match a node; the key is the value of filter= in the fragment. The outputs chip and the sensitive one match outputs; the others match resources only.
 export const FILTERS = {
@@ -125,6 +125,8 @@ export function buildModel(graph, plans) {
     if (n.locked) agg.locked++;
     if (n.presence === 'state') agg.orphan++;
     if (n.presence === 'spec') agg.spec++;
+    // the resources that an apply creates, and of them the ones it has not created yet: the marker of a group
+    if (n.mode === 'managed') { agg.managed++; if (n.presence === 'spec') agg.decl++; }
   };
   const sum = (m) => {
     m.kids.sort((p, q) => natural(p.name, q.name));
@@ -180,7 +182,7 @@ export const CELLS_ROW = 18;
 export const CELLS_MAX = 36;
 export const cardHeight = (n) => (n > CELLS_ROW ? G.MH2 : G.MH);
 
-const aggOf = (nodes) => { const a = zero(); for (const n of nodes) { a.n++; if (isOut(n)) a.out++; if (n.action && n.action !== 'no-op') a.plan++; if (n.action === 'create') a.create++; else if (n.action === 'update') a.update++; else if (n.action === 'replace') a.replace++; else if (n.action === 'delete') a.delete++; else if (n.action === 'read') a.read++; if (n.drifted) a.drifted++; if (n.gone) a.gone++; if (n.sensitive > 0) a.sensitive++; if (n.locked) a.locked++; if (n.presence === 'state') a.orphan++; if (n.presence === 'spec') a.spec++; } return a; };
+const aggOf = (nodes) => { const a = zero(); for (const n of nodes) { a.n++; if (isOut(n)) a.out++; if (n.action && n.action !== 'no-op') a.plan++; if (n.action === 'create') a.create++; else if (n.action === 'update') a.update++; else if (n.action === 'replace') a.replace++; else if (n.action === 'delete') a.delete++; else if (n.action === 'read') a.read++; if (n.drifted) a.drifted++; if (n.gone) a.gone++; if (n.sensitive > 0) a.sensitive++; if (n.locked) a.locked++; if (n.presence === 'state') a.orphan++; if (n.presence === 'spec') a.spec++; if (n.mode === 'managed') { a.managed++; if (n.presence === 'spec') a.decl++; } } return a; };
 
 // buildItems computes what is visible: the lane tree for the layout, the items, the merged edges and, for
 // every node, the item that stands for it.

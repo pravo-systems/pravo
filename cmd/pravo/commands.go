@@ -920,6 +920,9 @@ func importCmd() *cobra.Command {
 				return err
 			}
 			defer s.close()
+			if err := refuseOtherEnvironment(ctx, s.root, s.state); err != nil {
+				return err
+			}
 			res := s.root.Resource(args[0])
 			if res == nil {
 				return fmt.Errorf("%s is not declared in the configuration; add it before importing", args[0])

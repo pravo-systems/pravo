@@ -59,6 +59,8 @@ The names of a profile and of a variable are settings; a credential is not. [Set
 
 A [`pravo.#RemoteOutputs`](spec-env.md#remote-outputs) reads the state of another root. Write `$environment.$name` into its location, and each environment reads the outputs of the same environment there: `state: path: "../network/state/\($environment.$name)"`.
 
+A [discovery](../concepts/discovery.md#with-environments) runs in the environment that `--env` names and keeps its findings in that environment's state. `pravo discover adopt` writes the resource that adopts an object inside a condition on `$environment.$name`.
+
 ## The ladder
 
 `$after` orders the environments into a ladder. An environment may follow several, and several may follow one:
@@ -143,6 +145,8 @@ An apply is refused with exit code 5 when:
 
 - the record names another environment: the settings point the run at a state of another environment;
 - the record says that the environment follows others than the specification says: an edit of `$after`, which would add or drop a gate.
+
+A plan is refused for the same reasons, and so is every other command that writes the records or the state: `import`, `state rm`, `state mv`, `state import-tfstate`, `discover`, and `secret set`, `rm` and `purge`.
 
 The refusal names the command that makes the record agree, `pravo environments record --env NAME`, which an admin of the state runs ([pravo environments](environments.md#pravo-environments-record)). A writer adds the lineage of an environment before when the first promotion reads it, and nothing else.
 

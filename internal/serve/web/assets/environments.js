@@ -22,6 +22,17 @@ const STATUS = {
 const shortID = (fp) => String(fp || '').slice(0, 12);
 const shortRev = (rev) => (rev && rev.length > 7 ? rev.slice(0, 7) + (rev.endsWith('-dirty') ? '-dirty' : '') : rev || '');
 
+// menuLine is the one line that the menu of the bar shows under the name of an environment: what is wrong with it, how
+// the release of this directory stands there, or what it runs. tone is the mark of the line, as on the page.
+export function menuLine(e) {
+  if (!e) return ['', ''];
+  if (e.problem) return ['bad', e.problem];
+  const [tone, words] = STATUS[e.release] || ['', ''];
+  if (words) return [tone, words];
+  if (e.runs) return ['', `runs ${shortID(e.runs.fingerprint)}${e.runs.at ? ', ' + relTime(e.runs.at) : ''}`];
+  return ['', 'nothing applied yet'];
+}
+
 export class EnvironmentsView {
   // cb.onSwitch(name) makes the server read another environment.
   constructor(root, cb = {}) {

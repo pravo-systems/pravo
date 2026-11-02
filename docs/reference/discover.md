@@ -61,6 +61,7 @@ The identity is written as the provider gave it, whatever it is made of, and no 
 | 0 | The command did what it was asked. |
 | 1 | A discovery failed to run: the provider returned an error, the scope has no value, or the provider cannot list the type. An argument that is wrong. |
 | 2 | `show --exit-code` found an unmanaged object. |
+| 5 | `discover` in a state whose record serves another environment than `--env` names, as an [apply is](spec-environments.md#the-record-of-an-environment). |
 | 6 | The specification does not load, or `NAME` is not a discovery, or the object is not in the last run, or the object is managed, or an `$ack` entry of the specification is not valid: it has no pattern, a pattern that is empty, longer than 512 bytes or made of `*` alone, or more than 10000 patterns. |
 
 The [global flags](global-flags.md) apply.

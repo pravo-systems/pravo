@@ -174,7 +174,8 @@ i.sq.skip, span.sq.skip { opacity: .45; }
 /* the kind of a node, by the edge of its square: dotted reads a data source, dashed an ephemeral resource */
 i.sq.k-data, span.sq.k-data { border-style: dotted; }
 i.sq.k-ephemeral, span.sq.k-ephemeral { border-style: dashed; }
-i.sq.k-spec, span.sq.k-spec { border-style: dashed; background: repeating-linear-gradient(45deg, transparent 0 2px, color-mix(in srgb, var(--text-3) 55%, transparent) 2px 3px); }
+i.sq.k-spec, span.sq.k-spec { background: var(--text-2); }
+i.sq.k-spec-some, span.sq.k-spec-some { background: linear-gradient(90deg, var(--text-2) 50%, transparent 50%); }
 .tv-row .c-mode.plain { color: var(--text-3); }
 /* an output in a list stands where a resource has its square: the glyph of a value that leaves the root */
 .i.omark { color: var(--text-3); width: .78rem; height: .78rem; flex: none; margin-left: -.09rem; margin-right: -.09rem; }

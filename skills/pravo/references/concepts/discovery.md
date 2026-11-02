@@ -79,6 +79,14 @@ A provider lists an object by its identity, which is a set of attributes: an id,
 
 Nothing writes the specification for you. pravo does not edit your `.cue` files.
 
+## With environments
+
+A specification that declares [`$environments`](../reference/spec-environments.md) runs its discoveries in one environment at a time: `pravo discover --env prod` evaluates the scope for prod and keeps the run in the state of prod, so each environment has its own findings. Like an apply, it is refused in a state whose record serves another environment.
+
+The scope is the place to tell the environments apart. Two environments in one account and region list the same objects, and the objects of one show as unmanaged in the other unless the scope reads the row, such as a name prefix or a tag that holds `$environment.$name`.
+
+The specification is shared, and the object that a discovery found is in one environment. `adopt` therefore writes its resource inside `if $environment.$name == "prod" { ... }`, so that the other environments do not try to import an object that they do not have.
+
 ## Where it shows
 
 The unmanaged objects are shown in the Discovery section of [the viewer](../reference/viewer-sections.md#the-discovery-section), and by `pravo discover show`. They are not in the graph or in the list of the Inventory, which show what the specification declares and the state records. The tab carries the number of objects that ask to be adopted.

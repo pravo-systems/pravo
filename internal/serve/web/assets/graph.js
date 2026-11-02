@@ -63,13 +63,21 @@ function glyph(name, x, y, size, cls) {
   return g;
 }
 
+// declMark is the marker of what is declared and not created yet: a square, filled when all of it is, half filled when
+// part of it is. The shape tells the two apart, not a colour.
+function declMark(x, y, part) {
+  const g = s('g', { class: 'dm', transform: `translate(${x} ${y})` });
+  g.append(s('rect', { class: 'dmo', x: 0.5, y: 0.5, width: 8, height: 8 }), s('rect', { class: 'dmf', x: 0.5, y: 0.5, width: part === 'some' ? 4 : 8, height: 8 }));
+  return g;
+}
+
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
   if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.look, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   const pi = plansIn(x, ctx);
-  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.look, x.h, x.kind === 'namespace' ? x.ns.kids.length : '', x.kind === 'namespace' && x.ns.template ? x.ns.template.name : ''].join('|');
+  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, a.decl, a.managed, x.look, x.h, x.kind === 'namespace' ? x.ns.kids.length : '', x.kind === 'namespace' && x.ns.template ? x.ns.template.name : ''].join('|');
 }
 
 const trunc = (t, n) => (t.length > n ? t.slice(0, Math.max(1, n - 1)) + '…' : t);
@@ -149,6 +157,10 @@ function planBadges(agg, x, y, anchorRight, bare) {
   return g;
 }
 
+// declNote words the resources of a group that are declared and not created yet: "declared only" when every one is,
+// "3 of 5 declared only" when some are, and nothing when none is.
+const declNote = (agg) => (!agg.decl ? '' : agg.decl === agg.managed ? 'declared only' : `${agg.decl} of ${agg.managed} declared only`);
+
 const stateMarks = (agg) => {
   const m = [];
   if (agg.drifted || agg.gone) m.push(['drift', agg.drifted + agg.gone]);
@@ -227,8 +239,6 @@ export class GraphView {
     // a card is a shade lighter at the top than at the bottom
     defs.append(s('linearGradient', { id: 'card-fill', x1: 0, y1: 0, x2: 0, y2: 1 }, s('stop', { offset: '0', class: 'cf0' }), s('stop', { offset: '1', class: 'cf1' })));
     // a resource that is declared and not created yet is hatched, as a drawing marks what is planned and not built
-    defs.append(s('pattern', { id: 'spec-hatch', width: 7, height: 7, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' },
-      s('rect', { class: 'sh0', width: 7, height: 7 }), s('line', { class: 'sh1', x1: 0, y1: 0, x2: 0, y2: 7 })));
     this.defs = defs;
     this.svg.append(defs);
     this.vp = s('g', { class: 'vp' });
@@ -665,11 +675,12 @@ export class GraphView {
   }
 
   // presenceTag hangs on the bottom edge, at the right, of a node that the specification declares and no apply has
-  // made yet: "declared only" on a resource, "not published" on an output. The kind badge keeps the left.
-  presenceTag(word, W, H) {
-    const w = 12 + word.length * 5.8;
-    const g = s('g', { class: 'kb pt', transform: `translate(${W - 15 - w} ${H})` });
-    g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 0 }), s('text', { class: 'kbt', x: 6, y: 3.4 }, word));
+  // made yet: "declared only" on a resource, "not published" on an output. The kind badge keeps the left. A group
+  // carries it too, for the resources inside: whole when every one is declared only, half when some are, with the count.
+  presenceTag(word, W, H, part = 'all') {
+    const w = 24 + word.length * 5.8;
+    const g = s('g', { class: 'kb pt pt-' + part, transform: `translate(${W - 15 - w} ${H})` });
+    g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 0 }), declMark(5, -4, part), s('text', { class: 'kbt', x: 19, y: 3.4 }, word));
     return g;
   }
 
@@ -708,7 +719,8 @@ export class GraphView {
     const pv = it.look ? ' ' + it.look : '';
     const outs = it.mode === 'output';
     const outsNote = agg.out ? `, ${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
-    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isNs ? `group ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
+    const decl = declNote(agg);
+    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': (isNs ? `group ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped`) + (decl ? ', ' + decl : '') });
     const inn = s('g', { class: 'in' });
     g.append(zone(W, H));
     inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }), reticle(W, H));
@@ -773,6 +785,7 @@ export class GraphView {
     if (pin.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 0 }));
     const aus = this.authorBadges(pin.list, W);
     if (aus) inn.append(aus);
+    if (decl) inn.append(facet(this.presenceTag(decl, W, H, agg.decl === agg.managed ? 'all' : 'some'), 'status', 'declared', 'Show only what is declared and not created yet (shift: hide it)'));
     g.append(inn);
     return g;
   }
@@ -842,9 +855,21 @@ export class GraphView {
     r.tt.textContent = tmark ? `An instance of the template ${ns.template.title}` : '';
     r.cnt.setAttribute('x', 20 + w + 6 + tmark);
     const cw = agg ? count.length * 7.4 + 6 + tmark : 0;
-    if (agg && agg.plan) pb.append(planBadges(agg, 20 + w + 6 + cw + 10, 1, false));
+    let x = 20 + w + 6 + cw + 10;
+    if (agg && agg.plan) {
+      pb.append(planBadges(agg, x, 1, false));
+      x += [agg.create, agg.update + agg.replace, agg.delete].filter(Boolean).reduce((a, n) => a + 17 + String(n).length * 6.4, 0) + 6;
+    }
+    // what inside is declared and not created yet, as the card of the group would say it
+    const decl = agg ? declNote(agg) : '';
+    if (decl) {
+      const dg = facet(s('g', { class: 'kb pt lpt pt-' + (agg.decl === agg.managed ? 'all' : 'some') }), 'status', 'declared', 'Show only what is declared and not created yet (shift: hide it)');
+      dg.append(declMark(x, -4, agg.decl === agg.managed ? 'all' : 'some'), s('text', { class: 'kbt', x: x + 13, y: 3.6 }, decl));
+      pb.append(dg);
+      x += 13 + decl.length * 5.8 + 6;
+    }
     // how far the title may be scaled up before it outgrows the lane
-    const textW = 20 + w + 6 + cw + 6;
+    const textW = decl || (agg && agg.plan) ? x : 20 + w + 6 + cw + 6;
     r.hg.style.setProperty('--cap', Math.max(1, (L.w - 28) / textW).toFixed(2));
     r.label = label;
   }
@@ -1099,6 +1124,7 @@ export class GraphView {
     if (a.delete) chips.push(h('span', { class: 'gchip a-delete' }, `${a.delete} delete`));
     if (a.sensitive) chips.push(h('span', { class: 'gchip sens' }, `${a.sensitive} sensitive`));
     if (a.drifted + a.gone) chips.push(h('span', { class: 'gchip drift' }, `${a.drifted + a.gone} drifted`));
+    if (a.decl) chips.push(h('span', { class: 'gchip skip' }, declNote(a)));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
     this.tipPlans(out, plansIn({ kind: 'namespace', ns }, this.ctx));
     out.push(h('div', { class: 'gtip-meta' }, open ? 'click to select, chevron to close' : 'click or press Enter to open'));
@@ -1113,6 +1139,7 @@ export class GraphView {
     if (a.update + a.replace) chips.push(h('span', { class: 'gchip a-update' }, `${a.update + a.replace} change`));
     if (a.delete) chips.push(h('span', { class: 'gchip a-delete' }, `${a.delete} delete`));
     if (a.sensitive) chips.push(h('span', { class: 'gchip sens' }, `${a.sensitive} sensitive`));
+    if (a.decl) chips.push(h('span', { class: 'gchip skip' }, declNote(a)));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
     this.tipPlans(out, plansIn(it, this.ctx));
     out.push(h('div', { class: 'gtip-meta' }, 'click or press Enter to show the group'));

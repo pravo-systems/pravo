@@ -16,15 +16,36 @@
 .envsw .cnt[hidden] { display: none; }
 /* Opening another environment: the button names where it goes and its mark blinks; the page under the card is the one
    before, dimmed and out of reach until the new one is shown. */
-.envsw.busy { color: var(--text); cursor: progress; }
-.envsw.busy .i { color: var(--accent); animation: busy-blink 1.1s steps(2, jump-none) infinite; }
-.envsw.busy .cnt { display: none; }
+.envsw.going { color: var(--text); cursor: progress; }
+.envsw.going .i { color: var(--accent); animation: busy-blink 1.1s steps(2, jump-none) infinite; }
+.envsw.going .cnt { display: none; }
 .env-busy { position: absolute; inset: 0; z-index: 50; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, var(--bg) 60%, transparent); cursor: progress; animation: ui-fade .16s ease; }
 .env-busy .busy { width: min(24rem, 100%); }
 .env-busy-d { margin: 0; color: var(--text-2); font: 400 var(--fs-2)/1.5 var(--font-ui); text-wrap: pretty; }
 .env-busy-d code { font-family: var(--font-mono); color: var(--text); }
-@media (prefers-reduced-motion: reduce) { .envsw.busy .i, .env-busy { animation: none; } }
-:root[data-motion="off"] .envsw.busy .i, :root[data-motion="off"] .env-busy { animation: none; }
+@media (prefers-reduced-motion: reduce) { .envsw.going .i, .env-busy { animation: none; } }
+:root[data-motion="off"] .envsw.going .i, :root[data-motion="off"] .env-busy { animation: none; }
+
+/* ---- the menu of the button: a switch is one choice, and the graph stays where it was ---- */
+.env-menu { position: fixed; z-index: 60; min-width: 17rem; max-width: min(24rem, calc(100vw - 2rem)); max-height: calc(100vh - 6rem); overflow: auto; padding: .35rem 0; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-1); animation: ui-fade .12s ease; }
+.em-h { margin: 0; padding: .45rem .9rem .35rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+.em-row { display: flex; align-items: flex-start; gap: .65rem; width: 100%; padding: .5rem .9rem; border: 0; background: none; color: var(--text-2); text-align: left; cursor: pointer; }
+.em-row:hover, .em-row:focus-visible { background: var(--surface-2); color: var(--text); outline: none; }
+.em-row:focus-visible { box-shadow: inset 2px 0 0 var(--accent); }
+.em-mk { flex: none; width: .6rem; height: .6rem; margin-top: .3rem; border: 1px solid var(--text-3); }
+.em-row.on .em-mk { border-color: var(--accent); background: var(--accent); }
+.em-tx { display: grid; gap: .25rem; min-width: 0; }
+.em-nm { display: flex; align-items: center; gap: .5rem; font: 500 var(--fs-3)/1.2 var(--font-mono); color: var(--text); }
+.em-tag { font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.em-ln { font: 400 var(--fs-2)/1.35 var(--font-ui); color: var(--text-3); overflow-wrap: anywhere; }
+.em-ln.ok { color: var(--accent); }
+.em-ln.chg { color: var(--change); }
+.em-ln.bad { color: var(--conflict); }
+.em-sep { margin: .35rem 0; border: 0; border-top: 1px solid var(--line); }
+.em-page > .i { flex: none; width: .95rem; height: .95rem; margin-top: .05rem; color: var(--text-3); }
+.em-pg { font: 500 var(--fs-3)/1.2 var(--font-ui); color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .env-menu { animation: none; } }
+:root[data-motion="off"] .env-menu { animation: none; }
 
 .envs-pane { overflow: auto; padding: var(--page-pad); }
 .envs-pane :is(button, [tabindex]) { scroll-margin: .5rem; }
@@ -83,6 +104,11 @@ body:has(.app[data-view="environments"]) .planstrip, body:has(.app[data-view="en
 .ev-rel { margin: 0 0 .6rem; font-size: var(--fs-4); color: var(--text-2); }
 .ev-foot { margin: 0; padding-top: .8rem; border-top: 1px solid var(--line); font: 400 var(--fs-2)/1.4 var(--font-mono); color: var(--text-3); }
 
+/* The button of the environment takes the width of about one label, so with it the other tabs give up their words sooner
+   than at 88em: the bar keeps the search, the identity and the theme in view. */
+@media (max-width: 100em) {
+  .top:has(.envsw:not([hidden])) .sec-tab:not([aria-pressed="true"]) .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 @media (max-width: 47.5em) {
   .envs-pane { padding: .75rem .75rem 2rem; }
   .ev-lad { flex-direction: column; overflow-x: visible; }

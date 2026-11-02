@@ -60,6 +60,10 @@ discover adopt" to write the resource that adopts an object.`,
 				out.Println("The specification has no discoveries.")
 				return nil
 			}
+			// A run is kept in the state: not in the state of another environment.
+			if err := refuseOtherEnvironment(cmd.Context(), s.root, s.state); err != nil {
+				return err
+			}
 			res, err := s.ws.Discover(cmd.Context(), pravo.DiscoverOptions{
 				Names: args, All: all,
 				Error: func(_ string, err error) { out.Printf("%s %s\n", out.C(ui.Red+ui.Bold, "Error:"), err) },

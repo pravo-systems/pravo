@@ -39,6 +39,23 @@ func stateCmd() *cobra.Command {
 		}
 		return openState(context.Background(), root)
 	}
+	// loadEdit is load for a subcommand that changes the records, as an apply does: a state
+	// whose record serves another environment is refused, as an apply is.
+	loadEdit := func() (*state.Store, error) {
+		root, err := loadRoot()
+		if err != nil {
+			return nil, err
+		}
+		st, err := openState(context.Background(), root)
+		if err != nil {
+			return nil, err
+		}
+		if err := refuseOtherEnvironment(context.Background(), root, st); err != nil {
+			st.Close()
+			return nil, err
+		}
+		return st, nil
+	}
 	// loadRead is for the subcommands that only look: a state that does not
 	// exist is empty, and none is created.
 	loadRead := func() (*state.Store, error) {
@@ -86,8 +103,8 @@ func stateCmd() *cobra.Command {
 		verifyCmd(),
 		stateListCmd(loadRead),
 		stateShowCmd(loadValues),
-		stateRmCmd(load),
-		stateMvCmd(load),
+		stateRmCmd(loadEdit),
+		stateMvCmd(loadEdit),
 		stateLogCmd(loadRead),
 		stateProbeCmd(),
 		stateLocksCmd(loadRead),
@@ -98,7 +115,7 @@ func stateCmd() *cobra.Command {
 		stateEdgesCmd(loadRead),
 		stateDependentsCmd(loadRead),
 		stateQueryCmd(loadValues),
-		stateImportTfstateCmd(load),
+		stateImportTfstateCmd(loadEdit),
 	)
 	return cmd
 }

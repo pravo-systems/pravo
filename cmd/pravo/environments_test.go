@@ -258,6 +258,16 @@ func TestALadderWithoutASealWarns(t *testing.T) {
 	if code != 5 || !strings.Contains(text, "this state serves the environment staging, and this run is for prod") {
 		t.Fatalf("plan of a copied state: exit %d\n%s", code, text)
 	}
+	// So is every other command that writes the records, and the state is left as it was.
+	for _, args := range [][]string{{"state", "rm", "app"}, {"state", "mv", "app", "app2"}, {"import", "app", "x"}} {
+		text, code = runPravo(t, l.dir, append(args, "--env", "prod")...)
+		if code != 5 || !strings.Contains(text, "this state serves the environment staging, and this run is for prod") {
+			t.Errorf("%s in a copied state: exit %d\n%s", strings.Join(args, " "), code, text)
+		}
+	}
+	if text, code = runPravo(t, l.dir, "state", "list", "--env", "prod"); code != 0 || strings.TrimSpace(text) != "app" {
+		t.Errorf("the copied state after the refusals: exit %d\n%s", code, text)
+	}
 }
 
 func TestValidateChecksEveryEnvironment(t *testing.T) {

@@ -14,7 +14,7 @@ import { DiscoveryView } from './discovery.js';
 import { TracesView } from './traces.js';
 import { PoliciesView } from './policies.js';
 import { SecretsView } from './secrets.js';
-import { EnvironmentsView } from './environments.js';
+import { EnvironmentsView, menuLine } from './environments.js';
 import { TemplatesView } from './templates.js';
 import { ChatView } from './chat.js';
 import { Palette, Sheet } from './palette.js';
@@ -1045,7 +1045,7 @@ function renderEnvButton() {
   const envs = (p && p.environments) || [];
   const btn = $('env-btn');
   btn.hidden = !envs.length;
-  btn.classList.toggle('busy', !!switching);
+  btn.classList.toggle('going', !!switching);
   btn.setAttribute('aria-busy', switching ? 'true' : 'false');
   $('env-name').textContent = switching ? '→ ' + switching : (p && p.environment) || '';
   const n = S.environments ? S.environments.waiting : 0;
@@ -1054,6 +1054,78 @@ function renderEnvButton() {
   el.textContent = n > 99 ? '99+' : String(n);
   btn.setAttribute('aria-label', switching ? `Environments: opening ${switching}` : envs.length ? `Environments: reading ${p.environment}${n > 0 ? `, ${n} waiting for a step` : ''}` : 'Environments');
 }
+
+// The menu of the environment button: one row for each environment, the one the page reads marked, and how the release
+// of this directory stands in each, so that a switch is one choice and the graph stays where it was. The page of the
+// ladder is its last row. Arrows move along the rows, Escape and a click elsewhere close it.
+function envMenuOpen() { return !!$('env-menu'); }
+
+function closeEnvMenu(focus = false) {
+  const m = $('env-menu');
+  if (!m) return;
+  m.remove();
+  $('env-btn').setAttribute('aria-expanded', 'false');
+  document.removeEventListener('pointerdown', envMenuOutside, true);
+  window.removeEventListener('resize', closeEnvMenuNow);
+  if (focus) $('env-btn').focus();
+}
+
+const closeEnvMenuNow = () => closeEnvMenu();
+
+function envMenuOutside(ev) {
+  if (!ev.target.closest('#env-menu, #env-btn')) closeEnvMenu();
+}
+
+function openEnvMenu() {
+  if (envMenuOpen() || switching) return;
+  const p = S.graph && S.graph.project;
+  const names = (p && p.environments) || [];
+  if (!names.length) return;
+  const cur = readingEnv();
+  const by = new Map(((S.environments && S.environments.environments) || []).map((e) => [e.name, e]));
+  const order = by.size ? [...by.keys()] : names;
+  const pick = (fn) => (ev) => { ev.preventDefault(); closeEnvMenu(true); fn(); };
+  const rows = order.map((name) => {
+    const [tone, line] = menuLine(by.get(name));
+    const on = name === cur;
+    return h('button', {
+      type: 'button', class: 'em-row' + (on ? ' on' : ''), role: 'menuitemradio', 'aria-checked': on ? 'true' : 'false', 'data-env': name,
+      on: { click: pick(() => switchEnvironment(name)) },
+    },
+    h('span', { class: 'em-mk', 'aria-hidden': 'true' }),
+    h('span', { class: 'em-tx' },
+      h('code', { class: 'em-nm' }, name, on ? h('span', { class: 'em-tag' }, 'reading') : null),
+      line ? h('span', { class: 'em-ln' + (tone ? ' ' + tone : '') }, line) : null));
+  });
+  const onPage = S.view === 'environments';
+  const ladder = h('button', {
+    type: 'button', class: 'em-row em-page', role: 'menuitem',
+    on: { click: pick(() => setView(onPage ? (S.lastResources || 'graph') : 'environments')) },
+  }, icon('ladder'), h('span', { class: 'em-tx' }, h('span', { class: 'em-pg' }, onPage ? 'Back to the resources' : 'Open the ladder'), h('span', { class: 'em-ln' }, onPage ? 'the graph of the environment the page reads' : 'what each runs, and the next promotion')));
+  const btn = $('env-btn');
+  const r = btn.getBoundingClientRect();
+  const menu = h('div', { class: 'env-menu', id: 'env-menu', role: 'menu', 'aria-label': 'Environments', style: `left:${Math.round(r.left)}px; top:${Math.round(r.bottom)}px` },
+    h('p', { class: 'em-h', 'aria-hidden': 'true' }, 'Read the environment'), rows, h('hr', { class: 'em-sep' }), ladder);
+  menu.addEventListener('keydown', (ev) => {
+    const items = [...menu.querySelectorAll('.em-row')];
+    const i = items.indexOf(document.activeElement);
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closeEnvMenu(true); }
+    else if (ev.key === 'ArrowDown') { ev.preventDefault(); items[(i + 1) % items.length].focus(); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+    else if (ev.key === 'Home') { ev.preventDefault(); items[0].focus(); }
+    else if (ev.key === 'End') { ev.preventDefault(); items[items.length - 1].focus(); }
+    else if (ev.key === 'Tab') closeEnvMenu();
+  });
+  document.body.append(menu);
+  const w = menu.getBoundingClientRect().width;
+  menu.style.left = Math.max(8, Math.min(Math.round(r.left), window.innerWidth - w - 8)) + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+  document.addEventListener('pointerdown', envMenuOutside, true);
+  window.addEventListener('resize', closeEnvMenuNow);
+  (menu.querySelector('.em-row.on') || menu.querySelector('.em-row')).focus();
+}
+
+function toggleEnvMenu() { if (envMenuOpen()) closeEnvMenu(true); else openEnvMenu(); }
 
 // switching is the environment the page is opening, empty when it opens none. The server reads the specification and
 // the state of that environment before it answers, which takes seconds: until then the page shows the one before under
@@ -1171,7 +1243,7 @@ function renderBanners() {
     const entry = env && S.environments ? (S.environments.environments || []).find((e) => e.name === env) : null;
     const cmd = entry && entry.command ? entry.command : !env ? 'pravo apply' : entry && (entry.after || []).length ? `pravo promote ${env}` : `pravo apply --env ${env}`;
     box.append(banner('info', 'status', [h('b', null, env ? `Nothing in ${env} is created yet.` : 'Nothing is created yet.'),
-      ` Its state holds no record, so the ${plural(res.length, 'resource')} here ${res.length === 1 ? 'is' : 'are'} declared only, drawn hatched. `,
+      ` Its state holds no record, so the ${plural(res.length, 'resource')} here ${res.length === 1 ? 'is' : 'are'} marked declared only. `,
       h('code', null, cmd), ' creates them.'], 'empty:' + env, 'info'));
   }
   if (g.plan && g.plan.stale) {
@@ -1258,7 +1330,7 @@ function renderLegend() {
     ...(m.list.some(isSecret) ? [item(h('span', { class: 'i i-key key' }), 'secret')] : []),
     ...(m.list.some((n) => n.mode === 'data') ? [item(h('i', { class: 'sq k-data' }), 'data source')] : []),
     ...(m.list.some((n) => n.mode === 'ephemeral' && !isSecret(n)) ? [item(h('i', { class: 'sq k-ephemeral' }), 'ephemeral')] : []),
-    ...(m.list.some((n) => n.presence === 'spec' && n.mode === 'managed') ? [item(h('i', { class: 'sq k-spec' }), 'declared only')] : []),
+    ...(m.list.some((n) => n.presence === 'spec' && n.mode === 'managed') ? [item(h('i', { class: 'sq k-spec' }), 'declared only'), item(h('i', { class: 'sq k-spec-some' }), 'some declared only')] : []),
     ...(m.list.some((n) => n.sensitive > 0) ? [item(h('span', { class: 'i i-lock key' }), 'sensitive')] : []),
     ...(m.list.some((n) => n.drifted) ? [item(h('span', { class: 'i i-drift warn' }), 'drifted')] : []));
   // the badges of the authors of open plans, and the ring of a resource that two of them change
@@ -1619,7 +1691,7 @@ function onKey(ev) {
   if (k === 'o') { setView(S.view === 'policies' ? (S.lastResources || 'graph') : 'policies'); return; }
   if (k === 'e') { setView(S.view === 'secrets' ? (S.lastResources || 'graph') : 'secrets'); return; }
   if (k === 'm') { setView(S.view === 'templates' ? (S.lastResources || 'graph') : 'templates'); return; }
-  if (k === 'v' && !$('env-btn').hidden) { setView(S.view === 'environments' ? (S.lastResources || 'graph') : 'environments'); return; }
+  if (k === 'v' && !$('env-btn').hidden) { ev.preventDefault(); toggleEnvMenu(); return; }
   if (k === 's' && S.view === 'policies') { policiesView.toggleStudio(); return; }
   if (k === 'r') { setView(S.view === 'traces' ? (S.lastResources || 'graph') : 'traces'); return; }
   if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates' || S.view === 'environments') return; // the keys below are for the resources
@@ -1763,7 +1835,7 @@ function wire() {
   $('sec-traces').addEventListener('click', () => setView('traces'));
   $('sec-policies').addEventListener('click', () => setView('policies'));
   $('sec-secrets').addEventListener('click', () => setView('secrets'));
-  $('env-btn').addEventListener('click', () => setView(S.view === 'environments' ? (S.lastResources || 'graph') : 'environments'));
+  $('env-btn').addEventListener('click', () => toggleEnvMenu());
   $('sec-templates').addEventListener('click', () => setView('templates'));
   $('sec-plans').addEventListener('click', () => setView('plans'));
   $('sec-access').addEventListener('click', () => setView('access'));

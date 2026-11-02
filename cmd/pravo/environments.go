@@ -451,3 +451,27 @@ func joinAnd(items []string) string {
 	}
 	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
 }
+
+// refuseOtherEnvironment refuses a command that changes the state outside a plan and an apply,
+// such as state rm, import or secret set, when the record of the state says that it serves
+// another environment than the one the specification was loaded for: the check that plan and
+// apply make, so that a state that a setting points at by mistake is not written to.
+func refuseOtherEnvironment(ctx context.Context, root *config.Root, st *state.Store) error {
+	eff, _, err := readersOf(root).withRoles(st)
+	if err != nil {
+		return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
+	}
+	return refuseOtherEnvironmentFor(ctx, root, st, eff.Readers)
+}
+
+// refuseOtherEnvironmentFor is refuseOtherEnvironment with the readers already resolved.
+func refuseOtherEnvironmentFor(ctx context.Context, root *config.Root, st *state.Store, readers []protect.Reader) error {
+	rec, err := st.EnvironmentRecord(ctx, readers)
+	if err != nil {
+		return secretErr(err)
+	}
+	if p := engine.RecordProblem(root, rec); p != "" {
+		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s.\n\nIf the specification is right, an admin makes the record say so:\n\n    %s", p, engine.RecordCommand(root)))
+	}
+	return nil
+}

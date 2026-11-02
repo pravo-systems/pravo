@@ -124,6 +124,12 @@ func openSecrets(cmd *cobra.Command, access secretAccess) (*secretRun, error) {
 		st.Close()
 		return nil, engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
 	}
+	if access == secretWrite {
+		if err := refuseOtherEnvironmentFor(ctx, root, st, eff.Readers); err != nil {
+			st.Close()
+			return nil, err
+		}
+	}
 	return &secretRun{ctx: ctx, root: root, st: st, rf: rf, rules: recordRules(eff.Readers, rs)}, nil
 }
 
