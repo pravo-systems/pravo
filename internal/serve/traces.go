@@ -328,11 +328,13 @@ func summarize(id string, rt *telemetry.RunTrace) TraceInfo {
 		}
 	}
 	info.Resources = len(resources)
-	// A run failed when the command did: a span may fail and the command go on, as a provider call that is tried
-	// again, and such a run says what it did, as the plan it applied does. A run without an exit code (killed, or
-	// recorded before the command ended) is judged by its spans.
-	if info.Exit > 0 || (info.Exit < 0 && info.Errors > 0) {
+	// A run failed when its command did: a span may fail and the command go on, and the run then says what the
+	// command did, as the plan it applied does. A run without an exit code was stopped, or is still running.
+	switch {
+	case info.Exit > 0:
 		info.Status = "error"
+	case info.Exit < 0:
+		info.Status = "unfinished"
 	}
 	return info
 }

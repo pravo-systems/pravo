@@ -223,7 +223,7 @@ export class TracesView {
         'aria-label': `${t.command}, ${relTime(t.start)}, ${fmtDur(t.duration_us)}${failed ? ', failed' : ''}`, on: { click: () => this.pick(t.id) } },
       h('span', { class: 'tr-st', 'aria-hidden': 'true' }),
       h('span', { class: 'tr-r1' }, h('span', { class: 'tr-cmd' }, t.line || t.command), h('span', { class: 'tr-dur' }, fmtDur(t.duration_us))),
-      h('span', { class: 'tr-r2' }, h('span', null, relTime(t.start)), h('span', null, t.resources ? plural(t.resources, 'resource') : plural(t.span_count, 'span')), failed ? h('span', { class: 'tr-bad' }, 'failed') : t.errors ? h('span', { class: 'tr-onway' }, plural(t.errors, 'span') + ' failed on the way') : null),
+      h('span', { class: 'tr-r2' }, h('span', null, relTime(t.start)), h('span', null, t.resources ? plural(t.resources, 'resource') : plural(t.span_count, 'span')), t.exit >= 0 ? h('span', { class: failed ? 'tr-bad' : 'tr-exit' }, `exit ${t.exit}`) : h('span', { class: 'tr-open' }, 'did not finish')),
       t.reason ? h('span', { class: 'tr-r3' }, t.reason) : null));
     });
     return h('nav', { class: 'tr-runs', 'aria-label': 'Recorded runs' },
@@ -251,10 +251,9 @@ export class TracesView {
     return h('div', { class: 'tr-sum' + (failed ? ' bad' : '') },
       h('div', { class: 'tr-sumhead' },
         h('h3', { class: 'tr-name' }, d.line || d.command),
-        failed ? h('span', { class: 'b bad' }, icon('bang'), d.errors ? `failed · ${plural(d.errors, 'span')} failed` : 'failed')
-          : d.errors ? h('span', { class: 'b chg', 'data-tip': 'The command finished. These spans failed on the way, as a call that was tried again.' }, icon('bang'), `${plural(d.errors, 'span')} failed on the way`)
-            : h('span', { class: 'b ok' }, icon('check'), 'no span failed'),
-        d.exit >= 0 ? h('span', { class: 'b' }, `exit ${d.exit}`) : null),
+        d.exit >= 0 ? h('span', { class: 'b ' + (failed ? 'bad' : 'ok') }, icon(failed ? 'bang' : 'check'), `exit ${d.exit}`)
+          : h('span', { class: 'b chg' }, 'did not finish'),
+        d.errors ? h('span', { class: 'b' }, plural(d.errors, 'span') + ' with an error') : null),
       h('ul', { class: 'tr-facts' },
         fact('Started', h('span', { 'data-tip': stamp(d.start) }, relTime(d.start))),
         fact('Took', fmtDur(d.duration_us)),

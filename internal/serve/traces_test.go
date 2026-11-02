@@ -249,7 +249,12 @@ func TestTracesJudgeARunByItsExitCode(t *testing.T) {
 		t.Fatalf("exit 0 with a failed span: %+v", got)
 	}
 	delete(rt.Spans[0].Attrs, "pravo.exit_code")
-	if got := summarize(traceA, rt); got.Status != "error" {
-		t.Fatalf("no exit code and a failed span: %+v", got)
+	if got := summarize(traceA, rt); got.Status != "unfinished" {
+		t.Fatalf("no exit code: %+v", got)
+	}
+	rt.Spans[0].Attrs["pravo.exit_code"] = 6.0
+	rt.Spans[2].Status = ""
+	if got := summarize(traceA, rt); got.Status != "error" || got.Errors != 0 {
+		t.Fatalf("exit 6 and no failed span: %+v", got)
 	}
 }
