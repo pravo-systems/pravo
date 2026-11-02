@@ -71,6 +71,14 @@ function declMark(x, y, part) {
   return g;
 }
 
+// declGlyph is the mark of the declared only among the marks of a node or a card, with its words for a hover. It sits
+// where the other marks sit, so it takes no edge from the badge of the kind or the discs of the plans.
+function declGlyph(x, y, part, words) {
+  const g = s('g', { class: 'mk mk-decl' });
+  g.append(s('title', null, words), declMark(x, y, part));
+  return facet(g, 'status', 'declared', `${words.charAt(0).toUpperCase() + words.slice(1)}: show only what is declared and not created yet (shift: hide it)`);
+}
+
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
   if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.look, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
@@ -163,6 +171,7 @@ const declNote = (agg) => (!agg.decl ? '' : agg.decl === agg.managed ? 'declared
 
 const stateMarks = (agg) => {
   const m = [];
+  if (agg.decl) m.push(['decl', agg.decl]);
   if (agg.drifted || agg.gone) m.push(['drift', agg.drifted + agg.gone]);
   if (agg.sensitive) m.push(['lock', agg.sensitive]);
   return m;
@@ -594,6 +603,7 @@ export class GraphView {
     const marks = [];
     if (n.sensitive > 0) marks.push('lock');
     if (n.presence === 'state') marks.push('orphan');
+    if (n.presence === 'spec') marks.push('decl');
     const g = s('g', { class: nodeClasses(n, this.ctx) + ' neutral', role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
     g.append(zone(W, H));
@@ -612,9 +622,8 @@ export class GraphView {
       inn.append(b);
     }
     let mx = W - 12 - 13;
-    for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
+    for (const m of marks) { inn.append(m === 'decl' ? declGlyph(mx + 2, 30, 'all', 'not published') : glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
     inn.append(this.kindBadge('output', H));
-    if (n.presence === 'spec') inn.append(this.presenceTag('not published', W, H));
     g.append(inn);
     return g;
   }
@@ -628,6 +637,7 @@ export class GraphView {
     if (n.drifted && !n.gone) marks.push('drift');
     if (n.gone) marks.push('gone');
     if (n.presence === 'state') marks.push('orphan');
+    if (n.presence === 'spec' && n.mode === 'managed') marks.push('decl');
     const act = actionOf(n.action);
     const badge = !!(act && act.glyph);
     const pv = providerOf(n.type, n.provider);
@@ -655,10 +665,9 @@ export class GraphView {
       inn.append(b);
     }
     let mx = W - 12 - 13;
-    for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
+    for (const m of marks) { inn.append(m === 'decl' ? declGlyph(mx + 2, 30, 'all', 'declared only') : glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
     const kind = isEnv(n) ? 'env' : isSecret(n) ? 'secret' : n.mode === 'data' || n.mode === 'ephemeral' ? n.mode : '';
     if (kind) inn.append(this.kindBadge(kind, H));
-    if (n.presence === 'spec' && n.mode === 'managed') inn.append(facet(this.presenceTag('declared only', W, H), 'status', 'declared', 'Show only what is declared and not created yet (shift: hide it)'));
     const aus = this.authorBadges(authorsOf(n, this.ctx), W);
     if (aus) inn.append(aus);
     g.append(inn);
@@ -672,16 +681,6 @@ export class GraphView {
     const g = s('g', { class: 'kb', transform: `translate(15 ${H})` });
     g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 0 }), glyph({ data: 'eye', ephemeral: 'glass', output: 'out', env: 'env', secret: 'key' }[mode], 5, -5.5, 11, 'kbg'), s('text', { class: 'kbt', x: 19, y: 3.4 }, word));
     return facet(g, 'entity', mode, `Show only ${label.toLowerCase()}s (shift: hide them)`);
-  }
-
-  // presenceTag hangs on the bottom edge, at the right, of a node that the specification declares and no apply has
-  // made yet: "declared only" on a resource, "not published" on an output. The kind badge keeps the left. A group
-  // carries it too, for the resources inside: whole when every one is declared only, half when some are, with the count.
-  presenceTag(word, W, H, part = 'all') {
-    const w = 24 + word.length * 5.8;
-    const g = s('g', { class: 'kb pt pt-' + part, transform: `translate(${W - 15 - w} ${H})` });
-    g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 0 }), declMark(5, -4, part), s('text', { class: 'kbt', x: 19, y: 3.4 }, word));
-    return g;
   }
 
   // authorBadges hang on the top edge of a node that open stored plans change: a disc with the initial of the author
@@ -775,7 +774,8 @@ export class GraphView {
       const t = String(count);
       mx -= t.length * 7 + 15;
       const mg = s('g', { class: 'mkc mk-' + m });
-      mg.append(glyph(m, mx, 33, 13, 'mk mk-' + m), s('text', { class: 'mkn', x: mx + 16, y: 44 }, t));
+      if (m === 'decl') mg.append(declGlyph(mx + 2, 35, agg.decl === agg.managed ? 'all' : 'some', declNote(agg)), s('text', { class: 'mkn', x: mx + 16, y: 44 }, t));
+      else mg.append(glyph(m, mx, 33, 13, 'mk mk-' + m), s('text', { class: 'mkn', x: mx + 16, y: 44 }, t));
       inn.append(mg);
       mx -= 8;
     }
@@ -785,7 +785,6 @@ export class GraphView {
     if (pin.overlap) inn.append(s('rect', { class: 'ovl', x: -5, y: -5, width: W + 10, height: H + 10, rx: 0 }));
     const aus = this.authorBadges(pin.list, W);
     if (aus) inn.append(aus);
-    if (decl) inn.append(facet(this.presenceTag(decl, W, H, agg.decl === agg.managed ? 'all' : 'some'), 'status', 'declared', 'Show only what is declared and not created yet (shift: hide it)'));
     g.append(inn);
     return g;
   }
@@ -863,10 +862,10 @@ export class GraphView {
     // what inside is declared and not created yet, as the card of the group would say it
     const decl = agg ? declNote(agg) : '';
     if (decl) {
-      const dg = facet(s('g', { class: 'kb pt lpt pt-' + (agg.decl === agg.managed ? 'all' : 'some') }), 'status', 'declared', 'Show only what is declared and not created yet (shift: hide it)');
-      dg.append(declMark(x, -4, agg.decl === agg.managed ? 'all' : 'some'), s('text', { class: 'kbt', x: x + 13, y: 3.6 }, decl));
+      const dg = s('g', { class: 'lpt' });
+      dg.append(declGlyph(x, 2.5, agg.decl === agg.managed ? 'all' : 'some', decl), s('text', { class: 'bandc', x: x + 14, y: 11 }, String(agg.decl)));
       pb.append(dg);
-      x += 13 + decl.length * 5.8 + 6;
+      x += 13 + String(agg.decl).length * 7 + 6;
     }
     // how far the title may be scaled up before it outgrows the lane
     const textW = decl || (agg && agg.plan) ? x : 20 + w + 6 + cw + 6;
