@@ -136,7 +136,7 @@ func RecordCommand(root *config.Root) string {
 	if root.Environment == "" {
 		return "pravo environments record"
 	}
-	return "pravo environments record -t env=" + root.Environment
+	return "pravo environments record --env " + root.Environment
 }
 
 // environmentRecord reads the record of the state with the readers of the engine.
@@ -437,7 +437,7 @@ func (e *Engine) admit(ctx context.Context) (*state.Admission, error) {
 }
 
 func unsealedLine(env string, gate []string) string {
-	return fmt.Sprintf("Environment: %s follows %s, and its state is not sealed, so it takes any release. Seal it to hold it to what %s runs: pravo protect init --encrypt -t env=%s", env, joinAnd(gate), joinAnd(gate), env)
+	return fmt.Sprintf("Environment: %s follows %s, and its state is not sealed, so it takes any release. Seal it to hold it to what %s runs: pravo protect init --encrypt --env %s", env, joinAnd(gate), joinAnd(gate), env)
 }
 
 // CheckAdmission refuses, before an apply asks for a yes, a run that the apply would refuse
@@ -539,10 +539,14 @@ func RoundAge(d time.Duration) string {
 	return fmt.Sprintf("%d days", int(d.Hours()/24))
 }
 
-// TagFlags writes tags as the flags that give them: -t env=prod -t image=1.4.
+// TagFlags writes tags as the flags that give them: --env prod -t image=1.4. The selector
+// of an environment comes first, as --env.
 func TagFlags(tags []string) string {
 	var parts []string
-	for _, t := range tags {
+	if name, ok := config.EnvironmentOf(tags); ok {
+		parts = append(parts, "--env "+name)
+	}
+	for _, t := range config.WithoutEnvironment(tags) {
 		parts = append(parts, "-t "+t)
 	}
 	return strings.Join(parts, " ")

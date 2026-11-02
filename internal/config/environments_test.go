@@ -103,7 +103,7 @@ func TestEnvironmentErrors(t *testing.T) {
 		want                 string
 	}{
 		{"unknown", `dev: {$default: true}, prod: {}`, "", []string{"env=qa"}, `"qa" is not an environment of this specification; the environments are dev and prod`},
-		{"no default", `dev: {}, prod: {}`, "", nil, "name the environment with -t env=NAME: this specification declares dev and prod, and none is marked $default: true"},
+		{"no default", `dev: {}, prod: {}`, "", nil, "name the environment with --env NAME: this specification declares dev and prod, and none is marked $default: true"},
 		{"two defaults", `dev: {$default: true}, prod: {$default: true}`, "", nil, "dev and prod are each marked $default: true"},
 		{"after typo", `dev: {$default: true}, prod: {$after: "stagin"}`, "", nil, `$environments.prod.$after names "stagin", which is not an environment (they are dev and prod)`},
 		{"self", `dev: {$default: true, $after: "dev"}`, "", nil, "$environments.dev.$after names dev itself"},

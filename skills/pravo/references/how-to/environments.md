@@ -4,7 +4,7 @@
 
 Declare dev, staging and prod in $environments, keep what differs in their rows, give each a state of its own and check every one before a merge.
 
-One specification serves every environment. `$environments` names them and holds what differs between them, `-t env=NAME` selects one, and the state path follows the name.
+One specification serves every environment. `$environments` names them and holds what differs between them, `--env NAME` selects one, and the state path follows the name.
 
 Work in an empty directory. The commands are for a POSIX shell.
 
@@ -30,8 +30,8 @@ $environments: pravo.#Environments & {
 $settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
 ```
 
-- Each key of `$environments` is an environment, and its row holds your fields. The fields that start with `$` are pravo's: `$default: true` marks the environment that a command without `-t env` uses, and `$after` names the environment that this one takes its releases from.
-- Before the specification is evaluated, pravo fills `$environment` with the row that `-t env=NAME` selects, and adds `$name`, the name of the row.
+- Each key of `$environments` is an environment, and its row holds your fields. The fields that start with `$` are pravo's: `$default: true` marks the environment that a command without `--env` uses, and `$after` names the environment that this one takes its releases from.
+- Before the specification is evaluated, pravo fills `$environment` with the row that `--env NAME` selects, and adds `$name`, the name of the row.
 - `state.path` is computed from `$environment.$name`, so each environment has its own state. Two environments with one state are refused.
 
 ## 2. Write the resources once
@@ -81,7 +81,7 @@ Success! The specification is valid in dev, staging and prod.
 
 ```sh
 pravo eval -e '$environment.workers'
-pravo eval -e '$environment.workers' -t env=prod
+pravo eval -e '$environment.workers' --env prod
 ```
 
 Output:
@@ -97,7 +97,7 @@ Without a tag, the row marked `$default: true` is used. pravo keeps no current e
 
 ```sh
 pravo apply -auto-approve | grep '^Apply complete'
-pravo apply -auto-approve -t env=prod | grep '^Apply complete'
+pravo apply -auto-approve --env prod | grep '^Apply complete'
 ```
 
 Output:
@@ -126,7 +126,7 @@ retention 90
 The `pravo state` commands take `-t`, and read the state of the environment they name. Without `-t` they read the default environment.
 
 ```sh
-pravo state list -t env=prod
+pravo state list --env prod
 ```
 
 Output:
@@ -157,7 +157,7 @@ staging  dev      -                              nothing applied yet; not sealed
 prod     staging  <release-id>       0s ago  -   runs this directory; not sealed, takes any release
 
 This directory: <release-id>
-Next: pravo apply -t env=staging
+Next: pravo apply --env staging
 ```
 
 `pravo environments diff` compares what the specification declares in two environments, resource by resource, without a state or a provider.
@@ -243,7 +243,7 @@ $settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
 
 ```sh
 pravo validate | tail -n 1
-pravo plan -t env=qa | grep '^Plan'
+pravo plan --env qa | grep '^Plan'
 ```
 
 Output:
@@ -260,22 +260,22 @@ A field that every row has and that one row leaves without a value, such as `zon
 A name that is not a key of `$environments` is refused before the specification is evaluated, and before any provider starts.
 
 ```sh
-pravo plan -t env=sandbox
+pravo plan --env sandbox
 ```
 
 Output:
 
 ```text
-Error: "sandbox" is not an environment of this specification; the environments are dev, staging, qa and prod (pass -t env=NAME)
+Error: "sandbox" is not an environment of this specification; the environments are dev, staging, qa and prod (pass --env NAME)
 ```
 
-To make the tag mandatory, remove `$default: true` from the row of dev. A command without `-t env`, including each `pravo state` command, then stops and lists the environments.
+To make `--env` mandatory, remove `$default: true` from the row of dev. A command without `--env`, including each `pravo state` command, then stops and lists the environments.
 
 ## Clean up
 
 ```sh
 pravo destroy -auto-approve | grep '^Destroy complete'
-pravo destroy -auto-approve -t env=prod | grep '^Destroy complete'
+pravo destroy -auto-approve --env prod | grep '^Destroy complete'
 ```
 
 Output:

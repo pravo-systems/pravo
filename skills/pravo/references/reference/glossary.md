@@ -305,7 +305,7 @@ Taught in [B6](../learn/b06-reuse-providers-credentials.md). See [Environment](s
 
 ### environment
 
-One of the places that one [specification](#specification) is applied to, such as dev, staging or prod, declared as a key of `$environments`. Its row holds what differs, `-t env=NAME` selects it, and it has a [state](#state) of its own, which records the environment it serves and the ones it follows.
+One of the places that one [specification](#specification) is applied to, such as dev, staging or prod, declared as a key of `$environments`. Its row holds what differs, `--env NAME` selects it, and it has a [state](#state) of its own, which records the environment it serves and the ones it follows.
 
 Taught in [B4](../learn/b04-inputs-tags-environments.md). See [Environments](spec-environments.md).
 

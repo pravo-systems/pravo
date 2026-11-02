@@ -29,6 +29,7 @@ func stateCmd() *cobra.Command {
 	// for the commands that load the specification.
 	pf := cmd.PersistentFlags()
 	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(pf)
 	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	// Subcommands run with their own context; the parent's is never set.
 	load := func() (*state.Store, error) {

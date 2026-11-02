@@ -32,7 +32,7 @@ keywords: "vault secret password token credential key store versions rotate envi
 
 | | |
 |---|---|
-| Synopsis | `pravo secret set NAME`, `get NAME`, `list`, `history NAME`, `rm NAME`, `purge NAME` and `exec --env VAR=NAME... -- COMMAND` |
+| Synopsis | `pravo secret set NAME`, `get NAME`, `list`, `history NAME`, `rm NAME`, `purge NAME` and `exec --var VAR=NAME... -- COMMAND` |
 | Changes infrastructure | No. |
 | Starts providers | No. |
 | Writes | `set`, `rm` and `purge`: an object below `secret/` and a transaction of the kind `secret`. The first secret of a state raises `meta.json` to format 5. Nothing else. |
@@ -53,7 +53,7 @@ Everyone who can read the state can read every secret in it. There is no list of
 | `history NAME` | Lists every version, newest first, with when, by whom and what became of it. The notes are sealed with the values, so they are shown to a reader. | No key for the list, a reader for the notes. |
 | `rm NAME` | Ends the secret with a removal, as the next version. Runs that read it fail until it is set again. | An admin. |
 | `purge NAME` | Forgets the old values of a secret and keeps the newest `--keep` of them. | An admin. |
-| `exec --env VAR=NAME... -- COMMAND` | Runs the command with the secrets in its environment. | A reader. |
+| `exec --var VAR=NAME... -- COMMAND` | Runs the command with the secrets in its environment. | A reader. |
 
 Where the readers file gives [roles](protect.md#roles), the column says which role the identity needs, and a lower one is refused with exit code 5. Without roles every key may do everything. A role that is higher also does what the lower ones do: an admin sets and reads.
 
@@ -135,7 +135,7 @@ The values are gone from the state. A bucket that keeps earlier versions of its 
 
 ## pravo secret exec
 
-`pravo secret exec --env VAR=NAME... -- COMMAND [ARGUMENTS]` reads the secrets, puts each in the environment variable that `--env` names, and runs the command. `VAR=NAME@3` takes version 3. The values are not written to a file, only the command sees them, and standard input, output and error are those of `pravo`. Everything before `--` is read by pravo, and everything after it belongs to the command.
+`pravo secret exec --var VAR=NAME... -- COMMAND [ARGUMENTS]` reads the secrets, puts each in the environment variable that `--var` names, and runs the command. `VAR=NAME@3` takes version 3. The values are not written to a file, only the command sees them, and standard input, output and error are those of `pravo`. Everything before `--` is read by pravo, and everything after it belongs to the command.
 
 If a secret cannot be read, the command does not run. The exit code is that of the command, and 1 when a signal ended it. A secret that holds a null byte cannot be put in an environment variable and is refused.
 
@@ -267,7 +267,7 @@ prod/db_password
 Run a command with a secret in its environment:
 
 ```sh run
-pravo secret exec --env PGPASSWORD=prod/db_password@1 -- sh -c 'echo "version 1 has ${#PGPASSWORD} characters"'
+pravo secret exec --var PGPASSWORD=prod/db_password@1 -- sh -c 'echo "version 1 has ${#PGPASSWORD} characters"'
 ```
 
 ```text out

@@ -200,7 +200,7 @@ there by whoever applied it. When every one runs the release of this directory, 
 promotion that carries those notes into the state of the environment, and then applies it there as
 "pravo apply" does. The other tags (-t) are those of the release:
 
-  pravo apply   -t env=staging -t image=1.4
+  pravo apply   --env staging -t image=1.4
   pravo promote prod -t image=1.4
 
 The apply checks the promotion against the readers of the state it applies, and each note against
@@ -261,7 +261,7 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 		return engine.WithCode(engine.ExitInvalid, errors.New("--waive and --revoke do not go together"))
 	}
 	if given, ok := config.EnvironmentOf(flags.Tags); ok && given != env {
-		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the environment is the argument of promote: pravo promote %s, without -t %s=%s", env, config.EnvTag, given))
+		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the environment is the argument of promote: pravo promote %s, without --env %s", env, given))
 	}
 	flags.Tags = config.WithEnvironment(flags.Tags, env)
 	if _, err := parseRefresh(o.refresh); err != nil {
@@ -275,7 +275,7 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 		return engine.WithCode(engine.ExitInvalid, errors.New("this specification declares no environments, so there is nothing to promote into. Declare them in $environments, and say in $after which one each follows"))
 	}
 	if stateMissing(ctx, root) {
-		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s has no state yet, and a promotion is kept in it, signed. Seal one first: pravo protect init --encrypt -t %s=%s", env, config.EnvTag, env))
+		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s has no state yet, and a promotion is kept in it, signed. Seal one first: pravo protect init --encrypt --env %s", env, env))
 	}
 	envs := &environmentsOf{root: root}
 	var line string
@@ -287,7 +287,7 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 		defer st.Close()
 		st.SetActor(flags.Actor, flags.Reason, pravo.GitRevision(root.Dir))
 		if st.Sealer() == nil {
-			return engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is not sealed, and a promotion is a signature. Seal it: pravo protect init --encrypt -t %s=%s", env, config.EnvTag, env))
+			return engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is not sealed, and a promotion is a signature. Seal it: pravo protect init --encrypt --env %s", env, env))
 		}
 		rf := readersOf(root)
 		eff, _, err := rf.withRoles(st)
@@ -414,12 +414,12 @@ func readUpstream(ctx context.Context, envs *environmentsOf, root *config.Root, 
 	case s.Missing || s.Note == nil:
 		return nil, "", steps("nothing has been applied there yet")
 	case !s.Sealed:
-		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is not sealed, so it keeps no signed note of what it runs. Seal it: pravo protect init --encrypt -t %s=%s\nAn admin can promote without it: pravo promote %s --waive \"reason\"", up, config.EnvTag, up, env))
+		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is not sealed, so it keeps no signed note of what it runs. Seal it: pravo protect init --encrypt --env %s\nAn admin can promote without it: pravo promote %s --waive \"reason\"", up, up, env))
 	case s.NoteProblem != "":
 		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("%s, so it does not show what %s runs", s.NoteProblem, up))
 	}
 	if want := rec.Lineage(up); want != "" && want != s.st.Lineage() {
-		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is another than the one %s follows: its settings point at a state that its record does not name.\nIf the settings are right, an admin makes the record of %s say so:\n\n    pravo environments record -t %s=%s", up, env, env, config.EnvTag, env))
+		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is another than the one %s follows: its settings point at a state that its record does not name.\nIf the settings are right, an admin makes the record of %s say so:\n\n    pravo environments record --env %s", up, env, env, env))
 	}
 	if why := rel.Differs(s.Note); why != "" {
 		return nil, "", steps(why)

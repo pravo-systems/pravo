@@ -99,7 +99,7 @@ func TestALadderTakesOnlyWhatWasPromoted(t *testing.T) {
 	// prod follows staging, which runs nothing yet: the apply is refused with the way there.
 	text, code := l.as(t, "ada", "apply", "-t", "env=prod", "--auto-approve")
 	if code != 5 || !strings.Contains(text, "prod only takes what was promoted from staging, and nobody has promoted this release yet") ||
-		!strings.Contains(text, "    pravo apply -t env=dev\n    pravo promote staging\n    pravo apply -t env=staging\n    pravo promote prod") {
+		!strings.Contains(text, "    pravo apply --env dev\n    pravo promote staging\n    pravo apply --env staging\n    pravo promote prod") {
 		t.Fatalf("first prod apply: exit %d\n%s", code, text)
 	}
 	if text, code = l.as(t, "ada", "promote", "prod", "--sign-only"); code != 5 || !strings.Contains(text, "staging does not run this release: nothing has been applied there yet") {
@@ -114,7 +114,7 @@ func TestALadderTakesOnlyWhatWasPromoted(t *testing.T) {
 		t.Fatalf("promote staging:\n%s", text)
 	}
 	text = l.must(t, "ada", "promote", "prod", "--sign-only", "--note", "smoke tests passed")
-	if !strings.Contains(text, "Promoted to prod: staging runs this release") || !strings.Contains(text, "    pravo apply -t env=prod") {
+	if !strings.Contains(text, "Promoted to prod: staging runs this release") || !strings.Contains(text, "    pravo apply --env prod") {
 		t.Fatalf("promote prod:\n%s", text)
 	}
 	// The promotion lies in the state that takes it.
@@ -154,13 +154,13 @@ func TestALadderTakesOnlyWhatWasPromoted(t *testing.T) {
 	// The comment of a pull request names the environment and how the release stands there.
 	text, code = l.as(t, "ada", "plan", "-t", "env=prod", "-t", "image=1.1", "--markdown")
 	if code != 0 || !strings.Contains(text, "### pravo plan for prod:") || !strings.Contains(text, "**Promotion:** none yet.") ||
-		!strings.Contains(text, "```sh\npravo apply -t env=dev -t image=1.1\n") || !strings.Contains(text, "pravo promote prod -t image=1.1\n```") {
+		!strings.Contains(text, "```sh\npravo apply --env dev -t image=1.1\n") || !strings.Contains(text, "pravo promote prod -t image=1.1\n```") {
 		t.Fatalf("plan --markdown of prod: exit %d\n%s", code, text)
 	}
 
 	// Release 1.1 is another tag: prod refuses it until it went through staging.
 	text, code = l.as(t, "ada", "apply", "-t", "env=prod", "-t", "image=1.1", "--auto-approve")
-	if code != 5 || !strings.Contains(text, "nobody has promoted this release yet") || !strings.Contains(text, "pravo apply -t env=dev -t image=1.1") {
+	if code != 5 || !strings.Contains(text, "nobody has promoted this release yet") || !strings.Contains(text, "pravo apply --env dev -t image=1.1") {
 		t.Fatalf("prod apply of 1.1: exit %d\n%s", code, text)
 	}
 	l.must(t, "ada", "apply", "-t", "env=dev", "-t", "image=1.1", "--auto-approve")
@@ -219,7 +219,7 @@ func TestTheRecordOfAnEnvironmentHoldsItsLadder(t *testing.T) {
 	l.write(t, `"dev"`)
 	text, code := l.as(t, "ada", "plan", "-t", "env=prod")
 	if code != 5 || !strings.Contains(text, "the record of this state says that prod follows staging, and the specification says it follows dev") ||
-		!strings.Contains(text, "pravo environments record -t env=prod") {
+		!strings.Contains(text, "pravo environments record --env prod") {
 		t.Fatalf("plan after the edit: exit %d\n%s", code, text)
 	}
 	if text = l.must(t, "ada", "environments", "record", "-t", "env=prod"); !strings.Contains(text, "Recorded: this state serves prod, which follows dev") {
@@ -315,6 +315,37 @@ $environments: prod: zone: "c"
 	text, code = runPravo(t, l.dir, "validate")
 	if code != 6 || !strings.Contains(text, "not valid in staging: $environments.staging has no zone, which dev and prod have") {
 		t.Fatalf("validate with a row that misses a field: exit %d\n%s", code, text)
+	}
+}
+
+// --env NAME is -t env=NAME: it selects the environment, agrees with -t env= naming the same one,
+// and refuses another, an empty name, and a binding of secret exec given to it by mistake.
+func TestEnvFlagIsTheEnvironmentTag(t *testing.T) {
+	requireLocalProvider(t)
+	l := &ladder{dir: specDir(t, map[string]string{})}
+	l.write(t, `"staging"`)
+	if text, code := runPravo(t, l.dir, "init", "--env", "dev"); code != 0 {
+		t.Skipf("init exited %d:\n%s", code, text)
+	}
+	for _, args := range [][]string{{"--env", "prod"}, {"-env", "prod"}, {"--env=prod"}, {"--env", "prod", "-t", "env=prod"}, {"-t", "env=prod"}} {
+		text, code := runPravo(t, l.dir, append([]string{"eval", "-e", "app.filename"}, args...)...)
+		if code != 0 || strings.TrimSpace(text) != `"out/app-prod.txt"` {
+			t.Errorf("eval %s: exit %d\n%s", strings.Join(args, " "), code, text)
+		}
+	}
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"eval", "-e", "app.filename", "--env", "prod", "-t", "env=dev"}, "--env prod and -t env=dev name two environments"},
+		{[]string{"eval", "-e", "app.filename", "--env", ""}, "--env takes the name of an environment"},
+		{[]string{"eval", "-e", "app.filename", "--env", "qa"}, `"qa" is not an environment of this specification; the environments are dev, staging and prod (pass --env NAME)`},
+		{[]string{"promote", "prod", "--env", "dev"}, "the environment is the argument of promote: pravo promote prod, without --env dev"},
+		{[]string{"secret", "exec", "--env", "PW=db", "--", "true"}, "a secret goes into an environment variable with --var VAR=NAME"},
+	} {
+		if text, code := runPravo(t, l.dir, c.args...); code != 6 || !strings.Contains(text, c.want) {
+			t.Errorf("%s: exit %d\n%s", strings.Join(c.args, " "), code, text)
+		}
 	}
 }
 

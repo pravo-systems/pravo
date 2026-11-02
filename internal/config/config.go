@@ -680,7 +680,7 @@ func readSettingsSource(dir string, opts LoadOptions) (*settingsSource, error) {
 	}
 	if withEnvs {
 		if where := envTagField(abs, src.files); where != "" {
-			return nil, fmt.Errorf("%s: a field carries @tag(%s), and $environments selects the environment with -t %s=NAME: remove the tag, and read the name as $environment.$name", where, EnvTag, EnvTag)
+			return nil, fmt.Errorf("%s: a field carries @tag(%s), and $environments selects the environment with --env NAME: remove the tag, and read the name as $environment.$name", where, EnvTag)
 		}
 	}
 	// The pravo block is read before the imports can resolve. It may refer to

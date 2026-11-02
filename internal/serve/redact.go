@@ -944,7 +944,7 @@ var words = regexp.MustCompile(`\S+|\s+`)
 // that is a secret: the value of every tag given with -t (a tag has no schema
 // that says whether it is sensitive, and a tag is how a secret reaches a
 // specification), the value of a flag or a key=value word whose name says
-// secret. The command
+// secret, and the value of --env, which is the tag env. The command
 // is recorded with its arguments joined by spaces, so a value of several words
 // has lost its quotes: the words that follow a value that is withheld, up to the
 // next flag, are withheld with it.
@@ -969,6 +969,10 @@ func scrubCommand(cmd string) string {
 			out, inValue = m[1]+"t"+tagWithoutValue(m[2]), true
 		case strings.HasPrefix(bare, "--tag="):
 			out, inValue = "--tag="+tagWithoutValue(strings.TrimPrefix(bare, "--tag=")), true
+		case (prev == "--env" || prev == "-env") && !isFlag(bare):
+			out = mask // --env NAME is -t env=NAME, and its value is withheld as a tag's is
+		case strings.HasPrefix(bare, "--env=") && len(bare) > len("--env="):
+			out = "--env=" + mask
 		case strings.HasPrefix(bare, "-t") && strings.Contains(bare, "=") && !strings.HasPrefix(bare, "--"):
 			out, inValue = "-t"+tagWithoutValue(strings.TrimPrefix(bare, "-t")), true
 		case isFlag(prev) && !strings.Contains(prev, "=") && guarded(prev) && !isFlag(bare):

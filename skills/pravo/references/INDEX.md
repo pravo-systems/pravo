@@ -13,7 +13,7 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/init.md](reference/init.md) | Install the providers a root needs, write the lock file and generate the CUE packages that a specification imports. | 10 KB |
-| [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, stored in the state, judged by a policy and applied later. | 34 KB |
+| [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, stored in the state, judged by a policy and applied later. | 35 KB |
 | [reference/apply.md](reference/apply.md) | Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in the state exactly as it was reviewed, in whole or in closed parts. | 30 KB |
 | [reference/destroy.md](reference/destroy.md) | Destroy every resource recorded in the state, dependents first, after a plan and a confirmation. | 7 KB |
 | [reference/show.md](reference/show.md) | Print a saved plan or a plan stored in the state, with the time, the command and the actor that made it, and a warning when it cannot be applied. | 10 KB |
@@ -52,7 +52,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/spec-env.md](reference/spec-env.md) | pravo.#Env and pravo.#SecretEnv read environment variables, pravo.#Secret reads the sealed state, and pravo.#RemoteOutputs reads the outputs of another root. | 14 KB |
 | [reference/spec-meta-fields.md](reference/spec-meta-fields.md) | The $-prefixed fields that resources, data sources and ephemeral resources accept in addition to the provider schema. | 8 KB |
 | [reference/spec-tags-and-variables.md](reference/spec-tags-and-variables.md) | Inputs are fields with a @tag attribute. -t and -T inject their values. Defaults and constraints are plain CUE. | 8 KB |
-| [reference/spec-environments.md](reference/spec-environments.md) | $environments and $environment: the environments one specification is applied to, the rows of what differs, $after and $default, the checks at load, the gate of a following environment and the record each state keeps. | 8 KB |
+| [reference/spec-environments.md](reference/spec-environments.md) | $environments and $environment: the environments one specification is applied to, the rows of what differs, $after and $default, the checks at load, the gate of a following environment and the record each state keeps. | 9 KB |
 | [reference/spec-reuse.md](reference/spec-reuse.md) | pravo has no module block. A definition that contains resources is instantiated with &, a package shares it between roots and a CUE module between repositories. | 19 KB |
 | [reference/spec-generated-packages.md](reference/spec-generated-packages.md) | The CUE packages that pravo init writes under cue.mod/gen, one per provider and one for pravo itself. | 11 KB |
 

@@ -39,7 +39,7 @@ $settings: pravo.#Settings & {
 ```sh
 pravo init
 pravo eval -e '$settings.state.path'
-pravo eval -t env=prod -e '$settings.state.path'
+pravo eval --env prod -e '$settings.state.path'
 pravo eval -e '$settings.refresh'
 ```
 
@@ -56,7 +56,7 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
 "1h"
 ```
 
-The block is read once for each environment, so the state path follows `-t env`. [Environments](spec-environments.md) describes `$environments`. A setting can also depend on a tag of your own. When the tag has no default and no `-t` gives it, the path is not concrete, and pravo says so:
+The block is read once for each environment, so the state path follows `--env`. [Environments](spec-environments.md) describes `$environments`. A setting can also depend on a tag of your own. When the tag has no default and no `-t` gives it, the path is not concrete, and pravo says so:
 
 File `main.cue`:
 
@@ -307,7 +307,7 @@ $settings: pravo.#Settings & {
 ```
 
 ```sh
-pravo eval -e '$settings.access.dir' -t env=prod
+pravo eval -e '$settings.access.dir' --env prod
 ```
 
 Output:

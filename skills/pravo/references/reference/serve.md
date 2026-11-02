@@ -237,12 +237,13 @@ Flags:
       --chat string            turn on the read-only assistant: anthropic or openai-compatible, or off ($PRAVO_CHAT, also provider:model)
       --chat-endpoint string   the base URL of an openai-compatible provider, such as http://localhost:11434/v1 ($PRAVO_CHAT_ENDPOINT)
       --chat-model string      the model the assistant asks ($PRAVO_CHAT_MODEL)
+      --env NAME               work on the environment NAME of $environments; --env prod is -t env=prod
   -h, --help                   help for serve
   -T, --inject-vars            inject system tag variables (os, arch, cwd, ...)
       --no-open                do not open a browser
       --plan string            a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-<id>)
       --port int               the port to listen on (0 picks a free one)
-  -t, --tag stringArray        inject a value for an @tag() field: -t key=value; -t env=NAME names an environment of $environments
+  -t, --tag stringArray        inject a value for an @tag() field: -t key=value
 
 Global Flags:
       --actor string      a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)

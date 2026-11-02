@@ -16,9 +16,11 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/plog"
@@ -316,7 +318,7 @@ func newRootCmd() *cobra.Command {
 					return err
 				}
 			}
-			return nil
+			return foldEnvFlag(cmd)
 		},
 	}
 	pf := cmd.PersistentFlags()
@@ -337,13 +339,41 @@ func newRootCmd() *cobra.Command {
 }
 
 const (
-	tagUsage     = "inject a value for an @tag() field: -t key=value; -t env=NAME names an environment of $environments"
+	tagUsage     = "inject a value for an @tag() field: -t key=value"
 	sysTagsUsage = "inject system tag variables (os, arch, cwd, ...)"
+	envUsage     = "work on the environment `NAME` of $environments; --env prod is -t env=prod"
 )
 
 func addTagFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
 	cmd.Flags().BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	addEnvFlag(cmd.Flags())
+}
+
+// addEnvFlag binds --env, which every command that takes -t takes too.
+func addEnvFlag(fs *pflag.FlagSet) {
+	fs.StringVar(&flags.Env, "env", "", envUsage)
+}
+
+// foldEnvFlag puts --env NAME into the tags as env=NAME, so that everything after reads
+// one list, as if -t env=NAME were given. -t env= naming another environment is refused.
+func foldEnvFlag(cmd *cobra.Command) error {
+	if !cmd.Flags().Changed("env") {
+		return nil
+	}
+	name := flags.Env
+	if name == "" || strings.ContainsAny(name, "= \t") {
+		msg := fmt.Sprintf("--env takes the name of an environment, such as --env prod, not %q", name)
+		if strings.Contains(name, "=") && cmd.Name() == "exec" && cmd.HasParent() && cmd.Parent().Name() == "secret" {
+			msg += "; a secret goes into an environment variable with --var VAR=NAME"
+		}
+		return engine.WithCode(engine.ExitInvalid, errors.New(msg))
+	}
+	if given, ok := config.EnvironmentOf(flags.Tags); ok && given != name {
+		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("--env %s and -t %s=%s name two environments: give one", name, config.EnvTag, given))
+	}
+	flags.Tags = config.WithEnvironment(flags.Tags, name)
+	return nil
 }
 
 func versionCmd() *cobra.Command {

@@ -331,7 +331,7 @@ A version that no signed transaction of a writer accounts for is refused when a 
 `pravo secret exec` runs a command with secrets in its environment. The values are not written to a file, only the command sees them, and the exit code is that of the command. Everything after `--` belongs to the command.
 
 ```sh
-PRAVO_CONFIG_DIR=people/eve pravo secret exec --env PGPASSWORD=prod/db_password -- sh -c 'echo "PGPASSWORD has ${#PGPASSWORD} characters"'
+PRAVO_CONFIG_DIR=people/eve pravo secret exec --var PGPASSWORD=prod/db_password -- sh -c 'echo "PGPASSWORD has ${#PGPASSWORD} characters"'
 ```
 
 Output:

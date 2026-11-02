@@ -355,6 +355,7 @@ func planCmd() *cobra.Command {
 	// The tags select the state, so the commands that list stored plans take them too.
 	pf := cmd.PersistentFlags()
 	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(pf)
 	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	cmd.AddCommand(planCommands()...)
 	return cmd
@@ -542,7 +543,7 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	ctx := cmd.Context()
 	streamEvents = true
 	if sealed, _ := engine.PlanFileSealed(path); !sealed && (len(flags.Tags) > 0 || flags.SysTags) {
-		return errors.New("-t and -T cannot be combined with a saved plan; the plan carries its own tags")
+		return errors.New("-t, --env and -T cannot be combined with a saved plan; the plan carries its own tags")
 	}
 	if cmd.Flags().Changed("refresh") || full {
 		return errors.New("-refresh and -full do not apply to a saved plan")

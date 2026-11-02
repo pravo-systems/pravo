@@ -1,7 +1,7 @@
 // The Environments view: the ladder of a specification that declares $environments, as a flow from left to right. Each
 // environment is a box: what its state runs (the specification by its id, the git revision, since when and by whom) and
 // how the release of this directory stands there. The page reads one environment at a time, the one marked here; a box
-// opens another, which the server loads as a command run with -t env=NAME does.
+// opens another, which the server loads as a command run with --env NAME does.
 //
 // The page reads /api/environments and shows it. Nothing here runs a command or writes anything: a promotion is signed
 // on the command line, and the command to type next is shown as text to copy.

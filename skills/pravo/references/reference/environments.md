@@ -8,7 +8,7 @@ Show what the state of each environment runs and how the release of this directo
 
 | | |
 |---|---|
-| Synopsis | `pravo environments [-t key=value]...`, `pravo environments diff A B`, `pravo environments record -t env=NAME` |
+| Synopsis | `pravo environments [-t key=value]...`, `pravo environments diff A B`, `pravo environments record --env NAME` |
 | Alias | `pravo envs` |
 | Changes infrastructure | No. |
 | Starts providers | No. `diff` reads the schemas that `pravo init` cached. |
@@ -45,15 +45,16 @@ Then it prints the release of this directory, with its tags, and the next comman
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `-t`, `--tag key=value` | none | The tags of the release. `-t env` does not narrow the list: every environment is read. Repeatable. |
+| `-t`, `--tag key=value` | none | The tags of the release. Repeatable. |
+| `--env NAME` | none | Does not narrow the list: every environment is read. With `record`, the environment whose record is written. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE. |
-| `--access-dir DIR` | none | The directory of the readers file of the default environment, or of the one `-t env` names. Every other environment reads the file that its `$settings.access.dir` names, else `.pravo/access`. |
+| `--access-dir DIR` | none | The directory of the readers file of the default environment, or of the one `--env` names. Every other environment reads the file that its `$settings.access.dir` names, else `.pravo/access`. |
 
 With `--json` it prints `{"ladder", "release", "environments", "next"}`: the ladder as text, the release (`fingerprint` and the names of its `tags`), one object for each environment (`name`, `after`, `default`, `state`, `sealed`, `runs`, `release`, `promoted`, `problem`) and the next command.
 
 ## pravo environments diff
 
-`pravo environments diff A B` evaluates the specification once for each environment and compares the resources it declares: the ones only one of them has, and the fields whose values differ, by their dotted path. It compares the specification, not the states: `pravo plan -t env=NAME` compares one environment with what it runs. A field that the provider marks sensitive, or whose name says that it is a secret, is compared and shown as `differs (sensitive)`. A value known only at apply, such as the id of another resource, is shown as `(known at apply)`. The tags (`-t`) are those of both.
+`pravo environments diff A B` evaluates the specification once for each environment and compares the resources it declares: the ones only one of them has, and the fields whose values differ, by their dotted path. It compares the specification, not the states: `pravo plan --env NAME` compares one environment with what it runs. A field that the provider marks sensitive, or whose name says that it is a secret, is compared and shown as `differs (sensitive)`. A value known only at apply, such as the id of another resource, is shown as `(known at apply)`. The tags (`-t`) are those of both.
 
 With `--json` it prints `{"a", "b", "resources", "same"}`, where each resource is `{"address", "only", "fields"}` and each field `{"path", "a", "b", "sensitive"}`.
 
@@ -62,7 +63,7 @@ With `--json` it prints `{"a", "b", "resources", "same"}`, where each resource i
 The first apply in the state of an environment records which environment the state serves and which ones it follows, with the lineage of their states ([The record of an environment](spec-environments.md#the-record-of-an-environment)). An apply for another environment, or one whose row in `$environments` follows other environments, is refused with exit code 5, so that a state that a setting points at by mistake is not written over and a gate is not dropped by an edit of the specification. When the change is meant, `record` makes the record say what the specification says:
 
 ```sh
-pravo environments record -t env=prod
+pravo environments record --env prod
 ```
 
 It prints `Recorded: this state serves prod, which follows staging.` When the state has a record, an admin of the state runs it. For a specification that declares no environments, it records that the state serves none. A state that does not exist yet is refused: its first apply records what it serves.
@@ -111,7 +112,7 @@ dev   -        <release-id>       0s ago  -   runs this directory
 prod  dev      -                              nothing applied yet; not sealed, takes any release
 
 This directory: <release-id>
-Next: pravo apply -t env=prod
+Next: pravo apply --env prod
 ```
 
 ```sh

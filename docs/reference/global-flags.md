@@ -48,6 +48,7 @@ A command that takes no argument refuses a word, so a misplaced value is an erro
 |---|---|---|
 | `-t`, `--tag key=value` | `init`, `plan`, `apply`, `destroy`, `output`, `import`, `providers`, `gen`, `validate`, `eval`, `schema`, `why`, `drift`, `serve`, `state` and each of its subcommands | Inject a value into the field tagged `@tag(key)`. Repeatable. |
 | `-T`, `--inject-vars` | the same | Inject the system variables of CUE into tags written `@tag(name,var=os)`. Examples are `os`, `arch` and `username`. |
+| `--env NAME` | the same, and `environments`, `promote`, `protect` and `secret` | Select the environment `NAME` of [`$environments`](spec-environments.md). It is the tag `env`: `-t env=NAME` does the same, and the two naming different environments are refused. |
 | `--refresh=age\|expired\|false\|all` | `plan`, `apply`, `destroy`, `why` | When to read real state from the providers. See [`pravo plan`](plan.md#refresh). |
 | `--full` | `plan`, `apply` | Plan every resource with its provider. |
 | `--access-dir DIR` | `protect`, `serve` | The directory of the readers file of a sealed state, in place of `.pravo/access`. `PRAVO_ACCESS_DIR` sets the same, and the flag wins. A relative directory is relative to the root. See [`pravo id and pravo protect`](protect.md#the-readers-file). |

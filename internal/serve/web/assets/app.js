@@ -1167,9 +1167,12 @@ function renderBanners() {
   const res = S.model ? S.model.list.filter((n) => n.mode === 'managed') : [];
   const env = p.environment || '';
   if (!p.spec_error && res.length && res.every((n) => n.presence === 'spec') && !dismissed.has('empty:' + env)) {
+    // the command of the ladder when this environment is the next step, which carries the tags of the release
+    const entry = env && S.environments ? (S.environments.environments || []).find((e) => e.name === env) : null;
+    const cmd = entry && entry.command ? entry.command : !env ? 'pravo apply' : entry && (entry.after || []).length ? `pravo promote ${env}` : `pravo apply --env ${env}`;
     box.append(banner('info', 'status', [h('b', null, env ? `Nothing in ${env} is created yet.` : 'Nothing is created yet.'),
       ` Its state holds no record, so the ${plural(res.length, 'resource')} here ${res.length === 1 ? 'is' : 'are'} declared only, drawn hatched. `,
-      h('code', null, env ? `pravo apply -t env=${env}` : 'pravo apply'), ' creates them.'], 'empty:' + env, 'info'));
+      h('code', null, cmd), ' creates them.'], 'empty:' + env, 'info'));
   }
   if (g.plan && g.plan.stale) {
     box.append(banner('chg', 'status', [h('b', null, g.plan.id ? `The stored plan ${g.plan.id} is stale.` : 'The saved plan is stale.'), ' It can no longer be applied.',

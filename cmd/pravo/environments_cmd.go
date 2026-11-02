@@ -34,7 +34,7 @@ this directory stands in each. The last line is the next command to type.
   pravo environments                 the ladder, for the release of this directory
   pravo environments -t image=1.4    for the release with these tags
   pravo environments diff staging prod
-  pravo environments record -t env=prod
+  pravo environments record --env prod
 
 An environment whose settings or state cannot be read here (a variable this shell does not set, a
 bucket these credentials cannot read) is shown as such, and the others still are.`,
@@ -44,6 +44,7 @@ bucket these credentials cannot read) is shown as such, and the others still are
 	pf := cmd.PersistentFlags()
 	pf.StringVar(&flags.AccessDir, "access-dir", "", accessDirUsage)
 	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(pf)
 	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	cmd.AddCommand(environmentsDiffCmd(), environmentsRecordCmd())
 	return cmd
@@ -298,7 +299,7 @@ others, is refused, so that a state copied or pointed at by mistake is not writt
 not dropped by an edit of the specification. When the change is meant, an admin of the state records
 it:
 
-  pravo environments record -t env=prod
+  pravo environments record --env prod
 
 For a specification that declares no environments any more, it records that the state serves none.`,
 		Args: noArgs,
@@ -379,7 +380,7 @@ func environmentsDiffCmd() *cobra.Command {
 		Short: "Compare what the specification declares in two environments",
 		Long: `Evaluates the specification once for each environment and compares the resources it declares:
 which ones only one of them has, and the fields whose values differ. It compares the specification,
-not the states: "pravo plan -t env=NAME" compares one environment with what it runs. A field the
+not the states: "pravo plan --env NAME" compares one environment with what it runs. A field the
 provider marks sensitive, or whose name says it is a secret, is compared and not shown; a value known
 only at apply, such as the id of another resource, is shown as such.`,
 		Example: "  pravo environments diff staging prod -t image=1.4",
@@ -511,7 +512,7 @@ func diffEnvironments(cmd *cobra.Command, a, b string) error {
 		return engine.WithCode(engine.ExitInvalid, errors.New("name two different environments"))
 	}
 	if _, ok := config.EnvironmentOf(flags.Tags); ok {
-		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the environments are the arguments of diff, without -t %s", config.EnvTag))
+		return engine.WithCode(engine.ExitInvalid, errors.New("the environments are the arguments of diff, without --env"))
 	}
 	da, err := declaredIn(ctx, a)
 	if err != nil {

@@ -19,7 +19,7 @@ keywords: "promotion release gate pipeline staging prod waive revoke sign-only l
 | | |
 |---|---|
 | Synopsis | `pravo promote ENVIRONMENT [-t key=value]... [--note TEXT] [--sign-only] [--auto-approve]`, `--waive REASON`, `--revoke REASON` |
-| Changes infrastructure | Yes, unless `--sign-only` or `--revoke`: it applies the release as `pravo apply -t env=ENVIRONMENT` does. |
+| Changes infrastructure | Yes, unless `--sign-only` or `--revoke`: it applies the release as `pravo apply --env ENVIRONMENT` does. |
 | Starts providers | For the apply only. Reading the environments before needs none. |
 | Writes | A promotion below `promotions/` of the state of ENVIRONMENT, then what the apply writes. |
 | Requires | A row of `$environments` with `$after`, and a sealed state for ENVIRONMENT. A writer of that state; an admin for `--waive` and `--revoke`. |
@@ -30,7 +30,7 @@ An environment whose row in `$environments` names others in `$after` takes only 
 `promote` reads the newest note of each environment that ENVIRONMENT follows. A note is written by each apply into the state it applies, signed by whoever applied, and says which release that state runs. Reading it needs no key and no provider. When every one runs the release of this directory, `promote` signs a promotion that carries those notes into the state of ENVIRONMENT, and applies it there. The other tags are those of the release:
 
 ```sh
-pravo apply   -t env=staging -t image=1.4
+pravo apply   --env staging -t image=1.4
 pravo promote prod -t image=1.4
 ```
 
@@ -39,11 +39,12 @@ pravo promote prod -t image=1.4
 | Flag | Default | Meaning |
 |---|---|---|
 | `--note TEXT` | none | A line of text, kept with the promotion. |
-| `--sign-only` | off | Sign the promotion and stop. `pravo apply -t env=ENVIRONMENT` applies it later, by anyone who may write the state. |
+| `--sign-only` | off | Sign the promotion and stop. `pravo apply --env ENVIRONMENT` applies it later, by anyone who may write the state. |
 | `--auto-approve` | off | Apply without asking. |
 | `--waive REASON` | none | Promote without the notes of the environments before. An admin gives the reason. |
 | `--revoke REASON` | none | Withdraw the promotions of this release that were signed before. An admin gives the reason. Nothing is applied. |
-| `-t`, `--tag key=value` | none | The tags of the release. `-t env=NAME`, when given, names ENVIRONMENT again. Repeatable. |
+| `-t`, `--tag key=value` | none | The tags of the release. Repeatable. |
+| `--env NAME` | none | Names ENVIRONMENT again, as `-t env=NAME` does. Another name is refused. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE. |
 | `--access-dir DIR` | see below | The directory of the readers file of ENVIRONMENT. |
 | `--refresh`, `--full` | as for `plan` | How the apply reads the resources, as in [pravo plan](plan.md). |
@@ -56,7 +57,7 @@ Before it signs, `promote` checks:
 
 | Check | Refused when |
 |---|---|
-| The environment | ENVIRONMENT is not declared, has no `$after`, has no state yet or a state that is not sealed, or `-t env` names another one. |
+| The environment | ENVIRONMENT is not declared, has no `$after`, has no state yet or a state that is not sealed, or `--env` names another one. |
 | The record | The record in the state of ENVIRONMENT says that it serves another environment, or follows others ([Environments](spec-environments.md#the-record-of-an-environment)). |
 | The role | The identity is not a writer of the state of ENVIRONMENT, or not an admin for `--waive` and `--revoke`. |
 | Each environment before | Its state cannot be read, is not sealed, has no note, or its newest note is for another release, is signed by a key that its readers file does not make a writer, or is dated more than five minutes ahead. |
@@ -68,7 +69,7 @@ Error: prod only takes what was promoted from dev, and nobody has promoted this 
 
 Run these, skipping a step that is already done:
 
-    pravo apply -t env=dev
+    pravo apply --env dev
     pravo promote prod
 ```
 
@@ -114,8 +115,8 @@ mkdir -p .pravo/access
 pravo id new --name ada > /dev/null
 echo "$(pravo id show | tail -n 1 | sed 's/^ *//') role:admin" > .pravo/access/readers.txt
 pravo init > /dev/null
-pravo protect init --encrypt --allow-local --yes -t env=dev > /dev/null
-pravo protect init --encrypt --allow-local --yes -t env=prod > /dev/null
+pravo protect init --encrypt --allow-local --yes --env dev > /dev/null
+pravo protect init --encrypt --allow-local --yes --env prod > /dev/null
 pravo apply --auto-approve > /dev/null
 ```
 
@@ -128,11 +129,11 @@ Promoted to prod: dev runs this release, applied by ada less than a minute ago.
 Note: dev and prod read one readers file, so a writer of dev may promote into prod. $settings.access.dir gives prod a file of its own.
 Apply it there with:
 
-    pravo apply -t env=prod
+    pravo apply --env prod
 ```
 
 ```sh run
-pravo apply -t env=prod --auto-approve | grep -E '^(Promotion|Apply)'
+pravo apply --env prod --auto-approve | grep -E '^(Promotion|Apply)'
 ```
 
 ```text out

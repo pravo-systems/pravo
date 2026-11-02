@@ -35,6 +35,7 @@ Show the actions that apply takes. A plan changes no infrastructure, and it can 
 | `--reserve DURATION` | none | Reserve the nodes that have pending changes for `DURATION`, for example `15m`. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field. Repeatable. The subcommands take it too: the tags select the state. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE into tags written `@tag(name,var=os)`. The subcommands take it too. |
+| `--env NAME` | none | Select an environment of [`$environments`](spec-environments.md), as `-t env=NAME` does. The subcommands take it too. |
 
 The [global flags](global-flags.md) apply. A single dash works as well: `-refresh=false`. The value of `--refresh` follows `=`. A word after the flag is an argument, and `plan` takes none, so `-refresh false` is an error.
 

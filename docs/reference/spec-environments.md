@@ -16,9 +16,9 @@ keywords: "workspace workspaces env dev staging prod $after $default ladder prom
 | `$environments` | A top-level field. | A struct with one field for each environment: the key is its name, the value its row. |
 | a field of a row | Your own. | What differs between the environments: a size, a region, a domain. |
 | `$after` | A row. | The environment whose release this one takes, or a list of them. Without it, the environment takes any release. |
-| `$default` | A row. | `true` on the environment that a command without `-t env` uses. At most one row has it. |
+| `$default` | A row. | `true` on the environment that a command without `--env` uses. At most one row has it. |
 | `$environment` | Filled in by pravo. | The row of the selected environment, with `$name`, its name. |
-| `-t env=NAME` | Every command that evaluates the specification. | Selects the environment. |
+| `--env NAME` | Every command that evaluates the specification. | Selects the environment. It is the tag `env`: `-t env=NAME` does the same. |
 
 ```cue title="env.cue"
 $environments: pravo.#Environments & {
@@ -36,13 +36,13 @@ server: workers: $environment.workers
 
 ## Selecting an environment
 
-`-t env=NAME` selects a row. Before the specification is evaluated, pravo fills `$environment` with that row and with `$name`. Every other field reads the row from there. Without `-t env`, the row marked `$default: true` is used; a specification whose rows have no default stops and lists them. As with any tag, the last `-t env` on a command line wins.
+`--env NAME` selects a row. Before the specification is evaluated, pravo fills `$environment` with that row and with `$name`. Every other field reads the row from there. Without `--env`, the row marked `$default: true` is used; a specification whose rows have no default stops and lists them. `--env NAME` is the tag `env`, so `-t env=NAME` selects the same row, and a command line where the two name different environments is refused.
 
 `env` is not a tag of the specification. pravo takes it off the tags it gives CUE, and a field that carries `@tag(env)` is refused when `$environments` is declared, so that the environment has one source. The other tags (`-t image=1.4`) work as in [Tags and variables](spec-tags-and-variables.md).
 
 A name is letters, digits, `.`, `-` and `_`, starts with a letter or a digit, and has at most 63 characters, so that it goes into a path, a bucket prefix and a command line without quoting. Quote a name with a dash in CUE: `"prod-eu": {...}`.
 
-pravo keeps no current environment. Each command evaluates the specification with the tags it is given, so `plan`, `apply`, `destroy`, `output` and the `state` commands each take `-t env=NAME`. A saved plan or a stored plan carries the tags it was made with.
+pravo keeps no current environment. Each command evaluates the specification with the tags it is given, so `plan`, `apply`, `destroy`, `output` and the `state` commands each take `--env NAME`. A saved plan or a stored plan carries the tags it was made with.
 
 ## What each environment has of its own
 
@@ -103,9 +103,9 @@ Every command that loads the specification checks the declaration first. It refu
 - environments that follow one another in a circle;
 - two rows with `$default: true`;
 - two environments whose state is in one place;
-- a `-t env=NAME` that names no environment, and a field that carries `@tag(env)`.
+- a `--env NAME` that names no environment, and a field that carries `@tag(env)`.
 
-`pravo validate` without `-t env` evaluates the specification once for each environment and says which ones are valid. It also refuses a row that misses a field that another row has, and a field of a row that has no concrete value, which a plan of that environment would otherwise stop at. `pravo validate -t env=NAME` checks one.
+`pravo validate` without `--env` evaluates the specification once for each environment and says which ones are valid. It also refuses a row that misses a field that another row has, and a field of a row that has no concrete value, which a plan of that environment would otherwise stop at. `pravo validate --env NAME` checks one.
 
 ```cue file=main.cue title="main.cue"
 package estate
@@ -144,6 +144,6 @@ An apply is refused with exit code 5 when:
 - the record names another environment: the settings point the run at a state of another environment;
 - the record says that the environment follows others than the specification says: an edit of `$after`, which would add or drop a gate.
 
-The refusal names the command that makes the record agree, `pravo environments record -t env=NAME`, which an admin of the state runs ([pravo environments](environments.md#pravo-environments-record)). A writer adds the lineage of an environment before when the first promotion reads it, and nothing else.
+The refusal names the command that makes the record agree, `pravo environments record --env NAME`, which an admin of the state runs ([pravo environments](environments.md#pravo-environments-record)). A writer adds the lineage of an environment before when the first promotion reads it, and nothing else.
 
 Each apply also writes a note, below `runs/`, that says which release the state runs, the git revision it was applied from, and who applied it. `pravo environments` reads the newest note of each state, and `pravo promote` carries the notes of the environments before into a promotion. In a sealed state the record, the notes and the promotions are signed and checked against the readers file. [State format](state-format.md) lists the objects.

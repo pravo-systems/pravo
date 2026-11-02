@@ -11,9 +11,9 @@ import (
 )
 
 // The environments of a specification that declares $environments. The viewer reads one of them
-// at a time: the one that -t env=NAME named, else the default, else the first of the ladder. The
+// at a time: the one that --env NAME named, else the default, else the first of the ladder. The
 // page can switch to another, which loads the specification for it and opens its state, as a
-// command run with -t env=NAME would; nothing is written. The Environments page shows the
+// command run with --env NAME would; nothing is written. The Environments page shows the
 // ladder: what each environment runs and how the release of the directory stands in each, which
 // the command (Options.Environments) reads from the states without a key.
 

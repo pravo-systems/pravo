@@ -16,7 +16,7 @@ A variable with a `validation` block can list the allowed environment names, but
 
 ## The idea
 
-pravo has no workspaces. Declare the environments in the specification, and select one with `-t env=prod`, on every command. The names are the keys of one struct, each key has a row of what differs, and the state path is computed from the name.
+pravo has no workspaces. Declare the environments in the specification, and select one with `--env prod`, on every command. `--env prod` is the tag `env`: `-t env=prod` does the same. The names are the keys of one struct, each key has a row of what differs, and the state path is computed from the name.
 
 ```hcl
 variable "env" {
@@ -37,7 +37,7 @@ $environments: {
 }
 ```
 
-`$environments` is a struct with one field for each environment. Its keys are the allowed names, as the alternatives of the disjunction in the warm-up are. `$default: true` marks the environment that a command without a tag uses, as `*` marks a default. `-t env=prod` selects a row, and before pravo evaluates the rest of the specification it fills the field `$environment` with that row and with `$name`, the name of the row. A tag here is an input to the specification. It is not a label on a cloud resource.
+`$environments` is a struct with one field for each environment. Its keys are the allowed names, as the alternatives of the disjunction in the warm-up are. `$default: true` marks the environment that a command without `--env` uses, as `*` marks a default. `--env prod` selects a row, and before pravo evaluates the rest of the specification it fills the field `$environment` with that row and with `$name`, the name of the row. A tag here is an input to the specification. It is not a label on a cloud resource.
 
 ## Write the specification
 
@@ -57,7 +57,7 @@ import (
 $random: rnd.#Provider
 $local:  loc.#Provider
 
-// The environments, and what differs between them. dev unless -t env=... says otherwise.
+// The environments, and what differs between them. dev unless --env says otherwise.
 $environments: pravo.#Environments & {
 	dev: {workers: 1, $default: true}
 	prod: {workers: 3}
@@ -125,9 +125,9 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
 
 ```sh
 pravo eval -e '$environment.$name'
-pravo eval -e '$environment.$name' -t env=prod
+pravo eval -e '$environment.$name' --env prod
 pravo eval -e '$environment.workers'
-pravo eval -e '$environment.workers' -t env=prod
+pravo eval -e '$environment.workers' --env prod
 ```
 
 Output:
@@ -139,13 +139,13 @@ Output:
 3
 ```
 
-Without a tag, the row marked `$default: true` is selected. With `-t env=prod`, `$environment` is the row of prod.
+Without `--env`, the row marked `$default: true` is selected. With `--env prod`, `$environment` is the row of prod.
 
 ## Apply two environments
 
 ```sh
 pravo apply --auto-approve | tail -n 3
-pravo apply --auto-approve -t env=prod | tail -n 3
+pravo apply --auto-approve --env prod | tail -n 3
 ```
 
 Output:
@@ -187,7 +187,7 @@ pravo keeps no current environment. Each command evaluates the specification aga
 
 ```sh
 pravo plan | grep -E '^(No changes|Graph)'
-pravo plan -t env=prod | grep -E '^(No changes|Graph)'
+pravo plan --env prod | grep -E '^(No changes|Graph)'
 ```
 
 Output:
@@ -205,7 +205,7 @@ The `pravo state` commands take `-t` as well, and read the state of the environm
 
 ```sh
 pravo state query 'resources.port.attributes.result'
-pravo state query 'resources.port.attributes.result' -t env=prod
+pravo state query 'resources.port.attributes.result' --env prod
 ```
 
 Output:
@@ -222,19 +222,19 @@ The struct has two keys. Ask for a third. pravo rejects it before it evaluates t
 Status: rejected.
 
 ```sh
-pravo plan -t env=qa
+pravo plan --env qa
 ```
 
 Output:
 
 ```text
-Error: "qa" is not an environment of this specification; the environments are dev and prod (pass -t env=NAME)
+Error: "qa" is not an environment of this specification; the environments are dev and prod (pass --env NAME)
 ```
 
 The message names the value you gave and the ones that are declared. The error is the same in `validate`, `eval`, `apply` and every other command that evaluates the specification. Check that no provider ran:
 
 ```sh
-pravo plan -t env=qa -v 2>&1 | grep 'provider started' || echo 'no provider started'
+pravo plan --env qa -v 2>&1 | grep 'provider started' || echo 'no provider started'
 ```
 
 Output:
@@ -261,7 +261,7 @@ import (
 $random: rnd.#Provider
 $local:  loc.#Provider
 
-// The environments, and what differs between them. dev unless -t env=... says otherwise.
+// The environments, and what differs between them. dev unless --env says otherwise.
 $environments: pravo.#Environments & {
 	dev: {workers: 1, $default: true}
 	prod: {workers: 4}
@@ -273,7 +273,7 @@ $settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
 
 ```sh
 pravo plan | grep -E '^(No changes|Graph)'
-pravo plan -t env=prod --out prod.plan | grep -E '^(  #|Plan|Graph|Saved|  pravo)'
+pravo plan --env prod --out prod.plan | grep -E '^(  #|Plan|Graph|Saved|  pravo)'
 ```
 
 Output:
@@ -293,13 +293,13 @@ The dev plan is empty. The prod plan replaces `web`, because `content` holds the
 Status: rejected.
 
 ```sh
-pravo apply prod.plan -t env=dev
+pravo apply prod.plan --env dev
 ```
 
 Output:
 
 ```text
-Error: -t and -T cannot be combined with a saved plan; the plan carries its own tags
+Error: -t, --env and -T cannot be combined with a saved plan; the plan carries its own tags
 ```
 
 pravo refuses the tag. The plan was made for prod and can only be applied to prod. [B7](b07-changing-live-infrastructure.md) covers saved plans. Apply it without a tag:
@@ -324,11 +324,11 @@ workers = 4
 
 ## Clean up
 
-Destroy each environment with its own tag. If you applied `staging` in the exercise, destroy it the same way with `-t env=staging`.
+Destroy each environment with its own `--env`. If you applied `staging` in the exercise, destroy it the same way with `--env staging`.
 
 ```sh
 pravo destroy --auto-approve | tail -n 1
-pravo destroy --auto-approve -t env=prod | tail -n 1
+pravo destroy --auto-approve --env prod | tail -n 1
 ```
 
 Output:
@@ -340,7 +340,7 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
 
 ## Recap
 
-- The environments are the keys of `$environments`, and each row holds what differs. `-t env=NAME` selects a row, which the rest of the specification reads as `$environment`.
+- The environments are the keys of `$environments`, and each row holds what differs. `--env NAME` selects a row, which the rest of the specification reads as `$environment`.
 - The state path is computed from the name, so each environment has its own state and the same addresses.
 - A name that is not declared is refused before evaluation, and a saved plan carries the tags it was made with.
 

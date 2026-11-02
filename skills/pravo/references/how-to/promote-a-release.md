@@ -66,12 +66,12 @@ ada ssh-ed25519 <ssh-key> x25519:<key> role:admin
 dan ssh-ed25519 <ssh-key> x25519:<key> role:reader
 ```
 
-Seal each state to its readers. `-t env=NAME` selects the state, and with it the readers file.
+Seal each state to its readers. `--env NAME` selects the state, and with it the readers file.
 
 ```sh
 pravo init > /dev/null
-pravo protect init --encrypt --allow-local --yes -t env=dev | grep '^The state'
-pravo protect init --encrypt --allow-local --yes -t env=prod | grep '^The state'
+pravo protect init --encrypt --allow-local --yes --env dev | grep '^The state'
+pravo protect init --encrypt --allow-local --yes --env prod | grep '^The state'
 ```
 
 Output:
@@ -109,7 +109,7 @@ The release is the specification of this directory with its tags, named by its i
 ## 4. Prod refuses an apply that was not promoted
 
 ```sh
-pravo apply -t env=prod --auto-approve > apply.txt 2>&1; echo "exit=$?"
+pravo apply --env prod --auto-approve > apply.txt 2>&1; echo "exit=$?"
 sed -n '/^Error/,$p' apply.txt
 ```
 
@@ -121,7 +121,7 @@ Error: prod only takes what was promoted from dev, and nobody has promoted this 
 
 Run these, skipping a step that is already done:
 
-    pravo apply -t env=dev
+    pravo apply --env dev
     pravo promote prod
 ```
 
@@ -176,7 +176,7 @@ Error: dev does not run this release: it runs <release-id>, and this directory i
 
 Run these, skipping a step that is already done:
 
-    pravo apply -t env=dev
+    pravo apply --env dev
     pravo promote prod
 exit=5
 ```
@@ -186,7 +186,7 @@ Dan applies dev. Ada signs the promotion with `--sign-only` and applies it later
 ```sh
 PRAVO_CONFIG_DIR=people/dan pravo apply --auto-approve | grep '^Apply complete'
 pravo promote prod --sign-only
-pravo plan -t env=prod | grep -E '^(Plan|Promotion)'
+pravo plan --env prod | grep -E '^(Plan|Promotion)'
 ```
 
 Output:
@@ -196,7 +196,7 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 Promoted to prod: dev runs this release, applied by dan less than a minute ago.
 Apply it there with:
 
-    pravo apply -t env=prod
+    pravo apply --env prod
 Plan: 1 to add, 0 to change, 1 to destroy.
 Promotion: dev ran this release, and ada promoted it less than a minute ago.
 ```
@@ -207,7 +207,7 @@ The smoke tests of 1.1 fail before prod is applied. An admin of prod withdraws t
 
 ```sh
 pravo promote prod --revoke "1.1 fails its smoke test"
-pravo apply -t env=prod --auto-approve > apply.txt 2>&1; echo "exit=$?"
+pravo apply --env prod --auto-approve > apply.txt 2>&1; echo "exit=$?"
 grep '^Error' apply.txt
 ```
 

@@ -360,14 +360,14 @@ func selectEnvironment(envs []Environment, name string, given bool) (string, err
 		if name == "" {
 			return "", fmt.Errorf("-t env= names no environment; the environments are %s", joinAnd(names(envs)))
 		}
-		return "", fmt.Errorf("%s is not an environment of this specification; the environments are %s (pass -t env=NAME)", strconv.Quote(name), joinAnd(names(envs)))
+		return "", fmt.Errorf("%s is not an environment of this specification; the environments are %s (pass --env NAME)", strconv.Quote(name), joinAnd(names(envs)))
 	}
 	for _, e := range envs {
 		if e.Default {
 			return e.Name, nil
 		}
 	}
-	return "", fmt.Errorf("name the environment with -t env=NAME: this specification declares %s, and none is marked $default: true", joinAnd(names(envs)))
+	return "", fmt.Errorf("name the environment with --env NAME: this specification declares %s, and none is marked $default: true", joinAnd(names(envs)))
 }
 
 // environmentDecl is the declaration that fills $environment with the row of name.
