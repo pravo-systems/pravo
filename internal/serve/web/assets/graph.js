@@ -226,6 +226,9 @@ export class GraphView {
     }
     // a card is a shade lighter at the top than at the bottom
     defs.append(s('linearGradient', { id: 'card-fill', x1: 0, y1: 0, x2: 0, y2: 1 }, s('stop', { offset: '0', class: 'cf0' }), s('stop', { offset: '1', class: 'cf1' })));
+    // a resource that is declared and not created yet is hatched, as a drawing marks what is planned and not built
+    defs.append(s('pattern', { id: 'spec-hatch', width: 7, height: 7, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' },
+      s('rect', { class: 'sh0', width: 7, height: 7 }), s('line', { class: 'sh1', x1: 0, y1: 0, x2: 0, y2: 7 })));
     this.defs = defs;
     this.svg.append(defs);
     this.vp = s('g', { class: 'vp' });
@@ -601,6 +604,7 @@ export class GraphView {
     let mx = W - 12 - 13;
     for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
     inn.append(this.kindBadge('output', H));
+    if (n.presence === 'spec') inn.append(this.presenceTag('not published', W, H));
     g.append(inn);
     return g;
   }
@@ -644,6 +648,7 @@ export class GraphView {
     for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
     const kind = isEnv(n) ? 'env' : isSecret(n) ? 'secret' : n.mode === 'data' || n.mode === 'ephemeral' ? n.mode : '';
     if (kind) inn.append(this.kindBadge(kind, H));
+    if (n.presence === 'spec' && n.mode === 'managed') inn.append(facet(this.presenceTag('declared only', W, H), 'status', 'declared', 'Show only what is declared and not created yet (shift: hide it)'));
     const aus = this.authorBadges(authorsOf(n, this.ctx), W);
     if (aus) inn.append(aus);
     g.append(inn);
@@ -657,6 +662,15 @@ export class GraphView {
     const g = s('g', { class: 'kb', transform: `translate(15 ${H})` });
     g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 0 }), glyph({ data: 'eye', ephemeral: 'glass', output: 'out', env: 'env', secret: 'key' }[mode], 5, -5.5, 11, 'kbg'), s('text', { class: 'kbt', x: 19, y: 3.4 }, word));
     return facet(g, 'entity', mode, `Show only ${label.toLowerCase()}s (shift: hide them)`);
+  }
+
+  // presenceTag hangs on the bottom edge, at the right, of a node that the specification declares and no apply has
+  // made yet: "declared only" on a resource, "not published" on an output. The kind badge keeps the left.
+  presenceTag(word, W, H) {
+    const w = 12 + word.length * 5.8;
+    const g = s('g', { class: 'kb pt', transform: `translate(${W - 15 - w} ${H})` });
+    g.append(s('rect', { class: 'kbr', x: 0, y: -7, width: w, height: 14, rx: 0 }), s('text', { class: 'kbt', x: 6, y: 3.4 }, word));
+    return g;
   }
 
   // authorBadges hang on the top edge of a node that open stored plans change: a disc with the initial of the author

@@ -30,7 +30,9 @@ export class EnvironmentsView {
     this.busy = '';
   }
 
-  render({ environments }) {
+  // switching is the environment that the page is opening, if any: its button says so, and the others wait.
+  render({ environments, switching = '' }) {
+    this.busy = switching;
     const top = this.root.scrollTop;
     clear(this.root);
     const d = environments;
@@ -105,13 +107,12 @@ export class EnvironmentsView {
       type: 'button', class: 'btn ev-open', 'data-fk': 'open:' + e.name, disabled: this.busy ? true : null,
       on: { click: () => this.open(e.name) },
     }, this.busy === e.name ? 'Opening…' : 'Read this environment');
+    if (open && this.busy === e.name) open.setAttribute('aria-busy', 'true');
     return h('article', { class: 'ev-box' + (reading ? ' reading' : '') + (tone ? ' ' + tone : '') + (e.problem ? ' bad' : ''), role: 'listitem', 'aria-label': e.name + (reading ? ', the environment this page reads' : '') }, body, open);
   }
 
-  async open(name) {
-    if (!this.cb.onSwitch || this.busy) return;
-    this.busy = name;
-    try { await this.cb.onSwitch(name); } finally { this.busy = ''; }
+  open(name) {
+    if (this.cb.onSwitch && !this.busy) this.cb.onSwitch(name);
   }
 
   // next is the command that moves the release of this directory one step along.

@@ -154,6 +154,8 @@ a { color: inherit; }
 .banner .bx:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
 .banner .bx .i { width: .8rem; height: .8rem; }
 .banner.bad { border-color: color-mix(in srgb, var(--conflict) 38%, var(--line)); background: linear-gradient(var(--conflict-wash), var(--conflict-wash)), var(--surface); } .banner.bad .bi { color: var(--conflict); }
+.banner.info { background: var(--surface); } .banner.info .bi { color: var(--text-2); }
+.banner code { font: 400 var(--fs-2)/1 var(--font-mono); padding: .1rem .3rem; background: var(--code-bg); color: var(--code-text); border: 1px solid var(--code-edge); }
 .banner.chg, .banner.warn { border-color: color-mix(in srgb, var(--change) 38%, var(--line)); background: linear-gradient(var(--change-wash), var(--change-wash)), var(--surface); } .banner.chg .bi, .banner.warn .bi { color: var(--change); }
 .wtoggle { font: 500 var(--fs-3)/1.4 var(--font-sans); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); color: var(--text); }
 .wlist { margin: .3rem 0 0; padding-left: 1.1rem; }
@@ -172,6 +174,7 @@ i.sq.skip, span.sq.skip { opacity: .45; }
 /* the kind of a node, by the edge of its square: dotted reads a data source, dashed an ephemeral resource */
 i.sq.k-data, span.sq.k-data { border-style: dotted; }
 i.sq.k-ephemeral, span.sq.k-ephemeral { border-style: dashed; }
+i.sq.k-spec, span.sq.k-spec { border-style: dashed; background: repeating-linear-gradient(45deg, transparent 0 2px, color-mix(in srgb, var(--text-3) 55%, transparent) 2px 3px); }
 .tv-row .c-mode.plain { color: var(--text-3); }
 /* an output in a list stands where a resource has its square: the glyph of a value that leaves the root */
 .i.omark { color: var(--text-3); width: .78rem; height: .78rem; flex: none; margin-left: -.09rem; margin-right: -.09rem; }

@@ -21,7 +21,7 @@ import { Palette, Sheet } from './palette.js';
 import { compileQuery, QueryMenu, quoted, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
 import { h, s as svgEl, clear, store, baseName, relTime, clock, plural, schedule, actionOf, icon, copyText, motionOn } from './util.js';
-import { initTips } from './ui.js';
+import { initTips, busy } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
 const TABKEYS = ['state', 'source', 'schema', 'history', 'change'];
@@ -1034,7 +1034,7 @@ function renderSecrets() {
 }
 
 function renderEnvironments() {
-  environmentsView.render({ environments: S.environments });
+  environmentsView.render({ environments: S.environments, switching });
 }
 
 // renderEnvButton names on the bar the environment the page reads, and counts the environments where someone has a step
@@ -1045,24 +1045,66 @@ function renderEnvButton() {
   const envs = (p && p.environments) || [];
   const btn = $('env-btn');
   btn.hidden = !envs.length;
-  $('env-name').textContent = (p && p.environment) || '';
+  btn.classList.toggle('busy', !!switching);
+  btn.setAttribute('aria-busy', switching ? 'true' : 'false');
+  $('env-name').textContent = switching ? '→ ' + switching : (p && p.environment) || '';
   const n = S.environments ? S.environments.waiting : 0;
   const el = $('env-count');
   el.hidden = !(n > 0);
   el.textContent = n > 99 ? '99+' : String(n);
-  btn.setAttribute('aria-label', envs.length ? `Environments: reading ${p.environment}${n > 0 ? `, ${n} waiting for a step` : ''}` : 'Environments');
+  btn.setAttribute('aria-label', switching ? `Environments: opening ${switching}` : envs.length ? `Environments: reading ${p.environment}${n > 0 ? `, ${n} waiting for a step` : ''}` : 'Environments');
 }
 
-// switchEnvironment makes the server read another environment, and reads the project again.
+// switching is the environment the page is opening, empty when it opens none. The server reads the specification and
+// the state of that environment before it answers, which takes seconds: until then the page shows the one before under
+// a card that says what it waits for, and the button on the bar names where it is going.
+let switching = '';
+
+const readingEnv = () => (S.graph && S.graph.project && S.graph.project.environment) || '';
+
+// switchEnvironment makes the server read another environment, and reads the project again. It says that it is done
+// once the page shows the new environment, not when the server took the name.
 async function switchEnvironment(name) {
+  const from = readingEnv();
+  if (switching || !name || name === from) return;
+  switching = name;
+  showSwitching(from);
+  let failed = false;
   try {
     await api.switchEnvironment(name);
+    // The read waits for the server to load the environment. An event may have read it first, and a read that found
+    // nothing new returns at once, so the page asks again until it shows the environment, a few times at most.
+    for (let i = 0; i < 3 && readingEnv() !== name; i++) await refresh();
   } catch (err) {
+    failed = true;
     toast(`Could not open ${name}: ${err.message || err}`, 'error', 6000);
-    return;
+  } finally {
+    switching = '';
+    showSwitching();
   }
-  toast(`Reading ${name}`, 'info', 3200, 'The specification and the state of that environment.');
-  await refresh();
+  if (failed) return;
+  if (readingEnv() === name) toast(`Now reading ${name}`, 'info', 3200, `The specification and the state of ${name}.`);
+  else toast(`Could not open ${name}`, 'error', 6000, `The page still reads ${readingEnv() || 'the environment it had'}.`);
+}
+
+// showSwitching lays the card over the page while an environment opens, and takes it away after. from is the
+// environment the page shows meanwhile.
+function showSwitching(from = '') {
+  const app = $('app');
+  const old = $('env-busy');
+  if (old) old.remove();
+  if (switching) {
+    const card = busy('Opening environment');
+    card.append(h('p', { class: 'env-busy-d' },
+      'Reading the specification and the state of ', h('code', null, switching), '.',
+      from ? [' Until it is ready, the page shows ', h('code', null, from), '.'] : null));
+    app.append(h('div', { class: 'env-busy', id: 'env-busy' }, card));
+    app.setAttribute('aria-busy', 'true');
+  } else {
+    app.removeAttribute('aria-busy');
+  }
+  renderEnvButton();
+  if (S.view === 'environments') renderEnvironments();
 }
 
 // renderSecretsTab shows on the tab how many things the page flags: a number only when something is wrong, as the other
@@ -1107,9 +1149,9 @@ function renderSide() {
 
 const dismissed = new Set();
 
-function banner(kind, role, kids, key) {
+function banner(kind, role, kids, key, ico = 'bang') {
   const x = key ? h('button', { class: 'bx', type: 'button', 'aria-label': 'Dismiss', on: { click: (ev) => { dismissed.add(key); ev.currentTarget.closest('.banner').remove(); } } }, icon('x')) : null;
-  return h('div', { class: 'banner ' + kind, role }, h('span', { class: 'bi' }, icon('bang')), h('div', { class: 'bmsg' }, kids), x);
+  return h('div', { class: 'banner ' + kind, role }, h('span', { class: 'bi' }, icon(ico)), h('div', { class: 'bmsg' }, kids), x);
 }
 
 function renderBanners() {
@@ -1119,6 +1161,15 @@ function renderBanners() {
   if (lostSince) box.append(banner('bad', 'alert', [h('b', null, 'The viewer is not answering.'), ' pravo serve may have stopped. What is shown is the last thing it sent; the page keeps trying and reads the project again when the server is back.']));
   if (p.spec_error) {
     box.append(banner('bad', 'alert', [h('b', null, 'The specification does not load.'), ' Showing the state alone.', h('pre', null, p.spec_error)]));
+  }
+  // A state with no record of any resource that the specification declares, such as an environment that was never
+  // applied: every resource is declared only, and the page says so once rather than leave the hatching to explain it.
+  const res = S.model ? S.model.list.filter((n) => n.mode === 'managed') : [];
+  const env = p.environment || '';
+  if (!p.spec_error && res.length && res.every((n) => n.presence === 'spec') && !dismissed.has('empty:' + env)) {
+    box.append(banner('info', 'status', [h('b', null, env ? `Nothing in ${env} is created yet.` : 'Nothing is created yet.'),
+      ` Its state holds no record, so the ${plural(res.length, 'resource')} here ${res.length === 1 ? 'is' : 'are'} declared only, drawn hatched. `,
+      h('code', null, env ? `pravo apply -t env=${env}` : 'pravo apply'), ' creates them.'], 'empty:' + env, 'info'));
   }
   if (g.plan && g.plan.stale) {
     box.append(banner('chg', 'status', [h('b', null, g.plan.id ? `The stored plan ${g.plan.id} is stale.` : 'The saved plan is stale.'), ' It can no longer be applied.',
@@ -1204,6 +1255,7 @@ function renderLegend() {
     ...(m.list.some(isSecret) ? [item(h('span', { class: 'i i-key key' }), 'secret')] : []),
     ...(m.list.some((n) => n.mode === 'data') ? [item(h('i', { class: 'sq k-data' }), 'data source')] : []),
     ...(m.list.some((n) => n.mode === 'ephemeral' && !isSecret(n)) ? [item(h('i', { class: 'sq k-ephemeral' }), 'ephemeral')] : []),
+    ...(m.list.some((n) => n.presence === 'spec' && n.mode === 'managed') ? [item(h('i', { class: 'sq k-spec' }), 'declared only')] : []),
     ...(m.list.some((n) => n.sensitive > 0) ? [item(h('span', { class: 'i i-lock key' }), 'sensitive')] : []),
     ...(m.list.some((n) => n.drifted) ? [item(h('span', { class: 'i i-drift warn' }), 'drifted')] : []));
   // the badges of the authors of open plans, and the ring of a resource that two of them change
@@ -1338,7 +1390,8 @@ async function refresh() {
   for (const m of dp.moved.slice(0, 2)) bits.push(m);
   const names = what.filter((w) => WHAT[w]).map((w) => WHAT[w]);
   const title = names.length ? `${names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0]} changed` : 'The project changed';
-  toast(title.charAt(0).toUpperCase() + title.slice(1), 'info', 5200, bits.length ? bits.join(' · ') : 'no resource differs');
+  // the environment this page asked for says so once it is shown, so the read that brings it is not a change of its own
+  if (!(switching && readingEnv() === switching)) toast(title.charAt(0).toUpperCase() + title.slice(1), 'info', 5200, bits.length ? bits.join(' · ') : 'no resource differs');
   if (lost) toast(`${lost} is no longer there`, 'warn', 7000, 'The inspector shows the project again.');
   if (droppedPlan) toast(`${droppedPlan} is not stored any more`, 'warn', 7000, 'It was collected. The graph shows no plan now.');
   if (r.failed) toast(`Could not read ${r.failed.id}: ${r.failed.message}`, 'warn', 7000, 'The page shows the plan of the server instead.');

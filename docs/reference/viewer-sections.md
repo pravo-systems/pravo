@@ -411,7 +411,7 @@ The list and the inspector mark a record that cannot be opened with the chip `se
 
 The Environments section is there for a specification that declares [`$environments`](spec-environments.md). Its link is `view=environments`, and its key is `v`; the button of the bar that names the environment opens it too. It has no toolbar of the Inventory and no inspector.
 
-The page reads one environment at a time: the one that `-t env=NAME` named when the viewer was started, else the default, else the first of the ladder. Every other section shows that environment: its specification and its state. A box of the ladder opens another one, which the server loads as a command run with `-t env=NAME` does, and keeps until it stops. Nothing is written, and the address does not hold the choice.
+The page reads one environment at a time: the one that `-t env=NAME` named when the viewer was started, else the default, else the first of the ladder. Every other section shows that environment: its specification and its state. A box of the ladder opens another one, which the server loads as a command run with `-t env=NAME` does, and keeps until it stops. Nothing is written, and the address does not hold the choice. While the server loads it, the button of the box reads `Opening…`, the button of the bar names the environment that is opening, with a blinking icon, and a card over the page says that the page shows the environment it had until the new one is ready. Once the new one is shown, a note says `Now reading NAME`.
 
 | Part | Holds |
 |---|---|
