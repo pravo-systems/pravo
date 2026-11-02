@@ -1037,23 +1037,6 @@ function renderEnvironments() {
   environmentsView.render({ environments: S.environments, switching });
 }
 
-// fitBar lets the tabs of the bar give up their words only when the bar has no room for them: every word first, then the
-// words of the tabs that are not open, then all of them. What fits depends on the width of the window, the button of the
-// environment, the identity and the counts, so the bar is measured and not guessed by a breakpoint.
-function fitBar() {
-  const top = document.querySelector('.top');
-  if (!top) return;
-  const over = () => top.scrollWidth > top.clientWidth + 1;
-  top.classList.remove('fit-1', 'fit-2');
-  if (!over()) return;
-  top.classList.add('fit-1');
-  if (!over()) return;
-  top.classList.replace('fit-1', 'fit-2');
-}
-
-let fitQueued = false;
-const queueFit = () => { if (fitQueued) return; fitQueued = true; requestAnimationFrame(() => { fitQueued = false; fitBar(); }); };
-
 // renderEnvButton names on the bar the environment the page reads, and counts the environments where someone has a step
 // to take for the release of this directory: a number only when something waits, as on the tabs. A specification without
 // environments has no button.
@@ -1857,12 +1840,7 @@ function wire() {
   $('sec-plans').addEventListener('click', () => setView('plans'));
   $('sec-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
-  // The bar is measured again when the window or what sits in it changes size: not when a tab under the pointer shows its word.
-  if (window.ResizeObserver) {
-    const ro = new ResizeObserver(queueFit);
-    for (const el of [document.querySelector('.top'), $('env-btn'), $('me'), $('ask-btn'), ...document.querySelectorAll('.sec-tab .cnt')]) if (el) ro.observe(el);
-  } else window.addEventListener('resize', queueFit);
-  fitBar();
+
   $('theme-btn').addEventListener('click', toggleTheme);
   $('btn-fit').addEventListener('click', () => gv.fit(true));
   $('proj-btn').addEventListener('click', () => setProject(!S.proj));

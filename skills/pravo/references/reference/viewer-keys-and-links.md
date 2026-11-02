@@ -139,6 +139,6 @@ With the focus in the list:
 
 ## A narrow window
 
-The page fits a phone or a narrow pane. The sections stay in the bar, the graph fills the top of the window, and the inspector becomes a panel under the graph when something is selected. The State section stacks the role and the badge of a member under the name.
+The page fits a phone or a narrow pane. The row of sections keeps every name and scrolls sideways, the graph fills the top of the window, and the inspector becomes a panel under the graph when something is selected. The State section stacks the role and the badge of a member under the name.
 
 *Figure: The viewer in a narrow window, with a resource selected.*

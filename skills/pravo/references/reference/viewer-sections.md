@@ -4,7 +4,7 @@
 
 What each section of the viewer shows and how to read it: Inventory, Templates, Plans, Discovery, Policies with the studio, Traces, Secrets, State and Environments, part by part, with the filter columns and the tabs of the inspector.
 
-The viewer that [`pravo serve`](serve.md) starts is one page with eight sections, and a ninth, Environments, for a specification that declares `$environments`. The bar at the top switches between them, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
+The viewer that [`pravo serve`](serve.md) starts is one page with eight sections, and a ninth, Environments, for a specification that declares `$environments`. A row of tabs under the bar at the top switches between them, each with its name at every width, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
 
 | Section | Shows | Key | Link |
 |---|---|---|---|

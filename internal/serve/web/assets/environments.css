@@ -114,11 +114,9 @@ body:has(.app[data-view="environments"]) .planstrip, body:has(.app[data-view="en
   .envsw { margin-left: .4rem; padding: 0 .45rem; }
   .envsw .k { display: none; }
 }
-/* A phone has room for the mark only, as for the sections: the name is in the label of the button and on the page, and a
-   count sits over the mark. The tabs give up a little of their padding for it. */
+/* A phone has room for the mark only: the name is in the label of the button and on the page, and a count sits over the mark. */
 @media (max-width: 40em) {
   .envsw { margin-left: 0; padding: 0 .35rem; }
   .envsw .nm { display: none; }
   .envsw .cnt { position: absolute; top: .4rem; right: -.05rem; min-width: .95rem; height: .85rem; padding: 0 .2rem; font-size: .5625rem; }
-  .top:has(.envsw:not([hidden])) .sec-tab { padding-inline: .2rem; }
 }
