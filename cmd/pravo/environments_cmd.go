@@ -458,6 +458,19 @@ func declaredIn(ctx context.Context, env string) (*declared, error) {
 func jsonOf(v cue.Value) any {
 	data, err := v.MarshalJSON()
 	if err != nil {
+		// A list or a struct with one value that is not concrete, such as an attribute the
+		// provider computes, is followed, so that the values beside it still compare.
+		if v.IncompleteKind() == cue.ListKind {
+			it, err := v.List()
+			if err != nil {
+				return unknownValue
+			}
+			out := []any{}
+			for it.Next() {
+				out = append(out, jsonOf(it.Value()))
+			}
+			return out
+		}
 		if v.IncompleteKind() != cue.StructKind {
 			return unknownValue
 		}
@@ -605,9 +618,18 @@ func diffEnvironments(cmd *cobra.Command, a, b string) error {
 	return nil
 }
 
-// valueDiffs lists where a and b differ, as dotted paths below path. Objects are followed; a
-// list or a scalar that differs is one difference.
+// valueDiffs lists where a and b differ, as dotted paths below path. Objects, and lists of the
+// same length, are followed; a list whose length differs, or a scalar, is one difference.
 func valueDiffs(path string, a, b any, depth int) []fieldDiff {
+	la, okA := a.([]any)
+	lb, okB := b.([]any)
+	if okA && okB && len(la) == len(lb) && depth < 8 {
+		var out []fieldDiff
+		for i := range la {
+			out = append(out, valueDiffs(fmt.Sprintf("%s[%d]", path, i), la[i], lb[i], depth+1)...)
+		}
+		return out
+	}
 	ma, okA := a.(map[string]any)
 	mb, okB := b.(map[string]any)
 	if okA && okB && depth < 8 {

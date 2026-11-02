@@ -471,8 +471,8 @@ func (n *EnvironmentNote) Line(root *config.Root) string {
 		a := n.Gate.Admission
 		return fmt.Sprintf("Promotion: %s ran this release, and %s promoted it %s ago.", joinAnd(n.After), PlainText(a.By), RoundAge(time.Since(a.At)))
 	}
-	return fmt.Sprintf("Promotion: none yet. %s only takes what was promoted from %s, and %s. An apply is refused until then:\n    %s",
-		n.Environment, joinAnd(n.After), n.Gate.Reason, PromoteCommand(root, n.Environment))
+	return fmt.Sprintf("Promotion: none yet. %s only takes what was promoted from %s, and %s. An apply is refused until these run, skipping a step that is already done:\n%s",
+		n.Environment, joinAnd(n.After), n.Gate.Reason, Steps(root, n.Environment))
 }
 
 // noteRun writes, after a complete apply, the record of the environment if the state has none

@@ -76,3 +76,16 @@ func TestMarkdownStaysUnderTheLimit(t *testing.T) {
 		t.Errorf("the cut comment lost its note or the apply command:\n%s", got[len(got)-300:])
 	}
 }
+
+// The line about the environment of a plan reads as a note of the comment, with the commands
+// that move the release along as a block.
+func TestMarkdownNote(t *testing.T) {
+	got := MarkdownNote("Promotion: none yet. prod only takes what was promoted from dev, and nobody has promoted this release yet. An apply is refused until these run, skipping a step that is already done:\n    pravo apply -t env=dev\n    pravo promote prod")
+	want := "**Promotion:** none yet. prod only takes what was promoted from dev, and nobody has promoted this release yet. An apply is refused until these run, skipping a step that is already done:\n\n```sh\npravo apply -t env=dev\npravo promote prod\n```"
+	if got != want {
+		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+	if got := MarkdownNote("a line | with a bar"); got != `a line \| with a bar` {
+		t.Errorf("plain: %q", got)
+	}
+}

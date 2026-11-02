@@ -62,7 +62,7 @@ Run these, skipping a step that is already done:
     pravo promote prod
 ```
 
-The plan of an environment that follows another says how its release stands, on a line that starts with `Promotion:`. A state that is not sealed takes any release, and the plan and the apply say so on a line that starts with `Environment:`.
+The plan of an environment that follows another says how its release stands, on a line that starts with `Promotion:`. Before a promotion it lists the same commands as the refusal of an apply. A state that is not sealed takes any release, and the plan and the apply say so on a line that starts with `Environment:`.
 
 ## A waiver
 

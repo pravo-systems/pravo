@@ -267,6 +267,15 @@ func planCmd() *cobra.Command {
 			}
 			if flags.Markdown {
 				opts := engine.MarkdownOptions{Refused: refusal(policyErr)}
+				// A comment on a pull request may hold the plans of several environments.
+				if env := s.root.Environment; env != "" {
+					opts.Title = "pravo plan for " + env
+					if !destroy {
+						if line, err := eng.EnvironmentLine(cmd.Context()); err == nil && line != "" {
+							opts.Notes = append(opts.Notes, engine.MarkdownNote(line))
+						}
+					}
+				}
 				if stored != nil {
 					opts.ID, opts.Expires, opts.Apply = stored.Meta.ID, stored.Meta.Expires, stored.Meta.ApplyCommand()
 				}

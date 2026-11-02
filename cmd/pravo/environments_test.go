@@ -151,6 +151,13 @@ func TestALadderTakesOnlyWhatWasPromoted(t *testing.T) {
 		t.Fatalf("next: %q", ladder.Next)
 	}
 
+	// The comment of a pull request names the environment and how the release stands there.
+	text, code = l.as(t, "ada", "plan", "-t", "env=prod", "-t", "image=1.1", "--markdown")
+	if code != 0 || !strings.Contains(text, "### pravo plan for prod:") || !strings.Contains(text, "**Promotion:** none yet.") ||
+		!strings.Contains(text, "```sh\npravo apply -t env=dev -t image=1.1\n") || !strings.Contains(text, "pravo promote prod -t image=1.1\n```") {
+		t.Fatalf("plan --markdown of prod: exit %d\n%s", code, text)
+	}
+
 	// Release 1.1 is another tag: prod refuses it until it went through staging.
 	text, code = l.as(t, "ada", "apply", "-t", "env=prod", "-t", "image=1.1", "--auto-approve")
 	if code != 5 || !strings.Contains(text, "nobody has promoted this release yet") || !strings.Contains(text, "pravo apply -t env=dev -t image=1.1") {

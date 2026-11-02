@@ -391,7 +391,7 @@ The fields are listed in [The plan document](plan-document.md).
 
 ### Markdown
 
-`--markdown` prints the plan as a comment for a pull request. A table lists each change with its action, its address and its type. For an update it names the attributes that change, and for a replacement the ones that force it. It never prints a value, because the readers of a pull request are not always the readers of the state. The plan is judged before it is printed, so a refusal is part of the comment, and the exit code is 5 as always. With `--store` the comment says where the plan is stored and gives the command that applies it. The comment is kept under 60000 bytes, a little less than GitHub accepts, and says how many changes it left out.
+`--markdown` prints the plan as a comment for a pull request. A table lists each change with its action, its address and its type. For an update it names the attributes that change, and for a replacement the ones that force it. It never prints a value, because the readers of a pull request are not always the readers of the state. The plan is judged before it is printed, so a refusal is part of the comment, and the exit code is 5 as always. With `--store` the comment says where the plan is stored and gives the command that applies it. In a specification that declares [environments](spec-environments.md), the heading names the environment, `pravo plan for prod`, so that one pull request can hold a comment for each, and the comment carries the `Promotion:` or `Environment:` line in bold, with the commands it names as a block. The comment is kept under 60000 bytes, a little less than GitHub accepts, and says how many changes it left out.
 
 ```sh run
 pravo plan --markdown 2>/dev/null

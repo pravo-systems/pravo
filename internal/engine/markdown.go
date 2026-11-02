@@ -197,6 +197,28 @@ func codes(names []string, most int) string {
 	return strings.Join(parts, ", ")
 }
 
+// MarkdownNote writes a line that plan prints, "Label: text" with commands indented below
+// it, for a comment: the label in bold and the commands as a block of shell.
+func MarkdownNote(line string) string {
+	head, rest, _ := strings.Cut(line, "\n")
+	var b strings.Builder
+	if label, text, ok := strings.Cut(head, ": "); ok && label != "" && !strings.Contains(label, " ") {
+		fmt.Fprintf(&b, "**%s:** %s", label, mdLine(text))
+	} else {
+		b.WriteString(mdLine(head))
+	}
+	var cmds []string
+	for _, l := range strings.Split(rest, "\n") {
+		if t := strings.TrimSpace(l); t != "" {
+			cmds = append(cmds, strings.ReplaceAll(t, "`", "'"))
+		}
+	}
+	if len(cmds) > 0 {
+		fmt.Fprintf(&b, "\n\n```sh\n%s\n```", strings.Join(cmds, "\n"))
+	}
+	return b.String()
+}
+
 func mdLine(s string) string {
 	return strings.NewReplacer("|", "\\|", "\n", " ", "\r", "").Replace(strings.TrimSpace(s))
 }
