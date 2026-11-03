@@ -312,6 +312,8 @@ Removal has four parts, and the last is yours.
 - `pravo protect gc` drops the old group from `meta.json` once nothing is sealed in it, and deletes the records that no pointer names, among them the last record of a resource that was destroyed. Eve's key then opens nothing that is left in the bucket.
 - Replace the secrets Eve could read where they live: in the cloud, in the application, in a secret manager.
 
+If Eve was a writer of an [environment](promote-a-release.md) that others follow, the newest note of what its state runs and the promotions into it were signed by her key, and the environments after it stop taking its release. Run `pravo protect roles --vouch-notes` in that state to carry them over; the command prints how many it carries, or how many would stop counting, and never does it without the flag. Do not use the flag for a key that may be compromised: apply the release again with a current writer instead.
+
 ```sh run
 pravo protect rewrap --all
 ```

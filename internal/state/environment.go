@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -698,4 +699,116 @@ func (s *Store) dropEnvironmentAdvice(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// Vouching for run notes and promotions. An admin who removes a key can carry over the notes
+// and promotions that key signed, by id and digest, in the same lines of the roles that vouch
+// for its transactions. A vouch covers those objects only.
+
+// vouchDigest is the SHA-256 of what the signature of an object covers, the lineage, the
+// signature and its key: an object rewritten in place is not the one that was vouched for.
+func vouchDigest(domain, lineage string, sig *protect.Signature, parts [][]byte) string {
+	if sig == nil {
+		return ""
+	}
+	h := sha256.New()
+	put := func(b []byte) {
+		var n [8]byte
+		binary.BigEndian.PutUint64(n[:], uint64(len(b)))
+		h.Write(n[:])
+		h.Write(b)
+	}
+	put([]byte(domain))
+	put([]byte(lineage))
+	put([]byte(sig.Key))
+	put(sig.Sig)
+	for _, p := range parts {
+		put(p)
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// VouchID is the id under which the roles vouch for the note. It cannot be the id of a
+// transaction.
+func (n *RunNote) VouchID() string { return "run-" + n.ID }
+
+// VouchDigest is what an admin vouches for when the note stays valid; empty for an unsigned one.
+func (n *RunNote) VouchDigest(lineage string) string {
+	return vouchDigest(protect.DomainRun, lineage, n.Signature, runParts(n))
+}
+
+// Vouch is the vouch for the note, empty for an unsigned one.
+func (n *RunNote) Vouch(lineage string) (protect.Vouch, bool) {
+	d := n.VouchDigest(lineage)
+	return protect.Vouch{Key: sigKey(n.Signature), Txn: n.VouchID(), Digest: d}, d != ""
+}
+
+// Vouched says whether the vouches carry this note over.
+func (n *RunNote) Vouched(lineage string, vouched map[string]protect.Vouch) bool {
+	v, ok := n.Vouch(lineage)
+	return ok && isVouched(vouched, v)
+}
+
+// VouchID is the id under which the roles vouch for the promotion: a hash of its name.
+func (p *Promotion) VouchID() string {
+	if p.Signature == nil {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(PromotionKey(p.Kind, p.Fingerprint, p.Tags, p.Signature.Key)))
+	return "promotion-" + hex.EncodeToString(sum[:12])
+}
+
+// Vouch is the vouch for the promotion, empty for an unsigned one.
+func (p *Promotion) Vouch(lineage string) (protect.Vouch, bool) {
+	d := vouchDigest(protect.DomainPromotion, lineage, p.Signature, promotionParts(p))
+	if d == "" {
+		return protect.Vouch{}, false
+	}
+	return protect.Vouch{Key: p.Signature.Key, Txn: p.VouchID(), Digest: d}, true
+}
+
+// Vouched says whether the vouches carry this promotion over.
+func (p *Promotion) Vouched(lineage string, vouched map[string]protect.Vouch) bool {
+	v, ok := p.Vouch(lineage)
+	return ok && isVouched(vouched, v)
+}
+
+func isVouched(vouched map[string]protect.Vouch, v protect.Vouch) bool {
+	vo, ok := vouched[v.Txn]
+	return ok && vo.Key == v.Key && vo.Digest == v.Digest
+}
+
+// EnvironmentVouches are the vouches that would carry over the newest run note and every
+// promotion of the state, signed by whichever key.
+func (s *Store) EnvironmentVouches(ctx context.Context) ([]protect.Vouch, error) {
+	var out []protect.Vouch
+	note, _, err := s.LatestRun(ctx, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	if note != nil {
+		if v, ok := note.Vouch(s.Lineage()); ok {
+			out = append(out, v)
+		}
+	}
+	all, err := s.Promotions(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	for _, o := range all {
+		if o.Promotion == nil {
+			continue
+		}
+		if v, ok := o.Promotion.Vouch(s.Lineage()); ok {
+			out = append(out, v)
+		}
+	}
+	return out, nil
+}
+
+func sigKey(sig *protect.Signature) string {
+	if sig == nil {
+		return ""
+	}
+	return sig.Key
 }

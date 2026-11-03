@@ -261,7 +261,7 @@ func readEnvironmentRows(ctx context.Context, root *config.Root, rel engine.Rele
 		}
 		after := s.after()
 		if !r.runs && r.j.Release == "" && len(after) > 0 && s.Err == nil && !s.Missing && s.Sealed {
-			g := engine.GateReader{State: s.st, Environment: env.Name, Readers: s.rf.Readers, Upstream: envs.readers, Now: time.Now()}
+			g := engine.GateReader{State: s.st, Environment: env.Name, Readers: s.rf.Readers, Vouched: s.Vouched, Upstream: envs.readers, Now: time.Now()}
 			c := g.Check(ctx, after, s.Record, rel)
 			r.gate = &c
 			if c.Met {

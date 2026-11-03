@@ -81,7 +81,7 @@ type Options struct {
 	// UpstreamReaders returns the readers of the state of another environment of the
 	// specification, from its readers file: the signed notes that a promotion carries from
 	// there are checked against them. Nil checks them against Readers.
-	UpstreamReaders func(env string) ([]protect.Reader, error)
+	UpstreamReaders func(env string) (Judges, error)
 	// Judged is called when an apply judges its plan, before the verdict is known.
 	Judged   func()
 	Progress func(format string, args ...any)
