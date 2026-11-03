@@ -522,3 +522,97 @@ func TestAReleaseThatChangesNothingNeedsNoPromotion(t *testing.T) {
 		t.Fatalf("prod apply of 1.2: exit %d\n%s", code, text)
 	}
 }
+
+// pinnedSpec declares dev and prod, each with a readers file of its own, named by ACCESS for
+// prod so that a test can point prod at another directory.
+const pinnedSpec = `package estate
+
+import (
+	"pravo.dev/pravo"
+	loc "pravo.dev/providers/hashicorp/local"
+)
+
+$environments: pravo.#Environments & {
+	dev: {}
+	prod: $after: "dev"
+}
+
+$settings: pravo.#Settings & {
+	state: path: "state/\($environment.$name)"
+	access: dir: [if $environment.$name == "prod" {%q}, ".pravo/access/\($environment.$name)"][0]
+}
+$local: loc.#Provider
+
+app: $local.#Resource.local_file & {
+	filename: "out/app-\($environment.$name).txt"
+	content:  "app\n"
+}
+`
+
+// The record of an environment pins the roles of its state, so that an edit of the
+// specification that points the environment at another readers file, which says that a
+// writer is an admin, does not make one: not where the environment runs, and not where a
+// promotion checks the notes of the environment before.
+func TestTheRecordPinsTheRolesOfItsEnvironment(t *testing.T) {
+	requireLocalProvider(t)
+	requireSealing(t)
+	ids := isolateIdentities(t)
+	_, ada := person(t, ids, "ada")
+	_, bob := person(t, ids, "bob")
+	l := &ladder{dir: specDir(t, map[string]string{})}
+	write := func(prodAccess string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(l.dir, "main.cue"), []byte(fmt.Sprintf(pinnedSpec, prodAccess)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(".pravo/access/prod")
+	if text, code := runPravo(t, l.dir, "init", "-t", "env=dev"); code != 0 {
+		t.Skipf("init exited %d:\n%s", code, text)
+	}
+	for _, env := range []string{"dev", "prod"} {
+		writeReaders(t, filepath.Join(l.dir, ".pravo", "access", env), ada+" role:admin", bob+" role:writer")
+		l.must(t, "ada", "protect", "init", "--encrypt", "--yes", "--allow-local", "-t", "env="+env)
+		l.must(t, "ada", "protect", "roles", "--yes", "-t", "env="+env)
+	}
+	l.must(t, "bob", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "promote", "prod", "--auto-approve")
+	recs, _ := os.ReadDir(filepath.Join(l.dir, "state", "prod", "environment"))
+	if len(recs) == 0 {
+		t.Fatal("prod has no record")
+	}
+	last, err := os.ReadFile(filepath.Join(l.dir, "state", "prod", "environment", recs[len(recs)-1].Name()))
+	if err != nil || !strings.Contains(string(last), `"roles_pin"`) {
+		t.Fatalf("the record of prod pins no roles: %v\n%s", err, last)
+	}
+
+	// bob points prod at a readers file of his own, which says he is an admin and pins nothing.
+	writeReaders(t, filepath.Join(l.dir, "evil"), ada+" role:writer", bob+" role:admin")
+	write("evil")
+	text, code := l.as(t, "bob", "plan", "-t", "env=prod")
+	if code != 5 || !strings.Contains(text, "the record of this state pins the roles of prod, and evil/readers.txt does not pin those roles") ||
+		!strings.Contains(text, "pravo environments record --env prod") {
+		t.Fatalf("plan of prod with another readers file: exit %d\n%s", code, text)
+	}
+	text, code = l.as(t, "bob", "environments", "record", "-t", "env=prod")
+	if code != 5 || !strings.Contains(text, "your identity is a writer") {
+		t.Fatalf("record by bob: exit %d\n%s", code, text)
+	}
+
+	// He points dev at it instead: prod checks the notes of dev against the roles dev holds.
+	write(".pravo/access/prod")
+	if err := os.WriteFile(filepath.Join(l.dir, "main.cue"), []byte(strings.Replace(fmt.Sprintf(pinnedSpec, ".pravo/access/prod"), `".pravo/access/\($environment.$name)"][0]`, `"evil"][0]`, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	text, code = l.as(t, "ada", "promote", "prod", "--sign-only")
+	if code == 0 || !strings.Contains(text, "the record of this state pins the roles of dev") {
+		t.Fatalf("promote with dev pointed at another readers file: exit %d\n%s", code, text)
+	}
+
+	// An admin of the pinned roles may record that prod takes another readers file.
+	write("evil")
+	text = l.must(t, "ada", "environments", "record", "-t", "env=prod")
+	if !strings.Contains(text, "Recorded") {
+		t.Fatalf("record by ada:\n%s", text)
+	}
+}

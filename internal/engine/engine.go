@@ -72,6 +72,12 @@ type Options struct {
 	// pinned in the state. See state.RecordRules.
 	Vouched    map[string]protect.Vouch
 	StrictKeys bool
+	// RolesPin is the pin of the roles in the readers file (roles-genesis), set only when the
+	// roles of the state verify against it. The record of an environment keeps it, and a run
+	// whose readers file does not pin the roles that the record pins is refused. ReadersFile
+	// names that file in the refusal.
+	RolesPin    string
+	ReadersFile string
 	// UpstreamReaders returns the readers of the state of another environment of the
 	// specification, from its readers file: the signed notes that a promotion carries from
 	// there are checked against them. Nil checks them against Readers.

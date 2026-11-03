@@ -329,15 +329,25 @@ For a specification that declares no environments any more, it records that the 
 			}
 			defer st.Close()
 			rf := readersOf(root)
-			eff, _, err := rf.withRoles(st)
-			if err != nil {
-				return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
+			eff, rs, rolesErr := rf.withRoles(st)
+			pin := ""
+			if rolesErr == nil && rs.Source == "state" && st.Sealer() != nil {
+				pin = rf.Pin
+			}
+			if rolesErr != nil {
+				eff = rf
 			}
 			rec, err := st.EnvironmentRecord(ctx, eff.Readers)
 			if err != nil {
 				return secretErr(err)
 			}
-			next := state.EnvironmentRecord{}
+			// A readers file that pins other roles than the state holds is refused, unless the
+			// record pins the roles: then an admin of those roles may record that the file pins
+			// none.
+			if rolesErr != nil && (rec == nil || rec.RolesPin == "") {
+				return engine.WithCode(engine.ExitUntrusted, errors.New(printable(rolesErr.Error())))
+			}
+			next := state.EnvironmentRecord{RolesPin: pin}
 			if cur, ok := root.Current(); ok {
 				next.Name = cur.Name
 				for _, a := range cur.After {
@@ -348,12 +358,17 @@ For a specification that declares no environments any more, it records that the 
 					next.After = append(next.After, u)
 				}
 			}
-			if engine.RecordProblem(root, rec) == "" && (rec != nil || next.Name == "") {
+			if engine.RecordProblem(root, rec) == "" && (rec != nil || next.Name == "") && (rec == nil || rec.RolesPin == next.RolesPin || next.Name == "") {
 				out.Println("The record already says what the specification says: " + recordText(rec) + ".")
 				return nil
 			}
 			if rec != nil {
-				if msg, code := roleProblem(rf, st, protect.RoleAdmin, "change what the state records of its environment"); msg != "" {
+				// Once the record pins the roles, the admins are those of the roles it pins.
+				judge := rf
+				if rec.RolesPin != "" {
+					judge.Pin = rec.RolesPin
+				}
+				if msg, code := roleProblem(judge, st, protect.RoleAdmin, "change what the state records of its environment"); msg != "" {
 					return engine.WithCode(code, errors.New(msg))
 				}
 			}

@@ -52,7 +52,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/spec-env.md](reference/spec-env.md) | pravo.#Env and pravo.#SecretEnv read environment variables, pravo.#Secret reads the sealed state, and pravo.#RemoteOutputs reads the outputs of another root. | 14 KB |
 | [reference/spec-meta-fields.md](reference/spec-meta-fields.md) | The $-prefixed fields that resources, data sources and ephemeral resources accept in addition to the provider schema. | 8 KB |
 | [reference/spec-tags-and-variables.md](reference/spec-tags-and-variables.md) | Inputs are fields with a @tag attribute. -t and -T inject their values. Defaults and constraints are plain CUE. | 8 KB |
-| [reference/spec-environments.md](reference/spec-environments.md) | $environments and $environment: the environments one specification is applied to, the rows of what differs, $after and $default, the checks at load, the gate of a following environment and the record each state keeps. | 10 KB |
+| [reference/spec-environments.md](reference/spec-environments.md) | $environments and $environment: the environments one specification is applied to, the rows of what differs, $after and $default, the checks at load, the gate of a following environment and the record each state keeps. | 11 KB |
 | [reference/spec-reuse.md](reference/spec-reuse.md) | pravo has no module block. A definition that contains resources is instantiated with &, a package shares it between roots and a CUE module between repositories. | 19 KB |
 | [reference/spec-generated-packages.md](reference/spec-generated-packages.md) | The CUE packages that pravo init writes under cue.mod/gen, one per provider and one for pravo itself. | 11 KB |
 

@@ -164,7 +164,23 @@ func (e *Engine) checkEnvironment(ctx context.Context) (*state.EnvironmentRecord
 	if p := RecordProblem(e.Root, rec); p != "" {
 		return rec, refused("%s.\n\nIf the specification is right, an admin makes the record say so:\n\n    %s", p, RecordCommand(e.Root))
 	}
+	if p := PinProblem(rec, e.Opts.RolesPin, e.Opts.ReadersFile, e.State.Sealer() != nil); p != "" {
+		return rec, refused("%s.\n\nIf the readers file is right, an admin of the roles the record pins makes the record say so:\n\n    %s", p, RecordCommand(e.Root))
+	}
 	return rec, nil
+}
+
+// PinProblem says why the readers file of a sealed state does not do for the record of its
+// environment: the record pins the roles of the state, and the file pins other roles or none,
+// so that the roles it gives are not the signed ones. It is empty when the file does.
+func PinProblem(rec *state.EnvironmentRecord, pin, file string, sealed bool) string {
+	if !sealed || rec == nil || rec.Name == "" || rec.RolesPin == "" || rec.RolesPin == pin {
+		return ""
+	}
+	if file == "" {
+		file = "the readers file"
+	}
+	return fmt.Sprintf("the record of this state pins the roles of %s, and %s does not pin those roles, so the roles it gives are not the signed ones in the state", rec.Name, PlainText(file))
 }
 
 // gateOf lists the environments the run's environment follows: those of the record, which is
@@ -503,14 +519,27 @@ func (e *Engine) noteRun(ctx context.Context, admitted *state.Admission, txn str
 	if err != nil {
 		return err
 	}
-	if rec == nil {
+	pin := ""
+	if e.State.Sealer() != nil {
+		pin = e.Opts.RolesPin
+	}
+	switch {
+	case rec == nil:
 		cur, _ := e.Root.Current()
-		next := state.EnvironmentRecord{Name: cur.Name}
+		next := state.EnvironmentRecord{Name: cur.Name, RolesPin: pin}
 		for _, a := range cur.After {
 			next.After = append(next.After, state.Upstream{Name: a})
 		}
 		if err := e.State.PutEnvironmentRecord(ctx, 1, next); err != nil && !errors.Is(err, state.ErrEnvironmentChanged) {
 			return fmt.Errorf("recording that this state serves %s: %w", cur.Name, err)
+		}
+	case rec.Name != "" && rec.RolesPin == "" && pin != "":
+		// A record from before the pin takes the roles that the readers file pins and the
+		// state holds, so that from now on another readers file does not give other roles.
+		next := *rec
+		next.RolesPin, next.At, next.Signature = pin, time.Time{}, nil
+		if err := e.State.PutEnvironmentRecord(ctx, rec.Seq+1, next); err != nil && !errors.Is(err, state.ErrEnvironmentChanged) {
+			return fmt.Errorf("recording the roles of %s: %w", rec.Name, err)
 		}
 	}
 	rel, err := ReleaseOf(e.Root)

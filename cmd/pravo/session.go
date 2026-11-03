@@ -176,8 +176,14 @@ func (s *session) readersInto(opts *engine.Options) {
 	if eff, rs, err := rf.withRoles(s.state); err == nil {
 		rf = eff
 		opts.Vouched, opts.StrictKeys = rs.Vouched, rs.Source == "state"
+		if rs.Source == "state" {
+			opts.RolesPin = rf.Pin
+		}
 	}
 	opts.Readers = rf.Readers
+	if rf.Found {
+		opts.ReadersFile = rf.shown()
+	}
 	if s.root.Environment != "" && opts.UpstreamReaders == nil {
 		if s.envs == nil {
 			s.envs = &environmentsOf{root: s.root}
