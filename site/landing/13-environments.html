@@ -17,10 +17,6 @@
 </span><span class="line"><span class="ln"></span>	<span class="tok-id">staging</span>: {<span class="tok-id">workers</span>: <span class="tok-num">2</span>, <span class="tok-id">$after</span>: <span class="tok-str">&#34;dev&#34;</span>}
 </span><span class="line"><span class="ln"></span>	<span class="tok-id">prod</span>: {<span class="tok-id">workers</span>: <span class="tok-num">3</span>, <span class="tok-id">$after</span>: <span class="tok-str">&#34;staging&#34;</span>}
 </span><span class="line"><span class="ln"></span>}
-</span><span class="line"><span class="ln"></span><span class="tok-id">$settings</span>: pravo.<span class="tok-def">#Settings</span> <span class="tok-op">&amp;</span> {
-</span><span class="line"><span class="ln"></span>	<span class="tok-id">state</span>: <span class="tok-id">path</span>:  <span class="tok-str">&#34;state/</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">&#34;</span>
-</span><span class="line"><span class="ln"></span>	<span class="tok-id">access</span>: <span class="tok-id">dir</span>: <span class="tok-str">&#34;.pravo/access/</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">&#34;</span>
-</span><span class="line"><span class="ln"></span>}
 </span><span class="line"><span class="ln"></span><span class="tok-op">...</span>
 </span><span class="line"><span class="ln"></span><span class="tok-id">conf</span>: $local.<span class="tok-def">#Resource</span>.local_file <span class="tok-op">&amp;</span> {
 </span><span class="line"><span class="ln"></span>	<span class="tok-id">content</span>: <span class="tok-str">&#34;workers </span><span class="tok-op">\(</span>$environment.workers<span class="tok-op">)</span><span class="tok-str">\n&#34;</span>

@@ -4132,9 +4132,8 @@ html.js [data-band]:not(.in) .vw-win { clip-path: inset(0 100% 0 0); }
 .env-stage { min-width: 0; }
 .env-stack .hs-p { align-self: start; }
 .env-stack .hs-p .code, .env-stack .hs-p .term { height: auto; }
-.env-stack .code-body, .env-stack .term-body { max-height: 25rem; overflow: auto; }
+.env-stack .code-body, .env-stack .term-body { overflow: auto; }
 @media (min-width: 60rem) and (min-height: 43rem) and (max-height: 62rem) {
-  .env-stack .code-body, .env-stack .term-body { max-height: calc(100svh - var(--header-h) - 32rem); }
   .env-cards .card { padding: .85rem 1.1rem .9rem; }
   .env-cards .card-text { font-size: var(--fs-3); }
 }

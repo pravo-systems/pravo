@@ -17,7 +17,7 @@
       "exit": 0,
       "expect_exit": 0,
       "hidden": true,
-      "line": 69,
+      "line": 65,
       "ok": true,
       "output": "",
       "stage": "main"
@@ -27,7 +27,7 @@
       "command": "pravo promote prod",
       "exit": 5,
       "expect_exit": 5,
-      "line": 86,
+      "line": 82,
       "ok": true,
       "output": "Error: staging does not run this release: nothing has been applied there yet.\n\nRun these, skipping a step that is already done:\n\n    pravo apply --env dev\n    pravo promote staging\n    pravo apply --env staging\n    pravo promote prod",
       "stage": "main"
@@ -37,7 +37,7 @@
       "command": "pravo environments",
       "exit": 0,
       "expect_exit": 0,
-      "line": 101,
+      "line": 97,
       "ok": true,
       "output": "dev → staging → prod\n\nENV      FOLLOWS  RUNS          GIT  SINCE   BY\ndev      -        <release-id>       0s ago  dan  runs this directory\nstaging  dev      -                               nothing applied yet; ready to promote\nprod     staging  -                               nothing applied yet\n\nThis directory: <release-id>\nNext: pravo promote staging",
       "stage": "main"

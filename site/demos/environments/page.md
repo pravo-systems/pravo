@@ -48,17 +48,13 @@ conf: $local.#Resource.local_file & {
 CUE
 ```
 
-The file, cut to what carries the idea. `...` stands for the provider and its import.
+The file, cut to what carries the idea. `...` stands for the provider and the settings that give each environment its own state.
 
 ```cue title="main.cue" id=spec status=valid
 $environments: pravo.#Environments & {
 	dev: {workers: 1, $default: true}
 	staging: {workers: 2, $after: "dev"}
 	prod: {workers: 3, $after: "staging"}
-}
-$settings: pravo.#Settings & {
-	state: path:  "state/\($environment.$name)"
-	access: dir: ".pravo/access/\($environment.$name)"
 }
 ...
 conf: $local.#Resource.local_file & {
