@@ -245,7 +245,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 	// would make it, in format 1.
 	missing, overlay := false, false
 	if rf := readersOf(root); rf.Found && stateMissing(ctx, root) {
-		problem := missingStateProblem(rf)
+		problem := missingStateProblemOf(ctx, root, rf)
 		if write {
 			return nil, nil, engine.WithCode(engine.ExitRefused, errors.New(problem))
 		}
@@ -289,21 +289,49 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 // backend holds no meta.json. Nothing is created. A backend that cannot be read
 // is not reported as missing; the open says why.
 func stateMissing(ctx context.Context, root *config.Root) bool {
-	var b state.Backend
-	if root.State.Remote() {
-		var err error
-		if b, err = remoteBackend(ctx, root); err != nil {
-			return false
-		}
-	} else {
-		path := root.StateFile()
-		if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
-			return false // a file: the open says so
-		}
-		b = &state.LocalBackend{Dir: path}
+	b := stateBackendIfAny(ctx, root)
+	if b == nil {
+		return false
 	}
 	_, err := b.Get(ctx, metaKey)
 	return errors.Is(err, state.ErrNotFound)
+}
+
+// stateBackendIfAny opens the backend of the root for reading, or returns nil
+// when it cannot be opened (a state file, a bucket that cannot be reached): the
+// open says why.
+func stateBackendIfAny(ctx context.Context, root *config.Root) state.Backend {
+	if root.State.Remote() {
+		b, err := remoteBackend(ctx, root)
+		if err != nil {
+			return nil
+		}
+		return b
+	}
+	path := root.StateFile()
+	if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
+		return nil // a file: the open says so
+	}
+	return &state.LocalBackend{Dir: path}
+}
+
+// stateLost reports whether meta.json is missing from a backend that still holds
+// records, transactions or resources: the state existed, and was damaged or
+// partly deleted. Sealing again would write a new data key and make those
+// records unreadable.
+func stateLost(ctx context.Context, b state.Backend) bool {
+	if b == nil {
+		return false
+	}
+	if _, err := b.Get(ctx, metaKey); !errors.Is(err, state.ErrNotFound) {
+		return false
+	}
+	for _, prefix := range []string{"rec/", "txn/", "resources/"} {
+		if keys, err := b.List(ctx, prefix); err == nil && len(keys) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // noKey says why a sealed state could not be opened: there is no identity, it

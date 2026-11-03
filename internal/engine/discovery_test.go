@@ -533,3 +533,41 @@ func TestNamesIdentity(t *testing.T) {
 		}
 	}
 }
+
+// A discovery configures its provider with the values a plan configures it with:
+// here a resource that the state holds and the provider is set up from. The
+// provider is not left with an unknown value (a token that would be
+// "UNKNOWN"), and the read of an adoption goes the same way. When the resource
+// has no record yet, the discovery says so and does not list.
+func TestDiscoverConfiguresTheProviderFromTheState(t *testing.T) {
+	base := "base: " + thing("base", `content: "us-9"`) + "\nprov: {region: base.content}\n"
+	s := spec{
+		cue:       base + "vms: {region: \"eu\"}\n",
+		resources: []string{"base"}, providers: map[string]string{"fake": "prov"},
+		keys: map[string]string{"base": "fake.docs"}, discoveries: []string{"vms"},
+	}
+	h := newHarness(t)
+	h.apply(s)
+	h.reopen()
+	h.fake.resetCalls()
+	h.fake.configured = nil
+	h.fake.list("fake_thing", listed("i-1", "eu", "web-1"))
+	e := h.engine(s, Options{Actor: "marcin"})
+	if _, err := e.Discover(context.Background(), e.Root.DiscoveryByName("vms")); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.fake.regions(); len(got) == 0 || got[len(got)-1] != "us-9" {
+		t.Errorf("the provider was configured with the regions %q, want it to end with us-9", got)
+	}
+
+	// No record of the resource the provider is set up from.
+	h2 := newHarness(t)
+	e2 := h2.engine(s, Options{Actor: "marcin"})
+	_, err := e2.Discover(context.Background(), e2.Root.DiscoveryByName("vms"))
+	if err == nil || !strings.Contains(err.Error(), "which the state does not hold") {
+		t.Fatalf("error = %v, want it to name the resource the state does not hold", err)
+	}
+	if h2.fake.called("ListResource") != 0 {
+		t.Error("the provider listed with a configuration that was not known")
+	}
+}

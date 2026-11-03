@@ -17,7 +17,7 @@ import (
 )
 
 func protectInitCmd() *cobra.Command {
-	var encrypt, yes, allowLocal bool
+	var encrypt, yes, allowLocal, force bool
 	var recovery string
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -53,11 +53,12 @@ is not on the readers file, 6 when the readers file is missing or invalid.`,
 			if err != nil {
 				return err
 			}
-			return p.init(yes, allowLocal, recovery)
+			return p.init(yes, allowLocal, force, recovery)
 		},
 	}
 	f := cmd.Flags()
 	f.BoolVar(&encrypt, "encrypt", false, "seal the attributes, outputs and stored plans to the readers")
+	f.BoolVar(&force, "force", false, "seal even though meta.json is missing and the state still holds records (their data key is lost)")
 	f.BoolVar(&yes, "yes", false, "do not ask for confirmation")
 	f.BoolVar(&allowLocal, "allow-local", false, "accept a state in a local directory that only you use")
 	f.StringVar(&recovery, "recovery", "", "also set a recovery recipient, as K/N: N shares, any K rebuild its key")
@@ -89,7 +90,7 @@ func atRest(st *state.Store) error {
 	return nil
 }
 
-func (p *protectRun) init(yes, allowLocal bool, recoverySpec string) error {
+func (p *protectRun) init(yes, allowLocal, force bool, recoverySpec string) error {
 	if err := p.refuseLocal(allowLocal); err != nil {
 		return err
 	}
@@ -123,6 +124,9 @@ func (p *protectRun) init(yes, allowLocal bool, recoverySpec string) error {
 	b, err := p.backend(false)
 	if err != nil {
 		return err
+	}
+	if !force && stateLost(p.ctx, b) {
+		return engine.WithCode(engine.ExitRefused, errors.New(lostStateProblem(p.rf)+" To seal anyway, knowing that the old records stay unreadable, pass --force."))
 	}
 	st, _, _, err := p.open(b, false, false)
 	if err != nil {

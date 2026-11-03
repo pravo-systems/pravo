@@ -55,9 +55,17 @@ func (e *Engine) discover(ctx context.Context, d *config.Discovery) (*state.Disc
 	if !cfg.IsFullyKnown() {
 		return nil, fmt.Errorf("discovery %s: its scope has a value that is not known before a run", d.Name)
 	}
+	closeInputs, err := e.prepareProvider(ctx, d.ProviderKey)
+	if err != nil {
+		return nil, fmt.Errorf("discovery %s: %w", d.Name, err)
+	}
+	defer closeInputs()
 	prov, err := e.Providers.Provider(ctx, d.ProviderKey)
 	if err != nil {
 		return nil, fmt.Errorf("discovery %s: %w", d.Name, err)
+	}
+	if e.Providers.Partial(d.ProviderKey) {
+		return nil, fmt.Errorf("discovery %s: its provider is configured from a value that is not known before an apply (a resource that does not exist yet), so it cannot list; apply that resource first", d.Name)
 	}
 	// One more than the bound is asked for, to tell a list that ended at the bound
 	// from one that was cut off by it.
