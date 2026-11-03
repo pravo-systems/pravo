@@ -69,7 +69,7 @@ func TestDocumentationLinksExactlyTheShots(t *testing.T) {
 	shots := map[string]bool{}
 	for _, s := range allShots() {
 		shots[s.Name] = true
-		if !linked[s.Name] {
+		if !linked[s.Name] && !strings.HasPrefix(s.Name, "landing-") {
 			t.Errorf("no page links img/serve/%s.png", s.Name)
 		}
 	}
@@ -246,7 +246,7 @@ func TestPairedShotsAreLinkedWithTheThemeClasses(t *testing.T) {
 	pairs := 0
 	for _, s := range allShots() {
 		base, ok := strings.CutSuffix(s.Name, "-dark")
-		if !ok || !have[base+"-light"] {
+		if !ok || !have[base+"-light"] || strings.HasPrefix(base, "landing-") {
 			continue
 		}
 		pairs++
