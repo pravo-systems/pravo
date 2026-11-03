@@ -406,53 +406,68 @@ func article(r protect.Role) string {
 	return "a " + r.String()
 }
 
-// admit checks the environment before an apply: the record of the state, and the gate of an
-// environment that follows another. It returns the promotion that let the release in, nil
-// where there is no gate.
-func (e *Engine) admit(ctx context.Context) (*state.Admission, error) {
+// unchanging is a plan that changes nothing, in the infrastructure or in the state, and defers
+// nothing to the next plan. An environment that follows another takes it without a promotion,
+// since there is nothing to hold back, and it does not note that it runs the release.
+func unchanging(p *Plan) bool {
+	return p != nil && !p.NeedsApply() && p.DeferredCount() == 0
+}
+
+// admit checks the environment before the apply of plan: the record of the state, and the
+// gate of an environment that follows another. It returns the promotion that let the release
+// in, nil where there is no gate, and whether the state may note that it runs the release:
+// not when the gate is shut and the plan changes nothing, which is let through.
+func (e *Engine) admit(ctx context.Context, plan *Plan) (*state.Admission, bool, error) {
 	if e.State == nil {
-		return nil, nil
+		return nil, true, nil
 	}
 	rec, err := e.checkEnvironment(ctx)
 	if err != nil || e.Root.Environment == "" || e.Opts.Destroy {
-		return nil, err
+		return nil, err == nil, err
 	}
 	gate := e.gateOf(rec)
 	if len(gate) == 0 {
-		return nil, nil
+		return nil, true, nil
 	}
 	if e.State.Sealer() == nil {
-		return nil, nil // plan says that nothing holds it
+		return nil, true, nil // plan says that nothing holds it
 	}
 	rel, err := ReleaseOf(e.Root)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	c := e.CheckGate(ctx, rec, rel)
+	if !c.Met && unchanging(plan) {
+		return nil, false, nil
+	}
 	if !c.Met {
-		return nil, refused("%s only takes what was promoted from %s, and %s.\n\nRun these, skipping a step that is already done:\n\n%s",
+		return nil, false, refused("%s only takes what was promoted from %s, and %s.\n\nRun these, skipping a step that is already done:\n\n%s",
 			e.Root.Environment, joinAnd(gate), c.Reason, Steps(e.Root, e.Root.Environment))
 	}
-	return c.Admission, nil
+	return c.Admission, true, nil
 }
 
 func unsealedLine(env string, gate []string) string {
 	return fmt.Sprintf("Environment: %s follows %s, and its state is not sealed, so it takes any release. Seal it to hold it to what %s runs: pravo protect init --encrypt --env %s", env, joinAnd(gate), joinAnd(gate), env)
 }
 
-// CheckAdmission refuses, before an apply asks for a yes, a run that the apply would refuse
-// for its environment: a state that serves another, or a release that was not promoted.
-func (e *Engine) CheckAdmission(ctx context.Context) error {
-	_, err := e.admit(ctx)
+// CheckAdmission refuses, before an apply asks for a yes, a run of plan that the apply would
+// refuse for its environment: a state that serves another, or a release that was not promoted.
+func (e *Engine) CheckAdmission(ctx context.Context, plan *Plan) error {
+	_, _, err := e.admit(ctx, plan)
 	return err
 }
 
 // EnvironmentLine is the line that plan prints about the environment of the run: whether
-// the release was promoted into it. It is empty where there is nothing to say.
-func (e *Engine) EnvironmentLine(ctx context.Context) (string, error) {
+// the release was promoted into it. It is empty where there is nothing to say, as for a
+// plan that changes nothing in an environment that the release was not promoted into.
+func (e *Engine) EnvironmentLine(ctx context.Context, plan *Plan) (string, error) {
 	n, err := e.EnvironmentStatus(ctx)
 	if err != nil || n == nil {
 		return "", err
+	}
+	if n.Gate != nil && !n.Gate.Met && unchanging(plan) {
+		return "", nil
 	}
 	return n.Line(e.Root), nil
 }

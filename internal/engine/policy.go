@@ -318,7 +318,7 @@ func (e *Engine) JudgePlan(ctx context.Context, plan *Plan) error {
 		return nil
 	}
 	if !plan.Destroy {
-		if line, err := e.EnvironmentLine(ctx); err != nil {
+		if line, err := e.EnvironmentLine(ctx, plan); err != nil {
 			return err
 		} else if line != "" {
 			e.Opts.Progress("%s", line)

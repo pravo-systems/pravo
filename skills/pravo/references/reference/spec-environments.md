@@ -155,6 +155,8 @@ Error: $environments.prod-eu.$after names "stagign", which is not an environment
 
 An environment with `$after` takes only a release that was promoted into it, once its state is sealed. The release is the specification of the directory, named by its fingerprint, and the values of its tags other than `env`. `pravo promote` signs a promotion into the state of the environment, carrying the signed notes that the environments before it run the release, and `pravo apply` checks it against the readers file of that state and each note against the readers file of the environment it comes from. [pravo promote](promote.md) lists the checks, and [Promote a release from one environment to the next](../how-to/promote-a-release.md) runs them.
 
+A release that changes nothing in the environment passes the gate without a promotion: there is nothing to hold back. Its plan prints no `Promotion:` line, and its apply goes through without noting that the environment runs the release, so `pravo environments` still shows the release that was last promoted there, and an environment after it still waits for a promotion of the new one. A plan that defers a change to the next plan changes the environment, so it needs the promotion.
+
 A state that is not sealed takes any release: it has no signatures to check. The plan and the apply of such an environment say so, on a line that starts with `Environment:`. An environment without `$after` takes any release.
 
 ## The record of an environment
