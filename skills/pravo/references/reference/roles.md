@@ -77,6 +77,8 @@ The shares of a recovery key are not an identity, so the roles do not apply to w
 
 **The last admin.** `protect rewrap` that removes the only admin from the readers, and `protect roles` that demotes or drops the only admin, stop with exit 5 and `no admin would be left`. Make another key an admin first, or pass `--allow-no-admin` when you mean it: a recovery set is then the only way back.
 
+**Handing the admin role over.** Do it in this order: list the new admin next to the old one (`role:admin`), run `protect rewrap` so the new key can read the state, run `protect roles`, and only then remove the old key and run `protect rewrap` again. `protect roles` refuses roles in which no admin can read the state yet, because nobody could then change the roles or the readers.
+
 **A key that was taken off.** The roles of the state remember a key that an admin removed. A checkout whose readers file is out of date and still lists it is refused by `protect rewrap` and `protect roles` (`dan was taken out of the roles of the state`); `--readd NAME` says that you mean to add it back.
 
 **Roles without the pin line.** A state that holds roles that the readers file does not pin is judged by the roles in the state for every command that changes it, so deleting the `roles-genesis` line from a local file, and giving yourself `role:admin` in it, changes nothing. The refusal says `in the roles in the state` when those roles decided, and names the readers file only when the file did.

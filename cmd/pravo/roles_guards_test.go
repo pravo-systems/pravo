@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -141,5 +142,43 @@ func TestAFormerKeyIsNotAddedBackByAStaleReadersFile(t *testing.T) {
 		if text, code := runPravo(t, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
 			t.Fatalf("%v: exit %d\n%s", args, code, text)
 		}
+	}
+}
+
+// Handing the admin role over in one edit (ada out, zoe in as admin) must not store roles whose
+// only admin has no lock in the state: nobody could then rewrap, store roles or write.
+func TestAdminHandoverInOneEditIsRefusedAndTheRightOrderWorks(t *testing.T) {
+	s := plannableBucket(t)
+	pin := pinnedRoles(t, s) // ada admin, dan reader
+	_, zoeLine := person(t, filepath.Join(os.Getenv("PRAVO_CONFIG_DIR"), "id"), "zoe")
+
+	s.readers(t, s.danLine+" role:reader", zoeLine+" role:admin", pin)
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "rewrap", "--yes")
+	if code != 5 || !strings.Contains(text, "no admin would be left") || strings.Contains(text, "Make another key an admin first") {
+		t.Fatalf("rewrap of the one-edit hand-over: exit %d\n%s", code, text)
+	}
+	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	if code != 5 || !strings.Contains(text, "no admin in these roles can read the state yet") {
+		t.Fatalf("roles of the one-edit hand-over: exit %d\n%s", code, text)
+	}
+	// ada is still an admin of the stored roles, so nothing was lost.
+	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\n%s", code, text)
+	}
+
+	// The right order.
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", zoeLine+" role:admin", pin)
+	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "roles", "--yes"}} {
+		if text, code := runPravo(t, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
+			t.Fatalf("%v: exit %d\n%s", args, code, text)
+		}
+	}
+	s.readers(t, s.danLine+" role:reader", zoeLine+" role:admin", pin)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "rewrap", "--yes"); code != 0 {
+		t.Fatalf("ada leaves: exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "zoe", "protect", "roles", "--yes"); code != 0 {
+		t.Fatalf("zoe stores roles: exit %d\n%s", code, text)
 	}
 }
