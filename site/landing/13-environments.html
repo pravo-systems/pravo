@@ -10,34 +10,20 @@
 <div class="hs-tabs" role="tablist" aria-label="Specification, refusal, table and viewer"><button role="tab" id="et-code" aria-controls="ep-code" aria-selected="true"><b>01</b>main.cue</button><button role="tab" id="et-term" aria-controls="ep-term" aria-selected="false" tabindex="-1"><b>02</b>pravo promote</button><button role="tab" id="et-table" aria-controls="ep-table" aria-selected="false" tabindex="-1"><b>03</b>environments</button><button role="tab" id="et-view" aria-controls="ep-view" aria-selected="false" tabindex="-1"><b>04</b>Viewer</button></div>
 <div class="hs-body">
 <div class="hs-p on" id="ep-code" role="tabpanel" aria-labelledby="et-code">
-<figure class="code" data-lang="cue" data-status="valid" data-ln>
+<figure class="code" data-lang="cue" data-status="valid">
 <figcaption class="code-title"><span class="code-file">main.cue</span><span class="code-badge" title="Accepted">valid</span></figcaption>
-<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> estate
-</span><span class="line"><span class="ln"></span>
-</span><span class="line"><span class="ln"></span><span class="tok-kw">import</span> (
-</span><span class="line"><span class="ln"></span>	<span class="tok-str">&#34;pravo.dev/pravo&#34;</span>
-</span><span class="line"><span class="ln"></span>	loc <span class="tok-str">&#34;pravo.dev/providers/hashicorp/local&#34;</span>
-</span><span class="line"><span class="ln"></span>)
-</span><span class="line"><span class="ln"></span>
-</span><span class="line"><span class="ln"></span><span class="tok-com">// The environments, and what differs between them.</span>
-</span><span class="line"><span class="ln"></span><span class="tok-id">$environments</span>: pravo.<span class="tok-def">#Environments</span> <span class="tok-op">&amp;</span> {
+<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-id">$environments</span>: pravo.<span class="tok-def">#Environments</span> <span class="tok-op">&amp;</span> {
 </span><span class="line"><span class="ln"></span>	<span class="tok-id">dev</span>: {<span class="tok-id">workers</span>: <span class="tok-num">1</span>, <span class="tok-id">$default</span>: <span class="tok-num">true</span>}
 </span><span class="line"><span class="ln"></span>	<span class="tok-id">staging</span>: {<span class="tok-id">workers</span>: <span class="tok-num">2</span>, <span class="tok-id">$after</span>: <span class="tok-str">&#34;dev&#34;</span>}
 </span><span class="line"><span class="ln"></span>	<span class="tok-id">prod</span>: {<span class="tok-id">workers</span>: <span class="tok-num">3</span>, <span class="tok-id">$after</span>: <span class="tok-str">&#34;staging&#34;</span>}
 </span><span class="line"><span class="ln"></span>}
-</span><span class="line"><span class="ln"></span>
-</span><span class="line"><span class="ln"></span><span class="tok-com">// Each environment has its own state and its own readers.</span>
 </span><span class="line"><span class="ln"></span><span class="tok-id">$settings</span>: pravo.<span class="tok-def">#Settings</span> <span class="tok-op">&amp;</span> {
-</span><span class="line"><span class="ln"></span>	<span class="tok-id">state</span>: <span class="tok-id">path</span>: <span class="tok-str">&#34;state/</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">&#34;</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">state</span>: <span class="tok-id">path</span>:  <span class="tok-str">&#34;state/</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">&#34;</span>
 </span><span class="line"><span class="ln"></span>	<span class="tok-id">access</span>: <span class="tok-id">dir</span>: <span class="tok-str">&#34;.pravo/access/</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">&#34;</span>
 </span><span class="line"><span class="ln"></span>}
-</span><span class="line"><span class="ln"></span>
-</span><span class="line"><span class="ln"></span><span class="tok-id">$local</span>: loc.<span class="tok-def">#Provider</span>
-</span><span class="line"><span class="ln"></span>
-</span><span class="line"><span class="ln"></span><span class="tok-com">// Written once. It never names an environment.</span>
+</span><span class="line"><span class="ln"></span><span class="tok-op">...</span>
 </span><span class="line"><span class="ln"></span><span class="tok-id">conf</span>: $local.<span class="tok-def">#Resource</span>.local_file <span class="tok-op">&amp;</span> {
-</span><span class="line"><span class="ln"></span>	<span class="tok-id">filename</span>: <span class="tok-str">&#34;</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">.conf&#34;</span>
-</span><span class="line"><span class="ln"></span>	<span class="tok-id">content</span>:  <span class="tok-str">&#34;workers </span><span class="tok-op">\(</span>$environment.workers<span class="tok-op">)</span><span class="tok-str">\n&#34;</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">content</span>: <span class="tok-str">&#34;workers </span><span class="tok-op">\(</span>$environment.workers<span class="tok-op">)</span><span class="tok-str">\n&#34;</span>
 </span><span class="line"><span class="ln"></span>}
 </span></code></pre></div>
 <button class="copy" type="button" aria-label="Copy main.cue"></button>
@@ -83,7 +69,7 @@ Next: pravo promote staging</code></pre>
 </div>
 </div>
 </div>
-<p class="stage-caption">The specification, the refusal of prod, the table of environments and the viewer. Dan has applied dev. Recorded from {{data environments.version.0}} with {{data environments.version.1}}.</p>
+<p class="stage-caption">The specification (cut to its core), the refusal of prod, the table of environments and the viewer. Dan has applied dev. Recorded from {{data environments.version.0}} with {{data environments.version.1}}.</p>
 </div>
 <div class="cards env-cards">
 <a class="card spot" href="how-to/environments.html">
