@@ -505,7 +505,7 @@ func (e *Engine) preflightRecord(ctx context.Context) error {
 		return err
 	}
 	pin := e.Opts.RolesPin
-	if !(rec == nil || (rec.Name != "" && rec.RolesPin == "" && pin != "")) {
+	if rec != nil && (rec.Name == "" || rec.RolesPin != "" || pin == "") {
 		return nil
 	}
 	if err := e.State.EnsureEnvironmentFormat(pin != ""); err != nil {
