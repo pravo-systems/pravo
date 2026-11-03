@@ -189,6 +189,9 @@ func (p *protectRun) roles(yes, adoptUnsigned, allowNoAdmin bool, readd []string
 			}
 			return err
 		}
+		if err := p.verifyRolesStored(st, seq, text); err != nil {
+			return err
+		}
 	} else {
 		seq = head.Seq
 	}
@@ -377,4 +380,17 @@ func setPin(path, digest string) error {
 	}
 	kept = append(kept, protect.RolesGenesisKey+" "+digest)
 	return os.WriteFile(path, []byte(strings.Join(kept, "\n")+"\n"), 0o644)
+}
+
+// verifyRolesStored reads the roles back from the state, as every other command will, before the
+// command reports success or pins them: roles that do not parse or verify would lock everybody out.
+func (p *protectRun) verifyRolesStored(st *state.Store, seq int, text string) error {
+	chain, err := st.RolesChain(p.ctx)
+	if err != nil {
+		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("the roles were stored as version %d, and reading them back failed: %s. Nothing is pinned; do not rely on this version.", seq, printable(err.Error())))
+	}
+	if head := chain.Head(); head == nil || head.Seq != seq || head.Text != text {
+		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("the roles were stored as version %d, and reading them back gave something else. Nothing is pinned; run pravo protect check.", seq))
+	}
+	return nil
 }

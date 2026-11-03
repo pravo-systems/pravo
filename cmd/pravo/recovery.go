@@ -609,6 +609,9 @@ func (p *protectRun) recoverRoles(b state.Backend) (*recoveredRoles, error) {
 	if err := st.ReplaceRoles(p.ctx, text, time.Now()); err != nil {
 		return nil, err
 	}
+	if err := p.verifyRolesStored(st, 1, text); err != nil {
+		return nil, err
+	}
 	digest := state.TextDigest(text)
 	if err := setPin(p.rf.Path, digest); err != nil {
 		return nil, fmt.Errorf("the roles are in the state, but %s could not be written: %w. Put this line in it:\n%s %s", p.rf.shown(), err, protect.RolesGenesisKey, digest)
