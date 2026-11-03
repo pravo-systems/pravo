@@ -414,3 +414,32 @@ func TestStaleLockForcesAReadRegardlessOfAge(t *testing.T) {
 		}
 	}
 }
+
+// A node with a stale lock and no record is where a create may have reached the
+// cloud before its record was written. The plan says so in every refresh mode,
+// names the address, and points to discover and import; an apply would otherwise
+// create the object a second time.
+func TestStaleLockOfANodeWithNoRecordIsWarnedOf(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	s := spec{cue: "a: " + thing("a", "content: \"x\"") + "\n", resources: []string{"a"}}
+	plantStaleLock(t, h.state, "a", "T1")
+	for _, mode := range []RefreshMode{RefreshAge, RefreshNone} {
+		var warned []string
+		opts := Options{DefaultRefresh: "6h", Refresh: mode, Progress: func(f string, a ...any) { warned = append(warned, fmt.Sprintf(f, a...)) }}
+		if _, err := h.engine(s, opts).Plan(ctx); err != nil {
+			t.Fatal(err)
+		}
+		var got string
+		for _, w := range warned {
+			if strings.HasPrefix(w, "Warning: a: ") {
+				got = w
+			}
+		}
+		for _, want := range []string{"txn T1", "no record", "pravo discover", "import"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("refresh mode %v: warning %q lacks %q (all: %q)", mode, got, want, warned)
+			}
+		}
+	}
+}

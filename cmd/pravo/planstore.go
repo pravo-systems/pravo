@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 	"github.com/pravo-systems/pravo/pravo"
@@ -351,7 +352,8 @@ func planApproveCmd() *cobra.Command {
 approvals before a plan is applied (set approvals in its rule, see the policy
 reference), and the apply counts the approvals of keys in the readers file
 whose role suffices. The approval is for exactly this plan; a plan made again
-needs its own. Give the -t and -T that the plan was made with. With --webhook
+needs its own. A reader cannot approve. The key that stored the plan can sign,
+but its approval counts only where the policy sets self. Give the -t and -T that the plan was made with. With --webhook
 a plan.approved event is POSTed to that URL.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -361,6 +363,12 @@ a plan.approved event is POSTed to that URL.`,
 			}
 			if st.Protection().Sealed == nil {
 				return errors.New("the state is not sealed: an approval is a signature (pravo protect init --encrypt)")
+			}
+			// An approval of a reader never counts, so it is not signed.
+			if root, err := loadRoot(); err == nil {
+				if msg, code := roleProblem(readersOf(root), st, protect.RoleWriter, "approve a plan"); msg != "" {
+					return engine.WithCode(code, errors.New(msg))
+				}
 			}
 			id, err := ps.Resolve(ctx, args[0])
 			if err != nil {

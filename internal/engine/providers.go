@@ -629,3 +629,12 @@ func writePack(path string, s *schema.ProviderSchema) {
 		_ = os.Remove(tmp.Name())
 	}
 }
+
+// Partial reports whether the provider instance key is running with a
+// configuration that had a value not known yet.
+func (m *Providers) Partial(key string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	inst := m.instances[key]
+	return inst != nil && inst.partial
+}

@@ -201,6 +201,33 @@ func (e *Engine) fillProviderInputs(ctx context.Context, due []*state.Resource) 
 	for _, sr := range due {
 		keys[sr.ProviderKey] = true
 	}
+	return e.fillInputsOf(ctx, keys)
+}
+
+// prepareProvider gives the configuration of the provider instance key the values
+// it is set up from, as a plan does, before the provider is started. A discovery
+// and the read of an adoption use it, so that a provider with a token read from a
+// secret is configured with the secret and not with an unknown value. The
+// returned function closes what the preparation opened.
+func (e *Engine) prepareProvider(ctx context.Context, key string) (func(), error) {
+	if e.txn == nil {
+		e.txn = e.State.Begin("plan", e.Opts.Command)
+		e.resetRun(false)
+		e.forgetReads()
+	}
+	err := e.fillInputsOf(ctx, map[string]bool{key: true})
+	done := func() {
+		e.keepOpen = false
+		e.closeEphemerals(context.WithoutCancel(ctx))
+	}
+	if err != nil {
+		done()
+		return nil, err
+	}
+	return done, nil
+}
+
+func (e *Engine) fillInputsOf(ctx context.Context, keys map[string]bool) error {
 	e.cueMu.Lock()
 	e.current, e.seeded = e.Value, false
 	e.providerDeps = e.providerDepsOf()

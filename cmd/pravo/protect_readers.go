@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -199,6 +200,22 @@ func downgradeProblem(rf readersFile) string {
 // nothing to say but that it is not sealed.
 func missingStateProblem(rf readersFile) string {
 	return fmt.Sprintf("the repository lists readers in %s, but the state does not exist yet. Create it sealed with: %s", rf.shown(), strings.TrimSpace("pravo protect init --encrypt "+engine.TagFlags(flags.Tags)))
+}
+
+// lostStateProblem is what a command says when meta.json is missing but the
+// state still holds records. Running protect init would write a new data key and
+// make those records unreadable.
+func lostStateProblem(rf readersFile) string {
+	return fmt.Sprintf("the repository lists readers in %s, but the state has no meta.json while its records, transactions or resources are still there. Do not run protect init: it would write a new data key and make those records unreadable. Restore meta.json from a bucket version (versioning keeps the deleted object), or from a copy of the state.", rf.shown())
+}
+
+// missingStateProblemOf picks between a state that does not exist yet and one
+// that lost its meta.json.
+func missingStateProblemOf(ctx context.Context, root *config.Root, rf readersFile) string {
+	if stateLost(ctx, stateBackendIfAny(ctx, root)) {
+		return lostStateProblem(rf)
+	}
+	return missingStateProblem(rf)
 }
 
 // expectsSealed reports whether the repository expects the state to be sealed:

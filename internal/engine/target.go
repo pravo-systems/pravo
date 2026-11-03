@@ -273,6 +273,13 @@ func (e *Engine) loadSuspects() {
 // left with no time of a read, when the plan does not read anything: the record
 // of such a node is what the command that stopped left.
 func (e *Engine) warnSuspects() {
+	for _, addr := range slices.Sorted(maps.Keys(e.suspects)) {
+		if e.State.Get(addr) == nil {
+			// No record: a create may have reached the cloud and been lost. No refresh
+			// can find it, so say so in every refresh mode.
+			e.Opts.Progress("Warning: %s: %s, and the state has no record of it: if the create reached the cloud the object exists but is not tracked, and an apply would create it again. Look for it with pravo discover, or import it, before you apply", addr, stoppedApply(e.suspects[addr]))
+		}
+	}
 	if e.Opts.Refresh != RefreshNone {
 		return
 	}

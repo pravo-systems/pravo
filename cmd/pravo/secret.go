@@ -102,7 +102,7 @@ func openSecrets(cmd *cobra.Command, access secretAccess) (*secretRun, error) {
 	if access == secretWrite && stateMissing(ctx, root) {
 		// Opening a store for writing would make one, and a first writer makes it in the clear.
 		if rf.Found {
-			return nil, engine.WithCode(engine.ExitRefused, errors.New(missingStateProblem(rf)))
+			return nil, engine.WithCode(engine.ExitRefused, errors.New(missingStateProblemOf(ctx, root, rf)))
 		}
 		return nil, engine.WithCode(engine.ExitRefused, fmt.Errorf("%w: there is no state yet. Seal one first: list the readers in %s (pravo id new prints a line) and run pravo protect init --encrypt", state.ErrSecretsNeedSeal, rf.shownDir()))
 	}

@@ -379,3 +379,38 @@ func TestMissingStateFollowsTheAccessDirectory(t *testing.T) {
 		t.Errorf("the state was not created: %v", err)
 	}
 }
+
+// TestLostMetaJSONIsNotAdvisedToInit is a sealed state whose meta.json is gone
+// while its records are still in the bucket. Running protect init would write a
+// new data key and make those records unreadable, so no command advises it and
+// protect init refuses without --force.
+func TestLostMetaJSONIsNotAdvisedToInit(t *testing.T) {
+	requireSealing(t)
+	ids := isolateIdentities(t)
+	e := newS3Env(t, false)
+	_, ada := person(t, ids, "ada")
+	e.readers(t, ada)
+	if text, code := runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
+		t.Fatalf("init: exit %d\n%s", code, text)
+	}
+	e.f.Objects["prod/rec/0123456789abcdef"] = []byte("sealed record")
+	delete(e.f.Objects, "prod/meta.json")
+	before := len(e.f.Objects)
+
+	for _, args := range [][]string{{"plan"}, {"apply", "-auto-approve"}} {
+		text, code := runPravo(t, e.dir, args...)
+		if code != 5 || !strings.Contains(text, "no meta.json") || !strings.Contains(text, "bucket version") {
+			t.Errorf("%v: exit %d\n%s", args, code, text)
+		}
+		if strings.Contains(text, "Create it sealed") {
+			t.Errorf("%v: advises sealing again:\n%s", args, text)
+		}
+	}
+	text, code := runPravo(t, e.dir, "protect", "init", "--encrypt", "--yes")
+	if code != 5 || !strings.Contains(text, "--force") {
+		t.Fatalf("init without --force: exit %d\n%s", code, text)
+	}
+	if len(e.f.Objects) != before {
+		t.Errorf("a refused init changed the bucket: %d objects, was %d", len(e.f.Objects), before)
+	}
+}

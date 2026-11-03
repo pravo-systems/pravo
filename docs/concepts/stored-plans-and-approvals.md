@@ -194,7 +194,7 @@ A rule asks for approvals by setting `approvals` on the plans it matches: `min` 
 <text x="698" y="54" text-anchor="middle" style="fill:var(--text);font-size:12px;font-weight:600">dan applies</text>
 <text x="698" y="72" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">pravo apply ID</text>
 <text x="698" y="88" text-anchor="middle" style="fill:var(--text-3);font-size:10.5px">the finish names eve</text>
-<text x="0" y="134" style="fill:var(--text-3);font-size:11.5px">An admin needs no approval. A plan that edits or removes a policy that asks for approvals needs one admin's approval of its own.</text>
+<text x="0" y="134" style="fill:var(--text-3);font-size:11.5px">An admin needs no approval. A plan that edits a policy that asks for approvals needs one admin's approval of its own; removing a policy is an admin's apply.</text>
 <text x="0" y="152" style="fill:var(--text-3);font-size:11.5px">An approval is a signature over the digest of the plan: it holds for that plan alone, and whether the key may approve is read from the readers file at apply.</text>
 </svg>
 :::
@@ -284,7 +284,7 @@ Apply complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <id>]
 
 An approval is a signature over the digest of the plan, so it holds for that plan alone, and a plan that is made again needs its own. Whether the key may approve is decided at the apply, from the readers file: a key that was demoted, or that is not in the file any more, stops counting. `pravo apply` of a plan file, or of no plan at all, refuses a plan that a policy asks approvals for, because a file has nowhere to keep one. An admin needs no approval, and a readers file without roles makes every key an admin, so a state with one member applies as it always did. The signed finish of the apply names the approvals it carried, so [`pravo state log`](../reference/state.md) and the History tab of [the viewer](the-viewer.md#the-inspector) say who approved what, long after the plan is collected.
 
-One rule closes the loop. A writer may edit a policy, and a plan that changes a policy has no resource change, so no rule judges it. A plan that edits or removes a policy that asks for approvals therefore needs one admin's approval of its own, from a key other than the one that stored it: a writer cannot end the requirement with a plan that nothing judges. Adding a policy needs none.
+One rule closes the loop. A writer may edit a policy, and a plan that changes a policy has no resource change, so no rule judges it. A plan that edits a policy that asks for approvals therefore needs one admin's approval of its own, from a key other than the one that stored it: a writer cannot end the requirement with a plan that nothing judges. Removing a policy is an admin's apply, and no approval makes it a writer's. Adding a policy needs none.
 
 ## What a stored plan does not do
 

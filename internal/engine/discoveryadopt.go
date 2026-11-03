@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -32,9 +33,17 @@ func (e *Engine) ReadAdoption(ctx context.Context, providerKey, typ string, targ
 	if rs == nil {
 		return "", fmt.Errorf("provider %s has no resource type %q to adopt the object as", providerKey, typ)
 	}
+	closeInputs, err := e.prepareProvider(ctx, providerKey)
+	if err != nil {
+		return "", err
+	}
+	defer closeInputs()
 	prov, err := e.Providers.Provider(ctx, providerKey)
 	if err != nil {
 		return "", err
+	}
+	if e.Providers.Partial(providerKey) {
+		return "", errors.New("the provider is configured from a value that is not known before an apply (a resource that does not exist yet), so it cannot read the object; apply that resource first")
 	}
 	types := map[string]tftypes.Type{}
 	for name, s := range ps.AllResources() {
