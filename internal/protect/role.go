@@ -232,7 +232,8 @@ func ParseRolesSet(text string) ([]Reader, []FormerKey, []Vouch, error) {
 		}
 		// A former key's name may hold "+" and "/": pravo up to v0.1.4 named an unlisted signer
 		// after its base64 fingerprint, and those roles are stored. The name is only a label.
-		if len(f) < 3 || !(nameRE.MatchString(f[0]) || (len(f) == 3 && formerNameRE.MatchString(f[0]))) || seen[strings.ToLower(f[0])] {
+		validName := len(f) >= 3 && (nameRE.MatchString(f[0]) || (len(f) == 3 && formerNameRE.MatchString(f[0])))
+		if !validName || seen[strings.ToLower(f[0])] {
 			return nil, nil, nil, fmt.Errorf("roles line %d: the name is not valid or is used twice", n+1)
 		}
 		seen[strings.ToLower(f[0])] = true
