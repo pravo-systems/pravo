@@ -165,6 +165,13 @@ func (e *Engine) persistRead(addr string, sr *state.Resource, sch *schema.Schema
 // it is left as it is: what the refresh read belongs to the record this command
 // holds, not to the one in the state.
 func (e *Engine) recordRefresh(addr, action string, before int, n *state.Resource) bool {
+	// The transaction is in the state before the record that names it.
+	if !e.State.Staged(addr) && e.txn != nil {
+		if err := e.txn.Ensure(); err != nil {
+			e.Opts.Progress("Warning: %s: what the refresh read is not recorded: %v", addr, err)
+			return false
+		}
+	}
 	err := e.State.Refresh(n, e.txnID())
 	switch {
 	case errors.Is(err, state.ErrChanged):

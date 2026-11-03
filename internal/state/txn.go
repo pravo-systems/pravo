@@ -79,6 +79,8 @@ type Txn struct {
 	store *Store
 	mu    sync.Mutex
 	t     Transaction
+	// started is set once the transaction was written as running (see Start).
+	started bool
 }
 
 // Begin starts a transaction of the given kind (plan, apply, destroy, import, edit).
@@ -100,6 +102,33 @@ func (t *Txn) ID() string { return t.t.ID }
 func (t *Txn) Start() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	return t.start()
+}
+
+// Ensure starts the transaction unless it was started. A command calls it before the first
+// record it writes: a record names the transaction that wrote it, and the transaction is in
+// the state before the record is, so that a run that is killed leaves a record whose
+// transaction is there (and running, which reads as not checked) and never one that no
+// transaction accounts for. A command that writes no record does not call it.
+func (t *Txn) Ensure() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.started {
+		return nil
+	}
+	return t.start()
+}
+
+// Started reports whether the transaction was written as running.
+func (t *Txn) Started() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.started
+}
+
+// start is Start for a caller that holds the lock of t. Started again, the transaction is
+// written and signed again, with what was set since.
+func (t *Txn) start() error {
 	if err := t.store.writable(); err != nil {
 		return err
 	}
@@ -108,7 +137,11 @@ func (t *Txn) Start() error {
 	if err := t.signStart(); err != nil {
 		return err
 	}
-	return t.store.putJSON("txn/"+t.t.ID+".json", t.t)
+	if err := t.store.putJSON("txn/"+t.t.ID+".json", t.t); err != nil {
+		return err
+	}
+	t.started = true
+	return nil
 }
 
 // Record adds a change to the transaction.
@@ -145,7 +178,7 @@ func (t *Txn) Finish(status, summary string, record bool) error {
 func (t *Txn) FinishError(status, summary, full string, record bool) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if len(t.t.Changes) == 0 && !record {
+	if len(t.t.Changes) == 0 && !record && !t.started {
 		return nil
 	}
 	now := time.Now().UTC()

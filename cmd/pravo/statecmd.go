@@ -280,9 +280,11 @@ func stateMvCmd(load func() (*state.Store, error)) *cobra.Command {
 					}
 				}
 				if changed {
+					was := other.Revision
 					if err := st.Set(other, txn.ID()); err != nil {
 						return err
 					}
+					txn.Record(d, "relink", was, other.Revision)
 				}
 			}
 			out.Printf("Moved %s to %s\n", args[0], args[1])
