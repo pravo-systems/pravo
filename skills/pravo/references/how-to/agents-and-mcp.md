@@ -71,7 +71,7 @@ random_integer: {
 	$kind:   "resource"
 	$type:   "random_integer"
 	$source: "registry.opentofu.org/hashicorp/random"
-	$from?: __string
+	$from?: __string | [...__string]
 	$import?: __string | {...}
 	$depends_on?: [..._]
 	$lifecycle?: #Lifecycle
