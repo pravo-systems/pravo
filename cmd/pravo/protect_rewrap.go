@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -291,9 +292,25 @@ func hasAdmin(roles, file []protect.Reader) bool {
 	return false
 }
 
+// adminReadsState tells whether an admin of roles is listed in the readers file and already has a
+// lock in the state (is not among missing, the names the file lists and the state does not wrap for).
+func adminReadsState(roles, file []protect.Reader, missing []string) bool {
+	for _, r := range roles {
+		if r.Role != protect.RoleAdmin {
+			continue
+		}
+		for _, f := range file {
+			if protect.SSHFingerprint(f.Sign) == protect.SSHFingerprint(r.Sign) && !slices.Contains(missing, f.Name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // noAdminError is the refusal of a change that leaves nobody who may change who reads the state.
 func noAdminError(who []string, verb string) error {
-	return fmt.Errorf("this %s %s, and no admin would be left to read the state and change its readers or roles. Make another key an admin first, or pass --allow-no-admin (a recovery set is then the only way back).", verb, nameList(safeNames(who)))
+	return fmt.Errorf("this %s %s, and no admin would be left to read the state and change its readers or roles. Keep an admin among the readers: list the new admin next to the old one and run pravo protect rewrap and pravo protect roles first, then remove the old key. Or pass --allow-no-admin (a recovery set is then the only way back).", verb, nameList(safeNames(who)))
 }
 
 // refuseFormer stops a key that the roles in the state record as former, because an admin took

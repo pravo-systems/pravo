@@ -130,6 +130,9 @@ func (p *protectRun) roles(yes, adoptUnsigned, allowNoAdmin bool, readd []string
 		}
 		return engine.WithCode(engine.ExitRefused, noAdminError(demoted, "demotes or removes"))
 	}
+	if !allowNoAdmin && prot.Sealed != nil && !adminReadsState(next, p.rf.Readers, prot.Sealed.Status(p.rf.Readers).Missing) {
+		return engine.WithCode(engine.ExitRefused, errors.New("no admin in these roles can read the state yet: the admin in the readers file has no lock in the state. Hand the role over in two steps: list the new admin next to the old one, run pravo protect rewrap and then pravo protect roles, and only then remove the old key (rewrap again). Or pass --allow-no-admin (a recovery set is then the only way back)."))
+	}
 	vouches, err := newVouches(p.ctx, st, chain, before, next, seen, adoptUnsigned)
 	if err != nil {
 		return err
