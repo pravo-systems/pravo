@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/pravo-systems/pravo/internal/protect"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 	"github.com/pravo-systems/pravo/pravo"
