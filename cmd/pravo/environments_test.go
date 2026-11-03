@@ -625,3 +625,64 @@ func TestTheRecordPinsTheRolesOfItsEnvironment(t *testing.T) {
 		t.Fatalf("record by ada:\n%s", text)
 	}
 }
+
+// A note signed by a key that left the readers file does not count, and the refusal names the
+// key and the steps that put a current writer's note in its place.
+func TestPromoteAfterAnOffboardingNamesTheDepartedKey(t *testing.T) {
+	l := newLadder(t, "ada:admin", "dan:writer")
+	l.must(t, "dan", "apply", "-t", "env=dev", "--auto-approve")
+	readers := filepath.Join(l.dir, ".pravo", "access", "readers.txt")
+	data, err := os.ReadFile(readers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept []string
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if !strings.HasPrefix(line, "dan ") {
+			kept = append(kept, line)
+		}
+	}
+	if err := os.WriteFile(readers, []byte(strings.Join(kept, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, env := range []string{"dev", "staging"} {
+		l.must(t, "ada", "protect", "rewrap", "--yes", "-t", "env="+env)
+	}
+	text, code := l.as(t, "ada", "promote", "staging", "--sign-only")
+	if code != 5 || !strings.Contains(text, "signed by dan, whose key is not in the readers file of dev") ||
+		!strings.Contains(text, "    pravo apply --env dev\n    pravo promote staging") {
+		t.Fatalf("promote after the offboarding: exit %d\n%s", code, text)
+	}
+}
+
+// After a destroy, "pravo environments" shows the environment as destroyed, not as running the
+// release, and the next step is the apply.
+func TestEnvironmentsShowsADestroyedEnvironment(t *testing.T) {
+	l := newLadder(t, "ada")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "promote", "staging", "--auto-approve")
+	l.must(t, "ada", "destroy", "-t", "env=staging", "--auto-approve")
+	text := l.must(t, "ada", "environments")
+	if !strings.Contains(text, "destroyed after it ran this release") {
+		t.Fatalf("environments after the destroy:\n%s", text)
+	}
+	if !strings.Contains(text, "Next: pravo apply --env staging") {
+		t.Fatalf("next step after the destroy:\n%s", text)
+	}
+	text, code := l.as(t, "ada", "promote", "prod", "--sign-only")
+	if code != 5 || !strings.Contains(text, "staging was destroyed after it ran this release") {
+		t.Fatalf("promote from a destroyed environment: exit %d\n%s", code, text)
+	}
+}
+
+// A writer's promotion after a withdrawal counts, and says who withdrew the release and why.
+func TestPromotionAfterAWithdrawalSaysWhoWithdrewIt(t *testing.T) {
+	l := newLadder(t, "ada:admin", "bob:writer")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "promote", "staging", "--auto-approve")
+	l.must(t, "ada", "promote", "prod", "--revoke", "corrupts uploads")
+	text := l.must(t, "bob", "promote", "prod", "--sign-only")
+	if !strings.Contains(text, "Note: ada withdrew this release from prod") || !strings.Contains(text, "(corrupts uploads)") {
+		t.Fatalf("promote after the withdrawal:\n%s", text)
+	}
+}

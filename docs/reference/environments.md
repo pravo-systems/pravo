@@ -47,6 +47,7 @@ The last column says one or more of:
 | `runs this directory` | Its newest note is for the release of this directory, with the same tags. |
 | `runs this directory in part` | Its newest note is for the release, and its apply [deferred changes to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan). The next step is an apply there, and the environments after it are not ready. |
 | `promoted by NAME`, `waived by NAME` | The release was promoted into it, or waived, and is not applied yet. |
+| `destroyed after it ran this release` | The newest run of the state is a complete `pravo destroy`, which came after the note. The next step is an apply there. |
 | `ready to promote` | Every environment it follows runs the release. The next step is `pravo promote`. |
 | `nothing applied yet` | The state has no note. |
 | `runs this specification with other tags` | Same fingerprint, other values of the tags. |
@@ -62,7 +63,7 @@ Then it prints the release of this directory, with its tags, and the next comman
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE. |
 | `--access-dir DIR` | none | The directory of the readers file of the default environment, or of the one `--env` names. Every other environment reads the file that its `$settings.access.dir` names, else `.pravo/access`. |
 
-With `--json` it prints `{"flow", "release", "environments", "next"}`: the promotion flow as text, the release (`fingerprint` and the names of its `tags`), one object for each environment (`name`, `after`, `default`, `state`, `sealed`, `runs`, `release`, `promoted`, `problem`) and the next command.
+With `--json` it prints `{"flow", "release", "environments", "next"}`: the promotion flow as text, the release (`fingerprint` and the names of its `tags`), one object for each environment (`name`, `after`, `default`, `state`, `sealed`, `runs`, `release` (`runs`, `partial`, `destroyed`, `promoted`, `waived` or `ready`), `promoted`, `problem`) and the next command.
 
 ## pravo environments diff
 
@@ -78,7 +79,7 @@ The first apply in the state of an environment records which environment the sta
 pravo environments record --env prod
 ```
 
-It prints `Recorded: this state serves prod, which follows staging.` When the state has a record, an admin of the state runs it: an admin of the roles the record pins, once it pins them. For a specification that declares no environments, it records that the state serves none. A state that does not exist yet is refused: its first apply records what it serves.
+A first apply that would write the record, by a key that cannot raise the format of the state (a bucket policy that lets only an admin put `meta.json`), is refused before it changes anything, and prints this command for an admin. It prints `Recorded: this state serves prod, which follows staging.` When the state has a record, an admin of the state runs it: an admin of the roles the record pins, once it pins them. For a specification that declares no environments, it records that the state serves none. A state that does not exist yet is refused: its first apply records what it serves.
 
 ## Example
 

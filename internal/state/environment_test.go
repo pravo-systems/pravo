@@ -250,3 +250,34 @@ func TestRunNoteSignsItsDeferredChanges(t *testing.T) {
 		t.Fatalf("a note whose deferred changes were taken out still verifies: %v", st)
 	}
 }
+
+// A record that pins the roles raises the state to the format after the environments, so that
+// a pravo that predates the pin stops at the format instead of failing to verify a signature,
+// and a key that cannot put meta.json finds that out from EnsureEnvironmentFormat.
+func TestAPinnedRecordRaisesTheFormat(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	b := testBackends()[0].make(t)
+	ada, bob := testIdentity(t, "ada"), testIdentity(t, "bob")
+	s := sealedStore(t, b, ada, bob)
+	asBob := openIdentity(t, metaGuard{b}, bob)
+	if err := asBob.EnsureEnvironmentFormat(true); err == nil {
+		t.Fatal("a key that cannot put meta.json raised the format")
+	}
+	if err := s.PutEnvironmentRecord(ctx, 1, EnvironmentRecord{Name: "dev"}); err != nil {
+		t.Fatal(err)
+	}
+	if s.Format() != FormatEnvironment {
+		t.Fatalf("an unpinned record: format %d, want %d", s.Format(), FormatEnvironment)
+	}
+	if err := s.PutEnvironmentRecord(ctx, 2, EnvironmentRecord{Name: "dev", RolesPin: strings.Repeat("a", 64)}); err != nil {
+		t.Fatal(err)
+	}
+	if s.Format() != FormatEnvRoles {
+		t.Fatalf("a pinned record: format %d, want %d", s.Format(), FormatEnvRoles)
+	}
+	// Once it is raised, a writer who cannot put meta.json passes the check.
+	if err := openIdentity(t, metaGuard{b}, bob).EnsureEnvironmentFormat(true); err != nil {
+		t.Fatalf("after the raise: %v", err)
+	}
+}

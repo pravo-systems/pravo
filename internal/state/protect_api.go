@@ -30,14 +30,17 @@ import (
 // format 3 with policies (policy.go). Format 5 is format 4 with secrets (secret.go).
 // Format 6 is format 5 with the signed objects of environments: the record of the
 // environment the state serves, the notes of what it runs and promotions
-// (environment.go).
+// (environment.go). Format 7 is format 6 where the record of the environment pins the roles
+// of the state: a pravo that predates the pin signs that record without it, so it would fail
+// to verify the record with no hint of why, and now stops at the format instead.
 const (
 	FormatImmutable   = 2
 	FormatSealed      = 3
 	FormatPolicy      = 4
 	FormatSecret      = 5
 	FormatEnvironment = 6
-	MaxFormat         = FormatEnvironment
+	FormatEnvRoles    = 7
+	MaxFormat         = FormatEnvRoles
 )
 
 var (

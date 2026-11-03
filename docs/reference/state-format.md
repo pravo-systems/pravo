@@ -143,12 +143,12 @@ pravo refuses a store with a higher format number:
 
 ```sh run exit=1
 cp pravo.state/meta.json meta.json.bak
-echo '{"format":7,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
+echo '{"format":8,"lineage":"abc","created":"2026-01-01T00:00:00Z"}' > pravo.state/meta.json
 pravo plan
 ```
 
 ```text out
-Error: state at ./pravo.state was written by a newer pravo (format 7)
+Error: state at ./pravo.state was written by a newer pravo (format 8)
 ```
 
 ```sh run
@@ -169,6 +169,7 @@ A command that writes the state, such as `plan` or `apply`, creates the director
 | 4 | Policies. Format 3, with `policy/<name>@<seq>.json`, the signed versions of the policies of the root. |
 | 5 | Secrets. Format 4, with `secret/<name>@<seq>.json`, the versions of the secrets of the state. |
 | 6 | Environments. Format 5, with the signed record of the environment the state serves, the notes of what it runs and the promotions into it. |
+| 7 | Format 6, where the record of the environment pins the roles of the state. A pravo from before the pin cannot verify such a record, and refuses the state with `written by a newer pravo (format 7)`. |
 
 A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all six. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
 

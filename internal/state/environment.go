@@ -259,7 +259,13 @@ func (s *Store) PutEnvironmentRecord(ctx context.Context, seq int, rec Environme
 	}
 	if signed {
 		rec.Signature = &sig
-		if err := s.setFormat(FormatEnvironment); err != nil {
+		format := FormatEnvironment
+		if rec.RolesPin != "" {
+			// A pravo before the pin signs the record without it and cannot verify this one:
+			// the format makes it stop with "written by a newer pravo".
+			format = FormatEnvRoles
+		}
+		if err := s.setFormat(format); err != nil {
 			return err
 		}
 	}
@@ -284,6 +290,20 @@ func (s *Store) PutEnvironmentRecord(ctx context.Context, seq int, rec Environme
 		return nil
 	}
 	return fmt.Errorf("%w: %s exists", ErrEnvironmentChanged, key)
+}
+
+// EnsureEnvironmentFormat raises the state to the format that the record of the environment
+// needs, ahead of the apply that writes the record: a key that cannot put meta.json finds
+// out before anything is created. withPin says the record will pin the roles. A state that
+// is not sealed holds no signed objects and is left alone.
+func (s *Store) EnsureEnvironmentFormat(withPin bool) error {
+	if s.Sealer() == nil {
+		return nil
+	}
+	if withPin {
+		return s.setFormat(FormatEnvRoles)
+	}
+	return s.setFormat(FormatEnvironment)
 }
 
 func sameUpstreams(a, b []Upstream) bool {

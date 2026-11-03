@@ -118,6 +118,9 @@ type envState struct {
 	// runs.
 	NoteBy      string
 	NoteProblem string
+	// Destroyed is set when the newest transaction is a complete destroy that came after
+	// the note: the note says what the state ran before it was destroyed.
+	Destroyed bool
 }
 
 func (s *envState) close() {
@@ -183,6 +186,11 @@ func (e *environmentsOf) open(ctx context.Context, name string) *envState {
 		s.NoteProblem = engine.NoteProblem(note, name, st.Lineage(), s.rf.Readers, time.Now())
 		if _, who := note.Verify(st.Lineage(), s.rf.Readers); who != "" {
 			s.NoteBy = who
+		}
+	}
+	if note != nil {
+		if t, err := st.LatestTransaction(); err == nil && t != nil && t.Kind == "destroy" && t.Status == "applied" && t.Started.After(note.At) {
+			s.Destroyed = true
 		}
 	}
 	return s
@@ -397,6 +405,12 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 				}
 			}
 			line = fmt.Sprintf("Promoted to %s: %s.", env, strings.Join(ran, "; "))
+			// A withdrawal ends the promotions signed before it, and any writer's new
+			// promotion counts again. Say so, with who withdrew it and why.
+			g := engine.GateReader{State: st, Environment: env, Readers: eff.Readers, Now: time.Now()}
+			if by, ago, why, ok := g.Withdrawal(ctx, rel); ok {
+				line += fmt.Sprintf("\nNote: %s withdrew this release from %s %s ago (%s). This promotion lifts that; an admin withdraws it again with --revoke.", by, env, engine.RoundAge(ago), why)
+			}
 			if shared := sharedReaders(envs, env, gate); shared != "" {
 				line += "\n" + out.C(ui.Dim, shared)
 			}
@@ -423,6 +437,9 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 			emitLine(map[string]any{"kind": "already_running", "environment": env, "fingerprint": rel.Fingerprint})
 		} else {
 			out.Println(already)
+			if cmd.Flags().Changed("refresh") {
+				out.Println("\n--refresh was ignored: nothing was promoted, so no plan ran.")
+			}
 		}
 		return nil
 	}
@@ -514,7 +531,9 @@ func readUpstream(ctx context.Context, envs *environmentsOf, root *config.Root, 
 	case !s.Sealed:
 		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is not sealed, so it keeps no signed note of what it runs. Seal it: pravo protect init --encrypt --env %s\nAn admin can promote without it: pravo promote %s --waive \"reason\"", up, up, env))
 	case s.NoteProblem != "":
-		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("%s, so it does not show what %s runs", s.NoteProblem, up))
+		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("%s, so it does not show what %s runs. The key may belong to someone who left: a current writer of %s applies the release again, and the promotion follows.\n\nRun these, skipping a step that is already done:\n\n%s", s.NoteProblem, up, up, engine.Steps(root, env)))
+	case s.Destroyed:
+		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("%s was destroyed after it ran this release, so there is nothing to promote from.\n\nRun these, skipping a step that is already done:\n\n%s", up, engine.Steps(root, env)))
 	}
 	if want := rec.Lineage(up); want != "" && want != s.st.Lineage() {
 		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is another than the one %s follows: its settings point at a state that its record does not name.\nIf the settings are right, an admin makes the record of %s say so:\n\n    pravo environments record --env %s", up, env, env, env))
