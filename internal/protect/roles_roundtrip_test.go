@@ -31,7 +31,7 @@ func simName(r *rand.Rand, pool []string) string {
 	if r.Intn(4) == 0 {
 		n := 1 + r.Intn(64)
 		var sb strings.Builder
-		for i := 0; i < n; i++ {
+		for i := range n {
 			c := "abcXYZ019"[r.Intn(9)]
 			if i > 0 && r.Intn(8) == 0 {
 				c = "._-"[r.Intn(3)]
@@ -48,12 +48,12 @@ func TestRolesRoundTrip(t *testing.T) {
 	bad := map[string]int{}
 	first := map[string]string{}
 	const runs = 3000
-	for seed := int64(0); seed < runs; seed++ {
+	for seed := range int64(runs) {
 		r := rand.New(rand.NewSource(seed))
 		nfile := 1 + r.Intn(6)
 		var file []Reader
 		names := map[string]bool{}
-		for i := 0; i < nfile; i++ {
+		for range nfile {
 			nm := simName(r, pool)
 			if names[strings.ToLower(nm)] || strings.EqualFold(nm, RecoveryName) || !nameRE.MatchString(nm) {
 				continue
@@ -78,15 +78,15 @@ func TestRolesRoundTrip(t *testing.T) {
 					prev = append(prev, Reader{Name: simName(r, pool), Sign: f.Sign, Role: RoleReader})
 				}
 			}
-			for i := 0; i < r.Intn(3); i++ {
+			for range r.Intn(3) {
 				prev = append(prev, Reader{Name: simName(r, pool), Sign: simKey(r), Role: RoleWriter})
 			}
-			for i := 0; i < r.Intn(3); i++ {
+			for range r.Intn(3) {
 				prevFormer = append(prevFormer, FormerKey{Name: simName(r, pool), Key: simFP(r)})
 			}
 		}
 		var seen []string
-		for i := 0; i < r.Intn(3); i++ {
+		for range r.Intn(3) {
 			seen = append(seen, simFP(r))
 		}
 		// prev must itself be something that was stored, so its names must be unique and valid
